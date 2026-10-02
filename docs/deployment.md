@@ -6,4 +6,6 @@
 
 平台能力、套件可安裝與商店核准是不同驗證，必須分開記錄。細節與官方來源見 [發佈及授權研究](resreach/2026-10-03-store-distribution-and-license-analysis.md)。
 
-本次沒有購買憑證、建立金鑰、開發者帳號、遠端 repo 或公開任何檔案。
+已建立 private GitHub repo [sammykenny2/desktop-work-fleet](https://github.com/sammykenny2/desktop-work-fleet)，本機 origin 指向該 repo，使用 main。這是原始碼與文件的遠端儲存，尚未發布產品或 GitHub Release。
+
+尚未購買憑證、建立簽章金鑰或商店開發者帳號。

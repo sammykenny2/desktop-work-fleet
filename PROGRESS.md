@@ -5,7 +5,7 @@
 ## 已完成
 
 - 使用 project-bootstrap 的 bootstrap-project 技能與 minimal preset 建立獨立骨架。
-- 初始化本機 Git main；未配置遠端。
+- 初始化本機 Git main，並建立 private GitHub repo [sammykenny2/desktop-work-fleet](https://github.com/sammykenny2/desktop-work-fleet)，設定為 origin。
 - 依最新澄清整理 backlog／快速記錄需求。
 - 建立 docs/resreach 研究索引與六份日期命名文件。
 - 補充資料來源、衝突、macOS 公開 API、上架與授權、檢視模型與驗證方案。
@@ -21,7 +21,6 @@
 - Windows MSIX 與 Linux 桌面相容性驗證。
 - iOS／Android App、QR 配對與任何商店提交。
 - Runtime dependencies、SBOM 與最終產物授權檢查。
-- GitHub 遠端 repo 建立與發布。
 
 ## 驗證
 

@@ -1,8 +1,9 @@
 # 正式產品架構草案：backlog、同步與多端呈現
 
 - 日期：2026-10-03。
-- 狀態：Proposed；詳細設計提案，尚未取代 ADR-002 的驗證版實作。
-- 使用者最新方向：先設計架構，桌面實測與多視窗實作不作為目前工作的前置門檻。
+- 狀態：Deferred；保留為完整 PM／自架 server 的後續設計，不列為 1.0 MVP 必做。
+- 使用者最新方向：Google 帳號＋file based 簡單便箋，第一版不架 local server。
+  最新方案見 [Drive MVP 研究](2026-10-03-google-drive-notes-mvp-feasibility.md)；下文保留原提案供後續參考。
 - 基線：0a19aec，0.1.0 AppKit／Web／Python SQLite 驗證版。
 - 執行狀態只記在 [PROGRESS](../../PROGRESS.md)。
 

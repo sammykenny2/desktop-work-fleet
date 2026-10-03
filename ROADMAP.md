@@ -1,15 +1,16 @@
 # 開發方向
 
-更新：2026-10-03。使用者最新要求是先做好正式架構；
-以下是工作順序，不維護完成清單，不承諾日期。執行狀態見 PROGRESS.md。
+更新：2026-10-03。使用者將 1.0 收斂為 Google 帳號＋file based 簡單便箋。
+以下為工作順序；完成狀態只記在 PROGRESS.md，不承諾發佈日期。
 
-1. **領域模型**：定義 Note、獨立 Item、Project／Environment、View 及每機版面；保持快速記錄的簡單預設。
-2. **同步與本機資料契約**：修訂、操作收據、cursor／epoch、草稿／outbox、權限與恢復界線。
-3. **技術與發佈選型**：比較共享 UI／client、native adapter、server runtime、固定依賴授權與商店 bundle。
-4. **正式產品的第一條完整流程**：快速記錄、持久化、第二 client 收資料與完成同步；附帶資料遷移。
-5. **平台整合**：多便箋視窗、每機內容突出、桌面層與輸入／焦點驗收。
-6. **平台發佈**：Apple／Google、Windows MSIX 與具體 Linux 組合；保留未測限制。
-7. **按使用證據擴充**：保存檢視、更多整理方式與外部工具整合。
+1. **MVP 契約**：普通便箋、NoteSource／FileStore／renderer 邊界；選定 Drive 空間、資料格式與衝突策略。
+2. **Google 整合**：應用端 OAuth、最小 scope、帳號與憑證隔離、跨裝置讀寫；不架自家便箋 server。
+3. **可用便箋流程**：新增／編輯／刪除／還原、可靠草稿、同步、匯出、桌面鎖定與解鎖。
+4. **1.0 平台與發佈**：先確認同版平台範圍，再完成其正式簽章、登入、商店配置與發佈驗收。
+5. **後續擴充**：其他 source／renderer、PM、完整 Item/View 與自架 server。
 
-[正式架構草案](docs/resreach/2026-10-03-product-architecture-blueprint.md) 為 Proposed。
-0.1.0 原型及測試證據保留；本輪沒有恢復平台測試或開始重寫程式。
+[Drive MVP 研究](docs/resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 與
+[ADR-004](docs/decisions/004-google-drive-notes-mvp.md) 為 Proposed 具體方案。
+[原完整架構](docs/resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
+Windows/macOS/Linux、Apple/Google 商店的原始平台目標保留；
+本輪沒有默認縮小為只有 macOS，也沒有要求所有平台必須同版完成。

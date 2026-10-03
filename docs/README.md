@@ -10,7 +10,7 @@
 | [PROGRESS](../PROGRESS.md) | 進度權威 | 已完成與未執行工作 |
 | [ROADMAP](../ROADMAP.md) | 候選路線 | 下一步驗證順序 |
 | [需求](requirements.md) | 研究摘要 | 連結完整需求與待確認 UX |
-| [架構](architecture.md) | 驗證版現況＋正式架構提案 | 現有實作與下一階段邊界 |
+| [架構](architecture.md) | 驗證版現況＋1.0 MVP 提案 | Drive 便箋／來源與 renderer 邊界 |
 | [Setup](setup-guide.md) | 專案化 | 本階段使用方式 |
 | [Testing](testing.md) | 專案化 | 實際檢查與未驗證範圍 |
 | [Deployment](deployment.md) | 本機驗證版 | 各平台與商店未測範圍 |
@@ -32,14 +32,16 @@
 | [上架與授權](resreach/2026-10-03-store-distribution-and-license-analysis.md) | 商店條件、Linux 範圍與授權邊界 |
 | [獨立架構與驗證](resreach/2026-10-03-independent-architecture-and-validation-plan.md) | 候選責任分界、分階段工作及 bootstrap 來源 |
 
-- [正式產品架構草案](resreach/2026-10-03-product-architecture-blueprint.md)：使用者最新優先方向；Item／Note／View、同步、本機資料與平台 adapter 的 Proposed 設計。
+- [Google Drive 便箋 MVP](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)：最新 1.0 方向、Keep／Drive 可行性、檔案衝突、Google 登入及商店差距。
+- [完整產品架構草案](resreach/2026-10-03-product-architecture-blueprint.md)：Deferred，保留未來 PM／自架 server 設計。
 
 ## 決策與規格
 
 - [決策索引](decisions/README.md)：只有已明確接受的專案邊界列為 Accepted。
 - [驗證版規格](specs/001-validation-version.md)：實作範圍與限制。
 - [ADR-002](decisions/002-validation-runtime.md)：驗證版 runtime 與資料來源決策。
-- [ADR-003](decisions/003-product-architecture-boundaries.md)：正式產品模組與資料邊界提案，尚未 Accepted。
+- [ADR-003](decisions/003-product-architecture-boundaries.md)：Deferred，保留完整產品的資料／模組邊界。
+- [ADR-004](decisions/004-google-drive-notes-mvp.md)：Proposed，Google Drive 檔案便箋 1.0。
 - [驗證報告](validation/2026-10-03-validation-report.md)：實機與資料測試證據、失敗／未測矩陣。
 - [macOS 驗證版接手計畫](plans/001-validation-version-macos-handoff.md)：已授權目標、Mac 上的接手順序、驗收證據與可直接使用的 goal 描述；現已接續實作；原始接手基線保留，最新進度見 PROGRESS。
 - [計畫索引與模板](plans/README.md)：後續技術選型與規格仍需依實作證據記錄。

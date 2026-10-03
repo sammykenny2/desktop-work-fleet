@@ -2,8 +2,9 @@
 
 ## Status
 
-Proposed，2026-10-03。使用者已要求優先設計架構；以下具體設計尚為提案。
-不取代 ADR-002 對 0.1.0 驗證版的記錄，也不代表已選定正式 framework。
+Deferred，2026-10-03。原 Proposed 內容保留為完整 PM／自架 server 的後續設計。
+使用者改以 Google 帳號＋file based 便箋作為 1.0 MVP，詳見 [ADR-004](004-google-drive-notes-mvp.md)。
+本文件不再是 1.0 的必做架構，也不取代 ADR-002 對 0.1.0 驗證版的歷史記錄。
 
 ## Context
 

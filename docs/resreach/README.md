@@ -13,9 +13,12 @@
 
 ## 驗證版之後的設計
 
-[正式產品架構草案](2026-10-03-product-architecture-blueprint.md) 依使用者最新要求，
-先定義資料模型、同步與 client／平台邊界，再進行多視窗與平台整合。
-具體設計為 Proposed；0.1.0 現況另見架構入口與驗證報告。
+最新方向是 [Google Drive 便箋 MVP](2026-10-03-google-drive-notes-mvp-feasibility.md)：
+1.0 以 Google 帳號＋file based 便箋起步，不架 local server，保留來源與 renderer 抽象。
+Keep 的官方 API 限制、Drive 儲存選擇、衝突及登入／上架工作均有來源依據。
+
+[完整產品架構草案](2026-10-03-product-architecture-blueprint.md) 與 ADR-003 已標為 Deferred，
+保留未來 PM／自架 server 的設計。0.1.0 現況另見架構入口與驗證報告。
 
 ## 如何解讀
 

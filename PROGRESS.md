@@ -4,11 +4,16 @@
 
 ## 本輪優先方向
 
-使用者要求先設計正式架構，暫不推進 Mac 桌面手勢測試或多視窗實作。
-已整理 [正式架構草案](docs/resreach/2026-10-03-product-architecture-blueprint.md) 與
-[ADR-003（Proposed）](docs/decisions/003-product-architecture-boundaries.md)：
-便箋／獨立事項／檢視、同步契約、本機資料、平台 adapter、選型取捨與遷移界線。
-本次只更新文件，尚未採納正式 framework、搬移程式或修正 runtime。
+使用者將 1.0.0 收斂為 Google 帳號＋file based 的簡單便箋，第一版不架 local server，
+同時要求先考慮異質來源與 renderer。已完成 [Drive MVP 可行性研究](docs/resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)
+及 [ADR-004（Proposed）](docs/decisions/004-google-drive-notes-mvp.md)。
+
+建議採 Google Drive，Keep 官方介面不符合普通帳號双向編輯。
+appDataFolder／drive.file 與衝突格式仍待定案，1.0 平台發佈範圍尚待確認。
+Google 登入、OAuth 專案、SDK、Drive 寫入與商店配置都尚未實作或操作。
+
+ADR-003 與完整產品架構研究改為 Deferred，保留 PM／自架 server 的後續設計。
+本次只更新文件；既有 0.1.0 程式與測試證據保留。
 
 ## 目前交付
 

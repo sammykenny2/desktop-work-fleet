@@ -20,6 +20,9 @@ Keep 的官方 API 限制、Drive 儲存選擇、衝突及登入／上架工作�
 [完整產品架構草案](2026-10-03-product-architecture-blueprint.md) 與 ADR-003 已標為 Deferred，
 保留未來 PM／自架 server 的設計。0.1.0 現況另見架構入口與驗證報告。
 
+[AppData 備份與還原設計](2026-10-03-appdata-backup-and-restore-design.md) 補上官方檔案能力、
+來源無關格式、離線快照界線與安全匯入語意，並連到 SPEC-002／PLAN-002。
+
 ## 如何解讀
 
 - **使用者需求**：對話中已明確表達的意圖與限制。

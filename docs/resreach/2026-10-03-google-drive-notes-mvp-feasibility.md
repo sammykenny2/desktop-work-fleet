@@ -65,7 +65,8 @@ AppDataFolder 的內容需由本 App 編輯；Google Drive／Keep 不會提供�
 - 純文字便箋的新增、編輯、刪除／還原；簡單 checklist 可獨立評估，無 Project 或任務 workflow。
 - 多便箋桌面展示、每機位置／尺寸／突出設定、鎖定穿透與主動解鎖編輯。
 - 多裝置同步、本機快取與可靠草稿、可辨識的 pending／衝突提示。
-- 資料匯出，以及 Google 授權撤銷、配額／網路錯誤時的可恢復行為。
+- 資料匯出／從備份匯入，以及 Google 授權撤銷、配額／網路錯誤時的可恢復行為。
+  詳見 [備份還原規格](../specs/002-portable-backup-and-restore.md)；本輪規劃基線採 appDataFolder。
 
 不將自架 server、QR 配對、團隊權限、多來源同時聚合、PM 看板或 Agent 狀態納入 1.0。
 未來多 provider 與多 renderer 保留接口；第一版只實作已選定的一個 provider 與發佈平台。

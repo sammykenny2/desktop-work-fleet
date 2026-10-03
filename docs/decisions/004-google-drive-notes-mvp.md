@@ -19,14 +19,16 @@ Drive 可儲存本 App 的資料檔案。
 提議：
 
 - 第一個來源使用 Google Drive API，以使用者自己的帳號授權。
-- 優先考慮 appDataFolder + drive.appdata；若要求使用者可見檔案則評估 drive.file，
-  在實作前選定，不同時維護兩份真相。
+- 本次規劃基線為 appDataFolder + drive.appdata；使用者透過 App 匯出／匯入備份檔。
+  若未來要求直接在 Drive 管理工作檔案，再評估獨立 drive.file 模式，不同時維護兩份真相。
 - 1.0 提供基本便箋、桌面鎖定／解鎖、跨裝置同步、草稿與衝突保留。
 - 用 NoteSource 區分資料來源；檔案來源由 FileNoteSource + FileStore adapter 實作。
   Renderer 只用 NoteViewModel／編輯命令，不直接使用 Google token 或 API。
 - 一台機器的便箋視窗共用本機 store／同步協調；每機版面與共享本文分離。
 - 檔案同步先比較不可變版本記錄與可證實的條件式寫入，禁止靜默最後寫入者覆蓋。
 - Google 授權與內容同步都由 App 直接對 Google；不新增自家常駐 backend。
+- 手動備份使用來源無關的 ZIP／JSON，首版還原採預覽後匯入為新便箋；
+  草稿、衝突與中斷續傳見 [ADR-005](005-portable-backup-and-restore.md)。
 - ADR-003 的 PM／自架 server 路線延後，保留全文與未來適用性。
 
 詳細證據與待決問題見 [Drive MVP 可行性](../resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)。

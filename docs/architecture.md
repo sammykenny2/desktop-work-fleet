@@ -12,7 +12,14 @@
 [完整產品草案](resreach/2026-10-03-product-architecture-blueprint.md) 與
 [ADR-003（Deferred）](decisions/003-product-architecture-boundaries.md) 全文保留。
 
-Google 整合尚未實作。以下保留可執行 0.1.0 的實際架構，不能當成 1.0 已改為 Drive。
+備份由來源無關的 BackupService 取得一致的本機快照，輸出公開 ZIP／JSON。
+匯入先驗證與預覽，以新的便箋身份加入本機交易與正常 outbox；草稿留待使用者保存。
+來源 adapter 管同步，renderer 接收 ViewModel；兩者都不自行定義備份格式。
+詳見 [SPEC-002](specs/002-portable-backup-and-restore.md)、
+[ADR-005](decisions/005-portable-backup-and-restore.md) 及
+[PLAN-002](plans/002-google-drive-notes-mvp.md)。
+
+Google 整合與備份新格式尚未實作。以下保留可執行 0.1.0 的實際架構，不能當成 1.0 已改為 Drive。
 
 ## 0.1.0 驗證版架構
 

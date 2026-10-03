@@ -51,6 +51,9 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version](001-validation-version.md) | Backlog 驗證版 | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |
 
+目前新增規格：[SPEC-002 可攜備份與安全還原](002-portable-backup-and-restore.md)（Draft）；
+相關 [PLAN-002](../plans/002-google-drive-notes-mvp.md)，執行狀態見根目錄 PROGRESS.md。
+
 ## For AI Agents
 
 1. **Before implementing**: Create spec for complex features

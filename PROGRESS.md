@@ -8,12 +8,22 @@
 同時要求先考慮異質來源與 renderer。已完成 [Drive MVP 可行性研究](docs/resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)
 及 [ADR-004（Proposed）](docs/decisions/004-google-drive-notes-mvp.md)。
 
-建議採 Google Drive，Keep 官方介面不符合普通帳號双向編輯。
-appDataFolder／drive.file 與衝突格式仍待定案，1.0 平台發佈範圍尚待確認。
+已完成 [1.0 分階段計畫](docs/plans/002-google-drive-notes-mvp.md)、
+[備份規格](docs/specs/002-portable-backup-and-restore.md) 與
+[備份研究](docs/resreach/2026-10-03-appdata-backup-and-restore-design.md)。
+規劃基線是 Drive appDataFolder；ZIP＋公開 JSON、快照範圍標示、
+預覽後匯入為新便箋、草稿／衝突保留及中斷續傳見 [ADR-005](docs/decisions/005-portable-backup-and-restore.md)。
+ADR-004／005 仍為 Proposed，SPEC／PLAN 為 Draft；不代表已實作或已接受所有細節。
+
+接續順序：契約與選型 → 本機核心／備份往返 → Google 同步 → UI 整合 → 選定平台發佈。
+尚待確定 1.0 平台發佈範圍、正式 runtime 與同步契約；不再以重做 Mac 探索性 probe 作為下一步。
 Google 登入、OAuth 專案、SDK、Drive 寫入與商店配置都尚未實作或操作。
+本輪未恢復先前暫停的驗證 goal。
 
 ADR-003 與完整產品架構研究改為 Deferred，保留 PM／自架 server 的後續設計。
 本次只更新文件；既有 0.1.0 程式與測試證據保留。
+文件檢查：51 份 Markdown、195 個相對連結、UTF-8／LF 與 git diff --check 通過。
+本輪沒有執行產品測試或獨立審閱；作者的格式／連結檢查不算獨立審閱。
 
 ## 目前交付
 

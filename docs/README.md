@@ -34,6 +34,7 @@
 
 - [Google Drive 便箋 MVP](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)：最新 1.0 方向、Keep／Drive 可行性、檔案衝突、Google 登入及商店差距。
 - [完整產品架構草案](resreach/2026-10-03-product-architecture-blueprint.md)：Deferred，保留未來 PM／自架 server 設計。
+- [AppData 備份還原](resreach/2026-10-03-appdata-backup-and-restore-design.md)：官方能力、快照範圍與還原取捨。
 
 ## 決策與規格
 
@@ -42,6 +43,9 @@
 - [ADR-002](decisions/002-validation-runtime.md)：驗證版 runtime 與資料來源決策。
 - [ADR-003](decisions/003-product-architecture-boundaries.md)：Deferred，保留完整產品的資料／模組邊界。
 - [ADR-004](decisions/004-google-drive-notes-mvp.md)：Proposed，Google Drive 檔案便箋 1.0。
+- [ADR-005](decisions/005-portable-backup-and-restore.md)：Proposed，來源無關的備份格式與新增式還原。
+- [SPEC-002](specs/002-portable-backup-and-restore.md)：Draft，備份內容、格式、還原語意與驗收案例。
+- [PLAN-002](plans/002-google-drive-notes-mvp.md)：Draft，1.0 契約／核心／Google／UI／發佈順序。
 - [驗證報告](validation/2026-10-03-validation-report.md)：實機與資料測試證據、失敗／未測矩陣。
 - [macOS 驗證版接手計畫](plans/001-validation-version-macos-handoff.md)：已授權目標、Mac 上的接手順序、驗收證據與可直接使用的 goal 描述；現已接續實作；原始接手基線保留，最新進度見 PROGRESS。
 - [計畫索引與模板](plans/README.md)：後續技術選型與規格仍需依實作證據記錄。

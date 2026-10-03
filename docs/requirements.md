@@ -9,7 +9,11 @@
 
 具體可行性與限制見 [Drive MVP 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)。
 研究推薦 Google Drive；Keep 官方 API 不符合普通帳號雙向便箋編輯。
-儲存空間／衝突格式與 1.0 同版平台範圍尚待定案，Google 整合尚未實作。
+最新規劃以 appDataFolder 為基線，包含手動檔案備份與匯入還原。
+[備份規格](specs/002-portable-backup-and-restore.md) 定義公開 ZIP／JSON、
+草稿與衝突保留、預覽、新 ID 匯入及工作續傳；首版不提供整庫覆蓋回滾。
+[實作計畫](plans/002-google-drive-notes-mvp.md) 定義交付順序與驗收條件。
+衝突協定／正式 runtime 與 1.0 同版平台範圍尚待定案，Google 整合尚未實作。
 
 ## 持續保留的產品目標
 

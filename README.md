@@ -10,6 +10,7 @@
 - Mac 已實際建置／啟動，驗證真實資料更新、鎖定政策、背景焦點、解鎖／重鎖。
 - HTTP／SQLite、草稿與真實 WebKit 操作有可重現測試。
 - 1.0 方向改為 [Google Drive 檔案便箋 MVP](docs/resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)：Google 登入、不架 local server、保留来源／renderer 邊界；尚未實作。原完整架構研究保留為後續方向。
+- 已整理 [1.0 實作計畫](docs/plans/002-google-drive-notes-mvp.md) 及 [備份還原規格](docs/specs/002-portable-backup-and-restore.md)：appDataFolder、公開 ZIP／JSON、預覽後匯入新便箋；均為規劃，尚未實作。
 - 真實桌面滑鼠點擊／框選／拖拉、完整 Spaces 矩陣、其他平台與商店仍未驗證。
 - [驗證報告](docs/validation/2026-10-03-validation-report.md) 明列通過、失敗／阻礙及未測；執行進度以 [PROGRESS.md](PROGRESS.md) 為準。
 
@@ -24,9 +25,9 @@ bash scripts/macos/start-validation.sh
 
 ## 產品方向
 
-- 用便箋記錄尚未處理的事情與靈感，保留簡單的 Todo／In Progress／Done。
-- Windows、macOS、Linux 桌面展示共享內容，預設唯讀且滑鼠穿透。
-- Mac／Web 共用 SQLite 權威來源；手機可透過 HTTPS 瀏覽器配對，實機尚未測。
+- 1.0 用普通便箋記錄尚未處理的事情與靈感，結構化任務狀態留待後續。
+- Windows、macOS、Linux 桌面展示共享內容，預設唯讀且滑鼠穿透；同版發佈範圍待定。
+- 1.0 規劃 Google Drive 同步與可攜檔案備份；目前 SQLite／HTTPS 配對屬於 0.1.0 驗證版。
 - iOS、macOS、Android App 以 Apple／Google 商店為目標。
 - 保留清單、看板與不同分組方式的可能性，不強迫使用者操作複雜工作流程。
 

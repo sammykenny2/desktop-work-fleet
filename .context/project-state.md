@@ -4,20 +4,32 @@ Updated: 2026-10-03.
 
 ## Current focus
 
-The active goal is to deliver a version that can validate the documented concerns. The user is switching to macOS to continue implementation; docs/plans/001-validation-version-macos-handoff.md provides the handoff and goal text. Product code, platform probes, dependency installation and the bootstrap updater have not started. Preparing this handoff does not complete the product goal.
+The user's latest direction is architecture design before more macOS desktop tests
+or multi-window implementation. The product blueprint and ADR-003 are Proposed;
+they do not select the final framework or replace the working prototype.
 
-The primary need is quick capture and visible unfinished work. Agent execution management is deferred. The repository name is desktop-work-fleet.
+Version 0.1.0 exists: Swift/AppKit and WebKit on macOS, a native ES-module web
+editor, and a Python standard-library SQLite service. Its scope and validation
+limits are recorded in ADR-002 and the validation report.
+
+Quick capture and visible unfinished work remain the primary need.
+Agent orchestration is deferred.
 
 ## Entry points
 
 - docs/README.md: document inventory.
+- PROGRESS.md: authoritative execution status and known Windows restore failure.
+- docs/architecture.md: implemented architecture and proposed direction.
+- docs/resreach/2026-10-03-product-architecture-blueprint.md: detailed design.
+- docs/decisions/003-product-architecture-boundaries.md: Proposed boundaries.
+- docs/validation/2026-10-03-validation-report.md: existing macOS evidence.
 - docs/resreach/README.md: dated research; spelling is intentional.
-- PROGRESS.md: authoritative execution status.
-- docs/decisions/001-independent-backlog-first-foundation.md: accepted boundaries.
 
 ## Unresolved choices
 
-Framework, source of truth, sync protocol, offline editing scope and platform support matrix are not selected.
+The production UI framework, client sharing strategy, server runtime, detailed
+sync wire format and final platform support matrix remain undecided.
+ADR-002 selects the validation runtime only.
 
 ## Roles
 

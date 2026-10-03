@@ -11,6 +11,12 @@
 5. [商店發佈、Linux 範圍與授權](2026-10-03-store-distribution-and-license-analysis.md)
 6. [獨立架構與驗證計畫](2026-10-03-independent-architecture-and-validation-plan.md)
 
+## 驗證版之後的設計
+
+[正式產品架構草案](2026-10-03-product-architecture-blueprint.md) 依使用者最新要求，
+先定義資料模型、同步與 client／平台邊界，再進行多視窗與平台整合。
+具體設計為 Proposed；0.1.0 現況另見架構入口與驗證報告。
+
 ## 如何解讀
 
 - **使用者需求**：對話中已明確表達的意圖與限制。

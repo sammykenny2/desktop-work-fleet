@@ -2,6 +2,14 @@
 
 更新：2026-10-03。本檔是本 repo 的執行狀態權威。
 
+## 本輪優先方向
+
+使用者要求先設計正式架構，暫不推進 Mac 桌面手勢測試或多視窗實作。
+已整理 [正式架構草案](docs/resreach/2026-10-03-product-architecture-blueprint.md) 與
+[ADR-003（Proposed）](docs/decisions/003-product-architecture-boundaries.md)：
+便箋／獨立事項／檢視、同步契約、本機資料、平台 adapter、選型取捨與遷移界線。
+本次只更新文件，尚未採納正式 framework、搬移程式或修正 runtime。
+
 ## 目前交付
 
 0.1.0 可操作驗證版已實作，從 `scripts/macos/start-validation.sh` 建置並啟動。
@@ -26,6 +34,8 @@
 - 可重現建置／啟動、API／安全／部署文件、runtime inventory 與 notices。
 
 ## 限制與剩餘工作
+
+- Windows 唯讀檢查：Python 3.13.7 下資料測試 12 通過、1 錯誤；restore 對 rb handle 執行 fsync 失敗（Bad file descriptor）。8 個 Node 草稿測試通過。這不是 Mac 結果的撤銷；Windows restore 仍待修正。
 
 - 真實點擊、雙擊、桌面框選、圖示拖拉：事件注入權限為 false，尚未取得通過證據。
 - 模式已啟動／驗證旗標；Finder 圖示層次與全桌面行為仍需人工觀察。

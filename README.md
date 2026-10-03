@@ -9,6 +9,7 @@
 
 - Mac 已實際建置／啟動，驗證真實資料更新、鎖定政策、背景焦點、解鎖／重鎖。
 - HTTP／SQLite、草稿與真實 WebKit 操作有可重現測試。
+- 下一階段優先 [正式架構設計](docs/resreach/2026-10-03-product-architecture-blueprint.md)；多便箋視窗與平台實測留在後續整合。
 - 真實桌面滑鼠點擊／框選／拖拉、完整 Spaces 矩陣、其他平台與商店仍未驗證。
 - [驗證報告](docs/validation/2026-10-03-validation-report.md) 明列通過、失敗／阻礙及未測；執行進度以 [PROGRESS.md](PROGRESS.md) 為準。
 

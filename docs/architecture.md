@@ -1,4 +1,15 @@
-# 驗證版架構
+# 架構：驗證版現況與正式產品設計
+
+## 目前優先：正式架構
+
+使用者要求先做好架構，多便箋視窗與 Mac 桌面實測留到後續整合階段。
+詳見 [正式產品架構草案](resreach/2026-10-03-product-architecture-blueprint.md) 與
+[ADR-003（Proposed）](decisions/003-product-architecture-boundaries.md)。
+
+建議以獨立 Item／Note／View、單一 client 同步核心及平台 adapter 為邊界；
+正式 framework 與 server runtime 尚未因本提案而定案。以下保留可執行 0.1.0 的實際架構。
+
+## 0.1.0 驗證版架構
 
 更新：2026-10-03。採用範圍與選擇理由見 [ADR-002](decisions/002-validation-runtime.md)。
 

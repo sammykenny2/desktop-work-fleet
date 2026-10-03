@@ -5,7 +5,7 @@ project-specific procedures that are too detailed for always-loaded instructions
 
 ## Project Context
 
-Start with docs/README.md and docs/resreach/README.md. Product requirements are backlog-first; runtime and data-source choices are not selected. See docs/decisions/001-independent-backlog-first-foundation.md for accepted boundaries and PROGRESS.md for execution status.
+Start with docs/README.md and docs/resreach/README.md. Product requirements are backlog-first. The executable validation runtime is recorded in docs/decisions/002-validation-runtime.md; see ADR-001 for accepted product boundaries and PROGRESS.md for execution status.
 
 ## Workflows
 

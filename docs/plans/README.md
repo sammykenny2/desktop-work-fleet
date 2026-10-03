@@ -52,7 +52,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
 | [000-template](./000-template.md) | Template | - | - |
-| [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Ready for Mac execution; no product implementation | [Research requirements](../resreach/2026-10-03-backlog-first-product-requirements.md); SPEC not yet written |
+| [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Validation version implemented; platform matrix incomplete | [SPEC-001](../specs/001-validation-version.md) |
 <!-- Add new plans above this line -->
 
 ## For AI Agents

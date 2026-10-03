@@ -2,6 +2,10 @@
 
 更新：2026-10-03。
 
-目前沒有產品服務、listener、dev server 或已分配連接埠。Backend、自架方式、LAN discovery 與同步協定尚未選定。
+驗證服務預設 `127.0.0.1:9847`，以 `--host`／`--port` 配置。編輯頁與 API 同 origin。
+啟動時若 port 衝突直接失敗，不會停止其他服務。測試使用 OS 分配的隨機 port。
+已讀取可取得的 project-bootstrap port registry；未修改外部 registry。
 
-未來新增服務時記錄目的、可配置連接埠、驗證方式與存取範圍；不要因 bootstrap 示例中出現某個 port 就當作已被採用。
+macOS App 只有 network.client entitlement，沒有 listener。
+LAN 必須使用 `--cert`、`--key`、`--origin https://主機:port`，手機需信任憑證且可達該主機。
+QR 本身不提供 NAT 穿透；外網需自行部署可信 HTTPS 或 VPN。沒有啟用 Bonjour 或 UDP discovery。

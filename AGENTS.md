@@ -16,9 +16,9 @@
 
 - Type: single-project
 - Purpose: Backlog-first work notes with cross-device sync and optional desktop presentation.
-- Entry points: README.md, docs/README.md, docs/resreach/README.md; no application entry point yet.
-- Stack and versions: Not selected; project-bootstrap minimal, documentation-only foundation.
-- Test command: No application test runner; documentation checks are described in docs/testing.md.
+- Entry points: README.md, docs/README.md, src/server/work_fleet.py, src/macos/main.swift.
+- Stack and versions: Validation version uses Swift/AppKit, WebKit, native ES modules and Python 3.12+ standard-library SQLite; see ADR-002 and the runtime inventory.
+- Test commands: `python3 -m unittest discover -s tests -p 'test_*.py' -v`, `node --test tests/drafts.test.js`; macOS build/probe commands are in docs/testing.md.
 - Subprojects: none declared; nested AGENTS.md files provide scoped instructions
   and do not by themselves prove a monorepo architecture.
 
@@ -32,7 +32,7 @@
 - PROGRESS.md is the execution-status source. Do not create a competing task list.
 - Build this product independently. Do not bulk-port another application's code,
   UI, assets or data contracts. Any targeted future reuse needs source/license notes.
-- Framework, backend and sync choices are unselected. Generic A2A/MCP bootstrap
+- Validation runtime choices are recorded in ADR-002; broader platform packaging remains open. Generic A2A/MCP bootstrap
   material does not imply those protocols are part of the product.
 
 ## Task Routing

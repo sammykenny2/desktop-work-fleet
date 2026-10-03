@@ -1,0 +1,103 @@
+[
+  {
+    "container": true,
+    "event": "launch",
+    "level": -2147483604,
+    "locked": true,
+    "screens": 1,
+    "time": "2026-10-03T00:49:08Z"
+  },
+  {
+    "denied": true,
+    "errorCode": 513,
+    "errorDomain": "NSCocoaErrorDomain",
+    "event": "sandbox_write",
+    "time": "2026-10-03T00:49:08Z"
+  },
+  {
+    "event": "paired",
+    "time": "2026-10-03T00:49:08Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 0,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 0,
+    "time": "2026-10-03T00:49:08Z"
+  },
+  {
+    "containsPermanentToken": false,
+    "event": "qr",
+    "roundTrip": true,
+    "time": "2026-10-03T00:49:09Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 1,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 1,
+    "time": "2026-10-03T00:49:10Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 1,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 1,
+    "time": "2026-10-03T00:49:12Z"
+  },
+  {
+    "event": "background_focus",
+    "time": "2026-10-03T00:49:12Z",
+    "unchanged": true
+  },
+  {
+    "canBecomeKey": true,
+    "event": "unlocked",
+    "ignoresMouse": false,
+    "time": "2026-10-03T00:49:12Z"
+  },
+  {
+    "canBecomeKey": true,
+    "count": 1,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": false,
+    "isKey": false,
+    "locked": false,
+    "revisionSum": 1,
+    "time": "2026-10-03T00:49:14Z"
+  },
+  {
+    "canBecomeKey": false,
+    "event": "relocked",
+    "ignoresMouse": true,
+    "isKey": false,
+    "time": "2026-10-03T00:49:16Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 1,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 1,
+    "time": "2026-10-03T00:49:16Z"
+  },
+  {
+    "app_exit": 0
+  }
+]

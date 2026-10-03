@@ -1,0 +1,128 @@
+[
+  {
+    "container": true,
+    "event": "launch",
+    "level": -2147483602,
+    "locked": true,
+    "screens": 1,
+    "time": "2026-10-03T00:54:40Z"
+  },
+  {
+    "denied": true,
+    "errorCode": 513,
+    "errorDomain": "NSCocoaErrorDomain",
+    "event": "sandbox_write",
+    "time": "2026-10-03T00:54:40Z"
+  },
+  {
+    "event": "paired",
+    "time": "2026-10-03T00:54:40Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 0,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 0,
+    "time": "2026-10-03T00:54:40Z"
+  },
+  {
+    "containsPermanentToken": false,
+    "event": "qr",
+    "roundTrip": true,
+    "time": "2026-10-03T00:54:41Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 1,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 1,
+    "time": "2026-10-03T00:54:42Z"
+  },
+  {
+    "canBecomeKey": false,
+    "count": 1,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": true,
+    "isKey": false,
+    "locked": true,
+    "revisionSum": 1,
+    "time": "2026-10-03T00:54:44Z"
+  },
+  {
+    "event": "background_focus",
+    "time": "2026-10-03T00:54:44Z",
+    "unchanged": true
+  },
+  {
+    "canBecomeKey": true,
+    "event": "unlocked",
+    "ignoresMouse": false,
+    "time": "2026-10-03T00:54:44Z"
+  },
+  {
+    "event": "web_start",
+    "phase": 1,
+    "time": "2026-10-03T00:54:44Z"
+  },
+  {
+    "checks": [
+      "quick capture persisted through WebKit",
+      "checklist toggles persist",
+      "losing draft survives conflict",
+      "offline request retained durably",
+      "offline retry creates one record",
+      "lost response retry deduplicated end to end",
+      "Done hides from active and remains recoverable",
+      "delete and restore through UI",
+      "quota failure blocks draft switch",
+      "storage recovery preserves current text"
+    ],
+    "event": "web_checks",
+    "phase": 1,
+    "time": "2026-10-03T00:54:46Z"
+  },
+  {
+    "canBecomeKey": true,
+    "count": 4,
+    "event": "snapshot",
+    "frontmostUnchanged": true,
+    "ignoresMouse": false,
+    "isKey": false,
+    "locked": false,
+    "revisionSum": 10,
+    "time": "2026-10-03T00:54:46Z"
+  },
+  {
+    "event": "web_start",
+    "phase": 2,
+    "time": "2026-10-03T00:54:46Z"
+  },
+  {
+    "checks": [
+      "draft survives actual WebView reload",
+      "recover draft through UI"
+    ],
+    "event": "web_checks",
+    "phase": 2,
+    "time": "2026-10-03T00:54:46Z"
+  },
+  {
+    "canBecomeKey": false,
+    "event": "relocked",
+    "ignoresMouse": true,
+    "isKey": false,
+    "time": "2026-10-03T00:54:46Z"
+  },
+  {
+    "app_exit": 0
+  }
+]

@@ -1,58 +1,58 @@
-# 驗證與限制
+# 建置、測試與證據
 
-更新：2026-10-03。
+更新：2026-10-03。具體通過／失敗／未測見 [驗證報告](validation/2026-10-03-validation-report.md)。
 
-## 本階段範圍
+## 可重現命令
 
-本 repo 只有研究與 bootstrap 骨架，沒有應用測試 runner、產品 build、UI 或 API。以下檢查只針對文件與 scaffold，不代表同步、平台功能或商店合規已通過。
+從 checkout 根目錄，無需 pip/npm install：
 
-## 可重現檢查
-
-在 project-bootstrap checkout：
-
-```powershell
-.\scripts\windows\Test-Templates.ps1 -FailOnWarning
-```
-
-在此 repo 有已追蹤修改時：
-
-```powershell
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+node --test tests/drafts.test.js
+node --check src/web/app.js
+bash scripts/macos/build-app.sh
+python3 scripts/testing/macos_probe.py --web
+python3 scripts/testing/macos_probe.py --mode 0
+python3 scripts/testing/macos_probe.py --mode 2
+python3 scripts/testing/check_docs.py
 git diff --check
-git diff --cached --check
 ```
 
-初次提交前需先暫存指定交付檔案，因為一般 git diff 不包含 untracked 檔案。
+Python 測試與 Mac probe 需允許 loopback listener；某些 coding-agent 執行隔離層需額外允許。
+這與被測 App 自身的 App Sandbox 不同：被測 app 一直保留簽署的 Sandbox entitlements。
 
-另外做文件機械檢查：
+`macos_probe.py` 只使用 TemporaryDirectory SQLite 與一次性邀請，實際啟動已簽署 App，
+設定／快取使用獨立 `WorkFleet-Probe` 子目錄，網頁使用 nonpersistent WKWebsiteDataStore。
+會短暫顯示／啟用驗證用編輯視窗。probe 逐項斷言，缺少事件或任一不符即失敗。
+不要在其他人正使用鍵盤時執行焦點探針。輸出診斷不含筆記本文或憑證。
 
-- 確認 minimal base 的檔案與隱藏檔完整存在。
-- 未專案化的模板／腳本與 bootstrap 來源逐檔比對。
-- 檢查專案文件的相對 Markdown 連結，排除範例 code block 與外部 URL。
-- 確認研究使用 YYYY-MM-DD-topic.md、UTF-8 與 LF。
-- 確認研究沒有個人機器絕對路徑或舊應用來源路徑。
-- 檢查暫存差異、credential 樣式與未預期檔案。
+資料層測試涵蓋真實 HTTP、並行 writer、response-loss 重試、tombstone、backup/restore、
+interrupted restore、配對 race、expiry/reuse、read-only、revoke、輸入限制與 storage failure。
+WebKit 測試透過真實 DOM 與 server，傳輸斷線／回應遺失採可控注入。
+Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
-## 初始化結果
+## 手勢測試 helper
 
-- Canonical Initialize-Project.ps1，Preset minimal：成功。
-- Test-Templates.ps1 -FailOnWarning：Errors 0，Warnings 0。
-- Scaffold 完整性：48 個基礎檔案完整；28 個未專案化檔案與來源 SHA-256 一致。
-- Markdown 檢查：41 個文件、86 個相對連結通過；兩個 SPEC-XXX／PLAN-XXX 模板示例連結明確排除。
-- 六份日期命名研究文件：檔名、UTF-8、LF 與可攜路徑檢查通過。
-- Credential-pattern 掃描：未發現匹配；此為基本模式檢查，非完整安全稽核。
-- git diff --cached --check：通過。
+```bash
+xcrun swiftc -module-cache-path build/module-cache scripts/testing/input-probe.swift -o build/input-probe
+build/input-probe
+```
 
-## macOS 接手文件檢查（2026-10-03）
+helper 先查公開 `CGPreflightPostEventAccess()`，無權限即回報並退出，不修改權限。
+有權限時顯示專用測試目標，送出點擊／drag／keyup/down 並回報收到数量；
+單獨跑 helper 只驗證測試目標，**不能證明另一個 App 的滑鼠穿透**。
+真正桌面／Finder 框選與拖放的步驟及未測狀態記在報告。
 
-- 全 repo 42 個 Markdown 文件、97 個相對連結通過；排除兩個明確的模板示例連結。
-- 六個接手文件通過 UTF-8／LF、可攜路徑及基本 credential／舊應用來源樣式檢查。
-- git diff --check 通過；提交前另執行 git diff --cached --check。
-- 本次僅調整文件，未安裝依賴、執行 updater 或產品／平台測試。
+## 產物檢查
 
-## 尚未執行
+```bash
+codesign --verify --strict 'build/Work Fleet.app'
+codesign -d --entitlements - 'build/Work Fleet.app'
+otool -L 'build/Work Fleet.app/Contents/MacOS/WorkFleet'
+```
 
-- 應用單元、整合、瀏覽器或端對端測試：沒有產品實作。
-- macOS、Windows、Linux 桌面層與穿透測試。
-- 多裝置競爭、離線、草稿、備份與恢復測試。
-- 商店送審、安裝包驗證與 runtime dependency 授權稽核。
-- 獨立程式碼 review：本次沒有新增產品程式碼；作者的文件機械檢查不算獨立 review。
+最終 staged export 在乾淨目錄以空 module cache 重建成功；13 個 HTTP/SQLite、8 個 JS 與文件檢查也通過。
+本版沒有應用第三方 package tree；系統／外部 runtime 與版本見
+[runtime inventory](validation/runtime-inventory.json)。正式上架前需對實際封裝重做檢查。
+
+最初 bootstrap／文件檢查歷史已保留於 Git；不能當成上述產品測試的替代證據。

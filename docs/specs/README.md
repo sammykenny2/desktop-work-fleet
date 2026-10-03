@@ -49,7 +49,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
 | [000-template](./000-template.md) | Template | - | - |
-<!-- Add new specs above this line -->
+| [001-validation-version](001-validation-version.md) | Backlog 驗證版 | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |
 
 ## For AI Agents
 

@@ -10,13 +10,13 @@
 | [PROGRESS](../PROGRESS.md) | 進度權威 | 已完成與未執行工作 |
 | [ROADMAP](../ROADMAP.md) | 候選路線 | 下一步驗證順序 |
 | [需求](requirements.md) | 研究摘要 | 連結完整需求與待確認 UX |
-| [架構](architecture.md) | 尚未選型 | 責任邊界與候選比較 |
+| [架構](architecture.md) | 驗證版已選型 | 原生 Mac／Web／SQLite 責任分界 |
 | [Setup](setup-guide.md) | 專案化 | 本階段使用方式 |
 | [Testing](testing.md) | 專案化 | 實際檢查與未驗證範圍 |
-| [Deployment](deployment.md) | 尚未發佈 | 各平台目標 |
-| [API](api.md) | 尚未定義 | 資料契約研究入口 |
+| [Deployment](deployment.md) | 本機驗證版 | 各平台與商店未測範圍 |
+| [API](api.md) | 已實作 | 条件式操作、配對與權限 |
 | [Security](security-guidelines.md) | 設計原則 | 保存、配對與權限界線 |
-| [Services](services.md) | 無服務 | 尚未配置 listener 或 port |
+| [Services](services.md) | loopback 9847 | 可配置 HTTP／HTTPS 服務 |
 | [第三方聲明](../THIRD-PARTY-NOTICES.md) | 來源記錄 | Bootstrap 範圍與 MIT notice |
 
 ## 研究
@@ -35,8 +35,10 @@
 ## 決策與規格
 
 - [決策索引](decisions/README.md)：只有已明確接受的專案邊界列為 Accepted。
-- [規格模板](specs/README.md)：尚未建立產品規格。
-- [macOS 驗證版接手計畫](plans/001-validation-version-macos-handoff.md)：已授權目標、Mac 上的接手順序、驗收證據與可直接使用的 goal 描述；尚未開始產品實作。
+- [驗證版規格](specs/001-validation-version.md)：實作範圍與限制。
+- [ADR-002](decisions/002-validation-runtime.md)：驗證版 runtime 與資料來源決策。
+- [驗證報告](validation/2026-10-03-validation-report.md)：實機與資料測試證據、失敗／未測矩陣。
+- [macOS 驗證版接手計畫](plans/001-validation-version-macos-handoff.md)：已授權目標、Mac 上的接手順序、驗收證據與可直接使用的 goal 描述；現已接續實作；原始接手基線保留，最新進度見 PROGRESS。
 - [計畫索引與模板](plans/README.md)：後續技術選型與規格仍需依實作證據記錄。
 
 ## Bootstrap 協作材料

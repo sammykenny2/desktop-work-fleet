@@ -4,19 +4,28 @@
 
 ## Current Status
 
-目前只有獨立專案骨架與研究文件，沒有可執行的產品、已選定的技術棧或已驗證的跨平台能力。
+已提供 0.1.0 可操作驗證版：macOS Sandbox App、共用 Web 編輯器與 Python／SQLite 同步服務。
+便箋支援快速記錄、Todo／In Progress／Done、待辦勾選、草稿、衝突、刪除與還原。
 
-- 已以 project-bootstrap 的 minimal preset 初始化。
-- 已整理需求、檢視模型、同步、macOS 公開 API、商店發佈與授權研究。
-- 使用者需求以 backlog／快速記錄為中心；Agent 執行管理不是第一版重心。
-- [macOS 驗證版接手計畫](docs/plans/001-validation-version-macos-handoff.md) 已備妥；下一步在真實 Mac 上實作與驗證。
-- 詳細進度以 [PROGRESS.md](PROGRESS.md) 為準。
+- Mac 已實際建置／啟動，驗證真實資料更新、鎖定政策、背景焦點、解鎖／重鎖。
+- HTTP／SQLite、草稿與真實 WebKit 操作有可重現測試。
+- 真實桌面滑鼠點擊／框選／拖拉、完整 Spaces 矩陣、其他平台與商店仍未驗證。
+- [驗證報告](docs/validation/2026-10-03-validation-report.md) 明列通過、失敗／阻礙及未測；執行進度以 [PROGRESS.md](PROGRESS.md) 為準。
+
+在這台 Mac 啟動：
+
+```bash
+bash scripts/macos/start-validation.sh
+```
+
+選單列 **WF → 快速記錄／解鎖** 開始編輯，**WF → 鎖定** 恢復桌面展示。
+建置需求、配對、第二 client 與備份恢復見 [操作文件](docs/setup-guide.md)。
 
 ## 產品方向
 
 - 用便箋記錄尚未處理的事情與靈感，保留簡單的 Todo／In Progress／Done。
 - Windows、macOS、Linux 桌面展示共享內容，預設唯讀且滑鼠穿透。
-- 可由桌面、Web 或手機編輯；同步來源尚未選定。
+- Mac／Web 共用 SQLite 權威來源；手機可透過 HTTPS 瀏覽器配對，實機尚未測。
 - iOS、macOS、Android App 以 Apple／Google 商店為目標。
 - 保留清單、看板與不同分組方式的可能性，不強迫使用者操作複雜工作流程。
 
@@ -35,7 +44,8 @@
 
 ## 開始開發前
 
-目前沒有 application dependencies 或 dev server 指令。先閱讀 [setup-guide.md](docs/setup-guide.md) 與 [macOS 接手計畫](docs/plans/001-validation-version-macos-handoff.md)，在 Mac 上延續已授權的驗證版實作。
+閱讀 [setup-guide.md](docs/setup-guide.md)、[testing.md](docs/testing.md) 與
+[ADR-002](docs/decisions/002-validation-runtime.md)。不需安裝 pip/npm runtime 套件。
 
 ## 專案結構
 
@@ -44,9 +54,11 @@ docs/resreach/    日期與主題命名的研究
 docs/decisions/  已接受的決策
 docs/specs/      後續規格與模板
 docs/plans/      後續計畫與模板
-src/            尚未實作
-tests/          尚未配置應用測試
-scripts/        Bootstrap 的維護輔助腳本
+src/macos/      AppKit Sandbox 展示與 WebKit 編輯入口
+src/server/     Python 標準庫 HTTP + SQLite
+src/web/        共用便箋編輯器
+tests/          資料、草稿與 WebKit 操作測試
+scripts/        建置、啟動、探針與維護腳本
 ```
 
 ## 來源與授權

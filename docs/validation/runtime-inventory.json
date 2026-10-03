@@ -1,0 +1,20 @@
+{
+  "format": "work-fleet-runtime-inventory-v1",
+  "version": "0.1.0",
+  "date": "2026-10-03",
+  "scope": "macOS app and source-distributed validation server, no store package",
+  "thirdPartyRuntimePackages": [],
+  "bundledExternalCode": [
+    { "name": "project-bootstrap", "revision": "a7438cf81d44519db89d2783dc14b7cfc9e0e851", "license": "MIT", "scope": "existing scaffold only", "notice": "../../THIRD-PARTY-NOTICES.md" }
+  ],
+  "buildAndTestTools": [
+    { "name": "Swift", "versionTested": "6.3.3", "license": "Apache-2.0 WITH Swift-exception", "bundled": false, "source": "https://www.swift.org/LICENSE.txt" },
+    { "name": "Node.js", "versionTested": "24.21.0", "license": "MIT AND bundled third-party notices", "bundled": false, "scope": "JS tests only", "source": "https://github.com/nodejs/node/blob/v24.21.0/LICENSE" }
+  ],
+  "externalRuntimeRequirements": [
+    { "name": "Python", "versionTested": "3.14.7", "minimum": "3.12", "license": "PSF-2.0 AND incorporated-software notices", "bundled": false, "source": "https://docs.python.org/3/license.html" },
+    { "name": "SQLite", "versionTested": "3.51.0", "license": "public-domain", "bundled": false, "scope": "Python stdlib sqlite3 runtime", "source": "https://www.sqlite.org/copyright.html" },
+    { "name": "macOS system frameworks and Swift runtime", "versionTested": "26.7.1 (25G241)", "license": "Apple platform SDK/runtime terms; Swift runtime license applies", "bundled": false, "frameworks": ["AppKit", "Foundation", "CoreFoundation", "CoreGraphics", "CoreImage", "CFNetwork", "WebKit"], "scope": "dynamic system linkage; otool evidence in report" }
+  ],
+  "limitations": ["Not an SBOM for an unbuilt Windows, Linux, iOS or Android package", "External runtimes are not redistributed", "No third-party fonts, icons, images or prior-application code copied", "Reaudit actual bundled dependencies before store distribution"]
+}

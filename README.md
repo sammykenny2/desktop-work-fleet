@@ -9,6 +9,7 @@
 - 已以 project-bootstrap 的 minimal preset 初始化。
 - 已整理需求、檢視模型、同步、macOS 公開 API、商店發佈與授權研究。
 - 使用者需求以 backlog／快速記錄為中心；Agent 執行管理不是第一版重心。
+- [macOS 驗證版接手計畫](docs/plans/001-validation-version-macos-handoff.md) 已備妥；下一步在真實 Mac 上實作與驗證。
 - 詳細進度以 [PROGRESS.md](PROGRESS.md) 為準。
 
 ## 產品方向
@@ -34,7 +35,7 @@
 
 ## 開始開發前
 
-目前不需要安裝 application dependencies，也沒有 dev server 指令。先閱讀 [setup-guide.md](docs/setup-guide.md)，再依下一個獲授權任務決定要實作哪個原型。
+目前沒有 application dependencies 或 dev server 指令。先閱讀 [setup-guide.md](docs/setup-guide.md) 與 [macOS 接手計畫](docs/plans/001-validation-version-macos-handoff.md)，在 Mac 上延續已授權的驗證版實作。
 
 ## 專案結構
 

@@ -4,7 +4,7 @@ Updated: 2026-10-03.
 
 ## Current focus
 
-Independent repository bootstrap and research handoff are the current deliverable. Product code and platform probes have not started.
+The active goal is to deliver a version that can validate the documented concerns. The user is switching to macOS to continue implementation; docs/plans/001-validation-version-macos-handoff.md provides the handoff and goal text. Product code, platform probes, dependency installation and the bootstrap updater have not started. Preparing this handoff does not complete the product goal.
 
 The primary need is quick capture and visible unfinished work. Agent execution management is deferred. The repository name is desktop-work-fleet.
 

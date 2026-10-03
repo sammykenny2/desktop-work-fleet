@@ -32,7 +32,7 @@ git diff --cached --check
 - 確認研究沒有個人機器絕對路徑或舊應用來源路徑。
 - 檢查暫存差異、credential 樣式與未預期檔案。
 
-## 本次結果
+## 初始化結果
 
 - Canonical Initialize-Project.ps1，Preset minimal：成功。
 - Test-Templates.ps1 -FailOnWarning：Errors 0，Warnings 0。
@@ -41,6 +41,13 @@ git diff --cached --check
 - 六份日期命名研究文件：檔名、UTF-8、LF 與可攜路徑檢查通過。
 - Credential-pattern 掃描：未發現匹配；此為基本模式檢查，非完整安全稽核。
 - git diff --cached --check：通過。
+
+## macOS 接手文件檢查（2026-10-03）
+
+- 全 repo 42 個 Markdown 文件、97 個相對連結通過；排除兩個明確的模板示例連結。
+- 六個接手文件通過 UTF-8／LF、可攜路徑及基本 credential／舊應用來源樣式檢查。
+- git diff --check 通過；提交前另執行 git diff --cached --check。
+- 本次僅調整文件，未安裝依賴、執行 updater 或產品／平台測試。
 
 ## 尚未執行
 

@@ -36,7 +36,8 @@
 
 - [決策索引](decisions/README.md)：只有已明確接受的專案邊界列為 Accepted。
 - [規格模板](specs/README.md)：尚未建立產品規格。
-- [計畫模板](plans/README.md)：研究文件內的驗證批次不是已批准開發排程。
+- [macOS 驗證版接手計畫](plans/001-validation-version-macos-handoff.md)：已授權目標、Mac 上的接手順序、驗收證據與可直接使用的 goal 描述；尚未開始產品實作。
+- [計畫索引與模板](plans/README.md)：後續技術選型與規格仍需依實作證據記錄。
 
 ## Bootstrap 協作材料
 

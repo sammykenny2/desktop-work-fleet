@@ -2,6 +2,11 @@
 
 > This directory contains implementation plans that define *how* to build features.
 
+Current handoff: [macOS validation version](001-validation-version-macos-handoff.md).
+This handoff records the authorized goal, execution order and evidence requirements;
+it is not an accepted framework decision or a completed product specification.
+Execution status remains in [PROGRESS.md](../../PROGRESS.md).
+
 ## Purpose
 
 Implementation plans break down approved specifications into actionable tasks. They help:
@@ -47,6 +52,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
 | [000-template](./000-template.md) | Template | - | - |
+| [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Ready for Mac execution; no product implementation | [Research requirements](../resreach/2026-10-03-backlog-first-product-requirements.md); SPEC not yet written |
 <!-- Add new plans above this line -->
 
 ## For AI Agents

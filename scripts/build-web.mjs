@@ -3,12 +3,16 @@ import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { readBuildConfig } from './config.mjs';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/build-web.mjs\nCopies app/core/layout/interaction/storage assets and pinned vendor modules to build/app.');
 } else {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const destination = path.join(root, 'build', 'app');
+  const config = await readBuildConfig(new URL('../', import.meta.url));
+  await mkdir(path.join(root, 'build', 'config'), { recursive: true });
+  await writeFile(path.join(root, 'build', 'config', 'public.json'), JSON.stringify(config, null, 2) + '\n');
   await mkdir(destination, { recursive: true });
   for (const folder of ['app', 'core', 'layout', 'interaction', 'storage']) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });

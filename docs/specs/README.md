@@ -52,7 +52,8 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
-| [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / explicit Q; not implemented | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
+| [004-revision-graph-and-file-sync](004-revision-graph-and-file-sync.md) | Immutable revisions and file sync | Accepted technical contract; execution in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
+| [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / answered Q; execution in PROGRESS | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
 | [002-portable-backup-and-restore](002-portable-backup-and-restore.md) | Portable backup proposal | Draft / scope and group schema revision required | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version](001-validation-version.md) | Backlog 驗證版 | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |

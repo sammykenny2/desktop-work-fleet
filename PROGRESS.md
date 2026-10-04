@@ -20,7 +20,7 @@
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域與快捷鍵設定已完成並經真 Edge 與獨立審閱；原生保存整合、大容量與完整平台設定仍待補齊 |
-| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 尚待實作；真實 OAuth 與跨平台 client ID 證據尚缺 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 嚴格 JSON／不可變 revision graph 已有實作及故障測試；Workspace／Drive 整合待接，Google 設定尚未建立 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 範圍已核准，格式與交易實作尚待完成 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
@@ -106,6 +106,28 @@ CompositionEvent 注入不等於已測實體中文輸入法候選視窗，原生
 獨立唯讀審閱完成：群組／快捷鍵 10/10 tests、真 Edge 重現及修正複核，無未解決 finding。
 獨立檢查涵蓋晚到 autosave、連續合併、重啟、正文衝突、交易失敗、排隊設定、全部卡片狀態、
 附件引用、geometry、IME 事件註冊與編輯鍵優先。同步的多裝置 redirect cycle 仍需後續切片。
+已提交並推送 main：`f43072b`。
+
+## Slice 3：版本格式與圖分析子切片
+
+採 [SPEC-004](docs/specs/004-revision-graph-and-file-sync.md)／
+[ADR-011](docs/decisions/011-immutable-revision-graph.md) 的不可變完整值与 parent 集合。
+`src/sources` 嚴格 JSON 拒絕重複欄位、無效 Unicode／unsafe integer、超限及非 JSON 資料；
+保留未知 value 擴充。版本圖整批驗證、重播去重、collision／cycle／跨 entity 拒絕，
+缺祖先時保留 pending 及舊完整 head；delete/edit 與晚到分支保留多 head。
+
+使用者確認 Google／原生外部設定尚未建立，並要求可用 `.env.example` 配置。
+現已接上 allowlist 設定讀取、shell／CI 優先、`npm run config:check` 及 build/config/public.json；
+空值允許本機建置，指定平台的發佈設定檢查會回報缺值。沒有登入 token／簽章秘密寫入公開產物。
+
+本切片尚未接 Workspace 遠端投影／同步 cursor／衝突 UI 或 Google adapter；
+群組 redirect cycle、OAuth、原生安全儲存及真實雙 client 仍需後續實作與驗收。
+
+作者驗證：完整 78/78 JS 通過；修正後來源／設定 14/14 再測通過；build、公開設定檢查、
+文件 63 份／326 相對連結與 diff whitespace 通過。缺值的指定平台 config check 正確非零退出。
+獨立唯讀審閱已完成，無未解決 finding；修正 App ID 平台交集及 JSON 超限前配置記憶體的問題。
+獨立驗證包含全 Unicode scalar／16 種精確 byte 邊界、隨機 graph oracle、10,000 次 JSON 變形、
+allowlist canary，及 48 MiB heap 的重複大字串／跳脫字串／百萬元素陣列，皆正常回報超限。
 
 ## 2026-10-04 文件交付
 

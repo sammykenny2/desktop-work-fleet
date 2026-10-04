@@ -36,6 +36,33 @@ python scripts/testing/serve_preview.py --port 0
 
 此預覽不是 OS 桌面浮層。逐卡層級保存偏好，實際分層／穿透／全域快捷鍵由原生 host 完成。
 
+## Google 與原生建置設定
+
+把根目錄 [.env.example](../.env.example) 複製為 `.env`，依平台填入公開 client ID、
+Google Cloud project ID、原生 bundle/package ID，Apple 平台另填 team ID。
+尚未建立時保留空值，本機預覽照常建置；`.env` 已被 Git 忽略，shell／CI 同名值優先。
+`ANDROID_HOME`、`JAVA_HOME`、`DEVELOPER_DIR` 是 SDK 工具鏈位置，範例中以註解保留，
+實際原生建置仍需相對應 OS／SDK；設定路徑不代表已有裝置驗收證據。
+
+```bash
+npm run config:check
+npm run config:check -- --platform windows
+```
+
+第一個命令列出五平台缺少哪些設定；指定平台時，缺少發佈所需公開設定即以非零狀態結束。
+`npm run build` 讀取設定並產生 `build/config/public.json` 供原生封裝使用，僅輸出允許的公開欄位。
+目前這是設定入口及驗證，不代表 Google 登入／原生封裝已完成；執行狀態見 PROGRESS。
+
+Google 設定步驟：在同一 Cloud project 啟用 Drive API，設定 OAuth consent screen／測試使用者，
+桌面建立 Desktop app client，iOS 建立符合 bundle ID 的 client，Android 建立符合 package／
+簽章憑證的 client。五平台必須實測可讀取同一 App 資料空間。
+登入透過系統允許的 OAuth 介面；desktop loopback 回呼不能沿用於 iOS／Android。
+依據 [Google native-app OAuth 文件](https://developers.google.com/identity/protocols/oauth2/native-app)
+及 [loopback 平台限制](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration)。
+
+不要在 `.env` 放 access/refresh token、簽章私鑰或 service-account JSON；登入憑證由原生安全儲存管理，
+CI 簽章秘密由 CI secret／keychain 提供。Client ID 是公開應用識別，不能代替 OAuth 驗證。
+
 ## 既有 0.1.0 需求
 
 - macOS 13+、Command Line Tools（`xcode-select --install`）；已測 macOS 26.7.1 x86_64、Swift 6.3.3。

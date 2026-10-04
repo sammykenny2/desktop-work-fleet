@@ -14,6 +14,7 @@
 | [ADR-008](008-portable-interaction-core.md) | Accepted（共用核心） | ES modules 語意、原子本機命令、完整五平台 1.0 範圍 |
 | [ADR-009](009-local-renderer-and-persistence.md) | Accepted（本機介面） | 封裝 renderer、IndexedDB 交易／草稿／附件、Markdown 清理 |
 | [ADR-010](010-group-retirement-and-device-settings.md) | Accepted（本機命令） | 預覽合併群組、草稿 membership 基線與穩定裝置設定 |
+| [ADR-011](011-immutable-revision-graph.md) | Accepted（同步格式） | 不可變 revision、嚴格 JSON、pending 與多 head；Google 整合另驗收 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；其他平台封裝與正式商店配置尚未決定。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

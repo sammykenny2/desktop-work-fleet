@@ -21,10 +21,16 @@ npm ci --ignore-scripts
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 node --test tests/*.test.js
 npm run build
+npm run config:check
 node --check src/web/app.js
 python3 scripts/testing/check_docs.py
 git diff --check
 ```
+
+`tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
+亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
+`tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。
+`npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
 
 新的真實瀏覽器回歸使用隔離 profile 與合成資料：
 

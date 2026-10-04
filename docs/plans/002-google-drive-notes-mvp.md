@@ -1,13 +1,13 @@
 # PLAN-002: Google Drive 便箋 1.0.0 與可攜備份
 
-> 2026-10-04：本計畫的來源與可靠性研究保留；產品互動由 SPEC-003／PLAN-003 補足。
-> ZIP／JSON、新增式匯入等尚未全部定案，不能用早期排除清單裁掉 checklist、附件、版面或自動備份。
+> 2026-10-04：已獲完整五平台 1.0 實作授權；SPEC-003 Q01–Q07 已答覆。
+> 同步格式採 SPEC-004／ADR-011；備份必須包含 checklist、附件、版面、自動與加密備份及三種還原。
 
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | Draft／需依 2026-10-04 最新互動及範圍修訂；未開始產品實作 |
+| Status | 依完整 1.0 授權執行；實際進度只記 PROGRESS |
 | Owner | 專案維護者 |
 | Assigned To | 未指定 |
 | Reviewer | 待獨立審閱 |
@@ -26,7 +26,7 @@
 另一裝置同步 → 必要時匯出或匯入備份。
 最新產品必須包含 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) 的卡片／群組／formation／拖放語意，
 互動開發依 [PLAN-003](003-desktop-interaction-implementation.md)。
-Editor／checklist／附件及完成動作尚待範圍確認；先前純文字與 no-checklist 的裁切未獲批准。
+Editor／checklist／附件及完成／封存已核准；先前純文字與 no-checklist 的裁切不適用。
 
 規劃基線為 appDataFolder + drive.appdata；備份存到使用者指定的本機／OS 文件位置。
 首版不為備份額外要求 drive.file 或全 Drive scope，也不加自家便箋 server。
@@ -36,7 +36,7 @@ Editor／checklist／附件及完成動作尚待範圍確認；先前純文字�
 開發整合先利用已有 AppKit host，便於沿用公開 API／Sandbox 的已有工作；
 這是施工順序，**不代表已決定 Mac-only 發佈**。
 macOS／iOS／Android 商店、Windows Store 候選、Linux 可測範圍保留；
-Windows/macOS/Linux 是必要桌面目標；手機與桌面同版推出的節奏仍待決定，不能因此默認 Mac-only。
+Windows/macOS/Linux 及 iOS／Android 原生 App 均納入本次 1.0，包含商店提交準備。
 
 ## Implementation Phases
 
@@ -162,7 +162,8 @@ src/server 的 0.1.0 驗證用途保留；不把其 token／epoch／Python 服�
 
 - appDataFolder 為本次規劃基線；一般 Drive 資料夾由未來獨立 provider 模式處理。
 - ZIP＋公開 JSON、來源無關 BackupService、增量匯入模式見 [ADR-005](../decisions/005-portable-backup-and-restore.md)。
-- append-only revision 是推薦待驗證方案；若改用條件式更新，需先取得具體 API 原子行為證據。
+- append-only revision 的格式與 pending／heads 規則採 [SPEC-004](../specs/004-revision-graph-and-file-sync.md)／
+  [ADR-011](../decisions/011-immutable-revision-graph.md)；真實 Google 與 transaction 整合另驗收。
 - 結構化 PM、團隊權限、QR 配對、自架 server、跨來源聚合保留未來路線。
 - 不以一個共用備份 ZIP 作為多機即時同步檔案；備份與同步各有自己的契約。
 

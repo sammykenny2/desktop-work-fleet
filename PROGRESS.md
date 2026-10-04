@@ -425,6 +425,18 @@ NativeGoogleFileStore 接既有 FileSync 的版本圖、outbox、衝突及游標
 macOS／Linux／iOS／Android 原生交付及商店準備仍繼續；未將 Windows 實作視為完整 1.0。
 決策見 [ADR-021](docs/decisions/021-windows-google-account-and-sync.md)。
 
+## 2026-10-05 Android 原生 App 實作
+
+Windows Google 切片已推送 `3672993`。新增 Android Activity／受限 WebMessage bridge、封裝資產、
+SQLite revision／附件原子交易、唯一 owner、Keystore 加密、SAF 手動／自動備份及安全清理。
+原生備份密碼與 SPEC-002 加密 ZIP、Credential Manager 帳號選擇、AuthorizationClient Drive 授權，
+userinfo 核對 sub、固定 FileStore bridge、續傳／校驗及帳號分區皆已加入程式。
+renderer 支援 Android transport，沿用完整便箋／草稿／附件／同步／備份核心。
+`.env.example` 新增 Android 所需的同專案 Web client ID；SDK 路徑可由 `.env` 或環境提供。
+新增 Windows／Linux build wrappers、Gradle project、manifest 及自有 vector icon。
+本機缺 Gradle／Android SDK：未編譯、未產 APK／AAB、未真機／Google 驗收；依指示未跑測試／審閱。
+macOS／iOS／Linux host、各平台封裝與商店資料仍繼續完整範圍。見 [ADR-022](docs/decisions/022-android-native-host.md)。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。

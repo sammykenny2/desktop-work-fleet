@@ -25,6 +25,7 @@
 | [ADR-019](decisions/019-windows-shortcuts-and-tray.md) | Accepted：Windows 快捷鍵／焦點、系統匣與主畫面收起，仍使用唯一工作区 |
 | [ADR-020](decisions/020-windows-display-lifecycle.md) | Accepted：顯示器／DPI／休眠通知、保存後救援與場景重用 |
 | [ADR-021](decisions/021-windows-google-account-and-sync.md) | Accepted：Windows 原生 Google OAuth、帳號分區及同步入口 |
+| [ADR-022](decisions/022-android-native-host.md) | Accepted：Android host、Keystore、SAF 與 Google 授權 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

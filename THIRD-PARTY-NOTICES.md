@@ -67,6 +67,19 @@ The SDK's original license was retrieved through the exact package's license URL
 and tooling are not copied into the app output; only the required runtime projection
 assemblies and retained licenses accompany the host.
 
+## Android native host dependencies
+
+AndroidX WebKit 1.16.0 and Credential Manager / Play Services bridge 1.5.0 are
+AndroidX libraries under Apache-2.0. Gradle resolves unmodified artifacts from
+Google's Maven repository; packaged META-INF notices must be retained.
+Google Play Services Auth 22.0.0 and Google ID 1.1.1 are Google's SDK artifacts
+subject to their packaged terms and Google APIs / Play Services SDK terms.
+They are declared for this host, not copied from another application.
+AGP 8.13.2 and Gradle 8.13 are external build tools, not shipped app runtimes.
+Android SQLite, WebView, Keystore and framework APIs are supplied by the device.
+No Android APK/AAB or completed dependency-license inventory is claimed until a
+native build is produced.
+
 ## Validation version 0.1.0
 
 No third-party pip/npm runtime packages, fonts, images, prior application code or assets

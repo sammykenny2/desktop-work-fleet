@@ -56,12 +56,27 @@ export class NativeBridge {
 }
 
 export async function connectNative(view = globalThis) {
-  const transport = view.chrome?.webview;
+  let transport = view.chrome?.webview;
+  if (!transport && (view.workFleet?.postMessage || view.webkit?.messageHandlers?.workFleet)) {
+    const listeners = new Set();
+    const receive = event => {
+      let data = event?.data ?? event;
+      try { if (typeof data === 'string') data = JSON.parse(data); } catch { return; }
+      for (const listener of listeners) listener({ data });
+    };
+    if (view.workFleet) view.workFleet.onmessage = receive;
+    else view.__workFleetReceive = receive;
+    transport = {
+      postMessage: value => view.workFleet ? view.workFleet.postMessage(JSON.stringify(value)) : view.webkit.messageHandlers.workFleet.postMessage(value),
+      addEventListener: (_type, listener) => listeners.add(listener),
+      removeEventListener: (_type, listener) => listeners.delete(listener),
+    };
+  }
   if (!transport) return null;
   const bridge = new NativeBridge(transport);
   try {
     const info = await bridge.request('host.info');
-    requireValue(info?.protocol === 1 && info.platform === 'windows' && typeof info.profileId === 'string'
+    requireValue(info?.protocol === 1 && ['windows', 'macos', 'linux', 'ios', 'android'].includes(info.platform) && typeof info.profileId === 'string'
       && info.capabilities?.nativeStorage === true && info.maxChunkBytes === 256 * 1024,
     'native-version', '此原生主機與介面版本不相容，請更新完整 App。');
     return { bridge, info };

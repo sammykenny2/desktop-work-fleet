@@ -17,6 +17,9 @@ export async function readBuildConfig(root, environment = process.env) {
     if (client && !/^[a-zA-Z0-9-]+\.apps\.googleusercontent\.com$/.test(client)) throw new Error(`${name} 格式無效。`);
     config.google.clients[platform] = client;
   }
+  const webClient = value('WORK_FLEET_GOOGLE_WEB_CLIENT_ID');
+  if (webClient && !/^[a-zA-Z0-9-]+\.apps\.googleusercontent\.com$/.test(webClient)) throw new Error('WORK_FLEET_GOOGLE_WEB_CLIENT_ID 格式無效。');
+  config.google.clients.web = webClient;
   if (config.appId && !/^[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+$/.test(config.appId)) {
     throw new Error('WORK_FLEET_APP_ID 每段必須以字母開頭且只含英數，以符合 Apple／Android 的共同格式。');
   }
@@ -30,6 +33,7 @@ export function missingReleaseConfig(config, platform) {
     ...(!config.appId ? ['WORK_FLEET_APP_ID'] : []),
     ...(!config.google.projectId ? ['WORK_FLEET_GOOGLE_PROJECT_ID'] : []),
     ...(!config.google.clients[platform] ? [`WORK_FLEET_GOOGLE_${platform.toUpperCase()}_CLIENT_ID`] : []),
+    ...(platform === 'android' && !config.google.clients.web ? ['WORK_FLEET_GOOGLE_WEB_CLIENT_ID'] : []),
     ...(['macos', 'ios'].includes(platform) && !config.appleTeamId ? ['WORK_FLEET_APPLE_TEAM_ID'] : []),
   ];
 }

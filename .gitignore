@@ -62,3 +62,8 @@ src/native/**/bin/
 src/native/**/obj/
 tests/native/**/bin/
 tests/native/**/obj/
+src/native/android/.gradle/
+src/native/android/**/build/
+src/native/android/local.properties
+*.jks
+*.keystore

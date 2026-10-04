@@ -104,7 +104,7 @@ async function initialize() {
     initializeDesktop();
     const note = element('p', '桌面已連接；操作群組可浮到其他 App 上方。', 'hint'); note.id = 'desktop-note'; $('#storage-note').after(note);
   }
-  $('#storage-note').textContent = native ? 'Windows 本機加密工作空間 · 尚未連接 Google' : '瀏覽器本機工作空間 · 尚未連接 Google';
+  $('#storage-note').textContent = native ? '本機加密工作空間 · 尚未連接 Google' : '瀏覽器本機工作空間 · 尚未連接 Google';
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open();
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
@@ -189,7 +189,7 @@ async function changeGoogleAccount(action) {
     await (desktop ? desktop.perform(flushDraft) : flushDraft()); await desktop?.whenIdle(); desktop?.sealClose();
     document.body.inert = true;
     if (action === 'signIn') {
-      status('請在系統瀏覽器完成 Google 登入…');
+      status('請完成原生 Google 登入與同步授權…');
       const result = await native.bridge.request('google.signIn');
       await native.bridge.request('google.open', { accountId: result.accountId });
     } else await native.bridge.request(action === 'signOut' ? 'google.signOut' : 'google.local');

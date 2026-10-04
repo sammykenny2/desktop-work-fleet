@@ -1,0 +1,30 @@
+# Android native App
+
+Native Activity／WebView、SQLite 交易、Android Keystore AES-256-GCM、Storage Access Framework 備份，
+Credential Manager 帳號選擇及 Google AuthorizationClient Drive 授權。手機不要求桌面 overlay 權限。
+原生 WebView 只讀封裝資產；Google／檔案操作透過固定 bridge，沒有 local note server。
+
+建置前在 repo 根目錄 `npm ci`，填寫 `.env`。JDK 17、Gradle 8.13、Android SDK platform 36。
+
+```powershell
+.\scripts\windows\Build-AndroidApp.ps1
+.\scripts\windows\Build-AndroidApp.ps1 -Release
+```
+
+```bash
+bash scripts/linux/build-android-app.sh
+bash scripts/linux/build-android-app.sh --release
+```
+
+Debug 預設 application ID 為 `app.workfleet.preview`。Release 必須設定 `WORK_FLEET_APP_ID`；
+不在 repo 保存 keystore 或密碼，release AAB 交給外部簽章 pipeline。
+Google 需同一專案的 Android client（package＋簽章 SHA-1）及 Web client（Credential Manager audience）。
+設 `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`／`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` 後重新建置。
+不需要 Web client secret，也不建立自家登入 server。
+
+系統生命週期不保證關閉回呼，因此本文輸入即保存草稿。返回鍵先要求 renderer 保存再關閉。
+Android 強制終止或背景回收只靠最後已提交的 SQLite 交易恢復。
+自動備份依共用 journal 在 App 執行時排程，沒有宣稱任意背景時段一定執行。
+外部文件提供者若不能 fsync／讀回確認，備份報失敗並保留新檔，不能回報成功或自動改存明文。
+
+原生建置、真裝置、Google 往返及簽章／商店驗收狀態只見根目錄 PROGRESS。

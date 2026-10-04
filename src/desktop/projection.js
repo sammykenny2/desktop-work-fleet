@@ -5,7 +5,7 @@ export const groupColors = Object.freeze(['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e
 
 /** Presentation data only. Historical versions, sync cursors, outbox and credentials never enter this projection. */
 export function projectDesktop({ snapshot, layout, interaction, sessionId, sequence, workspaceRevision,
-  layers = ['desktop', 'floating'], editor = null }) {
+  layers = ['desktop', 'floating'], editor = null, topology = 0 }) {
   requireValue(typeof sessionId === 'string' && sessionId.length > 0 && Number.isSafeInteger(sequence) && sequence >= 0,
     'desktop-frame', '桌面畫面身分無效。');
   requireValue(layers.includes('desktop') && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)),
@@ -30,7 +30,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;
-  return copy({ protocol: 1, sessionId, sequence, workspaceRevision, layoutRevision: layout.revision,
+  return copy({ protocol: 1, sessionId, sequence, topology, workspaceRevision, layoutRevision: layout.revision,
     groups: groups.map((group, index) => ({ id: group.id, name: group.name, color: groupColors[index % groupColors.length],
       region: regions.find(region => region.groupId === group.id) || null })),
     operationScope: interaction.operationScope, activeGroupId: interaction.activeGroupId, cards, editor: projectedEditor,

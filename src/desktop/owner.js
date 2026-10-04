@@ -7,7 +7,7 @@ export class DesktopOwner {
   #sequence = 0; #dirty = false; #publishing = null; #incoming = Promise.resolve(); #actions = Promise.resolve(); #flushes = new Map(); #frozen = new Set();
   #closing = false; #sealed = false;
   #published = 0; #publishError;
-  constructor({ bridge, authority, project, changed, error, lost, dismiss, editor }) {
+  constructor({ bridge, authority, project, changed, error, lost, dismiss, editor, displays }) {
     this.#bridge = bridge; this.#authority = authority; this.#project = project; this.#changed = changed; this.#error = error; this.#lost = lost; this.#editor = editor;
     this.#unsub.push(bridge.onEvent('desktop-command', message => {
       // Decode large commands in event order, then admit without waiting for the other execution lane.
@@ -35,6 +35,14 @@ export class DesktopOwner {
     }));
     this.#unsub.push(bridge.onEvent('desktop-dismiss', () => { void this.perform(dismiss).catch(this.#error); }));
     this.#unsub.push(bridge.onEvent('desktop-error', message => this.#error(new FleetError('desktop-view', message.message))));
+    this.#unsub.push(bridge.onEvent('desktop-displays-changing', () => authority.invalidateDisplays()));
+    this.#unsub.push(bridge.onEvent('desktop-displays', message => {
+      authority.invalidateDisplays();
+      void this.perform(async () => {
+        if (this.#closing || this.#closed) return;
+        await displays(message);
+      }).catch(this.#error);
+    }));
   }
   perform(action) {
     const next = this.#actions.then(async () => {
@@ -55,7 +63,7 @@ export class DesktopOwner {
   async #command(message, command) {
     try {
       if (this.#sealed || this.#closing && command.method !== 'editor.change') throw new FleetError('desktop-closing', 'App 正在保存並關閉，請稍候。');
-      const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null }); this.#changed();
+      const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null, topology: message.topology ?? 0 }); this.#changed();
       await this.#reply(message.ticket, true, result);
     } catch (error) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); }
   }

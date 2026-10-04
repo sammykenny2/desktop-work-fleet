@@ -19,7 +19,9 @@ public sealed class DesktopSurface : IDisposable
   private bool floating;
   private bool ordering;
   private bool closePending;
+  private bool inputSuspended;
   public event Action? CloseRequested;
+  public event Action? DpiChanged;
   private SceneHitRect[] rectangles = [];
   private IntPtr InputHandle => new WindowInteropHelper(InputWindow).Handle;
   private IntPtr VisualHandle => new WindowInteropHelper(VisualWindow).Handle;
@@ -42,7 +44,7 @@ public sealed class DesktopSurface : IDisposable
     VisualWindow.SourceInitialized += (_, _) => { SetStyle(VisualHandle, transparent: true); SetRegion(shown ? rectangles : []); };
     InputWindow.Closing += RequestClose; VisualWindow.Closing += RequestClose;
     InputWindow.LocationChanged += (_, _) => AlignVisual();
-    InputWindow.SizeChanged += (_, _) => { AlignVisual(); if (shown) SetRegion(rectangles); };
+    InputWindow.SizeChanged += (_, _) => { AlignVisual(); if (shown) SetRegion(inputSuspended ? [] : rectangles); };
   }
 
   private void RequestClose(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -69,7 +71,7 @@ public sealed class DesktopSurface : IDisposable
   {
     ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
     floating = topmost; InputWindow.Show(); VisualWindow.Show(); shown = true;
-    AlignVisual(); SetRegion(rectangles); Order();
+    AlignVisual(); SetRegion(inputSuspended ? [] : rectangles); Order();
   }
 
   public void Hide()
@@ -99,7 +101,13 @@ public sealed class DesktopSurface : IDisposable
       throw new ArgumentException("Invalid scene input rectangles.");
     // Build/validate before replacing the previous policy. SetWindowRgn owns only successful regions.
     if (InputHandle != IntPtr.Zero) SetRegion(shown ? next : []);
-    rectangles = next;
+    rectangles = next; inputSuspended = false;
+  }
+
+  public void SuspendInput()
+  {
+    if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); inputSuspended = true;
+    if (InputHandle != IntPtr.Zero) SetRegion([]);
   }
 
   private void SetRegion(SceneHitRect[] next)
@@ -206,8 +214,16 @@ public sealed class DesktopSurface : IDisposable
 
   private IntPtr HandleInputMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
   {
-    if (message == 0x02E0) // WM_DPICHANGED: WPF applies suggested bounds before our queued rebuild.
-      InputWindow.Dispatcher.BeginInvoke(new Action(() => { if (shown && !disposed) { AlignVisual(); SetRegion(rectangles); } }));
+    if (message == 0x02E0) // WPF processes the suggested bounds; input waits for a matching topology/frame.
+    {
+      SuspendInput();
+      InputWindow.Dispatcher.BeginInvoke(new Action(() =>
+      {
+        if (disposed) return;
+        if (DpiChanged is { } changed) changed();
+        else if (shown) { inputSuspended = false; AlignVisual(); SetRegion(rectangles); }
+      }));
+    }
     if (message == 0x0047 && shown && !floating && !ordering) // WM_WINDOWPOSCHANGED: activating a selection must not float resident cards.
     {
       var position = Marshal.PtrToStructure<WindowPosition>(lParam);

@@ -31,12 +31,16 @@ public sealed class DesktopCoordinator : IDisposable
   private bool shortcutsBlocked;
   private bool nativeMenu;
   private readonly double scale;
-  private readonly IReadOnlyList<DisplayInfo> displays;
+  private IReadOnlyList<DisplayInfo> displays;
+  private readonly NativeDisplayWatcher displayWatcher;
+  private IReadOnlyList<DisplayInfo>? proposedDisplays;
+  private long topology, proposedTopology;
+  private bool displayPending, displayError;
   private string? frameToken;
   private DesktopFrame? frame;
   private bool started, disposed;
   public string SessionId { get; } = Guid.NewGuid().ToString();
-  public IReadOnlyList<DesktopSurface> Surfaces => views.Select(v => v.Surface).ToArray();
+  public IReadOnlyList<DesktopSurface> Surfaces => views.Where(v => v.Active && !v.Retired).Select(v => v.Surface).ToArray();
   public IReadOnlyList<ShortcutRegistration> ShortcutStatus => shortcuts.Registrations;
   private sealed record PendingCommand(SceneView View, string Id, string? Upload, bool Draft, DateTime Created);
   private sealed class SceneView(DisplayInfo display, string layer, double scale)
@@ -47,7 +51,7 @@ public sealed class DesktopCoordinator : IDisposable
     public LogicalRect Viewport = new(display.Bounds.X / scale, display.Bounds.Y / scale, display.Bounds.Width / scale, display.Bounds.Height / scale);
     public DesktopSurface Surface = new(display.Bounds.X / (display.Dpi / 96d), display.Bounds.Y / (display.Dpi / 96d),
       display.Bounds.Width / (display.Dpi / 96d), display.Bounds.Height / (display.Dpi / 96d));
-    public bool Ready, Retired;
+    public bool Ready, Retired, Initialized, Active = true;
     public DesktopFrame? Downloading;
     public string? Download;
     public long Applied = -1;
@@ -58,13 +62,22 @@ public sealed class DesktopCoordinator : IDisposable
   {
     this.environment = environment; this.sendOwner = sendOwner; this.showMain = showMain; this.openExternal = openExternal;
     this.hideMain = hideMain;
-    displays = displayOverride ?? NativeDisplays.Read(); scale = displays.First(d => d.Primary).Dpi / 96d;
-    HostError.Require(displays.Count <= 16, "desktop-displays", "目前顯示器超過支援數量，桌面呈現尚未開啟。");
+    displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = displays.First(d => d.Primary).Dpi / 96d;
     foreach (var display in displays) foreach (var layer in new[] { "desktop", "floating" }) views.Add(new(display, layer, scale));
     shortcuts = new NativeShortcuts(DispatchAction); activity = new NativeActivity(shortcuts);
+    displayWatcher = new NativeDisplayWatcher(() => displayOverride ?? NativeDisplays.Read(), InvalidateDisplays, ProposeDisplays, () =>
+    {
+      if (displayError) return; displayError = true;
+      sendOwner(new { v = 1, @event = "desktop-error", message = "目前無法讀取顯示器，已保留資料及編輯文字；正在重試。" });
+    });
     if (mainWindow is not null) activity.Watch(mainWindow);
-    foreach (var view in views) activity.Watch(view.Surface.InputWindow);
+    foreach (var view in views) Watch(view);
     shortcuts.Changed += () => sendOwner(new { v = 1, @event = "desktop-shortcut-status", registrations = Registrations() });
+  }
+  private void Watch(SceneView view)
+  {
+    activity.Watch(view.Surface.InputWindow);
+    view.Surface.DpiChanged += () => { if (started && view.Ready && view.Active && !view.Retired) displayWatcher.Refresh(); };
   }
   private object[] Registrations() => shortcuts.Registrations.Select(r => (object)new { key = r.Key, target = r.Target, status = r.Status }).ToArray();
   private Dictionary<string, string> BindingMap() => bindings.ToDictionary(b => b.Key, b => b.Target, StringComparer.Ordinal);
@@ -87,12 +100,85 @@ public sealed class DesktopCoordinator : IDisposable
   {
     if (disposed) return; nativeMenu = value; activity.Block(shortcutsBlocked || nativeMenu);
   }
-  private object Info() => new { sessionId = SessionId, referenceDpi = scale * 96,
+  private object WorkAreas(IReadOnlyList<DisplayInfo> values) => values.Select(d => new { id = d.Id, primary = d.Primary,
+    x = d.WorkArea.X / scale, y = d.WorkArea.Y / scale, width = d.WorkArea.Width / scale, height = d.WorkArea.Height / scale }).ToArray();
+  private object ViewInfo(SceneView v) => new { viewId = v.Id, layer = v.Layer, active = v.Active,
+    viewport = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height } };
+  private object Info() => new { sessionId = SessionId, referenceDpi = scale * 96, topology,
     layers = new[] { "desktop", "floating" },
-    workAreas = displays.Select(d => new { id = d.Id, primary = d.Primary, x = d.WorkArea.X / scale, y = d.WorkArea.Y / scale,
-      width = d.WorkArea.Width / scale, height = d.WorkArea.Height / scale }).ToArray(),
-    views = views.Where(v => !v.Retired).Select(v => new { viewId = v.Id, layer = v.Layer,
-      viewport = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height } }).ToArray() };
+    workAreas = WorkAreas(displays), views = views.Where(v => !v.Retired).Select(ViewInfo).ToArray() };
+
+  private void InvalidateDisplays()
+  {
+    if (disposed) return; displayPending = true; activation = null; focusSequence = null; sceneIntents.Clear();
+    foreach (var view in views.Where(v => !v.Retired)) view.Surface.SuspendInput();
+    foreach (var view in views.Where(v => v.Ready && !v.Retired)) Post(view, new { v = 1, @event = "desktop-displays-changing" });
+    if (started) sendOwner(new { v = 1, @event = "desktop-displays-changing" });
+  }
+  private void ProposeDisplays(IReadOnlyList<DisplayInfo> next)
+  {
+    if (disposed) return; proposedDisplays = next; proposedTopology++; displayError = false;
+    if (started) sendOwner(new { v = 1, @event = "desktop-displays", topology = proposedTopology, workAreas = WorkAreas(next) });
+  }
+  private object ApplyDisplays(JsonElement args)
+  {
+    var requested = JsonRules.Integer(args, "topology");
+    if (requested == topology && !displayPending) return Info();
+    HostError.Require(requested == proposedTopology && proposedDisplays is not null, "desktop-topology", "顯示器已再次變更，正在重新套用版面。");
+    var editorId = args.GetProperty("editorViewId");
+    var editing = editorId.ValueKind == JsonValueKind.Null ? null : views.FirstOrDefault(v => !v.Retired && v.Id == editorId.GetString());
+    HostError.Require(editorId.ValueKind == JsonValueKind.Null || editing is not null, "desktop-view", "編輯視窗已失聯，請保留最後輸入。");
+    var editorRect = editing is null ? null : DesktopFrame.Rect(args.GetProperty("editorRect"));
+    var next = proposedDisplays!; var assignments = new List<(SceneView View, DisplayInfo Display)>();
+    if (editing is not null)
+    {
+      static double Overlap(LogicalRect a, LogicalRect b) => Math.Max(0, Math.Min(a.X + a.Width, b.X + b.Width) - Math.Max(a.X, b.X))
+        * Math.Max(0, Math.Min(a.Y + a.Height, b.Y + b.Height) - Math.Max(a.Y, b.Y));
+      var destination = next.OrderByDescending(d => Overlap(editorRect!, new(d.Bounds.X / scale, d.Bounds.Y / scale, d.Bounds.Width / scale, d.Bounds.Height / scale)))
+        .ThenByDescending(d => d.Id == editing.Display.Id).First();
+      assignments.Add((editing, destination));
+    }
+    // Preserve stable monitor matches before assigning displaced/parked views to newly available slots.
+    var slots = next.SelectMany(d => new[] { (Display: d, Layer: "desktop"), (Display: d, Layer: "floating") }).ToArray();
+    foreach (var slot in slots)
+    {
+      if (assignments.Any(a => a.Display.Id == slot.Display.Id && a.View.Layer == slot.Layer)) continue;
+      var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && v.Display.Id == slot.Display.Id && assignments.All(a => a.View != v));
+      if (match is not null) assignments.Add((match, slot.Display));
+    }
+    foreach (var slot in slots)
+    {
+      if (assignments.Any(a => a.Display.Id == slot.Display.Id && a.View.Layer == slot.Layer)) continue;
+      var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && assignments.All(a => a.View != v));
+      if (match is null)
+      {
+        HostError.Require(views.Count(v => !v.Retired) < 32, "desktop-capacity", "桌面視窗容量已滿，請重新啟動以恢復呈現；資料仍保留。");
+        match = new(slot.Display, slot.Layer, scale); views.Add(match); Watch(match);
+      }
+      assignments.Add((match, slot.Display));
+    }
+    foreach (var view in views.Where(v => !v.Retired))
+    {
+      var assignment = assignments.FirstOrDefault(a => a.View == view); view.Surface.SuspendInput(); view.Applied = -1;
+      view.Active = assignment.View is not null;
+      if (!view.Active) view.Surface.Hide();
+      else
+      {
+        view.Display = assignment.Display!;
+        view.Viewport = new(view.Display.Bounds.X / scale, view.Display.Bounds.Y / scale, view.Display.Bounds.Width / scale, view.Display.Bounds.Height / scale);
+        if (view.Initialized)
+        {
+          view.Surface.SetPhysicalBounds(view.Display.Bounds);
+          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = scale / (view.Display.Dpi / 96d);
+        }
+      }
+    }
+    displays = next; topology = requested; displayPending = false;
+    foreach (var view in views.Where(v => v.Ready && !v.Retired)) Post(view, new { v = 1, @event = "desktop-viewport", topology, view = ViewInfo(view) });
+    // Owner receives IDs before new scenes can submit commands; initialization yields through the dispatcher.
+    Application.Current.Dispatcher.BeginInvoke(new Action(() => { if (!disposed) _ = Start(); }));
+    return Info();
+  }
 
   public object? Invoke(string method, JsonElement args)
   {
@@ -101,7 +187,11 @@ public sealed class DesktopCoordinator : IDisposable
     switch (method)
     {
       case "desktop.info": return Info();
-      case "desktop.start": if (!started) { started = true; _ = Start(); } return Info();
+      case "desktop.start":
+        if (!started) { started = true; _ = Start(); if (displayPending) displayWatcher.Refresh(); }
+        return Info();
+      case "desktop.displays.retry": displayWatcher.Refresh(); return null;
+      case "desktop.displays.apply": return ApplyDisplays(args);
       case "desktop.shortcuts.configure":
       {
         var values = args.GetProperty("bindings");
@@ -179,7 +269,7 @@ public sealed class DesktopCoordinator : IDisposable
 
   private async Task Start()
   {
-    foreach (var view in views)
+    foreach (var view in views.Where(v => v.Active && !v.Retired && !v.Initialized).ToArray())
     {
       if (disposed) return;
       try { await Initialize(view); }
@@ -188,6 +278,7 @@ public sealed class DesktopCoordinator : IDisposable
   }
   private async Task Initialize(SceneView view)
   {
+    view.Initialized = true;
     view.Surface.Show(view.Layer == "floating"); view.Surface.SetPhysicalBounds(view.Display.Bounds); view.Surface.Hide();
     await view.Surface.WebView.EnsureCoreWebView2Async(environment);
     if (disposed || view.Retired) return;
@@ -255,11 +346,11 @@ public sealed class DesktopCoordinator : IDisposable
       }
       case "scene.info":
         view.Ready = true;
-        return new { sessionId = SessionId, viewId = view.Id, layer = view.Layer, bindings = BindingMap(), viewport = new { x = view.Viewport.X, y = view.Viewport.Y, width = view.Viewport.Width, height = view.Viewport.Height } };
+        return new { sessionId = SessionId, viewId = view.Id, layer = view.Layer, active = view.Active, topology, bindings = BindingMap(), viewport = new { x = view.Viewport.X, y = view.Viewport.Y, width = view.Viewport.Width, height = view.Viewport.Height } };
       case "scene.report": sendOwner(new { v = 1, @event = "desktop-error", viewId = view.Id, message = JsonRules.Text(args, "message", 2000) }); return null;
       case "scene.frame":
       {
-        if (frameToken is null || frame is null) return null;
+        if (frameToken is null || frame is null || displayPending || frame.Topology != topology) return null;
         if (view.Download is not null) transfers.Drop(view.Id, view.Download);
         var result = transfers.Lease(Owner, frameToken, view.Id);
         view.Download = JsonSerializer.SerializeToElement(result).GetProperty("token").GetString(); view.Downloading = frame; return result;
@@ -269,6 +360,7 @@ public sealed class DesktopCoordinator : IDisposable
       case "scene.applied":
       {
         var sequence = JsonRules.Integer(args, "sequence");
+        if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
         HostError.Require(view.Downloading?.Sequence == sequence && sequence >= view.Applied, "scene-order", "桌面輸入區域尚未對應已顯示畫面。");
         var cards = view.Downloading!.Cards.Where(c => c.Layer == view.Layer).ToArray();
         var zoom = scale / (view.Display.Dpi / 96d);
@@ -281,7 +373,7 @@ public sealed class DesktopCoordinator : IDisposable
           return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, c.Interactive);
         }));
         if (cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
-        view.Applied = sequence; TryFocus(view); return null;
+        view.Applied = sequence; TryFocus(view); return new { accepted = true };
       }
       case "scene.command.begin": return new { token = transfers.Begin(view.Id, Size(args, SceneTransfers.MaxCommand), JsonRules.Text(args, "sha256"), SceneTransfers.MaxCommand) };
       case "scene.command.append": return new { offset = transfers.Append(view.Id, JsonRules.Text(args, "token"), Size(args, SceneTransfers.MaxCommand, "offset"), JsonRules.Text(args, "base64", BridgeSession.MaxMessage)) };
@@ -300,6 +392,8 @@ public sealed class DesktopCoordinator : IDisposable
           or "card.details" or "card.transfer" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut",
           "unsupported-method", "桌面主機沒有此操作。");
         var draft = commandMethod == "editor.change";
+        var commandTopology = JsonRules.Integer(args, "topology");
+        HostError.Require(draft || !displayPending && view.Active && commandTopology == topology, "desktop-topology", "桌面座標正在更新，請稍候再操作；目前文字仍保留。");
         HostError.Require(commands.Values.Count(c => c.Draft == draft) < (draft ? 4 : 24), "scene-busy", "桌面操作仍在處理。");
         HostError.Require(!commands.Values.Any(c => c.View == view && c.Id == id), "scene-busy", "這個桌面操作已送出。");
         var ticket = Guid.NewGuid().ToString(); commands.Add(ticket, new(view, id, upload, draft, DateTime.UtcNow));
@@ -310,11 +404,11 @@ public sealed class DesktopCoordinator : IDisposable
           sceneIntents.Remove(captured.Intent.Id);
           if (captured.Intent.Current) { activation = captured.Intent; focusSequence = null; intent = captured.Intent.Id; }
         }
-        if (upload is null) sendOwner(new { v = 1, @event = "desktop-command", ticket, viewId = view.Id, command, intent });
+        if (upload is null) sendOwner(new { v = 1, @event = "desktop-command", ticket, viewId = view.Id, command, intent, topology = commandTopology });
         else
         {
           var bytes = transfers.Seal(view.Id, upload);
-          sendOwner(new { v = 1, @event = "desktop-command", ticket, viewId = view.Id, intent,
+          sendOwner(new { v = 1, @event = "desktop-command", ticket, viewId = view.Id, intent, topology = commandTopology,
             transfer = new { size = bytes.Length, sha256 = Convert.ToHexString(SHA256.HashData(bytes.Span)).ToLowerInvariant() } });
         }
         return new { accepted = true };
@@ -334,7 +428,7 @@ public sealed class DesktopCoordinator : IDisposable
   {
     if (focusSequence is null || activation is null) return false;
     if (!activation.Current) { activation = null; focusSequence = null; return false; }
-    if (view.Retired || !view.Ready || view.Layer != "floating" || view.Applied < focusSequence
+    if (displayPending || !view.Active || view.Retired || !view.Ready || view.Layer != "floating" || view.Applied < focusSequence
       || view.Downloading is null || !view.Downloading.Cards.Any(c => c.Layer == view.Layer && c.Operable && Intersects(c.Rect, view.Viewport))) return false;
     focusSequence = null; activation = null;
     if (view.Surface.InputWindow.Activate()) { view.Surface.WebView.Focus(); Post(view, new { v = 1, @event = "desktop-focus" }); }
@@ -369,7 +463,7 @@ public sealed class DesktopCoordinator : IDisposable
   public void Dispose()
   {
     if (disposed) return; disposed = true;
-    activity.Dispose(); shortcuts.Dispose();
+    displayWatcher.Dispose(); activity.Dispose(); shortcuts.Dispose();
     foreach (var view in views) view.Surface.Dispose(); transfers.Dispose(); commands.Clear(); flushes.Clear(); frozen.Clear(); sceneIntents.Clear();
   }
 }

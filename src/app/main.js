@@ -179,15 +179,29 @@ function initializeDesktop() {
         await native.bridge.request('desktop.showMain', { intent }); await openEditor(card, draft); render();
       },
     } });
-  for (const view of desktopInfo.views) authority.addView(view.viewId);
+  authority.configureDisplays(desktopInfo.topology ?? 0, desktopInfo.views);
   desktop = new DesktopOwner({ bridge: native.bridge, authority, editor: currentDesktopEditor,
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
-        sessionId: desktopInfo.sessionId, sequence, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor() });
+        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor() });
       if ($('#desktop-note')) $('#desktop-note').textContent = frame.fallbacks.length ? `${frame.fallbacks.length} 張便箋要求桌布層；Windows 目前以桌面層呈現，原偏好保留。` : '桌面已連接；操作群組可浮到其他 App 上方。';
       return frame;
     },
     changed: () => render(), error: error => status(error.message, true),
+    displays: async proposal => {
+      controller.cancelDrag();
+      const result = await workspace.layout.recoverDisplays(proposal.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })));
+      const editor = currentDesktopEditor();
+      try {
+        const info = await native.bridge.request('desktop.displays.apply', { topology: proposal.topology,
+          editorViewId: editor?.viewId ?? null, editorRect: editor ? workspace.layout.state.placements[editor.cardId] : null });
+        desktopInfo = info; authority.configureDisplays(info.topology, info.views); render();
+        if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
+      } catch (error) {
+        if (!nativeClosing) setTimeout(() => { if (!nativeClosing) void native.bridge.request('desktop.displays.retry').catch(() => {}); }, 3000);
+        throw error;
+      }
+    },
     lost: async viewId => {
       if (remoteEditor?.viewId !== viewId) return;
       const draftId = remoteEditor.draftId;

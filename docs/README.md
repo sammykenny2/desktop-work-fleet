@@ -23,6 +23,7 @@
 | [ADR-017](decisions/017-windows-composition-surface-and-input.md) | Accepted：Windows composition／互補輸入區域、快捷鍵與顯示器基礎；產品協調仍整合中 |
 | [ADR-018](decisions/018-single-owner-desktop-views.md) | Accepted：Windows 場景連接單一工作區、分片／受限命令與草稿保存屏障 |
 | [ADR-019](decisions/019-windows-shortcuts-and-tray.md) | Accepted：Windows 快捷鍵／焦點、系統匣與主畫面收起，仍使用唯一工作区 |
+| [ADR-020](decisions/020-windows-display-lifecycle.md) | Accepted：顯示器／DPI／休眠通知、保存後救援與場景重用 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

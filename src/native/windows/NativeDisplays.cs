@@ -8,6 +8,23 @@ public sealed record DisplayInfo(string Id, bool Primary, PhysicalBounds Bounds,
 /// <summary>Physical monitor inventory. Consumers explicitly map these pixels into their logical scene coordinate space.</summary>
 public static class NativeDisplays
 {
+  public static IReadOnlyList<DisplayInfo> Validate(IReadOnlyList<DisplayInfo> values)
+  {
+    if (values.Count is < 1 or > 16 || values.Count(d => d.Primary) != 1
+      || values.Select(d => d.Id).Distinct(StringComparer.Ordinal).Count() != values.Count)
+      throw new InvalidOperationException("Invalid display inventory.");
+    foreach (var value in values)
+    {
+      static bool Valid(PhysicalBounds r) => Math.Abs((long)r.X) <= 1_000_000 && Math.Abs((long)r.Y) <= 1_000_000
+        && r.Width is > 0 and <= 32768 && r.Height is > 0 and <= 32768;
+      if (string.IsNullOrEmpty(value.Id) || value.Id.Length > 128 || value.Dpi is < 48 or > 960
+        || !Valid(value.Bounds) || !Valid(value.WorkArea) || value.WorkArea.X < value.Bounds.X || value.WorkArea.Y < value.Bounds.Y
+        || (long)value.WorkArea.X + value.WorkArea.Width > (long)value.Bounds.X + value.Bounds.Width
+        || (long)value.WorkArea.Y + value.WorkArea.Height > (long)value.Bounds.Y + value.Bounds.Height)
+        throw new InvalidOperationException("Invalid display geometry.");
+    }
+    return values.OrderByDescending(d => d.Primary).ThenBy(d => d.Id, StringComparer.Ordinal).ToArray();
+  }
   public static IReadOnlyList<DisplayInfo> Read()
   {
     var values = new List<DisplayInfo>(); Exception? failure = null;
@@ -34,7 +51,7 @@ public static class NativeDisplays
     var succeeded = EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, callback, IntPtr.Zero);
     if (failure is not null) throw failure;
     if (!succeeded || values.Count == 0) throw new InvalidOperationException("No usable displays.");
-    return values.OrderByDescending(v => v.Primary).ThenBy(v => v.Id, StringComparer.Ordinal).ToArray();
+    return Validate(values);
   }
   private static PhysicalBounds Bounds(NativeRect r)
   {

@@ -406,6 +406,15 @@ menu／close block 與真快捷鍵註冊。實測 WPF IsActive=True 但 foregrou
 本切片沒有新增 runtime 套件、listener 或外部程式來源。
 顯示器拓撲與休眠、Google、其餘四平台與商店交付仍持續完整 1.0 目標。
 
+## 2026-10-05 顯示器生命週期實作
+
+前一快捷鍵／系統匣切片已推送 `db210d5`。
+本切片接上 Windows 顯示器／工作區域／DPI／休眠通知與延遲重新列舉，立即暫停輸入、撤銷焦點授權。
+owner 取消拖曳並持久保存不可達卡片救援，原生場景池保留編輯 WebView，依新 topology 套用 viewport。
+投影、命令及輸入 ack 綁定 topology，草稿通道持續保存。上限 16 顯示器／32 存活場景。
+依使用者 2026-10-05 指示優先實作，本切片沒有執行測試或獨立審閱，實體拔插／DPI／喚醒仍未驗收。
+決策見 [ADR-020](docs/decisions/020-windows-display-lifecycle.md)。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。

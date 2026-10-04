@@ -11,6 +11,7 @@ const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.
 export class DesktopAuthority {
   #workspace; #controller; #sessionId; #editor; #details; #shortcut; #perform; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #closed = false;
+  #topology = 0; #displayPending = false;
   constructor({ workspace, controller, sessionId, editor, details, shortcut, perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', '桌面工作階段身分無效。');
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
@@ -19,7 +20,22 @@ export class DesktopAuthority {
   get sessionId() { return this.#sessionId; }
   addView(viewId) {
     requireValue(!this.#closed && uuid(viewId) && !this.#seenViews.has(viewId) && this.#views.size < 64, 'desktop-view', '桌面視窗身分無效。');
-    this.#views.set(viewId, { lastSerial: 0 }); this.#seenViews.add(viewId);
+    this.#views.set(viewId, { lastSerial: 0, active: true }); this.#seenViews.add(viewId);
+  }
+  invalidateDisplays() {
+    this.#displayPending = true;
+    if (this.#gesture && this.#controller.state.dragSession?.generation === this.#gesture.generation) this.#controller.cancelDrag();
+    this.#gesture = null;
+  }
+  configureDisplays(topology, views) {
+    requireValue(Number.isSafeInteger(topology) && topology >= this.#topology, 'desktop-topology', '桌面座標版本無效。');
+    const live = new Set(views.map(view => view.viewId));
+    for (const id of this.#views.keys()) if (!live.has(id)) this.removeView(id);
+    for (const view of views) {
+      if (!this.#views.has(view.viewId)) this.addView(view.viewId);
+      this.#views.get(view.viewId).active = view.active !== false;
+    }
+    this.#topology = topology; this.#displayPending = false;
   }
   removeView(viewId) {
     this.#views.delete(viewId);
@@ -39,6 +55,7 @@ export class DesktopAuthority {
     requireValue(!this.#closed && this.#views.has(viewId), 'desktop-view', '桌面視窗已失效。');
     const message = copy(envelope);
     const intent = typeof context.intent === 'string' ? context.intent : null;
+    const topology = context.topology ?? 0;
     requireValue(message && message.sessionId === this.#sessionId && uuid(message.id) && methods.has(message.method)
       && Number.isSafeInteger(message.serial) && message.serial >= 1
       && message.args && typeof message.args === 'object' && !Array.isArray(message.args), 'desktop-command', '桌面命令無效。');
@@ -64,6 +81,8 @@ export class DesktopAuthority {
       requireValue(!this.#closed && this.#views.get(viewId) === view, 'desktop-view', '桌面視窗已失效，尚未執行命令。');
       const invoke = () => {
         requireValue(!this.#closed && this.#views.get(viewId) === view, 'desktop-view', '桌面視窗已失效，尚未執行命令。');
+        requireValue(draftWrite || !this.#displayPending && view.active && topology === this.#topology,
+          'desktop-topology', '顯示器正在更新，請稍候再操作；目前文字仍保留。');
         return this.#invoke(viewId, message.method, message.args, intent);
       };
       return draftWrite ? invoke() : this.#perform(invoke);

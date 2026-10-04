@@ -6,7 +6,7 @@ import { shortcutForEvent } from '../core/shortcuts.js';
 
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set();
-let bridge, client, info, frame, editor = null, composing = false, fetching = false, requested = false, gesture = null, lastError;
+let bridge, client, info, frame, editor = null, composing = false, fetching = false, requested = false, gesture = null, lastError, displayPending = false;
 const make = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const rect = (node, value) => Object.assign(node.style, { left: `${value.x}px`, top: `${value.y}px`, width: `${value.width}px`, height: `${value.height}px` });
 const report = error => {
@@ -91,9 +91,10 @@ async function refresh() {
       requested = false; const value = await bridge.request('scene.frame'); if (!value) continue;
       try {
         const next = parse(await download(value, offset => bridge.request('scene.read', { token: value.token, offset })));
+        if (displayPending || (next.topology ?? 0) !== (info.topology ?? 0)) continue;
         if (render(next) || frame?.sequence === next.sequence) {
           if (document.visibilityState === 'visible') await new Promise(resolve => { requestAnimationFrame(resolve); setTimeout(resolve, 100); });
-          await bridge.request('scene.applied', { sequence: next.sequence });
+          await bridge.request('scene.applied', { sequence: next.sequence, topology: next.topology ?? 0 });
         }
       } finally { await bridge.request('scene.discard', { token: value.token }).catch(() => {}); }
     }
@@ -129,6 +130,16 @@ async function initialize() {
   bridge = new NativeBridge(chrome.webview); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
   root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
   bridge.onEvent('desktop-frame', () => { void run(refresh); });
+  bridge.onEvent('desktop-displays-changing', () => {
+    displayPending = true;
+    const current = gesture; gesture = null;
+    if (current) { current.ended = true; if (root.hasPointerCapture(current.pointerId)) root.releasePointerCapture(current.pointerId); }
+  });
+  bridge.onEvent('desktop-viewport', message => {
+    Object.assign(info, message.view, { topology: message.topology }); displayPending = false;
+    root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
+    void run(refresh);
+  });
   bridge.onEvent('desktop-shortcuts', message => { info.bindings = message.bindings; });
   bridge.onEvent('desktop-focus', () => { (root.querySelector('textarea') || root.querySelector('.selected.operable') || root.querySelector('.operable'))?.focus(); });
   bridge.onEvent('desktop-unfreeze', message => { if (message.resume && message.draftId === editor?.draftId) frozen.delete(message.id); updateFrozen(); });
@@ -140,7 +151,7 @@ async function initialize() {
   }); });
   root.onpointerdown = event => {
     const paper = event.target.closest('.card.operable');
-    if (gesture || !paper || event.button !== 0 || event.target.closest('button,a,input,textarea,select')) return;
+    if (displayPending || info.active === false || gesture || !paper || event.button !== 0 || event.target.closest('button,a,input,textarea,select')) return;
     const cardId = paper.dataset.cardId; const start = point(event); const id = crypto.randomUUID();
     gesture = { id, cardId, pointerId: event.pointerId, start, origin: frame.cards.find(c => c.id === cardId).rect,
       down: client.command('pointer.down', { gestureId: id, cardId, pointerId: event.pointerId, point: start, handle: Boolean(event.target.closest('.card-summary')) }) };

@@ -6,12 +6,12 @@ public sealed record LogicalRect(double X, double Y, double Width, double Height
 public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bool Interactive, bool Operable);
 
 /// <summary>Native input regions are derived only from a complete, validated owner projection.</summary>
-public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards)
+public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0)
 {
   public static DesktopFrame Parse(ReadOnlyMemory<byte> bytes, string sessionId, long previous)
   {
     using var document = JsonRules.Parse(bytes); var root = document.RootElement;
-    Fields(root, "protocol sessionId sequence workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks");
+    Fields(root, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks");
     HostError.Require(JsonRules.Integer(root, "protocol") == 1 && JsonRules.Text(root, "sessionId") == sessionId,
       "scene-session", "桌面畫面屬於舊工作階段。");
     var sequence = JsonRules.Integer(root, "sequence");
@@ -40,7 +40,7 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
       foreach (var flag in new[] { "interactive", "draggable", "editing", "selected", "completed", "mine" }) _ = Boolean(card, flag);
       cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive"), Boolean(card, "draggable")));
     }
-    return new(sequence, cards);
+    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0);
   }
   private static bool Boolean(JsonElement value, string key)
   {

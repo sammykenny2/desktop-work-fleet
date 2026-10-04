@@ -14,6 +14,7 @@ export class DesktopClient {
   }
   command(method, args = {}, intent = null) {
     args = copy(args);
+    const topology = this.#info.topology ?? 0;
     const draft = method === 'editor.change';
     requireValue([...this.#pending.values()].filter(p => p.draft === draft).length < (draft ? 4 : 24), 'desktop-busy', '桌面操作仍在處理，請稍候重試。');
     return new Promise((resolve, reject) => {
@@ -26,10 +27,10 @@ export class DesktopClient {
         const command = { sessionId: this.#info.sessionId, id, serial: ++this.#serial, method, args };
         const bytes = encode(command); let token;
         try {
-          if (bytes.length <= 64 * 1024) await this.#bridge.request('scene.command', { command, intent });
+          if (bytes.length <= 64 * 1024) await this.#bridge.request('scene.command', { command, intent, topology });
           else {
             token = await upload(this.#bridge, 'scene.command', bytes, MAX_COMMAND, token => this.#bridge.request('scene.discard', { token }));
-            await this.#bridge.request('scene.command', { token, intent });
+            await this.#bridge.request('scene.command', { token, intent, topology });
             // The native mailbox owns complete command bytes until the owner responds.
             token = null;
           }

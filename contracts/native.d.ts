@@ -8,9 +8,11 @@ export interface NativeHostInfo {
   maxMessageBytes: 1048576;
   maxRecordBytes: 134217728;
   maxAttachmentBytes: 26214400;
+  maxBackupBytes: 142610432;
   capabilities: {
     nativeStorage: boolean;
     automaticFiles: boolean;
+    backupFiles: boolean;
     secureBackup: boolean;
     google: boolean;
     desktopPresentation: boolean;
@@ -19,13 +21,20 @@ export interface NativeHostInfo {
 export type NativeRecordKind = 'workspace' | 'journal';
 export type NativeRequest = { v: 1; id: string } & (
   | { method: 'host.info' | 'host.ready' | 'host.closeReady'; params: Record<string, never> }
-  | { method: 'transfer.begin'; params: { kind: NativeRecordKind | 'attachment'; size: number; sha256: string } }
+  | { method: 'transfer.begin'; params: { kind: NativeRecordKind | 'attachment' | 'backup'; size: number; sha256: string } }
   | { method: 'transfer.append'; params: { token: string; offset: number; base64: string } }
   | { method: 'transfer.finish' | 'transfer.discard' | 'storage.putAttachment'; params: { token: string } }
   | { method: 'transfer.read'; params: { token: string; offset: number } }
   | { method: 'storage.load'; params: { kind: NativeRecordKind } }
   | { method: 'storage.attachment'; params: { id: string } }
   | { method: 'storage.commit'; params: { kind: NativeRecordKind; token: string; expectedRevision: number | null; attachments: string[] } }
+  | { method: 'backup.choose' | 'backup.manual.choose'; params: Record<string, never> }
+  | { method: 'backup.authorize'; params: { destinationId: string } }
+  | { method: 'backup.manual.save'; params: { destinationId: string; token: string } }
+  | { method: 'backup.create'; params: import('./backup.js').AutomaticBackupJob & { token: string; profileId: string } }
+  | { method: 'backup.read' | 'backup.remove'; params: import('./backup.js').AutomaticBackupJob & { profileId: string } }
+  | { method: 'backup.key.create'; params: { password: string } }
+  | { method: 'backup.encrypt'; params: { token: string; keyId: string } }
 );
 export type NativeReply = { v: 1; id: string } & (
   | { ok: true; result: unknown }

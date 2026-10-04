@@ -84,8 +84,8 @@ export function automaticBackupSection(automatic, unavailable = null) {
     unconfirmedFiles.hidden = unconfirmed.length === 0; unconfirmedList.replaceChildren();
     for (const file of unconfirmed) unconfirmedList.append(node('li', `${new Date(file.createdAt).toLocaleString()}：${file.name}`));
     cryptoInfo.textContent = current.canEncrypt ? '密碼只保存在本機安全儲存；仍請自行保管密碼，供換裝置時還原。'
-      : '此瀏覽器沒有安全密碼儲存。若選擇未加密自動備份，檔案會包含可讀取的便箋與附件。';
-    retentionInfo.textContent = !current.canCreate ? '此瀏覽器尚不支援自動備份，請使用上方的手動匯出。原生 App 檔案整合仍在開發。'
+      : '此環境沒有安全密碼儲存。若選擇未加密自動備份，檔案會包含可讀取的便箋與附件。';
+    retentionInfo.textContent = !current.canCreate ? '此環境尚不支援自動備份，請使用上方的手動匯出。'
       : current.canPrune ? `目前保留 ${current.settings?.keep || keep.value} 份成功備份。`
       : '此環境會保留全部自動備份，保留份數尚不生效；請自行清理不需要的檔案。';
     enable.textContent = encrypted.checked ? '保存設定並加密備份' : '保存設定並以未加密檔案備份';

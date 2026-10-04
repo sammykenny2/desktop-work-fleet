@@ -121,10 +121,15 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 腳本建置 Debug app／probes，執行真 SQLite／DPAPI、JavaScript→native stdio bridge 及實際 WPF／WebView2。
 資料庫、截圖皆寫入 `build/native-checks-*`／`build/native-js-*` 的獨立合成資料目錄；不讀取個人 App 資料。
 WPF probe 使用螢幕外且不啟用的視窗，以 DOM 操作 editor、附件、關閉及重新開啟，截圖為 `ui/native-ui.png`。
+另測加密自動備份、手動匯出與原生檔案的還原預覽；只替換互動 picker 結果，
+原生檔案／DPAPI／SQLite／IPC 皆實際執行，沒有自動操作真 OS picker。
+core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換檔不刪、同 handle 校驗／刪除、
+目錄重開及替換拒絕；JS→native 測中文／emoji 密碼、跨程序 key／grant、ack 遺失恢復、
+受管檔修改保留、manual 保存證明與失效／跨 profile key 不降級。
 需要一般 Windows 使用者 session 與 WebView2 Runtime；受限工具環境若造成 WebView2 crash，需在可運行環境重測，
 不能當作通過或停用 WebView2 sandbox。這些測試不是 OS 點擊穿透、多螢幕／層級或真實斷電證據。
 
-`npm test` 會明確 skip 5 個需要已建置 Windows helper 的 native integration tests；
+`npm test` 會明確 skip 8 個需要已建置 Windows helper 的 native integration tests；
 `WORK_FLEET_NATIVE_TEST=1` 才執行它們，缺少 helper 即失敗，不假報成功。
 若單獨執行，先用 `Build-WindowsApp.ps1 -Configuration Debug -IncludeTests`，再設變數並執行
 `node --test tests/native-storage.test.js`。無 OS 依賴的 bridge 關閉／訊息容量測試每次都跑。

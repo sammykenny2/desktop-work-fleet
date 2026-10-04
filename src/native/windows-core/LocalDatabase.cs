@@ -26,14 +26,15 @@ public sealed class LocalDatabase : IDisposable
     {
       connection.Open(); Execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
       var version = Convert.ToInt64(Scalar("PRAGMA user_version;"));
-      HostError.Require(version is 0 or 1, "storage-version", "資料庫版本較新，請更新 Work Fleet。");
+      HostError.Require(version is 0 or 1 or 2, "storage-version", "資料庫版本較新，請更新 Work Fleet。");
       using var tx = connection.BeginTransaction();
       Execute("CREATE TABLE IF NOT EXISTS records (profile TEXT NOT NULL, kind TEXT NOT NULL, revision INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,kind));", tx);
       Execute("CREATE TABLE IF NOT EXISTS attachments (profile TEXT NOT NULL, id TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,id));", tx);
       Execute("CREATE TABLE IF NOT EXISTS staging (profile TEXT NOT NULL, token TEXT PRIMARY KEY, kind TEXT NOT NULL, digest TEXT NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL);", tx);
       Execute("CREATE TABLE IF NOT EXISTS vault (profile TEXT NOT NULL, purpose TEXT NOT NULL, id TEXT PRIMARY KEY, data BLOB NOT NULL);", tx);
+      Execute("CREATE TABLE IF NOT EXISTS capabilities (profile TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,kind,id));", tx);
       // Exclusive owner proves no live transfer survives a process restart.
-      Execute("DELETE FROM staging; PRAGMA user_version=1;", tx); tx.Commit();
+      Execute("DELETE FROM staging; PRAGMA user_version=2;", tx); tx.Commit();
     }
     catch { connection.Dispose(); owner.Dispose(); throw; }
   }
@@ -75,11 +76,11 @@ public sealed class LocalDatabase : IDisposable
   }
   public string Stage(string kind, byte[] bytes, string digest)
   {
-    HostError.Require(kind is "workspace" or "journal" or "attachment", "invalid-transfer", "不支援的上傳種類。");
+    HostError.Require(kind is "workspace" or "journal" or "attachment" or "backup", "invalid-transfer", "不支援的上傳種類。");
     CheckDigest(digest);
-    HostError.Require(bytes.Length <= (kind == "attachment" ? MaxAttachment : MaxRecord) && Digest(bytes) == digest,
+    HostError.Require(bytes.Length <= (kind == "attachment" ? MaxAttachment : kind == "backup" ? WindowsBackupDirectory.MaxBackupBytes : MaxRecord) && Digest(bytes) == digest,
       "transfer-integrity", "傳輸容量或 SHA-256 校驗失敗。");
-    if (kind != "attachment") ValidateRecord(bytes);
+    if (kind is "workspace" or "journal") ValidateRecord(bytes);
     lock (gate)
     {
       var total = Convert.ToInt64(Scalar("SELECT COALESCE(SUM(size),0) FROM staging;"));
@@ -109,6 +110,35 @@ public sealed class LocalDatabase : IDisposable
   public void Discard(string token)
   {
     lock (gate) Execute("DELETE FROM staging WHERE profile=$p AND token=$t;", null, ("$p", ProfileId), ("$t", token));
+  }
+  public byte[] ReadBackupStage(string token)
+  {
+    lock (gate)
+    {
+      using var tx = connection.BeginTransaction(); var (bytes, digest) = Staged(token, "backup", tx);
+      if (Digest(bytes) == digest) return bytes;
+      CryptographicOperations.ZeroMemory(bytes); throw new HostError("transfer-integrity", "備份傳輸校驗失敗。");
+    }
+  }
+  // Only the native backup coordinator calls these methods. No renderer read/write metadata endpoint exists.
+  public void SaveCapability(string kind, string id, byte[] bytes)
+  {
+    HostError.Require(kind is "backup-directory" or "backup-file" && Guid.TryParseExact(id, "D", out _) && bytes.Length <= 65536,
+      "backup-capability", "備份原生身分無效。");
+    lock (gate)
+    {
+      var data = UserProtection.Protect(bytes, Scope(kind, id));
+      Execute("INSERT INTO capabilities VALUES($p,$k,$id,$data);", null, ("$p", ProfileId), ("$k", kind), ("$id", id), ("$data", data));
+    }
+  }
+  public byte[]? ReadCapability(string kind, string id)
+  {
+    lock (gate)
+    {
+      var data = Scalar("SELECT data FROM capabilities WHERE profile=$p AND kind=$k AND id=$id;", null,
+        ("$p", ProfileId), ("$k", kind), ("$id", id)) as byte[];
+      return data is null ? null : UserProtection.Unprotect(data, Scope(kind, id));
+    }
   }
   public void CommitRecord(string kind, string token, long? expectedRevision, IReadOnlyList<string> attachmentTokens)
   {

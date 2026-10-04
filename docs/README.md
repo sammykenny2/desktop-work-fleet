@@ -19,6 +19,7 @@
 | [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md) | Accepted：完整可攜資料、嚴格 ZIP／加密、三種還原與自動備份契約；執行見 PROGRESS |
 | [ADR-014](decisions/014-durable-automatic-backups.md) | Accepted：自動備份 journal／重啟／policy、原生安全檔案能力；瀏覽器不假冒原生能力 |
 | [ADR-015](decisions/015-windows-native-storage-and-editor-host.md) | Accepted：Windows WPF／WebView2 主畫面、加密 SQLite／DPAPI、受限 bridge；桌面呈現另驗收 |
+| [ADR-016](decisions/016-windows-native-backup-files-and-vault.md) | Accepted：Windows NTFS 保存／清理、native grants、密碼不回傳的 vault 加密；其他平台另驗收 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

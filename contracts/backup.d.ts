@@ -78,5 +78,6 @@ export type AutomaticBackupFiles = { canCreate: false; canPrune: false } | ({
 export interface BackupVault {
   available: boolean;
   /** Immutable, profile-bound references. Changing the password creates a new key ID and policy generation. */
-  read(input: { profileId: Id; keyId: string }): Promise<string | null>;
+  /** Native encryptor returns a portable envelope, never the stored password or key bytes. */
+  encrypt(input: { profileId: Id; keyId: string; bytes: Uint8Array; signal?: AbortSignal }): Promise<Uint8Array>;
 }

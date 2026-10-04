@@ -2,7 +2,7 @@ import { FleetError, requireValue } from '../core/contracts.js';
 
 const MAX_MESSAGE_BYTES = 1024 * 1024;
 
-/** Native channels carry data, never executable source, paths, SQL or credentials. */
+/** Native channels carry bounded data and explicit password enrollment, never executable source, paths, SQL or saved credentials. */
 export class NativeBridge {
   #transport; #pending = new Map(); #listeners = new Set(); #closed = false; #receive; #timeout;
   constructor(transport, { timeout = 120_000 } = {}) {

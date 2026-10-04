@@ -38,7 +38,11 @@ IPC 有 1 MiB envelope／256 KiB chunk 上限及完整 SHA，20,000 token manife
 上傳暫存與正式資料隔離，SQLite CAS transaction 一起保存 Workspace／receipt／附件；
 同目錄唯一原生 owner，重啟回收失去 owner 的暫存。已提交回覆遺失只能以完整 bytes 確認，不能宣稱回滾。
 正式畫面可互動前先準備關閉協定，保存失敗／未完成對話框保留視窗。
-OAuth、自動檔案與安全備份密碼整合仍待完成，不因 DPAPI primitive 已測而宣稱完整功能已交付。
+Windows 自動檔案與安全備份密碼整合見 ADR-016；OAuth 與其他平台仍需實作／驗收。
+Native grants／file identity 以 DPAPI 保護並綁 profile，renderer 無路徑／metadata 讀取方法。
+NTFS 子檔相對 held directory handle 建立；清理核對同 handle 的實體／size／SHA 後 disposition，
+並持有最新有效備份的鎖到清理完成。不先驗 hash 再按 pathname 刪檔。
+遇到換檔、reparse、改內容或存取競爭會保留並回報；native reservation 遺失的同名檔不讀取／認領。
 
 ## 1.0 可攜備份
 
@@ -48,7 +52,8 @@ OAuth、自動檔案與安全備份密碼整合仍待完成，不因 DPAPI primi
   大型 entry 及 graph 分批提供取消；20,000 entries、128 MiB expanded、25 MiB attachment 上限不作靜默截斷。
 - 加密是整個內層 ZIP 的 AES-256-GCM + PBKDF2-HMAC-SHA256 600,000，隨機 salt/nonce、header AAD。
   tag 成功才解析；KDF 固定白名單，密碼不進設定／log／`.env`；GC 字串沒有保證清除。
-  OS 密碼儲存及自動備份仍需原生驗收，不能把容器加密宣稱為 Drive／本機 DB 加密。
+  Windows 自動備份用 DPAPI vault，原生 PBKDF2／AES-GCM 產物與共用 reader 互通；其他平台仍需驗收。
+  排程只取得加密結果，沒有取回已保存密碼的 bridge；不能把容器加密宣稱為 Drive 加密。
 - 還原使用經驗證的 BackupDocument／不可偽造建構的 RestorePlan，綁 profile 及 workspace revision；
   預覽零寫入，提交以 CAS 在同一 IDB transaction 寫狀態／receipt／附件，重啟依 receipt 去重。
   取代安全備份以可信檔案 adapter 的 write／close／讀回校驗證明保存；純下載或普通 JSON 不足以解鎖。

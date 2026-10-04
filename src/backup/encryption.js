@@ -30,6 +30,16 @@ async function derive(password, salt, signal) {
   } finally { bytes.fill(0); }
 }
 
+/** Validate a trusted native encryptor's envelope shape; never accept a plaintext fallback as encrypted. */
+export async function validateEncryptedBackup(bytes, options = {}) {
+  requireValue(bytes instanceof Uint8Array, 'unsupported-backup-encryption', '原生加密未回傳完整備份。');
+  const entries = await unpackZip(bytes, options);
+  requireValue(entries.size === 2 && entries.has('encryption.json') && entries.has('payload.bin'),
+    'unsupported-backup-encryption', '原生加密未回傳加密封裝，未保存明文。');
+  validateHeader(parseJson(entries.get('encryption.json')));
+  requireValue(entries.get('payload.bin').length >= 16, 'unsupported-backup-encryption', '加密內容不完整。');
+}
+
 /** Authenticated envelope around a complete ZIP; public headers contain no content or account metadata. */
 export async function encryptBackup(input, password, options = {}) {
   requireValue(input instanceof Uint8Array && input.length <= BACKUP_LIMITS.zipBytes,

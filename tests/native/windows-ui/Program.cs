@@ -21,7 +21,9 @@ internal static class Program
   }
   private static FleetWindow Open(string directory)
   {
-    var window = new FleetWindow(directory) { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
+    var backups = Path.Combine(directory, "backups"); Directory.CreateDirectory(backups);
+    // Replace only the interactive picker in this offscreen probe. Bridge, encryption, SQLite and file I/O are real.
+    var window = new FleetWindow(directory, () => backups) { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
       ShowActivated = false, ShowInTaskbar = false, Width = 1180, Height = 800 };
     window.Show(); return window;
   }
@@ -76,6 +78,7 @@ internal static class Program
     window.Close(); await Task.Delay(200);
     await Wait(window, "document.querySelector('#status').textContent.includes('請先完成或關閉')", "close refuses open work dialog");
     await Eval(window, "document.querySelector('dialog[open]').close()");
+    await BackupProbe(window, directory);
     using (var screenshot = File.Create(Path.Combine(directory, "native-ui.png")))
       await window.WebView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
     await Eval(window, "document.querySelector('#new-card').click()");
@@ -107,5 +110,30 @@ internal static class Program
     using var state = JsonRules.Parse(db.ReadRecord("workspace")!);
     var card = state.RootElement.GetProperty("cards")[0]; var attachment = card.GetProperty("content").GetProperty("attachments")[0];
     if (db.ReadAttachment(attachment.GetProperty("id").GetString()!) is null) throw new Exception("Attachment missing after native reopen");
+  }
+  private static async Task BackupProbe(FleetWindow window, string directory)
+  {
+    await Eval(window, "document.querySelector('#backup-button').click()");
+    await Wait(window, "document.querySelector('#backup-dialog')?.open === true", "native backup dialog");
+    await Eval(window, "document.querySelector('#auto-backup-location').click()");
+    await Wait(window, "document.querySelector('#auto-backup-destination').textContent.includes('backups')", "native directory grant");
+    await Eval(window, "document.querySelector('#auto-backup-password').value='原生畫面備份密碼-abcdefghijkl';document.querySelector('#auto-backup-enable').click()");
+    await Wait(window, "document.querySelector('#auto-backup-message').textContent === '本次檔案已保存並校驗。'", "native automatic encrypted file");
+    if (Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-auto-*.zip").Length != 1) throw new Exception("Missing automatic file");
+    await Eval(window, "document.querySelector('#backup-password').value='手動畫面備份密碼-abcdefghijkl';document.querySelector('#export-backup').click()");
+    await Wait(window, "document.querySelector('#backup-status').textContent === '備份已保存並校驗。'", "native manual verified file");
+    var file = Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-backup-*.zip").Single();
+    var base64 = Convert.ToBase64String(File.ReadAllBytes(file));
+    await Eval(window, """
+      const restoreBytes = Uint8Array.from(atob(BASE64), value => value.charCodeAt(0));
+      const restoreInput = new DataTransfer(); restoreInput.items.add(new File([restoreBytes], 'native.zip', {type:'application/zip'}));
+      document.querySelector('#restore-file').files=restoreInput.files;
+      document.querySelector('#restore-file').dispatchEvent(new Event('change',{bubbles:true}));
+      document.querySelector('#restore-password').value='手動畫面備份密碼-abcdefghijkl';
+      document.querySelector('#preview-restore').click();
+      """.Replace("BASE64", JsonSerializer.Serialize(base64)));
+    await Wait(window, "document.querySelector('#backup-status').textContent === '已驗證，尚未還原。請確認目標與模式。'", "native file portable restore preview");
+    await Wait(window, "document.querySelector('#restore-preview').textContent.includes('1 個附件')", "backup retains attachment");
+    await Eval(window, "document.querySelector('#close-backup').click()");
   }
 }

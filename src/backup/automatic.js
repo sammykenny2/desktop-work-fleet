@@ -1,8 +1,9 @@
-import { copy, requireValue, safeKey } from '../core/contracts.js';
+import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
 import { sha256, validDigest } from '../sources/files.js';
 import { canonicalJson } from '../sources/json.js';
 import { createBackup } from './payload.js';
 import { BACKUP_LIMITS, checkCancelled } from './archive.js';
+import { validateEncryptedBackup } from './encryption.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -125,6 +126,7 @@ export class AutomaticBackup {
     return this.#queue(async () => { await this.#save({ enabled: false }); this.#phase = 'idle'; this.#announce(); return this.status; });
   }
   cancel() { this.#controller?.abort(); }
+  whenIdle() { return this.#tail; }
 
   run({ force = false, signal } = {}) {
     if (this.#running) return this.#running;
@@ -145,7 +147,8 @@ export class AutomaticBackup {
         const failure = { code, failedAt, message: String(error.message || '自動備份失敗，現有資料保留。').slice(0, 2048) };
         this.#transientError = failure;
         try {
-          await this.#save({ failures, lastFailure: failure, paused: ['backup-permission', 'backup-key-unavailable', 'backup-vault-unavailable', 'backup-create-unavailable'].includes(code),
+          await this.#save({ failures, lastFailure: failure, paused: ['backup-permission', 'backup-key-unavailable', 'backup-vault-unavailable',
+            'backup-create-unavailable', 'backup-directory-changed', 'backup-directory', 'backup-filesystem', 'unsupported-backup-encryption'].includes(code),
             nextAttemptAt: failedAt + Math.min(3600000, 60000 * 2 ** (failures - 1)) });
         } catch (journalError) { this.#pause(journalError); throw journalError; }
         throw error;
@@ -166,7 +169,13 @@ export class AutomaticBackup {
   }
   async #recover(signal) {
     const job = this.#state.pending; if (!job) return false;
-    const bytes = await this.#files.read({ ...copy(job), profileId: this.#state.profileId, signal }); checkCancelled(signal);
+    let bytes;
+    try { bytes = await this.#files.read({ ...copy(job), profileId: this.#state.profileId, signal }); }
+    catch (error) {
+      if (!['backup-file-unowned', 'backup-file-changed'].includes(error.code)) throw error;
+      await this.#save({ pending: null, inventory: [...this.#state.inventory, { ...job, status: 'unconfirmed' }] }); return false;
+    }
+    checkCancelled(signal);
     if (bytes !== null && bytes.length === job.size && await sha256(bytes) === job.sha256) {
       await this.#publish(job); return true;
     }
@@ -183,7 +192,12 @@ export class AutomaticBackup {
     const obsolete = owned.slice(0, Math.max(0, owned.length - settings.keep));
     if (obsolete.length) {
       const latest = this.#state.lastSuccess;
-      const bytes = await this.#files.read({ ...copy(latest), profileId: this.#state.profileId, signal });
+      let bytes;
+      try { bytes = await this.#files.read({ ...copy(latest), profileId: this.#state.profileId, signal }); }
+      catch (error) {
+        if (!['backup-file-unowned', 'backup-file-changed'].includes(error.code)) throw error;
+        throw new FleetError('backup-latest-missing', '最新備份已被替換，先保留舊備份並重新建立。');
+      }
       requireValue(bytes !== null && bytes.length === latest.size && await sha256(bytes) === latest.sha256,
         'backup-latest-missing', '最新備份已遺失或被修改，先保留舊備份並重新建立。');
     }
@@ -207,16 +221,17 @@ export class AutomaticBackup {
     await this.#flush(); checkCancelled(signal);
     const settings = copy(this.#state.settings); const snapshot = this.#workspace.state;
     requireValue(snapshot.profileId === this.#state.profileId, 'backup-profile', '備份帳號已切換。');
-    let password;
+    const id = this.#fresh(); const backup = await createBackup({ workspace: { state: snapshot }, storage: this.#storage,
+      uuid: () => id, now: () => new Date(now), signal });
     if (settings.encrypted) {
-      requireValue(this.#vault?.available === true, 'backup-vault-unavailable', '安全密碼儲存無法使用，加密排程已暫停。');
-      password = await this.#vault.read({ profileId: snapshot.profileId, keyId: settings.keyId });
-      requireValue(typeof password === 'string' && [...password].length >= 12 && password.length <= 1024,
-        'backup-key-unavailable', '無法取得加密備份密碼，排程不會改存明文。');
+      requireValue(this.#vault?.available === true && typeof this.#vault.encrypt === 'function',
+        'backup-vault-unavailable', '安全密碼儲存無法使用，加密排程已暫停。');
+      const plaintext = backup.bytes;
+      try {
+        backup.bytes = await this.#vault.encrypt({ profileId: snapshot.profileId, keyId: settings.keyId, bytes: plaintext, signal });
+        await validateEncryptedBackup(backup.bytes, { signal }); backup.encrypted = true;
+      } finally { plaintext.fill(0); }
     }
-    const id = this.#fresh(); let backup;
-    try { backup = await createBackup({ workspace: { state: snapshot }, storage: this.#storage,
-      password, uuid: () => id, now: () => new Date(now), signal }); } finally { password = undefined; }
     const job = { id, scheduleId: settings.scheduleId, policyId: settings.policyId, destinationId: settings.destinationId,
       name: `work-fleet-auto-${id}.zip`, sourceRevision: snapshot.revision, createdAt: now,
       encrypted: backup.encrypted, sha256: await sha256(backup.bytes), size: backup.bytes.length };

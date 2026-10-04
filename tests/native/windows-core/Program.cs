@@ -6,7 +6,10 @@ using WorkFleet.Windows.Core;
 
 if (args.Length == 2 && args[0] == "--bridge")
 {
-  using var database = new LocalDatabase(args[1], "local"); using var bridge = new BridgeSession(database);
+  Console.InputEncoding = new UTF8Encoding(false, true); Console.OutputEncoding = new UTF8Encoding(false, true);
+  using var database = new LocalDatabase(args[1], "local"); using var files = new NativeBackupFiles(database);
+  var backups = Path.Combine(Path.GetFullPath(args[1]), "backups"); Directory.CreateDirectory(backups);
+  using var bridge = new BridgeSession(database, files, () => backups);
   string? line; while ((line = Console.ReadLine()) is not null) Console.WriteLine(bridge.Dispatch(line));
   return;
 }
@@ -129,3 +132,11 @@ Test("navigation allows only the packaged main document", () =>
     Require(!NavigationPolicy.IsDocument(uri));
 });
 Console.WriteLine($"{count}/{count} native Windows core checks passed.");
+try
+{
+  var files = BackupFilesProbe.Run(root);
+  Console.WriteLine($"{files}/{files} native Windows backup file checks passed.");
+  var coordinator = BackupCoordinatorProbe.Run(root);
+  Console.WriteLine($"{coordinator}/{coordinator} native Windows backup coordinator checks passed.");
+}
+catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }

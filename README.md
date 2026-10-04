@@ -11,7 +11,7 @@
 - 新的本機 UI 支援群組、固定紙面編輯、Markdown／checklist／附件、草稿與拖放；Windows 原生主畫面及加密保存已加入，[啟動方式](docs/setup-guide.md)。桌面分層及其他原生平台持續整合。
 - 既有 **0.1.0 驗證版** 仍保留 macOS Sandbox App、Web 編輯器與 Python／SQLite 服務。
 - 1.0 採 Google 帳號＋檔案來源，不架便箋 local server；Drive 傳輸核心已加入，原生登入與真 Google 驗收尚待整合。
-- 完整 ZIP／加密、三種原子還原與手動 UI 已加入；自動排程／journal 已實作，原生安全檔案與密碼整合持續施工，見 [SPEC-002](docs/specs/002-portable-backup-and-restore.md)。
+- 完整 ZIP／加密、三種原子還原與手動 UI 已加入；Windows 已接本機 NTFS 自動備份／清理及 DPAPI 金鑰加密，其他平台持續整合，見 [SPEC-002](docs/specs/002-portable-backup-and-restore.md)。
 - 本次包含 Windows/macOS/Linux、iOS/Android 原生 App 與商店提交準備；原生 host／Google／打包尚待整合與驗收。
 - 已核准 Markdown、checklist、附件、完成／封存、逐卡設定與完整備份／還原範圍；見 SPEC-003 已答 Q 及 [ADR-008](docs/decisions/008-portable-interaction-core.md)。
 - [現有驗證報告](docs/validation/2026-10-03-validation-report.md) 保留其原範圍；不能當作新桌面互動或商店通過。

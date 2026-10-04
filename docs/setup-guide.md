@@ -34,11 +34,11 @@ python scripts/testing/serve_preview.py --port 0
 - 同 profile 不允許第二個獨立視窗寫入；保存中或失敗時離頁有提示。
   沒有 Google 同步，清除瀏覽器資料會失去預覽資料；可先用設定內「資料與備份」保存 ZIP。
 - 「資料與備份」可匯出明文或密碼加密 ZIP，驗證預覽後選擇匯入／合併／取代。
-  加密輸出至少 12 個字元，密碼不會保存且無法找回；還原使用原密碼。
+  加密輸出至少 12 個字元，手動匯出的密碼不保存且無法找回；還原使用原密碼。
   匯入預設另建資料，合併依原身分保留分支；取代保留歷史並把額外便箋移至刪除區。
   取代需先成功保存目前資料的安全備份；只支援下載而無法確認保存的瀏覽器會停用此步驟。
   草稿仍留本機；版面是否套用另行選擇，既有新資料匯入不搬動舊卡。
-  瀏覽器預覽的自動備份入口明示不支援並停用；原生檔案與安全密碼儲存尚待整合，詳見 PROGRESS。
+  瀏覽器預覽的自動備份入口明示不支援並停用；Windows 原生操作見下方，其他平台進度見 PROGRESS。
 - 「版本與衝突」可比較分支、採用版本、下載其附件、恢復較早內容，並处理群組合併循環。
   恢復會建立新版本，保留後來的內容；未完成草稿仍可取回。多分支尚未處理時一般保存會保留草稿並提示。
   群組沒有接收目的或超過九組時，資料保留並提供整理說明。未完成轉組可重試或取消該意圖。
@@ -59,13 +59,20 @@ Windows 10／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執�
 沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於
 `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
 同一路徑只允許一個 App，另一個視窗會提示使用原視窗。
-關閉先等草稿保存；還在對話框或 IME 輸入時先完成該操作。
+關閉先等草稿保存及自動備份收尾；還在對話框或 IME 輸入時先完成該操作。
 保存失败保留視窗及草稿；重新開啟會讀取已提交內容。
 
 不要把原生 DB 當成跨機備份，DPAPI 需原 Windows 帳號金鑰。預覽 IndexedDB 與 native 是不同 profile，
 不自動搬動既有資料。主畫面沿用上述 editor／群組／還原操作，仍未連 Google；
-自動檔案建立／清理及密碼 vault 整合尚未開放，沒有宣称 native picker／外部磁碟耐久已通過。
-原生測試命令見 [Testing](testing.md)，技術邊界見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)。
+手動匯出使用原生資料夾選擇器，每次建立 `work-fleet-backup-UUID.zip` 新檔並讀回校驗。
+自動備份預設關閉，在「資料與備份」選位置、密碼及保留份數後啟用；
+預設保留七份，有變更且距成功滿 24 小時才備份，開啟／恢復時補跑。
+密碼由 DPAPI 保存在目前 Windows 帳號，renderer 只取得金鑰 ID；換裝置還原仍需自行保管原密碼。
+停用或換位置會保留舊檔；未完成、被改過或替換的檔案會保留並顯示問題。
+保存目前只支援本機 NTFS 資料夾，拒絕網路磁碟、FAT／exFAT、symlink／junction。
+讀取可攜備份仍可使用一般檔案選擇器。未自動操作真 OS picker 或測外部磁碟斷電耐久。
+原生測試命令見 [Testing](testing.md)，技術邊界見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)
+及 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)。
 
 ## Google 與原生建置設定
 

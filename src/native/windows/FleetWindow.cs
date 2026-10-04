@@ -2,6 +2,7 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System.Diagnostics;
 using System.IO;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using WorkFleet.Windows.Core;
@@ -13,7 +14,9 @@ public sealed class FleetWindow : Window
 {
   private readonly WebView2 web = new();
   private readonly LocalDatabase database;
+  private readonly NativeBackupFiles backupFiles;
   private readonly string dataDirectory;
+  private readonly Func<string?>? backupDirectoryPicker;
   private BridgeSession? bridge;
   private Task messageQueue = Task.CompletedTask;
   private int queued;
@@ -21,10 +24,12 @@ public sealed class FleetWindow : Window
   private bool shuttingDown;
   public WebView2 WebView => web;
 
-  public FleetWindow(string dataDirectory)
+  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null)
   {
     this.dataDirectory = Path.GetFullPath(dataDirectory);
+    this.backupDirectoryPicker = backupDirectoryPicker;
     database = new LocalDatabase(this.dataDirectory, "local");
+    backupFiles = new NativeBackupFiles(database);
     Title = "Work Fleet"; Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
     Content = web; WindowStartupLocation = WindowStartupLocation.CenterScreen;
     Loaded += async (_, _) =>
@@ -44,7 +49,7 @@ public sealed class FleetWindow : Window
       // Defer even when no work is pending: WPF forbids a second Close inside Closing.
       Dispatcher.BeginInvoke(new Action(() => { _ = PrepareClose(); }));
     };
-    Closed += (_, _) => { web.Dispose(); bridge?.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   private async Task Initialize()
   {
@@ -62,7 +67,7 @@ public sealed class FleetWindow : Window
     core.NavigationStarting += (_, e) =>
     {
       if (!NavigationPolicy.IsDocument(e.Uri)) { e.Cancel = true; if (e.IsUserInitiated) OpenExternal(e.Uri); return; }
-      navigation++; bridge?.Dispose(); bridge = new BridgeSession(database);
+      navigation++; bridge?.Dispose(); bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -88,18 +93,35 @@ public sealed class FleetWindow : Window
     core.DownloadStarting += (_, e) => { e.Handled = false; };
     core.Navigate(NavigationPolicy.Document);
   }
+  private string? ChooseBackupDirectory() => Dispatcher.Invoke(() =>
+  {
+    if (backupDirectoryPicker is not null) return backupDirectoryPicker();
+    var picker = new Microsoft.Win32.OpenFolderDialog { Title = "選擇備份資料夾（本機 NTFS；每次建立新檔）", Multiselect = false };
+    return picker.ShowDialog(this) == true ? picker.FolderName : null;
+  });
   private async Task HandleMessage(Task previous, BridgeSession session, long epoch, string json)
   {
     try
     {
       await previous;
       if (epoch != navigation || shuttingDown) return;
-      var result = await Task.Run(() => session.Dispatch(json));
+      // Modal OS pickers run on this dispatcher. Never invoke it from a worker holding the session lock.
+      var result = IsPickerRequest(json) ? session.Dispatch(json) : await Task.Run(() => session.Dispatch(json));
       if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(web.CoreWebView2.Source)) web.CoreWebView2.PostWebMessageAsJson(result);
       if (session.CloseReady && closeRequested && epoch == navigation) { shuttingDown = true; Close(); }
     }
     catch { /* A destroyed view cannot acknowledge a durable commit. Reopen reads the transaction. */ }
     finally { queued--; }
+  }
+  private static bool IsPickerRequest(string json)
+  {
+    try
+    {
+      using var document = JsonDocument.Parse(json);
+      return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("method", out var value)
+        && value.ValueKind == JsonValueKind.String && value.GetString() is "backup.choose" or "backup.manual.choose";
+    }
+    catch (JsonException) { return false; }
   }
   private bool closing;
   private bool closeRequested;

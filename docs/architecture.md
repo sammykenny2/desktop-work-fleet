@@ -21,12 +21,16 @@ Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在�
 [ADR-013](decisions/013-complete-portable-backup.md) 的 `src/backup` 捕獲完整本機快照，
 校驗 ZIP／manifest／圖／引用／附件，並提供 WebCrypto 加密容器；驗證不寫目標。
 大量版本圖與投影提供可取消的批次 reader，與日常同步共用 graph 規則。
-還原交易、自動 journal／排程及 UI 已加入；原生檔案保存另行整合，見 PROGRESS。
+還原交易、自動 journal／排程及 UI 已加入；Windows 原生檔案保存與 vault 見 ADR-016，其他平台另行整合。
 
 Windows `src/native/windows` 封裝管理／編輯 WebView2，virtual host 只映射 Assets，不啟動 listener。
 `src/native/windows-core` 擁有單一 SQLite／DPAPI coordinator，`src/storage/native.js` 適配共用 persistence。
 bridge 僅接受固定資料方法、受限 chunk 與不透明傳輸身分；profile 由 host 指定。
 Workspace／receipt／附件共同提交，journal 獨立 CAS；OS vault 沒有 renderer plaintext 讀取入口。
+Windows backup adapter 以 DPAPI metadata 綁定 profile／目錄／檔案身分，SQLite schema version 2
+保留既有資料並新增 native capabilities。NTFS 子檔相對已持有的目錄 handle 開啟；
+create-only、Flush／讀回校驗、同 handle 清理見 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)。
+自動備份以 opaque key ID 請 native 產生可攜加密 ZIP，保存密碼不回 renderer；手動密碼留在當次匯出流程。
 桌面分層／穿透表面將與主畫面共用權威資料，不能各自寫入副本；目前對這些能力明示 false。
 
 ## 1.0 的責任分界
@@ -79,7 +83,7 @@ receipt 及新 outbox。`contracts/backup.d.ts` 定義 file adapter／原子 per
 原生保存證明不可由 renderer 任意 JSON 取代。Browser 預覽使用 IndexedDB 及 File System Access。
 自動排程使用另一份 profile CAS journal，避免自身保存成為內容變化；具持久 pending／inventory
 與 policy generation，詳見 [ADR-014](decisions/014-durable-automatic-backups.md)。
-Browser 手動保存可用；自動建立／清理能力明確 unavailable，需由可信原生 host 實作。
+Browser 手動保存可用；自動建立／清理能力明確 unavailable。Windows host 已提供本機 NTFS backend。
 
 [完整 PM／server 草案](resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
 其中 Note 容器的模型不再規範 1.0；未來採用也須重新對齊一事一卡。

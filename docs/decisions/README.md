@@ -19,6 +19,7 @@
 | [ADR-013](013-complete-portable-backup.md) | Accepted（完整備份） | 全部已知版本／草稿／附件／版面、嚴格 ZIP、加密、三種還原及自動備份契約 |
 | [ADR-014](014-durable-automatic-backups.md) | Accepted（自動備份） | profile journal／policy generation／重啟恢復／原生檔案能力與安全清理 |
 | [ADR-015](015-windows-native-storage-and-editor-host.md) | Accepted（Windows 主画面／保存） | WPF／WebView2、SQLite／DPAPI、分塊 IPC、原子 CAS 與關閉草稿 |
+| [ADR-016](016-windows-native-backup-files-and-vault.md) | Accepted（Windows 備份） | NTFS 目錄／檔案身分、create-only／同 handle 清理、原生 vault 加密與可攜封裝 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；其他平台封裝與正式商店配置尚未決定。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

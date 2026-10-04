@@ -11,31 +11,29 @@ function base64(bytes) {
 }
 function decode(value) { return Uint8Array.from(atob(value), character => character.charCodeAt(0)); }
 
-export class NativeStorage {
-  #bridge; #profile; #info;
-  constructor(bridge, info) { this.#bridge = bridge; this.#profile = info.profileId; this.#info = info; }
-  close() { this.#bridge.close(); }
-  #check(profileId) { requireValue(profileId === this.#profile, 'invalid-profile', '原生儲存只能存取目前帳號。'); }
-  async #discard(token) { if (token) await this.#bridge.request('transfer.discard', { token }).catch(() => {}); }
-  async #upload(kind, bytes) {
-    requireValue(bytes.length <= (kind === 'attachment' ? this.#info.maxAttachmentBytes : this.#info.maxRecordBytes),
+export class NativeTransfers {
+  #bridge; #info;
+  constructor(bridge, info) { this.#bridge = bridge; this.#info = info; }
+  async discard(token) { if (token) await this.#bridge.request('transfer.discard', { token }).catch(() => {}); }
+  async upload(kind, bytes, signal) {
+    requireValue(bytes.length <= (kind === 'backup' ? this.#info.maxBackupBytes : kind === 'attachment' ? this.#info.maxAttachmentBytes : this.#info.maxRecordBytes),
       'native-capacity', '本機資料超過原生儲存容量上限；現有資料保持不變，請先匯出備份。');
-    const sha = await sha256(bytes);
+    signal?.throwIfAborted(); const sha = await sha256(bytes); signal?.throwIfAborted();
     const upload = await this.#bridge.request('transfer.begin', { kind, size: bytes.length, sha256: sha });
     try {
       for (let offset = 0; offset < bytes.length; offset += CHUNK) {
-        const chunk = bytes.subarray(offset, offset + CHUNK);
+        signal?.throwIfAborted(); const chunk = bytes.subarray(offset, offset + CHUNK);
         const reply = await this.#bridge.request('transfer.append', { token: upload.token, offset, base64: base64(chunk) });
         requireValue(reply.offset === offset + chunk.length, 'transfer-offset', '原生傳輸順序不符。');
       }
-      return (await this.#bridge.request('transfer.finish', { token: upload.token })).token;
-    } finally { await this.#discard(upload.token); }
+      signal?.throwIfAborted(); return (await this.#bridge.request('transfer.finish', { token: upload.token })).token;
+    } finally { await this.discard(upload.token); }
   }
-  async #download(method, args) {
+  async download(method, args, maximum = this.#info.maxRecordBytes) {
     const value = await this.#bridge.request(method, args);
     if (value === null) return null;
     try {
-      requireValue(Number.isSafeInteger(value.size) && value.size >= 0 && value.size <= this.#info.maxRecordBytes && validDigest(value.sha256),
+      requireValue(Number.isSafeInteger(value.size) && value.size >= 0 && value.size <= maximum && validDigest(value.sha256),
         'transfer-size', '原生下載容量無效。');
       const bytes = new Uint8Array(value.size);
       for (let offset = 0; offset < value.size; offset += CHUNK) {
@@ -45,8 +43,20 @@ export class NativeStorage {
         bytes.set(chunk, offset);
       }
       requireValue(await sha256(bytes) === value.sha256, 'transfer-integrity', '原生下載校驗失敗。'); return bytes;
-    } finally { await this.#discard(value.token); }
+    } finally { await this.discard(value.token); }
   }
+}
+
+export class NativeStorage {
+  #bridge; #profile; #info; #transfers;
+  constructor(bridge, info) {
+    this.#bridge = bridge; this.#profile = info.profileId; this.#info = info; this.#transfers = new NativeTransfers(bridge, info);
+  }
+  close() { this.#bridge.close(); }
+  #check(profileId) { requireValue(profileId === this.#profile, 'invalid-profile', '原生儲存只能存取目前帳號。'); }
+  #upload(kind, bytes) { return this.#transfers.upload(kind, bytes); }
+  #download(method, args) { return this.#transfers.download(method, args); }
+  #discard(token) { return this.#transfers.discard(token); }
   async load(profileId, kind = 'workspace') {
     this.#check(profileId); const bytes = await this.#download('storage.load', { kind });
     return bytes === null ? null : JSON.parse(decoder.decode(bytes));

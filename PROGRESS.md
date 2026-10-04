@@ -286,6 +286,35 @@ DB/WAL 不含合成明文 marker，原生 commit ack 遺失讀回亦通過。
 Debug／Release 建置零 warning/error；scope／常見憑證模式、文件與 whitespace 檢查通過。
 Windows 桌面層／穿透／全域鍵／顯示器、
 自動檔案／backup vault 整合、Google、其他四平台、签章／商店仍未完成；完整 1.0 目標持續。
+已提交並推送 main：`afce68f`。
+
+### Windows 原生備份檔案／vault 子切片
+
+- 本機 NTFS 資料夾由原生 picker 授權，檔案相對 held directory handle 操作；
+  Volume GUID／128-bit file ID／建立時間只在 native 保存，profile-bound DPAPI metadata 不交 renderer。
+- 手動每次建立新 UUID 檔並 Flush／SHA 讀回，保存證明可用於取代前安全備份。
+  自動 pending 先持久保存，native 建檔身分先 reserve 再寫入；回應遺失可重開確認原檔。
+- 清理只處理目前排程 verified inventory 的自建檔；最新有效檔保持鎖定至舊檔清理完成，
+  舊檔核對身分／完整 bytes 後同 handle disposition。改過／被替換／未確認檔保留。
+- Native reservation 寫入失敗後的同名檔只檢查存在，不讀取／認領，列為 unconfirmed 再建新工作。
+- 自動備份改為 opaque key ID 呼叫 native encrypt；密碼以 DPAPI 保存而不回 renderer。
+  .NET PBKDF2／AES-GCM 產物與 SPEC-002 共用 reader 互通；錯 key／壞 DPAPI／換目錄暫停，未降級明文。
+- SQLite schema 2 加入 capabilities，保留既有資料；關閉等待自動 journal 收尾。
+  新增 ADR-016／研究、contract、設定／安全／架構／測試文件。
+
+作者驗證：core 15/15、NTFS 13/13、backup coordinator 3/3；真 native JS 10/10、
+共用排程 20/20。真 WPF／WebView2 154.0.4258.53 probe 通過：原 editor／草稿回歸，
+加密自動備份、手動匯出、真檔還原預覽及附件。只替換互動式 picker 結果，後續 I/O／IPC 皆實際執行。
+完整 npm 回歸在最後三個新 scheduler 案例加入前為 181 pass／8 明確 skip；後續 scheduler/native 30/30 通過。
+browser 與 automatic-backup Edge probes 通過。中文加密互通初測揭露測試 stdio codepage 問題，
+helper 明確 UTF-8 後通過；產品 WebView bridge 本身不使用 stdio。
+
+獨立唯讀審查完成，無未解 finding：原 128 MiB 最新檔競爭探針已無法改寫 latest；
+真 Core／SQLite reserve abort→unconfirmed→新 job、壞 DPAPI／換目錄暫停均通過。
+另獨立驗證 hardlink／symlink／祖先 reparse、POSIX 取代、可寫 mapping、Volume GUID 重開及加密互通；
+相關 JS 31/31 通過。WPF 為作者證據。Debug／Release 零 warning/error，文件 73 份／400 相對連結通過。
+不宣稱真 OS picker 自動操作、外接磁碟斷電、最低 Windows 版本、非 NTFS backend 或商店驗收已通過。
+Windows 桌面層、Google、其他四平台及商店交付仍持續本次完整 1.0 目標。
 
 ## 2026-10-04 文件交付
 

@@ -5,6 +5,7 @@ import { copy, FleetError } from '../src/core/contracts.js';
 import { sha256 } from '../src/sources/files.js';
 import { AutomaticBackup } from '../src/backup/automatic.js';
 import { openBackup } from '../src/backup/payload.js';
+import { encryptBackup } from '../src/backup/encryption.js';
 import { startAutomaticBackup } from '../src/backup/lifecycle.js';
 
 const DAY = 86400000;
@@ -137,8 +138,10 @@ test('encrypted schedules require an available vault, pause on missing keys and 
   const unavailable = await fixture();
   await assert.rejects(unavailable.service.configure({ ...policy, encrypted: true, keyId: 'key' }), fails('backup-vault-unavailable'));
   assert.equal(unavailable.disk(), null);
-  let password; const f = await fixture({ vault: { available: true, read: async ({ profileId, keyId }) => {
-    assert.equal(profileId, f.workspace.state.profileId); assert.equal(keyId, 'os-key-reference'); return password;
+  let password; const f = await fixture({ vault: { available: true, encrypt: async ({ profileId, keyId, bytes, signal }) => {
+    assert.equal(profileId, f.workspace.state.profileId); assert.equal(keyId, 'os-key-reference');
+    if (!password) throw new FleetError('backup-key-unavailable', 'Key missing');
+    return encryptBackup(bytes, password, { signal });
   } } });
   await f.service.configure({ ...policy, encrypted: true, keyId: 'os-key-reference' });
   await assert.rejects(f.service.run(), fails('backup-key-unavailable')); assert.equal(f.creates.length, 0);
@@ -159,6 +162,32 @@ test('permission loss pauses until explicit retry, and disable cancels preparati
   const work = f.service.run({ force: true }); const rejected = assert.rejects(work, fails('backup-cancelled'));
   await ready; const disabled = f.service.disable(); release(); await rejected; await disabled;
   assert.equal(f.disk().enabled, false); assert.equal(f.creates.length, 0); assert.equal((await f.service.run({ force: true })).kind, 'disabled');
+});
+
+test('a broken encryptor returning plaintext is rejected before file reservation or publication', async () => {
+  const f = await fixture({ vault: { available: true, encrypt: async ({ bytes }) => bytes.slice() } });
+  await f.service.configure({ ...policy, encrypted: true, keyId: 'opaque-key' });
+  await assert.rejects(f.service.run(), fails('unsupported-backup-encryption'));
+  assert.equal(f.creates.length, 0); assert.equal(f.disk().pending, null); assert.equal(f.disk().lastSuccess, null);
+});
+
+test('pending files with missing ownership or changed identity stay unconfirmed while a fresh job is saved', async () => {
+  for (const code of ['backup-file-unowned', 'backup-file-changed']) {
+    const f = await fixture(); await f.service.configure(policy); f.fault('create-after');
+    await assert.rejects(f.service.run(), /create-after/); const pending = f.disk().pending;
+    const read = f.files.read; f.files.read = job => job.id === pending.id ? Promise.reject(new FleetError(code, 'changed')) : read(job);
+    assert.equal((await f.make().run({ force: true })).kind, 'saved');
+    assert.equal(f.disk().inventory.find(item => item.id === pending.id).status, 'unconfirmed'); assert.equal(f.removals.length, 0);
+  }
+});
+
+test('vault protection loss and replaced directories pause scheduling until explicit retry', async () => {
+  for (const code of ['backup-vault-unavailable', 'backup-directory-changed']) {
+    const f = await fixture(); await f.service.configure(policy);
+    f.files.create = async () => { throw new FleetError(code, 'explicit attention required'); };
+    await assert.rejects(f.service.run(), fails(code)); f.advance(DAY);
+    assert.equal((await f.make().run()).kind, 'paused'); assert.equal(f.creates.length, 0);
+  }
 });
 
 test('malformed or cross-profile journal records stop before file access; queued settings own their input', async () => {
@@ -184,7 +213,7 @@ test('cancel and disable apply before a queued run starts, without creating any 
 });
 
 test('changing encryption or key policy survives restart and requires a new backup even without content changes', async () => {
-  const f = await fixture({ vault: { available: true, read: async () => 'a durable secret password' } });
+  const f = await fixture({ vault: { available: true, encrypt: ({ bytes }) => encryptBackup(bytes, 'a durable secret password') } });
   await f.service.configure(policy); await f.service.run(); const first = f.disk().lastSuccess;
   await f.service.configure({ ...policy, encrypted: true, keyId: 'key-one' });
   assert.equal((await f.make().run()).kind, 'saved'); const encrypted = f.disk().lastSuccess;

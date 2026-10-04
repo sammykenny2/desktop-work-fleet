@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdir, access } from 'node:fs/promises';
+import { mkdir, access, readFile, readdir, appendFile } from 'node:fs/promises';
 import path from 'node:path';
 import { NativeBridge } from '../src/native/bridge.js';
 import { NativeStorage } from '../src/storage/native.js';
 import { sha256 } from '../src/sources/files.js';
 import { Workspace } from '../src/core/workspace.js';
+import { nativeBackupAdapters } from '../src/backup/native.js';
+import { AutomaticBackup } from '../src/backup/automatic.js';
+import { createBackup, openBackup } from '../src/backup/payload.js';
 
 const executable = path.resolve('tests/native/windows-core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll');
 const enabled = process.env.WORK_FLEET_NATIVE_TEST === '1';
@@ -29,16 +32,94 @@ async function session(directory = path.resolve(`build/native-js-${crypto.random
   const info = await bridge.request('host.info');
   return { directory, info, bridge, storage: new NativeStorage(bridge, info),
     dropNextReply: () => { drop = () => true; },
-    dropCommitReply: () => {
+    dropCommitReply: (method = 'storage.commit') => {
       const original = transport.postMessage;
       transport.postMessage = request => {
-        if (request.method === 'storage.commit') { drop = reply => reply.id === request.id; transport.postMessage = original; }
+        if (request.method === method) { drop = reply => reply.id === request.id; transport.postMessage = original; }
         original(request);
       };
     },
     async close() { bridge.close(); process.stdin.end(); const ended = await exit; assert.equal(ended.code, 0, failure || JSON.stringify(ended)); },
   };
 }
+
+nativeTest('native automatic encryption, retention and directory/key grants survive restart; portable restore reads every saved byte', async () => {
+  let host = await session(); const directory = host.directory; const password = '原生加密備份-十二個字元-🦋';
+  try {
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'backup-native', area: { x: 0, y: 0, width: 1000, height: 800 },
+      persist: (state, revision) => host.storage.save(state, revision) });
+    const payload = new TextEncoder().encode('backup attachment 中文'); const digest = await sha256(payload);
+    await host.storage.putAttachmentBytes('local', digest, payload);
+    const card = await workspace.createCard({ format: 'markdown', text: '# Native backup\n- [ ] retain', attachments: [{ id: digest, size: payload.length, name: '中文.txt' }] });
+    const draft = workspace.blankDraft(card.groupId, card); draft.content.text += '\nunsaved editor'; await workspace.saveDraft(draft);
+    let adapters = nativeBackupAdapters(host.bridge, host.info);
+    const location = await adapters.files.chooseDestination(); const keyId = await adapters.vault.create({ password });
+    assert.equal(JSON.stringify(location).includes(directory), false); assert.match(keyId, /^[a-f0-9-]{36}$/);
+    let service = new AutomaticBackup({ workspace, storage: host.storage, journal: host.storage.journal(), ...adapters });
+    await service.configure({ ...location, encrypted: true, keyId, keep: 2 });
+    for (let i = 0; i < 3; i++) assert.equal((await service.run({ force: true })).kind, 'saved');
+    const state = service.state; assert.equal(state.inventory.length, 2);
+    assert.equal((await readdir(path.join(directory, 'backups'))).length, 2);
+    const latest = new Uint8Array(await readFile(path.join(directory, 'backups', state.lastSuccess.name)));
+    await assert.rejects(openBackup(latest), { code: 'backup-password' });
+    await assert.rejects(openBackup(latest, { password: 'another wrong secret' }), { code: 'backup-decryption' });
+    const document = await openBackup(latest, { password });
+    assert.deepEqual(document.data.records, workspace.state.revisions); assert.deepEqual(document.attachment(digest), payload);
+    assert.equal(document.data.drafts[0].content.text, draft.content.text);
+    assert.equal(JSON.stringify(await host.storage.journal().load('local')).includes(password), false);
+    await host.close(); host = await session(directory); adapters = nativeBackupAdapters(host.bridge, host.info);
+    service = new AutomaticBackup({ workspace: new Workspace(await host.storage.load('local')), storage: host.storage, journal: host.storage.journal(), ...adapters });
+    await service.load(); assert.equal((await service.run({ force: true })).kind, 'saved');
+    assert.equal((await readdir(path.join(directory, 'backups'))).length, 2);
+    const request = { ...service.state.lastSuccess, profileId: 'local' };
+    await assert.rejects(host.bridge.request('backup.read', { ...request, profileId: 'other' }), { code: 'backup-profile' });
+    await assert.rejects(adapters.files.remove(request), { code: 'backup-retention' });
+    await assert.rejects(host.bridge.request('vault.read', { id: keyId }), { code: 'unsupported-method' });
+  } finally { await host.close(); }
+});
+
+nativeTest('native file acknowledgement loss recovers one original job; changed owned files survive retention', async () => {
+  let host = await session(undefined, 500); const directory = host.directory;
+  try {
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'backup-loss', area: { x: 0, y: 0, width: 1000, height: 800 },
+      persist: (state, revision) => host.storage.save(state, revision) });
+    await workspace.createCard({ format: 'markdown', text: 'saved through loss', attachments: [] });
+    let adapters = nativeBackupAdapters(host.bridge, host.info);
+    let service = new AutomaticBackup({ workspace, storage: host.storage, journal: host.storage.journal(), ...adapters });
+    await service.configure({ ...await adapters.files.chooseDestination(), encrypted: false, keep: 1 });
+    host.dropCommitReply('backup.create');
+    await assert.rejects(service.run(), { code: 'native-outcome-unknown' });
+    const job = service.state.pending; assert.ok(job); assert.equal((await readdir(path.join(directory, 'backups'))).length, 1);
+    await host.close(); host = await session(directory); adapters = nativeBackupAdapters(host.bridge, host.info);
+    service = new AutomaticBackup({ workspace, storage: host.storage, journal: host.storage.journal(), ...adapters });
+    assert.equal((await service.run({ force: true })).kind, 'recovered'); assert.equal(service.state.lastSuccess.id, job.id);
+    assert.equal((await readdir(path.join(directory, 'backups'))).length, 1);
+    await appendFile(path.join(directory, 'backups', job.name), 'user-changed');
+    await assert.rejects(service.run({ force: true }), { code: 'backup-file-changed' });
+    assert.equal((await readdir(path.join(directory, 'backups'))).length, 2);
+    assert.ok((await readFile(path.join(directory, 'backups', job.name), 'utf8')).endsWith('user-changed'));
+  } finally { await host.close(); }
+});
+
+nativeTest('native manual save returns proof, consumes picker once and cancels before creating a file; missing key never falls back', async () => {
+  const host = await session();
+  try {
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'manual', area: { x: 0, y: 0, width: 1000, height: 800 },
+      persist: (state, revision) => host.storage.save(state, revision) });
+    const adapters = nativeBackupAdapters(host.bridge, host.info); const backup = await createBackup({ workspace, storage: host.storage });
+    const destination = await adapters.manual.chooseDestination(); const phases = [];
+    assert.equal((await destination.save({ bytes: backup.bytes, progress: value => phases.push(value.phase) })).saved, true);
+    assert.deepEqual(phases, ['save-commit']);
+    await assert.rejects(destination.save({ bytes: backup.bytes }), { code: 'backup-permission' });
+    assert.equal((await readdir(path.join(host.directory, 'backups'))).length, 1);
+    const cancelled = await adapters.manual.chooseDestination(); const controller = new AbortController(); controller.abort();
+    await assert.rejects(cancelled.save({ bytes: backup.bytes, signal: controller.signal }), { code: 'backup-cancelled' });
+    await assert.rejects(adapters.vault.encrypt({ profileId: 'local', keyId: crypto.randomUUID(), bytes: backup.bytes }), { code: 'backup-key-unavailable' });
+    await assert.rejects(adapters.vault.create({ password: 'short' }), { code: 'backup-password' });
+    await assert.rejects(adapters.vault.create({ password: 'abcdefghijkl\ud800' }), { code: 'invalid-request' });
+    assert.equal((await readdir(path.join(host.directory, 'backups'))).length, 1);
+  } finally { await host.close(); }
+});
 
 nativeTest('real native protocol preserves Workspace drafts/history and attachments across process restart', async () => {
   let host = await session(); const directory = host.directory;

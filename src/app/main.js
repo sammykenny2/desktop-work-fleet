@@ -13,6 +13,7 @@ import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser
 import { startAutomaticBackup } from '../backup/lifecycle.js';
 import { connectNative } from '../native/bridge.js';
 import { NativeStorage } from '../storage/native.js';
+import { nativeBackupAdapters } from '../backup/native.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -24,7 +25,7 @@ let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
 let settingsSlots = [];
 let automatic; let automaticError;
-let native; let stopAutomatic; let nativeClosing = false;
+let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 const activeActions = new Set();
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
@@ -69,6 +70,7 @@ async function initialize() {
   native = await connectNative();
   if (native) {
     profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
+    nativeBackups = nativeBackupAdapters(native.bridge, native.info);
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
   if (!lease.acquired) throw new Error('這個工作空間已在另一個視窗開啟。請使用原視窗，或關閉它後重新載入。');
@@ -87,9 +89,10 @@ async function initialize() {
   await workspace.layout.placeNew(workspace.snapshot, [screenArea()]);
   $('#storage-note').textContent = native ? 'Windows 本機加密工作空間 · 尚未連接 Google' : '瀏覽器本機工作空間 · 尚未連接 Google';
   try {
-    const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); const files = new BrowserAutomaticFiles();
-    const service = new AutomaticBackup({ workspace, storage, journal, files, flush: flushDraft }); await service.load();
-    automatic = { service, files }; stopAutomatic = startAutomaticBackup(service);
+    const journal = native ? storage.journal() : await IndexedDbBackupJournal.open();
+    const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
+    const service = new AutomaticBackup({ workspace, storage, journal, files, vault, flush: flushDraft }); await service.load();
+    automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
   } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
   if (native) {
@@ -122,6 +125,7 @@ async function prepareNativeClose() {
     await flushDraft();
     if (unsavedDrafts.size) throw new Error('仍有未保存草稿；請先保存或匯出，再關閉 App。');
     stopAutomatic?.();
+    await automatic?.service.whenIdle();
     await native.bridge.request('host.closeReady');
   } catch (error) { status(`尚未關閉：${error.message}`, true); }
   finally { nativeClosing = false; document.body.inert = false; }
@@ -539,7 +543,7 @@ function bindEvents() {
     if (currentDraft) await flushDraft();
     if (!await controller.endEdit()) return;
     currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
-    showBackupDialog({ workspace, storage, getWorkAreas: () => [screenArea()], flush: flushDraft, automatic, automaticError,
+    showBackupDialog({ workspace, storage, getWorkAreas: () => [screenArea()], flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual,
       onChanged: async () => { await controller.reconcile(); render(); } });
   });
   $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);

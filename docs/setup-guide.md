@@ -45,6 +45,28 @@ python scripts/testing/serve_preview.py --port 0
 
 此預覽不是 OS 桌面浮層。逐卡層級保存偏好，實際分層／穿透／全域快捷鍵由原生 host 完成。
 
+## Windows 原生主畫面
+
+Windows 10／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
+執行已建置 App 的電腦需 .NET 8 Desktop Runtime。本子切片是主畫面與加密保存，桌面浮層仍在施工。
+
+```powershell
+.\scripts\windows\Build-WindowsApp.ps1
+& .\src\native\windows\bin\Release\net8.0-windows\WorkFleet.exe
+```
+
+資產與 native libraries／Licenses 隨輸出目錄保留，不單獨移動 exe。
+沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於
+`%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
+同一路徑只允許一個 App，另一個視窗會提示使用原視窗。
+關閉先等草稿保存；還在對話框或 IME 輸入時先完成該操作。
+保存失败保留視窗及草稿；重新開啟會讀取已提交內容。
+
+不要把原生 DB 當成跨機備份，DPAPI 需原 Windows 帳號金鑰。預覽 IndexedDB 與 native 是不同 profile，
+不自動搬動既有資料。主畫面沿用上述 editor／群組／還原操作，仍未連 Google；
+自動檔案建立／清理及密碼 vault 整合尚未開放，沒有宣称 native picker／外部磁碟耐久已通過。
+原生測試命令見 [Testing](testing.md)，技術邊界見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)。
+
 ## Google 與原生建置設定
 
 把根目錄 [.env.example](../.env.example) 複製為 `.env`，依平台填入公開 client ID、

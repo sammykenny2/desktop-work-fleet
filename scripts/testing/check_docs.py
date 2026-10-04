@@ -6,7 +6,13 @@ ROOT = Path(__file__).resolve().parents[2]
 excluded = {"CLAUDE.md", "GEMINI.md"}
 errors = []
 links = 0
-files = [p for p in ROOT.rglob("*.md") if not any(part in {".git", "build", "node_modules", ".npm", ".claude", ".agents"} for part in p.parts) and p.name not in excluded]
+def generated(path):
+    parts = path.relative_to(ROOT).parts
+    return any(part in {".git", "build", "node_modules", ".npm", ".claude", ".agents"} for part in parts) or (
+        parts[:2] in {("src", "native"), ("tests", "native")} and any(part in {"bin", "obj"} for part in parts)
+    )
+
+files = [p for p in ROOT.rglob("*.md") if not generated(p) and p.name not in excluded]
 for path in files:
     text = path.read_text(encoding="utf-8")
     if b"\r" in path.read_bytes():

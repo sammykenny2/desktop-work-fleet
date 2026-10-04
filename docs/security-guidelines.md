@@ -25,6 +25,21 @@
 - 開發 listener 僅 loopback 靜態資產，沒有便箋或 token API。原生 host 的 OAuth、OS 安全儲存、
   加密備份與正式封裝尚需各自驗收，不能由此介面測試代替。
 
+## Windows 原生主畫面
+
+[ADR-015](decisions/015-windows-native-storage-and-editor-host.md) 以固定 packaged origin 與主文件識別 bridge caller；
+阻擋 frame／其他頁面、遠端資產、任意 host objects／路徑／SQL／HTTP 方法。正式 App 不開 DevTools 或 debug port。
+Windows profile 在 host 決定；renderer 只能取得此分區的內容，不能呼叫 vault.read。
+record／附件／staging／vault payload 使用 DPAPI CurrentUser，scope entropy 綁 profile、用途和身分。
+SQLite 索引 metadata 不加密；同 Windows 帳號程序、RAM／crash dump 不在此保護邊界。
+安全儲存故障不退回明文；不要以複製 native DB 代替跨機 ZIP 備份。
+
+IPC 有 1 MiB envelope／256 KiB chunk 上限及完整 SHA，20,000 token manifest 可一次提交。
+上傳暫存與正式資料隔離，SQLite CAS transaction 一起保存 Workspace／receipt／附件；
+同目錄唯一原生 owner，重啟回收失去 owner 的暫存。已提交回覆遺失只能以完整 bytes 確認，不能宣稱回滾。
+正式畫面可互動前先準備關閉協定，保存失敗／未完成對話框保留視窗。
+OAuth、自動檔案與安全備份密碼整合仍待完成，不因 DPAPI primitive 已測而宣稱完整功能已交付。
+
 ## 1.0 可攜備份
 
 - `src/backup` 只從捕獲的 profile 讀取完整快照及 SHA-256 附件；不攜帶 token／provider／舊 outbox。

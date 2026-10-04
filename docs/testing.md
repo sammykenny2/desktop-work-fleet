@@ -110,6 +110,25 @@ interrupted restore、restore flush 失敗與重試、配對 race、expiry/reuse
 WebKit 測試透過真實 DOM 與 server，傳輸斷線／回應遺失採可控注入。
 Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
+## Windows 原生主畫面與保存
+
+```powershell
+.\scripts\windows\Test-WindowsNative.ps1
+# 已 restore 可離線回歸：
+.\scripts\windows\Test-WindowsNative.ps1 -SkipRestore
+```
+
+腳本建置 Debug app／probes，執行真 SQLite／DPAPI、JavaScript→native stdio bridge 及實際 WPF／WebView2。
+資料庫、截圖皆寫入 `build/native-checks-*`／`build/native-js-*` 的獨立合成資料目錄；不讀取個人 App 資料。
+WPF probe 使用螢幕外且不啟用的視窗，以 DOM 操作 editor、附件、關閉及重新開啟，截圖為 `ui/native-ui.png`。
+需要一般 Windows 使用者 session 與 WebView2 Runtime；受限工具環境若造成 WebView2 crash，需在可運行環境重測，
+不能當作通過或停用 WebView2 sandbox。這些測試不是 OS 點擊穿透、多螢幕／層級或真實斷電證據。
+
+`npm test` 會明確 skip 5 個需要已建置 Windows helper 的 native integration tests；
+`WORK_FLEET_NATIVE_TEST=1` 才執行它們，缺少 helper 即失敗，不假報成功。
+若單獨執行，先用 `Build-WindowsApp.ps1 -Configuration Debug -IncludeTests`，再設變數並執行
+`node --test tests/native-storage.test.js`。無 OS 依賴的 bridge 關閉／訊息容量測試每次都跑。
+
 ## 手勢測試 helper
 
 ```bash

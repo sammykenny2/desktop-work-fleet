@@ -1,14 +1,15 @@
 # 架構：目前程式與 1.0 設計邊界
 
 更新：2026-10-04。產品語意以 [SPEC-003](specs/003-desktop-cards-groups-and-formation.md)
-與 [ADR-006](decisions/006-card-group-and-formation-semantics.md) 為準；正式技術選型尚未完成。
+與 [ADR-006](decisions/006-card-group-and-formation-semantics.md) 為準；Windows 主畫面／保存選型已由 ADR-015 接受，其他平台及桌面呈現持續整合。
 
 [ADR-008](decisions/008-portable-interaction-core.md) 已定案共用 ES modules 語意核心：
 `src/core` 保存卡片／群組／草稿／outbox，`src/layout` 計算及保存每機排列，
 `src/interaction` 控制操作範圍與手勢。轉組的共享命令與 geometry 在同一本機交易提交。
 `contracts/desktop.d.ts` 定義可替換 persistence／source／host 的邊界；
 `src/app` 與 IndexedDB adapter 已加入；選擇與限制見 [ADR-009](decisions/009-local-renderer-and-persistence.md)。
-原生落盤 adapter、實際 Google 與五平台 host 尚需後續整合，不以瀏覽器測試宣稱完成。
+Windows 原生落盤 adapter 與主畫面見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)；
+其他平台、實際 Google 與桌面 host 尚需後續整合，不以瀏覽器測試宣稱完成。
 
 [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md)
 定義 `src/sources` 的嚴格 JSON、不可變版本圖、缺 parent 與多 head。
@@ -20,7 +21,13 @@ Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在�
 [ADR-013](decisions/013-complete-portable-backup.md) 的 `src/backup` 捕獲完整本機快照，
 校驗 ZIP／manifest／圖／引用／附件，並提供 WebCrypto 加密容器；驗證不寫目標。
 大量版本圖與投影提供可取消的批次 reader，與日常同步共用 graph 規則。
-實際還原交易、自動排程、UI 與原生檔案保存另行整合，見 PROGRESS。
+還原交易、自動 journal／排程及 UI 已加入；原生檔案保存另行整合，見 PROGRESS。
+
+Windows `src/native/windows` 封裝管理／編輯 WebView2，virtual host 只映射 Assets，不啟動 listener。
+`src/native/windows-core` 擁有單一 SQLite／DPAPI coordinator，`src/storage/native.js` 適配共用 persistence。
+bridge 僅接受固定資料方法、受限 chunk 與不透明傳輸身分；profile 由 host 指定。
+Workspace／receipt／附件共同提交，journal 獨立 CAS；OS vault 沒有 renderer plaintext 讀取入口。
+桌面分層／穿透表面將與主畫面共用權威資料，不能各自寫入副本；目前對這些能力明示 false。
 
 ## 1.0 的責任分界
 

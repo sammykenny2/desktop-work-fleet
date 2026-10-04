@@ -6,6 +6,7 @@
 
 - [桌面卡片需求演進](2026-10-04-desktop-card-interaction-design.md)：使用者確認、補充與失效方案。
 - [跨平台互動可行性](2026-10-04-desktop-interaction-platform-feasibility.md)：Win／Mac／labwc 的能力、證據及 renderer 限制。
+- [Windows 原生保存與 WebView](2026-10-04-windows-native-storage-and-webview.md)：官方安全邊界、SQLite／DPAPI 與真 UI probe 範圍。
 - 開發規範見 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)，
   入口見 [交接文件](../handoff/2026-10-04-desktop-interaction-handoff.md)。
 

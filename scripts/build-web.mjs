@@ -17,6 +17,8 @@ if (process.argv.includes('--help')) {
   for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources', 'backup']) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
   }
+  await mkdir(path.join(destination, 'native'), { recursive: true });
+  await cp(path.join(root, 'src', 'native', 'bridge.js'), path.join(destination, 'native', 'bridge.js'));
   const htmlPath = path.join(destination, 'app', 'index.html');
   const html = await readFile(htmlPath, 'utf8');
   const importMap = html.match(/<script type="importmap">([^<]+)<\/script>/)[1];

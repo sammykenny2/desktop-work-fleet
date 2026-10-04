@@ -19,10 +19,10 @@
 | Slice | 範圍 | 狀態與證據 |
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
-| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域與快捷鍵設定已完成並經真 Edge 與獨立審閱；原生保存整合、大容量與完整平台設定仍待補齊 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域与快捷鍵設定已完成；Windows 原生 SQLite／DPAPI／原子附件保存已加入，其他平台保存、大容量與完整平台設定仍待補齊 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 版本圖、Workspace 原子交易、衝突 UI、FileSync／Drive REST adapter 已實作及故障測試；原生保護 transport、OAuth、UI 連接及真 Google 尚待完成，公開設定尚未建立 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原與手動 UI 已驗證；自動 journal／排程／UI 已實作，原生安全建檔／清理／vault 待整合，瀏覽器自動能力明示停用 |
-| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
+| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows WPF／WebView2 主畫面已可建置及真 UI 驗證；桌面呈現与其他平台仍施工，C16/C35/C40–C43/C46–C47 不以主畫面測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 尚待完成；沒有送審、購買憑證或建立帳號 |
 
@@ -254,6 +254,38 @@ CAS、授權暫停與 ZIP bytes；沒有把 synthetic host 當成原生檔案或
 獨立初次頁面亦有一次 5 秒 timeout，診斷重開及完整探針通過。文件 69 份／373 相對連結、UTF-8／LF
 與 diff whitespace 通過，scope／常見憑證模式檢查未發現私密資料。
 自動備份完整交付仍需五平台原生 host／檔案／安全儲存，並持續本次完整 1.0 目標。
+已提交並推送 main：`ed618d4`。
+
+### Windows 原生主畫面／加密保存子切片
+
+- WPF／WebView2 以固定 virtual host 載入封裝資產，沒有新的 listener；原生方法只接受資料。
+  主文件／navigation 驗證、frame／遠端資產阻擋、明確能力報告；沒有任意路徑／SQL／vault 讀取 proxy。
+- 單一原生 owner、SQLite WAL／FULL synchronous，record／journal 分開 CAS；DPAPI CurrentUser
+  加密內容／附件／staging／vault payload，綁 profile／用途／身分，失敗不降級明文。
+- 256 KiB 分塊、offset／SHA，1 MiB envelope 可容納 20,000 附件 token。
+  workspace／還原 receipt／附件同交易；未完成暫存不可見，重啟清理孤立暫存。
+  提交回應遺失只在完整 durable bytes 讀回吻合後回報成功。
+- UI 可操作前完成 native readiness／close handler；關閉等所有 UI 命令及草稿保存，
+  對話框／IME／保存失敗保留視窗。主畫面標示 Windows 本機加密、Google 未連接。
+- 加入可重現 Build／Test-WindowsNative scripts、原生 contract、ADR-015／研究、完整 native licenses。
+
+作者真 Windows core 15/15、JS→真 native bridge 7/7，WPF／WebView2 154.0.4258.53 probe 通過：
+便箋／Markdown／附件、正常與關閉瞬間草稿保存、重開、frame／navigation 拒絕、未完成 dialog 拒絕關閉。
+真 SQLite 注入 abort 回滾、CAS／版本連續、DPAPI tamper／purpose、profile 隔離、vault／附件重啟、
+DB/WAL 不含合成明文 marker，原生 commit ack 遺失讀回亦通過。
+完整 `Test-WindowsNative.ps1 -SkipRestore` 已通過；瀏覽器原 browser probe 回歸通過。
+受限工具環境第一次 WebView2 browser process crash，改以一般使用者執行同一 binary 通過，
+沒有使用 no-sandbox，也未把受限環境失敗列為通過。證據只使用 build 內新建合成資料。
+
+獨立唯讀審閱完成，沒有未解決 finding：15/15 core、7/7 native JS、文件 71 份／388 相對連結，
+已複核大量附件 manifest、readiness／ResizeObserver 旁路修正；獨立 Edge renderer 接真 native core
+亦驗證 ack 遺失、附件回滾、profile 隔離、重啟與關閉等最後草稿保存。完整 WPF probe 屬作者證據。
+最後 WPF probe 另加入暫扣 host.ready、resize 不可提早操作及初始化中安全關閉。
+該探針發現未 ready 且 queue 已清空時，WPF Closing 內再次 Close 會拒絕重入；
+已改為 dispatcher 延後準備關閉，最後真 WPF 完整探針回歸通過；獨立 source／probe 邏輯複核亦無新 finding。
+Debug／Release 建置零 warning/error；scope／常見憑證模式、文件與 whitespace 檢查通過。
+Windows 桌面層／穿透／全域鍵／顯示器、
+自動檔案／backup vault 整合、Google、其他四平台、签章／商店仍未完成；完整 1.0 目標持續。
 
 ## 2026-10-04 文件交付
 

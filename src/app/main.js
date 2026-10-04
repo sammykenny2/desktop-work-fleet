@@ -11,6 +11,8 @@ import { showBackupDialog } from './backup.js';
 import { AutomaticBackup } from '../backup/automatic.js';
 import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser-automatic.js';
 import { startAutomaticBackup } from '../backup/lifecycle.js';
+import { connectNative } from '../native/bridge.js';
+import { NativeStorage } from '../storage/native.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -22,9 +24,11 @@ let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
 let settingsSlots = [];
 let automatic; let automaticError;
+let native; let stopAutomatic; let nativeClosing = false;
+const activeActions = new Set();
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
-const profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
+let profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -38,8 +42,11 @@ function button(text, action, className) {
 }
 function status(text, error = false) { $('#status').textContent = text; $('#status').classList.toggle('error', error); }
 async function run(action) {
-  try { await action(); }
+  if (nativeClosing) return;
+  const pending = Promise.resolve().then(action); activeActions.add(pending);
+  try { await pending; }
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
+  finally { activeActions.delete(pending); }
 }
 function screenArea() {
   const shell = $('#stage-shell'); const bounds = shell.getBoundingClientRect();
@@ -59,8 +66,11 @@ function fillGroups(select, selected, none = false) {
 }
 
 async function initialize() {
-  storage = await IndexedDbStorage.open();
-  lease = await acquireProfile(profileId);
+  native = await connectNative();
+  if (native) {
+    profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
+    lease = { acquired: true, release() {} };
+  } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
   if (!lease.acquired) throw new Error('這個工作空間已在另一個視窗開啟。請使用原視窗，或關閉它後重新載入。');
   addEventListener('pagehide', () => { lease.release(); storage.close(); });
   addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
@@ -75,14 +85,18 @@ async function initialize() {
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); } });
   await workspace.layout.placeNew(workspace.snapshot, [screenArea()]);
-  $('#storage-note').textContent = '瀏覽器本機工作空間 · 尚未連接 Google';
-  bindEvents(); render(); status('已開啟本機資料');
+  $('#storage-note').textContent = native ? 'Windows 本機加密工作空間 · 尚未連接 Google' : '瀏覽器本機工作空間 · 尚未連接 Google';
   try {
-    const journal = await IndexedDbBackupJournal.open(); const files = new BrowserAutomaticFiles();
+    const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); const files = new BrowserAutomaticFiles();
     const service = new AutomaticBackup({ workspace, storage, journal, files, flush: flushDraft }); await service.load();
-    automatic = { service, files }; const stop = startAutomaticBackup(service);
-    addEventListener('pagehide', () => { stop(); journal.close(); });
+    automatic = { service, files }; stopAutomatic = startAutomaticBackup(service);
+    addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
   } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
+  if (native) {
+    native.bridge.onCloseRequested(() => { void prepareNativeClose(); });
+    await native.bridge.request('host.ready');
+  }
+  bindEvents(); render(); status('已開啟本機資料');
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
     if ($('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
@@ -95,6 +109,22 @@ async function initialize() {
       render(); if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
     });
   }).observe($('#stage-shell'));
+}
+
+async function prepareNativeClose() {
+  if (nativeClosing) return;
+  if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
+    status(composing ? '請先完成目前輸入，再關閉 App。' : '請先完成或關閉目前對話框，再關閉 App。', true); return;
+  }
+  nativeClosing = true; document.body.inert = true;
+  try {
+    await Promise.allSettled([...activeActions]);
+    await flushDraft();
+    if (unsavedDrafts.size) throw new Error('仍有未保存草稿；請先保存或匯出，再關閉 App。');
+    stopAutomatic?.();
+    await native.bridge.request('host.closeReady');
+  } catch (error) { status(`尚未關閉：${error.message}`, true); }
+  finally { nativeClosing = false; document.body.inert = false; }
 }
 
 function matchesFilter(card) {

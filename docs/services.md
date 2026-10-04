@@ -17,3 +17,7 @@ QR 本身不提供 NAT 穿透；外網需自行部署可信 HTTPS 或 VPN。沒�
 `--port` 可指定測試 port，衝突則啟動失敗，不停止其他 listener。
 這不是便箋 API／權威資料 server；介面透過 IndexedDB 本機交易保存資料。
 正式原生 App 需封裝這些本機資產，不依賴此開發 listener。
+
+Windows 1.0 主畫面以 WebView2 virtual host mapping 載入 `https://work-fleet.invalid/app/index.html`。
+該名稱只在 WebView2 內解析為封裝 Assets；沒有 DNS、TCP／HTTP listener 或新的 port。
+原生 SQLite／DPAPI 經 WebMessage bridge 存取；沒有 local note server。

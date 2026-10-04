@@ -39,6 +39,25 @@ without modification; application configuration is separate. The build includes
 retain those files and the project's LICENSE. Final native SDK and store-package
 inventories remain separate release work.
 
+## Windows native host under development
+
+NuGet `packages.lock.json` files pin versions and SHA-512 package content hashes.
+The native output retains complete upstream license/notice files from `src/native/licenses`.
+The framework-dependent app requires the user's .NET 8 Desktop Runtime and Evergreen
+WebView2 Runtime; those full runtimes and the .NET SDK are not bundled.
+
+| Package | Version | Scope / license |
+|---|---|---|
+| Microsoft.Web.WebView2 | 1.0.4258.31 | WPF/Core managed assemblies and WebView2Loader; Microsoft SDK license, complete LICENSE and NOTICE from this exact NuGet package |
+| Microsoft.Data.Sqlite / .Core | 10.0.12 | SQLite provider; MIT, [upstream tagged license](https://github.com/dotnet/efcore/blob/v10.0.12/LICENSE.txt) |
+| SQLitePCLRaw.core, .bundle_e_sqlite3, .provider.e_sqlite3, .lib.e_sqlite3 | 2.1.12 | SQLite binding/native package; Apache-2.0, Copyright 2014–2024 SourceGear, LLC; [tagged license](https://github.com/ericsink/SQLitePCL.raw/blob/v2.1.12/LICENSE.TXT) |
+| System.Memory | 4.5.3 | Transitive package (framework supplies runtime on net8); MIT and incorporated notices from its exact NuGet package |
+
+SQLite itself is [public domain](https://www.sqlite.org/copyright.html).
+The Windows native library is supplied by SQLitePCLRaw; it is distinct from the
+older Python validation runtime. Microsoft WebView2's complete incorporated notices
+are retained without alteration. Building this host is not evidence of Store approval.
+
 ## Validation version 0.1.0
 
 No third-party pip/npm runtime packages, fonts, images, prior application code or assets

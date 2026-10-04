@@ -56,3 +56,9 @@ temp/
 *.sqlite3-wal
 *.sqlite3-shm
 *.admin-token
+
+# Native build intermediates / SDK caches
+src/native/**/bin/
+src/native/**/obj/
+tests/native/**/bin/
+tests/native/**/obj/

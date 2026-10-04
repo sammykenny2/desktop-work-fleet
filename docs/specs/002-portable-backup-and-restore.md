@@ -195,6 +195,11 @@ App 啟動／resume 逾期補跑一次，不宣稱 App 關閉或手機暫停時�
 加密排程需 OS 安全儲存的密碼或 key handle；能力／授權不可用時暫停，不回退明文。
 新檔寫入並驗證成功後才依 durable inventory 修剪此排程自身的舊檔；
 不能按檔名掃目錄刪其他備份、跨 profile 或跨授權位置，失敗保留既有成功檔。
+實作細節見 [ADR-014](../decisions/014-durable-automatic-backups.md)：獨立 profile CAS journal，
+檔案寫入前保存 pending，重啟按期望 bytes 核對；設定改動產生新 policyId，避免沿用舊加密政策的成功紀錄。
+原生 host 必須提供安全 create-only 及身分綁定清理；有 create 能力但無清理能力時保留全部並明示。
+瀏覽器預覽目前兩項能力皆 unavailable，仍可手動匯出。這是實作界線，不移除五平台的 1.0 要求。
+清理前再核對最新成功檔，缺失時先保留舊份並重建。journal 自身故障也必須顯示暫停／錯誤。
 
 ## Acceptance Cases
 

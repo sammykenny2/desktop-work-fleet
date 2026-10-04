@@ -38,3 +38,45 @@ export interface BackupFiles {
 /** One CAS transaction for Workspace, receipt and all attachment bytes; reject means no partial publication. */
 export type PersistRestoredWorkspace = (state: WorkspaceState, expectedRevision: number,
   attachments: { id: string; bytes: Uint8Array }[]) => Promise<void>;
+
+export interface AutomaticBackupJob {
+  id: Id; scheduleId: Id; policyId: Id; destinationId: string; name: string;
+  sourceRevision: number; createdAt: number; encrypted: boolean; sha256: string; size: number;
+}
+export interface AutomaticBackupState {
+  schemaVersion: 1; profileId: Id; revision: number; enabled: boolean; paused: boolean;
+  settings: null | { scheduleId: Id; policyId: Id; destinationId: string; destinationName: string; encrypted: boolean; keyId: string | null; keep: number };
+  inventory: (AutomaticBackupJob & { status: 'verified' | 'unconfirmed' })[];
+  pending: AutomaticBackupJob | null;
+  lastSuccess: (AutomaticBackupJob & { savedAt: number }) | null;
+  lastFailure: { code: string; message: string; failedAt: number } | null;
+  failures: number; nextAttemptAt: number;
+}
+export interface AutomaticBackupJournal {
+  load(profileId: Id): Promise<AutomaticBackupState | null>;
+  /** One durable CAS; an acknowledgement loss may be reconciled by exact complete readback. */
+  save(state: AutomaticBackupState, expectedRevision: number | null): Promise<void>;
+}
+export type AutomaticFileRequest = AutomaticBackupJob & { profileId: Id; signal?: AbortSignal };
+/** Trusted account-bound host. Capability false means operations must not be attempted.
+ * No general path/delete endpoint is exposed to the renderer. The destination is a prior OS grant.
+ */
+export type AutomaticBackupFiles = { canCreate: false; canPrune: false } | ({
+  canCreate: true;
+  read(job: AutomaticFileRequest): Promise<Uint8Array | null>;
+  /** Create-only atomic publication: an existing or racing replacement must never be overwritten.
+   * Verify complete bytes before reporting saved; late cancellation follows the actual commit outcome.
+   */
+  create(job: AutomaticFileRequest & { bytes: Uint8Array }): Promise<{ saved: true; receipt: string }>;
+} & ({ canPrune: false } | {
+  canPrune: true;
+  /** Atomically bind deletion to owned identity and expected bytes; a pathname check followed by unlink is insufficient.
+   * An already absent owned file succeeds; changed or unowned files survive. Reject when this cannot be guaranteed.
+   */
+  remove(job: AutomaticFileRequest): Promise<{ removed: true }>;
+}));
+export interface BackupVault {
+  available: boolean;
+  /** Immutable, profile-bound references. Changing the password creates a new key ID and policy generation. */
+  read(input: { profileId: Id; keyId: string }): Promise<string | null>;
+}

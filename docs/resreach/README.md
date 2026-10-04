@@ -36,6 +36,9 @@ resumable 與完整性；決策見 ADR-012，沒有以 scripted transport 當成
 [備份容器與加密](2026-10-04-backup-container-and-encryption.md) 核對 ZIP、DEFLATE、WebCrypto、
 KDF 及依賴；完整範圍及三種還原見 SPEC-002／ADR-013，不再沿用早期格式排除。
 
+[自動備份檔案安全](2026-10-04-automatic-backup-file-safety.md) 記錄 FSA locator／換檔競爭，
+區分 scheduler／真 IDB 證據與待實作的原生檔案能力；決策見 ADR-014。
+
 ## 如何解讀
 
 - **使用者需求**：對話中已明確表達的意圖與限制。

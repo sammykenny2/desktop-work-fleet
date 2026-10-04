@@ -17,6 +17,7 @@
 | [ADR-011](011-immutable-revision-graph.md) | Accepted（同步格式） | 不可變 revision、嚴格 JSON、pending 與多 head；Google 整合另驗收 |
 | [ADR-012](012-durable-file-store-and-drive-adapter.md) | Accepted（檔案傳輸） | 持久 reservation、分頁／重試、Drive appDataFolder／resumable；原生授權另驗收 |
 | [ADR-013](013-complete-portable-backup.md) | Accepted（完整備份） | 全部已知版本／草稿／附件／版面、嚴格 ZIP、加密、三種還原及自動備份契約 |
+| [ADR-014](014-durable-automatic-backups.md) | Accepted（自動備份） | profile journal／policy generation／重啟恢復／原生檔案能力與安全清理 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；其他平台封裝與正式商店配置尚未決定。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

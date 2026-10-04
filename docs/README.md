@@ -17,6 +17,7 @@
 | [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md) | Accepted：不可變版本、嚴格 JSON、缺 parent／多分支規則；整合證據見 PROGRESS |
 | [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) | Accepted：可恢復 FileStore、Drive appDataFolder 與續傳；原生授權另驗收 |
 | [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md) | Accepted：完整可攜資料、嚴格 ZIP／加密、三種還原與自動備份契約；執行見 PROGRESS |
+| [ADR-014](decisions/014-durable-automatic-backups.md) | Accepted：自動備份 journal／重啟／policy、原生安全檔案能力；瀏覽器不假冒原生能力 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

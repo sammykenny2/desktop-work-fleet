@@ -8,6 +8,9 @@ import { renderMarkdown } from './markdown.js';
 import { toggleChecklist } from './checklist.js';
 import { showRevisionDialog } from './conflicts.js';
 import { showBackupDialog } from './backup.js';
+import { AutomaticBackup } from '../backup/automatic.js';
+import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser-automatic.js';
+import { startAutomaticBackup } from '../backup/lifecycle.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -18,6 +21,7 @@ let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
 let settingsSlots = [];
+let automatic; let automaticError;
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
 const profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
@@ -73,6 +77,12 @@ async function initialize() {
   await workspace.layout.placeNew(workspace.snapshot, [screenArea()]);
   $('#storage-note').textContent = '瀏覽器本機工作空間 · 尚未連接 Google';
   bindEvents(); render(); status('已開啟本機資料');
+  try {
+    const journal = await IndexedDbBackupJournal.open(); const files = new BrowserAutomaticFiles();
+    const service = new AutomaticBackup({ workspace, storage, journal, files, flush: flushDraft }); await service.load();
+    automatic = { service, files }; const stop = startAutomaticBackup(service);
+    addEventListener('pagehide', () => { stop(); journal.close(); });
+  } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
     if ($('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
@@ -499,7 +509,7 @@ function bindEvents() {
     if (currentDraft) await flushDraft();
     if (!await controller.endEdit()) return;
     currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
-    showBackupDialog({ workspace, storage, getWorkAreas: () => [screenArea()], flush: flushDraft,
+    showBackupDialog({ workspace, storage, getWorkAreas: () => [screenArea()], flush: flushDraft, automatic, automaticError,
       onChanged: async () => { await controller.reconcile(); render(); } });
   });
   $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);

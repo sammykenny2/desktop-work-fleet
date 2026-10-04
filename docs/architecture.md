@@ -70,6 +70,9 @@ BackupService 屬於共用核心，不由 Drive 或 renderer 私自定義格式�
 `prepareRestore` 只產生綁定目標 revision 的不可變計畫；Workspace 提交時一起保存附件、
 receipt 及新 outbox。`contracts/backup.d.ts` 定義 file adapter／原子 persistence 邊界，
 原生保存證明不可由 renderer 任意 JSON 取代。Browser 預覽使用 IndexedDB 及 File System Access。
+自動排程使用另一份 profile CAS journal，避免自身保存成為內容變化；具持久 pending／inventory
+與 policy generation，詳見 [ADR-014](decisions/014-durable-automatic-backups.md)。
+Browser 手動保存可用；自動建立／清理能力明確 unavailable，需由可信原生 host 實作。
 
 [完整 PM／server 草案](resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
 其中 Note 容器的模型不再規範 1.0；未來採用也須重新對齊一事一卡。

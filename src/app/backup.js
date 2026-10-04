@@ -3,6 +3,7 @@ import { prepareRestore, saveSafetyBackup } from '../backup/restore.js';
 import { BACKUP_LIMITS, checkCancelled } from '../backup/archive.js';
 import { browserBackupFiles } from '../backup/browser-files.js';
 import { requireValue } from '../core/contracts.js';
+import { automaticBackupSection } from './automatic-backup.js';
 
 const node = (tag, text, className) => {
   const value = document.createElement(tag); if (text !== undefined) value.textContent = text;
@@ -11,7 +12,7 @@ const node = (tag, text, className) => {
 const input = (id, type) => { const value = node('input'); value.id = id; value.type = type; return value; };
 const field = (text, control, className = 'field') => { const label = node('label', text, className); label.append(control); return label; };
 
-export function showBackupDialog({ workspace, storage, getWorkAreas, flush, onChanged, targetName = '目前本機工作空間', files = browserBackupFiles() }) {
+export function showBackupDialog({ workspace, storage, getWorkAreas, flush, onChanged, targetName = '目前本機工作空間', files = browserBackupFiles(), automatic, automaticError }) {
   const dialog = node('dialog'); dialog.id = 'backup-dialog'; dialog.className = 'backup-dialog';
   const message = node('p', '備份包含本機已知資料；尚未收到的遠端內容不在其中。', 'backup-message');
   message.id = 'backup-status'; message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
@@ -25,6 +26,7 @@ export function showBackupDialog({ workspace, storage, getWorkAreas, flush, onCh
   const preview = node('div'); preview.id = 'restore-preview';
   const safetyInfo = node('p', '取代前，需先成功保存目前資料的安全備份。', 'hint');
   const receiptList = node('div'); receiptList.id = 'restore-receipts';
+  const automaticSection = automaticBackupSection(automatic, automaticError);
   let busy = false; let committing = false; let abort; let loaded; let plan; let safety;
   const controls = [];
   const action = (id, text, work, className) => {
@@ -109,12 +111,12 @@ export function showBackupDialog({ workspace, storage, getWorkAreas, flush, onCh
     field('輸出密碼（至少 12 字元；還原前安全備份也使用此密碼）', password), exportButton,
     node('h3', '從備份還原'), field('選擇 ZIP 備份', fileInput), field('此檔案的密碼（未加密可留白）', readPassword),
     field('還原方式', mode), field('套用備份版面（新匯入只套用新卡片的位置）', layout, 'check'),
-    field('若曾還原這份備份，仍明確再還原一次', repeat, 'check'), readButton, preview, safetyInfo, saveSafety, message, receiptList);
+    field('若曾還原這份備份，仍明確再還原一次', repeat, 'check'), readButton, preview, safetyInfo, saveSafety, message, receiptList, automaticSection.element);
   const actions = node('div', undefined, 'dialog-actions'); actions.append(cancel, close, confirm); dialog.append(actions);
   for (const control of [mode, layout, repeat]) control.onchange = resetPlan;
   fileInput.onchange = () => { loaded = null; resetPlan(); };
   encrypt.onchange = refresh;
   dialog.oncancel = event => { if (busy) { event.preventDefault(); if (!committing) abort?.abort(); } };
-  dialog.onclose = () => { password.value = ''; readPassword.value = ''; loaded = null; plan = null; safety = null; dialog.remove(); };
+  dialog.onclose = () => { password.value = ''; readPassword.value = ''; loaded = null; plan = null; safety = null; automaticSection.dispose(); dialog.remove(); };
   document.body.append(dialog); renderReceipts(); refresh(); dialog.showModal();
 }

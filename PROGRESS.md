@@ -21,7 +21,7 @@
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域與快捷鍵設定已完成並經真 Edge 與獨立審閱；原生保存整合、大容量與完整平台設定仍待補齊 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 版本圖、Workspace 原子交易、衝突 UI、FileSync／Drive REST adapter 已實作及故障測試；原生保護 transport、OAuth、UI 連接及真 Google 尚待完成，公開設定尚未建立 |
-| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原與手動 UI 已實作及真 Edge 驗證；自動排程與原生檔案流程持續施工 |
+| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原與手動 UI 已驗證；自動 journal／排程／UI 已實作，原生安全建檔／清理／vault 待整合，瀏覽器自動能力明示停用 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 尚待完成；沒有送審、購買憑證或建立帳號 |
@@ -226,11 +226,34 @@ lineage／故障回滾、120 個生成圖、2,880 次 group resolver 對照與�
 最後 build、真 Edge backup／restore UI／原 browser／group probes 通過。
 真 IDB 含附件 abort 全回滾、回應遺失／重啟去重、CAS；UI 含真 OPFS 保存讀回、錯密碼、
 取消／無效輸入零寫入、取代安全備份、原草稿／歷史保留、重啟及 390px 無橫向溢出。
-独立唯讀審閱完成，無未解決 finding：三模式 × 兩種版面、循環群組、多代草稿／pending／
+獨立唯讀審閱完成，無未解決 finding：三模式 × 兩種版面、循環群組、多代草稿／pending／
 再次備份、真 IDB 故障與完整 UI／OPFS 皆通過；80 項相關測試、最後修正另跑 15/15。
-修正大量新卡取消延遲（独立 5,000 卡約 3,271 ms 降至 11 ms）及 close 後取消誤報；
+修正大量新卡取消延遲（獨立 5,000 卡約 3,271 ms 降至 11 ms）及 close 後取消誤報；
 檔案提交後完成校驗，失敗明示可能已寫入，不承諾回滾已發布檔案。文件 67 份／361 相對連結、
 UTF-8／LF 與 diff whitespace 通過。自動備份、原生 picker／外部磁碟、Google 及五平台驗收尚未完成。
+已提交並推送 main：`059d0ff`。
+
+### 自動備份 journal／排程子切片
+
+- 獨立 profile CAS journal 保存 policy、pending、inventory 與上次成功／失敗；不進 Workspace／ZIP。
+  有變化且滿 24 小時才執行，啟動／可見／resume 補跑；重複觸發合併，排隊時已可取消。
+- 寫檔前持久記錄期望 bytes，成功後發 inventory；journal ack 可完整讀回確認，file ack 遺失以原工作恢復。
+  部分檔保留為未確認；設定改動有新 policyId，換位置不清舊位置，vault／授權失效不降級明文。
+- 清理核心僅對相同 schedule 的 verified inventory，先重驗最新成功檔；若遺失先保留舊份並重建。
+  任何 journal 讀寫中斷也會 transient 暫停／通知，不能只因紀錄寫不進去就顯示正常。
+- 自動 UI 依 host 能力顯示選位、加密、保留份數、立即／重試、停用及未確認檔。
+  瀏覽器沒有安全 create-only／身分綁定刪除能力，入口明示停用；手動 ZIP 保存不受影響。
+
+作者驗證 17/17 自動備份測試、相關備份合計 32/32、build，真 Edge automatic／restore UI／browser probes。
+restore UI 初載曾一次 5 秒 timeout，順序重跑通過；未將不穩定的 preview 初載宣稱為壓測通過。
+probe 使用真 IndexedDB journal 與合成原子 FileHost，含 UI 停用、reservation abort、回應遺失／重啟、
+CAS、授權暫停與 ZIP bytes；沒有把 synthetic host 當成原生檔案或 OS vault 證據。
+獨立唯讀審閱完成，無未解決 finding：17/17 回歸、真 Edge／IDB 的 reservation／file ack 遺失、
+中止、CAS／profile 隔離、執行中停用、not-due 訊息及 390px UI 通過；檔案 host 為合成原子 fixture。
+已複核排隊取消、policy 變更、journal 中途失聯通知與原 pending 恢復；FSA 自動 I/O 路徑已移除。
+獨立初次頁面亦有一次 5 秒 timeout，診斷重開及完整探針通過。文件 69 份／373 相對連結、UTF-8／LF
+與 diff whitespace 通過，scope／常見憑證模式檢查未發現私密資料。
+自動備份完整交付仍需五平台原生 host／檔案／安全儲存，並持續本次完整 1.0 目標。
 
 ## 2026-10-04 文件交付
 

@@ -39,6 +39,10 @@
   取代安全備份以可信檔案 adapter 的 write／close／讀回校驗證明保存；純下載或普通 JSON 不足以解鎖。
 - 自動備份／原生保存需遵循 [SPEC-002](specs/002-portable-backup-and-restore.md) 的自有 inventory
   與授權範圍；已實作狀態只看 PROGRESS。瀏覽器保存 probe 不代表外部磁碟斷電耐久。
+- 自動備份先保存 profile／policy／期望 hash 的 pending，驗證完成後才記成功及清理 verified inventory。
+  host 必須原子避免覆寫同名替換檔、避免刪除非原本實體；瀏覽器自動檔案能力 unavailable，
+  不以兩次 pathname 查驗掩蓋競爭。加密 key 參照隔離 profile，不進 ZIP／`.env`。
+  journal 失效須發佈 transient 暫停訊息，不能因失敗紀錄也無法寫入而顯示正常。
 
 ## 既有 0.1.0 驗證版
 

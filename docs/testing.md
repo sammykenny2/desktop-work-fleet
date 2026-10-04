@@ -47,6 +47,8 @@ profile 綁定、並行快照、未知 conflict 拒絕、加密與大量圖取�
 `tests/backup-restore.test.js` 驗證三種還原、完整 ID／草稿 lineage 映射、缺 parent、過期計畫、
 安全備份綁定、交易失敗、重啟 receipt／明確重複及大量新卡定位取消後佇列仍可使用。
 `tests/backup-files.test.js` 驗證 write／close／讀回故障、大小／hash、取消、owned bytes 及保存能力。
+`tests/automatic-backup.test.js` 使用合成原子 FileHost 驗證每日／變更／resume、合併觸發、排隊取消、
+pending／ack／重啟／清理、換位置、最新檔遺失、加密 policy 變更、vault 暫停及 journal 失聯通知。
 
 新的真實瀏覽器回歸使用隔離 profile 與合成資料：
 
@@ -59,6 +61,7 @@ node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/restore-ui-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
@@ -79,6 +82,9 @@ restore UI probe 經完整畫面執行匯出／預覽／匯入／重複與取代
 檢查原草稿／歷史及 390px 畫面。它只替換 picker，真實保存／close／SHA 讀回使用 OPFS handle，
 沒有開啟個人檔案選擇器。截圖在 `build/restore-ui-probe.png`，失敗另存同名前綴 failure 圖。
 上述不代表原生 OS picker、外部磁碟斷電耐久或最低手機容量壓測。
+automatic probe 先確認真 App 的自動檔案能力停用，再以真 IDB journal／Workspace 與合成 FileHost
+檢查完整 UI、執行中停用、reservation abort、ack 遺失／重啟、CAS、授權暫停及可讀取的 ZIP bytes。
+它不使用原生 OS 自動檔案或 vault，截圖為 `build/automatic-backup-probe.png`。
 輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
 這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
 

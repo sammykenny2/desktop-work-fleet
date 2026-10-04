@@ -7,13 +7,27 @@
 使用者已授權逐 slice 實作並直接 commit/push origin/main，直到完整 1.0 完成。
 2026-10-05 最新指示要求先完成實作、不再投入驗證；未執行的检查不視為通過。
 本次還明確納入 iOS／Android 原生 App 與商店提交準備，並核准完整 editor／逐卡設定／備份範圍。
-核心測試通過不代表五平台或 Google 驗收已完成；完整目標持續進行。
+核心測試通過不代表五平台或 Google 驗收已完成。
 
-2026-10-05 目前因外部輸入阻塞，完整 1.0 尚未完成：Apple hosted build 的 Actions 額度授權
-已連續三輪待回覆，實際 workflow runs 為空，沒有可等待的建置工作。原生編譯／修正需要
-這項授權或可用的 Mac 環境；Google 專案／各平台 client、Apple team、正式 package identity／
-簽章與公開隱私／支援設定亦未配置，現有產物是 preview。既有的授權問題保留，不因自動續跑
-或經過時間視為同意。實作／封裝已提交至 `5aa7b39`；先停止自動續跑，等待外部設定後接續。
+2026-10-05 最新指示改為先收尾；Apple 編譯由維護者帶到真正的 Mac 處理。
+不再等待或啟動 Apple hosted Actions，不使用其計費額度。
+本輪集中收尾 Google 程式與公開設定；Google 專案／各平台 clients 尚未建立，
+Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
+現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
+
+## 2026-10-05 Google 收尾與 Mac 交接
+
+- 修正 Linux Google 狀態與共用 UI 欄位不一致，已登入帳號可接入 FileSync。
+- Linux client／scope 變更不再阻止本機工作空間開啟；舊憑證不啟用，資料保留並提示登入。
+  Drive 401 讓下次請求先刷新 token。
+- 未配置 Google 的原生包停用登入按鈕；Google 帳號工作空間失去授權仍呈現本機資料，
+  同步授權失效提供「重新登入 Google」。重新初始化會清除舊輪詢 timer。
+- `.env.example` 增加 [Google 設定](docs/google-setup.md) 入口；新增 `config:check -- --google`
+  及單一平台模式，與正式散布的簽章／商店缺項分開。
+- 整理 Cloud／五平台 clients／Android SHA-1／Apple callback 設定與帳號搬移說明，
+  修正 setup 舊有「未接 Google」描述。Mac 建置命令留給維護者執行。
+- 依最新指示，本輪未執行測試、原生建置、真實 Google 登入或獨立審閱；
+  既有 preview 安裝包尚未包含本輪 source 修正，需用最新 main 重新建置。
 
 已確認產品語意以 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)
 及 [ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 為準：

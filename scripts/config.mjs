@@ -41,13 +41,19 @@ export async function readBuildConfig(root, environment = process.env) {
   return config;
 }
 
-export function missingReleaseConfig(config, platform) {
+export function missingGoogleConfig(config, platform) {
   if (!platforms.includes(platform)) throw new Error(`未知平台：${platform}`);
   return [
-    ...(!config.appId ? ['WORK_FLEET_APP_ID'] : []),
     ...(!config.google.projectId ? ['WORK_FLEET_GOOGLE_PROJECT_ID'] : []),
     ...(!config.google.clients[platform] ? [`WORK_FLEET_GOOGLE_${platform.toUpperCase()}_CLIENT_ID`] : []),
     ...(platform === 'android' && !config.google.clients.web ? ['WORK_FLEET_GOOGLE_WEB_CLIENT_ID'] : []),
+  ];
+}
+
+export function missingReleaseConfig(config, platform) {
+  return [
+    ...missingGoogleConfig(config, platform),
+    ...(!config.appId ? ['WORK_FLEET_APP_ID'] : []),
     ...(['macos', 'ios'].includes(platform) && !config.appleTeamId ? ['WORK_FLEET_APPLE_TEAM_ID'] : []),
     ...(platform === 'windows' && !config.windows?.packageId ? ['WORK_FLEET_WINDOWS_PACKAGE_ID'] : []),
     ...(platform === 'windows' && !config.windows?.publisher ? ['WORK_FLEET_WINDOWS_PUBLISHER'] : []),

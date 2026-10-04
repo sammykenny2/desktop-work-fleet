@@ -78,7 +78,7 @@ App 取得焦點時釋放全域註冊，由目前視窗處理本地按鍵；組�
 此功能連接不等於真滑鼠／IME、混合 DPI、Show Desktop 與虛擬桌面矩陣已全部驗收。
 
 不要把原生 DB 當成跨機備份，DPAPI 需原 Windows 帳號金鑰。預覽 IndexedDB 與 native 是不同 profile，
-不自動搬動既有資料。主畫面沿用上述 editor／群組／還原操作，仍未連 Google；
+不自動搬動既有資料。主畫面沿用上述 editor／群組／還原操作，Google 設定與登入見下節；
 手動匯出使用原生資料夾選擇器，每次建立 `work-fleet-backup-UUID.zip` 新檔並讀回校驗。
 自動備份預設關閉，在「資料與備份」選位置、密碼及保留份數後啟用；
 預設保留七份，有變更且距成功滿 24 小時才備份，開啟／恢復時補跑。
@@ -100,14 +100,18 @@ Google Cloud project ID、原生 bundle/package ID，Apple 平台另填 team ID�
 
 ```bash
 npm run config:check
+npm run config:check -- --google --platform windows
 npm run config:check -- --platform windows
 ```
 
-第一個命令列出五平台缺少哪些設定；指定平台時，缺少發佈所需公開設定即以非零狀態結束。
+第一個命令列出五平台缺少哪些設定；`--google` 只列 Google 設定，不要求商店／簽章欄位。
+指定平台時，缺少該模式所需公開設定即以非零狀態結束。
 `npm run build` 讀取設定並產生 `build/config/public.json` 供原生封裝使用，僅輸出允許的公開欄位。
-目前這是設定入口及驗證，不代表 Google 登入／原生封裝已完成；執行狀態見 PROGRESS。
-FileSync／Google Drive REST adapter 已可執行合成傳輸測試；預覽尚未接原生受保護 HTTP／OAuth，
-填 client ID 不會自動開啟登入，也不會傳送既有預覽資料。
+五平台原生 host 已接 Google 登入、受保護 token 及 Drive appDataFolder 同步程式；
+Google Cloud 專案／client 尚未建立，未做真實登入或 Drive 往返。執行狀態見 PROGRESS。
+填 client ID 並重新建置後，從原生主畫面登入；瀏覽器開發預覽仍只有本機資料。
+登入不會自動傳送既有 local／瀏覽器預覽資料；client 建立及搬移方式見
+[Google 設定](google-setup.md)。
 
 Google 設定步驟：在同一 Cloud project 啟用 Drive API，設定 OAuth consent screen／測試使用者，
 Windows／Linux 建立 Desktop app client；Google Apple SDK 的 macOS／iOS 皆建立符合各自

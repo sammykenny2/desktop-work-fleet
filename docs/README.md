@@ -45,6 +45,7 @@
 | [ROADMAP](../ROADMAP.md) | 方向及先後順序 |
 | [架構](architecture.md) | 正式設計與現有 0.1.0 分開 |
 | [Setup](setup-guide.md) | 現有驗證版使用方式 |
+| [Google 設定](google-setup.md) | 五平台 OAuth clients、公開設定與帳號操作 |
 | [Testing](testing.md) | 可執行檢查及未測界線 |
 | [Deployment](deployment.md) | 原生封裝與商店未測範圍 |
 | [商店提交素材](release/README.md) | 繁中／英文文案、隱私資料及公開提交配置 |

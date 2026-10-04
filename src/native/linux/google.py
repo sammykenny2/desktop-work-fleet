@@ -69,7 +69,9 @@ class Google:
         if value is None:
             return None
         credentials = p.decode(value)
-        p.require(credentials.get("accountId") == account and credentials.get("clientId") == self.client and SCOPE in credentials.get("scope", "").split(), "google-account", "Google 設定或授權已變更，請重新登入。")
+        p.require(credentials.get("accountId") == account, "google-account", "Google 帳號身分不符。")
+        if credentials.get("clientId") != self.client or SCOPE not in credentials.get("scope", "").split():
+            return None
         return credentials
 
     def save(self, credentials):
@@ -77,7 +79,9 @@ class Google:
         self.vault.save("google-account", credentials["accountId"], p.encode(credentials).decode("ascii"))
 
     def status(self):
-        return {"available": self.available, "accountId": None if self.credentials is None else self.credentials["accountId"], "email": None if self.credentials is None else self.credentials["email"]}
+        return {"configured": self.available, "connected": self.credentials is not None, "profileId": self.profile,
+                "accountId": None if self.credentials is None else self.credentials["accountId"],
+                "email": None if self.credentials is None else self.credentials["email"]}
 
     def token_request(self, fields):
         status, data, _ = http("https://oauth2.googleapis.com/token", "POST", urlencode(fields).encode("ascii"), {"Content-Type": "application/x-www-form-urlencoded"}, 65536)
@@ -184,6 +188,8 @@ class Google:
             reason = ""
         code = "source-error"
         if status == 401:
+            if self.credentials is not None:
+                self.credentials["expiresAt"] = 0
             code = "unauthorized"
         elif status == 409:
             code = "file-exists"

@@ -170,9 +170,11 @@ async function initialize() {
 }
 
 async function initializeGoogle() {
+  clearInterval(syncTimer);
   googleAccount = await native.bridge.request('google.status');
   $('#google-sign-in').hidden = false;
-  $('#google-sign-in').textContent = googleAccount.connected ? '切換 Google 帳號' : '登入 Google';
+  $('#google-sign-in').disabled = !googleAccount.configured;
+  $('#google-sign-in').textContent = googleAccount.connected ? '切換 Google 帳號' : profileId.startsWith('google:') ? '重新登入 Google' : '登入 Google';
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
   $('#google-sign-out').hidden = !googleAccount.connected;
   $('#google-local').hidden = !profileId.startsWith('google:');
@@ -187,7 +189,12 @@ async function initializeGoogle() {
     addEventListener('online', () => { void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
     void syncGoogle();
-  } else $('#sync-status').textContent = googleAccount.configured ? '登入後開啟獨立帳號工作空間；目前本機便箋保留。' : 'Google 尚未設定。請填寫 .env 的 client ID 後重新建置。';
+  } else {
+    if (profileId.startsWith('google:')) $('#storage-note').textContent = 'Google 工作空間 · 尚未登入 · 本機加密保存';
+    $('#sync-status').textContent = !googleAccount.configured ? '此安裝版本尚未啟用 Google 登入；可繼續使用本機便箋。'
+      : profileId.startsWith('google:') ? '請重新登入此工作空間的 Google 帳號以繼續同步；本機便箋與待送內容保留。'
+      : '登入後開啟獨立帳號工作空間；目前本機便箋保留。';
+  }
 }
 async function syncGoogle(force = false) {
   if (!syncService || syncBusy || nativeClosing || accountBusy || document.querySelector('dialog[open]') || composing) return;
@@ -202,7 +209,10 @@ async function syncGoogle(force = false) {
       const pending = workspace.pendingOperations.length;
       $('#sync-status').textContent = pending ? `本機已保存 · ${pending} 筆等待下一次同步` : `已同步 · ${new Date().toLocaleTimeString()}`;
     }
-  } catch (error) { $('#sync-status').textContent = `${error.message} · 本機資料保留`; }
+  } catch (error) {
+    $('#sync-status').textContent = `${error.message} · 本機資料保留`;
+    if (error.code === 'unauthorized' || error.code === 'source-permission') $('#google-sign-in').textContent = '重新登入 Google';
+  }
   finally { syncBusy = false; $('#google-sync').disabled = false; }
 }
 async function changeGoogleAccount(action) {

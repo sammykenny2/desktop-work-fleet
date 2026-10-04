@@ -30,6 +30,9 @@ Accepted，2026-10-05；加入程式及封裝入口，Linux runtime 未執行。
 
 ## Consequences
 
+Google 狀態與其他平台統一為 configured／connected／profileId／accountId／email。
+client ID 或 scope 變更時停用舊授權並提示重新登入，保留該帳號便箋；Drive 401 讓下一次請求先更新 token。
+
 Linux 主畫面沿用完整 editor、版本圖、FileSync、備份還原與 native storage 契約。
 GTK／libsecret、Google、檔案系統與 compositor 的實際環境結果仍缺；source archive 不能當成原生操作驗收。
 系統 runtime 授權留 distribution；最終 package 的版本／授權盤點仍需實際 Linux 散布產物。

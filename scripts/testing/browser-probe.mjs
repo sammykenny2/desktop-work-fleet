@@ -77,7 +77,7 @@ try {
   await page.locator('#search').fill('');
   assert.deepEqual(await paper.boundingBox(), moved, 'search must preserve desktop geometry');
   await page.getByRole('button', { name: '復原', exact: true }).click();
-  await expect.poll(async () => (await paper.boundingBox()).x).toBe(beforeDrag.x);
+  await expect.poll(async () => (await paper.boundingBox())?.x).toBe(beforeDrag.x);
   await dragTo(true);
   await expect(page.locator('#status')).toHaveText('已移至新群組，可按復原');
   await expect(page.locator('#groups .group-row').nth(1)).toContainText('1');
@@ -196,5 +196,6 @@ try {
   console.log('PASS: capture, Markdown/checklist, attachment isolation, reload, inline edit, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
+  if (errors.length) console.error('Browser page errors:', errors);
   throw error;
 } finally { await context.close(); await browser.close(); }

@@ -10,6 +10,27 @@ export function createLayout(deviceId, groups, area) {
     placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(groups) };
 }
 
+export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
+  const affected = new Set(affectedCards);
+  draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
+  if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
+  for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
+  const oldLength = draft.history.length;
+  draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
+    || [entry.transfer.fromGroupId, entry.transfer.toGroupId].includes(sourceId)));
+  return { movedCards: affected.size, retiredGroupId: sourceId, removedUndo: oldLength - draft.history.length };
+}
+
+export function recordTransferLayout(draft, cardId, position, transfer) {
+  const rect = draft.placements[cardId];
+  requireValue(rect || !position, 'missing-placement', '找不到卡片位置。');
+  draft.history.push({ kind: 'transfer', before: rect ? { [cardId]: geometry(rect) } : {}, transfer: copy(transfer) });
+  if (position) {
+    requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', '卡片位置無效。');
+    Object.assign(rect, { x: position.x, y: position.y });
+  }
+}
+
 // Only an inaccessible title is rescued. Large, intentionally overflowing papers keep their size.
 export function reachable(rect, workAreas) {
   return workAreas.some(area => containsRect(area, {
@@ -40,6 +61,17 @@ export class LayoutStore {
   }
 
   get state() { return copy(this.#state); }
+
+  /** Serialize a source transaction with device writes; the callback atomically persists both states. */
+  integrateSource(persist) {
+    const operation = this.#tail.then(async () => {
+      const { layout, value } = await persist(copy(this.#state), this.#state.revision);
+      this.#state = copy(layout);
+      return copy(value);
+    });
+    this.#tail = operation.catch(() => {});
+    return operation;
+  }
 
   #transaction(change, persist = this.#persist, force = false) {
     const operation = this.#tail.then(async () => {
@@ -136,27 +168,13 @@ export class LayoutStore {
     position = copy(position); transfer = copy(transfer);
     return this.#transaction(draft => {
       requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', '版面已變更，請重試。');
-      const rect = draft.placements[cardId];
-      requireValue(rect || !position, 'missing-placement', '找不到卡片位置。');
-      draft.history.push({ kind: 'transfer', before: rect ? { [cardId]: geometry(rect) } : {}, transfer: copy(transfer) });
-      if (position) {
-        requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', '卡片位置無效。');
-        Object.assign(rect, { x: position.x, y: position.y });
-      }
+      recordTransferLayout(draft, cardId, position, transfer);
     }, persist);
   }
 
   async retireGroup(sourceId, targetId, affectedCards, persist) {
-    const affected = new Set(affectedCards);
-    return this.#transaction(draft => {
-      draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
-      if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
-      for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
-      const oldLength = draft.history.length;
-      draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
-        || [entry.transfer.fromGroupId, entry.transfer.toGroupId].includes(sourceId)));
-      return { movedCards: affected.size, retiredGroupId: sourceId, removedUndo: oldLength - draft.history.length };
-    }, persist, true);
+    affectedCards = copy(affectedCards);
+    return this.#transaction(draft => retireGroupLayout(draft, sourceId, targetId, affectedCards), persist, true);
   }
 
   async applyFormation(plan, getSnapshot) {

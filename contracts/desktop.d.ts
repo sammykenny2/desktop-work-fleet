@@ -1,4 +1,5 @@
 /** Renderer-neutral v1 desktop semantics. Coordinates are logical desktop units, never raw device pixels. */
+import type { RevisionRecord, SyncState } from './sync.js';
 export type Id = string;
 export type Revision = string;
 export interface Point { x: number; y: number }
@@ -133,6 +134,9 @@ export interface WorkspaceState {
   drafts: Record<Id, Draft>;
   membershipRebases?: Record<Revision, { cardId: Id; revision: Revision }>;
   outbox: OutboxEntry[];
+  /** Legacy local previews migrate these from their complete outbox before the next atomic save. */
+  revisions?: RevisionRecord[];
+  sync?: SyncState;
   conflicts: unknown[];
   layout: DeviceLayout;
 }

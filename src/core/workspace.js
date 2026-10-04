@@ -1,12 +1,28 @@
 import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
-import { createLayout, LayoutStore } from '../layout/store.js';
+import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
+import { canonicalJson } from '../sources/json.js';
+import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
+import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
     'invalid-content', '便箋需要文字及格式。');
   // Preserve extension data and attachments; adapters must not reduce an unknown format to text.
+  canonicalJson(content);
   return copy(content);
+}
+
+function loadRevisions(state) {
+  const records = state.revisions || state.outbox.map(entry => revisionRecord(entry.kind, entry.value, entry.parents));
+  const graph = new RevisionGraph(records);
+  for (const [kind, values] of [['group', state.groups], ['card', state.cards]]) {
+    for (const value of values) {
+      requireValue(graph.get(value.revision)?.entityId === value.id && graph.get(value.revision)?.kind === kind
+        && graph.isComplete(value.revision), 'incomplete-local-history', '本機版本歷史不完整，資料保留，請先恢復來源。');
+    }
+  }
+  return graph;
 }
 
 function draftBaseline(draft) {
@@ -17,7 +33,8 @@ function draftBaseline(draft) {
 
 function rebaseMembership(state, draft) {
   if (state.groups.some(group => group.id === draft.groupId && group.deleted && group.redirectGroupId)) {
-    draft.groupId = resolveGroupId(state, draft.groupId);
+    try { draft.groupId = resolveGroupId(state, draft.groupId); }
+    catch (error) { if (!['group-cycle', 'missing-group'].includes(error.code)) throw error; }
   }
   const seen = new Set();
   while (state.membershipRebases?.[draft.baseRevision]?.cardId === draft.cardId) {
@@ -41,12 +58,15 @@ export class Workspace {
   #uuid;
   #tail = Promise.resolve();
   #layout;
+  #graph;
+  #runtimeId = crypto.randomUUID();
 
   static async create({ profileId, deviceId, area, persist, uuid = () => crypto.randomUUID() }) {
     const group = { id: uuid(), name: '我的便箋', revision: uuid(), deleted: false };
     const state = { schemaVersion: 1, profileId, revision: 0, groups: [group], cards: [],
       drafts: {}, membershipRebases: {}, outbox: [{ operationId: group.revision, kind: 'group', entityId: group.id,
-        parents: [], value: copy(group) }], conflicts: [], layout: createLayout(deviceId, [group], area) };
+        parents: [], value: copy(group) }], revisions: [revisionRecord('group', group)],
+      conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, [group], area) };
     await persist(copy(state), null);
     return new Workspace(state, persist, uuid);
   }
@@ -54,6 +74,10 @@ export class Workspace {
   constructor(state, persist, uuid = () => crypto.randomUUID()) {
     requireValue(state.schemaVersion === 1, 'unsupported-schema', '此資料版本需要較新版 App。');
     this.#state = copy(state); this.#persist = persist; this.#uuid = uuid;
+    this.#graph = loadRevisions(this.#state);
+    this.#state.revisions = this.#graph.records;
+    Object.assign(this.#state, projectRevisions(this.#graph, this.#state));
+    this.#state.sync ||= { sourceId: null, sessionId: null, cursor: null };
     this.#layout = new LayoutStore(state.layout, (layout, revision, validation) => this.#commit(draft => {
       requireValue(draft.layout.revision === revision, 'stale-layout', '版面已由另一個寫入者變更。');
       if (validation?.membership) requireValue(validation.membership === membershipKey(draft, draft.layout),
@@ -73,9 +97,12 @@ export class Workspace {
     const operation = this.#tail.then(async () => {
       const draft = copy(this.#state);
       const result = change(draft);
+      const additions = draft.revisions.slice(this.#state.revisions.length);
+      const graph = additions.length ? this.#graph.fork(additions) : this.#graph;
+      if (additions.length) Object.assign(draft, projectRevisions(graph, draft));
       draft.revision++;
       await this.#persist(copy(draft), this.#state.revision);
-      this.#state = draft;
+      this.#state = draft; this.#graph = graph;
       return result;
     });
     this.#tail = operation.catch(() => {});
@@ -87,15 +114,139 @@ export class Workspace {
     requireValue(card && !card.deleted, 'missing-card', '卡片已不存在。');
     requireValue(card.revision === revision, 'conflict', '卡片已由另一個操作更新；保留目前草稿與轉組意圖。',
       { cardId: id, expectedRevision: revision, actualRevision: card.revision });
+    this.#resolved(state, 'card', id);
     return card;
+  }
+
+  #resolved(state, kind, id) {
+    requireValue(!state.conflicts.some(item => item.kind === 'revision' && item.entityKind === kind && item.entityId === id),
+      'conflict', '這筆資料有多個版本，請先處理衝突；目前草稿仍保留。');
   }
 
   #group(state, id) {
     requireValue(state.groups.some(group => group.id === id && !group.deleted), 'missing-group', '群組不存在或尚待同步。');
+    this.#resolved(state, 'group', id);
   }
 
   #record(state, kind, value, parents) {
+    const record = revisionRecord(kind, value, parents);
+    requireValue(!state.revisions.some(item => item.revisionId === record.revisionId), 'revision-collision', '版本身分重複，尚未保存。');
+    requireValue(parents.every(parent => state.revisions.some(item => item.revisionId === parent
+      && item.kind === kind && item.entityId === value.id)), 'missing-parent', '找不到完整的父版本，尚未保存。');
+    state.revisions.push(record);
     state.outbox.push({ operationId: value.revision, kind, entityId: value.id, parents, value: copy(value) });
+  }
+
+  revisionHeads(kind, entityId) { return this.#graph.heads(kind, entityId); }
+
+  revisionHistory(kind, entityId) {
+    const queue = this.#graph.heads(kind, entityId).map(item => item.revisionId);
+    const seen = new Set(); const result = [];
+    for (let index = 0; index < queue.length; index++) {
+      const id = queue[index]; if (seen.has(id)) continue; seen.add(id);
+      const record = this.#graph.get(id); result.push(record); queue.push(...record.parents);
+    }
+    return result;
+  }
+
+  async clearTransferIntent(intent) {
+    const key = canonicalJson(intent);
+    return this.#commit(state => {
+      const index = state.conflicts.findIndex(item => item.kind === 'transfer' && canonicalJson(item) === key);
+      requireValue(index >= 0, 'missing-intent', '這筆轉組意圖已處理。');
+      state.conflicts.splice(index, 1);
+    });
+  }
+
+  async retryTransferIntent(intent, expectedRevision) {
+    intent = copy(intent); const key = canonicalJson(intent);
+    return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
+      requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試。');
+      const index = state.conflicts.findIndex(item => item.kind === 'transfer' && canonicalJson(item) === key);
+      requireValue(index >= 0, 'missing-intent', '這筆轉組意圖已處理。');
+      const card = this.#card(state, intent.cardId, expectedRevision); this.#group(state, intent.groupId);
+      if (card.groupId !== intent.groupId) {
+        const nextRevision = this.#uuid();
+        recordTransferLayout(layout, card.id, undefined, { cardId: card.id, fromGroupId: card.groupId,
+          toGroupId: intent.groupId, previousRevision: card.revision, expectedRevision: nextRevision });
+        card.groupId = intent.groupId; card.revision = nextRevision;
+        this.#record(state, 'card', card, [expectedRevision]); layout.revision++;
+      }
+      state.conflicts.splice(index, 1); state.layout = copy(layout);
+      return { layout: state.layout, value: copy(card) };
+    }));
+  }
+
+  async beginSync(sourceId) {
+    requireValue(typeof sourceId === 'string' && sourceId.length > 0, 'invalid-source', '需要明確的來源身分。');
+    return this.#commit(state => {
+      requireValue(!state.sync.sourceId || state.sync.sourceId === sourceId, 'source-mismatch', '不同帳號或來源必須使用獨立工作空間。');
+      state.sync.sourceId = sourceId; state.sync.sessionId = this.#uuid();
+      return { profileId: state.profileId, sourceId, sessionId: state.sync.sessionId, runtimeId: this.#runtimeId };
+    });
+  }
+
+  #session(state, session) {
+    requireValue(session && session.runtimeId === this.#runtimeId && session.profileId === state.profileId && session.sourceId === state.sync.sourceId
+      && session.sessionId && session.sessionId === state.sync.sessionId,
+    'stale-session', '來源連線已結束或帳號已變更，舊回應未寫入。');
+  }
+
+  async endSync(session) {
+    session = copy(session);
+    return this.#commit(state => { this.#session(state, session); state.sync.sessionId = null; });
+  }
+
+  async receiveRevisions(records, { session, expectedCursor, cursor }) {
+    records = records.map(validateRevision); session = copy(session);
+    requireValue(cursor === null || (typeof cursor === 'string' && cursor.length <= 8192), 'invalid-cursor', '同步游標無效。');
+    return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
+      this.#session(state, session);
+      requireValue(state.sync.cursor === expectedCursor, 'stale-cursor', '已有更新的同步進度，請重新取得游標。');
+      requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試同步。');
+      const graph = this.#graph.fork(records);
+      const known = new Set(state.revisions.map(item => item.revisionId));
+      for (const record of records) if (!known.has(record.revisionId)) {
+        state.revisions.push(record); known.add(record.revisionId);
+      }
+      const result = { added: graph.size - this.#graph.size, pending: graph.pending, missing: graph.missing };
+      Object.assign(state, projectRevisions(graph, state));
+      state.layout = reconcileSourceLayout(layout, state); state.sync.cursor = cursor;
+      return { layout: state.layout, value: result };
+    }));
+  }
+
+  /** Explicitly adopt one observed branch, optionally editing it; old revisions remain in history. */
+  async resolveRevisions({ kind, entityId, heads, selectedRevision, patch = {}, fromHistory = false }) {
+    heads = copy(heads); patch = copy(patch);
+    requireValue(['card', 'group'].includes(kind), 'invalid-kind', '未知的資料種類。');
+    const allowed = kind === 'card' ? ['content', 'groupId', 'deleted', 'archived', 'completed'] : ['name', 'deleted', 'redirectGroupId'];
+    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-command', '衝突決議不可修改身分或版本。');
+    return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
+      requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試。');
+      const current = this.#graph.heads(kind, entityId);
+      requireValue(Array.isArray(heads) && new Set(heads).size === heads.length
+        && JSON.stringify([...heads].sort()) === JSON.stringify(current.map(item => item.revisionId).sort()),
+      'stale-resolution', '預覽後版本已變更，請重新比較再決定。');
+      const selected = fromHistory ? this.#graph.get(selectedRevision) : current.find(item => item.revisionId === selectedRevision);
+      requireValue(selected && selected.kind === kind && selected.entityId === entityId && this.#graph.isComplete(selected.revisionId),
+        'missing-revision', '找不到完整的所選版本。');
+      const value = { ...copy(selected.value), ...patch, revision: this.#uuid() };
+      if (kind === 'card') {
+        value.groupId = resolveGroupId(state, value.groupId); this.#group(state, value.groupId);
+      } else if (!value.deleted) {
+        delete value.redirectGroupId;
+        if (!state.groups.some(group => group.id === value.id && !group.deleted)) validateNewGroup(state);
+      } else {
+        value.redirectGroupId = resolveGroupId(state, value.redirectGroupId);
+        requireValue(value.redirectGroupId !== value.id, 'group-cycle', '接收群組不能再導回自己。');
+      }
+      this.#record(state, kind, value, heads);
+      const graph = this.#graph.fork([state.revisions.at(-1)]);
+      Object.assign(state, projectRevisions(graph, state));
+      state.layout = reconcileSourceLayout(layout, state);
+      return { layout: state.layout, value: copy(value) };
+    }));
   }
 
   async createGroup(name) {
@@ -126,11 +277,13 @@ export class Workspace {
     plan = copy(plan);
     validateGroupMerge(this.#state, plan);
     const affected = this.#state.cards.filter(card => card.groupId === plan.sourceId).map(card => card.id);
-    return this.#layout.retireGroup(plan.sourceId, plan.targetId, affected, (layout, layoutRevision, result) => this.#commit(state => {
+    return this.#layout.integrateSource((layout, layoutRevision) => this.#commit(state => {
       validateGroupMerge(state, plan);
+      this.#group(state, plan.sourceId); this.#group(state, plan.targetId);
       requireValue(state.layout.revision === layoutRevision, 'stale-layout', '版面已變更，請重試。');
       state.membershipRebases ||= {};
       for (const card of state.cards.filter(card => card.groupId === plan.sourceId)) {
+        this.#resolved(state, 'card', card.id);
         const previous = card.revision;
         card.groupId = plan.targetId; card.revision = this.#uuid();
         state.membershipRebases[previous] = { cardId: card.id, revision: card.revision };
@@ -141,8 +294,10 @@ export class Workspace {
       source.deleted = true; source.redirectGroupId = plan.targetId; source.revision = this.#uuid();
       this.#record(state, 'group', source, [previous]);
       for (const draft of Object.values(state.drafts)) rebaseDraft(state, draft);
-      state.layout = copy(layout);
-      return result;
+      const result = retireGroupLayout(layout, plan.sourceId, plan.targetId, affected);
+      state.layout = reconcileSourceLayout(layout, state);
+      state.layout.revision = layoutRevision + 1;
+      return { layout: state.layout, value: result };
     }));
   }
 
@@ -220,6 +375,7 @@ export class Workspace {
     return this.#commit(state => {
       const card = state.cards.find(card => card.id === cardId);
       requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', '刪除區卡片已變更，請重新載入。');
+      this.#resolved(state, 'card', cardId);
       this.#group(state, card.groupId);
       card.deleted = false; card.revision = this.#uuid();
       this.#record(state, 'card', card, [expectedRevision]);

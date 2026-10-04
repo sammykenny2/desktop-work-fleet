@@ -13,6 +13,10 @@
 - script 全部本機封裝，importmap 以 build 時 CSP hash 授權；不用遠端 script 或 CDN。
 - pending／failed 草稿保留記憶體內容並提示離頁；正常成功以 transaction complete 為準。
   不能保證瀏覽器程序被強制結束前尚未落盤的輸入存活，也不把本機 cache 當備份。
+- 同步版本採嚴格 JSON 與不可變 ID；重複欄位、collision、cycle 或跨 entity parent 整批拒絕。
+  來源 session 必須符合 profile／source／runtime，資料與 cursor 同交易；晚到回應不能跨帳號寫入。
+  多 head 與歷史均保留；普通命令不能靜默消耗衝突，明確決議還需核對完整 head 集合。
+  來源無關交易已測，Google OAuth／transport 仍需另外驗收。
 - 開發 listener 僅 loopback 靜態資產，沒有便箋或 token API。原生 host 的 OAuth、OS 安全儲存、
   加密備份與正式封裝尚需各自驗收，不能由此介面測試代替。
 

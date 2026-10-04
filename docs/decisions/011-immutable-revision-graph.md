@@ -23,6 +23,12 @@ Drive 檔案列舉可亂序、重複或缺依賴；兩個離線裝置不能靠�
   缺 parent 及後代全部保留 pending，不用猜根版本或把舊 head 隱藏。
 - 明確多 head 決議建立包含全部已見 head 的新版本；晚到分支仍可成為衝突。
   所有 revision 保留，首版不自行執行遠端垃圾收集。
+- Workspace 將 revision／outbox／投影／cursor 與必要裝置參照在同一交易提交；
+  session 同時受 profile、source 及不落盤的 runtime nonce 限制，重啟須重新建立 session。
+  既有完整 outbox 可遷入版本圖；缺歷史則保留資料並停止遷移，不補造根版本。
+- 投影跟隨 group redirect 但不修改原 wire value；保留本機 entity 順序及所有既有 geometry。
+  多 head 阻止普通內容覆寫，明確採用／歷史恢復才建立包含目前全部 head 的新版本。
+  群組循環保留資料，透過恢復群組或明確重選目的解開；草稿保存不受循環阻擋。
 - wire 不放裝置版面、OAuth 憑證或草稿。公開 OAuth／建置設定透過 `.env.example`，
   建置只輸出 allowlist 至 `build/config/public.json`；真正憑證由原生安全儲存負責。
 

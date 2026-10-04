@@ -90,6 +90,29 @@ ECMAScript JSON 編码（-0 正規為 0）。這是本協定的格式，不宣�
 
 ### 本機與 FileStore 交易
 
+Workspace 保存 append-only revisions；舊本機預覽從完整 outbox 遷入同一圖，缺歷史則拒絕杜撰根版本。
+普通內容命令在同一提交追加 revision／outbox；圖的候選 fork 驗證成功及 persistence complete 後才發布。
+beginSync 綁定 profile／source／session，runtime nonce 不落盤；重啟重新開 session，保留 cursor。
+receiveRevisions 同時核對 session 及 expectedCursor，原子保存版本、投影、群組版面參照與新 cursor。
+不同 source 不能重用同一 profile；舊 session、錯 profile 或過期 cursor 均零寫入。
+
+投影保留目前仍是 head 的分支供閱讀；否則优先顯示未刪除分支，再以 ID 穩定選取。
+多 head 仍明示衝突且禁止普通命令覆寫。群組／卡片既有本機顯示順序保留，新 entity 追加。
+卡片投影可依完整 group redirect 鏈顯示在接收組，原 revision.value.groupId 不變。
+每機「屬於我」與快捷鍵跟隨有效 redirect；區域簿記可調整，既有卡片的 geometry／顯示政策不變。
+超過九組整理回九組時同交易恢復有效格局。循環或缺依賴時草稿仍能保存，不能因 rebase 失敗丟失输入。
+
+### 比較、決議與歷史恢復
+
+「版本與衝突」提供待處理、歷史、附件下載、群組恢復／另選卡片群組、未完成轉組重試／取消。
+採用版本與歷史恢復都核對預覽時全部 head；過期決定拒絕，不能消耗未看過的新分支。
+恢復歷史建立新 revision，以全部目前 head 為 parent，保留後來的內容與草稿。
+歷史是沿因果從目前往較早版本的走訪，不把 UUID 或裝置時鐘冒充修改日期。
+轉組重試把 membership、revision、outbox、layout undo 與原意圖消耗一起提交。
+保存失敗不出現半套成功，也不因重試另外增加一份意圖。
+
+### FileStore 協調者整合
+
 內容新版本與 outbox 在同一 transaction；開始傳送後 operation ID 與 bytes 不變。
 版本資料、pending、衝突與遠端游標在同一 transaction 保存，transaction complete 前不發布成功。
 每個帳號只有一個協調者；登出／切換來源取消舊工作並拒絕晚到結果寫入另一 profile。

@@ -10,6 +10,11 @@
 `src/app` 與 IndexedDB adapter 已加入；選擇與限制見 [ADR-009](decisions/009-local-renderer-and-persistence.md)。
 原生落盤 adapter、實際 Google 與五平台 host 尚需後續整合，不以瀏覽器測試宣稱完成。
 
+[SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md)
+定義 `src/sources` 的嚴格 JSON、不可變版本圖、缺 parent 與多 head。
+Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在原子保存邊界，
+`src/app/conflicts.js` 提供比較／採用／歷史恢復與群組修復。FileStore／Google transport 仍另行整合。
+
 ## 1.0 的責任分界
 
 使用者已確定一事一卡、群組、顯式 formation、單組／全組操作與拖放轉組。

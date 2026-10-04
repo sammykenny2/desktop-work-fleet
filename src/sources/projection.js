@@ -1,0 +1,58 @@
+import { compareId, copy, defaultGrid } from '../core/contracts.js';
+import { resolveGroupId } from '../core/groups.js';
+
+export const projectionConflictKinds = new Set(['revision', 'group-reference', 'card-group', 'group-overflow', 'pending-revisions']);
+
+/** A visible branch is a reading preference, never a conflict resolution or a new shared revision. */
+export function projectRevisions(graph, previous = { groups: [], cards: [], conflicts: [] }) {
+  const groups = []; const cards = [];
+  const conflicts = (previous.conflicts || []).filter(item => !projectionConflictKinds.has(item.kind)).map(copy);
+  for (const { kind, entityId, heads } of graph.entities()) {
+    const old = (kind === 'group' ? previous.groups : previous.cards).find(value => value.id === entityId);
+    const selected = heads.find(head => head.revisionId === old?.revision)
+      || [...heads].sort((a, b) => Number(a.value.deleted) - Number(b.value.deleted) || compareId(a.revisionId, b.revisionId))[0];
+    (kind === 'group' ? groups : cards).push(copy(selected.value));
+    if (heads.length > 1) conflicts.push({ kind: 'revision', entityKind: kind, entityId, heads: heads.map(head => head.revisionId) });
+  }
+  for (const [values, previousValues] of [[groups, previous.groups], [cards, previous.cards]]) {
+    const positions = new Map(previousValues.map((value, index) => [value.id, index]));
+    values.sort((a, b) => (positions.get(a.id) ?? previousValues.length) - (positions.get(b.id) ?? previousValues.length)
+      || compareId(a.id, b.id));
+  }
+  const snapshot = { groups, cards, conflicts };
+  for (const group of groups.filter(group => group.deleted)) {
+    try { resolveGroupId(snapshot, group.id); }
+    catch (error) { conflicts.push({ kind: 'group-reference', groupId: group.id, reason: error.code }); }
+  }
+  for (const card of cards) {
+    try { card.groupId = resolveGroupId(snapshot, card.groupId); }
+    catch (error) { conflicts.push({ kind: 'card-group', cardId: card.id, groupId: card.groupId, reason: error.code }); }
+  }
+  const count = groups.filter(group => !group.deleted).length;
+  if (count > 9) conflicts.push({ kind: 'group-overflow', count });
+  if (graph.pending.length) conflicts.push({ kind: 'pending-revisions', revisions: graph.pending, missing: graph.missing });
+  return snapshot;
+}
+
+/** Remote content may reconcile device references, but never move or resize an existing paper. */
+export function reconcileSourceLayout(layout, snapshot) {
+  const result = copy(layout);
+  const groups = snapshot.groups.filter(group => !group.deleted);
+  const active = new Set(groups.map(group => group.id));
+  const resolve = id => {
+    try { return resolveGroupId(snapshot, id); } catch { return id; }
+  };
+  if (result.myGroupId) result.myGroupId = resolve(result.myGroupId);
+  for (const [key, target] of Object.entries(result.shortcuts)) {
+    if (!target.startsWith('@')) result.shortcuts[key] = resolve(target);
+  }
+  const slots = result.grid.slots.map(id => active.has(id) ? id : null);
+  const unassigned = groups.filter(group => !slots.includes(group.id)).map(group => group.id);
+  for (let index = 0; index < slots.length && unassigned.length; index++) if (!slots[index]) slots[index] = unassigned.shift();
+  result.grid.slots = slots;
+  if (unassigned.length && groups.length <= 9) result.grid = defaultGrid(groups, result.grid.area);
+  result.history = result.history.filter(entry => !entry.transfer
+    || [entry.transfer.fromGroupId, entry.transfer.toGroupId].every(id => active.has(id)));
+  if (JSON.stringify(result) !== JSON.stringify(layout)) result.revision++;
+  return result;
+}

@@ -14,7 +14,7 @@ if (process.argv.includes('--help')) {
   await mkdir(path.join(root, 'build', 'config'), { recursive: true });
   await writeFile(path.join(root, 'build', 'config', 'public.json'), JSON.stringify(config, null, 2) + '\n');
   await mkdir(destination, { recursive: true });
-  for (const folder of ['app', 'core', 'layout', 'interaction', 'storage']) {
+  for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources']) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
   }
   const htmlPath = path.join(destination, 'app', 'index.html');

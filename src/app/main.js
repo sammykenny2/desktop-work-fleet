@@ -6,6 +6,7 @@ import { InteractionController, cardPolicy, sceneOrder } from '../interaction/co
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { toggleChecklist } from './checklist.js';
+import { showRevisionDialog } from './conflicts.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -108,6 +109,7 @@ function render() {
   }
   $('#workspace-title').textContent = listView ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : '我的便箋桌面';
   $('#draft-count').textContent = String(Object.keys(workspace.state.drafts).length);
+  $('#conflict-count').textContent = String(workspace.state.conflicts.length);
   const scope = controller.state.operationScope;
   $('#operate-all').classList.toggle('operating', scope.kind === 'all');
   $('#operate-group').classList.toggle('operating', scope.kind === 'group');
@@ -522,6 +524,18 @@ function bindEvents() {
     if (!list.children.length) list.append(element('p', '沒有未完成草稿。')); $('#drafts-dialog').showModal();
   };
   $('#close-drafts').onclick = () => $('#drafts-dialog').close();
+  $('#conflicts-button').onclick = () => run(async () => {
+    if (editorBusy || composing) return;
+    setEditorBusy(true);
+    try {
+      if (currentDraft) await flushDraft();
+      if (!await controller.endEdit()) return;
+      currentDraft = null; render();
+      showRevisionDialog({ workspace, storage, profileId, onChanged: async () => {
+        await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, [screenArea()]); render();
+      } });
+    } finally { setEditorBusy(false); }
+  });
   const stage = $('#stage');
   stage.onpointerdown = event => {
     const paper = event.target.closest('.card.operable');

@@ -107,6 +107,14 @@ export class RevisionGraph {
   get(id) { return copy(this.#records.get(id) ?? null); }
   isComplete(id) { return this.#analysis.complete.has(id); }
 
+  /** Reuse already validated immutable records; failed candidate changes leave this graph untouched. */
+  fork(batch = []) {
+    const graph = new RevisionGraph();
+    graph.#records = this.#records; graph.#canonical = this.#canonical; graph.#analysis = this.#analysis;
+    graph.ingest(batch);
+    return graph;
+  }
+
   heads(kind, entityId) {
     return [...(this.#analysis.heads.get(JSON.stringify([kind, entityId])) || [])]
       .sort(compareId).map(id => this.get(id));

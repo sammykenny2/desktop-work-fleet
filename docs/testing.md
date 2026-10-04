@@ -31,6 +31,8 @@ git diff --check
 亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
 `tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。
 `npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
+`tests/workspace-sync.test.js` 驗證 graph 與 Workspace／LayoutStore 原子交易、保存失敗、過期 session／cursor、
+runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意圖與既有 entity 順序。
 
 新的真實瀏覽器回歸使用隔離 profile 與合成資料：
 
@@ -39,6 +41,7 @@ python scripts/testing/serve_preview.py --port 0
 # 另一終端，把 PORT 換成上面印出的實際 port
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
@@ -48,6 +51,9 @@ probe 驗證新增／重開、Markdown／checklist、附件 bytes 與惡意 HTML
 另用真實 IDB 驗證並行 CAS、非連續 revision 拒絕、附件及 profile 隔離。
 group probe 驗證群組預覽／取消／合併、封存資料／草稿完整性、區域交換不搬卡、
 自訂與重複快捷鍵、多綁定在合併及再次設定後仍保留。
+revision probe 以合成資料驗證兩版本比較、HTML 文字隔離／附件原始 bytes、delete/edit 決議、
+歷史恢復、草稿／geometry 保留、IME 邊界及 390px 下零活動群組的循環恢復入口。
+它透過核心 fixture 注入版本，沒有連 Google；截圖在 `build/revision-probe.png`。
 輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
 這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
 

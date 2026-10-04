@@ -20,7 +20,7 @@
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域與快捷鍵設定已完成並經真 Edge 與獨立審閱；原生保存整合、大容量與完整平台設定仍待補齊 |
-| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 嚴格 JSON／不可變 revision graph 已有實作及故障測試；Workspace／Drive 整合待接，Google 設定尚未建立 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 嚴格 JSON、版本圖、Workspace 原子投影／cursor、衝突與歷史 UI 已有實作及故障測試；FileStore／Drive transport 待接，Google 設定尚未建立 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 範圍已核准，格式與交易實作尚待完成 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
@@ -128,6 +128,30 @@ CompositionEvent 注入不等於已測實體中文輸入法候選視窗，原生
 獨立唯讀審閱已完成，無未解決 finding；修正 App ID 平台交集及 JSON 超限前配置記憶體的問題。
 獨立驗證包含全 Unicode scalar／16 種精確 byte 邊界、隨機 graph oracle、10,000 次 JSON 變形、
 allowlist canary，及 48 MiB heap 的重複大字串／跳脫字串／百萬元素陣列，皆正常回報超限。
+已提交並推送 main：`b95d8cb`。
+
+### Workspace 投影、衝突與歷史子切片
+
+- 本機命令同交易寫 revision／outbox；舊完整 outbox 遷入版本圖，缺歷史拒絕補造根版本。
+- 來源接收原子保存圖、投影、衝突、群組版面參照與 cursor；故障保持舊 state／graph／layout。
+  profile／source／session／runtime 與 expected cursor 都需符合；重啟可續 cursor，但必須重新建立 session。
+- 多 head 阻止普通覆寫；UI 比較／採用／歷史恢復核對預覽 head 集合，建立新版本並保留所有舊內容。
+  HTML 純文字與附件下載延用隔離政策；所有本機草稿保留。
+- group redirect 投影不重寫 wire membership；循環／缺組有可達修復入口且 autosave 不被阻擋。
+  十組先保留資料，整理回九組同交易恢復格局；既有 geometry／本機 entity 順序不變。
+- 未完成轉組重試的 membership／outbox／undo／意圖消耗為單一提交，失敗不產生半套成功或重複意圖。
+
+Google FileStore、真實 OAuth、附件遠端傳輸及五平台驗收仍未包含在這一子切片；沒有把 fixture 當真同步。
+
+作者驗證：93/93 JS、build、三組真 Edge browser／group／revision probe 通過；
+文件 63 份／328 相對連結與 diff whitespace 通過。并行 probe 曾一次初載超過 5 秒，
+單獨重跑通過；另外修正 probe 在 DOM 替換瞬間讀到 null boundingBox 時可繼續 polling。
+原 browser probe 抓到群組 UUID 排序導致順序改變，已修正並加測低排序新 ID 的情境。
+
+獨立唯讀審閱完成，無未解決 finding；23/23 群組／Workspace tests、真 Edge 衝突與恢復通過。
+複核包含保存失敗／queue 交錯／重啟、第三分支拒絕舊決議、草稿／geometry／附件保留、
+HTML 只下載、390px 零有效群組恢復；十組→九組格局與轉組重試半套成功兩项 P2 均修正並複核。
+這些結果不取代 Google、原生 host 或實體 OS IME 證據。
 
 ## 2026-10-04 文件交付
 

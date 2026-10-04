@@ -27,6 +27,9 @@ export async function readBuildConfig(root, environment = process.env) {
   if (config.appleTeamId && !/^[A-Z0-9]{10}$/.test(config.appleTeamId)) throw new Error('WORK_FLEET_APPLE_TEAM_ID 必須是 10 碼英數識別字。');
   config.appleAppGroupId = value('WORK_FLEET_APP_GROUP_ID') || `group.${config.appId || 'app.workfleet.preview'}`;
   if (!/^group\.[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+$/.test(config.appleAppGroupId)) throw new Error('WORK_FLEET_APP_GROUP_ID 必須是 group. 開頭的有效 App Group ID。');
+  config.windows = { packageId: value('WORK_FLEET_WINDOWS_PACKAGE_ID'), publisher: value('WORK_FLEET_WINDOWS_PUBLISHER'), publisherDisplayName: value('WORK_FLEET_WINDOWS_PUBLISHER_DISPLAY_NAME') };
+  if (config.windows.packageId && !/^[a-zA-Z0-9.-]{3,50}$/.test(config.windows.packageId)) throw new Error('WORK_FLEET_WINDOWS_PACKAGE_ID 必須是 3–50 字元的英數、點或連字號。');
+  for (const [key, field] of Object.entries(config.windows)) if (field.length > 256 || /[\u0000-\u001f]/.test(field)) throw new Error(`Windows ${key} 格式或容量無效。`);
   for (const [name, url] of Object.entries({ WORK_FLEET_PRIVACY_URL: config.release.privacyUrl, WORK_FLEET_SUPPORT_URL: config.release.supportUrl })) {
     if (url) {
       let parsed;
@@ -46,6 +49,8 @@ export function missingReleaseConfig(config, platform) {
     ...(!config.google.clients[platform] ? [`WORK_FLEET_GOOGLE_${platform.toUpperCase()}_CLIENT_ID`] : []),
     ...(platform === 'android' && !config.google.clients.web ? ['WORK_FLEET_GOOGLE_WEB_CLIENT_ID'] : []),
     ...(['macos', 'ios'].includes(platform) && !config.appleTeamId ? ['WORK_FLEET_APPLE_TEAM_ID'] : []),
+    ...(platform === 'windows' && !config.windows?.packageId ? ['WORK_FLEET_WINDOWS_PACKAGE_ID'] : []),
+    ...(platform === 'windows' && !config.windows?.publisher ? ['WORK_FLEET_WINDOWS_PUBLISHER'] : []),
     ...(!config.release?.privacyUrl ? ['WORK_FLEET_PRIVACY_URL'] : []),
     ...(!config.release?.supportUrl ? ['WORK_FLEET_SUPPORT_URL'] : []),
     ...(!config.release?.supportEmail ? ['WORK_FLEET_SUPPORT_EMAIL'] : []),

@@ -25,7 +25,7 @@
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料與帳號、前背景通知、原生匯出、分享及加密收件匣／iOS Extension 已加入；平台散布待完成；缺 SDK，未產原生 package 或做裝置驗收 |
-| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 商店文案／隱私草稿／提交資料、Android build wrappers、Apple Xcode 產生器／圖示／archive 入口已加入；其他封裝、正式簽章／screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
+| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 未簽章 MSIX／ZIP 已產出；Apple archive export／PKG／DMG 與 Android upload signing 入口已加入；Linux source/runtime tar.gz 已產出。正式簽章、其他平台 binary、screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
 記錄使用者本輪範圍答覆及本機核心決策。
@@ -513,6 +513,22 @@ flock 與完整檔案保護。Extension 無主 App 的 DB／Google 權限，不�
 Xcode 產生器含 Extension target、embed phase、依賴及 App Group entitlements；公開 group ID 可由 .env 配置。
 依使用者指示未跑測試或審閱；Android／Apple SDK 不可用，沒有原生 binary 或 Extension 執行結果。
 見 [ADR-027](docs/decisions/027-native-share-inbox-and-extension.md)，接續完整平台封裝與簽章準備。
+
+## 2026-10-05 原生封裝與簽章入口
+
+Windows SDK MakeAppx 與 .NET publish 已產出 `build/windows/package-b512e9e6ee014f2d9f558c5943ae34a6/`
+中的 `WorkFleet-1.0.0-x64.msix` 與 `WorkFleet-1.0.0-x64.zip`；.NET Release 建置完成、0 errors／0 warnings。
+這是未簽章 preview，沒有安裝／啟動結果；需 .NET 8 Desktop 與 WebView2 runtime。
+公开 Windows package identity／publisher 可在 `.env.example` 設定，簽章入口使用既有憑證與 timestamp。
+封裝脚本保存 MakeAppx log，每次使用新目錄，沒有自行建立／信任憑證。
+
+Apple 新增本機 export options／archive 匯出、macOS hardened runtime、PKG／可選 DMG、
+已有 Keychain profile 的公證／staple 入口。Android 新增 CI environment upload key 簽署 AAB；
+`-Signed`／`--signed` 強制完整 inputs，秘密不進公共 JSON 或 `.env`。
+缺少 Apple／Android SDK，這些原生封裝及簽章入口未執行，不視為產物已完成。
+本輪 Apple Xcode project 更新與 Linux source/runtime tar.gz 重新產生完成，沒有執行原生 App。
+依使用者指示未執行測試／審閱；沒有獨立 review。決策見
+[ADR-028](docs/decisions/028-native-package-and-signing-entry-points.md)。
 
 ## 2026-10-04 文件交付
 

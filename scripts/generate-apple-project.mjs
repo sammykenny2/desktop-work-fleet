@@ -39,7 +39,7 @@ if (process.argv.includes('--help')) {
     INFOPLIST_FILE: path.join(output, `${platform}-Info.plist`), GENERATE_INFOPLIST_FILE: 'NO',
     OTHER_LDFLAGS: ['$(inherited)', '-lsqlite3'], ENABLE_USER_SCRIPT_SANDBOXING: 'YES', ASSETCATALOG_COMPILER_APPICON_NAME: 'AppIcon',
     WORK_FLEET_ROOT: root, WORK_FLEET_PACKAGES_DIR: path.join(output, 'SourcePackages'),
-    ...(platform === 'macos' ? { SDKROOT: 'macosx', MACOSX_DEPLOYMENT_TARGET: '13.0', SUPPORTED_PLATFORMS: 'macosx' }
+    ...(platform === 'macos' ? { SDKROOT: 'macosx', MACOSX_DEPLOYMENT_TARGET: '13.0', SUPPORTED_PLATFORMS: 'macosx', ENABLE_HARDENED_RUNTIME: 'YES' }
       : { SDKROOT: 'iphoneos', IPHONEOS_DEPLOYMENT_TARGET: '16.0', TARGETED_DEVICE_FAMILY: '1,2', SUPPORTED_PLATFORMS: 'iphoneos iphonesimulator', SUPPORTS_MACCATALYST: 'NO' }),
   });
   const configs = fn => add({ isa: 'XCConfigurationList', buildConfigurations: ['Debug', 'Release'].map(name =>

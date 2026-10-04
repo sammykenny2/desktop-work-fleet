@@ -9,15 +9,20 @@ Credential Manager 帳號選擇及 Google AuthorizationClient Drive 授權。手
 ```powershell
 .\scripts\windows\Build-AndroidApp.ps1
 .\scripts\windows\Build-AndroidApp.ps1 -Release
+.\scripts\windows\Build-AndroidApp.ps1 -Signed
 ```
 
 ```bash
 bash scripts/linux/build-android-app.sh
 bash scripts/linux/build-android-app.sh --release
+bash scripts/linux/build-android-app.sh --signed
 ```
 
-Debug 預設 application ID 為 `app.workfleet.preview`。Release 必須設定 `WORK_FLEET_APP_ID`；
-不在 repo 保存 keystore 或密碼，release AAB 交給外部簽章 pipeline。
+Debug 預設 application ID 為 `app.workfleet.preview`。Release 要求正式公開設定。
+簽章由 `WORK_FLEET_ANDROID_KEYSTORE`（絕對路徑）、`WORK_FLEET_ANDROID_KEY_ALIAS`、
+`WORK_FLEET_ANDROID_STORE_PASSWORD`、`WORK_FLEET_ANDROID_KEY_PASSWORD` 四個 process／CI 變數提供，
+不寫入 repo／`.env`／公共 JSON。`-Signed`／`--signed` 要求完整 inputs，缺少時停止。
+沒有 inputs 的 release AAB 未簽章，須交給外部簽章 pipeline；Gradle cache 預設在 `build/gradle-home`。
 Google 需同一專案的 Android client（package＋簽章 SHA-1）及 Web client（Credential Manager audience）。
 設 `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`／`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` 後重新建置。
 不需要 Web client secret，也不建立自家登入 server。

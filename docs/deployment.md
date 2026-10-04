@@ -1,25 +1,37 @@
 # 平台與散布狀態
 
-更新：2026-10-03；驗證版 0.1.0。
+更新：2026-10-05；本頁提供 1.0 封裝入口，實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
 
-| 平台 | 可用產物／驗證入口 | 狀態 |
+| 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
-| macOS | `bash scripts/macos/build-app.sh` → Sandbox `.app` | x86_64 本機建置／啟動已測；ad-hoc 簽章 |
-| Web | Python 服務提供靜態 editor | 真實 WebKit 與 HTTP 契約測試 |
-| Windows | `py -3 src/server/work_fleet.py serve`；瀏覽器 | 原始碼可攜路徑；未在 Windows 執行，未製作 MSIX |
-| Linux | `python3 src/server/work_fleet.py serve`；瀏覽器 | 未在 Linux 執行，未實作桌面 layer |
-| iOS／Android | HTTPS 服務 + 瀏覽器配對頁 | 手機／QR 掃描未測，尚無原生 package |
+| Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | MSIX／portable ZIP；.NET 8 Desktop、WebView2 runtime，封裝需 Windows SDK |
+| macOS | `scripts/macos/build-native-app.sh --platform macos --release`；`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Apple team 與 signing identities |
+| Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
+| iOS | `scripts/macos/build-native-app.sh --platform ios --release`；`package-native-app.sh` | xcarchive／IPA；Xcode、Apple team、App／Extension 的 App Group profiles |
+| Android | `scripts/windows/Build-AndroidApp.ps1` 或 `scripts/linux/build-android-app.sh` | debug APK／release AAB；JDK 17、Gradle 8.13、Android SDK 36 |
 
-Mac Apple Silicon 可在該機以相同腳本重建；本次僅測 x86_64，未建立 universal binary。
-Framework 來自系統 SDK，沒有嵌入第三方 framework 或 Python runtime。
-正式上架前需在 Xcode 配置 team／穩定 bundle ID、正式簽章、權限說明、封裝與 App Store 驗證。
-本機 App Sandbox 成功不等於 Mac App Store 審查通過。
+公開設定在 `.env.example`：各平台 Google client、app ID、Apple team／App Group、Microsoft
+package identity／publisher、隱私與支援資料。私鑰／密碼由 OS Keychain 或 CI environment 提供。
+`-Release`／`--release` 要求正式公開設定；preview 仍允許 Google 未配置，保留本機記錄。
 
-Windows 仍以 Store MSIX 為優先候選；未購買商業簽章憑證。後續在 Windows SDK 產生並驗證 MSIX，
-逐項測 startup／桌面輸入穿透／打包權限，不能以瀏覽器結果取代。
+Windows 封裝腳本將內容寫到新的 `build/windows/package-<id>`，不覆寫其他產物。
+可提供 `-CertificateThumbprint`（CurrentUser/My）與 HTTPS `-TimestampUrl` 簽署 MSIX；
+publisher 必須與既有憑證 subject 或 Partner Center identity 相符。腳本不安裝憑證或改變信任。
+ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop／WebView2，不含 runtime 安裝器。
+未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 
-Linux 的待測組合須逐一記錄 distro、CPU、X11/Wayland、桌面／compositor、runtime 與封裝。
-例如 Ubuntu x86_64 GNOME Wayland、KDE Wayland、X11 是不同測試列，不能互推結果。
-iOS／Android 需獨立 bundle/application ID、簽章、權限與商店審查。未建立帳號、付費或送審。
+Apple export 使用 `--method app-store-connect|developer-id|debugging|release-testing`；iOS 不接受
+Developer ID。export destination 固定為本機，沒有自動上傳商店。macOS 開啟 hardened runtime；
+Developer ID 散布可指定 installer identity 與已存在的 Keychain notary profile，公證後 staple App／PKG。
+可選 DMG 使用 application identity 簽署；公證 DMG 必須提供該 identity。憑證、profiles 與帳號由維護者配置。
+Android `-Signed`／`--signed` 要求四個簽章環境變數並產生 release AAB，詳見
+[商店準備](release/README.md)。一般 release 在沒有 signing inputs 時產生未簽章 AAB。
+Linux runtime tar.gz 沒有內嵌 Python／GTK；DEB 交給支援該依賴版本的發行版。
+不同 distro、CPU、X11／Wayland、桌面與 compositor 的行為仍需各自取得證據。
 
-授權與外部 runtime 清單見 [第三方聲明](../THIRD-PARTY-NOTICES.md) 與 [依賴清單](validation/runtime-inventory.json)。
+1.0 授權見 [第三方聲明](../THIRD-PARTY-NOTICES.md) 及 `src/native/licenses/`。
+SPM／Android 最終 SDK 授權盤點、真實原生截圖與商店表單仍依最終散布產物準備，見
+[ADR-028](decisions/028-native-package-and-signing-entry-points.md)。
+
+歷史 0.1.0 的 `scripts/macos/build-app.sh`／Python server／HTTPS 手機瀏覽器路徑保留供舊版使用，
+其測試及 [依賴清單](validation/runtime-inventory.json) 不代表 1.0 的五平台 package 已完成。

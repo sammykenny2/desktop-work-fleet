@@ -10,9 +10,21 @@
 簽章 keystore、憑證、商店 API key、OAuth token 與密碼不放在 repo 或公共設定檔。
 `node scripts/check-config.mjs --platform <platform>` 可列出缺少的公開配置。
 
-Android 的 `bundleRelease` 產生未簽章 AAB，供既有簽章 pipeline／Play App Signing。
+Android 的 `bundleRelease` 在未提供 signing inputs 時產生未簽章 AAB；
+`Build-AndroidApp.ps1 -Signed` 或 `build-android-app.sh --signed` 要求以下 process／CI 環境變數，
+使用 upload key 簽署 release AAB，供 Play App Signing 接收：
+
+- `WORK_FLEET_ANDROID_KEYSTORE`：既有 keystore 的絕對路徑。
+- `WORK_FLEET_ANDROID_KEY_ALIAS`：upload key alias。
+- `WORK_FLEET_ANDROID_STORE_PASSWORD`、`WORK_FLEET_ANDROID_KEY_PASSWORD`：CI secret environment 提供。
+
+四項須同時提供；不得寫入 `.env`、公共 JSON 或命令列參數。脚本不建立金鑰、登入商店或上傳。
 Google Android OAuth client 的 SHA-1 必須對應實際散布簽章；debug 與 Play 簽章分別配置。
 Google Web client 用於 Credential Manager audience，屬同一 Google Cloud 專案。
 正式提交使用實際原生套件截图，不以瀏覽器或設計稿充當原生證據。
+
+Windows 封裝 identity／publisher 設於 `.env.example`，簽章使用既有 CurrentUser/My certificate。
+Apple export／PKG／DMG 與 Keychain profile 公證入口見 [散布文件](../deployment.md)。
+各平台帳號、證書與真正原生截圖並未因腳本存在而完成，狀態見 [PROGRESS](../../PROGRESS.md)。
 
 請依最終原生套件及 SDK 資料清單填寫商店表單；本目錄不宣稱表單已送出或通過。

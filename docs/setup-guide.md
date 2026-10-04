@@ -141,6 +141,31 @@ iOS 分享接收另嵌入 `<APP_ID>.share` Extension；在同一 Apple team 為 
 App Groups。`.env.example` 的 `WORK_FLEET_APP_GROUP_ID` 可指定公開 group ID，空值採
 `group.<WORK_FLEET_APP_ID>`。實際 signing profiles 需包含此 group，憑證留 Xcode／Keychain。
 
+## 原生安裝包與簽章入口
+
+Windows x64 的 .NET 8 Desktop／WebView2 是執行前置條件，Windows SDK 提供 MakeAppx／SignTool。
+公開 identity／publisher 由 `.env.example` 配置；preview 可以暫不設定正式 Google 帳號。
+
+```powershell
+.\scripts\windows\Build-WindowsPackage.ps1
+.\scripts\windows\Build-WindowsPackage.ps1 -Release -CertificateThumbprint <thumbprint> -TimestampUrl <https-url>
+.\scripts\windows\Build-AndroidApp.ps1 -Signed
+```
+
+Windows 每次產生新的 `build/windows/package-<id>`，未提供憑證時 MSIX 未簽章。
+Android 簽章的四個 process／CI environment inputs 見 [商店準備](release/README.md)，不寫入 `.env`。
+
+Apple 先使用上一節 Release 入口產生 archive，再在有 Xcode 的 Mac 匯出：
+
+```bash
+bash scripts/macos/package-native-app.sh --platform ios --method app-store-connect
+bash scripts/macos/package-native-app.sh --platform macos --method developer-id --dmg
+bash scripts/linux/build-android-app.sh --signed
+```
+
+Apple 可使用 `--archive` 指定既有 archive；macOS 正式簽章與公證另提供 installer／application identity
+及 Keychain notary profile，詳見 [散布文件](deployment.md)。這些入口不建立商店帳號或自動送審。
+
 ## Linux 1.0 原生建置
 
 需要 Linux 的 Python 3.12+、GTK 3、WebKitGTK 4.1、PyGObject／cairo、libsecret／系統金鑰圈

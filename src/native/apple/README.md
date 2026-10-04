@@ -11,10 +11,13 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 ```
 
 產生的 `build/apple/WorkFleet.xcodeproj` 含共用 Swift、兩個 scheme、封裝資產、圖示、
-privacy manifest 與 entitlements。可在 Xcode 開啟專案選擇裝置；產生器需在 Mac 執行。
+privacy manifest 與 entitlements。可在 Xcode 開啟專案選擇裝置；Xcode 建置需在 Mac 執行。
 SDK 固定 GoogleSignIn 9.2.0；SPM checkout 根目錄授權文本於簽章前複製到 bundle Licenses。
 Release 先檢查 `.env` 公開設定，再 archive；簽章／provisioning 在 Xcode／Keychain 配置。
-商店 export／上傳仍由持有帳號及簽章的人員執行，腳本不含私鑰。
+`scripts/macos/package-native-app.sh` 匯出既有 archive；iOS 可產生 IPA，macOS 可產生 PKG／可選 DMG。
+`--method app-store-connect` 保持本機 export，不自動上傳；Developer ID 可使用既有 installer identity
+與 Keychain notary profile 公證並 staple。DMG 公證另要求 application identity；腳本不含私鑰。
+macOS target 啟用 hardened runtime。命令與平台限制見 [散布文件](../../../docs/deployment.md)。
 
 GoogleSignIn Apple SDK 的 macOS、iOS client 都使用 **iOS 類型 OAuth client**，各自符合
 實際 bundle ID，分別填 `.env` 的 MACOS／IOS client ID。產生器加入 reversed client URL scheme。

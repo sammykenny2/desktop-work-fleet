@@ -51,6 +51,15 @@
 審閱者實際執行 46/46 JS 測試，最後 controller clone 修正另以隔離重現確認；
 作者於最後版本執行 47/47。文件 59 份／293 相對連結及 `git diff --check` 通過。
 
+Slice 1 已提交並推送 main：`81ab282`。
+
+### Windows 既有 restore 回歸修正
+
+後續獨立小修正把私有 staging 副本改以 `r+b` 開啟再 `fsync`，不更動來源備份的唯讀模式，
+也保留 `os.link` 建立新目的檔且不覆寫的保護。新增 flush 失敗無發布／不改來源／可重試回歸。
+Python 3.13.7（Windows）完整 14/14 通過；獨立唯讀審閱及三項 restore 測試通過。
+這修復 0.1.0 驗證版已知問題，不把 SQLite 格式當成 1.0 可攜備份格式。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。
@@ -97,7 +106,7 @@ Google 登入、OAuth 專案、SDK、Drive 寫入、正式商店設定都未實�
 
 ## 限制與剩餘工作
 
-- Windows 唯讀檢查：Python 3.13.7 下資料測試 12 通過、1 錯誤；restore 對 rb handle 執行 fsync 失敗（Bad file descriptor）。8 個 Node 草稿測試通過。這不是 Mac 結果的撤銷；Windows restore 仍待修正。
+- Windows 原 restore `rb` handle 的 `fsync` 問題已在本輪修正，14 項 Python 回歸通過；詳見上方獨立修正記錄。歷史失敗證據保留，不撤銷原 Mac 結果。
 
 - 真實點擊、雙擊、桌面框選、圖示拖拉：事件注入權限為 false，尚未取得通過證據。
 - 模式已啟動／驗證旗標；Finder 圖示層次與全桌面行為仍需人工觀察。

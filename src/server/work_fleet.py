@@ -248,7 +248,8 @@ class Store:
                     db.execute("UPDATE devices SET revoked=1")
                     db.execute("DELETE FROM invites")
                     db.execute("DELETE FROM operations")
-                with staged.open("rb") as file:
+                # Windows requires a writable handle for fsync; only the private staging copy is opened.
+                with staged.open("r+b") as file:
                     os.fsync(file.fileno())
                 # Same filesystem, atomic create-only publication, never overwrite a user file.
                 os.link(staged, destination)

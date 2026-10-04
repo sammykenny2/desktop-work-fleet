@@ -7,6 +7,7 @@ import sys
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 import uuid
@@ -170,6 +171,23 @@ class SyncTests(unittest.TestCase):
             FailingRestore.restore(backup, destination)
         self.assertFalse(destination.exists())
         self.assertEqual(self.call("/api/snapshot")[0], 200)
+
+    def test_restore_flush_failure_keeps_backup_and_destination_untouched(self):
+        self.create()
+        backup = Path(self.temp.name) / "backup.sqlite3"
+        self.store.backup(backup)
+        original = backup.read_bytes()
+        destination = Path(self.temp.name) / "not-published.sqlite3"
+        with patch("work_fleet.os.fsync", side_effect=OSError("injected flush failure")):
+            with self.assertRaisesRegex(OSError, "injected flush failure"):
+                Store.restore(backup, destination)
+        self.assertFalse(destination.exists())
+        self.assertFalse(destination.with_suffix(".admin-token").exists())
+        self.assertEqual(backup.read_bytes(), original)
+        restored = Store.restore(backup, destination)
+        with restored.connect() as db:
+            self.assertNotEqual(db.execute("SELECT value FROM meta WHERE key='epoch'").fetchone()[0], self.epoch)
+            self.assertEqual(db.execute("SELECT count(*) FROM notes").fetchone()[0], 1)
 
     def test_storage_failure_rolls_back_and_retry_can_succeed(self):
         with self.store.connect(write=True) as db:

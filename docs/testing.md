@@ -37,7 +37,7 @@ Python 測試與 Mac probe 需允許 loopback listener；某些 coding-agent 執
 不要在其他人正使用鍵盤時執行焦點探針。輸出診斷不含筆記本文或憑證。
 
 資料層測試涵蓋真實 HTTP、並行 writer、response-loss 重試、tombstone、backup/restore、
-interrupted restore、配對 race、expiry/reuse、read-only、revoke、輸入限制與 storage failure。
+interrupted restore、restore flush 失敗與重試、配對 race、expiry/reuse、read-only、revoke、輸入限制與 storage failure。
 WebKit 測試透過真實 DOM 與 server，傳輸斷線／回應遺失採可控注入。
 Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 

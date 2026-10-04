@@ -437,6 +437,13 @@ renderer 支援 Android transport，沿用完整便箋／草稿／附件／同�
 本機缺 Gradle／Android SDK：未編譯、未產 APK／AAB、未真機／Google 驗收；依指示未跑測試／審閱。
 macOS／iOS／Linux host、各平台封裝與商店資料仍繼續完整範圍。見 [ADR-022](docs/decisions/022-android-native-host.md)。
 
+## 2026-10-05 商店提交素材
+
+Android 切片已推送 `20e8ee4`。新增繁中／英文商店文案、隱私發布文本、資料用途與截圖場景清單。
+`.env.example`／config 增加公開隱私網址、支援網址與聯絡 email；release 配置檢查列出缺少值。
+未建立開發者帳號、發布隱私頁、製造原生截圖、簽章或送商店；素材為實際提交準備，不能冒充已提交。
+依使用者指示未跑測試或審閱。其餘原生平台與封裝仍繼續。見 [提交素材](docs/release/README.md)。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。

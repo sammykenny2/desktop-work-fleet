@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "publication": "draft",
+  "platforms": ["windows", "macos", "linux", "ios", "android"],
+  "dataInventory": [
+    { "category": "userContent", "items": ["notes", "checklists", "groups", "drafts", "attachments", "revisionHistory"], "purpose": ["localPersistence", "userRequestedSync", "userRequestedBackup"], "destinations": ["device", "selectedGoogleAccount", "selectedBackupLocation"] },
+    { "category": "accountIdentity", "items": ["googleSub", "email"], "purpose": ["accountIsolation", "accountDisplay"], "destinations": ["device", "GoogleIdentityServices"] },
+    { "category": "credentials", "items": ["oauthAccessToken", "nativeRefreshCredential", "backupPassword"], "purpose": ["authorization", "backupEncryption"], "rendererReadback": false },
+    { "category": "deviceSettings", "items": ["cardGeometry", "displayPreference", "shortcuts", "backupSchedule"], "purpose": ["localPresentation", "userRequestedBackup"], "contentSync": false }
+  ],
+  "includedAnalyticsSdk": false,
+  "includedAdvertisingSdk": false,
+  "requestedDevicePermissions": ["network", "userSelectedFilesAndDirectories"],
+  "externalInputs": ["finalAppId", "developerAccount", "signingCredentialsInExternalVault", "publishedPrivacyUrl", "publishedSupportUrl", "supportEmail", "GoogleCloudProjectAndClients", "screenshotsFromActualNativeBuild"],
+  "storeFormRule": "Use this inventory and the final shipped SDK inventory to fill each store's current privacy/data-safety form. This file is not a completed or submitted store declaration.",
+  "screenshotScenes": ["captureAndChecklist", "groupsAndSearch", "completedAndArchived", "conflictResolution", "backupAndRestore", "GoogleAccountAndSync"],
+  "reviewerFlow": ["Launch without Google credentials and capture a local note.", "Edit Markdown and checklist content, attach a document, and relaunch to reopen committed data.", "Use the optional Google sign-in control and authorize app-data sync in the reviewer account.", "Export a backup to a selected location and import its contents through the preview/confirmation flow."]
+}

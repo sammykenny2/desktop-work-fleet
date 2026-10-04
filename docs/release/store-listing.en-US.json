@@ -1,0 +1,13 @@
+{
+  "locale": "en-US",
+  "name": "Work Fleet",
+  "subtitle": "One note. One thing.",
+  "shortDescription": "Capture ideas and tasks, organize notes in groups, and sync with Google Drive.",
+  "fullDescription": "Keep the thought. Start the next step.\n\nWork Fleet collects ideas, tasks, and work notes with one thing per card.\n\n• Capture a note quickly and keep local drafts as you type.\n• Write with Markdown, checklists, and attachments.\n• Organize notes in up to nine groups, search them, and mark them complete or archive them.\n• Keep encrypted local data and continue writing offline.\n• Optionally sync through your Google account using Drive's app data space.\n• Preserve conflicting versions so you can choose how to resolve changes.\n• Export complete backups of notes, groups, drafts, and attachments, with optional password encryption. Import, merge, or restore a backup.\n\nGoogle sync is optional. Existing local notes remain in a separate workspace when you sign in. Keep your backup password in a safe place.",
+  "keywords": ["notes", "ideas", "tasks", "Markdown", "checklist", "work"],
+  "category": "PRODUCTIVITY",
+  "publication": "draft",
+  "privacyUrlEnv": "WORK_FLEET_PRIVACY_URL",
+  "supportUrlEnv": "WORK_FLEET_SUPPORT_URL",
+  "supportEmailEnv": "WORK_FLEET_SUPPORT_EMAIL"
+}

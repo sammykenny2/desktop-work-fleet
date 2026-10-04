@@ -1,0 +1,13 @@
+{
+  "locale": "zh-TW",
+  "name": "Work Fleet",
+  "subtitle": "一張便箋，一件事情",
+  "shortDescription": "快速記下想法與待辦，以群組整理便箋，透過 Google Drive 在裝置間同步。",
+  "fullDescription": "先把想法留下，再開始下一步。\n\nWork Fleet 以一事一卡的便箋，收集靈感、待辦與工作記錄。\n\n• 快速新增便箋，輸入時保留本機草稿。\n• 使用 Markdown、checklist 與附件整理內容。\n• 以最多九個群組分類，完成、封存或搜尋便箋。\n• 本機資料加密保存，離線也能繼續記錄。\n• 自選 Google 帳號，透過 Drive 的 App 資料空間同步內容。\n• 保留版本差異與衝突，避免直接覆蓋兩邊的修改。\n• 完整備份包含便箋、群組、草稿與附件，可選密碼加密及匯入、合併或取代還原。\n\nGoogle 同步是可選功能；登入前的本機便箋保留於獨立工作空間。備份密碼請自行妥善保存。",
+  "keywords": ["便箋", "靈感", "待辦", "Markdown", "checklist", "工作記錄"],
+  "category": "PRODUCTIVITY",
+  "publication": "draft",
+  "privacyUrlEnv": "WORK_FLEET_PRIVACY_URL",
+  "supportUrlEnv": "WORK_FLEET_SUPPORT_URL",
+  "supportEmailEnv": "WORK_FLEET_SUPPORT_EMAIL"
+}

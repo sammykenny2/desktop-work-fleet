@@ -41,6 +41,7 @@
 | [Setup](setup-guide.md) | 現有驗證版使用方式 |
 | [Testing](testing.md) | 可執行檢查及未測界線 |
 | [Deployment](deployment.md) | 原生封裝與商店未測範圍 |
+| [商店提交素材](release/README.md) | 繁中／英文文案、隱私資料及公開提交配置 |
 | [API](api.md) | 0.1.0 HTTP／SQLite 契約，非 Drive 1.0 既成格式 |
 | [Security](security-guidelines.md) | 保存、權限與隔離 |
 | [Services](services.md) | 現有驗證版 listener／port |

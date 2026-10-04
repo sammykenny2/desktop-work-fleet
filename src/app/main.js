@@ -1,6 +1,6 @@
 import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
-import { eventShortcut, isEditingShortcut, normalizeShortcut, shortcutActions, validateShortcuts } from '../core/shortcuts.js';
+import { normalizeShortcut, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
@@ -17,6 +17,7 @@ import { nativeBackupAdapters } from '../backup/native.js';
 import { DesktopAuthority } from '../desktop/authority.js';
 import { DesktopOwner } from '../desktop/owner.js';
 import { projectDesktop } from '../desktop/projection.js';
+import { NativeShortcutSettings } from '../native/shortcuts.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -30,6 +31,7 @@ let settingsSlots = [];
 let automatic; let automaticError;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let desktop; let desktopInfo; let remoteEditor = null;
+let nativeShortcuts; let shortcutStatus = [];
 const activeActions = new Set();
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
@@ -113,6 +115,16 @@ async function initialize() {
     await native.bridge.request('host.ready');
     if (desktop) await native.bridge.request('desktop.start');
   }
+  if (desktop) {
+    nativeShortcuts = new NativeShortcutSettings(native.bridge, value => { shortcutStatus = value; renderShortcutStatus(); }, error => status(error.message, true));
+    native.bridge.onEvent('desktop-action', message => { void run(async () => {
+      try { await desktopAction(message.target, message.intent); }
+      catch (error) { await native.bridge.request('desktop.showMain', { intent: message.intent }).catch(() => {}); throw error; }
+    }); });
+    $('#hide-main').hidden = false; $('#retry-shortcuts').hidden = false;
+    $('#shortcut-note').textContent = '全域最多 32 組。App 取得焦點時會暫停全域註冊，改用視窗內快捷鍵；文字編輯、組字與對話框優先。';
+    addEventListener('pagehide', () => nativeShortcuts.close());
+  }
   bindEvents(); render(); status('已開啟本機資料');
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
@@ -134,7 +146,8 @@ function currentDesktopEditor() {
 function initializeDesktop() {
   const authority = new DesktopAuthority({ workspace, controller, sessionId: desktopInfo.sessionId,
     perform: action => desktop.perform(action),
-    details: async id => { await native.bridge.request('desktop.showMain'); cardDetails(currentCard(id)); },
+    shortcut: (target, intent) => desktopAction(target, intent),
+    details: async (id, intent) => { await native.bridge.request('desktop.showMain', { intent }); cardDetails(currentCard(id)); },
     editor: {
       current: currentDesktopEditor,
       begin: async (id, viewId) => {
@@ -160,10 +173,10 @@ function initializeDesktop() {
       },
       save: () => saveEditor(),
       end: () => closeEditor(),
-      full: async () => {
+      full: async intent => {
         await flushDraft(); const draft = copy(currentDraft); const card = currentCard(draft.cardId);
         if (!await controller.endEdit()) throw new Error('請先完成目前輸入。'); remoteEditor = null;
-        await native.bridge.request('desktop.showMain'); await openEditor(card, draft); render();
+        await native.bridge.request('desktop.showMain', { intent }); await openEditor(card, draft); render();
       },
     } });
   for (const view of desktopInfo.views) authority.addView(view.viewId);
@@ -189,6 +202,29 @@ function initializeDesktop() {
   addEventListener('pagehide', () => desktop.close());
 }
 
+function renderShortcutStatus() {
+  const labels = { available: '已全域註冊', suspended: 'App 使用中，已釋放全域註冊', conflict: '其他程式已註冊', unavailable: '無法註冊', reserved: '系統保留', editing: '保留給文字編輯', typing: '保留給 AltGr 文字輸入，請改用 Ctrl+Shift', invalid: '格式不支援' };
+  $('#shortcut-status').textContent = shortcutStatus.map(item => `${item.key}：${labels[item.status] || item.status}`).join('；');
+}
+
+async function desktopAction(target, intent) {
+  if (composing || editorBusy || document.querySelector('dialog[open]')) throw new Error('請先完成目前輸入或對話框。');
+  if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
+  if (target === shortcutActions.capture) {
+    if (native) await native.bridge.request('desktop.showMain', { intent: intent ?? null });
+    await openEditor(); return;
+  }
+  if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
+  else {
+    const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
+    if (changed && target !== shortcutActions.all && target !== '@stop') activeGroupId = target;
+  }
+  render();
+  if (intent && desktop && target !== shortcutActions.toggle && controller.state.operationScope.kind !== 'none') {
+    const sequence = await desktop.whenPublished(); await native.bridge.request('desktop.focus', { intent, sequence });
+  }
+}
+
 async function prepareNativeClose() {
   if (nativeClosing) return;
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
@@ -196,6 +232,7 @@ async function prepareNativeClose() {
   }
   nativeClosing = true; document.body.inert = true; desktop?.beginClose();
   try {
+    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
     await Promise.allSettled([...activeActions]);
     stopAutomatic?.(); await automatic?.service.whenIdle();
     if (desktop) { await desktop.whenIdle(); await desktop.perform(flushDraft); } else await flushDraft();
@@ -204,6 +241,7 @@ async function prepareNativeClose() {
     await native.bridge.request('host.closeReady');
   } catch (error) {
     await desktop?.cancelClose();
+    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
     status(`尚未關閉：${error.message}`, true);
   }
@@ -219,6 +257,7 @@ function matchesFilter(card) {
 }
 
 function render() {
+  nativeShortcuts?.update(workspace.layout.state.shortcuts);
   if (remoteEditor && controller.state.editingCardId !== remoteEditor.cardId) { remoteEditor = null; currentDraft = null; }
   const snapshot = workspace.snapshot; const groups = activeGroups(snapshot); const layout = workspace.layout.state;
   if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0]?.id;
@@ -579,6 +618,7 @@ function readShortcuts() {
       result[key] = input.dataset.shortcutTarget;
     }
   }
+  if (nativeShortcuts && Object.keys(result).length > 32) throw new Error('此裝置最多設定 32 組快捷鍵。');
   return validateShortcuts(result, activeGroups(workspace.snapshot));
 }
 function previewGrid(reshape = false) {
@@ -620,6 +660,8 @@ function dragPaint(drag) {
 }
 
 function bindEvents() {
+  $('#hide-main').onclick = () => run(() => desktopAction('@hide'));
+  $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(workspace.layout.state.shortcuts, true); };
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#add-group').onclick = () => groupEditor();
   $('#search').oninput = render; $('#view-toggle').onclick = () => { listView = !listView; render(); };
@@ -716,20 +758,11 @@ function bindEvents() {
   document.addEventListener('keydown', event => {
     if (event.isComposing || composing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
     const editControl = event.target.closest('input,textarea,select');
-    if (editControl && isEditingShortcut(event)) return;
-    const shortcut = workspace.layout.state.shortcuts[eventShortcut(event)];
-    const scopeShortcut = shortcut === shortcutActions.all || (shortcut && !Object.values(shortcutActions).includes(shortcut));
-    if (shortcut && (!editControl || (editControl.matches('.inline-editor') && scopeShortcut))) {
+    const shortcut = shortcutForEvent(event, workspace.layout.state.shortcuts, { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
+    if (shortcut) {
       event.preventDefault();
-      run(async () => {
-        if (shortcut === shortcutActions.capture) return openEditor();
-        if (shortcut === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
-        else {
-          const changed = await controller.activate(shortcut === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: shortcut });
-          if (changed && shortcut !== shortcutActions.all) activeGroupId = shortcut;
-        }
-        render();
-      });
+      const admission = native && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });
+      run(async () => desktopAction(shortcut.target, (await admission).intent));
       return;
     }
     if (editControl) return;

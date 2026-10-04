@@ -2,6 +2,7 @@ import { NativeBridge } from '../native/bridge.js';
 import { renderMarkdown } from '../app/markdown.js';
 import { DesktopClient, DesktopDraft } from './client.js';
 import { download, parse } from './transport.js';
+import { shortcutForEvent } from '../core/shortcuts.js';
 
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set();
@@ -17,13 +18,18 @@ const point = event => ({ x: info.viewport.x + event.clientX, y: info.viewport.y
 const labels = () => (frame?.groups || []).filter(g => g.region).map(g => ({ groupId: g.id, x: g.region.x + 8, y: g.region.y + 5, width: 160, height: 28 }));
 const button = (text, action) => { const node = make('button', text); node.type = 'button'; node.onclick = event => { event.stopPropagation(); void run(action); }; return node; };
 function draftStatus(text, error = false) { const state = root.querySelector('.draft-state'); if (state) { state.textContent = text; state.classList.toggle('error', error); } }
+function captureIntent() {
+  try { return bridge.request('scene.intent').then(value => value.intent).catch(() => null); }
+  catch { return Promise.resolve(null); }
+}
 async function saveDraft() {
   if (!editor || composing) return;
   const current = editor; draftStatus('正在保存草稿…'); await current.flush(); if (editor === current) draftStatus('草稿已存本機');
 }
 async function editAction(method) {
   if (!editor || composing) return;
-  await saveDraft(); await client.command(method, { draftId: editor.draftId, sequence: editor.sequence });
+  const intent = method === 'editor.full' ? captureIntent() : Promise.resolve(null);
+  await saveDraft(); await client.command(method, { draftId: editor.draftId, sequence: editor.sequence }, await intent);
 }
 function updateFrozen() { const input = root.querySelector('textarea'); if (input) input.readOnly = frozen.size > 0; }
 function render(next) {
@@ -54,7 +60,7 @@ function render(next) {
     paper.setAttribute('aria-label', card.summary); summary.textContent = card.summary; rect(paper, card.rect);
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {
-        item.editorId = editor.draftId; const input = make('textarea'); input.value = editor.text; input.setAttribute('aria-label', '就地編輯便箋');
+        item.editorId = editor.draftId; const input = make('textarea', undefined, 'inline-editor'); input.value = editor.text; input.setAttribute('aria-label', '就地編輯便箋');
         input.oninput = () => { editor.text = input.value; if (!composing) void run(saveDraft); };
         input.addEventListener('compositionstart', () => { composing = true; });
         input.addEventListener('compositionend', () => { composing = false; editor.text = input.value; void run(saveDraft); });
@@ -72,7 +78,7 @@ function render(next) {
     } else {
       if (item.editorId || item.text !== card.text) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; }
       actions.replaceChildren();
-      if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', () => client.command('card.details', { cardId: card.id })));
+      if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
     }
     if (gesture?.cardId === card.id && gesture.preview) rect(paper, gesture.preview);
   });
@@ -123,6 +129,8 @@ async function initialize() {
   bridge = new NativeBridge(chrome.webview); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
   root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
   bridge.onEvent('desktop-frame', () => { void run(refresh); });
+  bridge.onEvent('desktop-shortcuts', message => { info.bindings = message.bindings; });
+  bridge.onEvent('desktop-focus', () => { (root.querySelector('textarea') || root.querySelector('.selected.operable') || root.querySelector('.operable'))?.focus(); });
   bridge.onEvent('desktop-unfreeze', message => { if (message.resume && message.draftId === editor?.draftId) frozen.delete(message.id); updateFrozen(); });
   bridge.onEvent('desktop-flush', message => { void run(async () => {
     frozen.add(message.id); updateFrozen(); let ok = false;
@@ -159,10 +167,19 @@ async function initialize() {
     if (paper && !event.target.closest('button,a,input,textarea,select')) void run(() => client.command('card.edit', { cardId: paper.dataset.cardId }));
   };
   document.onkeydown = event => {
-    if (event.isComposing || composing || event.defaultPrevented || event.target.closest('input,textarea,select')) return;
+    const input = event.target.closest('input,textarea,select');
+    const shortcut = shortcutForEvent(event, info.bindings || {}, { composing, editing: Boolean(input), inline: input?.matches('.inline-editor') });
+    if (shortcut && !frozen.size) {
+      event.preventDefault();
+      const intent = captureIntent();
+      void run(async () => { if (gesture) await cancel(); await saveDraft(); await client.command('interaction.shortcut', { key: shortcut.key }, await intent); }); return;
+    }
+    if (event.isComposing || composing || event.defaultPrevented || input) return;
     if (event.key === 'Escape') { event.preventDefault(); void run(() => gesture ? cancel() : client.command('interaction.escape')); }
     if (event.key === 'Enter') {
-      const selected = frame?.cards.find(c => c.selected && c.draggable); if (selected) { event.preventDefault(); void run(() => client.command('card.edit', { cardId: selected.id })); }
+      const focusedId = event.target.closest('.card.operable')?.dataset.cardId;
+      const selected = frame?.cards.find(c => c.draggable && (focusedId ? c.id === focusedId : c.selected));
+      if (selected && !event.target.closest('button,a')) { event.preventDefault(); void run(() => client.command('card.edit', { cardId: selected.id })); }
     }
   };
   await refresh();

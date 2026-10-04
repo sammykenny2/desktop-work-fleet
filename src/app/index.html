@@ -20,6 +20,7 @@
       <button id="drafts-button">未完成草稿 <span id="draft-count">0</span></button>
       <button id="conflicts-button">版本與衝突 <span id="conflict-count">0</span></button>
       <button id="settings-button">顯示與排列設定</button>
+      <button id="hide-main" hidden>收起主畫面</button>
       <p id="storage-note">正在開啟本機資料…</p>
     </div>
   </aside>
@@ -64,7 +65,7 @@
     <div class="grid-fields"><label class="field">列數<select id="grid-rows"><option>1</option><option>2</option><option>3</option></select></label><label class="field">欄數<select id="grid-columns"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
     <div id="grid-preview" aria-label="格局預覽"></div><p id="grid-message"></p>
     <p class="hint">變更區域不搬動既有便箋；執行排列時才召回。</p>
-    <details><summary>快捷鍵</summary><p class="hint">此預覽只在目前視窗生效；原生全域註冊狀態由 App 回報。</p><div id="shortcut-fields"></div></details>
+    <details><summary>快捷鍵</summary><p id="shortcut-note" class="hint">快捷鍵在目前視窗生效。</p><div id="shortcut-fields"></div><p id="shortcut-status" role="status" class="hint"></p><button type="button" id="retry-shortcuts" hidden>重試全域註冊</button></details>
     <button id="backup-button" type="button">資料與備份</button>
     <div class="dialog-actions"><button id="cancel-settings">取消</button><button id="save-settings" class="primary">保存設定</button></div>
   </dialog>

@@ -120,7 +120,8 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
 腳本建置 Debug app／probes，執行真 SQLite／DPAPI、JavaScript→native stdio bridge 及實際 WPF／WebView2。
 資料庫、截圖皆寫入 `build/native-checks-*`／`build/native-js-*` 的獨立合成資料目錄；不讀取個人 App 資料。
-WPF probe 使用螢幕外且不啟用的視窗，以 DOM 操作 editor、附件、關閉及重新開啟，截圖為 `ui/native-ui.png`。
+WPF probe 使用螢幕外視窗，以 DOM 操作 editor、附件、關閉及重新開啟，截圖為 `ui/native-ui.png`。
+初次顯示不啟用；明確快捷鍵／tray 回歸會要求啟用自有視窗，未注入系統鍵盤／滑鼠。
 另測加密自動備份、手動匯出與原生檔案的還原預覽；只替換互動 picker 結果，
 原生檔案／DPAPI／SQLite／IPC 皆實際執行，沒有自動操作真 OS picker。
 core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換檔不刪、同 handle 校驗／刪除、
@@ -149,6 +150,12 @@ WPF 主 probe 現另開真正場景頁：確認 projection、scene 不可呼叫 
 core 另測 scene lease 跨版本讀取／principal 隔離、半份與壞 hash 不發布、過期 session／frame 拒絕，
 以及十組／長組名仍可讀。`tests/desktop-authority.test.js`／`desktop-transport.test.js` 驗證重播、世代、
 獨立草稿 admission、未知 ack 重試、失聯 flush 解除與關閉命令封鎖。
+快捷鍵／系統匣 probe 另核對真 shell icon 身分、設定與實際註冊狀態、原生動作→scope、
+就地 scope 鍵先保存草稿、合成 IME 拒絕、關閉 block 不被設定更新解除、收起／重開同一 owner，
+以及自有 TaskbarCreated 訊息重建 icon；沒有重啟 Explorer。
+正向 foreground intent 需要當下 OS 授權；若 Windows 拒絕，該小項明確 SKIP，仍測 null／失效拒絕。
+WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置條件失敗算成搶焦點成功。
+`tests/native-shortcuts.test.js` 測設定合併、重試與關閉隔離，`tests/shortcuts.test.js` 測本地鍵的輸入優先序。
 
 `npm test` 會明確 skip 8 個需要已建置 Windows helper 的 native integration tests；
 `WORK_FLEET_NATIVE_TEST=1` 才執行它們，缺少 helper 即失敗，不假報成功。

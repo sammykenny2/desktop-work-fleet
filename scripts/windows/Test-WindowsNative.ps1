@@ -3,10 +3,12 @@
     Run real Windows persistence, IPC and WPF/WebView2 UI probes with isolated data.
 .DESCRIPTION
     First builds Debug app and probes. WebView2 needs a Windows user session and
-    installed Evergreen Runtime. Probe windows are offscreen and do not activate.
+    installed Evergreen Runtime. Probe windows are offscreen; shortcut/tray cases
+    request activation only for owned windows and never inject global input.
     Synthetic databases/screenshots stay in a new build/native-checks-* directory.
     A restricted agent execution environment can prevent WebView2 startup; this is
-    a failure, not a passing or automatically skipped test.
+    a failure, not a passing or automatically skipped test. A positive foreground
+    grant is explicitly skipped when Windows declines it; rejection checks still run.
 .PARAMETER SkipRestore
     Use previously restored dependencies without network access.
 .EXAMPLE

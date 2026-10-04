@@ -10,7 +10,7 @@ const uuid = () => crypto.randomUUID();
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 async function fixture() {
-  let fail = false; let durable; let flush = async () => {}; let editor = null;
+  let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent;
   const workspace = await Workspace.create({ profileId: 'local', deviceId: uuid(), area,
     persist: async value => { if (fail) throw new Error('disk full'); durable = structuredClone(value); } });
   const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('另一組');
@@ -20,7 +20,8 @@ async function fixture() {
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
-  const authority = new DesktopAuthority({ workspace, controller, sessionId, details: async id => ({ cardId: id }), editor: {
+  const authority = new DesktopAuthority({ workspace, controller, sessionId, details: async id => ({ cardId: id }),
+    shortcut: (target, intent) => { shortcutIntent = intent; return controller.activate(target === '@all' ? { kind: 'all' } : { kind: 'group', groupId: target }); }, editor: {
     current: () => editor && structuredClone(editor),
     begin: async (id, viewId) => {
       if (!await controller.beginEdit(id, { gesture: true })) return null;
@@ -43,8 +44,29 @@ async function fixture() {
   const frame = () => projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
     sessionId, sequence: 1, workspaceRevision: workspace.state.revision, editor });
   return { workspace, controller, authority, card, other, a, b, view, foreign, sessionId, command, envelope, frame,
-    editor: () => editor, durable: () => durable, fail: value => { fail = value; }, flush: value => { flush = value; } };
+    editor: () => editor, shortcutIntent: () => shortcutIntent, durable: () => durable, fail: value => { fail = value; }, flush: value => { flush = value; } };
 }
+
+test('scene shortcuts resolve the current owner bindings and cannot supply a different target or reuse removed bindings', async () => {
+  const f = await fixture(); const key = 'Ctrl+Shift+1';
+  await f.workspace.layout.configure({ shortcuts: { [key]: f.a.id } }, f.workspace.snapshot);
+  await f.command('interaction.shortcut', { key, target: f.b.id });
+  assert.equal(f.controller.state.operationScope.groupId, f.a.id);
+  await f.workspace.layout.configure({ shortcuts: { [key]: f.b.id } }, f.workspace.snapshot);
+  await f.command('interaction.shortcut', { key }); assert.equal(f.controller.state.operationScope.groupId, f.b.id);
+  await f.workspace.layout.configure({ shortcuts: {} }, f.workspace.snapshot);
+  await rejects(f.command('interaction.shortcut', { key }), 'desktop-shortcut');
+  assert.equal(f.controller.state.operationScope.groupId, f.b.id);
+});
+
+test('shortcut focus context is host metadata, not renderer arguments, and a retry never refreshes it', async () => {
+  const f = await fixture(); const key = 'Ctrl+Shift+1'; const trusted = uuid();
+  const command = f.envelope('interaction.shortcut', { key, intent: 'renderer-forgery' });
+  const context = { intent: trusted }; const pending = f.authority.request(f.view, command, context); context.intent = uuid();
+  await pending; assert.equal(f.shortcutIntent(), trusted);
+  await f.authority.request(f.view, command, { intent: uuid() }); assert.equal(f.shortcutIntent(), trusted);
+  await f.command('interaction.shortcut', { key, intent: trusted }); assert.equal(f.shortcutIntent(), null);
+});
 
 test('desktop projection separates resident policy, temporary floating and content from historical authority', async () => {
   const f = await fixture(); const before = f.workspace.state;

@@ -32,7 +32,8 @@ public sealed class NativeShortcuts : IDisposable
     receiver.Dispatcher.VerifyAccess(); ObjectDisposedException.ThrowIf(disposed, this);
     var next = settings.Take(33).ToArray();
     if (next.Length > 32 || next.Any(b => b is null || string.IsNullOrEmpty(b.Key) || b.Key.Length > 80
-      || b.Target is null || !Regex.IsMatch(b.Target, @"\A(?:@(?:all|capture|toggle)|[A-Za-z0-9_-]{1,128})\z", RegexOptions.CultureInvariant))
+      || b.Target is null || !Regex.IsMatch(b.Target, @"\A(?:@(?:all|capture|toggle)|[A-Za-z0-9][A-Za-z0-9._:-]{0,127})\z", RegexOptions.CultureInvariant)
+      || b.Target is "__proto__" or "prototype" or "constructor")
       || next.Select(b => b.Key).Distinct(StringComparer.Ordinal).Count() != next.Length)
       throw new ArgumentException("Invalid shortcut settings.");
     bindings = next; Refresh();
@@ -78,6 +79,8 @@ public sealed class NativeShortcuts : IDisposable
     else if (Regex.IsMatch(name, @"\AF(?:[1-9]|1[0-9]|2[0-4])\z", RegexOptions.CultureInvariant)) key = (uint)(111 + int.Parse(name[1..], System.Globalization.CultureInfo.InvariantCulture));
     else return "invalid";
     if ((modifiers & (1 | 2 | 8)) == 0) return "invalid";
+    // Ctrl+Alt character chords also match AltGr text input on international layouts, including Shift+AltGr.
+    if ((modifiers & 3) == 3 && key is >= 0x30 and <= 0x5a) return "typing";
     // Windows reserves Win combinations and F12. Never steal ubiquitous text-editing commands or close-window.
     if ((modifiers & 8) != 0 || name == "F12" || (name == "F4" && (modifiers & 1) != 0)) return "reserved";
     if ((modifiers & 2) != 0 && (modifiers & 1) == 0 && new[] { "A", "C", "X", "V", "Z", "Y" }.Contains(name)) return "editing";

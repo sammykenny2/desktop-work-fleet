@@ -29,7 +29,7 @@ export function validateShortcuts(value, groups) {
 
 export function defaultShortcuts(groups) {
   return Object.fromEntries([...groups.slice(0, 9).map((group, index) => [`Ctrl+Shift+${index + 1}`, group.id]),
-    ['Ctrl+Shift+0', shortcutActions.all], ['Ctrl+Alt+N', shortcutActions.capture], ['Ctrl+Alt+D', shortcutActions.toggle]]);
+    ['Ctrl+Shift+0', shortcutActions.all], ['Ctrl+Shift+N', shortcutActions.capture], ['Ctrl+Shift+D', shortcutActions.toggle]]);
 }
 
 export function eventShortcut(event) {
@@ -43,4 +43,13 @@ export function eventShortcut(event) {
 export function isEditingShortcut(event) {
   return Boolean((event.ctrlKey || event.metaKey) && !event.altKey
     && ['KeyA', 'KeyC', 'KeyX', 'KeyV', 'KeyZ', 'KeyY'].includes(event.code));
+}
+
+/** Focused documents handle local bindings while the host has released OS registrations. */
+export function shortcutForEvent(event, bindings, { composing = false, modal = false, editing = false, inline = false } = {}) {
+  if (composing || modal || event.defaultPrevented || event.isComposing || event.repeat || event.keyCode === 229 || event.getModifierState?.('AltGraph')) return null;
+  if (editing && isEditingShortcut(event)) return null;
+  const key = eventShortcut(event); const target = key && Object.hasOwn(bindings, key) ? bindings[key] : null;
+  const scope = target === shortcutActions.all || target && !Object.values(shortcutActions).includes(target);
+  return target && (!editing || inline && scope) ? { key, target } : null;
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultShortcuts, eventShortcut, isEditingShortcut, normalizeShortcut, validateShortcuts } from '../src/core/shortcuts.js';
+import { defaultShortcuts, eventShortcut, isEditingShortcut, normalizeShortcut, shortcutForEvent, validateShortcuts } from '../src/core/shortcuts.js';
 
 test('shortcut validation normalizes modifiers, preserves stable targets and refuses collisions or plain typing', () => {
   assert.equal(normalizeShortcut('shift + control + a'), 'Ctrl+Shift+A');
@@ -13,6 +13,20 @@ test('shortcut validation normalizes modifiers, preserves stable targets and ref
   assert.throws(() => validateShortcuts({ 'Ctrl+A': 'missing' }, []), error => error.code === 'invalid-shortcut-target');
   const defaults = defaultShortcuts([{ id: 'a' }, { id: 'b' }]);
   assert.equal(defaults['Ctrl+Shift+1'], 'a'); assert.equal(defaults['Ctrl+Shift+0'], '@all');
+});
+
+test('focused shortcut routing preserves editing, composition, repeat, modal and inline scope priorities', () => {
+  const event = { code: 'Digit1', key: '!', ctrlKey: true, shiftKey: true };
+  const bindings = { 'Ctrl+Shift+1': 'stable', 'Ctrl+Shift+0': '@all', 'Ctrl+Shift+N': '@capture', 'Ctrl+C': '@all' };
+  assert.deepEqual(shortcutForEvent(event, bindings), { key: 'Ctrl+Shift+1', target: 'stable' });
+  assert.deepEqual(shortcutForEvent(event, bindings, { editing: true, inline: true }), { key: 'Ctrl+Shift+1', target: 'stable' });
+  for (const overrides of [{ isComposing: true }, { repeat: true }, { defaultPrevented: true }, { keyCode: 229 }]) assert.equal(shortcutForEvent({ ...event, ...overrides }, bindings), null);
+  for (const options of [{ composing: true }, { modal: true }, { editing: true }]) assert.equal(shortcutForEvent(event, bindings, options), null);
+  assert.equal(shortcutForEvent({ ...event, code: 'KeyN' }, bindings, { editing: true, inline: true }), null);
+  assert.equal(shortcutForEvent({ code: 'KeyC', ctrlKey: true }, bindings, { editing: true, inline: true }), null);
+  assert.equal(shortcutForEvent(event, {}), null);
+  assert.equal(shortcutForEvent({ code: 'KeyQ', key: '@', ctrlKey: true, altKey: true, getModifierState: name => name === 'AltGraph' },
+    { 'Ctrl+Alt+Q': 'group' }, { editing: true, inline: true }), null);
 });
 
 test('browser shortcut dispatch uses stable physical number keys and ignores IME/repeat', () => {

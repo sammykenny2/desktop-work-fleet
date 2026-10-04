@@ -12,7 +12,7 @@ export class DesktopClient {
       else pending.reject(new FleetError(message.error?.code || 'desktop-command', message.error?.message || '桌面操作未完成。'));
     });
   }
-  command(method, args = {}) {
+  command(method, args = {}, intent = null) {
     args = copy(args);
     const draft = method === 'editor.change';
     requireValue([...this.#pending.values()].filter(p => p.draft === draft).length < (draft ? 4 : 24), 'desktop-busy', '桌面操作仍在處理，請稍候重試。');
@@ -26,10 +26,10 @@ export class DesktopClient {
         const command = { sessionId: this.#info.sessionId, id, serial: ++this.#serial, method, args };
         const bytes = encode(command); let token;
         try {
-          if (bytes.length <= 64 * 1024) await this.#bridge.request('scene.command', { command });
+          if (bytes.length <= 64 * 1024) await this.#bridge.request('scene.command', { command, intent });
           else {
             token = await upload(this.#bridge, 'scene.command', bytes, MAX_COMMAND, token => this.#bridge.request('scene.discard', { token }));
-            await this.#bridge.request('scene.command', { token });
+            await this.#bridge.request('scene.command', { token, intent });
             // The native mailbox owns complete command bytes until the owner responds.
             token = null;
           }

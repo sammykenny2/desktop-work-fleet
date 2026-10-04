@@ -1,6 +1,6 @@
 # 專案進度
 
-更新：2026-10-04。本檔是本 repo 的執行狀態權威。
+更新：2026-10-05。本檔是本 repo 的執行狀態權威。
 
 ## 目前優先方向
 
@@ -22,7 +22,7 @@
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域与快捷鍵設定已完成；Windows 原生 SQLite／DPAPI／原子附件保存已加入，其他平台保存、大容量與完整平台設定仍待補齊 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 版本圖、Workspace 原子交易、衝突 UI、FileSync／Drive REST adapter 已實作及故障測試；原生保護 transport、OAuth、UI 連接及真 Google 尚待完成，公開設定尚未建立 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原、手動／自動 UI 與 Windows 原生 NTFS／DPAPI 已整合驗證；其他平台繼續施工，瀏覽器自動能力明示停用 |
-| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows WPF 主畫面已驗證；composition／跨程序 input region、快捷鍵與 physical display 基礎已加入，產品桌面協調与其他平台仍施工；C16/C35/C40–C43/C46–C47 不以 primitive 測試代替 |
+| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows WPF 主畫面、單一權威桌面場景、composition／跨程序 input region、快捷鍵與系統匣已整合；顯示器拓撲、完整 OS 矩陣與其他平台仍施工；C16/C35/C40–C43/C46–C47 不以 primitive 測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 尚待完成；沒有送審、購買憑證或建立帳號 |
 
@@ -375,6 +375,36 @@ CompositionEvent 與離屏螢幕座標是合成資料，不當作真 OS IME／�
 
 剩餘包含快捷鍵／焦點／系統匣、顯示器拓撲與完整 OS 互動矩陣、Google 原生授權、
 其他四平台及商店交付；仍按使用者批准的完整 1.0 範圍繼續。
+已提交並推送 main：`cd12a74`。
+
+### 2026-10-05 Windows 快捷鍵、焦點與系統匣切片
+
+- 真 RegisterHotKey 接入持久化設定及主 Workspace，逐鍵顯示衝突／保留／文字輸入狀態。
+  App 前景時解除 OS 註冊，HTML 處理本地鍵；IME、AltGr、一般編輯鍵優先。
+  新工作區 capture／toggle 採 Ctrl+Shift+N／D，既有設定保持原值並提供改鍵／重試。
+- 原生前景 intent 在動作進入佇列前擷取，綁來源 view、一次性及五秒期限；
+  保存／投影完成後再次檢查 foreground HWND 與最後輸入時間。過期或缺少 intent 不啟用視窗。
+  同步及背景投影不取得焦點，不模擬按鍵或修改系統 foreground-lock 設定。
+- Shell_NotifyIcon 與原生選單提供主畫面、快速記錄、全部操作、退出 scope、顯示切換、
+  收起及保存退出。收起先保存草稿、保留單一 owner；缺少 tray 時不收起。
+  自有 TaskbarCreated 重建入口；選單與關閉期間同步停用快捷鍵，設定更新不能解除 block。
+- 就地 scope 轉換與完整 editor 先保存最後文字；合法 `hide`／`stop`／含 `.:` 群組 ID
+  不與內部命令混淆。打包包含新 native shortcuts 模組；ADR-019、契約及操作文件同步更新。
+
+作者最終檢查：npm 206 pass／8 明確 native 環境 skip；該原生部分另行執行。
+Debug／Release 零 warning/error；34 native core／NTFS／備份／scene 與 10 JS/native 通過。
+真 PerMonitorV2 WPF／WebView2／SQLite UI、composition、platform probes 通過；
+實際 tray icon、保存／收起／重開、合成 IME scope 退出、原生註冊／衝突／釋放及 menu block 均涵蓋。
+初測探針錯把 WPF IsActive 當成 OS foreground；改依 GetForegroundWindow 的 PID 後完整 UI 重測通過。
+正向 OS foreground grant 因測試環境未可靠授權而明確 skip；null／過期拒絕仍有測試。
+封裝資產的 Edge browser probe 通過；文件 79 份／436 相對連結、UTF-8／LF 及 whitespace 通過。
+
+獨立唯讀審閱完成，沒有未解 finding。獨立 Edge 驗證 AltGr、提前擷取與延後沿用 intent、
+群組 ID 路由；原生探針驗證一次性／跨 view／過期拒絕、tray 延遲不重新授權、
+menu／close block 與真快捷鍵註冊。實測 WPF IsActive=True 但 foreground 為其他 PID 時，
+新版正確恢復快捷鍵註冊。不宣稱實體按鍵、真 IME、Explorer 實際重啟或完整焦點矩陣已驗收。
+本切片沒有新增 runtime 套件、listener 或外部程式來源。
+顯示器拓撲與休眠、Google、其餘四平台與商店交付仍持續完整 1.0 目標。
 
 ## 2026-10-04 文件交付
 

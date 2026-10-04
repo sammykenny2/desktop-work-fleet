@@ -22,6 +22,7 @@
 | [ADR-016](016-windows-native-backup-files-and-vault.md) | Accepted（Windows 備份） | NTFS 目錄／檔案身分、create-only／同 handle 清理、原生 vault 加密與可攜封裝 |
 | [ADR-017](017-windows-composition-surface-and-input.md) | Accepted（Windows 場景基礎） | CompositionControl、互補 region、層級／成對生命週期、快捷鍵及 physical display inventory |
 | [ADR-018](018-single-owner-desktop-views.md) | Accepted（Windows 場景整合） | 單一 Workspace、受限投影／命令、分片、草稿 flush／接手／失聯／關閉 |
+| [ADR-019](019-windows-shortcuts-and-tray.md) | Accepted（Windows 桌面入口） | 全域／本地鍵、焦點所有權、短效 activation intent、系統匣與保留 owner 的收起 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；其他平台封裝與正式商店配置尚未決定。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

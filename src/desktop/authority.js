@@ -5,16 +5,16 @@ import { sha256 } from '../sources/files.js';
 
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
-  'card.details', 'card.transfer', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape']);
+  'card.details', 'card.transfer', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut']);
 
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
 export class DesktopAuthority {
-  #workspace; #controller; #sessionId; #editor; #details; #perform; #views = new Map(); #seenViews = new Set();
+  #workspace; #controller; #sessionId; #editor; #details; #shortcut; #perform; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #closed = false;
-  constructor({ workspace, controller, sessionId, editor, details, perform = action => action() }) {
+  constructor({ workspace, controller, sessionId, editor, details, shortcut, perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', '桌面工作階段身分無效。');
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
-    this.#editor = editor; this.#details = details; this.#perform = perform;
+    this.#editor = editor; this.#details = details; this.#shortcut = shortcut; this.#perform = perform;
   }
   get sessionId() { return this.#sessionId; }
   addView(viewId) {
@@ -35,9 +35,10 @@ export class DesktopAuthority {
   async whenIdle() { await Promise.all([this.#tail, this.#draftTail]); }
   async whenDraftIdle() { await this.#draftTail; }
 
-  request(viewId, envelope) {
+  request(viewId, envelope, context = {}) {
     requireValue(!this.#closed && this.#views.has(viewId), 'desktop-view', '桌面視窗已失效。');
     const message = copy(envelope);
+    const intent = typeof context.intent === 'string' ? context.intent : null;
     requireValue(message && message.sessionId === this.#sessionId && uuid(message.id) && methods.has(message.method)
       && Number.isSafeInteger(message.serial) && message.serial >= 1
       && message.args && typeof message.args === 'object' && !Array.isArray(message.args), 'desktop-command', '桌面命令無效。');
@@ -63,7 +64,7 @@ export class DesktopAuthority {
       requireValue(!this.#closed && this.#views.get(viewId) === view, 'desktop-view', '桌面視窗已失效，尚未執行命令。');
       const invoke = () => {
         requireValue(!this.#closed && this.#views.get(viewId) === view, 'desktop-view', '桌面視窗已失效，尚未執行命令。');
-        return this.#invoke(viewId, message.method, message.args);
+        return this.#invoke(viewId, message.method, message.args, intent);
       };
       return draftWrite ? invoke() : this.#perform(invoke);
     });
@@ -102,11 +103,17 @@ export class DesktopAuthority {
     return labels;
   }
 
-  async #invoke(viewId, method, args) {
+  async #invoke(viewId, method, args, intent) {
     const controller = this.#controller;
     const drag = controller.state.dragSession;
     if (this.#gesture && drag?.generation !== this.#gesture.generation) this.#gesture = null;
     switch (method) {
+      case 'interaction.shortcut': {
+        const bindings = this.#workspace.layout.state.shortcuts;
+        requireValue(typeof args.key === 'string' && Object.hasOwn(bindings, args.key) && this.#shortcut,
+          'desktop-shortcut', '快捷鍵已變更，請使用目前設定。');
+        return this.#shortcut(bindings[args.key], intent);
+      }
       case 'pointer.down': {
         requireValue(!this.#gesture && uuid(args.gestureId) && Number.isSafeInteger(args.pointerId) && args.pointerId >= 0,
           'desktop-gesture', '拖曳身分無效或另一個指標仍在操作。');
@@ -132,7 +139,7 @@ export class DesktopAuthority {
         this.#matchGesture(viewId, args); controller.cancelDrag(); this.#gesture = null; return null;
       case 'card.select': this.#card(args.cardId); return controller.select(args.cardId, { gesture: true });
       case 'card.edit': this.#card(args.cardId); return this.#editor.begin(args.cardId, viewId);
-      case 'card.details': this.#card(args.cardId); return this.#details(args.cardId);
+      case 'card.details': this.#card(args.cardId); return this.#details(args.cardId, intent);
       case 'card.transfer': this.#card(args.cardId); return controller.moveToGroup(args.cardId, args.groupId);
       case 'editor.change': {
         const current = this.#editor.current();
@@ -154,7 +161,7 @@ export class DesktopAuthority {
         const current = this.#editor.current();
         requireValue(current && current.viewId === viewId && current.draftId === args.draftId
           && current.sequence === args.sequence, 'desktop-editor', '草稿仍在保存或編輯視窗已失效。');
-        return method === 'editor.save' ? this.#editor.save() : method === 'editor.full' ? this.#editor.full() : this.#editor.end();
+        return method === 'editor.save' ? this.#editor.save() : method === 'editor.full' ? this.#editor.full(intent) : this.#editor.end();
       }
       case 'interaction.escape': {
         const current = this.#editor.current();

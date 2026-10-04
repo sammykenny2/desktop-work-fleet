@@ -21,6 +21,8 @@ internal static class PlatformProbe
       if (NativeShortcuts.Parse(key, out _, out _) != "reserved") throw new Exception("Reserved key accepted");
     foreach (var key in new[] { "Ctrl+C", "Ctrl+Shift+Z", "Ctrl+A" })
       if (NativeShortcuts.Parse(key, out _, out _) != "editing") throw new Exception("Editing key accepted");
+    foreach (var key in new[] { "Ctrl+Alt+N", "Ctrl+Alt+Q", "Ctrl+Alt+Shift+D", "Ctrl+Alt+2" })
+      if (NativeShortcuts.Parse(key, out _, out _) != "typing") throw new Exception("AltGr character chord accepted");
     foreach (var key in new[] { "Shift+A", "Ctrl+Ctrl+1", "Bogus+1", "Alt+Ctrl+1", "Ctrl+F25", "Ctrl++", "Ctrl+C\n", "Ctrl+F12\n", "Alt+F4\n", "Ctrl+Alt+N\r\n" })
       if (NativeShortcuts.Parse(key, out _, out _) != "invalid") throw new Exception("Malformed key accepted");
     var invoked = new List<string>(); using var first = new NativeShortcuts(invoked.Add);
@@ -53,6 +55,9 @@ internal static class PlatformProbe
     if (first.Registrations.Single().Status != "conflict") throw new Exception("Resume hid native conflict");
     second.Dispose(); first.Configure([new(chord, "@all")]);
     if (first.Registrations.Single().Status != "available") throw new Exception("Disposal retained native key registration");
+    first.Configure([new(chord, "source:group.1")]);
+    if (first.Registrations.Single().Target != "source:group.1") throw new Exception("Valid imported group identity rejected");
+    first.Configure([new(chord, "@all")]);
     try { first.Configure([new(chord, "bad target!")]); throw new Exception("Invalid shortcut settings accepted"); }
     catch (ArgumentException) { }
     try { first.Configure([new(chord, "@all\n")]); throw new Exception("Trailing-newline shortcut target accepted"); }

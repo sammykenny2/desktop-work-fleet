@@ -20,6 +20,7 @@ export interface NativeHostInfo {
 }
 export type NativeRecordKind = 'workspace' | 'journal';
 export type NativeRequest = { v: 1; id: string } & (
+  | import('./desktop-scene.js').DesktopOwnerCall
   | { method: 'host.info' | 'host.ready' | 'host.closeReady'; params: Record<string, never> }
   | { method: 'transfer.begin'; params: { kind: NativeRecordKind | 'attachment' | 'backup'; size: number; sha256: string } }
   | { method: 'transfer.append'; params: { token: string; offset: number; base64: string } }

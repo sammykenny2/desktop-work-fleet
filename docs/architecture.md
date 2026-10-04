@@ -15,6 +15,8 @@ Windows 場景經 [ADR-018](decisions/018-single-owner-desktop-views.md) 接到�
 `src/desktop` 發布純呈現投影與受控命令，Windows 每顯示器分桌面／浮動表面；沒有第二個 Workspace。
 native memory mailbox 只傳 frame／命令，不能存取資料庫、附件或 vault。
 草稿獨立序列支援退出保存屏障，換 view／失聯／關閉先完成已接受寫入；管理視窗 resize 不再觸發桌面救援。
+全域快捷鍵與系統匣依 [ADR-019](decisions/019-windows-shortcuts-and-tray.md) 進入同一命令序列。
+原生焦點中解除 OS 註冊，本地 handler 保留 IME／editor 優先序；收起主畫面不關閉資料權威。
 
 [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md)
 定義 `src/sources` 的嚴格 JSON、不可變版本圖、缺 parent 與多 head。
@@ -36,7 +38,7 @@ Windows backup adapter 以 DPAPI metadata 綁定 profile／目錄／檔案身分
 保留既有資料並新增 native capabilities。NTFS 子檔相對已持有的目錄 handle 開啟；
 create-only、Flush／讀回校驗、同 handle 清理見 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)。
 自動備份以 opaque key ID 請 native 產生可攜加密 ZIP，保存密碼不回 renderer；手動密碼留在當次匯出流程。
-桌面分層／穿透表面將與主畫面共用權威資料，不能各自寫入副本；目前對這些能力明示 false。
+桌面分層／穿透表面與主畫面共用權威資料，不能各自寫入副本；Windows 已啟用 desktopPresentation。
 Windows 原生表面基礎由 [ADR-017](decisions/017-windows-composition-surface-and-input.md) 採納：
 每場景一個 CompositionControl、兩個互補 region 的 WPF 表面；共用卡片排序決定输入遮擋。
 快捷鍵及 physical monitor 盤點已有獨立類別；控制器、邏輯座標映射及產品入口持續整合。

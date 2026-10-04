@@ -83,6 +83,7 @@ internal static class Program
     await Eval(window, "document.querySelector('#editor-form').requestSubmit()");
     await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.card-summary')?.textContent === '原生便箋'", "save native card");
     await DesktopIntegrationProbe.Run(window, directory);
+    await ShortcutIntegrationProbe.Run(window);
     // The main host refuses navigations away from the exact packaged document and prevents frames.
     window.WebView.CoreWebView2.Navigate("https://work-fleet.invalid/other.html"); await Task.Delay(150);
     if (window.WebView.CoreWebView2.Source != NavigationPolicy.Document) throw new Exception("Unexpected navigation");

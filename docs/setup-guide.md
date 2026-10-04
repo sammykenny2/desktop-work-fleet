@@ -29,7 +29,8 @@ python scripts/testing/serve_preview.py --port 0
   確認後內容與位置保留，來源群組移除；不能以版面復原重建原群組。
 - 設定可交換群組區域，並自訂每組、操作全部、快速記錄與顯示切換的快捷鍵。
   可用 Ctrl／Alt／Meta 搭配字母、數字或 F1–F24，可加 Shift；多組以逗號分隔，留空取消。
-  初始組為 Ctrl+Shift+1，全部 Ctrl+Shift+0，快速記錄 Ctrl+Alt+N，顯示切換 Ctrl+Alt+D。
+  新工作區初始組為 Ctrl+Shift+1，全部 Ctrl+Shift+0，快速記錄 Ctrl+Shift+N，顯示切換 Ctrl+Shift+D。
+  瀏覽器若保留該組合可在設定改鍵；既有工作區的自訂／舊預設保持不變。
   新增的群組可在設定綁定；預覽只在目前視窗生效，不宣稱已向 OS 註冊全域鍵。
 - 同 profile 不允許第二個獨立視窗寫入；保存中或失敗時離頁有提示。
   沒有 Google 同步，清除瀏覽器資料會失去預覽資料；可先用設定內「資料與備份」保存 ZIP。
@@ -68,7 +69,12 @@ Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 
 桌面紙面可就地編輯，Ctrl+Enter 保存、Esc 保留草稿退出編輯；完整編輯回到主畫面處理附件等內容。
 其他便箋預設穿透，逐卡可開啟日常文字選取。桌布層目前以桌面層呈現並提示，原偏好不改。
 調整管理視窗大小不搬動桌面卡片；啟動採當時顯示器工作區。
-全域鍵、tray 及顯示器熱插拔尚待接線，現階段保留主畫面作管理入口。
+Windows 全域快捷鍵依設定啟用；設定內顯示每鍵註冊、衝突或保留狀態，可重試或改鍵。
+Ctrl+Alt 加字母／數字不作全域註冊，以保留 AltGr 產字；可改成 Ctrl+Shift 或 function-key 組合。
+App 取得焦點時釋放全域註冊，由目前視窗處理本地按鍵；組字與對話框優先。
+「收起主畫面」保存草稿後保持桌面及本機資料權威執行；系統匣可重新開啟、快速記錄、操作或退出。
+視窗 X 仍是保存並退出；系統匣不可用時主畫面保持開啟。延遲後焦點若已改變，點一下浮動卡片即可繼續。
+目前啟動採當時顯示器拓撲；熱插拔恢復仍待整合。
 此功能連接不等於真滑鼠／IME、混合 DPI、Show Desktop 與虛擬桌面矩陣已全部驗收。
 
 不要把原生 DB 當成跨機備份，DPAPI 需原 Windows 帳號金鑰。預覽 IndexedDB 與 native 是不同 profile，
@@ -81,7 +87,8 @@ Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 
 保存目前只支援本機 NTFS 資料夾，拒絕網路磁碟、FAT／exFAT、symlink／junction。
 讀取可攜備份仍可使用一般檔案選擇器。未自動操作真 OS picker 或測外部磁碟斷電耐久。
 原生測試命令見 [Testing](testing.md)，技術邊界見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)
-及 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)、[ADR-018](decisions/018-single-owner-desktop-views.md)。
+及 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)、[ADR-018](decisions/018-single-owner-desktop-views.md)、
+[ADR-019](decisions/019-windows-shortcuts-and-tray.md)。
 
 ## Google 與原生建置設定
 

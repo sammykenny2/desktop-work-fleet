@@ -6,6 +6,7 @@ export class DesktopOwner {
   #bridge; #authority; #project; #changed; #error; #lost; #editor; #unsub = []; #closed = false;
   #sequence = 0; #dirty = false; #publishing = null; #incoming = Promise.resolve(); #actions = Promise.resolve(); #flushes = new Map(); #frozen = new Set();
   #closing = false; #sealed = false;
+  #published = 0; #publishError;
   constructor({ bridge, authority, project, changed, error, lost, dismiss, editor }) {
     this.#bridge = bridge; this.#authority = authority; this.#project = project; this.#changed = changed; this.#error = error; this.#lost = lost; this.#editor = editor;
     this.#unsub.push(bridge.onEvent('desktop-command', message => {
@@ -54,7 +55,7 @@ export class DesktopOwner {
   async #command(message, command) {
     try {
       if (this.#sealed || this.#closing && command.method !== 'editor.change') throw new FleetError('desktop-closing', 'App 正在保存並關閉，請稍候。');
-      const result = await this.#authority.request(message.viewId, command); this.#changed();
+      const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null }); this.#changed();
       await this.#reply(message.ticket, true, result);
     } catch (error) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); }
   }
@@ -69,12 +70,19 @@ export class DesktopOwner {
         try {
           token = await upload(this.#bridge, 'desktop.frame', bytes, MAX_FRAME, token => this.#bridge.request('desktop.frame.discard', { token }));
           await this.#bridge.request('desktop.frame.publish', { token });
+          this.#published = this.#sequence; this.#publishError = null;
         } finally { if (token) await this.#bridge.request('desktop.frame.discard', { token }).catch(() => {}); }
       }
     })().catch(error => {
+      this.#publishError = error;
       this.#error(error);
       if (error.code === 'scene-busy') setTimeout(() => this.publish(), 250);
     }).finally(() => { this.#publishing = null; if (this.#dirty && !this.#closed) this.publish(); });
+  }
+  async whenPublished() {
+    while (this.#publishing) await this.#publishing;
+    if (this.#publishError) throw this.#publishError;
+    return this.#published;
   }
   flush(editor) {
     const id = crypto.randomUUID(); this.#frozen.add(id);

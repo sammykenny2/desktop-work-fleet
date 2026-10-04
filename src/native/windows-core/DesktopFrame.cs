@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace WorkFleet.Windows.Core;
 
 public sealed record LogicalRect(double X, double Y, double Width, double Height);
-public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bool Interactive);
+public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bool Interactive, bool Operable);
 
 /// <summary>Native input regions are derived only from a complete, validated owner projection.</summary>
 public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards)
@@ -38,7 +38,7 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
       HostError.Require(card.GetProperty("text").ValueKind == JsonValueKind.String && card.GetProperty("text").GetString()!.Length <= 8 * 1024 * 1024,
         "scene-frame", "桌面文字超過容量上限。");
       foreach (var flag in new[] { "interactive", "draggable", "editing", "selected", "completed", "mine" }) _ = Boolean(card, flag);
-      cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive")));
+      cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive"), Boolean(card, "draggable")));
     }
     return new(sequence, cards);
   }

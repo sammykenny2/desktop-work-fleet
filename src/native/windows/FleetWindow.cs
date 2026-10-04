@@ -3,6 +3,8 @@ using Microsoft.Web.WebView2.Wpf;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Text;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using WorkFleet.Windows.Core;
@@ -19,6 +21,7 @@ public sealed class FleetWindow : Window
   private readonly Func<string?>? backupDirectoryPicker;
   private BridgeSession? bridge;
   private DesktopCoordinator? desktop;
+  private NativeTray? tray;
   private readonly IReadOnlyList<DisplayInfo>? desktopDisplays;
   private Task messageQueue = Task.CompletedTask;
   private int queued;
@@ -38,7 +41,11 @@ public sealed class FleetWindow : Window
     Content = web; WindowStartupLocation = WindowStartupLocation.CenterScreen;
     Loaded += async (_, _) =>
     {
-      try { await Initialize(); }
+      try
+      {
+        tray = new NativeTray(TrayAction); tray.Changed += () => { if (!tray.Available) ShowMain(false); };
+        tray.MenuActive += active => desktop?.MenuActive(active); await Initialize();
+      }
       catch
       {
         Content = new TextBlock { Text = "無法開啟原生工作空間。請確認 WebView2 Runtime 已安裝，並保留原資料後重試。",
@@ -53,7 +60,25 @@ public sealed class FleetWindow : Window
       // Defer even when no work is pending: WPF forbids a second Close inside Closing.
       Dispatcher.BeginInvoke(new Action(() => { _ = PrepareClose(); }));
     };
-    Closed += (_, _) => { desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { tray?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+  }
+  private void ShowMain() => ShowMain(true);
+  private void ShowMain(bool activate)
+  {
+    var previous = ShowActivated; ShowActivated = activate; Show(); ShowActivated = previous;
+    if (WindowState == WindowState.Minimized)
+    {
+      if (activate) WindowState = WindowState.Normal;
+      else _ = ShowWindow(new System.Windows.Interop.WindowInteropHelper(this).Handle, 4); // SW_SHOWNOACTIVATE
+    }
+    if (activate) Activate();
+  }
+  private void TrayAction(string action, ForegroundIntent intent)
+  {
+    if (shuttingDown) return;
+    if (action == "show") ShowMain(intent.Current);
+    else if (action == "exit") { ShowMain(intent.Current); Close(); }
+    else desktop?.DispatchAction(action, intent);
   }
   private async Task Initialize()
   {
@@ -76,7 +101,7 @@ public sealed class FleetWindow : Window
       desktop = new DesktopCoordinator(environment, value =>
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
-      }, () => { Show(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Activate(); }, OpenExternal, desktopDisplays);
+      }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; Hide(); return true; });
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
@@ -90,6 +115,8 @@ public sealed class FleetWindow : Window
       if (!NavigationPolicy.IsDocument(e.Source) || !NavigationPolicy.IsDocument(core.Source) || bridge is null || queued >= 32) return;
       var json = e.WebMessageAsJson;
       if (json.Length > BridgeSession.MaxMessage) return;
+      // Capture a local foreground intent at admission, never after a slow storage transaction.
+      if (TryIntent(json, out var captured)) { core.PostWebMessageAsJson(captured!); return; }
       var session = bridge; var epoch = navigation; queued++;
       messageQueue = HandleMessage(messageQueue, session, epoch, json);
     };
@@ -97,11 +124,27 @@ public sealed class FleetWindow : Window
     {
       // Keep the native store alive. A new document must reopen from committed state.
       navigation++; bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
+      ShowMain(false);
       Content = new TextBlock { Text = "畫面程序已停止。已提交資料仍保留於本機；請重新開啟 Work Fleet。",
         TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
     };
     core.DownloadStarting += (_, e) => { e.Handled = false; };
     core.Navigate(NavigationPolicy.Document);
+  }
+  private bool TryIntent(string json, out string? result)
+  {
+    result = null;
+    try
+    {
+      if (json.Length > 512 || desktop is null || shuttingDown) return false;
+      using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var value = document.RootElement;
+      if (value.ValueKind != JsonValueKind.Object || JsonRules.Text(value, "method") != "desktop.intent") return false;
+      var id = JsonRules.Text(value, "id");
+      if (!Guid.TryParseExact(id, "D", out _) || JsonRules.Integer(value, "v") != 1
+        || value.GetProperty("params").ValueKind != JsonValueKind.Object || value.GetProperty("params").EnumerateObject().Any()) return false;
+      result = JsonSerializer.Serialize(new { v = 1, id, ok = true, result = new { intent = desktop.CaptureIntent(this) } }); return true;
+    }
+    catch (Exception error) when (error is JsonException or HostError or InvalidOperationException or KeyNotFoundException) { return false; }
   }
   private string? ChooseBackupDirectory() => Dispatcher.Invoke(() =>
   {
@@ -155,4 +198,5 @@ public sealed class FleetWindow : Window
     if (!NavigationPolicy.IsExternal(uri)) return;
     try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); } catch { }
   }
+  [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
 }

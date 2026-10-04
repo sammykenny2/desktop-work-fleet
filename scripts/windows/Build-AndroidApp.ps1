@@ -34,10 +34,12 @@ try {
     }
     $SdkSettings = (& node scripts/toolchain-env.mjs | ConvertFrom-Json)
     if ($LASTEXITCODE -ne 0) { throw 'Could not read SDK configuration.' }
-    foreach ($Name in @('ANDROID_HOME', 'JAVA_HOME')) {
+    foreach ($Name in @('ANDROID_HOME', 'JAVA_HOME', 'GRADLE_HOME', 'ANDROID_USER_HOME')) {
         $SavedSdkEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
         if ($SdkSettings.$Name) { [Environment]::SetEnvironmentVariable($Name, $SdkSettings.$Name, 'Process') }
     }
+    if (-not $env:ANDROID_USER_HOME) { $env:ANDROID_USER_HOME = Join-Path $ProjectRoot 'build/toolchain/android-user' }
+    if ($GradlePath -eq 'gradle' -and $env:GRADLE_HOME) { $GradlePath = Join-Path $env:GRADLE_HOME 'bin/gradle.bat' }
     if (-not (Get-Command $GradlePath -ErrorAction SilentlyContinue)) { throw 'Gradle 8.13 is required. Set -GradlePath or install Gradle in your build environment.' }
     if (-not $env:ANDROID_HOME) { throw 'Set ANDROID_HOME in .env or the build environment.' }
     if ($Release) {
@@ -47,7 +49,7 @@ try {
     & npm run build
     if ($LASTEXITCODE -ne 0) { throw 'Web asset build failed.' }
     $Task = if ($Release) { 'bundleRelease' } else { 'assembleDebug' }
-    & $GradlePath -p src/native/android --no-daemon $Task
+    & $GradlePath -p src/native/android --no-daemon --console plain $Task
     if ($LASTEXITCODE -ne 0) { throw 'Android native build failed.' }
     Write-Output 'Android output: src/native/android/app/build/outputs'
 } finally {

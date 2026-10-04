@@ -77,8 +77,13 @@ subject to their packaged terms and Google APIs / Play Services SDK terms.
 They are declared for this host, not copied from another application.
 AGP 8.13.2 and Gradle 8.13 are external build tools, not shipped app runtimes.
 Android SQLite, WebView, Keystore and framework APIs are supplied by the device.
-No Android APK/AAB or completed dependency-license inventory is claimed until a
-native build is produced.
+The Android asset build retains this notice and the root LICENSE. The current
+APK/AAB build status is recorded in PROGRESS.md; a debug APK does not establish
+the final store package's complete resolved dependency-license inventory.
+Pinned SDK command-line tools and Gradle can be installed under build/toolchain;
+their SHA-256 checksums come from the official [Android download](https://developer.android.com/studio#command-line-tools-only)
+and [Gradle checksum](https://gradle.org/release-checksums/) pages.
+These downloaded development tools are not included in the APK.
 
 ## Validation version 0.1.0
 

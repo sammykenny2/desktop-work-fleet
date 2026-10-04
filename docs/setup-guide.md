@@ -153,6 +153,10 @@ Windows x64 的 .NET 8 Desktop／WebView2 是執行前置條件，Windows SDK �
 ```
 
 Windows 每次產生新的 `build/windows/package-<id>`，未提供憑證時 MSIX 未簽章。
+Windows 若已有 JDK 17 但缺少 Android SDK／Gradle，可先執行
+`scripts/windows/Install-AndroidToolchain.ps1 -AcceptSdkLicenses`；須先閱讀並接受
+[SDK 條款](https://developer.android.com/studio#terms-and-conditions)。工具、API 36、Build Tools 35.0.0
+與 paths JSON 放在 `build/toolchain`，不修改機器 PATH。之後 `Build-AndroidApp.ps1` 可直接讀取路徑。
 Android 簽章的四個 process／CI environment inputs 見 [商店準備](release/README.md)，不寫入 `.env`。
 
 Apple 先使用上一節 Release 入口產生 archive，再在有 Xcode 的 Mac 匯出：

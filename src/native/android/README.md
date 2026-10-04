@@ -5,6 +5,11 @@ Credential Manager 帳號選擇及 Google AuthorizationClient Drive 授權。手
 原生 WebView 只讀封裝資產；Google／檔案操作透過固定 bridge，沒有 local note server。
 
 建置前在 repo 根目錄 `npm ci`，填寫 `.env`。JDK 17、Gradle 8.13、Android SDK platform 36。
+Windows 已有 JDK 時，可執行 `scripts/windows/Install-AndroidToolchain.ps1 -AcceptSdkLicenses`，
+從官方下載固定 SDK command-line tools／Gradle 並比對官方 SHA-256，安裝 API 36／Build Tools 35.0.0。
+需先閱讀並接受 [Google SDK 條款](https://developer.android.com/studio#terms-and-conditions)。
+工具與 SDK 只寫入 `build/toolchain`；自動產生本機 paths JSON，建置入口讀取它，不更動系統 PATH。
+`.env`／process environment 的 `ANDROID_HOME`、`JAVA_HOME`、`GRADLE_HOME` 可覆蓋產生的路徑。
 
 ```powershell
 .\scripts\windows\Build-AndroidApp.ps1

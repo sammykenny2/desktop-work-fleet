@@ -24,8 +24,8 @@
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
-| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料與帳號、前背景通知、原生匯出、分享及加密收件匣／iOS Extension 已加入；平台散布待完成；缺 SDK，未產原生 package 或做裝置驗收 |
-| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 未簽章 MSIX／ZIP 已產出；Apple archive export／PKG／DMG 與 Android upload signing 入口已加入；Linux source/runtime tar.gz 已產出。正式簽章、其他平台 binary、screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
+| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android 原生 preview APK 已產出，含資料／帳號、原生匯出、分享及加密收件匣；iOS UIKit／Extension source 已加入，缺 Apple SDK，未產 iOS package；兩者未做裝置／Google 驗收 |
+| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 未簽章 MSIX／ZIP、Android debug APK、Linux source/runtime tar.gz 已產出；Apple export／PKG／DMG 與 Android upload signing 入口已加入。正式 AAB／Apple binary／簽章、screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
 記錄使用者本輪範圍答覆及本機核心決策。
@@ -529,6 +529,21 @@ Apple 新增本機 export options／archive 匯出、macOS hardened runtime、PK
 本輪 Apple Xcode project 更新與 Linux source/runtime tar.gz 重新產生完成，沒有執行原生 App。
 依使用者指示未執行測試／審閱；沒有獨立 review。決策見
 [ADR-028](docs/decisions/028-native-package-and-signing-entry-points.md)。
+
+## 2026-10-05 Android 原生 APK 產出
+
+新增 workspace toolchain installer：官方固定 SDK tools 15859902、Gradle 8.13／官方 SHA-256、
+API 36／Build Tools 35.0.0，工具與 paths JSON 放在 `build/toolchain`，沒有更動系統 PATH。
+已接受安裝所需 SDK 條款並完成本機安裝；既有 Microsoft JDK 17 用於原生編譯。
+`.env`／process environment 的 SDK 路徑優先，Android build wrappers 可直接使用 workspace paths。
+
+修正 Gradle `java` extension 遮蔽 File package 的簽章 DSL 編譯錯誤；Android 原生 Java 與資產
+編譯／封裝完成。APK 加入根 LICENSE／THIRD-PARTY-NOTICES，不包含 SDK／Gradle 工具。
+`Build-AndroidApp.ps1` 最後一次執行 `BUILD SUCCESSFUL`，36 tasks，產出
+`build/android/WorkFleet-1.0.0-preview.apk`（11,145,974 bytes）。
+這份 APK 使用 debug 簽章與 `app.workfleet.preview`；正式 app ID／Google／upload key 配置及 release AAB 仍待完成。
+依使用者指示未執行測試／裝置操作／審閱，沒有真登入、分享或背景回收的執行結果，也沒有獨立 review。
+Apple SDK、Linux GUI 環境仍不可用；完整 1.0 尚未完成。
 
 ## 2026-10-04 文件交付
 

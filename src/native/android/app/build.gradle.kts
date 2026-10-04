@@ -1,4 +1,5 @@
 import groovy.json.JsonSlurper
+import java.io.File
 
 plugins { id("com.android.application") }
 val repositoryRoot = rootProject.projectDir.resolve("../../../")
@@ -22,10 +23,10 @@ android {
         versionName = "1.0.0"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
-    sourceSets["main"].assets.srcDirs(repositoryRoot.resolve("build/app"), layout.buildDirectory.dir("generated/config"))
+    sourceSets["main"].assets.srcDirs(repositoryRoot.resolve("build/app"), layout.buildDirectory.dir("generated/config"), layout.buildDirectory.dir("generated/notices"))
     if (hasSigning) {
         signingConfigs.create("release") {
-            storeFile = java.io.File(signingValues[0]).also {
+            storeFile = File(signingValues[0]).also {
                 require(it.isAbsolute && it.isFile) { "Android signing keystore must be an existing absolute file path." }
             }
             keyAlias = signingValues[1]
@@ -45,7 +46,11 @@ val copyConfig = tasks.register<Copy>("copyPublicConfig") {
     from(publicConfig)
     into(layout.buildDirectory.dir("generated/config/config"))
 }
-tasks.named("preBuild") { dependsOn(copyConfig) }
+val copyNotices = tasks.register<Copy>("copyProjectNotices") {
+    from(repositoryRoot.resolve("LICENSE"), repositoryRoot.resolve("THIRD-PARTY-NOTICES.md"))
+    into(layout.buildDirectory.dir("generated/notices/licenses"))
+}
+tasks.named("preBuild") { dependsOn(copyConfig, copyNotices) }
 tasks.matching { it.name.contains("Release") }.configureEach {
     doFirst {
         require(configuredId.isNotEmpty()) { "Release requires WORK_FLEET_APP_ID in .env and npm run build." }

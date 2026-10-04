@@ -26,6 +26,10 @@ Android upload signing 僅讀取 process／CI environment 的 keystore、alias�
 可輸出未簽章 AAB 交給外部 pipeline。秘密不進公共設定、命令列參數或 repo。
 Linux 保留系統 runtime tar.gz 與 DEB 建置入口，不假設 Windows 可完成 Linux GUI 散布驗收。
 
+Windows 可選 workspace Android toolchain installer，使用官方固定 SDK tools／Gradle download
+及 SHA-256，接受所需 SDK 條款後安裝 API 36／Build Tools 35.0.0。工具、SDK、快取與路徑 JSON
+位於忽略的 `build/`；不修改系統 PATH。公開 SDK 路徑可由 `.env`／process environment 覆蓋。
+
 ## Consequences
 
 ### Positive

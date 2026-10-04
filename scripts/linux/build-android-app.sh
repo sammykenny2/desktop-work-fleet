@@ -21,13 +21,16 @@ if [[ "$signed" == 1 ]]; then
     done
     export WORK_FLEET_REQUIRE_SIGNED_ANDROID=1
 fi
-command -v gradle >/dev/null || { printf 'Gradle 8.13 is required.\n' >&2; exit 1; }
 sdk_settings=$(node scripts/toolchain-env.mjs)
 android_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).ANDROID_HOME))')
 java_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).JAVA_HOME))')
+gradle_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).GRADLE_HOME))')
 if [[ -n "$android_sdk" ]]; then export ANDROID_HOME="$android_sdk"; fi
 if [[ -n "$java_sdk" ]]; then export JAVA_HOME="$java_sdk"; export PATH="$java_sdk/bin:$PATH"; fi
+gradle_command=gradle
+if [[ -n "$gradle_sdk" ]]; then export GRADLE_HOME="$gradle_sdk"; gradle_command="$gradle_sdk/bin/gradle"; fi
+command -v "$gradle_command" >/dev/null || { printf 'Gradle 8.13 is required. Set GRADLE_HOME in .env or the build environment.\n' >&2; exit 1; }
 : "${ANDROID_HOME:?Set ANDROID_HOME in .env or the build environment}"
 if [[ "$task" == bundleRelease ]]; then node scripts/check-config.mjs --platform android; fi
 npm run build
-gradle -p src/native/android --no-daemon "$task"
+"$gradle_command" -p src/native/android --no-daemon --console plain "$task"

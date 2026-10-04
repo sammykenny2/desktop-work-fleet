@@ -19,6 +19,7 @@ try {
     const { IndexedDbStorage } = await import('/storage/indexed-db.js');
     const { Workspace } = await import('/core/workspace.js');
     const { createBackup, openBackup } = await import('/backup/payload.js');
+    const { prepareRestore } = await import('/backup/restore.js');
     const { canonicalJson } = await import('/sources/json.js');
     const assert = (condition, message) => { if (!condition) throw new Error(message); };
     const storage = await IndexedDbStorage.open(); const profileId = crypto.randomUUID();
@@ -48,8 +49,41 @@ try {
       catch (error) { assert(error.code === 'backup-cancelled', 'cancellation'); }
       assert(canonicalJson(await storage.load(profileId)) === canonicalJson(before), 'export, verify and cancel perform no workspace writes');
       assert(await storage.getAttachment('other-profile', attachment.id) === null, 'profile isolation');
+      const targetProfile = crypto.randomUUID();
+      let target = await Workspace.create({ profileId: targetProfile, deviceId: 'restore-probe-device', area,
+        persist: (state, revision) => storage.save(state, revision) });
+      const initial = await storage.load(targetProfile);
+      const plan = await prepareRestore({ workspace: target, document, mode: 'import', layout: 'backup', workAreas: [area] });
+      const originalPut = IDBObjectStore.prototype.put; let aborted = false;
+      IDBObjectStore.prototype.put = function(...args) {
+        const result = originalPut.apply(this, args);
+        if (!aborted && this.name === 'attachments' && args[0].profileId === targetProfile) { aborted = true; this.transaction.abort(); }
+        return result;
+      };
+      const persist = (state, revision, attachments) => storage.saveWithAttachments(state, revision, attachments);
+      try {
+        await target.applyRestore(plan, { persist }); throw new Error('aborted restore succeeded');
+      } catch (error) { assert(error.code === 'storage-aborted', 'real transaction abort'); }
+      finally { IDBObjectStore.prototype.put = originalPut; }
+      assert(aborted && canonicalJson(await storage.load(targetProfile)) === canonicalJson(initial), 'workspace and receipt rolled back');
+      assert(await storage.getAttachment(targetProfile, attachment.id) === null, 'attachment rolled back');
+      assert(canonicalJson(target.state) === canonicalJson(initial), 'in-memory state rolled back');
+      try {
+        await target.applyRestore(plan, { persist: async (...args) => { await persist(...args); throw new Error('synthetic lost acknowledgement'); } });
+        throw new Error('lost acknowledgement accepted');
+      } catch (error) { assert(error.message === 'synthetic lost acknowledgement', 'post-commit response loss'); }
+      target = new Workspace(await storage.load(targetProfile), (state, revision) => storage.save(state, revision));
+      const restored = await target.applyRestore(plan, { persist });
+      assert(restored.jobId === plan.receipt.jobId && target.snapshot.cards.length === 1, 'receipt prevents duplicate after restart');
+      const restoredBlob = await storage.getAttachment(targetProfile, attachment.id);
+      assert(restoredBlob.size === raw.length && restoredBlob.type === 'application/octet-stream', 'restored binary attachment');
+      const restoredRevision = target.state.revision;
+      try { await storage.saveWithAttachments({ ...target.state, revision: restoredRevision + 1 }, restoredRevision - 1, plan.attachments); throw new Error('stale writer accepted'); }
+      catch (error) { assert(error.code === 'stale-writer', 'restore CAS boundary'); }
+      assert((await storage.load(targetProfile)).revision === restoredRevision, 'stale restore wrote no state');
       return { attachmentBytes: raw.length, zipBytes: plain.bytes.length, encryptedZipBytes: encrypted.bytes.length,
-        elapsedMs: Math.round(performance.now() - started), encryptedRoundTrip: true, cancelledWithoutWrites: true };
+        elapsedMs: Math.round(performance.now() - started), encryptedRoundTrip: true, cancelledWithoutWrites: true,
+        atomicRestoreAbort: true, lostAcknowledgementRecovered: true };
     } finally { storage.close(); }
   });
   console.log(JSON.stringify({ passed: true, ...result }));

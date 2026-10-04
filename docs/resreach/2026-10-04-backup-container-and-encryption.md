@@ -20,6 +20,10 @@
 - [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
   列 PBKDF2-HMAC-SHA256 600,000 工作因子；該頁一般優先 Argon2id。
   本產品因 WebCrypto 可攜性選 PBKDF2，不把引用當 OWASP 格式認證或 FIPS 合規宣稱。
+- [Chrome File System Access 指南](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)
+  說明 secure context、使用者手勢、save picker、createWritable／write／close 與 getFile。
+  先做壓縮可能失去 transient activation，因此產品先要求選檔，再生成 bytes；保存後讀回 hash
+  是本產品額外完整性決策。下載 fallback 不具相同保存確認能力。
 
 ## 實驗的意義
 
@@ -27,6 +31,8 @@
 寬容解壓器接受的錯誤改由原生 DecompressionStream 拒絕；stored 大檔分塊 CRC 並讓出取消事件。
 Python 標準庫 zipfile 另讀輸出；獨立 OpenSSL／WebCrypto 雙向測試檢查 KDF、AAD 及 GCM tag。
 這些是容器互通／錯誤處理證據，不是 Google、原生檔案持久性或完整五平台驗收。
+新增 Edge UI probe 只替換 picker，實際 writes／close／getFile 使用隔離 profile 的 OPFS handle；
+可驗證 API 保存／讀回與 UI 閘門，不能據此宣稱 OS picker、外部磁碟或斷電耐久已通過。
 
 ## 決策及尚待驗證
 

@@ -7,6 +7,7 @@ import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { toggleChecklist } from './checklist.js';
 import { showRevisionDialog } from './conflicts.js';
+import { showBackupDialog } from './backup.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -493,6 +494,14 @@ function bindEvents() {
   $('#cancel-formation').onclick = () => $('#formation-dialog').close();
   $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status('排列已完成，可按復原還原'); });
   $('#settings-button').onclick = showSettings; $('#cancel-settings').onclick = () => $('#settings-dialog').close();
+  $('#backup-button').onclick = () => run(async () => {
+    if (editorBusy || composing) return;
+    if (currentDraft) await flushDraft();
+    if (!await controller.endEdit()) return;
+    currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
+    showBackupDialog({ workspace, storage, getWorkAreas: () => [screenArea()], flush: flushDraft,
+      onChanged: async () => { await controller.reconcile(); render(); } });
+  });
   $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);
   $('#save-settings').onclick = () => run(async () => {
     const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value);

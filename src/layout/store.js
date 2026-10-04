@@ -76,7 +76,7 @@ export class LayoutStore {
   #transaction(change, persist = this.#persist, force = false) {
     const operation = this.#tail.then(async () => {
       const draft = copy(this.#state);
-      const result = change(draft);
+      const result = await change(draft);
       if (!force && same(draft, this.#state)) return result;
       draft.revision = this.#state.revision + 1;
       await persist(copy(draft), this.#state.revision, result);
@@ -113,10 +113,10 @@ export class LayoutStore {
     });
   }
 
-  async placeNew(snapshot, workAreas, paperSize = { width: 280, height: 220 }) {
+  async placeNew(snapshot, workAreas, paperSize = { width: 280, height: 220 }, checkpoint = null) {
     snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
     requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', '卡片尺寸必須大於零。');
-    return this.#transaction(draft => {
+    return this.#transaction(async draft => {
       const groups = activeGroups(snapshot);
       const gridIds = draft.grid.slots.filter(Boolean);
       if (groups.length <= 9 && (groups.length !== gridIds.length || groups.some(group => !gridIds.includes(group.id)))) {
@@ -131,12 +131,13 @@ export class LayoutStore {
       let order = Math.max(0, ...Object.values(draft.placements).map(rect => rect.order)) + 1;
       const fresh = snapshot.cards.filter(card => !card.deleted && !draft.placements[card.id])
         .sort((a, b) => compareId(a.id, b.id));
+      const existing = Object.values(draft.placements);
       for (const card of fresh) {
+        if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
         let rect = { x: region.x + 12, y: region.y + 12, ...paperSize,
           order: order++, visible: true, residentLayer: 'desktop', readOnlySelect: false };
-        const existing = Object.values(draft.placements);
         for (let step = 0; step < 40; step++) {
           const trial = { ...rect, x: rect.x + step * 18, y: rect.y + step * 28 };
           if (containsRect(region, trial) && !existing.some(other =>
@@ -146,6 +147,7 @@ export class LayoutStore {
           }
         }
         draft.placements[card.id] = rescueRect(rect, workAreas);
+        existing.push(draft.placements[card.id]);
       }
       return { deferred, groupOverflow: groups.length > 9, groups: groupKey(snapshot) };
     });

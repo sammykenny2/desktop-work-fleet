@@ -44,6 +44,9 @@ resumable 分段及 Range、4xx 重開、同 file ID、讀回校驗與 Location 
 profile 綁定、並行快照、未知 conflict 拒絕、加密與大量圖取消。沒有把檔案驗證當已還原。
 `tests/backup-capacity.test.js` 完整產生／重開 20,000 entries 並驗證多一個就拒絕；
 它含大量個別 ZIP／SHA 作業，執行時間高於一般小 fixture，不是最低手機裝置 benchmark。
+`tests/backup-restore.test.js` 驗證三種還原、完整 ID／草稿 lineage 映射、缺 parent、過期計畫、
+安全備份綁定、交易失敗、重啟 receipt／明確重複及大量新卡定位取消後佇列仍可使用。
+`tests/backup-files.test.js` 驗證 write／close／讀回故障、大小／hash、取消、owned bytes 及保存能力。
 
 新的真實瀏覽器回歸使用隔離 profile 與合成資料：
 
@@ -55,6 +58,7 @@ node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/backup-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/restore-ui-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
@@ -70,7 +74,11 @@ revision probe 以合成資料驗證兩版本比較、HTML 文字隔離／附件
 sync probe 在真 Edge／IndexedDB 接 FileSync 與合成 FileStore，驗證 reservation 落盤、
 回應遺失後重開同 file ID、附件校驗／分區隔離、雙裝置分支及重開保留；仍不等於真 Google。
 backup probe 使用真 Edge／IndexedDB、2 MiB 附件及草稿／版面，驗證明文／加密往返、
-錯密碼與取消零寫入；沒有觸發 OS 儲存或還原，也不代表最低手機容量壓測。
+錯密碼、取消零寫入、還原 transaction abort／附件回滾、commit 後回應遺失／重啟 receipt 及 CAS。
+restore UI probe 經完整畫面執行匯出／預覽／匯入／重複與取代，安全備份先保存才解鎖確認，
+檢查原草稿／歷史及 390px 畫面。它只替換 picker，真實保存／close／SHA 讀回使用 OPFS handle，
+沒有開啟個人檔案選擇器。截圖在 `build/restore-ui-probe.png`，失敗另存同名前綴 failure 圖。
+上述不代表原生 OS picker、外部磁碟斷電耐久或最低手機容量壓測。
 輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
 這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
 

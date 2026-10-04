@@ -34,8 +34,11 @@
 - 加密是整個內層 ZIP 的 AES-256-GCM + PBKDF2-HMAC-SHA256 600,000，隨機 salt/nonce、header AAD。
   tag 成功才解析；KDF 固定白名單，密碼不進設定／log／`.env`；GC 字串沒有保證清除。
   OS 密碼儲存及自動備份仍需原生驗收，不能把容器加密宣稱為 Drive／本機 DB 加密。
-- 還原／自動備份／原生保存需遵循 [SPEC-002](specs/002-portable-backup-and-restore.md) 的原子交易、
-  預覽、安全備份及自有 inventory 範圍；已實作狀態只看 PROGRESS。
+- 還原使用經驗證的 BackupDocument／不可偽造建構的 RestorePlan，綁 profile 及 workspace revision；
+  預覽零寫入，提交以 CAS 在同一 IDB transaction 寫狀態／receipt／附件，重啟依 receipt 去重。
+  取代安全備份以可信檔案 adapter 的 write／close／讀回校驗證明保存；純下載或普通 JSON 不足以解鎖。
+- 自動備份／原生保存需遵循 [SPEC-002](specs/002-portable-backup-and-restore.md) 的自有 inventory
+  與授權範圍；已實作狀態只看 PROGRESS。瀏覽器保存 probe 不代表外部磁碟斷電耐久。
 
 ## 既有 0.1.0 驗證版
 

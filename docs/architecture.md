@@ -67,6 +67,9 @@ BackupService 屬於共用核心，不由 Drive 或 renderer 私自定義格式�
 [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md)
 定義群組／版面／附件、自動與加密備份，以及匯入／合併／取代還原的現行契約。
 備份必須保留最終共用卡片／群組語意；未知內容不能靜默丟棄後宣稱成功。
+`prepareRestore` 只產生綁定目標 revision 的不可變計畫；Workspace 提交時一起保存附件、
+receipt 及新 outbox。`contracts/backup.d.ts` 定義 file adapter／原子 persistence 邊界，
+原生保存證明不可由 renderer 任意 JSON 取代。Browser 預覽使用 IndexedDB 及 File System Access。
 
 [完整 PM／server 草案](resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
 其中 Note 容器的模型不再規範 1.0；未來採用也須重新對齊一事一卡。

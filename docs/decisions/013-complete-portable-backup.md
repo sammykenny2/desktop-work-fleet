@@ -26,6 +26,9 @@ Accepted，2026-10-04。依已批准 SPEC-003 Q01–Q07 定案，取代 ADR-005 
   按實際 bytes 校驗，超限／缺附件直接失敗，不能省略後宣稱完整。
 - 新匯入映射 ID；合併核對 immutable identity；取代追加觀測全部 heads 的版本，保留歷史及草稿，
   額外卡片進刪除區。取代前保存安全備份，不直接刪 Drive 版本檔。
+- RestorePlan 綁定預覽 revision；workspace／附件／草稿／版面／outbox／receipt 同一本機 CAS 交易。
+  瀏覽器 File System Access 先取 handle，再 write／close／SHA 讀回確認；純下載不能解鎖取代。
+  同名異內容草稿另配 ID 並延續 lineage；歧義 membership 邊暫停自動延續，不刪歷史。
 - 自動備份預設關閉，24 小時有變化才執行，resume 補跑；預設七份且只修剪自身 inventory。
   加密排程依賴 OS 安全儲存，無法取得授權或 key 時停止，不降級明文。
 

@@ -98,7 +98,7 @@ export class Workspace {
   assertSyncSession(session) { this.#session(this.#state, session); }
   uploadState(session, operation) { this.#session(this.#state, session); return copy(this.#state.sync.uploads?.[operation] || null); }
 
-  #commit(change) {
+  #commit(change, persist = this.#persist) {
     const operation = this.#tail.then(async () => {
       const draft = copy(this.#state);
       const result = change(draft);
@@ -106,12 +106,28 @@ export class Workspace {
       const graph = additions.length ? this.#graph.fork(additions) : this.#graph;
       if (additions.length) Object.assign(draft, projectRevisions(graph, draft));
       draft.revision++;
-      await this.#persist(copy(draft), this.#state.revision);
+      await persist(copy(draft), this.#state.revision);
       this.#state = draft; this.#graph = graph;
       return result;
     });
     this.#tail = operation.catch(() => {});
     return operation;
+  }
+
+  /** One restore transaction includes attachment bytes; the caller must supply an atomic persistence adapter. */
+  async applyRestore(plan, { persist, safetyBackup, signal } = {}) {
+    const { RestorePlan } = await import('../backup/restore.js');
+    requireValue(plan instanceof RestorePlan && typeof persist === 'function', 'invalid-restore-plan', '需要有效預覽及原子還原儲存介面。');
+    const cancelled = () => requireValue(!signal?.aborted, 'backup-cancelled', '還原已取消，現有資料未變更。');
+    cancelled();
+    return this.#layout.integrateSource(() => {
+      cancelled(); const existing = plan.existing(this.#state);
+      if (existing) return { layout: this.#state.layout, value: existing };
+      return this.#commit(state => {
+        cancelled(); Object.assign(state, plan.materialize(state, safetyBackup));
+        return { layout: state.layout, value: plan.receipt };
+      }, (state, revision) => persist(state, revision, plan.attachments));
+    });
   }
 
   #card(state, id, revision) {

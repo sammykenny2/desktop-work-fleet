@@ -54,10 +54,31 @@ export class IndexedDbStorage {
   }
 
   save(state, expectedRevision) {
+    return this.#save(state, expectedRevision, []);
+  }
+
+  async saveWithAttachments(state, expectedRevision, attachments) {
+    state = copy(state);
+    requireValue(Array.isArray(attachments), 'invalid-attachment', '需要完整附件清單。');
+    attachments = attachments.map(item => {
+      requireValue(item && item.bytes instanceof Uint8Array, 'invalid-attachment', '需要完整附件 bytes。');
+      return { id: item.id, bytes: new Uint8Array(item.bytes) };
+    });
+    const seen = new Set(); const values = [];
+    for (const { id, bytes } of attachments) {
+      requireValue(validDigest(id) && !seen.has(id) && bytes.length <= 25 * 1024 * 1024,
+        'invalid-attachment', '附件身分或容量無效。'); seen.add(id);
+      requireValue(await sha256(bytes) === id, 'attachment-integrity', '附件校驗失敗，尚未還原。');
+      values.push({ profileId: state.profileId, id, blob: new Blob([bytes], { type: 'application/octet-stream' }) });
+    }
+    return this.#save(state, expectedRevision, values);
+  }
+
+  #save(state, expectedRevision, attachments) {
     state = copy(state);
     requireValue(safeKey(state.profileId) && Number.isInteger(state.revision) && state.revision >= 0,
       'invalid-workspace', '本機資料身分或版本無效。');
-    return this.#transaction(['workspaces'], 'readwrite', (tx, context) => {
+    return this.#transaction(attachments.length ? ['workspaces', 'attachments'] : ['workspaces'], 'readwrite', (tx, context) => {
       const store = tx.objectStore('workspaces');
       const request = store.get(state.profileId);
       request.onsuccess = () => {
@@ -70,6 +91,7 @@ export class IndexedDbStorage {
           context.fail(new FleetError('invalid-revision', '本機保存版本不連續。')); return;
         }
         store.put(state);
+        if (attachments.length) for (const attachment of attachments) tx.objectStore('attachments').put(attachment);
       };
     });
   }

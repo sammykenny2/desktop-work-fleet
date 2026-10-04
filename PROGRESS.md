@@ -23,7 +23,7 @@
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；Android SQLite／Keystore、Apple SQLite／Keychain、Linux SQLite／Secret Service 程式已加入；後三者原生 runtime 尚未執行 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
-| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows 原生桌面／快捷鍵／系統匣／顯示器生命週期已加入；macOS 公開 AppKit 場景、輸入轉送、快捷鍵／選單列／顯示器程式已加入但未編譯；Linux 待實作，完整 OS 矩陣仍缺 |
+| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料及帳號能力與前背景通知已加入；分享及平台散布持續完成；缺 SDK，未產原生 package 或做裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 商店文案／隱私草稿／提交資料、Android build wrappers、Apple Xcode 產生器／圖示／archive 入口已加入；其他封裝、正式簽章／screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
@@ -475,6 +475,19 @@ Google 系統瀏覽器 PKCE、限定 callback、金鑰圈 credential／refresh�
 依指示未跑測試／額外驗證，沒有獨立審閱；未建立或安裝 deb、未真 Google。
 Linux desktop surfaces／global shortcuts／tray、手機分享及各平台完整散布仍繼續，未縮小完整 1.0。
 見 [ADR-024](docs/decisions/024-linux-native-owner-and-storage.md)。
+
+## 2026-10-05 Linux 桌面接線
+
+每螢幕 desktop／floating 原生場景、輸入區域、owner／scene mailbox 與 bounded transfer 已接入 GTK host。
+X11 層級與 Keybinder、Wayland layer-shell 與 GlobalShortcuts portal 依 runtime 能力啟用；
+系統實際鍵位描述回到設定。焦點／原生對話框暫停全域註冊；不支援的桌面保留主畫面並說明原因。
+顯示器／工作區／休眠通知接入 topology 保存流程，既有場景保留 WebView 與草稿。
+系統匣提供主畫面／快速記錄／All／顯示切換／保存退出；可用性確認後才允許隱藏主畫面。
+帳號切換、renderer failure 與退出關閉原桌面工作階段，舊場景無法寫入新帳號。
+封裝加入 Cairo GI bridge、Keybinder、layer-shell、AppIndicator／portal 依賴宣告。
+本輪完成 web build、Linux package generator 與 tar.gz 產生；產物含這次桌面接線程式，沒有建立 deb。
+依指示未跑測試／審閱，Windows 環境仍無 Linux GUI 執行證據；portal 重註冊的系統授權流程未確認。
+完整 1.0 持續完成手機分享與平台散布，見 [ADR-025](docs/decisions/025-linux-desktop-scenes-and-shortcuts.md)。
 
 ## 2026-10-04 文件交付
 

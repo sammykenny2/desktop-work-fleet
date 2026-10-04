@@ -138,7 +138,7 @@ async function initialize() {
     $('#shortcut-note').textContent = '全域最多 32 組。App 取得焦點時會暫停全域註冊，改用視窗內快捷鍵；文字編輯、組字與對話框優先。';
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
-  bindEvents(); render(); status('已開啟本機資料');
+  bindEvents(); render(); status(native?.info.desktopReason || '已開啟本機資料');
   if (native) await initializeGoogle();
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
@@ -289,7 +289,7 @@ function initializeDesktop() {
 
 function renderShortcutStatus() {
   const labels = { available: '已全域註冊', suspended: 'App 使用中，已釋放全域註冊', conflict: '其他程式已註冊', unavailable: '無法註冊', reserved: '系統保留', editing: '保留給文字編輯', typing: '保留給 AltGr 文字輸入，請改用 Ctrl+Shift', invalid: '格式不支援' };
-  $('#shortcut-status').textContent = shortcutStatus.map(item => `${item.key}：${labels[item.status] || item.status}`).join('；');
+  $('#shortcut-status').textContent = shortcutStatus.map(item => `${item.key}：${labels[item.status] || item.status}${item.triggerDescription ? `（${item.triggerDescription}）` : ''}`).join('；');
 }
 
 async function desktopAction(target, intent) {

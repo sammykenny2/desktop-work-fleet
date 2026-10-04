@@ -140,7 +140,9 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 ## Linux 1.0 原生建置
 
 需要 Linux 的 Python 3.12+、GTK 3、WebKitGTK 4.1、PyGObject／cairo、libsecret／系統金鑰圈
-及 cryptography。本次加入原生主畫面／SQLite／加密／Google／備份；桌面表面接線持續施工。
+及 cryptography。原生主畫面／SQLite／加密／Google／備份與桌面場景已接入。
+X11 全域鍵可使用 Keybinder 3；Wayland 桌面需 GtkLayerShell 支援，快捷鍵需 GlobalShortcuts portal
+backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用；缺能力時主畫面仍可記錄。
 
 ```bash
 npm ci --ignore-scripts

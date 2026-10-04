@@ -30,6 +30,13 @@ fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新�
 
 建置入口產生 source/runtime tar.gz，Debian variant 宣告 system runtime dependencies；
 不攜帶私鑰、token、使用者資料或 Python／GTK 的複製二進位。簽章／repository 發布仍待實際環境。
-主畫面與原生保存／Google／備份已加入程式；Linux desktop surfaces／global shortcuts／tray
-持續接線，這個切片不宣稱 OS 桌面呈現已完成。
+每螢幕共用桌面與浮層兩個 WebKit 場景；主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
+X11 使用原生窗口層級與輸入區域；Wayland 使用 GtkLayerShell 支援的 compositor。
+不支援 layer-shell 時回報原因，仍可在主畫面記錄。卡片外與不可互動的紙面不攔截桌面輸入。
+顯示器／工作區／休眠變更先停止場景輸入，保存草稿後由主畫面套用新版面，保留原 WebView。
+X11 快捷鍵使用 Keybinder 3；否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
+系統可改配按鍵，設定顯示實際 trigger description。App 焦點／對話框期間釋放全域註冊；
+portal session 重建可能再次出現系統授權介面，實際流程仍待原生環境確認。
+Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統匣可用後隱藏主畫面。
+系統匣退出沿用草稿保存流程；系統匣斷線時恢復主畫面，帳號切換則關閉舊桌面工作階段。
 目前工作環境是 Windows，未執行 GTK／libsecret／Wayland／X11、真 Google 或 Debian 安裝。

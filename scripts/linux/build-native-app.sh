@@ -34,8 +34,8 @@ Architecture: all
 Maintainer: Work Fleet maintainers
 Section: utils
 Priority: optional
-Depends: python3 (>= 3.12), python3-gi, python3-cairo, python3-cryptography, gir1.2-gtk-3.0, gir1.2-webkit2-4.1, gir1.2-secret-1
-Recommends: gir1.2-gtklayershell-0.1, gir1.2-ayatanaappindicator3-0.1
+Depends: python3 (>= 3.12), python3-gi, python3-gi-cairo, python3-cairo, python3-cryptography, gir1.2-gtk-3.0, gir1.2-webkit2-4.1, gir1.2-secret-1
+Recommends: gir1.2-gtklayershell-0.1, gir1.2-keybinder-3.0, gir1.2-ayatanaappindicator3-0.1, xdg-desktop-portal
 Description: Work notes with local encrypted storage and optional Google sync
  Native GTK host with bundled editor assets and user-selected backups.
 CONTROL

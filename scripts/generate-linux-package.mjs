@@ -43,6 +43,6 @@ Terminal=false
 Categories=Office;Utility;
 StartupNotify=true
 `);
-  await writeFile(path.join(destination, 'package.json'), JSON.stringify({ appId, version: '1.0.0', runtime: ['python3>=3.12', 'python3-gi', 'python3-cairo', 'python3-cryptography', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1', 'gir1.2-secret-1'], optionalRuntime: ['gir1.2-gtklayershell-0.1', 'gir1.2-ayatanaappindicator3-0.1'], binariesBuilt: false }, null, 2) + '\n');
+  await writeFile(path.join(destination, 'package.json'), JSON.stringify({ appId, version: '1.0.0', runtime: ['python3>=3.12', 'python3-gi', 'python3-gi-cairo', 'python3-cairo', 'python3-cryptography', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1', 'gir1.2-secret-1'], optionalRuntime: ['gir1.2-gtklayershell-0.1', 'gir1.2-keybinder-3.0', 'gir1.2-ayatanaappindicator3-0.1', 'xdg-desktop-portal'], binariesBuilt: false }, null, 2) + '\n');
   console.log('Packaged build/linux/work-fleet-1.0.0 (system GTK/WebKit/Secret Service required).');
 }

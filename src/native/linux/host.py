@@ -18,6 +18,8 @@ from gi.repository import Gdk, Gio, GLib, Gtk, WebKit2
 
 from database import Database, Vault
 from service import Service
+from desktop import Desktop
+from tray import Tray
 import protocol as p
 
 ORIGIN = "workfleet://app"
@@ -127,6 +129,9 @@ class FleetApp(Gtk.Application):
         self.connect("activate", self.activate)
         self.connect("shutdown", self.shutdown)
         self.window = self.view = self.service = None
+        self.desktop = self.tray = None
+        self.native_dialogs = 0
+        self.tray_menu = False
         self.storage = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-storage")
         self.network = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-google")
         self.epoch = self.admitted = 0
@@ -145,6 +150,7 @@ class FleetApp(Gtk.Application):
         self.window.connect("delete-event", self.close_requested)
         self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
         self.window.show_all()
+        self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active)
         marker = self.directory / "profile.txt"
         try:
             profile = marker.read_text("utf-8").strip()
@@ -153,6 +159,33 @@ class FleetApp(Gtk.Application):
         if not (profile == "local" or profile.startswith("google:") and p.is_account(profile[7:])):
             profile = "local"
         self.open_store(profile)
+
+    def menu_active(self, active):
+        self.tray_menu = active
+        self.update_native_block()
+
+    def update_native_block(self):
+        if self.desktop is not None:
+            self.desktop.menu_active(self.tray_menu or self.native_dialogs > 0)
+
+    def dialog_opened(self):
+        self.native_dialogs += 1
+        self.update_native_block()
+
+    def dialog_closed(self):
+        self.native_dialogs = max(0, self.native_dialogs - 1)
+        self.update_native_block()
+
+    def tray_action(self, target, timestamp, token):
+        if target == "@capture" or self.desktop is None:
+            self.window.present_with_time(timestamp or Gdk.CURRENT_TIME)
+        if self.desktop is not None:
+            self.desktop.action(target, timestamp, token)
+
+    def close_desktop(self):
+        desktop, self.desktop = self.desktop, None
+        if desktop is not None:
+            desktop.close()
 
     def ui(self, work):
         done, result = threading.Event(), {}
@@ -176,19 +209,31 @@ class FleetApp(Gtk.Application):
         done, result = threading.Event(), {}
 
         def show():
+            if done.is_set() or self.stopped:
+                return False
             picker = Gtk.FileChooserNative.new("選擇備份資料夾", self.window, Gtk.FileChooserAction.SELECT_FOLDER, "選擇", "取消")
             result["picker"] = picker
+            self.dialog_opened()
 
             def response(dialog, code):
+                if done.is_set():
+                    return
                 result["path"] = dialog.get_filename() if code == Gtk.ResponseType.ACCEPT else None
                 dialog.destroy()
+                self.dialog_closed()
                 done.set()
             picker.connect("response", response)
             picker.show()
             return False
         GLib.idle_add(show)
         if not done.wait(110):
-            GLib.idle_add(lambda: result.get("picker") and result["picker"].destroy())
+            done.set()
+            def cancel():
+                if result.get("picker") is not None:
+                    result["picker"].destroy()
+                    self.dialog_closed()
+                return False
+            GLib.idle_add(cancel)
             raise p.Failure("backup-cancelled", "選擇備份位置逾時，請重試。")
         return result.get("path")
 
@@ -228,6 +273,7 @@ class FleetApp(Gtk.Application):
                 return False
             try:
                 self.service = future.result()
+                self.close_desktop()
                 if self.view is not None:
                     self.view.close()
                 self.view = LocalWeb(self.assets, DOCUMENT, self.receive, self.process_failed)
@@ -236,6 +282,17 @@ class FleetApp(Gtk.Application):
                 if child is not None:
                     self.window.remove(child)
                 self.window.add(self.view.web)
+                try:
+                    desktop = Desktop(self.assets, LocalWeb, self.view.event, self.window, lambda: self.tray is not None and self.tray.hide())
+                    self.desktop = desktop
+                    self.service.desktop = lambda method, args: self.ui(lambda: desktop.invoke(method, args))
+                    desktop.connect(self.view.web, "button-press-event", desktop.input)
+                    desktop.connect(self.view.web, "key-press-event", desktop.input)
+                    self.update_native_block()
+                except Exception as error:
+                    self.close_desktop()
+                    self.service.desktop = None
+                    self.service.desktop_reason = str(error) if isinstance(error, p.Failure) else "桌面呈現目前無法啟動；仍可在主畫面保存便箋。"
                 self.window.show_all()
                 self.view.load(lambda error: self.failure(error) if error else None)
             except Exception as error:
@@ -261,6 +318,7 @@ class FleetApp(Gtk.Application):
                     view.post({"v": 1, "id": value["id"], "ok": True, "result": result})
                     if method in ("google.open", "google.local", "google.signOut"):
                         self.epoch += 1
+                        self.close_desktop()
                         self.open_store(result["profileId"], persist=True)
                     elif method == "host.closeCancel":
                         self.closing = False
@@ -300,6 +358,7 @@ class FleetApp(Gtk.Application):
             picker = Gtk.FileChooserNative.new("保存檔案", self.window, Gtk.FileChooserAction.SAVE, "保存", "取消")
             picker.set_current_name(Path(suggested or "work-fleet-export").name[:240])
             picker.set_do_overwrite_confirmation(True)
+            self.dialog_opened()
 
             def selected(dialog, code):
                 file = dialog.get_file() if code == Gtk.ResponseType.ACCEPT else None
@@ -309,6 +368,7 @@ class FleetApp(Gtk.Application):
                     download.set_allow_overwrite(True)
                     download.set_destination(file.get_uri())
                 dialog.destroy()
+                self.dialog_closed()
             picker.connect("response", selected)
             picker.show()
             return True
@@ -318,21 +378,32 @@ class FleetApp(Gtk.Application):
         message = str(error) if isinstance(error, p.Failure) else "無法開啟安全工作空間，請保留 App 資料與金鑰圈後重試。"
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text="Work Fleet")
         dialog.format_secondary_text(message)
-        dialog.connect("response", lambda dialog, _response: dialog.destroy())
+        self.dialog_opened()
+        def dismissed(dialog, _response):
+            dialog.destroy()
+            self.dialog_closed()
+        dialog.connect("response", dismissed)
         dialog.show()
 
     def process_failed(self):
         self.epoch += 1
+        self.close_desktop()
         if self.service is not None:
             self.service.ready = False
         if self.view is not None:
             self.view.close()
+        if self.window is not None and not self.window.get_visible():
+            self.window.set_focus_on_map(False)
+            self.window.show_all()
         self.failure(p.Failure("native-view", "畫面程序已停止；已確認保存的資料仍保留，請重新開啟。"))
 
     def shutdown(self, _application):
         self.stopped = True
         self.vault.cancellable.cancel()
         self.epoch += 1
+        self.close_desktop()
+        if self.tray is not None:
+            self.tray.close()
         if self.view is not None:
             self.view.close()
         if self.service is not None:

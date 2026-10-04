@@ -126,4 +126,7 @@ binaries. Their distribution packages retain upstream licenses and incorporated 
 [PyGObject](https://pygobject.gnome.org/), [libsecret](https://gnome.pages.gitlab.gnome.org/libsecret/),
 [cryptography](https://github.com/pyca/cryptography/blob/main/LICENSE).
 Repository-owned Python code and generated paper icons are included with the root LICENSE.
+Optional desktop integration loads distribution-provided GtkLayerShell, Keybinder 3,
+Ayatana/AppIndicator and the XDG desktop portal service. These components are not bundled;
+their installed distribution packages supply their licenses and notices.
 An installed Linux runtime/package version inventory has not been produced on this Windows host.

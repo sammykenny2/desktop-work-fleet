@@ -1,0 +1,72 @@
+name: Apple native packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Native preview targets
+        type: choice
+        options: [both, macos, ios]
+        default: both
+      job_minutes:
+        description: Maximum runner minutes per target
+        type: choice
+        options: ['5', '10', '20']
+        default: '10'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-native-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: ${{ fromJSON(inputs.job_minutes) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: ${{ fromJSON(inputs.platform == 'macos' && '["macos"]' || inputs.platform == 'ios' && '["ios"]' || '["macos","ios"]') }}
+    env:
+      FLEET_PLATFORM: ${{ matrix.platform }}
+      WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
+      WORK_FLEET_APP_GROUP_ID: ${{ vars.WORK_FLEET_APP_GROUP_ID }}
+      WORK_FLEET_APPLE_TEAM_ID: ${{ vars.WORK_FLEET_APPLE_TEAM_ID }}
+      WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+      WORK_FLEET_GOOGLE_MACOS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_MACOS_CLIENT_ID }}
+      WORK_FLEET_GOOGLE_IOS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_IOS_CLIENT_ID }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install asset dependencies
+        run: npm ci --ignore-scripts
+      - name: Compile native app and embedded extension
+        run: bash scripts/macos/build-native-app.sh --platform "$FLEET_PLATFORM" --unsigned
+      - name: Package native preview
+        run: bash scripts/macos/package-preview-app.sh --platform "$FLEET_PLATFORM"
+      - name: Save native packages
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: work-fleet-${{ matrix.platform }}-native-preview
+          path: |
+            build/apple/preview-*/*.zip
+            build/apple/preview-*/*.ipa
+            build/apple/preview-*/README.txt
+            build/apple/preview-*/toolchain.txt
+          if-no-files-found: error
+          retention-days: 7
+      - name: Save build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: work-fleet-${{ matrix.platform }}-build-diagnostics
+          path: build/apple/DerivedData/Logs/Build
+          if-no-files-found: ignore
+          retention-days: 7

@@ -25,7 +25,7 @@
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android 原生 preview APK 已產出，含資料／帳號、原生匯出、分享及加密收件匣；iOS UIKit／Extension source 已加入，缺 Apple SDK，未產 iOS package；兩者未做裝置／Google 驗收 |
-| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 未簽章 MSIX／ZIP、Android debug APK、Linux source/runtime tar.gz 已產出；Apple export／PKG／DMG 與 Android upload signing 入口已加入。正式 AAB／Apple binary／簽章、screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
+| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 未簽章 MSIX／ZIP、Android debug APK、Linux DEB／tar.gz 已產出；Apple export／PKG／DMG／手動 hosted build 與 Android upload signing 入口已加入。正式 AAB／Apple binary／簽章、screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
 記錄使用者本輪範圍答覆及本機核心決策。
@@ -544,6 +544,23 @@ API 36／Build Tools 35.0.0，工具與 paths JSON 放在 `build/toolchain`，�
 這份 APK 使用 debug 簽章與 `app.workfleet.preview`；正式 app ID／Google／upload key 配置及 release AAB 仍待完成。
 依使用者指示未執行測試／裝置操作／審閱，沒有真登入、分享或背景回收的執行結果，也沒有獨立 review。
 Apple SDK、Linux GUI 環境仍不可用；完整 1.0 尚未完成。
+
+## 2026-10-05 Linux DEB 與 Apple hosted build 入口
+
+既有 Docker engine 為 Linux，使用官方 Ubuntu 24.04 image 的 dpkg-deb 成功封裝
+`build/linux/work-fleet_1.0.0~preview_all.deb`。使用的 image digest：
+`sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55`，已固定在 Windows wrapper 預設值。
+容器只掛載生成的 Linux bundle／output 與 packager，執行 network none，沒有安裝 App／GTK。
+共同 packager 使用新 staging、root archive ownership、有效 preview maintainer contact，
+安裝 `/usr/bin/work-fleet` launcher、desktop entry、圖示與 license documents；正式 release 要求公開設定。
+没有 Debian 安裝、GTK／Secret Service／desktop／Google 操作結果，DEB 產出不作 runtime 通過證據。
+
+Apple 新增 Debug `--unsigned` 與 preview ZIP／device IPA packager；iOS 保留嵌入 Extension。
+手動 `.github/workflows/apple-native-build.yml` 固定官方 action commit，在 hosted Mac 編譯原生
+macOS／iOS；每 job 可選 5／10／20 分鐘（預設 10），artifact 保存七天，沒有測試或商店上傳。
+本 repo 是 private；尚未啟動 hosted workflow，需維護者同意使用可能計費的 Actions 額度。
+Apple 本機 SDK 仍缺，沒有 Apple 原生 binary；公開 team／OAuth／正式簽章亦未配置。
+本輪沒有測試／審閱／獨立 review；完整 1.0 仍未達成。
 
 ## 2026-10-04 文件交付
 

@@ -9,6 +9,7 @@ npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
 bash build/linux/work-fleet-1.0.0/run-work-fleet.sh
 # 在提供 Debian 工具的環境建立安裝包：
+bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
@@ -30,6 +31,10 @@ fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新�
 
 建置入口產生 source/runtime tar.gz，Debian variant 宣告 system runtime dependencies；
 不攜帶私鑰、token、使用者資料或 Python／GTK 的複製二進位。簽章／repository 發布仍待實際環境。
+DEB preview 版本為 `1.0.0~preview`；release 使用正式公開 app 設定與支援 email 作 maintainer contact。
+共同 `scripts/linux/package-deb.sh` 每次使用新的 staging，安裝 launcher／desktop entry／圖示與 notices。
+Windows 可執行 `scripts/windows/Build-LinuxPackage.ps1`，以既有 Docker Linux engine 的固定 Ubuntu
+image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 script，不執行 GTK 或安装 App。
 每螢幕共用桌面與浮層兩個 WebKit 場景；主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
 X11 使用原生窗口層級與輸入區域；Wayland 使用 GtkLayerShell 支援的 compositor。
 不支援 layer-shell 時回報原因，仍可在主畫面記錄。卡片外與不可互動的紙面不攔截桌面輸入。

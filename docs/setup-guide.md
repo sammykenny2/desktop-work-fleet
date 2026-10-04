@@ -150,6 +150,7 @@ Windows x64 的 .NET 8 Desktop／WebView2 是執行前置條件，Windows SDK �
 .\scripts\windows\Build-WindowsPackage.ps1
 .\scripts\windows\Build-WindowsPackage.ps1 -Release -CertificateThumbprint <thumbprint> -TimestampUrl <https-url>
 .\scripts\windows\Build-AndroidApp.ps1 -Signed
+.\scripts\windows\Build-LinuxPackage.ps1
 ```
 
 Windows 每次產生新的 `build/windows/package-<id>`，未提供憑證時 MSIX 未簽章。
@@ -186,6 +187,16 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 產生 source/runtime tar.gz；`--deb` 需 Debian 工具及正式公開設定。沒有在 Windows 執行
 Linux GUI／金鑰圈／安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
+
+Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
+dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。
+Preview 檔案是 `build/linux/work-fleet_1.0.0~preview_all.deb`，適用提供上述系統依賴的發行版。
+
+Apple 手動建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
+在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub
+repository variables；不設值時採 preview ID／無 Google 的本機模式。
+Private repository 使用 hosted runner 會占用 Actions 額度，啟動前確認計費授權。
+取得 developer account／簽章後仍需前述正式 archive／export；未簽章 device IPA 需要重新簽署才可安裝。
 
 ## 既有 0.1.0 需求
 

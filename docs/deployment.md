@@ -6,7 +6,7 @@
 |---|---|---|
 | Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | MSIX／portable ZIP；.NET 8 Desktop、WebView2 runtime，封裝需 Windows SDK |
 | macOS | `scripts/macos/build-native-app.sh --platform macos --release`；`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Apple team 與 signing identities |
-| Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
+| Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
 | iOS | `scripts/macos/build-native-app.sh --platform ios --release`；`package-native-app.sh` | xcarchive／IPA；Xcode、Apple team、App／Extension 的 App Group profiles |
 | Android | `scripts/windows/Build-AndroidApp.ps1` 或 `scripts/linux/build-android-app.sh` | debug APK／release AAB；JDK 17、Gradle 8.13、Android SDK 36。Windows 可用 `Install-AndroidToolchain.ps1` 在 workspace 安裝工具 |
 
@@ -24,10 +24,16 @@ Apple export 使用 `--method app-store-connect|developer-id|debugging|release-t
 Developer ID。export destination 固定為本機，沒有自動上傳商店。macOS 開啟 hardened runtime；
 Developer ID 散布可指定 installer identity 與已存在的 Keychain notary profile，公證後 staple App／PKG。
 可選 DMG 使用 application identity 簽署；公證 DMG 必須提供該 identity。憑證、profiles 與帳號由維護者配置。
+
+Apple 可在手動 `.github/workflows/apple-native-build.yml` 使用 hosted Mac 編譯原生 unsigned
+Debug ZIP／iOS device IPA，包含 iOS Extension。Private repo hosted runner 可能占用計費額度；
+workflow 上限每 target 20 分鐘，產物保存七天。未簽章 IPA 仍需有效 signing／provisioning 才能安裝。
 Android `-Signed`／`--signed` 要求四個簽章環境變數並產生 release AAB，詳見
 [商店準備](release/README.md)。一般 release 在沒有 signing inputs 時產生未簽章 AAB。
 Linux runtime tar.gz 沒有內嵌 Python／GTK；DEB 交給支援該依賴版本的發行版。
 不同 distro、CPU、X11／Wayland、桌面與 compositor 的行為仍需各自取得證據。
+Linux preview DEB 使用 `1.0.0~preview` 與 preview maintainer contact；release 使用正式 email。
+Windows 的 Docker 封裝只執行 dpkg-deb，沒有在 container 安裝 GUI、App 或提供 runtime 驗收結果。
 
 1.0 授權見 [第三方聲明](../THIRD-PARTY-NOTICES.md) 及 `src/native/licenses/`。
 SPM／Android 最終 SDK 授權盤點、真實原生截圖與商店表單仍依最終散布產物準備，見

@@ -19,6 +19,13 @@ Release 先檢查 `.env` 公開設定，再 archive；簽章／provisioning 在 
 與 Keychain notary profile 公證並 staple。DMG 公證另要求 application identity；腳本不含私鑰。
 macOS target 啟用 hardened runtime。命令與平台限制見 [散布文件](../../../docs/deployment.md)。
 
+沒有 signing identity 時，Debug 可使用 `--unsigned` 編譯原生 macOS／iOS device App；
+`scripts/macos/package-preview-app.sh --platform macos|ios` 保存 ZIP／未簽章 IPA。
+這是 native compiled preview；protected storage／Google 或 iOS 安裝仍需合適的簽章／profile。
+`--unsigned` 不允許 Release，也不跳過正式 archive 的配置要求。
+`.github/workflows/apple-native-build.yml` 提供手動 hosted Mac 建置與七天 artifact 保存，
+每 target 上限 20 分鐘，沒有測試／store upload；private repo 的 runner 計費需維護者先同意。
+
 GoogleSignIn Apple SDK 的 macOS、iOS client 都使用 **iOS 類型 OAuth client**，各自符合
 實際 bundle ID，分別填 `.env` 的 MACOS／IOS client ID。產生器加入 reversed client URL scheme。
 Apple 簽章憑證與 Keychain access group 是登入及安全保存的必要條件；未簽章 simulator 不代表真登入可用。

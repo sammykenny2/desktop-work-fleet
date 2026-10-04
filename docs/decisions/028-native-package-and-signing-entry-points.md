@@ -30,6 +30,16 @@ Windows 可選 workspace Android toolchain installer，使用官方固定 SDK to
 及 SHA-256，接受所需 SDK 條款後安裝 API 36／Build Tools 35.0.0。工具、SDK、快取與路徑 JSON
 位於忽略的 `build/`；不修改系統 PATH。公開 SDK 路徑可由 `.env`／process environment 覆蓋。
 
+Linux DEB 委派給獨立 dpkg-deb script；Windows 可使用既有 Docker Linux engine，在固定 Ubuntu
+image 中執行。容器只掛載生成的 Linux bundle／output 與封裝 script，執行時 network none，
+不安装 App 或 GUI runtime。Preview 使用 `1.0.0~preview`，release 需正式公開配置與 maintainer email。
+每次建立新的 staging 目錄，保留產物；安裝 launcher 與 license documents，使用 root archive ownership。
+
+Apple 加入手動 GitHub workflow，固定官方 actions commit，使用 GitHub macOS runner 編譯
+未簽章 Debug 的 macOS App 與 iOS device App／Extension，保留 ZIP／IPA 與 builder version。
+工作上限每 target 20 分鐘，僅手動觸發，不在 push 執行測試。Private repository 的 hosted runner
+可能使用計費額度，實際啟動需維護者同意；沒有 developer account／簽章時僅為 native preview。
+
 ## Consequences
 
 ### Positive
@@ -54,3 +64,6 @@ Windows 可選 workspace Android toolchain installer，使用官方固定 SDK to
 - [Microsoft MakeAppx](https://learn.microsoft.com/en-us/windows/msix/package/create-app-package-with-makeappx-tool)。
 - [Microsoft packaged desktop manifest](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-manual-conversion)。
 - [Apple notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。
+- [Debian binary package format](https://manpages.debian.org/bookworm/dpkg-dev/deb.5.en.html)。
+- [Debian control fields](https://www.debian.org/doc/debian-policy/ch-controlfields.html)。
+- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。

@@ -137,6 +137,10 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 全域鍵、選單列及螢幕生命週期。尚未在 Apple SDK 編譯；操作細節及剩餘交付見
 [Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
 
+iOS 分享接收另嵌入 `<APP_ID>.share` Extension；在同一 Apple team 為 App／Extension 啟用
+App Groups。`.env.example` 的 `WORK_FLEET_APP_GROUP_ID` 可指定公開 group ID，空值採
+`group.<WORK_FLEET_APP_ID>`。實際 signing profiles 需包含此 group，憑證留 Xcode／Keychain。
+
 ## Linux 1.0 原生建置
 
 需要 Linux 的 Python 3.12+、GTK 3、WebKitGTK 4.1、PyGObject／cairo、libsecret／系統金鑰圈

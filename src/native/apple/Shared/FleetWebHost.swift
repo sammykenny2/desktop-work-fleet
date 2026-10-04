@@ -58,6 +58,9 @@ import UIKit
                 guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }; return try await self.chooseDirectory()
             })
             if let service { try await configure?(service) }
+            #if os(iOS)
+            if let inbox = try? FleetCaptureInbox() { await service?.setCapture { method, args in try await inbox.invoke(method, args) } }
+            #endif
             await service?.setExports { [weak self] bytes, name, action in
                 guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }
                 #if os(macOS)

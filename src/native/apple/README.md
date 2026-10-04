@@ -40,4 +40,11 @@ macOS 桌面 visual panel 始終 ignoresMouseEvents；只有可操作或已開�
 iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。
 傳輸沿用有容量與 SHA-256 核對的 owner staging；分享暫存使用完整檔案保護，完成／取消後清除。
 原生對話框逾時或帳號切換終止待處理的 iOS 匯出。分享至其他 App 不表示已送達收件人。
-外部分享接收與 Share Extension 尚未加入，仍屬完整手機交付範圍。
+Xcode 產生器另建立並嵌入 WorkFleetShare.appex；Share Extension 接收文字、網址與檔案。
+App 與 Extension 的 App Group 由 `WORK_FLEET_APP_GROUP_ID` 設定，空值採 `group.<APP_ID>`；
+須在同一 Apple team 登記 App Group，並加入主 App 與 `<APP_ID>.share` 的 signing profile。
+收件匣以 App Group 共享 container 與 Keychain key 做 AES-GCM 保護、flock 排他與完整檔案保護。
+Extension 只保存接收項目，不讀取主 App 的 Workspace／Google 憑證，不強制開啟主 App。
+主 App 前景／重啟更新收件匣，使用者選群組保存草稿後才移除原項目；失敗與重試保留 receipt。
+一次最多 256 KiB 文字、16 個檔案、25 MiB 檔案總量；收件匣最多 64 份／512 MiB。
+App Groups 未配置時主 App 仍可編輯便箋，但收件匣不可用；原生 Extension／檔案提供者仍未執行。

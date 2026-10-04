@@ -18,6 +18,7 @@
     <nav id="groups" aria-label="群組"></nav>
     <div class="sidebar-bottom">
       <button id="drafts-button">未完成草稿 <span id="draft-count">0</span></button>
+      <button id="capture-inbox-button" hidden>分享收件匣 <span id="capture-count">0</span></button>
       <button id="conflicts-button">版本與衝突 <span id="conflict-count">0</span></button>
       <button id="settings-button">顯示與排列設定</button>
       <button id="google-sign-in" hidden>登入 Google</button>
@@ -44,6 +45,18 @@
     <section id="list" aria-label="便箋清單" hidden></section>
     <footer><span id="mode-label">日常觀看</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
   </main>
+  <dialog id="capture-inbox-dialog">
+    <h2>分享收件匣</h2><p>選擇群組後，內容將保留為目前工作空間的草稿。</p>
+    <div id="capture-list"></div>
+    <pre id="capture-preview" hidden></pre><ul id="capture-files"></ul>
+    <label class="field">接收群組<select id="capture-group"></select></label>
+    <p id="capture-result" role="status"></p>
+    <div class="dialog-actions"><button id="close-capture">關閉</button><button id="discard-capture" disabled>捨棄此分享</button><button id="accept-capture" class="primary" disabled>接收為草稿</button></div>
+  </dialog>
+  <dialog id="discard-capture-dialog">
+    <h2>捨棄此分享？</h2><p>這會移除收件匣中的這份分享。</p>
+    <div class="dialog-actions"><button id="cancel-discard-capture">取消</button><button id="confirm-discard-capture">確認捨棄</button></div>
+  </dialog>
   <dialog id="editor-dialog">
     <form id="editor-form">
       <header><div><span class="eyebrow">一張便箋，一件事情</span><h2 id="editor-title">記下想法</h2></div><button type="button" id="close-editor" aria-label="保留草稿並關閉">✕</button></header>

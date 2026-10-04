@@ -25,6 +25,8 @@ export async function readBuildConfig(root, environment = process.env) {
     throw new Error('WORK_FLEET_APP_ID 每段必須以字母開頭且只含英數，以符合 Apple／Android 的共同格式。');
   }
   if (config.appleTeamId && !/^[A-Z0-9]{10}$/.test(config.appleTeamId)) throw new Error('WORK_FLEET_APPLE_TEAM_ID 必須是 10 碼英數識別字。');
+  config.appleAppGroupId = value('WORK_FLEET_APP_GROUP_ID') || `group.${config.appId || 'app.workfleet.preview'}`;
+  if (!/^group\.[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+$/.test(config.appleAppGroupId)) throw new Error('WORK_FLEET_APP_GROUP_ID 必須是 group. 開頭的有效 App Group ID。');
   for (const [name, url] of Object.entries({ WORK_FLEET_PRIVACY_URL: config.release.privacyUrl, WORK_FLEET_SUPPORT_URL: config.release.supportUrl })) {
     if (url) {
       let parsed;

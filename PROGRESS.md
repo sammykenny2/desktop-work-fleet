@@ -24,7 +24,7 @@
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
-| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料與帳號、前背景通知、原生匯出及文字／附件分享已加入；外部分享接收與平台散布待完成；缺 SDK，未產原生 package 或做裝置驗收 |
+| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料與帳號、前背景通知、原生匯出、分享及加密收件匣／iOS Extension 已加入；平台散布待完成；缺 SDK，未產原生 package 或做裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 商店文案／隱私草稿／提交資料、Android build wrappers、Apple Xcode 產生器／圖示／archive 入口已加入；其他封裝、正式簽章／screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
@@ -501,6 +501,18 @@ iOS 使用系統 activity sheet、完整暫存檔案保護、iPad popover、取�
 外部分享接收／iOS Share Extension、五平台完整散布仍未完成。
 本輪 web build、Apple Xcode 專案生成與 Linux tar.gz 更新完成，無 Android／Apple 原生 binary。
 決策見 [ADR-026](docs/decisions/026-native-file-export-and-sharing.md)。
+
+## 2026-10-05 外部分享收件匣
+
+Android SEND／SEND_MULTIPLE、iOS Share Extension 與共用收件匣介面已加入。
+文字／標題／網址與授權檔案先存至加密佇列，使用者選擇目前工作空間的群組後才保存為草稿。
+SQLite 草稿成功後以原 item receipt 清除原項目；回覆遺失或清理失敗重試辨識已保存草稿／卡片。
+256 KiB 文字、16 個檔案／25 MiB、64 份收件項目／512 MiB 上限，錯誤保留原內容。
+Android no-backup 私有目錄＋Keystore／AES-GCM；iOS App Group container＋共享 Keychain／AES-GCM、
+flock 與完整檔案保護。Extension 無主 App 的 DB／Google 權限，不強制開啟主 App。
+Xcode 產生器含 Extension target、embed phase、依賴及 App Group entitlements；公開 group ID 可由 .env 配置。
+依使用者指示未跑測試或審閱；Android／Apple SDK 不可用，沒有原生 binary 或 Extension 執行結果。
+見 [ADR-027](docs/decisions/027-native-share-inbox-and-extension.md)，接續完整平台封裝與簽章準備。
 
 ## 2026-10-04 文件交付
 

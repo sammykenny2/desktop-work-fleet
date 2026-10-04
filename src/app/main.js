@@ -13,6 +13,7 @@ import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser
 import { startAutomaticBackup } from '../backup/lifecycle.js';
 import { connectNative } from '../native/bridge.js';
 import { NativeFiles } from '../native/files.js';
+import { NativeCaptureInbox } from '../native/capture.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
 import { DesktopAuthority } from '../desktop/authority.js';
@@ -34,6 +35,7 @@ let settingsSlots = [];
 let automatic; let automaticError;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let nativeFiles;
+let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = [];
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
@@ -147,6 +149,12 @@ async function initialize() {
   bindEvents(); render(); status(native?.info.desktopReason || '已開啟本機資料');
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
+  if (native?.info.capabilities.shareInbox) {
+    captureInbox = new NativeCaptureInbox(native, workspace, storage); $('#capture-inbox-button').hidden = false;
+    native.bridge.onEvent('host-capture', () => { void refreshCaptures().catch(error => status(error.message, true)); });
+    native.bridge.onEvent('host-foreground', () => { void refreshCaptures().catch(error => status(error.message, true)); });
+    await refreshCaptures();
+  }
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
     if (desktopInfo || $('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
@@ -292,6 +300,21 @@ function initializeDesktop() {
     dismiss: async () => { await controller.activate({ kind: 'none' }); render(); },
   });
   addEventListener('pagehide', () => desktop.close());
+}
+
+async function refreshCaptures(force = false) {
+  const items = await captureInbox.list(); $('#capture-count').textContent = items.length;
+  if (!$('#capture-inbox-dialog').open || captureBusy && !force) return;
+  const list = $('#capture-list'); list.replaceChildren(); selectedCapture = null;
+  $('#capture-preview').hidden = true; $('#capture-files').replaceChildren(); $('#accept-capture').disabled = true; $('#discard-capture').disabled = true;
+  if (!items.length) list.append(element('p', '目前沒有待接收的分享。'));
+  for (const item of items) list.append(button(`${item.preview || '分享檔案'}${item.fileCount ? ` · ${item.fileCount} 個附件` : ''}`, async () => {
+    if (captureBusy) return;
+    selectedCapture = item.damaged ? item : await captureInbox.item(item.id);
+    $('#capture-preview').textContent = selectedCapture.text || selectedCapture.preview || '只有附件'; $('#capture-preview').hidden = false;
+    $('#capture-files').replaceChildren(...(selectedCapture.attachments || []).map(file => element('li', `${file.name} · ${Math.ceil(file.size / 1024)} KiB`)));
+    $('#accept-capture').disabled = Boolean(item.damaged); $('#discard-capture').disabled = false;
+  }));
 }
 
 function renderShortcutStatus() {
@@ -815,6 +838,29 @@ function bindEvents() {
   $('#editor-form').onsubmit = event => { event.preventDefault(); run(() => saveEditor()); };
   $('#save-copy').onclick = () => run(() => saveEditor(true));
   $('#keep-draft').onclick = () => run(closeEditor); $('#close-editor').onclick = () => run(closeEditor);
+  $('#capture-inbox-button').onclick = () => run(async () => {
+    if (!activeGroups(workspace.snapshot).length) { const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render(); }
+    fillGroups($('#capture-group'), activeGroupId); $('#capture-result').textContent = ''; $('#capture-inbox-dialog').showModal(); await refreshCaptures();
+  });
+  $('#close-capture').onclick = () => { if (!captureBusy) $('#capture-inbox-dialog').close(); };
+  $('#capture-inbox-dialog').addEventListener('cancel', event => { if (captureBusy) event.preventDefault(); });
+  $('#accept-capture').onclick = () => run(async () => {
+    if (captureBusy || !selectedCapture) return; captureBusy = true; $('#accept-capture').disabled = true; $('#discard-capture').disabled = true; $('#capture-group').disabled = true; $('#capture-result').textContent = '正在保存分享草稿…';
+    try {
+      const result = await captureInbox.accept(selectedCapture, $('#capture-group').value); selectedCapture = null;
+      render(); await refreshCaptures(true); $('#capture-inbox-dialog').close();
+      if (result.draftId) await openEditor(null, workspace.state.drafts[result.draftId]);
+      else status('此分享已接收為便箋。');
+    } catch (error) { render(); $('#capture-result').textContent = error.message; throw error; }
+    finally { captureBusy = false; $('#capture-group').disabled = false; $('#accept-capture').disabled = !selectedCapture || Boolean(selectedCapture.damaged); $('#discard-capture').disabled = !selectedCapture; }
+  });
+  $('#discard-capture').onclick = () => { if (!captureBusy && selectedCapture) $('#discard-capture-dialog').showModal(); };
+  $('#cancel-discard-capture').onclick = () => $('#discard-capture-dialog').close();
+  $('#confirm-discard-capture').onclick = () => run(async () => {
+    if (captureBusy || !selectedCapture) return; captureBusy = true;
+    try { await captureInbox.discard(selectedCapture); $('#discard-capture-dialog').close(); selectedCapture = null; await refreshCaptures(true); }
+    finally { captureBusy = false; }
+  });
   $('#editor-dialog').oncancel = event => { event.preventDefault(); if (!composing) run(closeEditor); };
   $('#attachment-input').onchange = () => run(async () => {
     const files = [...$('#attachment-input').files]; setEditorBusy(true);

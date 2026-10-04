@@ -56,9 +56,13 @@ public final class FleetActivity extends Activity {
     private int admitted;
     private boolean finishing;
     private FleetExports exports;
+    private CaptureInbox captures;
+    private String incomingId;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         exports = new FleetExports(this);
+        incomingId = state == null ? Protocol.uuid() : state.getString("incomingId", Protocol.uuid());
+        try { captures = new CaptureInbox(this); } catch (Exception ignored) { captures = null; }
         try {
             byte[] bytes; try (java.io.InputStream stream = getAssets().open("config/public.json")) { bytes = Protocol.bytes(stream, 65536); }
             config = Protocol.json(bytes); profile = getPreferences(MODE_PRIVATE).getString("profile", "local"); openStore();
@@ -109,6 +113,7 @@ public final class FleetActivity extends Activity {
                 return insets;
             });
             web.loadUrl(DOCUMENT);
+            receiveShare(getIntent());
         } catch (Exception error) { new AlertDialog.Builder(this).setMessage(error instanceof Protocol.Failure ? error.getMessage() : "無法開啟安全工作空間；請保留 App 資料並重試。").setPositiveButton("關閉", (dialog, which) -> finish()).show(); }
     }
     private void openStore() throws Exception { database = new FleetDatabase(this, profile); bridge = new FleetBridge(database, this); google = new GoogleFiles(this, database, config); }
@@ -125,6 +130,8 @@ public final class FleetActivity extends Activity {
                     case "google.local": switchTo = "local"; result = Protocol.object("profileId", switchTo); break;
                     default: result = account.invoke(method, args, session);
                 }
+            } else if (method.startsWith("capture.")) {
+                Protocol.require(captures != null, "capture-unavailable", "分享收件匣目前不可用。"); result = captures.invoke(method, args, session);
             } else if (method.equals("file.export")) result = exports.export(args, session);
             else result = session.invoke(method, args);
             response = Protocol.object("v", 1, "id", id, "ok", true, "result", result);
@@ -154,6 +161,17 @@ public final class FleetActivity extends Activity {
             try { ownerProxy.postMessage(Protocol.object("v", 1, "event", name).toString()); } catch (Exception ignored) { }
         }
     }
+    boolean capturesAvailable() { return captures != null; }
+    private void receiveShare(Intent intent) {
+        if (intent == null || (!Intent.ACTION_SEND.equals(intent.getAction()) && !Intent.ACTION_SEND_MULTIPLE.equals(intent.getAction()))) return;
+        final String id = incomingId;
+        storageWorker.execute(() -> {
+            try { Protocol.require(captures != null, "capture-unavailable", "分享收件匣目前不可用，請保留原內容後重試。"); captures.offer(intent, id); runOnUiThread(() -> lifecycleEvent("host-capture")); }
+            catch (Exception error) { runOnUiThread(() -> { if (!destroyed) new AlertDialog.Builder(this).setTitle("分享尚未接收").setMessage(error instanceof Protocol.Failure ? error.getMessage() : "無法讀取分享內容，請保留原檔後重試。").setPositiveButton("確定", null).show(); }); }
+        });
+    }
+    @Override protected void onNewIntent(Intent intent) { super.onNewIntent(intent); setIntent(intent); incomingId = Protocol.uuid(); receiveShare(intent); }
+    @Override protected void onSaveInstanceState(Bundle state) { state.putString("incomingId", incomingId); super.onSaveInstanceState(state); }
     @Override protected void onPause() { lifecycleEvent("host-background"); super.onPause(); }
     @Override protected void onResume() { super.onResume(); lifecycleEvent("host-foreground"); }
     boolean googleConfigured() {

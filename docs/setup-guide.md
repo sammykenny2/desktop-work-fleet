@@ -55,6 +55,8 @@ npm run config:check -- --platform windows
 第一個命令列出五平台缺少哪些設定；指定平台時，缺少發佈所需公開設定即以非零狀態結束。
 `npm run build` 讀取設定並產生 `build/config/public.json` 供原生封裝使用，僅輸出允許的公開欄位。
 目前這是設定入口及驗證，不代表 Google 登入／原生封裝已完成；執行狀態見 PROGRESS。
+FileSync／Google Drive REST adapter 已可執行合成傳輸測試；預覽尚未接原生受保護 HTTP／OAuth，
+填 client ID 不會自動開啟登入，也不會傳送既有預覽資料。
 
 Google 設定步驟：在同一 Cloud project 啟用 Drive API，設定 OAuth consent screen／測試使用者，
 桌面建立 Desktop app client，iOS 建立符合 bundle ID 的 client，Android 建立符合 package／

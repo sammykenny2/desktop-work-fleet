@@ -2,10 +2,12 @@
 
 ## Status
 
-Proposed，2026-10-03。
+原提案：2026-10-03；provider／資料空間於 2026-10-04 由
+[ADR-012](012-durable-file-store-and-drive-adapter.md) 採納並取代。下列保留當時的範圍候選，
+不能覆蓋已批准的五平台／editor／完整備份要求。
 使用者已確定先做 Google 帳號／file based 的簡單便箋，第一版不架 local server；
 Drive provider、資料空間與衝突格式是本提案的建議。
-Windows/macOS/Linux 是必要桌面目標；同版發佈節奏尚待確認。
+Windows/macOS/Linux 與 iOS／Android 原生及商店準備已納入本次完整 1.0。
 2026-10-04 的卡片／群組／formation／操作規範見 [ADR-006](006-card-group-and-formation-semantics.md)。
 本文尚未批准的 editor／備份範圍不能覆蓋最新需求。
 

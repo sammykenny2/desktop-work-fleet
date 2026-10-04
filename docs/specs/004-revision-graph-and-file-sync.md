@@ -126,10 +126,30 @@ Drive appDataFolder adapter 使用 drive.appdata，upload 使用預產生且已�
 附件先完成可校驗傳輸才上傳引用它的新版本；下載缺附件時保留文字及明確待補狀態。
 配額與暫時網路錯誤退避可重試，撤權需重新登入，不能以新 operation ID 無限重送。
 
+具體傳輸採 [ADR-012](../decisions/012-durable-file-store-and-drive-adapter.md)：FileDescriptor 包含
+id／kind／sha256／size；provider file ID 為 1–256 個 ASCII 英數、`_`、`-`，拒絕危險 object key。
+Workspace.sync.files 記錄已確認 descriptor，sync.uploads 按 revision ID／附件 hash 保存 reservation。
+相同檔案 ID 的 kind／digest／size 不可變，不能在之後的分頁或 upload ack 改寫。
+每頁最多 1,000 descriptors；Drive adapter 實際請求 100，服務回應 JSON 上限 2 MiB。
+
+全掃描的資料逐頁提交但 cursor 保持 null；全部完成後才提交掃描前起點，再追 changes。
+本機 ack 失敗仍保留 reservation／outbox；重啟經讀回核對才清除，完整 revision 歷史始終保留。
+已驗證附件可先落盤而 metadata 提交失敗；這只留下未引用 bytes，不構成已成功同步。
+一個 coordinator 的並行 sync 呼叫合併成同一工作；stop abort 及 session 核對拒絕晚到回覆。
+退避為 1–60 秒指數上限加 jitter，並尊重服務 Retry-After；force 只略過等待，不略過完整性驗證。
+
+Drive 非空檔以 1 MiB chunks 傳送，檢查 Range 而不猜已收長度。所有 resumable 4xx 重開 session，
+仍沿用原 file ID。Google server checksum 缺少時讀回 bytes；私密上傳 URL 只放 adapter 記憶體。
+程序重啟可能重送附件前段，不能宣稱跨程序保留 byte offset。
+原生 HTTP 需在串流中限制回應大小、拒絕 redirect，renderer 不可取得 token 或任意 HTTP bridge。
+登入既有帳號建立空 profile 後先拉來源，不能每裝置自行增加 starter group。
+
 ## Design Overview
 
 `src/sources/json.js` 提供嚴格解析／正規編碼，`revisions.js` 提供版本驗證與純版本圖。
 Workspace 再負責原子保存、投影、草稿及明確決議；FileStore 協調者負責分頁／游標／重試。
+`src/sources/file-sync.js` 實作協調，`google-drive.js` 實作 REST 格式及 resumable，
+原生 account-bound AuthorizedDriveRequest 與 OAuth 授權仍由 host 整合。
 Renderer 不取得 Google token；原生 host 的授權／憑證儲存與公開設定分離。
 `.env.example` 與 `npm run config:check` 提供公開設定入口；帳號與正式簽章由維護者建立。
 

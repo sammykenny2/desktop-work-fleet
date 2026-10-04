@@ -2,8 +2,9 @@ import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, 
 import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
 import { canonicalJson } from '../sources/json.js';
-import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
+import { encodeRevision, revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
+import { sha256, validDigest, validateFile } from '../sources/files.js';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
@@ -61,12 +62,12 @@ export class Workspace {
   #graph;
   #runtimeId = crypto.randomUUID();
 
-  static async create({ profileId, deviceId, area, persist, uuid = () => crypto.randomUUID() }) {
-    const group = { id: uuid(), name: '我的便箋', revision: uuid(), deleted: false };
-    const state = { schemaVersion: 1, profileId, revision: 0, groups: [group], cards: [],
-      drafts: {}, membershipRebases: {}, outbox: [{ operationId: group.revision, kind: 'group', entityId: group.id,
-        parents: [], value: copy(group) }], revisions: [revisionRecord('group', group)],
-      conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, [group], area) };
+  static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID() }) {
+    const groups = bootstrapGroup ? [{ id: uuid(), name: '我的便箋', revision: uuid(), deleted: false }] : [];
+    const state = { schemaVersion: 1, profileId, revision: 0, groups, cards: [],
+      drafts: {}, membershipRebases: {}, outbox: groups.map(group => ({ operationId: group.revision, kind: 'group', entityId: group.id,
+        parents: [], value: copy(group) })), revisions: groups.map(group => revisionRecord('group', group)),
+      conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, groups, area) };
     await persist(copy(state), null);
     return new Workspace(state, persist, uuid);
   }
@@ -92,6 +93,10 @@ export class Workspace {
     conflicts: copy(this.#state.conflicts) }; }
   get state() { return copy(this.#state); }
   get layout() { return this.#layout; }
+  get syncState() { return copy(this.#state.sync); }
+  get pendingOperations() { return copy(this.#state.outbox); }
+  assertSyncSession(session) { this.#session(this.#state, session); }
+  uploadState(session, operation) { this.#session(this.#state, session); return copy(this.#state.sync.uploads?.[operation] || null); }
 
   #commit(change) {
     const operation = this.#tail.then(async () => {
@@ -197,13 +202,58 @@ export class Workspace {
     return this.#commit(state => { this.#session(state, session); state.sync.sessionId = null; });
   }
 
-  async receiveRevisions(records, { session, expectedCursor, cursor }) {
+  #file(state, file) {
+    state.sync.files ||= {};
+    const previous = Object.hasOwn(state.sync.files, file.id) ? state.sync.files[file.id] : null;
+    requireValue(!previous || canonicalJson(previous) === canonicalJson(file), 'file-changed', '原有同步檔案已被修改，資料仍保留，請處理來源完整性。');
+    state.sync.files[file.id] = copy(file);
+  }
+
+  async reserveUpload(session, key, file) {
+    session = copy(session); file = validateFile(file);
+    if (file.kind === 'revision') {
+      const record = this.#graph.get(key);
+      requireValue(record, 'missing-revision', '找不到待同步版本。');
+      const bytes = encodeRevision(record);
+      requireValue(file.size === bytes.byteLength && file.sha256 === await sha256(bytes), 'upload-mismatch', '待同步檔案與不可變版本不符。');
+    } else requireValue(validDigest(key) && key === file.sha256, 'upload-mismatch', '附件必須以內容校驗值定址。');
+    return this.#commit(state => {
+      this.#session(state, session); state.sync.uploads ||= {};
+      const operation = `${file.kind}:${key}`;
+      const existing = state.sync.uploads[operation];
+      if (existing) {
+        requireValue(existing.file.kind === file.kind && existing.file.sha256 === file.sha256 && existing.file.size === file.size,
+          'upload-mismatch', '重試的檔案內容與原始操作不符。');
+        return copy(existing);
+      }
+      if (file.kind === 'revision') requireValue(state.outbox.some(item => item.operationId === key), 'missing-outbox', '這筆版本已同步或不在待送清單。');
+      requireValue(!Object.values(state.sync.uploads).some(item => item.file.id === file.id) && !Object.hasOwn(state.sync.files || {}, file.id),
+        'file-id-collision', '來源配置了已使用的檔案身分，尚未上傳。');
+      const upload = { file, complete: false };
+      state.sync.uploads[operation] = copy(upload); return copy(upload);
+    });
+  }
+
+  async completeUpload(session, operation, fileId) {
+    session = copy(session);
+    return this.#commit(state => {
+      this.#session(state, session);
+      const upload = state.sync.uploads?.[operation];
+      requireValue(safeKey(operation) && upload?.file?.id === fileId, 'upload-mismatch', '上傳回應不屬於目前操作。');
+      upload.complete = true; this.#file(state, upload.file);
+      if (upload.file.kind === 'revision') state.outbox = state.outbox.filter(entry => `revision:${entry.operationId}` !== operation);
+    });
+  }
+
+  async receiveRevisions(records, { session, expectedCursor, cursor, files = [] }) {
     records = records.map(validateRevision); session = copy(session);
+    files = files.map(validateFile);
     requireValue(cursor === null || (typeof cursor === 'string' && cursor.length <= 8192), 'invalid-cursor', '同步游標無效。');
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
       this.#session(state, session);
       requireValue(state.sync.cursor === expectedCursor, 'stale-cursor', '已有更新的同步進度，請重新取得游標。');
       requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試同步。');
+      for (const file of files) this.#file(state, file);
       const graph = this.#graph.fork(records);
       const known = new Set(state.revisions.map(item => item.revisionId));
       for (const record of records) if (!known.has(record.revisionId)) {

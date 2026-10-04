@@ -20,7 +20,7 @@
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域與快捷鍵設定已完成並經真 Edge 與獨立審閱；原生保存整合、大容量與完整平台設定仍待補齊 |
-| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 嚴格 JSON、版本圖、Workspace 原子投影／cursor、衝突與歷史 UI 已有實作及故障測試；FileStore／Drive transport 待接，Google 設定尚未建立 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 版本圖、Workspace 原子交易、衝突 UI、FileSync／Drive REST adapter 已實作及故障測試；原生保護 transport、OAuth、UI 連接及真 Google 尚待完成，公開設定尚未建立 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 範圍已核准，格式與交易實作尚待完成 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
@@ -152,6 +152,33 @@ Google FileStore、真實 OAuth、附件遠端傳輸及五平台驗收仍未包�
 複核包含保存失敗／queue 交錯／重啟、第三分支拒絕舊決議、草稿／geometry／附件保留、
 HTML 只下載、390px 零有效群組恢復；十組→九組格局與轉組重試半套成功兩项 P2 均修正並複核。
 這些結果不取代 Google、原生 host 或實體 OS IME 證據。
+已提交並推送 main：`f960f8c`。
+
+### FileStore／Drive 傳輸子切片
+
+- FileSync 以固定 source／session 協調全掃描起點、changes 分頁、cursor／資料原子提交、
+  outbox 與附件；全掃描中斷 cursor 保持 null，可重播先前保存的頁。
+- 預產生 file ID 先寫入 durable reservation，再傳送不可變 bytes。回應遺失或本機 ack 失敗後
+  沿用同 ID；409 讀回核對才承認成功。移除 outbox 不刪本機版本歷史。
+- 附件先於引用它的版本傳送；下載 hash／size 檢查及 octet-stream 落盤。缺附件／未知格式／
+  檔案消失或被修改均保留資料，不能用來源缺席推論刪除。
+- GoogleDriveFileStore 實作 appDataFolder 專用 REST 路由、私有 metadata、預產生 ID、
+  1 MiB resumable chunks／Range 續傳、4xx 重開 session、checksum／讀回確認、配額／撤權錯誤。
+  將私密 Location 限制在固定 Google HTTPS host／路徑，錯誤不回顯遠端 body。
+- 新裝置可建立空 profile 先接來源；single flight、退避、abort 及晚到 session 拒絕保留本機資料。
+  Upload URL 只在 adapter 記憶體，程序重啟可從原 file ID 重送，未宣稱跨程序保留 byte offset。
+
+接受範圍見 [ADR-012](docs/decisions/012-durable-file-store-and-drive-adapter.md)。
+目前沒有原生 AuthorizedDriveRequest、OAuth／安全儲存或真 Google 帳號整合，也未在預覽 UI 宣稱已連接。
+五平台 client 可見性與 live Drive、host／備份／商店仍屬完整目標的後續工作。
+
+作者驗證：完整 124/124 JS、build、真 Edge／IndexedDB sync probe 通過。
+probe 驗證 durable reservation、回應遺失重啟後同 file ID、校驗失敗不替換舊附件、profile 隔離、
+兩個獨立 profile 的離線分支與重開保存。傳輸為合成 FileStore／scripted HTTP，沒有真 Google 證據。
+文件 65 份／343 相對連結、UTF-8／LF 與 diff whitespace 通過。
+獨立唯讀審閱完成，無未解決 finding；resumable 4xx 沿用失效 session 的 P2 已修正並複核。
+獨立驗證包含 31/31 相關 tests、自建 REST 的 11 次成功回應遺失／5 次保存中止與重啟，
+及真 Edge／IDB 的附件快照競爭、交易中止、校驗／分區、整頁失敗後重試與 disk/cache 一致。
 
 ## 2026-10-04 文件交付
 
@@ -171,8 +198,8 @@ HTML 只下載、390px 零有效群組恢復；十組→九組格局與轉組重
 
 按上方 1.0 執行切片繼續，保留 SPEC-003 全部 U／D 及已答 Q 的完整範圍。
 正式 host／SDK 選型需符合五平台與公開 API／商店目標，不能沿用 prototype server 作 1.0。
-Drive／備份承接 ADR-004／005 的 Proposed 設計，須補上群組模型與已核准完整範圍。
-Google 登入、OAuth 專案、SDK、Drive 寫入、正式商店設定都未實作或操作。
+Drive 以 SPEC-004／ADR-012 已定案的版本及傳輸整合原生授權；備份承接 ADR-005 候選，
+須補上群組模型與已核准完整範圍。Google 登入、OAuth 專案、實際 Drive 寫入與商店設定尚未完成。
 
 ## 目前交付
 

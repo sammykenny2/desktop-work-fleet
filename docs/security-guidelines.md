@@ -16,7 +16,12 @@
 - 同步版本採嚴格 JSON 與不可變 ID；重複欄位、collision、cycle 或跨 entity parent 整批拒絕。
   來源 session 必須符合 profile／source／runtime，資料與 cursor 同交易；晚到回應不能跨帳號寫入。
   多 head 與歷史均保留；普通命令不能靜默消耗衝突，明確決議還需核對完整 head 集合。
-  來源無關交易已測，Google OAuth／transport 仍需另外驗收。
+  來源無關交易及 scripted Drive REST 已測，Google OAuth／原生 transport 仍需另外驗收。
+- FileSync 在上傳前保存固定 file ID／digest／size；409 必須讀回核對，ack 才能消耗 outbox。
+  已確認檔案 ID 不可更改內容；遠端刪檔／格式未知／不完整列舉停止推進，不刪本機版本。
+  Google adapter 限制 Location 為同一 HTTPS API host／上傳路徑，錯誤不回顯私密 response body。
+  受保護原生 HTTP 尚須實作拒絕 redirect、串流大小限制及帳號撤銷；不得把此介面公開為 renderer 任意請求。
+  Upload URL 目前僅在 adapter 記憶體，程序重啟用持久 file ID 安全重送；不進 JSON／backup／log。
 - 開發 listener 僅 loopback 靜態資產，沒有便箋或 token API。原生 host 的 OAuth、OS 安全儲存、
   加密備份與正式封裝尚需各自驗收，不能由此介面測試代替。
 

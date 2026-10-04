@@ -1,4 +1,5 @@
 import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
+import { sha256, validDigest } from '../sources/files.js';
 
 /** Browser/WebView adapter. Native hosts may supply the same account-scoped persistence contract. */
 export class IndexedDbStorage {
@@ -90,6 +91,16 @@ export class IndexedDbStorage {
     return this.#transaction(['attachments'], 'readonly', (tx, context) => {
       const request = tx.objectStore('attachments').get([profileId, id]);
       request.onsuccess = () => context.result(request.result?.blob ?? null);
+    });
+  }
+
+  async putAttachmentBytes(profileId, id, bytes) {
+    requireValue(safeKey(profileId) && validDigest(id) && bytes instanceof Uint8Array && bytes.byteLength <= 25 * 1024 * 1024,
+      'invalid-attachment', '附件身分或容量無效。');
+    bytes = copy(bytes);
+    requireValue(await sha256(bytes) === id, 'attachment-integrity', '附件內容與校驗值不符。');
+    await this.#transaction(['attachments'], 'readwrite', tx => {
+      tx.objectStore('attachments').put({ profileId, id, blob: new Blob([bytes], { type: 'application/octet-stream' }) });
     });
   }
 }

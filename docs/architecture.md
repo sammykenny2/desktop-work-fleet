@@ -13,7 +13,9 @@
 [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md)
 定義 `src/sources` 的嚴格 JSON、不可變版本圖、缺 parent 與多 head。
 Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在原子保存邊界，
-`src/app/conflicts.js` 提供比較／採用／歷史恢復與群組修復。FileStore／Google transport 仍另行整合。
+`src/app/conflicts.js` 提供比較／採用／歷史恢復與群組修復。
+[ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) 的 FileSync 協調分頁、持久 reservation、
+附件、ack 與退避；GoogleDriveFileStore 實作 REST／resumable。原生授權、受保護 HTTP 及 renderer 連接仍需整合。
 
 ## 1.0 的責任分界
 
@@ -51,8 +53,9 @@ formation / undo] <--> Scene
 
 ## 來源、backup 與後續擴充
 
-[ADR-004](decisions/004-google-drive-notes-mvp.md) 保留 NoteSource、檔案型 adapter 與 Drive appDataFolder 提案。
-正式同步協定須納入共享群組 metadata、引用、歸屬衝突，不能只同步本文。
+[ADR-004](decisions/004-google-drive-notes-mvp.md) 保留初始提案；ADR-012 採納 Drive appDataFolder，
+SPEC-004 同步共享卡片／群組及完整分支，不只同步本文。原生 service 的 transport 固定帳號，
+token／resumable URL 不進 renderer、Workspace 或備份；可替換介面見 `contracts/sync.d.ts`。
 每台裝置多個呈現表面共用一份本機核心與同步協調，不為每張卡各自建立來源連線。
 
 BackupService 屬於共用核心，不由 Drive 或 renderer 私自定義格式。

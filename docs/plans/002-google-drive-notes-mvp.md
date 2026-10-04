@@ -1,7 +1,8 @@
 # PLAN-002: Google Drive 便箋 1.0.0 與可攜備份
 
 > 2026-10-04：已獲完整五平台 1.0 實作授權；SPEC-003 Q01–Q07 已答覆。
-> 同步格式採 SPEC-004／ADR-011；備份必須包含 checklist、附件、版面、自動與加密備份及三種還原。
+> 同步格式採 SPEC-004／ADR-011，FileStore／Drive provider 採 ADR-012；
+> 備份必須包含 checklist、附件、版面、自動與加密備份及三種還原。
 
 ## Metadata
 
@@ -17,7 +18,8 @@
 
 [SPEC-002：可攜備份與安全還原](../specs/002-portable-backup-and-restore.md)。
 普通便箋、Google 登入與 renderer 範圍承接 [MVP 研究](../resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)
-及 [ADR-004](../decisions/004-google-drive-notes-mvp.md)。
+及 [ADR-004](../decisions/004-google-drive-notes-mvp.md)，來源傳輸決策採
+[ADR-012](../decisions/012-durable-file-store-and-drive-adapter.md)。
 本計畫列工作順序和驗收條件；執行狀態只更新 [PROGRESS](../../PROGRESS.md)，不另建完成清單。
 
 ## Overview
@@ -28,7 +30,7 @@
 互動開發依 [PLAN-003](003-desktop-interaction-implementation.md)。
 Editor／checklist／附件及完成／封存已核准；先前純文字與 no-checklist 的裁切不適用。
 
-規劃基線為 appDataFolder + drive.appdata；備份存到使用者指定的本機／OS 文件位置。
+已採用 appDataFolder + drive.appdata；備份存到使用者指定的本機／OS 文件位置。
 首版不為備份額外要求 drive.file 或全 Drive scope，也不加自家便箋 server。
 這不會自動提供 Keep／Drive App 編輯器；手機編輯需交付本 App 的手機入口。
 目前只規劃一個啟用來源／帳號，不做多 provider 聚合或跨帳號分享。

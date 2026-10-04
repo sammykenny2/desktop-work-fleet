@@ -33,6 +33,10 @@ git diff --check
 `npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
 `tests/workspace-sync.test.js` 驗證 graph 與 Workspace／LayoutStore 原子交易、保存失敗、過期 session／cursor、
 runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意圖與既有 entity 順序。
+`tests/file-sync.test.js` 使用獨立記憶體 FileStore，驗證分頁／重啟／雙裝置分支、回應遺失、
+reservation／ack 故障、附件、來源不可變、撤權／退避、取消與帳號 session。
+`tests/google-drive.test.js` 使用 scripted HTTP 回應，驗證 appDataFolder 路由／metadata、
+resumable 分段及 Range、4xx 重開、同 file ID、讀回校驗與 Location 邊界；不使用 Google 憑證。
 
 新的真實瀏覽器回歸使用隔離 profile 與合成資料：
 
@@ -42,6 +46,7 @@ python scripts/testing/serve_preview.py --port 0
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
@@ -54,6 +59,8 @@ group probe 驗證群組預覽／取消／合併、封存資料／草稿完整�
 revision probe 以合成資料驗證兩版本比較、HTML 文字隔離／附件原始 bytes、delete/edit 決議、
 歷史恢復、草稿／geometry 保留、IME 邊界及 390px 下零活動群組的循環恢復入口。
 它透過核心 fixture 注入版本，沒有連 Google；截圖在 `build/revision-probe.png`。
+sync probe 在真 Edge／IndexedDB 接 FileSync 與合成 FileStore，驗證 reservation 落盤、
+回應遺失後重開同 file ID、附件校驗／分區隔離、雙裝置分支及重開保留；仍不等於真 Google。
 輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
 這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
 

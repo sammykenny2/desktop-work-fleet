@@ -30,6 +30,9 @@ Keep 的官方 API 限制、Drive 儲存選擇、衝突及登入／上架工作�
 [AppData 備份與還原設計](2026-10-03-appdata-backup-and-restore-design.md) 補上官方檔案能力、
 來源無關格式、離線快照界線與安全匯入語意，並連到 SPEC-002／PLAN-002。
 
+[Drive 檔案傳輸](2026-10-04-drive-file-transport.md) 核對 appDataFolder、分頁、預產生 ID、
+resumable 與完整性；決策見 ADR-012，沒有以 scripted transport 當成真 Google 證據。
+
 ## 如何解讀
 
 - **使用者需求**：對話中已明確表達的意圖與限制。

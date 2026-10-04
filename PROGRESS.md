@@ -19,7 +19,7 @@
 | Slice | 範圍 | 狀態與證據 |
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
-| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB 子切片完成並經真 Edge 與獨立審閱；群組合併／刪除、原生保存與完整容量設定仍待補齊 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域與快捷鍵設定已完成並經真 Edge 與獨立審閱；原生保存整合、大容量與完整平台設定仍待補齊 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 尚待實作；真實 OAuth 與跨平台 client ID 證據尚缺 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 範圍已核准，格式與交易實作尚待完成 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
@@ -83,6 +83,29 @@ HTML 附件開新頁僅下載、IDB 慢寫 beforeunload、390px 草稿入口、�
 獨立唯讀審閱完成：54/54 JS、真 Edge 重現並複核七類修正及多代草稿恢復，無未解決 findings。
 其範圍不包含正式 Google／原生 host／備份／商店；本輪未重跑舊 Mac probe。
 上述 UI 是 1.0 施工中的本機預覽，尚未把版本號升為 1.0，也未宣稱整個 Slice 2 完成。
+已提交並推送 main：`f5ca93e`。
+
+### 群組合併、格局與快捷鍵子切片
+
+- 明確選擇目的群組，預覽活動／完成／封存／刪除區卡片及草稿後才合併；
+  取消零寫入、過期預覽拒絕，保存失败全部回滾，最後一組不能移除。
+- 卡片內容、附件、狀態及 geometry 保留；舊群組保存 redirect，草稿沿已知純 membership
+  revision 邊延續，即使 autosave 在合併交易期間排隊也保留新輸入；中途正文更新仍產生衝突。
+- 每機「屬於我」與快捷鍵保留有效目的；相關舊轉組 undo 失效，其他 geometry undo 可繼續使用。
+  舊設定／新卡配置在 Workspace 原子提交點核對 group set，不能復活已退役群組。
+- 設定提供群組區域交換、空區、可改的 group／All／capture／display 快捷鍵與多綁定。
+  瀏覽器 scope 快捷鍵可安全結束 inline 編輯；IME、對話框及 Ctrl／Meta 編輯鍵優先。
+  快捷鍵切組後，輪播與目前群組 formation 使用相同目標。
+
+作者驗證：64/64 JavaScript 測試、本機 build、原 browser probe 及新增 group probe 通過；
+後者包含真 Edge 的預覽／取消／合併、草稿恢復、封存內容、版面不變、區域交換及快捷鍵，
+另驗證 CompositionEvent 生命周期、Ctrl+A 優先與範圍切換後的 formation 對象。
+CompositionEvent 注入不等於已測實體中文輸入法候選視窗，原生全域鍵仍待 host 驗收。
+文件 61 份／306 相對連結與 diff whitespace 檢查通過。
+
+獨立唯讀審閱完成：群組／快捷鍵 10/10 tests、真 Edge 重現及修正複核，無未解決 finding。
+獨立檢查涵蓋晚到 autosave、連續合併、重啟、正文衝突、交易失敗、排隊設定、全部卡片狀態、
+附件引用、geometry、IME 事件註冊與編輯鍵優先。同步的多裝置 redirect cycle 仍需後續切片。
 
 ## 2026-10-04 文件交付
 

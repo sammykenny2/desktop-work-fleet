@@ -1,0 +1,114 @@
+/** Isolated real-browser group/settings regression. Usage: node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT */
+import { chromium, expect } from '@playwright/test';
+import assert from 'node:assert/strict';
+
+if (process.argv.includes('--help')) {
+  console.log('Usage: node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT\nUses synthetic notes in an isolated browser profile.');
+  process.exit(0);
+}
+const urlIndex = process.argv.indexOf('--url');
+assert.ok(urlIndex >= 0 && process.argv[urlIndex + 1], '--url is required');
+const base = new URL(process.argv[urlIndex + 1]);
+assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'Only loopback development previews are allowed');
+base.pathname = '/app/index.html'; const profile = `groups-${crypto.randomUUID()}`; base.searchParams.set('profile', profile);
+const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
+const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
+const page = await context.newPage(); const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+const read = () => page.evaluate(async profile => {
+  const { IndexedDbStorage } = await import('../storage/indexed-db.js');
+  const storage = await IndexedDbStorage.open(); const state = await storage.load(profile); storage.close(); return state;
+}, profile);
+const capture = async text => {
+  await page.locator('#new-card').click(); await page.locator('#editor-text').fill(text);
+  await page.getByRole('button', { name: '保存便箋', exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
+};
+try {
+  await page.goto(base.href); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
+  await capture('原組便箋');
+  await page.locator('#add-group').click(); await page.locator('dialog[open] input').fill('研究');
+  await page.locator('dialog[open]').getByRole('button', { name: '保存', exact: true }).click();
+  await expect(page.locator('#groups .group-row')).toHaveCount(2); await capture('研究便箋');
+  let state = await read(); const [a, b] = state.groups; const positions = state.layout.placements;
+  await page.locator('#settings-button').click();
+  await page.getByRole('combobox', { name: '區域 1 的群組', exact: true }).selectOption(b.id);
+  await expect(page.getByRole('combobox', { name: '區域 2 的群組', exact: true })).toHaveValue(a.id);
+  await page.getByText('快捷鍵', { exact: true }).click();
+  const allShortcut = page.locator('[data-shortcut-target="@all"]');
+  const bShortcut = page.locator(`[data-shortcut-target="${b.id}"]`);
+  await bShortcut.fill('Ctrl+Shift+0'); await expect(page.locator('#save-settings')).toBeDisabled();
+  await expect(page.locator('#grid-message')).toContainText('同一快捷鍵');
+  await bShortcut.fill('Ctrl+Shift+2, Alt+Shift+2'); await allShortcut.fill('Ctrl+Shift+9, Ctrl+A');
+  await page.locator('#my-group').selectOption(b.id);
+  await page.locator('#save-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
+  assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
+  await page.locator('#groups .group-row').first().locator('button').first().click();
+  await page.locator('body').click({ position: { x: 260, y: 20 } });
+  await page.keyboard.press('Control+Shift+2'); await expect(page.locator('#mode-label')).toHaveText('正在操作 研究');
+  await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', b.id);
+  const aCard = state.cards.find(card => card.groupId === a.id); const bCard = state.cards.find(card => card.groupId === b.id);
+  await page.locator('#cycle-next').click();
+  await expect(page.locator('.card.selected')).toHaveAttribute('data-card-id', bCard.id);
+  const beforeFormation = (await read()).layout.placements;
+  await page.locator('#stack').click(); await page.locator('#apply-formation').click();
+  await expect(page.locator('#formation-dialog')).not.toBeVisible();
+  const afterFormation = (await read()).layout.placements;
+  assert.deepEqual(afterFormation[aCard.id], beforeFormation[aCard.id], 'group shortcut must not form the previous sidebar group');
+  assert.notDeepEqual(afterFormation[bCard.id], beforeFormation[bCard.id]);
+  await page.locator('.card').filter({ hasText: '研究便箋' }).locator('.card-summary').dblclick();
+  await page.locator('.inline-editor').fill('研究便箋\n快捷鍵切換仍保留');
+  await page.keyboard.press('Control+A'); await expect(page.locator('.inline-editor')).toBeVisible();
+  assert.equal(await page.locator('.inline-editor').evaluate(input => input.selectionEnd - input.selectionStart), '研究便箋\n快捷鍵切換仍保留'.length);
+  await expect(page.locator('#mode-label')).toHaveText('正在操作 研究');
+  await page.locator('.inline-editor').dispatchEvent('compositionstart');
+  await page.keyboard.press('Escape'); await expect(page.locator('.inline-editor')).toBeVisible();
+  await page.keyboard.press('Control+Shift+2'); await expect(page.locator('.inline-editor')).toBeVisible();
+  await expect(page.locator('#mode-label')).toHaveText('正在操作 研究');
+  await page.locator('.inline-editor').dispatchEvent('compositionend');
+  await page.keyboard.press('Control+Shift+2'); await expect(page.locator('.inline-editor')).toHaveCount(0);
+  await expect(page.locator('#mode-label')).toHaveText('日常觀看');
+  await page.locator('#drafts-button').click(); await expect(page.locator('#draft-list')).toContainText('快捷鍵切換仍保留');
+  await page.getByRole('button', { name: '繼續編輯', exact: true }).click();
+  await page.getByRole('button', { name: '保存便箋', exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
+  await page.locator('body').click({ position: { x: 260, y: 20 } });
+  await page.keyboard.press('Control+Shift+9'); await expect(page.locator('#mode-label')).toHaveText('正在操作所有群組');
+  await page.locator('#stop-operation').click();
+
+  // Archived and deleted records still appear in merge previews and keep their states.
+  await page.locator('#view-toggle').click();
+  const row = page.locator('.list-card').filter({ hasText: '研究便箋' });
+  await row.getByRole('button', { name: '更多操作', exact: true }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: '封存', exact: true }).click();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  await page.locator('#new-card').click(); await page.locator('#editor-text').fill('合併後仍可繼續的草稿');
+  await page.locator('#keep-draft').click();
+  const before = await read();
+  await page.locator('#groups .group-row').nth(1).locator('.group-menu').click();
+  await page.getByRole('button', { name: '合併／移除群組', exact: true }).click();
+  await expect(page.getByRole('button', { name: '確認合併並移除原群組', exact: true })).toBeDisabled();
+  await page.locator('#merge-target').selectOption(a.id);
+  await expect(page.locator('#merge-message')).toContainText('1 張便箋、1 份草稿');
+  await expect(page.locator('.merge-preview')).toContainText('研究便箋（封存）');
+  await page.locator('#merge-dialog').getByRole('button', { name: '取消', exact: true }).click();
+  assert.deepEqual(await read(), before, 'cancelled preview must not write');
+  await page.locator('#groups .group-row').nth(1).locator('.group-menu').click();
+  await page.getByRole('button', { name: '合併／移除群組', exact: true }).click();
+  await page.locator('#merge-target').selectOption(a.id);
+  await page.getByRole('button', { name: '確認合併並移除原群組', exact: true }).click();
+  await expect(page.locator('#groups .group-row')).toHaveCount(1);
+  state = await read(); assert.deepEqual(state.layout.placements, before.layout.placements);
+  assert.equal(state.cards.find(card => card.content.text.startsWith('研究便箋')).archived, true);
+  assert.ok(state.cards.every(card => card.groupId === a.id));
+  assert.equal(state.layout.myGroupId, a.id); assert.equal(state.layout.shortcuts['Ctrl+Shift+2'], a.id);
+  assert.equal(state.layout.shortcuts['Alt+Shift+2'], a.id);
+  await page.locator('#settings-button').click();
+  await page.locator('#save-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  assert.deepEqual((await read()).layout.shortcuts, state.layout.shortcuts, 'settings must retain all inherited bindings');
+  await page.locator('#drafts-button').click(); await page.getByRole('button', { name: '繼續編輯', exact: true }).click();
+  await expect(page.locator('#editor-group')).toHaveValue(a.id);
+  await page.getByRole('button', { name: '保存便箋', exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
+  await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
+  assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
+  console.log('PASS: group preview/cancel/merge, draft recovery, archived content, fixed geometry, grid remapping and configurable shortcuts');
+} finally { await context.close(); await browser.close(); }

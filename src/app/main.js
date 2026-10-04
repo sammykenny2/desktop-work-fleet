@@ -1,5 +1,6 @@
 import { Workspace } from '../core/workspace.js';
-import { activeGroups, copy, eligible, gridRegions, summaryText, validateGrid } from '../core/contracts.js';
+import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
+import { eventShortcut, isEditingShortcut, normalizeShortcut, shortcutActions, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
@@ -14,6 +15,7 @@ let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resol
 let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
+let settingsSlots = [];
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
 const profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
@@ -97,6 +99,7 @@ function render() {
   $('#groups').replaceChildren();
   for (const group of groups) {
     const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
+    row.dataset.groupId = group.id;
     const choose = button('', () => { activeGroupId = group.id; render(); });
     const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
     choose.append(dot, element('span', group.name, 'group-name'),
@@ -118,8 +121,11 @@ function render() {
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
   const query = $('#search').value.trim().toLocaleLowerCase();
   const cards = snapshot.cards.filter(matchesFilter).filter(card => !query || card.content.text.toLocaleLowerCase().includes(query));
-  $('#count').textContent = `${cards.length} 張便箋`;
-  if (asList) renderList(cards.filter(card => query || card.groupId === activeGroupId));
+  const listCards = cards.filter(card => query || card.groupId === activeGroupId);
+  $('[data-filter="active"]').textContent = listView || query ? '待處理' : '桌面';
+  $('#count').textContent = asList ? `${listCards.length} 張便箋`
+    : `${snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length} 張桌面便箋`;
+  if (asList) renderList(listCards);
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
 }
@@ -152,10 +158,10 @@ function renderStage(cards) {
       const input = element('textarea', undefined, 'inline-editor'); input.value = currentDraft.content.text;
       input.setAttribute('aria-label', '就地編輯便箋');
       input.oninput = () => { if (!editorBusy) { currentDraft.content.text = input.value; queueDraft(); } };
-      input.oncompositionstart = () => { composing = true; controller.setComposing(true); };
-      input.oncompositionend = () => { composing = false; controller.setComposing(false); };
+      input.addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
+      input.addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
       input.onkeydown = event => {
-        if (event.isComposing) return;
+        if (event.isComposing || composing) return;
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); run(async () => {
           await controller.endEdit(); currentDraft = null; render(); status('草稿已保留');
         }); }
@@ -200,9 +206,13 @@ async function changeCard(id, patch) {
 function groupEditor(group) {
   const dialog = element('dialog'); const form = element('form');
   const title = element('h2', group ? '群組名稱' : '新增群組');
-  const label = element('label', '名称', 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = group?.name || ''; label.append(input);
+  const label = element('label', '名稱', 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = group?.name || ''; label.append(input);
   const actions = element('div', undefined, 'dialog-actions');
   const save = element('button', '保存', 'primary'); save.type = 'submit';
+  if (group) {
+    const merge = button('合併／移除群組', () => { dialog.close(); return openGroupMerge(group); });
+    merge.disabled = activeGroups(workspace.snapshot).length < 2; actions.append(merge);
+  }
   actions.append(button('取消', () => dialog.close()), save); form.append(title, label, actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
@@ -211,6 +221,46 @@ function groupEditor(group) {
     await workspace.layout.placeNew(workspace.snapshot, [screenArea()]); dialog.close(); render(); status('群組已保存');
   }); });
   dialog.showModal(); input.focus();
+}
+
+async function openGroupMerge(group) {
+  if (!await controller.endEdit()) throw new Error('請先完成目前的文字輸入。');
+  currentDraft = null; render();
+  const dialog = element('dialog'); dialog.id = 'merge-dialog'; dialog.append(element('h2', `合併「${group.name}」`));
+  const field = element('label', '接收群組', 'field'); const select = element('select'); select.id = 'merge-target';
+  select.append(new Option('請選擇接收群組', ''));
+  for (const target of activeGroups(workspace.snapshot).filter(item => item.id !== group.id)) select.append(new Option(target.name, target.id));
+  field.append(select);
+  const message = element('p'); message.id = 'merge-message'; message.setAttribute('role', 'status');
+  const items = element('ul', undefined, 'merge-preview'); const actions = element('div', undefined, 'dialog-actions');
+  let preview; let busy = false;
+  const apply = button('確認合併並移除原群組', async () => {
+    if (!preview || busy) return;
+    busy = true; apply.disabled = true; select.disabled = true; cancel.disabled = true;
+    try {
+      await workspace.mergeGroup(preview); await controller.reconcile();
+      if (activeGroupId === group.id) activeGroupId = preview.targetId;
+      dialog.close(); render(); status('群組已合併，便箋內容與桌面位置已保留');
+    } catch (error) { message.textContent = error.message; preview = null; }
+    finally { busy = false; select.disabled = false; cancel.disabled = false; }
+  }, 'primary'); apply.disabled = true;
+  const cancel = button('取消', () => { if (!busy) dialog.close(); });
+  const refresh = () => {
+    if (busy) return;
+    items.replaceChildren(); preview = null; apply.disabled = true;
+    if (!select.value) { message.textContent = '選擇目的群組後，會先列出受影響的便箋。'; return; }
+    try {
+      preview = workspace.previewGroupMerge(group.id, select.value);
+      message.textContent = `${preview.cards.length} 張便箋、${preview.draftCount} 份草稿移至「${preview.targetName}」。原群組移除，所有內容與桌面位置保留。`;
+      for (const card of preview.cards) items.append(element('li', `${card.summary}${card.deleted ? '（刪除區）' : card.archived ? '（封存）' : card.completed ? '（已完成）' : ''}`));
+      apply.disabled = false;
+    } catch (error) { message.textContent = error.message; }
+  };
+  select.onchange = refresh;
+  actions.append(cancel, button('重新預覽', refresh), apply);
+  dialog.append(field, message, items, element('p', '合併不會排列便箋；「版面復原」不能重新建立已合併群組。', 'hint'), actions);
+  dialog.oncancel = event => { if (busy) event.preventDefault(); };
+  dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); refresh(); dialog.showModal();
 }
 
 function cardDetails(card) {
@@ -234,6 +284,7 @@ function cardDetails(card) {
 }
 
 async function openEditor(card = null, recovered = null) {
+  if (composing) return;
   if (controller.state.editingCardId && currentDraft) await controller.endEdit();
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);
   currentDraft.content.attachments ||= [];
@@ -244,16 +295,20 @@ async function openEditor(card = null, recovered = null) {
 }
 
 async function beginInlineEdit(card, gesture = false) {
+  if (composing) return;
   if (controller.state.editingCardId === card.id && currentDraft?.cardId === card.id) {
     $('#stage .inline-editor')?.focus(); return;
   }
   if (!await controller.beginEdit(card.id, { gesture })) return;
+  activeGroupId = card.groupId;
   currentDraft = workspace.blankDraft(card.groupId, card); queueDraft(); render();
   $('#stage .inline-editor')?.focus();
 }
 
 function renderSelection() {
   const layout = workspace.layout.state; const state = controller.state;
+  if (state.activeGroupId) activeGroupId = state.activeGroupId;
+  $('#groups').querySelectorAll('.group-row').forEach(row => row.classList.toggle('active', row.dataset.groupId === activeGroupId));
   const order = sceneOrder(workspace.snapshot.cards, layout, state).map(card => card.id);
   $('#stage').querySelectorAll('.card').forEach(paper => {
     paper.classList.toggle('selected', paper.dataset.cardId === state.selectedCardId);
@@ -292,13 +347,13 @@ function setEditorBusy(value) {
   $('#editor-group').disabled = value || Boolean(currentDraft?.baseRevision);
 }
 async function closeEditor() {
-  if (editorBusy) return;
+  if (editorBusy || composing) return;
   setEditorBusy(true);
   try { await flushDraft(); currentDraft = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit(); render(); status('草稿已保留'); }
   finally { setEditorBusy(false); }
 }
 async function saveEditor(asCopy = false) {
-  if (editorBusy || !currentDraft) return;
+  if (editorBusy || !currentDraft || composing) return;
   setEditorBusy(true);
   try {
     await flushDraft();
@@ -359,14 +414,51 @@ function updateFormation() {
 
 function showSettings() {
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
+  settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
+  const fields = $('#shortcut-fields'); fields.replaceChildren();
+  const actions = [[shortcutActions.all, '操作所有便箋'], [shortcutActions.capture, '快速記錄'], [shortcutActions.toggle, '顯示／隱藏桌面便箋'],
+    ...activeGroups(workspace.snapshot).map(group => [group.id, `操作「${group.name}」`])];
+  for (const [target, name] of actions) {
+    const label = element('label', name, 'field'); const input = element('input'); input.dataset.shortcutTarget = target;
+    input.value = Object.entries(layout.shortcuts).filter(([, value]) => value === target).map(([key]) => key).join(', ');
+    input.placeholder = '例如 Ctrl+Shift+1，多組用逗號分隔'; input.oninput = () => previewGrid(); label.append(input); fields.append(label);
+  }
   $('#settings-dialog').showModal(); previewGrid();
 }
-function previewGrid() {
+function readShortcuts() {
+  const result = {};
+  for (const input of $('#shortcut-fields').querySelectorAll('input')) {
+    if (!input.value.trim()) continue;
+    for (const value of input.value.split(',')) {
+      const key = normalizeShortcut(value);
+      if (Object.hasOwn(result, key)) throw new Error('同一快捷鍵只能指定一個動作。');
+      result[key] = input.dataset.shortcutTarget;
+    }
+  }
+  return validateShortcuts(result, activeGroups(workspace.snapshot));
+}
+function previewGrid(reshape = false) {
   const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = activeGroups(workspace.snapshot);
+  if (reshape || settingsSlots.length !== rows * columns) {
+    const ordered = settingsSlots.filter(id => id && groups.some(group => group.id === id));
+    for (const group of groups) if (!ordered.includes(group.id)) ordered.push(group.id);
+    settingsSlots = Array.from({ length: rows * columns }, (_, index) => ordered[index] || null);
+  }
   const preview = $('#grid-preview'); preview.replaceChildren(); preview.style.gridTemplateColumns = `repeat(${columns},1fr)`;
-  for (let i = 0; i < rows * columns; i++) preview.append(element('span', groups[i]?.name || '空區'));
-  try { validateGrid(rows, columns, groups.length); $('#grid-message').textContent = `${rows} 列 × ${columns} 欄，共 ${rows * columns} 區。`; $('#save-settings').disabled = false; }
+  for (let i = 0; i < rows * columns; i++) {
+    const field = element('label', `區域 ${i + 1}`); const select = element('select');
+    select.setAttribute('aria-label', `區域 ${i + 1} 的群組`); select.append(new Option('空區', ''));
+    for (const group of groups) select.append(new Option(group.name, group.id));
+    select.value = settingsSlots[i] || '';
+    select.onchange = () => {
+      const next = select.value || null; const other = settingsSlots.findIndex((id, index) => id === next && index !== i);
+      if (other >= 0) settingsSlots[other] = settingsSlots[i];
+      settingsSlots[i] = next; previewGrid();
+    };
+    field.append(select); preview.append(field);
+  }
+  try { gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }, groups); readShortcuts(); $('#grid-message').textContent = `${rows} 列 × ${columns} 欄，共 ${rows * columns} 區。選取已使用的群組會交換區域。`; $('#save-settings').disabled = false; }
   catch (error) { $('#grid-message').textContent = error.message; $('#save-settings').disabled = true; }
 }
 
@@ -391,23 +483,25 @@ function bindEvents() {
   $('#operate-group').onclick = () => run(async () => { await controller.activate({ kind: 'group', groupId: activeGroupId }); render(); });
   $('#operate-all').onclick = () => run(async () => { await controller.activate({ kind: 'all' }); render(); });
   $('#stop-operation').onclick = () => run(async () => { await controller.activate({ kind: 'none' }); render(); });
-  $('#cycle-prev').onclick = () => { controller.cycle(activeGroupId, -1); render(); };
-  $('#cycle-next').onclick = () => { controller.cycle(activeGroupId, 1); render(); };
+  $('#cycle-prev').onclick = () => run(() => { controller.cycle(activeGroupId, -1); render(); });
+  $('#cycle-next').onclick = () => run(() => { controller.cycle(activeGroupId, 1); render(); });
   $('#stack').onclick = () => openFormation('stack'); $('#spread').onclick = () => openFormation('spread');
   $('#undo').onclick = () => run(async () => { await workspace.undo([screenArea()]); await controller.reconcile(); render(); status('已復原'); });
   $('#formation-scope').onchange = updateFormation; $('#allow-resize').onchange = updateFormation;
   $('#cancel-formation').onclick = () => $('#formation-dialog').close();
   $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status('排列已完成，可按復原還原'); });
   $('#settings-button').onclick = showSettings; $('#cancel-settings').onclick = () => $('#settings-dialog').close();
-  $('#grid-rows').onchange = previewGrid; $('#grid-columns').onchange = previewGrid;
+  $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);
   $('#save-settings').onclick = () => run(async () => {
-    const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = activeGroups(workspace.snapshot);
+    const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value);
     await workspace.layout.configure({ desktopVisible: $('#desktop-visible').checked, myGroupId: $('#my-group').value || null,
-      grid: { rows, columns, area: screenArea(), slots: Array.from({ length: rows * columns }, (_, i) => groups[i]?.id || null) } }, workspace.snapshot);
+      shortcuts: readShortcuts(),
+      grid: { rows, columns, area: screenArea(), slots: [...settingsSlots] } }, workspace.snapshot);
     $('#settings-dialog').close(); render(); status('設定已存本機，既有卡片位置不變');
   });
   $('#editor-text').oninput = () => { if (!currentDraft || editorBusy) return; currentDraft.content.text = $('#editor-text').value; queueDraft(); };
-  $('#editor-text').oncompositionstart = () => { composing = true; controller.setComposing(true); }; $('#editor-text').oncompositionend = () => { composing = false; controller.setComposing(false); };
+  $('#editor-text').addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
+  $('#editor-text').addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
   $('#editor-group').onchange = () => { if (!editorBusy) { currentDraft.groupId = $('#editor-group').value; queueDraft(); } };
   $('#edit-tab').onclick = () => showEditorTab(false); $('#preview-tab').onclick = () => showEditorTab(true);
   $('#insert-task').onclick = () => { if (editorBusy) return; const text = $('#editor-text'); showEditorTab(false); text.setRangeText('- [ ] ', text.selectionStart, text.selectionEnd, 'end'); currentDraft.content.text = text.value; queueDraft(); text.focus(); };
@@ -445,7 +539,7 @@ function bindEvents() {
       if (previousEditor && !controller.state.editingCardId) closeInlineView(previousEditor);
       renderSelection();
     }
-    else if (result.kind !== 'ignored') render();
+    else if (result.kind !== 'ignored') { if (controller.state.activeGroupId) activeGroupId = controller.state.activeGroupId; render(); }
     if (result.kind === 'transferred') status('已移至新群組，可按復原');
   });
   stage.onpointercancel = () => { controller.cancelDrag(); render(); };
@@ -456,7 +550,25 @@ function bindEvents() {
     await beginInlineEdit(currentCard(paper.dataset.cardId), true);
   });
   document.addEventListener('keydown', event => {
-    if (event.isComposing || document.querySelector('dialog[open]') || event.target.closest('input,textarea,select')) return;
+    if (event.isComposing || composing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+    const editControl = event.target.closest('input,textarea,select');
+    if (editControl && isEditingShortcut(event)) return;
+    const shortcut = workspace.layout.state.shortcuts[eventShortcut(event)];
+    const scopeShortcut = shortcut === shortcutActions.all || (shortcut && !Object.values(shortcutActions).includes(shortcut));
+    if (shortcut && (!editControl || (editControl.matches('.inline-editor') && scopeShortcut))) {
+      event.preventDefault();
+      run(async () => {
+        if (shortcut === shortcutActions.capture) return openEditor();
+        if (shortcut === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
+        else {
+          const changed = await controller.activate(shortcut === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: shortcut });
+          if (changed && shortcut !== shortcutActions.all) activeGroupId = shortcut;
+        }
+        render();
+      });
+      return;
+    }
+    if (editControl) return;
     if (event.key === 'Escape') { event.preventDefault(); run(async () => { await controller.escape(); render(); }); }
     if (event.key === 'Enter' && controller.state.selectedCardId) { event.preventDefault(); run(() => beginInlineEdit(currentCard(controller.state.selectedCardId))); }
     if (event.key === 'Shift' && controller.state.dragSession) dragPaint(controller.pointerMove(controller.state.dragSession.current, { pointerId: controller.state.dragSession.pointerId, shiftKey: true, labels: groupLabels }));

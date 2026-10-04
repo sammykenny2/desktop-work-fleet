@@ -1,5 +1,6 @@
-import { activeGroups, copy, FleetError, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
+import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
 import { createLayout, LayoutStore } from '../layout/store.js';
+import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
@@ -14,6 +15,25 @@ function draftBaseline(draft) {
   return JSON.stringify(value);
 }
 
+function rebaseMembership(state, draft) {
+  if (state.groups.some(group => group.id === draft.groupId && group.deleted && group.redirectGroupId)) {
+    draft.groupId = resolveGroupId(state, draft.groupId);
+  }
+  const seen = new Set();
+  while (state.membershipRebases?.[draft.baseRevision]?.cardId === draft.cardId) {
+    requireValue(!seen.has(draft.baseRevision), 'revision-cycle', '群組版本關係無效，草稿尚未提交。');
+    seen.add(draft.baseRevision);
+    draft.baseRevision = state.membershipRebases[draft.baseRevision].revision;
+  }
+  return draft;
+}
+
+function rebaseDraft(state, draft) {
+  rebaseMembership(state, draft);
+  for (const origin of draft.recoveredFrom || []) origin.baseline = draftBaseline(rebaseMembership(state, JSON.parse(origin.baseline)));
+  return draft;
+}
+
 /** Account-scoped local journal. The persistence boundary includes content, outbox, drafts and layout. */
 export class Workspace {
   #state;
@@ -25,7 +45,7 @@ export class Workspace {
   static async create({ profileId, deviceId, area, persist, uuid = () => crypto.randomUUID() }) {
     const group = { id: uuid(), name: '我的便箋', revision: uuid(), deleted: false };
     const state = { schemaVersion: 1, profileId, revision: 0, groups: [group], cards: [],
-      drafts: {}, outbox: [{ operationId: group.revision, kind: 'group', entityId: group.id,
+      drafts: {}, membershipRebases: {}, outbox: [{ operationId: group.revision, kind: 'group', entityId: group.id,
         parents: [], value: copy(group) }], conflicts: [], layout: createLayout(deviceId, [group], area) };
     await persist(copy(state), null);
     return new Workspace(state, persist, uuid);
@@ -38,6 +58,8 @@ export class Workspace {
       requireValue(draft.layout.revision === revision, 'stale-layout', '版面已由另一個寫入者變更。');
       if (validation?.membership) requireValue(validation.membership === membershipKey(draft, draft.layout),
         'stale-plan', '預覽後資料已變更，請重新預覽。');
+      if (validation?.groups) requireValue(validation.groups === groupKey(draft),
+        'stale-groups', '群組已變更，請重新開啟設定或排列。');
       draft.layout = copy(layout);
     }));
   }
@@ -98,9 +120,36 @@ export class Workspace {
     });
   }
 
+  previewGroupMerge(sourceId, targetId) { return planGroupMerge(this.#state, sourceId, targetId); }
+
+  async mergeGroup(plan) {
+    plan = copy(plan);
+    validateGroupMerge(this.#state, plan);
+    const affected = this.#state.cards.filter(card => card.groupId === plan.sourceId).map(card => card.id);
+    return this.#layout.retireGroup(plan.sourceId, plan.targetId, affected, (layout, layoutRevision, result) => this.#commit(state => {
+      validateGroupMerge(state, plan);
+      requireValue(state.layout.revision === layoutRevision, 'stale-layout', '版面已變更，請重試。');
+      state.membershipRebases ||= {};
+      for (const card of state.cards.filter(card => card.groupId === plan.sourceId)) {
+        const previous = card.revision;
+        card.groupId = plan.targetId; card.revision = this.#uuid();
+        state.membershipRebases[previous] = { cardId: card.id, revision: card.revision };
+        this.#record(state, 'card', card, [previous]);
+      }
+      const source = state.groups.find(group => group.id === plan.sourceId);
+      const previous = source.revision;
+      source.deleted = true; source.redirectGroupId = plan.targetId; source.revision = this.#uuid();
+      this.#record(state, 'group', source, [previous]);
+      for (const draft of Object.values(state.drafts)) rebaseDraft(state, draft);
+      state.layout = copy(layout);
+      return result;
+    }));
+  }
+
   async createCard(content, groupId = activeGroups(this.#state)[0]?.id) {
     const value = contentValue(content);
     return this.#commit(state => {
+      groupId = resolveGroupId(state, groupId);
       this.#group(state, groupId);
       const card = { id: this.#uuid(), revision: this.#uuid(), groupId, content: value,
         deleted: false, archived: false, completed: false };
@@ -224,6 +273,6 @@ export class Workspace {
     draft = copy(draft);
     requireValue(safeKey(draft.id) && safeKey(draft.cardId), 'invalid-draft', '草稿身分無效。');
     contentValue(draft.content);
-    return this.#commit(state => { state.drafts[draft.id] = copy(draft); });
+    return this.#commit(state => { state.drafts[draft.id] = rebaseDraft(state, copy(draft)); });
   }
 }

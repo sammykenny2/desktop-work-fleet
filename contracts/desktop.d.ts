@@ -13,7 +13,17 @@ export interface Content {
   attachments?: { id: Id; name: string; mediaType?: string; size?: number }[];
   [extension: string]: unknown;
 }
-export interface Group { id: Id; name: string; revision: Revision; deleted: boolean }
+export interface Group { id: Id; name: string; revision: Revision; deleted: boolean; redirectGroupId?: Id }
+export interface GroupMergePlan {
+  kind: 'group-merge';
+  sourceId: Id;
+  targetId: Id;
+  sourceName: string;
+  targetName: string;
+  fingerprint: string;
+  cards: { id: Id; summary: string; deleted: boolean; archived: boolean; completed: boolean }[];
+  draftCount: number;
+}
 export interface Card {
   id: Id;
   revision: Revision;
@@ -121,6 +131,7 @@ export interface WorkspaceState {
   cards: Card[];
   groups: Group[];
   drafts: Record<Id, Draft>;
+  membershipRebases?: Record<Revision, { cardId: Id; revision: Revision }>;
   outbox: OutboxEntry[];
   conflicts: unknown[];
   layout: DeviceLayout;

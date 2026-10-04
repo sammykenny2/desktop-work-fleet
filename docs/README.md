@@ -13,6 +13,7 @@
 | [ADR-007](decisions/007-desktop-scene-and-platform-host.md) | Proposed：renderer／原生 host 分界及可控疊序 |
 | [ADR-008](decisions/008-portable-interaction-core.md) | Accepted：共用語意核心、原子保存與本輪完整 1.0 範圍 |
 | [ADR-009](decisions/009-local-renderer-and-persistence.md) | Accepted：本機 renderer、IndexedDB／草稿／附件、安全 Markdown |
+| [ADR-010](decisions/010-group-retirement-and-device-settings.md) | Accepted：群組合併／草稿基線、區域及快捷鍵設定 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

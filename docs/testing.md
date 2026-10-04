@@ -32,6 +32,7 @@ git diff --check
 python scripts/testing/serve_preview.py --port 0
 # 另一終端，把 PORT 換成上面印出的實際 port
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
@@ -39,6 +40,8 @@ Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首
 probe 驗證新增／重開、Markdown／checklist、附件 bytes 與惡意 HTML 隔離、固定紙面 inline 編輯、
 普通／Shift 拖放、undo、搜尋／filter 不搬卡、多步草稿操作、離頁慢寫提示、窄螢幕入口與單 writer。
 另用真實 IDB 驗證並行 CAS、非連續 revision 拒絕、附件及 profile 隔離。
+group probe 驗證群組預覽／取消／合併、封存資料／草稿完整性、區域交換不搬卡、
+自訂與重複快捷鍵、多綁定在合併及再次設定後仍保留。
 輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
 這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
 

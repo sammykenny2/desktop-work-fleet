@@ -15,6 +15,7 @@ export function requireValue(condition, code, message, details) {
 export const compareId = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 export const copy = value => structuredClone(value);
 export const activeGroups = snapshot => snapshot.groups.filter(group => !group.deleted);
+export const groupKey = snapshot => JSON.stringify(activeGroups(snapshot).map(group => group.id).sort(compareId));
 export const safeKey = key => typeof key === 'string' && key.length > 0
   && !['__proto__', 'prototype', 'constructor'].includes(key);
 

@@ -1,12 +1,13 @@
 import { activeGroups, compareId, containsRect, copy, defaultGrid,
-  gridRegions, membershipKey, requireValue, validRect } from '../core/contracts.js';
+  gridRegions, groupKey, membershipKey, requireValue, validRect } from '../core/contracts.js';
+import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 
 const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
   return { schemaVersion: 1, deviceId, revision: 0, grid: defaultGrid(groups, area),
-    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: {} };
+    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(groups) };
 }
 
 // Only an inaccessible title is rescued. Large, intentionally overflowing papers keep their size.
@@ -40,11 +41,11 @@ export class LayoutStore {
 
   get state() { return copy(this.#state); }
 
-  #transaction(change, persist = this.#persist) {
+  #transaction(change, persist = this.#persist, force = false) {
     const operation = this.#tail.then(async () => {
       const draft = copy(this.#state);
       const result = change(draft);
-      if (same(draft, this.#state)) return result;
+      if (!force && same(draft, this.#state)) return result;
       draft.revision = this.#state.revision + 1;
       await persist(copy(draft), this.#state.revision, result);
       this.#state = draft;
@@ -55,12 +56,15 @@ export class LayoutStore {
   }
 
   async configure(patch, snapshot) {
-    patch = copy(patch);
+    patch = copy(patch); snapshot = copy(snapshot);
     const allowed = ['grid', 'desktopVisible', 'myGroupId', 'shortcuts'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', '未知的版面設定。');
     if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
     requireValue(!('desktopVisible' in patch) || typeof patch.desktopVisible === 'boolean', 'invalid-setting', '顯示設定必須是布林值。');
-    return this.#transaction(draft => Object.assign(draft, copy(patch)));
+    requireValue(!('myGroupId' in patch) || patch.myGroupId === null || activeGroups(snapshot).some(group => group.id === patch.myGroupId),
+      'invalid-group-setting', '屬於我的群組已不存在。');
+    if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, activeGroups(snapshot));
+    return this.#transaction(draft => { Object.assign(draft, copy(patch)); return { groups: groupKey(snapshot) }; });
   }
 
   async setCardPolicy(cardId, patch) {
@@ -111,7 +115,7 @@ export class LayoutStore {
         }
         draft.placements[card.id] = rescueRect(rect, workAreas);
       }
-      return { deferred, groupOverflow: groups.length > 9 };
+      return { deferred, groupOverflow: groups.length > 9, groups: groupKey(snapshot) };
     });
   }
 
@@ -140,6 +144,19 @@ export class LayoutStore {
         Object.assign(rect, { x: position.x, y: position.y });
       }
     }, persist);
+  }
+
+  async retireGroup(sourceId, targetId, affectedCards, persist) {
+    const affected = new Set(affectedCards);
+    return this.#transaction(draft => {
+      draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
+      if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
+      for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
+      const oldLength = draft.history.length;
+      draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
+        || [entry.transfer.fromGroupId, entry.transfer.toGroupId].includes(sourceId)));
+      return { movedCards: affected.size, retiredGroupId: sourceId, removedUndo: oldLength - draft.history.length };
+    }, persist, true);
   }
 
   async applyFormation(plan, getSnapshot) {

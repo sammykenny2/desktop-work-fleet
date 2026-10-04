@@ -27,6 +27,7 @@
 | [ADR-021](decisions/021-windows-google-account-and-sync.md) | Accepted：Windows 原生 Google OAuth、帳號分區及同步入口 |
 | [ADR-022](decisions/022-android-native-host.md) | Accepted：Android host、Keystore、SAF 與 Google 授權 |
 | [ADR-023](decisions/023-apple-native-host-and-scenes.md) | Accepted：Apple host、Keychain、Google 與 macOS 場景 |
+| [ADR-024](decisions/024-linux-native-owner-and-storage.md) | Accepted：Linux GTK owner、Secret Service、備份與 Google |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

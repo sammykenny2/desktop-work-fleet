@@ -20,9 +20,9 @@
 | Slice | 範圍 | 狀態與證據 |
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
-| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；Android SQLite／Keystore、Apple SQLite／Keychain 程式已加入但未編譯；Linux 待實作 |
-| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple 原生授權與 Drive 程式已加入；Linux 待實作。Google 專案未建立，真登入／Drive 未驗收 |
-| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark 原生備份程式已加入，未編譯；Linux 待實作 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；Android SQLite／Keystore、Apple SQLite／Keychain、Linux SQLite／Secret Service 程式已加入；後三者原生 runtime 尚未執行 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
+| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows 原生桌面／快捷鍵／系統匣／顯示器生命週期已加入；macOS 公開 AppKit 場景、輸入轉送、快捷鍵／選單列／顯示器程式已加入但未編譯；Linux 待實作，完整 OS 矩陣仍缺 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料及帳號能力與前背景通知已加入；分享及平台散布持續完成；缺 SDK，未產原生 package 或做裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 商店文案／隱私草稿／提交資料、Android build wrappers、Apple Xcode 產生器／圖示／archive 入口已加入；其他封裝、正式簽章／screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
@@ -459,6 +459,22 @@ UIBackgroundTask 等待草稿／備份收尾，完成或到期即釋放。Androi
 本機沒有 Xcode／Swift SDK：未編譯 Apple 程式、未產 app/archive、未真 Google 或原生手勢驗收。
 依使用者指示未跑測試／額外驗證，沒有獨立審閱。剩餘 Linux host、分享、各平台完整封裝及外部設定仍繼續。
 見 [ADR-023](docs/decisions/023-apple-native-host-and-scenes.md) 與 [Apple 原生入口](src/native/apple/README.md)。
+
+## 2026-10-05 Linux 原生主畫面／資料與來源
+
+Apple 切片已推送 `d8d8509`。新增 Python／GTK／WebKitGTK 原生 owner，secure custom scheme
+封裝資產、top-frame nonce bridge、網路資源阻擋與原生 chooser／關閉流程。
+SQLite WAL／FULL、Secret Service key／AES-GCM、本機帳號分區、附件與 revision 同交易、flock
+已加入；原生手動／自動／密碼備份及 journal／原生身分／保留份數清理接共用完整備份契約。
+Google 系統瀏覽器 PKCE、限定 callback、金鑰圈 credential／refresh、userinfo 身分、
+固定 Drive 語意與 bounded HTTPS、續傳／metadata／SHA-256 校驗已加入。
+原生手機／無桌面能力主畫面的快速記錄快捷鍵不再呼叫桌面專用方法。
+新增 Linux source/runtime package generator、desktop file／自有 icon、tar.gz 與 Debian 建置腳本。
+本輪執行 `npm run build`、package generator 與 archive 產生，已建立
+`build/linux/work-fleet-1.0.0.tar.gz`；這是來源與資產封裝，沒有在 Linux GUI／Secret Service 執行。
+依指示未跑測試／額外驗證，沒有獨立審閱；未建立或安裝 deb、未真 Google。
+Linux desktop surfaces／global shortcuts／tray、手機分享及各平台完整散布仍繼續，未縮小完整 1.0。
+見 [ADR-024](docs/decisions/024-linux-native-owner-and-storage.md)。
 
 ## 2026-10-04 文件交付
 

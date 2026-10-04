@@ -27,6 +27,7 @@ function png(size) {
   const header = Buffer.alloc(13); header.writeUInt32BE(size, 0); header.writeUInt32BE(size, 4); header[8] = 8; header[9] = 2;
   return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]), chunk('IHDR', header), chunk('IDAT', deflateSync(data)), chunk('IEND', Buffer.alloc(0))]);
 }
+export async function writePaperIcon(destination, size = 256) { await writeFile(destination, png(size)); }
 export async function generateAppleIcons(output, platform) {
   const catalog = path.join(output, `${platform}-Icons.xcassets`), destination = path.join(catalog, 'AppIcon.appiconset'); await mkdir(destination, { recursive: true });
   const definitions = platform === 'macos' ? [16,32,128,256,512].flatMap(size => [1,2].map(scale => ({ idiom: 'mac', size: `${size}x${size}`, scale: `${scale}x`, pixels: size * scale })))

@@ -116,3 +116,14 @@ The final package inventory and merged SDK privacy manifests remain to be record
 an actual Apple archive; no native Apple 1.0 binary has been built in this session.
 Apple SDK/runtime frameworks and system SQLite/CommonCrypto are linked from the platform.
 App icons are generated from repository-owned drawing code, without external artwork.
+
+## Linux native host runtime
+
+The Linux source package uses distribution-provided Python, SQLite, GTK 3, WebKitGTK,
+PyGObject/cairo, libsecret and cryptography. It does not redistribute those runtime
+binaries. Their distribution packages retain upstream licenses and incorporated notices:
+[GTK](https://www.gtk.org/), [WebKitGTK](https://webkitgtk.org/),
+[PyGObject](https://pygobject.gnome.org/), [libsecret](https://gnome.pages.gitlab.gnome.org/libsecret/),
+[cryptography](https://github.com/pyca/cryptography/blob/main/LICENSE).
+Repository-owned Python code and generated paper icons are included with the root LICENSE.
+An installed Linux runtime/package version inventory has not been produced on this Windows host.

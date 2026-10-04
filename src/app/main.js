@@ -296,7 +296,7 @@ async function desktopAction(target, intent) {
   if (composing || editorBusy || document.querySelector('dialog[open]')) throw new Error('請先完成目前輸入或對話框。');
   if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
   if (target === shortcutActions.capture) {
-    if (native) await native.bridge.request('desktop.showMain', { intent: intent ?? null });
+    if (desktop) await native.bridge.request('desktop.showMain', { intent: intent ?? null });
     await openEditor(); return;
   }
   if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
@@ -851,7 +851,7 @@ function bindEvents() {
     const shortcut = shortcutForEvent(event, workspace.layout.state.shortcuts, { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
     if (shortcut) {
       event.preventDefault();
-      const admission = native && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });
+      const admission = desktop && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });
       run(async () => desktopAction(shortcut.target, (await admission).intent));
       return;
     }

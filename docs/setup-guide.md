@@ -137,6 +137,21 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 全域鍵、選單列及螢幕生命週期。尚未在 Apple SDK 編譯；操作細節及剩餘交付見
 [Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
 
+## Linux 1.0 原生建置
+
+需要 Linux 的 Python 3.12+、GTK 3、WebKitGTK 4.1、PyGObject／cairo、libsecret／系統金鑰圈
+及 cryptography。本次加入原生主畫面／SQLite／加密／Google／備份；桌面表面接線持續施工。
+
+```bash
+npm ci --ignore-scripts
+bash scripts/linux/build-native-app.sh
+bash build/linux/work-fleet-1.0.0/run-work-fleet.sh
+bash scripts/linux/build-native-app.sh --release --deb
+```
+
+產生 source/runtime tar.gz；`--deb` 需 Debian 工具及正式公開設定。沒有在 Windows 執行
+Linux GUI／金鑰圈／安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
+
 ## 既有 0.1.0 需求
 
 - macOS 13+、Command Line Tools（`xcode-select --install`）；已測 macOS 26.7.1 x86_64、Swift 6.3.3。

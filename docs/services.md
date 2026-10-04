@@ -28,3 +28,9 @@ Windows 1.0 主畫面以 WebView2 virtual host mapping 載入 `https://work-flee
 只接受符合該次隨機 state 的 code；PKCE verifier 留在原生服務。完成、取消或 110 秒逾時即關閉。
 此 listener 不提供便箋 API，不綁定 LAN、不使用固定 port，也不變更外部 port registry。
 Google HTTPS token、userinfo 及 Drive 請求皆由原生端送出，renderer 不持有憑證或任意 HTTP 能力。
+
+## Linux 原生與 Google callback
+
+Linux GTK／WebKitGTK 以 secure custom scheme `workfleet://app` 提供封裝資產，沒有常駐 HTTP listener。
+只有 Google 登入期間使用 `127.0.0.1:0`、固定 `/oauth2/callback`；PKCE／state 留 native，
+完成、取消或 110 秒逾時後關閉。沒有新增固定 port、LAN listener 或外部 registry 修改。

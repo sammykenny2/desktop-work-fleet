@@ -1,6 +1,6 @@
 # Third-party notices
 
-Updated: 2026-10-03.
+Updated: 2026-10-04.
 
 ## project-bootstrap
 
@@ -15,6 +15,27 @@ Updated: 2026-10-03.
 Project-specific research and documentation were written for desktop-work-fleet. External references in the research are citations, not bundled product code.
 
 No product code, images, fonts, dependency lockfiles, platform modules, or user data were imported from another sticky-note application.
+
+## 1.0 renderer under development
+
+The repository's package-lock.json pins the following packages. `npm run build`
+copies only the two runtime ESM modules into `build/app/vendor`, retaining their
+copyright headers and complete upstream LICENSE files. No fonts, images, CDN
+scripts, browser binaries or application assets from another product are bundled.
+
+| Package | Version | Purpose | License / source |
+|---|---|---|---|
+| marked | 18.0.14 | Runtime Markdown parsing | MIT; [MarkedJS](https://github.com/markedjs/marked) |
+| dompurify | 3.4.16 | Runtime DOM sanitization | Apache-2.0 option of its Apache-2.0 OR MPL-2.0 license; [Cure53](https://github.com/cure53/DOMPurify) |
+| @types/trusted-types | 2.0.7 | DOMPurify type dependency, not bundled | MIT; [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/trusted-types) |
+| @playwright/test, playwright, playwright-core | 1.63.0 | Development browser tests, not bundled | Apache-2.0; [Microsoft Playwright](https://github.com/microsoft/playwright) |
+
+Marked copyright: (c) 2018+, MarkedJS; (c) 2011–2018, Christopher Jeffrey.
+DOMPurify copyright: Cure53 and other contributors. The source ESM files are copied
+without modification; application configuration is separate. The build includes
+`marked-LICENSE.txt`, `dompurify-LICENSE.txt` and this notice. Platform packages must
+retain those files and the project's LICENSE. Final native SDK and store-package
+inventories remain separate release work.
 
 ## Validation version 0.1.0
 

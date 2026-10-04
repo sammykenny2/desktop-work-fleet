@@ -3,6 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "scripts": { "test": "node --test tests/*.test.js" },
-  "engines": { "node": ">=22" }
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "build": "node scripts/build-web.mjs",
+    "preview": "python scripts/testing/serve_preview.py"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "dompurify": "3.4.16",
+    "marked": "18.0.14"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
 }

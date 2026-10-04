@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' IMPORT_MAP_HASH; style-src 'self' 'unsafe-inline'; img-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="light">
+  <title>Work Fleet</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{"imports":{"marked":"../vendor/marked.js","dompurify":"../vendor/dompurify.js"}}</script>
+  <script type="module" src="main.js"></script>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">w.</span><div>Work Fleet<small>留住想法，開始下一步。</small></div></div>
+    <button id="new-card" class="primary">＋ 記下想法</button>
+    <div class="section-label">我的群組 <button id="add-group" aria-label="新增群組">＋</button></div>
+    <nav id="groups" aria-label="群組"></nav>
+    <div class="sidebar-bottom">
+      <button id="drafts-button">未完成草稿 <span id="draft-count">0</span></button>
+      <button id="settings-button">顯示與排列設定</button>
+      <p id="storage-note">正在開啟本機資料…</p>
+    </div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div><span class="eyebrow">你的工作空間</span><h1 id="workspace-title">我的便箋</h1></div>
+      <div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋內容…" aria-label="搜尋便箋"></label>
+      <button id="view-toggle" aria-pressed="false">清單檢視</button></div>
+    </header>
+    <div class="toolbar" aria-label="便箋操作">
+      <div><button id="operate-group">操作此組</button><button id="operate-all">操作全部</button><button id="stop-operation" hidden>結束操作</button></div>
+      <div><button id="cycle-prev" title="上一張">←</button><button id="cycle-next" title="下一張">→</button><span class="divider"></span><button id="stack">堆疊</button><button id="spread">攤開</button><button id="undo">復原</button></div>
+    </div>
+    <div class="view-filters"><button data-filter="active" class="active">待處理</button><button data-filter="completed">已完成</button><button data-filter="archived">封存</button><button data-filter="deleted">刪除區</button><span id="count"></span></div>
+    <div id="stage-shell"><div id="stage" aria-label="便箋桌面"></div><div id="empty" hidden><div class="empty-paper">＋</div><h2>先記下一件事。</h2><p>一個想法、一個待辦，都可以從這裡開始。</p><button id="empty-add">新增第一張便箋</button></div></div>
+    <section id="list" aria-label="便箋清單" hidden></section>
+    <footer><span id="mode-label">日常觀看</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
+  </main>
+  <dialog id="editor-dialog">
+    <form id="editor-form">
+      <header><div><span class="eyebrow">一張便箋，一件事情</span><h2 id="editor-title">記下想法</h2></div><button type="button" id="close-editor" aria-label="保留草稿並關閉">✕</button></header>
+      <label class="field">所屬群組<select id="editor-group"></select></label>
+      <div class="editor-tabs"><button type="button" id="edit-tab" aria-pressed="true">編輯</button><button type="button" id="preview-tab" aria-pressed="false">預覽 / checklist</button><button type="button" id="insert-task">＋ Checklist</button></div>
+      <textarea id="editor-text" placeholder="想記住什麼？支援 Markdown 與 - [ ] 待辦步驟。" aria-label="便箋內容" spellcheck="false"></textarea>
+      <div id="editor-preview" class="markdown" hidden></div>
+      <ul id="attachments"></ul>
+      <div class="editor-bottom"><label class="file-button">＋ 附件<input id="attachment-input" type="file" multiple hidden></label><span id="draft-status" role="status"></span></div>
+      <div class="dialog-actions"><button type="button" id="save-copy" hidden>另存副本</button><button type="button" id="keep-draft">保留草稿</button><button type="submit" class="primary">保存便箋</button></div>
+    </form>
+  </dialog>
+  <dialog id="formation-dialog">
+    <h2 id="formation-title">排列便箋</h2><p>這次排列會召回指定範圍的便箋；其他群組保持原位。</p>
+    <label class="field">範圍<select id="formation-scope"><option value="group">目前群組</option><option value="all">所有群組</option></select></label>
+    <label class="check"><input id="allow-resize" type="checkbox">允許這次調整卡片大小</label>
+    <p id="formation-description" role="status"></p>
+    <div class="dialog-actions"><button id="cancel-formation">取消</button><button id="apply-formation" class="primary">套用排列</button></div>
+  </dialog>
+  <dialog id="settings-dialog">
+    <h2>顯示與排列</h2>
+    <label class="check"><input id="desktop-visible" type="checkbox">日常顯示桌面便箋</label>
+    <label class="field">屬於我的群組<select id="my-group"></select></label>
+    <div class="grid-fields"><label class="field">列數<select id="grid-rows"><option>1</option><option>2</option><option>3</option></select></label><label class="field">欄數<select id="grid-columns"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
+    <div id="grid-preview" aria-label="格局預覽"></div><p id="grid-message"></p>
+    <p class="hint">變更區域不搬動既有便箋；執行排列時才召回。</p>
+    <div class="dialog-actions"><button id="cancel-settings">取消</button><button id="save-settings" class="primary">保存設定</button></div>
+  </dialog>
+  <dialog id="drafts-dialog"><h2>未完成草稿</h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts">關閉</button></div></dialog>
+</body>
+</html>

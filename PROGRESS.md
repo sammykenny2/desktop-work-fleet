@@ -19,7 +19,7 @@
 | Slice | 範圍 | 狀態與證據 |
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
-| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 尚待實作及真實 UI/故障驗收 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB 子切片完成並經真 Edge 與獨立審閱；群組合併／刪除、原生保存與完整容量設定仍待補齊 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 尚待實作；真實 OAuth 與跨平台 client ID 證據尚缺 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 範圍已核准，格式與交易實作尚待完成 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
@@ -59,6 +59,30 @@ Slice 1 已提交並推送 main：`81ab282`。
 也保留 `os.link` 建立新目的檔且不覆寫的保護。新增 flush 失敗無發布／不改來源／可重試回歸。
 Python 3.13.7（Windows）完整 14/14 通過；獨立唯讀審閱及三項 restore 測試通過。
 這修復 0.1.0 驗證版已知問題，不把 SQLite 格式當成 1.0 可攜備份格式。
+已提交並推送 main：`ac78f43`。
+
+## Slice 2：本機 UI／IndexedDB 子切片
+
+- `src/app` 實作共用介面：群組建立／重新命名、固定紙面就地編輯、完整 editor、
+  Markdown／checklist、附件、完成／封存／刪除區還原、全文搜尋、草稿入口。
+- `src/storage` 以真實 IndexedDB transaction 保存 Workspace，profile 分區、單 writer lease、
+  revision CAS、附件 SHA-256 bytes 與 25 MiB 上限；没有便箋 localhost API。
+- 實際指標事件接入普通拖移／標籤或 Shift 轉組、操作 scope、輪播、formation 預覽與 undo。
+  顯示／層級／選字政策可保存；瀏覽器不聲稱提供 OS 層級、全域快捷鍵或桌面穿透。
+- 草稿成功提交才消耗；多次恢復保留線性 lineage，僅移除仍符合基線的祖先。
+  pending／failed 寫入提示離頁，保存失敗仍保留編輯內容；窄螢幕保留草稿與設定入口。
+- Markdown 原始 HTML 當文字、生成 DOM 清理、限制連結；附件僅以純下載 bytes 提供，
+  即使另開分頁也不在 App origin 執行 HTML。依賴已固定版本及授權，見 ADR-009／notices。
+
+作者驗證：54/54 JavaScript 測試；`npm run build`；隔離真 Edge
+`scripts/testing/browser-probe.mjs` 通過新增、Markdown/checklist、附件 bytes、重開、
+inline 雙擊／切卡、普通／Shift 拖放與 undo、草稿恢復、filter/search 版面不變、
+HTML 附件開新頁僅下載、IDB 慢寫 beforeunload、390px 草稿入口、單 writer 及 CAS／分區隔離。
+文件檢查 60 份／301 相對連結與 `git diff --check` 通過。
+
+獨立唯讀審閱完成：54/54 JS、真 Edge 重現並複核七類修正及多代草稿恢復，無未解決 findings。
+其範圍不包含正式 Google／原生 host／備份／商店；本輪未重跑舊 Mac probe。
+上述 UI 是 1.0 施工中的本機預覽，尚未把版本號升為 1.0，也未宣稱整個 Slice 2 完成。
 
 ## 2026-10-04 文件交付
 

@@ -8,7 +8,8 @@
 **接手開發先讀 [桌面互動交接](docs/handoff/2026-10-04-desktop-interaction-handoff.md) 與
 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)**，其中區分已確認需求、工作預設、待決問題與 48 個驗收案例。
 
-- 目前可執行程式仍是 **0.1.0 驗證版**：macOS Sandbox App、Web 編輯器與 Python／SQLite 服務。
+- 新的本機 UI 可預覽群組、固定紙面編輯、Markdown／checklist／附件、草稿與拖放；[啟動方式](docs/setup-guide.md)。正式五平台原生 host 尚待整合。
+- 既有 **0.1.0 驗證版** 仍保留 macOS Sandbox App、Web 編輯器與 Python／SQLite 服務。
 - 1.0 方向是 Google 帳號＋檔案來源，第一版不架便箋 local server；Google／Drive 尚未實作。
 - 本次包含 Windows/macOS/Linux、iOS/Android 原生 App 與商店提交準備；原生 host／Google／打包尚待整合與驗收。
 - 已核准 Markdown、checklist、附件、完成／封存、逐卡設定與完整備份／還原範圍；見 SPEC-003 已答 Q 及 [ADR-008](docs/decisions/008-portable-interaction-core.md)。
@@ -38,6 +39,18 @@
 研究目錄依使用者指定命名為 `docs/resreach/`；`docs/research/` 只有導引文件。
 本 repo 的規格不依賴另一個 checkout 的固定位置；需要輔助原生桌面實作時先向維護者詢問。
 
+## 預覽新的本機介面
+
+```bash
+npm ci --ignore-scripts
+npm run build
+python scripts/testing/serve_preview.py --port 0
+```
+
+開啟終端列出的 URL。預覽只提供靜態檔案，便箋與附件存在瀏覽器 IndexedDB；
+尚未連接 Google，也不是原生桌面分層版本。固定 port 可保留相同瀏覽器 origin 的資料。
+不要以此預覽取代備份；詳見 [ADR-009](docs/decisions/009-local-renderer-and-persistence.md)。
+
 ## 執行既有 0.1.0
 
 在 macOS 使用：
@@ -59,6 +72,11 @@ docs/decisions/  已接受／待決／延後的決策
 docs/specs/      行為規格與驗收案例
 docs/plans/      實作順序與交付條件
 docs/handoff/    接手與參考資料取得規則
+src/app/        1.0 共用本機介面
+src/core/       卡片／群組／草稿／outbox 原子命令
+src/layout/     各機位置、formation 及 undo
+src/interaction/操作範圍與拖放
+src/storage/    分區 IndexedDB 交易與附件
 src/macos/      現有 AppKit Sandbox 展示與 WebKit 編輯入口
 src/server/     現有 Python 標準庫 HTTP + SQLite 驗證服務
 src/web/        現有共用便箋編輯器

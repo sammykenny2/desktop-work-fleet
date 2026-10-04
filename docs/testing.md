@@ -14,18 +14,41 @@
 
 ## 可重現命令
 
-從 checkout 根目錄，無需 pip/npm install：
+從 checkout 根目錄；Python 使用標準庫，完整 JS 測試需先安裝 lockfile 依賴：
 
 ```bash
+npm ci --ignore-scripts
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 node --test tests/*.test.js
+npm run build
 node --check src/web/app.js
+python3 scripts/testing/check_docs.py
+git diff --check
+```
+
+新的真實瀏覽器回歸使用隔離 profile 與合成資料：
+
+```bash
+python scripts/testing/serve_preview.py --port 0
+# 另一終端，把 PORT 換成上面印出的實際 port
+node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
+```
+
+Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
+`npx playwright install chromium`。Playwright 與測試 browser 不放進產品產物。
+probe 驗證新增／重開、Markdown／checklist、附件 bytes 與惡意 HTML 隔離、固定紙面 inline 編輯、
+普通／Shift 拖放、undo、搜尋／filter 不搬卡、多步草稿操作、離頁慢寫提示、窄螢幕入口與單 writer。
+另用真實 IDB 驗證並行 CAS、非連續 revision 拒絕、附件及 profile 隔離。
+輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
+這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
+
+既有 Mac 驗證版另在 macOS 執行：
+
+```bash
 bash scripts/macos/build-app.sh
 python3 scripts/testing/macos_probe.py --web
 python3 scripts/testing/macos_probe.py --mode 0
 python3 scripts/testing/macos_probe.py --mode 2
-python3 scripts/testing/check_docs.py
-git diff --check
 ```
 
 Python 測試與 Mac probe 需允許 loopback listener；某些 coding-agent 執行隔離層需額外允許。
@@ -62,7 +85,7 @@ otool -L 'build/Work Fleet.app/Contents/MacOS/WorkFleet'
 ```
 
 最終 staged export 在乾淨目錄以空 module cache 重建成功；13 個 HTTP/SQLite、8 個 JS 與文件檢查也通過。
-本版沒有應用第三方 package tree；系統／外部 runtime 與版本見
+這段歷史 0.1.0 Mac 驗證沒有應用第三方 package tree；系統／外部 runtime 與版本見
 [runtime inventory](validation/runtime-inventory.json)。正式上架前需對實際封裝重做檢查。
 
 最初 bootstrap／文件檢查歷史已保留於 Git；不能當成上述產品測試的替代證據。

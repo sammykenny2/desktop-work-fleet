@@ -1,8 +1,36 @@
 # 建置與操作
 
-更新：2026-10-03。驗證版 0.1.0；詳見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-04。新介面與既有 0.1.0 分開啟動；實作進度見 [PROGRESS](../PROGRESS.md)。
 
-## 需求
+## 1.0 本機介面開發預覽
+
+需要 Node 22+、Python 3.12+ 及支援 IndexedDB／Web Locks 的瀏覽器。
+本輪實測 Windows、Node 24.21.0、Python 3.13.7 與已安裝的 Edge；其他 browser／原生 host 另驗收。
+
+```bash
+npm ci --ignore-scripts
+npm run build
+python scripts/testing/serve_preview.py --port 0
+```
+
+開啟輸出的 `/app/index.html` URL，Ctrl-C 結束開發預覽。
+`--port 0` 使用空 port；要重用原本的瀏覽器資料，指定同一個可用 port，
+因為 IndexedDB 依 origin 隔離。這是開發靜態資產 listener，沒有便箋 API。
+
+- 「記下想法」開啟 editor，支援 Markdown／checklist；可附加每檔至多 25 MiB 的檔案。
+  附件僅下載，不直接執行 HTML／SVG。保存完成會移除對應草稿，保留草稿則可稍後繼續。
+- 日常觀看無法改文；「操作此組／操作全部」後單擊選卡、雙擊就地編輯。
+  Ctrl／Command＋Enter 保存；Esc 保留草稿並結束編輯。完整編輯可管理附件及預覽。
+- 拖曳只移動位置；放在另一組接收標籤或按住 Shift 放到另一組區域才轉組。
+  堆疊／攤開先預覽，調整大小須每次勾選；復原依序還原 geometry／轉組。
+- 清單提供完成、封存、刪除區及還原；搜尋全文，窄螢幕保留草稿及設定入口。
+  顯示與排列設定不立即重排既有便箋。
+- 同 profile 不允許第二個獨立視窗寫入；保存中或失敗時離頁有提示。
+  沒有 Google 同步，清除瀏覽器資料會失去預覽資料；正式備份功能尚待整合。
+
+此預覽不是 OS 桌面浮層。逐卡層級保存偏好，實際分層／穿透／全域快捷鍵由原生 host 完成。
+
+## 既有 0.1.0 需求
 
 - macOS 13+、Command Line Tools（`xcode-select --install`）；已測 macOS 26.7.1 x86_64、Swift 6.3.3。
 - Python 3.12+，含標準庫 sqlite3；已測 Python 3.14.7／SQLite 3.51.0。

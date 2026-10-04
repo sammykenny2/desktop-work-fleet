@@ -513,3 +513,66 @@ test('formation input is frozen before waiting for a draft flush', async () => {
   assert.equal(f.workspace.layout.state.placements[f.a1.id].x, x);
   assert.equal(controller.state.activeGroupId, null);
 });
+
+test('durable draft commit is atomic with its outbox record and restores deleted content', async () => {
+  const f = await fixture(); const draft = f.workspace.blankDraft(f.a.id);
+  draft.content = { ...markdown('saved from draft'), attachments: [{ id: 'digest', name: 'proof.txt', size: 8 }] };
+  await f.workspace.saveDraft(draft); const before = f.disk(); f.fail(true);
+  await assert.rejects(f.workspace.commitDraft(draft.id), /disk full/);
+  assert.deepEqual(f.disk(), before);
+  f.fail(false); const card = await f.workspace.commitDraft(draft.id);
+  assert.equal(f.workspace.state.drafts[draft.id], undefined);
+  assert.deepEqual(f.workspace.state.outbox.at(-1).value.content, draft.content);
+  const deleted = await f.workspace.updateCard(card.id, { deleted: true }, card.revision);
+  const restored = await f.workspace.restoreCard(deleted.id, deleted.revision);
+  assert.equal(restored.deleted, false); assert.deepEqual(restored.content, draft.content);
+});
+
+test('conflicted drafts stay durable and can become independent copies', async () => {
+  const f = await fixture(); const draft = f.workspace.blankDraft(f.a.id, f.a1); draft.content.text = 'my edit';
+  await f.workspace.saveDraft(draft);
+  await f.workspace.updateCard(f.a1.id, { content: markdown('newer edit') }, f.a1.revision);
+  await rejectsCode(f.workspace.commitDraft(draft.id), 'conflict');
+  assert.equal(f.workspace.state.drafts[draft.id].content.text, 'my edit');
+  const copied = await f.workspace.commitDraft(draft.id, { asCopy: true });
+  assert.notEqual(copied.id, f.a1.id); assert.equal(copied.content.text, 'my edit');
+  assert.equal(currentText(f.workspace, f.a1.id), 'newer edit');
+});
+
+function currentText(workspace, cardId) { return workspace.snapshot.cards.find(card => card.id === cardId).content.text; }
+
+test('saving a recovered draft clears its unchanged original but retains an independently updated original', async () => {
+  for (const changed of [false, true]) {
+    const f = await fixture(); const original = f.workspace.blankDraft(f.a.id); original.content.text = 'original';
+    await f.workspace.saveDraft(original);
+    const recovered = f.workspace.recoverDraft(original.id); recovered.content.text = 'recovered edit';
+    await f.workspace.saveDraft(recovered);
+    if (changed) await f.workspace.saveDraft({ ...original, content: markdown('independent edit') });
+    await f.workspace.commitDraft(recovered.id);
+    assert.equal(Object.keys(f.workspace.state.drafts).length, changed ? 1 : 0);
+    if (changed) assert.equal(f.workspace.state.drafts[original.id].content.text, 'independent edit');
+  }
+});
+
+test('repeated draft recovery consumes unchanged ancestors with linear lineage and preserves changed ones', async () => {
+  for (const changed of [false, true]) {
+    const f = await fixture(); let draft = f.workspace.blankDraft(f.a.id); draft.content.text = 'first';
+    await f.workspace.saveDraft(draft); const ancestors = [copy(draft)];
+    for (let i = 0; i < 12; i++) {
+      draft = f.workspace.recoverDraft(draft.id); draft.content.text = `session ${i}`;
+      await f.workspace.saveDraft(draft);
+      if (i < 11) ancestors.push(copy(draft));
+    }
+    assert.equal(draft.recoveredFrom.length, 12);
+    assert.ok(JSON.stringify(draft.recoveredFrom).length < 12 * 1000, 'lineage must not recursively embed prior lineage');
+    if (changed) {
+      for (const origin of [ancestors[0], ancestors[6]]) await f.workspace.saveDraft({ ...origin, content: markdown('independent') });
+    }
+    const before = f.disk(); f.fail(true);
+    await assert.rejects(f.workspace.commitDraft(draft.id), /disk full/); assert.deepEqual(f.disk(), before);
+    f.fail(false); const saved = await f.workspace.commitDraft(draft.id);
+    assert.equal(saved.content.text, 'session 11');
+    assert.equal(Object.keys(f.workspace.state.drafts).length, changed ? 2 : 0);
+    assert.ok(Object.values(f.workspace.state.drafts).every(item => item.content.text === 'independent'));
+  }
+});

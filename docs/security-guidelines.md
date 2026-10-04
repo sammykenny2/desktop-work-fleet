@@ -1,6 +1,22 @@
-# 驗證版安全邊界
+# 安全邊界
 
-更新：2026-10-03。
+更新：2026-10-04。
+
+## 1.0 本機 renderer
+
+- 便箋、草稿、outbox 與版面在同一 IndexedDB 交易提交，成功前不發布新 Workspace。
+  profile key 與附件 composite key 隔離資料；Web Locks 加 revision CAS 防止獨立 writer 覆寫。
+- Markdown 原始 HTML 顯示為文字，生成 DOM 再經 DOMPurify 允許清單；不載入遠端圖片，
+  HTTP／HTTPS／mailto 之外的連結移除，另開連結使用 noopener／noreferrer。
+- 附件依 SHA-256 定址，單檔至多 25 MiB；下載包裝為 application/octet-stream，
+  不以 App origin 執行使用者 HTML／SVG。儲存的 bytes 及原始 MIME metadata 不改寫。
+- script 全部本機封裝，importmap 以 build 時 CSP hash 授權；不用遠端 script 或 CDN。
+- pending／failed 草稿保留記憶體內容並提示離頁；正常成功以 transaction complete 為準。
+  不能保證瀏覽器程序被強制結束前尚未落盤的輸入存活，也不把本機 cache 當備份。
+- 開發 listener 僅 loopback 靜態資產，沒有便箋或 token API。原生 host 的 OAuth、OS 安全儲存、
+  加密備份與正式封裝尚需各自驗收，不能由此介面測試代替。
+
+## 既有 0.1.0 驗證版
 
 - 鎖定是防誤觸；server 另外強制 viewer/editor/admin 權限。
 - token 使用 256-bit 隨機值；DB 只保存 SHA-256。一次性配對碼 192-bit，效期 300 秒。

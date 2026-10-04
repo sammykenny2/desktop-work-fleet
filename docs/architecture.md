@@ -7,7 +7,8 @@
 `src/core` 保存卡片／群組／草稿／outbox，`src/layout` 計算及保存每機排列，
 `src/interaction` 控制操作範圍與手勢。轉組的共享命令與 geometry 在同一本機交易提交。
 `contracts/desktop.d.ts` 定義可替換 persistence／source／host 的邊界；
-原生落盤 adapter、實際 Google 與五平台 renderer/host 尚需後續整合，不以模型測試宣稱完成。
+`src/app` 與 IndexedDB adapter 已加入；選擇與限制見 [ADR-009](decisions/009-local-renderer-and-persistence.md)。
+原生落盤 adapter、實際 Google 與五平台 host 尚需後續整合，不以瀏覽器測試宣稱完成。
 
 ## 1.0 的責任分界
 
@@ -51,7 +52,7 @@ formation / undo] <--> Scene
 
 BackupService 屬於共用核心，不由 Drive 或 renderer 私自定義格式。
 [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-005](decisions/005-portable-backup-and-restore.md)
-是待修訂提案；ZIP／JSON、新 ID 匯入、版面與附件等範圍尚未全部批准。
+是格式待修訂提案；使用者已核准群組／版面／附件、自動與加密備份，以及匯入／合併／取代還原。
 備份必須保留最終共用卡片／群組語意；未知內容不能靜默丟棄後宣稱成功。
 
 [完整 PM／server 草案](resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。

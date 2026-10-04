@@ -8,6 +8,12 @@ function contentValue(content) {
   return copy(content);
 }
 
+function draftBaseline(draft) {
+  if (!draft) return null;
+  const value = copy(draft); delete value.recoveredFrom;
+  return JSON.stringify(value);
+}
+
 /** Account-scoped local journal. The persistence boundary includes content, outbox, drafts and layout. */
 export class Workspace {
   #state;
@@ -114,6 +120,59 @@ export class Workspace {
     return this.#commit(state => {
       const card = this.#card(state, cardId, expectedRevision);
       Object.assign(card, copy(patch), { revision: this.#uuid() });
+      this.#record(state, 'card', card, [expectedRevision]);
+      return copy(card);
+    });
+  }
+
+  blankDraft(groupId, card = null) {
+    this.#group(this.#state, card?.groupId || groupId);
+    return { id: this.#uuid(), cardId: card?.id || this.#uuid(), groupId: card?.groupId || groupId,
+      baseRevision: card?.revision ?? null,
+      content: copy(card?.content || { format: 'markdown', text: '', attachments: [] }) };
+  }
+
+  recoverDraft(draftId) {
+    const original = this.#state.drafts[draftId];
+    requireValue(original, 'missing-draft', '找不到這份草稿。');
+    return { ...copy(original), id: this.#uuid(), recoveredFrom: [
+      ...(original.recoveredFrom || []), { id: original.id, baseline: draftBaseline(original) },
+    ] };
+  }
+
+  async commitDraft(draftId, { asCopy = false } = {}) {
+    return this.#commit(state => {
+      const draft = state.drafts[draftId];
+      requireValue(draft, 'missing-draft', '找不到已保存的草稿。');
+      this.#group(state, draft.groupId);
+      let card;
+      if (draft.baseRevision && !asCopy) {
+        card = this.#card(state, draft.cardId, draft.baseRevision);
+        card.content = copy(draft.content); card.revision = this.#uuid();
+        this.#record(state, 'card', card, [draft.baseRevision]);
+      } else {
+        const id = asCopy ? this.#uuid() : draft.cardId;
+        requireValue(!state.cards.some(existing => existing.id === id), 'duplicate-card', '卡片身分已存在，請另存副本。');
+        card = { id, revision: this.#uuid(), groupId: draft.groupId, content: copy(draft.content),
+          deleted: false, archived: false, completed: false };
+        state.cards.push(card); this.#record(state, 'card', card, []);
+      }
+      for (const origin of draft.recoveredFrom || []) {
+        if (origin.id !== draftId && draftBaseline(state.drafts[origin.id]) === origin.baseline) {
+          delete state.drafts[origin.id];
+        }
+      }
+      delete state.drafts[draftId];
+      return copy(card);
+    });
+  }
+
+  async restoreCard(cardId, expectedRevision) {
+    return this.#commit(state => {
+      const card = state.cards.find(card => card.id === cardId);
+      requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', '刪除區卡片已變更，請重新載入。');
+      this.#group(state, card.groupId);
+      card.deleted = false; card.revision = this.#uuid();
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);
     });

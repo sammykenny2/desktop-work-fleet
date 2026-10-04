@@ -99,7 +99,14 @@ export interface MoveCardToGroup {
   position?: Point;
   expectedLayoutRevision?: number;
 }
-export interface Draft { id: Id; cardId: Id; content: Content; baseRevision?: Revision }
+export interface Draft {
+  id: Id;
+  cardId: Id;
+  groupId: Id;
+  content: Content;
+  baseRevision: Revision | null;
+  recoveredFrom?: { id: Id; baseline: string }[];
+}
 export interface OutboxEntry {
   operationId: Id;
   kind: 'card' | 'group';

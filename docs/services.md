@@ -9,3 +9,11 @@
 macOS App 只有 network.client entitlement，沒有 listener。
 LAN 必須使用 `--cert`、`--key`、`--origin https://主機:port`，手機需信任憑證且可達該主機。
 QR 本身不提供 NAT 穿透；外網需自行部署可信 HTTPS 或 VPN。沒有啟用 Bonjour 或 UDP discovery。
+
+## 1.0 介面開發預覽
+
+`npm run build` 後可執行 `python scripts/testing/serve_preview.py --port 0`。
+它只在 loopback 提供 `build/app` 靜態資產；預設由 OS 選擇空 port，終端顯示實際 URL。
+`--port` 可指定測試 port，衝突則啟動失敗，不停止其他 listener。
+這不是便箋 API／權威資料 server；介面透過 IndexedDB 本機交易保存資料。
+正式原生 App 需封裝這些本機資產，不依賴此開發 listener。

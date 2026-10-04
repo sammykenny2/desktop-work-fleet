@@ -231,7 +231,7 @@ export class InteractionController {
   }
 
   cancelDrag() {
-    if (this.#busy) return false;
+    if (this.#busy || !this.#state.dragSession) return false;
     if (this.#state.dragSession?.dragging) this.#suppressedCard = this.#state.dragSession.cardId;
     this.#state.dragSession = null;
     return true;

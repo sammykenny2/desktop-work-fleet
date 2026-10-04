@@ -415,6 +415,16 @@ owner 取消拖曳並持久保存不可達卡片救援，原生場景池保留�
 依使用者 2026-10-05 指示優先實作，本切片沒有執行測試或獨立審閱，實體拔插／DPI／喚醒仍未驗收。
 決策見 [ADR-020](docs/decisions/020-windows-display-lifecycle.md)。
 
+## 2026-10-05 Windows Google 整合實作
+
+顯示器切片已推送 `e46b71a`。Windows 新增 NativeGoogle：系統瀏覽器 PKCE／state、臨時 callback、
+HTTPS userinfo 身分、DPAPI 憑證保存／refresh、固定 FileStore 語意、串流容量與檔案 SHA-256 校驗、續傳。
+介面新增登入／切換、返回本機、登出、立即同步與 20 秒背景同步；帳號分區保存原資料，切換先保存草稿。
+NativeGoogleFileStore 接既有 FileSync 的版本圖、outbox、衝突及游標交易。公開設定沿用 `.env.example`。
+本切片只建置，依使用者指示未執行功能測試或獨立審閱。Google 專案未建立，真登入／Drive 往返未驗收。
+macOS／Linux／iOS／Android 原生交付及商店準備仍繼續；未將 Windows 實作視為完整 1.0。
+決策見 [ADR-021](docs/decisions/021-windows-google-account-and-sync.md)。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。

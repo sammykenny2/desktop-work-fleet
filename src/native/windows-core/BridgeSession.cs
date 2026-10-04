@@ -6,7 +6,7 @@ namespace WorkFleet.Windows.Core;
 
 /// <summary>Per-document bounded protocol. The UI host authenticates source and navigation before dispatch.</summary>
 public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? backupFiles = null, Func<string?>? chooseBackupDirectory = null,
-  Func<string, JsonElement, object?>? desktop = null) : IDisposable
+  Func<string, JsonElement, object?>? desktop = null, bool googleAvailable = false) : IDisposable
 {
   public const int ChunkSize = 256 * 1024;
   // Includes a complete manifest of 20,000 UUID attachment tokens plus the fixed envelope.
@@ -30,7 +30,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
     storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
-      backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = false, desktopPresentation = desktop is not null } };
+      backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null } };
 
   public string Dispatch(string message)
   {
@@ -206,6 +206,16 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
       var token = Add(new Transfer("download", bytes.Length, digest, bytes)); return new { token, size = bytes.Length, sha256 = digest };
     }
     catch { CryptographicOperations.ZeroMemory(bytes); throw; }
+  }
+  public object? DownloadBytes(byte[] bytes) { lock (gate) { ObjectDisposedException.ThrowIf(disposed, this); return Download(bytes); } }
+  public byte[] UploadBytes(string token)
+  {
+    lock (gate)
+    {
+      ObjectDisposedException.ThrowIf(disposed, this);
+      HostError.Require(staged.Contains(token), "transfer-missing", "上傳不屬於此工作空間。");
+      return database.ReadAttachmentStage(token);
+    }
   }
   private string Add(Transfer transfer)
   {

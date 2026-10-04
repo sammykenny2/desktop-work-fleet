@@ -112,10 +112,14 @@ public sealed class LocalDatabase : IDisposable
     lock (gate) Execute("DELETE FROM staging WHERE profile=$p AND token=$t;", null, ("$p", ProfileId), ("$t", token));
   }
   public byte[] ReadBackupStage(string token)
+    => ReadStage(token, "backup");
+  public byte[] ReadAttachmentStage(string token)
+    => ReadStage(token, "attachment");
+  private byte[] ReadStage(string token, string kind)
   {
     lock (gate)
     {
-      using var tx = connection.BeginTransaction(); var (bytes, digest) = Staged(token, "backup", tx);
+      using var tx = connection.BeginTransaction(); var (bytes, digest) = Staged(token, kind, tx);
       if (Digest(bytes) == digest) return bytes;
       CryptographicOperations.ZeroMemory(bytes); throw new HostError("transfer-integrity", "備份傳輸校驗失敗。");
     }

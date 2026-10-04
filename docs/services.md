@@ -21,3 +21,10 @@ QR 本身不提供 NAT 穿透；外網需自行部署可信 HTTPS 或 VPN。沒�
 Windows 1.0 主畫面以 WebView2 virtual host mapping 載入 `https://work-fleet.invalid/app/index.html`。
 該名稱只在 WebView2 內解析為封裝 Assets；沒有 DNS、TCP／HTTP listener 或新的 port。
 原生 SQLite／DPAPI 經 WebMessage bridge 存取；沒有 local note server。
+
+## Windows Google 登入 callback
+
+登入期間以 TcpListener 綁定 `127.0.0.1:0`，由 OS 分配空閒 port，路徑 `/oauth2/callback`。
+只接受符合該次隨機 state 的 code；PKCE verifier 留在原生服務。完成、取消或 110 秒逾時即關閉。
+此 listener 不提供便箋 API，不綁定 LAN、不使用固定 port，也不變更外部 port registry。
+Google HTTPS token、userinfo 及 Drive 請求皆由原生端送出，renderer 不持有憑證或任意 HTTP 能力。

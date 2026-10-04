@@ -15,8 +15,9 @@ namespace WorkFleet.Windows;
 public sealed class FleetWindow : Window
 {
   private readonly WebView2 web = new();
-  private readonly LocalDatabase database;
-  private readonly NativeBackupFiles backupFiles;
+  private LocalDatabase database;
+  private NativeBackupFiles backupFiles;
+  private NativeGoogle? google;
   private readonly string dataDirectory;
   private readonly Func<string?>? backupDirectoryPicker;
   private BridgeSession? bridge;
@@ -35,7 +36,10 @@ public sealed class FleetWindow : Window
     this.dataDirectory = Path.GetFullPath(dataDirectory);
     this.backupDirectoryPicker = backupDirectoryPicker;
     this.desktopDisplays = desktopDisplays;
-    database = new LocalDatabase(this.dataDirectory, "local");
+    var selected = Path.Combine(this.dataDirectory, "profile.txt");
+    var profile = File.Exists(selected) ? File.ReadAllText(selected).Trim() : "local";
+    if (profile != "local" && !System.Text.RegularExpressions.Regex.IsMatch(profile, "^google:[A-Za-z0-9_-]{1,255}$")) profile = "local";
+    database = new LocalDatabase(this.dataDirectory, profile);
     backupFiles = new NativeBackupFiles(database);
     Title = "Work Fleet"; Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
     Content = web; WindowStartupLocation = WindowStartupLocation.CenterScreen;
@@ -60,7 +64,7 @@ public sealed class FleetWindow : Window
       // Defer even when no work is pending: WPF forbids a second Close inside Closing.
       Dispatcher.BeginInvoke(new Action(() => { _ = PrepareClose(); }));
     };
-    Closed += (_, _) => { tray?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   private void ShowMain() => ShowMain(true);
   private void ShowMain(bool activate)
@@ -96,13 +100,14 @@ public sealed class FleetWindow : Window
     core.NavigationStarting += (_, e) =>
     {
       if (!NavigationPolicy.IsDocument(e.Uri)) { e.Cancel = true; if (e.IsUserInitiated) OpenExternal(e.Uri); return; }
-      navigation++; bridge?.Dispose(); desktop?.Dispose();
+      navigation++; google?.Dispose(); bridge?.Dispose(); desktop?.Dispose();
+      google = new NativeGoogle(dataDirectory, database.ProfileId);
       var epoch = navigation;
       desktop = new DesktopCoordinator(environment, value =>
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
       }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; Hide(); return true; });
-      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke);
+      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -118,12 +123,13 @@ public sealed class FleetWindow : Window
       // Capture a local foreground intent at admission, never after a slow storage transaction.
       if (TryIntent(json, out var captured)) { core.PostWebMessageAsJson(captured!); return; }
       var session = bridge; var epoch = navigation; queued++;
+      if (IsGoogleRequest(json)) { _ = HandleGoogle(session, epoch, json); return; }
       messageQueue = HandleMessage(messageQueue, session, epoch, json);
     };
     core.ProcessFailed += (_, _) =>
     {
       // Keep the native store alive. A new document must reopen from committed state.
-      navigation++; bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
+      navigation++; google?.Dispose(); bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
       ShowMain(false);
       Content = new TextBlock { Text = "畫面程序已停止。已提交資料仍保留於本機；請重新開啟 Work Fleet。",
         TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
@@ -145,6 +151,63 @@ public sealed class FleetWindow : Window
       result = JsonSerializer.Serialize(new { v = 1, id, ok = true, result = new { intent = desktop.CaptureIntent(this) } }); return true;
     }
     catch (Exception error) when (error is JsonException or HostError or InvalidOperationException or KeyNotFoundException) { return false; }
+  }
+  private static bool IsGoogleRequest(string json)
+  {
+    try { using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); return JsonRules.Text(value.RootElement, "method").StartsWith("google.", StringComparison.Ordinal); }
+    catch { return false; }
+  }
+  private async Task HandleGoogle(BridgeSession session, long epoch, string json)
+  {
+    string? id = null; string? switchTo = null; string reply;
+    try
+    {
+      using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var request = document.RootElement;
+      id = JsonRules.Text(request, "id"); var method = JsonRules.Text(request, "method"); var args = request.GetProperty("params");
+      HostError.Require(Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1 && args.ValueKind == JsonValueKind.Object && epoch == navigation && !shuttingDown && google is not null,
+        "stale-session", "Google 工作階段已結束。");
+      var service = google!; object? result;
+      switch (method)
+      {
+        case "google.status": result = service.Status(); break;
+        case "google.signIn": result = await service.SignIn(); break;
+        case "google.open": switchTo = service.OpenAccount(JsonRules.Text(args, "accountId")); result = new { profileId = switchTo }; break;
+        case "google.signOut": await service.SignOut(); switchTo = "local"; result = new { profileId = switchTo }; break;
+        case "google.local": switchTo = "local"; result = new { profileId = switchTo }; break;
+        default: result = await service.Drive(method, args, session); break;
+      }
+      reply = JsonSerializer.Serialize(new { v = 1, id, ok = true, result });
+    }
+    catch (Exception error)
+    {
+      reply = JsonSerializer.Serialize(new { v = 1, id, ok = false, error = new { code = (error as HostError)?.Code ?? "google-unavailable",
+        message = (error as HostError)?.Message ?? "Google 連線暫時無法完成，本機資料仍保留。" } });
+      switchTo = null;
+    }
+    finally { queued--; }
+    if (epoch != navigation || shuttingDown || !NavigationPolicy.IsDocument(web.CoreWebView2.Source)) return;
+    web.CoreWebView2.PostWebMessageAsJson(reply);
+    if (switchTo is not null)
+    {
+      var profile = switchTo;
+      _ = Dispatcher.BeginInvoke(new Action(() => { if (epoch == navigation && !shuttingDown) SwitchProfile(profile); }));
+    }
+  }
+  private void SwitchProfile(string profile)
+  {
+    google?.Dispose(); bridge?.Dispose(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
+    try
+    {
+      database = new LocalDatabase(dataDirectory, profile); backupFiles = new NativeBackupFiles(database);
+      var marker = Path.Combine(dataDirectory, "profile.txt"); var temporary = marker + "." + Guid.NewGuid() + ".tmp";
+      using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+      { stream.Write(Encoding.UTF8.GetBytes(profile)); stream.Flush(true); }
+      File.Move(temporary, marker, true); web.CoreWebView2.Navigate(NavigationPolicy.Document);
+    }
+    catch
+    {
+      Content = new TextBlock { Text = "帳號切換未完成。已保存資料仍保留，請重新開啟 Work Fleet。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
+    }
   }
   private string? ChooseBackupDirectory() => Dispatcher.Invoke(() =>
   {

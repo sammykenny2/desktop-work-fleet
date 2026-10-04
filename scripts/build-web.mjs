@@ -18,7 +18,7 @@ if (process.argv.includes('--help')) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
   }
   await mkdir(path.join(destination, 'native'), { recursive: true });
-  for (const name of ['bridge.js', 'shortcuts.js']) await cp(path.join(root, 'src', 'native', name), path.join(destination, 'native', name));
+  for (const name of ['bridge.js', 'shortcuts.js', 'google.js']) await cp(path.join(root, 'src', 'native', name), path.join(destination, 'native', name));
   for (const folder of ['app', 'desktop']) {
     const htmlPath = path.join(destination, folder, 'index.html');
     const html = await readFile(htmlPath, 'utf8');

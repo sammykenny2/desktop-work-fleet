@@ -18,6 +18,8 @@ import { DesktopAuthority } from '../desktop/authority.js';
 import { DesktopOwner } from '../desktop/owner.js';
 import { projectDesktop } from '../desktop/projection.js';
 import { NativeShortcutSettings } from '../native/shortcuts.js';
+import { NativeGoogleFileStore } from '../native/google.js';
+import { FileSync } from '../sources/file-sync.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -32,6 +34,7 @@ let automatic; let automaticError;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = [];
+let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 const activeActions = new Set();
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
@@ -91,7 +94,7 @@ async function initialize() {
   const saved = await storage.load(profileId);
   const persist = (state, revision) => storage.save(state, revision);
   workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
-    deviceId: crypto.randomUUID(), area: screenArea(), persist });
+    deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:') });
   activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); } });
@@ -126,6 +129,7 @@ async function initialize() {
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
   bindEvents(); render(); status('已開啟本機資料');
+  if (native) await initializeGoogle();
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
     if (desktopInfo || $('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
@@ -138,6 +142,63 @@ async function initialize() {
       render(); if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
     });
   }).observe($('#stage-shell'));
+}
+
+async function initializeGoogle() {
+  googleAccount = await native.bridge.request('google.status');
+  $('#google-sign-in').hidden = false;
+  $('#google-sign-in').textContent = googleAccount.connected ? '切換 Google 帳號' : '登入 Google';
+  $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
+  $('#google-sign-out').hidden = !googleAccount.connected;
+  $('#google-local').hidden = !profileId.startsWith('google:');
+  $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
+  $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
+  $('#google-sync').hidden = !googleAccount.connected; $('#sync-status').hidden = false;
+  $('#google-sync').onclick = () => { void syncGoogle(true); };
+  if (googleAccount.connected) {
+    $('#storage-note').textContent = `Google 工作空間 · ${googleAccount.email || googleAccount.accountId} · 本機加密保存`;
+    syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId) });
+    syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
+    addEventListener('online', () => { void syncGoogle(); });
+    addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
+    void syncGoogle();
+  } else $('#sync-status').textContent = googleAccount.configured ? '登入後開啟獨立帳號工作空間；目前本機便箋保留。' : 'Google 尚未設定。請填寫 .env 的 client ID 後重新建置。';
+}
+async function syncGoogle(force = false) {
+  if (!syncService || syncBusy || nativeClosing || accountBusy || document.querySelector('dialog[open]') || composing) return;
+  syncBusy = true; $('#google-sync').disabled = true; $('#sync-status').textContent = '正在同步…';
+  try {
+    await (desktop ? desktop.perform(sync) : sync());
+    async function sync() {
+      await flushDraft(); await syncService.sync({ force });
+      if (!activeGroups(workspace.snapshot).length && !workspace.snapshot.groups.length) await workspace.createGroup('我的便箋');
+      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
+      await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
+      const pending = workspace.pendingOperations.length;
+      $('#sync-status').textContent = pending ? `本機已保存 · ${pending} 筆等待下一次同步` : `已同步 · ${new Date().toLocaleTimeString()}`;
+    }
+  } catch (error) { $('#sync-status').textContent = `${error.message} · 本機資料保留`; }
+  finally { syncBusy = false; $('#google-sync').disabled = false; }
+}
+async function changeGoogleAccount(action) {
+  if (accountBusy || nativeClosing) return; accountBusy = true;
+  const oldSync = syncService; clearInterval(syncTimer); stopAutomatic?.();
+  try {
+    await automatic?.service.whenIdle(); await oldSync?.stop(); syncService = null;
+    desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
+    await (desktop ? desktop.perform(flushDraft) : flushDraft()); await desktop?.whenIdle(); desktop?.sealClose();
+    document.body.inert = true;
+    if (action === 'signIn') {
+      status('請在系統瀏覽器完成 Google 登入…');
+      const result = await native.bridge.request('google.signIn');
+      await native.bridge.request('google.open', { accountId: result.accountId });
+    } else await native.bridge.request(action === 'signOut' ? 'google.signOut' : 'google.local');
+  } catch (error) {
+    document.body.inert = false; status(error.message, true); await desktop?.cancelClose();
+    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
+    if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+    accountBusy = false; await initializeGoogle();
+  }
 }
 
 function currentDesktopEditor() {
@@ -467,6 +528,9 @@ function cardDetails(card) {
 
 async function openEditor(card = null, recovered = null) {
   if (composing) return;
+  if (!card && !recovered && !activeGroups(workspace.snapshot).length) {
+    const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render();
+  }
   if (controller.state.editingCardId && currentDraft) await controller.endEdit();
   remoteEditor = null;
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);

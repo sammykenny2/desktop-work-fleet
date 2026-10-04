@@ -17,7 +17,7 @@ const items = value => {
     'invalid-source-page', 'Google Drive 分頁格式無效。'); return value || [];
 };
 
-function descriptor(value) {
+export function googleDescriptor(value) {
   const properties = value?.appProperties;
   requireValue(value && (value.trashed === undefined || value.trashed === false)
     && Array.isArray(value.spaces) && value.spaces.includes('appDataFolder')
@@ -29,6 +29,7 @@ function descriptor(value) {
     'file-integrity', 'Google Drive 的內容校驗值與檔案 metadata 不符。');
   return file;
 }
+const descriptor = googleDescriptor;
 
 function sessionPath(location) {
   let url;

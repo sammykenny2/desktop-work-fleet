@@ -1,18 +1,20 @@
 import { compareId, copy, defaultGrid } from '../core/contracts.js';
-import { resolveGroupId } from '../core/groups.js';
+import { groupResolver, resolveGroupId } from '../core/groups.js';
 
 export const projectionConflictKinds = new Set(['revision', 'group-reference', 'card-group', 'group-overflow', 'pending-revisions']);
 
 /** A visible branch is a reading preference, never a conflict resolution or a new shared revision. */
-export function projectRevisions(graph, previous = { groups: [], cards: [], conflicts: [] }) {
+function* projectionSteps(graph, previous = { groups: [], cards: [], conflicts: [] }) {
   const groups = []; const cards = [];
   const conflicts = (previous.conflicts || []).filter(item => !projectionConflictKinds.has(item.kind)).map(copy);
-  for (const { kind, entityId, heads } of graph.entities()) {
-    const old = (kind === 'group' ? previous.groups : previous.cards).find(value => value.id === entityId);
+  const preferences = { group: new Map(previous.groups.map(value => [value.id, value])), card: new Map(previous.cards.map(value => [value.id, value])) };
+  for (const { kind, entityId, heads } of graph.iterateEntities()) {
+    const old = preferences[kind].get(entityId);
     const selected = heads.find(head => head.revisionId === old?.revision)
       || [...heads].sort((a, b) => Number(a.value.deleted) - Number(b.value.deleted) || compareId(a.revisionId, b.revisionId))[0];
     (kind === 'group' ? groups : cards).push(copy(selected.value));
     if (heads.length > 1) conflicts.push({ kind: 'revision', entityKind: kind, entityId, heads: heads.map(head => head.revisionId) });
+    yield;
   }
   for (const [values, previousValues] of [[groups, previous.groups], [cards, previous.cards]]) {
     const positions = new Map(previousValues.map((value, index) => [value.id, index]));
@@ -20,18 +22,33 @@ export function projectRevisions(graph, previous = { groups: [], cards: [], conf
       || compareId(a.id, b.id));
   }
   const snapshot = { groups, cards, conflicts };
+  const resolve = groupResolver(groups);
   for (const group of groups.filter(group => group.deleted)) {
-    try { resolveGroupId(snapshot, group.id); }
+    try { resolve(group.id); }
     catch (error) { conflicts.push({ kind: 'group-reference', groupId: group.id, reason: error.code }); }
+    yield;
   }
   for (const card of cards) {
-    try { card.groupId = resolveGroupId(snapshot, card.groupId); }
+    try { card.groupId = resolve(card.groupId); }
     catch (error) { conflicts.push({ kind: 'card-group', cardId: card.id, groupId: card.groupId, reason: error.code }); }
+    yield;
   }
   const count = groups.filter(group => !group.deleted).length;
   if (count > 9) conflicts.push({ kind: 'group-overflow', count });
   if (graph.pending.length) conflicts.push({ kind: 'pending-revisions', revisions: graph.pending, missing: graph.missing });
   return snapshot;
+}
+
+export function projectRevisions(graph, previous) {
+  const steps = projectionSteps(graph, previous); let result;
+  do { result = steps.next(); } while (!result.done);
+  return result.value;
+}
+
+export async function projectRevisionsAsync(graph, previous, checkpoint) {
+  const steps = projectionSteps(graph, previous); let result;
+  do { result = steps.next(); if (!result.done) await checkpoint(); } while (!result.done);
+  return result.value;
 }
 
 /** Remote content may reconcile device references, but never move or resize an existing paper. */

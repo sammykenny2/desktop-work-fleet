@@ -14,7 +14,7 @@ if (process.argv.includes('--help')) {
   await mkdir(path.join(root, 'build', 'config'), { recursive: true });
   await writeFile(path.join(root, 'build', 'config', 'public.json'), JSON.stringify(config, null, 2) + '\n');
   await mkdir(destination, { recursive: true });
-  for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources']) {
+  for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources', 'backup']) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
   }
   const htmlPath = path.join(destination, 'app', 'index.html');
@@ -23,8 +23,8 @@ if (process.argv.includes('--help')) {
   const hash = createHash('sha256').update(importMap).digest('base64');
   await writeFile(htmlPath, html.replace('IMPORT_MAP_HASH', `'sha256-${hash}'`));
   await mkdir(path.join(destination, 'vendor'), { recursive: true });
-  for (const [name, target, license] of [['marked', 'marked.js', 'LICENSE'], ['dompurify', 'dompurify.js', 'LICENSE']]) {
-    const entry = fileURLToPath(import.meta.resolve(name));
+  for (const [name, target, license] of [['marked', 'marked.js', 'LICENSE'], ['dompurify', 'dompurify.js', 'LICENSE'], ['fflate', 'fflate.js', 'LICENSE']]) {
+    const entry = fileURLToPath(import.meta.resolve(name === 'fflate' ? 'fflate/browser' : name));
     await cp(entry, path.join(destination, 'vendor', target));
     await cp(path.join(root, 'node_modules', name, license), path.join(destination, 'vendor', `${name}-LICENSE.txt`));
   }

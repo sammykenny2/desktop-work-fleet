@@ -2,8 +2,9 @@
 
 ## Status
 
-Proposed，2026-10-03；2026-10-04 標明範圍待修訂。使用者已要求規劃 drive.appdata 的檔案備份／還原；
-以下為具體設計提案，尚未實作，未把規劃授權視為格式已核准。
+Superseded by [ADR-013](013-complete-portable-backup.md)，2026-10-04。
+以下保留 2026-10-03 候選及後續範圍更正；現行完整格式、三種還原與自動／加密備份
+依 [SPEC-002](../specs/002-portable-backup-and-restore.md)，不能再套用本提案的未定案項目。
 
 ## Context
 

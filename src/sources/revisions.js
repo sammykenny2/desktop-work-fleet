@@ -52,8 +52,9 @@ export function revisionRecord(kind, value, parents = []) {
 export const encodeRevision = record => new TextEncoder().encode(canonicalJson(validateRevision(record)));
 export const decodeRevision = bytes => validateRevision(parseJson(bytes));
 
-function analyze(records) {
+function* analysisSteps(records) {
   const remaining = new Map(); const children = new Map(); const missing = new Set();
+  let work = 0;
   for (const [id, record] of records) {
     let known = 0;
     for (const parentId of record.parents) {
@@ -64,8 +65,10 @@ function analyze(records) {
         if (!children.has(parentId)) children.set(parentId, []);
         children.get(parentId).push(id);
       } else missing.add(parentId);
+      if (++work % 128 === 0) yield;
     }
     remaining.set(id, known);
+    if (++work % 128 === 0) yield;
   }
   const queue = [...remaining].filter(([, count]) => count === 0).map(([id]) => id);
   const complete = new Set();
@@ -76,7 +79,9 @@ function analyze(records) {
     for (const child of children.get(id) || []) {
       const count = remaining.get(child) - 1; remaining.set(child, count);
       if (count === 0) queue.push(child);
+      if (++work % 128 === 0) yield;
     }
+    if (++work % 128 === 0) yield;
   }
   requireValue(queue.length === records.size, 'revision-cycle', '版本關係形成循環，同步已保留原狀。');
   const heads = new Map();
@@ -84,13 +89,24 @@ function analyze(records) {
     const key = identity(records.get(id));
     if (!heads.has(key)) heads.set(key, new Set());
     heads.get(key).add(id);
+    if (++work % 128 === 0) yield;
   }
   for (const id of complete) {
     const record = records.get(id);
-    for (const parent of record.parents) heads.get(identity(record)).delete(parent);
+    for (const parent of record.parents) {
+      heads.get(identity(record)).delete(parent);
+      if (++work % 128 === 0) yield;
+    }
+    if (++work % 128 === 0) yield;
   }
   return { complete, heads, missing: [...missing].sort(compareId),
     pending: [...records.keys()].filter(id => !complete.has(id)).sort(compareId) };
+}
+
+function analyze(records) {
+  const steps = analysisSteps(records); let result;
+  do { result = steps.next(); } while (!result.done);
+  return result.value;
 }
 
 /** Atomic in-memory graph; callers persist records and cursor in the same local transaction. */
@@ -100,6 +116,24 @@ export class RevisionGraph {
   #analysis = analyze(new Map());
 
   constructor(records = []) { this.ingest(records); }
+
+  /** Isolated bulk reader: the same graph rules, with cancellable checkpoints before publication. */
+  static async create(batch, checkpoint) {
+    invalid(Array.isArray(batch)); batch = copy(batch); const graph = new RevisionGraph();
+    for (const input of batch) {
+      const record = validateRevision(input); const bytes = canonicalJson(record);
+      if (graph.#records.has(record.revisionId)) {
+        requireValue(graph.#canonical.get(record.revisionId) === bytes, 'revision-collision',
+          '相同版本身分包含不同內容，同步已停止且保留本機資料。');
+      } else {
+        graph.#records.set(record.revisionId, record); graph.#canonical.set(record.revisionId, bytes);
+      }
+      await checkpoint();
+    }
+    const steps = analysisSteps(graph.#records); let result;
+    do { result = steps.next(); if (!result.done) await checkpoint(); } while (!result.done);
+    graph.#analysis = result.value; await checkpoint(); return graph;
+  }
   get size() { return this.#records.size; }
   get records() { return [...this.#records.values()].sort((a, b) => compareId(a.revisionId, b.revisionId)).map(copy); }
   get pending() { return copy(this.#analysis.pending); }
@@ -120,12 +154,14 @@ export class RevisionGraph {
       .sort(compareId).map(id => this.get(id));
   }
 
-  entities() {
-    return [...this.#analysis.heads.keys()].sort(compareId).map(key => {
+  *iterateEntities() {
+    for (const key of [...this.#analysis.heads.keys()].sort(compareId)) {
       const [kind, entityId] = JSON.parse(key);
-      return { kind, entityId, heads: this.heads(kind, entityId) };
-    });
+      yield { kind, entityId, heads: this.heads(kind, entityId) };
+    }
   }
+
+  entities() { return [...this.iterateEntities()]; }
 
   ingest(batch) {
     invalid(Array.isArray(batch));

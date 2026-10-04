@@ -14,6 +14,25 @@ export function resolveGroupId(state, groupId) {
   }
 }
 
+/** One immutable projection can resolve long shared redirect chains in linear time. */
+export function groupResolver(groups) {
+  const byId = new Map(groups.map(group => [group.id, group])); const results = new Map();
+  return initial => {
+    const seen = new Set(); let id = initial; let result;
+    try {
+      while (!results.has(id)) {
+        requireValue(!seen.has(id), 'group-cycle', '群組合併產生循環，請先處理群組衝突。'); seen.add(id);
+        const group = byId.get(id); requireValue(group, 'missing-group', '群組不存在或尚待同步。');
+        if (!group.deleted) { result = { id }; break; }
+        requireValue(group.redirectGroupId, 'missing-group', '群組已刪除且沒有接收群組。'); id = group.redirectGroupId;
+      }
+      result ||= results.get(id);
+    } catch (error) { result = { error }; }
+    for (const visited of seen) results.set(visited, result);
+    if (result.error) throw result.error; return result.id;
+  };
+}
+
 export function planGroupMerge(state, sourceId, targetId) {
   requireValue(sourceId !== targetId, 'same-group', '請選擇另一個接收群組。');
   const source = state.groups.find(group => group.id === sourceId && !group.deleted);

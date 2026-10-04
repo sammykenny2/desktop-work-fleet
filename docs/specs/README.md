@@ -54,11 +54,11 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 |------|-------|--------|--------------|
 | [004-revision-graph-and-file-sync](004-revision-graph-and-file-sync.md) | Immutable revisions and file sync | Accepted technical contract; execution in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
 | [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / answered Q; execution in PROGRESS | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
-| [002-portable-backup-and-restore](002-portable-backup-and-restore.md) | Portable backup proposal | Draft / scope and group schema revision required | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
+| [002-portable-backup-and-restore](002-portable-backup-and-restore.md) | Complete portable backup and restore | Accepted technical contract; execution in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version](001-validation-version.md) | Backlog 驗證版 | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |
 
-目前新增規格：[SPEC-002 可攜備份與安全還原](002-portable-backup-and-restore.md)（Draft）；
+完整備份契約：[SPEC-002 可攜備份與安全還原](002-portable-backup-and-restore.md)；
 相關 [PLAN-002](../plans/002-google-drive-notes-mvp.md)，執行狀態見根目錄 PROGRESS.md。
 
 ## For AI Agents

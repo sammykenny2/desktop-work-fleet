@@ -11,6 +11,20 @@ const card = (revision, text = revision, parents = [], patch = {}) => revisionRe
 const ids = graph => graph.heads('card', 'card-1').map(record => record.revisionId);
 const fails = code => error => error.code === code;
 
+test('cancellable bulk graph validates the same histories and snapshots caller records across checkpoints', async () => {
+  const batch = Array.from({ length: 400 }, (_, index) => card(`bulk-${index}`, String(index), index ? [`bulk-${index - 1}`] : [])).reverse();
+  batch.push(card('pending', 'retained', ['absent']), card('branch', 'parallel', ['bulk-0']));
+  let checks = 0;
+  const pending = RevisionGraph.create(batch, async () => { checks++; });
+  batch[1].value.content.text = 'caller mutation'; batch.length = 0;
+  const graph = await pending;
+  assert.deepEqual(ids(graph), ['branch', 'bulk-399']); assert.deepEqual(graph.pending, ['pending']); assert.deepEqual(graph.missing, ['absent']);
+  assert.equal(graph.get('bulk-398').value.content.text, '398'); assert.ok(checks > 402, 'checkpoints also cover graph analysis');
+  await assert.rejects(RevisionGraph.create([card('a', 'a', ['b']), card('b', 'b', ['a'])], async () => {}), fails('revision-cycle'));
+  await assert.rejects(RevisionGraph.create([card('same', 'one'), card('same', 'two')], async () => {}), fails('revision-collision'));
+  await assert.rejects(RevisionGraph.create([card('parent'), card('child', 'child', ['parent'], { id: 'different-card' })], async () => {}), fails('parent-identity'));
+});
+
 test('wire JSON round-trips unknown content, checklist, attachment references and Unicode deterministically', () => {
   const record = card('one', '', [], { content: { format: 'future-format', text: '記下 📝\n- [x] 完成',
     attachments: [{ id: 'blob', name: '筆記.txt', mediaType: 'text/plain', size: 12 }],

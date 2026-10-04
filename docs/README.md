@@ -16,6 +16,7 @@
 | [ADR-010](decisions/010-group-retirement-and-device-settings.md) | Accepted：群組合併／草稿基線、區域及快捷鍵設定 |
 | [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md) | Accepted：不可變版本、嚴格 JSON、缺 parent／多分支規則；整合證據見 PROGRESS |
 | [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) | Accepted：可恢復 FileStore、Drive appDataFolder 與續傳；原生授權另驗收 |
+| [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md) | Accepted：完整可攜資料、嚴格 ZIP／加密、三種還原與自動備份契約；執行見 PROGRESS |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |
@@ -43,9 +44,9 @@
 - [Drive 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 與
   [ADR-004](decisions/004-google-drive-notes-mvp.md)：初始提案；provider 已由 ADR-012 採納，協定見 SPEC-004。
 - [Drive 傳輸研究](resreach/2026-10-04-drive-file-transport.md)：API、分頁、預產生 ID、續傳與未驗證界線。
-- [備份研究](resreach/2026-10-03-appdata-backup-and-restore-design.md)、
-  [SPEC-002](specs/002-portable-backup-and-restore.md)、[ADR-005](decisions/005-portable-backup-and-restore.md)：
-  保留格式／恢復候選，需按群組與內容範圍修訂，不把舊排除清單当定案。
+- [備份歷史研究](resreach/2026-10-03-appdata-backup-and-restore-design.md)／[ADR-005](decisions/005-portable-backup-and-restore.md)
+  保留候選背景；最新完整契約見 SPEC-002／ADR-013，
+  [容器與加密研究](resreach/2026-10-04-backup-container-and-encryption.md) 記錄官方來源及驗證界線。
 - [PLAN-002](plans/002-google-drive-notes-mvp.md)：來源／Google／backup 的工作順序，與 PLAN-003 合併執行。
 - [Backlog 原始研究](resreach/2026-10-03-backlog-first-product-requirements.md) 與
   [輕量 PM 模型](resreach/2026-10-03-lightweight-project-management-and-view-model.md)：歷史討論，最新修正優先。

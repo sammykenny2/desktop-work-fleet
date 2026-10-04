@@ -25,6 +25,18 @@
 - 開發 listener 僅 loopback 靜態資產，沒有便箋或 token API。原生 host 的 OAuth、OS 安全儲存、
   加密備份與正式封裝尚需各自驗收，不能由此介面測試代替。
 
+## 1.0 可攜備份
+
+- `src/backup` 只從捕獲的 profile 讀取完整快照及 SHA-256 附件；不攜帶 token／provider／舊 outbox。
+  reader 驗證整份檔案前沒有目標寫入。CRC／SHA 不是作者信任證明，內容仍視為外部輸入。
+- ZIP 固定路徑白名單、local/central／CRC／實際輸出核對；拒絕 traversal／link／ZIP64／重複或未知路徑。
+  大型 entry 及 graph 分批提供取消；20,000 entries、128 MiB expanded、25 MiB attachment 上限不作靜默截斷。
+- 加密是整個內層 ZIP 的 AES-256-GCM + PBKDF2-HMAC-SHA256 600,000，隨機 salt/nonce、header AAD。
+  tag 成功才解析；KDF 固定白名單，密碼不進設定／log／`.env`；GC 字串沒有保證清除。
+  OS 密碼儲存及自動備份仍需原生驗收，不能把容器加密宣稱為 Drive／本機 DB 加密。
+- 還原／自動備份／原生保存需遵循 [SPEC-002](specs/002-portable-backup-and-restore.md) 的原子交易、
+  預覽、安全備份及自有 inventory 範圍；已實作狀態只看 PROGRESS。
+
 ## 既有 0.1.0 驗證版
 
 - 鎖定是防誤觸；server 另外強制 viewer/editor/admin 權限。

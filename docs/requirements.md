@@ -47,10 +47,10 @@ SPEC-003 的 Q01–Q07 表已記錄這些答案與工作預設。
 ## Google 與備份的現況
 
 [Drive 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 建議 Drive 而非 Keep，
-appDataFolder 是規劃基線；ADR-004 的 provider／協定仍 Proposed，尚未實作 Google 整合。
-[SPEC-002](specs/002-portable-backup-and-restore.md) 與 [ADR-005](decisions/005-portable-backup-and-restore.md)
-保留 ZIP／JSON 與新增式匯入的候選設計，但「只能新增式還原」「不含版面／附件／自動備份」
-不是已批准排除清單。本輪已批准完整備份範圍；schema 還需納入群組與已確認內容，不能無損往返只測本文。
+appDataFolder provider 已由 ADR-012 採納，協定見 SPEC-004；原生 OAuth／真 Google 整合仍待驗收。
+[SPEC-002](specs/002-portable-backup-and-restore.md) 與 [ADR-013](decisions/013-complete-portable-backup.md)
+定義完整 ZIP／JSON、群組／版面／附件、自動／加密備份及三種還原；取代 ADR-005 早期候選。
+執行證據見 PROGRESS，不能把無損往返只測本文，也不能把格式模組當完整備份流程已交付。
 
 ## 延後而保留的方向
 

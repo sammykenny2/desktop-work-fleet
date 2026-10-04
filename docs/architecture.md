@@ -17,6 +17,11 @@ Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在�
 [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) 的 FileSync 協調分頁、持久 reservation、
 附件、ack 與退避；GoogleDriveFileStore 實作 REST／resumable。原生授權、受保護 HTTP 及 renderer 連接仍需整合。
 
+[ADR-013](decisions/013-complete-portable-backup.md) 的 `src/backup` 捕獲完整本機快照，
+校驗 ZIP／manifest／圖／引用／附件，並提供 WebCrypto 加密容器；驗證不寫目標。
+大量版本圖與投影提供可取消的批次 reader，與日常同步共用 graph 規則。
+實際還原交易、自動排程、UI 與原生檔案保存另行整合，見 PROGRESS。
+
 ## 1.0 的責任分界
 
 使用者已確定一事一卡、群組、顯式 formation、單組／全組操作與拖放轉組。
@@ -36,7 +41,7 @@ formation / undo] <--> Scene
   Host[平台 host
 層級 / 輸入 / 顯示器 / 快捷鍵] <--> Desktop
   Core <--> Backup[來源無關 BackupService
-格式待補群組契約]
+完整快照 / ZIP / 加密]
 ```
 
 - 共用 Card/Group 是穩定資料身分；不以原生視窗或機器取代群組。
@@ -59,8 +64,8 @@ token／resumable URL 不進 renderer、Workspace 或備份；可替換介面見
 每台裝置多個呈現表面共用一份本機核心與同步協調，不為每張卡各自建立來源連線。
 
 BackupService 屬於共用核心，不由 Drive 或 renderer 私自定義格式。
-[SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-005](decisions/005-portable-backup-and-restore.md)
-是格式待修訂提案；使用者已核准群組／版面／附件、自動與加密備份，以及匯入／合併／取代還原。
+[SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md)
+定義群組／版面／附件、自動與加密備份，以及匯入／合併／取代還原的現行契約。
 備份必須保留最終共用卡片／群組語意；未知內容不能靜默丟棄後宣稱成功。
 
 [完整 PM／server 草案](resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。

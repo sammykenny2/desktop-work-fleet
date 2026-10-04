@@ -1,7 +1,7 @@
 import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
 import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
-import { canonicalJson } from '../sources/json.js';
+import { canonicalJson, parseJson } from '../sources/json.js';
 import { encodeRevision, revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { sha256, validDigest, validateFile } from '../sources/files.js';
@@ -29,7 +29,7 @@ function loadRevisions(state) {
 function draftBaseline(draft) {
   if (!draft) return null;
   const value = copy(draft); delete value.recoveredFrom;
-  return JSON.stringify(value);
+  return canonicalJson(value);
 }
 
 function rebaseMembership(state, draft) {
@@ -412,7 +412,7 @@ export class Workspace {
         state.cards.push(card); this.#record(state, 'card', card, []);
       }
       for (const origin of draft.recoveredFrom || []) {
-        if (origin.id !== draftId && draftBaseline(state.drafts[origin.id]) === origin.baseline) {
+        if (origin.id !== draftId && draftBaseline(state.drafts[origin.id]) === canonicalJson(parseJson(origin.baseline))) {
           delete state.drafts[origin.id];
         }
       }

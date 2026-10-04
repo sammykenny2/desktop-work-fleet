@@ -22,8 +22,8 @@ Q01–Q07 的答案與工作預設已更新在 SPEC-003；包含 iOS／Android �
 6. [PLAN-003](../plans/003-desktop-interaction-implementation.md) 與
    [平台研究](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)。
 7. 需要追溯意圖時讀 [討論演進](../resreach/2026-10-04-desktop-card-interaction-design.md)。
-8. Google／backup 工作另讀 ADR-004／005、PLAN-002／SPEC-002 的最新狀態，
-   注意它們尚未批准的排除清單及需補上群組模型之處。
+8. Google／backup 工作讀 SPEC-004／ADR-012 及 SPEC-002／ADR-013 的現行契約，施工順序見 PLAN-002。
+   ADR-004／005 保留歷史背景，早期排除清單不適用。
 
 ## 不可偏離的核心
 

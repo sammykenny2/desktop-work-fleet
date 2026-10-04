@@ -1,0 +1,64 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Windows.Interop;
+using WorkFleet.Windows;
+
+internal static class PlatformProbe
+{
+  public static async Task Run()
+  {
+    var displays = NativeDisplays.Read();
+    if (displays.Count is < 1 or > 64 || displays.Count(d => d.Primary) != 1 || displays.Select(d => d.Id).Distinct().Count() != displays.Count)
+      throw new Exception("Invalid native monitor identity inventory");
+    foreach (var display in displays)
+    {
+      var b = display.Bounds; var w = display.WorkArea;
+      if (w.X < b.X || w.Y < b.Y || w.X + w.Width > b.X + b.Width || w.Y + w.Height > b.Y + b.Height
+        || display.Dpi is < 48 or > 960) throw new Exception("Invalid physical work area or DPI");
+    }
+    Console.WriteLine($"PASS native physical display inventory: {displays.Count} monitor(s), DPI {string.Join(", ", displays.Select(d => d.Dpi))}");
+    foreach (var key in new[] { "Meta+1", "Ctrl+F12", "Alt+F4" })
+      if (NativeShortcuts.Parse(key, out _, out _) != "reserved") throw new Exception("Reserved key accepted");
+    foreach (var key in new[] { "Ctrl+C", "Ctrl+Shift+Z", "Ctrl+A" })
+      if (NativeShortcuts.Parse(key, out _, out _) != "editing") throw new Exception("Editing key accepted");
+    foreach (var key in new[] { "Shift+A", "Ctrl+Ctrl+1", "Bogus+1", "Alt+Ctrl+1", "Ctrl+F25", "Ctrl++", "Ctrl+C\n", "Ctrl+F12\n", "Alt+F4\n", "Ctrl+Alt+N\r\n" })
+      if (NativeShortcuts.Parse(key, out _, out _) != "invalid") throw new Exception("Malformed key accepted");
+    var invoked = new List<string>(); using var first = new NativeShortcuts(invoked.Add);
+    var chord = ""; uint mods = 0, vk = 0;
+    for (var number = 24; number >= 13; number--)
+    {
+      var candidate = $"Ctrl+Alt+Shift+F{number}";
+      first.Configure([new(candidate, "@all")]);
+      if (first.Registrations.Single().Status != "available") continue;
+      chord = candidate; NativeShortcuts.Parse(chord, out mods, out vk); break;
+    }
+    if (chord.Length == 0) throw new Exception("All owned-probe shortcut candidates conflict; no registration result can be asserted");
+    using var second = new NativeShortcuts(_ => throw new Exception("Unrequested shortcut action"));
+    second.Configure([new(chord, "@capture")]);
+    if (second.Registrations.Single().Status != "conflict") throw new Exception("Native shortcut collision was not reported");
+    var field = typeof(NativeShortcuts).GetField("receiver", BindingFlags.NonPublic | BindingFlags.Instance)!;
+    var handle = ((HwndSource)field.GetValue(first)!).Handle;
+    void Post(uint key) { if (!PostMessageW(handle, 0x0312, new IntPtr(1), new IntPtr((long)((key << 16) | mods)))) throw new Exception("Owned message post failed"); }
+    Post(vk); first.Configure([new(chord, "@toggle")]); await Task.Delay(100);
+    if (invoked.Count != 0) throw new Exception("Queued stale hotkey invoked a replacement target");
+    Post(vk + 1); await Task.Delay(50);
+    if (invoked.Count != 0) throw new Exception("Mismatched hotkey payload invoked action");
+    Post(vk); await Task.Delay(100);
+    if (!invoked.SequenceEqual(new[] { "@toggle" })) throw new Exception("Registered hotkey route failed");
+    first.Suspend(true); Post(vk); await Task.Delay(50);
+    if (invoked.Count != 1 || first.Registrations.Single().Status != "suspended") throw new Exception("Suspended shortcut fired");
+    second.Configure([new(chord, "@capture")]);
+    if (second.Registrations.Single().Status != "available") throw new Exception("Suspension retained native key registration");
+    first.Suspend(false);
+    if (first.Registrations.Single().Status != "conflict") throw new Exception("Resume hid native conflict");
+    second.Dispose(); first.Configure([new(chord, "@all")]);
+    if (first.Registrations.Single().Status != "available") throw new Exception("Disposal retained native key registration");
+    try { first.Configure([new(chord, "bad target!")]); throw new Exception("Invalid shortcut settings accepted"); }
+    catch (ArgumentException) { }
+    try { first.Configure([new(chord, "@all\n")]); throw new Exception("Trailing-newline shortcut target accepted"); }
+    catch (ArgumentException) { }
+    if (first.Registrations.Single().Target != "@all") throw new Exception("Rejected settings changed registrations");
+    Console.WriteLine("PASS native hotkey registration/conflict/suspend/resume/dispose and stale-message isolation; callback messages are synthetic, no keyboard input injected");
+  }
+  [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+}

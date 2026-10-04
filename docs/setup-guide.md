@@ -47,15 +47,17 @@ python scripts/testing/serve_preview.py --port 0
 
 ## Windows 原生主畫面
 
-Windows 10／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
+Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
 執行已建置 App 的電腦需 .NET 8 Desktop Runtime。本子切片是主畫面與加密保存，桌面浮層仍在施工。
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1
-& .\src\native\windows\bin\Release\net8.0-windows\WorkFleet.exe
+& .\src\native\windows\bin\Release\net8.0-windows10.0.19041.0\WorkFleet.exe
 ```
 
 資產與 native libraries／Licenses 隨輸出目錄保留，不單獨移動 exe。
+Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 PerMonitorV2 manifest。
+這個 TFM 是建置下限，最低 OS／混合 DPI 實機驗收另見 PROGRESS。
 沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於
 `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
 同一路徑只允許一個 App，另一個視窗會提示使用原視窗。

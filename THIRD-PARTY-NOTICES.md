@@ -52,11 +52,20 @@ WebView2 Runtime; those full runtimes and the .NET SDK are not bundled.
 | Microsoft.Data.Sqlite / .Core | 10.0.12 | SQLite provider; MIT, [upstream tagged license](https://github.com/dotnet/efcore/blob/v10.0.12/LICENSE.txt) |
 | SQLitePCLRaw.core, .bundle_e_sqlite3, .provider.e_sqlite3, .lib.e_sqlite3 | 2.1.12 | SQLite binding/native package; Apache-2.0, Copyright 2014–2024 SourceGear, LLC; [tagged license](https://github.com/ericsink/SQLitePCL.raw/blob/v2.1.12/LICENSE.TXT) |
 | System.Memory | 4.5.3 | Transitive package (framework supplies runtime on net8); MIT and incorporated notices from its exact NuGet package |
+| Microsoft.Windows.SDK.NET.Ref | 10.0.19041.56 | Windows SDK targeting pack, explicitly pinned via WindowsSdkPackageVersion; projection/runtime DLLs redistributed unmodified under the [official SDK list](https://learn.microsoft.com/en-us/legal/windows-sdk/redist#microsoftwindowssdknetref) and retained `windows-sdk-LICENSE.rtf` |
+| C#/WinRT runtime from that targeting pack | 2.2.0.48161 | WinRT.Runtime.dll; MIT, retained `cswinrt-LICENSE.txt` from its embedded source revision [8649ee3](https://github.com/microsoft/CsWinRT/blob/8649ee3eeb2445ca2a36d80d878ef60b96a6c65d/LICENSE) |
 
 SQLite itself is [public domain](https://www.sqlite.org/copyright.html).
 The Windows native library is supplied by SQLitePCLRaw; it is distinct from the
 older Python validation runtime. Microsoft WebView2's complete incorporated notices
 are retained without alteration. Building this host is not evidence of Store approval.
+The Windows SDK targeting pack has its own explicit version pin; it is not a normal
+PackageReference in packages.lock.json. Its package SHA-512 and packaged assembly
+scope are recorded in the [composition research](docs/resreach/2026-10-04-windows-composition-and-input.md).
+The SDK's original license was retrieved through the exact package's license URL,
+`https://aka.ms/WinSDKLicenseURL`, on 2026-10-04. The full SDK, analyzers, Windows metadata
+and tooling are not copied into the app output; only the required runtime projection
+assemblies and retained licenses accompany the host.
 
 ## Validation version 0.1.0
 

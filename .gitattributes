@@ -5,3 +5,6 @@
 # Windows batch files need CRLF.
 *.bat text eol=crlf
 *.cmd text eol=crlf
+
+# Preserve the original vendor license container byte for byte.
+src/native/licenses/*.rtf binary

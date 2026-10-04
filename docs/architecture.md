@@ -32,6 +32,9 @@ Windows backup adapter 以 DPAPI metadata 綁定 profile／目錄／檔案身分
 create-only、Flush／讀回校驗、同 handle 清理見 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)。
 自動備份以 opaque key ID 請 native 產生可攜加密 ZIP，保存密碼不回 renderer；手動密碼留在當次匯出流程。
 桌面分層／穿透表面將與主畫面共用權威資料，不能各自寫入副本；目前對這些能力明示 false。
+Windows 原生表面基礎由 [ADR-017](decisions/017-windows-composition-surface-and-input.md) 採納：
+每場景一個 CompositionControl、兩個互補 region 的 WPF 表面；共用卡片排序決定输入遮擋。
+快捷鍵及 physical monitor 盤點已有獨立類別；控制器、邏輯座標映射及產品入口持續整合。
 
 ## 1.0 的責任分界
 

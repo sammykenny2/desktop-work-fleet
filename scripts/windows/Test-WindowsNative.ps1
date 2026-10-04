@@ -26,8 +26,13 @@ try {
     $env:WORK_FLEET_NATIVE_TEST = '1'
     & node --test tests/native-storage.test.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript/native bridge tests failed.' }
-    & dotnet tests/native/windows-ui/bin/Debug/net8.0-windows/WorkFleet.Windows.Ui.Tests.dll (Join-Path $ProbeRoot 'ui')
+    $UiProbe = Join-Path $ProjectRoot 'tests/native/windows-ui/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.Windows.Ui.Tests.exe'
+    & $UiProbe (Join-Path $ProbeRoot 'ui')
     if ($LASTEXITCODE -ne 0) { throw 'Windows WPF/WebView2 UI probe failed.' }
+    & $UiProbe --composition (Join-Path $ProbeRoot 'composition')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows desktop-surface probe failed.' }
+    & $UiProbe --platform
+    if ($LASTEXITCODE -ne 0) { throw 'Windows native display/shortcut probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

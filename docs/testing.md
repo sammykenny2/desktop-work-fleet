@@ -127,7 +127,21 @@ core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換�
 目錄重開及替換拒絕；JS→native 測中文／emoji 密碼、跨程序 key／grant、ack 遺失恢復、
 受管檔修改保留、manual 保存證明與失效／跨 profile key 不降級。
 需要一般 Windows 使用者 session 與 WebView2 Runtime；受限工具環境若造成 WebView2 crash，需在可運行環境重測，
-不能當作通過或停用 WebView2 sandbox。這些測試不是 OS 點擊穿透、多螢幕／層級或真實斷電證據。
+不能當作通過或停用 WebView2 sandbox。主畫面／保存測試不代表多螢幕、OS 桌面整合或真實斷電證據。
+
+同一腳本另執行 `--composition` 與 `--platform` 原生基礎探針：
+
+- 真 CompositionControl 透明 HTML／live VisualBrush；只載合成資料，沒有 product bridge。
+- 另一個自有程序作 OS `WindowFromPoint` 目標，檢查被動紙面、空白及前方遮擋穿透；
+  native input／visual region 互斥且完整覆蓋，浮動／一般底層切換、成對隱藏／關閉與 20,000 區域。
+- 螢幕 physical bounds／work area／DPI；真實快捷鍵衝突、解除／恢復、保留鍵拒絕與舊事件清理。
+  快捷鍵 callback 只向自有 HWND 發合成 WM_HOTKEY，未注入真鍵盤或滑鼠。
+
+probe 與 App 共用 PerMonitorV2 manifest 及 `net8.0-windows10.0.19041.0`。
+必須透過 `.exe` apphost 執行，包含跨程序目標；入口驗證 thread DPI awareness 確實為 PerMonitorV2。
+直接 `dotnet ...Ui.Tests.dll` 未套用這份 executable manifest，不能作相同 DPI 設定的證據。
+這不是使用者桌面手勢、WebView capture／IME、多螢幕拔插、Win+D、虛擬桌面或休眠驗收。
+原生表面尚待接入單一 Workspace coordinator；詳見 [ADR-017](decisions/017-windows-composition-surface-and-input.md)。
 
 `npm test` 會明確 skip 8 個需要已建置 Windows helper 的 native integration tests；
 `WORK_FLEET_NATIVE_TEST=1` 才執行它們，缺少 helper 即失敗，不假報成功。

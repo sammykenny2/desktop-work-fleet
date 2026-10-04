@@ -46,7 +46,7 @@ try {
         & dotnet build $Project --configuration $Configuration --no-restore
         if ($LASTEXITCODE -ne 0) { throw "Native build failed: $Project" }
     }
-    Write-Output "Windows app: src/native/windows/bin/$Configuration/net8.0-windows/WorkFleet.exe"
+    Write-Output "Windows app: src/native/windows/bin/$Configuration/net8.0-windows10.0.19041.0/WorkFleet.exe"
 } finally {
     Pop-Location
     foreach ($Name in $SavedEnvironment.Keys) {

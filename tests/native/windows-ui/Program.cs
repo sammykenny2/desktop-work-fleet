@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
 using WorkFleet.Windows;
@@ -10,15 +11,28 @@ internal static class Program
   [STAThread]
   private static void Main(string[] args)
   {
-    if (args.Length != 1) throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests OUTPUT_DIRECTORY");
+    if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), new IntPtr(-4)))
+      throw new InvalidOperationException("Run the probe .exe apphost so the shared PerMonitorV2 manifest is active.");
+    if (args.Length == 1 && args[0] == "--hit-target") { CompositionProbe.RunHitTarget(); return; }
+    var composition = args.Length == 2 && args[0] == "--composition";
+    var platform = args.Length == 1 && args[0] == "--platform";
+    if (!composition && args.Length != 1) throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition] OUTPUT_DIRECTORY | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
-      try { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); app.Shutdown(0); }
+      try
+      {
+        if (platform) await PlatformProbe.Run();
+        else if (composition) await CompositionProbe.Run(Path.GetFullPath(args[1]));
+        else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
+        app.Shutdown(0);
+      }
       catch (Exception error) { Console.Error.WriteLine(error); app.Shutdown(1); }
     };
     app.Run();
   }
+  [DllImport("user32.dll")] private static extern IntPtr GetThreadDpiAwarenessContext();
+  [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
   private static FleetWindow Open(string directory)
   {
     var backups = Path.Combine(directory, "backups"); Directory.CreateDirectory(backups);

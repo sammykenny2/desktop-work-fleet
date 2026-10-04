@@ -21,8 +21,8 @@
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域与快捷鍵設定已完成；Windows 原生 SQLite／DPAPI／原子附件保存已加入，其他平台保存、大容量與完整平台設定仍待補齊 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 版本圖、Workspace 原子交易、衝突 UI、FileSync／Drive REST adapter 已實作及故障測試；原生保護 transport、OAuth、UI 連接及真 Google 尚待完成，公開設定尚未建立 |
-| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原與手動 UI 已驗證；自動 journal／排程／UI 已實作，原生安全建檔／清理／vault 待整合，瀏覽器自動能力明示停用 |
-| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows WPF／WebView2 主畫面已可建置及真 UI 驗證；桌面呈現与其他平台仍施工，C16/C35/C40–C43/C46–C47 不以主畫面測試代替 |
+| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原、手動／自動 UI 與 Windows 原生 NTFS／DPAPI 已整合驗證；其他平台繼續施工，瀏覽器自動能力明示停用 |
+| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows WPF 主畫面已驗證；composition／跨程序 input region、快捷鍵與 physical display 基礎已加入，產品桌面協調与其他平台仍施工；C16/C35/C40–C43/C46–C47 不以 primitive 測試代替 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 尚待完成；沒有送審、購買憑證或建立帳號 |
 
@@ -315,6 +315,34 @@ helper 明確 UTF-8 後通過；產品 WebView bridge 本身不使用 stdio。
 相關 JS 31/31 通過。WPF 為作者證據。Debug／Release 零 warning/error，文件 73 份／400 相對連結通過。
 不宣稱真 OS picker 自動操作、外接磁碟斷電、最低 Windows 版本、非 NTFS backend 或商店驗收已通過。
 Windows 桌面層、Google、其他四平台及商店交付仍持續本次完整 1.0 目標。
+已提交並推送 main：`e747a24`。
+
+### Windows 原生場景與平台基礎子切片
+
+- `DesktopSurface` 以真 CompositionControl 與共用 VisualBrush 繪製一個場景，
+  兩個 WPF native windows 的 region 完整互補，半透明像素不重複繪製。
+- 由後到前扣除被動卡的遮擋，跨程序 input region 只覆蓋最後可互動紙面；
+  初建／退出 input 為空、失敗隱藏兩面，浮動／一般底層與成對關閉／隱藏保留活 view。
+- 平衡 region 合成在作者本機將 20,000 分離格由約 4 秒降為 216 ms；
+  這是一次 native 區域計算，不是 20,000 張 Markdown 卡的繪製或拖曳幀率。
+- `NativeShortcuts` 實作真註冊／衝突／暫停／解除、MOD_NOREPEAT、保留與編輯鍵拒絕、
+  清掉舊 WM_HOTKEY；`NativeDisplays` 明確回報 physical bounds／work area／每機 DPI。
+- App／UI probe 統一 PerMonitorV2 與 Windows 19041 TFM，固定 SDK pack 10.0.19041.56，
+  保留 projection／WinRT 授權。主畫面仍為唯一 Workspace owner；桌面 capability 尚未啟用。
+
+作者離屏 probe：WebView2 154.0.4258.53 真 alpha／live mirror、另一程序的 OS hit、
+混合遮擋、input／visual region 完整互補、topmost／resident、hide/show／close 通過。
+實機盤點一個 144 DPI 顯示器，真快捷鍵註冊／衝突／釋放通過；callback 為自有 HWND 合成訊息。
+完整 Windows 回歸 31 項 core／檔案檢查、10/10 JS/native 與真 WPF editor／備份 UI 通過。
+UI／composition／platform 最終都透過 manifest-bearing `.exe` 重跑，入口明確斷言 PerMonitorV2；
+修正早期 `dotnet .dll` 只採 System DPI 的測試入口。Debug／Release 零 warning/error。
+獨立唯讀審查完成，無未解 finding：32 組／164,800 點覆蓋一致，20,000 區域約 225 ms；
+成對關閉、延後且合併 CloseRequested 後同步 Dispose、常駐層校正皆通過。
+尾隨換行的保留鍵／target 繞過已改成絕對 regex 邊界並複核；真快捷鍵衝突、暫停、釋放及舊訊息隔離通過。
+文件 75 份／412 相對連結、UTF-8／LF 與 diff whitespace 通過；本 slice 未更動共用 JS 語意。
+
+尚未宣稱真指標 capture／IME、Win+D／虛擬桌面、混合 DPI／拔插／休眠、
+共用控制器与多表面草稿整合或其他平台完成。下一步接單一權威的桌面 coordinator 與產品入口。
 
 ## 2026-10-04 文件交付
 

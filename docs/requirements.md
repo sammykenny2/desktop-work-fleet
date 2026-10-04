@@ -1,27 +1,60 @@
 # 需求與版本範圍
 
-更新：2026-10-03。
+更新：2026-10-04。互動規範以 [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) 為準。
+該規格明列 U（已確認）、D（授權工作預設）、Q（待決），不能把研究候選當成已批准功能。
 
-## 1.0 MVP 的最新方向
+## 已確認產品方向
 
-使用者希望 App 登入 Google 帳號即可使用，以 file based 方式同步簡單便箋，
-第一版不架 local server；專案管理可以延後，但異質來源與 renderer 的邊界現在就要考慮。
+- Backlog／靈感快速記錄優先，一張 card/note/post-it 記錄一件事。
+- Group 是通用邏輯集合；本機可突出「屬於我」，不要求每張卡屬於 Project 或 Agent 工作。
+- Windows、macOS、Linux 是必要桌面平台；保留自有 iOS/macOS/Android 商店目標。
+- 第一版 Google 帳號＋file based，沒有自家便箋 local server；異質來源／renderer 的邊界現在設計。
+- 日常唯讀且滑鼠穿透。某組／全部可暫時浮到一般 App 上方進入拖拉，再進入單張文字編輯。
+- 單擊選卡、雙擊編輯；普通拖曳只改位置，接收標籤／Shift 拖入群組區域或 action 才改歸屬。
+- 顯式 formation 可全局或單組召回整理；堆疊露第一行、攤開排完整紙面。區域不是硬容器。
+- 輪播只暫時改疊序；操作組高於其他組，選卡在組內最前，不搬動卡片。
+- 平常紙張尺寸穩定；formation 必要時取得同意才調整，未同意可溢出群組區域。
+- 群組最多九組；grid 列≤3、欄≤4，且乘積≤9。2列×4欄及3列×3欄合法，3列×4欄不合法。
+- 新卡初始在自己的群組區域，不重排舊卡；formation 提供復原。
+- 不加入 Focus／番茄鐘／回顧；不照搬外部產品 UI、架構或大量原始碼。
 
-具體可行性與限制見 [Drive MVP 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)。
-研究推薦 Google Drive；Keep 官方 API 不符合普通帳號雙向便箋編輯。
-最新規劃以 appDataFolder 為基線，包含手動檔案備份與匯入還原。
-[備份規格](specs/002-portable-backup-and-restore.md) 定義公開 ZIP／JSON、
-草稿與衝突保留、預覽、新 ID 匯入及工作續傳；首版不提供整庫覆蓋回滾。
-[實作計畫](plans/002-google-drive-notes-mvp.md) 定義交付順序與驗收條件。
-衝突協定／正式 runtime 與 1.0 同版平台範圍尚待定案，Google 整合尚未實作。
+[ADR-006](decisions/006-card-group-and-formation-semantics.md) 接受上述語意；
+[討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) 保存修正原因。
+「浮到一般 App 上方」及轉組手勢已在整理期間獲明確確認，後續 agent 不必重問。
 
-## 持續保留的產品目標
+## 可直接採用的工作預設
 
-快速記錄、桌面唯讀／滑鼠穿透、主動解鎖編輯及跨裝置同步仍是核心。
-完整需求與歷史演進保留在 [Backlog 研究](resreach/2026-10-03-backlog-first-product-requirements.md)；
-Todo／In Progress／Done、Project／Item／View 不再自動列為 1.0 必做。
+使用者授權其他細節按最佳實踐規劃。SPEC-003 的 D 包含：
+新手預設一組與全組操作入口、列×欄／row-major 配置、單主要群組、
+共享內容與每機 geometry 分離、可靠草稿、顯式轉組命令、取消／undo、
+群組轉移不觸發 formation，以及顯示器失連只救回不可達卡片。
+它們不是使用者逐字指定的 UI，但可在後續實作授權下依規格執行。
 
-Apple／Google 自有 App、Windows 憑證偏好與 Linux 可測範圍保留。
-Mac 探針證據不等於 Google 整合或商店核准。
-[發佈研究](resreach/2026-10-03-store-distribution-and-license-analysis.md)
-及 [現有驗證報告](validation/2026-10-03-validation-report.md) 各自保留原範圍。
+## 仍需範圍決定
+
+完整清單是 SPEC-003 的 Q01–Q07：editor／checklist／附件、備份與還原能力、
+逐卡顯示／常駐分層／唯讀選字 UI、最低平台與發佈順序、正式 runtime／同步格式、
+群組刪除與超大容量 UX。
+不要擅自把以上改成「首版全部不做」，也不要全部默認照搬參考應用。
+已確認的行為可以繼續；只在開始依賴某 Q 的工作前詢問。
+
+## Google 與備份的現況
+
+[Drive 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 建議 Drive 而非 Keep，
+appDataFolder 是規劃基線；ADR-004 的 provider／協定仍 Proposed，尚未實作 Google 整合。
+[SPEC-002](specs/002-portable-backup-and-restore.md) 與 [ADR-005](decisions/005-portable-backup-and-restore.md)
+保留 ZIP／JSON 與新增式匯入的候選設計，但「只能新增式還原」「不含版面／附件／自動備份」
+不是已批准排除清單。備份 schema 還需納入群組與已確認內容，不能無損往返只測本文。
+
+## 延後而保留的方向
+
+完整 PM、Project/Item/View、自架 server 與多歸屬留作後續研究；
+這不代表未來必須恢復舊 Note 容器模型。簡單 Todo／In Progress／Done 的具體 1.0 UI 尚未定案。
+不引入 Queued/Running/Waiting/Succeeded/Failed/Cancelled 之類的 Agent 執行狀態作預設。
+
+## 證據及接手
+
+API 可行、原生基礎實測、新功能驗收與商店核准分開紀錄。
+參見 [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md)、
+[0.1.0 驗證報告](validation/2026-10-03-validation-report.md) 及
+[接手規則](handoff/2026-10-04-desktop-interaction-handoff.md)。

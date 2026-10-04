@@ -1,5 +1,11 @@
 # Backlog 優先的產品需求與討論演進
 
+> 2026-10-04 效力更新：本文保留歷史研究，不是最新 1.0 互動規範。
+> 使用者已改為一事一卡、通用群組、顯式 formation 與暫時 z-order；
+> 舊 Note 容器、逐項任務模型或其他候選 UX 不得覆蓋
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
+> 演進原因見 [今日整理](2026-10-04-desktop-card-interaction-design.md)。
+
 - 日期：2026-10-03
 - 專案：desktop-work-fleet
 - 性質：需求研究與交接；不是已完成的產品規格。

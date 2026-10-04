@@ -24,8 +24,17 @@
 
 ## Product and Research Boundaries
 
-- Read docs/README.md and the backlog-first requirements in docs/resreach before
-  designing product behavior. Quick capture and unfinished work are the primary use.
+- Read docs/README.md, docs/requirements.md, and the current handoff at
+  docs/handoff/2026-10-04-desktop-interaction-handoff.md before designing behavior.
+  SPEC-003 is the desktop interaction contract: U requirements, delegated D defaults,
+  and explicit Q questions. Quick capture and unfinished work remain the primary use.
+- Do not infer plaintext-only, no-checklist, or restricted backup scope from earlier
+  drafts. ADR-006 supersedes conflicting card/container and interaction assumptions.
+- A separate desktop-interaction reference project may be useful for targeted native
+  behavior research. Ask the maintainer for its current readable location when needed;
+  do not guess a sibling path, scan the whole filesystem, or hardcode its name/path.
+  Continue independent contract work while waiting. Reference behavior and failure
+  evidence, not its UI/code/assets/schema. Genuine reuse still needs provenance/license records.
 - Agent orchestration and execution status machines are deferred, not default UI.
 - Research lives in docs/resreach/ (the user's requested spelling). Use dated
   lowercase kebab-case filenames and distinguish evidence, proposals and decisions.
@@ -67,9 +76,10 @@
 
 ## Development Workflow
 
-Default: plan → feature/fix branch → implement → test → independent review →
-Conventional Commit → PR → merge. Follow an explicitly authorized direct-commit
-workflow when requested. Do not interpret a review request as permission to edit.
+The user has authorized direct Conventional Commit and push to origin/main for this
+project. Do not create feature branches or PRs, and never force push. Preserve unrelated
+changes. Plan, implement only the authorized scope, run appropriate checks, and record
+independent-review status. Do not interpret a review request as permission to edit.
 
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,

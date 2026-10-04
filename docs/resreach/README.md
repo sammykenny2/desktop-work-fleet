@@ -1,8 +1,15 @@
 # 研究索引
 
-更新：2026-10-03。目錄拼字 `resreach` 依使用者指定保留。
+更新：2026-10-04。目錄拼字 `resreach` 依使用者指定保留。
 
-## 建議閱讀順序
+## 最新設計：優先閱讀
+
+- [桌面卡片需求演進](2026-10-04-desktop-card-interaction-design.md)：使用者確認、補充與失效方案。
+- [跨平台互動可行性](2026-10-04-desktop-interaction-platform-feasibility.md)：Win／Mac／labwc 的能力、證據及 renderer 限制。
+- 開發規範見 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)，
+  入口見 [交接文件](../handoff/2026-10-04-desktop-interaction-handoff.md)。
+
+## 2026-10-03 歷史研究閱讀順序
 
 1. [Backlog 優先的需求與演進](2026-10-03-backlog-first-product-requirements.md)
 2. [主流輕量 PM 與檢視模型](2026-10-03-lightweight-project-management-and-view-model.md)
@@ -13,7 +20,7 @@
 
 ## 驗證版之後的設計
 
-最新方向是 [Google Drive 便箋 MVP](2026-10-03-google-drive-notes-mvp-feasibility.md)：
+來源方向保留 [Google Drive 便箋 MVP](2026-10-03-google-drive-notes-mvp-feasibility.md)：
 1.0 以 Google 帳號＋file based 便箋起步，不架 local server，保留來源與 renderer 抽象。
 Keep 的官方 API 限制、Drive 儲存選擇、衝突及登入／上架工作均有來源依據。
 

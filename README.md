@@ -1,70 +1,75 @@
 # desktop-work-fleet
 
-跨裝置同步的工作便箋與輕量 backlog：隨手記錄想法，持續看見尚未完成的事情。
+跨裝置同步的工作便箋與輕量 backlog：一張卡片記錄一件事，快速記下靈感，持續看見未完成事項。
 
 ## Current Status
 
-已提供 0.1.0 可操作驗證版：macOS Sandbox App、共用 Web 編輯器與 Python／SQLite 同步服務。
-便箋支援快速記錄、Todo／In Progress／Done、待辦勾選、草稿、衝突、刪除與還原。
+更新：2026-10-04。已完成本次產品互動文件整理，尚未實作新群組／formation／拖放功能。
+**接手開發先讀 [桌面互動交接](docs/handoff/2026-10-04-desktop-interaction-handoff.md) 與
+[SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)**，其中區分已確認需求、工作預設、待決問題與 48 個驗收案例。
 
-- Mac 已實際建置／啟動，驗證真實資料更新、鎖定政策、背景焦點、解鎖／重鎖。
-- HTTP／SQLite、草稿與真實 WebKit 操作有可重現測試。
-- 1.0 方向改為 [Google Drive 檔案便箋 MVP](docs/resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)：Google 登入、不架 local server、保留来源／renderer 邊界；尚未實作。原完整架構研究保留為後續方向。
-- 已整理 [1.0 實作計畫](docs/plans/002-google-drive-notes-mvp.md) 及 [備份還原規格](docs/specs/002-portable-backup-and-restore.md)：appDataFolder、公開 ZIP／JSON、預覽後匯入新便箋；均為規劃，尚未實作。
-- 真實桌面滑鼠點擊／框選／拖拉、完整 Spaces 矩陣、其他平台與商店仍未驗證。
-- [驗證報告](docs/validation/2026-10-03-validation-report.md) 明列通過、失敗／阻礙及未測；執行進度以 [PROGRESS.md](PROGRESS.md) 為準。
+- 目前可執行程式仍是 **0.1.0 驗證版**：macOS Sandbox App、Web 編輯器與 Python／SQLite 服務。
+- 1.0 方向是 Google 帳號＋檔案來源，第一版不架便箋 local server；Google／Drive 尚未實作。
+- Windows、macOS、Linux 是必要桌面目標；同版發佈節奏、最低版本與具體 Linux backend 尚需定案。
+- 舊 Drive／backup 草案保留；其中純文字限定、checklist 延後、備份／還原排除清單尚未獲批准，需依最新需求修訂。
+- [現有驗證報告](docs/validation/2026-10-03-validation-report.md) 保留其原範圍；不能當作新桌面互動或商店通過。
+- 執行狀態以 [PROGRESS](PROGRESS.md) 為準；這次整理沒有恢復先前暫停的 goal。
 
-在這台 Mac 啟動：
+## 產品方向
+
+- 一事一卡，以群組整理；本機可突出「屬於我」，群組不被硬編碼為機器。
+- 最多九組；formation 採列×欄，最多三列、四欄且總區塊不超過九。
+- 平常唯讀且滑鼠穿透；快捷入口啟動某組或全部，暫時浮到一般 App 上方。
+- 單擊選中、雙擊編輯；普通拖曳只移位，群組標籤／Shift 拖放或卡片 action 才改歸屬。
+- 自由擺放之後，明確執行 formation 才召回、堆疊或攤開；輪播只改暫時疊序。
+- 平常紙張尺寸不變；formation 經同意才調整尺寸，不同意可超出群組區域，並提供復原。
+- 共用內容與各裝置版面分離，保留未來異質來源、renderer 與輕量 PM 檢視。
+- 自有 iOS／macOS／Android App 保留 Apple／Google 商店目標；不加入 Focus／番茄鐘／回顧。
+
+## 從這裡開始
+
+1. [接手入口及參考資料取得規則](docs/handoff/2026-10-04-desktop-interaction-handoff.md)
+2. [文件索引](docs/README.md) 與 [需求](docs/requirements.md)
+3. [互動規格](docs/specs/003-desktop-cards-groups-and-formation.md)
+4. [已接受語意](docs/decisions/006-card-group-and-formation-semantics.md) 與 [呈現架構提案](docs/decisions/007-desktop-scene-and-platform-host.md)
+5. [實作計畫](docs/plans/003-desktop-interaction-implementation.md)
+6. [平台能力研究](docs/resreach/2026-10-04-desktop-interaction-platform-feasibility.md) 與 [研究索引](docs/resreach/README.md)
+
+研究目錄依使用者指定命名為 `docs/resreach/`；`docs/research/` 只有導引文件。
+本 repo 的規格不依賴另一個 checkout 的固定位置；需要輔助原生桌面實作時先向維護者詢問。
+
+## 執行既有 0.1.0
+
+在 macOS 使用：
 
 ```bash
 bash scripts/macos/start-validation.sh
 ```
 
-選單列 **WF → 快速記錄／解鎖** 開始編輯，**WF → 鎖定** 恢復桌面展示。
-建置需求、配對、第二 client 與備份恢復見 [操作文件](docs/setup-guide.md)。
-
-## 產品方向
-
-- 1.0 用普通便箋記錄尚未處理的事情與靈感，結構化任務狀態留待後續。
-- Windows、macOS、Linux 桌面展示共享內容，預設唯讀且滑鼠穿透；同版發佈範圍待定。
-- 1.0 規劃 Google Drive 同步與可攜檔案備份；目前 SQLite／HTTPS 配對屬於 0.1.0 驗證版。
-- iOS、macOS、Android App 以 Apple／Google 商店為目標。
-- 保留清單、看板與不同分組方式的可能性，不強迫使用者操作複雜工作流程。
-
-上述包含產品目標，尚未全部實作或驗證。候選 UX 與使用者已確認需求有分別標示。
-
-## 從這裡開始
-
-1. [文件索引](docs/README.md)
-2. [研究索引](docs/resreach/README.md)
-3. [Backlog 優先需求](docs/resreach/2026-10-03-backlog-first-product-requirements.md)
-4. [架構現況](docs/architecture.md)
-5. [已接受的專案邊界](docs/decisions/001-independent-backlog-first-foundation.md)
-6. [驗證與限制](docs/testing.md)
-
-研究目錄依使用者指定命名為 `docs/resreach/`。保留此拼字；`docs/research/` 只有導引文件。
-
-## 開始開發前
-
-閱讀 [setup-guide.md](docs/setup-guide.md)、[testing.md](docs/testing.md) 與
-[ADR-002](docs/decisions/002-validation-runtime.md)。不需安裝 pip/npm runtime 套件。
+選單列 WF → 快速記錄／解鎖開啟 editor，WF → 鎖定恢復展示。
+這是驗證版流程，尚未包含上述群組操作與 Google 登入。
+建置／配對／備份方式見 [操作文件](docs/setup-guide.md)，檢查見 [testing](docs/testing.md)。
+本版本不需安裝 pip/npm runtime 套件；正式 1.0 runtime 尚未選定。
 
 ## 專案結構
 
 ```text
-docs/resreach/    日期與主題命名的研究
-docs/decisions/  已接受的決策
-docs/specs/      後續規格與模板
-docs/plans/      後續計畫與模板
-src/macos/      AppKit Sandbox 展示與 WebKit 編輯入口
-src/server/     Python 標準庫 HTTP + SQLite
-src/web/        共用便箋編輯器
-tests/          資料、草稿與 WebKit 操作測試
+docs/resreach/   日期與主題命名的研究
+docs/decisions/  已接受／待決／延後的決策
+docs/specs/      行為規格與驗收案例
+docs/plans/      實作順序與交付條件
+docs/handoff/    接手與參考資料取得規則
+src/macos/      現有 AppKit Sandbox 展示與 WebKit 編輯入口
+src/server/     現有 Python 標準庫 HTTP + SQLite 驗證服務
+src/web/        現有共用便箋編輯器
+tests/          現有資料、草稿與 WebKit 測試
 scripts/        建置、啟動、探針與維護腳本
 ```
 
 ## 來源與授權
 
-本專案重新設計，未搬入其他 sticky-note 應用的產品程式碼或資產。骨架使用 [project-bootstrap](https://github.com/sammykenny2/project-bootstrap)；來源與範圍見 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
-
-初始授權為 [MIT](LICENSE)。未來加入的第三方元件須另外確認授權與各平台散布義務。
+本專案獨立設計，未搬入其他 sticky-note 應用的產品程式碼或資產。
+骨架使用 [project-bootstrap](https://github.com/sammykenny2/project-bootstrap)；來源與範圍見
+[THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES.md)。
+初始授權為 [MIT](LICENSE)。未來加入的第三方元件須分別確認授權與各平台散布義務。
+中性稱呼輔助參考資料不取代真正採用元件所需的來源與法律聲明。

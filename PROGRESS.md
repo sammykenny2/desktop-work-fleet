@@ -1,29 +1,39 @@
 # 專案進度
 
-更新：2026-10-03。本檔是本 repo 的執行狀態權威。
+更新：2026-10-04。本檔是本 repo 的執行狀態權威。
 
-## 本輪優先方向
+## 目前優先方向
 
-使用者將 1.0.0 收斂為 Google 帳號＋file based 的簡單便箋，第一版不架 local server，
-同時要求先考慮異質來源與 renderer。已完成 [Drive MVP 可行性研究](docs/resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)
-及 [ADR-004（Proposed）](docs/decisions/004-google-drive-notes-mvp.md)。
+使用者要求詳細整理本次桌面卡片與群組設計，讓後續 agent 可按明確規格接手。
+本輪只更新文件，未改產品程式／Google 設定／外部參考專案，也未恢復先前暫停的 goal。
 
-已完成 [1.0 分階段計畫](docs/plans/002-google-drive-notes-mvp.md)、
-[備份規格](docs/specs/002-portable-backup-and-restore.md) 與
-[備份研究](docs/resreach/2026-10-03-appdata-backup-and-restore-design.md)。
-規劃基線是 Drive appDataFolder；ZIP＋公開 JSON、快照範圍標示、
-預覽後匯入為新便箋、草稿／衝突保留及中斷續傳見 [ADR-005](docs/decisions/005-portable-backup-and-restore.md)。
-ADR-004／005 仍為 Proposed，SPEC／PLAN 為 Draft；不代表已實作或已接受所有細節。
+已確認產品語意以 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)
+及 [ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 為準：
+一事一卡、通用群組、九組 grid、自由移位、顯式 formation／尺寸同意／undo、
+只改 z-order 的輪播、指定組／All 操作、單擊選卡雙擊編輯、顯式拖放轉組。
+整理期間另取得明確答覆：操作組暫時浮到一般 App 上方；採用標籤／Shift 的轉組手勢。
 
-接續順序：契約與選型 → 本機核心／備份往返 → Google 同步 → UI 整合 → 選定平台發佈。
-尚待確定 1.0 平台發佈範圍、正式 runtime 與同步契約；不再以重做 Mac 探索性 probe 作為下一步。
-Google 登入、OAuth 專案、SDK、Drive 寫入與商店配置都尚未實作或操作。
-本輪未恢復先前暫停的驗證 goal。
+## 2026-10-04 文件交付
 
-ADR-003 與完整產品架構研究改為 Deferred，保留 PM／自架 server 的後續設計。
-本次只更新文件；既有 0.1.0 程式與測試證據保留。
-文件檢查：51 份 Markdown、195 個相對連結、UTF-8／LF 與 git diff --check 通過。
-本輪沒有執行產品測試或獨立審閱；作者的格式／連結檢查不算獨立審閱。
+- [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。
+- [需求演進](docs/resreach/2026-10-04-desktop-card-interaction-design.md)：保留各次修正及被取代方案。
+- [平台研究](docs/resreach/2026-10-04-desktop-interaction-platform-feasibility.md)：API、既有報告、推論與未測範圍分開。
+- [ADR-007](docs/decisions/007-desktop-scene-and-platform-host.md)：Proposed；renderer 自管卡片疊序，host 管原生能力。
+- [PLAN-003](docs/plans/003-desktop-interaction-implementation.md)：契約、模型、renderer、平台、來源與發佈的交接順序。
+- [接手文件](docs/handoff/2026-10-04-desktop-interaction-handoff.md)：必讀順序、不可偏離行為、何時詢問輔助參考位置。
+- 主要入口及舊提案已加上優先序／範圍修訂標記，避免早期純文字／backup 排除清單被當成已批准需求。
+
+文件檢查：`python -B scripts/testing/check_docs.py` 通過（58 份 Markdown、281 個相對連結、UTF-8／LF）；
+`git diff --check` 通過。另核對 U01–U22、Q01–Q07、C01–C48 編號、索引與改動範圍。
+本輪未修改產品程式，未重跑產品功能測試；沒有獨立審閱，作者的機械檢查不作獨立審閱證據。
+
+## 接續工作
+
+產品實作仍未開始。後續收到實作指示後按 PLAN-003 與 SPEC-003 開發 U／D；
+只在開始依賴 Q01–Q07 的部分前詢問，不能用未決內容阻斷全部工作或擅自砍功能。
+Windows/macOS/Linux 保留為必要桌面目標，手機／桌面發佈節奏與 runtime 等仍有待決。
+Drive／備份仍承接 ADR-004／005 的 Proposed 設計，須補上群組模型與範圍決定。
+Google 登入、OAuth 專案、SDK、Drive 寫入、正式商店設定都未實作或操作。
 
 ## 目前交付
 
@@ -35,7 +45,7 @@ ADR-003 與完整產品架構研究改為 Deferred，保留 PM／自架 server �
 不能把這次可操作版本或自動測試綠燈當成全部疑慮已通過。
 詳見 [驗證報告](docs/validation/2026-10-03-validation-report.md)。
 
-## 本次完成
+## 0.1.0 已完成的歷史交付
 
 - AppKit 公開 API、ad-hoc 簽章、App Sandbox 與僅 outbound network entitlement。
 - 真實 SQLite 更新到桌面，鎖定／不搶焦點政策、解鎖 WebKit 編輯／重新鎖定。
@@ -57,7 +67,7 @@ ADR-003 與完整產品架構研究改為 Deferred，保留 PM／自架 server �
 - Spaces、Show Desktop、Mission Control、Stage Manager、全螢幕、多螢幕／拔插、休眠喚醒。
 - 真實手機掃碼與 LAN／外網 HTTPS；瀏覽器 service worker 離線冷啟動。
 - Windows MSIX、Linux 具體 compositor、Apple Silicon、iOS／Android 原生 package 與商店提交。
-- 每機內容突出、多個獨立便箋視窗、真實日常 UX 回饋與大資料效能。
+- 每機內容突出與 SPEC-003 的卡片場景／群組互動、真實日常 UX 回饋與大資料效能；不預設一卡一原生視窗。
 - production 網路 hardening、Keychain／本機內容加密及正式散布產物授權稽核。
 
 ## 歷史基礎

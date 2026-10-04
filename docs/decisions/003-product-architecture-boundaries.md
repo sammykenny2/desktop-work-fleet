@@ -1,5 +1,9 @@
 # ADR-003: 正式產品的工作資料、同步與平台邊界
 
+> 2026-10-04：本 ADR 繼續 Deferred。下文 Note 容器／Item 拆分是歷史提案，
+> 不規範已確認的一事一卡；新的產品語意見
+> [ADR-006](006-card-group-and-formation-semantics.md)。未來採用舊提案前也需重新對齊。
+
 ## Status
 
 Deferred，2026-10-03。原 Proposed 內容保留為完整 PM／自架 server 的後續設計。

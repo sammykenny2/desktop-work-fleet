@@ -1,6 +1,13 @@
 # 建置、測試與證據
 
-更新：2026-10-03。具體通過／失敗／未測見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-04（文件路由）；下列產品命令與證據仍屬 0.1.0。具體通過／失敗／未測見 [驗證報告](validation/2026-10-03-validation-report.md)。
+
+## 新互動驗收路由
+
+新卡片／群組／formation 的要求見 [SPEC-003 C01–C48](specs/003-desktop-cards-groups-and-formation.md)，
+分層策略見 [PLAN-003](plans/003-desktop-interaction-implementation.md)。目前均未實作／未驗收；
+不能把下列舊測試綠燈列為新功能通過，也不為文件變更重新啟動舊 Mac probe。
+文件工作執行 check_docs.py、git diff --check 與範圍／語意一致性檢查即可。
 
 ## 可重現命令
 

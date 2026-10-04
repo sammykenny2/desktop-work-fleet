@@ -1,5 +1,9 @@
 # 1.0.0 Google Drive 便箋 MVP：可行性與擴充邊界
 
+> 2026-10-04 更新：Google／Drive 能力研究保留；最新產品互動與未決內容範圍見
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
+> 舊小範圍提案不是省略群組／formation、裁掉 checklist／附件或限制備份的授權。
+
 - 日期／官方文件查閱日：2026-10-03。
 - 狀態：使用者已要求收斂為 Google 帳號＋file based 便箋，第一版不架 local server。
   本文對 Drive、資料空間及同步協定的具體選擇仍是 Proposed。
@@ -62,7 +66,7 @@ AppDataFolder 的內容需由本 App 編輯；Google Drive／Keep 不會提供�
 建議交付：
 
 - Google 登入／授權、重連、登出與帳號切換；初版一次啟用一個資料來源。
-- 純文字便箋的新增、編輯、刪除／還原；簡單 checklist 可獨立評估，無 Project 或任務 workflow。
+- 一事一卡的新增、編輯、刪除／還原與最新群組互動；本文／checklist／附件範圍另行確認，不預設純文字限定。
 - 多便箋桌面展示、每機位置／尺寸／突出設定、鎖定穿透與主動解鎖編輯。
 - 多裝置同步、本機快取與可靠草稿、可辨識的 pending／衝突提示。
 - 資料匯出／從備份匯入，以及 Google 授權撤銷、配額／網路錯誤時的可恢復行為。
@@ -97,7 +101,7 @@ flowchart LR
 
 最小資料邊界：
 
-- NoteDocument：schemaVersion、noteId、title、body（初版 plain text）、選用外觀資訊。
+- NoteDocument：schemaVersion、noteId、title、body（具體格式待定，不預設純文字限制）、選用外觀資訊。
 - SourceRef：providerId、accountId、collection identity、opaque external identifier。
 - Sync envelope：operationId、revision／parents、刪除標記及來源特有 metadata；與可見內容分離。
 - Local state：草稿、outbox、遠端快取、同步游標、每機版面；依來源／帳號分區。

@@ -5,7 +5,15 @@ project-specific procedures that are too detailed for always-loaded instructions
 
 ## Project Context
 
-Start with docs/README.md and docs/resreach/README.md. Product requirements are backlog-first. The executable validation runtime is recorded in docs/decisions/002-validation-runtime.md; see ADR-001 for accepted product boundaries and PROGRESS.md for execution status.
+Start with docs/README.md and docs/handoff/2026-10-04-desktop-interaction-handoff.md.
+SPEC-003 and ADR-006 contain the latest card/group/formation/gesture requirements.
+Follow confirmed U requirements and delegated D defaults; ask only about Q items
+needed for the current implementation. Do not reopen the confirmed floating-layer
+or gesture choices. ADR-007 is a technical proposal, not an adopted framework.
+The executable validation runtime remains ADR-002; PROGRESS.md is execution status.
+For targeted external desktop behavior research, ask the maintainer for the reference
+project location only when required. Do not guess paths or copy its implementation.
+Older Drive/backup drafts require scope reconciliation before freezing contracts.
 
 ## Workflows
 

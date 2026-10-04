@@ -1,5 +1,11 @@
 # 正式產品架構草案：backlog、同步與多端呈現
 
+> 2026-10-04 效力更新：本文保留歷史研究，不是最新 1.0 互動規範。
+> 使用者已改為一事一卡、通用群組、顯式 formation 與暫時 z-order；
+> 舊 Note 容器、逐項任務模型或其他候選 UX 不得覆蓋
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
+> 演進原因見 [今日整理](2026-10-04-desktop-card-interaction-design.md)。
+
 - 日期：2026-10-03。
 - 狀態：Deferred；保留為完整 PM／自架 server 的後續設計，不列為 1.0 MVP 必做。
 - 使用者最新方向：Google 帳號＋file based 簡單便箋，第一版不架 local server。

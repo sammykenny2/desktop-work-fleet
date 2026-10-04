@@ -5,7 +5,9 @@
 Proposed，2026-10-03。
 使用者已確定先做 Google 帳號／file based 的簡單便箋，第一版不架 local server；
 Drive provider、資料空間與衝突格式是本提案的建議。
-1.0 同時發佈的平台範圍尚待確認。
+Windows/macOS/Linux 是必要桌面目標；同版發佈節奏尚待確認。
+2026-10-04 的卡片／群組／formation／操作規範見 [ADR-006](006-card-group-and-formation-semantics.md)。
+本文尚未批准的 editor／備份範圍不能覆蓋最新需求。
 
 ## Context
 
@@ -24,10 +26,11 @@ Drive 可儲存本 App 的資料檔案。
 - 1.0 提供基本便箋、桌面鎖定／解鎖、跨裝置同步、草稿與衝突保留。
 - 用 NoteSource 區分資料來源；檔案來源由 FileNoteSource + FileStore adapter 實作。
   Renderer 只用 NoteViewModel／編輯命令，不直接使用 Google token 或 API。
-- 一台機器的便箋視窗共用本機 store／同步協調；每機版面與共享本文分離。
+- 一台機器的呈現表面共用本機 store／同步協調；每機版面與共享卡片／群組分離。
+  卡片不等於 native window，呈現拓撲見 [ADR-007](007-desktop-scene-and-platform-host.md)。
 - 檔案同步先比較不可變版本記錄與可證實的條件式寫入，禁止靜默最後寫入者覆蓋。
 - Google 授權與內容同步都由 App 直接對 Google；不新增自家常駐 backend。
-- 手動備份使用來源無關的 ZIP／JSON，首版還原採預覽後匯入為新便箋；
+- 備份候選使用來源無關的 ZIP／JSON，還原候選採預覽後匯入為新便箋；是否唯一模式仍待確認；
   草稿、衝突與中斷續傳見 [ADR-005](005-portable-backup-and-restore.md)。
 - ADR-003 的 PM／自架 server 路線延後，保留全文與未來適用性。
 

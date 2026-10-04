@@ -1,10 +1,13 @@
 # PLAN-002: Google Drive 便箋 1.0.0 與可攜備份
 
+> 2026-10-04：本計畫的來源與可靠性研究保留；產品互動由 SPEC-003／PLAN-003 補足。
+> ZIP／JSON、新增式匯入等尚未全部定案，不能用早期排除清單裁掉 checklist、附件、版面或自動備份。
+
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | Draft；本輪交付規劃，不執行產品實作 |
+| Status | Draft／需依 2026-10-04 最新互動及範圍修訂；未開始產品實作 |
 | Owner | 專案維護者 |
 | Assigned To | 未指定 |
 | Reviewer | 待獨立審閱 |
@@ -21,7 +24,9 @@
 
 1.0 的日常流程：登入 Google → 快速新增／編輯便箋 → 在支援的桌面鎖定展示 →
 另一裝置同步 → 必要時匯出或匯入備份。
-保留簡單文字與顏色，完成事項先由使用者編輯本文；結構化 checklist、看板與 PM 狀態延後。
+最新產品必須包含 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) 的卡片／群組／formation／拖放語意，
+互動開發依 [PLAN-003](003-desktop-interaction-implementation.md)。
+Editor／checklist／附件及完成動作尚待範圍確認；先前純文字與 no-checklist 的裁切未獲批准。
 
 規劃基線為 appDataFolder + drive.appdata；備份存到使用者指定的本機／OS 文件位置。
 首版不為備份額外要求 drive.file 或全 Drive scope，也不加自家便箋 server。
@@ -31,7 +36,7 @@
 開發整合先利用已有 AppKit host，便於沿用公開 API／Sandbox 的已有工作；
 這是施工順序，**不代表已決定 Mac-only 發佈**。
 macOS／iOS／Android 商店、Windows Store 候選、Linux 可測範圍保留；
-1.0 同版平台仍待使用者選擇。
+Windows/macOS/Linux 是必要桌面目標；手機與桌面同版推出的節奏仍待決定，不能因此默認 Mac-only。
 
 ## Implementation Phases
 
@@ -40,17 +45,19 @@ macOS／iOS／Android 商店、Windows Store 候選、Linux 可測範圍保留�
 交付物：
 
 - 發佈平台與最低 OS 清單，對應普通 editor、桌面展示、檔案備份三種能力。
-- NoteDocument、SourceRef、NoteSource／FileStore、NoteViewModel、
+- Card／Group、SourceRef、NoteSource／FileStore、CardViewModel、DeviceLayout／InteractionState、
   LocalStore、BackupService／RestoreJob 的最小公開契約。
 - 對 append-only revision file 方案寫出可執行的同步規則：
   noteId、revisionId、operationId、parents、deleted、完整本文；時間戳只供顯示。
-- 凍結備份 v1 Schema、golden fixtures、錯誤分類及候選容量上限。
+- 先確認 SPEC-003 Q02，再凍結備份 v1 Schema、群組引用、golden fixtures、錯誤分類及容量上限。
+  舊 SPEC-002 未含完整群組語意，不可直接當成完整格式。
 - 記錄 runtime 選型 ADR：目前仍是 prototype 的 Swift／ES modules／Python，
   不能默認 Python server 隨 1.0 發佈。
 
 選型收斂方式：以已確認平台的「商店封裝、原生 OAuth／憑證、可靠本機交易、
 背景生命週期、公開桌面 API、程式碼授權」比較原生 host＋共用核心與跨平台框架。
-優先重用本 repo 可隔離的公開 API host；不移植上游 UI，也不建立動態 plugin 系統。
+可利用本 repo 可隔離的公開 API host 經驗；不移植外部 UI。
+擴充能力／plugin 的 1.0 範圍仍需確認，不因抽象介面就自行加入或排除動態外掛。
 框架定案前只凍結格式／契約／測試樣本，避免先造一套之後全部重寫的 bridge。
 
 同步規則需明確處理：
@@ -97,11 +104,12 @@ macOS／iOS／Android 商店、Windows Store 候選、Linux 可測範圍保留�
 使用乾淨測試資料驗證，未取得測試帳號／OAuth 設定時明列外部依賴，
 不以 mock 通過冒充 Google 整合完成。
 
-### Phase 4：最小可用 UI 與首個平台整合
+### Phase 4：按 SPEC-003 完成 UI 與平台整合
 
 交付物：
 
-- App 內附帶的 editor，可快速新增、改字、改色、刪除及恢復。
+- App 內附帶的 editor 依確認後的內容範圍實作；卡片／群組／formation 與手勢按 SPEC-003，
+  不以文字 CRUD 代替完整桌面互動。
 - 同步只顯示有用的資訊：已存本機／同步中／需處理；
   詳情才呈現網路錯誤與衝突，不增加 PM／Agent 工作狀態。
 - 桌面呈現使用相同 NoteViewModel：共享內容、每機位置／尺寸／顯示集合／突出設定分離，
@@ -124,7 +132,7 @@ macOS／iOS／Android 商店、Windows Store 候選、Linux 可測範圍保留�
   Linux 發佈僅承諾實測 distro／compositor，其他環境提供明確的普通視窗降級。
 - 最終依賴／轉遞依賴 license inventory、notices、Google 設定與審查所需操作說明。
 - 對最終封裝執行資料往返、真實登入、跨裝置與桌面行為的發佈回歸。
-- 文件明示備份為內容快照，沒有完整歷史或全帳號回滾。
+- 文件依最終核准的備份／還原範圍說明，未批准的排除清單不能當作產品定案。
 
 **出口條件**：選定平台各自有可重現產物與驗收證據；
 未選／未完成平台沒有宣稱支援。實際上架核准仍以商店結果為準。
@@ -184,4 +192,6 @@ schema fixtures／內容 round-trip → 交易與當機點 → fake transport �
 
 ## Progress Log
 
-規劃建立於 2026-10-03。後續狀態與實際檢查結果統一記錄於根目錄 PROGRESS.md。
+規劃建立於 2026-10-03，2026-10-04 對齊 SPEC-003／PLAN-003。
+下文仍保留新增式匯入等技術提案，並不表示已批准唯一還原模式。
+後續狀態與實際檢查結果統一記錄於根目錄 PROGRESS.md。

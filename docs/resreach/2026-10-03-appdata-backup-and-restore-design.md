@@ -1,5 +1,9 @@
 # Drive appDataFolder 檔案備份與還原設計
 
+> 2026-10-04：官方能力研究保留；新增式還原是候選而非已核准的唯一模式。
+> 實際 backup／附件／版面／自動備份範圍須對齊
+> [SPEC-003 Q01／Q02](../specs/003-desktop-cards-groups-and-formation.md)，並補上群組語意。
+
 - 日期／官方文件查閱日：2026-10-03。
 - 使用者要求：確認 drive.appdata 能否讓使用者以檔案形式備份／還原，並要求規劃。
 - 性質：官方能力查證＋1.0 設計提案；尚未執行 Google 帳號／Drive 操作。

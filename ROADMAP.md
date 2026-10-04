@@ -1,27 +1,24 @@
 # 開發方向
 
-更新：2026-10-03。1.0 為 Google 帳號＋file based 簡單便箋，
-包含使用者可持有的備份檔與預覽後匯入。
-以下為工作順序；完成狀態只記在 PROGRESS.md，不承諾發佈日期。
+更新：2026-10-04。此文件只定順序，執行狀態以 PROGRESS.md 為準，不承諾發佈日期。
 
-1. **契約與選型**：以 appDataFolder 為基線，凍結便箋／來源／renderer、
-   同步及備份 v1 契約；確認同版平台與正式 runtime。
-2. **本機核心與備份**：交易式資料、可靠草稿／outbox、ZIP／JSON 往返、
-   快照範圍標示及新增式匯入；先用 fake source 驗證。
-3. **Google 整合**：OAuth、帳號與憑證隔離、跨 client ID 的讀寫、
-   衝突與重試；不架自家便箋 server。
-4. **便箋介面**：快速記錄、桌面鎖定／解鎖、每機版面、備份預覽與匯入進度。
-5. **1.0 發佈**：對選定平台完成封裝、正式身分／簽章、商店材料、
-   第三方授權盤點及對應功能回歸。
-6. **後續擴充**：其他 source／renderer、PM、完整 Item/View、自架 server、
-   有獨立復原語意的整庫回滾與自動備份。
+1. **最新需求與契約**：依 SPEC-003 的 U／D 凍結卡片、群組、每機版面、命令與來源邊界；
+   只對開始依賴的 Q 提問。選型先面對三平台疊序／輸入能力與授權。
+2. **本機核心與互動模型**：一事一卡、九組 grid、顯式 formation、尺寸同意、undo、
+   普通拖曳與轉組分開、穩定輪播及可靠草稿；用隔離 fixture 驗證。
+3. **可用呈現與平台 host**：乾淨 UI、群組／全組操作、提示與 editor，
+   在 Windows、macOS、目前可測 Linux backend 接同一套驗收案例。
+4. **Google 與跨裝置整合**：登入、帳號隔離、共享卡片／群組及可靠同步，
+   每機 geometry 不串台；不新增自家便箋 server。
+5. **備份範圍與完整往返**：按使用者確認的內容／版面／還原需求修訂 SPEC-002，
+   群組與引用不可漏；舊草案不能直接作為排除功能的依據。
+6. **平台發佈**：最低版本、安裝包、簽章／商店、授權、真實同步與桌面功能回歸各自列證據。
+7. **後續擴充**：其他 source／renderer、PM／檢視與多歸屬；保留既有研究，不強迫首版導入。
 
-具體交付物與出口條件見 [PLAN-002](docs/plans/002-google-drive-notes-mvp.md)，
-備份格式／行為與 T01–T12 驗收見 [SPEC-002](docs/specs/002-portable-backup-and-restore.md)。
-[ADR-004](docs/decisions/004-google-drive-notes-mvp.md)、
-[ADR-005](docs/decisions/005-portable-backup-and-restore.md) 均為 Proposed。
-[原完整架構](docs/resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
+詳細實作交接見 [PLAN-003](docs/plans/003-desktop-interaction-implementation.md)，
+來源／Google 工作續接 [PLAN-002](docs/plans/002-google-drive-notes-mvp.md)。
+[ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 是已接受語意，
+[ADR-007](docs/decisions/007-desktop-scene-and-platform-host.md) 是技術提案。
 
-Windows/macOS/Linux、Apple/Google 商店的原始平台目標保留；
-使用既有 Mac host 作為第一個整合入口，不代表縮成 Mac-only 1.0，
-也不代表所有平台必須同版推出。不重新啟動已暫停的驗證 goal。
+Windows/macOS/Linux 是必要桌面目標；手機與桌面同版推出的節奏尚待決定。
+某一 host 先整合不代表取消其他平台。使用既有 Mac 經驗，不重啟已暫停的探索 goal。

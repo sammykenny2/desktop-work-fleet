@@ -2,6 +2,10 @@
 
 > This directory contains feature specifications that define *what* to build and *why*.
 
+Current behavior contract: [SPEC-003](003-desktop-cards-groups-and-formation.md).
+Confirmed U requirements and delegated D defaults are actionable when implementation is authorized;
+ask only the Q items needed for the current work. Earlier backup/editor cuts are not approved.
+
 ## Purpose
 
 Specifications define requirements before implementation begins. They help:
@@ -48,6 +52,8 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
+| [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / explicit Q; not implemented | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
+| [002-portable-backup-and-restore](002-portable-backup-and-restore.md) | Portable backup proposal | Draft / scope and group schema revision required | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version](001-validation-version.md) | Backlog 驗證版 | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |
 
@@ -57,7 +63,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 ## For AI Agents
 
 1. **Before implementing**: Create spec for complex features
-2. **Get approval**: Wait for review before proceeding to implementation
+2. **Respect authorization**: Follow existing user authorization and U/D contracts; resolve affected Q items before dependent implementation, without reopening confirmed choices
 3. **Link to plan**: Reference the related PLAN document when created
 
 ---

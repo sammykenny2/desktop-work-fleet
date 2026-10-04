@@ -1,5 +1,11 @@
 # 輕量專案管理體驗與檢視模型研究
 
+> 2026-10-04 效力更新：本文保留歷史研究，不是最新 1.0 互動規範。
+> 使用者已改為一事一卡、通用群組、顯式 formation 與暫時 z-order；
+> 舊 Note 容器、逐項任務模型或其他候選 UX 不得覆蓋
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
+> 演進原因見 [今日整理](2026-10-04-desktop-card-interaction-design.md)。
+
 - 日期：2026-10-03
 - 狀態：研究與候選設計，尚未選定 PM 服務或資料 schema。
 - 前提：以 [Backlog 優先需求](2026-10-03-backlog-first-product-requirements.md) 為準。

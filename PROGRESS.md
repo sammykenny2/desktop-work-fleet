@@ -9,6 +9,12 @@
 本次還明確納入 iOS／Android 原生 App 與商店提交準備，並核准完整 editor／逐卡設定／備份範圍。
 核心測試通過不代表五平台或 Google 驗收已完成；完整目標持續進行。
 
+2026-10-05 目前因外部輸入阻塞，完整 1.0 尚未完成：Apple hosted build 的 Actions 額度授權
+已連續三輪待回覆，實際 workflow runs 為空，沒有可等待的建置工作。原生編譯／修正需要
+這項授權或可用的 Mac 環境；Google 專案／各平台 client、Apple team、正式 package identity／
+簽章與公開隱私／支援設定亦未配置，現有產物是 preview。既有的授權問題保留，不因自動續跑
+或經過時間視為同意。實作／封裝已提交至 `5aa7b39`；先停止自動續跑，等待外部設定後接續。
+
 已確認產品語意以 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)
 及 [ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 為準：
 一事一卡、通用群組、九組 grid、自由移位、顯式 formation／尺寸同意／undo、

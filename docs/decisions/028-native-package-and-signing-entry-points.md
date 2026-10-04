@@ -40,6 +40,11 @@ Apple 加入手動 GitHub workflow，固定官方 actions commit，使用 GitHub
 工作上限每 target 20 分鐘，僅手動觸發，不在 push 執行測試。Private repository 的 hosted runner
 可能使用計費額度，實際啟動需維護者同意；沒有 developer account／簽章時僅為 native preview。
 
+Android 依 variant 的 resolved runtime graph 打包 dependency inventory／artifact SHA-256、上游
+Maven POM 與 AAR／JAR 內的 notices，保留 Apache-2.0 全文。Generated assets 使用每輪新的
+專用目錄，避免混入舊 variant 的輸出；缺少 POM／license declaration 以 status 記錄，不推定授權。
+輸出不含 SDK cache 的本機路径或憑證；最終 release 的 Google SDK 條款仍依該包 inventory 確認。
+
 ## Consequences
 
 ### Positive

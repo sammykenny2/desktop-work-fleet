@@ -27,4 +27,8 @@ Windows 封裝 identity／publisher 設於 `.env.example`，簽章使用既有 C
 Apple export／PKG／DMG 與 Keychain profile 公證入口見 [散布文件](../deployment.md)。
 各平台帳號、證書與真正原生截圖並未因腳本存在而完成，狀態見 [PROGRESS](../../PROGRESS.md)。
 
+Android 每 variant 的實際 resolved runtime 版本／hash／POM 與 SDK notices，會隨 package 保存在
+`assets/licenses/native/inventory.json` 及同目錄文件。缺少聲明的項目保留 metadata status，
+不自動推定 license。正式 release AAB 使用其自己的 inventory，debug inventory 僅描述 debug 產物。
+
 請依最終原生套件及 SDK 資料清單填寫商店表單；本目錄不宣稱表單已送出或通過。

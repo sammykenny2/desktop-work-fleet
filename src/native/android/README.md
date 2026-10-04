@@ -38,6 +38,11 @@ Android 強制終止或背景回收只靠最後已提交的 SQLite 交易恢復�
 外部文件提供者若不能 fsync／讀回確認，備份報失敗並保留新檔，不能回報成功或自動改存明文。
 
 原生建置、真裝置、Google 往返及簽章／商店驗收狀態只見根目錄 PROGRESS。
+Gradle 依 Debug／Release runtime graph 產生每 variant 的隨包授權資料，保存 artifact SHA-256、
+上游 POM、AAR／JAR 中的 LICENSE／NOTICE／COPYING，另保留 Apache-2.0 全文。
+APK／AAB 的 assets 內含 `licenses/native/inventory.json`；缺少 POM 或 license declaration 明確標示，
+不自動推定授權。生成資料只含版本／upstream 文本，沒有憑證或本機 artifact 路徑。
+每輪使用新的生成目錄，保留既有 build outputs，不將舊版 generated notices 混入本輪 variant。
 
 附件與草稿下載使用 ACTION_CREATE_DOCUMENT 保存，不把 blob URL 交給外部瀏覽器。
 編輯器可分享 Markdown 文字及單一附件；內容先通過 bounded transfer／SHA-256，

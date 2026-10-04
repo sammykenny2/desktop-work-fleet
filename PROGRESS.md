@@ -562,6 +562,25 @@ macOS／iOS；每 job 可選 5／10／20 分鐘（預設 10），artifact 保存
 Apple 本機 SDK 仍缺，沒有 Apple 原生 binary；公開 team／OAuth／正式簽章亦未配置。
 本輪沒有測試／審閱／獨立 review；完整 1.0 仍未達成。
 
+## 2026-10-05 原生模組封裝修正與 Android 授權資料
+
+共用 renderer 已引用 `native/files.js`／`native/capture.js`，原打包清單漏帶這兩個模組。
+已補入 web assets 封裝，重新產出 Windows MSIX／ZIP、Android preview APK、Linux DEB／tar.gz，
+並更新 Apple Xcode project assets；舊的封裝產物由這輪產物取代。
+Windows 最新目錄為 `build/windows/package-752e12ff6aae49d7be24fdc43ace09ea/`，
+內含 `WorkFleet-1.0.0-x64.msix`／`WorkFleet-1.0.0-x64.zip`，.NET 建置 0 errors／0 warnings。
+Android 最新檔為 `build/android/WorkFleet-1.0.0-preview.apk`，最後建置 `BUILD SUCCESSFUL`。
+Linux 最新檔為 `build/linux/work-fleet_1.0.0~preview_all.deb`，由 dpkg-deb 成功封裝。
+以上仍為 preview／未正式簽章產物，沒有啟動 App 或做 OS 行為驗收。
+
+Android Gradle 每 variant 依 resolved runtime graph 打包 SDK inventory／artifact SHA-256、
+上游 POM／AAR／JAR notices，Apache-2.0 官方全文一併保留。使用新生成目錄，沒有刪除舊 build outputs。
+本輪 debug inventory 含 58 個 runtime artifacts；58 份 POM 均取得，找到 7 份 embedded notices，
+1 項 POM 未直接宣告 license，保留原 metadata status，沒有自行推定授權。
+SDK cache 本機路径與憑證不進隨包 inventory；正式 AAB 的 SDK 條款仍依其 release inventory 確認。
+依指示未做測試／審閱／獨立 review。Apple hosted build 額度授權仍待回覆，沒有啟動 Actions。
+正式 OAuth／developer accounts／簽章、原生 screenshots 與五平台完整驗收仍缺，完整 1.0 未完成。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。

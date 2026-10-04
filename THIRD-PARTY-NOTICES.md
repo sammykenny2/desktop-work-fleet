@@ -80,6 +80,12 @@ Android SQLite, WebView, Keystore and framework APIs are supplied by the device.
 The Android asset build retains this notice and the root LICENSE. The current
 APK/AAB build status is recorded in PROGRESS.md; a debug APK does not establish
 the final store package's complete resolved dependency-license inventory.
+Each Android variant bundles `assets/licenses/native/inventory.json`, resolved
+runtime artifact hashes, upstream Maven POMs and embedded LICENSE/NOTICE/COPYING
+files (including those in AAR classes/libraries). Missing POM license declarations
+remain explicitly marked. The full [Apache-2.0 text](https://www.apache.org/licenses/LICENSE-2.0.txt)
+is retained at `src/native/licenses/apache-2.0-LICENSE.txt` and accompanies AndroidX.
+This collected upstream metadata does not replace the final release's SDK terms.
 Pinned SDK command-line tools and Gradle can be installed under build/toolchain;
 their SHA-256 checksums come from the official [Android download](https://developer.android.com/studio#command-line-tools-only)
 and [Gradle checksum](https://gradle.org/release-checksums/) pages.

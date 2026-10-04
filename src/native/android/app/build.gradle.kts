@@ -1,7 +1,17 @@
 import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
 import java.io.File
+import java.util.UUID
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.artifacts.result.ResolvedArtifactResult
+import org.gradle.maven.MavenModule
+import org.gradle.maven.MavenPomArtifact
 
 plugins { id("com.android.application") }
+abstract class NativeNoticesTask : Exec() {
+    @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
+}
 val repositoryRoot = rootProject.projectDir.resolve("../../../")
 val publicConfig = repositoryRoot.resolve("build/config/public.json")
 val config = if (publicConfig.exists()) JsonSlurper().parse(publicConfig) as Map<*, *> else emptyMap<Any, Any>()
@@ -51,6 +61,39 @@ val copyNotices = tasks.register<Copy>("copyProjectNotices") {
     into(layout.buildDirectory.dir("generated/notices/licenses"))
 }
 tasks.named("preBuild") { dependsOn(copyConfig, copyNotices) }
+val noticesBuildId = UUID.randomUUID().toString()
+androidComponents.onVariants { variant ->
+    val runtime = configurations.named("${variant.name}RuntimeClasspath")
+    val metadata = layout.buildDirectory.file("generated/native-dependencies/${variant.name}-$noticesBuildId.json")
+    val collect = tasks.register<NativeNoticesTask>("collect${variant.name.replaceFirstChar { it.uppercase() }}NativeNotices") {
+        assetsDirectory.set(layout.buildDirectory.dir("generated/native-notices/${variant.name}-$noticesBuildId"))
+        inputs.files(runtime)
+        inputs.file(repositoryRoot.resolve("scripts/generate-android-notices.mjs"))
+        inputs.file(repositoryRoot.resolve("src/native/licenses/apache-2.0-LICENSE.txt"))
+        inputs.property("variant", variant.name)
+        doFirst {
+            val artifacts = runtime.get().resolvedConfiguration.resolvedArtifacts.sortedBy { it.id.displayName }
+            val result = project.dependencies.createArtifactResolutionQuery()
+                .forComponents(artifacts.map { it.id.componentIdentifier }.distinct())
+                .withArtifacts(MavenModule::class.java, MavenPomArtifact::class.java).execute()
+            val poms = result.resolvedComponents.associate { component ->
+                component.id.displayName to component.getArtifacts(MavenPomArtifact::class.java)
+                    .filterIsInstance<ResolvedArtifactResult>().firstOrNull()?.file?.absolutePath
+            }
+            val rows = artifacts.map { artifact ->
+                val module = artifact.moduleVersion.id
+                mapOf("group" to module.group, "name" to module.name, "version" to module.version,
+                    "file" to artifact.file.absolutePath, "pom" to poms[artifact.id.componentIdentifier.displayName])
+            }
+            val input = metadata.get().asFile
+            input.parentFile.mkdirs()
+            input.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(mapOf("variant" to variant.name, "artifacts" to rows))))
+            commandLine("node", repositoryRoot.resolve("scripts/generate-android-notices.mjs").absolutePath,
+                "--input", input.absolutePath, "--output", assetsDirectory.get().asFile.absolutePath)
+        }
+    }
+    variant.sources.assets?.addGeneratedSourceDirectory(collect) { it.assetsDirectory }
+}
 tasks.matching { it.name.contains("Release") }.configureEach {
     doFirst {
         require(configuredId.isNotEmpty()) { "Release requires WORK_FLEET_APP_ID in .env and npm run build." }

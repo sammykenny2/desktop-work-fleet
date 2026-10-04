@@ -24,7 +24,7 @@
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
-| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料及帳號能力與前背景通知已加入；分享及平台散布持續完成；缺 SDK，未產原生 package 或做裝置驗收 |
+| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料與帳號、前背景通知、原生匯出及文字／附件分享已加入；外部分享接收與平台散布待完成；缺 SDK，未產原生 package 或做裝置驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 商店文案／隱私草稿／提交資料、Android build wrappers、Apple Xcode 產生器／圖示／archive 入口已加入；其他封裝、正式簽章／screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
@@ -488,6 +488,19 @@ X11 層級與 Keybinder、Wayland layer-shell 與 GlobalShortcuts portal 依 run
 本輪完成 web build、Linux package generator 與 tar.gz 產生；產物含這次桌面接線程式，沒有建立 deb。
 依指示未跑測試／審閱，Windows 環境仍無 Linux GUI 執行證據；portal 重註冊的系統授權流程未確認。
 完整 1.0 持續完成手機分享與平台散布，見 [ADR-025](docs/decisions/025-linux-desktop-scenes-and-shortcuts.md)。
+
+## 2026-10-05 原生檔案匯出與手機分享
+
+Android ACTION_CREATE_DOCUMENT、iOS UIDocumentPicker、macOS NSSavePanel 已接共用附件／草稿下載。
+owner bounded transfer 與加密 staging 傳遞 bytes，不讓 renderer 指定原生檔案路徑。
+iOS／Android 編輯器加入 Markdown 文字與單附件分享；原草稿先保存，取消分享保留原內容。
+Android FileProvider 限定自有 cache exports、只讀 URI grant、32 份／256 MiB 與 24 小時暫存清理。
+iOS 使用系統 activity sheet、完整暫存檔案保護、iPad popover、取消／逾時及帳號切換清理。
+分享結果不冒稱已送達；HTML／SVG 附件仍只以檔案 bytes 匯出，沒有載入主 origin。
+依指示未測試／審閱；Android／Apple SDK 缺失，原生 source 尚未編譯或執行。
+外部分享接收／iOS Share Extension、五平台完整散布仍未完成。
+本輪 web build、Apple Xcode 專案生成與 Linux tar.gz 更新完成，無 Android／Apple 原生 binary。
+決策見 [ADR-026](docs/decisions/026-native-file-export-and-sharing.md)。
 
 ## 2026-10-04 文件交付
 

@@ -28,3 +28,9 @@ Android 強制終止或背景回收只靠最後已提交的 SQLite 交易恢復�
 外部文件提供者若不能 fsync／讀回確認，備份報失敗並保留新檔，不能回報成功或自動改存明文。
 
 原生建置、真裝置、Google 往返及簽章／商店驗收狀態只見根目錄 PROGRESS。
+
+附件與草稿下載使用 ACTION_CREATE_DOCUMENT 保存，不把 blob URL 交給外部瀏覽器。
+編輯器可分享 Markdown 文字及單一附件；內容先通過 bounded transfer／SHA-256，
+以 FileProvider 的 content URI 與只讀暫時權限開啟系統分享面板，無公開 filesystem path。
+分享暫存限制 32 份／256 MiB，下次分享清除超過 24 小時的自有暫存；原資料保持在加密 SQLite。
+取消選檔不消耗草稿；分享面板開啟不代表收件 App 已成功接收。外部分享接收流程仍待加入。

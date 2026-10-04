@@ -55,8 +55,10 @@ public final class FleetActivity extends Activity {
     private JavaScriptReplyProxy ownerProxy;
     private int admitted;
     private boolean finishing;
+    private FleetExports exports;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        exports = new FleetExports(this);
         try {
             byte[] bytes; try (java.io.InputStream stream = getAssets().open("config/public.json")) { bytes = Protocol.bytes(stream, 65536); }
             config = Protocol.json(bytes); profile = getPreferences(MODE_PRIVATE).getString("profile", "local"); openStore();
@@ -123,7 +125,8 @@ public final class FleetActivity extends Activity {
                     case "google.local": switchTo = "local"; result = Protocol.object("profileId", switchTo); break;
                     default: result = account.invoke(method, args, session);
                 }
-            } else result = session.invoke(method, args);
+            } else if (method.equals("file.export")) result = exports.export(args, session);
+            else result = session.invoke(method, args);
             response = Protocol.object("v", 1, "id", id, "ok", true, "result", result);
         } catch (Exception error) {
             switchTo = null;
@@ -204,6 +207,8 @@ public final class FleetActivity extends Activity {
             } catch (Exception error) { pending.completeExceptionally(error); }
         } else if (request == 20 && attachmentPicker != null) {
             ValueCallback<Uri[]> pending = attachmentPicker; attachmentPicker = null; pending.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result, data));
+        } else if (request == 40) {
+            exports.selected(result, data);
         } else if (request == 30 && authorization != null) {
             CompletableFuture<AuthorizationResult> pending = authorization; authorization = null;
             try { pending.complete(Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)); } catch (Exception error) { pending.completeExceptionally(error); }
@@ -217,6 +222,7 @@ public final class FleetActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true; epoch++; if (attachmentPicker != null) attachmentPicker.onReceiveValue(null);
+        if (exports != null) exports.close();
         if (directoryPicker != null) directoryPicker.completeExceptionally(new IllegalStateException("Activity closed"));
         if (authorization != null) authorization.completeExceptionally(new IllegalStateException("Activity closed"));
         if (google != null) google.close(); storageWorker.execute(() -> { try { if (bridge != null) bridge.close(); if (database != null) database.close(); } catch (Exception ignored) { } });

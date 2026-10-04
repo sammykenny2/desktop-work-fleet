@@ -16,6 +16,7 @@ import UIKit
     private let config: [String: Any]
     private var epoch = 0, admitted = 0
     private var closing = false
+    private let exports = FleetExports()
     private var directoryContinuation: CheckedContinuation<URL, Error>?
     var finished: (() -> Void)?
     var cancelled: (() -> Void)?
@@ -57,6 +58,14 @@ import UIKit
                 guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }; return try await self.chooseDirectory()
             })
             if let service { try await configure?(service) }
+            await service?.setExports { [weak self] bytes, name, action in
+                guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }
+                #if os(macOS)
+                return try await self.exports.export(bytes, name: name, action: action, window: self.web.window)
+                #else
+                return try await self.exports.export(bytes, name: name, action: action, presenter: self.presenter)
+                #endif
+            }
             let rules = "[{\"trigger\":{\"url-filter\":\"^https?://\"},\"action\":{\"type\":\"block\"}}]"
             let blocker: WKContentRuleList = try await withCheckedThrowingContinuation { continuation in
                 WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "work-fleet-local-assets-v1", encodedContentRuleList: rules) { rules, error in
@@ -99,7 +108,11 @@ import UIKit
         } catch { /* Invalid sources and envelopes never reach native capabilities. */ }
     }
     private func switchProfile(_ profile: String) async {
-        epoch += 1; await service?.close(); service = nil
+        epoch += 1
+        #if os(iOS)
+        exports.close()
+        #endif
+        await service?.close(); service = nil
         do { try Data(profile.utf8).write(to: directory.appendingPathComponent("profile.txt"), options: .atomic); await open() }
         catch { showFailure(error) }
     }
@@ -108,7 +121,13 @@ import UIKit
         if let service, await service.ready { event("host-close-requested") }
         else { await stop(); finished?() }
     }
-    func stop() async { epoch += 1; stopped?(); await service?.close(); service = nil; google = nil; web.configuration.userContentController.removeScriptMessageHandler(forName: "workFleet") }
+    func stop() async {
+        epoch += 1; stopped?()
+        #if os(iOS)
+        exports.close()
+        #endif
+        await service?.close(); service = nil; google = nil; web.configuration.userContentController.removeScriptMessageHandler(forName: "workFleet")
+    }
     private func showFailure(_ error: Error) {
         let text = (error as? FleetFailure)?.message ?? "無法開啟安全工作空間。請保留 App 資料並重試。"
         #if os(macOS)

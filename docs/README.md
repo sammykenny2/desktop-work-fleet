@@ -29,6 +29,7 @@
 | [ADR-023](decisions/023-apple-native-host-and-scenes.md) | Accepted：Apple host、Keychain、Google 與 macOS 場景 |
 | [ADR-024](decisions/024-linux-native-owner-and-storage.md) | Accepted：Linux GTK owner、Secret Service、備份與 Google |
 | [ADR-025](decisions/025-linux-desktop-scenes-and-shortcuts.md) | Accepted：Linux 分層場景、輸入區域、快捷鍵與系統匣 |
+| [ADR-026](decisions/026-native-file-export-and-sharing.md) | Accepted：原生檔案匯出、手機文字與附件分享 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

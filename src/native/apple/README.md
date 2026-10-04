@@ -35,3 +35,9 @@ macOS 桌面 visual panel 始終 ignoresMouseEvents；只有可操作或已開�
 
 這些是已加入的程式與建置入口。本機為 Windows，未編譯 Apple 程式、產生 app/archive 或執行原生驗收。
 全螢幕／Spaces、透明輸入转送、IME、多螢幕及正式 Google 登入的實機結果仍缺。
+
+附件／草稿下載走原生匯出：macOS NSSavePanel、iOS UIDocumentPicker，保留取消結果。
+iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。
+傳輸沿用有容量與 SHA-256 核對的 owner staging；分享暫存使用完整檔案保護，完成／取消後清除。
+原生對話框逾時或帳號切換終止待處理的 iOS 匯出。分享至其他 App 不表示已送達收件人。
+外部分享接收與 Share Extension 尚未加入，仍屬完整手機交付範圍。

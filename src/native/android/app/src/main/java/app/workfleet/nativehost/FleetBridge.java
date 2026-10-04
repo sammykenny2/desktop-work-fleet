@@ -29,7 +29,7 @@ final class FleetBridge implements AutoCloseable {
         switch (method) {
             case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "storage", "sqlite-keystore",
                 "maxChunkBytes", Protocol.CHUNK, "maxMessageBytes", 1024 * 1024, "maxRecordBytes", Protocol.RECORD, "maxAttachmentBytes", Protocol.ATTACHMENT, "maxBackupBytes", Protocol.BACKUP,
-                "capabilities", Protocol.object("nativeStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false));
+                "capabilities", Protocol.object("nativeStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true));
             case "host.ready": ready = true; return null;
             case "host.closeReady": closeReady = true; return null;
             case "host.closeCancel": closeReady = false; return null;

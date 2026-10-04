@@ -12,6 +12,7 @@ import { AutomaticBackup } from '../backup/automatic.js';
 import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser-automatic.js';
 import { startAutomaticBackup } from '../backup/lifecycle.js';
 import { connectNative } from '../native/bridge.js';
+import { NativeFiles } from '../native/files.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
 import { DesktopAuthority } from '../desktop/authority.js';
@@ -32,6 +33,7 @@ let lastVisibleArea;
 let settingsSlots = [];
 let automatic; let automaticError;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
+let nativeFiles;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = [];
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
@@ -82,6 +84,10 @@ async function initialize() {
   if (native) {
     profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
     nativeBackups = nativeBackupAdapters(native.bridge, native.info);
+    if (native.info.capabilities.fileExport) {
+      nativeFiles = new NativeFiles(native.bridge, native.info);
+      const stopDownloads = nativeFiles.interceptDownloads(status); addEventListener('pagehide', stopDownloads, { once: true });
+    }
     if (native.info.capabilities.desktopPresentation) desktopInfo = await native.bridge.request('desktop.info');
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
@@ -139,6 +145,7 @@ async function initialize() {
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
   bindEvents(); render(); status(native?.info.desktopReason || '已開啟本機資料');
+  $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
@@ -654,6 +661,12 @@ async function renderAttachments() {
       // Download-only bytes: HTML/SVG attachments must never become same-origin executable documents.
       const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); attachmentUrls.set(attachment.id, url);
       const link = element('a', attachment.name); link.href = url; link.download = attachment.name; row.append(link);
+      if (native?.info.capabilities.fileShare) row.append(button('分享', async () => {
+        if (editorBusy) return;
+        setEditorBusy(true);
+        try { const result = await nativeFiles.export(new Uint8Array(blob), attachment.name, 'share'); status(result.completed ? '已開啟附件分享' : '已取消分享'); }
+        finally { setEditorBusy(false); }
+      }));
     } else row.append(element('span', `${attachment.name}（尚未下載）`));
     row.append(element('span', `${Math.ceil(attachment.size / 1024)} KiB`), button('移除', async () => {
       if (editorBusy) return;
@@ -788,6 +801,16 @@ function bindEvents() {
   $('#editor-text').addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
   $('#editor-group').onchange = () => { if (!editorBusy) { currentDraft.groupId = $('#editor-group').value; queueDraft(); } };
   $('#edit-tab').onclick = () => showEditorTab(false); $('#preview-tab').onclick = () => showEditorTab(true);
+  $('#share-note').onclick = () => run(async () => {
+    if (!currentDraft || editorBusy || composing) return;
+    setEditorBusy(true);
+    try {
+      await flushDraft();
+      const bytes = new TextEncoder().encode(currentDraft.content.text);
+      const result = await nativeFiles.export(bytes, 'work-fleet-note.md', bytes.length <= 128 * 1024 ? 'shareText' : 'share');
+      status(result.completed ? '已開啟便箋文字分享' : '已取消分享');
+    } finally { setEditorBusy(false); }
+  });
   $('#insert-task').onclick = () => { if (editorBusy) return; const text = $('#editor-text'); showEditorTab(false); text.setRangeText('- [ ] ', text.selectionStart, text.selectionEnd, 'end'); currentDraft.content.text = text.value; queueDraft(); text.focus(); };
   $('#editor-form').onsubmit = event => { event.preventDefault(); run(() => saveEditor()); };
   $('#save-copy').onclick = () => run(() => saveEditor(true));

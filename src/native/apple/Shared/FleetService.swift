@@ -15,11 +15,13 @@ actor FleetService {
     private(set) var ready = false, closeReady = false
     private let platform: String
     var desktop: (@MainActor (String, [String: Any]) async throws -> Any)?
+    private var exports: (@MainActor (Data, String, String) async throws -> Any)?
     init(database: FleetDatabase, google: FleetGoogle, platform: String, choose: @escaping @MainActor () async throws -> URL) {
         self.database = database; self.google = google; self.platform = platform
         backups = FleetBackup(database: database, choose: choose); drive = FleetDrive(google: google, profile: database.profile)
     }
     func setDesktop(_ handler: @escaping @MainActor (String, [String: Any]) async throws -> Any) { desktop = handler }
+    func setExports(_ handler: @escaping @MainActor (Data, String, String) async throws -> Any) { exports = handler }
     private func add(_ value: Transfer) throws -> String {
         try FleetProtocol.require(!closed && transfers.count < 8 && transfers.values.reduce(value.size, { $0 + $1.size }) <= 256 * 1024 * 1024, "transfer-busy", "原生傳輸忙碌。")
         let id = FleetProtocol.uuid(); transfers[id] = value; return id
@@ -36,6 +38,11 @@ actor FleetService {
         try FleetProtocol.require(!closed, "native-closed", "原生工作階段已結束。")
         for (id, value) in transfers where Date().timeIntervalSince(value.used) > 300 { transfers.removeValue(forKey: id) }
         if method.hasPrefix("desktop."), let desktop { return try await desktop(method, args) }
+        if method == "file.export", let exports {
+            let bytes = try database.staged(owned(args), "backup")
+            let result = try await exports(bytes, FleetProtocol.text(args, "name", 240), FleetProtocol.text(args, "action", 16))
+            try FleetProtocol.require(!closed, "stale-session", "原生工作階段已結束。"); return result
+        }
         if method.hasPrefix("backup.") { return try await backups.invoke(method, args, isolation: self, upload: { try self.database.staged(self.owned(args), "backup") }, download: { try self.download($0) }) }
         if method.hasPrefix("google.") {
             switch method {
@@ -55,7 +62,7 @@ actor FleetService {
         case "host.info":
             return ["protocol": 1, "platform": platform, "profileId": database.profile, "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
-                "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil]]
+                "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios"]]
         case "host.ready": ready = true; return NSNull()
         case "host.closeReady": closeReady = true; return NSNull()
         case "host.closeCancel": closeReady = false; return NSNull()

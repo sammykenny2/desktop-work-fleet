@@ -8,9 +8,10 @@
 |---|---|
 | [接手入口](handoff/2026-10-04-desktop-interaction-handoff.md) | 閱讀順序、不可偏離行為、外部參考位置詢問規則 |
 | [需求](requirements.md) | 最新產品範圍與未決項目 |
-| [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) | U／D／Q、完整互動、C01–C48；尚未實作 |
+| [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) | U／D／已答 Q、完整互動、C01–C48；實作狀態見 PROGRESS |
 | [ADR-006](decisions/006-card-group-and-formation-semantics.md) | Accepted：一事一卡、群組、formation、操作語意 |
 | [ADR-007](decisions/007-desktop-scene-and-platform-host.md) | Proposed：renderer／原生 host 分界及可控疊序 |
+| [ADR-008](decisions/008-portable-interaction-core.md) | Accepted：共用語意核心、原子保存與本輪完整 1.0 範圍 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

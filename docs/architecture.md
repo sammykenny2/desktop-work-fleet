@@ -3,6 +3,12 @@
 更新：2026-10-04。產品語意以 [SPEC-003](specs/003-desktop-cards-groups-and-formation.md)
 與 [ADR-006](decisions/006-card-group-and-formation-semantics.md) 為準；正式技術選型尚未完成。
 
+[ADR-008](decisions/008-portable-interaction-core.md) 已定案共用 ES modules 語意核心：
+`src/core` 保存卡片／群組／草稿／outbox，`src/layout` 計算及保存每機排列，
+`src/interaction` 控制操作範圍與手勢。轉組的共享命令與 geometry 在同一本機交易提交。
+`contracts/desktop.d.ts` 定義可替換 persistence／source／host 的邊界；
+原生落盤 adapter、實際 Google 與五平台 renderer/host 尚需後續整合，不以模型測試宣稱完成。
+
 ## 1.0 的責任分界
 
 使用者已確定一事一卡、群組、顯式 formation、單組／全組操作與拖放轉組。

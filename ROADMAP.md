@@ -20,5 +20,5 @@
 [ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 是已接受語意，
 [ADR-007](docs/decisions/007-desktop-scene-and-platform-host.md) 是技術提案。
 
-Windows/macOS/Linux 是必要桌面目標；手機與桌面同版推出的節奏尚待決定。
+本次 1.0 包含 Windows/macOS/Linux 與 iOS/Android 原生 App、商店提交準備；範圍見 SPEC-003 已答 Q。
 某一 host 先整合不代表取消其他平台。使用既有 Mac 經驗，不重啟已暫停的探索 goal。

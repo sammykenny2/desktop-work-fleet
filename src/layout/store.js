@@ -1,0 +1,205 @@
+import { activeGroups, compareId, containsRect, copy, defaultGrid,
+  gridRegions, membershipKey, requireValue, validRect } from '../core/contracts.js';
+
+const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+export function createLayout(deviceId, groups, area) {
+  return { schemaVersion: 1, deviceId, revision: 0, grid: defaultGrid(groups, area),
+    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: {} };
+}
+
+// Only an inaccessible title is rescued. Large, intentionally overflowing papers keep their size.
+export function reachable(rect, workAreas) {
+  return workAreas.some(area => containsRect(area, {
+    x: rect.x, y: rect.y, width: Math.min(64, rect.width), height: Math.min(28, rect.height),
+  }));
+}
+
+export function rescueRect(rect, workAreas) {
+  requireValue(workAreas.length && workAreas.every(validRect), 'invalid-area', '沒有可用顯示器。');
+  if (reachable(rect, workAreas)) return copy(rect);
+  const distance = area => Math.max(area.x - rect.x, 0, rect.x - area.x - area.width) ** 2
+    + Math.max(area.y - rect.y, 0, rect.y - area.y - area.height) ** 2;
+  const area = [...workAreas].sort((a, b) => distance(a) - distance(b))[0];
+  return { ...rect, x: Math.max(area.x, Math.min(rect.x, area.x + Math.max(0, area.width - rect.width))),
+    y: Math.max(area.y, Math.min(rect.y, area.y + Math.max(0, area.height - rect.height))) };
+}
+
+/** Single writer per device; persist must atomically save the full supplied snapshot or reject. */
+export class LayoutStore {
+  #state;
+  #persist;
+  #tail = Promise.resolve();
+
+  constructor(state, persist) {
+    requireValue(typeof persist === 'function', 'missing-storage', '需要可靠的版面保存介面。');
+    this.#state = copy(state);
+    this.#persist = persist;
+  }
+
+  get state() { return copy(this.#state); }
+
+  #transaction(change, persist = this.#persist) {
+    const operation = this.#tail.then(async () => {
+      const draft = copy(this.#state);
+      const result = change(draft);
+      if (same(draft, this.#state)) return result;
+      draft.revision = this.#state.revision + 1;
+      await persist(copy(draft), this.#state.revision, result);
+      this.#state = draft;
+      return result;
+    });
+    this.#tail = operation.catch(() => {});
+    return operation;
+  }
+
+  async configure(patch, snapshot) {
+    patch = copy(patch);
+    const allowed = ['grid', 'desktopVisible', 'myGroupId', 'shortcuts'];
+    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', '未知的版面設定。');
+    if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
+    requireValue(!('desktopVisible' in patch) || typeof patch.desktopVisible === 'boolean', 'invalid-setting', '顯示設定必須是布林值。');
+    return this.#transaction(draft => Object.assign(draft, copy(patch)));
+  }
+
+  async setCardPolicy(cardId, patch) {
+    patch = copy(patch);
+    requireValue(Object.keys(patch).every(key => ['visible', 'residentLayer', 'readOnlySelect'].includes(key)),
+      'invalid-setting', '未知的卡片顯示設定。');
+    for (const key of ['visible', 'readOnlySelect']) requireValue(!(key in patch) || typeof patch[key] === 'boolean',
+      'invalid-setting', '顯示設定必須是布林值。');
+    requireValue(!('residentLayer' in patch) || ['desktop', 'wallpaper', 'floating'].includes(patch.residentLayer),
+      'invalid-setting', '未知的常駐層級。');
+    return this.#transaction(draft => {
+      requireValue(draft.placements[cardId], 'missing-placement', '找不到卡片位置。');
+      Object.assign(draft.placements[cardId], copy(patch));
+    });
+  }
+
+  async placeNew(snapshot, workAreas, paperSize = { width: 280, height: 220 }) {
+    snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
+    requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', '卡片尺寸必須大於零。');
+    return this.#transaction(draft => {
+      const groups = activeGroups(snapshot);
+      const gridIds = draft.grid.slots.filter(Boolean);
+      if (groups.length <= 9 && (groups.length !== gridIds.length || groups.some(group => !gridIds.includes(group.id)))) {
+        // Region bookkeeping does not move papers already on the desktop.
+        draft.grid = defaultGrid(groups, draft.grid.area);
+      }
+      const knownIds = new Set(groups.map(group => group.id));
+      const regionGroups = groups.filter(group => gridIds.includes(group.id));
+      const regions = groups.length <= 9 ? gridRegions(draft.grid, groups)
+        : gridRegions(draft.grid, regionGroups);
+      const deferred = [];
+      let order = Math.max(0, ...Object.values(draft.placements).map(rect => rect.order)) + 1;
+      const fresh = snapshot.cards.filter(card => !card.deleted && !draft.placements[card.id])
+        .sort((a, b) => compareId(a.id, b.id));
+      for (const card of fresh) {
+        if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
+        const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
+        let rect = { x: region.x + 12, y: region.y + 12, ...paperSize,
+          order: order++, visible: true, residentLayer: 'desktop', readOnlySelect: false };
+        const existing = Object.values(draft.placements);
+        for (let step = 0; step < 40; step++) {
+          const trial = { ...rect, x: rect.x + step * 18, y: rect.y + step * 28 };
+          if (containsRect(region, trial) && !existing.some(other =>
+            trial.x < other.x + other.width && trial.x + trial.width > other.x
+            && trial.y < other.y + other.height && trial.y + trial.height > other.y)) {
+            rect = trial; break;
+          }
+        }
+        draft.placements[card.id] = rescueRect(rect, workAreas);
+      }
+      return { deferred, groupOverflow: groups.length > 9 };
+    });
+  }
+
+  async move(cardId, position, expectedRevision) {
+    position = copy(position);
+    requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', '卡片位置無效。');
+    return this.#transaction(draft => {
+      requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', '版面已變更，請重試。');
+      const rect = draft.placements[cardId];
+      requireValue(rect, 'missing-placement', '找不到卡片位置。');
+      if (rect.x === position.x && rect.y === position.y) return;
+      draft.history.push({ kind: 'move', before: { [cardId]: geometry(rect) } });
+      Object.assign(rect, { x: position.x, y: position.y });
+    });
+  }
+
+  async transfer(cardId, position, expectedRevision, transfer, persist) {
+    position = copy(position); transfer = copy(transfer);
+    return this.#transaction(draft => {
+      requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', '版面已變更，請重試。');
+      const rect = draft.placements[cardId];
+      requireValue(rect || !position, 'missing-placement', '找不到卡片位置。');
+      draft.history.push({ kind: 'transfer', before: rect ? { [cardId]: geometry(rect) } : {}, transfer: copy(transfer) });
+      if (position) {
+        requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', '卡片位置無效。');
+        Object.assign(rect, { x: position.x, y: position.y });
+      }
+    }, persist);
+  }
+
+  async applyFormation(plan, getSnapshot) {
+    plan = copy(plan);
+    return this.#transaction(draft => {
+      requireValue(plan.layoutRevision === draft.revision
+        && plan.membership === membershipKey(getSnapshot(), draft),
+      'stale-plan', '預覽後資料或版面已變更，請重新預覽。');
+      requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', '本次未允許改變卡片尺寸。');
+      const before = {};
+      for (const [id, rect] of Object.entries(plan.changes)) {
+        before[id] = geometry(draft.placements[id]);
+        Object.assign(draft.placements[id], geometry(rect));
+      }
+      draft.history.push({ kind: 'formation', before, gridBefore: copy(draft.grid), gridAfter: copy(plan.grid) });
+      draft.grid = copy(plan.grid);
+      return { membership: plan.membership };
+    });
+  }
+
+  async undo(getSnapshot, workAreas, persist, undoRevision) {
+    workAreas = copy(workAreas);
+    return this.#transaction(draft => {
+      const entry = draft.history.at(-1);
+      if (!entry) return { kind: 'empty', rescued: [] };
+      requireValue(entry.kind !== 'transfer' || persist, 'conditional-undo', '轉組復原需由資料來源檢查版本。');
+      const snapshot = getSnapshot();
+      const live = new Set(snapshot.cards.filter(card => !card.deleted).map(card => card.id));
+      const rescued = [];
+      for (const [id, previous] of Object.entries(entry.before)) {
+        if (!live.has(id) || !draft.placements[id]) continue;
+        const restored = rescueRect(previous, workAreas);
+        if (restored.x !== previous.x || restored.y !== previous.y) rescued.push(id);
+        Object.assign(draft.placements[id], restored);
+      }
+      if (entry.gridBefore && same(entry.gridAfter, draft.grid)) {
+        // A newer settings edit or remote group change must not be undone as an old layout side effect.
+        const ids = activeGroups(snapshot).map(group => group.id).sort(compareId);
+        if (same(entry.gridBefore.slots.filter(Boolean).sort(compareId), ids)) draft.grid = entry.gridBefore;
+      }
+      draft.history.pop();
+      if (entry.transfer && undoRevision) {
+        const earlier = draft.history.findLast(item => item.transfer?.cardId === entry.transfer.cardId);
+        if (earlier?.transfer.expectedRevision === entry.transfer.previousRevision) earlier.transfer.expectedRevision = undoRevision;
+      }
+      return { kind: entry.kind, rescued, transfer: entry.transfer };
+    }, persist);
+  }
+
+  async recoverDisplays(workAreas) {
+    workAreas = copy(workAreas);
+    return this.#transaction(draft => {
+      const rescued = [];
+      for (const [id, rect] of Object.entries(draft.placements)) {
+        if (reachable(rect, workAreas)) continue;
+        draft.placements[id] = rescueRect(rect, workAreas);
+        rescued.push(id);
+      }
+      if (!workAreas.some(area => containsRect(area, draft.grid.area))) draft.grid.area = copy(workAreas[0]);
+      return { reason: 'display-unreachable', rescued };
+    });
+  }
+}

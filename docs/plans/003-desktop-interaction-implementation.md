@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Planned；文件工作已授權，產品實作尚未在本輪開始 |
+| Status | 實作已授權；執行狀態見 PROGRESS |
 | Owner | 專案維護者 |
 | Assigned To | 未指定 |
 | Reviewer | 實作交付時安排獨立審閱；本輪沒有獨立審閱 |
@@ -15,6 +15,7 @@
 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) 是行為與 C01–C48 驗收權威。
 [ADR-006](../decisions/006-card-group-and-formation-semantics.md) 接受使用者已確認的產品語意；
 [ADR-007](../decisions/007-desktop-scene-and-platform-host.md) 仍是呈現架構提案。
+[ADR-008](../decisions/008-portable-interaction-core.md) 接受共用語意核心；後續對話已核准完整 editor／備份／逐卡設定範圍及五平台原生 App、商店準備。
 執行狀態只寫 [PROGRESS](../../PROGRESS.md)，不在本計畫維護另一份完成清單。
 
 ## Overview
@@ -123,6 +124,7 @@ mock/fake source 不冒充 Google 跨平台 client ID 存取成功。
 ### Phase 6：發佈與接手材料
 
 - 按已確認的版本節奏交付 Windows/macOS/Linux，保留 Apple／Google 自有 App 目標。
+- 本次亦交付 iOS／Android 原生 App 與商店提交準備，沿用共用資料命令，不以桌面操作手勢替代手機 UX。
 - 對實際 package 列授權／轉遞依賴、簽章與商店配置，不從原 repo 的 MIT 推導全部依賴可直接使用。
 - 最終操作文件要與快捷鍵註冊結果、Linux backend、可用層級一致。
 - 保存 C01–C48 的證據映射與已知限制，執行狀態回寫 PROGRESS。

@@ -4,16 +4,16 @@
 
 ## Current Status
 
-更新：2026-10-04。已完成本次產品互動文件整理，尚未實作新群組／formation／拖放功能。
+更新：2026-10-04。1.0 已開始分 slice 實作，共用卡片／群組／formation／拖放語意核心已加入。
 **接手開發先讀 [桌面互動交接](docs/handoff/2026-10-04-desktop-interaction-handoff.md) 與
 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)**，其中區分已確認需求、工作預設、待決問題與 48 個驗收案例。
 
 - 目前可執行程式仍是 **0.1.0 驗證版**：macOS Sandbox App、Web 編輯器與 Python／SQLite 服務。
 - 1.0 方向是 Google 帳號＋檔案來源，第一版不架便箋 local server；Google／Drive 尚未實作。
-- Windows、macOS、Linux 是必要桌面目標；同版發佈節奏、最低版本與具體 Linux backend 尚需定案。
-- 舊 Drive／backup 草案保留；其中純文字限定、checklist 延後、備份／還原排除清單尚未獲批准，需依最新需求修訂。
+- 本次包含 Windows/macOS/Linux、iOS/Android 原生 App 與商店提交準備；原生 host／Google／打包尚待整合與驗收。
+- 已核准 Markdown、checklist、附件、完成／封存、逐卡設定與完整備份／還原範圍；見 SPEC-003 已答 Q 及 [ADR-008](docs/decisions/008-portable-interaction-core.md)。
 - [現有驗證報告](docs/validation/2026-10-03-validation-report.md) 保留其原範圍；不能當作新桌面互動或商店通過。
-- 執行狀態以 [PROGRESS](PROGRESS.md) 為準；這次整理沒有恢復先前暫停的 goal。
+- 執行狀態以 [PROGRESS](PROGRESS.md) 為準；模型測試不代替原生桌面、真實同步或商店證據。
 
 ## 產品方向
 

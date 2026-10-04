@@ -11,6 +11,7 @@
 | [ADR-005](005-portable-backup-and-restore.md) | Proposed／範圍待修訂 | 備份格式與還原候選，不是唯一模式已定案 |
 | [ADR-006](006-card-group-and-formation-semantics.md) | Accepted（產品語意） | 一事一卡、群組／formation／操作與轉組手勢 |
 | [ADR-007](007-desktop-scene-and-platform-host.md) | Proposed | 場景 renderer／平台 host、可控疊序與输入責任 |
+| [ADR-008](008-portable-interaction-core.md) | Accepted（共用核心） | ES modules 語意、原子本機命令、完整五平台 1.0 範圍 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；其他平台封裝與正式商店配置尚未決定。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

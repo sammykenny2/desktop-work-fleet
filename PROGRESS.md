@@ -4,14 +4,52 @@
 
 ## 目前優先方向
 
-使用者要求詳細整理本次桌面卡片與群組設計，讓後續 agent 可按明確規格接手。
-本輪只更新文件，未改產品程式／Google 設定／外部參考專案，也未恢復先前暫停的 goal。
+使用者已授權逐 slice 實作、驗證並直接 commit/push origin/main，直到完整 1.0 完成。
+本次還明確納入 iOS／Android 原生 App 與商店提交準備，並核准完整 editor／逐卡設定／備份範圍。
+核心測試通過不代表五平台或 Google 驗收已完成；完整目標持續進行。
 
 已確認產品語意以 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)
 及 [ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 為準：
 一事一卡、通用群組、九組 grid、自由移位、顯式 formation／尺寸同意／undo、
 只改 z-order 的輪播、指定組／All 操作、單擊選卡雙擊編輯、顯式拖放轉組。
 整理期間另取得明確答覆：操作組暫時浮到一般 App 上方；採用標籤／Shift 的轉組手勢。
+
+## 1.0 執行切片
+
+| Slice | 範圍 | 狀態與證據 |
+|---|---|---|
+| 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 尚待實作及真實 UI/故障驗收 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 尚待實作；真實 OAuth 與跨平台 client ID 證據尚缺 |
+| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 範圍已核准，格式與交易實作尚待完成 |
+| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 尚待整合；C16/C35/C40–C43/C46–C47 原生證據不能以邏輯測試代替 |
+| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
+| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 尚待完成；沒有送審、購買憑證或建立帳號 |
+
+切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
+記錄使用者本輪範圍答覆及本機核心決策。
+
+## Slice 1 實作與驗證
+
+- 一事一卡、穩定群組 ID、九組限制與合法 row-major grid；內容保留格式及附件／未知擴充欄位。
+- Workspace 單一寫入佇列：內容、草稿、待同步操作與版面在同一 persistence 邊界提交。
+  轉組只改歸屬；保存失敗不發佈半套成功；版本競爭保留轉組意圖。
+- 純 formation 預覽、量測摘要帶、堆疊／攤開、單次尺寸同意、跨組容量檢查、過期預覽拒絕。
+- 依序 undo、尺寸／位置／base order 還原、較新本文與政策保留；轉組復原需版本符合。
+- Group／All 與 active group 分離；輪播不搬卡；拖曳門檻、標籤／Shift 目標、取消、草稿 flush 與 IME 邊界。
+- 新卡只取得自己的 placement；顯示器救回只移不可達卡；可注入不同 source/persist adapter。
+
+已執行：`node --test tests/*.test.js` 47 通過（Node v24.21.0，Windows）；
+`python3 -m unittest discover -s tests -p 'test_*.py' -v` 12 通過、1 錯誤（Python 3.13.7），
+仍是原有 `Store.restore` 對 `rb` handle `fsync` 的 Windows 問題，未改該 prototype 路徑。
+模型測試涵蓋 C01–C39/C43–C48 的相關語意子集，不代表這些 C 的真實 UI/原生/同步部分已全通過。
+
+尚未接入：真實持久化 adapter、實際 renderer/host、附件 bytes、Google、正式備份、原生 package。
+記憶體 persist 驗證的是交易契約與故障回滾，不能冒稱斷電後 OS 落盤已測。
+獨立唯讀審閱已提出容量、過期預覽競爭、唯讀轉組、尾隨手勢抑制、同步後選卡、
+佇列入參 mutation 與草稿 key 問題；均已加測與修正，獨立複核無剩餘 findings。
+審閱者實際執行 46/46 JS 測試，最後 controller clone 修正另以隔離重現確認；
+作者於最後版本執行 47/47。文件 59 份／293 相對連結及 `git diff --check` 通過。
 
 ## 2026-10-04 文件交付
 
@@ -29,10 +67,9 @@
 
 ## 接續工作
 
-產品實作仍未開始。後續收到實作指示後按 PLAN-003 與 SPEC-003 開發 U／D；
-只在開始依賴 Q01–Q07 的部分前詢問，不能用未決內容阻斷全部工作或擅自砍功能。
-Windows/macOS/Linux 保留為必要桌面目標，手機／桌面發佈節奏與 runtime 等仍有待決。
-Drive／備份仍承接 ADR-004／005 的 Proposed 設計，須補上群組模型與範圍決定。
+按上方 1.0 執行切片繼續，保留 SPEC-003 全部 U／D 及已答 Q 的完整範圍。
+正式 host／SDK 選型需符合五平台與公開 API／商店目標，不能沿用 prototype server 作 1.0。
+Drive／備份承接 ADR-004／005 的 Proposed 設計，須補上群組模型與已核准完整範圍。
 Google 登入、OAuth 專案、SDK、Drive 寫入、正式商店設定都未實作或操作。
 
 ## 目前交付

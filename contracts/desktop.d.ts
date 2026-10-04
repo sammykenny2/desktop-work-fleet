@@ -84,6 +84,7 @@ export interface FormationPlan {
 }
 export interface DropTarget { groupId: Id; kind: 'label' | 'region' }
 export interface DragSession {
+  generation: string;
   cardId: Id;
   pointerId: number;
   groupId: Id;

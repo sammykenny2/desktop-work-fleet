@@ -1,0 +1,31 @@
+:root { color-scheme: light; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; font-size: 14px; color: #26322d; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
+#scene { position: absolute; inset: 0; pointer-events: none; }
+.card { position: absolute; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); border: 1px solid #817c6938; border-radius: 4px; pointer-events: none; user-select: none; }
+.card.interactive { pointer-events: auto; }
+.card.selectable { user-select: text; }
+.card.selected { border: 2px solid #466b59; }
+.card.mine { box-shadow: inset 4px 0 #658770; }
+.card.completed .card-summary { text-decoration: line-through; opacity: .65; }
+.card-summary { height: 36px; min-height: 36px; padding: 9px 12px; font-size: 13px; line-height: 18px; font-weight: 650; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-bottom: 1px solid #00000012; }
+.card.operable .card-summary { cursor: grab; touch-action: none; }
+.card-body { flex: 1; min-height: 0; overflow: auto; padding: 9px 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.card-body > :first-child { margin-top: 0; }
+.card-body h1, .card-body h2 { font-size: 1.15em; }
+.card-body pre { white-space: pre-wrap; padding: 5px; background: #00000008; }
+.card-body ul, .card-body ol { padding-left: 22px; }
+.card-body a { color: #245c84; }
+.card-body table { border-collapse: collapse; }
+.card-body td, .card-body th { border: 1px solid #00000020; padding: 3px; }
+.card-body:has(textarea) { display: flex; flex-direction: column; padding: 4px; }
+textarea { flex: 1; min-height: 30px; width: 100%; resize: none; border: 0; outline: 1px solid #466b5940; padding: 6px; background: #ffffff50; color: inherit; font: inherit; line-height: 1.5; user-select: text; }
+.card-actions { min-height: 31px; padding: 3px 6px; display: flex; justify-content: flex-end; gap: 5px; }
+button { font: inherit; font-size: 12px; border: 1px solid #00000020; border-radius: 3px; padding: 3px 8px; color: inherit; background: #ffffff70; cursor: pointer; }
+button:focus-visible { outline: 2px solid #466b59; }
+.draft-state { font-size: 11px; min-height: 20px; padding-top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.draft-state.error { color: #a42d25; }
+.region { position: absolute; border: 1px dashed #62766b60; border-radius: 5px; pointer-events: none; }
+.region-label { position: absolute; width: 160px; height: 28px; padding: 5px 9px; font-size: 12px; background: #f2f6f0e8; border: 1px solid #7d927d60; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-radius: 4px; pointer-events: none; }
+.region-label.target { background: #cfe6d4; border-color: #466b59; }
+#scene-status { position: absolute; bottom: 12px; left: 12px; max-width: 420px; padding: 10px; margin: 0; background: #fff4dcec; color: #773b28; border-radius: 4px; pointer-events: none; }

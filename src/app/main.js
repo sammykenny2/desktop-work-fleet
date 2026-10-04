@@ -14,6 +14,9 @@ import { startAutomaticBackup } from '../backup/lifecycle.js';
 import { connectNative } from '../native/bridge.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
+import { DesktopAuthority } from '../desktop/authority.js';
+import { DesktopOwner } from '../desktop/owner.js';
+import { projectDesktop } from '../desktop/projection.js';
 
 const $ = selector => document.querySelector(selector);
 const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
@@ -26,6 +29,7 @@ let lastVisibleArea;
 let settingsSlots = [];
 let automatic; let automaticError;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
+let desktop; let desktopInfo; let remoteEditor = null;
 const activeActions = new Set();
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
@@ -44,12 +48,13 @@ function button(text, action, className) {
 function status(text, error = false) { $('#status').textContent = text; $('#status').classList.toggle('error', error); }
 async function run(action) {
   if (nativeClosing) return;
-  const pending = Promise.resolve().then(action); activeActions.add(pending);
+  const pending = desktop ? desktop.perform(action) : Promise.resolve().then(action); activeActions.add(pending);
   try { await pending; }
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
   finally { activeActions.delete(pending); }
 }
 function screenArea() {
+  if (desktopInfo) { const { x, y, width, height } = desktopInfo.workAreas.find(area => area.primary) || desktopInfo.workAreas[0]; return { x, y, width, height }; }
   const shell = $('#stage-shell'); const bounds = shell.getBoundingClientRect();
   if (!shell.hidden && bounds.width > 0 && bounds.height > 0) {
     lastVisibleArea = { x: 0, y: 0, width: Math.max(320, bounds.width - 2), height: Math.max(280, bounds.height - 2) };
@@ -57,6 +62,7 @@ function screenArea() {
   return copy(lastVisibleArea || workspace?.layout.state.grid.area
     || { x: 0, y: 0, width: Math.max(320, innerWidth), height: Math.max(280, innerHeight) });
 }
+function workAreas() { return desktopInfo ? desktopInfo.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })) : [screenArea()]; }
 function groupColor(id) { return colors[Math.max(0, activeGroups(workspace.snapshot).findIndex(group => group.id === id)) % colors.length]; }
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
 function fillGroups(select, selected, none = false) {
@@ -71,6 +77,7 @@ async function initialize() {
   if (native) {
     profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
     nativeBackups = nativeBackupAdapters(native.bridge, native.info);
+    if (native.info.capabilities.desktopPresentation) desktopInfo = await native.bridge.request('desktop.info');
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
   if (!lease.acquired) throw new Error('這個工作空間已在另一個視窗開啟。請使用原視窗，或關閉它後重新載入。');
@@ -86,23 +93,30 @@ async function initialize() {
   activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); } });
-  await workspace.layout.placeNew(workspace.snapshot, [screenArea()]);
+  await workspace.layout.placeNew(workspace.snapshot, workAreas());
+  if (desktopInfo) {
+    await workspace.layout.recoverDisplays(workAreas());
+    initializeDesktop();
+    const note = element('p', '桌面已連接；操作群組可浮到其他 App 上方。', 'hint'); note.id = 'desktop-note'; $('#storage-note').after(note);
+  }
   $('#storage-note').textContent = native ? 'Windows 本機加密工作空間 · 尚未連接 Google' : '瀏覽器本機工作空間 · 尚未連接 Google';
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open();
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
-    const service = new AutomaticBackup({ workspace, storage, journal, files, vault, flush: flushDraft }); await service.load();
+    const service = new AutomaticBackup({ workspace, storage, journal, files, vault,
+      flush: () => desktop ? desktop.perform(flushDraft) : flushDraft() }); await service.load();
     automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
   } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
   if (native) {
     native.bridge.onCloseRequested(() => { void prepareNativeClose(); });
     await native.bridge.request('host.ready');
+    if (desktop) await native.bridge.request('desktop.start');
   }
   bindEvents(); render(); status('已開啟本機資料');
   let lastArea = JSON.stringify(screenArea());
   new ResizeObserver(() => {
-    if ($('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
+    if (desktopInfo || $('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
     const area = screenArea();
     if (JSON.stringify(area) === lastArea) return;
     lastArea = JSON.stringify(area);
@@ -114,20 +128,85 @@ async function initialize() {
   }).observe($('#stage-shell'));
 }
 
+function currentDesktopEditor() {
+  return remoteEditor && currentDraft?.id === remoteEditor.draftId && controller.state.editingCardId === remoteEditor.cardId ? copy(remoteEditor) : null;
+}
+function initializeDesktop() {
+  const authority = new DesktopAuthority({ workspace, controller, sessionId: desktopInfo.sessionId,
+    perform: action => desktop.perform(action),
+    details: async id => { await native.bridge.request('desktop.showMain'); cardDetails(currentCard(id)); },
+    editor: {
+      current: currentDesktopEditor,
+      begin: async (id, viewId) => {
+        if (editorBusy || composing || document.querySelector('dialog[open]')) throw new Error('請先完成主畫面的目前編輯。');
+        const previous = currentDesktopEditor();
+        if (previous?.cardId === id && previous.viewId === viewId) return { draftId: previous.draftId, sequence: previous.sequence };
+        const reuseId = currentDraft?.cardId === id ? currentDraft.id : null;
+        if (currentDraft) {
+          if (controller.state.editingCardId) { if (!await controller.endEdit()) throw new Error('请先完成目前輸入。'); }
+          else await flushDraft();
+        }
+        const card = currentCard(id); if (!await controller.beginEdit(id, { gesture: true })) return null;
+        currentDraft = reuseId && currentDraft?.id === reuseId ? currentDraft : workspace.blankDraft(card.groupId, card); remoteEditor = null;
+        await queueDraft(); remoteEditor = { cardId: id, draftId: currentDraft.id, viewId, text: currentDraft.content.text, sequence: 0 };
+        render(); return { draftId: remoteEditor.draftId, sequence: 0 };
+      },
+      change: async value => {
+        const draft = copy(currentDraft); draft.content.text = value.text;
+        await workspace.saveDraft(draft);
+        // The authority's separate draft lane may finish while a lifecycle action is waiting for its flush barrier.
+        if (currentDraft?.id !== value.draftId || remoteEditor?.viewId !== value.viewId) throw new Error('編輯入口已變更；草稿已保留。');
+        currentDraft = draft; remoteEditor = copy(value);
+      },
+      save: () => saveEditor(),
+      end: () => closeEditor(),
+      full: async () => {
+        await flushDraft(); const draft = copy(currentDraft); const card = currentCard(draft.cardId);
+        if (!await controller.endEdit()) throw new Error('請先完成目前輸入。'); remoteEditor = null;
+        await native.bridge.request('desktop.showMain'); await openEditor(card, draft); render();
+      },
+    } });
+  for (const view of desktopInfo.views) authority.addView(view.viewId);
+  desktop = new DesktopOwner({ bridge: native.bridge, authority, editor: currentDesktopEditor,
+    project: sequence => {
+      const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
+        sessionId: desktopInfo.sessionId, sequence, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor() });
+      if ($('#desktop-note')) $('#desktop-note').textContent = frame.fallbacks.length ? `${frame.fallbacks.length} 張便箋要求桌布層；Windows 目前以桌面層呈現，原偏好保留。` : '桌面已連接；操作群組可浮到其他 App 上方。';
+      return frame;
+    },
+    changed: () => render(), error: error => status(error.message, true),
+    lost: async viewId => {
+      if (remoteEditor?.viewId !== viewId) return;
+      const draftId = remoteEditor.draftId;
+      // Keep the main preview noneditable until every already accepted durable write settles.
+      await authority.whenDraftIdle();
+      if (remoteEditor?.viewId === viewId && currentDraft?.id === draftId) {
+        currentDraft = copy(workspace.state.drafts[draftId] || currentDraft); remoteEditor = null;
+      }
+    },
+    dismiss: async () => { await controller.activate({ kind: 'none' }); render(); },
+  });
+  addEventListener('pagehide', () => desktop.close());
+}
+
 async function prepareNativeClose() {
   if (nativeClosing) return;
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
     status(composing ? '請先完成目前輸入，再關閉 App。' : '請先完成或關閉目前對話框，再關閉 App。', true); return;
   }
-  nativeClosing = true; document.body.inert = true;
+  nativeClosing = true; document.body.inert = true; desktop?.beginClose();
   try {
     await Promise.allSettled([...activeActions]);
-    await flushDraft();
+    stopAutomatic?.(); await automatic?.service.whenIdle();
+    if (desktop) { await desktop.whenIdle(); await desktop.perform(flushDraft); } else await flushDraft();
+    if (desktop) { desktop.sealClose(); await desktop.whenIdle(); }
     if (unsavedDrafts.size) throw new Error('仍有未保存草稿；請先保存或匯出，再關閉 App。');
-    stopAutomatic?.();
-    await automatic?.service.whenIdle();
     await native.bridge.request('host.closeReady');
-  } catch (error) { status(`尚未關閉：${error.message}`, true); }
+  } catch (error) {
+    await desktop?.cancelClose();
+    if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+    status(`尚未關閉：${error.message}`, true);
+  }
   finally { nativeClosing = false; document.body.inert = false; }
 }
 
@@ -140,6 +219,7 @@ function matchesFilter(card) {
 }
 
 function render() {
+  if (remoteEditor && controller.state.editingCardId !== remoteEditor.cardId) { remoteEditor = null; currentDraft = null; }
   const snapshot = workspace.snapshot; const groups = activeGroups(snapshot); const layout = workspace.layout.state;
   if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0]?.id;
   $('#groups').replaceChildren();
@@ -175,10 +255,12 @@ function render() {
   if (asList) renderList(listCards);
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
+  desktop?.publish();
 }
 
 function renderStage(cards) {
   const stage = $('#stage'); stage.replaceChildren(); groupLabels = [];
+  if (desktopInfo) { const area = screenArea(); stage.style.transform = `translate(${-area.x}px, ${-area.y}px)`; }
   const layout = workspace.layout.state; const state = controller.state;
   let regions = [];
   try { regions = gridRegions(layout.grid, activeGroups(workspace.snapshot)); } catch (error) { status(error.message, true); }
@@ -201,7 +283,7 @@ function renderStage(cards) {
     paper.style.setProperty('--paper', groupColor(card.groupId)); paper.style.zIndex = String(z++); rectStyle(paper, placement);
     paper.append(element('div', summaryText(card), 'card-summary'));
     const body = element('div', undefined, 'card-body markdown');
-    if (policy.editing && currentDraft?.cardId === card.id && !$('#editor-dialog').open) {
+    if (policy.editing && currentDraft?.cardId === card.id && !remoteEditor && !$('#editor-dialog').open) {
       const input = element('textarea', undefined, 'inline-editor'); input.value = currentDraft.content.text;
       input.setAttribute('aria-label', '就地編輯便箋');
       input.oninput = () => { if (!editorBusy) { currentDraft.content.text = input.value; queueDraft(); } };
@@ -265,7 +347,7 @@ function groupEditor(group) {
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
     if (group) await workspace.renameGroup(group.id, input.value, group.revision);
     else { const created = await workspace.createGroup(input.value); activeGroupId = created.id; }
-    await workspace.layout.placeNew(workspace.snapshot, [screenArea()]); dialog.close(); render(); status('群組已保存');
+    await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status('群組已保存');
   }); });
   dialog.showModal(); input.focus();
 }
@@ -318,7 +400,7 @@ function cardDetails(card) {
   const layer = element('label', '常駐層級', 'field'); const layers = element('select');
   for (const [value, name] of [['desktop', '桌面'], ['floating', '浮動'], ['wallpaper', '桌布層']]) layers.append(new Option(name, value));
   layers.value = workspace.layout.state.placements[card.id]?.residentLayer || 'desktop'; layer.append(layers);
-  dialog.append(groupLabel, visibility, selection, layer, element('p', '此瀏覽器工作空間僅預覽卡片，沒有系統桌面分層或全域快捷鍵。', 'hint'));
+  dialog.append(groupLabel, visibility, selection, layer, element('p', desktop ? 'Windows 支援桌面與浮動層；桌布層暫以桌面層呈現，原偏好會保留。' : '此瀏覽器工作空間僅預覽卡片，沒有系統桌面分層或全域快捷鍵。', 'hint'));
   const actions = element('div', undefined, 'dialog-actions');
   actions.append(button(card.archived ? '取消封存' : '封存', async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
     button('移至刪除區', async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),
@@ -333,6 +415,7 @@ function cardDetails(card) {
 async function openEditor(card = null, recovered = null) {
   if (composing) return;
   if (controller.state.editingCardId && currentDraft) await controller.endEdit();
+  remoteEditor = null;
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);
   currentDraft.content.attachments ||= [];
   $('#editor-title').textContent = card || recovered?.baseRevision ? '編輯便箋' : '記下想法';
@@ -343,6 +426,11 @@ async function openEditor(card = null, recovered = null) {
 
 async function beginInlineEdit(card, gesture = false) {
   if (composing) return;
+  if (remoteEditor) {
+    const same = currentDraft?.cardId === card.id;
+    if (!await controller.endEdit()) return; remoteEditor = null;
+    if (same) { await controller.beginEdit(card.id, { gesture }); render(); $('#stage .inline-editor')?.focus(); return; }
+  }
   if (controller.state.editingCardId === card.id && currentDraft?.cardId === card.id) {
     $('#stage .inline-editor')?.focus(); return;
   }
@@ -361,6 +449,7 @@ function renderSelection() {
     paper.classList.toggle('selected', paper.dataset.cardId === state.selectedCardId);
     paper.style.zIndex = String(5 + order.indexOf(paper.dataset.cardId));
   });
+  desktop?.publish();
 }
 
 function closeInlineView(cardId) {
@@ -385,7 +474,14 @@ function queueDraft() {
   }).catch(error => { if (currentDraft?.id === id) { $('#draft-status').textContent = `保存失敗：${error.message}`; status(`草稿保存失敗：${error.message}`, true); } });
   return draftPending;
 }
-async function flushDraft() { await queueDraft(); }
+async function flushDraft() {
+  const editor = currentDesktopEditor();
+  if (editor) {
+    const sequence = await desktop.flush(editor);
+    if (currentDesktopEditor()?.sequence !== sequence) throw new Error('桌面草稿保存順序不符，尚未結束編輯。');
+  }
+  await queueDraft();
+}
 function setEditorBusy(value) {
   editorBusy = value; $('#editor-text').readOnly = value;
   $('#stage').querySelectorAll('.inline-editor').forEach(node => { node.readOnly = value; });
@@ -396,7 +492,7 @@ function setEditorBusy(value) {
 async function closeEditor() {
   if (editorBusy || composing) return;
   setEditorBusy(true);
-  try { await flushDraft(); currentDraft = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit(); render(); status('草稿已保留'); }
+  try { await flushDraft(); currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit(); render(); status('草稿已保留'); }
   finally { setEditorBusy(false); }
 }
 async function saveEditor(asCopy = false) {
@@ -405,8 +501,8 @@ async function saveEditor(asCopy = false) {
   try {
     await flushDraft();
     await workspace.commitDraft(currentDraft.id, { asCopy });
-    currentDraft = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit();
-    await workspace.layout.placeNew(workspace.snapshot, [screenArea()]); render(); status('便箋已存本機');
+    currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit();
+    await workspace.layout.placeNew(workspace.snapshot, workAreas()); render(); status('便箋已存本機');
   } catch (error) { if (error.code === 'conflict') $('#save-copy').hidden = false; throw error; }
   finally { setEditorBusy(false); }
 }
@@ -453,7 +549,7 @@ function updateFormation() {
     for (const paper of $('#stage').querySelectorAll('.card')) summaryBands[paper.dataset.cardId] = paper.querySelector('.card-summary').getBoundingClientRect().height;
     formationPreview = planFormation({ snapshot, layout: workspace.layout.state,
       scope: $('#formation-scope').value === 'all' ? { kind: 'all' } : { kind: 'group', groupId: activeGroupId },
-      mode: formationMode, workAreas: [screenArea()], summaryBands, allowResize: $('#allow-resize').checked });
+      mode: formationMode, workAreas: workAreas(), summaryBands, allowResize: $('#allow-resize').checked });
     $('#formation-description').textContent = `排列 ${Object.keys(formationPreview.changes).length} 張便箋。${formationPreview.resized.length ? ` ${formationPreview.resized.length} 張會調整大小。` : ' 保持原尺寸。'}${formationPreview.overflow.length ? ` ${formationPreview.overflow.length} 張會超出群組區域。` : ''} 可透過復原還原這次排列。`;
     $('#apply-formation').disabled = false;
   } catch (error) { formationPreview = null; $('#formation-description').textContent = error.message; $('#apply-formation').disabled = true; }
@@ -520,6 +616,7 @@ function dragPaint(drag) {
     node.classList.toggle('receiving', target); node.style.zIndex = drag.dragging ? '101' : '1';
     node.textContent = `${target ? '移至 ' : ''}${activeGroups(workspace.snapshot).find(group => group.id === node.dataset.groupId)?.name || ''}`;
   });
+  desktop?.publish();
 }
 
 function bindEvents() {
@@ -533,7 +630,7 @@ function bindEvents() {
   $('#cycle-prev').onclick = () => run(() => { controller.cycle(activeGroupId, -1); render(); });
   $('#cycle-next').onclick = () => run(() => { controller.cycle(activeGroupId, 1); render(); });
   $('#stack').onclick = () => openFormation('stack'); $('#spread').onclick = () => openFormation('spread');
-  $('#undo').onclick = () => run(async () => { await workspace.undo([screenArea()]); await controller.reconcile(); render(); status('已復原'); });
+  $('#undo').onclick = () => run(async () => { await workspace.undo(workAreas()); await controller.reconcile(); render(); status('已復原'); });
   $('#formation-scope').onchange = updateFormation; $('#allow-resize').onchange = updateFormation;
   $('#cancel-formation').onclick = () => $('#formation-dialog').close();
   $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status('排列已完成，可按復原還原'); });
@@ -543,7 +640,7 @@ function bindEvents() {
     if (currentDraft) await flushDraft();
     if (!await controller.endEdit()) return;
     currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
-    showBackupDialog({ workspace, storage, getWorkAreas: () => [screenArea()], flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual,
+    showBackupDialog({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual,
       onChanged: async () => { await controller.reconcile(); render(); } });
   });
   $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);
@@ -585,7 +682,7 @@ function bindEvents() {
       if (!await controller.endEdit()) return;
       currentDraft = null; render();
       showRevisionDialog({ workspace, storage, profileId, onChanged: async () => {
-        await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, [screenArea()]); render();
+        await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       } });
     } finally { setEditorBusy(false); }
   });

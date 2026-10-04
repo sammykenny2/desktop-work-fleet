@@ -18,16 +18,20 @@ public sealed class FleetWindow : Window
   private readonly string dataDirectory;
   private readonly Func<string?>? backupDirectoryPicker;
   private BridgeSession? bridge;
+  private DesktopCoordinator? desktop;
+  private readonly IReadOnlyList<DisplayInfo>? desktopDisplays;
   private Task messageQueue = Task.CompletedTask;
   private int queued;
   private long navigation;
   private bool shuttingDown;
   public WebView2 WebView => web;
+  public DesktopCoordinator? Desktop => desktop;
 
-  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null)
+  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null, IReadOnlyList<DisplayInfo>? desktopDisplays = null)
   {
     this.dataDirectory = Path.GetFullPath(dataDirectory);
     this.backupDirectoryPicker = backupDirectoryPicker;
+    this.desktopDisplays = desktopDisplays;
     database = new LocalDatabase(this.dataDirectory, "local");
     backupFiles = new NativeBackupFiles(database);
     Title = "Work Fleet"; Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
@@ -49,7 +53,7 @@ public sealed class FleetWindow : Window
       // Defer even when no work is pending: WPF forbids a second Close inside Closing.
       Dispatcher.BeginInvoke(new Action(() => { _ = PrepareClose(); }));
     };
-    Closed += (_, _) => { web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   private async Task Initialize()
   {
@@ -67,7 +71,13 @@ public sealed class FleetWindow : Window
     core.NavigationStarting += (_, e) =>
     {
       if (!NavigationPolicy.IsDocument(e.Uri)) { e.Cancel = true; if (e.IsUserInitiated) OpenExternal(e.Uri); return; }
-      navigation++; bridge?.Dispose(); bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory);
+      navigation++; bridge?.Dispose(); desktop?.Dispose();
+      var epoch = navigation;
+      desktop = new DesktopCoordinator(environment, value =>
+      {
+        if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
+      }, () => { Show(); if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal; Activate(); }, OpenExternal, desktopDisplays);
+      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -86,7 +96,7 @@ public sealed class FleetWindow : Window
     core.ProcessFailed += (_, _) =>
     {
       // Keep the native store alive. A new document must reopen from committed state.
-      navigation++; bridge?.Dispose(); bridge = null;
+      navigation++; bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
       Content = new TextBlock { Text = "畫面程序已停止。已提交資料仍保留於本機；請重新開啟 Work Fleet。",
         TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
     };
@@ -106,20 +116,20 @@ public sealed class FleetWindow : Window
       await previous;
       if (epoch != navigation || shuttingDown) return;
       // Modal OS pickers run on this dispatcher. Never invoke it from a worker holding the session lock.
-      var result = IsPickerRequest(json) ? session.Dispatch(json) : await Task.Run(() => session.Dispatch(json));
+      var result = IsUiRequest(json) ? session.Dispatch(json) : await Task.Run(() => session.Dispatch(json));
       if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(web.CoreWebView2.Source)) web.CoreWebView2.PostWebMessageAsJson(result);
       if (session.CloseReady && closeRequested && epoch == navigation) { shuttingDown = true; Close(); }
     }
     catch { /* A destroyed view cannot acknowledge a durable commit. Reopen reads the transaction. */ }
     finally { queued--; }
   }
-  private static bool IsPickerRequest(string json)
+  private static bool IsUiRequest(string json)
   {
     try
     {
       using var document = JsonDocument.Parse(json);
       return document.RootElement.ValueKind == JsonValueKind.Object && document.RootElement.TryGetProperty("method", out var value)
-        && value.ValueKind == JsonValueKind.String && value.GetString() is "backup.choose" or "backup.manual.choose";
+        && value.ValueKind == JsonValueKind.String && (value.GetString() is "backup.choose" or "backup.manual.choose" || value.GetString()!.StartsWith("desktop.", StringComparison.Ordinal));
     }
     catch (JsonException) { return false; }
   }

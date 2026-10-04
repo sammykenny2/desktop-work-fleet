@@ -141,7 +141,14 @@ probe 與 App 共用 PerMonitorV2 manifest 及 `net8.0-windows10.0.19041.0`。
 必須透過 `.exe` apphost 執行，包含跨程序目標；入口驗證 thread DPI awareness 確實為 PerMonitorV2。
 直接 `dotnet ...Ui.Tests.dll` 未套用這份 executable manifest，不能作相同 DPI 設定的證據。
 這不是使用者桌面手勢、WebView capture／IME、多螢幕拔插、Win+D、虛擬桌面或休眠驗收。
-原生表面尚待接入單一 Workspace coordinator；詳見 [ADR-017](decisions/017-windows-composition-surface-and-input.md)。
+原生基礎見 [ADR-017](decisions/017-windows-composition-surface-and-input.md)，產品連接見 [ADR-018](decisions/018-single-owner-desktop-views.md)。
+WPF 主 probe 現另開真正場景頁：確認 projection、scene 不可呼叫 storage、浮層操作、就地草稿、
+1.2 MiB 中文輸入分片、合成 CompositionEvent 阻止退出、交易保存後回到穿透政策。
+關閉測試故意延後最後 storage.commit，確認編輯保持凍結，重開後最後草稿文字完整。
+顯示器描述只在 probe 注入螢幕外範圍；沒有以合成範圍聲稱真多螢幕通過。
+core 另測 scene lease 跨版本讀取／principal 隔離、半份與壞 hash 不發布、過期 session／frame 拒絕，
+以及十組／長組名仍可讀。`tests/desktop-authority.test.js`／`desktop-transport.test.js` 驗證重播、世代、
+獨立草稿 admission、未知 ack 重試、失聯 flush 解除與關閉命令封鎖。
 
 `npm test` 會明確 skip 8 個需要已建置 Windows helper 的 native integration tests；
 `WORK_FLEET_NATIVE_TEST=1` 才執行它們，缺少 helper 即失敗，不假報成功。

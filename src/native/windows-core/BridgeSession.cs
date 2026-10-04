@@ -5,7 +5,8 @@ using System.Text.Json;
 namespace WorkFleet.Windows.Core;
 
 /// <summary>Per-document bounded protocol. The UI host authenticates source and navigation before dispatch.</summary>
-public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? backupFiles = null, Func<string?>? chooseBackupDirectory = null) : IDisposable
+public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? backupFiles = null, Func<string?>? chooseBackupDirectory = null,
+  Func<string, JsonElement, object?>? desktop = null) : IDisposable
 {
   public const int ChunkSize = 256 * 1024;
   // Includes a complete manifest of 20,000 UUID attachment tokens plus the fixed envelope.
@@ -29,7 +30,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
     storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
-      backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = false, desktopPresentation = false } };
+      backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = false, desktopPresentation = desktop is not null } };
 
   public string Dispatch(string message)
   {
@@ -68,6 +69,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   }
   private object? Invoke(string method, JsonElement args)
   {
+    if (method.StartsWith("desktop.", StringComparison.Ordinal) && desktop is not null) return desktop(method, args);
     if (method.StartsWith("backup.", StringComparison.Ordinal) && args.TryGetProperty("profileId", out var profile))
       HostError.Require(profile.ValueKind == JsonValueKind.String && profile.GetString() == database.ProfileId, "backup-profile", "備份帳號已切換。");
     switch (method)

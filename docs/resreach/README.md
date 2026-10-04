@@ -43,6 +43,9 @@ KDF 及依賴；完整範圍及三種還原見 SPEC-002／ADR-013，不再沿用
 
 ## 如何解讀
 
+[Windows 場景協調](2026-10-04-windows-desktop-coordination.md) 區分 physical／邏輯座標、
+公開 ZoomFactor 與受限多視窗傳輸、實際 DOM／原生輸入的驗證界線；決策見 ADR-018。
+
 [Windows 原生備份](2026-10-04-windows-native-backup-files.md) 記錄 RootDirectory／reparse／
 檔案身分清理及 .NET 可攜加密的官方來源與驗證界線；決策見 ADR-016。
 

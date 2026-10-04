@@ -138,5 +138,6 @@ try
   Console.WriteLine($"{files}/{files} native Windows backup file checks passed.");
   var coordinator = BackupCoordinatorProbe.Run(root);
   Console.WriteLine($"{coordinator}/{coordinator} native Windows backup coordinator checks passed.");
+  var scenes = SceneTransfersProbe.Run(); Console.WriteLine($"{scenes}/{scenes} native Windows scene transfer checks passed.");
 }
 catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }

@@ -37,7 +37,8 @@ internal static class Program
   {
     var backups = Path.Combine(directory, "backups"); Directory.CreateDirectory(backups);
     // Replace only the interactive picker in this offscreen probe. Bridge, encryption, SQLite and file I/O are real.
-    var window = new FleetWindow(directory, () => backups) { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
+    var window = new FleetWindow(directory, () => backups,
+      [new("probe", true, new(-20000, -20000, 1800, 1200), new(-20000, -20000, 1800, 1200), 144)]) { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
       ShowActivated = false, ShowInTaskbar = false, Width = 1180, Height = 800 };
     window.Show(); return window;
   }
@@ -81,6 +82,7 @@ internal static class Program
     await Wait(window, "document.querySelector('#attachments a')?.textContent === 'proof.txt'", "native attachment");
     await Eval(window, "document.querySelector('#editor-form').requestSubmit()");
     await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.card-summary')?.textContent === '原生便箋'", "save native card");
+    await DesktopIntegrationProbe.Run(window, directory);
     // The main host refuses navigations away from the exact packaged document and prevents frames.
     window.WebView.CoreWebView2.Navigate("https://work-fleet.invalid/other.html"); await Task.Delay(150);
     if (window.WebView.CoreWebView2.Source != NavigationPolicy.Document) throw new Exception("Unexpected navigation");
@@ -103,6 +105,11 @@ internal static class Program
     await Wait(window, "document.querySelector('.card-summary')?.textContent === '原生便箋' && Number(document.querySelector('#draft-count').textContent) >= 1", "card and draft retained after native reopen");
     await Eval(window, "document.querySelector('#drafts-button').click()");
     await Wait(window, "document.querySelector('dialog[open]')?.textContent.includes('關閉瞬間的未提交草稿')", "exact saved draft text");
+    await Eval(window, "document.querySelector('dialog[open]').close()");
+    await DesktopIntegrationProbe.CloseWithDraft(window); window = Open(directory);
+    await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "reopen after scene close");
+    await Eval(window, "document.querySelector('#drafts-button').click()");
+    await Wait(window, "document.querySelector('#draft-list').textContent.includes('桌面關閉瞬間仍須落盤')", "exact desktop final draft survived close");
     await Eval(window, "document.querySelector('dialog[open]').close()");
     // Hold the real host.ready request on the next document. Resizing must not install
     // a live group menu or card action before the native close handshake is ready.

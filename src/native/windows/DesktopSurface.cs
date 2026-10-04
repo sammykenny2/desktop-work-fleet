@@ -79,6 +79,16 @@ public sealed class DesktopSurface : IDisposable
     InputWindow.Hide(); VisualWindow.Hide();
   }
 
+  public void SetPhysicalBounds(PhysicalBounds bounds)
+  {
+    ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
+    if (Math.Abs((long)bounds.X) > 1_000_000 || Math.Abs((long)bounds.Y) > 1_000_000
+      || bounds.Width is <= 0 or > 32768 || bounds.Height is <= 0 or > 32768) throw new ArgumentException("Invalid physical bounds.");
+    if (InputHandle == IntPtr.Zero || !SetWindowPos(InputHandle, IntPtr.Zero, bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x14))
+      throw new InvalidOperationException("Unable to position scene.");
+    InputWindow.UpdateLayout(); AlignVisual();
+  }
+
   public void SetInput(IEnumerable<SceneHitRect> backToFront)
   {
     ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();

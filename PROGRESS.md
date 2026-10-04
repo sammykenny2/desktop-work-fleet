@@ -343,6 +343,38 @@ UI／composition／platform 最終都透過 manifest-bearing `.exe` 重跑，入
 
 尚未宣稱真指標 capture／IME、Win+D／虛擬桌面、混合 DPI／拔插／休眠、
 共用控制器与多表面草稿整合或其他平台完成。下一步接單一權威的桌面 coordinator 與產品入口。
+已提交並推送 main：`efb2d92`。
+
+### Windows 單一權威桌面整合切片
+
+- 啟用 Windows 桌面 capability；每螢幕桌面／浮動表面接上共用 Workspace／InteractionController，
+  原生 SQLite 仍為唯一 durable owner。桌面只取得呈現投影與固定命令，無 storage／backup／vault 方法。
+- 固定 scene 文件、principal-bound 分片／完整 SHA、容量名額與共享唯讀 lease；
+  frame／command 分別保留容量，畫面壓力不占滿最後草稿的傳輸額度。
+- 每 view 單調 serial、結果 receipt、獨立 draft lane 及 pointer generation，
+  避免重播、flush 死鎖、同 pointerId 的後續手勢被先前命令接管。
+- 原生紙面可編輯、選取、拖曳、Markdown 呈現，群組 scope／版面／顯示偏好即時投影。
+  就地編輯 durable ack、跨 view 凍結與接手、組字退出拒絕、失聯恢復及關閉保留最後文字已接線。
+- 統一 reference DPI 邏輯座標、每螢幕 physical 視窗／input 裁切；Windows 無桌布層時明確 fallback。
+  十組、長組名、合法超大紙面仍接受，不讓互動新增限制誤傷來源合併的可讀內容。
+
+作者檢查：Debug／Release 零 warning/error，native core／NTFS／備份／scene transfer 34/34，
+JS/native 10/10；完整 npm 回歸 201 pass／8 明確 skip，原生項目另行執行；
+真 PerMonitorV2 WPF／WebView2／SQLite 完整 UI probe 通過。
+桌面探針涵蓋 display-only 權限、1.2 MiB 中文分片、同卡重入、組字退出 barrier、保存／返回常駐，
+以及延遲 storage commit 下關閉不提前解凍、重開取得最後草稿。
+CompositionEvent 與離屏螢幕座標是合成資料，不當作真 OS IME／多顯示器驗收。
+瀏覽器 probe 首輪曾停在載入畫面且無 pageerror；後續新 profile 診斷及完整重測通過，原因未確定。
+
+獨立唯讀審查修正並複核：舊 receipt 重播、draft lane／主操作序列競爭、手勢世代、
+跨 view 接手舊草稿、組字事件掛載、關閉解凍、失聯最後寫入、可讀群組界線及失敗手勢清理。
+獨立 Edge 與真 WPF 驗證跨 view 接手最後文字、權限隔離、延遲落盤關閉／重開；
+320 MiB frame 後仍容納四筆 16 MiB command，超額明確拒絕、釋放可重試，lease 隔離通過。
+獨立審查無未解 finding；文件 77 份／425 相對連結、UTF-8／LF、diff whitespace 通過。
+不宣稱作者檢查為獨立審查；本切片未加入 listener 或外部程式來源。
+
+剩餘包含快捷鍵／焦點／系統匣、顯示器拓撲與完整 OS 互動矩陣、Google 原生授權、
+其他四平台及商店交付；仍按使用者批准的完整 1.0 範圍繼續。
 
 ## 2026-10-04 文件交付
 

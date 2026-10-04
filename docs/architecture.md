@@ -9,7 +9,12 @@
 `contracts/desktop.d.ts` 定義可替換 persistence／source／host 的邊界；
 `src/app` 與 IndexedDB adapter 已加入；選擇與限制見 [ADR-009](decisions/009-local-renderer-and-persistence.md)。
 Windows 原生落盤 adapter 與主畫面見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)；
-其他平台、實際 Google 與桌面 host 尚需後續整合，不以瀏覽器測試宣稱完成。
+其他平台、實際 Google 與完整桌面矩陣尚需後續整合，不以瀏覽器測試宣稱完成。
+
+Windows 場景經 [ADR-018](decisions/018-single-owner-desktop-views.md) 接到同一份 Workspace／InteractionController。
+`src/desktop` 發布純呈現投影與受控命令，Windows 每顯示器分桌面／浮動表面；沒有第二個 Workspace。
+native memory mailbox 只傳 frame／命令，不能存取資料庫、附件或 vault。
+草稿獨立序列支援退出保存屏障，換 view／失聯／關閉先完成已接受寫入；管理視窗 resize 不再觸發桌面救援。
 
 [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md)
 定義 `src/sources` 的嚴格 JSON、不可變版本圖、缺 parent 與多 head。

@@ -48,7 +48,7 @@ python scripts/testing/serve_preview.py --port 0
 ## Windows 原生主畫面
 
 Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
-執行已建置 App 的電腦需 .NET 8 Desktop Runtime。本子切片是主畫面與加密保存，桌面浮層仍在施工。
+執行已建置 App 的電腦需 .NET 8 Desktop Runtime。主畫面、加密保存與桌面／浮動場景已接通。
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1
@@ -64,6 +64,13 @@ Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 
 關閉先等草稿保存及自動備份收尾；還在對話框或 IME 輸入時先完成該操作。
 保存失败保留視窗及草稿；重新開啟會讀取已提交內容。
 
+主畫面「操作群組／所有群組」讓對應卡片浮到一般 App 上方，退出後回到各卡常駐層。
+桌面紙面可就地編輯，Ctrl+Enter 保存、Esc 保留草稿退出編輯；完整編輯回到主畫面處理附件等內容。
+其他便箋預設穿透，逐卡可開啟日常文字選取。桌布層目前以桌面層呈現並提示，原偏好不改。
+調整管理視窗大小不搬動桌面卡片；啟動採當時顯示器工作區。
+全域鍵、tray 及顯示器熱插拔尚待接線，現階段保留主畫面作管理入口。
+此功能連接不等於真滑鼠／IME、混合 DPI、Show Desktop 與虛擬桌面矩陣已全部驗收。
+
 不要把原生 DB 當成跨機備份，DPAPI 需原 Windows 帳號金鑰。預覽 IndexedDB 與 native 是不同 profile，
 不自動搬動既有資料。主畫面沿用上述 editor／群組／還原操作，仍未連 Google；
 手動匯出使用原生資料夾選擇器，每次建立 `work-fleet-backup-UUID.zip` 新檔並讀回校驗。
@@ -74,7 +81,7 @@ Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 
 保存目前只支援本機 NTFS 資料夾，拒絕網路磁碟、FAT／exFAT、symlink／junction。
 讀取可攜備份仍可使用一般檔案選擇器。未自動操作真 OS picker 或測外部磁碟斷電耐久。
 原生測試命令見 [Testing](testing.md)，技術邊界見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)
-及 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)。
+及 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)、[ADR-018](decisions/018-single-owner-desktop-views.md)。
 
 ## Google 與原生建置設定
 

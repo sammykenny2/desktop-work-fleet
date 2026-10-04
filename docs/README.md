@@ -21,6 +21,7 @@
 | [ADR-015](decisions/015-windows-native-storage-and-editor-host.md) | Accepted：Windows WPF／WebView2 主畫面、加密 SQLite／DPAPI、受限 bridge；桌面呈現另驗收 |
 | [ADR-016](decisions/016-windows-native-backup-files-and-vault.md) | Accepted：Windows NTFS 保存／清理、native grants、密碼不回傳的 vault 加密；其他平台另驗收 |
 | [ADR-017](decisions/017-windows-composition-surface-and-input.md) | Accepted：Windows composition／互補輸入區域、快捷鍵與顯示器基礎；產品協調仍整合中 |
+| [ADR-018](decisions/018-single-owner-desktop-views.md) | Accepted：Windows 場景連接單一工作區、分片／受限命令與草稿保存屏障 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

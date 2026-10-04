@@ -4,7 +4,7 @@ const MAX_MESSAGE_BYTES = 1024 * 1024;
 
 /** Native channels carry bounded data and explicit password enrollment, never executable source, paths, SQL or saved credentials. */
 export class NativeBridge {
-  #transport; #pending = new Map(); #listeners = new Set(); #closed = false; #receive; #timeout;
+  #transport; #pending = new Map(); #listeners = new Set(); #events = new Map(); #closed = false; #receive; #timeout;
   constructor(transport, { timeout = 120_000 } = {}) {
     this.#transport = transport; this.#timeout = timeout;
     this.#receive = event => {
@@ -12,6 +12,9 @@ export class NativeBridge {
       if (!message || message.v !== 1) return;
       if (message.event === 'host-close-requested') {
         for (const listener of this.#listeners) listener(message.event); return;
+      }
+      if (typeof message.event === 'string') {
+        for (const listener of this.#events.get(message.event) || []) listener(message); return;
       }
       const pending = this.#pending.get(message.id);
       if (!pending || typeof message.ok !== 'boolean') return;
@@ -38,13 +41,17 @@ export class NativeBridge {
     });
   }
   onCloseRequested(listener) { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
+  onEvent(name, listener) {
+    if (!this.#events.has(name)) this.#events.set(name, new Set());
+    this.#events.get(name).add(listener); return () => this.#events.get(name)?.delete(listener);
+  }
   close() {
     if (this.#closed) return; this.#closed = true;
     this.#transport.removeEventListener('message', this.#receive);
     for (const pending of this.#pending.values()) {
       clearTimeout(pending.timer); pending.reject(new FleetError('native-outcome-unknown', '原生連線已中斷；重新開啟可確認已提交資料。'));
     }
-    this.#pending.clear(); this.#listeners.clear();
+    this.#pending.clear(); this.#listeners.clear(); this.#events.clear();
   }
 }
 

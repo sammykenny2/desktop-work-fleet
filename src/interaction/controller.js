@@ -150,7 +150,7 @@ export class InteractionController {
     requireValue(layout.placements[cardId] && Number.isFinite(threshold) && threshold > 0
       && Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', '無效的拖曳起點。');
     this.#suppressedCard = null;
-    this.#state.dragSession = { cardId, pointerId, groupId: card.groupId, revision: card.revision,
+    this.#state.dragSession = { generation: crypto.randomUUID(), cardId, pointerId, groupId: card.groupId, revision: card.revision,
       layoutRevision: layout.revision, start: copy(point), current: copy(point), origin: copy(layout.placements[cardId]),
       position: copy(layout.placements[cardId]), threshold, dragging: false, target: null };
     return true;

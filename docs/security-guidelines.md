@@ -44,6 +44,12 @@ NTFS 子檔相對 held directory handle 建立；清理核對同 handle 的實�
 並持有最新有效備份的鎖到清理完成。不先驗 hash 再按 pathname 刪檔。
 遇到換檔、reparse、改內容或存取競爭會保留並回報；native reservation 遺失的同名檔不讀取／認領。
 
+Windows 場景使用獨立 `/desktop/index.html` 與固定命令白名單，不能呼叫主 bridge 的 storage／backup／vault。
+frame 只含目前可呈現卡片及必要編輯文字，不含歷史、outbox、同步游標或附件 bytes。
+每份分片 lease 綁定 native 指定的 owner/view；完整 SHA 驗證後才發布。不同主畫面工作階段不能重用 view。
+場景只送固定互動命令，單一 Workspace 執行 durable 交易；關閉保留凍結直到 host.closeReady。
+容量與失聯處理見 [ADR-018](decisions/018-single-owner-desktop-views.md)。
+
 ## 1.0 可攜備份
 
 - `src/backup` 只從捕獲的 profile 讀取完整快照及 SHA-256 附件；不攜帶 token／provider／舊 outbox。

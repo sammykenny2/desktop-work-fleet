@@ -4,7 +4,8 @@
 
 ## 目前優先方向
 
-使用者已授權逐 slice 實作、驗證並直接 commit/push origin/main，直到完整 1.0 完成。
+使用者已授權逐 slice 實作並直接 commit/push origin/main，直到完整 1.0 完成。
+2026-10-05 最新指示要求先完成實作、不再投入驗證；未執行的检查不視為通過。
 本次還明確納入 iOS／Android 原生 App 與商店提交準備，並核准完整 editor／逐卡設定／備份範圍。
 核心測試通過不代表五平台或 Google 驗收已完成；完整目標持續進行。
 
@@ -19,12 +20,12 @@
 | Slice | 範圍 | 狀態與證據 |
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
-| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 本機 UI／IndexedDB、群組合併／移除、區域与快捷鍵設定已完成；Windows 原生 SQLite／DPAPI／原子附件保存已加入，其他平台保存、大容量與完整平台設定仍待補齊 |
-| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 版本圖、Workspace 原子交易、衝突 UI、FileSync／Drive REST adapter 已實作及故障測試；原生保護 transport、OAuth、UI 連接及真 Google 尚待完成，公開設定尚未建立 |
-| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 完整 ZIP／加密、三種原子還原、手動／自動 UI 與 Windows 原生 NTFS／DPAPI 已整合驗證；其他平台繼續施工，瀏覽器自動能力明示停用 |
-| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows WPF 主畫面、單一權威桌面場景、composition／跨程序 input region、快捷鍵與系統匣已整合；顯示器拓撲、完整 OS 矩陣與其他平台仍施工；C16/C35/C40–C43/C46–C47 不以 primitive 測試代替 |
-| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | 已納入本次範圍；尚待實作與裝置驗收 |
-| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 尚待完成；沒有送審、購買憑證或建立帳號 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；Android SQLite／Keystore、Apple SQLite／Keychain 程式已加入但未編譯；Linux 待實作 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple 原生授權與 Drive 程式已加入；Linux 待實作。Google 專案未建立，真登入／Drive 未驗收 |
+| 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark 原生備份程式已加入，未編譯；Linux 待實作 |
+| 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | Windows 原生桌面／快捷鍵／系統匣／顯示器生命週期已加入；macOS 公開 AppKit 場景、輸入轉送、快捷鍵／選單列／顯示器程式已加入但未編譯；Linux 待實作，完整 OS 矩陣仍缺 |
+| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android Activity／Apple UIKit host、原生資料及帳號能力與前背景通知已加入；分享及平台散布持續完成；缺 SDK，未產原生 package 或做裝置驗收 |
+| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | 商店文案／隱私草稿／提交資料、Android build wrappers、Apple Xcode 產生器／圖示／archive 入口已加入；其他封裝、正式簽章／screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
 記錄使用者本輪範圍答覆及本機核心決策。
@@ -443,6 +444,21 @@ Android 切片已推送 `20e8ee4`。新增繁中／英文商店文案、隱私�
 `.env.example`／config 增加公開隱私網址、支援網址與聯絡 email；release 配置檢查列出缺少值。
 未建立開發者帳號、發布隱私頁、製造原生截圖、簽章或送商店；素材為實際提交準備，不能冒充已提交。
 依使用者指示未跑測試或審閱。其餘原生平台與封裝仍繼續。見 [提交素材](docs/release/README.md)。
+
+## 2026-10-05 Apple 原生 host 與桌面實作
+
+前一商店資料切片已推送 `f213f4e`。本切片新增共用 Swift SQLite／Keychain 加密、原子附件／revision、
+原生備份 bookmark／安全檔案流程／可攜加密、GoogleSignIn／固定 Drive transport／續傳，以及 WKWebView host。
+macOS 接公開 AppKit visual／紙面 input panels、主畫面唯一 owner 命令路由、就地編輯、唯讀選字、
+Carbon 全域快捷鍵／焦點 intent、選單列、顯示器／Space／休眠的 topology 更新與 editor surface 保留。
+iOS 接 UIKit 主畫面、資料夾 picker、Google 回呼及前背景保存／同步通知；背景保存用有限
+UIBackgroundTask 等待草稿／備份收尾，完成或到期即釋放。Android 同步加入前背景通知與關閉取消。
+增加 Xcode 專案／shared schemes 產生器、兩平台自有 icons、entitlements、privacy manifest、
+依賴授權複製與 build/archive 腳本。`.env.example` 修正 Google macOS client 類型為 Apple SDK 所需 iOS client。
+各原生 host 增加關閉取消訊息；renderer 關閉因組字／對話框或保存失败取消時可再次嘗試。
+本機沒有 Xcode／Swift SDK：未編譯 Apple 程式、未產 app/archive、未真 Google 或原生手勢驗收。
+依使用者指示未跑測試／額外驗證，沒有獨立審閱。剩餘 Linux host、分享、各平台完整封裝及外部設定仍繼續。
+見 [ADR-023](docs/decisions/023-apple-native-host-and-scenes.md) 與 [Apple 原生入口](src/native/apple/README.md)。
 
 ## 2026-10-04 文件交付
 

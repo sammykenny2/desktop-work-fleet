@@ -104,3 +104,15 @@ The app Resources directory retains this notice and the root LICENSE. The exact 
 versions and scope are recorded in [runtime inventory](docs/validation/runtime-inventory.json).
 This is an inventory of the delivered source and locally built Mac app; it is not an
 approval or license audit for future store packages or unselected frameworks.
+
+## Apple 1.0 native host dependencies
+
+GoogleSignIn 9.2.0 is resolved as an unmodified Swift package from
+[Google's repository](https://github.com/google/GoogleSignIn-iOS/tree/9.2.0), under its
+[Apache-2.0 license](https://github.com/google/GoogleSignIn-iOS/blob/9.2.0/LICENSE).
+Its resolved transitive packages remain subject to their individual licenses. The Xcode
+build phase copies package root LICENSE/NOTICE/COPYING files before signing the bundle.
+The final package inventory and merged SDK privacy manifests remain to be recorded from
+an actual Apple archive; no native Apple 1.0 binary has been built in this session.
+Apple SDK/runtime frameworks and system SQLite/CommonCrypto are linked from the platform.
+App icons are generated from repository-owned drawing code, without external artwork.

@@ -55,7 +55,7 @@ export class NativeBridge {
   }
 }
 
-export async function connectNative(view = globalThis) {
+export function nativeTransport(view = globalThis) {
   let transport = view.chrome?.webview;
   if (!transport && (view.workFleet?.postMessage || view.webkit?.messageHandlers?.workFleet)) {
     const listeners = new Set();
@@ -72,6 +72,11 @@ export async function connectNative(view = globalThis) {
       removeEventListener: (_type, listener) => listeners.delete(listener),
     };
   }
+  return transport ?? null;
+}
+
+export async function connectNative(view = globalThis) {
+  const transport = nativeTransport(view);
   if (!transport) return null;
   const bridge = new NativeBridge(transport);
   try {

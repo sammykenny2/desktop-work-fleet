@@ -77,6 +77,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
       case "host.info": return Info();
       case "host.ready": Ready = true; return null;
       case "host.closeReady": CloseReady = true; return null;
+      case "host.closeCancel": CloseReady = false; return null;
       case "transfer.begin":
       {
         var kind = JsonRules.Text(args, "kind"); var size = (int)JsonRules.Integer(args, "size", WindowsBackupDirectory.MaxBackupBytes);

@@ -1,0 +1,118 @@
+import Foundation
+
+actor FleetDrive {
+    private static let fields = "id,size,spaces,trashed,appProperties,sha256Checksum"
+    private let google: FleetGoogle
+    private let account: String
+    private var closed = false
+    private var uploads: [String: (path: String, digest: String, size: Int)] = [:]
+    private var clients: [UUID: BoundedHTTP] = [:]
+    init(google: FleetGoogle, profile: String) { self.google = google; account = profile.hasPrefix("google:") ? String(profile.dropFirst(7)) : "" }
+    func close() { closed = true; for client in clients.values { client.cancel() }; clients.removeAll(); uploads.removeAll() }
+    private func path(_ base: String, _ fields: [(String, String)]) -> String {
+        var query = URLComponents(); query.queryItems = fields.map { URLQueryItem(name: $0.0, value: $0.1) }; return base + (query.percentEncodedQuery.map { "?" + $0 } ?? "")
+    }
+    private func request(_ path: String, method: String = "GET", body: Data? = nil, headers: [String: String] = [:], maximum: Int = 2 * 1024 * 1024, allow308: Bool = false, context: String = "") async throws -> (Data, HTTPURLResponse) {
+        try FleetProtocol.require(!closed && !account.isEmpty, "stale-session", "Google 工作階段已結束。")
+        guard let url = URL(string: "https://www.googleapis.com" + path), url.scheme == "https", url.host == "www.googleapis.com", url.user == nil, url.password == nil, url.fragment == nil, url.port == nil || url.port == 443 else { throw FleetFailure("invalid-source", "Google 傳輸位置無效。") }
+        var request = URLRequest(url: url); request.httpMethod = method; request.httpBody = body
+        request.setValue("Bearer " + (try await google.token(account)), forHTTPHeaderField: "Authorization")
+        for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
+        let id = UUID(), client = BoundedHTTP(maximum: maximum); clients[id] = client; defer { clients.removeValue(forKey: id) }
+        let bytes: Data, response: HTTPURLResponse
+        do { (bytes, response) = try await client.send(request) }
+        catch let failure as FleetFailure { throw failure }
+        catch { throw FleetFailure("network", "無法連接 Google Drive，待送內容保留。") }
+        try FleetProtocol.require(!closed, "stale-session", "Google 工作階段已結束。")
+        let status = response.statusCode
+        if (200..<300).contains(status) || allow308 && status == 308 { return (bytes, response) }
+        let error = try? FleetProtocol.json(bytes); let reasons = (error?["error"] as? [String: Any])?["errors"] as? [[String: Any]]; let reason = reasons?.first?["reason"] as? String ?? ""
+        let code = status == 401 ? "unauthorized" : status == 409 ? "file-exists" : status == 429 || ["rateLimitExceeded", "userRateLimitExceeded"].contains(reason) ? "rate-limit"
+            : status >= 500 ? "service-unavailable" : status == 410 && context == "changes" ? "cursor-expired" : [400, 410].contains(status) && context == "listing" ? "page-expired"
+            : status == 404 && context == "upload" ? "upload-session-expired" : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error"
+        throw FleetFailure(code, "Google Drive 未完成同步（\(code)），本機資料與待送內容保留。")
+    }
+    private func json(_ path: String, context: String = "") async throws -> [String: Any] { try FleetProtocol.json((try await request(path, context: context)).0) }
+    private func file(_ args: [String: Any]) throws -> [String: Any] {
+        guard let value = args["file"] as? [String: Any] else { throw FleetFailure("invalid-source-file", "同步檔案格式無效。") }
+        let id = try FleetProtocol.text(value, "id"), kind = try FleetProtocol.text(value, "kind"), digest = try FleetProtocol.text(value, "sha256")
+        try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil && ["revision", "attachment"].contains(kind) && FleetProtocol.isDigest(digest), "invalid-source-file", "同步檔案身分無效。")
+        let size = try FleetProtocol.number(value, "size", Int64(kind == "revision" ? 8 * 1024 * 1024 : FleetProtocol.attachment)); return ["id": id, "kind": kind, "sha256": digest, "size": size]
+    }
+    private func metadata(_ value: [String: Any], _ file: [String: Any]) throws {
+        guard let properties = value["appProperties"] as? [String: Any], let spaces = value["spaces"] as? [String] else { throw FleetFailure("upload-mismatch", "Google 檔案 metadata 不完整。") }
+        try FleetProtocol.require(FleetProtocol.text(value, "id") == FleetProtocol.text(file, "id") && FleetProtocol.text(value, "size") == String(FleetProtocol.number(file, "size"))
+            && spaces.contains("appDataFolder") && (value["trashed"] == nil || FleetProtocol.bool(value, "trashed") == false)
+            && FleetProtocol.text(properties, "wfFormat") == "work-fleet-file" && FleetProtocol.text(properties, "wfSchema") == "1" && FleetProtocol.text(properties, "wfKind") == FleetProtocol.text(file, "kind") && FleetProtocol.text(properties, "wfSha256") == FleetProtocol.text(file, "sha256")
+            && (value["sha256Checksum"] == nil || FleetProtocol.text(value, "sha256Checksum") == FleetProtocol.text(file, "sha256")), "upload-mismatch", "Google 檔案 metadata 與內容身分不同。")
+    }
+    func invoke(_ method: String, _ args: [String: Any], bytes: Data? = nil) async throws -> Any {
+        try FleetProtocol.require(FleetProtocol.text(args, "accountId") == account && !closed, "stale-session", "Google 帳號已切換。")
+        switch method {
+        case "google.cursor": return try await json(path("/drive/v3/changes/startPageToken", [("fields", "startPageToken")]))
+        case "google.list":
+            var fields = [("spaces", "appDataFolder"), ("q", "trashed = false"), ("pageSize", "100"), ("fields", "nextPageToken,incompleteSearch,files(\(Self.fields))")]
+            if args["pageToken"] != nil && !(args["pageToken"] is NSNull) { fields.append(("pageToken", try FleetProtocol.text(args, "pageToken", 8192))) }
+            return try await json(path("/drive/v3/files", fields), context: "listing")
+        case "google.changes": return try await json(path("/drive/v3/changes", [("pageToken", FleetProtocol.text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(Self.fields)))")]), context: "changes")
+        case "google.allocate": return try await json(path("/drive/v3/files/generateIds", [("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")]))
+        case "google.read":
+            let file = try self.file(args), id = try FleetProtocol.text(file, "id"), size = Int(try FleetProtocol.number(file, "size"))
+            try metadata(await json(path("/drive/v3/files/" + id, [("fields", Self.fields)])), file)
+            let data = try await request(path("/drive/v3/files/" + id, [("alt", "media")]), maximum: max(size, 65536)).0
+            try FleetProtocol.require(data.count == size && FleetProtocol.digest(data) == FleetProtocol.text(file, "sha256"), "file-integrity", "Google 檔案內容校驗失敗。"); return data
+        case "google.create":
+            let file = try self.file(args); guard let bytes else { throw FleetFailure("transfer-missing", "缺少待送檔案內容。") }
+            try FleetProtocol.require(bytes.count == FleetProtocol.number(file, "size") && FleetProtocol.digest(bytes) == FleetProtocol.text(file, "sha256"), "file-integrity", "待送檔案校驗失敗。")
+            return try await create(file, bytes)
+        default: throw FleetFailure("unsupported-method", "Google 主機沒有此操作。")
+        }
+    }
+    private func completed(_ bytes: Data, _ file: [String: Any]) async throws -> [String: Any] {
+        let value = try FleetProtocol.json(bytes); try metadata(value, file)
+        if value["sha256Checksum"] == nil {
+            let data = try await request(path("/drive/v3/files/" + FleetProtocol.text(file, "id"), [("alt", "media")]), maximum: max(65536, Int(FleetProtocol.number(file, "size")))).0
+            try FleetProtocol.require(data.count == FleetProtocol.number(file, "size") && FleetProtocol.digest(data) == FleetProtocol.text(file, "sha256"), "upload-mismatch", "Google 上傳內容校驗失敗。")
+        }
+        uploads.removeValue(forKey: try FleetProtocol.text(file, "id")); return value
+    }
+    private func offset(_ response: HTTPURLResponse, maximum: Int, previous: Int) throws -> Int {
+        var offset = 0
+        if let range = response.value(forHTTPHeaderField: "Range") {
+            try FleetProtocol.require(range.range(of: "^bytes=0-[0-9]+$", options: .regularExpression) != nil, "invalid-upload-range", "Google 續傳進度格式無效。")
+            guard let end = Int(range.dropFirst(8)), end < Int.max else { throw FleetFailure("invalid-upload-range", "Google 續傳進度超限。") }; offset = end + 1
+        }
+        try FleetProtocol.require(offset <= maximum && offset > previous, "service-unavailable", "Google 尚未確認新的續傳進度。"); return offset
+    }
+    private func create(_ file: [String: Any], _ bytes: Data) async throws -> [String: Any] {
+        let id = try FleetProtocol.text(file, "id"), digest = try FleetProtocol.text(file, "sha256"), kind = try FleetProtocol.text(file, "kind"), size = Int(try FleetProtocol.number(file, "size"))
+        let metadata: [String: Any] = ["id": id, "name": "work-fleet-v1-\(kind)-\(digest).bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": ["wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": kind, "wfSha256": digest]]
+        let json = try FleetProtocol.encode(metadata)
+        do {
+            if size == 0 {
+                let boundary = "wf_" + FleetProtocol.uuid(); let body = Data("--\(boundary)\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n\(String(data: json, encoding: .utf8)!)\r\n--\(boundary)\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--\(boundary)--\r\n".utf8)
+                return try await completed(request(path("/upload/drive/v3/files", [("uploadType", "multipart"), ("fields", Self.fields)]), method: "POST", body: body, headers: ["Content-Type": "multipart/related; boundary=" + boundary]).0, file)
+            }
+            var position = 0, session = uploads[id]
+            if let saved = session {
+                try FleetProtocol.require(saved.digest == digest && saved.size == size, "upload-mismatch", "續傳內容與原上傳不同。")
+                let (data, response) = try await request(saved.path, method: "PUT", body: Data(), headers: ["Content-Range": "bytes */\(size)"], allow308: true, context: "upload")
+                if response.statusCode != 308 { return try await completed(data, file) }; position = try offset(response, maximum: size, previous: -1)
+            } else {
+                let (_, response) = try await request(path("/upload/drive/v3/files", [("uploadType", "resumable"), ("fields", Self.fields)]), method: "POST", body: json, headers: ["Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": "application/octet-stream", "X-Upload-Content-Length": String(size)])
+                guard let location = response.value(forHTTPHeaderField: "Location"), location.utf8.count <= 8192, let uri = URLComponents(string: location), uri.scheme == "https", uri.host == "www.googleapis.com", uri.port == nil || uri.port == 443,
+                    uri.path == "/upload/drive/v3/files", uri.user == nil, uri.password == nil, uri.fragment == nil, let query = uri.percentEncodedQuery,
+                    query.range(of: "^(?:uploadType=resumable&upload_id=[A-Za-z0-9_%.-]+|upload_id=[A-Za-z0-9_%.-]+&uploadType=resumable)$", options: .regularExpression) != nil else { throw FleetFailure("invalid-upload-session", "Google 續傳位置無效。") }
+                session = (uri.percentEncodedPath + "?" + query, digest, size); uploads[id] = session
+            }
+            while position < size {
+                let end = min(position + 1024 * 1024, size)
+                let (data, response) = try await request(session!.path, method: "PUT", body: bytes.subdata(in: position..<end), headers: ["Content-Type": "application/octet-stream", "Content-Range": "bytes \(position)-\(end - 1)/\(size)"], allow308: true, context: "upload")
+                if response.statusCode != 308 { return try await completed(data, file) }; position = try offset(response, maximum: end, previous: position)
+            }
+            throw FleetFailure("service-unavailable", "Google 尚未確認上傳完成，待送內容保留。")
+        } catch let error as FleetFailure {
+            if ["file-exists", "unauthorized", "source-permission", "source-error", "upload-session-expired", "storage-quota"].contains(error.code) { uploads.removeValue(forKey: id) }; throw error
+        }
+    }
+}

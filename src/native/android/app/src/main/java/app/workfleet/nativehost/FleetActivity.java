@@ -135,6 +135,7 @@ public final class FleetActivity extends Activity {
             admitted--; if (destroyed || current != epoch || !DOCUMENT.equals(web.getUrl())) return;
             proxy.postMessage(reply);
             if (nextProfile != null) switchProfile(nextProfile);
+            else if (method.equals("host.closeCancel")) finishing = false;
             else if (session.closeReady && finishing) finish();
         });
     }
@@ -145,6 +146,13 @@ public final class FleetActivity extends Activity {
             catch (Exception error) { runOnUiThread(() -> new AlertDialog.Builder(this).setMessage("帳號切換未完成；資料仍保留，請重新開啟。").setPositiveButton("關閉", (dialog, which) -> finish()).show()); }
         });
     }
+    private void lifecycleEvent(String name) {
+        if (!destroyed && ownerProxy != null) {
+            try { ownerProxy.postMessage(Protocol.object("v", 1, "event", name).toString()); } catch (Exception ignored) { }
+        }
+    }
+    @Override protected void onPause() { lifecycleEvent("host-background"); super.onPause(); }
+    @Override protected void onResume() { super.onResume(); lifecycleEvent("host-foreground"); }
     boolean googleConfigured() {
         try { JSONObject clients = config.getJSONObject("google").getJSONObject("clients"); return !clients.optString("android").isEmpty() && !clients.optString("web").isEmpty(); } catch (Exception error) { return false; }
     }

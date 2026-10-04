@@ -115,6 +115,16 @@ async function initialize() {
   } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
   if (native) {
     native.bridge.onCloseRequested(() => { void prepareNativeClose(); });
+    native.bridge.onEvent('host-background', message => {
+      stopAutomatic?.(); void run(async () => {
+        await flushDraft(); await automatic?.service.whenIdle();
+        if (message.id) await native.bridge.request('host.backgroundReady', { id: message.id });
+      });
+    });
+    native.bridge.onEvent('host-foreground', () => {
+      stopAutomatic?.(); if (automatic && !nativeClosing && !accountBusy) stopAutomatic = startAutomaticBackup(automatic.service);
+      void syncGoogle();
+    });
     await native.bridge.request('host.ready');
     if (desktop) await native.bridge.request('desktop.start');
   }
@@ -303,6 +313,7 @@ async function desktopAction(target, intent) {
 async function prepareNativeClose() {
   if (nativeClosing) return;
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
+    await native.bridge.request('host.closeCancel').catch(() => {});
     status(composing ? '請先完成目前輸入，再關閉 App。' : '請先完成或關閉目前對話框，再關閉 App。', true); return;
   }
   nativeClosing = true; document.body.inert = true; desktop?.beginClose();
@@ -316,6 +327,7 @@ async function prepareNativeClose() {
     await native.bridge.request('host.closeReady');
   } catch (error) {
     await desktop?.cancelClose();
+    await native.bridge.request('host.closeCancel').catch(() => {});
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
     status(`尚未關閉：${error.message}`, true);

@@ -110,7 +110,8 @@ FileSync／Google Drive REST adapter 已可執行合成傳輸測試；預覽尚�
 填 client ID 不會自動開啟登入，也不會傳送既有預覽資料。
 
 Google 設定步驟：在同一 Cloud project 啟用 Drive API，設定 OAuth consent screen／測試使用者，
-桌面建立 Desktop app client，iOS 建立符合 bundle ID 的 client，Android 建立符合 package／
+Windows／Linux 建立 Desktop app client；Google Apple SDK 的 macOS／iOS 皆建立符合各自
+bundle ID 的 iOS 類型 client，Android 建立符合 package／
 簽章憑證的 client。五平台必須實測可讀取同一 App 資料空間。
 登入透過系統允許的 OAuth 介面；desktop loopback 回呼不能沿用於 iOS／Android。
 依據 [Google native-app OAuth 文件](https://developers.google.com/identity/protocols/oauth2/native-app)
@@ -118,6 +119,23 @@ Google 設定步驟：在同一 Cloud project 啟用 Drive API，設定 OAuth co
 
 不要在 `.env` 放 access/refresh token、簽章私鑰或 service-account JSON；登入憑證由原生安全儲存管理，
 CI 簽章秘密由 CI secret／keychain 提供。Client ID 是公開應用識別，不能代替 OAuth 驗證。
+
+## macOS／iOS 1.0 原生建置
+
+需要完整 Xcode、Node 22+；macOS 13+／iOS 16+。公開設定放 `.env`，
+Apple team 的 signing certificate／provisioning 於 Xcode 配置，私鑰不放設定檔。
+
+```bash
+npm ci --ignore-scripts
+bash scripts/macos/build-native-app.sh --platform macos
+bash scripts/macos/build-native-app.sh --platform ios --simulator
+bash scripts/macos/build-native-app.sh --platform ios --release
+```
+
+產生 `build/apple/WorkFleet.xcodeproj` 與兩個 shared scheme；Release 產生 xcarchive。
+原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
+全域鍵、選單列及螢幕生命週期。尚未在 Apple SDK 編譯；操作細節及剩餘交付見
+[Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
 
 ## 既有 0.1.0 需求
 

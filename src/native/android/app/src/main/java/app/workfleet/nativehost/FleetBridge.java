@@ -32,6 +32,7 @@ final class FleetBridge implements AutoCloseable {
                 "capabilities", Protocol.object("nativeStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false));
             case "host.ready": ready = true; return null;
             case "host.closeReady": closeReady = true; return null;
+            case "host.closeCancel": closeReady = false; return null;
             case "transfer.begin": {
                 String kind = Protocol.text(args, "kind", 32), digest = Protocol.text(args, "sha256", 64); Protocol.digest(digest);
                 Protocol.require(kind.equals("workspace") || kind.equals("journal") || kind.equals("attachment") || kind.equals("backup"), "invalid-transfer", "傳輸種類無效。");

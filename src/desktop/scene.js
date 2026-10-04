@@ -1,4 +1,4 @@
-import { NativeBridge } from '../native/bridge.js';
+import { NativeBridge, nativeTransport } from '../native/bridge.js';
 import { renderMarkdown } from '../app/markdown.js';
 import { DesktopClient, DesktopDraft } from './client.js';
 import { download, parse } from './transport.js';
@@ -126,8 +126,9 @@ async function cancel() {
   }
 }
 async function initialize() {
-  if (!globalThis.chrome?.webview) throw new Error('桌面視窗需由 Work Fleet 原生 App 開啟。');
-  bridge = new NativeBridge(chrome.webview); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
+  const transport = nativeTransport();
+  if (!transport) throw new Error('桌面視窗需由 Work Fleet 原生 App 開啟。');
+  bridge = new NativeBridge(transport); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
   root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
   bridge.onEvent('desktop-frame', () => { void run(refresh); });
   bridge.onEvent('desktop-displays-changing', () => {

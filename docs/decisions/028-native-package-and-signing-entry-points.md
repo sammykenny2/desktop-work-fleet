@@ -14,6 +14,9 @@ Accepted，2026-10-05。
 Windows 以 Windows SDK MakeAppx 產生 x64 MSIX，另產生 portable ZIP；framework-dependent
 執行需 .NET 8 Desktop 與 WebView2。MSIX 使用公開 package identity／publisher，可選既有
 CurrentUser/My certificate 與 HTTPS timestamp 簽署；不自行安裝憑證或修改信任。
+本機 preview 使用 `-LocalTestSign` 重用已在 LocalMachine/TrustedPeople 信任、有效且與 publisher
+相符的既有憑證，無 timestamp；與 `-Release` 互斥。要求簽章驗證成功，另輸出僅有公鑰的 CER。
+此入口不建立新憑證，不改信任，避免後續試用建置遺漏已有的本機簽章。
 每次封裝使用新的 workspace build 目錄，保留既有產物與 SDK packaging log。
 
 Apple 由 [ADR-029](029-portable-apple-xcode-project.md) 已提交的可攜 Xcode project 建立 archive，

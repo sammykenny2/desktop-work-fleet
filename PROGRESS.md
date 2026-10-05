@@ -17,6 +17,36 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Windows 本機自我簽章試裝包
+
+使用者指出已有自我簽章憑證，卻又收到未簽章 MSIX；核對真正的 Windows 憑證存放區後，
+確認既有 `CN=Work Fleet Preview` 位於 CurrentUser/My 並有私鑰，
+同一張公開憑證已在 LocalMachine/TrustedPeople 信任。上一輪建置漏用了該憑證。
+補上 `Build-WindowsPackage.ps1 -LocalTestSign`，重用與 manifest publisher 完全相符、
+有效且已信任的現有 code-signing 憑證；多張時使用 `-CertificateThumbprint` 指定。
+缺少合適憑證時明確失敗，不回退交付未簽章檔案；不能與 `-Release` 或 timestamp 選項合用。
+此模式不建立憑證、改信任或安裝 App；私鑰留原本存放區，只輸出公開 CER。
+正式簽章的 HTTPS timestamp 入口保留，setup／deployment／testing 及 ADR-028 已同步。
+
+本輪使用既有 thumbprint `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D` 執行
+`Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign -CertificateThumbprint <thumbprint>`。
+原生 Release 建置 0 警告／0 錯誤，MSIX 簽章成功，SignTool `/pa /v` 實際驗證成功，0 警告／0 錯誤。
+簽章憑證至 2027-10-05 有效；本機已信任，可直接開啟新的 MSIX 安裝，不需 Windows Store 開發者帳號。
+目前本機試裝交付使用 `build/windows/package-1f64d58d40694c6e86f0a9c0e6eead7f/`，
+取代上一節未簽章 MSIX 作為試裝入口：
+
+- `WorkFleet-1.0.0-x64.msix`：24,920,229 bytes，118 entries，已簽章。
+  SHA-256：`3fd0739d4ac036ef85d698597d3698ec9cdb7b03c1137ddc4a203fc301e321ea`。
+- `WorkFleet-1.0.0-x64.zip`：25,160,921 bytes，137 entries。
+  SHA-256：`84f0299b146444675cefdade5d4252d253ee8666a0c987b3b9829e7e351dd298`。
+- `WorkFleet-preview.cer`：796 bytes，與實際簽章相同，沒有私鑰。
+
+作者檢查 `Test-WindowsPackage.ps1` 通過：四種不合法參數在建置前拒絕，
+Windows 真正驗證簽章／機器信任、publisher／x64 manifest 與 companion CER 的公開性。
+兩個壓縮檔完整，DLL／desktop renderer 與最後建置相同，MSIX 含真正的簽章 entry。
+紀錄在 `build/windows-local-signed-build.log`；未重跑產品 runtime 回歸，未實際安裝或啟動 App。
+沒有獨立審閱；沒有新增信任、匯出私鑰或申請商店帳號。
+
 ## 2026-10-05 Windows 安裝檔再次建置
 
 依使用者要求，以 `main` 的 `e95c9f2` 程式碼執行

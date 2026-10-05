@@ -17,6 +17,12 @@ package identity／publisher、隱私與支援資料。私鑰／密碼由 OS Key
 Windows 封裝腳本將內容寫到新的 `build/windows/package-<id>`，不覆寫其他產物。
 可提供 `-CertificateThumbprint`（CurrentUser/My）與 HTTPS `-TimestampUrl` 簽署 MSIX；
 publisher 必須與既有憑證 subject 或 Partner Center identity 相符。腳本不安裝憑證或改變信任。
+本機 preview 試裝使用 `-LocalTestSign`，重用與 publisher 相符、有效且已在
+LocalMachine/TrustedPeople 信任的 CurrentUser/My 憑證，不使用 timestamp、不允許與 `-Release` 合用。
+可用 `-CertificateThumbprint` 指定既有憑證；省略時要求只有一張合適憑證，沒有時明確失敗。
+成功後以 SignTool 驗證簽章並輸出公開 CER，私鑰留憑證存放區；已信任的本機可直接安裝該 MSIX。
+無需 Windows Store 開發者帳號；其他測試電腦需先信任 CER，見
+[Microsoft 本機簽章說明](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)。
 ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop／WebView2，不含 runtime 安裝器。
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 

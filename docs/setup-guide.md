@@ -180,12 +180,19 @@ Windows x64 的 .NET 8 Desktop／WebView2 是執行前置條件，Windows SDK �
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1
+.\scripts\windows\Build-WindowsPackage.ps1 -LocalTestSign
 .\scripts\windows\Build-WindowsPackage.ps1 -Release -CertificateThumbprint <thumbprint> -TimestampUrl <https-url>
 .\scripts\windows\Build-AndroidApp.ps1 -Signed
 .\scripts\windows\Build-LinuxPackage.ps1
 ```
 
 Windows 每次產生新的 `build/windows/package-<id>`，未提供憑證時 MSIX 未簽章。
+本機試裝使用 `-LocalTestSign`：重用 CurrentUser/My 中與 manifest publisher 完全相符、
+有效且已在 LocalMachine/TrustedPeople 信任的 code-signing 憑證；多張時用 `-CertificateThumbprint` 指定。
+這個模式必須成功簽章及通過本機信任驗證才交付，另輸出不含私鑰的 `WorkFleet-preview.cer`。
+已信任該憑證的電腦可直接開啟 MSIX 安裝，不需 Windows Store 開發者帳號。
+其他測試電腦需先信任該公開 CER；參考 [Microsoft 本機簽章說明](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)。
+腳本不建立憑證、修改信任或安裝 App；`-LocalTestSign` 不使用 timestamp，不能與 `-Release` 合用。
 Windows 若已有 JDK 17 但缺少 Android SDK，可先執行
 `scripts/windows/Install-AndroidToolchain.ps1 -AcceptSdkLicenses`；須先閱讀並接受
 [SDK 條款](https://developer.android.com/studio#terms-and-conditions)。工具、API 36、Build Tools 35.0.0

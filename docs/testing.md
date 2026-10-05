@@ -149,6 +149,18 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
 ## Windows 原生主畫面與保存
 
+本機簽章 preview 的封裝檢查（不安裝 App、不修改憑證信任）：
+
+```powershell
+.\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign
+.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-1.0.0-x64.msix
+```
+
+將 `package-ID` 換成建置輸出的目錄。檢查四種不合法簽章參數在建置前拒絕，
+並使用 Windows 實際驗證 MSIX 簽章、機器信任、publisher、x64 manifest 與不含私鑰的配套 CER。
+需要與 package publisher 相符的既有 CurrentUser/My 憑證及 LocalMachine/TrustedPeople 信任。
+正式簽章仍使用 `-CertificateThumbprint`／HTTPS `-TimestampUrl`；本機模式不接受 `-Release`。
+
 ```powershell
 .\scripts\windows\Test-WindowsNative.ps1
 # 已 restore 可離線回歸：

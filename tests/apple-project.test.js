@@ -90,6 +90,8 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     const plist = await readFile(path.join(app, 'Info.plist'), 'utf8');
     assert.ok(plist.includes('com.googleusercontent.apps.123-ios'));
     assert.ok(plist.includes('group.app.workfleet.ios'));
+    assert.ok(plist.includes('<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/>'));
+    assert.ok(plist.includes('<string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string>'));
     const bundled = await readFile(path.join(app, 'Config/public.json'), 'utf8');
     assert.equal(JSON.parse(bundled).appId, environment.WORK_FLEET_APP_ID);
     assert.equal(bundled.includes('synthetic-secret'), false);
@@ -110,6 +112,7 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     const sharePlist = await readFile(path.join(share, 'Info.plist'), 'utf8');
     assert.ok(sharePlist.includes('com.apple.share-services'));
     assert.ok(sharePlist.includes('group.app.workfleet.ios'));
+    assert.equal(sharePlist.includes('UIApplicationSceneManifest'), false);
     assert.equal(sharePlist.includes(environment.WORK_FLEET_GOOGLE_IOS_CLIENT_ID), false);
     await assert.rejects(access(path.join(share, 'Config')));
     await assert.rejects(access(path.join(share, 'Assets')));

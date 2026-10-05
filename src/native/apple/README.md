@@ -85,8 +85,13 @@ Mac 原生三層檢查可執行 `bash scripts/macos/test-desktop-layers.sh`；�
 並產生 0.1.0 Apple Development 簽章 DMG；簽章及掛載檢查證據見 [PROGRESS](../../../PROGRESS.md)。
 獨立簽章 fixture 的 Keychain 建立／更新／讀取、加密 SQLite 重開與主畫面 native 初始化通過，
 重現命令見 [Testing](../../../docs/testing.md)。測試不讀取使用者 workspace；不是完整產品操作驗收。
-尚未產生 Developer ID／公證、正式 archive／export 或編譯 iOS；全螢幕／Spaces、透明輸入轉送、
+尚未產生 Developer ID／公證、正式 archive／export；全螢幕／Spaces、透明輸入轉送、
 IME、多螢幕、Intel 實機與正式 Google 登入的結果仍缺。
+
+iOS 27 SDK 會終止未採用 UIScene 生命週期的 App，因此 iOS 主 App 以 `FleetSceneDelegate`
+建立視窗、處理 Google 回呼及前背景事件，產生的 Info.plist 含單一場景 `UIApplicationSceneManifest`。
+2026-10-06 以 Xcode 27.0 建置 Debug 開發簽章版，安裝至 iOS 27.0.1 iPhone 後主畫面可正常顯示；
+尚未做完整操作、iPad、Share Extension 或 Google 驗收。
 
 附件／草稿下載走原生匯出：macOS NSSavePanel、iOS UIDocumentPicker，保留取消結果。
 iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。

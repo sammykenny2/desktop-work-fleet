@@ -24,7 +24,7 @@ export function appleInfoPlist(platform, config) {
     content = shared + '<key>CFBundlePackageType</key><string>APPL</string>' + `<key>GIDClientID</key><string>${escape(client)}</string>`;
     if (scheme) content += `<key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>${escape(scheme)}</string></array></dict></array>`;
     content += platform === 'ios'
-      ? group + '<key>LSRequiresIPhoneOS</key><true/><key>UILaunchScreen</key><dict/><key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>'
+      ? group + '<key>LSRequiresIPhoneOS</key><true/><key>UILaunchScreen</key><dict/><key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/><key>UISceneConfigurations</key><dict><key>UIWindowSceneSessionRoleApplication</key><array><dict><key>UISceneConfigurationName</key><string>Default Configuration</string><key>UISceneDelegateClassName</key><string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string></dict></array></dict></dict><key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>'
       : '<key>NSPrincipalClass</key><string>NSApplication</string><key>LSMinimumSystemVersion</key><string>13.0</string>';
   }
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>${content}</dict></plist>\n`;

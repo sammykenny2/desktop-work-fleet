@@ -1,6 +1,6 @@
 # 專案進度
 
-更新：2026-10-05。本檔是本 repo 的執行狀態權威。
+更新：2026-10-06。本檔是本 repo 的執行狀態權威。
 
 ## 目前優先方向
 
@@ -20,6 +20,29 @@
 macOS 本機 Apple Development team／profile 已配置；其他 Apple target、正式 package identity／
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
+
+## 2026-10-06 iOS 實機啟動修正
+
+使用者要求把 App 安裝到 iPhone 16 Plus（iOS 27.0.1）。Xcode 建置先因 Node 不在 Xcode PATH 而失敗：
+Node 由 nvm 安裝，在 Git 忽略的 `Local.xcconfig` 設定 `WORK_FLEET_NODE`／`WORK_FLEET_NPM` 後即可建置。
+安裝後 App 一啟動就收到 SIGTRAP。從 iPhone 取得的 crash log 停在
+`_UIApplicationEvaluateRuntimeIssueForNoSceneLifecycleAdoption`，原因是 iOS 27 SDK 要求採用 UIScene 生命週期。
+iOS `Main.swift` 改由同檔的 `FleetSceneDelegate` 負責建立視窗與 FleetWebHost、Google URL 回呼（冷啟動與執行中）
+及前背景保存事件。`prepare-apple-build.mjs` 在 iOS Info.plist 加入單一場景 manifest（不支援多場景），Share Extension 不加入。
+獨立審閱指出：場景斷線再連線時，舊 host 會被 WebKit message handler 留住並持有工作空間 flock，
+新場景因此開不起來；斷線也會讓背景保存的 background task 無法結束。已改為整個 process 共用一個 host
+與背景保存狀態，再連線的場景沿用同一 WebView。
+
+驗證：Xcode 27.0 的未簽章 iOS device Debug 建置與開發簽章建置都成功，產物 Info.plist 的 delegate 展開為
+`WorkFleetIOS.FleetSceneDelegate`。改為共用 host 後重新簽章建置，以 devicectl 安裝到 iPhone；
+App 啟動 20 秒後仍在執行，沒有新的 crash log。
+從裝置截圖確認主畫面、群組、分享收件匣計數與「尚未啟用 Google 登入」提示正常顯示。
+`npm test` 214 pass、8 skip；Python unittest 23 通過、4 skip；`apple-project.test.js` 新增 scene manifest 與單一場景斷言。
+獨立審閱複查確認上述修正有效，另報兩個 Low 邊界情況，本次未修：
+- WebContent process 被終止，同時場景也斷線時，再連線會沿用已停止的 host，畫面空白且不再顯示錯誤，需重開 App。
+- 資料夾選擇器開啟時場景被拆除，`directoryContinuation` 沒有逾時，之後的資料夾選擇會一直回報不可用，直到 App 重啟。
+
+尚未做完整編輯／附件／備份操作、iPad、Share Extension 實際分享、背景保存、場景重連或 Google 登入驗收。
 
 ## 2026-10-06 系統匣與 App 圖示
 
@@ -492,7 +515,7 @@ Git ignore 確認生成資產與 Local.xcconfig 不進 repo。
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
-| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android 原生 preview APK 已產出，含資料／帳號、原生匯出、分享及加密收件匣；iOS UIKit／Extension source 已加入，缺 Apple SDK，未產 iOS package；兩者未做裝置／Google 驗收 |
+| 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android 原生 preview APK 已產出，含資料／帳號、原生匯出、分享及加密收件匣；iOS 已以 Xcode 27 建置 Debug 開發簽章版並安裝至 iPhone，採用 UIScene 後主畫面可顯示，未產 IPA；兩者未做完整裝置操作／Google 驗收 |
 | 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 試用 MSIX／ZIP、Android debug APK、Linux DEB／tar.gz、macOS universal 開發簽章 DMG 已產出；Apple export／PKG／DMG 與 Android upload signing 入口已加入。正式 AAB／Apple archive／Developer ID、公證、screenshots／SDK 授權最終盤點仍缺，沒有送審 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)

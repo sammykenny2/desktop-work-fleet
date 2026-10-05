@@ -1,6 +1,7 @@
 import AppKit
 
 @MainActor final class FleetDesktop {
+    static let layers = ["desktop", "floating", "wallpaper"]
     private struct Display { let id: String, primary: Bool, native: NSRect, viewport: NSRect, work: NSRect }
     private struct Command { let view: FleetSceneSurface, id: String, upload: String?, draft: Bool, created = Date() }
     private struct Intent { let id = FleetProtocol.uuid(), process: pid_t, created = ProcessInfo.processInfo.systemUptime }
@@ -19,7 +20,7 @@ import AppKit
         self.assets = assets; self.send = send; self.show = show; self.hide = hide
         guard let primary = NSScreen.screens.first else { throw FleetFailure("desktop-display", "目前沒有可用螢幕。") }
         referenceTop = primary.frame.maxY; displays = try Self.readDisplays(top: primary.frame.maxY)
-        for display in displays { for layer in ["desktop", "floating"] { _ = newView(display, layer) } }
+        for display in displays { for layer in Self.layers { _ = newView(display, layer) } }
         shortcuts.action = { [weak self] in self?.action($0) }; shortcuts.changed = { [weak self] in self?.send("desktop-shortcut-status", ["registrations": $0]) }
         observe(.default, NSApplication.didChangeScreenParametersNotification) { [weak self] in self?.refreshDisplays() }
         let workspace = NSWorkspace.shared.notificationCenter
@@ -50,7 +51,7 @@ import AppKit
     private func rect(_ value: NSRect) -> [String: Any] { ["x": value.minX, "y": value.minY, "width": value.width, "height": value.height] }
     private func workAreas(_ displays: [Display]) -> [[String: Any]] { displays.map { var value = rect($0.work); value["id"] = $0.id; value["primary"] = $0.primary; return value } }
     private func viewInfo(_ view: FleetSceneSurface) -> [String: Any] { ["viewId": view.id, "layer": view.layer, "active": view.active, "viewport": rect(view.viewport)] }
-    private func info() -> [String: Any] { ["sessionId": session, "referenceDpi": 96, "topology": topology, "layers": ["desktop", "floating"], "workAreas": workAreas(displays), "views": views.filter { !$0.retired }.map(viewInfo)] }
+    private func info() -> [String: Any] { ["sessionId": session, "referenceDpi": 96, "topology": topology, "layers": Self.layers, "workAreas": workAreas(displays), "views": views.filter { !$0.retired }.map(viewInfo)] }
     private func view(_ id: String) throws -> FleetSceneSurface {
         guard let value = views.first(where: { $0.id == id && !$0.retired && $0.ready }) else { throw FleetFailure("desktop-view", "桌面視窗已關閉或尚未就緒。") }; return value
     }
@@ -96,11 +97,11 @@ import AppKit
             }!; assignments[editing.id] = destination
         } else { try FleetProtocol.require(args["editorViewId"] is NSNull, "desktop-view", "編輯視窗身分無效。") }
         for stable in [true, false] {
-            for display in next { for layer in ["desktop", "floating"] {
+            for display in next { for layer in Self.layers {
                 if views.contains(where: { $0.layer == layer && assignments[$0.id]?.id == display.id }) { continue }
                 var match = views.first { !$0.retired && $0.layer == layer && assignments[$0.id] == nil && (!stable || $0.display == display.id) }
                 if match == nil && !stable {
-                    try FleetProtocol.require(views.filter { !$0.retired }.count < 32, "desktop-capacity", "桌面視窗容量已滿；請保存後重新開啟。")
+                    try FleetProtocol.require(views.filter { !$0.retired }.count < 48, "desktop-capacity", "桌面視窗容量已滿；請保存後重新開啟。")
                     match = newView(display, layer)
                 }
                 if let match { assignments[match.id] = display }

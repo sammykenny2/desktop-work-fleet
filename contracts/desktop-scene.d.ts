@@ -22,6 +22,8 @@ export interface DesktopCommand {
 }
 export interface DesktopInfo {
   sessionId: string; referenceDpi: number; layers: ResidentLayer[];
+  /** Background is a real layer-shell band; icon placement depends on the desktop shell. */
+  wallpaperPlacement?: 'background' | 'unavailable';
   workAreas: (Rect & { id: string; primary: boolean })[];
   views: { viewId: string; layer: ResidentLayer; viewport: Rect }[];
 }

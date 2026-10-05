@@ -35,13 +35,22 @@ DEB preview 版本為 `1.0.0~preview`；release 使用正式公開 app 設定與
 共同 `scripts/linux/package-deb.sh` 每次使用新的 staging，安裝 launcher／desktop entry／圖示與 notices。
 Windows 可執行 `scripts/windows/Build-LinuxPackage.ps1`，以既有 Docker Linux engine 的固定 Ubuntu
 image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 script，不執行 GTK 或安装 App。
-每螢幕共用桌面與浮層兩個 WebKit 場景；主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
+layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個 WebKit 場景；
+主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
+操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
+pcmanfm 把桌布與圖示畫在同一 surface，背景便箋不能插入圖示下方，可能仍顯示在圖示上方；
+設定會說明這項限制。X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存。
 X11 使用原生窗口層級與輸入區域；Wayland 使用 GtkLayerShell 支援的 compositor。
 不支援 layer-shell 時回報原因，仍可在主畫面記錄。卡片外與不可互動的紙面不攔截桌面輸入。
+輸入區域設於 GTK widget 並 queue draw，避免重新配置後失去穿透；明確設 viewport size request。
+map／configure／frame 後合併完整重畫，避免透明 WebKit 的局部殘留；使用者未指定時預設
+`WEBKIT_DISABLE_DMABUF_RENDERER=1`，接續 Pi／V3D 已知修正。
 顯示器／工作區／休眠變更先停止場景輸入，保存草稿後由主畫面套用新版面，保留原 WebView。
 X11 快捷鍵使用 Keybinder 3；否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
 系統可改配按鍵，設定顯示實際 trigger description。App 焦點／對話框期間釋放全域註冊；
 portal session 重建可能再次出現系統授權介面，實際流程仍待原生環境確認。
 Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統匣可用後隱藏主畫面。
 系統匣退出沿用草稿保存流程；系統匣斷線時恢復主畫面，帳號切換則關閉舊桌面工作階段。
-目前工作環境是 Windows，未執行 GTK／libsecret／Wayland／X11、真 Google 或 Debian 安裝。
+可用隔離 headless labwc 執行本產品原生場景回歸，命令見 [testing](../../../docs/testing.md)。
+實際結果見 [PROGRESS](../../../PROGRESS.md)；沒有把 headless x64 測試當成 Pi／V3D、
+pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。

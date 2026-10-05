@@ -4,18 +4,65 @@
 
 ## 目前優先方向
 
-2026-10-05 本輪明確優先完成 Windows 桌布層，再交付更新的本機試用包；結果見下方專節。
+2026-10-05 本輪要求補齊 Windows／macOS／Linux 桌面分層，接續參考專案已有的實測成果；結果見下方專節。
 
 使用者已授權逐 slice 實作並直接 commit/push origin/main，直到完整 1.0 完成。
-2026-10-05 最新指示要求先完成實作、不再投入驗證；未執行的检查不視為通過。
+先前收尾階段要求先完成實作；本輪分層補齊已執行相關原生回歸，未執行的檢查仍不視為通過。
 本次還明確納入 iOS／Android 原生 App 與商店提交準備，並核准完整 editor／逐卡設定／備份範圍。
 核心測試通過不代表五平台或 Google 驗收已完成。
 
-2026-10-05 最新指示改為先收尾；Apple 編譯由維護者帶到真正的 Mac 處理。
+先前收尾指示保留 Apple 編譯由維護者帶到真正的 Mac 處理。
 不再等待或啟動 Apple hosted Actions，不使用其計費額度。
-本輪集中收尾 Google 程式與公開設定；Google 專案／各平台 clients 尚未建立，
+先前 Google 程式與公開設定已收尾；Google 專案／各平台 clients 尚未建立，
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
+
+## 2026-10-05 macOS／Linux 分層補齊與原生成果接續
+
+依「都補完再停手」要求，完整核對維護者提供的參考 Linux layer-shell／DEB 實測報告，
+包括 Pi 5／labwc 的 input shape、DMA-BUF、透明 WebKit 重畫及 pcmanfm 圖示限制。
+macOS 增加 `desktopWindow + 1` 桌布場景；Linux layer-shell 增加 BACKGROUND，
+desktop／floating 使用 BOTTOM／TOP。三層場景池、能力回報、frame 檢查、topology 與操作組退出還原均接入。
+桌布場景固定穿透並拒絕 focus；Linux widget input shape、queue draw、size request 與重畫事件已補齊。
+實際 Linux probe 另發現原本 Pycairo `subtract_rectangle`／`union_rectangle` 不存在，
+已改用真正的 `Region.subtract`／`union`，修復原生紙面套用。
+Linux 使用者未指定 renderer 時停用 DMA-BUF，未改用者桌布檔案或設定。
+決策見 [ADR-031](docs/decisions/031-macos-and-linux-wallpaper-scenes.md)，
+參考核對見 [研究紀錄](docs/resreach/2026-10-05-desktop-layer-reference-follow-through.md)；沒有複製參考程式碼。
+
+作者檢查：Python 全套 19／19、共用桌面及 Apple 專案 JavaScript 66／66 通過。
+Windows `Test-WindowsNative.ps1 -SkipRestore` 最終完整通過：35 項 native core／備份／frame、
+10 項 JS→native、實際 WPF／WebView2／SQLite、composition／跨程序命中、顯示器／快捷鍵與 live Explorer 桌布探針。
+首次執行遇到測試把 300 ms 回覆遺失時限也套到冷啟動，已分開啟動等待及測試時限，補上失敗 child 清理後完整重跑。
+正向 foreground grant 依既有規則明確 SKIP；拒絕情境通過。
+最終 Windows 證據：`build/native-checks-0a82d8a7-c373-44f4-9373-aede1989e9e5/`。
+
+Linux 使用隔離 Ubuntu 24.04 x64／labwc 0.7.1／GTK 3.24.41／WebKit 2.52.6／gtk-layer-shell 0.8.2，
+實際 owner→三個 WebView→native layer-shell 流程通過。共用 Workspace／InteractionController 產生八個情境，
+涵蓋 wallpaper→操作組浮起→退出還原、desktop 可選字、常駐 floating、再切桌布及反覆隱藏／顯示。
+合成器 PNG 確認操作組位於普通視窗上方、退出後回到其下，另一組保持背景；topology 重用位置不變。
+實際 Wayland trace 確認 11 次桌布空 input region／無鍵盤需求提交及 2 次互動紙面提交。
+最終 Linux 證據：`build/linux-layer-checks-final/`，包含版本、PNG、protocol trace 與輸入區域結果。
+此測試不讀取個人便箋或桌面設定，未執行 Pi／V3D、pcmanfm-pi、實體拖曳／中文 IME 或多顯示器驗收。
+pcmanfm 的桌布／圖示合一仍不能插到圖示下方；能力以 `wallpaperPlacement: background` 說明。
+X11 保持兩層明示回退，不假冒圖示下方桌布能力。
+
+macOS 原生來源與 `scripts/macos/test-desktop-layers.sh` 已完成，使用真實 AppKit 場景／協調器
+檢查 WindowServer level、三層能力、geometry、穿透、桌布拒絕 focus 與 frame 拒絕互動旗標。
+本機沒有 Apple SDK，未執行 Swift 編譯／WindowServer；clone 到 Mac 可開啟 repo 內的
+`src/native/apple/WorkFleet.xcodeproj` 並執行該 probe。不啟動 Apple hosted Actions。
+文件檢查、Bash 語法及 `git diff --check` 通過；沒有獨立審閱。
+
+最後 Windows Release 重建 0 警告／0 錯誤，試用 ZIP／未簽章 MSIX 位於
+`build/windows/package-c01aa5df65384bad80b2eae937943283/`。
+ZIP 為 25,160,928 bytes／137 entries；包內 renderer／DLL 與最後建置相同，沒有 `.env` 或私鑰檔。
+ZIP SHA-256：`3130cd2141fbbd973e2bd3cc5c296e879a3d0d4faeed025cd12f64cfbe48c446`。
+Linux DEB／tar.gz 也已重建，原生來源及 renderer 與最後程式相同，沒有 `.env` 或私鑰檔。
+`build/linux/work-fleet_1.0.0~preview_all.deb` 為 181,418 bytes，
+SHA-256：`42eb3101f234b177ef9191cde0e71af9617d7f2a4706f8f40042709ee83e07ed`。
+`build/linux/work-fleet-1.0.0.tar.gz` 為 223,231 bytes，
+SHA-256：`94cbbc0f484230346d8ccae6d877bdc575609f186cc23a28d6e18c32dfe82077`。
+本輪沒有自動安裝、修改憑證信任或發布商店；完整 1.0／五平台全部實機驗收仍未完成。
 
 ## 2026-10-05 Windows 桌布層實作
 

@@ -13,6 +13,14 @@ import WebKit
 }
 
 @MainActor final class FleetSceneSurface: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    static func windowLevel(_ layer: String) -> NSWindow.Level {
+        switch layer {
+        case "wallpaper": return NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
+        case "desktop": return NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        case "floating": return .floating
+        default: preconditionFailure("Unknown desktop layer")
+        }
+    }
     let id = FleetProtocol.uuid(), layer: String
     var display: String, viewport: NSRect, nativeBounds: NSRect
     var active = true, ready = false, retired = false, applied: Int64 = -1
@@ -26,7 +34,7 @@ import WebKit
     init(display: String, viewport: NSRect, nativeBounds: NSRect, layer: String, assets: URL) {
         self.display = display; self.viewport = viewport; self.nativeBounds = nativeBounds; self.layer = layer; self.assets = assets
         document = assets.appendingPathComponent("desktop/index.html")
-        let level: NSWindow.Level = layer == "floating" ? .floating : NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopIconWindow)) + 1)
+        let level = Self.windowLevel(layer)
         panel = FleetScenePanel(rect: nativeBounds, level: level); panel.ignoresMouseEvents = true
         let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent(); config.preferences.javaScriptCanOpenWindowsAutomatically = false
         web = WKWebView(frame: NSRect(origin: .zero, size: nativeBounds.size), configuration: config); web.underPageBackgroundColor = .clear
@@ -75,7 +83,7 @@ import WebKit
         for card in cards.reversed() {
             let clipped = card.rect.intersection(viewport)
             var pieces = [clipped]
-            if card.interactive {
+            if layer != "wallpaper" && card.interactive {
                 for cover in covered { pieces = pieces.flatMap { Self.subtract($0, cover) }; if pieces.isEmpty { break } }
                 for (index, piece) in pieces.enumerated() {
                     let id = "\(card.id):\(index)"; live.insert(id)
@@ -98,7 +106,7 @@ import WebKit
             NSRect(x: overlap.minX, y: overlap.maxY, width: overlap.width, height: rect.maxY - overlap.maxY)].filter { !$0.isEmpty }
     }
     func forward(_ event: NSEvent, from input: FleetSceneInput) {
-        guard let source = input.window, !retired, active else { return }
+        guard layer != "wallpaper", let source = input.window, !retired, active else { return }
         lastInput = ProcessInfo.processInfo.systemUptime
         let screen = source.convertPoint(toScreen: event.locationInWindow), point = panel.convertPoint(fromScreen: screen)
         if event.type == .scrollWheel {
@@ -112,7 +120,7 @@ import WebKit
             windowNumber: panel.windowNumber, context: nil, eventNumber: event.eventNumber, clickCount: event.clickCount, pressure: event.pressure) else { return }
         panel.sendEvent(forwarded)
     }
-    func focus() { panel.allowKey = true; NSApplication.shared.activate(ignoringOtherApps: true); panel.makeKey(); panel.makeFirstResponder(web); event("desktop-focus") }
+    func focus() { guard layer == "floating", !retired, active else { return }; panel.allowKey = true; NSApplication.shared.activate(ignoringOtherApps: true); panel.makeKey(); panel.makeFirstResponder(web); event("desktop-focus") }
     func close() { retired = true; for hit in hits.values { hit.close() }; hits.removeAll(); panel.close(); web.configuration.userContentController.removeScriptMessageHandler(forName: "workFleet") }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { hide(); lost?(self) }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

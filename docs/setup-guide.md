@@ -73,6 +73,9 @@ Windows Explorer 環境的桌布層附著到圖示下方，固定穿透，不接
 「顯示與排列設定」的「日常顯示桌面便箋」需開啟，才會在日常狀態常駐。
 選擇該群組後按「操作此組」暫時置頂並可拖／編輯，按「結束操作」回到目前常駐層級。
 宿主不可用時會提示暫以桌面層呈現，原偏好保留；分層決策見 [ADR-030](decisions/030-windows-explorer-wallpaper-layer.md)。
+macOS 同一操作入口使用 AppKit 三層；Linux layer-shell 使用三個原生 band。
+pcmanfm 將桌布和圖示畫在同一 surface 時，背景便箋仍可能在圖示上方；X11 的桌布偏好回退。
+上述範圍、穿透／重畫及原生驗證見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
 調整管理視窗大小不搬動桌面卡片；啟動採當時顯示器工作區。
 Windows 全域快捷鍵依設定啟用；設定內顯示每鍵註冊、衝突或保留狀態，可重試或改鍵。
 Ctrl+Alt 加字母／數字不作全域註冊，以保留 AltGr 產字；可改成 Ctrl+Shift 或 function-key 組合。
@@ -214,8 +217,8 @@ bash build/linux/work-fleet-1.0.0/run-work-fleet.sh
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
-產生 source/runtime tar.gz；`--deb` 需 Debian 工具及正式公開設定。沒有在 Windows 執行
-Linux GUI／金鑰圈／安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
+產生 source/runtime tar.gz；`--deb` 需 Debian 工具及正式公開設定。隔離 headless Linux compositor
+的原生場景檢查見 testing／PROGRESS，沒有金鑰圈或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
 
 Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
 dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。

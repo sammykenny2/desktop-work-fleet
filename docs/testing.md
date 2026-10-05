@@ -40,6 +40,33 @@ APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結
 `node --test tests/apple-project.test.js` 不需要 Apple SDK；不代表 Xcode 載入、Swift 編譯或簽章通過。
 Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
 Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
+
+三平台桌面分層契約見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
+`python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證
+Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequence 與 geometry；不作 UI 證據。
+在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
+場景／協調器，驗證原生 level、三層能力、位置、穿透及桌布拒絕焦點，不需要 Google SDK。
+這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。
+
+Linux 原生場景測試使用單獨的 headless labwc／GTK／WebKit，不存取使用者 desktop／DB：
+
+```bash
+npm run build
+mkdir -p build/linux-layer-checks
+node tests/native/desktop-scenarios.mjs build/linux-layer-checks/scenarios.json
+docker build -t work-fleet-linux-desktop-tests -f tests/native/linux/Dockerfile tests/native/linux
+docker run --rm --network none \
+  --mount "type=bind,source=$PWD,target=/workspace,readonly" \
+  --mount "type=bind,source=$PWD/build/linux-layer-checks,target=/evidence" \
+  work-fleet-linux-desktop-tests dbus-run-session -- \
+  bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
+```
+
+投影來自實際共用 Workspace／InteractionController；native owner 分片發布並由真正 WebKit renderer
+接收、確認、畫出。涵蓋 wallpaper→操作此組 floating→退出還原、常駐 desktop／floating、
+反覆隱藏／顯示與 topology 重用；輸出合成畫面 PNG、版本與 Wayland trace。
+root Docker probe 的 WebKit sandbox 例外僅存在測試 shell，不套用到產品 launcher。
+這些測試不是 Pi／V3D、pcmanfm-pi、實體拖曳／IME 或多螢幕證據；X11 不假冒三層能力。
 `npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
 `tests/workspace-sync.test.js` 驗證 graph 與 Workspace／LayoutStore 原子交易、保存失敗、過期 session／cursor、
 runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意圖與既有 entity 順序。

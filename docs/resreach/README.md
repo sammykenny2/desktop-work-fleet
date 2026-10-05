@@ -6,6 +6,7 @@
 
 - [桌面卡片需求演進](2026-10-04-desktop-card-interaction-design.md)：使用者確認、補充與失效方案。
 - [跨平台互動可行性](2026-10-04-desktop-interaction-platform-feasibility.md)：Win／Mac／labwc 的能力、證據及 renderer 限制。
+- [桌面分層成果接續](2026-10-05-desktop-layer-reference-follow-through.md)：已核對的參考原生成果、Pi 修正與本產品驗證分界。
 - [Windows 原生保存與 WebView](2026-10-04-windows-native-storage-and-webview.md)：官方安全邊界、SQLite／DPAPI 與真 UI probe 範圍。
 - [Windows 透明場景與輸入](2026-10-04-windows-composition-and-input.md)：composition、跨程序命中、region 遮擋、快捷鍵／DPI 及 targeting-pack 授權。
 - [Windows 快捷鍵與系統匣](2026-10-04-windows-shortcuts-and-tray.md)：foreground 條件、公開 shell icon API 與實體輸入驗收界線。

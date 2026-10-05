@@ -7,6 +7,7 @@ import { shortcutForEvent } from '../core/shortcuts.js';
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set();
 let bridge, client, info, frame, editor = null, composing = false, fetching = false, requested = false, gesture = null, lastError, displayPending = false;
+let repaintPending = false;
 const make = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const rect = (node, value) => Object.assign(node.style, { left: `${value.x}px`, top: `${value.y}px`, width: `${value.width}px`, height: `${value.height}px` });
 const report = error => {
@@ -131,6 +132,14 @@ async function initialize() {
   bridge = new NativeBridge(transport); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
   root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
   bridge.onEvent('desktop-frame', () => { void run(refresh); });
+  bridge.onEvent('desktop-repaint', () => {
+    if (repaintPending) return;
+    repaintPending = true;
+    const style = document.documentElement.style;
+    const previous = style.opacity;
+    style.opacity = '0.998';
+    requestAnimationFrame(() => requestAnimationFrame(() => { style.opacity = previous; repaintPending = false; }));
+  });
   bridge.onEvent('desktop-displays-changing', () => {
     displayPending = true;
     const current = gesture; gesture = null;

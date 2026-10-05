@@ -5,7 +5,7 @@ import cairo
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_foreign("cairo")
-from gi.repository import Gdk, Gtk
+from gi.repository import Gdk, GLib, Gtk
 try:
     gi.require_version("GtkLayerShell", "0.1")
     from gi.repository import GtkLayerShell as Layer
@@ -25,12 +25,17 @@ def backend():
     return None
 
 
+def layers(mode):
+    return ("desktop", "floating", "wallpaper") if mode == "wayland-layer-shell" else ("desktop", "floating")
+
+
 def rectangle(value):
     return {"x": value.x, "y": value.y, "width": value.width, "height": value.height}
 
 
 class Surface:
     def __init__(self, display, layer, assets, web_factory, dispatch, lost, dismiss, mode):
+        p.require(layer in layers(mode), "desktop-layer", "此桌面環境沒有要求的層級。")
         self.id, self.layer, self.display = p.identifier(), layer, display
         self.viewport = display["viewport"]
         self.ready = self.retired = False
@@ -40,6 +45,8 @@ class Surface:
         self.downloading = self.download = None
         self.last_input = 0
         self.last_timestamp = 0
+        self.repaint_timer = None
+        self.input_region = cairo.Region()
         self.mode, self.dispatch, self.lost = mode, dispatch, lost
         self.window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         self.window.set_title("Work Fleet desktop")
@@ -59,7 +66,7 @@ class Surface:
         if mode == "wayland-layer-shell":
             Layer.init_for_window(self.window)
             Layer.set_namespace(self.window, "work-fleet")
-            Layer.set_layer(self.window, Layer.Layer.TOP if layer == "floating" else Layer.Layer.BOTTOM)
+            Layer.set_layer(self.window, {"wallpaper": Layer.Layer.BACKGROUND, "desktop": Layer.Layer.BOTTOM, "floating": Layer.Layer.TOP}[layer])
             Layer.set_exclusive_zone(self.window, -1)
             for edge in (Layer.Edge.TOP, Layer.Edge.BOTTOM, Layer.Edge.LEFT, Layer.Edge.RIGHT):
                 Layer.set_anchor(self.window, edge, True)
@@ -76,8 +83,12 @@ class Surface:
         self.local.web.connect("key-press-event", self.input)
         self.window.connect("delete-event", lambda *_: (dismiss(self.id), True)[1])
         self.window.connect("realize", lambda *_: self.suspend())
+        self.window.connect("configure-event", self.reconfigured)
+        self.window.connect("map-event", self.reconfigured)
         self.window.add(self.local.web)
         self.set_display(display)
+        self.window.realize()
+        self.suspend()
     def start(self):
         if self.initialized or self.retired:
             return
@@ -91,6 +102,8 @@ class Surface:
         return {"viewId": self.id, "layer": self.layer, "active": self.active, "viewport": self.viewport}
 
     def input(self, _web, event):
+        if self.layer == "wallpaper":
+            return True
         self.last_input = time.monotonic()
         self.last_timestamp = int(getattr(event, "time", 0))
         return False
@@ -111,14 +124,38 @@ class Surface:
         self.applied = -1
         if self.mode == "wayland-layer-shell":
             Layer.set_monitor(self.window, display["monitor"])
+            self.window.set_size_request(int(self.viewport["width"]), int(self.viewport["height"]))
         else:
             self.window.move(int(self.viewport["x"]), int(self.viewport["y"]))
             self.window.resize(int(self.viewport["width"]), int(self.viewport["height"]))
+        self.schedule_repaint()
+
+    def reconfigured(self, *_):
+        self.schedule_repaint()
+        return False
+
+    def schedule_repaint(self):
+        if self.repaint_timer is not None:
+            GLib.source_remove(self.repaint_timer)
+        def repaint():
+            self.repaint_timer = None
+            if not self.retired and self.initialized:
+                self.local.event("desktop-repaint")
+            return False
+        self.repaint_timer = GLib.timeout_add(120, repaint)
+
+    def set_input_region(self, region):
+        self.input_region = region
+        # GTK keeps the widget shape when a layer surface receives a new allocation.
+        if self.window.get_realized():
+            self.window.input_shape_combine_region(region)
+        self.window.set_accept_focus(not region.is_empty())
+        if self.mode == "wayland-layer-shell":
+            Layer.set_keyboard_mode(self.window, Layer.KeyboardMode.NONE if region.is_empty() else Layer.KeyboardMode.ON_DEMAND)
+        self.window.queue_draw()
 
     def suspend(self):
-        window = self.window.get_window()
-        if window is not None:
-            window.input_shape_combine_region(cairo.Region(), 0, 0)
+        self.set_input_region(cairo.Region())
 
     def apply(self, frame):
         cards = [card for card in frame["cards"] if card["layer"] == self.layer and intersection(card["rect"], self.viewport) is not None]
@@ -133,16 +170,16 @@ class Surface:
             right = math.ceil(paper["x"] + paper["width"] - self.viewport["x"])
             bottom = math.ceil(paper["y"] + paper["height"] - self.viewport["y"])
             clipped = cairo.RectangleInt(x, y, right - x, bottom - y)
-            region.subtract_rectangle(clipped)
-            if card["interactive"]:
-                region.union_rectangle(clipped)
-        self.window.set_accept_focus(not region.is_empty())
-        if self.mode == "wayland-layer-shell":
-            Layer.set_keyboard_mode(self.window, Layer.KeyboardMode.ON_DEMAND if not region.is_empty() else Layer.KeyboardMode.NONE)
+            region.subtract(clipped)
+            if self.layer != "wallpaper" and card["interactive"]:
+                region.union(clipped)
+        self.set_input_region(region)
         self.window.show_all()
-        self.window.get_window().input_shape_combine_region(region, 0, 0)
+        self.schedule_repaint()
 
     def focus(self, timestamp=0):
+        if self.layer != "floating" or self.retired or not self.active or self.input_region.is_empty():
+            return
         self.window.set_accept_focus(True)
         self.window.present_with_time(timestamp or Gdk.CURRENT_TIME)
         self.local.web.grab_focus()
@@ -152,5 +189,8 @@ class Surface:
         if self.retired:
             return
         self.retired = True
+        if self.repaint_timer is not None:
+            GLib.source_remove(self.repaint_timer)
+            self.repaint_timer = None
         self.local.close()
         self.window.destroy()

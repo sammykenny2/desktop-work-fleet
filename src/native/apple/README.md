@@ -66,7 +66,10 @@ WKWebView 僅主 frame 的封裝 document 可呼叫 bridge；桌面視窗沒有 
 
 macOS 桌面 visual panel 始終 ignoresMouseEvents；只有可操作或已開啟唯讀選字的紙面建立
 透明輸入區域，遮蓋部分依 renderer 疊序裁切。就地 editor 留在相同 WKWebView；主畫面是唯一內容 owner。
-桌面層用公開 desktopIconWindow level，浮動層用 floating level；桌布層偏好保留並回報 desktop fallback。
+桌面層用公開 `desktopIconWindow + 1`，浮動層用 floating；桌布層用 `desktopWindow + 1`，
+位於桌布上、圖示下，固定滑鼠穿透。操作此組暫時轉浮動層，結束還原當下常駐設定與原位置。
+每螢幕三個場景，顯示器重接／Space／休眠仍保留編輯 WebView。
+Mac 原生三層檢查可執行 `bash scripts/macos/test-desktop-layers.sh`；需要圖形 session 與 Xcode CLI tools。
 快捷鍵以 Carbon RegisterEventHotKey 註冊，App 或 editor 使用中釋放全域鍵；衝突在設定顯示。
 選單列支援重新開啟、快速記錄、操作、顯示與保存退出。螢幕／Space／休眠通知會暫停輸入，
 保留 editor surface，待 owner 保存救援位置後套用新 topology；背景更新不主動取得鍵盤焦點。

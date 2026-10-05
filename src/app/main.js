@@ -571,7 +571,9 @@ function cardDetails(card) {
     selectable.disabled = layers.value === 'wallpaper';
     layerHint.textContent = !desktop ? '此瀏覽器工作空間僅預覽卡片，沒有系統桌面分層或全域快捷鍵。'
       : layers.value === 'wallpaper' ? desktopInfo.layers.includes('wallpaper')
-        ? '桌布層在桌面圖示下方，固定滑鼠穿透；操作此組時暫時置頂，結束後回到桌布層。'
+        ? desktopInfo.wallpaperPlacement === 'background'
+          ? 'Linux 桌布層固定滑鼠穿透；若桌布與圖示由同一個桌面元件繪製，便箋仍會在圖示上方。操作此組時暫時置頂，結束後回到桌布層。'
+          : '桌布層在桌面圖示下方，固定滑鼠穿透；操作此組時暫時置頂，結束後回到桌布層。'
         : '目前桌面環境無法使用桌布層，暫以桌面層呈現，原偏好會保留。'
       : '桌面層在圖示上方；浮動層常駐置頂。操作此組可暫時置頂，結束後恢復常駐層級。';
   };

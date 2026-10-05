@@ -26,6 +26,7 @@
 | [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted（封裝入口） | Windows MSIX／ZIP、Apple export／PKG／DMG、Android upload signing；正式帳號／原生產物另交付 |
 | [ADR-029](029-portable-apple-xcode-project.md) | Accepted（Apple 專案交付） | 已提交的可攜 Xcode 專案、clone 直接開啟、本機配置與建置資產 |
 | [ADR-030](030-windows-explorer-wallpaper-layer.md) | Accepted（Windows 桌布層） | Explorer 圖示／桌布宿主、三層場景、穿透與退出恢復 |
+| [ADR-031](031-macos-and-linux-wallpaper-scenes.md) | Accepted（Mac／Linux 桌布層） | Mac 圖示下方、Linux BACKGROUND、穿透與重畫、參考實測接續 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

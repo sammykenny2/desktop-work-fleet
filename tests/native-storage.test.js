@@ -28,8 +28,13 @@ async function session(directory = path.resolve(`build/native-js-${crypto.random
   lines.on('line', line => { const reply = JSON.parse(line); if (drop?.(reply)) { drop = null; return; } events.emit('message', { data: reply }); });
   const transport = { addEventListener: (name, listener) => events.on(name, listener), removeEventListener: (name, listener) => events.off(name, listener),
     postMessage: value => process.stdin.write(JSON.stringify(value) + '\n') };
-  const bridge = new NativeBridge(transport, { timeout });
-  const info = await bridge.request('host.info');
+  let bridge = new NativeBridge(transport, { timeout: Math.max(timeout, 10_000) });
+  let info;
+  try { info = await bridge.request('host.info'); }
+  catch (error) { bridge.close(); process.stdin.end(); await exit; throw error; }
+  // The deliberately short reply-loss timeout applies to requests after startup,
+  // not to launching a cold .NET process on a busy build machine.
+  if (timeout < 10_000) { bridge.close(); bridge = new NativeBridge(transport, { timeout }); }
   return { directory, info, bridge, storage: new NativeStorage(bridge, info),
     dropNextReply: () => { drop = () => true; },
     dropCommitReply: (method = 'storage.commit') => {

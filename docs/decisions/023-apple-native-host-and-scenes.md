@@ -4,6 +4,8 @@
 
 Accepted，2026-10-05。實作加入；Apple SDK／裝置結果未取得。
 
+桌布／三層與 48 場景容量由 [ADR-031](031-macos-and-linux-wallpaper-scenes.md) 更新。
+
 ## Context
 
 完整 1.0 包含 macOS 與 iOS 原生 App。共用 renderer 已有便箋、附件、備份還原與 FileSync，

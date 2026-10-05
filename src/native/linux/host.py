@@ -11,6 +11,10 @@ import tempfile
 import threading
 from urllib.parse import unquote, urlsplit
 
+# The shared-memory renderer avoids the Pi/V3D DMA-BUF corruption; an explicit
+# user setting wins. This must happen before importing/creating WebKit.
+os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("WebKit2", "4.1")

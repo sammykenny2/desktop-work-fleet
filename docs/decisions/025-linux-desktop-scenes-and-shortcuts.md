@@ -2,7 +2,10 @@
 
 ## Status
 
-Accepted，2026-10-05；程式已接入，Linux 原生 runtime 尚未執行。
+Accepted，2026-10-05；程式已接入。後續原生場景實測見 PROGRESS，完整 host／portal／系統匣仍未實機驗收。
+
+BACKGROUND 第三層、widget input shape、完整重畫與原生場景回歸入口由
+[ADR-031](031-macos-and-linux-wallpaper-scenes.md) 更新；實際結果記於 PROGRESS。
 
 ## Context
 

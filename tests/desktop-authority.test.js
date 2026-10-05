@@ -87,7 +87,7 @@ test('desktop projection separates resident policy, temporary floating and conte
   assert.equal(f.frame().cards.some(c => c.id === f.card.id), false);
 });
 
-test('wallpaper notes stay below icons and passive, float only their operated group, then restore current resident policy', async () => {
+test('wallpaper projections stay passive, float only their operated group, then restore current resident policy', async () => {
   const f = await fixture();
   await f.workspace.layout.setCardPolicy(f.card.id, { residentLayer: 'wallpaper', readOnlySelect: true });
   await f.workspace.layout.setCardPolicy(f.other.id, { residentLayer: 'wallpaper' });

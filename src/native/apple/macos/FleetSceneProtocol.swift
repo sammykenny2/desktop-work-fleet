@@ -28,10 +28,13 @@ struct FleetSceneFrame {
         for card in cards {
             try fields(card, "id groupId revision summary text format attachmentCount rect layer interactive draggable editing selected completed mine color")
             let id = try FleetProtocol.text(card, "id", 128), layer = try FleetProtocol.text(card, "layer")
-            try FleetProtocol.require(ids.insert(id).inserted && ["desktop", "floating"].contains(layer), "scene-frame", "桌面卡片身分或層級無效。")
+            try FleetProtocol.require(ids.insert(id).inserted && ["desktop", "floating", "wallpaper"].contains(layer), "scene-frame", "桌面卡片身分或層級無效。")
             _ = try FleetProtocol.text(card, "groupId", 128); try color(card)
             guard let text = card["text"] as? String, text.utf16.count <= 8 * 1024 * 1024 else { throw FleetFailure("scene-frame", "桌面文字容量無效。") }
             for flag in ["interactive", "draggable", "editing", "selected", "completed", "mine"] { _ = try FleetProtocol.bool(card, flag) }
+            if layer == "wallpaper" {
+                try FleetProtocol.require(!FleetProtocol.bool(card, "interactive") && !FleetProtocol.bool(card, "draggable") && !FleetProtocol.bool(card, "editing"), "scene-frame", "桌布層必須保持滑鼠穿透。")
+            }
             output.append(try Card(id: id, layer: layer, rect: rect(card["rect"]), interactive: FleetProtocol.bool(card, "interactive"), draggable: FleetProtocol.bool(card, "draggable")))
         }
         return FleetSceneFrame(sequence: sequence, topology: topology, cards: output)

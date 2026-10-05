@@ -41,13 +41,14 @@ def frame(data, session, previous):
     for card in cards:
         p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount rect layer interactive draggable editing selected completed mine color".split()), "scene-frame", "桌面卡片格式無效。")
         key = p.text(card, "id", 128)
-        p.require(key not in ids and card.get("layer") in ("desktop", "floating"), "scene-frame", "桌面卡片身分或層級無效。")
+        p.require(key not in ids and card.get("layer") in ("desktop", "floating", "wallpaper"), "scene-frame", "桌面卡片身分或層級無效。")
         ids.add(key)
         p.text(card, "groupId", 128)
         p.require(isinstance(card.get("text"), str) and len(card["text"].encode("utf-16-le", "surrogatepass")) <= 16 * 1024 * 1024 and re.fullmatch(r"#[0-9A-Fa-f]{6}", p.text(card, "color")) is not None, "scene-frame", "桌面文字或色彩無效。")
         rect(card.get("rect"))
         for flag in ("interactive", "draggable", "editing", "selected", "completed", "mine"):
             p.boolean(card, flag)
+        p.require(card["layer"] != "wallpaper" or not any(card[flag] for flag in ("interactive", "draggable", "editing")), "scene-frame", "桌布層必須保持滑鼠穿透。")
     return value
 
 

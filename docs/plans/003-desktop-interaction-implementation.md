@@ -24,6 +24,10 @@
 分開 Explorer 圖示／桌布宿主並建立三層場景，更新穿透與能力回報，再以共用政策測試、
 實際附著／像素探針與主畫面切層流程驗證後重新打包。執行結果仍只記於 PROGRESS。
 
+同日依 [ADR-031](../decisions/031-macos-and-linux-wallpaper-scenes.md) 補上 macOS 圖示下方場景與
+Linux BACKGROUND，接續已讀 Pi／labwc 成果，修正 GTK 穿透、size request 與重畫。
+原生測試分別記錄 Windows、隔離 Linux compositor 與尚需 Mac SDK 的範圍，不合併宣稱通過。
+
 先完成一事一卡、群組／每機版面、formation 與互動命令，
 再使同一組行為通過各平台 host 與 Google 同步的實際整合。
 不能把計畫簡化成「先做純文字 CRUD，以後才補分組／桌面互動」。

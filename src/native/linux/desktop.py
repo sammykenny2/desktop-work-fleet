@@ -5,13 +5,14 @@ from gi.repository import Gdk, Gio, GLib, Gtk
 import protocol as p
 import scenes
 from shortcuts import Shortcuts
-from surface import Surface, backend, rectangle
+from surface import Surface, backend, layers, rectangle
 
 
 class Desktop:
     def __init__(self, assets, web_factory, send, main, hide):
         self.mode = backend()
         p.require(self.mode is not None, "desktop-unsupported", "此桌面環境未提供可用的桌面呈現能力；仍可在主畫面保存便箋。")
+        self.layers = layers(self.mode)
         self.assets, self.web_factory, self.send, self.main, self.hide = assets, web_factory, send, main, hide
         self.session = p.identifier()
         self.transfers = scenes.Transfers()
@@ -41,7 +42,7 @@ class Desktop:
         self.focus_changed()
         try:
             for display in self.displays:
-                for layer in ("desktop", "floating"):
+                for layer in self.layers:
                     self.new_view(display, layer)
         except Exception:
             self.close()
@@ -101,10 +102,10 @@ class Desktop:
         return [{"id": value["id"], "primary": value["primary"], **value["work"]} for value in displays]
 
     def info(self):
-        return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": ["desktop", "floating"], "backend": self.mode, "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
+        return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "backend": self.mode, "wallpaperPlacement": "background" if "wallpaper" in self.layers else "unavailable", "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
 
     def new_view(self, display, layer):
-        p.require(len([view for view in self.views if not view.retired]) < 32, "desktop-capacity", "桌面視窗容量已滿，請保存後重新開啟。")
+        p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "桌面視窗容量已滿，請保存後重新開啟。")
         view = Surface(display, layer, self.assets, self.web_factory, self.scene, self.retire, lambda identifier: self.send("desktop-dismiss", viewId=identifier), self.mode)
         self.views.append(view)
         self.watch(view.window)
@@ -118,7 +119,7 @@ class Desktop:
     def start(self):
         self.started = True
         for display in self.displays:
-            for layer in ("desktop", "floating"):
+            for layer in self.layers:
                 if not any(view.display["id"] == display["id"] and view.layer == layer and not view.retired for view in self.views):
                     self.new_view(display, layer)
         for view in self.views:
@@ -224,7 +225,7 @@ class Desktop:
             assignments[editing.id] = max(self.proposed, key=score)
         for stable in (True, False):
             for display in self.proposed:
-                for layer in ("desktop", "floating"):
+                for layer in self.layers:
                     if any(view.layer == layer and assignments.get(view.id, {}).get("id") == display["id"] for view in self.views):
                         continue
                     match = next((view for view in self.views if not view.retired and view.layer == layer and view.id not in assignments and (not stable or view.display["id"] == display["id"])), None)

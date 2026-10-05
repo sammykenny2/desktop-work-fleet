@@ -35,6 +35,11 @@ release 必填欄位、隔離輸出路徑中的 renderer／bridge／vendor 及 C
 Android Studio 開啟 `src/native/android`；Gradle Wrapper 的 `assembleDebug` 會安裝 lockfile 依賴並產生 APK 資產，
 無須先執行外部 web build。命令與前置條件見 [Android README](../src/native/android/README.md)。
 APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結果記於 PROGRESS。
+`tests/apple-project.test.js` 驗證 Xcode 專案在不同 checkout 路徑產生一致內容、所有 source 參照可攜、
+主 App／Share Extension 依賴、機器配置不進專案、生成資產／Info.plist 及 release 缺值。
+`node --test tests/apple-project.test.js` 不需要 Apple SDK；不代表 Xcode 載入、Swift 編譯或簽章通過。
+Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
+Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
 `npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
 `tests/workspace-sync.test.js` 驗證 graph 與 Workspace／LayoutStore 原子交易、保存失敗、過期 session／cursor、
 runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意圖與既有 entity 順序。

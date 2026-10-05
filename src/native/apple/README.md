@@ -3,17 +3,45 @@
 macOS 13+／iOS 16+，需要完整 Xcode（Swift 5.10+）、Node 22+。此目錄為 1.0 原生 host，
 不使用歷史 Python server。主畫面與手機 editor 共用封裝資產；macOS 另接桌面／浮動場景。
 
+## 在 Mac clone 後直接開啟
+
+`WorkFleet.xcodeproj`、workspace、兩個 shared schemes、預設 xcconfig 與圖示均已納入 Git。
+所有 source／entitlements 參照使用相對路徑；不需先產生專案，也不依賴另一台電腦的 `build/`。
+在完整 repository checkout 的根目錄執行：
+
 ```bash
-npm ci --ignore-scripts
+open src/native/apple/WorkFleet.xcodeproj
+```
+
+選擇 `WorkFleetIOS` 與 iPhone／iPad Simulator，再按 Run；macOS 使用 `WorkFleetMac`。
+需安裝 Node 22+（含 npm）。Xcode 的 Prepare local resources phase 自動安裝 lockfile 依賴、
+產生共用介面、公開配置及 Info.plist，第一次需要下載 npm／SPM 依賴；不需預先 `npm run build`。
+資產位於此目錄的 `.generated/<target>/`，已由 Git 忽略。
+
+Debug 預設 app ID 是 `app.workfleet.preview`，未填 Google 設定也可建置本機 preview。
+實機／正式身份可把 `config/Local.xcconfig.example` 複製為 Git 忽略的 `config/Local.xcconfig`，
+填寫 WORK_FLEET_APP_ID、WORK_FLEET_APP_GROUP_ID、DEVELOPMENT_TEAM；主 App 與 Extension 使用同一份設定。
+也可在 Xcode 設定 Signing Team。Google clients／商店公開資料仍從 repository 根目錄 `.env` 讀取。
+直接 Xcode 建置的 app ID／App Group 以 Xcode build settings 為準，避免簽章、entitlements 與隨包配置不一致。
+
+Prepare phase 會將 `/opt/homebrew/bin`／`/usr/local/bin` 加入工具搜尋路徑；
+自訂 Node/npm 路徑可在 Local.xcconfig 設定 WORK_FLEET_NODE／WORK_FLEET_NPM。
+此 phase 需要讀取本機配置並下載／安裝工具依賴，因此 Xcode user-script sandboxing 關閉；
+App 的 Sandbox／Keychain／entitlements 設定維持原有契約。
+
+## 命令列建置
+
+```bash
 bash scripts/macos/build-native-app.sh --platform macos
 bash scripts/macos/build-native-app.sh --platform ios --simulator
 bash scripts/macos/build-native-app.sh --platform ios --release
 ```
 
-產生的 `build/apple/WorkFleet.xcodeproj` 含共用 Swift、兩個 scheme、封裝資產、圖示、
-privacy manifest 與 entitlements。可在 Xcode 開啟專案選擇裝置；Xcode 建置需在 Mac 執行。
+腳本使用同一份已提交的 `src/native/apple/WorkFleet.xcodeproj`，不重新產生或覆寫 IDE 專案。
+`.env` 中非空的 app ID／team 會作為命令列 build settings；未填時採用 xcconfig 設定。
+DerivedData／archive／export 產物仍在忽略的 `build/apple/`；Xcode 建置需在 Mac 執行。
 SDK 固定 GoogleSignIn 9.2.0；SPM checkout 根目錄授權文本於簽章前複製到 bundle Licenses。
-Release 先檢查 `.env` 公開設定，再 archive；簽章／provisioning 在 Xcode／Keychain 配置。
+Release 的資產準備檢查有效公開設定，再 archive；簽章／provisioning 在 Xcode／Keychain 配置。
 `scripts/macos/package-native-app.sh` 匯出既有 archive；iOS 可產生 IPA，macOS 可產生 PKG／可選 DMG。
 `--method app-store-connect` 保持本機 export，不自動上傳；Developer ID 可使用既有 installer identity
 與 Keychain notary profile 公證並 staple。DMG 公證另要求 application identity；腳本不含私鑰。
@@ -50,11 +78,14 @@ macOS 桌面 visual panel 始終 ignoresMouseEvents；只有可操作或已開�
 iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。
 傳輸沿用有容量與 SHA-256 核對的 owner staging；分享暫存使用完整檔案保護，完成／取消後清除。
 原生對話框逾時或帳號切換終止待處理的 iOS 匯出。分享至其他 App 不表示已送達收件人。
-Xcode 產生器另建立並嵌入 WorkFleetShare.appex；Share Extension 接收文字、網址與檔案。
-App 與 Extension 的 App Group 由 `WORK_FLEET_APP_GROUP_ID` 設定，空值採 `group.<APP_ID>`；
+已提交的 Xcode 專案另建立並嵌入 WorkFleetShare.appex；Share Extension 接收文字、網址與檔案。
+App 與 Extension 的 App Group 由 `WORK_FLEET_APP_GROUP_ID` 設定，預設採 `group.<APP_ID>`；
 須在同一 Apple team 登記 App Group，並加入主 App 與 `<APP_ID>.share` 的 signing profile。
 收件匣以 App Group 共享 container 與 Keychain key 做 AES-GCM 保護、flock 排他與完整檔案保護。
 Extension 只保存接收項目，不讀取主 App 的 Workspace／Google 憑證，不強制開啟主 App。
 主 App 前景／重啟更新收件匣，使用者選群組保存草稿後才移除原項目；失敗與重試保留 receipt。
 一次最多 256 KiB 文字、16 個檔案、25 MiB 檔案總量；收件匣最多 64 份／512 MiB。
 App Groups 未配置時主 App 仍可編輯便箋，但收件匣不可用；原生 Extension／檔案提供者仍未執行。
+
+`scripts/generate-apple-project.mjs` 僅供維護專案結構／新增 Swift 檔案後使用；會重寫已提交的專案與圖示。
+一般開啟或建置不需執行它。可攜專案決策見 [ADR-029](../../../docs/decisions/029-portable-apple-xcode-project.md)。

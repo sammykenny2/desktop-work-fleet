@@ -24,6 +24,7 @@
 | [ADR-018](018-single-owner-desktop-views.md) | Accepted（Windows 場景整合） | 單一 Workspace、受限投影／命令、分片、草稿 flush／接手／失聯／關閉 |
 | [ADR-019](019-windows-shortcuts-and-tray.md) | Accepted（Windows 桌面入口） | 全域／本地鍵、焦點所有權、短效 activation intent、系統匣與保留 owner 的收起 |
 | [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted（封裝入口） | Windows MSIX／ZIP、Apple export／PKG／DMG、Android upload signing；正式帳號／原生產物另交付 |
+| [ADR-029](029-portable-apple-xcode-project.md) | Accepted（Apple 專案交付） | 已提交的可攜 Xcode 專案、clone 直接開啟、本機配置與建置資產 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

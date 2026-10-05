@@ -142,24 +142,28 @@ APK 位於 `src/native/android/app/build/outputs/apk/debug/app-debug.apk`。
 
 ## macOS／iOS 1.0 原生建置
 
-需要完整 Xcode、Node 22+；macOS 13+／iOS 16+。公開設定放 `.env`，
-Apple team 的 signing certificate／provisioning 於 Xcode 配置，私鑰不放設定檔。
+需要完整 Xcode、Node 22+／npm；macOS 13+／iOS 16+。
+clone 後直接開啟 `src/native/apple/WorkFleet.xcodeproj`，選 WorkFleetIOS＋Simulator 或 WorkFleetMac。
+專案已提交並使用相對路徑；Xcode 自動安裝依賴與產生資產，不需要先執行生成器或 web build。
+Google／商店公開設定放 `.env`；直接 Xcode 的 app ID／App Group／Team 放在忽略的
+`src/native/apple/config/Local.xcconfig`，範例同目錄。簽章憑證／provisioning 於 Xcode 配置，私鑰不放設定檔。
 
 ```bash
-npm ci --ignore-scripts
+open src/native/apple/WorkFleet.xcodeproj
+# 或使用同一份專案的命令列入口：
 bash scripts/macos/build-native-app.sh --platform macos
 bash scripts/macos/build-native-app.sh --platform ios --simulator
 bash scripts/macos/build-native-app.sh --platform ios --release
 ```
 
-產生 `build/apple/WorkFleet.xcodeproj` 與兩個 shared scheme；Release 產生 xcarchive。
+腳本使用已提交的專案；DerivedData／Release xcarchive／export 保留於忽略的 `build/apple/`。
 原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
 全域鍵、選單列及螢幕生命週期。尚未在 Apple SDK 編譯；操作細節及剩餘交付見
 [Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
 
 iOS 分享接收另嵌入 `<APP_ID>.share` Extension；在同一 Apple team 為 App／Extension 啟用
-App Groups。`.env.example` 的 `WORK_FLEET_APP_GROUP_ID` 可指定公開 group ID，空值採
-`group.<WORK_FLEET_APP_ID>`。實際 signing profiles 需包含此 group，憑證留 Xcode／Keychain。
+App Groups。直接 IDE 使用 Local.xcconfig 的 WORK_FLEET_APP_GROUP_ID；CLI 可用 `.env` 覆蓋，
+預設採 `group.<WORK_FLEET_APP_ID>`。實際 signing profiles 需包含此 group，憑證留 Xcode／Keychain。
 
 ## 原生安裝包與簽章入口
 

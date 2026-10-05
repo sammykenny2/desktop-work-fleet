@@ -22,16 +22,22 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 DEVELOPER_PATH="$(node scripts/toolchain-env.mjs | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; process.stdout.write(JSON.parse(s).DEVELOPER_DIR);')"
 [[ -z "$DEVELOPER_PATH" ]] || export DEVELOPER_DIR="$DEVELOPER_PATH"
-if [[ "$CONFIGURATION" == 'Release' ]]; then node scripts/check-config.mjs --platform "$PLATFORM"; fi
-npm run build
-node scripts/generate-apple-project.mjs
+PUBLIC_CONFIG="$(node scripts/prepare-apple-build.mjs --print-config)"
+APP_ID="$(printf '%s' "$PUBLIC_CONFIG" | node -e 'let s="";process.stdin.on("data",v=>s+=v).on("end",()=>process.stdout.write(JSON.parse(s).appId));')"
+APP_GROUP="$(printf '%s' "$PUBLIC_CONFIG" | node -e 'let s="";process.stdin.on("data",v=>s+=v).on("end",()=>process.stdout.write(JSON.parse(s).appleAppGroupId));')"
+APPLE_TEAM="$(printf '%s' "$PUBLIC_CONFIG" | node -e 'let s="";process.stdin.on("data",v=>s+=v).on("end",()=>process.stdout.write(JSON.parse(s).appleTeamId));')"
 SCHEME='WorkFleetMac'; DESTINATION='generic/platform=macOS'
 if [[ "$PLATFORM" == 'ios' ]]; then SCHEME='WorkFleetIOS'; DESTINATION='generic/platform=iOS'; fi
 EXTRA=()
+[[ -z "$APP_ID" ]] || EXTRA+=("WORK_FLEET_APP_ID=$APP_ID")
+[[ -z "$APP_ID" ]] || EXTRA+=("WORK_FLEET_APP_GROUP_ID=$APP_GROUP")
+[[ -z "$APPLE_TEAM" ]] || EXTRA+=("DEVELOPMENT_TEAM=$APPLE_TEAM")
+EXTRA+=("WORK_FLEET_PACKAGES_DIR=$PROJECT_ROOT/build/apple/SourcePackages")
 if [[ "$SIMULATOR" == 1 ]]; then DESTINATION='generic/platform=iOS Simulator'; fi
 if [[ "$SIMULATOR" == 1 || "$UNSIGNED" == 1 ]]; then EXTRA+=(CODE_SIGNING_ALLOWED=NO); fi
 ACTION='build'
 if [[ "$CONFIGURATION" == 'Release' ]]; then ACTION='archive'; EXTRA+=(-archivePath "$PROJECT_ROOT/build/apple/$SCHEME.xcarchive"); fi
-xcodebuild -project "$PROJECT_ROOT/build/apple/WorkFleet.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
+mkdir -p "$PROJECT_ROOT/build/apple"
+xcodebuild -project "$PROJECT_ROOT/src/native/apple/WorkFleet.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
   -destination "$DESTINATION" -derivedDataPath "$PROJECT_ROOT/build/apple/DerivedData" \
   -clonedSourcePackagesDirPath "$PROJECT_ROOT/build/apple/SourcePackages" "${EXTRA[@]}" "$ACTION"

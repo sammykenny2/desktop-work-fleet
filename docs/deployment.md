@@ -5,9 +5,9 @@
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
 | Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | MSIX／portable ZIP；.NET 8 Desktop、WebView2 runtime，封裝需 Windows SDK |
-| macOS | `scripts/macos/build-native-app.sh --platform macos --release`；`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Apple team 與 signing identities |
+| macOS | Xcode Open `src/native/apple/WorkFleet.xcodeproj`；或 `scripts/macos/build-native-app.sh --platform macos --release`、`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Node 22+／npm、Apple team 與 signing identities |
 | Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
-| iOS | `scripts/macos/build-native-app.sh --platform ios --release`；`package-native-app.sh` | xcarchive／IPA；Xcode、Apple team、App／Extension 的 App Group profiles |
+| iOS | 同一份已提交的 Xcode 專案，選 WorkFleetIOS；或 `scripts/macos/build-native-app.sh --platform ios --release`、`package-native-app.sh` | xcarchive／IPA；Xcode、Node 22+／npm、Apple team、App／Extension 的 App Group profiles |
 | Android | Android Studio Open `src/native/android`；或 `scripts/windows/Build-AndroidApp.ps1`／`scripts/linux/build-android-app.sh` | debug APK／release AAB；Node 22+、npm、JDK 17、Android SDK 36。已附 Gradle 8.13 Wrapper，自動產生資產；[開啟與建置說明](../src/native/android/README.md) |
 
 公開設定在 `.env.example`：各平台 Google client、app ID、Apple team／App Group、Microsoft
@@ -20,6 +20,8 @@ publisher 必須與既有憑證 subject 或 Partner Center identity 相符。腳
 ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop／WebView2，不含 runtime 安裝器。
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 
+直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
+命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。
 Apple export 使用 `--method app-store-connect|developer-id|debugging|release-testing`；iOS 不接受
 Developer ID。export destination 固定為本機，沒有自動上傳商店。macOS 開啟 hardened runtime；
 Developer ID 散布可指定 installer identity 與已存在的 Keychain notary profile，公證後 staple App／PKG。

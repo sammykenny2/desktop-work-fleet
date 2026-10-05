@@ -65,5 +65,9 @@ tests/native/**/obj/
 src/native/android/.gradle/
 src/native/android/**/build/
 src/native/android/local.properties
+src/native/apple/.generated/
+src/native/apple/config/Local.xcconfig
+src/native/apple/WorkFleet.xcodeproj/**/xcuserdata/
+src/native/apple/WorkFleet.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
 *.jks
 *.keystore

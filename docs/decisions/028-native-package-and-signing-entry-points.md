@@ -16,7 +16,8 @@ Windows 以 Windows SDK MakeAppx 產生 x64 MSIX，另產生 portable ZIP；fram
 CurrentUser/My certificate 與 HTTPS timestamp 簽署；不自行安裝憑證或修改信任。
 每次封裝使用新的 workspace build 目錄，保留既有產物與 SDK packaging log。
 
-Apple 由產生的 Xcode project 建立 archive，再以本機 export options 匯出。
+Apple 由 [ADR-029](029-portable-apple-xcode-project.md) 已提交的可攜 Xcode project 建立 archive，
+再以本機 export options 匯出；生成資產與 archive／export 仍保留在 Git 忽略的目錄。
 macOS 啟用 hardened runtime；Developer ID 可用已有 identities 產生 signed PKG／DMG，
 可選 Keychain notary profile 公證並 staple。iOS 匯出包含已嵌入的 Share Extension；
 signing profiles 仍需維護者配置同一 team／App Group。腳本不登入或上傳商店。

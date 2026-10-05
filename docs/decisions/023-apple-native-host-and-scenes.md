@@ -28,8 +28,9 @@ Accepted，2026-10-05。實作加入；Apple SDK／裝置結果未取得。
   選單列與關閉流程保存草稿、等待 owner 確認；取消關閉可重試。
 - 螢幕／Space／休眠通知先暫停輸入與撤銷 intent；owner 保存救援版面後套用新 topology，
   保留編輯 WKWebView，最多 16 螢幕／32 活躍或保留場景。
-- Node 產生 Xcode 專案／兩個 shared scheme／自有 icon asset catalog。Xcode 建置及 archive
-  沿用 `.env.example` 公開配置；簽章秘密留 Keychain，依賴授權於 bundle 簽章前複製。
+- Xcode 專案／shared schemes／自有 icon asset catalog 的生成方式由
+  [ADR-029](029-portable-apple-xcode-project.md) 更新為納入 Git、clone 後直接開啟。
+  Node 僅維護專案結構，建置時產生本機資產與公開配置；簽章秘密留 Keychain，依賴授權於 bundle 簽章前複製。
 
 ## Consequences
 

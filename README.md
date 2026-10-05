@@ -59,6 +59,12 @@ Android Studio 的 **Open** 選擇 `src/native/android`，完成 Gradle Sync 後
 也可在該目錄執行 `gradlew.bat assembleDebug`；APK 位於 `app/build/outputs/apk/debug/app-debug.apk`。
 詳見 [Android 專案說明](src/native/android/README.md)。
 
+## 在 Xcode 開啟 iOS／macOS
+
+Mac clone 完整 repository 後直接開啟 `src/native/apple/WorkFleet.xcodeproj`，選 `WorkFleetIOS` 或 `WorkFleetMac`。
+專案、schemes 與圖示已納入 Git，使用相對路徑。安裝 Node 22+／npm 後，Xcode 建置會自動準備介面資產。
+個人身份與 Team 放在忽略的 `src/native/apple/config/Local.xcconfig`；詳見 [Apple 專案說明](src/native/apple/README.md)。
+
 ## 執行既有 0.1.0
 
 在 macOS 使用：

@@ -15,6 +15,32 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Apple 專案直接開啟交付
+
+依本輪明確要求，將可攜的 `src/native/apple/WorkFleet.xcodeproj`、workspace、iOS／macOS shared schemes、
+圖示與預設 xcconfig 納入 repo。Swift／資源／entitlements 參照改為 SOURCE_ROOT／SRCROOT 相對路徑，
+專案生成不再讀取 `.env` 或帶入機器絕對路徑；Mac clone 後可直接開啟此專案。
+Xcode 的 Prepare local resources phase 自動安裝 npm lockfile 依賴，產生各 target 的 Info.plist 與
+主 App 的 renderer／公開配置；資產在忽略的 `.generated/<target>`。
+Share Extension 不產生主 App 配置或安裝 npm。個人 app ID／App Group／Team／工具路徑使用忽略的
+Local.xcconfig，範例與預設 preview 已提供；Google／商店欄位仍讀 `.env`。
+CLI wrapper 使用同一份提交專案，不重寫 IDE 修改；可用非空 `.env` identity 覆蓋 xcconfig。
+Xcode user-script sandboxing 關閉供 Node/npm bootstrap 使用，產品的 App Sandbox／Keychain／entitlements 保留。
+結構生成器改為維護已提交專案；DerivedData／archive／export 保持 build/apple 的既有路徑。
+README／setup／deployment／testing／.env.example 與 ADR-023／028 已同步，決策見 ADR-029。
+
+作者的可攜性／資產檢查：`node --test tests/apple-project.test.js` 3 項通過，
+涵蓋兩個含空白 checkout 路徑的穩定專案、相對 source／target／Extension／scheme 結構、
+不嵌入本機配置、Info.plist／renderer／公開配置與 release 缺值。
+`prepare-apple-build.mjs --platform ios` 實際執行 npm ci 並產生主 App 資產成功；
+重用已下載的 lockfile npm cache，沒有觸發 Apple hosted Actions。
+`node --check` 兩個 Node 入口、Git Bash `-n` 兩個 Bash 入口通過。
+文件檢查器排除新增的原生 `.generated` 複本，避免將隨包 notices 當作 repository 文件。
+`python -B scripts/testing/check_docs.py` 通過（97 份 Markdown、512 個相對連結），`git diff --check` 通過；
+Git ignore 確認生成資產與 Local.xcconfig 不進 repo。
+本機沒有 Xcode，未宣稱 IDE 載入、Swift 編譯、模擬器／實機、簽章或商店驗收通過；
+沒有獨立審閱。Mac 原生編譯仍由維護者處理。
+
 ## 2026-10-05 Google 收尾與 Mac 交接
 
 - 修正 Linux Google 狀態與共用 UI 欄位不一致，已登入帳號可接入 FileSync。

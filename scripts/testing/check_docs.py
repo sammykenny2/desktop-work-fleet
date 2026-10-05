@@ -9,7 +9,7 @@ links = 0
 def generated(path):
     parts = path.relative_to(ROOT).parts
     return any(part in {".git", "build", "node_modules", ".npm", ".claude", ".agents"} for part in parts) or (
-        parts[:2] in {("src", "native"), ("tests", "native")} and any(part in {"bin", "obj"} for part in parts)
+        parts[:2] in {("src", "native"), ("tests", "native")} and any(part in {"bin", "obj", ".generated"} for part in parts)
     )
 
 files = [p for p in ROOT.rglob("*.md") if not generated(p) and p.name not in excluded]

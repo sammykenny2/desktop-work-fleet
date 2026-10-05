@@ -67,7 +67,7 @@ internal static class ShortcutIntegrationProbe
       if (other.Registrations.Single().Status != "available") throw new Exception("Native menu block did not actually release the OS chord.");
     }
     coordinator.MenuActive(false);
-    await web.ExecuteScriptAsync("document.querySelector('#hide-main').click()");
+    coordinator.DispatchAction("@hide");
     await Wait(() => Task.FromResult(!main.IsVisible), "hide owner while keeping desktop and database alive");
     if (!ReferenceEquals(main.Desktop, coordinator)) throw new Exception("Hide replaced the workspace owner.");
     if (!PostMessageW(trayWindow, 0x8001, IntPtr.Zero, new IntPtr((1 << 16) | 0x401))) throw new Exception("Tray keyboard selection post failed");

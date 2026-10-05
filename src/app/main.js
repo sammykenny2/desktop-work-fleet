@@ -143,7 +143,7 @@ async function initialize() {
       try { await desktopAction(message.target, message.intent); }
       catch (error) { await native.bridge.request('desktop.showMain', { intent: message.intent }).catch(() => {}); throw error; }
     }); });
-    $('#hide-main').hidden = false; $('#retry-shortcuts').hidden = false;
+    $('#retry-shortcuts').hidden = false;
     $('#shortcut-note').textContent = '全域最多 32 組。App 取得焦點時會暫停全域註冊，改用視窗內快捷鍵；文字編輯、組字與對話框優先。';
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
@@ -812,7 +812,6 @@ function dragPaint(drag) {
 }
 
 function bindEvents() {
-  $('#hide-main').onclick = () => run(() => desktopAction('@hide'));
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(workspace.layout.state.shortcuts, true); };
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {

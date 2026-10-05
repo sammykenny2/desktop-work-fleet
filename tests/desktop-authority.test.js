@@ -81,10 +81,37 @@ test('desktop projection separates resident policy, temporary floating and conte
   await f.workspace.layout.setCardPolicy(f.other.id, { residentLayer: 'wallpaper', readOnlySelect: true });
   frame = f.frame();
   assert.deepEqual(frame.fallbacks, [{ cardId: f.other.id, requested: 'wallpaper', effective: 'desktop' }]);
-  assert.equal(frame.cards.find(c => c.id === f.other.id).interactive, true);
+  assert.equal(frame.cards.find(c => c.id === f.other.id).interactive, false);
   assert.equal(f.workspace.layout.state.placements[f.other.id].residentLayer, 'wallpaper');
   await f.workspace.layout.setCardPolicy(f.card.id, { visible: false });
   assert.equal(f.frame().cards.some(c => c.id === f.card.id), false);
+});
+
+test('wallpaper notes stay below icons and passive, float only their operated group, then restore current resident policy', async () => {
+  const f = await fixture();
+  await f.workspace.layout.setCardPolicy(f.card.id, { residentLayer: 'wallpaper', readOnlySelect: true });
+  await f.workspace.layout.setCardPolicy(f.other.id, { residentLayer: 'wallpaper' });
+  const saved = structuredClone(f.workspace.layout.state.placements[f.card.id]);
+  const project = () => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
+    interaction: f.controller.state, sessionId: 'wallpaper-test', sequence: 1, workspaceRevision: f.workspace.state.revision,
+    layers: ['desktop', 'floating', 'wallpaper'] });
+  let frame = project();
+  assert.deepEqual(frame.fallbacks, []);
+  assert.ok(frame.cards.every(card => card.layer === 'wallpaper' && !card.interactive && !card.draggable));
+  await f.controller.activate({ kind: 'group', groupId: f.a.id });
+  frame = project();
+  assert.equal(frame.cards.find(card => card.id === f.card.id).layer, 'floating');
+  assert.equal(frame.cards.find(card => card.id === f.card.id).draggable, true);
+  assert.equal(frame.cards.find(card => card.id === f.other.id).layer, 'wallpaper');
+  assert.equal(frame.cards.find(card => card.id === f.other.id).interactive, false);
+  assert.deepEqual(f.workspace.layout.state.placements[f.card.id], saved);
+  await f.controller.activate({ kind: 'none' });
+  assert.ok(project().cards.every(card => card.layer === 'wallpaper' && !card.interactive));
+  await f.controller.activate({ kind: 'all' });
+  await f.workspace.layout.setCardPolicy(f.card.id, { residentLayer: 'desktop' });
+  await f.controller.activate({ kind: 'none' });
+  assert.equal(project().cards.find(card => card.id === f.card.id).layer, 'desktop');
+  assert.equal(project().cards.find(card => card.id === f.other.id).layer, 'wallpaper');
 });
 
 test('desktop gesture owns one view and commits one move despite a duplicate pointer-up receipt', async () => {

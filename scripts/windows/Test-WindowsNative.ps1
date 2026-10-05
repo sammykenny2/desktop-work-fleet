@@ -35,6 +35,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows desktop-surface probe failed.' }
     & $UiProbe --platform
     if ($LASTEXITCODE -ne 0) { throw 'Windows native display/shortcut probe failed.' }
+    & $UiProbe --wallpaper (Join-Path $ProbeRoot 'wallpaper')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer wallpaper-layer probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

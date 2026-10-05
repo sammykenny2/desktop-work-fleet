@@ -20,6 +20,10 @@ public sealed class DesktopSurface : IDisposable
   private bool ordering;
   private bool closePending;
   private bool inputSuspended;
+  private IntPtr shellParent;
+  private PhysicalBounds? physicalBounds;
+  public bool NativeAlive => InputHandle != IntPtr.Zero && VisualHandle != IntPtr.Zero && IsWindow(InputHandle) && IsWindow(VisualHandle);
+  public uint Dpi => GetDpiForWindow(InputHandle);
   public event Action? CloseRequested;
   public event Action? DpiChanged;
   private SceneHitRect[] rectangles = [];
@@ -70,14 +74,52 @@ public sealed class DesktopSurface : IDisposable
   public void Show(bool topmost)
   {
     ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
+    new WindowInteropHelper(InputWindow).EnsureHandle(); new WindowInteropHelper(VisualWindow).EnsureHandle();
+    Attach(InputHandle); Attach(VisualHandle);
     floating = topmost; InputWindow.Show(); VisualWindow.Show(); shown = true;
+    // WPF's Show may refresh native styles. Reassert the child style and client coordinates.
+    Attach(InputHandle); Attach(VisualHandle);
+    if (physicalBounds is not null) SetPhysicalBounds(physicalBounds);
     AlignVisual(); SetRegion(inputSuspended ? [] : rectangles); Order();
+  }
+
+  public void SetShellParent(IntPtr parent)
+  {
+    ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
+    if (parent != shellParent && shown) Hide();
+    shellParent = parent;
+  }
+
+  private void Attach(IntPtr handle)
+  {
+    var current = GetAncestor(handle, 1); // GA_PARENT excludes an owner of a top-level window.
+    if (shellParent != IntPtr.Zero && (!IsWindow(shellParent)
+      || !AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(handle), GetWindowDpiAwarenessContext(shellParent))))
+      throw new InvalidOperationException("Explorer 桌面宿主已失效或 DPI 模式不相容。");
+    var style = GetWindowLongPtrW(handle, -16).ToInt64();
+    if (shellParent != IntPtr.Zero && current != shellParent
+      && !SetWindowPos(handle, new IntPtr(-2), 0, 0, 0, 0, 0x13))
+      throw new InvalidOperationException("Unable to clear floating desktop style.");
+    var next = shellParent == IntPtr.Zero ? (style & ~0x40000000L) | 0x80000000L : (style & ~0x80000000L) | 0x40000000L;
+    if (next != style)
+    {
+      SetLastError(0); var previous = SetWindowLongPtrW(handle, -16, new IntPtr(next));
+      if (previous == IntPtr.Zero && Marshal.GetLastWin32Error() != 0) throw new InvalidOperationException("Unable to set desktop child style.");
+    }
+    if (shellParent != IntPtr.Zero ? current != shellParent : (style & 0x40000000L) != 0)
+    {
+      SetLastError(0); var previous = SetParent(handle, shellParent);
+      if (previous == IntPtr.Zero && Marshal.GetLastWin32Error() != 0) throw new InvalidOperationException("Unable to attach desktop scene.");
+    }
+    if (next != style && !SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x37))
+      throw new InvalidOperationException("Unable to apply desktop child style.");
   }
 
   public void Hide()
   {
     InputWindow.Dispatcher.VerifyAccess(); if (disposed) return;
-    shown = false; if (InputHandle != IntPtr.Zero) SetRegion([]);
+    shown = false; if (!NativeAlive) return;
+    SetRegion([]);
     InputWindow.Hide(); VisualWindow.Hide();
   }
 
@@ -86,8 +128,10 @@ public sealed class DesktopSurface : IDisposable
     ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
     if (Math.Abs((long)bounds.X) > 1_000_000 || Math.Abs((long)bounds.Y) > 1_000_000
       || bounds.Width is <= 0 or > 32768 || bounds.Height is <= 0 or > 32768) throw new ArgumentException("Invalid physical bounds.");
-    if (InputHandle == IntPtr.Zero || !SetWindowPos(InputHandle, IntPtr.Zero, bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x14))
+    var origin = ToParent(bounds.X, bounds.Y);
+    if (InputHandle == IntPtr.Zero || !SetWindowPos(InputHandle, IntPtr.Zero, origin.X, origin.Y, bounds.Width, bounds.Height, 0x14))
       throw new InvalidOperationException("Unable to position scene.");
+    physicalBounds = bounds;
     InputWindow.UpdateLayout(); AlignVisual();
   }
 
@@ -107,7 +151,7 @@ public sealed class DesktopSurface : IDisposable
   public void SuspendInput()
   {
     if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); inputSuspended = true;
-    if (InputHandle != IntPtr.Zero) SetRegion([]);
+    if (NativeAlive) SetRegion([]);
   }
 
   private void SetRegion(SceneHitRect[] next)
@@ -185,9 +229,18 @@ public sealed class DesktopSurface : IDisposable
   private void AlignVisual()
   {
     if (!shown || InputHandle == IntPtr.Zero || VisualHandle == IntPtr.Zero) return;
-    if (!GetWindowRect(InputHandle, out var bounds)
-      || !SetWindowPos(VisualHandle, IntPtr.Zero, bounds.Left, bounds.Top, bounds.Right - bounds.Left,
+    if (!GetWindowRect(InputHandle, out var bounds)) throw new InvalidOperationException("Unable to read scene bounds.");
+    var origin = ToParent(bounds.Left, bounds.Top);
+    if (!SetWindowPos(VisualHandle, IntPtr.Zero, origin.X, origin.Y, bounds.Right - bounds.Left,
         bounds.Bottom - bounds.Top, 0x14)) throw new InvalidOperationException("Unable to align scene surfaces.");
+  }
+
+  private NativePoint ToParent(int x, int y)
+  {
+    var point = new NativePoint { X = x, Y = y };
+    if (shellParent != IntPtr.Zero && !ScreenToClient(shellParent, ref point))
+      throw new InvalidOperationException("Unable to map desktop coordinates.");
+    return point;
   }
 
   private void Order()
@@ -201,6 +254,12 @@ public sealed class DesktopSurface : IDisposable
         // HWND_TOP alone does not guarantee placement above a separate foreground process.
         if (!SetWindowPos(InputHandle, new IntPtr(-1), 0, 0, 0, 0, 0x13)
           || !SetWindowPos(VisualHandle, new IntPtr(-1), 0, 0, 0, 0, 0x13)) throw new InvalidOperationException("Unable to float scene.");
+      }
+      else if (shellParent != IntPtr.Zero)
+      {
+        if (!SetWindowPos(InputHandle, IntPtr.Zero, 0, 0, 0, 0, 0x13)
+          || !SetWindowPos(VisualHandle, IntPtr.Zero, 0, 0, 0, 0, 0x13)
+          || !SetWindowPos(InputHandle, VisualHandle, 0, 0, 0, 0, 0x13)) throw new InvalidOperationException("Unable to order desktop children.");
       }
       else
       {
@@ -248,6 +307,7 @@ public sealed class DesktopSurface : IDisposable
   }
 
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
   [StructLayout(LayoutKind.Sequential)] private struct WindowPosition { public IntPtr Window, After; public int X, Y, Width, Height; public uint Flags; }
   [DllImport("kernel32.dll")] private static extern void SetLastError(uint error);
   [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
@@ -259,4 +319,10 @@ public sealed class DesktopSurface : IDisposable
   [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);
   [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetWindowLongPtrW(IntPtr window, int index, IntPtr value);
   [DllImport("user32.dll")] private static extern bool SetWindowPos(IntPtr window, IntPtr after, int x, int y, int width, int height, uint flags);
+  [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetParent(IntPtr window, IntPtr parent);
+  [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
+  [DllImport("user32.dll")] private static extern bool ScreenToClient(IntPtr window, ref NativePoint point);
+  [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
+  [DllImport("user32.dll")] private static extern IntPtr GetWindowDpiAwarenessContext(IntPtr window);
+  [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
 }

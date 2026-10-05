@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
 using System.Windows;
+using System.Windows.Threading;
 using WorkFleet.Windows.Core;
 
 namespace WorkFleet.Windows;
@@ -33,6 +34,9 @@ public sealed class DesktopCoordinator : IDisposable
   private readonly double scale;
   private IReadOnlyList<DisplayInfo> displays;
   private readonly NativeDisplayWatcher displayWatcher;
+  private readonly DispatcherTimer shellWatcher;
+  private NativeShellLayers shell;
+  private string[] Layers => shell.Wallpaper != IntPtr.Zero ? ["desktop", "floating", "wallpaper"] : ["desktop", "floating"];
   private IReadOnlyList<DisplayInfo>? proposedDisplays;
   private long topology, proposedTopology;
   private bool displayPending, displayError;
@@ -63,13 +67,16 @@ public sealed class DesktopCoordinator : IDisposable
     this.environment = environment; this.sendOwner = sendOwner; this.showMain = showMain; this.openExternal = openExternal;
     this.hideMain = hideMain;
     displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = displays.First(d => d.Primary).Dpi / 96d;
-    foreach (var display in displays) foreach (var layer in new[] { "desktop", "floating" }) views.Add(new(display, layer, scale));
+    shell = NativeShellLayers.Discover();
+    foreach (var display in displays) foreach (var layer in Layers) views.Add(new(display, layer, scale));
     shortcuts = new NativeShortcuts(DispatchAction); activity = new NativeActivity(shortcuts);
-    displayWatcher = new NativeDisplayWatcher(() => displayOverride ?? NativeDisplays.Read(), InvalidateDisplays, ProposeDisplays, () =>
+    displayWatcher = new NativeDisplayWatcher(() => { shell = NativeShellLayers.Discover(); return displayOverride ?? NativeDisplays.Read(); }, InvalidateDisplays, ProposeDisplays, () =>
     {
       if (displayError) return; displayError = true;
       sendOwner(new { v = 1, @event = "desktop-error", message = "目前無法讀取顯示器，已保留資料及編輯文字；正在重試。" });
     });
+    shellWatcher = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
+    shellWatcher.Tick += CheckShell; shellWatcher.Start();
     if (mainWindow is not null) activity.Watch(mainWindow);
     foreach (var view in views) Watch(view);
     shortcuts.Changed += () => sendOwner(new { v = 1, @event = "desktop-shortcut-status", registrations = Registrations() });
@@ -105,15 +112,28 @@ public sealed class DesktopCoordinator : IDisposable
   private object ViewInfo(SceneView v) => new { viewId = v.Id, layer = v.Layer, active = v.Active,
     viewport = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height } };
   private object Info() => new { sessionId = SessionId, referenceDpi = scale * 96, topology,
-    layers = new[] { "desktop", "floating" },
+    layers = Layers,
     workAreas = WorkAreas(displays), views = views.Where(v => !v.Retired).Select(ViewInfo).ToArray() };
 
   private void InvalidateDisplays()
   {
     if (disposed) return; displayPending = true; activation = null; focusSequence = null; sceneIntents.Clear();
-    foreach (var view in views.Where(v => !v.Retired)) view.Surface.SuspendInput();
+    foreach (var view in views.Where(v => !v.Retired).ToArray())
+    {
+      if (view.Initialized && !view.Surface.NativeAlive)
+      {
+        Retire(view, "桌面宿主已重新啟動，正在重新建立便箋畫面；資料保留。");
+        view.Surface.Dispose();
+      }
+      else view.Surface.SuspendInput();
+    }
     foreach (var view in views.Where(v => v.Ready && !v.Retired)) Post(view, new { v = 1, @event = "desktop-displays-changing" });
     if (started) sendOwner(new { v = 1, @event = "desktop-displays-changing" });
+  }
+  private void CheckShell(object? sender, EventArgs args)
+  {
+    if (!disposed && started && !displayPending && (shell.Changed
+      || views.Any(v => !v.Retired && v.Initialized && !v.Surface.NativeAlive))) displayWatcher.Refresh();
   }
   private void ProposeDisplays(IReadOnlyList<DisplayInfo> next)
   {
@@ -139,7 +159,7 @@ public sealed class DesktopCoordinator : IDisposable
       assignments.Add((editing, destination));
     }
     // Preserve stable monitor matches before assigning displaced/parked views to newly available slots.
-    var slots = next.SelectMany(d => new[] { (Display: d, Layer: "desktop"), (Display: d, Layer: "floating") }).ToArray();
+    var slots = next.SelectMany(d => Layers.Select(layer => (Display: d, Layer: layer))).ToArray();
     foreach (var slot in slots)
     {
       if (assignments.Any(a => a.Display.Id == slot.Display.Id && a.View.Layer == slot.Layer)) continue;
@@ -152,7 +172,7 @@ public sealed class DesktopCoordinator : IDisposable
       var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && assignments.All(a => a.View != v));
       if (match is null)
       {
-        HostError.Require(views.Count(v => !v.Retired) < 32, "desktop-capacity", "桌面視窗容量已滿，請重新啟動以恢復呈現；資料仍保留。");
+        HostError.Require(views.Count(v => !v.Retired) < 48, "desktop-capacity", "桌面視窗容量已滿，請重新啟動以恢復呈現；資料仍保留。");
         match = new(slot.Display, slot.Layer, scale); views.Add(match); Watch(match);
       }
       assignments.Add((match, slot.Display));
@@ -168,8 +188,10 @@ public sealed class DesktopCoordinator : IDisposable
         view.Viewport = new(view.Display.Bounds.X / scale, view.Display.Bounds.Y / scale, view.Display.Bounds.Width / scale, view.Display.Bounds.Height / scale);
         if (view.Initialized)
         {
+          view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
+          view.Surface.Show(view.Layer == "floating"); view.Surface.Hide();
           view.Surface.SetPhysicalBounds(view.Display.Bounds);
-          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = scale / (view.Display.Dpi / 96d);
+          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = scale / (view.Surface.Dpi / 96d);
         }
       }
     }
@@ -279,6 +301,7 @@ public sealed class DesktopCoordinator : IDisposable
   private async Task Initialize(SceneView view)
   {
     view.Initialized = true;
+    view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
     view.Surface.Show(view.Layer == "floating"); view.Surface.SetPhysicalBounds(view.Display.Bounds); view.Surface.Hide();
     await view.Surface.WebView.EnsureCoreWebView2Async(environment);
     if (disposed || view.Retired) return;
@@ -286,7 +309,7 @@ public sealed class DesktopCoordinator : IDisposable
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.Deny);
     core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = false; core.Settings.IsStatusBarEnabled = false;
     core.Settings.AreBrowserAcceleratorKeysEnabled = false; core.Settings.IsBuiltInErrorPageEnabled = false; core.Settings.IsZoomControlEnabled = false;
-    view.Surface.WebView.ZoomFactor = scale / (view.Display.Dpi / 96d);
+    view.Surface.WebView.ZoomFactor = scale / (view.Surface.Dpi / 96d);
     core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
     core.FrameNavigationStarting += (_, e) => e.Cancel = true;
     core.NewWindowRequested += (_, e) => { e.Handled = true; if (e.IsUserInitiated) openExternal(e.Uri); };
@@ -363,14 +386,14 @@ public sealed class DesktopCoordinator : IDisposable
         if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
         HostError.Require(view.Downloading?.Sequence == sequence && sequence >= view.Applied, "scene-order", "桌面輸入區域尚未對應已顯示畫面。");
         var cards = view.Downloading!.Cards.Where(c => c.Layer == view.Layer).ToArray();
-        var zoom = scale / (view.Display.Dpi / 96d);
+        var zoom = scale / (view.Surface.Dpi / 96d);
         view.Surface.SetInput(cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c =>
         {
           // Native region limits apply to the clipped viewport, not to persisted paper geometry.
           var x = Math.Max(c.Rect.X, view.Viewport.X); var y = Math.Max(c.Rect.Y, view.Viewport.Y);
           var right = Math.Min(c.Rect.X + c.Rect.Width, view.Viewport.X + view.Viewport.Width);
           var bottom = Math.Min(c.Rect.Y + c.Rect.Height, view.Viewport.Y + view.Viewport.Height);
-          return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, c.Interactive);
+          return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, view.Layer != "wallpaper" && c.Interactive);
         }));
         if (cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
         view.Applied = sequence; TryFocus(view); return new { accepted = true };
@@ -464,6 +487,7 @@ public sealed class DesktopCoordinator : IDisposable
   {
     if (disposed) return; disposed = true;
     displayWatcher.Dispose(); activity.Dispose(); shortcuts.Dispose();
+    shellWatcher.Stop(); shellWatcher.Tick -= CheckShell;
     foreach (var view in views) view.Surface.Dispose(); transfers.Dispose(); commands.Clear(); flushes.Clear(); frozen.Clear(); sceneIntents.Clear();
   }
 }

@@ -2,6 +2,9 @@
 
 ## Status
 
+[ADR-030](030-windows-explorer-wallpaper-layer.md) 將池上限更新為三層合計 48 場景，
+並加入 Explorer 宿主重啟恢復；下方兩層 32 場景為原始切片限制。
+
 Accepted
 
 ## Context

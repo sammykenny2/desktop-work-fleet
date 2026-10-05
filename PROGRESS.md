@@ -4,6 +4,8 @@
 
 ## 目前優先方向
 
+2026-10-05 本輪明確優先完成 Windows 桌布層，再交付更新的本機試用包；結果見下方專節。
+
 使用者已授權逐 slice 實作並直接 commit/push origin/main，直到完整 1.0 完成。
 2026-10-05 最新指示要求先完成實作、不再投入驗證；未執行的检查不視為通過。
 本次還明確納入 iOS／Android 原生 App 與商店提交準備，並核准完整 editor／逐卡設定／備份範圍。
@@ -14,6 +16,39 @@
 本輪集中收尾 Google 程式與公開設定；Google 專案／各平台 clients 尚未建立，
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
+
+## 2026-10-05 Windows 桌布層實作
+
+依使用者要求加入真正的 Explorer 桌布層。`NativeShellLayers` 分開圖示宿主與位於圖示下方的
+WorkerW 宿主，檢查 Explorer process／可見性／疊序，僅在必要時發出有界的宿主建立訊息。
+desktop 與 wallpaper 場景的自有視窗以 WS_CHILD 附著，floating 保持獨立 topmost；
+附著前檢查 DPI 模式、保留 physical bounds 並換算 parent client coordinates；
+renderer 與 input rect 以附著後實際 HWND DPI 計算，不沿用 monitor 的原本 DPI。
+Windows compatibility manifest、三層場景池、TaskbarCreated 與宿主存活檢查已接入。
+桌布層固定滑鼠穿透，禁止唯讀選字、拖曳或編輯；原生 frame 與 input region 同時檢查。
+操作此組時將該組合資格卡片投影至 floating，退出依目前常駐設定回復，沒有改寫位置或偏好。
+主畫面逐卡說明／能力提示、setup／testing、PLAN-003 與 ADR-017／018／020 已同步；決策見 ADR-030。
+依維護者提供的 checkout 查閱輔助參考專案的分層行為及已知問題，本案使用獨立 C# 實作，未複製程式碼。
+
+最後程式碼以 `Build-WindowsPackage.ps1 -SkipRestore` 重新編譯 Release，0 警告、0 錯誤。
+試用 ZIP 及未簽章 MSIX 位於 `build/windows/package-fda1d856596f4cdea73ae46fba50a82f/`。
+`WorkFleet-1.0.0-x64.zip` 為 25,160,760 bytes、137 entries，包內 DLL 與最後 Release 建置的 SHA-256 相同，
+必要主程式／renderer／公開配置／x64 WebView2 loader 均存在，未包含 `.env` 或私鑰檔案。
+ZIP SHA-256：`258fad7c65a19d49729e50249aa1f5bb3eff6df92394962d534785fdc0ee3012`。
+試用前關閉舊版，完整解壓並執行 `WorkFleet.exe`；本輪沒有自動安裝或修改憑證信任。
+
+作者檢查：共用桌面測試 `node --test tests/desktop-authority.test.js tests/desktop-core.test.js tests/desktop-transport.test.js`
+63／63 通過。`Test-WindowsNative.ps1 -SkipRestore` 最終完整通過：35 項 native core／備份／scene 檢查、
+10 項 JS→native 檢查、WPF 主畫面／保存／關閉、composition／跨程序命中、顯示器／快捷鍵及新增 wallpaper 探針。
+主畫面實際 DOM 流程確認設定 wallpaper→操作此組→floating→結束→wallpaper→desktop。
+原有 native adapter 字樣斷言已隨目前介面文案修正；第一次完整命令停在該舊斷言，修正後完整重跑通過。
+原生 wallpaper 探針確認 parent 位於 Explorer 圖示下方、WS_CHILD／非 TOPMOST、實際 WebView 像素、
+空 input region、原位置、反覆顯示與切層、不搶 foreground；合成表面圖片在本機檢查目錄。
+測試環境為 Windows 11 build 26200、WebView2 154.0.4258.53、單顯示器 144 DPI；不讀取個人便箋。
+最終原生證據目錄：`build/native-checks-1923ad46-35d1-4e51-9629-2e789f9ce159/`。
+正向 foreground grant 依既有探針規則明確 SKIP（OS 未授權），拒絕情境通過。
+文件檢查通過（98 份 Markdown、525 個相對連結），`git diff --check` 與變更憑證模式掃描通過。
+沒有獨立審閱；未執行 Windows 10、實際重啟 Explorer、Win+D、虛擬桌面、混合 DPI／顯示器拔插矩陣。
 
 ## 2026-10-05 Windows 試用包重新打包
 

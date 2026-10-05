@@ -15,14 +15,16 @@ internal static class Program
       throw new InvalidOperationException("Run the probe .exe apphost so the shared PerMonitorV2 manifest is active.");
     if (args.Length == 1 && args[0] == "--hit-target") { CompositionProbe.RunHitTarget(); return; }
     var composition = args.Length == 2 && args[0] == "--composition";
+    var wallpaper = args.Length == 2 && args[0] == "--wallpaper";
     var platform = args.Length == 1 && args[0] == "--platform";
-    if (!composition && args.Length != 1) throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition] OUTPUT_DIRECTORY | --platform");
+    if (!composition && !wallpaper && args.Length != 1) throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper] OUTPUT_DIRECTORY | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
       try
       {
         if (platform) await PlatformProbe.Run();
+        else if (wallpaper) await WallpaperProbe.Run(Path.GetFullPath(args[1]));
         else if (composition) await CompositionProbe.Run(Path.GetFullPath(args[1]));
         else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
         app.Shutdown(0);
@@ -72,7 +74,7 @@ internal static class Program
   {
     Directory.CreateDirectory(directory); var window = Open(directory);
     await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "native app initialization");
-    await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('Windows 本機加密')", "native adapter selection");
+    await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('本機加密')", "native adapter selection");
     Console.WriteLine($"WebView2 {window.WebView.CoreWebView2.Environment.BrowserVersionString}");
     await Eval(window, "document.querySelector('#new-card').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "open editor");

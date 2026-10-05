@@ -33,11 +33,13 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
     {
       Fields(card, "id groupId revision summary text format attachmentCount rect layer interactive draggable editing selected completed mine color");
       var id = JsonRules.Text(card, "id", 128); var layer = JsonRules.Text(card, "layer");
-      HostError.Require(ids.Add(id) && layer is "desktop" or "floating", "scene-frame", "桌面卡片身分或層級無效。");
+      HostError.Require(ids.Add(id) && layer is "desktop" or "floating" or "wallpaper", "scene-frame", "桌面卡片身分或層級無效。");
       _ = JsonRules.Text(card, "groupId", 128); Color(card);
       HostError.Require(card.GetProperty("text").ValueKind == JsonValueKind.String && card.GetProperty("text").GetString()!.Length <= 8 * 1024 * 1024,
         "scene-frame", "桌面文字超過容量上限。");
       foreach (var flag in new[] { "interactive", "draggable", "editing", "selected", "completed", "mine" }) _ = Boolean(card, flag);
+      HostError.Require(layer != "wallpaper" || !Boolean(card, "interactive") && !Boolean(card, "draggable") && !Boolean(card, "editing"),
+        "scene-frame", "桌布層便箋必須保持滑鼠穿透；請先操作群組再編輯。");
       cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive"), Boolean(card, "draggable")));
     }
     return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0);

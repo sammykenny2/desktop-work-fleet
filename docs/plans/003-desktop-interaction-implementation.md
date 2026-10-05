@@ -20,6 +20,10 @@
 
 ## Overview
 
+2026-10-05 Windows 桌布層追加：依 [ADR-030](../decisions/030-windows-explorer-wallpaper-layer.md)
+分開 Explorer 圖示／桌布宿主並建立三層場景，更新穿透與能力回報，再以共用政策測試、
+實際附著／像素探針與主畫面切層流程驗證後重新打包。執行結果仍只記於 PROGRESS。
+
 先完成一事一卡、群組／每機版面、formation 與互動命令，
 再使同一組行為通過各平台 host 與 Google 同步的實際整合。
 不能把計畫簡化成「先做純文字 CRUD，以後才補分組／桌面互動」。

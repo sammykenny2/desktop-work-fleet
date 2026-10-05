@@ -2,6 +2,9 @@
 
 ## Status
 
+2026-10-05：[ADR-030](030-windows-explorer-wallpaper-layer.md) 加入第三個 wallpaper 場景及 Explorer 附著，
+取代下方兩層與 Windows 不提供桌布層的原始限制；單一權威與傳輸政策保留。
+
 Accepted，2026-10-04。採用共用命令／草稿協調及 Windows 呈現接線。
 不代表全域快捷鍵、顯示器熱插拔、其他平台或完整桌面驗收已完成；實際狀態見 PROGRESS。
 

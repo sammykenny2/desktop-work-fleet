@@ -2,6 +2,9 @@
 
 ## Status
 
+2026-10-05：常駐層級由 [ADR-030](030-windows-explorer-wallpaper-layer.md) 更新為 Explorer 附著。
+下方不使用 WorkerW、一般底部視窗等內容為原始切片的歷史限制；其餘 composition／輸入責任保留。
+
 Accepted，2026-10-04，限 Windows 場景表面、原生輸入區域、快捷鍵註冊與顯示器盤點。
 主畫面與共用控制器的桌面協調仍須整合；本子切片不啟用 `desktopPresentation` capability。
 不以這些 primitive 的測試宣稱 C16／C35／C40–C43／C46–C47 完整通過。

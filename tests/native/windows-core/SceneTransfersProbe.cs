@@ -60,6 +60,23 @@ internal static class SceneTransfersProbe
       Check(NavigationPolicy.IsDesktopDocument(NavigationPolicy.DesktopDocument)); Check(!NavigationPolicy.IsDocument(NavigationPolicy.DesktopDocument));
       Check(!NavigationPolicy.IsDesktopDocument(NavigationPolicy.Document)); Check(!NavigationPolicy.IsDesktopDocument(NavigationPolicy.DesktopDocument + "?source=other"));
     });
+    Test("native wallpaper frames allow passive notes and reject interactive, draggable or editing wallpaper", () =>
+    {
+      var session = Guid.NewGuid().ToString();
+      byte[] Frame(string layer, bool interactive = false, bool draggable = false, bool editing = false) => JsonSerializer.SerializeToUtf8Bytes(new {
+        protocol = 1, sessionId = session, sequence = 1, workspaceRevision = 1, layoutRevision = 1,
+        groups = Array.Empty<object>(), operationScope = new { kind = "none" }, activeGroupId = (string?)null,
+        cards = new[] { new { id = "card", groupId = "group", revision = "revision", summary = "note", text = "text", format = "markdown",
+          attachmentCount = 0, rect = new { x = -100, y = 20, width = 300, height = 200 }, layer, interactive, draggable, editing,
+          selected = false, completed = false, mine = true, color = "#fff6cc" } }, editor = (object?)null, dropTarget = (object?)null,
+        fallbacks = Array.Empty<object>() });
+      Check(DesktopFrame.Parse(Frame("wallpaper"), session, 0).Cards.Single().Layer == "wallpaper");
+      Reject(() => DesktopFrame.Parse(Frame("wallpaper", interactive: true), session, 0), "scene-frame");
+      Reject(() => DesktopFrame.Parse(Frame("wallpaper", draggable: true), session, 0), "scene-frame");
+      Reject(() => DesktopFrame.Parse(Frame("wallpaper", editing: true), session, 0), "scene-frame");
+      Check(DesktopFrame.Parse(Frame("floating", true, true, true), session, 0).Cards.Single().Operable);
+      Reject(() => DesktopFrame.Parse(Frame("unknown"), session, 0), "scene-frame");
+    });
     return count;
   }
 }

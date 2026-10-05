@@ -9,7 +9,7 @@ export function cardPolicy(card, layout, state) {
   const operating = participates && inScope(card, state.operationScope);
   const placement = layout.placements[card.id];
   return { visible: participates && (layout.desktopVisible || operating),
-    interactive: operating || (participates && layout.desktopVisible && placement?.readOnlySelect === true),
+    interactive: operating || (participates && layout.desktopVisible && placement?.residentLayer !== 'wallpaper' && placement?.readOnlySelect === true),
     draggable: operating, editing: operating && state.editingCardId === card.id,
     layer: operating ? 'floating' : placement?.residentLayer ?? 'desktop' };
 }

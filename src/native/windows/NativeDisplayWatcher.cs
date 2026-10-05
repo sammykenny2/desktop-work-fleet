@@ -1,5 +1,6 @@
 using System.Windows.Interop;
 using System.Windows.Threading;
+using System.Runtime.InteropServices;
 
 namespace WorkFleet.Windows;
 
@@ -13,6 +14,7 @@ public sealed class NativeDisplayWatcher : IDisposable
   private readonly Action<IReadOnlyList<DisplayInfo>> changed;
   private readonly Action failed;
   private bool disposed, pending, suspended;
+  private readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
   public NativeDisplayWatcher(Func<IReadOnlyList<DisplayInfo>> read, Action invalidated,
     Action<IReadOnlyList<DisplayInfo>> changed, Action failed)
   {
@@ -38,6 +40,7 @@ public sealed class NativeDisplayWatcher : IDisposable
   private IntPtr Message(IntPtr window, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
   {
     if (message is 0x007E or 0x001A) Refresh(); // DISPLAYCHANGE / SETTINGCHANGE, including taskbar work area.
+    if (taskbarCreated != 0 && (uint)message == taskbarCreated) Refresh();
     if (message == 0x0218) // POWERBROADCAST
     {
       if (wParam.ToInt64() == 4) { suspended = true; Refresh(); }
@@ -49,4 +52,5 @@ public sealed class NativeDisplayWatcher : IDisposable
   {
     if (disposed) return; disposed = true; timer.Stop(); timer.Tick -= Tick; source.RemoveHook(Message); source.Dispose();
   }
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessageW(string name);
 }

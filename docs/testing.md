@@ -142,6 +142,13 @@ core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換�
 
 同一腳本另執行 `--composition` 與 `--platform` 原生基礎探針：
 
+另執行 `--wallpaper OUTPUT_DIRECTORY`，要求目前 session 有真正的 Explorer 圖示／桌布宿主；
+不可用即失敗，不標成通過。以合成內容確認兩個自有場景 HWND 的 parent／WS_CHILD、
+實際 WebView 像素、原生空輸入 region、physical bounds、反覆附著／浮動／隱藏與不啟用。
+圖片只捕獲測試表面，不截取使用者桌面；不重啟 Explorer 或注入鍵盤／滑鼠。
+主 WPF probe 另測實際逐卡設定→wallpaper→操作此組→floating→結束→wallpaper 的 owner／scene 流程。
+Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩陣仍需各自驗收。
+
 - 真 CompositionControl 透明 HTML／live VisualBrush；只載合成資料，沒有 product bridge。
 - 另一個自有程序作 OS `WindowFromPoint` 目標，檢查被動紙面、空白及前方遮擋穿透；
   native input／visual region 互斥且完整覆蓋，浮動／一般底層切換、成對隱藏／關閉與 20,000 區域。

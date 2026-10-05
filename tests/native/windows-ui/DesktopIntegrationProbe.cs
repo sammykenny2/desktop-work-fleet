@@ -24,7 +24,7 @@ internal static class DesktopIntegrationProbe
     await Wait(async () =>
     {
       var surfaces = main.Desktop?.Surfaces;
-      return surfaces?.Count == 2 && surfaces.All(s => s.WebView.CoreWebView2 is not null)
+      return surfaces?.Count >= 2 && surfaces.All(s => s.WebView.CoreWebView2 is not null)
         && (await Eval(surfaces[0].WebView.CoreWebView2, "Boolean(document.querySelector('.card'))")).ValueKind == JsonValueKind.True;
     }, "resident scene received the real workspace projection", main);
     var resident = main.Desktop!.Surfaces[0].WebView.CoreWebView2;
@@ -75,11 +75,35 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).ValueKind == JsonValueKind.True,
       "exit restores resident pass-through policy", main);
     Console.WriteLine("PASS real display-only WebView2 scene, storage isolation, draft chunks, IME barrier and owner commit");
+    if (main.Desktop.Surfaces.Count == 3)
+    {
+      var wallpaper = main.Desktop.Surfaces[2].WebView.CoreWebView2;
+      async Task Layer(string value)
+      {
+        await Eval(main.WebView.CoreWebView2, "[...document.querySelectorAll('.list-actions button')].find(b=>b.textContent==='更多操作').click()");
+        await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';s.dispatchEvent(new Event('change'));[...d.querySelectorAll('button')].find(b=>b.textContent==='套用').click()}})()");
+        await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save resident layer", main);
+      }
+      await Eval(main.WebView.CoreWebView2, "document.querySelector('#view-toggle').click()");
+      await Layer("wallpaper");
+      await Wait(async () => (await Eval(wallpaper, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).GetBoolean(), "wallpaper receives note", main);
+      await Wait(async () => (await Eval(resident, "!document.querySelector('.card')")).GetBoolean(), "desktop copy removed", main);
+      await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-group').click()");
+      await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('.card.operable'))")).GetBoolean()
+        && (await Eval(wallpaper, "!document.querySelector('.card')")).GetBoolean(), "wallpaper group floats", main);
+      await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
+      await Wait(async () => (await Eval(wallpaper, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).GetBoolean()
+        && (await Eval(floating, "!document.querySelector('.card')")).GetBoolean(), "group returns to wallpaper", main);
+      await Layer("desktop");
+      await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card'))")).GetBoolean(), "restore fixture desktop layer", main);
+      await Eval(main.WebView.CoreWebView2, "document.querySelector('#view-toggle').click()");
+      Console.WriteLine("PASS real owner settings -> wallpaper -> operate group -> floating -> stop -> wallpaper -> desktop");
+    }
   }
   public static async Task CloseWithDraft(FleetWindow main)
   {
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-all').click()");
-    await Wait(async () => main.Desktop?.Surfaces.Count == 2 && main.Desktop.Surfaces[1].WebView.CoreWebView2 is not null
+    await Wait(async () => main.Desktop?.Surfaces.Count >= 2 && main.Desktop.Surfaces[1].WebView.CoreWebView2 is not null
       && (await Eval(main.Desktop.Surfaces[1].WebView.CoreWebView2, "Boolean(document.querySelector('.card.operable'))")).ValueKind == JsonValueKind.True,
       "desktop ready for close probe", main);
     var scene = main.Desktop!.Surfaces[1].WebView.CoreWebView2;

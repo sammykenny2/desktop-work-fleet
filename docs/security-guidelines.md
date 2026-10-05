@@ -29,6 +29,7 @@
 
 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md) 以固定 packaged origin 與主文件識別 bridge caller；
 阻擋 frame／其他頁面、遠端資產、任意 host objects／路徑／SQL／HTTP 方法。正式 App 不開 DevTools 或 debug port。
+只有 Debug 組態可開 DevTools，且需程序環境明確指定才開 loopback CDP（[ADR-032](decisions/032-windows-debug-webview-inspection.md)）。
 Windows profile 在 host 決定；renderer 只能取得此分區的內容，不能呼叫 vault.read。
 record／附件／staging／vault payload 使用 DPAPI CurrentUser，scope entropy 綁 profile、用途和身分。
 SQLite 索引 metadata 不加密；同 Windows 帳號程序、RAM／crash dump 不在此保護邊界。

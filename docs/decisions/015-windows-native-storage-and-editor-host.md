@@ -2,6 +2,9 @@
 
 ## Status
 
+2026-10-05：DevTools 停用改由 [ADR-032](032-windows-debug-webview-inspection.md) 限定為 Release／MSIX；
+Debug 組態可開 DevTools 及 opt-in loopback CDP。其餘 bridge 邊界保留。
+
 Accepted，2026-10-04，限 Windows 管理／編輯主畫面、原生保存及受限 bridge。
 桌面呈現仍依 ADR-007／SPEC-003 各項能力施工；本決策未把五平台縮成一般視窗。
 

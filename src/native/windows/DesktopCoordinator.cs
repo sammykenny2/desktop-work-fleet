@@ -307,7 +307,7 @@ public sealed class DesktopCoordinator : IDisposable
     if (disposed || view.Retired) return;
     var core = view.Surface.WebView.CoreWebView2;
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.Deny);
-    core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = false; core.Settings.IsStatusBarEnabled = false;
+    core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = WebViewDiagnostics.DevToolsEnabled; core.Settings.IsStatusBarEnabled = false;
     core.Settings.AreBrowserAcceleratorKeysEnabled = false; core.Settings.IsBuiltInErrorPageEnabled = false; core.Settings.IsZoomControlEnabled = false;
     view.Surface.WebView.ZoomFactor = scale / (view.Surface.Dpi / 96d);
     core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;

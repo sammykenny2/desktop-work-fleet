@@ -235,6 +235,25 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 若單獨執行，先用 `Build-WindowsApp.ps1 -Configuration Debug -IncludeTests`，再設變數並執行
 `node --test tests/native-storage.test.js`。無 OS 依賴的 bridge 關閉／訊息容量測試每次都跑。
 
+同一腳本最後執行 `--diagnostics OUTPUT_DIRECTORY`（[ADR-032](decisions/032-windows-debug-webview-inspection.md)）。
+未設變數不建立 CDP 選項；不合法 port 須在 owner 鎖前以 HostError 拒絕，之後同一目錄仍可開啟。
+以 OS 分配的空閒 port 開 Debug 主畫面，確認 DevTools 已啟用、listener 只綁 loopback，
+`/json/list` 有主文件，並以 CDP WebSocket 實際讀取 DOM 狀態。Release 執行檔不能跑此 probe。
+`Build-WindowsPackage.ps1` 在 publish 後掃描 `WorkFleet.dll`，找到 `remote-debugging` 字串即停止封裝；
+`Test-WindowsNative.ps1` 要求同一掃描命中 Debug `WorkFleet.dll`，避免檢查失效；腳本也會先清除 shell 已設的 port 變數。
+
+開發時以 CDP 檢查 Debug App（使用正式資料目錄；需先關閉已安裝的 App）：
+
+```powershell
+.\scripts\windows\Build-WindowsApp.ps1 -Configuration Debug
+$env:WORK_FLEET_WEBVIEW_DEBUG_PORT = '9339'
+& .\src\native\windows\bin\Debug\net8.0-windows10.0.19041.0\WorkFleet.exe
+Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT
+# http://127.0.0.1:9339/json/list 列出主畫面與桌面場景 target
+```
+
+變數只設在目前 shell 的程序環境，不要用 setx 或機碼設定。port 已被占用時 CDP 不會啟動。
+
 ## 手勢測試 helper
 
 ```bash

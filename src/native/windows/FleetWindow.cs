@@ -19,6 +19,7 @@ public sealed class FleetWindow : Window
   private NativeBackupFiles backupFiles;
   private NativeGoogle? google;
   private readonly string dataDirectory;
+  private readonly CoreWebView2EnvironmentOptions? webViewOptions;
   private readonly Func<string?>? backupDirectoryPicker;
   private BridgeSession? bridge;
   private DesktopCoordinator? desktop;
@@ -34,6 +35,8 @@ public sealed class FleetWindow : Window
   public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null, IReadOnlyList<DisplayInfo>? desktopDisplays = null)
   {
     this.dataDirectory = Path.GetFullPath(dataDirectory);
+    // Reject a bad Debug port before the database takes the single-owner lock.
+    webViewOptions = WebViewDiagnostics.EnvironmentOptions();
     this.backupDirectoryPicker = backupDirectoryPicker;
     this.desktopDisplays = desktopDisplays;
     var selected = Path.Combine(this.dataDirectory, "profile.txt");
@@ -88,10 +91,10 @@ public sealed class FleetWindow : Window
   {
     var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
     if (!File.Exists(Path.Combine(assets, "app", "index.html"))) throw new IOException("Missing packaged assets.");
-    var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "webview"));
+    var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "webview"), webViewOptions);
     await web.EnsureCoreWebView2Async(environment); var core = web.CoreWebView2;
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, assets, CoreWebView2HostResourceAccessKind.Deny);
-    core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = false;
+    core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = WebViewDiagnostics.DevToolsEnabled;
     core.Settings.IsStatusBarEnabled = false; core.Settings.AreBrowserAcceleratorKeysEnabled = false;
     core.Settings.IsBuiltInErrorPageEnabled = false;
     core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;

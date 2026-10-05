@@ -1,6 +1,6 @@
 # 服務與連接埠
 
-更新：2026-10-03。
+更新：2026-10-05。
 
 驗證服務預設 `127.0.0.1:9847`，以 `--host`／`--port` 配置。編輯頁與 API 同 origin。
 啟動時若 port 衝突直接失敗，不會停止其他服務。測試使用 OS 分配的隨機 port。
@@ -21,6 +21,13 @@ QR 本身不提供 NAT 穿透；外網需自行部署可信 HTTPS 或 VPN。沒�
 Windows 1.0 主畫面以 WebView2 virtual host mapping 載入 `https://work-fleet.invalid/app/index.html`。
 該名稱只在 WebView2 內解析為封裝 Assets；沒有 DNS、TCP／HTTP listener 或新的 port。
 原生 SQLite／DPAPI 經 WebMessage bridge 存取；沒有 local note server。
+
+## Windows Debug WebView 檢查
+
+只有 Debug 組態且啟動程序帶有 `WORK_FLEET_WEBVIEW_DEBUG_PORT` 時，WebView2 才在 loopback 開 CDP port，
+port 由開發者指定（1024–65535），沒有固定預設值；Release／MSIX 不編入這條路徑。
+port 衝突時 WebView2 不提供 CDP，不停止其他 listener。測試 probe 使用 OS 分配的空閒 port。
+loopback 不分 Windows 使用者，本機任何程序都能經此 port 讀取解密後的便箋並呼叫原生 bridge；只在檢查期間開啟，詳見 [ADR-032](decisions/032-windows-debug-webview-inspection.md)。
 
 ## Windows Google 登入 callback
 

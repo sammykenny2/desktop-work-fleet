@@ -57,6 +57,8 @@ Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 
 ```
 
 資產與 native libraries／Licenses 隨輸出目錄保留，不單獨移動 exe。
+`-Configuration Debug` 的 App 在右鍵選單提供「檢查」（DevTools）。設定 `WORK_FLEET_WEBVIEW_DEBUG_PORT` 才開 loopback CDP。
+Release 與 MSIX 都不開；用法見 [測試](testing.md)、決策見 [ADR-032](decisions/032-windows-debug-webview-inspection.md)。
 Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 PerMonitorV2 manifest。
 這個 TFM 是建置下限，最低 OS／混合 DPI 實機驗收另見 PROGRESS。
 沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於

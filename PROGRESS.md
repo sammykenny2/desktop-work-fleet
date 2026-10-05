@@ -20,6 +20,28 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Windows Debug WebView 檢查
+
+依使用者要求，Debug 組態可開 WebView DevTools，Release／MSIX 一律不開。
+`WebViewDiagnostics` 以 `#if DEBUG` 分流；主畫面與桌面場景使用同一設定。
+loopback CDP 只在程序環境設 `WORK_FLEET_WEBVIEW_DEBUG_PORT` 時開啟，不合法 port 在 owner 鎖前拒絕。
+使用者明確要求 Debug 沿用正式資料目錄，以便用 Debug 版追查正式資料的問題；未另設 Debug profile。
+使用者未回覆是否需要可安裝的 Debug MSIX；本輪預設不提供，直接執行 Debug exe。
+`Build-WindowsPackage.ps1` 在 Release `WorkFleet.dll` 發現 `remote-debugging` 即停止封裝。
+決策見 [ADR-032](docs/decisions/032-windows-debug-webview-inspection.md)，ADR-015 狀態已標註修訂。
+
+作者檢查：新 `--diagnostics` probe 確認未設變數不開 port、7 種不合法值被拒絕且之後同一目錄可開啟，
+DevTools 已啟用、listener 只綁 loopback，CDP `/json/list` 有主文件，並經 WebSocket 讀取 DOM 狀態。
+封裝掃描對 Debug `WorkFleet.dll` 命中、對 Release 未命中；Release 組態 probe 拒絕執行診斷模式。
+第一次 Release `-IncludeTests` 建置因 `const` 常數條件觸發 CS0162 而失敗，改為 static property 後通過。
+審閱修正後（shell 預設不合法 port 變數）`Test-WindowsNative.ps1 -SkipRestore` 完整通過（foreground grant 依規則 SKIP），未簽章 Release 封裝 0 警告／0 錯誤。
+紀錄：`build/debug-webview-native-tests.log`、`build/debug-webview-release-package.log`、
+`build/native-checks-2c41bfef-408d-4e0d-b90e-953bc72116bf/`。
+本輪未重新安裝 MSIX；右鍵「檢查」選單沒有實機點擊驗證。
+另由獨立 agent 唯讀審閱，未發現 Release 可開啟 DevTools／port 的路徑。依審閱修正：
+ADR／services 改述 loopback 不分 Windows 使用者；
+Test-WindowsNative 先清除外部設定的 port 變數，並要求封裝掃描命中 Debug DLL；HostError 代碼改連字號。
+
 ## 2026-10-05 macOS universal DMG
 
 在 Apple Silicon Mac 使用 Xcode 27.0（27A266a）、macOS 27 SDK、Node 24.21.0／npm 12.2.0，

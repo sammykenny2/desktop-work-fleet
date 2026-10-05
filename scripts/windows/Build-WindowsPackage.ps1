@@ -73,6 +73,12 @@ try {
     New-Item -ItemType Directory -Path $Stage -Force | Out-Null
     & dotnet publish src/native/windows/WorkFleet.Windows.csproj --configuration Release --no-restore --self-contained false --output $Stage -p:PlatformTarget=x64
     if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed.' }
+    # The WebView debugging port is Debug-only; its argument is a UTF-16 IL string at either byte alignment.
+    $AppAssembly = [IO.File]::ReadAllBytes((Join-Path $Stage 'WorkFleet.dll'))
+    if ([Text.Encoding]::Unicode.GetString($AppAssembly).Contains('remote-debugging') -or
+        [Text.Encoding]::Unicode.GetString($AppAssembly, 1, $AppAssembly.Length - 1).Contains('remote-debugging')) {
+        throw 'Release WorkFleet.dll contains the Debug-only WebView debugging path.'
+    }
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'LICENSE'), (Join-Path $ProjectRoot 'THIRD-PARTY-NOTICES.md') -Destination $Stage
     & node scripts/generate-windows-manifest.mjs --stage $Stage
     if ($LASTEXITCODE -ne 0) { throw 'Package manifest generation failed.' }

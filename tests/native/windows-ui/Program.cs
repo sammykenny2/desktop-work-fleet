@@ -16,8 +16,10 @@ internal static class Program
     if (args.Length == 1 && args[0] == "--hit-target") { CompositionProbe.RunHitTarget(); return; }
     var composition = args.Length == 2 && args[0] == "--composition";
     var wallpaper = args.Length == 2 && args[0] == "--wallpaper";
+    var diagnostics = args.Length == 2 && args[0] == "--diagnostics";
     var platform = args.Length == 1 && args[0] == "--platform";
-    if (!composition && !wallpaper && args.Length != 1) throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper] OUTPUT_DIRECTORY | --platform");
+    if (!composition && !wallpaper && !diagnostics && args.Length != 1)
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics] OUTPUT_DIRECTORY | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -26,6 +28,7 @@ internal static class Program
         if (platform) await PlatformProbe.Run();
         else if (wallpaper) await WallpaperProbe.Run(Path.GetFullPath(args[1]));
         else if (composition) await CompositionProbe.Run(Path.GetFullPath(args[1]));
+        else if (diagnostics) await DiagnosticsProbe.Run(Path.GetFullPath(args[1]));
         else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
         app.Shutdown(0);
       }
@@ -35,7 +38,7 @@ internal static class Program
   }
   [DllImport("user32.dll")] private static extern IntPtr GetThreadDpiAwarenessContext();
   [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
-  private static FleetWindow Open(string directory)
+  internal static FleetWindow Open(string directory)
   {
     var backups = Path.Combine(directory, "backups"); Directory.CreateDirectory(backups);
     // Replace only the interactive picker in this offscreen probe. Bridge, encryption, SQLite and file I/O are real.
@@ -49,7 +52,7 @@ internal static class Program
     var json = await window.WebView.CoreWebView2.ExecuteScriptAsync(source);
     using var value = JsonDocument.Parse(json); return value.RootElement.Clone();
   }
-  private static async Task Wait(FleetWindow window, string expression, string description)
+  internal static async Task Wait(FleetWindow window, string expression, string description)
   {
     var until = DateTime.UtcNow.AddSeconds(30); string? last = null;
     while (DateTime.UtcNow < until)
@@ -65,7 +68,7 @@ internal static class Program
       "({url:location.href,ready:document.readyState,status:document.querySelector('#status')?.textContent,body:document.body?.innerText.slice(0,1500)})")).ToString();
     throw new Exception($"Timed out: {description}; {last}; {state}");
   }
-  private static async Task Close(FleetWindow window)
+  internal static async Task Close(FleetWindow window)
   {
     var ended = new TaskCompletionSource(); window.Closed += (_, _) => ended.TrySetResult(); window.Close();
     await ended.Task.WaitAsync(TimeSpan.FromSeconds(30));

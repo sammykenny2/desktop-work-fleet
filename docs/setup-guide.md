@@ -107,6 +107,7 @@ npm run config:check -- --platform windows
 第一個命令列出五平台缺少哪些設定；`--google` 只列 Google 設定，不要求商店／簽章欄位。
 指定平台時，缺少該模式所需公開設定即以非零狀態結束。
 `npm run build` 讀取設定並產生 `build/config/public.json` 供原生封裝使用，僅輸出允許的公開欄位。
+Android Gradle 直接讀取目前設定並在其生成資產目錄產生配置，不依賴這份預先生成檔。
 五平台原生 host 已接 Google 登入、受保護 token 及 Drive appDataFolder 同步程式；
 Google Cloud 專案／client 尚未建立，未做真實登入或 Drive 往返。執行狀態見 PROGRESS。
 填 client ID 並重新建置後，從原生主畫面登入；瀏覽器開發預覽仍只有本機資料。
@@ -123,6 +124,21 @@ bundle ID 的 iOS 類型 client，Android 建立符合 package／
 
 不要在 `.env` 放 access/refresh token、簽章私鑰或 service-account JSON；登入憑證由原生安全儲存管理，
 CI 簽章秘密由 CI secret／keychain 提供。Client ID 是公開應用識別，不能代替 OAuth 驗證。
+
+## Android 1.0 建置
+
+在 Android Studio 使用 **Open** 選擇 `src/native/android`，完成 Gradle Sync，再選 `app`／`debug` 並 Run 或 Build APK。
+需要 Node 22+／npm 可從 IDE 的 PATH 找到、JDK 17 或相容新版本、Android SDK Platform 36／Build Tools 35.0.0。
+專案附 Gradle 8.13 Wrapper，Gradle 自動安裝 lockfile 依賴並產生介面及公開配置；不需預先 `npm run build`。
+未填 `.env` 時可以使用本機 preview；Google 與正式 release 配置另見 [Android README](../src/native/android/README.md)。
+
+```powershell
+# 在 src/native/android 目錄
+.\gradlew.bat assembleDebug
+```
+
+APK 位於 `src/native/android/app/build/outputs/apk/debug/app-debug.apk`。
+修改 `.env` application ID 後重新 Sync；`local.properties` 為 IDE 產生的本機 SDK 路徑，不提交版本控制。
 
 ## macOS／iOS 1.0 原生建置
 
@@ -158,7 +174,7 @@ Windows x64 的 .NET 8 Desktop／WebView2 是執行前置條件，Windows SDK �
 ```
 
 Windows 每次產生新的 `build/windows/package-<id>`，未提供憑證時 MSIX 未簽章。
-Windows 若已有 JDK 17 但缺少 Android SDK／Gradle，可先執行
+Windows 若已有 JDK 17 但缺少 Android SDK，可先執行
 `scripts/windows/Install-AndroidToolchain.ps1 -AcceptSdkLicenses`；須先閱讀並接受
 [SDK 條款](https://developer.android.com/studio#terms-and-conditions)。工具、API 36、Build Tools 35.0.0
 與 paths JSON 放在 `build/toolchain`，不修改機器 PATH。之後 `Build-AndroidApp.ps1` 可直接讀取路徑。

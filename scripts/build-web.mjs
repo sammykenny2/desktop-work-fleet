@@ -1,18 +1,20 @@
-/** Build bundled local UI assets. Usage: node scripts/build-web.mjs [--help] */
+/** Build bundled local UI assets. Usage: node scripts/build-web.mjs [--output DIR] [--config-output FILE] [--help] */
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parseArgs } from 'node:util';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { readBuildConfig } from './config.mjs';
 
-if (process.argv.includes('--help')) {
-  console.log('Usage: node scripts/build-web.mjs\nCopies app/core/layout/interaction/storage assets and pinned vendor modules to build/app.');
-} else {
-  const root = fileURLToPath(new URL('../', import.meta.url));
-  const destination = path.join(root, 'build', 'app');
-  const config = await readBuildConfig(new URL('../', import.meta.url));
-  await mkdir(path.join(root, 'build', 'config'), { recursive: true });
-  await writeFile(path.join(root, 'build', 'config', 'public.json'), JSON.stringify(config, null, 2) + '\n');
+export async function buildWebAssets({
+  root = fileURLToPath(new URL('../', import.meta.url)),
+  destination = path.join(root, 'build', 'app'),
+  configDestination = path.join(root, 'build', 'config', 'public.json'),
+  environment = process.env,
+} = {}) {
+  const config = await readBuildConfig(pathToFileURL(root + path.sep), environment);
+  await mkdir(path.dirname(configDestination), { recursive: true });
+  await writeFile(configDestination, JSON.stringify(config, null, 2) + '\n');
   await mkdir(destination, { recursive: true });
   for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources', 'backup', 'desktop']) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
@@ -36,5 +38,18 @@ if (process.argv.includes('--help')) {
   await cp(path.join(root, 'LICENSE'), path.join(destination, 'LICENSE'));
   const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   await writeFile(path.join(destination, 'build-info.json'), JSON.stringify({ version: pkg.version, dependencies: pkg.dependencies }, null, 2) + '\n');
-  console.log('Built build/app (local bundled assets, no application server).');
+  return { destination, configDestination };
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const { values } = parseArgs({ options: { help: { type: 'boolean' }, output: { type: 'string' }, 'config-output': { type: 'string' } } });
+  if (values.help) {
+    console.log('Usage: node scripts/build-web.mjs [--output DIR] [--config-output FILE]\nCopies local UI assets and pinned vendor modules. Defaults to build/app and build/config/public.json.');
+  } else {
+    const options = {};
+    if (values.output) options.destination = path.resolve(values.output);
+    if (values['config-output']) options.configDestination = path.resolve(values['config-output']);
+    const { destination } = await buildWebAssets(options);
+    console.log(`Built ${destination} (local bundled assets, no application server).`);
+  }
 }

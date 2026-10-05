@@ -52,6 +52,13 @@ python scripts/testing/serve_preview.py --port 0
 尚未連接 Google，也不是原生桌面分層版本。固定 port 可保留相同瀏覽器 origin 的資料。
 不要以此預覽取代備份；詳見 [ADR-009](docs/decisions/009-local-renderer-and-persistence.md)。
 
+## 建置 Android App
+
+Android Studio 的 **Open** 選擇 `src/native/android`，完成 Gradle Sync 後選 `app`／`debug` 並 Run 或 Build APK。
+需 Node 22+（含 npm）、JDK 17 及 Android SDK 36；專案已附 Gradle Wrapper，建置會自動安裝 npm 依賴並產生介面資產。
+也可在該目錄執行 `gradlew.bat assembleDebug`；APK 位於 `app/build/outputs/apk/debug/app-debug.apk`。
+詳見 [Android 專案說明](src/native/android/README.md)。
+
 ## 執行既有 0.1.0
 
 在 macOS 使用：
@@ -78,6 +85,7 @@ src/core/       卡片／群組／草稿／outbox 原子命令
 src/layout/     各機位置、formation 及 undo
 src/interaction/操作範圍與拖放
 src/storage/    分區 IndexedDB 交易與附件
+src/native/android/ Android Studio／Gradle 專案與 Android 原生宿主
 src/macos/      現有 AppKit Sandbox 展示與 WebKit 編輯入口
 src/server/     現有 Python 標準庫 HTTP + SQLite 驗證服務
 src/web/        現有共用便箋編輯器

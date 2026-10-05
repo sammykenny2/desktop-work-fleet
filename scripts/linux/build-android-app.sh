@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build Android APK/AAB. Usage: build-android-app.sh [--release] [--signed] [--help]
 set -euo pipefail
-usage() { printf 'Usage: %s [--release] [--signed]\nRequires Gradle 8.13, JDK 17 and Android SDK 36.\n' "$0"; }
+usage() { printf 'Usage: %s [--release] [--signed]\nRequires Node 22+, npm, JDK 17 and Android SDK 36; uses the checked-in Gradle Wrapper.\n' "$0"; }
 task=assembleDebug
 signed=0
 while [[ $# -gt 0 ]]; do
@@ -24,13 +24,11 @@ fi
 sdk_settings=$(node scripts/toolchain-env.mjs)
 android_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).ANDROID_HOME))')
 java_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).JAVA_HOME))')
-gradle_sdk=$(printf '%s' "$sdk_settings" | node -e 'let v="";process.stdin.on("data",s=>v+=s).on("end",()=>process.stdout.write(JSON.parse(v).GRADLE_HOME))')
 if [[ -n "$android_sdk" ]]; then export ANDROID_HOME="$android_sdk"; fi
 if [[ -n "$java_sdk" ]]; then export JAVA_HOME="$java_sdk"; export PATH="$java_sdk/bin:$PATH"; fi
-gradle_command=gradle
-if [[ -n "$gradle_sdk" ]]; then export GRADLE_HOME="$gradle_sdk"; gradle_command="$gradle_sdk/bin/gradle"; fi
-command -v "$gradle_command" >/dev/null || { printf 'Gradle 8.13 is required. Set GRADLE_HOME in .env or the build environment.\n' >&2; exit 1; }
-: "${ANDROID_HOME:?Set ANDROID_HOME in .env or the build environment}"
+if [[ -z "${ANDROID_HOME:-}" && ! -f src/native/android/local.properties ]]; then
+    printf 'Set ANDROID_HOME or open src/native/android in Android Studio to configure the SDK.\n' >&2
+    exit 1
+fi
 if [[ "$task" == bundleRelease ]]; then node scripts/check-config.mjs --platform android; fi
-npm run build
-"$gradle_command" -p src/native/android --no-daemon --console plain "$task"
+bash src/native/android/gradlew -p src/native/android --no-daemon --console plain "$task"

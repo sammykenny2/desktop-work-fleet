@@ -2,7 +2,8 @@
 .SYNOPSIS
     Build the Android native APK or release App Bundle.
 .DESCRIPTION
-    Requires JDK 17, Android SDK 36 and Gradle 8.13. Uses .env public app/Google
+    Requires Node 22+, npm, JDK 17 and Android SDK 36. Uses the checked-in Gradle
+    Wrapper and .env public app/Google
     settings and optional SDK paths. No SDK installation, device test or store upload.
     Release uses signing environment variables when configured; otherwise it is unsigned.
 .PARAMETER Release
@@ -10,12 +11,12 @@
 .PARAMETER Signed
     Require signing environment variables and build a release AAB.
 .PARAMETER GradlePath
-    Gradle executable path; defaults to gradle on PATH.
+    Optional Gradle executable override; defaults to the checked-in gradlew.bat.
 .EXAMPLE
     .\scripts\windows\Build-AndroidApp.ps1 -Release
 #>
 [CmdletBinding()]
-param([switch]$Release, [switch]$Signed, [string]$GradlePath = 'gradle')
+param([switch]$Release, [switch]$Signed, [string]$GradlePath = '')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $SavedSdkEnvironment = @{}
@@ -39,15 +40,13 @@ try {
         if ($SdkSettings.$Name) { [Environment]::SetEnvironmentVariable($Name, $SdkSettings.$Name, 'Process') }
     }
     if (-not $env:ANDROID_USER_HOME) { $env:ANDROID_USER_HOME = Join-Path $ProjectRoot 'build/toolchain/android-user' }
-    if ($GradlePath -eq 'gradle' -and $env:GRADLE_HOME) { $GradlePath = Join-Path $env:GRADLE_HOME 'bin/gradle.bat' }
-    if (-not (Get-Command $GradlePath -ErrorAction SilentlyContinue)) { throw 'Gradle 8.13 is required. Set -GradlePath or install Gradle in your build environment.' }
-    if (-not $env:ANDROID_HOME) { throw 'Set ANDROID_HOME in .env or the build environment.' }
+    if (-not $GradlePath) { $GradlePath = Join-Path $ProjectRoot 'src/native/android/gradlew.bat' }
+    if (-not (Get-Command $GradlePath -ErrorAction SilentlyContinue)) { throw 'Gradle Wrapper is missing. Restore src/native/android/gradlew.bat or set -GradlePath.' }
+    if (-not $env:ANDROID_HOME -and -not (Test-Path -LiteralPath src/native/android/local.properties)) { throw 'Set ANDROID_HOME or open src/native/android in Android Studio to configure the SDK.' }
     if ($Release) {
         & node scripts/check-config.mjs --platform android
         if ($LASTEXITCODE -ne 0) { throw 'Release settings are incomplete.' }
     }
-    & npm run build
-    if ($LASTEXITCODE -ne 0) { throw 'Web asset build failed.' }
     $Task = if ($Release) { 'bundleRelease' } else { 'assembleDebug' }
     & $GradlePath -p src/native/android --no-daemon --console plain $Task
     if ($LASTEXITCODE -ne 0) { throw 'Android native build failed.' }

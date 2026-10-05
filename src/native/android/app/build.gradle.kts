@@ -12,9 +12,17 @@ plugins { id("com.android.application") }
 abstract class NativeNoticesTask : Exec() {
     @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
 }
+abstract class WebAssetsTask : Exec() {
+    @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
+}
 val repositoryRoot = rootProject.projectDir.resolve("../../../")
-val publicConfig = repositoryRoot.resolve("build/config/public.json")
-val config = if (publicConfig.exists()) JsonSlurper().parse(publicConfig) as Map<*, *> else emptyMap<Any, Any>()
+val nodeExecutable = providers.gradleProperty("workFleetNode").orElse(providers.environmentVariable("WORK_FLEET_NODE")).orElse("node").get()
+val npmExecutable = providers.gradleProperty("workFleetNpm").orElse(providers.environmentVariable("WORK_FLEET_NPM")).orElse("npm").get()
+val configJson = providers.exec {
+    workingDir(repositoryRoot)
+    commandLine(nodeExecutable, "scripts/android-config.mjs")
+}.standardOutput.asText.get()
+val config = JsonSlurper().parseText(configJson) as Map<*, *>
 val configuredId = config["appId"] as? String ?: ""
 val signingVariables = listOf("WORK_FLEET_ANDROID_KEYSTORE", "WORK_FLEET_ANDROID_KEY_ALIAS", "WORK_FLEET_ANDROID_STORE_PASSWORD", "WORK_FLEET_ANDROID_KEY_PASSWORD")
 val signingValues = signingVariables.map { System.getenv(it).orEmpty() }
@@ -33,7 +41,7 @@ android {
         versionName = "1.0.0"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
-    sourceSets["main"].assets.srcDirs(repositoryRoot.resolve("build/app"), layout.buildDirectory.dir("generated/config"), layout.buildDirectory.dir("generated/notices"))
+    sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/notices"))
     if (hasSigning) {
         signingConfigs.create("release") {
             storeFile = File(signingValues[0]).also {
@@ -52,17 +60,45 @@ android {
     }
 }
 
-val copyConfig = tasks.register<Copy>("copyPublicConfig") {
-    from(publicConfig)
-    into(layout.buildDirectory.dir("generated/config/config"))
+val installWebDependencies = tasks.register<Exec>("installWebDependencies") {
+    workingDir(repositoryRoot)
+    inputs.files(repositoryRoot.resolve("package.json"), repositoryRoot.resolve("package-lock.json"))
+    outputs.dir(repositoryRoot.resolve("node_modules"))
+    if (System.getProperty("os.name").startsWith("Windows")) {
+        commandLine("cmd.exe", "/d", "/c", npmExecutable, "ci", "--ignore-scripts", "--no-audit", "--no-fund")
+    } else {
+        commandLine(npmExecutable, "ci", "--ignore-scripts", "--no-audit", "--no-fund")
+    }
+}
+val buildWebAssets = tasks.register<WebAssetsTask>("buildWebAssets") {
+    dependsOn(installWebDependencies)
+    workingDir(repositoryRoot)
+    assetsDirectory.set(layout.buildDirectory.dir("generated/web-assets"))
+    inputs.files(repositoryRoot.resolve("scripts/build-web.mjs"), repositoryRoot.resolve("scripts/config.mjs"), repositoryRoot.resolve("package.json"), repositoryRoot.resolve("package-lock.json"), repositoryRoot.resolve("LICENSE"), repositoryRoot.resolve("THIRD-PARTY-NOTICES.md"))
+    for (folder in listOf("app", "core", "layout", "interaction", "storage", "sources", "backup", "desktop")) {
+        inputs.dir(repositoryRoot.resolve("src/$folder"))
+    }
+    for (name in listOf("bridge.js", "files.js", "capture.js", "shortcuts.js", "google.js")) {
+        inputs.file(repositoryRoot.resolve("src/native/$name"))
+    }
+    inputs.property("publicConfig", configJson)
+    val destination = assetsDirectory.get().asFile
+    commandLine(nodeExecutable, "scripts/build-web.mjs", "--output", destination.absolutePath,
+        "--config-output", destination.resolve("config/public.json").absolutePath)
+}
+val validateReleaseConfig = tasks.register<Exec>("validateReleaseConfig") {
+    workingDir(repositoryRoot)
+    commandLine(nodeExecutable, "scripts/android-config.mjs", "--check-release")
 }
 val copyNotices = tasks.register<Copy>("copyProjectNotices") {
     from(repositoryRoot.resolve("LICENSE"), repositoryRoot.resolve("THIRD-PARTY-NOTICES.md"))
     into(layout.buildDirectory.dir("generated/notices/licenses"))
 }
-tasks.named("preBuild") { dependsOn(copyConfig, copyNotices) }
+tasks.named("preBuild") { dependsOn(copyNotices) }
+tasks.matching { it.name == "preReleaseBuild" }.configureEach { dependsOn(validateReleaseConfig) }
 val noticesBuildId = UUID.randomUUID().toString()
 androidComponents.onVariants { variant ->
+    variant.sources.assets?.addGeneratedSourceDirectory(buildWebAssets) { it.assetsDirectory }
     val runtime = configurations.named("${variant.name}RuntimeClasspath")
     val metadata = layout.buildDirectory.file("generated/native-dependencies/${variant.name}-$noticesBuildId.json")
     val collect = tasks.register<NativeNoticesTask>("collect${variant.name.replaceFirstChar { it.uppercase() }}NativeNotices") {
@@ -88,7 +124,7 @@ androidComponents.onVariants { variant ->
             val input = metadata.get().asFile
             input.parentFile.mkdirs()
             input.writeText(JsonOutput.prettyPrint(JsonOutput.toJson(mapOf("variant" to variant.name, "artifacts" to rows))))
-            commandLine("node", repositoryRoot.resolve("scripts/generate-android-notices.mjs").absolutePath,
+            commandLine(nodeExecutable, repositoryRoot.resolve("scripts/generate-android-notices.mjs").absolutePath,
                 "--input", input.absolutePath, "--output", assetsDirectory.get().asFile.absolutePath)
         }
     }
@@ -96,7 +132,7 @@ androidComponents.onVariants { variant ->
 }
 tasks.matching { it.name.contains("Release") }.configureEach {
     doFirst {
-        require(configuredId.isNotEmpty()) { "Release requires WORK_FLEET_APP_ID in .env and npm run build." }
+        require(configuredId.isNotEmpty()) { "Release requires WORK_FLEET_APP_ID in .env. Sync Gradle after configuring it." }
         require(hasSigning || signingValues.all { it.isBlank() }) { "Set all four Android signing environment variables, or leave all unset for an unsigned AAB." }
     }
 }

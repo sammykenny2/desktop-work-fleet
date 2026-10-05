@@ -8,7 +8,7 @@
 | macOS | `scripts/macos/build-native-app.sh --platform macos --release`；`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Apple team 與 signing identities |
 | Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
 | iOS | `scripts/macos/build-native-app.sh --platform ios --release`；`package-native-app.sh` | xcarchive／IPA；Xcode、Apple team、App／Extension 的 App Group profiles |
-| Android | `scripts/windows/Build-AndroidApp.ps1` 或 `scripts/linux/build-android-app.sh` | debug APK／release AAB；JDK 17、Gradle 8.13、Android SDK 36。Windows 可用 `Install-AndroidToolchain.ps1` 在 workspace 安裝工具 |
+| Android | Android Studio Open `src/native/android`；或 `scripts/windows/Build-AndroidApp.ps1`／`scripts/linux/build-android-app.sh` | debug APK／release AAB；Node 22+、npm、JDK 17、Android SDK 36。已附 Gradle 8.13 Wrapper，自動產生資產；[開啟與建置說明](../src/native/android/README.md) |
 
 公開設定在 `.env.example`：各平台 Google client、app ID、Apple team／App Group、Microsoft
 package identity／publisher、隱私與支援資料。私鑰／密碼由 OS Keychain 或 CI environment 提供。

@@ -601,6 +601,35 @@ SDK cache 本機路径與憑證不進隨包 inventory；正式 AAB 的 SDK 條�
 依指示未做測試／審閱／獨立 review。Apple hosted build 額度授權仍待回覆，沒有啟動 Actions。
 正式 OAuth／developer accounts／簽章、原生 screenshots 與五平台完整驗收仍缺，完整 1.0 未完成。
 
+## 2026-10-05 Android Studio 與 Gradle Wrapper 建置
+
+補齊 `src/native/android` 的 Gradle 8.13 Wrapper（Windows／Unix scripts、JAR、固定 distribution SHA-256），
+可在 Android Studio Open 此目錄。官方 Wrapper 來源及授權已記錄於 THIRD-PARTY-NOTICES，保留 LICENSE／NOTICE。
+Gradle Sync 直接讀取 `.env`／環境中的公開配置，不再依賴先前產生的 `build/config/public.json`。
+Android 資產生成任務自動執行 lockfile `npm ci --ignore-scripts`，並將 renderer／vendor／bridge／config
+產生到 `app/build/generated/web-assets`；APK 建置不需要先跑外部 `npm run build`。
+release 同樣檢查正式公開設定，保留原簽章環境變數契約。
+Windows／Linux 建置入口改用 Wrapper；README／setup／deployment／testing 已補 Android Studio Open、
+Node／SDK／JDK 前置條件、Sync、Run／APK 操作及實際產物位置。
+
+作者執行結果：`node --test tests/android-build.test.js` 3 項通過，涵蓋無生成資產的配置、
+`.env` 更新、秘密排除、release 缺值／完整配置及獨立輸出路徑的完整資產。
+`npm run build` 通過，保留其他平台的原預設輸出。
+`gradlew.bat -p src/native/android --offline --no-daemon --console plain assembleDebug` BUILD SUCCESSFUL；
+產出 `src/native/android/app/build/outputs/apk/debug/app-debug.apk`，11,253,673 bytes。
+另在含空白路徑的隔離 checkout（沒有 `.env`、node_modules 或既有生成資產）完成 Wrapper APK 建置；
+Gradle 自行安裝依賴、產生資產並編譯原生 Java。兩份 APK 的 ZIP 內容均確認有 renderer、
+native/files、native/capture、vendor、公開配置與 SDK inventory。
+另透過 Gradle Tooling API 取得 Android Studio 使用的 AndroidProject v2 模型，
+確認 `app.workfleet.nativehost` 與 debug／release variants 可解析；此檢查未啟動 IDE GUI。
+`python -B scripts/testing/check_docs.py` 通過（96 份 Markdown、502 個相對連結），`git diff --check` 通過。
+使用既有已核對 SHA-256 的 distribution 填入 Wrapper cache；Maven/npm 依賴下載後重用 cache，
+此處 `--offline` 為受限執行環境的驗證選項，不代表新 checkout 完全不需首次下載。
+Java archive／debug keystore lock 在受限環境被拒絕，使用核准的建置權限完成；沒有修改產品安全設定。
+
+本輪未操作 Android Studio GUI、模擬器／真裝置、Google 往返或商店；作者建置／回歸不是獨立審閱，
+沒有獨立 review。正式 release／簽章／商店準備仍保留上方缺項。
+
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。

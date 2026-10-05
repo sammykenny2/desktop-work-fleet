@@ -30,6 +30,11 @@ git diff --check
 `tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
 亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
 `tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。
+`tests/android-build.test.js` 驗證無既有生成資產時的 Android 公開配置、修改 `.env` 後重新讀取、
+release 必填欄位、隔離輸出路徑中的 renderer／bridge／vendor 及 CSP。執行 `node --test tests/android-build.test.js`。
+Android Studio 開啟 `src/native/android`；Gradle Wrapper 的 `assembleDebug` 會安裝 lockfile 依賴並產生 APK 資產，
+無須先執行外部 web build。命令與前置條件見 [Android README](../src/native/android/README.md)。
+APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結果記於 PROGRESS。
 `npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
 `tests/workspace-sync.test.js` 驗證 graph 與 Workspace／LayoutStore 原子交易、保存失敗、過期 session／cursor、
 runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意圖與既有 entity 順序。

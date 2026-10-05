@@ -74,8 +74,10 @@ Mac 原生三層檢查可執行 `bash scripts/macos/test-desktop-layers.sh`；�
 選單列支援重新開啟、快速記錄、操作、顯示與保存退出。螢幕／Space／休眠通知會暫停輸入，
 保留 editor surface，待 owner 保存救援位置後套用新 topology；背景更新不主動取得鍵盤焦點。
 
-這些是已加入的程式與建置入口。本機為 Windows，未編譯 Apple 程式、產生 app/archive 或執行原生驗收。
-全螢幕／Spaces、透明輸入转送、IME、多螢幕及正式 Google 登入的實機結果仍缺。
+2026-10-05 已在 Apple Silicon Mac 使用 Xcode 27.0 編譯 macOS Debug universal（arm64／x86_64），
+並產生 0.1.0 未簽章 DMG；建置及掛載檢查證據見 [PROGRESS](../../../PROGRESS.md)。
+尚未產生正式 archive／export 或編譯 iOS；protected storage／Google 仍需合適簽章。
+產品啟動、全螢幕／Spaces、透明輸入转送、IME、多螢幕及正式 Google 登入的實機結果仍缺。
 
 附件／草稿下載走原生匯出：macOS NSSavePanel、iOS UIDocumentPicker，保留取消結果。
 iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。

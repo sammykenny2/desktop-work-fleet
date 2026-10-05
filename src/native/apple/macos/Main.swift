@@ -29,7 +29,7 @@ import AppKit
             for (title, target) in [("快速記錄", "@capture"), ("操作所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")] {
                 let item = NSMenuItem(title: title, action: #selector(desktopAction(_:)), keyEquivalent: ""); item.target = self; item.representedObject = target; menu.addItem(item)
             }
-            menu.addItem(.separator()); let quit = NSMenuItem(title: "保存並結束", action: #selector(quit), keyEquivalent: "q"); quit.target = self; menu.addItem(quit); statusItem?.menu = menu
+            menu.addItem(.separator()); let quitItem = NSMenuItem(title: "保存並結束", action: #selector(quit), keyEquivalent: "q"); quitItem.target = self; menu.addItem(quitItem); statusItem?.menu = menu
             let mainMenu = NSMenu(), appItem = NSMenuItem(), appMenu = NSMenu(); mainMenu.addItem(appItem); appItem.submenu = appMenu
             let appQuit = NSMenuItem(title: "保存並結束 Work Fleet", action: #selector(quit), keyEquivalent: "q"); appQuit.target = self; appMenu.addItem(appQuit)
             let editItem = NSMenuItem(title: "編輯", action: nil, keyEquivalent: ""), editMenu = NSMenu(title: "編輯"); mainMenu.addItem(editItem); editItem.submenu = editMenu

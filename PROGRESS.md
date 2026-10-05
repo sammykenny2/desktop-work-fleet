@@ -20,6 +20,29 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 macOS universal DMG
+
+在 Apple Silicon Mac 使用 Xcode 27.0（27A266a）、macOS 27 SDK、Node 24.21.0／npm 12.2.0，
+首次編譯目前的原生 WorkFleetMac。修正選單區域變數 `quit` 遮蔽同名方法造成的 selector 編譯錯誤，
+不變更結束／保存流程；保留本輪 Xcode 產生的 SPM lockfile，以固定實際解析的依賴版本。
+
+以 Debug、`ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO`、`CODE_SIGNING_ALLOWED=NO` 成功建置。
+本機沒有有效 code-signing identity；未繞過 Release 配置要求、停用產品安全儲存或建立憑證。
+產出原生未簽章 preview，並以 hdiutil UDZO 封裝，內含 App、Applications 捷徑與使用限制說明。
+
+交付：`build/apple/preview-macos-universal-pttdnsm8/WorkFleet-0.1.0-macos-universal-unsigned.dmg`。
+大小 2,747,893 bytes；SHA-256：`e740adcb9f8dc9b5a4aa10211b0099ac83aa566966835d4b2a56bc1fb9733341`。
+主程式、`WorkFleetMac.debug.dylib` 與 `__preview.dylib` 均含 arm64／x86_64；
+`hdiutil verify` 通過，唯讀掛載後再次核對版本、bundle ID、各 binary 架構、renderer／公開配置及授權。
+完成後已卸載檢查映像，未安裝或啟動產品 App、讀取個人便箋或啟動 hosted Actions。
+
+Apple 專案／資產回歸 3／3、文件與 diff 檢查通過；雙架構原生編譯是 selector 修正的驗證。
+建置有一項未使用 AppIntents 的 metadata extraction 警告；不影響編譯完成。
+證據：`build/apple/macos-universal-rebuild.log`、`build/apple/apple-project-tests.log`，
+及交付目錄中的 `verification.json`／`dmg-verification.log`／`SHA256SUMS.txt`。
+沒有獨立審閱；未驗收產品 runtime、Keychain、Intel 實機、Google 登入、手勢／Spaces 或正式簽章／公證。
+未簽章 preview 的 protected storage／Google 仍需合適的 Apple signing，不能當作完整可用版本或正式散布。
+
 ## 2026-10-05 Raspberry Pi Debian 建置與安裝
 
 在 Raspberry Pi 5 Model B Rev 1.1、Debian 13.7 arm64、labwc／Wayland 環境，

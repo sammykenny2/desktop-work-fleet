@@ -166,7 +166,8 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 
 腳本使用已提交的專案；DerivedData／Release xcarchive／export 保留於忽略的 `build/apple/`。
 原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
-全域鍵、選單列及螢幕生命週期。尚未在 Apple SDK 編譯；操作細節及剩餘交付見
+全域鍵、選單列及螢幕生命週期。macOS Debug universal 已在 Xcode 編譯並產生未簽章 DMG，
+iOS／正式簽章及 runtime 尚未驗收；操作細節及剩餘交付見
 [Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
 
 iOS 分享接收另嵌入 `<APP_ID>.share` Extension；在同一 Apple team 為 App／Extension 啟用

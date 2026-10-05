@@ -41,6 +41,23 @@ APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結
 Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
 Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
 
+macOS 未簽章 universal preview 的實際編譯命令如下；不變更系統 `xcode-select` 設定。
+Debug preview 不替代正式簽章、Keychain／Google 或產品 runtime 驗收。
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
+  -project src/native/apple/WorkFleet.xcodeproj -scheme WorkFleetMac \
+  -configuration Debug -destination 'generic/platform=macOS' \
+  -derivedDataPath build/apple/DerivedData \
+  -clonedSourcePackagesDirPath build/apple/SourcePackages \
+  "WORK_FLEET_PACKAGES_DIR=$PWD/build/apple/SourcePackages" \
+  'ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
+lipo -archs build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app/Contents/MacOS/WorkFleetMac
+```
+
+封裝後需以 `hdiutil verify` 及唯讀掛載核對實際 App；Debug 的主程式與隨附 dylib 均須含兩種架構。
+2026-10-05 已完成上述建置／DMG 檢查與 Apple 專案測試 3／3；產物、hash、限制及紀錄見 PROGRESS。
+
 三平台桌面分層契約見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
 `python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證
 Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequence 與 geometry；不作 UI 證據。

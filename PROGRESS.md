@@ -20,6 +20,25 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Raspberry Pi Debian 建置與安裝
+
+在 Raspberry Pi 5 Model B Rev 1.1、Debian 13.7 arm64、labwc／Wayland 環境，
+使用 Node 24.21.0、Python 3.13.5 與 lockfile 依賴執行
+`bash scripts/linux/build-native-app.sh --deb`，成功建立 source/runtime tar.gz 與
+`build/linux/work-fleet_0.1.0~preview_all.deb`（176,964 bytes，Architecture: all）。
+DEB SHA-256：`a356122d986bc7ac41d32304fd433da9be3093f3315fc7c1ff36279bdf434a68`。
+
+APT 預檢後以 `sudo -n apt-get --no-remove -y install "$PWD/build/linux/work-fleet_0.1.0~preview_all.deb"`
+成功安裝，並補齊 `python3-gi-cairo` 與 `gir1.2-keybinder-3.0`；沒有升級或移除其他套件。
+`dpkg-query` 確認三個套件均為 `install ok installed`；`sudo -n apt-get check`、`dpkg --audit`、
+`work-fleet --help`、已安裝 host 的 Python 模組載入與 `--help` 檢查通過。
+Desktop entry 驗證通過，另提示 Office／Utility 雙主分類可能讓選單重複顯示；
+host 載入另有未明確指定 Gdk 版本的 PyGIWarning，未阻止上述檢查。
+
+可從應用程式選單開啟 Work Fleet，或執行 `work-fleet`。
+本輪沒有啟動 GUI、操作金鑰圈／使用者便箋或驗收桌面分層、中文 IME、Google 往返。
+產品程式碼未修改，沒有獨立審閱；安裝包保留在 Git 忽略的 `build/` 目錄。
+
 ## 2026-10-05 試用版本降為 0.1.0
 
 依使用者最新指示，不採用原先擬議的 `1.0.0.1` 升級版本，改為 `0.1.0`。

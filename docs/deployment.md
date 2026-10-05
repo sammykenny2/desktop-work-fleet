@@ -40,7 +40,9 @@ Android `-Signed`／`--signed` 要求四個簽章環境變數並產生 release A
 [商店準備](release/README.md)。一般 release 在沒有 signing inputs 時產生未簽章 AAB。
 Linux runtime tar.gz 沒有內嵌 Python／GTK；DEB 交給支援該依賴版本的發行版。
 不同 distro、CPU、X11／Wayland、桌面與 compositor 的行為仍需各自取得證據。
-Linux preview DEB 使用 `0.1.0~preview` 與 preview maintainer contact；release 使用正式 email。
+Linux DEB 統一使用早期版號 `0.1.0`，不另加 `~preview`。一般建置可使用 preview maintainer contact；
+release 仍需正式公開設定與 email，不由版號判定散布驗收是否完成。
+Linux 與 Windows 建置入口直接輸出 `build/work-fleet_0.1.0_all.deb`，封裝腳本自動移除本次 staging。
 Windows 的 Docker 封裝只執行 dpkg-deb，沒有在 container 安裝 GUI、App 或提供 runtime 驗收結果。
 
 1.0 授權見 [第三方聲明](../THIRD-PARTY-NOTICES.md) 及 `src/native/licenses/`。

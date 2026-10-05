@@ -3,10 +3,11 @@
     Build Linux tar.gz and DEB using the existing Linux Docker engine.
 .DESCRIPTION
     Bundles Linux sources/assets, then runs dpkg-deb in an Ubuntu build container.
-    Mounts only build/linux and the packaging script. No runtime, GUI tests, service
-    ports, installation, signing or publication. Existing output is preserved.
+    Mounts only build and the packaging script. Writes the DEB directly to build,
+    with the source/runtime bundle and tar.gz in build/linux. No runtime, GUI tests,
+    service ports, installation, signing or publication. Existing output is preserved.
 .PARAMETER Release
-    Require final public config and build version 0.1.0; default is 0.1.0~preview.
+    Require final public config. Both modes use product version 0.1.0.
 .PARAMETER SkipWebBuild
     Use already-built build/app assets.
 .PARAMETER DockerImage
@@ -26,15 +27,16 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Linux assets packaging failed.' }
     & python -B scripts/package-linux.py
     if ($LASTEXITCODE -ne 0) { throw 'Linux archive failed.' }
-    $LinuxOutput = Join-Path $ProjectRoot 'build/linux'
+    $BuildOutput = Join-Path $ProjectRoot 'build'
+    $LinuxOutput = Join-Path $BuildOutput 'linux'
     $Metadata = Get-Content -LiteralPath (Join-Path $LinuxOutput 'work-fleet-0.1.0/package.json') -Raw | ConvertFrom-Json
     $PublicConfig = Get-Content -LiteralPath (Join-Path $LinuxOutput 'work-fleet-0.1.0/Config/public.json') -Raw | ConvertFrom-Json
     $Script = Join-Path $ProjectRoot 'scripts/linux/package-deb.sh'
-    $Arguments = @('run', '--rm', '--network', 'none', '--mount', "type=bind,source=$LinuxOutput,target=/workspace/build/linux", '--mount', "type=bind,source=$Script,target=/workspace/scripts/package-deb.sh,readonly", $DockerImage, 'bash', '/workspace/scripts/package-deb.sh', '--source', '/workspace/build/linux/work-fleet-0.1.0', '--output', '/workspace/build/linux', '--app-id', $Metadata.appId)
+    $Arguments = @('run', '--rm', '--network', 'none', '--mount', "type=bind,source=$BuildOutput,target=/workspace/build", '--mount', "type=bind,source=$Script,target=/workspace/scripts/package-deb.sh,readonly", $DockerImage, 'bash', '/workspace/scripts/package-deb.sh', '--source', '/workspace/build/linux/work-fleet-0.1.0', '--output', '/workspace/build', '--app-id', $Metadata.appId)
     if ($PublicConfig.release.supportEmail) { $Arguments += @('--maintainer-email', $PublicConfig.release.supportEmail) }
     if ($Release) { $Arguments += '--release' }
     & docker @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'Linux DEB build failed; a Linux Docker engine and an available build image are required.' }
-    $Version = if ($Release) { '0.1.0' } else { '0.1.0~preview' }
-    Write-Output "Linux package: $(Join-Path $LinuxOutput "work-fleet_${Version}_all.deb")"
+    $Version = '0.1.0'
+    Write-Output "Linux package: $(Join-Path $BuildOutput "work-fleet_${Version}_all.deb")"
 } finally { Pop-Location }

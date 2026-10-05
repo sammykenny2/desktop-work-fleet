@@ -1,5 +1,6 @@
 #!/bin/bash
 # Package the generated Linux app with the distribution's dpkg-deb.
+# The temporary staging directory is removed on exit.
 # Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--release]
 set -euo pipefail
 usage() { echo 'Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--release]'; }
@@ -24,6 +25,7 @@ command -v dpkg-deb >/dev/null || { echo 'dpkg-deb is required.' >&2; exit 1; }
 mkdir -p "$OUTPUT"
 OUTPUT="$(cd "$OUTPUT" && pwd)"; BUNDLE="$(cd "$BUNDLE" && pwd)"
 STAGE="$(mktemp -d "$OUTPUT/deb-stage-XXXXXXXX")"
+trap 'rm -rf -- "$STAGE"' EXIT
 mkdir -p "$STAGE/DEBIAN" "$STAGE/usr/lib/work-fleet" "$STAGE/usr/bin" "$STAGE/usr/share/applications" "$STAGE/usr/share/icons/hicolor/256x256/apps" "$STAGE/usr/share/doc/work-fleet"
 cp -R "$BUNDLE/." "$STAGE/usr/lib/work-fleet/"
 cp "$BUNDLE/Desktop/$APP_ID.desktop" "$STAGE/usr/share/applications/"
@@ -37,7 +39,7 @@ LAUNCHER
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE" -type f -exec chmod 644 {} +
 chmod 755 "$STAGE/usr/bin/work-fleet" "$STAGE/usr/lib/work-fleet/run-work-fleet.sh"
-VERSION='0.1.0~preview'; [[ "$RELEASE" == 0 ]] || VERSION='0.1.0'
+VERSION='0.1.0'
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: work-fleet
 Version: $VERSION

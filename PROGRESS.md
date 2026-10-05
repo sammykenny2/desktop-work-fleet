@@ -21,6 +21,27 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Linux DEB 版號與輸出位置修正
+
+依使用者指示，`0.1.0` 已表示早期版本，DEB 的套件版號與檔名不再附加 `~preview`。
+Linux `build-native-app.sh --deb` 與 Windows `Build-LinuxPackage.ps1` 都直接輸出
+`build/work-fleet_0.1.0_all.deb`；一般與 release 建置使用同一版號，release 仍檢查正式公開配置與 email。
+共同封裝腳本在成功／失敗結束時清除本次 staging，不刪除既有產物；
+source/runtime 副本與 tar.gz 的建置輸出仍在 `build/linux/`。
+
+Raspberry Pi 實際執行完整建置，DEB 直接產生於 `build/` 根目錄，沒有手動搬檔。
+目前交付：`build/work-fleet_0.1.0_all.deb`（177,248 bytes，Architecture: all）。
+SHA-256：`9733e874acdaa22d55695ee740fc08d0c9df4b57bbd44fbc5a32671c4895a6f4`。
+APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新安裝；沒有升級或移除其他套件。
+依先前清理要求刪除舊 DEB 與本次生成的 app／config／Linux 中間產物，`build/` 僅保留新 DEB。
+下方先前 Pi 建置與清理的 `~preview` 版號、路徑與 hash 保留為歷史紀錄。
+
+作者檢查：完整 Python 測試 23／23 通過，含雙模式版號、release 缺值、staging 清理與
+含空白 checkout 路徑的完整建置輸出回歸；Bash 語法、套件 metadata／hash、
+`dpkg-query`、`work-fleet --help`、`sudo -n apt-get check` 與 `dpkg --audit` 通過。
+同步更新 setup／deployment／testing／Linux README 與 ADR-028。
+本機無 PowerShell，未執行 Windows／Docker 建置入口；未驗收 GUI、使用者資料或 Google。沒有獨立審閱。
+
 ## 2026-10-05 Windows 本機 build 目錄整理與目前交付
 
 依使用者要求整理 Windows 開發機上 Git 忽略的 `build/`：刪除 292 項、約 2.58 GB，包括各輪 probe／review 證據目錄、log、截圖、

@@ -27,6 +27,12 @@ python3 scripts/testing/check_docs.py
 git diff --check
 ```
 
+`python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v` 在有 bash 與 dpkg-deb 的環境
+實際封裝隔離 fixture，驗證一般／release DEB 都使用 `0.1.0` 版號與檔名，
+release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件或啟動 GUI。
+另驗證成功／失敗都清除本次 staging，保留既有輸出。有 Node 22+／npm 與 lockfile 依賴時，
+在含空白路徑的隔離 checkout 執行完整 `--deb` 建置，確認 DEB 直接輸出到 `build/` 根目錄。
+
 `tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
 亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
 `tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。

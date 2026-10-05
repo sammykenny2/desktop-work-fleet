@@ -35,9 +35,12 @@ Windows 可選 workspace Android toolchain installer，使用官方固定 SDK to
 位於忽略的 `build/`；不修改系統 PATH。公開 SDK 路徑可由 `.env`／process environment 覆蓋。
 
 Linux DEB 委派給獨立 dpkg-deb script；Windows 可使用既有 Docker Linux engine，在固定 Ubuntu
-image 中執行。容器只掛載生成的 Linux bundle／output 與封裝 script，執行時 network none，
-不安装 App 或 GUI runtime。Preview 使用 `1.0.0~preview`，release 需正式公開配置與 maintainer email。
-每次建立新的 staging 目錄，保留產物；安裝 launcher 與 license documents，使用 root archive ownership。
+image 中執行。容器只掛載忽略的 `build/` 產物目錄與封裝 script，執行時 network none，
+不安装 App 或 GUI runtime。2026-10-05 依維護者指示，DEB 統一使用產品版號 `0.1.0`，
+不附加 `~preview`；release 仍需正式公開配置與 maintainer email。
+Linux 與 Windows 入口直接將 DEB 輸出到 `build/` 根目錄；bundle／tar.gz 保留於 `build/linux/`。
+每次建立新的 staging 目錄並於腳本結束時自動移除，保留產物；
+安裝 launcher 與 license documents，使用 root archive ownership。
 
 Apple 加入手動 GitHub workflow，固定官方 actions commit，使用 GitHub macOS runner 編譯
 未簽章 Debug 的 macOS App 與 iOS device App／Extension，保留 ZIP／IPA 與 builder version。

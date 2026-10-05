@@ -228,15 +228,19 @@ backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
 bash build/linux/work-fleet-0.1.0/run-work-fleet.sh
+bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
-產生 source/runtime tar.gz；`--deb` 需 Debian 工具及正式公開設定。隔離 headless Linux compositor
+產生 source/runtime tar.gz；`--deb` 需 Debian 工具，`--release` 另需正式公開設定。隔離 headless Linux compositor
 的原生場景檢查見 testing／PROGRESS，沒有金鑰圈或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
 
 Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
 dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。
-Preview 檔案是 `build/linux/work-fleet_0.1.0~preview_all.deb`，適用提供上述系統依賴的發行版。
+Linux 與 Windows 建置入口都直接產生 `build/work-fleet_0.1.0_all.deb`，不需手動搬檔。
+source/runtime 副本與 tar.gz 仍在 `build/linux/`；DEB staging 在封裝結束時自動清除。
+DEB 適用提供上述系統依賴的發行版。
+`0.1.0` 已表示早期版本；一般與 release 建置都使用此版號，不另加 `~preview`。
 
 Apple 手動建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
 在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub

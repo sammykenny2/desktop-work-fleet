@@ -1,5 +1,6 @@
 #!/bin/bash
 # Package native Linux sources/assets, optionally create a Debian package.
+# DEB output: build/work-fleet_0.1.0_all.deb.
 # Usage: scripts/linux/build-native-app.sh [--release] [--deb] [--help]
 set -euo pipefail
 usage() { echo 'Usage: scripts/linux/build-native-app.sh [--release] [--deb] [--help]'; }
@@ -20,5 +21,5 @@ if [[ "$DEB" == 1 ]]; then
     EMAIL="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-0.1.0/Config/public.json", "utf8")).release.supportEmail || "");')"
     EXTRA=(); [[ "$RELEASE" == 0 ]] || EXTRA+=(--release)
     [[ -z "$EMAIL" ]] || EXTRA+=(--maintainer-email "$EMAIL")
-    bash "$SCRIPT_DIR/package-deb.sh" --source "$BUNDLE" --output "$PROJECT_ROOT/build/linux" --app-id "$APP_ID" "${EXTRA[@]}"
+    bash "$SCRIPT_DIR/package-deb.sh" --source "$BUNDLE" --output "$PROJECT_ROOT/build" --app-id "$APP_ID" "${EXTRA[@]}"
 fi

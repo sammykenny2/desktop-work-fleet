@@ -10,6 +10,8 @@ public sealed class NativeTray : IDisposable
   private readonly HwndSource receiver;
   private readonly Action<string, ForegroundIntent> invoke;
   private readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
+  private readonly IntPtr icon;
+  private readonly bool ownsIcon;
   private bool disposed;
   public bool Available { get; private set; }
   public event Action? Changed;
@@ -17,13 +19,17 @@ public sealed class NativeTray : IDisposable
   public NativeTray(Action<string, ForegroundIntent> invoke)
   {
     this.invoke = invoke;
+    // The executable's embedded icon at notification-area size; the stock application icon only if none is embedded.
+    var small = new IntPtr[1];
+    ownsIcon = Environment.ProcessPath is { } path && ExtractIconExW(path, 0, null, small, 1) > 0 && small[0] != IntPtr.Zero;
+    icon = ownsIcon ? small[0] : LoadIconW(IntPtr.Zero, new IntPtr(32512));
     // A hidden top-level window receives TaskbarCreated broadcasts; message-only windows do not.
     receiver = new HwndSource(new HwndSourceParameters("Work Fleet notification area") { Width = 0, Height = 0,
       WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080 });
     receiver.AddHook(Receive); Add();
   }
   private NotifyData Data() => new() { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = receiver.Handle, Id = 1,
-    Flags = 1 | 2 | 4 | 0x80, Message = Callback, Icon = LoadIconW(IntPtr.Zero, new IntPtr(32512)),
+    Flags = 1 | 2 | 4 | 0x80, Message = Callback, Icon = icon,
     Tip = "Work Fleet · 記錄與桌面便箋", Info = "", Title = "", Version = 4 };
   private void Add()
   {
@@ -68,6 +74,7 @@ public sealed class NativeTray : IDisposable
   {
     if (disposed) return; disposed = true; var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = false;
     receiver.RemoveHook(Receive); receiver.Dispose();
+    if (ownsIcon) _ = DestroyIcon(icon);
   }
   [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct NotifyData
   {
@@ -83,6 +90,8 @@ public sealed class NativeTray : IDisposable
   [DllImport("shell32.dll", CharSet = CharSet.Unicode)] private static extern bool Shell_NotifyIconW(uint message, ref NotifyData value);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessageW(string name);
   [DllImport("user32.dll")] private static extern IntPtr LoadIconW(IntPtr instance, IntPtr name);
+  [DllImport("shell32.dll", CharSet = CharSet.Unicode)] private static extern uint ExtractIconExW(string file, int index, IntPtr[]? large, IntPtr[]? small, uint count);
+  [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr icon);
   [DllImport("user32.dll")] private static extern IntPtr CreatePopupMenu();
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool AppendMenuW(IntPtr menu, uint flags, UIntPtr id, string label);
   [DllImport("user32.dll")] private static extern bool DestroyMenu(IntPtr menu);

@@ -4,7 +4,7 @@ from gi.repository import Gtk
 
 
 class Tray:
-    def __init__(self, app_id, main, action, quit_app, menu_active):
+    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None):
         self.main, self.action, self.menu_active = main, action, menu_active
         self.available = self.closed = False
         self.indicator = self.icon = None
@@ -26,6 +26,9 @@ class Tray:
                 gi.require_version(namespace, "0.1")
                 module = getattr(__import__("gi.repository", fromlist=[namespace]), namespace)
                 self.indicator = module.Indicator.new(app_id, app_id, module.IndicatorCategory.APPLICATION_STATUS)
+                if icon is not None:
+                    # Portable bundles are not in the icon theme; let the indicator find <app_id>.png beside the bundle.
+                    self.indicator.set_icon_theme_path(str(icon.parent))
                 self.indicator.set_menu(self.menu)
                 self.indicator.connect("connection-changed", lambda _indicator, connected: self.connection(bool(connected)))
                 self.indicator.set_status(module.IndicatorStatus.ACTIVE)
@@ -34,7 +37,7 @@ class Tray:
             except (ValueError, ImportError, TypeError):
                 self.indicator = None
         if self.indicator is None:
-            self.icon = Gtk.StatusIcon.new_from_icon_name(app_id)
+            self.icon = Gtk.StatusIcon.new_from_file(str(icon)) if icon is not None else Gtk.StatusIcon.new_from_icon_name(app_id)
             self.icon.set_title("Work Fleet")
             self.icon.set_tooltip_text("Work Fleet")
             self.icon.connect("activate", lambda *_: self.dispatch("show"))

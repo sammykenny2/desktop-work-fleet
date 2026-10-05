@@ -21,6 +21,20 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 系統匣與 App 圖示
+
+使用者回報 Windows 系統匣與工作列沒有圖示，並要求再確認 macOS／Linux。
+
+- Windows：exe 先前未嵌入圖示，系統匣用系統預設 `IDI_APPLICATION`。新增 `scripts/generate-windows-icon.mjs`，
+  以既有紙張圖示產生 16–256 px 的 `src/native/windows/app/WorkFleet.ico`（已提交），csproj 設 `ApplicationIcon`；
+  WPF 視窗／工作列沿用內嵌圖示，系統匣以 `ExtractIconExW` 取小圖示，沒有內嵌時才回退預設圖示。
+  MSIX 開始選單 logo（paper-44／50／150）原本就有；打包流程沒有 makepri，所以不加 targetsize 變體。
+- macOS：App 圖示原本已設定（`AppIcon` asset catalog）；選單列先前只有文字「w.」，改為 SF Symbol `note.text` 樣板圖示。
+- Linux：視窗圖示與 DEB 的 hicolor 圖示原本已設定；系統匣只靠圖示主題名稱，可攜 tar.gz／開發執行找不到。
+  現在 AppIndicator 設 `set_icon_theme_path` 指向內附 `Icons/`，`Gtk.StatusIcon` 直接讀檔。
+- 驗證：Windows Debug build 無錯，exe 內含 1 個圖示；Apple 用的 RGB PNG 輸出與已提交檔案位元相同；
+  `host.py`／`tray.py` 通過 `py_compile`。未安裝新包看實際系統匣，未在 macOS／Linux 實機確認。
+
 ## 2026-10-06 主視窗 X 收起到系統匣
 
 使用者要求主視窗按 X 後仍常駐系統匣，並指示接下來一連串改動先不花時間測試。

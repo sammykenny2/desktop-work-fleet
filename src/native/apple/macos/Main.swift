@@ -24,7 +24,9 @@ import AppKit
             host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil }
             host.finished = { [weak self] in guard let self else { return }; self.terminating = true; NSApplication.shared.reply(toApplicationShouldTerminate: true) }
             host.cancelled = { NSApplication.shared.reply(toApplicationShouldTerminate: false) }
-            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength); statusItem?.button?.title = "w."
+            // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.
+            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Work Fleet") { statusItem?.button?.image = image } else { statusItem?.button?.title = "w." }
             let menu = NSMenu(); menu.delegate = self; let show = NSMenuItem(title: "開啟 Work Fleet", action: #selector(showMain), keyEquivalent: ""); show.target = self; menu.addItem(show)
             for (title, target) in [("快速記錄", "@capture"), ("操作所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")] {
                 let item = NSMenuItem(title: title, action: #selector(desktopAction(_:)), keyEquivalent: ""); item.target = self; item.representedObject = target; menu.addItem(item)

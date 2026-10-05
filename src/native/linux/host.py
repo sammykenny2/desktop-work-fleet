@@ -154,7 +154,8 @@ class FleetApp(Gtk.Application):
         self.window.connect("delete-event", self.window_close)
         self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
         self.window.show_all()
-        self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active)
+        self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active,
+                         icon if icon.is_file() else None)
         marker = self.directory / "profile.txt"
         try:
             profile = marker.read_text("utf-8").strip()

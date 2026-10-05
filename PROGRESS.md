@@ -191,6 +191,12 @@ host 載入另有未明確指定 Gdk 版本的 PyGIWarning，未阻止上述檢�
 本輪沒有啟動 GUI、操作金鑰圈／使用者便箋或驗收桌面分層、中文 IME、Google 往返。
 產品程式碼未修改，沒有獨立審閱；安裝包保留在 Git 忽略的 `build/` 目錄。
 
+依使用者要求清理後，交付檔移至 `build/work-fleet_0.1.0~preview_all.deb`，
+大小與 SHA-256 均未變更；`build/` 僅保留此 DEB。
+已移除產生的 web 資產、公開設定、npm 快取、DEB staging、Linux source/runtime 副本及 tar.gz。
+已安裝的 `work-fleet` 仍為 `0.1.0~preview`，啟動器 `--help` 檢查通過。
+本次只整理本機產物並更新此紀錄；建置腳本仍預設輸出到 `build/linux/`。
+
 ## 2026-10-05 試用版本降為 0.1.0
 
 依使用者最新指示，不採用原先擬議的 `1.0.0.1` 升級版本，改為 `0.1.0`。

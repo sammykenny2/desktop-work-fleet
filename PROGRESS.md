@@ -32,6 +32,10 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 - ADR-019 原「不把 X 改為默默常駐」已依使用者新決定改寫；ADR-023／025 與 setup-guide 同步。
 - 驗證：Windows C# 編譯無錯（Debug build 只缺建置腳本產生的 `build/config/public.json`），
   `host.py` 通過 `py_compile`；未跑原生 probe、未在 macOS／Linux 實機確認。
+- 側欄「收起主畫面」按鈕與 X 重複，依使用者指示移除；系統匣選單同名項目保留。
+  Windows shortcut probe 改由 `DispatchAction("@hide")` 觸發同一收起流程（未執行）。
+- 以 `8a941b3` 重新打包 `-LocalTestSign` MSIX；打包前 `build/windows` 已是空目錄，沒有舊包需刪。
+  只做建置腳本內建的 signtool 驗證與包內 `index.html` 已無 `hide-main` 的檢查，未跑 `Test-WindowsPackage.ps1`。
 
 ## 2026-10-05 主視窗與紙色改版
 
@@ -85,9 +89,9 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`4341aa9`，`-LocalTestSign`，含主視窗與紙色改版）：`build/windows/package-bdf6688ee3c6480385e1f04e84ed1dee/`。
-  `WorkFleet-0.1.0-x64.msix` 24,921,730 bytes，SHA-256 `9e41f9cf4816f305e60d13519ebee03efa7d86b6056020f66040719be164d13c`；
-  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，`Test-WindowsPackage.ps1` 通過。
+- Windows（`8a941b3`，`-LocalTestSign`，含紙色改版與 X 收起到系統匣）：`build/windows/package-dab3e7f5a79d43dd829100fec6be2a39/`。
+  `WorkFleet-0.1.0-x64.msix` 24,921,782 bytes，SHA-256 `b7befd1a5cce0b32081c5b5aee4778899303bbb914dcabebda414cecf66dacb3`；
+  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。
 

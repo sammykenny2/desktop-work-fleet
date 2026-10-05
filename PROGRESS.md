@@ -34,6 +34,7 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   現在 AppIndicator 設 `set_icon_theme_path` 指向內附 `Icons/`，`Gtk.StatusIcon` 直接讀檔。
 - 驗證：Windows Debug build 無錯，exe 內含 1 個圖示；Apple 用的 RGB PNG 輸出與已提交檔案位元相同；
   `host.py`／`tray.py` 通過 `py_compile`。未安裝新包看實際系統匣，未在 macOS／Linux 實機確認。
+- 使用者指示需要打包才能確認的修改直接打包；已以 `4c38819` 重新打包並刪除 `8a941b3` 包。
 
 ## 2026-10-06 主視窗 X 收起到系統匣
 
@@ -103,9 +104,9 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`8a941b3`，`-LocalTestSign`，含紙色改版與 X 收起到系統匣）：`build/windows/package-dab3e7f5a79d43dd829100fec6be2a39/`。
-  `WorkFleet-0.1.0-x64.msix` 24,921,782 bytes，SHA-256 `b7befd1a5cce0b32081c5b5aee4778899303bbb914dcabebda414cecf66dacb3`；
-  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
+- Windows（`4c38819`，`-LocalTestSign`，含紙色改版、X 收起到系統匣與圖示）：`build/windows/package-33a7570338904922b300fc82ada63c2b/`。
+  `WorkFleet-0.1.0-x64.msix` 24,925,450 bytes，SHA-256 `0ff838778647d3ca8909522939d176fed8c765ec69382873d578ba76df844051`；
+  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過，包內 exe 含 1 個內嵌圖示。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。
 

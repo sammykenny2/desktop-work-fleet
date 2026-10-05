@@ -17,6 +17,23 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Windows 安裝檔再次建置
+
+依使用者要求，以 `main` 的 `e95c9f2` 程式碼執行
+`scripts/windows/Build-WindowsPackage.ps1 -SkipRestore`，重新建置介面與原生 Release，0 警告／0 錯誤。
+新產物位於 `build/windows/package-8ae5dfafb7d94baa90dc2c6d6364aa0d/`：
+
+- `WorkFleet-1.0.0-x64.msix`：24,919,296 bytes，未簽章，安裝前仍需可信簽章。
+  SHA-256：`7497e2239e1f39dcc15dee4576ae8caa46a24408ff261a98e452224b1df3acd8`。
+- `WorkFleet-1.0.0-x64.zip`：25,160,919 bytes，完整解壓後執行 `WorkFleet.exe`。
+  SHA-256：`a9d6b0ce5b546beefd63283111a3b37cbcb6567afbf1396b6887b7223263e83c`。
+
+作者機械檢查確認兩個壓縮檔完整、必要入口／公開配置／x64 WebView2 loader 存在，
+包內 DLL 與最後 Release 相同、desktop renderer 與最後介面建置相同，沒有 `.env` 或私鑰檔。
+MSIX manifest 的 architecture 為 x64；本機已有 .NET 8 Desktop Runtime 8.0.31。
+建置紀錄為 `build/windows-installer-build.log`；未重跑先前已通過的原生回歸。
+未進行簽章、安裝或憑證信任變更，沒有獨立審閱；產品程式碼未修改。
+
 ## 2026-10-05 macOS／Linux 分層補齊與原生成果接續
 
 依「都補完再停手」要求，完整核對維護者提供的參考 Linux layer-shell／DEB 實測報告，

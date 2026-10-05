@@ -33,10 +33,10 @@ try {
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
     & npm run build
     if ($LASTEXITCODE -ne 0) { throw 'Web asset build failed.' }
-    $Projects = @('src/native/windows/WorkFleet.Windows.csproj')
+    $Projects = @('src/native/windows/app/WorkFleet.Windows.csproj')
     if ($IncludeTests) {
-        $Projects += 'tests/native/windows-core/WorkFleet.Windows.Core.Tests.csproj'
-        $Projects += 'tests/native/windows-ui/WorkFleet.Windows.Ui.Tests.csproj'
+        $Projects += 'tests/native/windows/core/WorkFleet.Windows.Core.Tests.csproj'
+        $Projects += 'tests/native/windows/ui/WorkFleet.Windows.Ui.Tests.csproj'
     }
     foreach ($Project in $Projects) {
         if (-not $SkipRestore) {
@@ -46,7 +46,7 @@ try {
         & dotnet build $Project --configuration $Configuration --no-restore
         if ($LASTEXITCODE -ne 0) { throw "Native build failed: $Project" }
     }
-    Write-Output "Windows app: src/native/windows/bin/$Configuration/net8.0-windows10.0.19041.0/WorkFleet.exe"
+    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net8.0-windows10.0.19041.0/WorkFleet.exe"
 } finally {
     Pop-Location
     foreach ($Name in $SavedEnvironment.Keys) {

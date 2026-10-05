@@ -29,9 +29,13 @@ dist/
 
 # === IDE ===
 .idea/
+.vs/
+*.user
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
+!.vscode/tasks.json
+!.vscode/launch.json
 *.swp
 *.swo
 *~

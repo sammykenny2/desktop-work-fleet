@@ -21,6 +21,25 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Windows 專案層級與 IDE 設定
+
+依使用者要求，Windows 比照 Apple／Android 使用單一平台根目錄 `src/native/windows/`：
+`WorkFleet.sln` 與 README 在根目錄，主程式移到 `app/`，核心移到 `core/`；
+測試移到 `tests/native/windows/{core,ui}`，放在解決方案的 `tests` 資料夾。以 `git mv` 保留歷史。
+組件名稱、namespace、`WorkFleet.exe` 與 MSIX identity 不變；Debug／Release 輸出改在 `app/bin/`。
+提交 `.vscode` 的 C# Dev Kit 建議、預設解決方案、建置／原生測試 task 與兩個 F5 設定（一般、CDP 9339）。
+`.gitignore` 放行 tasks／launch 並忽略 `.vs/`、`*.user`；`.sln` 固定 CRLF。
+這是目錄與工具設定調整，不涉及架構決策，因此沒有新增 ADR。
+
+作者檢查：搬移前刪除 Git 忽略的舊 `bin/`／`obj/`；locked restore 通過且 4 個 lockfile 內容未變。
+解決方案建置 4 個專案 0 警告；`Test-WindowsNative.ps1 -SkipRestore` 完整通過（foreground grant 依規則 SKIP）。
+以 Windows PowerShell 5.1 執行 build task 指令通過；未簽章 Release 封裝與 Release `-IncludeTests` 皆 0 警告／0 錯誤。
+`npm test` 211 通過、8 個 native 依規則 skip、2 個失敗：`tests/config.test.js` 的 release 設定預期。
+同一 HEAD 未修改的檔案也有這 2 個失敗，屬既有問題，本輪未處理。
+紀錄：`build/windows-layout-native-tests.log`、`build/windows-layout-release-package.log`、
+`build/native-checks-7b41e196-9965-4882-bdfe-cf231684cc0b/`。
+本機沒有安裝 C# 擴充，VS Code 實際按 F5 除錯未驗證；沒有獨立審閱。
+
 ## 2026-10-05 Windows Debug WebView 檢查
 
 依使用者要求，Debug 組態可開 WebView DevTools，Release／MSIX 一律不開。

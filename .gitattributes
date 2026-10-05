@@ -2,9 +2,10 @@
 # .editorconfig. Add binary or Git LFS patterns below as the project needs them.
 * text=auto eol=lf
 
-# Windows batch files need CRLF.
+# Windows batch and Visual Studio solution files need CRLF.
 *.bat text eol=crlf
 *.cmd text eol=crlf
+*.sln text eol=crlf
 
 # Preserve the original vendor license container byte for byte.
 src/native/licenses/*.rtf binary

@@ -1,0 +1,26 @@
+{
+  // Debug opens the real %LOCALAPPDATA%\WorkFleet data; close the installed app first (single owner lock).
+  // The apphost .exe keeps the PerMonitorV2 manifest; launching WorkFleet.dll through dotnet would drop it.
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Windows: Work Fleet (Debug)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "windows: build debug",
+      "program": "${workspaceFolder}/src/native/windows/app/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.exe",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole"
+    },
+    {
+      "name": "Windows: Work Fleet (Debug + CDP 9339)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "windows: build debug",
+      "program": "${workspaceFolder}/src/native/windows/app/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.exe",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "env": { "WORK_FLEET_WEBVIEW_DEBUG_PORT": "9339" }
+    }
+  ]
+}

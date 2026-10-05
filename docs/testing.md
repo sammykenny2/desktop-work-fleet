@@ -266,10 +266,12 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1 -Configuration Debug
 $env:WORK_FLEET_WEBVIEW_DEBUG_PORT = '9339'
-& .\src\native\windows\bin\Debug\net8.0-windows10.0.19041.0\WorkFleet.exe
+& .\src\native\windows\app\bin\Debug\net8.0-windows10.0.19041.0\WorkFleet.exe
 Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT
 # http://127.0.0.1:9339/json/list 列出主畫面與桌面場景 target
 ```
+
+VS Code 的「Windows: Work Fleet (Debug + CDP 9339)」啟動設定等同上述步驟；「windows: native tests」task 執行完整原生回歸。
 
 變數只設在目前 shell 的程序環境，不要用 setx 或機碼設定。port 已被占用時 CDP 不會啟動。
 

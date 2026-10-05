@@ -7,10 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <ApplicationManifest>../../../src/native/windows/app.manifest</ApplicationManifest>
+    <ApplicationManifest>../../../../src/native/windows/app/app.manifest</ApplicationManifest>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../../src/native/windows/WorkFleet.Windows.csproj" />
+    <ProjectReference Include="../../../../src/native/windows/app/WorkFleet.Windows.csproj" />
   </ItemGroup>
 </Project>

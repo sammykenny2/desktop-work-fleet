@@ -28,18 +28,18 @@ try {
     Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT -ErrorAction SilentlyContinue
     & "$PSScriptRoot/Build-WindowsApp.ps1" -Configuration Debug -IncludeTests -SkipRestore:$SkipRestore
     # Keep the Release package scan meaningful: the same UTF-16 search must find the Debug path.
-    $DebugAssembly = [IO.File]::ReadAllBytes((Join-Path $ProjectRoot 'src/native/windows/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.dll'))
+    $DebugAssembly = [IO.File]::ReadAllBytes((Join-Path $ProjectRoot 'src/native/windows/app/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.dll'))
     if (-not ([Text.Encoding]::Unicode.GetString($DebugAssembly).Contains('remote-debugging') -or
         [Text.Encoding]::Unicode.GetString($DebugAssembly, 1, $DebugAssembly.Length - 1).Contains('remote-debugging'))) {
         throw 'Debug WorkFleet.dll lacks the WebView debugging string; the Release package scan would check nothing.'
     }
     $ProbeRoot = Join-Path $ProjectRoot ('build/native-checks-' + [guid]::NewGuid().ToString())
-    & dotnet tests/native/windows-core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $ProbeRoot 'core')
+    & dotnet tests/native/windows/core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $ProbeRoot 'core')
     if ($LASTEXITCODE -ne 0) { throw 'Windows native core probe failed.' }
     $env:WORK_FLEET_NATIVE_TEST = '1'
     & node --test tests/native-storage.test.js
     if ($LASTEXITCODE -ne 0) { throw 'JavaScript/native bridge tests failed.' }
-    $UiProbe = Join-Path $ProjectRoot 'tests/native/windows-ui/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.Windows.Ui.Tests.exe'
+    $UiProbe = Join-Path $ProjectRoot 'tests/native/windows/ui/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.Windows.Ui.Tests.exe'
     & $UiProbe (Join-Path $ProbeRoot 'ui')
     if ($LASTEXITCODE -ne 0) { throw 'Windows WPF/WebView2 UI probe failed.' }
     & $UiProbe --composition (Join-Path $ProbeRoot 'composition')

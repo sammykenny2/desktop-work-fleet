@@ -13,10 +13,10 @@
     <AssemblyName>WorkFleet</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../windows-core/WorkFleet.Windows.Core.csproj" />
+    <ProjectReference Include="../core/WorkFleet.Windows.Core.csproj" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
-    <Content Include="../../../build/app/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../../../build/config/public.json" Link="Config/public.json" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="../licenses/*" Link="Licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../build/app/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../../../build/config/public.json" Link="Config/public.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../licenses/*" Link="Licenses/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

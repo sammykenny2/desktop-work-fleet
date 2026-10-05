@@ -30,8 +30,8 @@ Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在�
 大量版本圖與投影提供可取消的批次 reader，與日常同步共用 graph 規則。
 還原交易、自動 journal／排程及 UI 已加入；Windows 原生檔案保存與 vault 見 ADR-016，其他平台另行整合。
 
-Windows `src/native/windows` 封裝管理／編輯 WebView2，virtual host 只映射 Assets，不啟動 listener。
-`src/native/windows-core` 擁有單一 SQLite／DPAPI coordinator，`src/storage/native.js` 適配共用 persistence。
+Windows `src/native/windows/app` 封裝管理／編輯 WebView2，virtual host 只映射 Assets，不啟動 listener。
+`src/native/windows/core` 擁有單一 SQLite／DPAPI coordinator，`src/storage/native.js` 適配共用 persistence。
 bridge 僅接受固定資料方法、受限 chunk 與不透明傳輸身分；profile 由 host 指定。
 Workspace／receipt／附件共同提交，journal 獨立 CAS；OS vault 沒有 renderer plaintext 讀取入口。
 Windows backup adapter 以 DPAPI metadata 綁定 profile／目錄／檔案身分，SQLite schema version 2

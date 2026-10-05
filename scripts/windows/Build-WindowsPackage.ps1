@@ -71,7 +71,7 @@ try {
     $Output = Join-Path $ProjectRoot ('build/windows/package-' + [guid]::NewGuid().ToString('N'))
     $Stage = Join-Path $Output 'content'
     New-Item -ItemType Directory -Path $Stage -Force | Out-Null
-    & dotnet publish src/native/windows/WorkFleet.Windows.csproj --configuration Release --no-restore --self-contained false --output $Stage -p:PlatformTarget=x64
+    & dotnet publish src/native/windows/app/WorkFleet.Windows.csproj --configuration Release --no-restore --self-contained false --output $Stage -p:PlatformTarget=x64
     if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed.' }
     # The WebView debugging port is Debug-only; its argument is a UTF-16 IL string at either byte alignment.
     $AppAssembly = [IO.File]::ReadAllBytes((Join-Path $Stage 'WorkFleet.dll'))

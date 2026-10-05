@@ -13,7 +13,7 @@ import { nativeBackupAdapters } from '../src/backup/native.js';
 import { AutomaticBackup } from '../src/backup/automatic.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
 
-const executable = path.resolve('tests/native/windows-core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll');
+const executable = path.resolve('tests/native/windows/core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll');
 const enabled = process.env.WORK_FLEET_NATIVE_TEST === '1';
 if (enabled) await access(executable); // An explicitly requested but missing native build must fail.
 const nativeTest = (name, action) => test(name, { skip: !enabled, timeout: 60_000 }, action);

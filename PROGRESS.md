@@ -17,7 +17,8 @@
 先前收尾指示保留 Apple 編譯由維護者帶到真正的 Mac 處理。
 不再等待或啟動 Apple hosted Actions，不使用其計費額度。
 先前 Google 程式與公開設定已收尾；Google 專案／各平台 clients 尚未建立，
-Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
+macOS 本機 Apple Development team／profile 已配置；其他 Apple target、正式 package identity／
+Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
 ## 2026-10-05 Windows Debug WebView 檢查
@@ -42,7 +43,47 @@ DevTools 已啟用、listener 只綁 loopback，CDP `/json/list` 有主文件，
 ADR／services 改述 loopback 不分 Windows 使用者；
 Test-WindowsNative 先清除外部設定的 port 變數，並要求封裝掃描命中 Debug DLL；HostError 代碼改連字號。
 
-## 2026-10-05 macOS universal DMG
+## 2026-10-05 macOS 開發簽章與啟動修正
+
+使用者完成 Xcode Apple Development 憑證與 Register Device 後，已取得 team `97JBZ3MFX5`
+的有效 identity 與允許本機的 wildcard profile（到期 2027-10-05）。保留使用者在 Xcode 修改的
+project／iOS scheme，不提交機器簽章配置、憑證或 provisioning profile。
+
+先前未簽章 App 的 Data Protection Keychain update 可重現 `-34018` missing entitlement；
+本輪簽章含正確 Sandbox、application identifier、team identifier 與 Keychain access group。
+另一個重複建置失敗來自唯讀依賴 LICENSE；notice copier 改為 `cp -f`，實際覆寫回歸通過。
+
+有效簽章後，真 Keychain／SQLite 已通過，但 WKWebView 的本機 module script 仍載入失敗。
+Apple 資產準備改用固定 esbuild 0.28.2 將主畫面與場景合併為 classic deferred scripts，
+來源與其他平台仍為 ESM，保留 CSP／bridge／Sandbox 與完整 runtime LICENSE。
+決策與診斷見 [ADR-033](docs/decisions/033-apple-local-script-bundles.md) 及
+[研究紀錄](docs/resreach/2026-10-05-apple-signed-startup-and-local-scripts.md)。
+
+以 Debug、`ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO` 成功重建並開發簽章。
+主程式與兩個 dylib 均含 arm64／x86_64；`codesign --verify --deep --strict`、
+DMG 完整性與唯讀掛載後的實際簽章／架構／Keychain entitlement／資產核對通過。
+新版交付與 hash 見本節下方，取代先前未簽章 DMG 作為本機試用入口。
+
+交付：`build/apple/preview-macos-universal-development-os1ji0ur/WorkFleet-0.1.0-macos-universal-development.dmg`。
+大小 2,984,301 bytes；SHA-256：`9fbb337e7503182f85913802d89d192a5a74fc2dda0e69e983dd56f4474e0998`。
+交付目錄保留 `verification.json`／`dmg-verification.log`／`SHA256SUMS.txt`，授權聲明與最後來源一致。
+
+`scripts/testing/apple_startup_probe.py` 在唯一 bundle identity 與獨立資料目錄編譯真原生 host：
+Keychain 建立／更新／讀取、加密 SQLite 重開、主畫面 native bridge／renderer 初始化及
+probe 自有 Keychain 清理全部通過。最終 probe 不替換正式 bridge handler，也不讀取使用者 workspace。
+證據：`build/apple/native-startup-ndo0tdm1/`；交付的兩份腳本與測試版比較一致，僅正規化依賴來源路徑。
+
+Apple 專案／資產回歸 4／4；完整 `npm test` 為 212 pass、8 個原生環境 skip、2 fail。
+兩個 fail 都是既有 `tests/config.test.js` 對 release 必填欄位的舊期待，未修改的 `8664bde`
+同樣失敗；baseline 證據在 `build/apple/config-baseline-4g952_ow/result.txt`。不將完整回歸宣稱為通過。
+原生重建紀錄：`build/apple/macos-universal-development-rebuild.log`；JS 紀錄在同目錄的
+`apple-development-tests.log`／`javascript-development-tests.log`。文件／diff 與腳本語法檢查通過。
+
+此包是 Apple Development 的本機預覽，只允許 profile 登記裝置，沒有 Developer ID／公證。
+未驗收 Intel 實機、iOS、Google 登入、IME／Spaces 或完整桌面互動；完整 1.0 仍未完成。
+沒有獨立審閱可用；上述是作者執行的測試與機械檢查。沒有安裝產品、重設 Keychain、刪除個人資料或啟動 hosted Actions。
+
+## 2026-10-05 macOS universal DMG（先前未簽章產物）
 
 在 Apple Silicon Mac 使用 Xcode 27.0（27A266a）、macOS 27 SDK、Node 24.21.0／npm 12.2.0，
 首次編譯目前的原生 WorkFleetMac。修正選單區域變數 `quit` 遮蔽同名方法造成的 selector 編譯錯誤，
@@ -303,12 +344,12 @@ Git ignore 確認生成資產與 Local.xcconfig 不進 repo。
 | Slice | 範圍 | 狀態與證據 |
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
-| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；Android SQLite／Keystore、Apple SQLite／Keychain、Linux SQLite／Secret Service 程式已加入；後三者原生 runtime 尚未執行 |
+| 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；macOS 簽章 fixture 的 Keychain／SQLite／主畫面初始化通過；Android／iOS／Linux 安全儲存的原生 runtime 尚未驗收 |
 | 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android 原生 preview APK 已產出，含資料／帳號、原生匯出、分享及加密收件匣；iOS UIKit／Extension source 已加入，缺 Apple SDK，未產 iOS package；兩者未做裝置／Google 驗收 |
-| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 未簽章 MSIX／ZIP、Android debug APK、Linux DEB／tar.gz 已產出；Apple export／PKG／DMG／手動 hosted build 與 Android upload signing 入口已加入。正式 AAB／Apple binary／簽章、screenshots／SDK 授權最終盤點仍缺，沒有送審或建立帳號 |
+| 7 | 安裝包、簽章與商店提交準備、授權盤點、最終 1.0 驗收 | Windows 試用 MSIX／ZIP、Android debug APK、Linux DEB／tar.gz、macOS universal 開發簽章 DMG 已產出；Apple export／PKG／DMG 與 Android upload signing 入口已加入。正式 AAB／Apple archive／Developer ID、公證、screenshots／SDK 授權最終盤點仍缺，沒有送審 |
 
 切片順序可依依賴交錯；不因此縮減交付範圍。[ADR-008](docs/decisions/008-portable-interaction-core.md)
 記錄使用者本輪範圍答覆及本機核心決策。

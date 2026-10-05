@@ -36,7 +36,8 @@ Android Studio 開啟 `src/native/android`；Gradle Wrapper 的 `assembleDebug` 
 無須先執行外部 web build。命令與前置條件見 [Android README](../src/native/android/README.md)。
 APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結果記於 PROGRESS。
 `tests/apple-project.test.js` 驗證 Xcode 專案在不同 checkout 路徑產生一致內容、所有 source 參照可攜、
-主 App／Share Extension 依賴、機器配置不進專案、生成資產／Info.plist 及 release 缺值。
+主 App／Share Extension 依賴、機器配置不進專案、生成資產／Info.plist、Apple 主畫面／場景 classic bundles、
+CSP 不放寬、release 缺值與唯讀依賴授權檔的重複複製。
 `node --test tests/apple-project.test.js` 不需要 Apple SDK；不代表 Xcode 載入、Swift 編譯或簽章通過。
 Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
 Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
@@ -56,7 +57,25 @@ lipo -archs build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app/Conten
 ```
 
 封裝後需以 `hdiutil verify` 及唯讀掛載核對實際 App；Debug 的主程式與隨附 dylib 均須含兩種架構。
-2026-10-05 已完成上述建置／DMG 檢查與 Apple 專案測試 3／3；產物、hash、限制及紀錄見 PROGRESS。
+2026-10-05 已完成上述建置／DMG 檢查，新增授權檔回歸後 Apple 專案測試 4／4；產物、hash、限制及紀錄見 PROGRESS。
+
+測試原生 Keychain／加密 SQLite／主畫面啟動需要 Apple Development 憑證，以及允許本機裝置與
+`app.workfleet.startupprobe.*` 的既有 provisioning profile。先在 Xcode 的 WorkFleetMac target
+選 Signing & Capabilities，啟用 Automatically manage signing、選 Team 並完成 Register Device。
+簽章 universal 建置使用上述命令，移除 `CODE_SIGNING_ALLOWED=NO`；不需更改系統 Keychain 或刪除 App 資料。
+
+```bash
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  python3 scripts/testing/apple_startup_probe.py --team TEAM_ID
+```
+
+此 probe 在 `build/apple/native-startup-<id>/` 建立來源副本與唯一 bundle ID，使用正式 FleetKeychain、
+FleetDatabase、FleetWebHost／FleetDesktop 和隨包 renderer；原始 Xcode 專案與使用者 workspace 不受改動。
+測試建立／更新／讀取 Keychain、重開加密 SQLite，並等待主畫面完成 native 初始化。
+只清除 probe 自己的 Keychain service 與暫存資料；建置、結果及簽章證據保留於該目錄。
+2026-10-05 簽章 probe 通過 Keychain、SQLite 與主畫面 native 初始化；原樣 ESM 載入失敗的
+證據與封裝修正見 [ADR-033](decisions/033-apple-local-script-bundles.md)。
+它不建立憑證、不登記裝置、不測試 Google 登入或完整桌面手勢，也不代表 Developer ID／公證驗收。
 
 三平台桌面分層契約見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
 `python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證

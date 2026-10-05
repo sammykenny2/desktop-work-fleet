@@ -168,8 +168,10 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 
 腳本使用已提交的專案；DerivedData／Release xcarchive／export 保留於忽略的 `build/apple/`。
 原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
-全域鍵、選單列及螢幕生命週期。macOS Debug universal 已在 Xcode 編譯並產生未簽章 DMG，
-iOS／正式簽章及 runtime 尚未驗收；操作細節及剩餘交付見
+全域鍵、選單列及螢幕生命週期。macOS Debug universal 已在 Xcode 編譯並產生 Apple Development 簽章 DMG，
+獨立 fixture 的 Keychain／SQLite／主畫面初始化通過；iOS、Developer ID／公證與完整操作尚未驗收。
+本機 Mac 必須在 WorkFleetMac target 的 Signing & Capabilities 選 Team、啟用自動簽章並完成 Register Device。
+操作細節及剩餘交付見
 [Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
 
 iOS 分享接收另嵌入 `<APP_ID>.share` Extension；在同一 Apple team 為 App／Extension 啟用

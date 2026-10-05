@@ -1,6 +1,6 @@
 # Third-party notices
 
-Updated: 2026-10-04.
+Updated: 2026-10-05.
 
 ## project-bootstrap
 
@@ -30,6 +30,7 @@ scripts, browser binaries or application assets from another product are bundled
 | fflate | 0.8.3 | Runtime ZIP writing / DEFLATE compression | MIT; [101arrowz/fflate](https://github.com/101arrowz/fflate) |
 | @types/trusted-types | 2.0.7 | DOMPurify type dependency, not bundled | MIT; [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/trusted-types) |
 | @playwright/test, playwright, playwright-core | 1.63.0 | Development browser tests, not bundled | Apache-2.0; [Microsoft Playwright](https://github.com/microsoft/playwright) |
+| esbuild / platform binary | 0.28.2 | Apple script bundling at build time, tool not bundled | MIT; [esbuild](https://github.com/evanw/esbuild/blob/v0.28.2/LICENSE.md) |
 
 Marked copyright: (c) 2018+, MarkedJS; (c) 2011–2018, Christopher Jeffrey.
 DOMPurify copyright: Cure53 and other contributors. The source ESM files are copied
@@ -38,6 +39,11 @@ without modification; application configuration is separate. The build includes
 `marked-LICENSE.txt`, `dompurify-LICENSE.txt`, `fflate-LICENSE.txt` and this notice. Platform packages must
 retain those files and the project's LICENSE. Final native SDK and store-package
 inventories remain separate release work.
+
+Apple packages also combine the renderer and scene modules into classic deferred
+scripts using esbuild. Upstream legal comments remain in those generated scripts;
+the complete three runtime LICENSE files and unmodified vendor modules are retained.
+Source modules, other platforms and the default web build keep the ESM format.
 
 ## Windows native host under development
 
@@ -134,7 +140,8 @@ GoogleSignIn 9.2.0 is resolved as an unmodified Swift package from
 Its resolved transitive packages remain subject to their individual licenses. The Xcode
 build phase copies package root LICENSE/NOTICE/COPYING files before signing the bundle.
 The final package inventory and merged SDK privacy manifests remain to be recorded from
-an actual Apple archive; no native Apple 1.0 binary has been built in this session.
+an actual Apple archive; macOS 0.1.0 Debug universal has been built and development
+signed, while the formal archive and complete release inventory remain pending.
 Apple SDK/runtime frameworks and system SQLite/CommonCrypto are linked from the platform.
 App icons are generated from repository-owned drawing code, without external artwork.
 

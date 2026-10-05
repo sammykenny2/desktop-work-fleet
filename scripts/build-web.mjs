@@ -11,6 +11,7 @@ export async function buildWebAssets({
   destination = path.join(root, 'build', 'app'),
   configDestination = path.join(root, 'build', 'config', 'public.json'),
   environment = process.env,
+  bundleScripts = false,
 } = {}) {
   const config = await readBuildConfig(pathToFileURL(root + path.sep), environment);
   await mkdir(path.dirname(configDestination), { recursive: true });
@@ -25,8 +26,20 @@ export async function buildWebAssets({
     const htmlPath = path.join(destination, folder, 'index.html');
     const html = await readFile(htmlPath, 'utf8');
     const importMap = html.match(/<script type="importmap">([^<]+)<\/script>/)[1];
-    const hash = createHash('sha256').update(importMap).digest('base64');
-    await writeFile(htmlPath, html.replace('IMPORT_MAP_HASH', `'sha256-${hash}'`));
+    if (bundleScripts) {
+      const { build } = await import('esbuild');
+      const entry = folder === 'app' ? 'main' : 'scene';
+      await build({
+        absWorkingDir: root, entryPoints: [path.join(root, 'src', folder, `${entry}.js`)],
+        outfile: path.join(destination, folder, `${entry}.bundle.js`), bundle: true,
+        format: 'iife', platform: 'browser', target: 'safari16', charset: 'utf8', legalComments: 'inline',
+      });
+      await writeFile(htmlPath, html.replace(/\s*<script type="importmap">[^<]+<\/script>/, '')
+        .replace(' IMPORT_MAP_HASH', '').replace(`type="module" src="${entry}.js"`, `defer src="${entry}.bundle.js"`));
+    } else {
+      const hash = createHash('sha256').update(importMap).digest('base64');
+      await writeFile(htmlPath, html.replace('IMPORT_MAP_HASH', `'sha256-${hash}'`));
+    }
   }
   await mkdir(path.join(destination, 'vendor'), { recursive: true });
   for (const [name, target, license] of [['marked', 'marked.js', 'LICENSE'], ['dompurify', 'dompurify.js', 'LICENSE'], ['fflate', 'fflate.js', 'LICENSE']]) {

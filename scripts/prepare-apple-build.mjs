@@ -70,7 +70,7 @@ export async function prepareAppleBuild({ platform, output, root = repositoryRoo
   await mkdir(output, { recursive: true });
   if (platform !== 'share') {
     if (installDependencies) await ensureWebDependencies(root, effective);
-    await buildWebAssets({ root, destination: path.join(output, 'Assets'), configDestination: path.join(output, 'Config', 'public.json'), environment: effective });
+    await buildWebAssets({ root, destination: path.join(output, 'Assets'), configDestination: path.join(output, 'Config', 'public.json'), environment: effective, bundleScripts: true });
   }
   await writeFile(path.join(output, 'Info.plist'), appleInfoPlist(platform, config));
   return config;

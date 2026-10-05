@@ -24,6 +24,11 @@ Debug 預設 app ID 是 `app.workfleet.preview`，未填 Google 設定也可建�
 也可在 Xcode 設定 Signing Team。Google clients／商店公開資料仍從 repository 根目錄 `.env` 讀取。
 直接 Xcode 建置的 app ID／App Group 以 Xcode build settings 為準，避免簽章、entitlements 與隨包配置不一致。
 
+macOS 本機試用也需要有效簽章才能使用 Data Protection Keychain。在 WorkFleetMac target 的
+Signing & Capabilities 啟用 Automatically manage signing、選擇 Team，並完成 Register Device。
+Xcode Accounts／Manage Certificates 可建立 Apple Development 憑證；不要停用 entitlements 或重設 Keychain。
+Apple Development 只供 profile 允許的裝置使用，跨機正式散布仍使用 Developer ID／公證。
+
 Prepare phase 會將 `/opt/homebrew/bin`／`/usr/local/bin` 加入工具搜尋路徑；
 自訂 Node/npm 路徑可在 Local.xcconfig 設定 WORK_FLEET_NODE／WORK_FLEET_NPM。
 此 phase 需要讀取本機配置並下載／安裝工具依賴，因此 Xcode user-script sandboxing 關閉；
@@ -41,6 +46,8 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 `.env` 中非空的 app ID／team 會作為命令列 build settings；未填時採用 xcconfig 設定。
 DerivedData／archive／export 產物仍在忽略的 `build/apple/`；Xcode 建置需在 Mac 執行。
 SDK 固定 GoogleSignIn 9.2.0；SPM checkout 根目錄授權文本於簽章前複製到 bundle Licenses。
+Apple 主畫面與桌面場景的 ES modules 在建置時由固定版本 esbuild 合併成 classic deferred scripts，
+供 WKWebView 從本機封裝檔案執行；來源仍共用，CSP、native bridge 與 Sandbox 保留。見 [ADR-033](../../../docs/decisions/033-apple-local-script-bundles.md)。
 Release 的資產準備檢查有效公開設定，再 archive；簽章／provisioning 在 Xcode／Keychain 配置。
 `scripts/macos/package-native-app.sh` 匯出既有 archive；iOS 可產生 IPA，macOS 可產生 PKG／可選 DMG。
 `--method app-store-connect` 保持本機 export，不自動上傳；Developer ID 可使用既有 installer identity
@@ -75,9 +82,11 @@ Mac 原生三層檢查可執行 `bash scripts/macos/test-desktop-layers.sh`；�
 保留 editor surface，待 owner 保存救援位置後套用新 topology；背景更新不主動取得鍵盤焦點。
 
 2026-10-05 已在 Apple Silicon Mac 使用 Xcode 27.0 編譯 macOS Debug universal（arm64／x86_64），
-並產生 0.1.0 未簽章 DMG；建置及掛載檢查證據見 [PROGRESS](../../../PROGRESS.md)。
-尚未產生正式 archive／export 或編譯 iOS；protected storage／Google 仍需合適簽章。
-產品啟動、全螢幕／Spaces、透明輸入转送、IME、多螢幕及正式 Google 登入的實機結果仍缺。
+並產生 0.1.0 Apple Development 簽章 DMG；簽章及掛載檢查證據見 [PROGRESS](../../../PROGRESS.md)。
+獨立簽章 fixture 的 Keychain 建立／更新／讀取、加密 SQLite 重開與主畫面 native 初始化通過，
+重現命令見 [Testing](../../../docs/testing.md)。測試不讀取使用者 workspace；不是完整產品操作驗收。
+尚未產生 Developer ID／公證、正式 archive／export 或編譯 iOS；全螢幕／Spaces、透明輸入轉送、
+IME、多螢幕、Intel 實機與正式 Google 登入的結果仍缺。
 
 附件／草稿下載走原生匯出：macOS NSSavePanel、iOS UIDocumentPicker，保留取消結果。
 iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。

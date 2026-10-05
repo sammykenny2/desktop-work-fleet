@@ -13,6 +13,6 @@ for package in "$CHECKOUTS"/*; do
   name="$(basename "$package")"
   mkdir -p "$DESTINATION/$name"
   for notice in "$package"/LICENSE* "$package"/NOTICE* "$package"/COPYING*; do
-    [[ -f "$notice" ]] && cp "$notice" "$DESTINATION/$name/"
+    [[ -f "$notice" ]] && cp -f "$notice" "$DESTINATION/$name/"
   done
 done

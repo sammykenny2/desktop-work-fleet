@@ -1,10 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { generateAppleProject } from '../scripts/generate-apple-project.mjs';
 import { prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
+
+test('native notices can be refreshed after read-only package licenses were copied', { skip: process.platform === 'win32' }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-notices-'));
+  try {
+    const source = path.join(directory, 'checkouts', 'sample package');
+    const destination = path.join(directory, 'bundle licenses');
+    await mkdir(source, { recursive: true });
+    const license = path.join(source, 'LICENSE');
+    await writeFile(license, 'first license\n');
+    await chmod(license, 0o444);
+    const script = new URL('../scripts/macos/copy-native-notices.sh', import.meta.url);
+    const execute = promisify(execFile);
+    await execute('bash', [fileURLToPath(script), path.dirname(source), destination]);
+    await chmod(license, 0o644);
+    await writeFile(license, 'updated license\n');
+    await chmod(license, 0o444);
+    await execute('bash', [fileURLToPath(script), path.dirname(source), destination]);
+    assert.equal(await readFile(path.join(destination, 'sample package', 'LICENSE'), 'utf8'), 'updated license\n');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 async function fixture(root) {
   for (const file of ['src/native/apple/Shared/FleetProtocol.swift', 'src/native/apple/Shared/FleetCaptureInbox.swift',
@@ -69,6 +94,17 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     assert.equal(JSON.parse(bundled).appId, environment.WORK_FLEET_APP_ID);
     assert.equal(bundled.includes('synthetic-secret'), false);
     for (const file of ['app/index.html', 'native/files.js', 'native/capture.js', 'vendor/marked.js']) await access(path.join(app, 'Assets', file));
+    for (const [folder, entry] of [['app', 'main'], ['desktop', 'scene']]) {
+      const html = await readFile(path.join(app, 'Assets', folder, 'index.html'), 'utf8');
+      assert.ok(html.includes(`<script defer src="${entry}.bundle.js"></script>`));
+      assert.equal(html.includes('type="module"'), false);
+      assert.equal(html.includes('type="importmap"'), false);
+      assert.equal(html.includes("'unsafe-eval'"), false);
+      assert.ok(html.includes("script-src 'self';"));
+      const script = await readFile(path.join(app, 'Assets', folder, `${entry}.bundle.js`), 'utf8');
+      assert.ok(script.includes('workFleet'));
+      assert.equal(script.includes('PRIVATE_TOKEN'), false);
+    }
     const share = path.join(directory, 'Share');
     await prepareAppleBuild({ platform: 'share', output: share, environment });
     const sharePlist = await readFile(path.join(share, 'Info.plist'), 'utf8');

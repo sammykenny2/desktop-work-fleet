@@ -34,7 +34,9 @@ Accepted，2026-10-04。Windows 桌面入口整合；OS 組字、實體輸入及
   TaskbarCreated 僅重建自有 icon；移除／退出釋放自有資源，不修改 Explorer 或其他應用設定。
 - 「收起主畫面」先保存草稿再 Hide，保留 WebView／Workspace／SQLite／桌面表面。
   缺少有效 tray icon 時不收起；重建失敗會重新顯示主畫面但不主動啟用。
-  視窗 X 與系統匣「保存並結束」沿用既有 durable close 協定；不把 X 改為默默常駐。
+  2026-10-06 使用者改決定：tray 可用時，視窗 X、Alt+F4 與工作列關閉（SC_CLOSE）直接收起到系統匣，
+  頁面及其草稿留在執行中的 WebView；tray 不可用時 X 仍保存並退出。
+  系統匣「保存並結束」、程式內 Close 與 WM_CLOSE 沿用既有 durable close 協定。
 
 ## Consequences
 

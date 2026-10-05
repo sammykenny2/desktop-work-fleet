@@ -67,6 +67,7 @@ public sealed class FleetWindow : Window
       // Defer even when no work is pending: WPF forbids a second Close inside Closing.
       Dispatcher.BeginInvoke(new Action(() => { _ = PrepareClose(); }));
     };
+    SourceInitialized += (_, _) => System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle)?.AddHook(CloseToTray);
     Closed += (_, _) => { tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   private void ShowMain() => ShowMain(true);
@@ -79,6 +80,13 @@ public sealed class FleetWindow : Window
       else _ = ShowWindow(new System.Windows.Interop.WindowInteropHelper(this).Handle, 4); // SW_SHOWNOACTIVATE
     }
     if (activate) Activate();
+  }
+  private IntPtr CloseToTray(IntPtr window, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
+  {
+    // X, Alt+F4 and the taskbar close command (WM_SYSCOMMAND/SC_CLOSE) keep Work Fleet in the tray.
+    // A programmatic Close(), WM_CLOSE and the tray's exit item still save and quit.
+    if (message == 0x0112 && (wParam.ToInt64() & 0xfff0) == 0xF060 && tray?.Available == true && !shuttingDown) { handled = true; Hide(); }
+    return IntPtr.Zero;
   }
   private void TrayAction(string action, ForegroundIntent intent)
   {

@@ -25,7 +25,7 @@ ADR-024 的 GTK owner 保有唯一 Workspace；場景沿用共用 renderer，不
 - X11 優先 Keybinder 3；其他情況使用 GlobalShortcuts portal。實際 trigger description 顯示於設定。
   App 焦點、組字／editor blocking 與原生對話框釋放全域註冊；恢復時重新建立註冊。
 - 系統匣使用 Ayatana／AppIndicator 或 Gtk.StatusIcon，確認可達性後才隱藏主畫面。
-  斷線恢復主畫面；退出沿用共用保存流程。原生 menu／file chooser 阻擋全域快捷鍵。
+  斷線恢復主畫面；退出沿用共用保存流程。2026-10-06 起視窗關閉鈕在系統匣可用時只收起主畫面。原生 menu／file chooser 阻擋全域快捷鍵。
 
 ## Consequences
 

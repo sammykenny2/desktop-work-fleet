@@ -21,6 +21,18 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 主視窗 X 收起到系統匣
+
+使用者要求主視窗按 X 後仍常駐系統匣，並指示接下來一連串改動先不花時間測試。
+
+- Windows：只攔 WM_SYSCOMMAND／SC_CLOSE（X、Alt+F4、工作列關閉），tray 可用時直接 Hide；
+  系統匣「保存並結束」、程式內 Close 與 WM_CLOSE（含測試及 `CloseMainWindow()`）仍走 durable close。
+- macOS：`windowShouldClose` 在選單列項目存在時 orderOut；結束走「保存並結束」或 Cmd+Q。
+- Linux：`delete-event` 先嘗試 `Tray.hide()`，系統匣不可用才走保存退出。
+- ADR-019 原「不把 X 改為默默常駐」已依使用者新決定改寫；ADR-023／025 與 setup-guide 同步。
+- 驗證：Windows C# 編譯無錯（Debug build 只缺建置腳本產生的 `build/config/public.json`），
+  `host.py` 通過 `py_compile`；未跑原生 probe、未在 macOS／Linux 實機確認。
+
 ## 2026-10-05 主視窗與紙色改版
 
 使用者核准範圍為「主視窗＋紙色」，深色模式本輪不做。共用 `src/app` 與桌面層樣式依下列方向改版：

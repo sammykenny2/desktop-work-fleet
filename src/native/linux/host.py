@@ -151,7 +151,7 @@ class FleetApp(Gtk.Application):
         if icon.is_file():
             self.window.set_icon_from_file(str(icon))
         self.window.set_default_size(1180, 800)
-        self.window.connect("delete-event", self.close_requested)
+        self.window.connect("delete-event", self.window_close)
         self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
         self.window.show_all()
         self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active)
@@ -335,6 +335,12 @@ class FleetApp(Gtk.Application):
             future.add_done_callback(lambda _: GLib.idle_add(complete))
         except Exception:
             pass
+
+    def window_close(self, *_):
+        # The title-bar close keeps Work Fleet in the tray; the tray's exit item still saves and quits.
+        if self.tray is not None and self.tray.hide():
+            return True
+        return self.close_requested()
 
     def close_requested(self, *_):
         if self.closing:

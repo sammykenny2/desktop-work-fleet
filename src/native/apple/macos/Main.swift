@@ -42,7 +42,10 @@ import AppKit
     @objc private func desktopAction(_ item: NSMenuItem) { if let target = item.representedObject as? String { desktop?.menuActive(false); desktop?.action(target) } }
     func menuWillOpen(_ menu: NSMenu) { desktop?.menuActive(true) }
     func menuDidClose(_ menu: NSMenu) { desktop?.menuActive(false) }
-    func windowShouldClose(_ sender: NSWindow) -> Bool { if terminating { return true }; NSApplication.shared.terminate(nil); return false }
+    // The close button keeps Work Fleet in the menu bar; 保存並結束 still saves and quits.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if terminating { return true }; if statusItem?.button != nil { sender.orderOut(nil) } else { NSApplication.shared.terminate(nil) }; return false
+    }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if terminating || host == nil { return .terminateNow }; Task { await host?.prepareClose() }; return .terminateLater
     }

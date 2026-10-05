@@ -28,6 +28,7 @@ Accepted，2026-10-05。實作加入；Apple SDK／裝置結果未取得。
   明示 desktop fallback。背景 frame 不呼叫 activate；快捷鍵／本機輸入 intent 有期限及前景身分檢查。
 - Carbon RegisterEventHotKey；App 或 editor 有焦點時釋放全域註冊，由 renderer 處理本地鍵。
   選單列與關閉流程保存草稿、等待 owner 確認；取消關閉可重試。
+  2026-10-06 起 macOS 視窗關閉鈕收起到選單列；結束走選單「保存並結束」或 Cmd+Q。
 - 螢幕／Space／休眠通知先暫停輸入與撤銷 intent；owner 保存救援版面後套用新 topology，
   保留編輯 WKWebView，最多 16 螢幕／32 活躍或保留場景。
 - Xcode 專案／shared schemes／自有 icon asset catalog 的生成方式由

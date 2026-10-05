@@ -12,10 +12,10 @@ Credential Manager 帳號選擇及 Google AuthorizationClient Drive 授權。手
 
 1. 安裝 Node 22+（含 npm），讓 Android Studio 啟動時的 PATH 可以找到 `node` 與 `npm`。
 2. 用 SDK Manager 安裝 Android SDK Platform 36、Build Tools 35.0.0；Gradle JDK 使用 JDK 17
-   或相容的新版本。Android Studio 需支援 AGP 8.13.2；版本相容性見
+   或相容的新版本。Android Studio 需支援 AGP 9.4.1；版本相容性見
    [官方說明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)。
 3. Open 本目錄，完成 Gradle Sync，選擇 `app` 的 `debug` variant，再使用 Run 或 Build APK。
-   初次建置會下載 Gradle 8.13／Maven 依賴，並自動執行 `npm ci --ignore-scripts`、產生共用介面與公開配置。
+   初次建置會下載 Gradle 9.6.0／Maven 依賴，並自動執行 `npm ci --ignore-scripts`、產生共用介面與公開配置。
    不需要先執行 `npm run build`；沒有 `.env` 也能建置本機 preview，Google 功能需另行配置。
 
 Android Studio 自行產生的 `local.properties` 只保存本機 SDK 路徑，已排除版本控制。
@@ -76,7 +76,7 @@ Android 強制終止或背景回收只靠最後已提交的 SQLite 交易恢復�
 外部文件提供者若不能 fsync／讀回確認，備份報失敗並保留新檔，不能回報成功或自動改存明文。
 
 原生建置、真裝置、Google 往返及簽章／商店驗收狀態只見根目錄 PROGRESS。
-Gradle Wrapper 為 Gradle 8.13 官方工具產生，distribution SHA-256 固定於 wrapper properties；
+Gradle Wrapper 為 Gradle 9.6.0 官方工具產生，distribution SHA-256 固定於 wrapper properties；
 來源與 Apache-2.0 授權見根目錄 THIRD-PARTY-NOTICES 及本目錄 `gradle/LICENSE.txt`／`NOTICE.txt`。
 Gradle 依 Debug／Release runtime graph 產生每 variant 的隨包授權資料，保存 artifact SHA-256、
 上游 POM、AAR／JAR 中的 LICENSE／NOTICE／COPYING，另保留 Apache-2.0 全文。

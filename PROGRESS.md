@@ -21,6 +21,23 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Windows 本機 build 目錄整理與目前交付
+
+依使用者要求整理 Windows 開發機上 Git 忽略的 `build/`：刪除 292 項、約 2.58 GB，包括各輪 probe／review 證據目錄、log、截圖、
+一次性腳本與 SDK 授權查閱檔、舊 Windows 封裝、Linux staging、舊版 1.0.0 的 APK／DEB、過期的 Apple 生成專案與未被腳本使用的 npm cache。
+本檔較早各節引用的 `build/` 證據路徑因此已不存在，紀錄內容保留。
+保留腳本使用的 `app`、`config`、`dotnet-home`、`nuget-packages`、`gradle-home`、`toolchain`。
+
+一次性的 Explorer 宿主盤點腳本改為 `scripts/windows/Get-ShellLayerInventory.ps1`，補上說明，
+PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
+
+目前交付：
+- Windows（`eede2d7`，`-LocalTestSign`）：`build/windows/package-b5dfdd2cfc574e9f948435f87d86a49a/`。
+  `WorkFleet-0.1.0-x64.msix` 24,920,989 bytes，SHA-256 `6fa4e3e613f52f07052e671f00ce9431671721a308eb374fd823c94c62e840b4`；
+  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，`Test-WindowsPackage.ps1` 通過。
+  另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
+- Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。
+
 ## 2026-10-05 本機 build 產物清理
 
 依使用者要求盤點並清理本機 `build/`，只保留

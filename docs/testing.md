@@ -223,6 +223,8 @@ core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換�
 圖片只捕獲測試表面，不截取使用者桌面；不重啟 Explorer 或注入鍵盤／滑鼠。
 主 WPF probe 另測實際逐卡設定→wallpaper→操作此組→floating→結束→wallpaper 的 owner／scene 流程。
 Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩陣仍需各自驗收。
+桌布層回退或附著錯誤時，可執行唯讀的 `scripts/windows/Get-ShellLayerInventory.ps1`，
+列出 Progman／WorkerW／SHELLDLL_DefView 宿主及各自的 DPI／PerMonitorV2 狀態；不送 Explorer 訊息，也不改視窗。
 
 - 真 CompositionControl 透明 HTML／live VisualBrush；只載合成資料，沒有 product bridge。
 - 另一個自有程序作 OS `WindowFromPoint` 目標，檢查被動紙面、空白及前方遮擋穿透；

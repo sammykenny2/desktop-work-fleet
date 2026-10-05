@@ -21,6 +21,17 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 修正 release 設定測試
+
+`tests/config.test.js` 自建立後未隨 `scripts/config.mjs` 更新，導致兩項既有失敗。
+逐版回測確認原因：`20e8ee4` 新增 Android web client、`f213f4e` 新增各平台隱私／支援 URL 與 email、
+`279821d` 新增 Windows package ID／publisher，這些都是 `.env.example` 與各平台 release 檢查使用的必填欄位。
+程式行為正確，只更新測試：Windows 完整設定回報無缺漏、Android 空設定列出完整 7 項、Windows 要求 package ID／publisher，
+並新增 web client、package ID、HTTP／含帳密 URL 與 email 格式錯誤的拒絕案例。
+
+作者檢查：本機 `node_modules` 尚未安裝 `530207b` 新增的 esbuild，Apple 專案測試因此失敗；
+依 setup 執行 `npm ci --ignore-scripts` 後，完整 `npm test` 為 213 pass、0 fail、9 個平台／原生環境 skip。
+
 ## 2026-10-05 Windows 專案層級與 IDE 設定
 
 依使用者要求，Windows 比照 Apple／Android 使用單一平台根目錄 `src/native/windows/`：

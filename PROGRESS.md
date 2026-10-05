@@ -15,6 +15,21 @@
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 Windows 試用包重新打包
+
+依使用者要求，以目前 `f7ce6fa` 程式碼執行
+`scripts/windows/Build-WindowsPackage.ps1 -SkipRestore`，Release 建置成功，0 警告、0 錯誤。
+產物位於本機 `build/windows/package-e0001a5006cf4fbba042918e997c33a8/`：
+`WorkFleet-1.0.0-x64.zip`（25,156,520 bytes）及未簽章的 MSIX。
+試用交付使用 ZIP：完整解壓後執行 `WorkFleet.exe`，所有附帶目錄須保留。
+本機已安裝 .NET 8 Desktop Runtime 8.0.31 與 WebView2 Runtime 154.0.4258.53；
+不需在這台電腦另外安裝 runtime。Google clients 尚未配置，試用以本機功能為主。
+
+作者機械檢查確認 ZIP 的主程式、設定、renderer、vendor 模組及 x64 WebView2 loader 等
+18 個必要檔案均存在，總共 137 個 ZIP entries，未包含 `.env`、私鑰或原始碼目錄。
+ZIP SHA-256：`d9d1f384ef35a94283dbf18d30e0346ee2048bda75ec3ff4c11e8b2105d9d69d`。
+Windows SDK MakeAppx 封裝成功；未進行簽章、安裝、GUI 操作或獨立審閱，未改產品程式碼。
+
 ## 2026-10-05 Apple 專案直接開啟交付
 
 依本輪明確要求，將可攜的 `src/native/apple/WorkFleet.xcodeproj`、workspace、iOS／macOS shared schemes、

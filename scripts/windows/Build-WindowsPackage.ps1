@@ -91,7 +91,7 @@ try {
         $LocalCertificate = $SigningCertificates[0]
         $CertificateThumbprint = $LocalCertificate.Thumbprint
     }
-    $Msix = Join-Path $Output 'WorkFleet-1.0.0-x64.msix'
+    $Msix = Join-Path $Output 'WorkFleet-0.1.0-x64.msix'
     $PackagingLog = Join-Path $Output 'makeappx.log'
     & $MakeAppx pack /d $Stage /p $Msix /h SHA256 > $PackagingLog
     if ($LASTEXITCODE -ne 0) {
@@ -110,7 +110,7 @@ try {
             Export-Certificate -Cert $LocalCertificate -FilePath $PublicCertificate -Type CERT | Out-Null
         }
     }
-    $Zip = Join-Path $Output 'WorkFleet-1.0.0-x64.zip'
+    $Zip = Join-Path $Output 'WorkFleet-0.1.0-x64.zip'
     $PublishedFiles = Get-ChildItem -LiteralPath $Stage -Force | Select-Object -ExpandProperty FullName
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
     Write-Output "MSIX: $Msix"

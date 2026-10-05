@@ -22,7 +22,7 @@ if (args.length === 1 && args[0] === '--help') {
   for (const size of [44, 50, 150]) await writePaperIcon(path.join(images, `paper-${size}.png`), size);
   await writeFile(path.join(stage, 'AppxManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap10 rescap">
-  <Identity Name="${escape(name)}" Version="1.0.0.0" Publisher="${escape(publisher)}" ProcessorArchitecture="x64" />
+  <Identity Name="${escape(name)}" Version="0.1.0.0" Publisher="${escape(publisher)}" ProcessorArchitecture="x64" />
   <Properties><DisplayName>Work Fleet</DisplayName><PublisherDisplayName>${escape(publisherName)}</PublisherDisplayName><Description>Work notes with local storage and optional Google sync</Description><Logo>PackageAssets\\paper-50.png</Logo></Properties>
   <Resources><Resource Language="zh-TW" /><Resource Language="en-US" /></Resources>
   <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.19041.0" /></Dependencies>

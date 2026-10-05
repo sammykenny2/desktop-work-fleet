@@ -153,7 +153,7 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign
-.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-1.0.0-x64.msix
+.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-0.1.0-x64.msix
 ```
 
 將 `package-ID` 換成建置輸出的目錄。檢查四種不合法簽章參數在建置前拒絕，

@@ -6,7 +6,7 @@
     Mounts only build/linux and the packaging script. No runtime, GUI tests, service
     ports, installation, signing or publication. Existing output is preserved.
 .PARAMETER Release
-    Require final public config and build version 1.0.0; default is 1.0.0~preview.
+    Require final public config and build version 0.1.0; default is 0.1.0~preview.
 .PARAMETER SkipWebBuild
     Use already-built build/app assets.
 .PARAMETER DockerImage
@@ -27,14 +27,14 @@ try {
     & python -B scripts/package-linux.py
     if ($LASTEXITCODE -ne 0) { throw 'Linux archive failed.' }
     $LinuxOutput = Join-Path $ProjectRoot 'build/linux'
-    $Metadata = Get-Content -LiteralPath (Join-Path $LinuxOutput 'work-fleet-1.0.0/package.json') -Raw | ConvertFrom-Json
-    $PublicConfig = Get-Content -LiteralPath (Join-Path $LinuxOutput 'work-fleet-1.0.0/Config/public.json') -Raw | ConvertFrom-Json
+    $Metadata = Get-Content -LiteralPath (Join-Path $LinuxOutput 'work-fleet-0.1.0/package.json') -Raw | ConvertFrom-Json
+    $PublicConfig = Get-Content -LiteralPath (Join-Path $LinuxOutput 'work-fleet-0.1.0/Config/public.json') -Raw | ConvertFrom-Json
     $Script = Join-Path $ProjectRoot 'scripts/linux/package-deb.sh'
-    $Arguments = @('run', '--rm', '--network', 'none', '--mount', "type=bind,source=$LinuxOutput,target=/workspace/build/linux", '--mount', "type=bind,source=$Script,target=/workspace/scripts/package-deb.sh,readonly", $DockerImage, 'bash', '/workspace/scripts/package-deb.sh', '--source', '/workspace/build/linux/work-fleet-1.0.0', '--output', '/workspace/build/linux', '--app-id', $Metadata.appId)
+    $Arguments = @('run', '--rm', '--network', 'none', '--mount', "type=bind,source=$LinuxOutput,target=/workspace/build/linux", '--mount', "type=bind,source=$Script,target=/workspace/scripts/package-deb.sh,readonly", $DockerImage, 'bash', '/workspace/scripts/package-deb.sh', '--source', '/workspace/build/linux/work-fleet-0.1.0', '--output', '/workspace/build/linux', '--app-id', $Metadata.appId)
     if ($PublicConfig.release.supportEmail) { $Arguments += @('--maintainer-email', $PublicConfig.release.supportEmail) }
     if ($Release) { $Arguments += '--release' }
     & docker @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'Linux DEB build failed; a Linux Docker engine and an available build image are required.' }
-    $Version = if ($Release) { '1.0.0' } else { '1.0.0~preview' }
+    $Version = if ($Release) { '0.1.0' } else { '0.1.0~preview' }
     Write-Output "Linux package: $(Join-Path $LinuxOutput "work-fleet_${Version}_all.deb")"
 } finally { Pop-Location }

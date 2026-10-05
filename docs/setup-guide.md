@@ -220,7 +220,7 @@ backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
-bash build/linux/work-fleet-1.0.0/run-work-fleet.sh
+bash build/linux/work-fleet-0.1.0/run-work-fleet.sh
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
@@ -229,7 +229,7 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
 dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。
-Preview 檔案是 `build/linux/work-fleet_1.0.0~preview_all.deb`，適用提供上述系統依賴的發行版。
+Preview 檔案是 `build/linux/work-fleet_0.1.0~preview_all.deb`，適用提供上述系統依賴的發行版。
 
 Apple 手動建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
 在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub

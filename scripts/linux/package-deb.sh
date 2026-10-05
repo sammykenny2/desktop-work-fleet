@@ -37,7 +37,7 @@ LAUNCHER
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE" -type f -exec chmod 644 {} +
 chmod 755 "$STAGE/usr/bin/work-fleet" "$STAGE/usr/lib/work-fleet/run-work-fleet.sh"
-VERSION='1.0.0~preview'; [[ "$RELEASE" == 0 ]] || VERSION='1.0.0'
+VERSION='0.1.0~preview'; [[ "$RELEASE" == 0 ]] || VERSION='0.1.0'
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: work-fleet
 Version: $VERSION

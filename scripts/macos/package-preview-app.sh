@@ -26,11 +26,11 @@ fi
 OUTPUT="$(mktemp -d "$PROJECT_ROOT/build/apple/preview-$PLATFORM-XXXXXXXX")"
 if [[ "$PLATFORM" == ios && "$SIMULATOR" == 0 ]]; then
     mkdir "$OUTPUT/Payload"; ditto "$APP" "$OUTPUT/Payload/WorkFleetIOS.app"
-    (cd "$OUTPUT"; ditto -c -k --keepParent Payload WorkFleet-1.0.0-ios-unsigned.ipa)
+    (cd "$OUTPUT"; ditto -c -k --keepParent Payload WorkFleet-0.1.0-ios-unsigned.ipa)
 elif [[ "$PLATFORM" == ios ]]; then
-    ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/WorkFleet-1.0.0-ios-simulator.zip"
+    ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/WorkFleet-0.1.0-ios-simulator.zip"
 else
-    ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/WorkFleet-1.0.0-macos-unsigned.zip"
+    ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/WorkFleet-0.1.0-macos-unsigned.zip"
 fi
 DEVELOPER_PATH="$(node scripts/toolchain-env.mjs | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; process.stdout.write(JSON.parse(s).DEVELOPER_DIR);')"
 [[ -z "$DEVELOPER_PATH" ]] || export DEVELOPER_DIR="$DEVELOPER_PATH"

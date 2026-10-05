@@ -9,7 +9,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    source = root / "build" / "linux" / "work-fleet-1.0.0"
+    source = root / "build" / "linux" / "work-fleet-0.1.0"
     target = source.parent / (source.name + ".tar.gz")
     if not (source / "Native" / "host.py").is_file():
         raise SystemExit("Run npm run build and node scripts/generate-linux-package.mjs first.")

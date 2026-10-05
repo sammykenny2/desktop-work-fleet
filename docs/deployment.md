@@ -1,6 +1,6 @@
 # 平台與散布狀態
 
-更新：2026-10-05；本頁提供 1.0 封裝入口，實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
+更新：2026-10-05；目前試用版本降為 0.1.0，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
@@ -40,7 +40,7 @@ Android `-Signed`／`--signed` 要求四個簽章環境變數並產生 release A
 [商店準備](release/README.md)。一般 release 在沒有 signing inputs 時產生未簽章 AAB。
 Linux runtime tar.gz 沒有內嵌 Python／GTK；DEB 交給支援該依賴版本的發行版。
 不同 distro、CPU、X11／Wayland、桌面與 compositor 的行為仍需各自取得證據。
-Linux preview DEB 使用 `1.0.0~preview` 與 preview maintainer contact；release 使用正式 email。
+Linux preview DEB 使用 `0.1.0~preview` 與 preview maintainer contact；release 使用正式 email。
 Windows 的 Docker 封裝只執行 dpkg-deb，沒有在 container 安裝 GUI、App 或提供 runtime 驗收結果。
 
 1.0 授權見 [第三方聲明](../THIRD-PARTY-NOTICES.md) 及 `src/native/licenses/`。

@@ -15,9 +15,9 @@ npm run build
 node scripts/generate-linux-package.mjs
 python3 scripts/package-linux.py
 if [[ "$DEB" == 1 ]]; then
-    BUNDLE="$PROJECT_ROOT/build/linux/work-fleet-1.0.0"
-    APP_ID="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-1.0.0/package.json", "utf8")).appId);')"
-    EMAIL="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-1.0.0/Config/public.json", "utf8")).release.supportEmail || "");')"
+    BUNDLE="$PROJECT_ROOT/build/linux/work-fleet-0.1.0"
+    APP_ID="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-0.1.0/package.json", "utf8")).appId);')"
+    EMAIL="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-0.1.0/Config/public.json", "utf8")).release.supportEmail || "");')"
     EXTRA=(); [[ "$RELEASE" == 0 ]] || EXTRA+=(--release)
     [[ -z "$EMAIL" ]] || EXTRA+=(--maintainer-email "$EMAIL")
     bash "$SCRIPT_DIR/package-deb.sh" --source "$BUNDLE" --output "$PROJECT_ROOT/build/linux" --app-id "$APP_ID" "${EXTRA[@]}"

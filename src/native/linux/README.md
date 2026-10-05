@@ -7,7 +7,7 @@ Secret Service 與 cryptography，由 Linux distribution 提供。不是 Python 
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
-bash build/linux/work-fleet-1.0.0/run-work-fleet.sh
+bash build/linux/work-fleet-0.1.0/run-work-fleet.sh
 # 在提供 Debian 工具的環境建立安裝包：
 bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
@@ -31,7 +31,7 @@ fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新�
 
 建置入口產生 source/runtime tar.gz，Debian variant 宣告 system runtime dependencies；
 不攜帶私鑰、token、使用者資料或 Python／GTK 的複製二進位。簽章／repository 發布仍待實際環境。
-DEB preview 版本為 `1.0.0~preview`；release 使用正式公開 app 設定與支援 email 作 maintainer contact。
+DEB preview 版本為 `0.1.0~preview`；release 使用正式公開 app 設定與支援 email 作 maintainer contact。
 共同 `scripts/linux/package-deb.sh` 每次使用新的 staging，安裝 launcher／desktop entry／圖示與 notices。
 Windows 可執行 `scripts/windows/Build-LinuxPackage.ps1`，以既有 Docker Linux engine 的固定 Ubuntu
 image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 script，不執行 GTK 或安装 App。

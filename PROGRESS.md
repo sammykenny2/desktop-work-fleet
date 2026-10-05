@@ -4,6 +4,9 @@
 
 ## 目前優先方向
 
+2026-10-05 使用者將目前試用版本降為 **0.1.0**；完整 1.0 是目標，不是目前品質或驗收結果。
+本機重裝由使用者先解除安裝舊版再安裝新包，不自動移除 App 或使用者資料。
+
 2026-10-05 本輪要求補齊 Windows／macOS／Linux 桌面分層，接續參考專案已有的實測成果；結果見下方專節。
 
 使用者已授權逐 slice 實作並直接 commit/push origin/main，直到完整 1.0 完成。
@@ -16,6 +19,32 @@
 先前 Google 程式與公開設定已收尾；Google 專案／各平台 clients 尚未建立，
 Apple team、正式 package identity／簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
+
+## 2026-10-05 試用版本降為 0.1.0
+
+依使用者最新指示，不採用原先擬議的 `1.0.0.1` 升級版本，改為 `0.1.0`。
+Windows App／core assembly 與 MSIX identity 均為 `0.1.0.0`，產物名稱改為 `WorkFleet-0.1.0-x64`。
+package identity／publisher 與既有自我簽章憑證保留；只改版本 metadata，沒有回退功能或資料格式。
+Apple Info.plist／封裝檔名、Android versionName／versionCode（0.1.0／100）、Linux bundle／DEB
+及相關文件同步為 0.1.0；第三方依賴版本沒有變更，歷史實測紀錄保留。
+
+以 `Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign` 重新編譯，
+自動選到原本已在機器信任存放區的憑證，原生 Release 與 SignTool 驗證均為 0 警告／0 錯誤。
+目前交付目錄：`build/windows/package-34ab358242154674a558e7632588446b/`。
+
+- 已簽章 `WorkFleet-0.1.0-x64.msix`：24,920,251 bytes／118 entries，identity version 0.1.0.0。
+  SHA-256：`cf24930b1433f6f317ccec8a2e99594594286d22caa78ba3f466e1eb8a93e8c3`。
+- `WorkFleet-0.1.0-x64.zip`：25,160,966 bytes／137 entries。
+  SHA-256：`969eb3eee6d5601a0598a5c7748757bce1b7b00ed0b71ffcfdd6ed45cf47adda`。
+- 配套公開 `WorkFleet-preview.cer` 與同一張簽章憑證相符，不含私鑰。
+
+作者檢查：Windows package signing 回歸通過，實際 App／core assembly 版本 0.1.0.0，
+壓縮檔完整且 DLL／renderer 與最後建置相同。Apple 可攜專案／資產準備測試 3／3 通過；
+Linux 實際重建 DEB／tar.gz，bundle metadata 為 0.1.0，dpkg-deb 回報 0.1.0~preview。
+改動 Bash 與 PowerShell 入口語法、Python archive 入口語法、文件與 diff 檢查通過。
+紀錄：`build/windows-0.1.0-signed-build.log`、`build/preview-version-apple-tests.log`、
+`build/preview-version-linux-package.log`。本輪未重跑產品互動測試，也未編譯 Apple／Android 原生二進位。
+使用者已表示將自行刪除舊版重裝；本輪未解除安裝、安裝 App、修改信任或刪除任何資料，沒有獨立審閱。
 
 ## 2026-10-05 Windows 本機自我簽章試裝包
 

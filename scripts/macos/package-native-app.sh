@@ -44,7 +44,7 @@ if [[ "$PLATFORM" == macos && "$METHOD" != app-store-connect ]]; then
         xcrun notarytool submit "$OUTPUT/app-for-notary.zip" --keychain-profile "$NOTARY" --wait
         xcrun stapler staple "$APP"
     fi
-    PACKAGE="$OUTPUT/WorkFleet-1.0.0.pkg"; SIGN=()
+    PACKAGE="$OUTPUT/WorkFleet-0.1.0.pkg"; SIGN=()
     [[ -z "$INSTALLER" ]] || SIGN=(--sign "$INSTALLER")
     productbuild --component "$APP" /Applications "${SIGN[@]}" "$PACKAGE"
     if [[ -n "$NOTARY" ]]; then
@@ -54,7 +54,7 @@ if [[ "$PLATFORM" == macos && "$METHOD" != app-store-connect ]]; then
     fi
     if [[ "$DMG" == 1 ]]; then
         mkdir "$OUTPUT/disk-image"; ditto "$APP" "$OUTPUT/disk-image/Work Fleet.app"; ln -s /Applications "$OUTPUT/disk-image/Applications"
-        IMAGE="$OUTPUT/WorkFleet-1.0.0.dmg"
+        IMAGE="$OUTPUT/WorkFleet-0.1.0.dmg"
         hdiutil create -volname 'Work Fleet' -srcfolder "$OUTPUT/disk-image" -format UDZO "$IMAGE"
         if [[ -n "$APPLICATION" ]]; then codesign --sign "$APPLICATION" --timestamp "$IMAGE"; fi
         if [[ -n "$NOTARY" ]]; then xcrun notarytool submit "$IMAGE" --keychain-profile "$NOTARY" --wait; xcrun stapler staple "$IMAGE"; fi

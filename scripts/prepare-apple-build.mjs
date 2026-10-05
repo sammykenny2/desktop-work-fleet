@@ -13,7 +13,7 @@ const execute = promisify(execFile);
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 export function appleInfoPlist(platform, config) {
-  const shared = '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string><key>CFBundleShortVersionString</key><string>1.0.0</string><key>CFBundleVersion</key><string>10000</string>';
+  const shared = '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string><key>CFBundleShortVersionString</key><string>0.1.0</string><key>CFBundleVersion</key><string>100</string>';
   const group = `<key>FleetCaptureAppGroup</key><string>${escape(config.appleAppGroupId)}</string>`;
   let content;
   if (platform === 'share') {

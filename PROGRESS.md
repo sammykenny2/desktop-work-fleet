@@ -35,8 +35,10 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   起因是 CDP 檢查真實資料時，2 張便箋因顯示關閉而桌面全空，畫面沒有任何說明。
 - 移除標題上方無資訊的「你的工作空間」。`#storage-note` 由「·」串接改為分行，保留 Apple probe 檢查的開頭。
 
-驗證：Debug＋CDP 在 1166×763、900、600 寬度截圖，含注入但不存檔的示範卡；`npm test` 213 pass、9 skip；
-`Test-WindowsNative.ps1` 通過（前景授權依規則 SKIP），含紙面不透明、空白零 alpha 與跨程序穿透。
+驗證：Debug＋CDP 在 1166×763、900、600 寬度截圖主畫面、清單、設定與草稿對話框，含注入但不存檔的示範卡；
+`npm test` 213 pass、9 skip；Python unittest 23 通過、4 skip；`Test-WindowsNative.ps1` 通過（前景授權依規則 SKIP），
+含紙面不透明、空白零 alpha 與跨程序穿透。Windows UI probe 新增流程：關閉日常顯示後須出現隱藏提示與張數，
+按「顯示桌面便箋」後提示消失、卡片回到縮圖。`scene.css` 只經原生 alpha／命中 probe 間接驗證，未截圖看過實際桌面紙面；
 未在 macOS、iOS、Android 實機檢查新樣式；已安裝的 MSIX 仍是改版前的 `eede2d7` 包。
 
 ## 2026-10-05 Linux DEB 版號與輸出位置修正

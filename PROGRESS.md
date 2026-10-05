@@ -21,6 +21,25 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-05 本機 build 產物清理
+
+依使用者要求盤點並清理本機 `build/`，只保留
+`build/apple/preview-macos-universal-development-os1ji0ur/` 的最新開發簽章 universal DMG、
+App 暫存副本、README、hash 與包裝驗證紀錄。DMG SHA-256 與原交付一致，`hdiutil verify` 通過。
+
+可重用的啟動驗證已在 `scripts/testing/apple_startup_probe.py` 與
+`tests/native/apple/StartupProbe.swift`；Apple 資產準備與授權複製也已提交。
+臨時診斷片段、baseline 與 probe 來源副本沒有需要另行移入 repo 的程式；
+結論已記錄於 [研究紀錄](docs/resreach/2026-10-05-apple-signed-startup-and-local-scripts.md) 與 ADR-033。
+
+刪除 DerivedData、下載依賴／npm 快取、測試副本、舊包、暫存日誌、路徑指標與 Xcode 備份。
+下方歷史段落引用的本機 Apple 暫存證據路徑已清除，測試結果保留為當時紀錄。
+先前 Xcode target 的 Team 已移至 Git 忽略的 `src/native/apple/config/Local.xcconfig`，
+project／iOS scheme 已還原；本次保留該本機配置。
+
+作者檢查：清理後目錄、保留檔案 hash、DMG 完整性及文件／diff 檢查。
+本次未修改產品程式或重跑編譯／回歸；沒有獨立審閱。
+
 ## 2026-10-05 修正 release 設定測試
 
 `tests/config.test.js` 自建立後未隨 `scripts/config.mjs` 更新，導致兩項既有失敗。

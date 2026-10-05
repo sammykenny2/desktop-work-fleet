@@ -32,7 +32,7 @@
   </aside>
   <main>
     <header class="topbar">
-      <div><span class="eyebrow">你的工作空間</span><h1 id="workspace-title">我的便箋</h1></div>
+      <h1 id="workspace-title">我的便箋</h1>
       <div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋內容…" aria-label="搜尋便箋"></label>
       <button id="view-toggle" aria-pressed="false">清單檢視</button></div>
     </header>
@@ -41,7 +41,7 @@
       <div><button id="cycle-prev" title="上一張">←</button><button id="cycle-next" title="下一張">→</button><span class="divider"></span><button id="stack">堆疊</button><button id="spread">攤開</button><button id="undo">復原</button></div>
     </div>
     <div class="view-filters"><button data-filter="active" class="active">待處理</button><button data-filter="completed">已完成</button><button data-filter="archived">封存</button><button data-filter="deleted">刪除區</button><span id="count"></span></div>
-    <div id="stage-shell"><div id="stage" aria-label="便箋桌面"></div><div id="empty" hidden><div class="empty-paper">＋</div><h2>先記下一件事。</h2><p>一個想法、一個待辦，都可以從這裡開始。</p><button id="empty-add">新增第一張便箋</button></div></div>
+    <div id="stage-shell"><div id="stage" aria-label="便箋桌面"></div><div id="empty" hidden><div class="empty-paper">＋</div><h2>先記下一件事。</h2><p>一個想法、一個待辦，都可以從這裡開始。</p><button id="empty-add" class="primary">新增第一張便箋</button></div><div id="desktop-hidden" hidden><div class="empty-paper hidden-papers" aria-hidden="true"></div><h2>桌面便箋已隱藏</h2><p id="desktop-hidden-text"></p><button id="show-desktop" class="primary">顯示桌面便箋</button></div></div>
     <section id="list" aria-label="便箋清單" hidden></section>
     <footer><span id="mode-label">日常觀看</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
   </main>

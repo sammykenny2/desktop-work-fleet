@@ -24,7 +24,8 @@ import { NativeGoogleFileStore } from '../native/google.js';
 import { FileSync } from '../sources/file-sync.js';
 
 const $ = selector => document.querySelector(selector);
-const colors = ['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1'];
+// Group paper, shared with the desktop scenes. Neighbouring entries differ in hue so the first groups stay distinct.
+const colors = ['#ffe98a', '#bfe6cf', '#bcd8f5', '#f9c8b6', '#d9ccf2', '#b5e0dc', '#f5c6da', '#f2ddb0', '#cdd5e3'];
 let workspace; let storage; let controller; let lease;
 let activeGroupId; let filter = 'active'; let listView = matchMedia('(max-width:640px)').matches;
 let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resolve(); let editorBusy = false;
@@ -112,7 +113,7 @@ async function initialize() {
     initializeDesktop();
     const note = element('p', '桌面已連接；操作群組可浮到其他 App 上方。', 'hint'); note.id = 'desktop-note'; $('#storage-note').after(note);
   }
-  $('#storage-note').textContent = native ? '本機加密工作空間 · 尚未連接 Google' : '瀏覽器本機工作空間 · 尚未連接 Google';
+  $('#storage-note').textContent = native ? '本機加密工作空間\n尚未連接 Google' : '瀏覽器本機工作空間\n尚未連接 Google';
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open();
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
@@ -183,14 +184,14 @@ async function initializeGoogle() {
   $('#google-sync').hidden = !googleAccount.connected; $('#sync-status').hidden = false;
   $('#google-sync').onclick = () => { void syncGoogle(true); };
   if (googleAccount.connected) {
-    $('#storage-note').textContent = `Google 工作空間 · ${googleAccount.email || googleAccount.accountId} · 本機加密保存`;
+    $('#storage-note').textContent = `Google 工作空間\n${googleAccount.email || googleAccount.accountId}\n本機加密保存`;
     syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId) });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
     void syncGoogle();
   } else {
-    if (profileId.startsWith('google:')) $('#storage-note').textContent = 'Google 工作空間 · 尚未登入 · 本機加密保存';
+    if (profileId.startsWith('google:')) $('#storage-note').textContent = 'Google 工作空間\n尚未登入\n本機加密保存';
     $('#sync-status').textContent = !googleAccount.configured ? '此安裝版本尚未啟用 Google 登入；可繼續使用本機便箋。'
       : profileId.startsWith('google:') ? '請重新登入此工作空間的 Google 帳號以繼續同步；本機便箋與待送內容保留。'
       : '登入後開啟獨立帳號工作空間；目前本機便箋保留。';
@@ -416,11 +417,14 @@ function render() {
   const cards = snapshot.cards.filter(matchesFilter).filter(card => !query || card.content.text.toLocaleLowerCase().includes(query));
   const listCards = cards.filter(card => query || card.groupId === activeGroupId);
   $('[data-filter="active"]').textContent = listView || query ? '待處理' : '桌面';
-  $('#count').textContent = asList ? `${listCards.length} 張便箋`
-    : `${snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length} 張桌面便箋`;
+  const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
+  const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
+  $('#count').textContent = asList ? `${listCards.length} 張便箋` : `${shown} 張桌面便箋`;
   if (asList) renderList(listCards);
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
+  $('#desktop-hidden').hidden = !hidden;
+  $('#desktop-hidden-text').textContent = `${hidden} 張便箋目前不顯示在桌面上；顯示後會回到原本的位置。`;
   desktop?.publish();
 }
 
@@ -481,7 +485,7 @@ function rectStyle(node, rect) { Object.assign(node.style, { left: `${rect.x}px`
 function renderList(cards) {
   const list = $('#list'); list.replaceChildren();
   for (const card of cards) {
-    const row = element('article', undefined, 'list-card');
+    const row = element('article', undefined, 'list-card'); row.style.setProperty('--paper', groupColor(card.groupId));
     const content = element('div', undefined, 'list-content');
     content.append(element('h3', summaryText(card)), element('div', card.content.text, 'excerpt'));
     content.append(element('div', `${activeGroups(workspace.snapshot).find(group => group.id === card.groupId)?.name || '群組待同步'}${card.content.attachments?.length ? ` · ${card.content.attachments.length} 個附件` : ''}`, 'list-meta'));
@@ -811,6 +815,9 @@ function bindEvents() {
   $('#hide-main').onclick = () => run(() => desktopAction('@hide'));
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(workspace.layout.state.shortcuts, true); };
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
+  $('#show-desktop').onclick = () => run(async () => {
+    await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status('已顯示桌面便箋');
+  });
   $('#add-group').onclick = () => groupEditor();
   $('#search').oninput = render; $('#view-toggle').onclick = () => { listView = !listView; render(); };
   document.querySelectorAll('[data-filter]').forEach(node => { node.onclick = () => { filter = node.dataset.filter; render(); }; });

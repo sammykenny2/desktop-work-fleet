@@ -939,14 +939,20 @@ function bindEvents() {
     } finally { setEditorBusy(false); }
   });
   const stage = $('#stage');
+  // A double click lands while the first click is still saving the previous draft, so stage gestures run in order.
+  let stageQueue = Promise.resolve();
+  const stageRun = action => (stageQueue = stageQueue.then(() => run(action)));
   stage.onpointerdown = event => {
     const paper = event.target.closest('.card.operable');
     if (!paper || event.button !== 0 || event.target.closest('button,a,input,select,textarea')) return;
-    if (controller.pointerDown(paper.dataset.cardId, point(event), { pointerId: event.pointerId,
-      handle: Boolean(event.target.closest('.card-summary')) })) { paper.setPointerCapture(event.pointerId); event.preventDefault(); }
+    let started;
+    try { started = controller.pointerDown(paper.dataset.cardId, point(event), { pointerId: event.pointerId,
+      handle: Boolean(event.target.closest('.card-summary')) }); }
+    catch (error) { if (error.code === 'busy') return; throw error; }
+    if (started) { paper.setPointerCapture(event.pointerId); event.preventDefault(); }
   };
   stage.onpointermove = event => dragPaint(controller.pointerMove(point(event), { pointerId: event.pointerId, shiftKey: event.shiftKey, labels: groupLabels }));
-  stage.onpointerup = event => run(async () => {
+  stage.onpointerup = event => stageRun(async () => {
     const id = event.target.closest('.card')?.dataset.cardId;
     const result = await controller.pointerUp(point(event), { pointerId: event.pointerId, shiftKey: event.shiftKey, labels: groupLabels });
     if (result.kind === 'click' && id) {
@@ -960,7 +966,7 @@ function bindEvents() {
   });
   stage.onpointercancel = () => { controller.cancelDrag(); render(); };
   stage.addEventListener('lostpointercapture', () => { if (controller.cancelDrag()) render(); });
-  stage.ondblclick = event => run(async () => {
+  stage.ondblclick = event => stageRun(async () => {
     const paper = event.target.closest('.card.operable');
     if (!paper || event.target.closest('button,a,input,textarea,select')) return;
     await beginInlineEdit(currentCard(paper.dataset.cardId), true);

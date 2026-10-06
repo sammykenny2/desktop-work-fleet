@@ -112,6 +112,10 @@ try {
   await page.locator('#drafts-button').click();
   await expect(page.locator('#draft-list')).toContainText('切換選卡仍保留的草稿');
   await page.locator('#close-drafts').click();
+  // Double-clicking another paper while editing must open it even though the first click is still saving.
+  await firstPaper.locator('.card-summary').dblclick(); await expect(firstPaper.locator('.inline-editor')).toBeVisible();
+  await secondPaper.locator('.card-summary').dblclick(); await expect(secondPaper.locator('.inline-editor')).toBeVisible();
+  await secondPaper.locator('.inline-editor').press('Escape'); await expect(page.locator('.inline-editor')).toHaveCount(0);
 
   // Never render attachment HTML/SVG in the application origin, including open-in-new-tab.
   await page.locator('#new-card').click();

@@ -1,11 +1,12 @@
 <#
 .SYNOPSIS
-    Build the Android native APK or release App Bundle.
+    Build the Android native APK or release App Bundle and copy it into build/.
 .DESCRIPTION
     Requires Node 22+, npm, JDK 17 and Android SDK 36. Uses the checked-in Gradle
     Wrapper and .env public app/Google
     settings and optional SDK paths. No SDK installation, device test or store upload.
     Release uses signing environment variables when configured; otherwise it is unsigned.
+    The package and its .sha256 are named from versionName in app/build.gradle.kts.
 .PARAMETER Release
     Build a release AAB instead of a debug APK.
 .PARAMETER Signed
@@ -47,10 +48,21 @@ try {
         & node scripts/check-config.mjs --platform android
         if ($LASTEXITCODE -ne 0) { throw 'Release settings are incomplete.' }
     }
+    $AndroidVersion = & node scripts/platform-version.mjs --platform android
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read versionName from src/native/android/app/build.gradle.kts.' }
     $Task = if ($Release) { 'bundleRelease' } else { 'assembleDebug' }
+    $Output = "src/native/android/app/build/outputs/apk/debug/WorkFleet-$AndroidVersion-android-debug.apk"
+    if ($Release) { $Output = "src/native/android/app/build/outputs/bundle/release/WorkFleet-$AndroidVersion-android-release.aab" }
     & $GradlePath -p src/native/android --no-daemon --console plain $Task
     if ($LASTEXITCODE -ne 0) { throw 'Android native build failed.' }
-    Write-Output 'Android output: src/native/android/app/build/outputs'
+    if (-not (Test-Path -LiteralPath $Output -PathType Leaf)) { throw "Expected Gradle output $Output was not produced." }
+    $Delivery = Join-Path $ProjectRoot 'build'
+    New-Item -ItemType Directory -Path $Delivery -Force | Out-Null
+    $Package = Join-Path $Delivery (Split-Path -Leaf $Output)
+    Copy-Item -LiteralPath $Output -Destination $Package -Force
+    $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Package).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText("$Package.sha256", "$Hash  $(Split-Path -Leaf $Package)`n")
+    Write-Output "Android package: $Package"
 } finally {
     Pop-Location
     foreach ($Name in $SavedSdkEnvironment.Keys) { [Environment]::SetEnvironmentVariable($Name, $SavedSdkEnvironment[$Name], 'Process') }

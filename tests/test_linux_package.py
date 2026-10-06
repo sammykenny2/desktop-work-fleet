@@ -141,6 +141,9 @@ class LinuxPackageTests(unittest.TestCase):
         build.mkdir()
         marker = build / "keep.txt"
         marker.write_text("existing output\n", encoding="utf-8")
+        stale = build / "linux/work-fleet-9.8.7/Native/removed.py"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("print('removed source')\n", encoding="utf-8")
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith("WORK_FLEET_")}
         environment["npm_config_cache"] = str(checkout / "npm-cache")
@@ -159,10 +162,18 @@ class LinuxPackageTests(unittest.TestCase):
         self.assert_checksum(package)
         self.assertEqual(list((build / "linux").glob("*.deb")), [])
         self.assertEqual(list(build.glob("deb-stage-*")), [])
-        archive = build / "linux/work-fleet-9.8.7.tar.gz"
+        archive = build / "work-fleet-9.8.7.tar.gz"
         self.assertTrue(archive.is_file())
         self.assert_checksum(archive)
         self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
+        self.assertFalse(stale.exists())
+        # Release files sit directly in build/, at the same depth as every other platform's.
+        self.assertEqual(
+            sorted(p.name for p in build.iterdir() if p.is_file()),
+            ["keep.txt", "work-fleet-9.8.7.tar.gz", "work-fleet-9.8.7.tar.gz.sha256",
+             "work-fleet_9.8.7_all.deb", "work-fleet_9.8.7_all.deb.sha256"],
+        )
+        self.assertEqual([p.name for p in (build / "linux").iterdir()], ["work-fleet-9.8.7"])
 
 
 if __name__ == "__main__":

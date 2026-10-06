@@ -16,6 +16,12 @@
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
 腳本產生的每個發佈檔旁另有同名 `.sha256`，可用 `sha256sum -c` 或 `shasum -a 256 -c` 檢查。
 
+所有平台的發佈檔與 `.sha256` 都直接放在 `build/`，同一層、沒有隨機子目錄；同名舊檔直接覆蓋，不同版號並存。
+中間產物放在各平台固定的工作目錄，每次建置開始時清空：Windows `build/windows/package`、
+Apple `build/apple/preview-<macos|ios>`（另有 README.txt／toolchain.txt）與 `build/apple/export-<macos|ios>`、
+Linux `build/linux/work-fleet-<版號>`；Android 由 Gradle 輸出後複製到 `build/`。
+Windows 與 Apple 只在整個建置、簽章、公證都成功後才把檔案移到 `build/`，失敗不會留下半成品。
+
 - Windows：`src/native/windows/Directory.Build.props` 的 `<Version>`，供組件版本、MSIX identity（補 `.0`）
   與 `WorkFleet-<版號>-x64.msix`／`WorkFleet-<版號>-x64.zip`。
 - macOS／iOS：`src/native/apple/config/WorkFleet.xcconfig` 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`；
@@ -24,18 +30,19 @@
     正式匯出為 `WorkFleet-<版號>-macos-universal.pkg`／`.dmg`；
     預覽為 `WorkFleet-<版號>-macos-universal-<unsigned|development>.zip`，加 `--dmg` 改為 `.dmg`。
   - iOS 預覽為 `WorkFleet-<版號>-ios-<unsigned|development>.ipa`、`WorkFleet-<版號>-ios-simulator.zip`；
-    App Store export 的 IPA 沿用 Xcode 命名。
+    正式匯出依 `--method` 命名為 `WorkFleet-<版號>-ios-<method>.ipa`；
+    macOS 的 `app-store-connect` 匯出為 `WorkFleet-<版號>-macos-universal-app-store-connect.pkg`。
   - 預覽後綴取自 App 本身的簽章，不看建置機器有哪些憑證。
-- Android：`src/native/android/app/build.gradle.kts` 的 `versionName`；Gradle 輸出
+- Android：`src/native/android/app/build.gradle.kts` 的 `versionName`；
   `WorkFleet-<版號>-android-debug.apk`／`WorkFleet-<版號>-android-release.aab`。
 - Linux：`src/native/linux/VERSION`；`build/work-fleet_<版號>_all.deb` 依 Debian 的
-  `套件_版號_架構` 慣例，source/runtime 為 `build/linux/work-fleet-<版號>.tar.gz`。
+  `套件_版號_架構` 慣例，source/runtime 為 `build/work-fleet-<版號>.tar.gz`。
 
 公開設定在 `.env.example`：各平台 Google client、app ID、Apple team／App Group、Microsoft
 package identity／publisher、隱私與支援資料。私鑰／密碼由 OS Keychain 或 CI environment 提供。
 `-Release`／`--release` 要求正式公開設定；preview 仍允許 Google 未配置，保留本機記錄。
 
-Windows 封裝腳本將內容寫到新的 `build/windows/package-<id>`，不覆寫其他產物。
+Windows 封裝腳本在固定的 `build/windows/package` 建置，成功後把 MSIX／ZIP（與 `-LocalTestSign` 的公開 CER）移到 `build/`。
 可提供 `-CertificateThumbprint`（CurrentUser/My）與 HTTPS `-TimestampUrl` 簽署 MSIX；
 publisher 必須與既有憑證 subject 或 Partner Center identity 相符。腳本不安裝憑證或改變信任。
 本機 preview 試裝使用 `-LocalTestSign`，重用與 publisher 相符、有效且已在

@@ -32,11 +32,12 @@ git diff --check
 release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件或啟動 GUI。
 另驗證成功／失敗都清除本次 staging，保留既有輸出。有 Node 22+／npm 與 lockfile 依賴時，
 在含空白路徑的隔離 checkout 改寫 `src/native/linux/VERSION` 後執行完整 `--deb` 建置，
-確認 DEB 直接輸出到 `build/` 根目錄、DEB／tar.gz 檔名跟隨該版號，且 `.sha256` 與檔案相符。
+確認 DEB 與 tar.gz 直接輸出到 `build/` 根目錄、檔名跟隨該版號、`.sha256` 與檔案相符，
+`build/` 沒有其他新檔，且重建 bundle 時清除已不存在的來源檔。
 
 `tests/release-versions.test.js` 驗證各平台版號紀錄的讀取與格式、封裝腳本不再寫死版號、
 Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、Apple Info.plist 取自 xcconfig
-且拒絕本機覆蓋，以及 Android 檔名設定引用 `versionName`。不需原生 SDK；
+且拒絕本機覆蓋、Android 檔名設定引用 `versionName`，以及各封裝入口使用固定工作目錄並交付到 `build/`。不需原生 SDK；
 不代表 MakeAppx、Xcode 或 Gradle 實際產物已驗證。
 
 `tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
@@ -203,10 +204,10 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign
-.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-VERSION-x64.msix
+.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix
 ```
 
-將 `package-ID` 換成建置輸出的目錄。檢查四種不合法簽章參數在建置前拒絕，
+將 `VERSION` 換成 Windows 版號。檢查四種不合法簽章參數在建置前拒絕，
 並使用 Windows 實際驗證 MSIX 簽章、機器信任、publisher、x64 manifest 與不含私鑰的配套 CER。
 需要與 package publisher 相符的既有 CurrentUser/My 憑證及 LocalMachine/TrustedPeople 信任。
 正式簽章仍使用 `-CertificateThumbprint`／HTTPS `-TimestampUrl`；本機模式不接受 `-Release`。

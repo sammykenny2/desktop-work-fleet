@@ -5,6 +5,8 @@
     Uses .NET 8, Windows SDK MakeAppx and public .env settings. Produces a
     framework-dependent app requiring .NET 8 Desktop and WebView2 runtimes.
     File names use the version in src/native/windows/Directory.Build.props.
+    Release files go directly in build/; build/windows/package is the work
+    directory and is replaced on every run.
     Optional signing uses an existing certificate; no certificate installation,
     trust changes, tests or store upload are performed.
 .PARAMETER Release
@@ -75,8 +77,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version from src/native/windows/Directory.Build.props.' }
     & "$PSScriptRoot/Build-WindowsApp.ps1" -Configuration Release -SkipRestore:$SkipRestore
     $env:DOTNET_CLI_HOME = Join-Path $ProjectRoot 'build/dotnet-home'; $env:NUGET_PACKAGES = Join-Path $ProjectRoot 'build/nuget-packages'; $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-    $Output = Join-Path $ProjectRoot ('build/windows/package-' + [guid]::NewGuid().ToString('N'))
-    $Stage = Join-Path $Output 'content'
+    $Work = Join-Path $ProjectRoot 'build/windows/package'
+    if (Test-Path -LiteralPath $Work) { Remove-Item -LiteralPath $Work -Recurse -Force }
+    $Stage = Join-Path $Work 'content'
     New-Item -ItemType Directory -Path $Stage -Force | Out-Null
     & dotnet publish src/native/windows/app/WorkFleet.Windows.csproj --configuration Release --no-restore --self-contained false --output $Stage -p:PlatformTarget=x64
     if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed.' }
@@ -104,8 +107,8 @@ try {
         $LocalCertificate = $SigningCertificates[0]
         $CertificateThumbprint = $LocalCertificate.Thumbprint
     }
-    $Msix = Join-Path $Output "WorkFleet-$PackageVersion-x64.msix"
-    $PackagingLog = Join-Path $Output 'makeappx.log'
+    $Msix = Join-Path $Work "WorkFleet-$PackageVersion-x64.msix"
+    $PackagingLog = Join-Path $Work 'makeappx.log'
     & $MakeAppx pack /d $Stage /p $Msix /h SHA256 > $PackagingLog
     if ($LASTEXITCODE -ne 0) {
         Get-Content -LiteralPath $PackagingLog -Tail 20
@@ -119,14 +122,21 @@ try {
         if ($LocalTestSign) {
             & $SignTool verify /pa /v $Msix
             if ($LASTEXITCODE -ne 0) { throw 'Local test signature is not valid or trusted on this machine.' }
-            $PublicCertificate = Join-Path $Output 'WorkFleet-preview.cer'
+            $PublicCertificate = Join-Path $Work 'WorkFleet-preview.cer'
             Export-Certificate -Cert $LocalCertificate -FilePath $PublicCertificate -Type CERT | Out-Null
         }
     }
-    $Zip = Join-Path $Output "WorkFleet-$PackageVersion-x64.zip"
+    $Zip = Join-Path $Work "WorkFleet-$PackageVersion-x64.zip"
     $PublishedFiles = Get-ChildItem -LiteralPath $Stage -Force | Select-Object -ExpandProperty FullName
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
     Write-Checksum $Msix; Write-Checksum $Zip
+    # Only a completely built and signed set replaces the release files in build/.
+    $Delivery = Join-Path $ProjectRoot 'build'
+    $Delivered = @($Msix, "$Msix.sha256", $Zip, "$Zip.sha256")
+    if ($LocalTestSign) { $Delivered += $PublicCertificate }
+    Move-Item -LiteralPath $Delivered -Destination $Delivery -Force
+    $Msix = Join-Path $Delivery (Split-Path -Leaf $Msix); $Zip = Join-Path $Delivery (Split-Path -Leaf $Zip)
+    if ($LocalTestSign) { $PublicCertificate = Join-Path $Delivery 'WorkFleet-preview.cer' }
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }

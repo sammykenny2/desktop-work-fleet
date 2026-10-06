@@ -21,6 +21,26 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 所有平台的安裝檔統一放在 build/
+
+使用者要求輸出目錄固定，而且各平台安裝檔要在同一層，不要有的深有的淺；`build/` 或 `build/<平台>/` 都可以。
+採用 `build/` 根目錄，因為 10-05 已決定 DEB 放在這裡，不需再搬。
+- 發佈檔與 `.sha256` 直接放在 `build/`，同名覆蓋：Windows MSIX／ZIP（`-LocalTestSign` 另有 `WorkFleet-preview.cer`）、
+  Apple 預覽 ZIP／DMG／IPA、Apple 正式 PKG／DMG／IPA、Android APK／AAB、Linux DEB 與 tar.gz（原在 `build/linux/`）。
+- 中間產物改用固定工作目錄，每次清空：`build/windows/package`、`build/apple/preview-<macos|ios>`、
+  `build/apple/export-<macos|ios>`、`build/linux/work-fleet-<版號>`。取代 `package-<guid>` 與 `mktemp` 隨機目錄。
+  Windows 與 Apple 全部成功（含簽章、公證）後才移入 `build/`。
+- 原本留在 `products/` 的 Apple 正式匯出改名移出：iOS `WorkFleet-<版號>-ios-<method>.ipa`、
+  Mac App Store `WorkFleet-<版號>-macos-universal-app-store-connect.pkg`。
+- Android 兩個入口在 Gradle 完成後依 `versionName` 找預期檔名並複製到 `build/`，找不到即失敗；
+  `platform-version.mjs` 因此新增 android 讀取。
+- Apple workflow 改從 `build/WorkFleet-*` 上傳。ADR-028、deployment、setup、testing 與各平台 README 同步。
+- 各開發機上既有的 `build/windows/package-<guid>`、`build/apple/preview-*-XXXXXXXX` 舊交付目錄未動，由使用者自行清理。
+
+作者檢查：完整 JS 231 項 223 通過、8 原生環境略過、0 失敗；Python 24／24 通過；docs check、`git diff --check`、bash 語法與 shellcheck 通過。
+Linux 測試在隔離 checkout 實際建置，確認 `build/` 根目錄只多出 DEB、tar.gz 與兩個 `.sha256`，且 bundle 重建時清掉舊來源檔。
+Windows／Apple／Android 的搬移邏輯在本機無法執行，只有靜態測試；沒有獨立審閱。
+
 ## 2026-10-06 各平台版號紀錄與發佈檔名
 
 使用者要求發佈檔名完全由 repo 決定：不同開發機 clone 同一 commit、執行同一指令要得到相同檔名，

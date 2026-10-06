@@ -17,7 +17,7 @@ CurrentUser/My certificate 與 HTTPS timestamp 簽署；不自行安裝憑證或
 本機 preview 使用 `-LocalTestSign` 重用已在 LocalMachine/TrustedPeople 信任、有效且與 publisher
 相符的既有憑證，無 timestamp；與 `-Release` 互斥。要求簽章驗證成功，另輸出僅有公鑰的 CER。
 此入口不建立新憑證，不改信任，避免後續試用建置遺漏已有的本機簽章。
-每次封裝使用新的 workspace build 目錄，保留既有產物與 SDK packaging log。
+原本每次封裝使用新的 workspace build 目錄；2026-10-06 改為固定工作目錄，見下方發佈位置。
 
 Apple 由 [ADR-029](029-portable-apple-xcode-project.md) 已提交的可攜 Xcode project 建立 archive，
 再以本機 export options 匯出；生成資產與 archive／export 仍保留在 Git 忽略的目錄。
@@ -38,7 +38,7 @@ Linux DEB 委派給獨立 dpkg-deb script；Windows 可使用既有 Docker Linux
 image 中執行。容器只掛載忽略的 `build/` 產物目錄與封裝 script，執行時 network none，
 不安装 App 或 GUI runtime。2026-10-05 依維護者指示，DEB 統一使用產品版號 `0.1.0`，
 不附加 `~preview`；release 仍需正式公開配置與 maintainer email。版號後續記在 `src/native/linux/VERSION`。
-Linux 與 Windows 入口直接將 DEB 輸出到 `build/` 根目錄；bundle／tar.gz 保留於 `build/linux/`。
+Linux 與 Windows 入口直接將 DEB 與 tar.gz 輸出到 `build/` 根目錄；bundle 保留於 `build/linux/`。
 每次建立新的 staging 目錄並於腳本結束時自動移除，保留產物；
 安裝 launcher 與 license documents，使用 root archive ownership。
 
@@ -52,6 +52,13 @@ Apple 資源準備拒絕 Local.xcconfig／命令列覆蓋；macOS 命令列建�
 `WorkFleet-<版號>-x64.msix|zip`；macOS `WorkFleet-<版號>-macos-universal[-unsigned|-development]`；
 iOS 預覽 `WorkFleet-<版號>-ios-<unsigned|development|simulator>`；Android `WorkFleet-<版號>-android-<variant>`；
 Linux 沿用 Debian `work-fleet_<版號>_all.deb` 與 `work-fleet-<版號>.tar.gz`。每個發佈檔旁輸出同名 `.sha256`。
+
+同日維護者要求所有平台的安裝檔放在同一層、不得散落在隨機目錄。發佈位置因此統一為 `build/` 根目錄：
+Windows、Apple、Android、Linux 的發佈檔與 `.sha256` 都直接放在 `build/`，同名覆蓋。
+中間產物改用固定、每次清空的工作目錄（`build/windows/package`、`build/apple/preview-<平台>`、
+`build/apple/export-<平台>`、`build/linux/work-fleet-<版號>`），取代先前每次新建的隨機目錄。
+Windows 與 Apple 在建置、簽章與公證全部成功後才移入 `build/`。Apple 正式匯出的 IPA 與 Mac App Store PKG
+依 `--method` 命名；Android 入口在 Gradle 完成後依 `versionName` 找到預期檔名並複製，找不到即失敗。
 
 Apple 加入手動 GitHub workflow，固定官方 actions commit，使用 GitHub macOS runner 編譯
 未簽章 Debug 的 macOS App 與 iOS device App／Extension，保留 ZIP／IPA 與 builder version。
@@ -83,6 +90,8 @@ Maven POM 與 AAR／JAR 內的 notices，保留 Apache-2.0 全文。Generated as
 所有平台共用一份版號檔：拒絕，各平台需能獨立升版。
 依建置機器架構或已安裝憑證決定檔名：拒絕，同一 commit 會在不同開發機產生不同檔名。
 Linux DEB 改用 `WorkFleet-<版號>` 格式：拒絕，Debian 工具與套件庫預期 `套件_版號_架構.deb`。
+每次封裝使用新的隨機目錄：2026-10-06 撤回，安裝檔散落在不同深度、路徑無法預期。
+發佈檔放在 `build/<平台>/`：未採用；DEB 先前已決定放在 `build/` 根目錄，統一放根目錄不需再搬。
 
 ## References
 

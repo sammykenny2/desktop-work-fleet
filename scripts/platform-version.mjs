@@ -1,4 +1,4 @@
-/** Print a platform's recorded release version. Usage: node scripts/platform-version.mjs --platform linux|windows|apple */
+/** Print a platform's recorded release version. Usage: node scripts/platform-version.mjs --platform linux|windows|apple|android */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,11 @@ export const versionRecords = {
   linux: 'src/native/linux/VERSION',
   windows: 'src/native/windows/Directory.Build.props',
   apple: 'src/native/apple/config/WorkFleet.xcconfig',
+  android: 'src/native/android/app/build.gradle.kts',
+};
+const patterns = {
+  windows: /<Version>([^<]*)<\/Version>/,
+  android: /^\s*versionName = "([^"]*)"$/m,
 };
 
 const numeric = (value, file, name) => {
@@ -28,15 +33,15 @@ export async function readAppleVersion(root = repositoryRoot) {
 export async function readPlatformVersion(platform, root = repositoryRoot) {
   if (platform === 'apple') return (await readAppleVersion(root)).version;
   const file = versionRecords[platform];
-  if (!file) throw new Error('Specify --platform linux|windows|apple.');
+  if (!file) throw new Error('Specify --platform linux|windows|apple|android.');
   const text = await readFile(path.join(root, file), 'utf8');
-  return numeric(platform === 'linux' ? text.trim() : text.match(/<Version>([^<]*)<\/Version>/)?.[1], file, 'the version');
+  return numeric(platform === 'linux' ? text.trim() : text.match(patterns[platform])?.[1], file, 'the version');
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === '--help') {
-    console.log('Usage: node scripts/platform-version.mjs --platform linux|windows|apple\nPrints the version recorded for that platform in the repository.');
+    console.log('Usage: node scripts/platform-version.mjs --platform linux|windows|apple|android\nPrints the version recorded for that platform in the repository.');
   } else {
     if (args.length !== 2 || args[0] !== '--platform') throw new Error('Use --help.');
     console.log(await readPlatformVersion(args[1]));

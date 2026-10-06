@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build Android APK/AAB. Usage: build-android-app.sh [--release] [--signed] [--help]
+# Build Android APK/AAB and copy it with a .sha256 into build/. Usage: build-android-app.sh [--release] [--signed] [--help]
 set -euo pipefail
 usage() { printf 'Usage: %s [--release] [--signed]\nRequires Node 22+, npm, JDK 17 and Android SDK 36; uses the checked-in Gradle Wrapper.\n' "$0"; }
 task=assembleDebug
@@ -31,4 +31,13 @@ if [[ -z "${ANDROID_HOME:-}" && ! -f src/native/android/local.properties ]]; the
     exit 1
 fi
 if [[ "$task" == bundleRelease ]]; then node scripts/check-config.mjs --platform android; fi
+version=$(node scripts/platform-version.mjs --platform android)
+output="src/native/android/app/build/outputs/apk/debug/WorkFleet-$version-android-debug.apk"
+if [[ "$task" == bundleRelease ]]; then output="src/native/android/app/build/outputs/bundle/release/WorkFleet-$version-android-release.aab"; fi
 bash src/native/android/gradlew -p src/native/android --no-daemon --console plain "$task"
+[[ -f "$output" ]] || { printf 'Expected Gradle output %s was not produced.\n' "$output" >&2; exit 1; }
+package="${output##*/}"
+mkdir -p build
+cp -f "$output" "build/$package"
+(cd build && sha256sum "$package" > "$package.sha256")
+printf 'Android package: build/%s\n' "$package"

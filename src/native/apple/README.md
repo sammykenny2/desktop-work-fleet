@@ -44,7 +44,7 @@ bash scripts/macos/build-native-app.sh --platform ios --release
 
 腳本使用同一份已提交的 `src/native/apple/WorkFleet.xcodeproj`，不重新產生或覆寫 IDE 專案。
 `.env` 中非空的 app ID／team 會作為命令列 build settings；未填時採用 xcconfig 設定。
-DerivedData／archive／export 產物仍在忽略的 `build/apple/`；Xcode 建置需在 Mac 執行。
+DerivedData／archive 與匯出中間產物在忽略的 `build/apple/`；封裝出的 PKG／DMG／ZIP／IPA 直接放在 `build/`。Xcode 建置需在 Mac 執行。
 SDK 固定 GoogleSignIn 9.2.0；SPM checkout 根目錄授權文本於簽章前複製到 bundle Licenses。
 Apple 主畫面與桌面場景的 ES modules 在建置時由固定版本 esbuild 合併成 classic deferred scripts，
 供 WKWebView 從本機封裝檔案執行；來源仍共用，CSP、native bridge 與 Sandbox 保留。見 [ADR-033](../../../docs/decisions/033-apple-local-script-bundles.md)。

@@ -35,7 +35,7 @@ Linux 版號記在同目錄的 `VERSION`，DEB、tar.gz 與 bundle 名稱都由�
 release 仍需正式公開 app 設定與支援 email 作 maintainer contact。
 共同 `scripts/linux/package-deb.sh` 每次使用新的 staging，安裝 launcher／desktop entry／圖示與 notices。
 Linux 與 Windows 建置入口直接產生 `build/work-fleet_<版號>_all.deb` 與同名 `.sha256`，不需手動搬檔；
-staging 在封裝腳本結束時自動移除，source/runtime 副本與 tar.gz 仍在 `build/linux/`。
+staging 在封裝腳本結束時自動移除；tar.gz 與 DEB 同在 `build/`，source/runtime 副本在 `build/linux/`，每次建置重新產生。
 Windows 可執行 `scripts/windows/Build-LinuxPackage.ps1`，以既有 Docker Linux engine 的固定 Ubuntu
 image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 script，不執行 GTK 或安装 App。
 layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個 WebKit 場景；

@@ -1,5 +1,5 @@
 /** Package Linux source/runtime assets. Usage: node scripts/generate-linux-package.mjs [--help] */
-import { cp, mkdir, readdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { readBuildConfig } from './config.mjs';
@@ -14,6 +14,8 @@ if (process.argv.includes('--help')) {
   const destination = path.join(root, 'build', 'linux', `work-fleet-${version}`);
   const config = await readBuildConfig(new URL('../', import.meta.url));
   const appId = config.appId || 'app.workfleet.preview';
+  // The bundle is a work directory; rebuild it so removed sources never reach the tar.gz or DEB.
+  await rm(destination, { recursive: true, force: true });
   for (const name of ['Native', 'Config', 'Icons', 'Desktop', 'Licenses']) await mkdir(path.join(destination, name), { recursive: true });
   await cp(path.join(root, 'build', 'app'), path.join(destination, 'Assets'), { recursive: true });
   for (const file of await readdir(path.join(root, 'src', 'native', 'linux'))) {

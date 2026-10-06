@@ -1,6 +1,7 @@
 #!/bin/bash
 # Preserve a native Debug build as a macOS ZIP/DMG, an iOS simulator ZIP or a device iOS IPA.
 # Names come from the bundle's own version, architectures and signature, never from this Mac's identities.
+# The package and its .sha256 go directly in build/; build/apple/preview-PLATFORM is replaced on every run.
 # Usage: package-preview-app.sh --platform macos|ios [--simulator] [--dmg]
 set -euo pipefail
 usage() { echo 'Usage: package-preview-app.sh --platform macos|ios [--simulator] [--dmg]'; }
@@ -46,7 +47,8 @@ elif [[ "$SIMULATOR" == 0 ]]; then
 else
     NAME="WorkFleet-$VERSION-ios-simulator"
 fi
-OUTPUT="$(mktemp -d "$PROJECT_ROOT/build/apple/preview-$PLATFORM-XXXXXXXX")"
+OUTPUT="$PROJECT_ROOT/build/apple/preview-$PLATFORM"
+rm -rf -- "$OUTPUT"; mkdir -p "$OUTPUT"
 DEVELOPER_PATH="$(node scripts/toolchain-env.mjs | node --input-type=module -e 'let s=""; for await (const c of process.stdin) s+=c; process.stdout.write(JSON.parse(s).DEVELOPER_DIR);')"
 [[ -z "$DEVELOPER_PATH" ]] || export DEVELOPER_DIR="$DEVELOPER_PATH"
 xcodebuild -version > "$OUTPUT/toolchain.txt"
@@ -66,4 +68,6 @@ else
     ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/$PACKAGE"
 fi
 (cd "$OUTPUT"; shasum -a 256 "$PACKAGE" > "$PACKAGE.sha256")
-echo "Preview package: $OUTPUT/$PACKAGE"
+mv -f "$OUTPUT/$PACKAGE" "$OUTPUT/$PACKAGE.sha256" "$PROJECT_ROOT/build/"
+echo "Preview package: build/$PACKAGE"
+echo "Build notes: $OUTPUT"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the generated Linux source/runtime archive. Usage: python scripts/package-linux.py."""
+"""Create the generated Linux source/runtime archive in build/. Usage: python scripts/package-linux.py."""
 import argparse
 import hashlib
 from pathlib import Path
@@ -15,7 +15,7 @@ def main():
     if not re.fullmatch(r"\d+\.\d+\.\d+", version):
         raise SystemExit("src/native/linux/VERSION must record a numeric x.y.z version.")
     source = root / "build" / "linux" / f"work-fleet-{version}"
-    target = source.parent / (source.name + ".tar.gz")
+    target = root / "build" / (source.name + ".tar.gz")
     if not (source / "Native" / "host.py").is_file():
         raise SystemExit("Run npm run build and node scripts/generate-linux-package.mjs first.")
 

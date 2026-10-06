@@ -56,9 +56,9 @@ jobs:
         with:
           name: work-fleet-${{ matrix.platform }}-native-preview
           path: |
-            build/apple/preview-*/*.zip
-            build/apple/preview-*/*.ipa
-            build/apple/preview-*/*.sha256
+            build/WorkFleet-*.zip
+            build/WorkFleet-*.ipa
+            build/WorkFleet-*.sha256
             build/apple/preview-*/README.txt
             build/apple/preview-*/toolchain.txt
           if-no-files-found: error

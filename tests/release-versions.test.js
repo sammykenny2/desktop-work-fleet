@@ -26,13 +26,15 @@ test('each platform reads its own version record', async () => {
     [versionRecords.linux]: '1.2.3\n',
     [versionRecords.windows]: '<Project><PropertyGroup><Version>4.5.6</Version></PropertyGroup></Project>\n',
     [versionRecords.apple]: 'WORK_FLEET_APP_ID = app.workfleet.preview\nMARKETING_VERSION = 7.8.9\nCURRENT_PROJECT_VERSION = 42\n',
+    [versionRecords.android]: 'android {\n    defaultConfig {\n        versionCode = 100\n        versionName = "3.2.1"\n    }\n}\n',
   });
   try {
     assert.equal(await readPlatformVersion('linux', directory), '1.2.3');
     assert.equal(await readPlatformVersion('windows', directory), '4.5.6');
     assert.equal(await readPlatformVersion('apple', directory), '7.8.9');
     assert.deepEqual(await readAppleVersion(directory), { version: '7.8.9', build: '42' });
-    await assert.rejects(readPlatformVersion('android', directory), /--platform linux\|windows\|apple/);
+    assert.equal(await readPlatformVersion('android', directory), '3.2.1');
+    await assert.rejects(readPlatformVersion('ios', directory), /--platform linux\|windows\|apple\|android/);
     await writeFile(path.join(directory, versionRecords.linux), '1.2.3~preview\n');
     await assert.rejects(readPlatformVersion('linux', directory), /numeric x\.y\.z/);
     await writeFile(path.join(directory, versionRecords.apple), 'MARKETING_VERSION = 7.8.9\n');
@@ -47,6 +49,7 @@ test('repository records hold numeric versions and the packaging scripts never r
     linux: await readPlatformVersion('linux'),
     windows: await readPlatformVersion('windows'),
     apple: await readPlatformVersion('apple'),
+    android: await readPlatformVersion('android'),
   };
   const packaging = {
     linux: ['scripts/generate-linux-package.mjs', 'scripts/package-linux.py', 'scripts/linux/build-native-app.sh',
@@ -54,6 +57,7 @@ test('repository records hold numeric versions and the packaging scripts never r
     windows: ['scripts/generate-windows-manifest.mjs', 'scripts/windows/Build-WindowsPackage.ps1'],
     apple: ['scripts/prepare-apple-build.mjs', 'scripts/macos/build-native-app.sh', 'scripts/macos/package-preview-app.sh',
       'scripts/macos/package-native-app.sh'],
+    android: ['scripts/linux/build-android-app.sh', 'scripts/windows/Build-AndroidApp.ps1'],
   };
   for (const [platform, files] of Object.entries(packaging)) {
     const literal = new RegExp(`(?<![\\d.])${recorded[platform].replaceAll('.', '\\.')}(?![\\d.])`);
@@ -63,8 +67,22 @@ test('repository records hold numeric versions and the packaging scripts never r
     assert.equal((await readFile(path.join(root, project), 'utf8')).includes('<Version>'), false, project);
   }
   const gradle = await readFile(path.join(root, 'src/native/android/app/build.gradle.kts'), 'utf8');
-  assert.match(gradle, /versionName = "\d+\.\d+\.\d+"/);
   assert.ok(gradle.includes('archivesName.set("WorkFleet-${android.defaultConfig.versionName}-android")'));
+});
+
+test('packaging work directories are fixed and release files go directly in build/', async () => {
+  const read = file => readFile(path.join(root, file), 'utf8');
+  const entries = ['scripts/windows/Build-WindowsPackage.ps1', 'scripts/macos/package-preview-app.sh', 'scripts/macos/package-native-app.sh',
+    'scripts/linux/build-android-app.sh', 'scripts/windows/Build-AndroidApp.ps1', 'scripts/package-linux.py'];
+  for (const file of entries) assert.equal(/mktemp|NewGuid/.test(await read(file)), false, file);
+  assert.ok((await read('scripts/windows/Build-WindowsPackage.ps1')).includes("$Work = Join-Path $ProjectRoot 'build/windows/package'"));
+  assert.ok((await read('scripts/windows/Build-WindowsPackage.ps1')).includes("$Delivery = Join-Path $ProjectRoot 'build'"));
+  assert.ok((await read('scripts/macos/package-preview-app.sh')).includes('OUTPUT="$PROJECT_ROOT/build/apple/preview-$PLATFORM"'));
+  assert.ok((await read('scripts/macos/package-preview-app.sh')).includes('"$PROJECT_ROOT/build/"'));
+  assert.ok((await read('scripts/macos/package-native-app.sh')).includes('OUTPUT="$PROJECT_ROOT/build/apple/export-$PLATFORM"'));
+  assert.ok((await read('scripts/macos/package-native-app.sh')).includes('"$PROJECT_ROOT/build/"'));
+  assert.ok((await read('scripts/linux/build-android-app.sh')).includes('cp -f "$output" "build/$package"'));
+  assert.ok((await read('scripts/windows/Build-AndroidApp.ps1')).includes("$Delivery = Join-Path $ProjectRoot 'build'"));
 });
 
 test('MSIX identity version comes from the Windows record', async () => {

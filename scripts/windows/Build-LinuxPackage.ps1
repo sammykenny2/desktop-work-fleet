@@ -3,8 +3,8 @@
     Build Linux tar.gz and DEB using the existing Linux Docker engine.
 .DESCRIPTION
     Bundles Linux sources/assets, then runs dpkg-deb in an Ubuntu build container.
-    Mounts only build and the packaging script. Writes the DEB directly to build,
-    with the source/runtime bundle and tar.gz in build/linux. No runtime, GUI tests,
+    Mounts only build and the packaging script. Writes the DEB and tar.gz directly to build,
+    with the source/runtime bundle in build/linux. No runtime, GUI tests,
     service ports, installation, signing or publication. Existing output is preserved.
 .PARAMETER Release
     Require final public config. Both modes use the version in src/native/linux/VERSION.
@@ -40,4 +40,5 @@ try {
     & docker @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'Linux DEB build failed; a Linux Docker engine and an available build image are required.' }
     Write-Output "Linux package: $(Join-Path $BuildOutput "work-fleet_${Version}_all.deb")"
+    Write-Output "Linux archive: $(Join-Path $BuildOutput "work-fleet-$Version.tar.gz")"
 } finally { Pop-Location }

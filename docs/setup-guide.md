@@ -151,6 +151,7 @@ CI 簽章秘密由 CI secret／keychain 提供。Client ID 是公開應用識別
 ```
 
 APK 位於 `src/native/android/app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`；
+`Build-AndroidApp.ps1`／`build-android-app.sh` 會再複製到 `build/`；
 版號與各平台檔名見 [散布文件](deployment.md#版號與發佈檔名)。
 修改 `.env` application ID 後重新 Sync；`local.properties` 為 IDE 產生的本機 SDK 路徑，不提交版本控制。
 
@@ -172,7 +173,7 @@ bash scripts/macos/package-preview-app.sh --platform macos --dmg
 ```
 
 腳本使用已提交的專案；DerivedData／Release xcarchive／export 保留於忽略的 `build/apple/`。
-macOS 命令列建置一律含 arm64／x86_64；預覽封裝依 App 的版號與簽章命名，`--dmg` 產生 DMG。
+macOS 命令列建置一律含 arm64／x86_64；預覽封裝依 App 的版號與簽章命名，`--dmg` 產生 DMG，安裝檔放在 `build/`。
 原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
 全域鍵、選單列及螢幕生命週期。macOS Debug universal 已在 Xcode 編譯並產生 Apple Development 簽章 DMG，
 獨立 fixture 的 Keychain／SQLite／主畫面初始化通過；iOS、Developer ID／公證與完整操作尚未驗收。
@@ -197,7 +198,7 @@ Windows x64 的 .NET 8 Desktop／WebView2 是執行前置條件，Windows SDK �
 .\scripts\windows\Build-LinuxPackage.ps1
 ```
 
-Windows 每次產生新的 `build/windows/package-<id>`，未提供憑證時 MSIX 未簽章。
+Windows 的 MSIX／ZIP 輸出到 `build/`（工作目錄 `build/windows/package` 每次重建），未提供憑證時 MSIX 未簽章。
 本機試裝使用 `-LocalTestSign`：重用 CurrentUser/My 中與 manifest publisher 完全相符、
 有效且已在 LocalMachine/TrustedPeople 信任的 code-signing 憑證；多張時用 `-CertificateThumbprint` 指定。
 這個模式必須成功簽章及通過本機信任驗證才交付，另輸出不含私鑰的 `WorkFleet-preview.cer`。
@@ -242,7 +243,7 @@ bash scripts/linux/build-native-app.sh --release --deb
 Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
 dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。
 Linux 與 Windows 建置入口都直接產生 `build/work-fleet_<版號>_all.deb`，不需手動搬檔。
-source/runtime 副本與 tar.gz 仍在 `build/linux/`；DEB staging 在封裝結束時自動清除。
+tar.gz 與 DEB 同在 `build/`，source/runtime 副本在 `build/linux/`；DEB staging 在封裝結束時自動清除。
 DEB 適用提供上述系統依賴的發行版。
 版號記在 `src/native/linux/VERSION`；一般與 release 建置都使用此版號，早期版本不另加 `~preview`。
 

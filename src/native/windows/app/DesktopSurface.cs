@@ -1,5 +1,6 @@
 using Microsoft.Web.WebView2.Wpf;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media;
@@ -293,6 +294,30 @@ public sealed class DesktopSurface : IDisposable
     return IntPtr.Zero;
   }
 
+  /// <summary>
+  /// The composition WebView renders through a browser-owned top-level popup that WebView2 keeps visible, fully
+  /// transparent and as large as the scene, just above Explorer's desktop. The popup is not click-through, so with
+  /// the scene shown it swallowed clicks on desktop icons wherever no application covered them. Input reaches the
+  /// page through InputWindow, never through the popup, so the popup only needs to let clicks pass.
+  /// </summary>
+  public void PassBrowserClicksThrough()
+  {
+    if (disposed || WebView.CoreWebView2 is not { } core) return;
+    var browser = (uint)core.BrowserProcessId; var title = InputWindow.Title;
+    var name = new StringBuilder(64);
+    EnumWindows((window, _) =>
+    {
+      GetWindowThreadProcessId(window, out var process);
+      if (process != browser) return true;
+      name.Clear(); GetClassNameW(window, name, name.Capacity); if (name.ToString() != "Chrome_WidgetWin_1") return true;
+      name.Clear(); GetWindowTextW(window, name, name.Capacity); if (name.ToString() != title) return true;
+      var style = GetWindowLongPtrW(window, -20).ToInt64();
+      // Only the layered, non-activating render popup; dropdowns and other browser windows keep their input.
+      if ((style & 0x08080000L) == 0x08080000L && (style & 0x28L) == 0) SetWindowLongPtrW(window, -20, new IntPtr(style | 0x20));
+      return true;
+    }, IntPtr.Zero);
+  }
+
   private static void SetStyle(IntPtr handle, bool transparent)
   {
     var style = GetWindowLongPtrW(handle, -20).ToInt64() | 0x80; // TOOLWINDOW, absent from Alt-Tab.
@@ -310,6 +335,11 @@ public sealed class DesktopSurface : IDisposable
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
   [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
   [StructLayout(LayoutKind.Sequential)] private struct WindowPosition { public IntPtr Window, After; public int X, Y, Width, Height; public uint Flags; }
+  private delegate bool EnumCallback(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumCallback callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, StringBuilder name, int capacity);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr window, StringBuilder text, int capacity);
   [DllImport("kernel32.dll")] private static extern void SetLastError(uint error);
   [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
   [DllImport("gdi32.dll")] private static extern int CombineRgn(IntPtr target, IntPtr first, IntPtr second, int mode);

@@ -21,6 +21,20 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 Windows 開著時桌面圖示點不到
+
+使用者回報：Work Fleet 執行中（包含只在系統匣）時，桌面捷徑完全點不到。
+原因：桌面場景用的 `WebView2CompositionControl` 會讓 WebView2 瀏覽器程序建立一個頂層 popup（`Chrome_WidgetWin_1`，標題沿用「Work Fleet 桌面」），
+它一直可見、整個螢幕大（3840×2160）、`WS_EX_LAYERED|NOREDIRECTIONBITMAP|NOACTIVATE`、alpha 0，疊序就在 Explorer 的 `Progman` 正上方。
+它沒有 `WS_EX_TRANSPARENT`，所以雖然看不見卻會接下滑鼠；桌面上沒有其他視窗遮住的地方，點擊都落在它身上，圖示收不到。
+我們自己附在 `Progman` 下的兩個場景視窗沒有問題：顯示視窗是 layered＋transparent，輸入視窗在鎖定時是空 region。
+本機以兩個獨立程序重現：同樣樣式的 alpha 0 popup 會吃掉下方視窗的 `WindowFromPoint`，加上 `WS_EX_TRANSPARENT` 後點擊傳到下方；從其他程序設定 ex style 也有效。
+修正：`DesktopSurface.PassBrowserClicksThrough()` 找出瀏覽器程序中標題相同、layered 且不搶焦點、非 topmost 的 `Chrome_WidgetWin_1`，加上 `WS_EX_TRANSPARENT`。
+場景初始化後、每次由隱藏轉為顯示、以及顯示後 300 ms 的重繪時各做一次。紙面輸入一直是從我們的輸入視窗轉送給 WebView，不經過這個 popup。
+`DesktopIntegrationProbe` 新增檢查：場景顯示後，可見的 render popup 必須都是 click-through。
+
+驗證：Windows app 與 UI 測試專案 Debug 建置 0 警告 0 錯誤；未執行完整原生測試（會在真實桌面建立場景並與執行中的安裝版搶快捷鍵）。
+已在使用者執行中的安裝版上直接替這三個 popup 加上旗標作為暫時緩解，請使用者確認圖示可點；新包安裝後由程式自動處理。
 ## 2026-10-06 macOS universal 開發簽章 DMG（`3b65d7d`）
 
 依使用者要求在 macOS 開發機重建 DMG，作法同 2026-10-05 的開發簽章版：Xcode 27.0（27A266a）、Node 24.21.0，

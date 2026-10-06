@@ -1,4 +1,6 @@
 using Microsoft.Web.WebView2.Core;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.IO;
 using WorkFleet.Windows;
@@ -29,6 +31,10 @@ internal static class DesktopIntegrationProbe
     }, "resident scene received the real workspace projection", main);
     var resident = main.Desktop!.Surfaces[0].WebView.CoreWebView2;
     var floating = main.Desktop.Surfaces[1].WebView.CoreWebView2;
+    // WebView2 renders each scene through a transparent browser popup just above Explorer's desktop; one that takes
+    // clicks blocks every desktop icon whenever no application window covers it.
+    await Wait(() => Task.FromResult(RenderPopups(resident.BrowserProcessId) is { Blocking: 0, Visible: > 0 }), "scene render popups pass clicks through", main);
+    Console.WriteLine($"PASS {RenderPopups(resident.BrowserProcessId).Visible} visible scene render popup(s) are click-through");
     if ((await Eval(resident, "document.querySelector('.card').classList.contains('interactive')")).GetBoolean()) throw new Exception("Idle paper intercepted input.");
     await Eval(resident, "window.denied=null;chrome.webview.addEventListener('message', e=>{if(e.data.id==='22222222-2222-4222-8222-222222222222')window.denied=e.data});chrome.webview.postMessage({v:1,id:'22222222-2222-4222-8222-222222222222',method:'storage.load',params:{kind:'workspace'}})");
     await Wait(async () => (await Eval(resident, "window.denied?.error?.code==='unsupported-method'")).ValueKind == JsonValueKind.True,
@@ -98,6 +104,29 @@ internal static class DesktopIntegrationProbe
       Console.WriteLine("PASS real owner settings -> wallpaper -> operate group -> floating -> stop -> wallpaper -> desktop");
     }
   }
+  private static (int Visible, int Blocking) RenderPopups(uint browser)
+  {
+    int visible = 0, blocking = 0; var text = new StringBuilder(64);
+    EnumWindows((window, _) =>
+    {
+      GetWindowThreadProcessId(window, out var process); if (process != browser) return true;
+      text.Clear(); GetClassNameW(window, text, text.Capacity); if (text.ToString() != "Chrome_WidgetWin_1") return true;
+      text.Clear(); GetWindowTextW(window, text, text.Capacity); if (text.ToString() != "Work Fleet 桌面") return true;
+      var style = GetWindowLongPtrW(window, -20).ToInt64();
+      if ((style & 0x08080000L) != 0x08080000L || !IsWindowVisible(window)) return true;
+      visible++; if ((style & 0x20) == 0) blocking++;
+      return true;
+    }, IntPtr.Zero);
+    return (visible, blocking);
+  }
+  private delegate bool EnumCallback(IntPtr window, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern bool EnumWindows(EnumCallback callback, IntPtr parameter);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, StringBuilder name, int capacity);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr window, StringBuilder text, int capacity);
+  [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);
+  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+
   public static async Task CloseWithDraft(FleetWindow main)
   {
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-all').click()");

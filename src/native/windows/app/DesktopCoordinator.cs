@@ -305,7 +305,7 @@ public sealed class DesktopCoordinator : IDisposable
     view.Surface.Show(view.Layer == "floating"); view.Surface.SetPhysicalBounds(view.Display.Bounds); view.Surface.Hide();
     await view.Surface.WebView.EnsureCoreWebView2Async(environment);
     if (disposed || view.Retired) return;
-    var core = view.Surface.WebView.CoreWebView2;
+    var core = view.Surface.WebView.CoreWebView2; view.Surface.PassBrowserClicksThrough();
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.Deny);
     core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = WebViewDiagnostics.DevToolsEnabled; core.Settings.IsStatusBarEnabled = false;
     core.Settings.AreBrowserAcceleratorKeysEnabled = false; core.Settings.IsBuiltInErrorPageEnabled = false; core.Settings.IsZoomControlEnabled = false;
@@ -398,7 +398,7 @@ public sealed class DesktopCoordinator : IDisposable
         var wasShown = view.Surface.Shown;
         if (cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
         view.Applied = sequence; TryFocus(view);
-        if (!wasShown && view.Surface.Shown) Repaint(view);
+        if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
         return new { accepted = true };
       }
       case "scene.command.begin": return new { token = transfers.Begin(view.Id, Size(args, SceneTransfers.MaxCommand), JsonRules.Text(args, "sha256"), SceneTransfers.MaxCommand) };
@@ -476,7 +476,12 @@ public sealed class DesktopCoordinator : IDisposable
     // A frame rendered while the surface was hidden stays blank until the page paints again. Composition resumes
     // asynchronously after Show, so a repaint posted immediately is lost; wait before nudging one.
     var timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(300) };
-    timer.Tick += (_, _) => { timer.Stop(); if (!disposed && !view.Retired && view.Surface.Shown) Post(view, new { v = 1, @event = "desktop-repaint" }); };
+    timer.Tick += (_, _) =>
+    {
+      timer.Stop(); if (disposed || view.Retired || !view.Surface.Shown) return;
+      // The browser may recreate its render popup while the scene comes back; keep it click-through.
+      view.Surface.PassBrowserClicksThrough(); Post(view, new { v = 1, @event = "desktop-repaint" });
+    };
     timer.Start();
   }
   private void Post(SceneView view, object value) => PostRaw(view, JsonSerializer.Serialize(value));

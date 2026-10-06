@@ -1,5 +1,6 @@
 #!/bin/bash
 # Export an existing native archive; optionally package/notarize the macOS app.
+# PKG/DMG names come from the exported app's version and require a universal binary.
 # Usage: scripts/macos/package-native-app.sh --platform ios|macos --method METHOD [--archive PATH] [--application-identity NAME] [--installer-identity NAME] [--notary-profile NAME] [--dmg]
 set -euo pipefail
 usage() { echo 'Usage: scripts/macos/package-native-app.sh --platform ios|macos --method app-store-connect|developer-id|debugging|release-testing [--archive PATH] [--application-identity NAME] [--installer-identity NAME] [--notary-profile NAME] [--dmg]'; }
@@ -39,12 +40,19 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUTPUT/products"
 if [[ "$PLATFORM" == macos && "$METHOD" != app-store-connect ]]; then
     APP="$OUTPUT/products/WorkFleetMac.app"
     [[ -d "$APP" ]] || { echo 'Exported macOS app was not found.' >&2; exit 1; }
+    VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+    [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected bundle version: $VERSION" >&2; exit 1; }
+    EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP/Contents/Info.plist")"
+    ARCHITECTURES=" $(lipo -archs "$APP/Contents/MacOS/$EXECUTABLE") "
+    [[ "$ARCHITECTURES" == *' arm64 '* && "$ARCHITECTURES" == *' x86_64 '* ]] || {
+        echo "macOS packages must be universal; found:$ARCHITECTURES. Archive with scripts/macos/build-native-app.sh." >&2; exit 1; }
+    NAME="WorkFleet-$VERSION-macos-universal"
     if [[ -n "$NOTARY" ]]; then
         ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/app-for-notary.zip"
         xcrun notarytool submit "$OUTPUT/app-for-notary.zip" --keychain-profile "$NOTARY" --wait
         xcrun stapler staple "$APP"
     fi
-    PACKAGE="$OUTPUT/WorkFleet-0.1.0.pkg"; SIGN=()
+    PACKAGE="$OUTPUT/$NAME.pkg"; SIGN=()
     [[ -z "$INSTALLER" ]] || SIGN=(--sign "$INSTALLER")
     productbuild --component "$APP" /Applications "${SIGN[@]}" "$PACKAGE"
     if [[ -n "$NOTARY" ]]; then
@@ -52,12 +60,14 @@ if [[ "$PLATFORM" == macos && "$METHOD" != app-store-connect ]]; then
         xcrun notarytool submit "$PACKAGE" --keychain-profile "$NOTARY" --wait
         xcrun stapler staple "$PACKAGE"
     fi
+    (cd "$OUTPUT"; shasum -a 256 "$NAME.pkg" > "$NAME.pkg.sha256")
     if [[ "$DMG" == 1 ]]; then
         mkdir "$OUTPUT/disk-image"; ditto "$APP" "$OUTPUT/disk-image/Work Fleet.app"; ln -s /Applications "$OUTPUT/disk-image/Applications"
-        IMAGE="$OUTPUT/WorkFleet-0.1.0.dmg"
+        IMAGE="$OUTPUT/$NAME.dmg"
         hdiutil create -volname 'Work Fleet' -srcfolder "$OUTPUT/disk-image" -format UDZO "$IMAGE"
         if [[ -n "$APPLICATION" ]]; then codesign --sign "$APPLICATION" --timestamp "$IMAGE"; fi
         if [[ -n "$NOTARY" ]]; then xcrun notarytool submit "$IMAGE" --keychain-profile "$NOTARY" --wait; xcrun stapler staple "$IMAGE"; fi
+        (cd "$OUTPUT"; shasum -a 256 "$NAME.dmg" > "$NAME.dmg.sha256")
     fi
 fi
 echo "Exported products: $OUTPUT/products"

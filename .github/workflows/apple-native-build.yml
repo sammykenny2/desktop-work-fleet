@@ -58,6 +58,7 @@ jobs:
           path: |
             build/apple/preview-*/*.zip
             build/apple/preview-*/*.ipa
+            build/apple/preview-*/*.sha256
             build/apple/preview-*/README.txt
             build/apple/preview-*/toolchain.txt
           if-no-files-found: error

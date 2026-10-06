@@ -50,12 +50,15 @@ Apple 主畫面與桌面場景的 ES modules 在建置時由固定版本 esbuild
 供 WKWebView 從本機封裝檔案執行；來源仍共用，CSP、native bridge 與 Sandbox 保留。見 [ADR-033](../../../docs/decisions/033-apple-local-script-bundles.md)。
 Release 的資產準備檢查有效公開設定，再 archive；簽章／provisioning 在 Xcode／Keychain 配置。
 `scripts/macos/package-native-app.sh` 匯出既有 archive；iOS 可產生 IPA，macOS 可產生 PKG／可選 DMG。
+Apple 版號記在 `config/WorkFleet.xcconfig` 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`，不可在 Local.xcconfig 覆蓋；
+macOS 命令列建置一律含 arm64／x86_64，PKG／DMG 檔名為 `WorkFleet-<版號>-macos-universal`。
 `--method app-store-connect` 保持本機 export，不自動上傳；Developer ID 可使用既有 installer identity
 與 Keychain notary profile 公證並 staple。DMG 公證另要求 application identity；腳本不含私鑰。
 macOS target 啟用 hardened runtime。命令與平台限制見 [散布文件](../../../docs/deployment.md)。
 
 沒有 signing identity 時，Debug 可使用 `--unsigned` 編譯原生 macOS／iOS device App；
-`scripts/macos/package-preview-app.sh --platform macos|ios` 保存 ZIP／未簽章 IPA。
+`scripts/macos/package-preview-app.sh --platform macos|ios` 保存 ZIP／IPA，macOS 加 `--dmg` 改存 DMG；
+檔名依 App 的版號與實際簽章帶 `-unsigned` 或 `-development`，各平台檔名見 [散布文件](../../../docs/deployment.md#版號與發佈檔名)。
 這是 native compiled preview；protected storage／Google 或 iOS 安裝仍需合適的簽章／profile。
 `--unsigned` 不允許 Release，也不跳過正式 archive 的配置要求。
 `.github/workflows/apple-native-build.yml` 提供手動 hosted Mac 建置與七天 artifact 保存，

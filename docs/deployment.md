@@ -1,6 +1,6 @@
 # 平台與散布狀態
 
-更新：2026-10-05；目前試用版本降為 0.1.0，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
+更新：2026-10-06；目前試用版本降為 0.1.0，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
@@ -9,6 +9,27 @@
 | Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
 | iOS | 同一份已提交的 Xcode 專案，選 WorkFleetIOS；或 `scripts/macos/build-native-app.sh --platform ios --release`、`package-native-app.sh` | xcarchive／IPA；Xcode、Node 22+／npm、Apple team、App／Extension 的 App Group profiles |
 | Android | Android Studio Open `src/native/android`；或 `scripts/windows/Build-AndroidApp.ps1`／`scripts/linux/build-android-app.sh` | debug APK／release AAB；Node 22+、npm、JDK 17、Android SDK 36。已附 Gradle 8.13 Wrapper，自動產生資產；[開啟與建置說明](../src/native/android/README.md) |
+
+## 版號與發佈檔名
+
+各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；不同平台可各自升版。
+檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
+腳本產生的每個發佈檔旁另有同名 `.sha256`，可用 `sha256sum -c` 或 `shasum -a 256 -c` 檢查。
+
+- Windows：`src/native/windows/Directory.Build.props` 的 `<Version>`，供組件版本、MSIX identity（補 `.0`）
+  與 `WorkFleet-<版號>-x64.msix`／`WorkFleet-<版號>-x64.zip`。
+- macOS／iOS：`src/native/apple/config/WorkFleet.xcconfig` 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`；
+  Local.xcconfig 或命令列覆蓋會讓資源準備失敗。封裝腳本讀 App 內的 Info.plist。
+  - macOS 命令列建置一律含 arm64／x86_64，封裝前檢查兩種架構。
+    正式匯出為 `WorkFleet-<版號>-macos-universal.pkg`／`.dmg`；
+    預覽為 `WorkFleet-<版號>-macos-universal-<unsigned|development>.zip`，加 `--dmg` 改為 `.dmg`。
+  - iOS 預覽為 `WorkFleet-<版號>-ios-<unsigned|development>.ipa`、`WorkFleet-<版號>-ios-simulator.zip`；
+    App Store export 的 IPA 沿用 Xcode 命名。
+  - 預覽後綴取自 App 本身的簽章，不看建置機器有哪些憑證。
+- Android：`src/native/android/app/build.gradle.kts` 的 `versionName`；Gradle 輸出
+  `WorkFleet-<版號>-android-debug.apk`／`WorkFleet-<版號>-android-release.aab`。
+- Linux：`src/native/linux/VERSION`；`build/work-fleet_<版號>_all.deb` 依 Debian 的
+  `套件_版號_架構` 慣例，source/runtime 為 `build/linux/work-fleet-<版號>.tar.gz`。
 
 公開設定在 `.env.example`：各平台 Google client、app ID、Apple team／App Group、Microsoft
 package identity／publisher、隱私與支援資料。私鑰／密碼由 OS Keychain 或 CI environment 提供。
@@ -40,9 +61,9 @@ Android `-Signed`／`--signed` 要求四個簽章環境變數並產生 release A
 [商店準備](release/README.md)。一般 release 在沒有 signing inputs 時產生未簽章 AAB。
 Linux runtime tar.gz 沒有內嵌 Python／GTK；DEB 交給支援該依賴版本的發行版。
 不同 distro、CPU、X11／Wayland、桌面與 compositor 的行為仍需各自取得證據。
-Linux DEB 統一使用早期版號 `0.1.0`，不另加 `~preview`。一般建置可使用 preview maintainer contact；
+Linux DEB 使用 `src/native/linux/VERSION` 的版號，早期版本不另加 `~preview`。一般建置可使用 preview maintainer contact；
 release 仍需正式公開設定與 email，不由版號判定散布驗收是否完成。
-Linux 與 Windows 建置入口直接輸出 `build/work-fleet_0.1.0_all.deb`，封裝腳本自動移除本次 staging。
+Linux 與 Windows 建置入口直接輸出 `build/work-fleet_<版號>_all.deb`，封裝腳本自動移除本次 staging。
 Windows 的 Docker 封裝只執行 dpkg-deb，沒有在 container 安裝 GUI、App 或提供 runtime 驗收結果。
 
 1.0 授權見 [第三方聲明](../THIRD-PARTY-NOTICES.md) 及 `src/native/licenses/`。

@@ -1,3 +1,4 @@
+import hashlib
 import os
 import shutil
 import subprocess
@@ -23,6 +24,7 @@ class LinuxPackageTests(unittest.TestCase):
         self.app_id = "app.workfleet.test"
         fixtures = {
             "Native/host.py": "print('Packaging fixture')\n",
+            "package.json": '{\n  "appId": "app.workfleet.test",\n  "version": "2.3.4",\n  "binariesBuilt": false\n}\n',
             "run-work-fleet.sh": "#!/bin/bash\nexit 0\n",
             f"Desktop/{self.app_id}.desktop": (
                 "[Desktop Entry]\nType=Application\nName=Work Fleet\nExec=work-fleet\n"
@@ -55,7 +57,12 @@ class LinuxPackageTests(unittest.TestCase):
             ["dpkg-deb", "--field", str(package), name], text=True, timeout=10
         ).strip()
 
-    def test_product_version_for_default_and_release_packages(self):
+    def assert_checksum(self, artifact):
+        digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
+        sidecar = artifact.with_name(artifact.name + ".sha256")
+        self.assertEqual(sidecar.read_text(encoding="utf-8"), f"{digest}  {artifact.name}\n")
+
+    def test_bundle_version_for_default_and_release_packages(self):
         existing_stage = self.output / "deb-stage-existing"
         existing_stage.mkdir(parents=True)
         marker = existing_stage / "keep.txt"
@@ -69,8 +76,9 @@ class LinuxPackageTests(unittest.TestCase):
                 result = self.package(*options)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 packages = list(self.output.glob("*.deb"))
-                self.assertEqual([p.name for p in packages], ["work-fleet_0.1.0_all.deb"])
-                self.assertEqual(self.field(packages[0], "Version"), "0.1.0")
+                self.assertEqual([p.name for p in packages], ["work-fleet_2.3.4_all.deb"])
+                self.assertEqual(self.field(packages[0], "Version"), "2.3.4")
+                self.assert_checksum(packages[0])
                 self.assertEqual(self.field(packages[0], "Package"), "work-fleet")
                 self.assertEqual(self.field(packages[0], "Architecture"), "all")
                 self.assertEqual(
@@ -79,6 +87,13 @@ class LinuxPackageTests(unittest.TestCase):
                 )
                 self.assertEqual(list(self.output.glob("deb-stage-*")), [existing_stage])
                 self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
+
+    def test_bundle_without_version_is_rejected(self):
+        (self.bundle / "package.json").write_text('{"appId": "app.workfleet.test"}\n', encoding="utf-8")
+        result = self.package()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Bundle package.json has no x.y.z version.", result.stderr)
+        self.assertFalse(self.output.exists())
 
     def test_release_still_requires_maintainer_email(self):
         result = self.package("--release")
@@ -103,6 +118,7 @@ class LinuxPackageTests(unittest.TestCase):
         for relative in (
             "package.json", "LICENSE", "THIRD-PARTY-NOTICES.md",
             "scripts/build-web.mjs", "scripts/config.mjs", "scripts/apple-icons.mjs",
+            "scripts/platform-version.mjs",
             "scripts/generate-linux-package.mjs", "scripts/package-linux.py",
             "scripts/linux/build-native-app.sh", "scripts/linux/package-deb.sh",
             "src/native/bridge.js", "src/native/files.js", "src/native/capture.js",
@@ -119,6 +135,7 @@ class LinuxPackageTests(unittest.TestCase):
                 ROOT / relative, checkout / relative,
                 ignore=shutil.ignore_patterns("__pycache__"),
             )
+        (checkout / "src/native/linux/VERSION").write_text("9.8.7\n", encoding="utf-8")
         (checkout / "node_modules").symlink_to(ROOT / "node_modules", target_is_directory=True)
         build = checkout / "build"
         build.mkdir()
@@ -136,12 +153,15 @@ class LinuxPackageTests(unittest.TestCase):
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        package = build / "work-fleet_0.1.0_all.deb"
+        package = build / "work-fleet_9.8.7_all.deb"
         self.assertTrue(package.is_file())
-        self.assertEqual(self.field(package, "Version"), "0.1.0")
+        self.assertEqual(self.field(package, "Version"), "9.8.7")
+        self.assert_checksum(package)
         self.assertEqual(list((build / "linux").glob("*.deb")), [])
         self.assertEqual(list(build.glob("deb-stage-*")), [])
-        self.assertTrue((build / "linux/work-fleet-0.1.0.tar.gz").is_file())
+        archive = build / "linux/work-fleet-9.8.7.tar.gz"
+        self.assertTrue(archive.is_file())
+        self.assert_checksum(archive)
         self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
 
 

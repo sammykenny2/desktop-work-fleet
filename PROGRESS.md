@@ -21,6 +21,30 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 各平台版號紀錄與發佈檔名
+
+使用者要求發佈檔名完全由 repo 決定：不同開發機 clone 同一 commit、執行同一指令要得到相同檔名，
+同一平台的不同建置入口也不能各自寫死版號；各平台各自記錄版號，不共用同一份版號檔。
+- 版號紀錄：Windows `src/native/windows/Directory.Build.props`（取代兩個 csproj 各自的 `<Version>`）、
+  Apple `src/native/apple/config/WorkFleet.xcconfig` 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`、
+  Android `build.gradle.kts` 的 `versionName`、Linux 新增 `src/native/linux/VERSION`。目前都是 `0.1.0`。
+  原本分散寫死在 Linux／Windows／Apple 封裝腳本與 Windows 專案檔的版號全部移除，改由 `scripts/platform-version.mjs` 或產物 metadata 取得。
+- 檔名：macOS 正式 `WorkFleet-<版號>-macos-universal.pkg|dmg`；預覽 `WorkFleet-<版號>-macos-universal-<unsigned|development>.zip`，
+  新增 `--dmg`；iOS 預覽 `-ios-<unsigned|development>.ipa`、`-ios-simulator.zip`；Android `WorkFleet-<版號>-android-debug.apk|release.aab`；
+  Windows 與 Linux 檔名不變。每個發佈檔旁輸出同名 `.sha256`，Apple workflow 一併上傳。
+- 不受機器影響：macOS 命令列建置固定 `ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO`，封裝前以 lipo 檢查；
+  預覽的簽章後綴取自 App 本身的 codesign 結果；Apple 資源準備拒絕 Local.xcconfig 或命令列覆蓋版號。
+- 先前手動產生的 `WorkFleet-0.1.0-macos-universal-development.dmg`／`-unsigned.dmg` 現在可由
+  `build-native-app.sh --platform macos [--unsigned]` 加 `package-preview-app.sh --platform macos --dmg` 重現同名檔案。
+- 決策補充於 ADR-028；deployment 新增「版號與發佈檔名」，setup／testing／各平台 README 同步。
+
+作者檢查：`npm ci --ignore-scripts` 補齊本機缺少的 esbuild 後，完整 JS 230 項 222 通過、8 原生環境略過、0 失敗
+（含新 `tests/release-versions.test.js` 4 項）；Python 24／24 通過，Linux 測試以不同於 repo 的版號實際封裝 DEB／tar.gz
+並核對 `.sha256`。docs check、`git diff --check`、bash 語法與 shellcheck 通過。
+本機（Raspberry Pi）沒有 Xcode、PowerShell、.NET 或 Android SDK：Apple 封裝腳本、Windows 腳本與 Gradle 的
+`archivesName` 只做語法／靜態測試，未實際產出 MSIX、DMG、PKG、IPA、APK 或 AAB；macOS 改為 universal 後
+hosted workflow 的建置時間也未測。沒有獨立審閱。
+
 ## 2026-10-06 Windows 開著時桌面圖示點不到
 
 使用者回報：Work Fleet 執行中（包含只在系統匣）時，桌面捷徑完全點不到。

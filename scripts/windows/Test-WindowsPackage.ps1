@@ -7,7 +7,7 @@
 .PARAMETER PackagePath
     Path to an MSIX produced by Build-WindowsPackage.ps1 -LocalTestSign.
 .EXAMPLE
-    .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-0.1.0-x64.msix
+    .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-VERSION-x64.msix
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$PackagePath)

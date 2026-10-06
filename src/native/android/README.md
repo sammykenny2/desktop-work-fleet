@@ -34,7 +34,8 @@ Android Studio 自行產生的 `local.properties` 只保存本機 SDK 路徑，�
 bash ./gradlew assembleDebug
 ```
 
-APK 位於 `app/build/outputs/apk/debug/app-debug.apk`。
+APK 位於 `app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`；release AAB 為
+`app/build/outputs/bundle/release/WorkFleet-<versionName>-android-release.aab`。版號只記在 `app/build.gradle.kts` 的 `versionName`。
 Gradle 將介面與 `config/public.json` 產生到 `app/build/generated/web-assets/`，同一建置納入 APK；
 不讀取 repository 根目錄可能過期的 `build/app` 或 `build/config/public.json`。
 修改 `.env` 的 application ID 後重新 Gradle Sync；其他公開設定也在建置時更新。

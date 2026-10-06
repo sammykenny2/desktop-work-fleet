@@ -1,5 +1,6 @@
 #!/bin/bash
 # Build or archive the native Apple app; signing credentials remain in Xcode/Keychain.
+# macOS always builds arm64 + x86_64, so every Mac produces the same universal package.
 # Usage: scripts/macos/build-native-app.sh --platform macos|ios [--release] [--simulator] [--unsigned]
 set -euo pipefail
 usage() { echo 'Usage: scripts/macos/build-native-app.sh --platform macos|ios [--release] [--simulator] [--unsigned]'; }
@@ -33,6 +34,7 @@ EXTRA=()
 [[ -z "$APP_ID" ]] || EXTRA+=("WORK_FLEET_APP_GROUP_ID=$APP_GROUP")
 [[ -z "$APPLE_TEAM" ]] || EXTRA+=("DEVELOPMENT_TEAM=$APPLE_TEAM")
 EXTRA+=("WORK_FLEET_PACKAGES_DIR=$PROJECT_ROOT/build/apple/SourcePackages")
+if [[ "$PLATFORM" == 'macos' ]]; then EXTRA+=('ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO); fi
 if [[ "$SIMULATOR" == 1 ]]; then DESTINATION='generic/platform=iOS Simulator'; fi
 if [[ "$SIMULATOR" == 1 || "$UNSIGNED" == 1 ]]; then EXTRA+=(CODE_SIGNING_ALLOWED=NO); fi
 ACTION='build'

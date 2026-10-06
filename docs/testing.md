@@ -28,10 +28,16 @@ git diff --check
 ```
 
 `python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v` 在有 bash 與 dpkg-deb 的環境
-實際封裝隔離 fixture，驗證一般／release DEB 都使用 `0.1.0` 版號與檔名，
+實際封裝隔離 fixture，驗證一般／release DEB 的版號與檔名都取自 bundle `package.json`，缺版號時拒絕，
 release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件或啟動 GUI。
 另驗證成功／失敗都清除本次 staging，保留既有輸出。有 Node 22+／npm 與 lockfile 依賴時，
-在含空白路徑的隔離 checkout 執行完整 `--deb` 建置，確認 DEB 直接輸出到 `build/` 根目錄。
+在含空白路徑的隔離 checkout 改寫 `src/native/linux/VERSION` 後執行完整 `--deb` 建置，
+確認 DEB 直接輸出到 `build/` 根目錄、DEB／tar.gz 檔名跟隨該版號，且 `.sha256` 與檔案相符。
+
+`tests/release-versions.test.js` 驗證各平台版號紀錄的讀取與格式、封裝腳本不再寫死版號、
+Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、Apple Info.plist 取自 xcconfig
+且拒絕本機覆蓋，以及 Android 檔名設定引用 `versionName`。不需原生 SDK；
+不代表 MakeAppx、Xcode 或 Gradle 實際產物已驗證。
 
 `tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
 亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
@@ -62,6 +68,8 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
 lipo -archs build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app/Contents/MacOS/WorkFleetMac
 ```
 
+`scripts/macos/build-native-app.sh --platform macos --unsigned` 已固定使用上述架構設定；
+`scripts/macos/package-preview-app.sh --platform macos --dmg` 檢查兩種架構後產生 DMG 與 `.sha256`。
 封裝後需以 `hdiutil verify` 及唯讀掛載核對實際 App；Debug 的主程式與隨附 dylib 均須含兩種架構。
 2026-10-05 已完成上述建置／DMG 檢查，新增授權檔回歸後 Apple 專案測試 4／4；產物、hash、限制及紀錄見 PROGRESS。
 
@@ -195,7 +203,7 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign
-.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-0.1.0-x64.msix
+.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/windows/package-ID/WorkFleet-VERSION-x64.msix
 ```
 
 將 `package-ID` 換成建置輸出的目錄。檢查四種不合法簽章參數在建置前拒絕，

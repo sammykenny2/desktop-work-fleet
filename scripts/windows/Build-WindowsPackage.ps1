@@ -4,6 +4,7 @@
 .DESCRIPTION
     Uses .NET 8, Windows SDK MakeAppx and public .env settings. Produces a
     framework-dependent app requiring .NET 8 Desktop and WebView2 runtimes.
+    File names use the version in src/native/windows/Directory.Build.props.
     Optional signing uses an existing certificate; no certificate installation,
     trust changes, tests or store upload are performed.
 .PARAMETER Release
@@ -29,6 +30,10 @@
 param([switch]$Release, [switch]$SkipRestore, [string]$CertificateThumbprint, [switch]$LocalTestSign, [string]$TimestampUrl, [string]$SdkBin)
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+function Write-Checksum([string]$Path) {
+    $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
+    [IO.File]::WriteAllText("$Path.sha256", "$Hash  $(Split-Path -Leaf $Path)`n")
+}
 function Find-SdkTool([string]$Name) {
     if ($SdkBin) {
         $Tool = Join-Path $SdkBin $Name
@@ -66,6 +71,8 @@ Push-Location $ProjectRoot
 $PreviousDotnetHome = $env:DOTNET_CLI_HOME; $PreviousNuget = $env:NUGET_PACKAGES; $PreviousTelemetry = $env:DOTNET_CLI_TELEMETRY_OPTOUT
 try {
     if ($Release) { & node scripts/check-config.mjs --platform windows; if ($LASTEXITCODE -ne 0) { throw 'Release settings are incomplete.' } }
+    $PackageVersion = & node scripts/platform-version.mjs --platform windows
+    if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version from src/native/windows/Directory.Build.props.' }
     & "$PSScriptRoot/Build-WindowsApp.ps1" -Configuration Release -SkipRestore:$SkipRestore
     $env:DOTNET_CLI_HOME = Join-Path $ProjectRoot 'build/dotnet-home'; $env:NUGET_PACKAGES = Join-Path $ProjectRoot 'build/nuget-packages'; $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
     $Output = Join-Path $ProjectRoot ('build/windows/package-' + [guid]::NewGuid().ToString('N'))
@@ -97,7 +104,7 @@ try {
         $LocalCertificate = $SigningCertificates[0]
         $CertificateThumbprint = $LocalCertificate.Thumbprint
     }
-    $Msix = Join-Path $Output 'WorkFleet-0.1.0-x64.msix'
+    $Msix = Join-Path $Output "WorkFleet-$PackageVersion-x64.msix"
     $PackagingLog = Join-Path $Output 'makeappx.log'
     & $MakeAppx pack /d $Stage /p $Msix /h SHA256 > $PackagingLog
     if ($LASTEXITCODE -ne 0) {
@@ -116,9 +123,10 @@ try {
             Export-Certificate -Cert $LocalCertificate -FilePath $PublicCertificate -Type CERT | Out-Null
         }
     }
-    $Zip = Join-Path $Output 'WorkFleet-0.1.0-x64.zip'
+    $Zip = Join-Path $Output "WorkFleet-$PackageVersion-x64.zip"
     $PublishedFiles = Get-ChildItem -LiteralPath $Stage -Force | Select-Object -ExpandProperty FullName
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
+    Write-Checksum $Msix; Write-Checksum $Zip
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }

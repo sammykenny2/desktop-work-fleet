@@ -65,6 +65,8 @@ android {
         }
     }
 }
+// APK/AAB names carry versionName, the Android version record, so every machine builds the same file names.
+base { archivesName.set("WorkFleet-${android.defaultConfig.versionName}-android") }
 
 val installWebDependencies = tasks.register<Exec>("installWebDependencies") {
     workingDir(repositoryRoot)

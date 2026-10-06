@@ -4,12 +4,14 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { readBuildConfig } from './config.mjs';
 import { writePaperIcon } from './apple-icons.mjs';
+import { readPlatformVersion } from './platform-version.mjs';
 
 if (process.argv.includes('--help')) {
-  console.log('Usage: node scripts/generate-linux-package.mjs\nRun npm run build first. Writes build/linux/work-fleet-0.1.0.');
+  console.log('Usage: node scripts/generate-linux-package.mjs\nRun npm run build first. Writes build/linux/work-fleet-VERSION, using src/native/linux/VERSION.');
 } else {
   const root = fileURLToPath(new URL('../', import.meta.url));
-  const destination = path.join(root, 'build', 'linux', 'work-fleet-0.1.0');
+  const version = await readPlatformVersion('linux');
+  const destination = path.join(root, 'build', 'linux', `work-fleet-${version}`);
   const config = await readBuildConfig(new URL('../', import.meta.url));
   const appId = config.appId || 'app.workfleet.preview';
   for (const name of ['Native', 'Config', 'Icons', 'Desktop', 'Licenses']) await mkdir(path.join(destination, name), { recursive: true });
@@ -43,6 +45,6 @@ Terminal=false
 Categories=Office;Utility;
 StartupNotify=true
 `);
-  await writeFile(path.join(destination, 'package.json'), JSON.stringify({ appId, version: '0.1.0', runtime: ['python3>=3.12', 'python3-gi', 'python3-gi-cairo', 'python3-cairo', 'python3-cryptography', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1', 'gir1.2-secret-1'], optionalRuntime: ['gir1.2-gtklayershell-0.1', 'gir1.2-keybinder-3.0', 'gir1.2-ayatanaappindicator3-0.1', 'xdg-desktop-portal'], binariesBuilt: false }, null, 2) + '\n');
-  console.log('Packaged build/linux/work-fleet-0.1.0 (system GTK/WebKit/Secret Service required).');
+  await writeFile(path.join(destination, 'package.json'), JSON.stringify({ appId, version, runtime: ['python3>=3.12', 'python3-gi', 'python3-gi-cairo', 'python3-cairo', 'python3-cryptography', 'gir1.2-gtk-3.0', 'gir1.2-webkit2-4.1', 'gir1.2-secret-1'], optionalRuntime: ['gir1.2-gtklayershell-0.1', 'gir1.2-keybinder-3.0', 'gir1.2-ayatanaappindicator3-0.1', 'xdg-desktop-portal'], binariesBuilt: false }, null, 2) + '\n');
+  console.log(`Packaged build/linux/work-fleet-${version} (system GTK/WebKit/Secret Service required).`);
 }

@@ -1,5 +1,6 @@
 #!/bin/bash
 # Package the generated Linux app with the distribution's dpkg-deb.
+# The version comes from the bundle's package.json, generated from src/native/linux/VERSION.
 # The temporary staging directory is removed on exit.
 # Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--release]
 set -euo pipefail
@@ -17,7 +18,10 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ -n "$BUNDLE" && -n "$OUTPUT" && "$APP_ID" =~ ^[a-zA-Z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9]*)+$ ]] || { usage >&2; exit 2; }
-[[ -f "$BUNDLE/Native/host.py" && -f "$BUNDLE/Desktop/$APP_ID.desktop" && -f "$BUNDLE/Icons/$APP_ID.png" ]] || { echo 'Run the Linux package generator first.' >&2; exit 1; }
+[[ -f "$BUNDLE/Native/host.py" && -f "$BUNDLE/package.json" && -f "$BUNDLE/Desktop/$APP_ID.desktop" && -f "$BUNDLE/Icons/$APP_ID.png" ]] || { echo 'Run the Linux package generator first.' >&2; exit 1; }
+VERSION_PATTERN='"version": "([0-9]+\.[0-9]+\.[0-9]+)"'
+[[ "$(<"$BUNDLE/package.json")" =~ $VERSION_PATTERN ]] || { echo 'Bundle package.json has no x.y.z version.' >&2; exit 1; }
+VERSION="${BASH_REMATCH[1]}"
 if [[ "$RELEASE" == 1 && -z "$EMAIL" ]]; then echo 'Release requires the public maintainer email.' >&2; exit 2; fi
 EMAIL="${EMAIL:-preview@example.invalid}"
 [[ "$EMAIL" =~ ^[^[:space:]\<\>@]+@[^[:space:]\<\>@]+\.[^[:space:]\<\>@]+$ ]] || { echo 'Invalid maintainer email.' >&2; exit 2; }
@@ -39,7 +43,6 @@ LAUNCHER
 find "$STAGE" -type d -exec chmod 755 {} +
 find "$STAGE" -type f -exec chmod 644 {} +
 chmod 755 "$STAGE/usr/bin/work-fleet" "$STAGE/usr/lib/work-fleet/run-work-fleet.sh"
-VERSION='0.1.0'
 cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: work-fleet
 Version: $VERSION
@@ -54,4 +57,5 @@ Description: Work notes with local encrypted storage and optional Google sync
 CONTROL
 PACKAGE="$OUTPUT/work-fleet_${VERSION}_all.deb"
 dpkg-deb --build --root-owner-group "$STAGE" "$PACKAGE"
+(cd "$OUTPUT" && sha256sum "${PACKAGE##*/}" > "$PACKAGE.sha256")
 echo "Debian package: $PACKAGE"

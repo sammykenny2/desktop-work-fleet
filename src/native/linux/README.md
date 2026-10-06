@@ -7,7 +7,7 @@ Secret Service 與 cryptography，由 Linux distribution 提供。不是 Python 
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
-bash build/linux/work-fleet-0.1.0/run-work-fleet.sh
+bash "build/linux/work-fleet-$(cat src/native/linux/VERSION)/run-work-fleet.sh"
 # 在提供 Debian 工具的環境建立安裝包：
 bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
@@ -31,10 +31,10 @@ fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新�
 
 建置入口產生 source/runtime tar.gz，Debian variant 宣告 system runtime dependencies；
 不攜帶私鑰、token、使用者資料或 Python／GTK 的複製二進位。簽章／repository 發布仍待實際環境。
-DEB 版本統一為 `0.1.0`，早期版號不另加 `~preview`；
+Linux 版號記在同目錄的 `VERSION`，DEB、tar.gz 與 bundle 名稱都由它產生；早期版號不另加 `~preview`；
 release 仍需正式公開 app 設定與支援 email 作 maintainer contact。
 共同 `scripts/linux/package-deb.sh` 每次使用新的 staging，安裝 launcher／desktop entry／圖示與 notices。
-Linux 與 Windows 建置入口直接產生 `build/work-fleet_0.1.0_all.deb`，不需手動搬檔；
+Linux 與 Windows 建置入口直接產生 `build/work-fleet_<版號>_all.deb` 與同名 `.sha256`，不需手動搬檔；
 staging 在封裝腳本結束時自動移除，source/runtime 副本與 tar.gz 仍在 `build/linux/`。
 Windows 可執行 `scripts/windows/Build-LinuxPackage.ps1`，以既有 Docker Linux engine 的固定 Ubuntu
 image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 script，不執行 GTK 或安装 App。

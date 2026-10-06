@@ -150,7 +150,8 @@ CI 簽章秘密由 CI secret／keychain 提供。Client ID 是公開應用識別
 .\gradlew.bat assembleDebug
 ```
 
-APK 位於 `src/native/android/app/build/outputs/apk/debug/app-debug.apk`。
+APK 位於 `src/native/android/app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`；
+版號與各平台檔名見 [散布文件](deployment.md#版號與發佈檔名)。
 修改 `.env` application ID 後重新 Sync；`local.properties` 為 IDE 產生的本機 SDK 路徑，不提交版本控制。
 
 ## macOS／iOS 1.0 原生建置
@@ -167,9 +168,11 @@ open src/native/apple/WorkFleet.xcodeproj
 bash scripts/macos/build-native-app.sh --platform macos
 bash scripts/macos/build-native-app.sh --platform ios --simulator
 bash scripts/macos/build-native-app.sh --platform ios --release
+bash scripts/macos/package-preview-app.sh --platform macos --dmg
 ```
 
 腳本使用已提交的專案；DerivedData／Release xcarchive／export 保留於忽略的 `build/apple/`。
+macOS 命令列建置一律含 arm64／x86_64；預覽封裝依 App 的版號與簽章命名，`--dmg` 產生 DMG。
 原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
 全域鍵、選單列及螢幕生命週期。macOS Debug universal 已在 Xcode 編譯並產生 Apple Development 簽章 DMG，
 獨立 fixture 的 Keychain／SQLite／主畫面初始化通過；iOS、Developer ID／公證與完整操作尚未驗收。
@@ -228,7 +231,7 @@ backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
-bash build/linux/work-fleet-0.1.0/run-work-fleet.sh
+bash "build/linux/work-fleet-$(cat src/native/linux/VERSION)/run-work-fleet.sh"
 bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
@@ -238,10 +241,10 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
 dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。
-Linux 與 Windows 建置入口都直接產生 `build/work-fleet_0.1.0_all.deb`，不需手動搬檔。
+Linux 與 Windows 建置入口都直接產生 `build/work-fleet_<版號>_all.deb`，不需手動搬檔。
 source/runtime 副本與 tar.gz 仍在 `build/linux/`；DEB staging 在封裝結束時自動清除。
 DEB 適用提供上述系統依賴的發行版。
-`0.1.0` 已表示早期版本；一般與 release 建置都使用此版號，不另加 `~preview`。
+版號記在 `src/native/linux/VERSION`；一般與 release 建置都使用此版號，早期版本不另加 `~preview`。
 
 Apple 手動建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
 在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Package native Linux sources/assets, optionally create a Debian package.
-# DEB output: build/work-fleet_0.1.0_all.deb.
+# DEB output: build/work-fleet_VERSION_all.deb, with VERSION from src/native/linux/VERSION.
 # Usage: scripts/linux/build-native-app.sh [--release] [--deb] [--help]
 set -euo pipefail
 usage() { echo 'Usage: scripts/linux/build-native-app.sh [--release] [--deb] [--help]'; }
@@ -16,9 +16,9 @@ npm run build
 node scripts/generate-linux-package.mjs
 python3 scripts/package-linux.py
 if [[ "$DEB" == 1 ]]; then
-    BUNDLE="$PROJECT_ROOT/build/linux/work-fleet-0.1.0"
-    APP_ID="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-0.1.0/package.json", "utf8")).appId);')"
-    EMAIL="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync("build/linux/work-fleet-0.1.0/Config/public.json", "utf8")).release.supportEmail || "");')"
+    BUNDLE="$PROJECT_ROOT/build/linux/work-fleet-$(node scripts/platform-version.mjs --platform linux)"
+    APP_ID="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).appId);' "$BUNDLE/package.json")"
+    EMAIL="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).release.supportEmail || "");' "$BUNDLE/Config/public.json")"
     EXTRA=(); [[ "$RELEASE" == 0 ]] || EXTRA+=(--release)
     [[ -z "$EMAIL" ]] || EXTRA+=(--maintainer-email "$EMAIL")
     bash "$SCRIPT_DIR/package-deb.sh" --source "$BUNDLE" --output "$PROJECT_ROOT/build" --app-id "$APP_ID" "${EXTRA[@]}"

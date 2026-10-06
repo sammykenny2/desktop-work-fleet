@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted，2026-10-05。
+Accepted，2026-10-05；2026-10-06 補充各平台版號紀錄與發佈檔名。
 
 ## Context
 
@@ -37,10 +37,21 @@ Windows 可選 workspace Android toolchain installer，使用官方固定 SDK to
 Linux DEB 委派給獨立 dpkg-deb script；Windows 可使用既有 Docker Linux engine，在固定 Ubuntu
 image 中執行。容器只掛載忽略的 `build/` 產物目錄與封裝 script，執行時 network none，
 不安装 App 或 GUI runtime。2026-10-05 依維護者指示，DEB 統一使用產品版號 `0.1.0`，
-不附加 `~preview`；release 仍需正式公開配置與 maintainer email。
+不附加 `~preview`；release 仍需正式公開配置與 maintainer email。版號後續記在 `src/native/linux/VERSION`。
 Linux 與 Windows 入口直接將 DEB 輸出到 `build/` 根目錄；bundle／tar.gz 保留於 `build/linux/`。
 每次建立新的 staging 目錄並於腳本結束時自動移除，保留產物；
 安裝 launcher 與 license documents，使用 root archive ownership。
+
+2026-10-06 依維護者指示，發佈檔名必須只由 repo 內容決定：同一 commit 在任何開發機以同一指令
+產生相同檔名，同一平台的不同建置入口也不得各自寫死版號。各平台分別記錄版號，不共用一份：
+Windows 為 `src/native/windows/Directory.Build.props`，Apple 為 `src/native/apple/config/WorkFleet.xcconfig`
+的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`，Android 為 `build.gradle.kts` 的 `versionName`，
+Linux 為 `src/native/linux/VERSION`。封裝腳本經 `scripts/platform-version.mjs` 或產物本身的 metadata 取得版號。
+Apple 資源準備拒絕 Local.xcconfig／命令列覆蓋；macOS 命令列建置固定 arm64＋x86_64，封裝前檢查。
+預覽簽章後綴取自 App 的實際簽章而非建置機器的 identities。檔名格式：Windows
+`WorkFleet-<版號>-x64.msix|zip`；macOS `WorkFleet-<版號>-macos-universal[-unsigned|-development]`；
+iOS 預覽 `WorkFleet-<版號>-ios-<unsigned|development|simulator>`；Android `WorkFleet-<版號>-android-<variant>`；
+Linux 沿用 Debian `work-fleet_<版號>_all.deb` 與 `work-fleet-<版號>.tar.gz`。每個發佈檔旁輸出同名 `.sha256`。
 
 Apple 加入手動 GitHub workflow，固定官方 actions commit，使用 GitHub macOS runner 編譯
 未簽章 Debug 的 macOS App 與 iOS device App／Extension，保留 ZIP／IPA 與 builder version。
@@ -69,6 +80,9 @@ Maven POM 與 AAR／JAR 內的 notices，保留 Apache-2.0 全文。Generated as
 將簽章密碼放入 `.env` 或公共 JSON：拒絕，公共設定會封裝進 App。
 自行建立及安裝受信任憑證：拒絕，會改變使用者環境且不能替代正式簽章 identity。
 將 framework-dependent preview 視為五平台正式發行：拒絕，缺少原生環境及外部帳號證據。
+所有平台共用一份版號檔：拒絕，各平台需能獨立升版。
+依建置機器架構或已安裝憑證決定檔名：拒絕，同一 commit 會在不同開發機產生不同檔名。
+Linux DEB 改用 `WorkFleet-<版號>` 格式：拒絕，Debian 工具與套件庫預期 `套件_版號_架構.deb`。
 
 ## References
 

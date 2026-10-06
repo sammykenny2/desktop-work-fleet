@@ -56,7 +56,7 @@ python scripts/testing/serve_preview.py --port 0
 
 Android Studio 的 **Open** 選擇 `src/native/android`，完成 Gradle Sync 後選 `app`／`debug` 並 Run 或 Build APK。
 需 Node 22+（含 npm）、JDK 17 及 Android SDK 36；專案已附 Gradle Wrapper，建置會自動安裝 npm 依賴並產生介面資產。
-也可在該目錄執行 `gradlew.bat assembleDebug`；APK 位於 `app/build/outputs/apk/debug/app-debug.apk`。
+也可在該目錄執行 `gradlew.bat assembleDebug`；APK 位於 `app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`。
 詳見 [Android 專案說明](src/native/android/README.md)。
 
 ## 在 Xcode 開啟 iOS／macOS

@@ -1,0 +1,102 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
+import { readAppleVersion, readPlatformVersion, versionRecords } from '../scripts/platform-version.mjs';
+import { prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
+
+const root = fileURLToPath(new URL('../', import.meta.url));
+const execute = promisify(execFile);
+
+async function checkout(records) {
+  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-versions-'));
+  for (const [file, content] of Object.entries(records)) {
+    await mkdir(path.dirname(path.join(directory, file)), { recursive: true });
+    await writeFile(path.join(directory, file), content);
+  }
+  return directory;
+}
+
+test('each platform reads its own version record', async () => {
+  const directory = await checkout({
+    [versionRecords.linux]: '1.2.3\n',
+    [versionRecords.windows]: '<Project><PropertyGroup><Version>4.5.6</Version></PropertyGroup></Project>\n',
+    [versionRecords.apple]: 'WORK_FLEET_APP_ID = app.workfleet.preview\nMARKETING_VERSION = 7.8.9\nCURRENT_PROJECT_VERSION = 42\n',
+  });
+  try {
+    assert.equal(await readPlatformVersion('linux', directory), '1.2.3');
+    assert.equal(await readPlatformVersion('windows', directory), '4.5.6');
+    assert.equal(await readPlatformVersion('apple', directory), '7.8.9');
+    assert.deepEqual(await readAppleVersion(directory), { version: '7.8.9', build: '42' });
+    await assert.rejects(readPlatformVersion('android', directory), /--platform linux\|windows\|apple/);
+    await writeFile(path.join(directory, versionRecords.linux), '1.2.3~preview\n');
+    await assert.rejects(readPlatformVersion('linux', directory), /numeric x\.y\.z/);
+    await writeFile(path.join(directory, versionRecords.apple), 'MARKETING_VERSION = 7.8.9\n');
+    await assert.rejects(readAppleVersion(directory), /CURRENT_PROJECT_VERSION/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('repository records hold numeric versions and the packaging scripts never repeat them', async () => {
+  const recorded = {
+    linux: await readPlatformVersion('linux'),
+    windows: await readPlatformVersion('windows'),
+    apple: await readPlatformVersion('apple'),
+  };
+  const packaging = {
+    linux: ['scripts/generate-linux-package.mjs', 'scripts/package-linux.py', 'scripts/linux/build-native-app.sh',
+      'scripts/linux/package-deb.sh', 'scripts/windows/Build-LinuxPackage.ps1'],
+    windows: ['scripts/generate-windows-manifest.mjs', 'scripts/windows/Build-WindowsPackage.ps1'],
+    apple: ['scripts/prepare-apple-build.mjs', 'scripts/macos/build-native-app.sh', 'scripts/macos/package-preview-app.sh',
+      'scripts/macos/package-native-app.sh'],
+  };
+  for (const [platform, files] of Object.entries(packaging)) {
+    const literal = new RegExp(`(?<![\\d.])${recorded[platform].replaceAll('.', '\\.')}(?![\\d.])`);
+    for (const file of files) assert.equal(literal.test(await readFile(path.join(root, file), 'utf8')), false, file);
+  }
+  for (const project of ['src/native/windows/app/WorkFleet.Windows.csproj', 'src/native/windows/core/WorkFleet.Windows.Core.csproj']) {
+    assert.equal((await readFile(path.join(root, project), 'utf8')).includes('<Version>'), false, project);
+  }
+  const gradle = await readFile(path.join(root, 'src/native/android/app/build.gradle.kts'), 'utf8');
+  assert.match(gradle, /versionName = "\d+\.\d+\.\d+"/);
+  assert.ok(gradle.includes('archivesName.set("WorkFleet-${android.defaultConfig.versionName}-android")'));
+});
+
+test('MSIX identity version comes from the Windows record', async () => {
+  const directory = await checkout({ [versionRecords.windows]: '<Project><PropertyGroup><Version>2.4.6</Version></PropertyGroup></Project>\n' });
+  try {
+    for (const file of ['generate-windows-manifest.mjs', 'config.mjs', 'apple-icons.mjs', 'platform-version.mjs']) {
+      await mkdir(path.join(directory, 'scripts'), { recursive: true });
+      await copyFile(path.join(root, 'scripts', file), path.join(directory, 'scripts', file));
+    }
+    const stage = path.join(directory, 'build', 'windows', 'stage');
+    await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
+      { env: { PATH: process.env.PATH } });
+    assert.match(await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8'), /<Identity [^>]*Version="2\.4\.6\.0"/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('Apple Info.plist uses the xcconfig record and rejects local overrides', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-version-'));
+  try {
+    const { version, build } = await readAppleVersion();
+    const environment = { WORK_FLEET_APP_ID: 'app.workfleet.ios', CONFIGURATION: 'Debug', MARKETING_VERSION: version, CURRENT_PROJECT_VERSION: build };
+    await prepareAppleBuild({ platform: 'share', output: directory, environment });
+    const plist = await readFile(path.join(directory, 'Info.plist'), 'utf8');
+    assert.ok(plist.includes(`<key>CFBundleShortVersionString</key><string>${version}</string>`));
+    assert.ok(plist.includes(`<key>CFBundleVersion</key><string>${build}</string>`));
+    await assert.rejects(prepareAppleBuild({ platform: 'share', output: directory, environment: { ...environment, MARKETING_VERSION: '9.9.9' } }),
+      /MARKETING_VERSION is recorded in src\/native\/apple\/config\/WorkFleet\.xcconfig/);
+    await assert.rejects(prepareAppleBuild({ platform: 'share', output: directory, environment: { ...environment, CURRENT_PROJECT_VERSION: '1' } }),
+      /CURRENT_PROJECT_VERSION is recorded/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

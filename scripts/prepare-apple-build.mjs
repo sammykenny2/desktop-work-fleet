@@ -7,13 +7,15 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
 import { readBuildConfig, missingReleaseConfig } from './config.mjs';
 import { buildWebAssets } from './build-web.mjs';
+import { readAppleVersion, versionRecords } from './platform-version.mjs';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const execute = promisify(execFile);
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
-export function appleInfoPlist(platform, config) {
-  const shared = '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string><key>CFBundleShortVersionString</key><string>0.1.0</string><key>CFBundleVersion</key><string>100</string>';
+export function appleInfoPlist(platform, config, { version, build }) {
+  const shared = '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string>' +
+    `<key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${build}</string>`;
   const group = `<key>FleetCaptureAppGroup</key><string>${escape(config.appleAppGroupId)}</string>`;
   let content;
   if (platform === 'share') {
@@ -69,12 +71,17 @@ export async function prepareAppleBuild({ platform, output, root = repositoryRoo
     const missing = missingReleaseConfig(config, platform === 'share' ? 'ios' : platform);
     if (missing.length) throw new Error(`Apple release settings are incomplete: ${missing.join(', ')}.`);
   }
+  // Xcode exports build settings to this phase; a local override would make the same commit build differently named packages.
+  const recorded = await readAppleVersion(root);
+  for (const [setting, value] of [['MARKETING_VERSION', recorded.version], ['CURRENT_PROJECT_VERSION', recorded.build]]) {
+    if (effective[setting] && effective[setting] !== value) throw new Error(`${setting} is recorded in ${versionRecords.apple}; remove the local ${effective[setting]} override.`);
+  }
   await mkdir(output, { recursive: true });
   if (platform !== 'share') {
     if (installDependencies) await ensureWebDependencies(root, effective);
     await buildWebAssets({ root, destination: path.join(output, 'Assets'), configDestination: path.join(output, 'Config', 'public.json'), environment: effective, bundleScripts: true });
   }
-  await writeFile(path.join(output, 'Info.plist'), appleInfoPlist(platform, config));
+  await writeFile(path.join(output, 'Info.plist'), appleInfoPlist(platform, config, recorded));
   return config;
 }
 

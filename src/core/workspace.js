@@ -14,6 +14,12 @@ function contentValue(content) {
   return copy(content);
 }
 
+// Only the plain editor fields count; any extension data such as a title or capture metadata keeps the draft.
+function blankContent(content) {
+  return Boolean(content) && Object.keys(content).every(key => ['format', 'text', 'attachments'].includes(key))
+    && !content.text.trim() && !content.attachments?.length;
+}
+
 function loadRevisions(state) {
   const records = state.revisions || state.outbox.map(entry => revisionRecord(entry.kind, entry.value, entry.parents));
   const graph = new RevisionGraph(records);
@@ -496,5 +502,22 @@ export class Workspace {
     requireValue(safeKey(draft.id) && safeKey(draft.cardId), 'invalid-draft', '草稿身分無效。');
     contentValue(draft.content);
     return this.#commit(state => { state.drafts[draft.id] = rebaseDraft(state, copy(draft)); });
+  }
+
+  /** Drops a draft with no text or attachments, and blank unchanged drafts it was recovered from. */
+  async discardBlankDraft(draftId) {
+    await this.#tail;
+    if (!blankContent(this.#state.drafts[draftId]?.content)) return false;
+    return this.#commit(state => {
+      const draft = state.drafts[draftId];
+      if (!blankContent(draft?.content)) return false;
+      for (const origin of draft.recoveredFrom || []) {
+        const original = state.drafts[origin.id];
+        if (origin.id !== draftId && blankContent(original?.content)
+          && draftBaseline(original) === canonicalJson(parseJson(origin.baseline))) delete state.drafts[origin.id];
+      }
+      delete state.drafts[draftId];
+      return true;
+    });
   }
 }

@@ -458,13 +458,15 @@ function renderStage(cards) {
     if (policy.editing && currentDraft?.cardId === card.id && !remoteEditor && !$('#editor-dialog').open) {
       const input = element('textarea', undefined, 'inline-editor'); input.value = currentDraft.content.text;
       input.setAttribute('aria-label', '就地編輯便箋');
-      input.oninput = () => { if (!editorBusy) { currentDraft.content.text = input.value; queueDraft(); } };
+      input.oninput = () => { if (!editorBusy && currentDraft) { currentDraft.content.text = input.value; queueDraft(); } };
       input.addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
       input.addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
       input.onkeydown = event => {
         if (event.isComposing || composing) return;
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); run(async () => {
-          await controller.endEdit(); currentDraft = null; render(); status('草稿已保留');
+          await controller.endEdit(); const draft = currentDraft; currentDraft = null; let discarded = false;
+          try { if (draft) discarded = await workspace.discardBlankDraft(draft.id); } finally { render(); }
+          status(closedStatus(discarded));
         }); }
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
       };
@@ -680,10 +682,20 @@ function setEditorBusy(value) {
   $('#attachment-input').disabled = value;
   $('#editor-group').disabled = value || Boolean(currentDraft?.baseRevision);
 }
+// A draft with no text, attachments or extension data has nothing to keep once its editor closes.
+const closedStatus = discarded => discarded ? '已關閉，空白內容不保留草稿' : '草稿已保留';
 async function closeEditor() {
   if (editorBusy || composing) return;
   setEditorBusy(true);
-  try { await flushDraft(); currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit(); render(); status('草稿已保留'); }
+  try {
+    // Clear the editor before discarding so a background flush cannot write the blank draft back.
+    await flushDraft(); const draft = currentDraft;
+    currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false);
+    let discarded = false;
+    try { if (draft) discarded = await workspace.discardBlankDraft(draft.id); }
+    finally { await controller.endEdit(); render(); }
+    status(closedStatus(discarded));
+  }
   finally { setEditorBusy(false); }
 }
 async function saveEditor(asCopy = false) {

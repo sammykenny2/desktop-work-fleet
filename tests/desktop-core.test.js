@@ -576,3 +576,32 @@ test('repeated draft recovery consumes unchanged ancestors with linear lineage a
     assert.ok(Object.values(f.workspace.state.drafts).every(item => item.content.text === 'independent'));
   }
 });
+
+test('closing a blank draft discards it and blank unchanged ancestors but keeps any content', async () => {
+  const f = await fixture();
+  const blank = f.workspace.blankDraft(f.a.id); blank.content.text = ' \n\t';
+  await f.workspace.saveDraft(blank);
+  assert.equal(await f.workspace.discardBlankDraft(blank.id), true);
+  assert.equal(f.workspace.state.drafts[blank.id], undefined); assert.equal(f.disk().drafts[blank.id], undefined);
+  assert.equal(await f.workspace.discardBlankDraft('missing-draft'), false);
+  const kept = [];
+  for (const content of [markdown('留下這句'), { ...markdown(''), attachments: [{ id: 'blob-a', name: 'a.png' }] }, { ...markdown(''), title: '標題' }]) {
+    const draft = f.workspace.blankDraft(f.a.id); draft.content = content; await f.workspace.saveDraft(draft); kept.push(draft.id);
+  }
+  const revision = f.disk().revision;
+  for (const id of kept) assert.equal(await f.workspace.discardBlankDraft(id), false);
+  assert.equal(f.disk().revision, revision, 'kept drafts must not cause another write');
+  assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [...kept].sort());
+  const late = f.workspace.blankDraft(f.a.id); await f.workspace.saveDraft(late);
+  const typing = f.workspace.saveDraft({ ...late, content: markdown('剛打的字') });
+  assert.equal(await f.workspace.discardBlankDraft(late.id), false, 'a queued text save wins over the discard');
+  await typing; assert.equal(f.workspace.state.drafts[late.id].content.text, '剛打的字');
+  for (const originalText of ['', '原本的內容']) {
+    const g = await fixture(); const original = g.workspace.blankDraft(g.a.id); original.content.text = originalText;
+    await g.workspace.saveDraft(original);
+    const recovered = g.workspace.recoverDraft(original.id); recovered.content.text = '';
+    await g.workspace.saveDraft(recovered);
+    assert.equal(await g.workspace.discardBlankDraft(recovered.id), true);
+    assert.deepEqual(Object.keys(g.workspace.state.drafts), originalText ? [original.id] : []);
+  }
+});

@@ -1,0 +1,148 @@
+name: Windows preview release
+
+# Manual only. Builds the MSIX from the selected commit, signs it with the preview certificate and publishes a GitHub
+# prerelease tagged windows-v<Version from src/native/windows/Directory.Build.props>. An existing tag or release is
+# never replaced: bump that Version to publish another preview. The release is created only after the package is
+# built and signed, so a failed run leaves nothing published. Procedure: docs/deployment.md「Windows 預覽版發布」.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-preview
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Check version and tests
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Resolve the release tag
+        id: version
+        run: |
+          version=$(node scripts/platform-version.mjs --platform windows)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=windows-v$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Refuse a version that was already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1 || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG already exists. Bump <Version> in src/native/windows/Directory.Build.props to publish another preview."
+            exit 1
+          fi
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  build:
+    name: Build and sign the MSIX
+    needs: guard
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.x'
+      - run: npm ci --ignore-scripts
+      # A preview that cannot sign in to Google is not worth installing on another machine.
+      - name: Check Google settings
+        env:
+          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID }}
+          HAS_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET != '' }}
+        run: |
+          node scripts/check-config.mjs --google --platform windows
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ($env:HAS_SECRET -ne 'true') { throw 'Secret WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET is not set.' }
+      # Build-WindowsPackage -LocalTestSign signs only with a certificate the machine already trusts, as an installing
+      # machine must, so the runner trusts the preview certificate's public part for this job.
+      - name: Install the preview signing certificate
+        env:
+          PFX_BASE64: ${{ secrets.WORK_FLEET_WINDOWS_SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WORK_FLEET_WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64 -or -not $env:PFX_PASSWORD) { throw 'The preview signing certificate secrets are not set.' }
+          # The key is persisted for SignTool, which runs as another process; the PFX itself never touches the disk.
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            [Convert]::FromBase64String($env:PFX_BASE64), $env:PFX_PASSWORD, 'UserKeySet, PersistKeySet')
+          $mine = [System.Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $mine.Open('ReadWrite'); $mine.Add($certificate); $mine.Close()
+          $trusted = [System.Security.Cryptography.X509Certificates.X509Store]::new('TrustedPeople', 'LocalMachine')
+          $trusted.Open('ReadWrite'); $trusted.Add([System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate.RawData)); $trusted.Close()
+          Write-Output "Preview certificate $($certificate.Subject), valid until $($certificate.NotAfter.ToString('yyyy-MM-dd'))"
+      - name: Build the signed package
+        env:
+          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID }}
+          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET }}
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: |
+          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign
+          if (-not (Test-Path -LiteralPath "build/WorkFleet-$env:VERSION-x64.msix")) { throw "build/WorkFleet-$env:VERSION-x64.msix was not produced." }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: windows-preview
+          path: |
+            build/WorkFleet-${{ needs.guard.outputs.version }}-x64.msix
+            build/WorkFleet-${{ needs.guard.outputs.version }}-x64.msix.sha256
+            build/WorkFleet-preview.cer
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish the prerelease
+    needs: [guard, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: windows-preview
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.guard.outputs.tag }}
+          VERSION: ${{ needs.guard.outputs.version }}
+          COMMIT: ${{ needs.guard.outputs.commit }}
+        run: |
+          cd dist && sha256sum -c "WorkFleet-$VERSION-x64.msix.sha256"
+          cat > notes.md <<EOF
+          Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11 24H2 以上。
+
+          ## 第一次安裝
+          1. 沒裝過 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0) 的電腦先安裝它。
+          2. 信任預覽憑證（每台電腦一次）：下載 \`WorkFleet-preview.cer\`，用系統管理員 PowerShell 執行
+             \`Import-Certificate -FilePath .\\WorkFleet-preview.cer -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople\`。
+          3. 雙擊 \`WorkFleet-${VERSION}-x64.msix\` 安裝。
+
+          版號比已安裝的高時直接安裝就會升級；同版號要先解除安裝。便箋資料放在 App 外面，解除安裝不會刪除。
+          Google 登入目前是測試中，只有加入測試使用者的帳號能登入。
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
+            --title "Work Fleet for Windows $VERSION（預覽）" --notes-file notes.md \
+            "WorkFleet-$VERSION-x64.msix" "WorkFleet-$VERSION-x64.msix.sha256" WorkFleet-preview.cer

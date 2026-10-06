@@ -83,6 +83,12 @@ project. Do not create feature branches or PRs, and never force push. Preserve u
 changes. Plan, implement only the authorized scope, run appropriate checks, and record
 independent-review status. Do not interpret a review request as permission to edit.
 
+Ordinary implementation, commit and push requests do not authorize a version bump or
+publication. When the user asks for a Windows preview release, bump `<Version>` in
+`src/native/windows/Directory.Build.props`, commit and push, then dispatch
+`windows-preview.yml`; it creates the `windows-v<version>` tag and prerelease. Never
+reuse, move or delete a published tag or release. See docs/deployment.md.
+
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,
 not successful. New or changed behavior needs appropriate regression coverage.

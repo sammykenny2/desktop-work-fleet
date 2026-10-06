@@ -82,6 +82,15 @@ Maven POM 與 AAR／JAR 內的 notices，保留 Apache-2.0 全文。Generated as
 - Windows runtime 不內嵌，接收端須有 .NET 8 Desktop／WebView2。
 - 有腳本不等於平台 binary、簽章、Google 往返或商店表單已完成；依最終產物補授權与截圖。
 
+## 2026-10-06 修訂：Windows 預覽版由 CI 發布到 GitHub Release
+
+使用者要在另一台 Windows 直接下載安裝，因此新增手動觸發的 `windows-preview.yml`：建置、簽章成功後才建立 `windows-v<版號>` tag 與 prerelease，
+已存在的 tag 不覆蓋，再發布要先升 `Directory.Build.props` 的版號。
+- 簽章沿用本機 preview 憑證，私鑰以 PFX 存在 repository secret。本機包與 CI 包同 publisher、同憑證，可互相升級，安裝端只需信任一張 CER。
+- runner 在該 job 內把憑證加入自己的 TrustedPeople，讓 `-LocalTestSign` 的既有驗證照常運作；這只改變暫時的 runner，不改變使用者電腦。
+- 預覽版仍不加 timestamp；憑證到期後簽章失效，要換憑證並重新信任。
+- 正式商店或 Developer 簽章仍走 `-CertificateThumbprint`／`-TimestampUrl` 與 Partner Center，不受此修訂影響。
+
 ## Alternatives Considered
 
 將簽章密碼放入 `.env` 或公共 JSON：拒絕，公共設定會封裝進 App。

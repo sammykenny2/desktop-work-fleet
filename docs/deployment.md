@@ -54,6 +54,24 @@ LocalMachine/TrustedPeople 信任的 CurrentUser/My 憑證，不使用 timestamp
 ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop／WebView2，不含 runtime 安裝器。
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 
+### Windows 預覽版發布
+
+在 GitHub Release 發布 Windows 預覽版，讓其他電腦直接下載 MSIX。只在使用者要求發布時進行；一般實作、commit、push 都不升版、不發布。
+1. 升版：改 `src/native/windows/Directory.Build.props` 的 `<Version>`，commit 並 push。已發布的版號不能再用。
+2. 觸發：`gh workflow run windows-preview.yml`（或在 Actions 頁面手動執行 Windows preview release），從 main 目前的 commit 建置。
+3. [windows-preview.yml](../.github/workflows/windows-preview.yml) 先確認 `windows-v<版號>` 的 tag 與 release 都不存在，並跑 `npm test`；
+   再在 Windows runner 用 preview 憑證簽章打包，全部成功後才建立 tag 與 prerelease，附 MSIX、`.sha256` 與公開 CER。失敗不會留下 release。
+
+GitHub repository 需要的設定：
+- Variables：`WORK_FLEET_GOOGLE_PROJECT_ID`、`WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID`。
+- Secrets：`WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET`、`WORK_FLEET_WINDOWS_SIGNING_PFX_BASE64`、`WORK_FLEET_WINDOWS_SIGNING_PFX_PASSWORD`。
+  缺 Google 設定或簽章憑證時 workflow 直接失敗，不發布無法登入或無法安裝的包。
+
+簽章用的是本機 `-LocalTestSign` 那張 `CN=Work Fleet Preview` 自簽憑證（2027-10-05 到期），所以本機包與 CI 包同一個 publisher、可以互相升級。
+換憑證時本機與 secret 要一起換，各台電腦重新信任新的 CER。
+安裝端每台電腦第一次要以系統管理員把 CER 匯入 LocalMachine/TrustedPeople，之後版號較高的 MSIX 可直接安裝升級，同版號要先解除安裝。
+repository 是私有的，下載 release 需要登入有權限的 GitHub 帳號。
+
 直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
 命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。
 Apple export 使用 `--method app-store-connect|developer-id|debugging|release-testing`；iOS 不接受

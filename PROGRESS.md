@@ -21,6 +21,14 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 Windows 預覽版由 CI 發布到 GitHub Release
+
+使用者要在另一台 Windows 從 GitHub release 頁面直接下載 MSIX，參考 cats-platform 的手動 preview 發布與升版規則。
+- 新增手動觸發的 `windows-preview.yml`：guard 解析 `Directory.Build.props` 版號、拒絕已存在的 `windows-v<版號>` tag／release、跑 `npm test`；
+  Windows runner 檢查 Google 設定、匯入 preview 憑證、`Build-WindowsPackage.ps1 -LocalTestSign`；成功後才建立 tag 與 prerelease（MSIX、`.sha256`、CER、安裝說明）。
+- 使用者選擇沿用本機 `CN=Work Fleet Preview` 憑證；PFX 以隨機密碼匯出、在本機重新載入確認後，連同 Google client secret 存為 repository secrets，專案 ID 與 client ID 存為 variables。
+- 發布規則（AGENTS、deployment「Windows 預覽版發布」、ADR-028 修訂）：一般 commit／push 不升版、不發布；使用者要求時升 Windows 版號、push、觸發 workflow；已發布的 tag 不重用。
+
 ## 2026-10-06 Windows 真實 Google 登入與 Drive 上傳驗收（修正三個實測問題）
 
 使用者依步驟建立 Google Cloud 專案（同意畫面測試中、Desktop client），填 `.env` 後安裝新包，在 Windows 以真實帳號登入成功，

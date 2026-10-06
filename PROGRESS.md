@@ -21,6 +21,26 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 macOS universal 開發簽章 DMG（`3b65d7d`）
+
+依使用者要求在 macOS 開發機重建 DMG，作法同 2026-10-05 的開發簽章版：Xcode 27.0（27A266a）、Node 24.21.0，
+Debug、`ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO`，以 `Local.xcconfig` 的 team `97JBZ3MFX5` 做 Apple Development 簽章，
+再用 hdiutil UDZO 封裝（卷名 `Work Fleet 0.1.0`，內含 `Work Fleet.app`、Applications 捷徑與 README）。
+內容含本日到 `3b65d7d` 的修改：空白／未修改草稿不保留、編輯中雙擊另一張、帳號區與手機抽屜等。
+命令列的 `xcode-select` 指向 Command Line Tools，`xcodebuild` 須設 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`。
+
+交付：`build/apple/preview-macos-universal-development-Mr4AH8Eh/WorkFleet-0.1.0-macos-universal-development.dmg`。
+大小 2,998,135 bytes；SHA-256：`84abbe5a52c4a0b484a816a65af5600d3c43cba20d956cd44588728c564b8da0`。
+取代 2026-10-05 的 `preview-macos-universal-development-os1ji0ur` 作為最新本機試用包；舊目錄未刪除。
+
+作者檢查：建置成功，只有既有的 AppIntents metadata 警告；`hdiutil verify` 通過。唯讀掛載後
+`codesign --verify --deep --strict` 通過，entitlements 含 Sandbox、application identifier、team 與 Keychain group；
+主程式與兩個 dylib 都是 arm64／x86_64；bundle ID、版本 0.1.0（100）正確；
+LICENSE／THIRD-PARTY-NOTICES 與來源一致；`main.bundle.js` 含本日修正。
+紀錄：交付目錄的 `verification.json`／`dmg-verification.log`／`SHA256SUMS.txt`，建置 log `build/apple/macos-universal-development-3b65d7d.log`。
+未安裝或啟動 App，未讀取使用者資料；這次只打包、未改程式，沒有重跑 `npm test` 或獨立審閱。
+仍是只限已登記 Mac 的開發簽章包，沒有 Developer ID／公證。
+
 ## 2026-10-06 主視窗帳號區、手機抽屜與移除手機排列
 
 使用者認為主視窗的 Google 登入與設定按鈕不像一般軟體，同意改為左側欄底部的帳號區，並要求手機一起調整、完全拔掉手機上的桌面排列。

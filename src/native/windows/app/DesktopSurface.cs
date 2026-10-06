@@ -1,3 +1,4 @@
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -87,6 +88,20 @@ public sealed class DesktopSurface : IDisposable
     Background = layered ? Brushes.Transparent : Brushes.White, ShowActivated = false, ShowInTaskbar = false,
     WindowStartupLocation = WindowStartupLocation.Manual, UseLayoutRounding = true,
   };
+
+  /// <summary>
+  /// Places the scene and creates its browser; the scene ends hidden until it has papers. A windowed WebView created
+  /// while its window is hidden stays black on Explorer's desktop once shown (reproduced under a host without a
+  /// redirection surface), so an attached scene stays shown until the WebView exists. Its region is still empty then,
+  /// so it shows and takes nothing.
+  /// </summary>
+  public async Task Start(bool topmost, PhysicalBounds bounds, CoreWebView2Environment environment)
+  {
+    Show(topmost); SetPhysicalBounds(bounds);
+    if (layered) Hide();
+    try { await WebView.EnsureCoreWebView2Async(environment); }
+    finally { if (!layered) Hide(); }
+  }
 
   public void Show(bool topmost)
   {

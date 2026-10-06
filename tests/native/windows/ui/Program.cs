@@ -14,15 +14,17 @@ internal static class Program
     if (!AreDpiAwarenessContextsEqual(GetThreadDpiAwarenessContext(), new IntPtr(-4)))
       throw new InvalidOperationException("Run the probe .exe apphost so the shared PerMonitorV2 manifest is active.");
     if (args.Length == 1 && args[0] == "--hit-target") { CompositionProbe.RunHitTarget(); return; }
-    // --host-window stays open as a topmost cross-process host; --host-child HOST DIR VARIANT attaches a scene to it.
+    // --host-window[-dcomp] stays open as a topmost cross-process host; --host-child HOST DIR VARIANT attaches a scene to
+    // it; --host-check DIR starts an Explorer-style host itself and checks a scene attached the way the app does.
     var hostWindow = args.Length == 1 && args[0] is "--host-window" or "--host-window-dcomp";
     var hostChild = args.Length == 4 && args[0] == "--host-child";
+    var hostCheck = args.Length == 2 && args[0] == "--host-check";
     var composition = args.Length == 2 && args[0] == "--composition";
     var wallpaper = args.Length == 2 && args[0] == "--wallpaper" || args.Length == 3 && args[0] == "--wallpaper" && args[2] == "--wait-desktop";
     var diagnostics = args.Length == 2 && args[0] == "--diagnostics";
     var platform = args.Length == 1 && args[0] == "--platform";
-    if (!composition && !wallpaper && !diagnostics && !hostChild && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
+    if (!composition && !wallpaper && !diagnostics && !hostChild && !hostCheck && args.Length != 1)
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -30,6 +32,7 @@ internal static class Program
       {
         if (hostWindow) { HostChildProbe.Host(redirection: args[0] == "--host-window"); return; }
         if (hostChild) await HostChildProbe.Run(new IntPtr(Convert.ToInt64(args[1], 16)), Path.GetFullPath(args[2]), args[3]);
+        else if (hostCheck) await HostChildProbe.Check(Path.GetFullPath(args[1]));
         else if (platform) await PlatformProbe.Run();
         else if (wallpaper) await WallpaperProbe.Run(Path.GetFullPath(args[1]));
         else if (composition) await CompositionProbe.Run(Path.GetFullPath(args[1]));

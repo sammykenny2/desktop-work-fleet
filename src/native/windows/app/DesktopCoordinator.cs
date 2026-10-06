@@ -303,8 +303,7 @@ public sealed class DesktopCoordinator : IDisposable
   {
     view.Initialized = true;
     view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
-    view.Surface.Show(view.Layer == "floating"); view.Surface.SetPhysicalBounds(view.Display.Bounds); view.Surface.Hide();
-    await view.Surface.WebView.EnsureCoreWebView2Async(environment);
+    await view.Surface.Start(view.Layer == "floating", view.Display.Bounds, environment);
     if (disposed || view.Retired) return;
     var core = view.Surface.WebView.CoreWebView2; view.Surface.PassBrowserClicksThrough();
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.Deny);

@@ -48,6 +48,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows native display/shortcut probe failed.' }
     & $UiProbe --wallpaper (Join-Path $ProbeRoot 'wallpaper')
     if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer wallpaper-layer probe failed.' }
+    & $UiProbe --host-check (Join-Path $ProbeRoot 'host')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer-style attached scene probe failed.' }
     & $UiProbe --diagnostics (Join-Path $ProbeRoot 'diagnostics')
     if ($LASTEXITCODE -ne 0) { throw 'Windows Debug WebView diagnostics probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"

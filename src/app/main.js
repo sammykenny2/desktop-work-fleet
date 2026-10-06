@@ -234,7 +234,11 @@ function updateAttention() {
   $('#attention-dot').hidden = !(workspace?.state.conflicts.length || captureCount || ['error', 'attention'].includes(syncState));
 }
 async function syncGoogle(force = false) {
-  if (!syncService || syncBusy || nativeClosing || accountBusy || document.querySelector('dialog[open]') || composing) return;
+  // Settings edits nothing a sync could overwrite and holds 立即同步, so it does not hold syncing; a running backup or
+  // restore on its data page does.
+  const settings = $('#settings-dialog');
+  if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy()
+    || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
   syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
   try {
     await (desktop ? desktop.perform(sync) : sync());

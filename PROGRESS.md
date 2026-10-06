@@ -310,8 +310,8 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`b4dbc6e`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、最上層便箋開啟重繪、鎖定／調整與三層命名）：`build/windows/package-7346c31631024802b5fdaaab06a44591/`。
-  `WorkFleet-0.1.0-x64.msix` 24,926,222 bytes，SHA-256 `534254a3957d539a4737c7326afa2a52c52b86f63f2eb2e466e293565939a637`；
+- Windows（`3ba0c38`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、最上層便箋開啟重繪、鎖定／調整與三層命名、草稿整理與編輯中雙擊修正、帳號區與窄視窗抽屜）：`build/windows/package-83ab7a2f248043e2a9df0c4c18545e4c/`。
+  `WorkFleet-0.1.0-x64.msix` 24,931,793 bytes，SHA-256 `6f9751c4c7169fc60dcbc2b10169b37798684694680ffeaf3f01d10e1a446313`；
   簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。

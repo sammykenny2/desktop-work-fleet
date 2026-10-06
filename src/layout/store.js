@@ -226,6 +226,22 @@ export class LayoutStore {
     }, persist);
   }
 
+  /**
+   * Resets this device's desktop layout: default group regions, no placements or undo history, papers shown and no
+   * highlighted group. Shortcuts and the device identity stay. Callers re-place papers with placeNew afterwards; a
+   * crash in between leaves papers unplaced, which the start-up placeNew already repairs.
+   */
+  async reset(snapshot, area) {
+    snapshot = copy(snapshot); area = copy(area);
+    requireValue(validRect(area), 'invalid-area', '沒有可用顯示器。');
+    return this.#transaction(draft => {
+      const groups = activeGroups(snapshot);
+      // More than nine groups have no default grid; keep the regions and still clear every paper position.
+      draft.grid = groups.length <= 9 ? defaultGrid(groups, area) : { ...draft.grid, area };
+      Object.assign(draft, { placements: {}, history: [], desktopVisible: true, myGroupId: null });
+    });
+  }
+
   async recoverDisplays(workAreas) {
     workAreas = copy(workAreas);
     return this.#transaction(draft => {

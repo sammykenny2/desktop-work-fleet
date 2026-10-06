@@ -96,7 +96,14 @@
     <div id="grid-preview" aria-label="格局預覽"></div><p id="grid-message"></p>
     <p class="hint">變更區域不搬動既有便箋；執行排列時才召回。</p>
     <details><summary>快捷鍵</summary><p id="shortcut-note" class="hint">快捷鍵在目前視窗生效。</p><div id="shortcut-fields"></div><p id="shortcut-status" role="status" class="hint"></p><button type="button" id="retry-shortcuts" hidden>重試全域註冊</button></details>
+    <section class="reset-section"><h3>重置桌面佈局</h3><p class="hint">把這台電腦上的便箋放回各自群組的區域，位置、大小與顯示方式恢復預設；內容、群組與快捷鍵不變。</p><button id="reset-layout" type="button">重置桌面佈局…</button></section>
     <div class="dialog-actions"><button id="cancel-settings">取消</button><button id="save-settings" class="primary">保存設定</button></div>
+  </dialog>
+  <dialog id="reset-layout-dialog">
+    <h2>重置桌面佈局？</h2>
+    <p>這台電腦上所有便箋會回到各自群組的區域，位置、大小、常駐層級、「在桌面顯示」與「鎖定時可選取文字」恢復預設，群組區域的列數與欄數也回到預設。</p>
+    <p>便箋內容、群組與快捷鍵不受影響，其他裝置的佈局也不變。重置後無法用「復原」還原。</p>
+    <div class="dialog-actions"><button id="cancel-reset-layout">取消</button><button id="confirm-reset-layout" class="danger">重置佈局</button></div>
   </dialog>
   <dialog id="drafts-dialog"><h2>未完成草稿</h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts">關閉</button></div></dialog>
 </body>

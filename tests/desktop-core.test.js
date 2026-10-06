@@ -286,6 +286,26 @@ test('C31/C32/C36: new placement only touches new cards; content and membership 
   assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], before[f.a1.id]);
 });
 
+test('layout reset re-places every paper by group and keeps content, groups and shortcuts', async () => {
+  const f = await fixture();
+  await f.workspace.layout.move(f.a1.id, { x: 900, y: 700 });
+  await f.workspace.layout.setCardPolicy(f.a2.id, { visible: false, residentLayer: 'floating', readOnlySelect: true });
+  await f.workspace.layout.configure({ desktopVisible: false, myGroupId: f.b.id,
+    grid: { ...f.workspace.layout.state.grid, rows: 2, columns: 1 } }, f.workspace.snapshot);
+  const shortcuts = f.workspace.layout.state.shortcuts; const cards = copy(f.workspace.snapshot.cards);
+  await f.workspace.layout.reset(f.workspace.snapshot, area);
+  assert.deepEqual(f.workspace.layout.state.placements, {});
+  await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas);
+  const layout = f.workspace.layout.state;
+  assert.deepEqual(layout.grid, defaultGrid(activeGroups(f.workspace.snapshot), area));
+  assert.equal(layout.desktopVisible, true); assert.equal(layout.myGroupId, null); assert.deepEqual(layout.history, []);
+  assert.deepEqual(layout.shortcuts, shortcuts); assert.deepEqual(f.workspace.snapshot.cards, cards);
+  for (const card of [f.a1, f.a2]) assert.ok(layout.placements[card.id].x < 600, 'first group papers return to its region');
+  assert.ok(layout.placements[f.b1.id].x >= 600);
+  assert.deepEqual(Object.values(layout.placements).map(rect => [rect.visible, rect.residentLayer, rect.readOnlySelect]),
+    [[true, 'desktop', false], [true, 'desktop', false], [true, 'desktop', false]]);
+});
+
 test('C33: failed draft flush prevents scope exit and formation with editor intact', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'all' }); await f.controller.beginEdit(f.a1.id);
   const before = f.disk(); const preview = plan(f); f.fail(true);

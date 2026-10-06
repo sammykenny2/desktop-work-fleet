@@ -952,6 +952,17 @@ function bindEvents() {
     showBackupDialog({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual,
       onChanged: async () => { await controller.reconcile(); render(); } });
   });
+  $('#reset-layout').onclick = () => $('#reset-layout-dialog').showModal();
+  $('#cancel-reset-layout').onclick = () => $('#reset-layout-dialog').close();
+  $('#confirm-reset-layout').onclick = () => run(async () => {
+    if (editorBusy || composing) return;
+    if (currentDraft) await flushDraft();
+    if (!await controller.endEdit()) return;
+    currentDraft = null; controller.cancelDrag(); await controller.activate({ kind: 'none' });
+    await workspace.layout.reset(workspace.snapshot, screenArea());
+    await workspace.layout.placeNew(workspace.snapshot, workAreas()); await controller.reconcile();
+    $('#reset-layout-dialog').close(); $('#settings-dialog').close(); render(); status('桌面佈局已重置');
+  });
   $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);
   $('#save-settings').onclick = () => run(async () => {
     const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value);

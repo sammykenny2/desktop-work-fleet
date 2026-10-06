@@ -21,6 +21,17 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 便箋在每台裝置依建立時間排列
+
+使用者在另一台 Windows 安裝 CI 預覽版並登入，同步看起來正常（第一次跨裝置下載），但主畫面便箋順序和這台不同。
+- 原因：清單照本機卡片順序顯示；投影保留本機既有順序、新收到的依卡片 ID（隨機 UUID）排。建立的裝置是建立先後，第一次同步的裝置是 ID 順序。
+- 使用者決定：依建立時間，舊的在上。新卡片（`createCard`、從草稿建立）在 value 寫入 `createdAt`（注入的時鐘，UTC ISO 毫秒），後續版本沿用；
+  revision 本來就保留未知 value 欄位，舊版 App 不受影響。投影對卡片改用 `compareCards`（`createdAt`，再 ID）；群組仍保留本機順序。
+- 已存在、沒有 `createdAt` 的卡片在兩台都排在最前並依 ID，所以這台這幾張舊便箋的順序會變一次，之後兩台一致。
+- SPEC-004 改寫排序規則並記錄 `createdAt` 欄位。
+- 驗證：`npm test` 243 pass、11 skip；新增測試涵蓋時鐘倒退、更新沿用、編輯器草稿建立、舊卡片與格式不符，以及兩台以相反順序收到時結果相同。
+  尚未發布新的預覽版，也未在兩台實機確認。沒有獨立審閱。
+
 ## 2026-10-06 Windows 預覽版由 CI 發布到 GitHub Release
 
 使用者要在另一台 Windows 從 GitHub release 頁面直接下載 MSIX，參考 cats-platform 的手動 preview 發布與升版規則。

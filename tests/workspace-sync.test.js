@@ -235,6 +235,37 @@ test('graph forks remain isolated when the candidate succeeds or rejects', () =>
   assert.equal(original.get('r').value.name, 'A'); assert.equal(fork.get('r').value.name, 'A');
 });
 
+test('cards read in creation order on every device, whatever order they were made or received in', async () => {
+  // A device that made the cards and one that received them all at once in its first sync must show the same order.
+  let clock = Date.UTC(2026, 9, 6, 12); const ids = ['group', 'group-root', 'late', 'late-root', 'early', 'early-root'];
+  const maker = await Workspace.create({ profileId: 'maker', deviceId: 'maker', area, persist: async () => {},
+    uuid: () => ids.shift() || crypto.randomUUID(), now: () => clock });
+  const group = maker.snapshot.groups[0];
+  const late = await maker.createCard(content('made first, but given the later time'), group.id); clock -= 60000;
+  const early = await maker.createCard(content('made second, with the earlier clock'), group.id);
+  assert.equal(late.createdAt, '2026-10-06T12:00:00.000Z'); assert.equal(early.createdAt, '2026-10-06T11:59:00.000Z');
+  const edited = await maker.updateCard(late.id, { completed: true }, late.revision);
+  assert.equal(edited.createdAt, late.createdAt);
+  // Cards from before createdAt, or with a value this version does not read, come first by ID.
+  const legacy = [{ id: 'old-b', createdAt: undefined }, { id: 'old-a', createdAt: 'yesterday' }].map(({ id, createdAt }) => revisionRecord('card',
+    { id, revision: `${id}-root`, groupId: group.id, content: content(id), deleted: false, archived: false, completed: false, ...(createdAt && { createdAt }) }));
+  const records = [...maker.state.revisions.filter(record => record.kind === 'card'), ...legacy];
+  const expected = ['old-a', 'old-b', 'early', 'late'];
+  for (const order of [records, [...records].reverse()]) {
+    const receiver = await Workspace.create({ profileId: 'receiver', deviceId: 'receiver', area, persist: async () => {}, bootstrapGroup: false });
+    const session = await receiver.beginSync('test');
+    await receiver.receiveRevisions([revisionRecord('group', group), ...order], { session, expectedCursor: null, cursor: 'one' });
+    assert.deepEqual(receiver.snapshot.cards.map(card => card.id), expected);
+  }
+  const session = await maker.beginSync('test');
+  await maker.receiveRevisions(legacy, { session, expectedCursor: null, cursor: 'one' });
+  assert.deepEqual(maker.snapshot.cards.map(card => card.id), expected);
+  // Papers written in the editor are made from a draft.
+  clock += 120000; const draft = maker.blankDraft(group.id); draft.content.text = 'from the editor';
+  await maker.saveDraft(draft); await maker.commitDraft(draft.id);
+  assert.equal(maker.snapshot.cards.find(card => card.content.text === 'from the editor').createdAt, '2026-10-06T12:01:00.000Z');
+});
+
 test('projection keeps established local group order when new UUIDs sort before existing ones', async () => {
   const ids = ['z-group', 'root-z', 'a-group', 'root-a'];
   const workspace = await Workspace.create({ profileId: 'test', deviceId: 'device', area,

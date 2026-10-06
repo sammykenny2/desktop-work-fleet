@@ -1,4 +1,4 @@
-import { compareId, copy, defaultGrid } from '../core/contracts.js';
+import { compareCards, compareId, copy, defaultGrid } from '../core/contracts.js';
 import { groupResolver, resolveGroupId } from '../core/groups.js';
 
 export const projectionConflictKinds = new Set(['revision', 'group-reference', 'card-group', 'group-overflow', 'pending-revisions']);
@@ -16,11 +16,11 @@ function* projectionSteps(graph, previous = { groups: [], cards: [], conflicts: 
     if (heads.length > 1) conflicts.push({ kind: 'revision', entityKind: kind, entityId, heads: heads.map(head => head.revisionId) });
     yield;
   }
-  for (const [values, previousValues] of [[groups, previous.groups], [cards, previous.cards]]) {
-    const positions = new Map(previousValues.map((value, index) => [value.id, index]));
-    values.sort((a, b) => (positions.get(a.id) ?? previousValues.length) - (positions.get(b.id) ?? previousValues.length)
-      || compareId(a.id, b.id));
-  }
+  // Groups keep this device's order and append new ones; cards read in creation order on every device.
+  const positions = new Map(previous.groups.map((value, index) => [value.id, index]));
+  groups.sort((a, b) => (positions.get(a.id) ?? previous.groups.length) - (positions.get(b.id) ?? previous.groups.length)
+    || compareId(a.id, b.id));
+  cards.sort(compareCards);
   const snapshot = { groups, cards, conflicts };
   const resolve = groupResolver(groups);
   for (const group of groups.filter(group => group.deleted)) {

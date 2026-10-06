@@ -78,21 +78,22 @@ export class Workspace {
   #tail = Promise.resolve();
   #layout;
   #graph;
+  #now;
   #runtimeId = crypto.randomUUID();
 
-  static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID() }) {
+  static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID(), now = Date.now }) {
     const groups = bootstrapGroup ? [{ id: uuid(), name: '我的便箋', revision: uuid(), deleted: false }] : [];
     const state = { schemaVersion: 1, profileId, revision: 0, groups, cards: [],
       drafts: {}, membershipRebases: {}, outbox: groups.map(group => ({ operationId: group.revision, kind: 'group', entityId: group.id,
         parents: [], value: copy(group) })), revisions: groups.map(group => revisionRecord('group', group)),
       conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, groups, area) };
     await persist(copy(state), null);
-    return new Workspace(state, persist, uuid);
+    return new Workspace(state, persist, uuid, now);
   }
 
-  constructor(state, persist, uuid = () => crypto.randomUUID()) {
+  constructor(state, persist, uuid = () => crypto.randomUUID(), now = Date.now) {
     requireValue(state.schemaVersion === 1, 'unsupported-schema', '此資料版本需要較新版 App。');
-    this.#state = copy(state); this.#persist = persist; this.#uuid = uuid;
+    this.#state = copy(state); this.#persist = persist; this.#uuid = uuid; this.#now = now;
     this.#graph = loadRevisions(this.#state);
     this.#state.revisions = this.#graph.records;
     Object.assign(this.#state, projectRevisions(this.#graph, this.#state));
@@ -150,6 +151,9 @@ export class Workspace {
       }, (state, revision) => persist(state, revision, plan.attachments));
     });
   }
+
+  // Shared with every device as the card's reading order (compareCards); later revisions carry it unchanged.
+  #createdAt() { return new Date(this.#now()).toISOString(); }
 
   #card(state, id, revision) {
     const card = state.cards.find(card => card.id === id);
@@ -394,7 +398,7 @@ export class Workspace {
       groupId = resolveGroupId(state, groupId);
       this.#group(state, groupId);
       const card = { id: this.#uuid(), revision: this.#uuid(), groupId, content: value,
-        deleted: false, archived: false, completed: false };
+        deleted: false, archived: false, completed: false, createdAt: this.#createdAt() };
       state.cards.push(card); this.#record(state, 'card', card, []);
       return copy(card);
     });
@@ -445,7 +449,7 @@ export class Workspace {
         const id = asCopy ? this.#uuid() : draft.cardId;
         requireValue(!state.cards.some(existing => existing.id === id), 'duplicate-card', '卡片身分已存在，請另存副本。');
         card = { id, revision: this.#uuid(), groupId: draft.groupId, content: copy(draft.content),
-          deleted: false, archived: false, completed: false };
+          deleted: false, archived: false, completed: false, createdAt: this.#createdAt() };
         state.cards.push(card); this.#record(state, 'card', card, []);
       }
       for (const origin of draft.recoveredFrom || []) {

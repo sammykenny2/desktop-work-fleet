@@ -58,6 +58,7 @@
 - parents 是無重複 ID 集合，正規編碼時排序。零 parent 代表根版本；最多 1,024 個 parent。
   同 entity 多個根也形成衝突，不能合併成單一值。
 - card 必須包含 groupId、content、deleted／archived／completed 布林值。
+- card 可帶 `createdAt`：建立時的裝置時間，UTC ISO 8601 毫秒格式（`2026-10-06T12:00:00.000Z`）。之後的版本沿用不改，只決定閱讀順序。
   content 必須包含非空 format 與 text 字串；未知格式與 JSON 擴充欄位原樣保留。
 - 附件是引用而非內嵌 bytes；id、name 必填，mediaType／size 可選。
   size 若提供為非負整數且 ≤25 MiB；正式附件傳輸以 SHA-256 校驗 bytes。
@@ -97,7 +98,9 @@ receiveRevisions 同時核對 session 及 expectedCursor，原子保存版本、
 不同 source 不能重用同一 profile；舊 session、錯 profile 或過期 cursor 均零寫入。
 
 投影保留目前仍是 head 的分支供閱讀；否則优先顯示未刪除分支，再以 ID 穩定選取。
-多 head 仍明示衝突且禁止普通命令覆寫。群組／卡片既有本機顯示順序保留，新 entity 追加。
+多 head 仍明示衝突且禁止普通命令覆寫。群組既有本機顯示順序保留，新群組追加。
+卡片在每台裝置都依 `createdAt` 由舊到新排列，相同時依 ID；沒有或格式不符的舊卡片排在最前、依 ID。
+因此第一次同步一次收到全部卡片的裝置，與建立它們的裝置順序相同（2026-10-06 使用者決定：建立時間，舊的在上）。
 卡片投影可依完整 group redirect 鏈顯示在接收組，原 revision.value.groupId 不變。
 每機「屬於我」與快捷鍵跟隨有效 redirect；區域簿記可調整，既有卡片的 geometry／顯示政策不變。
 超過九組整理回九組時同交易恢復有效格局。循環或缺依賴時草稿仍能保存，不能因 rebase 失敗丟失输入。

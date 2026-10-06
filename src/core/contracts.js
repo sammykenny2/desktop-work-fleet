@@ -13,6 +13,10 @@ export function requireValue(condition, code, message, details) {
 }
 
 export const compareId = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+// Cards carry the device time they were made, which every device reads in the same order. Cards made before that, or
+// with a value this version does not recognise, come first by ID, so the order still agrees across devices.
+const createdAt = card => typeof card.createdAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(card.createdAt) ? card.createdAt : '';
+export const compareCards = (a, b) => compareId(createdAt(a), createdAt(b)) || compareId(a.id, b.id);
 export const copy = value => structuredClone(value);
 export const activeGroups = snapshot => snapshot.groups.filter(group => !group.deleted);
 export const groupKey = snapshot => JSON.stringify(activeGroups(snapshot).map(group => group.id).sort(compareId));

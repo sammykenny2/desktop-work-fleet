@@ -47,6 +47,7 @@ Android Studio 第一次 Sync 失敗後沒有自動建立 `app` Run configuratio
 - 「常駐層級」選單由後到前排列：桌布層、桌面層、最上層（原為「桌面、浮動、桌布層」）。內部值 `wallpaper`／`desktop`／`floating` 不變。
 - 層級說明逐一列出；最上層註明能否拖曳取決於調整模式。「暫時置頂」統一改為「暫時移到最上層」，側欄連線提示同步。
 - setup-guide 與 SPEC-003 用語對照同步。只跑 `node --check`，未跑 probe。
+- 以 `b4dbc6e` 重新打包並刪除 `f09405b` 包；包內 `main.js` 已是新層級名稱。
 
 ## 2026-10-06 介面用語改為「鎖定／調整」
 
@@ -216,8 +217,8 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`f09405b`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、浮動便箋開啟重繪與鎖定／調整用語）：`build/windows/package-f35f08a3809a408c90d063d22d7e2083/`。
-  `WorkFleet-0.1.0-x64.msix` 24,926,185 bytes，SHA-256 `01ea2984a18f889685259c9e8713c26ba636ac80e670ce9393a126caad1d3ba6`；
+- Windows（`b4dbc6e`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、最上層便箋開啟重繪、鎖定／調整與三層命名）：`build/windows/package-7346c31631024802b5fdaaab06a44591/`。
+  `WorkFleet-0.1.0-x64.msix` 24,926,222 bytes，SHA-256 `534254a3957d539a4737c7326afa2a52c52b86f63f2eb2e466e293565939a637`；
   簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。

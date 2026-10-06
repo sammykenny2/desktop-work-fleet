@@ -86,14 +86,14 @@ internal static class Program
     await Eval(window, "const files=new DataTransfer();files.items.add(new File(['native attachment 中文'],'proof.txt',{type:'text/plain'}));document.querySelector('#attachment-input').files=files.files;document.querySelector('#attachment-input').dispatchEvent(new Event('change',{bubbles:true}))");
     await Wait(window, "document.querySelector('#attachments a')?.textContent === 'proof.txt'", "native attachment");
     await Eval(window, "document.querySelector('#editor-form').requestSubmit()");
-    await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.card-summary')?.textContent === '原生便箋'", "save native card");
-    // Turning daily display off must explain the empty stage, and the stage action must restore it.
+    await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.list-card h3')?.textContent === '原生便箋'", "save native card");
+    // Turning daily display off must explain the hidden papers above the list, and its action must restore them.
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('#settings-dialog').open", "settings before hiding desktop notes");
     await Eval(window, "document.querySelector('#desktop-visible').checked=false;document.querySelector('#save-settings').click()");
-    await Wait(window, "!document.querySelector('#settings-dialog').open && !document.querySelector('#desktop-hidden').hidden && document.querySelector('#desktop-hidden-text').textContent.startsWith('1 張便箋') && !document.querySelector('#stage .card')", "hidden desktop notes explained");
+    await Wait(window, "!document.querySelector('#settings-dialog').open && !document.querySelector('#desktop-hidden').hidden && document.querySelector('#desktop-hidden-text').textContent.startsWith('1 張便箋')", "hidden desktop notes explained");
     await Eval(window, "document.querySelector('#show-desktop').click()");
-    await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('#stage .card') !== null && document.querySelector('#status').textContent === '已顯示桌面便箋'", "hidden desktop notes shown again");
+    await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('#status').textContent === '已顯示桌面便箋'", "hidden desktop notes shown again");
     await DesktopIntegrationProbe.Run(window, directory);
     await ShortcutIntegrationProbe.Run(window);
     // The main host refuses navigations away from the exact packaged document and prevents frames.
@@ -115,7 +115,7 @@ internal static class Program
     await Eval(window, "document.querySelector('#editor-text').value='關閉瞬間的未提交草稿';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
     await Close(window); window = Open(directory);
     await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "native restart");
-    await Wait(window, "document.querySelector('.card-summary')?.textContent === '原生便箋' && Number(document.querySelector('#draft-count').textContent) >= 1", "card and draft retained after native reopen");
+    await Wait(window, "document.querySelector('.list-card h3')?.textContent === '原生便箋' && Number(document.querySelector('#draft-count').textContent) >= 1", "card and draft retained after native reopen");
     await Eval(window, "document.querySelector('#drafts-button').click()");
     await Wait(window, "document.querySelector('dialog[open]')?.textContent.includes('關閉瞬間的未提交草稿')", "exact saved draft text");
     await Eval(window, "document.querySelector('dialog[open]').close()");

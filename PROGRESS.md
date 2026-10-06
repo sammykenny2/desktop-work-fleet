@@ -21,6 +21,20 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 主畫面改以清單為主、版面地圖留空
+
+使用者看不懂主畫面「桌面」分頁。查證後：它其實是「待處理」篩選，在畫布檢視時改名；
+畫布是瀏覽器預覽時期的唯一桌面，接上原生場景後只把座標平移到主螢幕工作區原點，1:1 不縮放且裁切，
+只看得到主螢幕左上角約主視窗大小的範圍，規格／ADR 都沒有定義它在原生版的角色。依使用者決定：
+
+- 有 `desktopPresentation` 的原生版預設清單，不再畫主畫面畫布；另一檢視「版面地圖」只留 `renderLayoutMap()` stub 與空白畫布，
+  之後要做全部螢幕縮小的地圖。瀏覽器預覽與沒有桌面場景的原生宿主仍用原畫布。
+- 「待處理」固定名稱；「桌面便箋已隱藏」從畫布內移到篩選列下方橫幅，清單與畫布都看得到。
+- 原生版在主畫面按 Enter 開啟完整編輯，不再進入看不到的就地編輯。
+- 原生版首次啟動沒有「先記下一件事」大型空狀態，清單只顯示「這裡還沒有便箋。」。
+- ADR-018 加註此決定；setup-guide 同步。Windows UI probe 改讀清單（未執行）；只跑 `node --check` 與 UI probe 專案編譯。
+- 下一步依使用者指示專注實際桌面的拖拉。
+
 ## 2026-10-06 macOS Android Studio 找不到 Node
 
 使用者在 macOS 用 Android Studio 開啟 `src/native/android`，Gradle Sync 失敗：`Cannot run program "node"`。

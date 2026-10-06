@@ -84,7 +84,6 @@ internal static class DesktopIntegrationProbe
         await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';s.dispatchEvent(new Event('change'));[...d.querySelectorAll('button')].find(b=>b.textContent==='套用').click()}})()");
         await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save resident layer", main);
       }
-      await Eval(main.WebView.CoreWebView2, "document.querySelector('#view-toggle').click()");
       await Layer("wallpaper");
       await Wait(async () => (await Eval(wallpaper, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).GetBoolean(), "wallpaper receives note", main);
       await Wait(async () => (await Eval(resident, "!document.querySelector('.card')")).GetBoolean(), "desktop copy removed", main);
@@ -96,7 +95,6 @@ internal static class DesktopIntegrationProbe
         && (await Eval(floating, "!document.querySelector('.card')")).GetBoolean(), "group returns to wallpaper", main);
       await Layer("desktop");
       await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card'))")).GetBoolean(), "restore fixture desktop layer", main);
-      await Eval(main.WebView.CoreWebView2, "document.querySelector('#view-toggle').click()");
       Console.WriteLine("PASS real owner settings -> wallpaper -> operate group -> floating -> stop -> wallpaper -> desktop");
     }
   }

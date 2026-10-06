@@ -91,7 +91,8 @@ async function initialize() {
       nativeFiles = new NativeFiles(native.bridge, native.info);
       const stopDownloads = nativeFiles.interceptDownloads(status); addEventListener('pagehide', stopDownloads, { once: true });
     }
-    if (native.info.capabilities.desktopPresentation) desktopInfo = await native.bridge.request('desktop.info');
+    // Real desktop scenes show the papers, so the main window opens on the list instead of a second canvas.
+    if (native.info.capabilities.desktopPresentation) { desktopInfo = await native.bridge.request('desktop.info'); listView = true; }
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
   if (!lease.acquired) throw new Error('這個工作空間已在另一個視窗開啟。請使用原視窗，或關閉它後重新載入。');
@@ -399,7 +400,7 @@ function render() {
       element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
     row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
-  $('#workspace-title').textContent = listView ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : '我的便箋桌面';
+  $('#workspace-title').textContent = listView ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : desktopInfo ? '版面地圖' : '我的便箋桌面';
   $('#draft-count').textContent = String(Object.keys(workspace.state.drafts).length);
   $('#conflict-count').textContent = String(workspace.state.conflicts.length);
   const scope = controller.state.operationScope;
@@ -408,22 +409,23 @@ function render() {
   $('#stop-operation').hidden = scope.kind === 'none';
   $('#mode-label').textContent = scope.kind === 'none' ? '日常觀看' : scope.kind === 'all' ? '正在操作所有群組'
     : `正在操作 ${groups.find(group => group.id === scope.groupId)?.name || '群組'}`;
-  $('#view-toggle').textContent = listView ? '桌面檢視' : '清單檢視';
+  $('#view-toggle').textContent = listView ? desktopInfo ? '版面地圖' : '桌面檢視' : '清單檢視';
   $('#view-toggle').setAttribute('aria-pressed', String(listView));
   const asList = listView || filter !== 'active' || Boolean($('#search').value);
-  $('#stage-shell').hidden = asList; $('#list').hidden = !asList;
+  // With real desktop scenes the main window never mirrors them; its non-list view is the layout map.
+  $('#stage-shell').hidden = asList || Boolean(desktopInfo); $('#layout-map').hidden = asList || !desktopInfo; $('#list').hidden = !asList;
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
   const query = $('#search').value.trim().toLocaleLowerCase();
   const cards = snapshot.cards.filter(matchesFilter).filter(card => !query || card.content.text.toLocaleLowerCase().includes(query));
   const listCards = cards.filter(card => query || card.groupId === activeGroupId);
-  $('[data-filter="active"]').textContent = listView || query ? '待處理' : '桌面';
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
   $('#count').textContent = asList ? `${listCards.length} 張便箋` : `${shown} 張桌面便箋`;
   if (asList) renderList(listCards);
+  else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
-  $('#desktop-hidden').hidden = !hidden;
+  $('#desktop-hidden').hidden = !hidden || filter !== 'active' || Boolean(query);
   $('#desktop-hidden-text').textContent = `${hidden} 張便箋目前不顯示在桌面上；顯示後會回到原本的位置。`;
   desktop?.publish();
 }
@@ -479,6 +481,9 @@ function renderStage(cards) {
     stage.append(paper);
   }
 }
+
+// Stub: a scaled map of every display, its group regions and paper positions comes later; papers move on the real desktop.
+function renderLayoutMap() {}
 
 function rectStyle(node, rect) { Object.assign(node.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` }); }
 
@@ -954,7 +959,11 @@ function bindEvents() {
     }
     if (editControl) return;
     if (event.key === 'Escape') { event.preventDefault(); run(async () => { await controller.escape(); render(); }); }
-    if (event.key === 'Enter' && controller.state.selectedCardId) { event.preventDefault(); run(() => beginInlineEdit(currentCard(controller.state.selectedCardId))); }
+    // The main window has no paper to edit in place when real desktop scenes are connected.
+    if (event.key === 'Enter' && controller.state.selectedCardId && !event.target.closest('button,a')) {
+      event.preventDefault(); const card = currentCard(controller.state.selectedCardId);
+      if (card) run(() => desktopInfo ? openEditor(card) : beginInlineEdit(card));
+    }
     if (event.key === 'Shift' && controller.state.dragSession) dragPaint(controller.pointerMove(controller.state.dragSession.current, { pointerId: controller.state.dragSession.pointerId, shiftKey: true, labels: groupLabels }));
   });
   document.addEventListener('keyup', event => {

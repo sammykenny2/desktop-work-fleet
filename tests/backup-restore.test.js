@@ -206,3 +206,15 @@ test('cancelling bulk new-card placement rolls back partial geometry and release
   assert.equal(writes, 1); assert.equal(layout.state.desktopVisible, false);
   assert.deepEqual(layout.state.placements, before.placements);
 });
+
+test('an older backup that bound keys to groups restores them as keys for the regions those groups hold', async () => {
+  const s = await source();
+  await s.workspace.layout.configure({ shortcuts: { 'Ctrl+Shift+1': s.b.id, 'Alt+F2': s.a.id, 'Ctrl+Shift+0': '@all' } }, s.workspace.snapshot);
+  const document = await s.export(); const target = await fixture(s.disk(), s.blobs);
+  const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'merge', layout: 'backup', workAreas: [area] });
+  await target.workspace.applyRestore(plan, { persist: target.atomic }); const { layout } = target.disk();
+  assert.equal(layout.shortcuts['Ctrl+Shift+1'], `@region${layout.grid.slots.indexOf(s.b.id) + 1}`);
+  assert.equal(layout.shortcuts['Alt+F2'], `@region${layout.grid.slots.indexOf(s.a.id) + 1}`);
+  assert.equal(layout.shortcuts['Ctrl+Shift+0'], '@all');
+  assert.ok(Object.values(layout.shortcuts).every(value => value.startsWith('@')), 'no key stays bound to a group id');
+});

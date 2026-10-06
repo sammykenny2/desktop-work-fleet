@@ -10,7 +10,8 @@ Credential Manager 帳號選擇及 Google AuthorizationClient Drive 授權。手
 `src/native/android`（含 `settings.gradle.kts`），不是 repository 根目錄，也不是 `app` 子目錄。
 專案已附 `gradlew`、`gradlew.bat` 與 `gradle/wrapper/`；不需要另外安裝 Gradle。
 
-1. 安裝 Node 22+（含 npm），讓 Android Studio 啟動時的 PATH 可以找到 `node` 與 `npm`。
+1. 安裝 Node 22+（含 npm）。Gradle 會依 IDE 傳給建置的 PATH 找出 `node`／`npm` 的絕對路徑，
+   因此 macOS 從 Dock 開啟、會載入登入 shell PATH 的 Android Studio，也能使用 nvm／Homebrew 安裝的 Node。
 2. 用 SDK Manager 安裝 Android SDK Platform 36、Build Tools 35.0.0；Gradle JDK 使用 JDK 17
    或相容的新版本。Android Studio 需支援 AGP 9.4.1；版本相容性見
    [官方說明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)。
@@ -19,7 +20,7 @@ Credential Manager 帳號選擇及 Google AuthorizationClient Drive 授權。手
    不需要先執行 `npm run build`；沒有 `.env` 也能建置本機 preview，Google 功能需另行配置。
 
 Android Studio 自行產生的 `local.properties` 只保存本機 SDK 路徑，已排除版本控制。
-若 IDE 找不到 Node／npm，安裝後重新啟動 IDE，或在本機 Gradle user properties 設定
+若 IDE 沒有載入 shell 環境而找不到 Node／npm，在本機 Gradle user properties 設定
 `workFleetNode`／`workFleetNpm` 為執行檔路徑（Windows 路徑用 `/`）；也支援
 `WORK_FLEET_NODE`／`WORK_FLEET_NPM` 環境變數。請勿把個人路徑提交至專案設定。
 

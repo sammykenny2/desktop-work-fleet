@@ -21,6 +21,28 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 macOS Android Studio 找不到 Node
+
+使用者在 macOS 用 Android Studio 開啟 `src/native/android`，Gradle Sync 失敗：`Cannot run program "node"`。
+Android Studio 從 Dock 開啟，Gradle daemon 以 launchd PATH（`/usr/bin:/bin:/usr/sbin:/sbin`）啟動。
+IDE 雖會把含 nvm 的登入 shell PATH 傳給每次建置，JVM 執行未帶路徑的指令時仍只搜尋 daemon 啟動時的 PATH。
+因此 Homebrew 或 nvm 安裝的 Node 都會失敗；終端機帶完整 PATH、沿用 IDE 的 daemon 也重現同樣錯誤。
+`app/build.gradle.kts` 在沒有明確設定 `workFleetNode`／`workFleetNpm` 時，依建置收到的 PATH 解析 `node`／`npm` 絕對路徑；
+Windows 維持原行為。Android README 改寫相關說明，Gradle user property 保留為 IDE 不載入 shell 環境時的備案。
+
+連帶問題：Android 建置執行 `npm ci` 會清除 Xcode 的依賴標記，下次 Xcode 建置再執行 nvm 的 npm 時，
+`#!/usr/bin/env node` 會因 Xcode PATH 沒有 node 而失敗（已用 Xcode PATH 重現 `env: node: No such file or directory`）。
+`prepare-apple-build.mjs` 呼叫 npm 時，把正在執行的 node 所在目錄加到 PATH 前面。
+
+驗證：停掉 IDE 的 daemon，以 launchd PATH 啟動新 daemon，再用含 nvm 的 PATH 沿用同一 daemon：
+`help` 設定成功，`assembleDebug` 執行 `npm ci` 並產生 `app-debug.apk`。
+Xcode 的 PATH 加上 nvm npm 的情境下，資產準備完成 `npm ci` 並重建標記。
+新增回歸測試：PATH 沒有 node 時，假 npm 仍能透過 shebang 執行；拿掉修正時這個測試會失敗。
+`npm test` 215 pass、8 skip；Python unittest 23 通過、4 skip。
+獨立審閱未發現缺陷。依其 Low 建議：有明確設定時不讀 PATH、略過相對 PATH 項目，
+測試另外確認 npm 使用的就是執行腳本的同一個 node；調整後沿用 launchd PATH daemon 的設定階段仍成功。
+尚未在 Android Studio 介面重新 Sync，也尚未安裝到 Android 實機。
+
 ## 2026-10-06 iOS 實機啟動修正
 
 使用者要求把 App 安裝到 iPhone 16 Plus（iOS 27.0.1）。Xcode 建置先因 Node 不在 Xcode PATH 而失敗：

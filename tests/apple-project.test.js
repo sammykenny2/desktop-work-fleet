@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { generateAppleProject } from '../scripts/generate-apple-project.mjs';
-import { prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
+import { ensureWebDependencies, prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
 
 test('native notices can be refreshed after read-only package licenses were copied', { skip: process.platform === 'win32' }, async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-notices-'));
@@ -126,6 +126,22 @@ test('Xcode release resource preparation rejects incomplete public settings', as
   try {
     await assert.rejects(prepareAppleBuild({ platform: 'ios', root: directory, output: path.join(directory, 'output'),
       environment: { CONFIGURATION: 'Release' } }), /Apple release settings are incomplete/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('Apple dependency install lets npm find the running node when Xcode PATH lacks it', { skip: process.platform === 'win32' }, async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-npm-'));
+  try {
+    await writeFile(path.join(directory, 'package.json'), '{"devDependencies":{}}\n');
+    await writeFile(path.join(directory, 'package-lock.json'), '{}\n');
+    const npm = path.join(directory, 'fake npm');
+    await writeFile(npm, "#!/usr/bin/env node\nconst fs = require('node:fs'); fs.mkdirSync('node_modules'); fs.writeFileSync('node_modules/node-path', process.execPath);\n");
+    await chmod(npm, 0o755);
+    await ensureWebDependencies(directory, { PATH: '/usr/bin:/bin', WORK_FLEET_NPM: npm });
+    assert.equal(await readFile(path.join(directory, 'node_modules', 'node-path'), 'utf8'), process.execPath);
+    await access(path.join(directory, 'node_modules', '.work-fleet-apple-lock'));
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -30,7 +30,7 @@ export function appleInfoPlist(platform, config) {
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>${content}</dict></plist>\n`;
 }
 
-async function ensureWebDependencies(root, environment) {
+export async function ensureWebDependencies(root, environment) {
   const lock = await readFile(path.join(root, 'package-lock.json'));
   const hash = createHash('sha256').update(lock).digest('hex');
   const stamp = path.join(root, 'node_modules', '.work-fleet-apple-lock');
@@ -49,7 +49,9 @@ async function ensureWebDependencies(root, environment) {
   }
   const npm = environment.WORK_FLEET_NPM || 'npm';
   const args = ['ci', '--ignore-scripts', '--no-audit', '--no-fund'];
-  const options = { cwd: root, env: { ...environment, npm_config_cache: environment.npm_config_cache || path.join(root, 'build', 'apple', 'npm-cache') }, windowsHide: true };
+  // npm's `#!/usr/bin/env node` must find the node running this script; Xcode's PATH may not include it.
+  const search = process.platform === 'win32' ? {} : { PATH: [path.dirname(process.execPath), environment.PATH].filter(Boolean).join(path.delimiter) };
+  const options = { cwd: root, env: { ...environment, ...search, npm_config_cache: environment.npm_config_cache || path.join(root, 'build', 'apple', 'npm-cache') }, windowsHide: true };
   const result = process.platform === 'win32'
     ? await execute('cmd.exe', ['/d', '/c', npm, ...args], options)
     : await execute(npm, args, options);

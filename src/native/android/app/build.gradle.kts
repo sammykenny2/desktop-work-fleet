@@ -16,8 +16,14 @@ abstract class WebAssetsTask : Exec() {
     @get:OutputDirectory abstract val assetsDirectory: DirectoryProperty
 }
 val repositoryRoot = rootProject.projectDir.resolve("../../../")
-val nodeExecutable = providers.gradleProperty("workFleetNode").orElse(providers.environmentVariable("WORK_FLEET_NODE")).orElse("node").get()
-val npmExecutable = providers.gradleProperty("workFleetNpm").orElse(providers.environmentVariable("WORK_FLEET_NPM")).orElse("npm").get()
+// A Dock-launched macOS IDE starts the daemon with the launchd PATH, which the JVM keeps using
+// for bare command names; resolve node/npm against the PATH the IDE hands to this build instead.
+fun pathTool(name: String): String =
+    if (System.getProperty("os.name").startsWith("Windows")) name
+    else providers.environmentVariable("PATH").orNull.orEmpty().split(File.pathSeparator).filter { File(it).isAbsolute }
+        .map { File(it, name) }.firstOrNull { it.isFile && it.canExecute() }?.absolutePath ?: name
+val nodeExecutable = providers.gradleProperty("workFleetNode").orElse(providers.environmentVariable("WORK_FLEET_NODE")).orElse(providers.provider { pathTool("node") }).get()
+val npmExecutable = providers.gradleProperty("workFleetNpm").orElse(providers.environmentVariable("WORK_FLEET_NPM")).orElse(providers.provider { pathTool("npm") }).get()
 val configJson = providers.exec {
     workingDir(repositoryRoot)
     commandLine(nodeExecutable, "scripts/android-config.mjs")

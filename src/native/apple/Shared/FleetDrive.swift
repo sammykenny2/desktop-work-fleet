@@ -55,7 +55,7 @@ actor FleetDrive {
             var fields = [("spaces", "appDataFolder"), ("q", "trashed = false"), ("pageSize", "100"), ("fields", "nextPageToken,incompleteSearch,files(\(Self.fields))")]
             if args["pageToken"] != nil && !(args["pageToken"] is NSNull) { fields.append(("pageToken", try FleetProtocol.text(args, "pageToken", 8192))) }
             return try await json(path("/drive/v3/files", fields), context: "listing")
-        case "google.changes": return try await json(path("/drive/v3/changes", [("pageToken", FleetProtocol.text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(Self.fields)))")]), context: "changes")
+        case "google.changes": return try await json(path("/drive/v3/changes", [("pageToken", FleetProtocol.text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(Self.fields),mimeType))")]), context: "changes")
         case "google.allocate": return try await json(path("/drive/v3/files/generateIds", [("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")]))
         case "google.read":
             let file = try self.file(args), id = try FleetProtocol.text(file, "id"), size = Int(try FleetProtocol.number(file, "size"))

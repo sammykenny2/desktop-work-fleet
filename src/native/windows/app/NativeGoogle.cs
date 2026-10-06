@@ -248,7 +248,7 @@ public sealed class NativeGoogle : IDisposable
           if (args.TryGetProperty("pageToken", out var page) && page.ValueKind != JsonValueKind.Null) path += "&pageToken=" + Uri.EscapeDataString(JsonRules.Text(args, "pageToken", 8192));
           return await Json(path, "listing");
         }
-        case "google.changes": return await Json(PathQuery("/drive/v3/changes", ("pageToken", JsonRules.Text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", $"nextPageToken,newStartPageToken,changes(fileId,removed,file({Fields}))")), "changes");
+        case "google.changes": return await Json(PathQuery("/drive/v3/changes", ("pageToken", JsonRules.Text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", $"nextPageToken,newStartPageToken,changes(fileId,removed,file({Fields},mimeType))")), "changes");
         case "google.allocate": return await Json(PathQuery("/drive/v3/files/generateIds", ("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")));
         case "google.read":
         {

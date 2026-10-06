@@ -1,6 +1,6 @@
 import { FleetError, requireValue } from '../core/contracts.js';
 import { NativeTransfers } from '../storage/native.js';
-import { googleDescriptor } from '../sources/google-drive.js';
+import { driveFolder, googleDescriptor } from '../sources/google-drive.js';
 import { validateFile, verifyFile, validFileId } from '../sources/files.js';
 
 const cursor = value => {
@@ -35,9 +35,10 @@ export class NativeGoogleFileStore {
     const changes = page(result.changes || []).map(change => {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', 'Google 變更格式無效。');
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
+      if (driveFolder(change.file)) return null;
       const file = googleDescriptor(change.file);
       requireValue(file.id === change.fileId, 'invalid-source-page', 'Google 檔案身分不符。'); return { id: change.fileId, removed: false, file };
-    });
+    }).filter(Boolean);
     return { changes, ...(result.nextPageToken === undefined ? { cursor: cursor(result.newStartPageToken) } : { nextCursor: cursor(result.nextPageToken) }) };
   }
   // Ids only, so a reset can delete files this version cannot read.

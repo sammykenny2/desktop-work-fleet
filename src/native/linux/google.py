@@ -304,7 +304,7 @@ class Google:
                 query["pageToken"] = p.text(args, "pageToken", 8192)
             return self.json(self.path("/drive/v3/files", **query), context="listing")
         if method == "google.changes":
-            return self.json(self.path("/drive/v3/changes", pageToken=p.text(args, "cursor", 8192), spaces="appDataFolder", pageSize="100", includeRemoved="true", fields=f"nextPageToken,newStartPageToken,changes(fileId,removed,file({FIELDS}))"), context="changes")
+            return self.json(self.path("/drive/v3/changes", pageToken=p.text(args, "cursor", 8192), spaces="appDataFolder", pageSize="100", includeRemoved="true", fields=f"nextPageToken,newStartPageToken,changes(fileId,removed,file({FIELDS},mimeType))"), context="changes")
         if method == "google.allocate":
             return self.json(self.path("/drive/v3/files/generateIds", count="1", space="appDataFolder", type="files", fields="ids"))
         if method == "google.delete":

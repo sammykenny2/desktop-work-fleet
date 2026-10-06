@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GoogleDriveFileStore } from '../src/sources/google-drive.js';
+import { NativeGoogleFileStore } from '../src/native/google.js';
 import { sha256 } from '../src/sources/files.js';
 
 const encode = value => new TextEncoder().encode(value);
@@ -48,6 +49,27 @@ test('Drive enumeration, changes and ID allocation use appDataFolder with exact 
   assert.equal(urls[5].searchParams.get('space'), 'appDataFolder');
   assert.equal(urls[5].searchParams.get('type'), 'files');
   assert.ok(s.calls.every(call => !Object.keys(call.headers).some(key => key.toLowerCase() === 'authorization')));
+});
+
+test('the app data folder Drive creates with the first upload is skipped in the changes feed, not taken for a data file', async () => {
+  // Shape observed from Drive on 2026-10-06: the folder change carries only id, spaces and trashed.
+  const f = await fixture(); const folder = { id: 'app-data-folder', spaces: ['appDataFolder'], trashed: false, mimeType: 'application/vnd.google-apps.folder' };
+  const s = scripted([response({ changes: [{ fileId: folder.id, removed: false, file: folder },
+    { fileId: f.file.id, removed: false, file: { ...f.metadata, mimeType: 'application/octet-stream' } }], newStartPageToken: 'last' })]);
+  assert.deepEqual(await s.store.listChanges({ cursor: 'start' }), { changes: [{ id: f.file.id, removed: false, file: f.file }], cursor: 'last' });
+  assert.match(new URL(s.calls[0].path, 'https://www.googleapis.com').searchParams.get('fields'), /file\([^)]*mimeType/);
+  const other = scripted([response({ changes: [{ fileId: folder.id, removed: false, file: { ...folder, mimeType: 'application/octet-stream' } }], newStartPageToken: 'last' })]);
+  await assert.rejects(other.store.listChanges({ cursor: 'start' }), failCode('unsupported-source-file'));
+});
+
+test('the native Google store skips the app data folder in the changes feed the same way', async () => {
+  const f = await fixture(); const sent = [];
+  const bridge = { request: async (method, args) => { sent.push([method, args]); return { changes: [
+    { fileId: 'app-data-folder', removed: false, file: { id: 'app-data-folder', spaces: ['appDataFolder'], trashed: false, mimeType: 'application/vnd.google-apps.folder' } },
+    { fileId: f.file.id, removed: false, file: f.metadata }], newStartPageToken: 'last' }; } };
+  const store = new NativeGoogleFileStore(bridge, { profileId: 'google:verified-subject' }, 'verified-subject');
+  assert.deepEqual(await store.listChanges({ cursor: 'start' }), { changes: [{ id: f.file.id, removed: false, file: f.file }], cursor: 'last' });
+  assert.deepEqual(sent, [['google.changes', { accountId: 'verified-subject', cursor: 'start' }]]);
 });
 
 test('Drive rejects unsupported metadata, false integrity claims and ambiguous or malformed pages', async () => {

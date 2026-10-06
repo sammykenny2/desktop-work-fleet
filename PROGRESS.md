@@ -36,7 +36,12 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   Windows 的 Location 改取原字串，相對網址不再丟出非預期例外。
 - 驗證：`npm test` 240 pass、11 skip（新增真實 Location 形狀；拒絕清單改為重複 uploadType、multipart、缺 upload_id）；
   Linux Python 24 項通過（新增 upload session 兩項，11 skip）；Windows 重新打包、建置 0 錯誤。Apple／Android 未建置。
-  待使用者安裝後確認同步完成；Drive 上的檔案尚未用 App 自己的授權列出確認。沒有獨立審閱。
+- 下一次同步改停在「Google Drive 包含無法辨識或不同版本的資料檔」。用 App 的授權只讀列出：appDataFolder 只有一個格式正確的 revision 檔（上傳已成功），
+  但變更清單多一筆 Drive 第一次上傳時自動建立的「App Data」資料夾本身，只有 id／spaces／trashed，被當成資料檔驗證。
+  另有 8 筆沒見過的 removed 變更（未完成上傳的預留 ID），FileSync 本來就略過。
+- 修正：五份實作的變更清單都多要 `mimeType`；JS adapter 與原生共用的 `NativeGoogleFileStore` 略過資料夾（`driveFolder`），其他缺欄位的檔案仍然停下。
+- 驗證：`npm test` 242 pass、11 skip（新增 adapter 與原生 store 各一項，用實測到的資料夾形狀）；Linux Python 24 項通過；Windows 重新打包、建置 0 錯誤。
+  Apple／Android 未建置。待使用者安裝後確認同步完成。沒有獨立審閱。
 
 ## 2026-10-06 Windows／Linux Google Desktop client secret
 

@@ -30,6 +30,9 @@ export function googleDescriptor(value) {
   return file;
 }
 const descriptor = googleDescriptor;
+// The app data folder itself shows up in the changes feed once Drive creates it, with the first upload; it holds the
+// files and is none of them. The feed asks for mimeType so it can be told apart.
+export const driveFolder = file => file?.mimeType === 'application/vnd.google-apps.folder';
 
 // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any distinct
 // parameters are accepted; where the contents and the token go is what stays fixed.
@@ -136,7 +139,7 @@ export class GoogleDriveFileStore {
 
   async listChanges({ cursor, signal }) {
     const page = await this.#json({ path: pathFor('/drive/v3/changes', { pageToken: token(cursor), spaces: 'appDataFolder',
-      pageSize: '100', includeRemoved: 'true', fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${FIELDS}))` }),
+      pageSize: '100', includeRemoved: 'true', fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${FIELDS},mimeType))` }),
     signal, context: 'changes' });
     requireValue(!(page.nextPageToken !== undefined && page.newStartPageToken !== undefined),
       'invalid-source-page', 'Google Drive 變更分頁同時回傳兩個終點。');
@@ -144,10 +147,11 @@ export class GoogleDriveFileStore {
       requireValue(change && validFileId(change.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'),
         'invalid-source-page', 'Google Drive 變更身分無效。');
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
+      if (driveFolder(change.file)) return null;
       const file = descriptor(change.file);
       requireValue(file.id === change.fileId, 'invalid-source-page', 'Google Drive 變更檔案身分不符。');
       return { id: change.fileId, removed: false, file };
-    });
+    }).filter(Boolean);
     return { changes, ...(page.nextPageToken === undefined ? { cursor: token(page.newStartPageToken) }
       : { nextCursor: token(page.nextPageToken) }) };
   }

@@ -137,7 +137,7 @@ final class GoogleFiles implements AutoCloseable {
                 if (!args.isNull("pageToken")) path += "&pageToken=" + encode(Protocol.text(args, "pageToken", 8192));
                 return Protocol.json(request(path, "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "listing").bytes);
             }
-            case "google.changes": return Protocol.json(request(path("/drive/v3/changes", "pageToken", Protocol.text(args, "cursor", 8192), "spaces", "appDataFolder", "includeRemoved", "true", "pageSize", "100", "fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(" + FIELDS + "))"), "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "changes").bytes);
+            case "google.changes": return Protocol.json(request(path("/drive/v3/changes", "pageToken", Protocol.text(args, "cursor", 8192), "spaces", "appDataFolder", "includeRemoved", "true", "pageSize", "100", "fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(" + FIELDS + ",mimeType))"), "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "changes").bytes);
             case "google.allocate": return Protocol.json(request(path("/drive/v3/files/generateIds", "count", "1", "space", "appDataFolder", "type", "files", "fields", "ids")).bytes);
             case "google.read": {
                 JSONObject file = file(args.getJSONObject("file")); metadata(Protocol.json(request(path("/drive/v3/files/" + file.getString("id"), "fields", FIELDS)).bytes), file);

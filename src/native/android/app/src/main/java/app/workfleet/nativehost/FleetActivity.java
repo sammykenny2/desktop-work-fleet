@@ -58,6 +58,18 @@ public final class FleetActivity extends Activity {
     private FleetExports exports;
     private CaptureInbox captures;
     private String incomingId;
+    // targetSdk 35+ is always edge-to-edge on Android 15+, so keep the page clear of system bars, cutouts and the keyboard.
+    private View insetFrame(WebView view) {
+        android.widget.FrameLayout frame = new android.widget.FrameLayout(this); frame.addView(view); frame.setBackgroundColor(0xFFF3F5F4);
+        if (android.os.Build.VERSION.SDK_INT < 35) return frame;
+        int light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+        getWindow().getInsetsController().setSystemBarsAppearance(light, light);
+        frame.setOnApplyWindowInsetsListener((target, insets) -> {
+            android.graphics.Insets edges = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
+            target.setPadding(edges.left, edges.top, edges.right, edges.bottom); return android.view.WindowInsets.CONSUMED;
+        });
+        return frame;
+    }
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         exports = new FleetExports(this);
@@ -67,7 +79,7 @@ public final class FleetActivity extends Activity {
             byte[] bytes; try (java.io.InputStream stream = getAssets().open("config/public.json")) { bytes = Protocol.bytes(stream, 65536); }
             config = Protocol.json(bytes); profile = getPreferences(MODE_PRIVATE).getString("profile", "local"); openStore();
             Protocol.require(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER), "native-version", "請更新 Android System WebView 後再開啟。");
-            web = new WebView(this); setContentView(web); WebView.setWebContentsDebuggingEnabled(false);
+            web = new WebView(this); setContentView(insetFrame(web)); WebView.setWebContentsDebuggingEnabled(false);
             web.getSettings().setJavaScriptEnabled(true); web.getSettings().setDomStorageEnabled(false);
             web.getSettings().setAllowFileAccess(false); web.getSettings().setAllowContentAccess(true);
             web.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
@@ -106,11 +118,6 @@ public final class FleetActivity extends Activity {
                     ownerProxy = proxy; admitted++; final long current = epoch; final FleetBridge session = bridge; final GoogleFiles account = google;
                     (method.startsWith("google.") ? networkWorker : storageWorker).execute(() -> handle(id, method, request.optJSONObject("params"), session, account, current, proxy));
                 } catch (Exception error) { /* Only bounded, well-formed requests are admitted. */ }
-            });
-            web.setOnApplyWindowInsetsListener((view, insets) -> {
-                if (android.os.Build.VERSION.SDK_INT >= 30) { android.graphics.Insets system = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.ime()); view.setPadding(system.left, system.top, system.right, system.bottom); }
-                else view.setPadding(insets.getSystemWindowInsetLeft(), insets.getSystemWindowInsetTop(), insets.getSystemWindowInsetRight(), insets.getSystemWindowInsetBottom());
-                return insets;
             });
             web.loadUrl(DOCUMENT);
             receiveShare(getIntent());

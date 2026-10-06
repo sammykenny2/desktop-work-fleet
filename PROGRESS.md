@@ -21,6 +21,25 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 Android 實機版面：避開系統列與鍵盤
+
+在 Pixel 9 Pro（Android 17）安裝 debug APK。手機上原有一個 10/5 在另一台機器建置的 1.0.0（versionCode 10000）。
+因為 debug 簽章不同且版本號較高，無法覆蓋安裝；經使用者同意移除舊版後安裝 0.1.0。
+舊版資料庫只有一筆工作空間紀錄，最後寫入是安裝後一分鐘。
+App 冷啟動正常，logcat 沒有 crash 或 JavaScript 錯誤，只有系統 WebView 本身的 hiddenapi／藍牙／DNS warning。
+主畫面標題與「記下想法」按鈕被狀態列遮住：targetSdk 36 在 Android 15+ 一律 edge-to-edge，
+原生程式卻直接把 WebView 設為內容，沒有處理系統列空間。
+`FleetActivity` 改以 FrameLayout 包住 WebView，在 SDK 35+ 依系統列、挖孔與鍵盤 insets 留白，背景色與頁面 `--desk` 一致，狀態列圖示改為深色；
+SDK 35 以下維持原行為。
+
+驗證：重新建置並覆蓋安裝後，標題位於狀態列下方，狀態列圖示為深色；點「記下想法」開啟鍵盤時，編輯框留在鍵盤上方。
+獨立審閱未發現缺陷。依建議移除 `20e8ee4` 起直接對 WebView 設 padding 的舊 insets listener：
+它沒能讓頁面避開狀態列，加上外層容器後已不會被呼叫，留著日後可能重複留白。移除後重新安裝，主畫面正常。
+這部分只有實機截圖驗證，沒有自動化測試。鍵盤收起後頁面停留在捲動後的位置，需手動往下拉才看到標題。
+測試關閉編輯框時留下一份空白草稿；介面沒有捨棄草稿的操作，因此保留在手機上。
+Android Studio 與終端機的 adb 搶用 5037 連線埠，反覆出現 `ADB server didn't ACK`；不影響 App，但部分 adb 指令需要重試。
+Android Studio 第一次 Sync 失敗後沒有自動建立 `app` Run configuration，需在 Edit Configurations 手動新增。
+
 ## 2026-10-06 Windows 浮動便箋開 App 時空白
 
 使用者回報：開 App 時沒有便箋浮出，按「已完成」後才冒出一張。本機資料只有兩張「aaa」：一張桌面層（左上角，在所有視窗下方，

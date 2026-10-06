@@ -36,7 +36,7 @@ try {
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
   await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
   await expect(page.locator('.card-summary')).toHaveText('第一件事');
-  await page.getByRole('button', { name: '操作全部', exact: true }).click();
+  await page.getByRole('button', { name: '調整全部', exact: true }).click();
   await expect(page.locator('.card')).toHaveClass(/operable/);
   await page.locator('.card-summary').dblclick();
   const inline = page.getByRole('textbox', { name: '就地編輯便箋', exact: true });

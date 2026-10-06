@@ -39,7 +39,7 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
         "scene-frame", "桌面文字超過容量上限。");
       foreach (var flag in new[] { "interactive", "draggable", "editing", "selected", "completed", "mine" }) _ = Boolean(card, flag);
       HostError.Require(layer != "wallpaper" || !Boolean(card, "interactive") && !Boolean(card, "draggable") && !Boolean(card, "editing"),
-        "scene-frame", "桌布層便箋必須保持滑鼠穿透；請先操作群組再編輯。");
+        "scene-frame", "桌布層便箋必須保持滑鼠穿透；請先調整此組再編輯。");
       cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive"), Boolean(card, "draggable")));
     }
     return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0);

@@ -57,8 +57,8 @@ public sealed class NativeTray : IDisposable
     try
     {
       MenuActive?.Invoke(true);
-      var choices = new[] { ("show", "開啟主畫面"), ("@capture", "快速記錄"), ("@all", "操作所有便箋"),
-        ("@stop", "結束桌面操作"), ("@toggle", "顯示／隱藏桌面便箋"), ("@hide", "收起主畫面"), ("exit", "保存並結束 Work Fleet") };
+      var choices = new[] { ("show", "開啟主畫面"), ("@capture", "快速記錄"), ("@all", "調整所有便箋"),
+        ("@stop", "完成調整"), ("@toggle", "顯示／隱藏桌面便箋"), ("@hide", "收起主畫面"), ("exit", "保存並結束 Work Fleet") };
       for (var i = 0; i < choices.Length; i++) if (!AppendMenuW(menu, 0, (UIntPtr)(i + 1), choices[i].Item2)) return;
       var packed = coordinates.ToInt64(); var x = (int)(short)(packed & 0xffff); var y = (int)(short)((packed >> 16) & 0xffff);
       if (x == -1 && y == -1) { _ = GetCursorPos(out var point); x = point.X; y = point.Y; }

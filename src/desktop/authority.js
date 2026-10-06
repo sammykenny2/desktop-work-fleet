@@ -102,7 +102,7 @@ export class DesktopAuthority {
   #card(cardId) {
     const card = this.#workspace.snapshot.cards.find(card => card.id === cardId);
     requireValue(card && cardPolicy(card, this.#workspace.layout.state, this.#controller.state).draggable,
-      'outside-scope', '這張便箋目前不在桌面操作範圍。');
+      'outside-scope', '這張便箋目前不在調整範圍。');
     return card;
   }
   #point(point) {

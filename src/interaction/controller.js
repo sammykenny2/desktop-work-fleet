@@ -66,7 +66,7 @@ export class InteractionController {
     scope = copy(scope);
     if (this.#composing || consumed) return false;
     this.#assertIdle();
-    requireValue(['none', 'all', 'group'].includes(scope.kind), 'invalid-scope', '未知的操作範圍。');
+    requireValue(['none', 'all', 'group'].includes(scope.kind), 'invalid-scope', '未知的調整範圍。');
     if (scope.kind === 'group') requireValue(activeGroups(this.#getSnapshot()).some(group => group.id === scope.groupId),
       'missing-group', '群組已不存在。');
     if (scope.kind !== 'none' && !this.#participating(scope.kind === 'group' ? scope.groupId : undefined).length) {
@@ -93,7 +93,7 @@ export class InteractionController {
     if (control || (gesture && this.#suppressedCard === cardId)) return false;
     this.#assertIdle();
     const card = this.#card(cardId);
-    requireValue(card && cardPolicy(card, this.#layout.state, this.#state).draggable, 'outside-scope', '此卡不在操作範圍。');
+    requireValue(card && cardPolicy(card, this.#layout.state, this.#state).draggable, 'outside-scope', '此卡不在調整範圍。');
     this.#busy = true;
     try {
       if (this.#state.editingCardId && this.#state.editingCardId !== cardId) {
@@ -146,7 +146,7 @@ export class InteractionController {
     if (control || (this.#state.editingCardId === cardId && !handle)) return false;
     requireValue(!this.#state.dragSession, 'drag-active', '已有拖曳操作。');
     const card = this.#card(cardId); const layout = this.#layout.state;
-    requireValue(card && cardPolicy(card, layout, this.#state).draggable, 'outside-scope', '此卡不在操作範圍。');
+    requireValue(card && cardPolicy(card, layout, this.#state).draggable, 'outside-scope', '此卡不在調整範圍。');
     requireValue(layout.placements[cardId] && Number.isFinite(threshold) && threshold > 0
       && Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', '無效的拖曳起點。');
     this.#suppressedCard = null;

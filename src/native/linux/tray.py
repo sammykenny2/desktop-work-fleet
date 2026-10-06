@@ -9,7 +9,7 @@ class Tray:
         self.available = self.closed = False
         self.indicator = self.icon = None
         self.menu = Gtk.Menu()
-        for title, target in (("開啟 Work Fleet", "show"), ("快速記錄", "@capture"), ("操作所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")):
+        for title, target in (("開啟 Work Fleet", "show"), ("快速記錄", "@capture"), ("調整所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")):
             item = Gtk.MenuItem.new_with_label(title)
             item.connect("activate", lambda _item, value=target: self.dispatch(value))
             self.menu.append(item)

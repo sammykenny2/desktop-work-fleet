@@ -23,7 +23,7 @@ export class DesktopOwner {
       if (!pending || pending.viewId !== message.viewId || pending.draftId !== message.draftId) return;
       this.#flushes.delete(message.id); clearTimeout(pending.timer);
       if (message.ok) pending.resolve(message.sequence);
-      else pending.reject(new FleetError('desktop-flush', '請先完成桌面輸入或修復草稿保存，再切換操作。'));
+      else pending.reject(new FleetError('desktop-flush', '請先完成桌面輸入或修復草稿保存，再切換調整範圍。'));
     }));
     this.#unsub.push(bridge.onEvent('desktop-view-lost', message => {
       authority.removeView(message.viewId);

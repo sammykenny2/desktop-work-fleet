@@ -150,11 +150,11 @@ class Shortcuts:
             values = []
             for binding in self.bindings:
                 if binding["chord"]:
-                    names = {"@all": "操作所有群組", "@capture": "快速記錄", "@toggle": "顯示／隱藏桌面便箋"}
+                    names = {"@all": "調整所有群組", "@capture": "快速記錄", "@toggle": "顯示／隱藏桌面便箋"}
                     parts = binding["key"].split("+")
                     mods = {"Ctrl": "CTRL", "Alt": "ALT", "Shift": "SHIFT", "Meta": "LOGO"}
                     trigger = "+".join([mods[value] for value in parts[:-1]] + [parts[-1] if len(parts[-1]) > 1 else parts[-1].lower()])
-                    values.append((binding["id"], {"description": GLib.Variant("s", names.get(binding["target"], "操作指定群組")), "preferred_trigger": GLib.Variant("s", trigger)}))
+                    values.append((binding["id"], {"description": GLib.Variant("s", names.get(binding["target"], "調整指定群組")), "preferred_trigger": GLib.Variant("s", trigger)}))
 
             def bound(result):
                 registered = {} if result is None else {key: value.get("trigger_description", "") for key, value in result.get("shortcuts", [])}

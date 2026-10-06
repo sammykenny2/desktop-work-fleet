@@ -28,7 +28,7 @@ import AppKit
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Work Fleet") { statusItem?.button?.image = image } else { statusItem?.button?.title = "w." }
             let menu = NSMenu(); menu.delegate = self; let show = NSMenuItem(title: "開啟 Work Fleet", action: #selector(showMain), keyEquivalent: ""); show.target = self; menu.addItem(show)
-            for (title, target) in [("快速記錄", "@capture"), ("操作所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")] {
+            for (title, target) in [("快速記錄", "@capture"), ("調整所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")] {
                 let item = NSMenuItem(title: title, action: #selector(desktopAction(_:)), keyEquivalent: ""); item.target = self; item.representedObject = target; menu.addItem(item)
             }
             menu.addItem(.separator()); let quitItem = NSMenuItem(title: "保存並結束", action: #selector(quit), keyEquivalent: "q"); quitItem.target = self; menu.addItem(quitItem); statusItem?.menu = menu

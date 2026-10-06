@@ -45,7 +45,7 @@ try {
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
   await page.locator('#groups .group-row').first().locator('button').first().click();
   await page.locator('body').click({ position: { x: 260, y: 20 } });
-  await page.keyboard.press('Control+Shift+2'); await expect(page.locator('#mode-label')).toHaveText('正在操作 研究');
+  await page.keyboard.press('Control+Shift+2'); await expect(page.locator('#mode-label')).toHaveText('正在調整 研究');
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', b.id);
   const aCard = state.cards.find(card => card.groupId === a.id); const bCard = state.cards.find(card => card.groupId === b.id);
   await page.locator('#cycle-next').click();
@@ -60,19 +60,19 @@ try {
   await page.locator('.inline-editor').fill('研究便箋\n快捷鍵切換仍保留');
   await page.keyboard.press('Control+A'); await expect(page.locator('.inline-editor')).toBeVisible();
   assert.equal(await page.locator('.inline-editor').evaluate(input => input.selectionEnd - input.selectionStart), '研究便箋\n快捷鍵切換仍保留'.length);
-  await expect(page.locator('#mode-label')).toHaveText('正在操作 研究');
+  await expect(page.locator('#mode-label')).toHaveText('正在調整 研究');
   await page.locator('.inline-editor').dispatchEvent('compositionstart');
   await page.keyboard.press('Escape'); await expect(page.locator('.inline-editor')).toBeVisible();
   await page.keyboard.press('Control+Shift+2'); await expect(page.locator('.inline-editor')).toBeVisible();
-  await expect(page.locator('#mode-label')).toHaveText('正在操作 研究');
+  await expect(page.locator('#mode-label')).toHaveText('正在調整 研究');
   await page.locator('.inline-editor').dispatchEvent('compositionend');
   await page.keyboard.press('Control+Shift+2'); await expect(page.locator('.inline-editor')).toHaveCount(0);
-  await expect(page.locator('#mode-label')).toHaveText('日常觀看');
+  await expect(page.locator('#mode-label')).toHaveText('鎖定中');
   await page.locator('#drafts-button').click(); await expect(page.locator('#draft-list')).toContainText('快捷鍵切換仍保留');
   await page.getByRole('button', { name: '繼續編輯', exact: true }).click();
   await page.getByRole('button', { name: '保存便箋', exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
   await page.locator('body').click({ position: { x: 260, y: 20 } });
-  await page.keyboard.press('Control+Shift+9'); await expect(page.locator('#mode-label')).toHaveText('正在操作所有群組');
+  await page.keyboard.press('Control+Shift+9'); await expect(page.locator('#mode-label')).toHaveText('正在調整所有群組');
   await page.locator('#stop-operation').click();
 
   // Archived and deleted records still appear in merge previews and keep their states.

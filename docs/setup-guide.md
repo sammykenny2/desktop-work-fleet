@@ -131,6 +131,8 @@ npm run config:check -- --platform windows
 第一個命令列出五平台缺少哪些設定；`--google` 只列 Google 設定，不要求商店／簽章欄位。
 指定平台時，缺少該模式所需公開設定即以非零狀態結束。
 `npm run build` 讀取設定並產生 `build/config/public.json` 供原生封裝使用，僅輸出允許的公開欄位。
+Windows 建置腳本改用 `node scripts/build-web.mjs --platform windows`，另把 Windows Desktop client secret 寫進同一檔；
+Linux 封裝也只寫入 Linux 的 secret，其他平台與介面資產都不含 secret。
 Android Gradle 直接讀取目前設定並在其生成資產目錄產生配置，不依賴這份預先生成檔。
 五平台原生 host 已接 Google 登入、受保護 token 及 Drive appDataFolder 同步程式；
 Google Cloud 專案／client 尚未建立，未做真實登入或 Drive 往返。執行狀態見 PROGRESS。

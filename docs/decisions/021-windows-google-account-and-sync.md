@@ -39,11 +39,21 @@ Google HTTPS 回應拒絕 redirect，限制串流容量。上傳先校驗本機�
 renderer 持有 token 或任意 HTTP bridge：拒絕，因為擴大憑證及網路能力暴露。
 所有帳號共用一個本機工作區：拒絕，因為容易把便箋傳到錯誤帳號。
 
+## 2026-10-06 修訂：Desktop client secret
+
+建立真正的 Google 專案前確認：Desktop 類型 client 即使使用 PKCE，Google 換 token 端點仍回
+`invalid_request: client_secret is missing`（文件把參數列為選填，實際仍要求）。
+- Windows／Linux 的 Desktop client secret 改為選填設定，有值時隨授權碼交換與 refresh 一起送出。
+- Google 把安裝型 App 的 client secret 視為不保密；它不能保護 token，安全邊界仍是 PKCE、state 與只綁 127.0.0.1 的 callback。
+- secret 只寫進該平台 App 旁的設定檔，不進 renderer 資產，也不進 Android／Apple 包；Web client secret 仍不使用。
+- 沒有 secret 時照舊不送，若 Google 日後接受純 PKCE 也不需改程式。
+
 ## References
 
 - [ADR-012](012-durable-file-store-and-drive-adapter.md)
 - [Google 原生 OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)
 - [Google userinfo](https://developers.google.com/identity/openid-connect/reference)
 - [服務與 port](../services.md)
+- [Desktop PKCE 換 token 仍要求 client secret](https://discuss.google.dev/t/desktop-oauth-pkce-exchange-returns-invalid-request-after-successful-loopback-callback-with-no-client-secret/390526)
 
 *Decision made: 2026-10-05*

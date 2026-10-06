@@ -1,9 +1,15 @@
-/** Read allowlisted public build settings. Does not initialize Google or handle credentials. */
+/**
+ * Read allowlisted build settings. Does not initialize Google or handle user credentials.
+ * Google's token endpoint requires the client secret of a Desktop-type client even with PKCE; Google treats an installed
+ * app's secret as non-confidential, so it ships inside the Windows/Linux app. Only the platform passed in `options`
+ * receives it, so Android/Apple/renderer bundles never do.
+ */
 import { readFile } from 'node:fs/promises';
 import { parseEnv } from 'node:util';
 
 export const platforms = ['windows', 'macos', 'linux', 'ios', 'android'];
-export async function readBuildConfig(root, environment = process.env) {
+export const secretPlatforms = ['windows', 'linux'];
+export async function readBuildConfig(root, environment = process.env, { platform } = {}) {
   let file = {};
   try { file = parseEnv(await readFile(new URL('.env', root), 'utf8')); }
   catch (error) { if (error.code !== 'ENOENT') throw error; }
@@ -21,6 +27,11 @@ export async function readBuildConfig(root, environment = process.env) {
   const webClient = value('WORK_FLEET_GOOGLE_WEB_CLIENT_ID');
   if (webClient && !/^[a-zA-Z0-9-]+\.apps\.googleusercontent\.com$/.test(webClient)) throw new Error('WORK_FLEET_GOOGLE_WEB_CLIENT_ID 格式無效。');
   config.google.clients.web = webClient;
+  for (const name of secretPlatforms) {
+    const secret = value(`WORK_FLEET_GOOGLE_${name.toUpperCase()}_CLIENT_SECRET`);
+    if (secret && !/^[!-~]{1,256}$/.test(secret)) throw new Error(`WORK_FLEET_GOOGLE_${name.toUpperCase()}_CLIENT_SECRET 格式無效。`);
+    if (secret && name === platform) config.google.secrets = { [name]: secret };
+  }
   if (config.appId && !/^[a-zA-Z][a-zA-Z0-9]*(?:\.[a-zA-Z][a-zA-Z0-9]*)+$/.test(config.appId)) {
     throw new Error('WORK_FLEET_APP_ID 每段必須以字母開頭且只含英數，以符合 Apple／Android 的共同格式。');
   }

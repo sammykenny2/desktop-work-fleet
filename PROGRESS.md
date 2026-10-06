@@ -21,6 +21,17 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 Windows／Linux Google Desktop client secret
+
+準備建立真正的 Google Cloud 專案時確認：Desktop 類型 client 即使用 PKCE，Google 換 token 仍回 `client_secret is missing`，
+原本 Windows／Linux 只送 client ID，真實登入會在換 token 這一步失敗。
+- 新增選填 `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET`；`config:check` 仍視為選填。
+- `readBuildConfig` 只在指定平台時把該平台的 secret 放進 `google.secrets`；Windows 建置腳本改用 `build-web.mjs --platform windows`，
+  Linux 封裝指定 linux。Android、Apple、`--print-config` 與介面資產都不含 secret。
+- Windows `NativeGoogle` 與 Linux `google.py` 有 secret 時在授權碼交換與 refresh 都送出；設定格式不對時停用並回報。
+- ADR-021 補修訂；`.env.example`、google-setup、setup-guide 同步。
+- 驗證見本段最後。**仍未用真實 Google 帳號登入或做 Drive 往返**，要等 Cloud 專案與 Desktop client 建好。
+
 ## 2026-10-06 Linux Python 下限降為 3.10（Ubuntu 22.04）
 
 使用者想在 Hyper-V 的 Ubuntu 22.04 VM 安裝 DEB，但 22.04 內建 Python 3.10，原本的 `python3 (>= 3.12)` 無法滿足。

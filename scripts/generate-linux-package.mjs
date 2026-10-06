@@ -12,7 +12,7 @@ if (process.argv.includes('--help')) {
   const root = fileURLToPath(new URL('../', import.meta.url));
   const version = await readPlatformVersion('linux');
   const destination = path.join(root, 'build', 'linux', `work-fleet-${version}`);
-  const config = await readBuildConfig(new URL('../', import.meta.url));
+  const config = await readBuildConfig(new URL('../', import.meta.url), process.env, { platform: 'linux' });
   const appId = config.appId || 'app.workfleet.preview';
   // The bundle is a work directory; rebuild it so removed sources never reach the tar.gz or DEB.
   await rm(destination, { recursive: true, force: true });

@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, rmdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { missingReleaseConfig, readBuildConfig } from '../scripts/config.mjs';
+import { missingGoogleConfig, missingReleaseConfig, readBuildConfig } from '../scripts/config.mjs';
+import { buildWebAssets } from '../scripts/build-web.mjs';
 
 test('public config reads .env, prefers environment and excludes non-allowlisted credentials', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-config-'));
@@ -42,4 +43,34 @@ test('empty config supports local builds but reports missing release values and 
     await assert.rejects(readBuildConfig(root, environment));
   }
   assert.throws(() => missingReleaseConfig(empty, 'unknown'));
+});
+
+test('a Desktop client secret reaches only the named Windows or Linux config and stays optional', async () => {
+  const root = new URL('../build/nonexistent-config/', import.meta.url);
+  const environment = { WORK_FLEET_GOOGLE_PROJECT_ID: 'project', WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: '1-w.apps.googleusercontent.com',
+    WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: 'GOCSPX-synthetic-windows', WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: 'GOCSPX-synthetic-linux' };
+  assert.deepEqual((await readBuildConfig(root, environment, { platform: 'windows' })).google.secrets, { windows: 'GOCSPX-synthetic-windows' });
+  assert.deepEqual((await readBuildConfig(root, environment, { platform: 'linux' })).google.secrets, { linux: 'GOCSPX-synthetic-linux' });
+  for (const platform of [undefined, 'android', 'ios', 'macos']) {
+    assert.equal(JSON.stringify(await readBuildConfig(root, environment, { platform })).includes('synthetic'), false, platform);
+  }
+  assert.deepEqual(missingGoogleConfig(await readBuildConfig(root, { ...environment, WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: '' }), 'windows'), []);
+  for (const secret of ['has space', 'x'.repeat(257), 'line\nbreak']) {
+    await assert.rejects(readBuildConfig(root, { WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: secret }));
+  }
+});
+
+test('only a Windows build writes its Desktop client secret, beside the app rather than in the renderer assets', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-secret-'));
+  try {
+    const environment = { WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: 'GOCSPX-Qz7marker' };
+    for (const platform of ['windows', undefined]) {
+      const destination = path.join(directory, platform ?? 'other', 'app'), configDestination = path.join(directory, platform ?? 'other', 'config', 'public.json');
+      await buildWebAssets({ destination, configDestination, environment, platform });
+      assert.equal((await readFile(configDestination, 'utf8')).includes('Qz7marker'), platform === 'windows');
+      for (const file of await readdir(destination, { recursive: true, withFileTypes: true })) {
+        if (file.isFile()) assert.equal((await readFile(path.join(file.parentPath, file.name), 'utf8')).includes('Qz7marker'), false, file.name);
+      }
+    }
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });

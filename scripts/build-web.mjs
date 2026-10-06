@@ -1,10 +1,10 @@
-/** Build bundled local UI assets. Usage: node scripts/build-web.mjs [--output DIR] [--config-output FILE] [--help] */
+/** Build bundled local UI assets. Usage: node scripts/build-web.mjs [--output DIR] [--config-output FILE] [--platform windows|linux] [--help] */
 import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { readBuildConfig } from './config.mjs';
+import { readBuildConfig, secretPlatforms } from './config.mjs';
 
 export async function buildWebAssets({
   root = fileURLToPath(new URL('../', import.meta.url)),
@@ -12,8 +12,10 @@ export async function buildWebAssets({
   configDestination = path.join(root, 'build', 'config', 'public.json'),
   environment = process.env,
   bundleScripts = false,
+  platform,
 } = {}) {
-  const config = await readBuildConfig(pathToFileURL(root + path.sep), environment);
+  // The config file stays beside the app, outside the renderer's assets; only the named desktop platform gets its secret.
+  const config = await readBuildConfig(pathToFileURL(root + path.sep), environment, { platform });
   await mkdir(path.dirname(configDestination), { recursive: true });
   await writeFile(configDestination, JSON.stringify(config, null, 2) + '\n');
   await mkdir(destination, { recursive: true });
@@ -55,13 +57,17 @@ export async function buildWebAssets({
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { values } = parseArgs({ options: { help: { type: 'boolean' }, output: { type: 'string' }, 'config-output': { type: 'string' } } });
+  const { values } = parseArgs({ options: { help: { type: 'boolean' }, output: { type: 'string' }, 'config-output': { type: 'string' }, platform: { type: 'string' } } });
   if (values.help) {
-    console.log('Usage: node scripts/build-web.mjs [--output DIR] [--config-output FILE]\nCopies local UI assets and pinned vendor modules. Defaults to build/app and build/config/public.json.');
+    console.log('Usage: node scripts/build-web.mjs [--output DIR] [--config-output FILE] [--platform windows|linux]\nCopies local UI assets and pinned vendor modules. Defaults to build/app and build/config/public.json.\n--platform also writes that desktop platform\'s Google client secret into the config file.');
   } else {
     const options = {};
     if (values.output) options.destination = path.resolve(values.output);
     if (values['config-output']) options.configDestination = path.resolve(values['config-output']);
+    if (values.platform) {
+      if (!secretPlatforms.includes(values.platform)) throw new Error(`--platform must be one of ${secretPlatforms.join(', ')}.`);
+      options.platform = values.platform;
+    }
     const { destination } = await buildWebAssets(options);
     console.log(`Built ${destination} (local bundled assets, no application server).`);
   }

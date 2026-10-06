@@ -17,8 +17,8 @@ Google Cloud 專案尚未建立；以下是啟用程式所需的配置，不代�
 
 | 平台 | OAuth client 類型／註冊內容 | `.env` 欄位 |
 |---|---|---|
-| Windows | Desktop app；MSIX 裡的程式也是桌面 App，使用系統瀏覽器與 loopback callback | `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID` |
-| Linux | Desktop app；可與 Windows 共用同一個 Desktop client ID | `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` |
+| Windows | Desktop app；MSIX 裡的程式也是桌面 App，使用系統瀏覽器與 loopback callback | `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID`、`WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET` |
+| Linux | Desktop app；可與 Windows 共用同一個 Desktop client（ID 與 secret 都填同一組） | `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET` |
 | macOS | iOS 類型 client，bundle ID 使用最終 `WORK_FLEET_APP_ID` | `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID` |
 | iOS | iOS 類型 client，bundle ID 使用最終 `WORK_FLEET_APP_ID` | `WORK_FLEET_GOOGLE_IOS_CLIENT_ID` |
 | Android | Android client，package 使用最終 `WORK_FLEET_APP_ID`，註冊實際簽章憑證 SHA-1 | `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID` |
@@ -50,7 +50,11 @@ npm run config:check -- --google
 npm run config:check -- --google --platform windows
 ```
 
-Client ID 是公開識別；程式不要求填入 Web client secret、service-account JSON 或登入 token。
+Client ID 是公開識別。Desktop client 另需 client secret：Google 的換 token 端點即使用 PKCE 仍會回
+`client_secret is missing`，而 Google 把安裝型 App 的 secret 視為不保密，所以它隨 Windows／Linux App 發佈。
+建置時只寫進該平台 App 旁的 `Config/public.json`，不進介面資產，也不進 Android／Apple 包。
+Google 之後不會再顯示完整 secret，建立 Desktop client 時請下載 JSON 保存。
+程式不要求填入 Web client secret、service-account JSON 或登入 token。
 access／refresh token 由原生安全儲存或 Google SDK 管理，不會寫入 `.env` 或交給 renderer。
 空值建置會停用 Google 登入按鈕，仍能記錄與備份。
 `config:check` 只能判斷公開欄位是否已填，不能證明 API 已啟用、簽章吻合或帳號已授權。

@@ -54,6 +54,9 @@ class Google:
     def __init__(self, vault, config, profile, open_browser):
         self.vault, self.profile, self.open_browser = vault, profile, open_browser
         self.client = config.get("google", {}).get("clients", {}).get("linux", "")
+        # A Desktop-type client's secret: Google's token endpoint requires it even with PKCE and documents it as non-confidential.
+        self.secret = config.get("google", {}).get("secrets", {}).get("linux", "")
+        p.require(isinstance(self.secret, str) and len(self.secret) <= 256 and all("!" <= c <= "~" for c in self.secret), "google-config", "Google client secret 設定無效。")
         self.account = profile[7:] if profile.startswith("google:") else ""
         self.prepared = None
         self.closed = threading.Event()
@@ -84,6 +87,8 @@ class Google:
                 "email": None if self.credentials is None else self.credentials["email"]}
 
     def token_request(self, fields):
+        if self.secret:
+            fields = {**fields, "client_secret": self.secret}
         status, data, _ = http("https://oauth2.googleapis.com/token", "POST", urlencode(fields).encode("ascii"), {"Content-Type": "application/x-www-form-urlencoded"}, 65536)
         p.require(status == 200, "unauthorized", "Google 授權未完成或已撤銷，請重新登入。")
         return p.decode(data)

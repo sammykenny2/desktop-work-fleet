@@ -21,6 +21,8 @@ public sealed class NativeGoogle : IDisposable
   private readonly SemaphoreSlim gate = new(1);
   private readonly CancellationTokenSource lifetime = new();
   private readonly string directory, profile, clientId;
+  // A Desktop-type client's secret: Google's token endpoint requires it even with PKCE and documents it as non-confidential.
+  private readonly string clientSecret = "";
   private Credentials? credentials;
   private readonly Dictionary<string, (string Path, string Digest, int Size)> uploads = new(StringComparer.Ordinal);
   private string? preparedAccount;
@@ -33,10 +35,13 @@ public sealed class NativeGoogle : IDisposable
     if (File.Exists(path))
     {
       using var config = JsonRules.Parse(File.ReadAllBytes(path));
-      clientId = config.RootElement.GetProperty("google").GetProperty("clients").GetProperty("windows").GetString() ?? "";
+      var google = config.RootElement.GetProperty("google");
+      clientId = google.GetProperty("clients").GetProperty("windows").GetString() ?? "";
+      if (google.TryGetProperty("secrets", out var secrets) && secrets.TryGetProperty("windows", out var secret)) clientSecret = secret.GetString() ?? "";
     }
     else clientId = "";
     HostError.Require(clientId.Length == 0 || Regex.IsMatch(clientId, "^[a-zA-Z0-9-]+\\.apps\\.googleusercontent\\.com$"), "google-config", "Google client ID 設定無效。");
+    HostError.Require(Regex.IsMatch(clientSecret, "^[!-~]{0,256}$"), "google-config", "Google client secret 設定無效。");
     if (profile.StartsWith("google:", StringComparison.Ordinal)) credentials = Load(profile[7..]);
   }
   private static string RandomToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
@@ -88,6 +93,7 @@ public sealed class NativeGoogle : IDisposable
   }
   private async Task<JsonElement> Token(Dictionary<string, string> form, CancellationToken cancellation)
   {
+    if (clientSecret.Length > 0) form["client_secret"] = clientSecret;
     using var request = new HttpRequestMessage(HttpMethod.Post, "https://oauth2.googleapis.com/token") { Content = new FormUrlEncodedContent(form) };
     using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
     var bytes = await Bounded(response, 65536, cancellation);

@@ -31,7 +31,8 @@ try {
     $env:DOTNET_CLI_HOME = Join-Path $ProjectRoot 'build/dotnet-home'
     $env:NUGET_PACKAGES = Join-Path $ProjectRoot 'build/nuget-packages'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
-    & npm run build
+    # Config/public.json beside the app also carries the Windows Desktop client secret when .env has one.
+    & node scripts/build-web.mjs --platform windows
     if ($LASTEXITCODE -ne 0) { throw 'Web asset build failed.' }
     $Projects = @('src/native/windows/app/WorkFleet.Windows.csproj')
     if ($IncludeTests) {

@@ -49,6 +49,7 @@ Android Studio 第一次 Sync 失敗後沒有自動建立 `app` Run configuratio
 - 「調整範圍」相關錯誤訊息同步；指單次動作的「操作」（更多操作、桌面操作未完成、主機沒有此操作）與程式內部名稱不變。
 - 舊的 `src/macos`、`src/web` 原型未改。setup-guide、testing 與瀏覽器 probe 斷言已更新，SPEC-003 加註用語對照；ADR 與研究紀錄保留原文。
 - 只跑語法檢查（`node --check`、`py_compile`、C# 編譯），未跑 probe。
+- 以 `f09405b` 重新打包並刪除 `bdb9d68` 包；包內 `index.html` 已是新用語。
 
 ## 2026-10-06 Windows 浮動便箋開 App 時空白
 
@@ -207,8 +208,8 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`bdb9d68`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面與浮動便箋開啟重繪）：`build/windows/package-d90a77890fb34e17a9bae3915c958908/`。
-  `WorkFleet-0.1.0-x64.msix` 24,926,174 bytes，SHA-256 `4c71e02d8723fa4721828d060e70906473f3aec6b007cb019aee53de6ec5852b`；
+- Windows（`f09405b`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、浮動便箋開啟重繪與鎖定／調整用語）：`build/windows/package-f35f08a3809a408c90d063d22d7e2083/`。
+  `WorkFleet-0.1.0-x64.msix` 24,926,185 bytes，SHA-256 `01ea2984a18f889685259c9e8713c26ba636ac80e670ce9393a126caad1d3ba6`；
   簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。

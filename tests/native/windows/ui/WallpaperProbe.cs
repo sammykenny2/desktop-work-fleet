@@ -79,7 +79,7 @@ internal static class WallpaperProbe
     if (!painted) throw new Exception("Explorer-attached wallpaper WebView did not paint its page.");
     // The attached scene's window shows only the paper; wallpaper papers lie under the icons, which take every click.
     var region = CreateRectRgn(0, 0, 0, 0);
-    try { if (GetWindowRgn(input, region) != 2) throw new Exception("Wallpaper scene is not clipped to its paper."); }
+    try { if (GetWindowRgn(input, region) is not (2 or 3)) throw new Exception("Wallpaper scene is not clipped to its paper."); }
     finally { DeleteObject(region); }
     if (GetForegroundWindow() != foreground) throw new Exception("Wallpaper initialization stole foreground focus.");
     Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, paper-only region, WebView pixels, physical coordinates and no activation");

@@ -219,6 +219,10 @@ public sealed class DesktopSurface : IDisposable
     finally { result?.Dispose(); if (mirror != IntPtr.Zero) DeleteObject(mirror); }
   }
 
+  // The `.card` border-radius in src/desktop/scene.css. An attached scene cannot show transparent pixels, so its region
+  // gives each paper the rounded corners the page draws.
+  private const double PaperRadius = 3;
+
   private RegionPair BuildRegion(SceneHitRect[] next, int start, int count, double scale)
   {
     if (count <= 1)
@@ -228,7 +232,9 @@ public sealed class DesktopSurface : IDisposable
       var right = Math.Min(InputWindow.ActualWidth, rect.X + rect.Width);
       var bottom = Math.Min(InputWindow.ActualHeight, rect.Y + rect.Height);
       var covered = right <= left || bottom <= top ? NewRegion(0, 0, 0, 0)
-        : NewRegion((int)Math.Floor(left * scale), (int)Math.Floor(top * scale), (int)Math.Ceiling(right * scale), (int)Math.Ceiling(bottom * scale));
+        : layered ? NewRegion((int)Math.Floor(left * scale), (int)Math.Floor(top * scale), (int)Math.Ceiling(right * scale), (int)Math.Ceiling(bottom * scale))
+        : NewRoundRegion((int)Math.Floor(rect.X * scale), (int)Math.Floor(rect.Y * scale), (int)Math.Ceiling((rect.X + rect.Width) * scale),
+            (int)Math.Ceiling((rect.Y + rect.Height) * scale), (int)Math.Round(PaperRadius * 2 * scale));
       try
       {
         var result = new RegionPair(covered, NewRegion(0, 0, 0, 0));
@@ -257,6 +263,12 @@ public sealed class DesktopSurface : IDisposable
   private static IntPtr NewRegion(int left, int top, int right, int bottom)
   {
     var result = CreateRectRgn(left, top, right, bottom);
+    return result != IntPtr.Zero ? result : throw new InvalidOperationException("Unable to allocate scene region.");
+  }
+  // GDI rounded regions stop one pixel short of their right and bottom edges; extend them to match the paper.
+  private static IntPtr NewRoundRegion(int left, int top, int right, int bottom, int diameter)
+  {
+    var result = CreateRoundRectRgn(left, top, right + 1, bottom + 1, diameter, diameter);
     return result != IntPtr.Zero ? result : throw new InvalidOperationException("Unable to allocate scene region.");
   }
   private static void Combine(IntPtr target, IntPtr first, IntPtr second, int mode)
@@ -378,6 +390,7 @@ public sealed class DesktopSurface : IDisposable
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetWindowTextW(IntPtr window, StringBuilder text, int capacity);
   [DllImport("kernel32.dll")] private static extern void SetLastError(uint error);
   [DllImport("gdi32.dll")] private static extern IntPtr CreateRectRgn(int left, int top, int right, int bottom);
+  [DllImport("gdi32.dll")] private static extern IntPtr CreateRoundRectRgn(int left, int top, int right, int bottom, int width, int height);
   [DllImport("gdi32.dll")] private static extern int CombineRgn(IntPtr target, IntPtr first, IntPtr second, int mode);
   [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
   [DllImport("user32.dll")] private static extern int SetWindowRgn(IntPtr window, IntPtr region, bool redraw);

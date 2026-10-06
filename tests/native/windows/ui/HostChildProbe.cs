@@ -71,7 +71,11 @@ internal static class HostChildProbe
     await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
     await Task.Delay(500); surface.SetInput([new(20, 20, 160, 100, false)]); surface.Show(false);
     await Task.Delay(1500);
-    return Report(variant, bounds, scale);
+    // The page draws a square paper here; the attached scene's region must still give it rounded corners.
+    var corner = Pixel(bounds.X + (int)Math.Floor(20 * scale), bounds.Y + (int)Math.Floor(20 * scale));
+    var rounded = !(Math.Abs(corner.R - 0xe0) < 24 && Math.Abs(corner.G - 0x50) < 24 && Math.Abs(corner.B - 0xa0) < 24);
+    Console.WriteLine($"{(rounded ? "PASS" : "FAIL")} {variant} paper corner is clipped round: rgb({corner.R},{corner.G},{corner.B})");
+    return Report(variant, bounds, scale) && rounded;
   }
 
   // The browser draws into its own child window through DirectComposition instead of into the WPF surface.

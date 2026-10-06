@@ -35,6 +35,7 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 
 驗證：Windows app 與 UI 測試專案 Debug 建置 0 警告 0 錯誤；未執行完整原生測試（會在真實桌面建立場景並與執行中的安裝版搶快捷鍵）。
 已在使用者執行中的安裝版上直接替這三個 popup 加上旗標作為暫時緩解，請使用者確認圖示可點；新包安裝後由程式自動處理。
+
 ## 2026-10-06 macOS universal 開發簽章 DMG（`3b65d7d`）
 
 依使用者要求在 macOS 開發機重建 DMG，作法同 2026-10-05 的開發簽章版：Xcode 27.0（27A266a）、Node 24.21.0，
@@ -344,8 +345,8 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`3ba0c38`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、最上層便箋開啟重繪、鎖定／調整與三層命名、草稿整理與編輯中雙擊修正、帳號區與窄視窗抽屜）：`build/windows/package-83ab7a2f248043e2a9df0c4c18545e4c/`。
-  `WorkFleet-0.1.0-x64.msix` 24,931,793 bytes，SHA-256 `6f9751c4c7169fc60dcbc2b10169b37798684694680ffeaf3f01d10e1a446313`；
+- Windows（`df36150`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面、最上層便箋開啟重繪、鎖定／調整與三層命名、草稿整理與編輯中雙擊修正、帳號區與窄視窗抽屜、桌面圖示可點）：`build/windows/package-218998bf271a41899acecf7d9be85e3b/`。
+  `WorkFleet-0.1.0-x64.msix` 24,932,271 bytes，SHA-256 `90488221d006d043cd531f743a3f0196fc64ec1d7a776975b89f0a4a6c5a7fa4`；
   簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。

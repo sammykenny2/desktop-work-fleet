@@ -112,7 +112,7 @@ async function initialize() {
   if (desktopInfo) {
     await workspace.layout.recoverDisplays(workAreas());
     initializeDesktop();
-    const note = element('p', '桌面已連接；調整群組時便箋會浮到其他 App 上方。', 'hint'); note.id = 'desktop-note'; $('#storage-note').after(note);
+    const note = element('p', '桌面層與最上層已連接；調整群組時會暫時移到最上層。', 'hint'); note.id = 'desktop-note'; $('#storage-note').after(note);
   }
   $('#storage-note').textContent = native ? '本機加密工作空間\n尚未連接 Google' : '瀏覽器本機工作空間\n尚未連接 Google';
   try {
@@ -282,7 +282,7 @@ function initializeDesktop() {
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
         sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor() });
-      if ($('#desktop-note')) $('#desktop-note').textContent = frame.fallbacks.length ? `${frame.fallbacks.length} 張便箋要求桌布層；目前桌面環境無法使用，暫以桌面層呈現，原偏好保留。` : desktopInfo.layers.includes('wallpaper') ? '桌面、桌布與浮動層已連接；調整群組時會暫時置頂。' : '桌面已連接；調整群組時便箋會浮到其他 App 上方。';
+      if ($('#desktop-note')) $('#desktop-note').textContent = frame.fallbacks.length ? `${frame.fallbacks.length} 張便箋要求桌布層；目前桌面環境無法使用，暫以桌面層呈現，原偏好保留。` : desktopInfo.layers.includes('wallpaper') ? '桌布層、桌面層與最上層已連接；調整群組時會暫時移到最上層。' : '桌面層與最上層已連接；調整群組時會暫時移到最上層。';
       return frame;
     },
     changed: () => render(), error: error => status(error.message, true),
@@ -573,7 +573,7 @@ function cardDetails(card) {
   const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode('在桌面顯示'));
   const selection = element('label', undefined, 'check'); const selectable = element('input'); selectable.type = 'checkbox'; selectable.checked = workspace.layout.state.placements[card.id]?.readOnlySelect === true; selection.append(selectable, document.createTextNode('鎖定時可選取文字（不穿透滑鼠）'));
   const layer = element('label', '常駐層級', 'field'); const layers = element('select');
-  for (const [value, name] of [['desktop', '桌面'], ['floating', '浮動'], ['wallpaper', '桌布層']]) layers.append(new Option(name, value));
+  for (const [value, name] of [['wallpaper', '桌布層'], ['desktop', '桌面層'], ['floating', '最上層']]) layers.append(new Option(name, value));
   layers.value = workspace.layout.state.placements[card.id]?.residentLayer || 'desktop'; layer.append(layers);
   const layerHint = element('p', '', 'hint');
   const updateLayerHint = () => {
@@ -581,10 +581,11 @@ function cardDetails(card) {
     layerHint.textContent = !desktop ? '此瀏覽器工作空間僅預覽卡片，沒有系統桌面分層或全域快捷鍵。'
       : layers.value === 'wallpaper' ? desktopInfo.layers.includes('wallpaper')
         ? desktopInfo.wallpaperPlacement === 'background'
-          ? 'Linux 桌布層固定滑鼠穿透；若桌布與圖示由同一個桌面元件繪製，便箋仍會在圖示上方。調整此組時暫時置頂，完成後回到桌布層。'
-          : '桌布層在桌面圖示下方，固定滑鼠穿透；調整此組時暫時置頂，完成後回到桌布層。'
+          ? 'Linux 桌布層固定滑鼠穿透；若桌布與圖示由同一個桌面元件繪製，便箋仍會在圖示上方。調整此組時暫時移到最上層，完成後回到桌布層。'
+          : '桌布層在桌面圖示下方，固定滑鼠穿透；調整此組時暫時移到最上層，完成後回到桌布層。'
         : '目前桌面環境無法使用桌布層，暫以桌面層呈現，原偏好會保留。'
-      : '桌面層在圖示上方；浮動層常駐置頂。調整此組時暫時置頂，完成後恢復常駐層級。';
+      : layers.value === 'floating' ? '最上層常駐在所有視窗上方；能否拖曳取決於是否在調整模式，不取決於層級。'
+      : '桌面層在圖示上方、所有視窗下方；調整此組時暫時移到最上層，完成後回到桌面層。';
   };
   layers.onchange = updateLayerHint; updateLayerHint();
   dialog.append(groupLabel, visibility, selection, layer, layerHint);

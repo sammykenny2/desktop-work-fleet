@@ -19,6 +19,9 @@ if (args.length === 1 && args[0] === '--help') {
   if (!/^[a-zA-Z0-9.-]{3,50}$/.test(name)) throw new Error('Set WORK_FLEET_WINDOWS_PACKAGE_ID.');
   const version = await readPlatformVersion('windows');
   const publisher = config.windows.publisher || 'CN=Work Fleet Preview', publisherName = config.windows.publisherDisplayName || 'Work Fleet';
+  // Windows 11 24H2 (build 26100) is where Explorer moved the wallpaper host under Progman, the desktop structure the
+  // desktop and wallpaper layers are built and tested for; the Store does not offer the package to older Windows.
+  const minimumWindows = '10.0.26100.0', testedWindows = '10.0.26200.0';
   const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const images = path.join(stage, 'PackageAssets'); await mkdir(images, { recursive: true });
   for (const size of [44, 50, 150]) await writePaperIcon(path.join(images, `paper-${size}.png`), size);
@@ -27,7 +30,7 @@ if (args.length === 1 && args[0] === '--help') {
   <Identity Name="${escape(name)}" Version="${version}.0" Publisher="${escape(publisher)}" ProcessorArchitecture="x64" />
   <Properties><DisplayName>Work Fleet</DisplayName><PublisherDisplayName>${escape(publisherName)}</PublisherDisplayName><Description>Work notes with local storage and optional Google sync</Description><Logo>PackageAssets\\paper-50.png</Logo></Properties>
   <Resources><Resource Language="zh-TW" /><Resource Language="en-US" /></Resources>
-  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.19041.0" MaxVersionTested="10.0.19041.0" /></Dependencies>
+  <Dependencies><TargetDeviceFamily Name="Windows.Desktop" MinVersion="${minimumWindows}" MaxVersionTested="${testedWindows}" /></Dependencies>
   <Capabilities><Capability Name="internetClient" /><rescap:Capability Name="runFullTrust" /></Capabilities>
   <Applications><Application Id="WorkFleet" Executable="WorkFleet.exe" uap10:RuntimeBehavior="packagedClassicApp" uap10:TrustLevel="mediumIL">
     <uap:VisualElements DisplayName="Work Fleet" Description="Quick work notes" Square150x150Logo="PackageAssets\\paper-150.png" Square44x44Logo="PackageAssets\\paper-44.png" BackgroundColor="transparent" />

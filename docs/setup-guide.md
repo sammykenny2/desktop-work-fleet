@@ -58,7 +58,8 @@ python scripts/testing/serve_preview.py --port 0
 
 ## Windows 原生主畫面
 
-Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
+建置需 Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
+MSIX 安裝包只支援 Windows 11 24H2（build 26100）以後：桌面層與桌布層依 24H2 起的 Explorer 桌面結構實作與測試，Store 不會提供給更舊的 Windows。
 執行已建置 App 的電腦需 .NET 8 Desktop Runtime。主畫面、加密保存與桌面／浮動場景已接通。
 
 ```powershell
@@ -72,7 +73,7 @@ IDE 使用 `src/native/windows/WorkFleet.sln`；VS Code 開啟根目錄即有 C#
 `-Configuration Debug` 的 App 在右鍵選單提供「檢查」（DevTools）。設定 `WORK_FLEET_WEBVIEW_DEBUG_PORT` 才開 loopback CDP。
 Release 與 MSIX 都不開；用法見 [測試](testing.md)、決策見 [ADR-032](decisions/032-windows-debug-webview-inspection.md)。
 Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 PerMonitorV2 manifest。
-這個 TFM 是建置下限，最低 OS／混合 DPI 實機驗收另見 PROGRESS。
+這個 TFM 是建置下限，不是支援的最低 OS；混合 DPI 實機驗收另見 PROGRESS。
 沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於
 `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
 同一路徑只允許一個 App，另一個視窗會提示使用原視窗。

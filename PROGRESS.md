@@ -30,7 +30,8 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   Linux 封裝指定 linux。Android、Apple、`--print-config` 與介面資產都不含 secret。
 - Windows `NativeGoogle` 與 Linux `google.py` 有 secret 時在授權碼交換與 refresh 都送出；設定格式不對時停用並回報。
 - ADR-021 補修訂；`.env.example`、google-setup、setup-guide 同步。
-- 驗證見本段最後。**仍未用真實 Google 帳號登入或做 Drive 往返**，要等 Cloud 專案與 Desktop client 建好。
+- 驗證：`npm test` 239 pass、11 skip（新增 secret 只進指定平台、不進介面資產）；Linux Python 測試 22 項通過（新增 `test_linux_google.py`，11 skip）；
+  Windows App 與測試專案建置 0 錯誤。**仍未用真實 Google 帳號登入或做 Drive 往返**，要等 Cloud 專案與 Desktop client 建好。沒有獨立審閱。
 
 ## 2026-10-06 Linux Python 下限降為 3.10（Ubuntu 22.04）
 

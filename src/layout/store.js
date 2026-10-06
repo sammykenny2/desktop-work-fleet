@@ -7,7 +7,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
   return { schemaVersion: 1, deviceId, revision: 0, grid: defaultGrid(groups, area),
-    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(groups) };
+    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts() };
 }
 
 export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {

@@ -1,6 +1,6 @@
 import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
-import { normalizeShortcut, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
+import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
@@ -433,11 +433,15 @@ async function refreshCaptures(force = false) {
   }));
 }
 
-// Each shortcut row shows only what keeps a key from working; working keys stay quiet.
+// Region keys act on the group now in that region; keys for empty regions are not taken from other apps.
+function liveShortcuts() { const layout = workspace.layout.state; return resolveShortcuts(layout.shortcuts, layout.grid.slots); }
+// Each shortcut row shows only what keeps a key from working; working keys stay quiet. Hosts report registrations
+// against the resolved group, so rows match them by key.
 function renderShortcutStatus() {
   const labels = { conflict: '已被其他程式使用', unavailable: '無法使用', reserved: '系統保留', editing: '保留給文字輸入', typing: '請改用 Ctrl+Shift 組合', invalid: '不支援這個組合' };
+  const layout = workspace.layout.state; const bound = regionShortcuts(layout.shortcuts, layout.grid.slots);
   for (const node of document.querySelectorAll('[data-shortcut-status]')) {
-    const items = shortcutStatus.filter(item => item.target === node.dataset.shortcutStatus);
+    const items = shortcutStatus.filter(item => bound[item.key] === node.dataset.shortcutStatus);
     const problems = items.filter(item => labels[item.status]);
     node.textContent = problems.map(item => `${item.key} ${labels[item.status]}`).join('；');
     node.dataset.state = items.map(item => item.status).join(' '); node.classList.toggle('error', problems.length > 0);
@@ -507,7 +511,7 @@ function matchesFilter(card) {
 }
 
 function render() {
-  nativeShortcuts?.update(workspace.layout.state.shortcuts);
+  nativeShortcuts?.update(liveShortcuts());
   if (remoteEditor && controller.state.editingCardId !== remoteEditor.cardId) { remoteEditor = null; currentDraft = null; }
   const snapshot = workspace.snapshot; const groups = activeGroups(snapshot); const layout = workspace.layout.state;
   if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0]?.id;
@@ -912,6 +916,8 @@ async function showSettingsPage(page) {
   }
   $('#settings-page-title').textContent = settingsTitles[page] || '設定';
   $('.settings-body').scrollTop = 0;
+  // Region rows name the group in each region, which the 桌面 page may just have changed.
+  if (page === 'shortcuts') renderShortcutSettings();
   if (page === 'data' && !dataPanel) await mountDataPanel();
 }
 async function mountDataPanel() {
@@ -934,17 +940,29 @@ function renderDesktopSettings() {
 function applyLayout(patch) {
   return run(async () => { await workspace.layout.configure(patch, workspace.snapshot); render(); });
 }
+// Quick capture and the desktop toggle come first, then 0 for every group and 1–9 for the desktop regions. Region
+// rows show the group now in that region, by its current name and paper colour.
 function renderShortcutSettings() {
-  const layout = workspace.layout.state; const fields = $('#shortcut-fields'); fields.replaceChildren();
-  const actions = [[shortcutActions.all, '調整所有便箋'], [shortcutActions.capture, '快速記錄'], [shortcutActions.toggle, '顯示或隱藏桌面便箋'],
-    ...activeGroups(workspace.snapshot).map(group => [group.id, `調整「${group.name}」`])];
-  for (const [target, name] of actions) {
-    const row = element('label', undefined, 'settings-row'); const text = element('span', undefined, 'row-text');
-    const state = element('span', '', 'row-value'); state.dataset.shortcutStatus = target; text.append(element('span', name, 'row-label'), state);
-    const input = element('input'); input.dataset.shortcutTarget = target; input.placeholder = '未設定'; input.setAttribute('aria-label', `${name}的快捷鍵`);
-    input.value = Object.entries(layout.shortcuts).filter(([, value]) => value === target).map(([key]) => key).join(', ');
-    input.oninput = checkShortcuts; input.onchange = applyShortcuts; row.append(text, input); fields.append(row);
+  const layout = workspace.layout.state; const bound = regionShortcuts(layout.shortcuts, layout.grid.slots);
+  const groups = activeGroups(workspace.snapshot);
+  const row = (target, name, { tile = null, label = name, empty = false } = {}) => {
+    const item = element('label', undefined, 'settings-row'); const text = element('span', undefined, 'row-text');
+    const state = element('span', '', 'row-value'); state.dataset.shortcutStatus = target;
+    text.append(element('span', name, empty ? 'row-label empty' : 'row-label'), state);
+    const input = element('input'); input.dataset.shortcutTarget = target; input.placeholder = '未設定'; input.setAttribute('aria-label', `${label}的快捷鍵`);
+    input.value = Object.entries(bound).filter(([, value]) => value === target).map(([key]) => key).join(', ');
+    input.oninput = checkShortcuts; input.onchange = applyShortcuts;
+    if (tile) item.append(tile); item.append(text, input); return item;
+  };
+  $('#shortcut-actions').replaceChildren(row(shortcutActions.capture, '快速記錄'), row(shortcutActions.toggle, '顯示或隱藏桌面便箋'));
+  const regions = [row(shortcutActions.all, '所有群組', { tile: $('#all-tile').content.firstElementChild.cloneNode(true) })];
+  for (let number = 1; number <= 9; number++) {
+    const group = groups.find(item => item.id === layout.grid.slots[number - 1]);
+    const tile = element('span', String(number), group ? 'region-tile' : 'region-tile empty'); tile.setAttribute('aria-hidden', 'true');
+    if (group) tile.style.setProperty('--paper', groupColor(group.id));
+    regions.push(row(regionTarget(number), group?.name || '空白', { tile, label: `區域 ${number}（${group?.name || '空白'}）`, empty: !group }));
   }
+  $('#shortcut-regions').replaceChildren(...regions);
   renderShortcutStatus(); checkShortcuts();
 }
 function readShortcuts() {
@@ -1053,7 +1071,7 @@ function bindEvents() {
   $('#desktop-visible').onchange = () => applyLayout({ desktopVisible: $('#desktop-visible').checked });
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
-  $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(workspace.layout.state.shortcuts, true); };
+  $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status('已顯示桌面便箋');
@@ -1191,7 +1209,7 @@ function bindEvents() {
     }
     const editControl = event.target.closest('input,textarea,select');
     // Shortcuts switch adjust scopes and desktop visibility, which phones and tablets do not have.
-    const shortcut = !handheld && shortcutForEvent(event, workspace.layout.state.shortcuts, { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
+    const shortcut = !handheld && shortcutForEvent(event, liveShortcuts(), { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
     if (shortcut) {
       event.preventDefault();
       const admission = desktop && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });

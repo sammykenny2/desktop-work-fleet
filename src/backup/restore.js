@@ -3,6 +3,7 @@ import { canonicalJson, parseJson } from '../sources/json.js';
 import { revisionRecord, RevisionGraph, validId } from '../sources/revisions.js';
 import { projectRevisionsAsync, reconcileSourceLayout } from '../sources/projection.js';
 import { LayoutStore, rescueRect } from '../layout/store.js';
+import { regionShortcuts } from '../core/shortcuts.js';
 import { BackupDocument, createBackup } from './payload.js';
 import { backupScheduler, checkCancelled } from './archive.js';
 
@@ -231,6 +232,8 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   next.layout = reconcileSourceLayout(next.layout, next);
   const temporaryLayout = new LayoutStore(next.layout, async value => { next.layout = value; });
   const placement = await temporaryLayout.placeNew(next, workAreas, undefined, checkpoint); next.layout.revision = state.layout.revision + 1;
+  // An older backup's group-bound keys move to the regions those groups now hold.
+  next.layout.shortcuts = regionShortcuts(next.layout.shortcuts, next.layout.grid.slots);
   const receipt = { jobId, fingerprint: document.fingerprint, mode, layout, profileId: state.profileId,
     baseRevision: state.revision, committedRevision: state.revision + 1, mappings: { ...imported.mappings, restoredDrafts: Object.fromEntries(draftMap) },
     addedRevisions: additions.length, addedDrafts, extraCards, retiredGroups, ambiguousRebases };

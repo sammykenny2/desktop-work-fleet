@@ -1,5 +1,6 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { cardPolicy } from '../interaction/controller.js';
+import { resolveShortcuts } from '../core/shortcuts.js';
 import { canonicalJson } from '../sources/json.js';
 import { sha256 } from '../sources/files.js';
 
@@ -128,7 +129,7 @@ export class DesktopAuthority {
     if (this.#gesture && drag?.generation !== this.#gesture.generation) this.#gesture = null;
     switch (method) {
       case 'interaction.shortcut': {
-        const bindings = this.#workspace.layout.state.shortcuts;
+        const layout = this.#workspace.layout.state; const bindings = resolveShortcuts(layout.shortcuts, layout.grid.slots);
         requireValue(typeof args.key === 'string' && Object.hasOwn(bindings, args.key) && this.#shortcut,
           'desktop-shortcut', '快捷鍵已變更，請使用目前設定。');
         return this.#shortcut(bindings[args.key], intent);

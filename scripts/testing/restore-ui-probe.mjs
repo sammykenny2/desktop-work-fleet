@@ -29,7 +29,9 @@ const read = () => page.evaluate(async profileId => {
   const storage = await IndexedDbStorage.open(); const result = await storage.load(profileId); storage.close(); return result;
 }, profile);
 const savedBytes = async () => Buffer.from(await page.evaluate(async () => Array.from(new Uint8Array(await (await window.probeFiles.at(-1).getFile()).arrayBuffer()))));
-const openDialog = async () => { await page.locator('#settings-button').click(); await page.locator('#backup-button').click(); await expect(page.locator('#backup-dialog')).toBeVisible(); };
+// Backup lives in the account menu; narrow viewports reach the account chip through the drawer.
+const openDialog = async () => { if (await page.locator('#drawer-toggle').isVisible()) await page.locator('#drawer-toggle').click();
+  await page.locator('#account-button').click(); await page.locator('#backup-button').click(); await expect(page.locator('#backup-dialog')).toBeVisible(); };
 const choose = async buffer => { await page.locator('#restore-file').setInputFiles({ name: 'synthetic-backup.zip', mimeType: 'application/zip', buffer }); };
 const preview = async () => { await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toContainText('尚未還原'); };
 const capture = async text => {

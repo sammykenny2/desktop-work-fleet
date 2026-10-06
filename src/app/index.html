@@ -11,31 +11,31 @@
   <script type="module" src="main.js"></script>
 </head>
 <body>
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar" aria-label="側欄">
     <div class="brand"><span class="brand-mark" aria-hidden="true">w.</span><div>Work Fleet<small>留住想法，開始下一步。</small></div></div>
     <button id="new-card" class="primary">＋ 記下想法</button>
     <div class="section-label">我的群組 <button id="add-group" aria-label="新增群組">＋</button></div>
     <nav id="groups" aria-label="群組"></nav>
-    <div class="sidebar-bottom">
-      <button id="drafts-button">未完成草稿 <span id="draft-count">0</span></button>
+    <nav class="sidebar-links" aria-label="草稿與版本">
+      <button id="drafts-button" hidden>未完成草稿 <span id="draft-count">0</span></button>
       <button id="capture-inbox-button" hidden>分享收件匣 <span id="capture-count">0</span></button>
-      <button id="conflicts-button">版本與衝突 <span id="conflict-count">0</span></button>
-      <button id="settings-button">顯示與排列設定</button>
-      <button id="google-sign-in" hidden>登入 Google</button>
-      <button id="google-sync" hidden>立即同步</button>
-      <button id="google-local" hidden>開啟本機便箋</button>
-      <button id="google-sign-out" hidden>登出 Google</button>
-      <p id="sync-status" role="status" hidden></p>
-      <p id="storage-note">正在開啟本機資料…</p>
+      <button id="conflicts-button">版本與衝突 <span id="conflict-count" hidden>0</span></button>
+    </nav>
+    <div id="account" class="account" data-sync="off">
+      <button id="account-button" aria-haspopup="dialog" aria-expanded="false" aria-controls="account-menu"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span></span><span class="account-text"><span id="account-name">本機便箋</span><span id="sync-status">正在開啟本機資料…</span></span></button>
+      <button id="settings-button" class="icon-button" data-arrange aria-label="設定" title="設定（Ctrl+,）"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
     </div>
   </aside>
+  <div id="scrim" hidden></div>
   <main>
     <header class="topbar">
+      <button id="drawer-toggle" class="icon-button" aria-label="開啟側欄" aria-controls="sidebar" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg><span id="attention-dot" hidden></span></button>
       <h1 id="workspace-title">我的便箋</h1>
       <div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋內容…" aria-label="搜尋便箋"></label>
-      <button id="view-toggle" aria-pressed="false">清單檢視</button></div>
+      <button id="search-toggle" class="icon-button" aria-label="搜尋"><svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><svg class="icon close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      <button id="view-toggle" data-arrange aria-pressed="false">清單檢視</button></div>
     </header>
-    <div class="toolbar" aria-label="便箋操作">
+    <div class="toolbar" data-arrange aria-label="便箋操作">
       <div><button id="operate-group">調整此組</button><button id="operate-all">調整全部</button><button id="stop-operation" hidden>完成</button></div>
       <div><button id="cycle-prev" title="上一張">←</button><button id="cycle-next" title="下一張">→</button><span class="divider"></span><button id="stack">堆疊</button><button id="spread">攤開</button><button id="undo">復原</button></div>
     </div>
@@ -44,8 +44,19 @@
     <div id="stage-shell"><div id="stage" aria-label="便箋桌面"></div><div id="empty" hidden><div class="empty-paper">＋</div><h2>先記下一件事。</h2><p>一個想法、一個待辦，都可以從這裡開始。</p><button id="empty-add" class="primary">新增第一張便箋</button></div></div>
     <section id="layout-map" aria-label="版面地圖" hidden><h2>版面地圖尚未提供</h2><p>之後會在這裡縮小顯示所有螢幕、群組區域與便箋位置。</p><p>要移動便箋，請按「調整此組」或「調整全部」，直接在桌面上拖拉。</p></section>
     <section id="list" aria-label="便箋清單" hidden></section>
-    <footer><span id="mode-label">鎖定中</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
+    <footer><span id="mode-label" data-arrange>鎖定中</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
+    <button id="compose" class="primary" aria-label="記下想法"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>
+  <dialog id="account-menu" class="account-menu" aria-label="帳號與資料">
+    <div class="menu-body">
+      <div class="menu-header"><strong id="account-menu-name">本機便箋</strong><p id="storage-note">正在開啟本機資料…</p><p id="account-detail" hidden></p></div>
+      <button id="google-sync" hidden>立即同步</button>
+      <button id="backup-button">資料與備份</button>
+      <button id="google-sign-in" hidden>登入 Google</button>
+      <button id="google-local" hidden>切換到本機便箋</button>
+      <button id="google-sign-out" hidden>登出 Google</button>
+    </div>
+  </dialog>
   <dialog id="capture-inbox-dialog">
     <h2>分享收件匣</h2><p>選擇群組後，內容將保留為目前工作空間的草稿。</p>
     <div id="capture-list"></div>
@@ -78,14 +89,13 @@
     <div class="dialog-actions"><button id="cancel-formation">取消</button><button id="apply-formation" class="primary">套用排列</button></div>
   </dialog>
   <dialog id="settings-dialog">
-    <h2>顯示與排列</h2>
+    <h2>設定</h2>
     <label class="check"><input id="desktop-visible" type="checkbox">鎖定時也顯示桌面便箋</label>
     <label class="field">屬於我的群組<select id="my-group"></select></label>
     <div class="grid-fields"><label class="field">列數<select id="grid-rows"><option>1</option><option>2</option><option>3</option></select></label><label class="field">欄數<select id="grid-columns"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
     <div id="grid-preview" aria-label="格局預覽"></div><p id="grid-message"></p>
     <p class="hint">變更區域不搬動既有便箋；執行排列時才召回。</p>
     <details><summary>快捷鍵</summary><p id="shortcut-note" class="hint">快捷鍵在目前視窗生效。</p><div id="shortcut-fields"></div><p id="shortcut-status" role="status" class="hint"></p><button type="button" id="retry-shortcuts" hidden>重試全域註冊</button></details>
-    <button id="backup-button" type="button">資料與備份</button>
     <div class="dialog-actions"><button id="cancel-settings">取消</button><button id="save-settings" class="primary">保存設定</button></div>
   </dialog>
   <dialog id="drafts-dialog"><h2>未完成草稿</h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts">關閉</button></div></dialog>

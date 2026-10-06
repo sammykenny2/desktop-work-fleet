@@ -91,6 +91,7 @@ try {
 
   const cyclic = await seed('cycle'); await page.setViewportSize({ width: 390, height: 844 }); await open();
   await expect(page.locator('#groups .group-row')).toHaveCount(0);
+  await page.locator('#drawer-toggle').click();
   await expect(page.locator('#conflicts-button')).toBeInViewport(); await page.locator('#conflicts-button').click();
   await expect(page.locator('#revision-dialog')).toContainText('群組合併形成循環');
   await page.locator('[data-revision-id="retire-b"]').getByRole('button', { name: '恢復此群組' }).click();

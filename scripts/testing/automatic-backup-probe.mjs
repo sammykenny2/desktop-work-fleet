@@ -14,7 +14,7 @@ const page = await context.newPage(); const errors = []; page.on('pageerror', er
 try {
   const app = new URL('/app/index.html', base); app.searchParams.set('profile', crypto.randomUUID());
   await page.goto(app.href); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
-  await page.locator('#settings-button').click(); await page.locator('#backup-button').click();
+  await page.locator('#account-button').click(); await page.locator('#backup-button').click();
   await expect(page.locator('#auto-backup-retention')).toContainText('不支援自動備份');
   for (const id of ['location', 'enable', 'now', 'keep']) await expect(page.locator(`#auto-backup-${id}`)).toBeDisabled();
   await expect(page.locator('#export-backup')).toBeEnabled();

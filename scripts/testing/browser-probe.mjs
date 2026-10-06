@@ -65,6 +65,8 @@ try {
   };
   await dragTo(false);
   await expect(page.locator('#groups .group-row').first()).toContainText('1');
+  // The drop re-renders the stage once its layout commit lands; measure the settled paper, not the one being replaced.
+  await expect(paper).not.toHaveClass(/dragging/);
   const moved = await paper.boundingBox();
   for (const filter of ['completed', 'archived', 'deleted']) {
     await page.locator(`[data-filter="${filter}"]`).click();
@@ -152,6 +154,8 @@ try {
   await page.locator('#keep-draft').click();
   await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
   await page.setViewportSize({ width: 390, height: 844 });
+  // Phones keep the sidebar in a drawer that opens only from the app bar button.
+  await expect(page.locator('#drafts-button')).not.toBeInViewport(); await page.locator('#drawer-toggle').click();
   await expect(page.locator('#drafts-button')).toBeVisible();
   await expect(page.locator('#settings-button')).toBeVisible();
   await page.locator('#drafts-button').click();

@@ -13,7 +13,8 @@ import UIKit
     var window: UIWindow?
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         guard let scene = scene as? UIWindowScene else { return }
-        let window = UIWindow(windowScene: scene); let controller = UIViewController(); controller.view.backgroundColor = .systemBackground; window.rootViewController = controller; self.window = window; window.makeKeyAndVisible()
+        // The page stops at the safe area; the strips beyond it show this view, so it matches the page's desk color.
+        let window = UIWindow(windowScene: scene); let controller = UIViewController(); controller.view.backgroundColor = UIColor(red: 0xF3 / 255, green: 0xF5 / 255, blue: 0xF4 / 255, alpha: 1); window.rootViewController = controller; self.window = window; window.makeKeyAndVisible()
         do {
             let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("WorkFleet", isDirectory: true)
             let host = try Self.host ?? FleetWebHost(directory: directory); Self.host = host; host.presenter = controller

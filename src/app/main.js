@@ -40,6 +40,8 @@ let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = [];
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
+let syncState = 'off'; let captureCount = 0; let handheld = false;
+const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
 const attachmentUrls = new Map();
 const unsavedDrafts = new Map();
@@ -93,6 +95,10 @@ async function initialize() {
     }
     // Real desktop scenes show the papers, so the main window opens on the list instead of a second canvas.
     if (native.info.capabilities.desktopPresentation) { desktopInfo = await native.bridge.request('desktop.info'); listView = true; }
+    // Phones and tablets show no desktop papers, so nothing there arranges them: no canvas, layout tools or settings.
+    handheld = ['ios', 'android'].includes(native.info.platform);
+    if (handheld) { listView = true; document.querySelectorAll('[data-arrange]').forEach(node => { node.hidden = true; }); }
+    if (native.info.platform === 'macos') $('#settings-button').title = '設定（⌘,）';
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
   if (!lease.acquired) throw new Error('這個工作空間已在另一個視窗開啟。請使用原視窗，或關閉它後重新載入。');
@@ -119,9 +125,10 @@ async function initialize() {
   if (desktopInfo) {
     await workspace.layout.recoverDisplays(workAreas());
     initializeDesktop();
-    const note = element('p', '桌面層與最上層已連接；調整群組時會暫時移到最上層。', 'hint'); note.id = 'desktop-note'; $('#storage-note').after(note);
+    const note = element('p', '桌面層與最上層已連接；調整群組時會暫時移到最上層。', 'hint'); note.id = 'desktop-note'; $('#settings-dialog h2').after(note);
   }
   $('#storage-note').textContent = native ? '本機加密工作空間\n尚未連接 Google' : '瀏覽器本機工作空間\n尚未連接 Google';
+  renderAccount(); setSync('off', native ? '只存在這台裝置' : '只存在這個瀏覽器');
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open();
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
@@ -159,7 +166,7 @@ async function initialize() {
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
   if (native?.info.capabilities.shareInbox) {
-    captureInbox = new NativeCaptureInbox(native, workspace, storage); $('#capture-inbox-button').hidden = false;
+    captureInbox = new NativeCaptureInbox(native, workspace, storage);
     native.bridge.onEvent('host-capture', () => { void refreshCaptures().catch(error => status(error.message, true)); });
     native.bridge.onEvent('host-foreground', () => { void refreshCaptures().catch(error => status(error.message, true)); });
     await refreshCaptures();
@@ -189,10 +196,12 @@ async function initializeGoogle() {
   $('#google-local').hidden = !profileId.startsWith('google:');
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
-  $('#google-sync').hidden = !googleAccount.connected; $('#sync-status').hidden = false;
+  $('#google-sync').hidden = !googleAccount.connected;
   $('#google-sync').onclick = () => { void syncGoogle(true); };
+  renderAccount();
   if (googleAccount.connected) {
-    $('#storage-note').textContent = `Google 工作空間\n${googleAccount.email || googleAccount.accountId}\n本機加密保存`;
+    $('#storage-note').textContent = 'Google 工作空間\n本機加密保存';
+    setSync('off', '等待同步');
     syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId) });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { void syncGoogle(); });
@@ -200,14 +209,31 @@ async function initializeGoogle() {
     void syncGoogle();
   } else {
     if (profileId.startsWith('google:')) $('#storage-note').textContent = 'Google 工作空間\n尚未登入\n本機加密保存';
-    $('#sync-status').textContent = !googleAccount.configured ? '此安裝版本尚未啟用 Google 登入；可繼續使用本機便箋。'
-      : profileId.startsWith('google:') ? '請重新登入此工作空間的 Google 帳號以繼續同步；本機便箋與待送內容保留。'
-      : '登入後開啟獨立帳號工作空間；目前本機便箋保留。';
+    if (profileId.startsWith('google:')) setSync('attention', '請重新登入 Google', '請重新登入此工作空間的 Google 帳號以繼續同步；本機便箋與待送內容保留。');
+    else setSync('off', googleAccount.configured ? '尚未連接 Google' : '只存在這台裝置', googleAccount.configured
+      ? '登入後開啟獨立帳號工作空間；目前本機便箋保留。' : '此安裝版本尚未啟用 Google 登入；可繼續使用本機便箋。');
   }
+}
+// The account chip says where the papers live and how syncing goes; its menu holds the account and data actions.
+function renderAccount() {
+  const connected = Boolean(googleAccount?.connected);
+  const name = connected ? googleAccount.email || 'Google 帳號' : profileId.startsWith('google:') ? 'Google 工作空間' : '本機便箋';
+  $('#account-name').textContent = name; $('#account-menu-name').textContent = name;
+  $('#account-initial').textContent = connected ? [...name][0].toLocaleUpperCase() : '';
+  $('#account-initial').hidden = !connected; $('#account-avatar svg').toggleAttribute('hidden', connected);
+  $('#account-avatar').classList.toggle('signed-in', connected);
+}
+function setSync(state, text, detail = '') {
+  syncState = state; $('#account').dataset.sync = state; $('#account-menu').dataset.sync = state; $('#sync-status').textContent = text;
+  $('#account-detail').textContent = detail; $('#account-detail').hidden = !detail; updateAttention();
+}
+// The drawer hides the account chip and the sidebar links on phones, so their warnings show on the drawer button.
+function updateAttention() {
+  $('#attention-dot').hidden = !(workspace?.state.conflicts.length || captureCount || ['error', 'attention'].includes(syncState));
 }
 async function syncGoogle(force = false) {
   if (!syncService || syncBusy || nativeClosing || accountBusy || document.querySelector('dialog[open]') || composing) return;
-  syncBusy = true; $('#google-sync').disabled = true; $('#sync-status').textContent = '正在同步…';
+  syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
   try {
     await (desktop ? desktop.perform(sync) : sync());
     async function sync() {
@@ -216,10 +242,11 @@ async function syncGoogle(force = false) {
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       const pending = workspace.pendingOperations.length;
-      $('#sync-status').textContent = pending ? `本機已保存 · ${pending} 筆等待下一次同步` : `已同步 · ${new Date().toLocaleTimeString()}`;
+      if (pending) setSync('pending', `${pending} 筆等待同步`, '本機已保存，下一次同步時送出。');
+      else setSync('ok', `已同步 · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     }
   } catch (error) {
-    $('#sync-status').textContent = `${error.message} · 本機資料保留`;
+    setSync('error', '同步失敗 · 本機已保存', `${error.message} · 本機資料保留`);
     if (error.code === 'unauthorized' || error.code === 'source-permission') $('#google-sign-in').textContent = '重新登入 Google';
   }
   finally { syncBusy = false; $('#google-sync').disabled = false; }
@@ -322,7 +349,8 @@ function initializeDesktop() {
 }
 
 async function refreshCaptures(force = false) {
-  const items = await captureInbox.list(); $('#capture-count').textContent = items.length;
+  const items = await captureInbox.list(); captureCount = items.length;
+  $('#capture-count').textContent = items.length; $('#capture-inbox-button').hidden = !items.length; updateAttention();
   if (!$('#capture-inbox-dialog').open || captureBusy && !force) return;
   const list = $('#capture-list'); list.replaceChildren(); selectedCapture = null;
   $('#capture-preview').hidden = true; $('#capture-files').replaceChildren(); $('#accept-capture').disabled = true; $('#discard-capture').disabled = true;
@@ -359,8 +387,20 @@ async function desktopAction(target, intent) {
   }
 }
 
+// Android's back button arrives as a close request; like other Android apps it first dismisses whatever is on top.
+function dismissTopLayer() {
+  const dialog = [...document.querySelectorAll('dialog[open]')].at(-1);
+  // A synthetic cancel runs each dialog's own guard, such as keeping a busy dialog open or keeping the editor's draft.
+  if (dialog) { if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close(); return true; }
+  if ($('.topbar').classList.contains('searching')) { setSearching(false); return true; }
+  if (document.body.classList.contains('drawer-open')) { setDrawer(false); return true; }
+  return false;
+}
 async function prepareNativeClose() {
   if (nativeClosing) return;
+  if (native.info.platform === 'android' && dismissTopLayer()) { await native.bridge.request('host.closeCancel').catch(() => {}); return; }
+  // The account menu is a passing popup, not unfinished work.
+  if ($('#account-menu').open) $('#account-menu').close();
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
     await native.bridge.request('host.closeCancel').catch(() => {});
     status(composing ? '請先完成目前輸入，再關閉 App。' : '請先完成或關閉目前對話框，再關閉 App。', true); return;
@@ -401,15 +441,14 @@ function render() {
   for (const group of groups) {
     const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
     row.dataset.groupId = group.id;
-    const choose = button('', () => { activeGroupId = group.id; render(); });
+    const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
     const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
     choose.append(dot, element('span', group.name, 'group-name'),
       element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
     row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
   $('#workspace-title').textContent = listView ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : desktopInfo ? '版面地圖' : '我的便箋桌面';
-  $('#draft-count').textContent = String(Object.keys(workspace.state.drafts).length);
-  $('#conflict-count').textContent = String(workspace.state.conflicts.length);
+  renderCounts();
   const scope = controller.state.operationScope;
   $('#operate-all').classList.toggle('operating', scope.kind === 'all');
   $('#operate-group').classList.toggle('operating', scope.kind === 'group');
@@ -432,9 +471,16 @@ function render() {
   else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
-  $('#desktop-hidden').hidden = !hidden || filter !== 'active' || Boolean(query);
+  $('#desktop-hidden').hidden = handheld || !hidden || filter !== 'active' || Boolean(query);
   $('#desktop-hidden-text').textContent = `${hidden} 張便箋目前不顯示在桌面上；顯示後會回到原本的位置。`;
   desktop?.publish();
+}
+
+// Drafts and the share inbox appear only when they hold something; version history stays reachable.
+function renderCounts() {
+  const draftCount = Object.keys(workspace.state.drafts).length; const conflictCount = workspace.state.conflicts.length;
+  $('#draft-count').textContent = String(draftCount); $('#drafts-button').hidden = !draftCount;
+  $('#conflict-count').textContent = String(conflictCount); $('#conflict-count').hidden = !conflictCount; updateAttention();
 }
 
 function renderStage(cards) {
@@ -595,14 +641,14 @@ function cardDetails(card) {
       : '桌面層在圖示上方、所有視窗下方；調整此組時暫時移到最上層，完成後回到桌面層。';
   };
   layers.onchange = updateLayerHint; updateLayerHint();
-  // Phones and the browser preview have no desktop layers; the stored resident layer is kept unchanged.
-  dialog.append(groupLabel, visibility, selection, ...desktop ? [layer, layerHint] : []);
+  // The browser preview has no desktop layers and phones show no desktop papers; options they cannot show stay unchanged.
+  dialog.append(groupLabel, ...handheld ? [] : [visibility, selection], ...desktop ? [layer, layerHint] : []);
   const actions = element('div', undefined, 'dialog-actions');
   actions.append(button(card.archived ? '取消封存' : '封存', async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
     button('移至刪除區', async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),
     button('取消', () => dialog.close()), button('套用', async () => {
       if (select.value !== card.groupId) await controller.moveToGroup(card.id, select.value);
-      await workspace.layout.setCardPolicy(card.id, { visible: check.checked, readOnlySelect: selectable.checked, residentLayer: layers.value });
+      if (!handheld) await workspace.layout.setCardPolicy(card.id, { visible: check.checked, readOnlySelect: selectable.checked, residentLayer: layers.value });
       await controller.reconcile(); dialog.close(); render(); status('已存本機');
     }, 'primary'));
   dialog.append(actions); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove()); dialog.showModal();
@@ -643,6 +689,8 @@ function renderSelection() {
   const layout = workspace.layout.state; const state = controller.state;
   if (state.activeGroupId) activeGroupId = state.activeGroupId;
   $('#groups').querySelectorAll('.group-row').forEach(row => row.classList.toggle('active', row.dataset.groupId === activeGroupId));
+  // Selecting another paper ends an edit and may keep its draft, so the drafts link can appear here.
+  renderCounts();
   const order = sceneOrder(workspace.snapshot.cards, layout, state).map(card => card.id);
   $('#stage').querySelectorAll('.card').forEach(paper => {
     paper.classList.toggle('selected', paper.dataset.cardId === state.selectedCardId);
@@ -834,7 +882,49 @@ function dragPaint(drag) {
   desktop?.publish();
 }
 
+// On phones and narrow windows the sidebar is a drawer over the page. It opens only from its button: the left screen
+// edge belongs to the system back gesture on Android and to back navigation on iOS.
+function setDrawer(open) {
+  open &&= narrow.matches;
+  const leaving = !open && document.body.classList.contains('drawer-open') && $('#sidebar').contains(document.activeElement);
+  document.body.classList.toggle('drawer-open', open); $('#scrim').hidden = !open;
+  $('main').inert = open; $('#sidebar').inert = narrow.matches && !open;
+  $('#drawer-toggle').setAttribute('aria-expanded', String(open));
+  if (open) ($('#groups .group-row.active button') || $('#sidebar button:not([hidden])'))?.focus();
+  else if (leaving) $('#drawer-toggle').focus();
+}
+// Phones fold the search field into an app bar button.
+function setSearching(on) {
+  $('.topbar').classList.toggle('searching', on);
+  $('#search-toggle').setAttribute('aria-label', on ? '結束搜尋' : '搜尋');
+  if (on) $('#search').focus();
+  else if ($('#search').value) { $('#search').value = ''; render(); }
+}
+function openAccountMenu() {
+  const menu = $('#account-menu'); const anchor = $('#account').getBoundingClientRect();
+  // A popup above the chip on wide screens; phones style it as a bottom sheet.
+  if (narrow.matches) menu.removeAttribute('style');
+  else Object.assign(menu.style, { left: `${anchor.left}px`, bottom: `${innerHeight - anchor.top + 6}px`, width: `${Math.max(248, anchor.width)}px` });
+  menu.showModal(); $('#account-button').setAttribute('aria-expanded', 'true');
+}
+
 function bindEvents() {
+  setDrawer(false); narrow.addEventListener('change', () => setDrawer(false));
+  $('#drawer-toggle').onclick = () => setDrawer(true); $('#scrim').onclick = () => setDrawer(false);
+  $('#sidebar').addEventListener('click', event => { if (event.target.closest('.sidebar-links button')) setDrawer(false); });
+  $('#search-toggle').onclick = () => setSearching(!$('.topbar').classList.contains('searching'));
+  $('#search').addEventListener('keydown', event => {
+    if (event.key === 'Escape' && $('.topbar').classList.contains('searching')) { event.preventDefault(); setSearching(false); }
+  });
+  $('#compose').onclick = () => run(() => openEditor());
+  const menu = $('#account-menu');
+  $('#account-button').onclick = openAccountMenu;
+  menu.addEventListener('close', () => $('#account-button').setAttribute('aria-expanded', 'false'));
+  // Close before the item's own handler runs, since several actions wait while any dialog is open.
+  menu.addEventListener('click', event => {
+    if (event.target === menu) menu.close();
+    else if (event.target.closest('button')) { menu.close(); setDrawer(false); }
+  }, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(workspace.layout.state.shortcuts, true); };
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {
@@ -973,8 +1063,13 @@ function bindEvents() {
   });
   document.addEventListener('keydown', event => {
     if (event.isComposing || composing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
+    if (event.key === 'Escape' && document.body.classList.contains('drawer-open')) { event.preventDefault(); setDrawer(false); return; }
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === ',' && !handheld) {
+      event.preventDefault(); showSettings(); return;
+    }
     const editControl = event.target.closest('input,textarea,select');
-    const shortcut = shortcutForEvent(event, workspace.layout.state.shortcuts, { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
+    // Shortcuts switch adjust scopes and desktop visibility, which phones and tablets do not have.
+    const shortcut = !handheld && shortcutForEvent(event, workspace.layout.state.shortcuts, { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
     if (shortcut) {
       event.preventDefault();
       const admission = desktop && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });

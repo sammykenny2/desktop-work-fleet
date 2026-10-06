@@ -15,11 +15,11 @@ internal static class Program
       throw new InvalidOperationException("Run the probe .exe apphost so the shared PerMonitorV2 manifest is active.");
     if (args.Length == 1 && args[0] == "--hit-target") { CompositionProbe.RunHitTarget(); return; }
     var composition = args.Length == 2 && args[0] == "--composition";
-    var wallpaper = args.Length == 2 && args[0] == "--wallpaper";
+    var wallpaper = args.Length == 2 && args[0] == "--wallpaper" || args.Length == 3 && args[0] == "--wallpaper" && args[2] == "--wait-desktop";
     var diagnostics = args.Length == 2 && args[0] == "--diagnostics";
     var platform = args.Length == 1 && args[0] == "--platform";
     if (!composition && !wallpaper && !diagnostics && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics] OUTPUT_DIRECTORY | --platform");
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {

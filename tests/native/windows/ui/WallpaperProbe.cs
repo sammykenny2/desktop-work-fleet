@@ -21,7 +21,18 @@ internal static class WallpaperProbe
       if (sibling == shell.Wallpaper) { belowIcons = true; break; }
     if (!belowIcons) throw new Exception("Wallpaper host is not below the Explorer icon surface in native Z order.");
     var monitor = NativeDisplays.Read().First(d => d.Primary); var scale = monitor.Dpi / 96d;
-    var bounds = new PhysicalBounds(monitor.WorkArea.X + 40, monitor.WorkArea.Y + 40, 480, 300);
+    // Place the test paper where no application window covers the desktop, so the real screen can be read there.
+    // With --wait-desktop the probe waits for the user to reveal the desktop (Win+D) instead of skipping.
+    var bounds = new PhysicalBounds(monitor.WorkArea.X + 40, monitor.WorkArea.Y + 40, 480, 300); var uncovered = false;
+    var waitUntil = DateTime.UtcNow.AddSeconds(Environment.GetCommandLineArgs().Contains("--wait-desktop") ? 90 : 0);
+    if (waitUntil > DateTime.UtcNow) Console.WriteLine("Waiting up to 90 s for an uncovered desktop spot (press Win+D)...");
+    do
+    {
+      for (var y = monitor.WorkArea.Y + 40; !uncovered && y + 300 <= monitor.WorkArea.Y + monitor.WorkArea.Height; y += 120)
+        for (var x = monitor.WorkArea.X + 40; !uncovered && x + 480 <= monitor.WorkArea.X + monitor.WorkArea.Width; x += 120)
+          if (ShellAt(x + (int)(100 * scale), y + (int)(70 * scale), shell)) { bounds = new PhysicalBounds(x, y, 480, 300); uncovered = true; }
+      if (!uncovered) await Task.Delay(500);
+    } while (!uncovered && DateTime.UtcNow < waitUntil);
     using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale);
     var foreground = GetForegroundWindow();
     surface.SetShellParent(shell.Wallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds);
@@ -67,6 +78,22 @@ internal static class WallpaperProbe
     finally { DeleteObject(region); }
     if (GetForegroundWindow() != foreground) throw new Exception("Wallpaper initialization stole foreground focus.");
     Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, zero input, WebView pixels, physical coordinates and no activation");
+    // Offscreen pixels prove WPF painted, not that the desktop shows it. Ask DWM to compose the whole Explorer desktop
+    // (wallpaper, icon host and their children) even where applications cover it, and read only the test paper's pixel.
+    var point = (X: bounds.X + (int)(100 * scale), Y: bounds.Y + (int)(70 * scale));
+    async Task<string> Screen(string layer)
+    {
+      await Task.Delay(800);
+      if (!uncovered || !ShellAt(point.X, point.Y, shell)) return $"SKIP on-screen {layer}: an application window covers the test spot";
+      var color = ScreenPixel(point.X, point.Y);
+      var shown = Math.Abs(color.R - 0xe0) < 24 && Math.Abs(color.G - 0x50) < 24 && Math.Abs(color.B - 0xa0) < 24;
+      return $"{(shown ? "PASS" : "FAIL")} on-screen {layer} at {point.X},{point.Y}: rgb({color.R},{color.G},{color.B})";
+    }
+    var screen = new List<string> { await Screen("wallpaper") };
+    surface.Hide(); surface.SetShellParent(shell.Desktop); surface.Show(false); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("desktop"));
+    surface.Hide(); surface.SetShellParent(IntPtr.Zero); surface.Show(true); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("floating"));
+    surface.Hide(); surface.SetShellParent(shell.Wallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("wallpaper again"));
+    foreach (var line in screen) Console.WriteLine(line);
     // Exercise detach/reattach on owned test surfaces without manipulating other applications.
     surface.Hide(); surface.SetShellParent(IntPtr.Zero); surface.Show(true);
     if ((GetWindowLongPtrW(input, -16).ToInt64() & 0x40000000) != 0 || (GetWindowLongPtrW(input, -20).ToInt64() & 8) == 0)
@@ -77,6 +104,22 @@ internal static class WallpaperProbe
     if (GetForegroundWindow() != foreground) throw new Exception("Layer transitions stole foreground focus.");
     Console.WriteLine("PASS wallpaper -> floating -> wallpaper -> icon host, repeated show and unchanged physical bounds");
   }
+  private static bool ShellAt(int x, int y, NativeShellLayers shell)
+  {
+    var window = GetAncestor(WindowFromPoint(new NativePoint { X = x, Y = y }), 2);
+    return window == shell.Desktop || window == shell.Wallpaper || window == GetAncestor(shell.Wallpaper, 2);
+  }
+  private static (int R, int G, int B) ScreenPixel(int x, int y)
+  {
+    var dc = GetDC(IntPtr.Zero);
+    try { var value = GetPixel(dc, x, y); return ((int)(value & 0xff), (int)((value >> 8) & 0xff), (int)((value >> 16) & 0xff)); }
+    finally { ReleaseDC(IntPtr.Zero, dc); }
+  }
+  [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
+  [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
+  [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
+  [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);
+  [DllImport("gdi32.dll")] private static extern uint GetPixel(IntPtr dc, int x, int y);
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);

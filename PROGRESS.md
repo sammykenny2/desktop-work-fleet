@@ -59,6 +59,12 @@ SDK 35 以下維持原行為。
 Android Studio 與終端機的 adb 搶用 5037 連線埠，反覆出現 `ADB server didn't ACK`；不影響 App，但部分 adb 指令需要重試。
 Android Studio 第一次 Sync 失敗後沒有自動建立 `app` Run configuration，需在 Edit Configurations 手動新增。
 
+## 2026-10-06 沒有桌面分層的平台隱藏常駐層級
+
+使用者要求手機不要出現層級設定。卡片「更多操作」只在有桌面場景（Windows／macOS／Linux 原生）時顯示「常駐層級」與其說明；
+Android／iOS 與瀏覽器預覽隱藏，已存的層級值原樣保留。「鎖定時可選取文字」保留，因為它在手機與瀏覽器的畫布上仍有作用。
+只跑 `node --check`；依使用者指示不在本機編譯 Android／iOS，改到 macOS 開發機驗證。
+
 ## 2026-10-06 常駐層級改稱「桌布層／桌面層／最上層」
 
 使用者指出「浮動」會讓人以為可以拖；能否拖曳取決於調整模式，與層級無關。依使用者決定：

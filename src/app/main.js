@@ -579,18 +579,19 @@ function cardDetails(card) {
   layers.value = workspace.layout.state.placements[card.id]?.residentLayer || 'desktop'; layer.append(layers);
   const layerHint = element('p', '', 'hint');
   const updateLayerHint = () => {
-    selectable.disabled = layers.value === 'wallpaper';
-    layerHint.textContent = !desktop ? '此瀏覽器工作空間僅預覽卡片，沒有系統桌面分層或全域快捷鍵。'
-      : layers.value === 'wallpaper' ? desktopInfo.layers.includes('wallpaper')
-        ? desktopInfo.wallpaperPlacement === 'background'
-          ? 'Linux 桌布層固定滑鼠穿透；若桌布與圖示由同一個桌面元件繪製，便箋仍會在圖示上方。調整此組時暫時移到最上層，完成後回到桌布層。'
-          : '桌布層在桌面圖示下方，固定滑鼠穿透；調整此組時暫時移到最上層，完成後回到桌布層。'
-        : '目前桌面環境無法使用桌布層，暫以桌面層呈現，原偏好會保留。'
+    selectable.disabled = Boolean(desktop) && layers.value === 'wallpaper';
+    if (!desktop) return;
+    layerHint.textContent = layers.value === 'wallpaper' ? desktopInfo.layers.includes('wallpaper')
+      ? desktopInfo.wallpaperPlacement === 'background'
+        ? 'Linux 桌布層固定滑鼠穿透；若桌布與圖示由同一個桌面元件繪製，便箋仍會在圖示上方。調整此組時暫時移到最上層，完成後回到桌布層。'
+        : '桌布層在桌面圖示下方，固定滑鼠穿透；調整此組時暫時移到最上層，完成後回到桌布層。'
+      : '目前桌面環境無法使用桌布層，暫以桌面層呈現，原偏好會保留。'
       : layers.value === 'floating' ? '最上層常駐在所有視窗上方；能否拖曳取決於是否在調整模式，不取決於層級。'
       : '桌面層在圖示上方、所有視窗下方；調整此組時暫時移到最上層，完成後回到桌面層。';
   };
   layers.onchange = updateLayerHint; updateLayerHint();
-  dialog.append(groupLabel, visibility, selection, layer, layerHint);
+  // Phones and the browser preview have no desktop layers; the stored resident layer is kept unchanged.
+  dialog.append(groupLabel, visibility, selection, ...desktop ? [layer, layerHint] : []);
   const actions = element('div', undefined, 'dialog-actions');
   actions.append(button(card.archived ? '取消封存' : '封存', async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
     button('移至刪除區', async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),

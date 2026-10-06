@@ -22,6 +22,7 @@ public sealed class DesktopSurface : IDisposable
   private bool inputSuspended;
   private IntPtr shellParent;
   private PhysicalBounds? physicalBounds;
+  public bool Shown => shown;
   public bool NativeAlive => InputHandle != IntPtr.Zero && VisualHandle != IntPtr.Zero && IsWindow(InputHandle) && IsWindow(VisualHandle);
   public uint Dpi => GetDpiForWindow(InputHandle);
   public event Action? CloseRequested;

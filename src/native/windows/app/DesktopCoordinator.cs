@@ -395,8 +395,11 @@ public sealed class DesktopCoordinator : IDisposable
           var bottom = Math.Min(c.Rect.Y + c.Rect.Height, view.Viewport.Y + view.Viewport.Height);
           return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, view.Layer != "wallpaper" && c.Interactive);
         }));
+        var wasShown = view.Surface.Shown;
         if (cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
-        view.Applied = sequence; TryFocus(view); return new { accepted = true };
+        view.Applied = sequence; TryFocus(view);
+        if (!wasShown && view.Surface.Shown) Repaint(view);
+        return new { accepted = true };
       }
       case "scene.command.begin": return new { token = transfers.Begin(view.Id, Size(args, SceneTransfers.MaxCommand), JsonRules.Text(args, "sha256"), SceneTransfers.MaxCommand) };
       case "scene.command.append": return new { offset = transfers.Append(view.Id, JsonRules.Text(args, "token"), Size(args, SceneTransfers.MaxCommand, "offset"), JsonRules.Text(args, "base64", BridgeSession.MaxMessage)) };
@@ -467,6 +470,14 @@ public sealed class DesktopCoordinator : IDisposable
   private void SweepCommands()
   {
     foreach (var pair in commands.Where(c => DateTime.UtcNow - c.Value.Created > TimeSpan.FromMinutes(2)).ToArray()) Release(pair.Key, pair.Value);
+  }
+  private void Repaint(SceneView view)
+  {
+    // A frame rendered while the surface was hidden stays blank until the page paints again. Composition resumes
+    // asynchronously after Show, so a repaint posted immediately is lost; wait before nudging one.
+    var timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(300) };
+    timer.Tick += (_, _) => { timer.Stop(); if (!disposed && !view.Retired && view.Surface.Shown) Post(view, new { v = 1, @event = "desktop-repaint" }); };
+    timer.Start();
   }
   private void Post(SceneView view, object value) => PostRaw(view, JsonSerializer.Serialize(value));
   private void PostRaw(SceneView view, string json)

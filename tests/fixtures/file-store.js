@@ -43,6 +43,17 @@ export class MemoryFileStore {
       ...(next < this.changes.length ? { nextCursor: String(next) } : { cursor: String(this.changes.length) }) };
   }
 
+  async listFileIds(input) {
+    await this.#before('listFileIds', input);
+    const offset = Number(input.pageToken ?? 0); const ids = [...this.files.keys()];
+    return { ids: ids.slice(offset, offset + this.pageSize), nextPageToken: offset + this.pageSize < ids.length ? String(offset + this.pageSize) : null };
+  }
+
+  async deleteFile(input) {
+    await this.#before('deleteFile', input);
+    this.files.delete(input.id); this.changes.push({ id: input.id, removed: true });
+  }
+
   async allocateFileId(input) { await this.#before('allocateFileId', input); return `file-${++this.#id}`; }
 
   async readFile(input) {

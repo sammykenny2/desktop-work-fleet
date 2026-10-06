@@ -118,6 +118,21 @@ export class GoogleDriveFileStore {
       nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
   }
 
+  // Ids only, so a reset can delete files this version cannot read.
+  async listFileIds({ pageToken = null, signal } = {}) {
+    const query = { spaces: 'appDataFolder', q: 'trashed = false', pageSize: '100', fields: 'nextPageToken,files(id)' };
+    if (pageToken !== null) query.pageToken = token(pageToken);
+    const page = await this.#json({ path: pathFor('/drive/v3/files', query), signal, context: pageToken === null ? undefined : 'listing' });
+    return { ids: items(page.files).map(file => { requireValue(validFileId(file?.id), 'invalid-source-page', 'Google Drive 檔案身分無效。'); return file.id; }),
+      nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
+  }
+
+  async deleteFile({ id, signal }) {
+    requireValue(validFileId(id), 'invalid-source-file', 'Google Drive 檔案身分無效。');
+    // A file that is already gone counts as deleted.
+    await this.#http({ path: `/drive/v3/files/${id}`, method: 'DELETE', signal, allowed: [404] });
+  }
+
   async listChanges({ cursor, signal }) {
     const page = await this.#json({ path: pathFor('/drive/v3/changes', { pageToken: token(cursor), spaces: 'appDataFolder',
       pageSize: '100', includeRemoved: 'true', fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${FIELDS}))` }),

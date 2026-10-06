@@ -68,7 +68,7 @@ hosted workflow 的建置時間也未測。沒有獨立審閱。
 ## 2026-10-06 重設所有資料與重置桌面佈局
 
 使用者要求在設定加入重設所有資料（需警告、手機也能用），討論後分成兩組：
-- 資料重置對「目前工作空間」：本機工作空間刪除這台裝置的資料；Google 工作空間要連 Drive 一起清（下一段，尚未完成）。
+- 資料重置對「目前工作空間」：本機工作空間刪除這台裝置的資料；Google 工作空間連 Drive 一起清。
   手機不登入 Google 時本身就是本機記事軟體，所以手機也有本機資料可重置。
 - 版面重置只在有桌面分層的 Windows／macOS／Linux，用語照 iOS「重置主畫面佈局」叫「重置桌面佈局」，不含快捷鍵。
 
@@ -82,11 +82,22 @@ hosted workflow 的建置時間也未測。沒有獨立審閱。
 四個原生宿主都新增 `storage.reset`：在同一個交易刪除該 profile 的 records／attachments／staging 與備份金鑰、備份位置授權
 （Windows `vault`／`capabilities`，其他平台 `secrets`），再 VACUUM 回收空間；回覆後沿用切換帳號的路徑重開同一個 profile。
 Google 登入資料不在這些表（Windows 獨立 vault 檔、Apple Keychain、Linux Secret Service、Android 系統授權），所以不受影響。
-瀏覽器預覽改為刪除 IndexedDB 的工作空間、附件與備份紀錄後重新載入。Google 工作空間暫不顯示重設，等雲端清除完成。
+瀏覽器預覽改為刪除 IndexedDB 的工作空間、附件與備份紀錄後重新載入。Google 工作空間的做法見本段下半。
 
 驗證：`desktop-core` 47 項通過；Windows 原生 bridge 測試新增重設（刪除後讀不到工作空間、紀錄與附件，新工作空間可從頭保存）並通過；
 Windows app 與測試專案建置 0 錯誤；瀏覽器預覽實測新增便箋、草稿後重設，重新載入只剩預設群組、0 張便箋、草稿入口隱藏，1280 與 390 寬截圖檢查對話框。
 Apple／Android 原始碼未建置（依指示到 macOS 開發機），Linux 的資料庫需要 GI／Secret Service，本機只做語法檢查。
+
+Google 工作空間連雲端重置（`resetSource`）：先在 appDataFolder 寫入新的 `reset` 種類標記檔，再列出並逐一刪除其他檔案（`google.delete`，已不存在視為完成），
+重複列舉直到只剩標記，可清掉其他裝置在重置途中上傳的檔案；網路、限流、服務錯誤最多重試 5 次。全部刪完才清這台裝置的副本，中途失敗時本機資料仍在。
+同步原本只會新增檔案，看到移除就停止（`source-file-missing`）。現在：變更清單中出現標記、且這台裝置持有舊檔案時回報 `source-reset`；
+游標失效重新列舉時，已知檔案不見且有標記也回報 `source-reset`；從未收到的檔案被移除不再視為錯誤。新裝置或剛重置的裝置不持有舊檔案，標記不影響它們。
+其他裝置遇到 `source-reset` 時帳號區顯示「雲端已重設」，跳出一次對話框：清除這台裝置的副本後重新同步、先匯出備份，或稍後；不會自動刪除。
+四個原生宿主都接受 `reset` 檔案種類（上限 4 KiB）並新增 `google.delete`；Google 工作空間未登入時重設按鈕停用並說明原因。
+
+驗證：`file-sync` 新增 3 項（標記讓持有舊檔的裝置停下、新裝置從清空的雲端開始、游標重建後仍辨識、限流重試與重置途中新增的檔案、刪除失敗回報），
+`npm test` 225 pass、11 skip。Windows app 建置 0 錯誤。**Google 雲端重置沒有任何實機或真實 Drive 驗證**：
+目前所有版本都還沒有配置 Google clients，使用者無法登入 Google，這條路徑現在走不到；Apple／Android／Linux 的 `google.delete` 也未建置。
 
 ## 2026-10-06 Windows 開著時桌面圖示點不到
 

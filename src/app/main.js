@@ -21,7 +21,7 @@ import { DesktopOwner } from '../desktop/owner.js';
 import { projectDesktop } from '../desktop/projection.js';
 import { NativeShortcutSettings } from '../native/shortcuts.js';
 import { NativeGoogleFileStore } from '../native/google.js';
-import { FileSync } from '../sources/file-sync.js';
+import { FileSync, resetSource } from '../sources/file-sync.js';
 
 const $ = selector => document.querySelector(selector);
 // Group paper, shared with the desktop scenes. Neighbouring entries differ in hue so the first groups stay distinct.
@@ -40,7 +40,7 @@ let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = [];
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
-let syncState = 'off'; let captureCount = 0; let handheld = false;
+let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
 const attachmentUrls = new Map();
@@ -246,6 +246,7 @@ async function syncGoogle(force = false) {
       else setSync('ok', `已同步 · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     }
   } catch (error) {
+    if (error.code === 'source-reset') { setSync('attention', '雲端已重設', error.message); askAfterSourceReset(); return; }
     setSync('error', '同步失敗 · 本機已保存', `${error.message} · 本機資料保留`);
     if (error.code === 'unauthorized' || error.code === 'source-permission') $('#google-sign-in').textContent = '重新登入 Google';
   }
@@ -280,10 +281,35 @@ function resetPlan() {
   if (google) keeps.push('Google 登入狀態', '這台裝置上的本機便箋');
   else if (googleAccount?.configured) keeps.push('這台裝置上的 Google 帳號工作空間');
   return { cloud: google, keeps, run: resetWorkspace,
+    // Clearing a Google workspace needs its Drive data, so it waits for a working sign-in.
+    blocked: google && !googleAccount?.connected ? '請先在帳號選單重新登入 Google，才能一併清除雲端資料。' : null,
     target: google ? `${googleAccount?.email || 'Google 帳號'} 的 Google 工作空間（所有裝置）` : native ? '本機便箋（這台裝置）' : '本機便箋（這個瀏覽器）' };
 }
+function requireConnected() {
+  if (!googleAccount?.connected) throw new Error('請先在帳號選單重新登入 Google，才能一併清除雲端資料。');
+}
+// Another device cleared this account's Drive data. This device keeps its copy until the user chooses.
+function askAfterSourceReset() {
+  if (sourceResetAsked || document.querySelector('dialog[open]')) return; sourceResetAsked = true;
+  const dialog = element('dialog'); dialog.id = 'source-reset-dialog';
+  const state = element('p', '', 'backup-message'); state.setAttribute('role', 'status');
+  // Not through run(): the reset waits for the desktop owner's queue to empty, so it cannot run inside it.
+  const clear = element('button', '清除這台裝置的副本', 'danger'); clear.type = 'button';
+  clear.onclick = async () => {
+    for (const control of dialog.querySelectorAll('button')) control.disabled = true;
+    try { await resetWorkspace(text => { state.textContent = text; }, { cloud: false }); }
+    catch (error) { state.textContent = error.message; for (const control of dialog.querySelectorAll('button')) control.disabled = false; }
+  };
+  dialog.append(element('h2', '雲端資料已重設'),
+    element('p', `${googleAccount?.email || '這個 Google 帳號'} 的 Work Fleet 雲端資料已在其他裝置重設。這台裝置上的副本還在，但已停止同步。`),
+    element('p', '清除副本後會從目前的雲端重新同步；這台裝置尚未同步的修改也會一起刪除，需要的話請先匯出備份。'), state);
+  const actions = element('div', undefined, 'dialog-actions');
+  actions.append(button('先匯出備份', () => { dialog.close(); $('#backup-button').click(); }), button('稍後', () => dialog.close()), clear);
+  dialog.append(actions); dialog.oncancel = event => { if ([...dialog.querySelectorAll('button')].some(control => control.disabled)) event.preventDefault(); };
+  dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
+}
 // Deletes the current workspace on this device and reopens it empty, stopping everything that could write it back.
-async function resetWorkspace(say) {
+async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } = {}) {
   if (accountBusy || nativeClosing) throw new Error('帳號或關閉作業進行中，請稍後再試。');
   accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
   try {
@@ -293,6 +319,12 @@ async function resetWorkspace(say) {
     await Promise.allSettled([...activeActions, draftPending]);
     // Nothing of this workspace is kept, so its unsaved drafts must not hold the page open.
     currentDraft = null; unsavedDrafts.clear(); document.body.inert = true;
+    if (cloud) {
+      requireConnected();
+      say('正在標記雲端重設…');
+      await resetSource(new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId),
+        { progress: (done, total) => say(`正在刪除雲端資料：${done} / ${total}`) });
+    }
     say('正在刪除這台裝置上的資料…');
     await storage.reset(profileId);
     // Native hosts reopen the document on the emptied profile after replying; the browser reloads itself.
@@ -983,8 +1015,7 @@ function bindEvents() {
     if (currentDraft) await flushDraft();
     if (!await controller.endEdit()) return;
     currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
-    // Google workspaces also clear their Drive data, which this build cannot do yet; they get no reset.
-    const reset = profileId.startsWith('google:') ? null : resetPlan();
+    const reset = resetPlan();
     showBackupDialog({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual, reset,
       onChanged: async () => { await controller.reconcile(); render(); } });
   });

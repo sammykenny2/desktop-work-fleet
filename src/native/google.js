@@ -40,6 +40,16 @@ export class NativeGoogleFileStore {
     });
     return { changes, ...(result.nextPageToken === undefined ? { cursor: cursor(result.newStartPageToken) } : { nextCursor: cursor(result.nextPageToken) }) };
   }
+  // Ids only, so a reset can delete files this version cannot read.
+  async listFileIds({ pageToken = null, signal } = {}) {
+    const result = await this.#call('google.list', { pageToken: pageToken === null ? null : cursor(pageToken) }, signal);
+    return { ids: page(result.files || []).map(file => { requireValue(validFileId(file?.id), 'invalid-source-page', 'Google 檔案身分無效。'); return file.id; }),
+      nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };
+  }
+  async deleteFile({ id, signal }) {
+    requireValue(validFileId(id), 'invalid-source-file', 'Google 檔案身分無效。');
+    await this.#call('google.delete', { fileId: id }, signal);
+  }
   async allocateFileId({ signal } = {}) {
     const result = await this.#call('google.allocate', {}, signal);
     requireValue(Array.isArray(result.ids) && result.ids.length === 1 && validFileId(result.ids[0]), 'invalid-source-file', 'Google 檔案身分無效。'); return result.ids[0];

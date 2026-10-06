@@ -203,6 +203,8 @@ class Google:
             code = "page-expired"
         elif status == 404 and context == "upload":
             code = "upload-session-expired"
+        elif status == 404 and context == "delete":
+            code = "file-missing"
         elif reason == "storageQuotaExceeded":
             code = "storage-quota"
         elif status == 403:
@@ -216,8 +218,8 @@ class Google:
 
     def file(self, args):
         value = args.get("file")
-        p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment") and p.is_digest(value.get("sha256")), "invalid-source-file", "同步檔案身分無效。")
-        size = p.number(value, "size", 8 * 1024 * 1024 if value["kind"] == "revision" else p.ATTACHMENT)
+        p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment", "reset") and p.is_digest(value.get("sha256")), "invalid-source-file", "同步檔案身分無效。")
+        size = p.number(value, "size", {"revision": 8 * 1024 * 1024, "reset": 4096}.get(value["kind"], p.ATTACHMENT))
         return {"id": value["id"], "kind": value["kind"], "sha256": value["sha256"], "size": size}
 
     def metadata(self, value, file):
@@ -295,6 +297,16 @@ class Google:
             return self.json(self.path("/drive/v3/changes", pageToken=p.text(args, "cursor", 8192), spaces="appDataFolder", pageSize="100", includeRemoved="true", fields=f"nextPageToken,newStartPageToken,changes(fileId,removed,file({FIELDS}))"), context="changes")
         if method == "google.allocate":
             return self.json(self.path("/drive/v3/files/generateIds", count="1", space="appDataFolder", type="files", fields="ids"))
+        if method == "google.delete":
+            # Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
+            file_id = p.text(args, "fileId", 256)
+            p.require(re.fullmatch(r"[A-Za-z0-9_-]{1,256}", file_id) is not None, "invalid-source-file", "同步檔案身分無效。")
+            try:
+                self.request("/drive/v3/files/" + file_id, method="DELETE", context="delete")
+            except p.Failure as failure:
+                if failure.code != "file-missing":
+                    raise
+            return None
         file = self.file(args)
         if method == "google.read":
             return self.read_file(file)

@@ -29,15 +29,16 @@ actor FleetDrive {
         let error = try? FleetProtocol.json(bytes); let reasons = (error?["error"] as? [String: Any])?["errors"] as? [[String: Any]]; let reason = reasons?.first?["reason"] as? String ?? ""
         let code = status == 401 ? "unauthorized" : status == 409 ? "file-exists" : status == 429 || ["rateLimitExceeded", "userRateLimitExceeded"].contains(reason) ? "rate-limit"
             : status >= 500 ? "service-unavailable" : status == 410 && context == "changes" ? "cursor-expired" : [400, 410].contains(status) && context == "listing" ? "page-expired"
-            : status == 404 && context == "upload" ? "upload-session-expired" : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error"
+            : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 && context == "delete" ? "file-missing"
+            : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error"
         throw FleetFailure(code, "Google Drive 未完成同步（\(code)），本機資料與待送內容保留。")
     }
     private func json(_ path: String, context: String = "") async throws -> [String: Any] { try FleetProtocol.json((try await request(path, context: context)).0) }
     private func file(_ args: [String: Any]) throws -> [String: Any] {
         guard let value = args["file"] as? [String: Any] else { throw FleetFailure("invalid-source-file", "同步檔案格式無效。") }
         let id = try FleetProtocol.text(value, "id"), kind = try FleetProtocol.text(value, "kind"), digest = try FleetProtocol.text(value, "sha256")
-        try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil && ["revision", "attachment"].contains(kind) && FleetProtocol.isDigest(digest), "invalid-source-file", "同步檔案身分無效。")
-        let size = try FleetProtocol.number(value, "size", Int64(kind == "revision" ? 8 * 1024 * 1024 : FleetProtocol.attachment)); return ["id": id, "kind": kind, "sha256": digest, "size": size]
+        try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil && ["revision", "attachment", "reset"].contains(kind) && FleetProtocol.isDigest(digest), "invalid-source-file", "同步檔案身分無效。")
+        let size = try FleetProtocol.number(value, "size", Int64(kind == "revision" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : FleetProtocol.attachment)); return ["id": id, "kind": kind, "sha256": digest, "size": size]
     }
     private func metadata(_ value: [String: Any], _ file: [String: Any]) throws {
         guard let properties = value["appProperties"] as? [String: Any], let spaces = value["spaces"] as? [String] else { throw FleetFailure("upload-mismatch", "Google 檔案 metadata 不完整。") }
@@ -61,6 +62,13 @@ actor FleetDrive {
             try metadata(await json(path("/drive/v3/files/" + id, [("fields", Self.fields)])), file)
             let data = try await request(path("/drive/v3/files/" + id, [("alt", "media")]), maximum: max(size, 65536)).0
             try FleetProtocol.require(data.count == size && FleetProtocol.digest(data) == FleetProtocol.text(file, "sha256"), "file-integrity", "Google 檔案內容校驗失敗。"); return data
+        case "google.delete":
+            // Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
+            let id = try FleetProtocol.text(args, "fileId")
+            try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil, "invalid-source-file", "同步檔案身分無效。")
+            do { _ = try await request("/drive/v3/files/" + id, method: "DELETE", context: "delete") }
+            catch let failure as FleetFailure where failure.code == "file-missing" { }
+            return NSNull()
         case "google.create":
             let file = try self.file(args); guard let bytes else { throw FleetFailure("transfer-missing", "缺少待送檔案內容。") }
             try FleetProtocol.require(bytes.count == FleetProtocol.number(file, "size") && FleetProtocol.digest(bytes) == FleetProtocol.text(file, "sha256"), "file-integrity", "待送檔案校驗失敗。")

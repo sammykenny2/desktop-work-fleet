@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
 import { copy, FleetError } from '../src/core/contracts.js';
-import { FileSync } from '../src/sources/file-sync.js';
+import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { sha256, validateFile, verifyFile } from '../src/sources/files.js';
 import { encodeRevision, revisionRecord } from '../src/sources/revisions.js';
 import { gate, MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.js';
@@ -173,6 +173,50 @@ test('invalid JSON, future schemas and changed immutable metadata preserve the l
     assert.deepEqual(c.workspace.state, before, mode);
     assert.equal(c.sync.status.phase, 'needs-attention');
   }
+});
+
+test('cloud reset: the marker stops devices holding old files, while fresh devices start from the cleared source', async () => {
+  const store = new MemoryFileStore();
+  const a = await client(store, { bootstrapGroup: true }); await a.workspace.createCard(text('重設前'), a.workspace.snapshot.groups[0].id);
+  await a.sync.sync(); const b = await client(store); await b.sync.sync(); const before = b.workspace.snapshot;
+  const progress = []; const result = await resetSource(store, { progress: (done, total) => progress.push([done, total]), wait: async () => {} });
+  assert.deepEqual([...store.files.keys()], [result.marker.id]); assert.equal(result.marker.kind, 'reset');
+  assert.deepEqual(progress.at(-1), [result.deleted, result.deleted]); assert.equal(result.deleted, 2);
+  await assert.rejects(b.sync.sync(), failCode('source-reset'));
+  assert.deepEqual(b.workspace.snapshot, before, 'the reset never deletes this device copy by itself');
+  for (const fresh of [await client(store), await client(store, { profileId: 'account-a' })]) {
+    await fresh.sync.sync();
+    assert.equal(fresh.workspace.snapshot.cards.length, 0); assert.equal(Object.keys(fresh.workspace.syncState.files || {}).length, 0, 'the marker is not a synced file');
+  }
+  const restarted = await client(store, { bootstrapGroup: true }); await restarted.sync.sync();
+  await restarted.workspace.createCard(text('重設後'), restarted.workspace.snapshot.groups[0].id); await restarted.sync.sync();
+  const later = await client(store); await later.sync.sync();
+  assert.deepEqual(later.workspace.snapshot.cards.map(card => card.content.text), ['重設後']);
+  await later.sync.sync();
+});
+
+test('cloud reset is recognised after a cursor restart, and removals of files never received are harmless', async () => {
+  const store = new MemoryFileStore(); const a = await client(store, { bootstrapGroup: true }); await a.sync.sync();
+  const b = await client(store); await b.sync.sync();
+  await resetSource(store, { wait: async () => {} });
+  store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+  await assert.rejects(b.sync.sync(), failCode('source-reset'));
+  const c = await client(store); await c.sync.sync();
+  store.changes.push({ id: 'never-received', removed: true }); await c.sync.sync();
+});
+
+test('cloud reset retries rate limits and deletes files uploaded while it ran', async () => {
+  const store = new MemoryFileStore(); const a = await client(store, { bootstrapGroup: true }); await a.sync.sync();
+  let limited = false; let uploaded = false; const waits = [];
+  store.hooks.deleteFile = () => { if (!limited) { limited = true; throw new FleetError('rate-limit', 'slow down'); } };
+  store.hooks.listFileIds = async (input, fixture) => {
+    if (!uploaded && fixture.calls.some(call => call.method === 'deleteFile')) { uploaded = true; await fixture.seed(encodeRevision(groupRecord('late'))); }
+  };
+  const result = await resetSource(store, { wait: async ms => { waits.push(ms); } });
+  assert.deepEqual([...store.files.keys()], [result.marker.id]); assert.deepEqual(waits, [1000]);
+  store.hooks.deleteFile = () => { throw new FleetError('source-permission', 'denied'); };
+  await a.sync.sync().catch(() => {}); await a.workspace.createGroup('另一組'); await a.sync.sync().catch(() => {});
+  await assert.rejects(resetSource(store, { wait: async () => {} }), failCode('source-permission'));
 });
 
 test('explicit remote removal and a missing file after cursor restart are errors, never tombstones', async () => {

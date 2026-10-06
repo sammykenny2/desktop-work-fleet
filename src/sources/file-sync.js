@@ -8,6 +8,41 @@ const cursorValue = value => {
   return value;
 };
 const pageArray = value => requireValue(Array.isArray(value) && value.length <= 1000, 'invalid-source-page', '來源分頁格式或容量無效。');
+const sourceReset = () => new FleetError('source-reset', '這個帳號的雲端資料已在其他裝置重設；這台裝置的副本仍保留，同步已暫停。');
+const retryable = code => ['network', 'rate-limit', 'service-unavailable'].includes(code);
+
+/**
+ * Clears an account's source. The reset marker is written first, so a device that still holds the old files reads
+ * the deletions that follow as a reset instead of as missing files. Deleting is repeated until only the marker is
+ * left, which also removes files another device uploaded before it noticed the marker.
+ */
+export async function resetSource(store, { progress = () => {}, now = () => Date.now(), wait = ms => new Promise(done => setTimeout(done, ms)) } = {}) {
+  const attempt = async action => {
+    for (let failures = 0; ; failures++) {
+      try { return await action(); }
+      catch (error) { if (!retryable(error.code) || failures >= 5) throw error; await wait(1000 * 2 ** failures); }
+    }
+  };
+  const bytes = new TextEncoder().encode(canonicalJson({ format: 'work-fleet-reset', schema: 1, resetAt: new Date(now()).toISOString() }));
+  const marker = validateFile({ id: await attempt(() => store.allocateFileId({})), kind: 'reset', sha256: await sha256(bytes), size: bytes.byteLength });
+  await attempt(() => store.createFile({ file: marker, bytes }));
+  let deleted = 0;
+  for (let pass = 0; pass < 5; pass++) {
+    const ids = []; const tokens = new Set(); let pageToken = null;
+    do {
+      const page = await attempt(() => store.listFileIds({ pageToken })); pageArray(page.ids);
+      ids.push(...page.ids.filter(id => id !== marker.id));
+      pageToken = page.nextPageToken ?? null;
+      if (pageToken !== null) {
+        cursorValue(pageToken);
+        requireValue(!tokens.has(pageToken), 'source-page-loop', '來源重複回傳相同分頁，已停止重設。'); tokens.add(pageToken);
+      }
+    } while (pageToken !== null);
+    if (!ids.length) return { marker, deleted };
+    for (const [index, id] of ids.entries()) { await attempt(() => store.deleteFile({ id })); deleted++; progress(deleted, deleted + ids.length - index - 1); }
+  }
+  throw new FleetError('source-reset-incomplete', '雲端仍不斷出現新檔案，重設尚未完成；請確認其他裝置已停止同步後重試。');
+}
 
 /** Account-bound FileStore coordinator. FileStore owns authorization; no credential enters Workspace. */
 export class FileSync {
@@ -84,7 +119,7 @@ export class FileSync {
   }
 
   async #receive(files, expectedCursor, cursor) {
-    pageArray(files); files = files.map(validateFile);
+    pageArray(files); files = files.map(validateFile).filter(file => file.kind !== 'reset');
     const records = [];
     for (const file of files) {
       const bytes = await verifyFile(file, await this.#request('readFile', { file }));
@@ -100,10 +135,11 @@ export class FileSync {
 
   async #fullScan() {
     const baseline = cursorValue(await this.#request('getStartCursor'));
-    let pageToken = null; const tokens = new Set(); const found = new Set();
+    let pageToken = null; const tokens = new Set(); const found = new Set(); let marked = false;
     do {
       const page = await this.#request('listFiles', { pageToken }); pageArray(page.files);
       requireValue(!page.incomplete, 'incomplete-source-scan', '來源尚未完成全部檔案列舉，游標未前進。');
+      marked ||= page.files.some(file => file?.kind === 'reset');
       await this.#receive(page.files, null, null);
       for (const file of page.files) found.add(file.id);
       pageToken = page.nextPageToken ?? null;
@@ -113,6 +149,8 @@ export class FileSync {
       }
     } while (pageToken !== null);
     for (const file of Object.values(this.#workspace.syncState.files || {})) {
+      // Known files gone next to a reset marker were cleared on purpose; without one their absence stays an error.
+      if (!found.has(file.id) && marked) throw sourceReset();
       requireValue(found.has(file.id), 'source-file-missing', '原有同步檔案已不在來源中；本機內容保留，不能由檔案缺席推論刪除。');
     }
     this.#check(); await this.#workspace.receiveRevisions([], { session: this.#session, expectedCursor: null, cursor: baseline });
@@ -132,12 +170,18 @@ export class FileSync {
         await this.#fullScan(); restarted = true; tokens.clear(); continue;
       }
       pageArray(page.changes);
-      const files = page.changes.map(change => {
+      const known = new Set(Object.values(this.#workspace.syncState.files || {}).map(file => file.id));
+      const files = []; let removedKnown = false;
+      for (const change of page.changes) {
         requireValue(change && validFileId(change.id) && typeof change.removed === 'boolean', 'invalid-source-page', '來源變更記錄無效。');
-        requireValue(!change.removed, 'source-file-missing', '來源檔案已被移除；本機內容保留，請處理同步來源。');
+        // A file this device never received leaves nothing behind when it goes; a known one going needs the user.
+        if (change.removed) { removedKnown ||= known.has(change.id); continue; }
         requireValue(change.file?.id === change.id, 'invalid-source-page', '來源變更與檔案身分不符。');
-        return validateFile(change.file);
-      });
+        files.push(validateFile(change.file));
+      }
+      // A reset writes its marker before deleting, so the marker reaches this device ahead of the removals.
+      if (files.some(file => file.kind === 'reset') && known.size) throw sourceReset();
+      requireValue(!removedKnown, 'source-file-missing', '來源檔案已被移除；本機內容保留，請處理同步來源。');
       const next = page.nextCursor ?? null;
       requireValue(next === null || page.cursor == null, 'invalid-source-page', '來源混用了中間及完成游標。');
       const target = cursorValue(next ?? page.cursor);

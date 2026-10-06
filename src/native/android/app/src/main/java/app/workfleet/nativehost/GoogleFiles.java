@@ -111,15 +111,16 @@ final class GoogleFiles implements AutoCloseable {
             : response.status == 429 || reason.equals("rateLimitExceeded") || reason.equals("userRateLimitExceeded") ? "rate-limit"
             : response.status >= 500 ? "service-unavailable" : response.status == 410 && context.equals("changes") ? "cursor-expired"
             : (response.status == 400 || response.status == 410) && context.equals("listing") ? "page-expired"
-            : response.status == 404 && context.equals("upload") ? "upload-session-expired" : reason.equals("storageQuotaExceeded") ? "storage-quota"
+            : response.status == 404 && context.equals("upload") ? "upload-session-expired" : response.status == 404 && context.equals("delete") ? "file-missing"
+            : reason.equals("storageQuotaExceeded") ? "storage-quota"
             : response.status == 403 ? "source-permission" : "source-error";
         throw new Protocol.Failure(code, "Google Drive 未完成同步（" + code + "），本機資料與待送內容保留。");
     }
     private Response request(String path) throws Exception { return request(path, "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, ""); }
     private static JSONObject file(JSONObject value) throws Exception {
         String id = Protocol.text(value, "id", 256), kind = Protocol.text(value, "kind", 16), sha = Protocol.text(value, "sha256", 64); Protocol.digest(sha);
-        Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}") && (kind.equals("revision") || kind.equals("attachment")), "invalid-source-file", "Google 檔案身分無效。");
-        long size = Protocol.number(value, "size", kind.equals("revision") ? 8 * 1024 * 1024 : Protocol.ATTACHMENT); return Protocol.object("id", id, "kind", kind, "sha256", sha, "size", size);
+        Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}") && (kind.equals("revision") || kind.equals("attachment") || kind.equals("reset")), "invalid-source-file", "Google 檔案身分無效。");
+        long size = Protocol.number(value, "size", kind.equals("revision") ? 8 * 1024 * 1024 : kind.equals("reset") ? 4096 : Protocol.ATTACHMENT); return Protocol.object("id", id, "kind", kind, "sha256", sha, "size", size);
     }
     private static void metadata(JSONObject metadata, JSONObject file) throws Exception {
         JSONObject properties = metadata.getJSONObject("appProperties"); boolean appdata = false; JSONArray spaces = metadata.getJSONArray("spaces"); for (int i = 0; i < spaces.length(); i++) if (spaces.getString(i).equals("appDataFolder")) appdata = true;
@@ -142,6 +143,13 @@ final class GoogleFiles implements AutoCloseable {
                 JSONObject file = file(args.getJSONObject("file")); metadata(Protocol.json(request(path("/drive/v3/files/" + file.getString("id"), "fields", FIELDS)).bytes), file);
                 Response response = request(path("/drive/v3/files/" + file.getString("id"), "alt", "media"), "GET", null, Collections.emptyMap(), Math.max(file.getInt("size"), 65536), false, "");
                 Protocol.require(response.bytes.length == file.getInt("size") && Protocol.digest(response.bytes).equals(file.getString("sha256")), "file-integrity", "Google 檔案內容校驗失敗。"); return bridge.download(response.bytes);
+            }
+            case "google.delete": {
+                // Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
+                String id = Protocol.text(args, "fileId", 256); Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}"), "invalid-source-file", "Google 檔案身分無效。");
+                try { request("/drive/v3/files/" + id, "DELETE", null, Collections.emptyMap(), 65536, false, "delete"); }
+                catch (Protocol.Failure failure) { if (!failure.code.equals("file-missing")) throw failure; }
+                return null;
             }
             case "google.create": {
                 JSONObject file = file(args.getJSONObject("file")); byte[] bytes = bridge.upload(args, "attachment");

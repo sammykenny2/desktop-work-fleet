@@ -211,7 +211,8 @@ public sealed class NativeGoogle : IDisposable
       if (status == 401) { credentials = credentials with { ExpiresAt = 0 }; }
       var code = status == 401 ? "unauthorized" : status == 409 ? "file-exists" : status == 429 || reason is "rateLimitExceeded" or "userRateLimitExceeded" ? "rate-limit"
         : status >= 500 ? "service-unavailable" : status == 410 && context == "changes" ? "cursor-expired" : status is 400 or 410 && context == "listing" ? "page-expired"
-        : status == 404 && context == "upload" ? "upload-session-expired" : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error";
+        : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 && context == "delete" ? "file-missing"
+        : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error";
       throw new HostError(code, "Google Drive 未完成同步（" + code + "），本機資料與待送內容仍保留。");
     }
     return (status, bytes, response.Headers.Location?.AbsoluteUri,
@@ -222,8 +223,8 @@ public sealed class NativeGoogle : IDisposable
   private static (string Id, string Kind, string Digest, int Size) FileInfo(JsonElement file)
   {
     var id = JsonRules.Text(file, "id"); var kind = JsonRules.Text(file, "kind"); var digest = JsonRules.Text(file, "sha256");
-    HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment", "invalid-source-file", "同步檔案身分無效。");
-    LocalDatabase.CheckDigest(digest); var size = (int)JsonRules.Integer(file, "size", kind == "revision" ? 8 * 1024 * 1024 : LocalDatabase.MaxAttachment);
+    HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment" or "reset", "invalid-source-file", "同步檔案身分無效。");
+    LocalDatabase.CheckDigest(digest); var size = (int)JsonRules.Integer(file, "size", kind == "revision" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : LocalDatabase.MaxAttachment);
     return (id, kind, digest, size);
   }
   public async Task<object?> Drive(string method, JsonElement args, BridgeSession bridge)
@@ -252,6 +253,15 @@ public sealed class NativeGoogle : IDisposable
           var response = await Request(PathQuery("/drive/v3/files/" + file.Id, ("alt", "media")), maximum: Math.Max(file.Size, 65536));
           HostError.Require(response.Body.Length == file.Size && LocalDatabase.Digest(response.Body) == file.Digest, "file-integrity", "Google 檔案校驗失敗。");
           return bridge.DownloadBytes(response.Body);
+        }
+        case "google.delete":
+        {
+          // Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
+          var id = JsonRules.Text(args, "fileId");
+          HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$"), "invalid-source-file", "同步檔案身分無效。");
+          try { await Request("/drive/v3/files/" + id, HttpMethod.Delete, context: "delete"); }
+          catch (HostError error) when (error.Code == "file-missing") { }
+          return null;
         }
         case "google.create":
         {

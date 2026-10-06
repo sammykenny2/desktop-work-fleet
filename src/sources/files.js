@@ -2,7 +2,8 @@ import { copy, requireValue, safeKey } from '../core/contracts.js';
 
 export const validDigest = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
 export const validFileId = value => safeKey(value) && /^[A-Za-z0-9_-]{1,256}$/.test(value);
-export const fileLimit = kind => kind === 'revision' ? 8 * 1024 * 1024 : 25 * 1024 * 1024;
+// A reset marker is a small note that a device cleared the account's files; see resetSource.
+export const fileLimit = kind => kind === 'revision' ? 8 * 1024 * 1024 : kind === 'reset' ? 4096 : 25 * 1024 * 1024;
 
 export async function sha256(bytes) {
   requireValue(bytes instanceof Uint8Array, 'invalid-bytes', '檔案內容必須是 bytes。');
@@ -11,7 +12,7 @@ export async function sha256(bytes) {
 }
 
 export function validateFile(file) {
-  requireValue(file && validFileId(file.id) && ['revision', 'attachment'].includes(file.kind)
+  requireValue(file && validFileId(file.id) && ['revision', 'attachment', 'reset'].includes(file.kind)
     && validDigest(file.sha256) && Number.isSafeInteger(file.size) && file.size >= 0 && file.size <= fileLimit(file.kind),
   'invalid-source-file', '同步檔案的身分、格式或容量無效；本機資料仍保留。');
   return { id: file.id, kind: file.kind, sha256: file.sha256, size: file.size };

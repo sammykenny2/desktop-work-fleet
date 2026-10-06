@@ -147,9 +147,11 @@ export function showBackupDialog({ workspace, storage, getWorkAreas, flush, onCh
     // A backup is one tap away from the reset, here and again in the warning.
     const backupFirst = button('先匯出備份'); backupFirst.onclick = goExport;
     const open = button('重設所有資料…', 'danger'); open.id = 'reset-data'; open.onclick = () => confirmReset(reset, goExport);
-    controls.push(backupFirst, open);
+    // A blocked reset stays disabled and says why; otherwise it follows the dialog's busy state.
+    if (reset.blocked) open.disabled = true; else controls.push(open);
+    controls.push(backupFirst);
     const buttons = node('div', undefined, 'reset-buttons'); buttons.append(backupFirst, open);
-    resetSection.append(node('h3', '重設所有資料'), node('p', `刪除「${reset.target}」的所有便箋與設定，回到全新狀態。`, 'hint'), buttons);
+    resetSection.append(node('h3', '重設所有資料'), node('p', reset.blocked || `刪除「${reset.target}」的所有便箋與設定，回到全新狀態。`, 'hint'), buttons);
   }
   dialog.append(node('h2', '資料與備份'), exportHeading, field('加密備份', encrypt, 'check'),
     field('輸出密碼（至少 12 字元；還原前安全備份也使用此密碼）', password), exportButton,

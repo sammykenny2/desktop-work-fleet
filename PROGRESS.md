@@ -33,6 +33,7 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 - 原生版在主畫面按 Enter 開啟完整編輯，不再進入看不到的就地編輯。
 - 原生版首次啟動沒有「先記下一件事」大型空狀態，清單只顯示「這裡還沒有便箋。」。
 - ADR-018 加註此決定；setup-guide 同步。Windows UI probe 改讀清單（未執行）；只跑 `node --check` 與 UI probe 專案編譯。
+- 以 `005d6c2` 重新打包並刪除 `4c38819` 包；未跑 `Test-WindowsPackage.ps1`。
 - 下一步依使用者指示專注實際桌面的拖拉。
 
 ## 2026-10-06 macOS Android Studio 找不到 Node
@@ -163,9 +164,9 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`4c38819`，`-LocalTestSign`，含紙色改版、X 收起到系統匣與圖示）：`build/windows/package-33a7570338904922b300fc82ada63c2b/`。
-  `WorkFleet-0.1.0-x64.msix` 24,925,450 bytes，SHA-256 `0ff838778647d3ca8909522939d176fed8c765ec69382873d578ba76df844051`；
-  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過，包內 exe 含 1 個內嵌圖示。
+- Windows（`005d6c2`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示與清單為主的主畫面）：`build/windows/package-193240cebbfe4ff18a283a629501b328/`。
+  `WorkFleet-0.1.0-x64.msix` 24,925,971 bytes，SHA-256 `b44ccdf122345cabef5358745eccc5bc4e94c6273791cae45d175b08cf293653`；
+  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過，包內 `index.html` 含版面地圖 stub。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。
 

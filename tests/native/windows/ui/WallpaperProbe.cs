@@ -62,23 +62,27 @@ internal static class WallpaperProbe
       </style></head><body><article id="paper">Wallpaper test</article></body></html>
       """);
     await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
+    // The attached scene's windowed WebView draws outside WPF, so the page itself is captured.
     var until = DateTime.UtcNow.AddSeconds(10); var painted = false;
     while (DateTime.UtcNow < until)
     {
       await Task.Delay(100);
-      var bitmap = new RenderTargetBitmap((int)Math.Ceiling(surface.InputWindow.ActualWidth), (int)Math.Ceiling(surface.InputWindow.ActualHeight), 96, 96, PixelFormats.Pbgra32);
-      bitmap.Render((Visual)surface.VisualWindow.Content);
-      var pixel = new byte[4]; bitmap.CopyPixels(new System.Windows.Int32Rect(80, 70, 1, 1), pixel, 4, 0);
+      using var stream = new MemoryStream();
+      await surface.WebView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream); stream.Position = 0;
+      var bitmap = new FormatConvertedBitmap(BitmapDecoder.Create(stream, BitmapCreateOptions.None, BitmapCacheOption.OnLoad).Frames[0], PixelFormats.Pbgra32, null, 0);
+      var x = (int)(100 * bitmap.PixelWidth / surface.InputWindow.ActualWidth); var y = (int)(70 * bitmap.PixelHeight / surface.InputWindow.ActualHeight);
+      var pixel = new byte[4]; bitmap.CopyPixels(new System.Windows.Int32Rect(x, y, 1, 1), pixel, 4, 0);
       if (pixel[0] < 130 || pixel[1] > 110 || pixel[2] < 180 || pixel[3] < 240) continue;
       var png = new PngBitmapEncoder(); png.Frames.Add(BitmapFrame.Create(bitmap));
       using var file = File.Create(Path.Combine(directory, "wallpaper-surface.png")); png.Save(file); painted = true; break;
     }
-    if (!painted) throw new Exception("Explorer-attached WPF wallpaper did not paint its live WebView pixels.");
+    if (!painted) throw new Exception("Explorer-attached wallpaper WebView did not paint its page.");
+    // The attached scene's window shows only the paper; wallpaper papers lie under the icons, which take every click.
     var region = CreateRectRgn(0, 0, 0, 0);
-    try { if (GetWindowRgn(input, region) != 1) throw new Exception("Wallpaper retained a native input region."); }
+    try { if (GetWindowRgn(input, region) != 2) throw new Exception("Wallpaper scene is not clipped to its paper."); }
     finally { DeleteObject(region); }
     if (GetForegroundWindow() != foreground) throw new Exception("Wallpaper initialization stole foreground focus.");
-    Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, zero input, WebView pixels, physical coordinates and no activation");
+    Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, paper-only region, WebView pixels, physical coordinates and no activation");
     // Offscreen pixels prove WPF painted, not that the desktop shows it. Ask DWM to compose the whole Explorer desktop
     // (wallpaper, icon host and their children) even where applications cover it, and read only the test paper's pixel.
     var point = (X: bounds.X + (int)(100 * scale), Y: bounds.Y + (int)(70 * scale));

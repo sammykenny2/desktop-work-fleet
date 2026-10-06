@@ -78,6 +78,17 @@ CompositionControl 有額外拷貝成本；大量 region 仍需量測，不能�
 
 Windows 可另行評估，但不能成為跨平台可控疊序的共同保證，且放大 native 資源成本。
 
+## 2026-10-06 修訂：掛在 Explorer 底下的場景改用視窗式 WebView2
+
+真實螢幕量測發現，桌面層與桌布層從未出現在螢幕上：Explorer 的 Progman 沒有 redirection surface
+（`WS_EX_NOREDIRECTIONBITMAP`），透過 WPF 繪圖的子視窗內容沒有地方合成——逐像素透明的看不見，不透明的只剩黑色。
+以同樣樣式建立的宿主視窗可在本機重現（`--host-window-dcomp` 與 `--host-child`）。
+- 最上層（頂層視窗）維持本記錄的 composition WebView、輸入視窗加鏡像顯示視窗。
+- 桌面層與桌布層改用視窗式 WebView2：瀏覽器以 DirectComposition 畫進自己的子視窗。
+  它無法鏡像到第二個視窗，所以同一個不透明視窗負責顯示與輸入，region 只留便箋；
+  桌布層在圖示下方收不到點擊，桌面層的便箋本來就可點選，因此不會多擋到桌面圖示。
+- 原本只在螢幕外比對 WPF 像素的探針不足以驗證；桌布層探針改為讀取真實螢幕（被視窗蓋住時略過，`--wait-desktop` 可等待）。
+
 ## References
 
 - [Windows 場景研究](../resreach/2026-10-04-windows-composition-and-input.md)

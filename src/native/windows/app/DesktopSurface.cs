@@ -12,7 +12,7 @@ public readonly record struct SceneHitRect(double X, double Y, double Width, dou
 /// <summary>One logical scene, one browser, two native surfaces. All methods run on the WPF dispatcher.</summary>
 public sealed class DesktopSurface : IDisposable
 {
-  public WebView2CompositionControl WebView { get; } = new() { DefaultBackgroundColor = System.Drawing.Color.Transparent };
+  public IWebView2 WebView { get; }
   public Window InputWindow { get; }
   public Window VisualWindow { get; }
   private readonly bool layered;
@@ -34,21 +34,27 @@ public sealed class DesktopSurface : IDisposable
   private IntPtr VisualHandle => new WindowInteropHelper(VisualWindow).Handle;
 
   /// <param name="layered">
-  /// Per-pixel transparent windows that let everything around the papers show through. Only a top-level scene can use
-  /// them: as children of Explorer's icon or wallpaper host they are never composed onto the screen (measured on the
-  /// real screen, Windows 11 build 26200, while offscreen rendering looked correct). Attached scenes are therefore opaque
-  /// windows whose regions keep only the papers.
+  /// A top-level scene: per-pixel transparent windows, with the composition WebView mirrored into a click-through visual
+  /// window so that only interactive papers take input. Scenes attached to Explorer cannot work that way. Explorer's
+  /// desktop window has no redirection surface (WS_EX_NOREDIRECTIONBITMAP), so a child that paints through WPF, layered
+  /// or not, never reaches the screen: transparent ones vanish and opaque ones show black (measured on the real screen,
+  /// Windows 11 build 26200, and reproduced under a host created with the same style). An attached scene therefore hosts
+  /// a windowed WebView, which the browser draws into its own child window through DirectComposition, in one opaque window
+  /// whose region keeps only the papers. Wallpaper papers lie under the icons and desktop papers always take input, so
+  /// the papers taking clicks does not block anything that clicks should reach.
   /// </param>
   public DesktopSurface(double left, double top, double width, double height, bool layered = true)
   {
     this.layered = layered;
+    WebView = layered ? new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.Transparent }
+      : new WebView2 { DefaultBackgroundColor = System.Drawing.Color.White };
     if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(width) || !double.IsFinite(height)
       || Math.Abs(left) > 1_000_000 || Math.Abs(top) > 1_000_000
       || width is <= 0 or > 32768 || height is <= 0 or > 32768) throw new ArgumentException("Invalid scene bounds.");
     InputWindow = Create(left, top, width, height, layered); InputWindow.Content = WebView;
     VisualWindow = Create(left, top, width, height, layered);
-    VisualWindow.Content = new System.Windows.Shapes.Rectangle { IsHitTestVisible = false,
-      Fill = new VisualBrush(WebView) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top } };
+    VisualWindow.Content = !layered ? null : new System.Windows.Shapes.Rectangle { IsHitTestVisible = false,
+      Fill = new VisualBrush((Visual)WebView) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top } };
     InputWindow.SourceInitialized += (_, _) =>
     {
       SetStyle(InputHandle, transparent: false);
@@ -77,7 +83,7 @@ public sealed class DesktopSurface : IDisposable
   {
     Title = "Work Fleet 桌面", Left = left, Top = top, Width = width, Height = height,
     WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = layered,
-    // Opaque scenes only ever show paper areas; white keeps the papers' translucent edges close to their design.
+    // An attached scene is covered by its windowed WebView; its own WPF surface never reaches the screen.
     Background = layered ? Brushes.Transparent : Brushes.White, ShowActivated = false, ShowInTaskbar = false,
     WindowStartupLocation = WindowStartupLocation.Manual, UseLayoutRounding = true,
   };
@@ -165,8 +171,8 @@ public sealed class DesktopSurface : IDisposable
     if (NativeAlive) SetRegion(Current());
   }
 
-  // While input is suspended no paper takes input; an opaque scene still has to show its papers.
-  private SceneHitRect[] Current() => !inputSuspended ? rectangles : layered ? [] : rectangles.Select(r => r with { Interactive = false }).ToArray();
+  // While input is suspended no paper takes input. An attached scene shows and takes input in one window, so its papers stay.
+  private SceneHitRect[] Current() => inputSuspended && layered ? [] : rectangles;
 
   private void SetRegion(SceneHitRect[] next)
   {
@@ -179,13 +185,14 @@ public sealed class DesktopSurface : IDisposable
       result = BuildRegion(next, 0, next.Length, scale);
       if (VisualHandle != IntPtr.Zero)
       {
-        // A transparent scene may cover the whole display; an opaque one must show nothing but its papers.
+        // The visual window mirrors everything the input window does not show; an attached scene has no mirror.
         mirror = layered ? NewRegion(0, 0, (int)Math.Ceiling(InputWindow.ActualWidth * scale), (int)Math.Ceiling(InputWindow.ActualHeight * scale))
           : NewRegion(0, 0, 0, 0);
-        Combine(mirror, layered ? mirror : result.Covered, result.Input, 4);
+        if (layered) Combine(mirror, mirror, result.Input, 4);
       }
-      if (SetWindowRgn(InputHandle, result.Input, true) == 0) throw new InvalidOperationException("Unable to install scene input region.");
-      result.Input = IntPtr.Zero;
+      // An attached scene's single window shows every paper; a top-level scene's input window keeps the interactive ones.
+      if (SetWindowRgn(InputHandle, layered ? result.Input : result.Covered, true) == 0) throw new InvalidOperationException("Unable to install scene input region.");
+      if (layered) result.Input = IntPtr.Zero; else result.Covered = IntPtr.Zero;
       // Disjoint display regions: translucent pixels are drawn exactly once, including paper edges.
       if (mirror != IntPtr.Zero)
       {
@@ -343,7 +350,7 @@ public sealed class DesktopSurface : IDisposable
   public void Dispose()
   {
     if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); disposed = true; shown = false;
-    VisualWindow.Content = null; VisualWindow.Close(); InputWindow.Close(); WebView.Dispose();
+    VisualWindow.Content = null; VisualWindow.Close(); InputWindow.Close(); ((IDisposable)WebView).Dispose();
   }
 
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }

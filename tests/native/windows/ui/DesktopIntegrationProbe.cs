@@ -31,9 +31,10 @@ internal static class DesktopIntegrationProbe
     }, "resident scene received the real workspace projection", main);
     var resident = main.Desktop!.Surfaces[0].WebView.CoreWebView2;
     var floating = main.Desktop.Surfaces[1].WebView.CoreWebView2;
-    // WebView2 renders each scene through a transparent browser popup just above Explorer's desktop; one that takes
-    // clicks blocks every desktop icon whenever no application window covers it.
-    await Wait(() => Task.FromResult(RenderPopups(resident.BrowserProcessId) is { Blocking: 0, Visible: > 0 }), "scene render popups pass clicks through", main);
+    // The topmost scene's composition WebView renders through a transparent browser popup just above Explorer's desktop;
+    // one that takes clicks blocks every desktop icon whenever no application window covers it. Scenes attached to
+    // Explorer use windowed WebViews and have no such popup.
+    await Wait(() => Task.FromResult(RenderPopups(resident.BrowserProcessId) is { Blocking: 0 }), "scene render popups pass clicks through", main);
     Console.WriteLine($"PASS {RenderPopups(resident.BrowserProcessId).Visible} visible scene render popup(s) are click-through");
     // Locked desktop-layer papers take clicks and text selection but are never dragged.
     if (!(await Eval(resident, "document.querySelector('.card').classList.contains('interactive') && !document.querySelector('.card').classList.contains('operable')")).GetBoolean())

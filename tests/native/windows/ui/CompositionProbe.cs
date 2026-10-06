@@ -40,7 +40,7 @@ internal static class CompositionProbe
       </style></head><body><article id="paper">透明表面測試<textarea style="display:block;width:200px">原生輸入</textarea></article></body></html>
       """);
     await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
-    await VerifyPixels(web, directory, "composition.png", blue: false);
+    await VerifyPixels((Visual)web, directory, "composition.png", blue: false);
     Console.WriteLine($"PASS WPF composition alpha: real WebView2 {web.CoreWebView2.Environment.BrowserVersionString}, opaque paper, zero-alpha empty space");
     await web.CoreWebView2.ExecuteScriptAsync("document.querySelector('#paper').style.background='#2080f0'");
     await VerifyPixels((Visual)surface.VisualWindow.Content, directory, "composition-mirror.png", blue: true);

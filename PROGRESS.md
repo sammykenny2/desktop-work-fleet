@@ -40,10 +40,16 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   原本的探針只用 RenderTargetBitmap 在螢幕外比對 WPF 像素，所以一直顯示通過。
 - 原因：場景是全螢幕的 WPF 逐像素透明視窗（AllowsTransparency，UpdateLayeredWindow）。這種視窗當成 Progman／WorkerW 的子視窗時，
   在 Windows 11 build 26200 上不會被合成到螢幕。參考專案每張便箋是不透明視窗，用視窗 region 裁出形狀，所以看得到。
-- 修正：`DesktopSurface` 加 `layered` 參數；只有最上層用透明視窗，桌面層與桌布層改成不透明視窗，
-  顯示視窗的 region 只留便箋矩形（扣掉輸入視窗負責的可點選便箋），輸入暫停時仍顯示便箋。
+- 第一次修正（不透明 WPF 視窗加 region）不夠：使用者安裝後桌面層變成黑色方塊蓋住捷徑，桌布層仍看不到（純黑桌布上的黑塊）。
+- 真正原因：Progman 是 `WS_EX_NOREDIRECTIONBITMAP`，自己沒有 GDI／redirection surface；透過 WPF 繪圖的子視窗（不論透明與否）沒有地方被合成。
+  參考專案的 Tauri 視窗由 WebView2 以 DirectComposition 畫進自己的子視窗，所以看得到。
+- 重現：測試程式新增 `--host-window-dcomp`（另一個程序建立帶同樣樣式的置頂宿主）與 `--host-child HOST DIR VARIANT`（把場景掛進去讀螢幕）。
+  一般宿主下原做法正常；仿 Progman 宿主下原做法全黑，軟體渲染變白，視窗式 WebView2 正常顯示。
+- 修正：`DesktopSurface` 的附著場景（桌面層、桌布層）改用視窗式 `WebView2`，同一個不透明視窗負責顯示與輸入，region 只留便箋；
+  最上層維持 composition WebView 與透明視窗。`DesktopSurface.WebView` 改為 `IWebView2`。
 - 試過但不可靠、不能當證據的讀法：對 Progman 用 PrintWindow（PW_RENDERFULLCONTENT）與 DWM 縮圖，連最上層都讀錯。
-- 驗證：Windows App 與 UI 測試建置 0 錯誤；UI 整合、composition、桌布層探針通過。修正後的真實螢幕結果待使用者再跑一次 `sh build/check-wallpaper.sh`。
+- 驗證：仿 Progman 宿主下正式的附著場景顯示粉紅測試便箋；真實 Explorer 上桌布層、桌面層的真實螢幕檢查都讀到粉紅色（兩次重跑皆通過）；
+  Windows UI 整合（含群組設定切層）、composition、桌布層探針全部通過。桌布層探針的 WPF 離屏像素檢查改為 WebView 的 CapturePreview。
 
 ## 2026-10-06 群組設定可以檢視與修改層級
 

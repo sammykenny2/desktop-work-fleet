@@ -32,6 +32,7 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   立即送出無效（已實測），composition 在 Show 之後才非同步恢復。
 - 驗證：以使用者資料用 Debug 版重開三次。未修版本開啟後該區截圖空白；修正後兩次啟動都直接看得到浮動便箋，不需任何操作。
   UI probe 只檢查場景 DOM 有 `.card`，看不出畫面是否真的畫出，這個缺口未補。
+- 以 `bdb9d68` 重新打包並刪除 `005d6c2` 包；安裝包本身未再實機開啟確認。
 - 未檢查 macOS 是否有同樣問題。另觀察到版面 grid area 存的是 2560×1392，螢幕是 150% DPI（邏輯 1707 寬），未調查。
 
 ## 2026-10-06 主畫面改以清單為主、版面地圖留空
@@ -177,9 +178,9 @@ APT 已由 `0.1.0~preview` 更新為 `0.1.0`，再以最終根目錄 DEB 重新�
 PowerShell 7 與 5.1 實際執行通過；它是唯讀診斷，用法見 testing 的桌布層段落。
 
 目前交付：
-- Windows（`005d6c2`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示與清單為主的主畫面）：`build/windows/package-193240cebbfe4ff18a283a629501b328/`。
-  `WorkFleet-0.1.0-x64.msix` 24,925,971 bytes，SHA-256 `b44ccdf122345cabef5358745eccc5bc4e94c6273791cae45d175b08cf293653`；
-  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過，包內 `index.html` 含版面地圖 stub。
+- Windows（`bdb9d68`，`-LocalTestSign`，含紙色改版、X 收起到系統匣、圖示、清單為主的主畫面與浮動便箋開啟重繪）：`build/windows/package-d90a77890fb34e17a9bae3915c958908/`。
+  `WorkFleet-0.1.0-x64.msix` 24,926,174 bytes，SHA-256 `4c71e02d8723fa4721828d060e70906473f3aec6b007cb019aee53de6ec5852b`；
+  簽章憑證 `A646FA7F1E38E5E99C7F1D5BC9C147A1D51C608D`，建置腳本 signtool 驗證通過。
   另有 `WorkFleet-0.1.0-x64.zip` 與公開 `WorkFleet-preview.cer`。
 - Linux：保留 `build/linux/work-fleet_0.1.0~preview_all.deb` 與 `work-fleet-0.1.0.tar.gz`。Android 目前沒有 0.1.0 產物。
 

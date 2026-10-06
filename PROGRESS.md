@@ -21,6 +21,20 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 Linux 金鑰圈鎖住不再誤報缺少金鑰
+
+使用者在 Pi 上移除再重裝 DEB 後，看到「現有資料缺少原金鑰」，但金鑰其實還在，只是存在開機後鎖住的「Default Keyring」。
+- 原因：鎖住的 gnome-keyring 項目只公開 `xdg:schema=org.freedesktop.Secret.Generic`，真正的 schema 名稱只留雜湊；
+  `password_lookup_sync` 預設比對 schema 名稱，所以根本找不到鎖住的金鑰，不會要求解鎖，直接回傳 None。
+  已在 Pi 以不解鎖的搜尋實測：比對 schema 名稱只找到 login 的項目，只比對屬性則同時找到鎖住的那把。
+- 修正：schema 設 `DONT_MATCH_NAME`，鎖住的金鑰會由 libsecret 要求解鎖（libsecret 0.21.7 有已解鎖項目時優先使用，不會多跳視窗）。
+  查不到時以不解鎖、不讀密碼的搜尋確認是否存在：有資料時回報「已鎖定或解鎖已取消」；沒有資料時也拒絕另建第二把金鑰，
+  避免日後兩把都解鎖時 lookup 取到舊金鑰而解密失敗。真的沒有金鑰才維持「缺少原金鑰」。
+- `google.py` 的 `Vault.read` 回傳 None 代表未連線，契約不變。
+- 驗證：新 `tests/test_linux_vault.py` 6 項（以假 libsecret，修改前全部失敗）；真實金鑰圈上 `Vault.stored` 不解鎖即找到鎖住的金鑰。
+- 同日使用者在 Pi 確認主視窗 X 收到系統匣在 Linux 實機正常。
+- Pi 的預設金鑰圈已由使用者改為會自動解鎖的 login；舊 Default Keyring 仍留有一把鎖住的舊金鑰，新程式會優先使用已解鎖的那把。
+
 ## 2026-10-06 所有平台的安裝檔統一放在 build/
 
 使用者要求輸出目錄固定，而且各平台安裝檔要在同一層，不要有的深有的淺；`build/` 或 `build/<平台>/` 都可以。

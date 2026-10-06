@@ -19,7 +19,9 @@ class Vault:
     def __init__(self, app_id):
         self.app_id = app_id
         self.cancellable = Gio.Cancellable()
-        self.schema = Secret.Schema.new("app.workfleet.native.v1", Secret.SchemaFlags.NONE, {
+        # A locked gnome-keyring collection hides each item's schema name, so matching on it would never
+        # find (or offer to unlock) a locked key; match on the attributes, which stay searchable.
+        self.schema = Secret.Schema.new("app.workfleet.native.v1", Secret.SchemaFlags.DONT_MATCH_NAME, {
             "application": Secret.SchemaAttributeType.STRING,
             "kind": Secret.SchemaAttributeType.STRING,
             "id": Secret.SchemaAttributeType.STRING,
@@ -31,6 +33,14 @@ class Vault:
     def read(self, kind, key):
         try:
             return Secret.password_lookup_sync(self.schema, self.attributes(kind, key), self.cancellable)
+        except Exception as error:
+            raise p.Failure("vault-unavailable", "無法開啟系統金鑰圈；請解鎖後重試，未改存明文。") from error
+
+    def stored(self, kind, key):
+        # Lookup returns None for a key whose collection stays locked; this search neither unlocks nor loads secrets.
+        try:
+            service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, self.cancellable)
+            return bool(service.search_sync(self.schema, self.attributes(kind, key), Secret.SearchFlags.ALL, self.cancellable))
         except Exception as error:
             raise p.Failure("vault-unavailable", "無法開啟系統金鑰圈；請解鎖後重試，未改存明文。") from error
 
@@ -72,6 +82,10 @@ class Database:
                 p.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), "native-storage", "App 資料檔案身分無效。")
             key = vault.read("storage-key", "v1")
             if key is None:
+                # A locked key is neither missing nor replaceable: a second key would leave lookups to pick either one.
+                p.require(not vault.stored("storage-key", "v1"), "vault-unavailable",
+                          "系統金鑰圈已鎖定或解鎖已取消，未讀取金鑰；資料未變更，請解鎖後重新開啟。" if existing
+                          else "系統金鑰圈內已有鎖定的 Work Fleet 金鑰；未建立新金鑰，請解鎖該金鑰圈後重新開啟。")
                 p.require(not existing, "vault-unavailable", "現有資料缺少原金鑰；請保留資料並恢復系統金鑰圈。")
                 key = base64.b64encode(os.urandom(32)).decode("ascii")
                 vault.save("storage-key", "v1", key)

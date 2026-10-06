@@ -21,6 +21,8 @@ Drive 僅固定 appDataFolder FileStore 操作，SHA-256／metadata 校驗與 1 
 資料預設在 `$XDG_DATA_HOME/WorkFleet`（通常 `~/.local/share/WorkFleet`）；可用 `--data PATH`
 指定同樣受保護的新目錄。AES-GCM 加密 SQLite payload 與原生 backup metadata；32-byte 主金鑰
 由 libsecret 保存於使用者系統金鑰圈。金鑰圈缺失／鎖定／不可用時明確停止，不改存明文。
+查詢以 application／kind／id 比對、不比對 schema 名稱（鎖住的 gnome-keyring 項目不公開它），
+所以鎖住的金鑰會由 libsecret 要求解鎖；解鎖取消時回報「已鎖定」而非「缺少原金鑰」，也不另建第二把金鑰。
 SQLite revision 與新附件同交易，flock 保持唯一 owner。清除金鑰圈會失去 DB 解密能力，
 跨機備份使用 App 可攜 ZIP，不直接搬 SQLite 代替備份。
 

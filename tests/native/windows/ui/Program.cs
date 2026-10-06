@@ -77,7 +77,7 @@ internal static class Program
   {
     Directory.CreateDirectory(directory); var window = Open(directory);
     await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "native app initialization");
-    await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('本機加密')", "native adapter selection");
+    await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('加密保存在這台裝置')", "native adapter selection");
     Console.WriteLine($"WebView2 {window.WebView.CoreWebView2.Environment.BrowserVersionString}");
     await Eval(window, "document.querySelector('#new-card').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "open editor");
@@ -90,7 +90,7 @@ internal static class Program
     // Turning daily display off must explain the hidden papers above the list, and its action must restore them.
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('#settings-dialog').open", "settings before hiding desktop notes");
-    await Eval(window, "document.querySelector('#desktop-visible').checked=false;document.querySelector('#save-settings').click()");
+    await Eval(window, "const visible=document.querySelector('#desktop-visible');visible.checked=false;visible.dispatchEvent(new Event('change'));document.querySelector('#close-settings').click()");
     await Wait(window, "!document.querySelector('#settings-dialog').open && !document.querySelector('#desktop-hidden').hidden && document.querySelector('#desktop-hidden-text').textContent.startsWith('1 張便箋')", "hidden desktop notes explained");
     await Eval(window, "document.querySelector('#show-desktop').click()");
     await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('#status').textContent === '已顯示桌面便箋'", "hidden desktop notes shown again");
@@ -147,15 +147,17 @@ internal static class Program
   }
   private static async Task BackupProbe(FleetWindow window, string directory)
   {
-    await Eval(window, "document.querySelector('#backup-button').click()");
-    await Wait(window, "document.querySelector('#backup-dialog')?.open === true", "native backup dialog");
+    await Eval(window, "document.querySelector('#settings-button').click()");
+    await Wait(window, "document.querySelector('#settings-dialog').open", "settings for backup");
+    await Eval(window, "document.querySelector('[data-page=\"data\"]').click()");
+    await Wait(window, "document.querySelector('#backup-panel') !== null", "native backup page");
     await Eval(window, "document.querySelector('#auto-backup-location').click()");
     await Wait(window, "document.querySelector('#auto-backup-destination').textContent.includes('backups')", "native directory grant");
     await Eval(window, "document.querySelector('#auto-backup-password').value='原生畫面備份密碼-abcdefghijkl';document.querySelector('#auto-backup-enable').click()");
-    await Wait(window, "document.querySelector('#auto-backup-message').textContent === '本次檔案已保存並校驗。'", "native automatic encrypted file");
+    await Wait(window, "document.querySelector('#auto-backup-message').textContent === '已備份，檔案檢查無誤。'", "native automatic encrypted file");
     if (Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-auto-*.zip").Length != 1) throw new Exception("Missing automatic file");
     await Eval(window, "document.querySelector('#backup-password').value='手動畫面備份密碼-abcdefghijkl';document.querySelector('#export-backup').click()");
-    await Wait(window, "document.querySelector('#backup-status').textContent === '備份已保存並校驗。'", "native manual verified file");
+    await Wait(window, "document.querySelector('#backup-status').textContent === '備份已保存，檔案檢查無誤。'", "native manual verified file");
     var file = Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-backup-*.zip").Single();
     var base64 = Convert.ToBase64String(File.ReadAllBytes(file));
     await Eval(window, """
@@ -166,8 +168,8 @@ internal static class Program
       document.querySelector('#restore-password').value='手動畫面備份密碼-abcdefghijkl';
       document.querySelector('#preview-restore').click();
       """.Replace("BASE64", JsonSerializer.Serialize(base64)));
-    await Wait(window, "document.querySelector('#backup-status').textContent === '已驗證，尚未還原。請確認目標與模式。'", "native file portable restore preview");
+    await Wait(window, "document.querySelector('#backup-status').textContent === '檔案可以還原，確認內容後按「確認還原」。'", "native file portable restore preview");
     await Wait(window, "document.querySelector('#restore-preview').textContent.includes('1 個附件')", "backup retains attachment");
-    await Eval(window, "document.querySelector('#close-backup').click()");
+    await Eval(window, "document.querySelector('#close-settings').click()");
   }
 }

@@ -7,7 +7,7 @@ import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { toggleChecklist } from './checklist.js';
 import { showRevisionDialog } from './conflicts.js';
-import { showBackupDialog } from './backup.js';
+import { backupPanel } from './backup.js';
 import { AutomaticBackup } from '../backup/automatic.js';
 import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser-automatic.js';
 import { startAutomaticBackup } from '../backup/lifecycle.js';
@@ -32,7 +32,7 @@ let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resol
 let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
-let settingsSlots = [];
+let settingsSlots = []; let settingsPage = null; let dataPanel = null;
 let automatic; let automaticError; let browserJournal;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let nativeFiles;
@@ -79,7 +79,7 @@ function groupColor(id) { return colors[Math.max(0, activeGroups(workspace.snaps
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
 function fillGroups(select, selected, none = false) {
   select.replaceChildren();
-  if (none) select.append(new Option('不特別突出', ''));
+  if (none) select.append(new Option('不指定', ''));
   for (const group of activeGroups(workspace.snapshot)) select.append(new Option(group.name, group.id));
   select.value = selected || '';
 }
@@ -125,9 +125,8 @@ async function initialize() {
   if (desktopInfo) {
     await workspace.layout.recoverDisplays(workAreas());
     initializeDesktop();
-    const note = element('p', '桌面層與最上層已連接；調整群組時會暫時移到最上層。', 'hint'); note.id = 'desktop-note'; $('#settings-dialog h2').after(note);
   }
-  $('#storage-note').textContent = native ? '本機加密工作空間\n尚未連接 Google' : '瀏覽器本機工作空間\n尚未連接 Google';
+  $('#storage-note').textContent = native ? '加密保存在這台裝置' : '保存在這個瀏覽器';
   renderAccount(); setSync('off', native ? '只存在這台裝置' : '只存在這個瀏覽器');
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); if (!native) browserJournal = journal;
@@ -158,8 +157,7 @@ async function initialize() {
       try { await desktopAction(message.target, message.intent); }
       catch (error) { await native.bridge.request('desktop.showMain', { intent: message.intent }).catch(() => {}); throw error; }
     }); });
-    $('#retry-shortcuts').hidden = false;
-    $('#shortcut-note').textContent = '全域最多 32 組。App 取得焦點時會暫停全域註冊，改用視窗內快捷鍵；文字編輯、組字與對話框優先。';
+    $('#shortcut-note').textContent = '在任何程式中都能使用。一個動作可以設多組，用逗號分開。';
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
   bindEvents(); render(); status(native?.info.desktopReason || '已開啟本機資料');
@@ -188,43 +186,46 @@ async function initialize() {
 async function initializeGoogle() {
   clearInterval(syncTimer);
   googleAccount = await native.bridge.request('google.status');
-  $('#google-sign-in').hidden = false;
-  $('#google-sign-in').disabled = !googleAccount.configured;
-  $('#google-sign-in').textContent = googleAccount.connected ? '切換 Google 帳號' : profileId.startsWith('google:') ? '重新登入 Google' : '登入 Google';
+  const google = profileId.startsWith('google:'); const connected = googleAccount.connected;
+  $('#google-row').hidden = false; $('#local-row').hidden = !google; $('#sync-row').hidden = !connected;
+  $('#google-value').textContent = connected ? googleAccount.email || 'Google 帳號' : googleAccount.configured ? '未登入' : '這個版本還不能登入';
+  $('#google-sign-in').hidden = !googleAccount.configured;
+  $('#google-sign-in').textContent = connected ? '切換帳號' : google ? '重新登入' : '登入';
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
-  $('#google-sign-out').hidden = !googleAccount.connected;
-  $('#google-local').hidden = !profileId.startsWith('google:');
+  $('#google-sign-out').hidden = !connected;
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
-  $('#google-sync').hidden = !googleAccount.connected;
   $('#google-sync').onclick = () => { void syncGoogle(true); };
   renderAccount();
-  if (googleAccount.connected) {
-    $('#storage-note').textContent = 'Google 工作空間\n本機加密保存';
+  if (connected) {
+    $('#storage-note').textContent = '同步到你的 Google 帳號';
     setSync('off', '等待同步');
     syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId) });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
     void syncGoogle();
+  } else if (google) {
+    $('#storage-note').textContent = '重新登入後才會繼續同步';
+    setSync('attention', '請重新登入 Google', '這台裝置上的便箋和還沒同步的修改都還在。');
   } else {
-    if (profileId.startsWith('google:')) $('#storage-note').textContent = 'Google 工作空間\n尚未登入\n本機加密保存';
-    if (profileId.startsWith('google:')) setSync('attention', '請重新登入 Google', '請重新登入此工作空間的 Google 帳號以繼續同步；本機便箋與待送內容保留。');
-    else setSync('off', googleAccount.configured ? '尚未連接 Google' : '只存在這台裝置', googleAccount.configured
-      ? '登入後開啟獨立帳號工作空間；目前本機便箋保留。' : '此安裝版本尚未啟用 Google 登入；可繼續使用本機便箋。');
+    setSync('off', googleAccount.configured ? '尚未連接 Google' : '只存在這台裝置',
+      googleAccount.configured ? '登入後會改用該帳號的便箋；這裡的本機便箋會留在這台裝置。' : '');
   }
 }
-// The account chip says where the papers live and how syncing goes; its menu holds the account and data actions.
+// The account chip and the settings identity say where the papers live and how syncing goes.
 function renderAccount() {
   const connected = Boolean(googleAccount?.connected);
-  const name = connected ? googleAccount.email || 'Google 帳號' : profileId.startsWith('google:') ? 'Google 工作空間' : '本機便箋';
-  $('#account-name').textContent = name; $('#account-menu-name').textContent = name;
-  $('#account-initial').textContent = connected ? [...name][0].toLocaleUpperCase() : '';
-  $('#account-initial').hidden = !connected; $('#account-avatar svg').toggleAttribute('hidden', connected);
-  $('#account-avatar').classList.toggle('signed-in', connected);
+  const name = connected ? googleAccount.email || 'Google 帳號' : profileId.startsWith('google:') ? 'Google 帳號' : '本機便箋';
+  for (const [avatar, initial, label] of [['#account-avatar', '#account-initial', '#account-name'], ['#identity-avatar', '#identity-initial', '#identity-name']]) {
+    $(label).textContent = name;
+    $(initial).textContent = connected ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !connected;
+    $(`${avatar} svg`).toggleAttribute('hidden', connected); $(avatar).classList.toggle('signed-in', connected);
+  }
 }
 function setSync(state, text, detail = '') {
-  syncState = state; $('#account').dataset.sync = state; $('#account-menu').dataset.sync = state; $('#sync-status').textContent = text;
+  syncState = state; $('#account').dataset.sync = state; $('#settings-dialog').dataset.sync = state;
+  $('#sync-status').textContent = text; $('#sync-detail').textContent = text;
   $('#account-detail').textContent = detail; $('#account-detail').hidden = !detail; updateAttention();
 }
 // The drawer hides the account chip and the sidebar links on phones, so their warnings show on the drawer button.
@@ -242,12 +243,12 @@ async function syncGoogle(force = false) {
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       const pending = workspace.pendingOperations.length;
-      if (pending) setSync('pending', `${pending} 筆等待同步`, '本機已保存，下一次同步時送出。');
-      else setSync('ok', `已同步 · ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      if (pending) setSync('pending', `${pending} 筆等待同步`);
+      else setSync('ok', `已同步 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     }
   } catch (error) {
     if (error.code === 'source-reset') { setSync('attention', '雲端已重設', error.message); askAfterSourceReset(); return; }
-    setSync('error', '同步失敗 · 本機已保存', `${error.message} · 本機資料保留`);
+    setSync('error', '同步失敗', error.message);
     if (error.code === 'unauthorized' || error.code === 'source-permission') $('#google-sign-in').textContent = '重新登入 Google';
   }
   finally { syncBusy = false; $('#google-sync').disabled = false; }
@@ -304,7 +305,7 @@ function askAfterSourceReset() {
     element('p', `${googleAccount?.email || '這個 Google 帳號'} 的 Work Fleet 雲端資料已在其他裝置重設。這台裝置上的副本還在，但已停止同步。`),
     element('p', '清除副本後會從目前的雲端重新同步；這台裝置尚未同步的修改也會一起刪除，需要的話請先匯出備份。'), state);
   const actions = element('div', undefined, 'dialog-actions');
-  actions.append(button('先匯出備份', () => { dialog.close(); $('#backup-button').click(); }), button('稍後', () => dialog.close()), clear);
+  actions.append(button('先匯出備份', () => { dialog.close(); return openSettings('data'); }), button('稍後', () => dialog.close()), clear);
   dialog.append(actions); dialog.oncancel = event => { if ([...dialog.querySelectorAll('button')].some(control => control.disabled)) event.preventDefault(); };
   dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
 }
@@ -382,7 +383,9 @@ function initializeDesktop() {
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
         sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor() });
-      if ($('#desktop-note')) $('#desktop-note').textContent = frame.fallbacks.length ? `${frame.fallbacks.length} 張便箋要求桌布層；目前桌面環境無法使用，暫以桌面層呈現，原偏好保留。` : desktopInfo.layers.includes('wallpaper') ? '桌布層、桌面層與最上層已連接；調整群組時會暫時移到最上層。' : '桌面層與最上層已連接；調整群組時會暫時移到最上層。';
+      // Settings only speaks up when a paper cannot sit on the layer it asks for.
+      $('#desktop-note').hidden = !frame.fallbacks.length;
+      $('#desktop-note').textContent = `${frame.fallbacks.length} 張便箋設在桌布層，但這台電腦目前不支援，先放在桌面層。`;
       return frame;
     },
     changed: () => render(), error: error => status(error.message, true),
@@ -430,9 +433,16 @@ async function refreshCaptures(force = false) {
   }));
 }
 
+// Each shortcut row shows only what keeps a key from working; working keys stay quiet.
 function renderShortcutStatus() {
-  const labels = { available: '已全域註冊', suspended: 'App 使用中，已釋放全域註冊', conflict: '其他程式已註冊', unavailable: '無法註冊', reserved: '系統保留', editing: '保留給文字編輯', typing: '保留給 AltGr 文字輸入，請改用 Ctrl+Shift', invalid: '格式不支援' };
-  $('#shortcut-status').textContent = shortcutStatus.map(item => `${item.key}：${labels[item.status] || item.status}${item.triggerDescription ? `（${item.triggerDescription}）` : ''}`).join('；');
+  const labels = { conflict: '已被其他程式使用', unavailable: '無法使用', reserved: '系統保留', editing: '保留給文字輸入', typing: '請改用 Ctrl+Shift 組合', invalid: '不支援這個組合' };
+  for (const node of document.querySelectorAll('[data-shortcut-status]')) {
+    const items = shortcutStatus.filter(item => item.target === node.dataset.shortcutStatus);
+    const problems = items.filter(item => labels[item.status]);
+    node.textContent = problems.map(item => `${item.key} ${labels[item.status]}`).join('；');
+    node.dataset.state = items.map(item => item.status).join(' '); node.classList.toggle('error', problems.length > 0);
+  }
+  $('#retry-shortcuts').hidden = !shortcutStatus.some(item => ['conflict', 'unavailable'].includes(item.status));
 }
 
 async function desktopAction(target, intent) {
@@ -465,8 +475,6 @@ function dismissTopLayer() {
 async function prepareNativeClose() {
   if (nativeClosing) return;
   if (native.info.platform === 'android' && dismissTopLayer()) { await native.bridge.request('host.closeCancel').catch(() => {}); return; }
-  // The account menu is a passing popup, not unfinished work.
-  if ($('#account-menu').open) $('#account-menu').close();
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
     await native.bridge.request('host.closeCancel').catch(() => {});
     status(composing ? '請先完成目前輸入，再關閉 App。' : '請先完成或關閉目前對話框，再關閉 App。', true); return;
@@ -883,19 +891,61 @@ function updateFormation() {
   } catch (error) { formationPreview = null; $('#formation-description').textContent = error.message; $('#apply-formation').disabled = true; }
 }
 
-function showSettings() {
+// Settings is one window with a page per area. Wide screens show the page list beside the page; phones show the
+// list first and slide into a page. Changes apply as soon as they are valid, so there is nothing to save.
+const settingsTitles = { account: '帳號與同步', data: '資料與備份', desktop: '桌面', shortcuts: '快捷鍵' };
+function openSettings(page = null) {
+  const dialog = $('#settings-dialog');
+  if (!dialog.open) { renderDesktopSettings(); renderShortcutSettings(); renderAccount(); dialog.showModal(); }
+  return showSettingsPage(page);
+}
+async function showSettingsPage(page) {
+  if (page === null && !narrow.matches) page = settingsPage || 'account';
+  // A running backup or restore keeps its page; leaving would drop its progress.
+  if (dataPanel?.busy() && page !== 'data') return;
+  if (page !== 'data') { dataPanel?.dispose(); dataPanel = null; }
+  settingsPage = page; const dialog = $('#settings-dialog');
+  dialog.classList.toggle('listing', page === null);
+  for (const panel of dialog.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== page;
+  for (const item of dialog.querySelectorAll('[data-page]')) {
+    if (item.dataset.page === page) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
+  }
+  $('#settings-page-title').textContent = settingsTitles[page] || '設定';
+  $('.settings-body').scrollTop = 0;
+  if (page === 'data' && !dataPanel) await mountDataPanel();
+}
+async function mountDataPanel() {
+  const host = $('#data-host');
+  // Restore rewrites the workspace, so any edit in progress is saved and closed first.
+  if (editorBusy || composing) { host.replaceChildren(element('p', '請先完成目前的輸入。', 'hint')); return; }
+  if (currentDraft) await flushDraft();
+  if (!await controller.endEdit()) { host.replaceChildren(element('p', '請先完成目前的輸入。', 'hint')); return; }
+  currentDraft = null; controller.cancelDrag(); render();
+  dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError,
+    files: nativeBackups?.manual, reset: resetPlan(), onChanged: async () => { await controller.reconcile(); render(); } });
+  host.replaceChildren(dataPanel.element);
+}
+function renderDesktopSettings() {
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
   settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
-  const fields = $('#shortcut-fields'); fields.replaceChildren();
-  const actions = [[shortcutActions.all, '調整所有便箋'], [shortcutActions.capture, '快速記錄'], [shortcutActions.toggle, '顯示／隱藏桌面便箋'],
+  previewGrid();
+}
+function applyLayout(patch) {
+  return run(async () => { await workspace.layout.configure(patch, workspace.snapshot); render(); });
+}
+function renderShortcutSettings() {
+  const layout = workspace.layout.state; const fields = $('#shortcut-fields'); fields.replaceChildren();
+  const actions = [[shortcutActions.all, '調整所有便箋'], [shortcutActions.capture, '快速記錄'], [shortcutActions.toggle, '顯示或隱藏桌面便箋'],
     ...activeGroups(workspace.snapshot).map(group => [group.id, `調整「${group.name}」`])];
   for (const [target, name] of actions) {
-    const label = element('label', name, 'field'); const input = element('input'); input.dataset.shortcutTarget = target;
+    const row = element('label', undefined, 'settings-row'); const text = element('span', undefined, 'row-text');
+    const state = element('span', '', 'row-value'); state.dataset.shortcutStatus = target; text.append(element('span', name, 'row-label'), state);
+    const input = element('input'); input.dataset.shortcutTarget = target; input.placeholder = '未設定'; input.setAttribute('aria-label', `${name}的快捷鍵`);
     input.value = Object.entries(layout.shortcuts).filter(([, value]) => value === target).map(([key]) => key).join(', ');
-    input.placeholder = '例如 Ctrl+Shift+1，多組用逗號分隔'; input.oninput = () => previewGrid(); label.append(input); fields.append(label);
+    input.oninput = checkShortcuts; input.onchange = applyShortcuts; row.append(text, input); fields.append(row);
   }
-  $('#settings-dialog').showModal(); previewGrid();
+  renderShortcutStatus(); checkShortcuts();
 }
 function readShortcuts() {
   const result = {};
@@ -907,10 +957,18 @@ function readShortcuts() {
       result[key] = input.dataset.shortcutTarget;
     }
   }
-  if (nativeShortcuts && Object.keys(result).length > 32) throw new Error('此裝置最多設定 32 組快捷鍵。');
+  if (nativeShortcuts && Object.keys(result).length > 32) throw new Error('最多可以設定 32 組快捷鍵。');
   return validateShortcuts(result, activeGroups(workspace.snapshot));
 }
-function previewGrid(reshape = false) {
+function checkShortcuts() {
+  try { readShortcuts(); $('#shortcut-message').hidden = true; return true; }
+  catch (error) { $('#shortcut-message').textContent = error.message; $('#shortcut-message').hidden = false; return false; }
+}
+function applyShortcuts() {
+  if (checkShortcuts()) applyLayout({ shortcuts: readShortcuts() });
+}
+// The grid preview is a small map of the screen; each cell is tinted with its group's paper colour.
+function previewGrid(reshape = false, apply = false) {
   const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = activeGroups(workspace.snapshot);
   if (reshape || settingsSlots.length !== rows * columns) {
     const ordered = settingsSlots.filter(id => id && groups.some(group => group.id === id));
@@ -919,19 +977,22 @@ function previewGrid(reshape = false) {
   }
   const preview = $('#grid-preview'); preview.replaceChildren(); preview.style.gridTemplateColumns = `repeat(${columns},1fr)`;
   for (let i = 0; i < rows * columns; i++) {
-    const field = element('label', `區域 ${i + 1}`); const select = element('select');
-    select.setAttribute('aria-label', `區域 ${i + 1} 的群組`); select.append(new Option('空區', ''));
+    const cell = element('label'); const select = element('select');
+    select.setAttribute('aria-label', `區域 ${i + 1} 的群組`); select.append(new Option('空白', ''));
     for (const group of groups) select.append(new Option(group.name, group.id));
     select.value = settingsSlots[i] || '';
+    cell.classList.toggle('empty', !settingsSlots[i]); if (settingsSlots[i]) cell.style.setProperty('--paper', groupColor(settingsSlots[i]));
     select.onchange = () => {
       const next = select.value || null; const other = settingsSlots.findIndex((id, index) => id === next && index !== i);
       if (other >= 0) settingsSlots[other] = settingsSlots[i];
-      settingsSlots[i] = next; previewGrid();
+      settingsSlots[i] = next; previewGrid(false, true);
     };
-    field.append(select); preview.append(field);
+    cell.append(select); preview.append(cell);
   }
-  try { gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }, groups); readShortcuts(); $('#grid-message').textContent = `${rows} 列 × ${columns} 欄，共 ${rows * columns} 區。選取已使用的群組會交換區域。`; $('#save-settings').disabled = false; }
-  catch (error) { $('#grid-message').textContent = error.message; $('#save-settings').disabled = true; }
+  try {
+    gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }, groups); $('#grid-message').hidden = true;
+    if (apply) applyLayout({ grid: { rows, columns, area: screenArea(), slots: [...settingsSlots] } });
+  } catch (error) { $('#grid-message').textContent = error.message; $('#grid-message').hidden = false; }
 }
 
 function point(event) { const bounds = $('#stage').getBoundingClientRect(); return { x: event.clientX - bounds.left, y: event.clientY - bounds.top }; }
@@ -966,16 +1027,9 @@ function setSearching(on) {
   if (on) $('#search').focus();
   else if ($('#search').value) { $('#search').value = ''; render(); }
 }
-function openAccountMenu() {
-  const menu = $('#account-menu'); const anchor = $('#account').getBoundingClientRect();
-  // A popup above the chip on wide screens; phones style it as a bottom sheet.
-  if (narrow.matches) menu.removeAttribute('style');
-  else Object.assign(menu.style, { left: `${anchor.left}px`, bottom: `${innerHeight - anchor.top + 6}px`, width: `${Math.max(248, anchor.width)}px` });
-  menu.showModal(); $('#account-button').setAttribute('aria-expanded', 'true');
-}
-
 function bindEvents() {
-  setDrawer(false); narrow.addEventListener('change', () => setDrawer(false));
+  setDrawer(false);
+  narrow.addEventListener('change', () => { setDrawer(false); if ($('#settings-dialog').open) void showSettingsPage(settingsPage); });
   $('#drawer-toggle').onclick = () => setDrawer(true); $('#scrim').onclick = () => setDrawer(false);
   $('#sidebar').addEventListener('click', event => { if (event.target.closest('.sidebar-links button')) setDrawer(false); });
   $('#search-toggle').onclick = () => setSearching(!$('.topbar').classList.contains('searching'));
@@ -983,14 +1037,22 @@ function bindEvents() {
     if (event.key === 'Escape' && $('.topbar').classList.contains('searching')) { event.preventDefault(); setSearching(false); }
   });
   $('#compose').onclick = () => run(() => openEditor());
-  const menu = $('#account-menu');
-  $('#account-button').onclick = openAccountMenu;
-  menu.addEventListener('close', () => $('#account-button').setAttribute('aria-expanded', 'false'));
-  // Close before the item's own handler runs, since several actions wait while any dialog is open.
-  menu.addEventListener('click', event => {
-    if (event.target === menu) menu.close();
-    else if (event.target.closest('button')) { menu.close(); setDrawer(false); }
-  }, true);
+  const settings = $('#settings-dialog');
+  // The account chip opens its own page; the gear opens settings where it was left (the page list on phones).
+  $('#account-button').onclick = () => { setDrawer(false); run(() => openSettings('account')); };
+  $('#settings-button').onclick = () => { setDrawer(false); run(() => openSettings(null)); };
+  for (const item of settings.querySelectorAll('[data-page]')) item.onclick = () => run(() => showSettingsPage(item.dataset.page));
+  $('#settings-back').onclick = () => run(() => showSettingsPage(null));
+  for (const id of ['#close-settings', '#close-settings-list']) $(id).onclick = () => { if (!dataPanel?.busy()) settings.close(); };
+  settings.addEventListener('cancel', event => {
+    if (dataPanel?.busy()) { event.preventDefault(); dataPanel.abort(); return; }
+    // On phones, Back and Escape leave a page for the page list before closing.
+    if (narrow.matches && settingsPage !== null) { event.preventDefault(); void showSettingsPage(null); }
+  });
+  settings.addEventListener('close', () => { dataPanel?.dispose(); dataPanel = null; if (narrow.matches) settingsPage = null; });
+  $('#desktop-visible').onchange = () => applyLayout({ desktopVisible: $('#desktop-visible').checked });
+  $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
+  $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(workspace.layout.state.shortcuts, true); };
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {
@@ -1009,16 +1071,6 @@ function bindEvents() {
   $('#formation-scope').onchange = updateFormation; $('#allow-resize').onchange = updateFormation;
   $('#cancel-formation').onclick = () => $('#formation-dialog').close();
   $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status('排列已完成，可按復原還原'); });
-  $('#settings-button').onclick = showSettings; $('#cancel-settings').onclick = () => $('#settings-dialog').close();
-  $('#backup-button').onclick = () => run(async () => {
-    if (editorBusy || composing) return;
-    if (currentDraft) await flushDraft();
-    if (!await controller.endEdit()) return;
-    currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
-    const reset = resetPlan();
-    showBackupDialog({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual, reset,
-      onChanged: async () => { await controller.reconcile(); render(); } });
-  });
   $('#reset-layout').onclick = () => $('#reset-layout-dialog').showModal();
   $('#cancel-reset-layout').onclick = () => $('#reset-layout-dialog').close();
   $('#confirm-reset-layout').onclick = () => run(async () => {
@@ -1028,15 +1080,7 @@ function bindEvents() {
     currentDraft = null; controller.cancelDrag(); await controller.activate({ kind: 'none' });
     await workspace.layout.reset(workspace.snapshot, screenArea());
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); await controller.reconcile();
-    $('#reset-layout-dialog').close(); $('#settings-dialog').close(); render(); status('桌面佈局已重置');
-  });
-  $('#grid-rows').onchange = () => previewGrid(true); $('#grid-columns').onchange = () => previewGrid(true);
-  $('#save-settings').onclick = () => run(async () => {
-    const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value);
-    await workspace.layout.configure({ desktopVisible: $('#desktop-visible').checked, myGroupId: $('#my-group').value || null,
-      shortcuts: readShortcuts(),
-      grid: { rows, columns, area: screenArea(), slots: [...settingsSlots] } }, workspace.snapshot);
-    $('#settings-dialog').close(); render(); status('設定已存本機，既有卡片位置不變');
+    $('#reset-layout-dialog').close(); renderDesktopSettings(); render(); status('桌面佈局已重置');
   });
   $('#editor-text').oninput = () => { if (!currentDraft || editorBusy) return; currentDraft.content.text = $('#editor-text').value; queueDraft(); };
   $('#editor-text').addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
@@ -1143,7 +1187,7 @@ function bindEvents() {
     if (event.isComposing || composing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
     if (event.key === 'Escape' && document.body.classList.contains('drawer-open')) { event.preventDefault(); setDrawer(false); return; }
     if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === ',' && !handheld) {
-      event.preventDefault(); showSettings(); return;
+      event.preventDefault(); run(() => openSettings(null)); return;
     }
     const editControl = event.target.closest('input,textarea,select');
     // Shortcuts switch adjust scopes and desktop visibility, which phones and tablets do not have.

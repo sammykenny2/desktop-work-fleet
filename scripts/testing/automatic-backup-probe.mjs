@@ -14,7 +14,7 @@ const page = await context.newPage(); const errors = []; page.on('pageerror', er
 try {
   const app = new URL('/app/index.html', base); app.searchParams.set('profile', crypto.randomUUID());
   await page.goto(app.href); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
-  await page.locator('#account-button').click(); await page.locator('#backup-button').click();
+  await page.locator('#settings-button').click(); await page.locator('[data-page="data"]').click();
   await expect(page.locator('#auto-backup-retention')).toContainText('不支援自動備份');
   for (const id of ['location', 'enable', 'now', 'keep']) await expect(page.locator(`#auto-backup-${id}`)).toBeDisabled();
   await expect(page.locator('#export-backup')).toBeEnabled();
@@ -64,8 +64,8 @@ try {
   await expect(page.locator('#auto-backup-message')).toContainText('沒有安全密碼儲存');
   assert.equal(await page.evaluate(() => window.autoProbe.journal.load(window.autoProbe.profileId)), null);
   await page.locator('#auto-backup-encrypt').uncheck(); await page.locator('#auto-backup-keep').fill('1');
-  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toContainText('已保存並校驗');
-  await page.locator('#auto-backup-now').click(); await expect(page.locator('#auto-backup-message')).toContainText('已保存並校驗');
+  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toContainText('檔案檢查無誤');
+  await page.locator('#auto-backup-now').click(); await expect(page.locator('#auto-backup-message')).toContainText('檔案檢查無誤');
   assert.deepEqual(await page.evaluate(() => ({ count: window.autoProbe.count, inventory: window.autoProbe.service.state.inventory.length })), { count: 2, inventory: 1 });
   await page.evaluate(() => {
     window.autoProbe.flush = () => new Promise(resolve => { window.autoProbe.gateEntered = true; window.autoProbe.release = resolve; });
@@ -75,7 +75,7 @@ try {
   await page.evaluate(() => window.autoProbe.release()); await expect(page.locator('#auto-backup-status')).toContainText('已停用');
   assert.equal(await page.evaluate(() => window.autoProbe.count), 2, 'stopped preparation created no new output');
   await page.evaluate(() => { window.autoProbe.flush = async () => {}; });
-  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toContainText('已保存並校驗');
+  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toContainText('檔案檢查無誤');
   const result = await page.evaluate(async () => {
     const f = window.autoProbe; const assert = (value, message) => { if (!value) throw new Error(message); };
     f.lose = true;

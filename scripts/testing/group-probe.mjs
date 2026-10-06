@@ -30,17 +30,20 @@ try {
   await page.locator('dialog[open]').getByRole('button', { name: '保存', exact: true }).click();
   await expect(page.locator('#groups .group-row')).toHaveCount(2); await capture('研究便箋');
   let state = await read(); const [a, b] = state.groups; const positions = state.layout.placements;
-  await page.locator('#settings-button').click();
+  // Settings apply as soon as they are valid; there is no save button.
+  await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
   await page.getByRole('combobox', { name: '區域 1 的群組', exact: true }).selectOption(b.id);
   await expect(page.getByRole('combobox', { name: '區域 2 的群組', exact: true })).toHaveValue(a.id);
-  await page.getByText('快捷鍵', { exact: true }).click();
+  await page.locator('[data-page="shortcuts"]').click();
   const allShortcut = page.locator('[data-shortcut-target="@all"]');
   const bShortcut = page.locator(`[data-shortcut-target="${b.id}"]`);
-  await bShortcut.fill('Ctrl+Shift+0'); await expect(page.locator('#save-settings')).toBeDisabled();
-  await expect(page.locator('#grid-message')).toContainText('同一快捷鍵');
-  await bShortcut.fill('Ctrl+Shift+2, Alt+Shift+2'); await allShortcut.fill('Ctrl+Shift+9, Ctrl+A');
-  await page.locator('#my-group').selectOption(b.id);
-  await page.locator('#save-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  await bShortcut.fill('Ctrl+Shift+0'); await expect(page.locator('#shortcut-message')).toContainText('同一快捷鍵');
+  await bShortcut.press('Tab'); assert.equal((await read()).layout.shortcuts['Ctrl+Shift+0'], '@all', 'an invalid shortcut set is never applied');
+  await bShortcut.fill('Ctrl+Shift+2, Alt+Shift+2'); await bShortcut.press('Tab'); await allShortcut.fill('Ctrl+Shift+9, Ctrl+A'); await allShortcut.press('Tab');
+  await expect(page.locator('#shortcut-message')).toBeHidden();
+  await page.locator('[data-page="desktop"]').click(); await page.locator('#my-group').selectOption(b.id);
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  await expect.poll(async () => (await read()).layout.myGroupId).toBe(b.id);
   state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
   await page.locator('#groups .group-row').first().locator('button').first().click();
@@ -103,7 +106,7 @@ try {
   assert.equal(state.layout.myGroupId, a.id); assert.equal(state.layout.shortcuts['Ctrl+Shift+2'], a.id);
   assert.equal(state.layout.shortcuts['Alt+Shift+2'], a.id);
   await page.locator('#settings-button').click();
-  await page.locator('#save-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   assert.deepEqual((await read()).layout.shortcuts, state.layout.shortcuts, 'settings must retain all inherited bindings');
   await page.locator('#drafts-button').click(); await page.getByRole('button', { name: '繼續編輯', exact: true }).click();
   await expect(page.locator('#editor-group')).toHaveValue(a.id);

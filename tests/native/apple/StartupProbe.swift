@@ -84,7 +84,7 @@ import WebKit
                 if let state = value as? [String: Any] {
                     lastState = String(describing: state)
                     if state["status"] as? String == "已開啟本機資料",
-                        (state["storage"] as? String)?.hasPrefix("本機加密工作空間") == true, (state["groups"] as? Int ?? 0) > 0 {
+                        (state["storage"] as? String)?.hasPrefix("加密保存在這台裝置") == true, (state["groups"] as? Int ?? 0) > 0 {
                         await host.stop()
                         return
                     }

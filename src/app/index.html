@@ -22,8 +22,8 @@
       <button id="conflicts-button">版本與衝突 <span id="conflict-count" hidden>0</span></button>
     </nav>
     <div id="account" class="account" data-sync="off">
-      <button id="account-button" aria-haspopup="dialog" aria-expanded="false" aria-controls="account-menu"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span></span><span class="account-text"><span id="account-name">本機便箋</span><span id="sync-status">正在開啟本機資料…</span></span></button>
-      <button id="settings-button" class="icon-button" data-arrange aria-label="設定" title="設定（Ctrl+,）"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
+      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span></span><span class="account-text"><span id="account-name">本機便箋</span><span id="sync-status">正在開啟本機資料…</span></span></button>
+      <button id="settings-button" class="icon-button" aria-label="設定" title="設定（Ctrl+,）"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
     </div>
   </aside>
   <div id="scrim" hidden></div>
@@ -47,16 +47,6 @@
     <footer><span id="mode-label" data-arrange>鎖定中</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
     <button id="compose" class="primary" aria-label="記下想法"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>
-  <dialog id="account-menu" class="account-menu" aria-label="帳號與資料">
-    <div class="menu-body">
-      <div class="menu-header"><strong id="account-menu-name">本機便箋</strong><p id="storage-note">正在開啟本機資料…</p><p id="account-detail" hidden></p></div>
-      <button id="google-sync" hidden>立即同步</button>
-      <button id="backup-button">資料與備份</button>
-      <button id="google-sign-in" hidden>登入 Google</button>
-      <button id="google-local" hidden>切換到本機便箋</button>
-      <button id="google-sign-out" hidden>登出 Google</button>
-    </div>
-  </dialog>
   <dialog id="capture-inbox-dialog">
     <h2>分享收件匣</h2><p>選擇群組後，內容將保留為目前工作空間的草稿。</p>
     <div id="capture-list"></div>
@@ -88,22 +78,62 @@
     <p id="formation-description" role="status"></p>
     <div class="dialog-actions"><button id="cancel-formation">取消</button><button id="apply-formation" class="primary">套用排列</button></div>
   </dialog>
-  <dialog id="settings-dialog">
-    <h2>設定</h2>
-    <label class="check"><input id="desktop-visible" type="checkbox">鎖定時也顯示桌面便箋</label>
-    <label class="field">屬於我的群組<select id="my-group"></select></label>
-    <div class="grid-fields"><label class="field">列數<select id="grid-rows"><option>1</option><option>2</option><option>3</option></select></label><label class="field">欄數<select id="grid-columns"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
-    <div id="grid-preview" aria-label="格局預覽"></div><p id="grid-message"></p>
-    <p class="hint">變更區域不搬動既有便箋；執行排列時才召回。</p>
-    <details><summary>快捷鍵</summary><p id="shortcut-note" class="hint">快捷鍵在目前視窗生效。</p><div id="shortcut-fields"></div><p id="shortcut-status" role="status" class="hint"></p><button type="button" id="retry-shortcuts" hidden>重試全域註冊</button></details>
-    <section class="reset-section"><h3>重置桌面佈局</h3><p class="hint">把這台電腦上的便箋放回各自群組的區域，位置、大小與顯示方式恢復預設；內容、群組與快捷鍵不變。</p><button id="reset-layout" type="button">重置桌面佈局…</button></section>
-    <div class="dialog-actions"><button id="cancel-settings">取消</button><button id="save-settings" class="primary">保存設定</button></div>
+  <dialog id="settings-dialog" class="settings" aria-labelledby="settings-title">
+    <div class="settings-shell">
+      <nav class="settings-nav" aria-label="設定分頁">
+        <div class="nav-head"><h2 id="settings-title">設定</h2><button type="button" id="close-settings-list" class="icon-button" aria-label="關閉設定"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <div class="nav-list">
+        <button type="button" data-page="account"><span class="tile tile-account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.2-3.6 4-5.3 7-5.3s5.8 1.7 7 5.3"/></svg></span><span class="nav-label">帳號與同步</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="data"><span class="tile tile-data"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="5" rx="1.2"/><path d="M5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4"/></svg></span><span class="nav-label">資料與備份</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="desktop" data-arrange><span class="tile tile-desktop"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg></span><span class="nav-label">桌面</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="shortcuts" data-arrange><span class="tile tile-shortcuts"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M7.5 14h9"/></svg></span><span class="nav-label">快捷鍵</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        </div>
+      </nav>
+      <div class="settings-main">
+        <header class="settings-head">
+          <button type="button" id="settings-back" class="icon-button" aria-label="返回設定"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+          <h3 id="settings-page-title">帳號與同步</h3>
+          <button type="button" id="close-settings" class="icon-button" aria-label="關閉設定"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </header>
+        <div class="settings-body">
+          <section class="settings-page" data-panel="account">
+            <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span></span><div><strong id="identity-name">本機便箋</strong><p id="storage-note">正在開啟本機資料…</p></div></div>
+            <div class="settings-list">
+              <div class="settings-row" id="sync-row" hidden><span class="row-text"><span class="row-label">同步</span><span class="row-value" id="sync-detail"></span></span><button type="button" id="google-sync">立即同步</button></div>
+              <div class="settings-row" id="google-row" hidden><span class="row-text"><span class="row-label">Google 帳號</span><span class="row-value" id="google-value">未登入</span></span><span class="row-actions"><button type="button" id="google-sign-in" hidden>登入</button><button type="button" id="google-sign-out" hidden>登出</button></span></div>
+              <div class="settings-row" id="local-row" hidden><span class="row-text"><span class="row-label">本機便箋</span><span class="row-value">只存在這台裝置、不會同步</span></span><button type="button" id="google-local">切換</button></div>
+            </div>
+            <p class="settings-note" id="account-detail" hidden></p>
+          </section>
+          <section class="settings-page" data-panel="data" hidden><div id="data-host"></div></section>
+          <section class="settings-page" data-panel="desktop" hidden>
+            <p class="settings-note warn" id="desktop-note" hidden></p>
+            <div class="settings-list">
+              <label class="settings-row"><span class="row-text"><span class="row-label">鎖定時也顯示便箋</span><span class="row-value">關閉後，便箋只在調整時出現在桌面上。</span></span><input id="desktop-visible" class="switch" type="checkbox"></label>
+              <label class="settings-row"><span class="row-text"><span class="row-label">我的群組</span><span class="row-value">這一組的便箋會加上強調色邊。</span></span><select id="my-group"></select></label>
+            </div>
+            <h4 class="settings-heading">群組區域</h4>
+            <p class="hint">整理便箋時，每個群組會排進自己的區域。</p>
+            <div class="grid-size"><label>列<select id="grid-rows" aria-label="列數"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label>欄<select id="grid-columns" aria-label="欄數"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
+            <div id="grid-preview" aria-label="區域配置"></div>
+            <p id="grid-message" class="settings-note error" role="status" hidden></p>
+            <section class="reset-section"><h4 class="settings-heading">重置桌面佈局</h4><p class="hint">把便箋放回各自的群組區域，並恢復預設大小與顯示方式。</p><button id="reset-layout" type="button">重置桌面佈局…</button></section>
+          </section>
+          <section class="settings-page" data-panel="shortcuts" hidden>
+            <p class="hint" id="shortcut-note">只在這個視窗有效。一個動作可以設多組，用逗號分開。</p>
+            <div class="settings-list" id="shortcut-fields"></div>
+            <p id="shortcut-message" class="settings-note error" role="status" hidden></p>
+            <button type="button" id="retry-shortcuts" hidden>重新註冊快捷鍵</button>
+          </section>
+        </div>
+      </div>
+    </div>
   </dialog>
   <dialog id="reset-layout-dialog">
     <h2>重置桌面佈局？</h2>
-    <p>這台電腦上所有便箋會回到各自群組的區域，位置、大小、常駐層級、「在桌面顯示」與「鎖定時可選取文字」恢復預設，群組區域的列數與欄數也回到預設。</p>
-    <p>便箋內容、群組與快捷鍵不受影響，其他裝置的佈局也不變。重置後無法用「復原」還原。</p>
-    <div class="dialog-actions"><button id="cancel-reset-layout">取消</button><button id="confirm-reset-layout" class="danger">重置佈局</button></div>
+    <p>這台電腦上的便箋會回到各自的群組區域，位置、大小與顯示方式恢復預設。便箋內容、群組和快捷鍵不會改變。</p>
+    <p>重置後無法復原。</p>
+    <div class="dialog-actions"><button id="cancel-reset-layout">取消</button><button id="confirm-reset-layout" class="danger">重置</button></div>
   </dialog>
   <dialog id="drafts-dialog"><h2>未完成草稿</h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts">關閉</button></div></dialog>
 </body>

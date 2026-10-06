@@ -28,9 +28,10 @@ internal static class ShortcutIntegrationProbe
     // Configure the real owner through the settings UI. No synthetic Workspace replaces SQLite.
     await web.ExecuteScriptAsync("document.querySelector('#settings-button').click()");
     await Wait(() => Check(web, "document.querySelector('#settings-dialog').open"), "settings opened");
-    await web.ExecuteScriptAsync("document.querySelector('[data-shortcut-target=\"@all\"]').value='Ctrl+Alt+Shift+F24';document.querySelector('#save-settings').click()");
+    // Shortcut fields apply on change; closing settings lets the window take desktop actions again.
+    await web.ExecuteScriptAsync("const all=document.querySelector('[data-shortcut-target=\"@all\"]');all.value='Ctrl+Alt+Shift+F24';all.dispatchEvent(new Event('change'));document.querySelector('#close-settings').click()");
     await Wait(() => Task.FromResult(coordinator.ShortcutStatus.Any(r => r.Key == "Ctrl+Alt+Shift+F24" && r.Target == "@all")), "durable settings reached native registration");
-    await Wait(() => Check(web, "document.querySelector('#shortcut-status').textContent.includes('Ctrl+Alt+Shift+F24')"), "real registration status displayed");
+    await Wait(() => Check(web, "document.querySelector('[data-shortcut-status=\"@all\"]').dataset.state.length > 0"), "real registration status displayed");
     // A real WM_HOTKEY message to our own receiver routes the registered target. No system key input is injected.
     var registration = coordinator.ShortcutStatus.Single(r => r.Target == "@all");
     if (registration.Status == "available")
@@ -95,7 +96,7 @@ internal static class ShortcutIntegrationProbe
     // Keep the normal default chord for the remaining fixture and next native reopen.
     await web.ExecuteScriptAsync("document.querySelector('#settings-button').click()");
     await Wait(() => Check(web, "document.querySelector('#settings-dialog').open"), "restore shortcut settings");
-    await web.ExecuteScriptAsync("document.querySelector('[data-shortcut-target=\"@all\"]').value='Ctrl+Shift+0';document.querySelector('#save-settings').click()");
+    await web.ExecuteScriptAsync("const all=document.querySelector('[data-shortcut-target=\"@all\"]');all.value='Ctrl+Shift+0';all.dispatchEvent(new Event('change'));document.querySelector('#close-settings').click()");
     await Wait(() => Check(web, "!document.querySelector('#settings-dialog').open"), "restored shortcut settings saved");
     Console.WriteLine($"PASS actual shell icon, native action ({registration.Status}), shortcut settings/status, synthetic IME/local key draft exit, hide/reopen and owned shell recreation");
   }

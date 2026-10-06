@@ -2,6 +2,7 @@ import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
+import { stepGroup } from '../layout/stages.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -457,6 +458,13 @@ async function desktopAction(target, intent) {
     await openEditor(); return;
   }
   if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
+  // A group key moves its group one stage on: wallpaper, desktop, selectable text, topmost, adjust mode, wallpaper again.
+  // Ctrl+Shift+0 keeps its own meaning: every group into adjust mode, then back to each paper's own layer. Papers hidden
+  // while locked would not show the first stages and the browser preview has no layers, so there a group key only
+  // switches adjust mode.
+  else if (target !== shortcutActions.all && target !== '@stop' && desktop && workspace.layout.state.desktopVisible) {
+    await stepGroup({ workspace, controller, groupId: target, wallpaper: Boolean(desktopInfo?.layers?.includes('wallpaper')) }); activeGroupId = target;
+  }
   else {
     const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
     if (changed && target !== shortcutActions.all && target !== '@stop') activeGroupId = target;
@@ -945,17 +953,18 @@ function applyLayout(patch) {
 function renderShortcutSettings() {
   const layout = workspace.layout.state; const bound = regionShortcuts(layout.shortcuts, layout.grid.slots);
   const groups = activeGroups(workspace.snapshot);
-  const row = (target, name, { tile = null, label = name, empty = false } = {}) => {
+  const row = (target, name, { tile = null, label = name, empty = false, note = '' } = {}) => {
     const item = element('label', undefined, 'settings-row'); const text = element('span', undefined, 'row-text');
     const state = element('span', '', 'row-value'); state.dataset.shortcutStatus = target;
-    text.append(element('span', name, empty ? 'row-label empty' : 'row-label'), state);
+    text.append(element('span', name, empty ? 'row-label empty' : 'row-label'), element('span', note, 'row-value'), state);
     const input = element('input'); input.dataset.shortcutTarget = target; input.placeholder = '未設定'; input.setAttribute('aria-label', `${label}的快捷鍵`);
     input.value = Object.entries(bound).filter(([, value]) => value === target).map(([key]) => key).join(', ');
     input.oninput = checkShortcuts; input.onchange = applyShortcuts;
     if (tile) item.append(tile); item.append(text, input); return item;
   };
   $('#shortcut-actions').replaceChildren(row(shortcutActions.capture, '快速記錄'), row(shortcutActions.toggle, '顯示或隱藏桌面便箋'));
-  const regions = [row(shortcutActions.all, '所有群組', { tile: $('#all-tile').content.firstElementChild.cloneNode(true) })];
+  const regions = [row(shortcutActions.all, '所有群組', { tile: $('#all-tile').content.firstElementChild.cloneNode(true),
+    note: '全部進入調整位置，再按一次回到各自的層級' })];
   for (let number = 1; number <= 9; number++) {
     const group = groups.find(item => item.id === layout.grid.slots[number - 1]);
     const tile = element('span', String(number), group ? 'region-tile' : 'region-tile empty'); tile.setAttribute('aria-hidden', 'true');

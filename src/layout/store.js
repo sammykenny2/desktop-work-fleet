@@ -100,7 +100,12 @@ export class LayoutStore {
   }
 
   async setCardPolicy(cardId, patch) {
-    patch = copy(patch);
+    return this.setCardsPolicy([cardId], patch);
+  }
+
+  /** One transaction for a whole group, so a layer step never leaves the group half moved. */
+  async setCardsPolicy(cardIds, patch) {
+    cardIds = [...cardIds]; patch = copy(patch);
     requireValue(Object.keys(patch).every(key => ['visible', 'residentLayer', 'readOnlySelect'].includes(key)),
       'invalid-setting', '未知的卡片顯示設定。');
     for (const key of ['visible', 'readOnlySelect']) requireValue(!(key in patch) || typeof patch[key] === 'boolean',
@@ -108,8 +113,8 @@ export class LayoutStore {
     requireValue(!('residentLayer' in patch) || ['desktop', 'wallpaper', 'floating'].includes(patch.residentLayer),
       'invalid-setting', '未知的常駐層級。');
     return this.#transaction(draft => {
-      requireValue(draft.placements[cardId], 'missing-placement', '找不到卡片位置。');
-      Object.assign(draft.placements[cardId], copy(patch));
+      for (const cardId of cardIds) requireValue(draft.placements[cardId], 'missing-placement', '找不到卡片位置。');
+      for (const cardId of cardIds) Object.assign(draft.placements[cardId], copy(patch));
     });
   }
 

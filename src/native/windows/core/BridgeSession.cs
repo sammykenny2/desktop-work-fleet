@@ -25,8 +25,9 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   private readonly object gate = new();
   private bool disposed;
   public bool CloseReady { get; private set; }
-  /// <summary>The profile's data was deleted; the host reopens the document on the same, now empty, profile.</summary>
-  public bool ResetDone { get; private set; }
+  private bool resetDone;
+  /// <summary>True once after the profile's data was deleted; the host then reopens the document on the empty profile.</summary>
+  public bool TakeResetDone() { lock (gate) { var value = resetDone; resetDone = false; return value; } }
   public bool Ready { get; private set; }
   private object Info() => new { protocol = 1, platform = "windows", profileId = database.ProfileId,
     storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
@@ -119,7 +120,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
       case "storage.reset":
       {
         foreach (var token in transfers.Keys.ToArray()) Drop(token);
-        staged.Clear(); database.Reset(); ResetDone = true; return new { profileId = database.ProfileId };
+        staged.Clear(); database.Reset(); resetDone = true; return new { profileId = database.ProfileId };
       }
       case "storage.load": return Download(database.ReadRecord(JsonRules.Text(args, "kind")));
       case "storage.attachment": return Download(database.ReadAttachment(JsonRules.Text(args, "id")));

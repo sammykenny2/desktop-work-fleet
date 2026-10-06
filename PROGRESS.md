@@ -96,7 +96,7 @@ Google 工作空間連雲端重置（`resetSource`）：先在 appDataFolder 寫
 四個原生宿主都接受 `reset` 檔案種類（上限 4 KiB）並新增 `google.delete`；Google 工作空間未登入時重設按鈕停用並說明原因。
 
 驗證：`file-sync` 新增 3 項（標記讓持有舊檔的裝置停下、新裝置從清空的雲端開始、游標重建後仍辨識、限流重試與重置途中新增的檔案、刪除失敗回報），
-`npm test` 225 pass、11 skip。Windows app 建置 0 錯誤。**Google 雲端重置沒有任何實機或真實 Drive 驗證**：
+`npm test` 225 pass、11 skip。Windows app 建置 0 錯誤。restore-ui 與 automatic-backup probe 在加入重設區塊後重跑通過（390 寬不溢出）；automatic-backup 第一次失敗、未留下訊息，之後連續 3 次通過，視為不穩定。Windows 的重設旗標改為讀一次即清除，避免之後的訊息再觸發一次重開。**Google 雲端重置沒有任何實機或真實 Drive 驗證**：
 目前所有版本都還沒有配置 Google clients，使用者無法登入 Google，這條路徑現在走不到；Apple／Android／Linux 的 `google.delete` 也未建置。
 
 ## 2026-10-06 Windows 開著時桌面圖示點不到

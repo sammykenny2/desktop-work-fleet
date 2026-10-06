@@ -185,6 +185,20 @@ class Database:
                 self.connection.execute("ROLLBACK")
                 raise
 
+    def reset(self):
+        """Deletes everything this profile keeps on the device; Google credentials live in Secret Service and stay."""
+        with self.lock:
+            self.connection.execute("BEGIN IMMEDIATE")
+            try:
+                for table in ("records", "attachments", "staging", "secrets"):
+                    self.connection.execute(f"DELETE FROM {table} WHERE profile=?", (self.profile,))
+                self.connection.execute("COMMIT")
+            except Exception:
+                self.connection.execute("ROLLBACK")
+                raise
+            # Return the freed pages so the deleted notes do not stay behind in the database file.
+            self.connection.execute("VACUUM")
+
     def close(self):
         if self.connection is not None:
             self.connection.close()

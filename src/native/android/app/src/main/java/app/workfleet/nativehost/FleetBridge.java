@@ -59,6 +59,10 @@ final class FleetBridge implements AutoCloseable {
                 int count = Math.min(Protocol.CHUNK, value.size - offset);
                 return Protocol.object("offset", offset, "base64", Base64.encodeToString(value.download, offset, count, Base64.NO_WRAP), "done", offset + count == value.size);
             }
+            case "storage.reset": {
+                for (String token : new HashSet<>(transfers.keySet())) drop(token);
+                staged.clear(); database.reset(); return Protocol.object("profileId", database.profile);
+            }
             case "storage.load": return download(database.record(Protocol.text(args, "kind", 32)));
             case "storage.attachment": return download(database.attachment(Protocol.text(args, "id", 64)));
             case "storage.putAttachment": { String token = owned(args); String id = database.putAttachment(token); staged.remove(token); return Protocol.object("id", id); }

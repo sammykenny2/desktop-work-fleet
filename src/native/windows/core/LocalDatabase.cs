@@ -208,6 +208,24 @@ public sealed class LocalDatabase : IDisposable
       return UserProtection.Unprotect(data!, Scope("vault:" + purpose, id));
     }
   }
+  /// <summary>
+  /// Deletes everything this profile keeps on the device: workspace and backup journal, attachments, staged
+  /// transfers, backup keys and backup folder grants. Google credentials are stored outside the database and stay.
+  /// </summary>
+  public void Reset()
+  {
+    lock (gate)
+    {
+      using (var tx = connection.BeginTransaction())
+      {
+        foreach (var table in new[] { "records", "attachments", "staging", "vault", "capabilities" })
+          Execute($"DELETE FROM {table} WHERE profile=$p;", tx, ("$p", ProfileId));
+        tx.Commit();
+      }
+      // Return the freed pages so the deleted notes do not stay behind in the database file.
+      Execute("PRAGMA wal_checkpoint(TRUNCATE); VACUUM;");
+    }
+  }
   public static void CheckDigest(string digest) => HostError.Require(digest.Length == 64 && digest.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'),
     "invalid-digest", "無效的 SHA-256。");
   public void Dispose()

@@ -48,6 +48,23 @@ async function session(directory = path.resolve(`build/native-js-${crypto.random
   };
 }
 
+nativeTest('native reset deletes the profile workspace, journal and attachments, and a fresh workspace saves again', async () => {
+  const host = await session(); const area = { x: 0, y: 0, width: 1000, height: 800 };
+  try {
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'reset-native', area, persist: (state, revision) => host.storage.save(state, revision) });
+    const payload = new TextEncoder().encode('reset attachment 中文'); const digest = await sha256(payload);
+    await host.storage.putAttachmentBytes('local', digest, payload);
+    await workspace.createCard({ format: 'markdown', text: '重設前的便箋', attachments: [{ id: digest, size: payload.length, name: 'a.txt' }] });
+    await host.storage.saveJournal({ profileId: 'local', revision: 0 }, null);
+    await assert.rejects(host.storage.reset('other'), { code: 'invalid-profile' });
+    await host.storage.reset('local');
+    assert.equal(await host.storage.load('local'), null); assert.equal(await host.storage.journal().load('local'), null);
+    assert.equal(await host.storage.getAttachment('local', digest), null);
+    const fresh = await Workspace.create({ profileId: 'local', deviceId: 'reset-native-2', area, persist: (state, revision) => host.storage.save(state, revision) });
+    assert.equal((await host.storage.load('local')).revision, fresh.state.revision);
+  } finally { await host.close(); }
+});
+
 nativeTest('native automatic encryption, retention and directory/key grants survive restart; portable restore reads every saved byte', async () => {
   let host = await session(); const directory = host.directory; const password = '原生加密備份-十二個字元-🦋';
   try {

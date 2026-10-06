@@ -65,6 +65,29 @@ Windows／Apple／Android 的搬移邏輯在本機無法執行，只有靜態測
 `archivesName` 只做語法／靜態測試，未實際產出 MSIX、DMG、PKG、IPA、APK 或 AAB；macOS 改為 universal 後
 hosted workflow 的建置時間也未測。沒有獨立審閱。
 
+## 2026-10-06 重設所有資料與重置桌面佈局
+
+使用者要求在設定加入重設所有資料（需警告、手機也能用），討論後分成兩組：
+- 資料重置對「目前工作空間」：本機工作空間刪除這台裝置的資料；Google 工作空間要連 Drive 一起清（下一段，尚未完成）。
+  手機不登入 Google 時本身就是本機記事軟體，所以手機也有本機資料可重置。
+- 版面重置只在有桌面分層的 Windows／macOS／Linux，用語照 iOS「重置主畫面佈局」叫「重置桌面佈局」，不含快捷鍵。
+
+重置桌面佈局（`274b9be`）：設定最下方，確認對話框說明影響範圍。`LayoutStore.reset` 把群組區域恢復預設格局、清空位置與復原歷史、
+顯示桌面便箋、取消「屬於我的群組」，保留快捷鍵與 device id；之後 `placeNew` 把所有便箋放回各群組區域（桌面層、顯示、不可選字）。
+兩次寫入之間中斷時，開 App 時的 `placeNew` 會補放。`desktop-core` 新增測試。
+
+本機資料重置：「資料與備份」最下方「重設所有資料」，旁邊「先匯出備份」（捲到匯出區並聚焦密碼）。
+警告對話框寫出對象（本機便箋／這台裝置）、會刪除與不受影響的項目，再放一次「先匯出備份」，勾選「我了解資料刪除後無法復原」後才能按「永久刪除並重設」。
+流程比照切換帳號：停同步與自動備份、封存桌面場景、等進行中的寫入完成，再呼叫原生 `storage.reset`。
+四個原生宿主都新增 `storage.reset`：在同一個交易刪除該 profile 的 records／attachments／staging 與備份金鑰、備份位置授權
+（Windows `vault`／`capabilities`，其他平台 `secrets`），再 VACUUM 回收空間；回覆後沿用切換帳號的路徑重開同一個 profile。
+Google 登入資料不在這些表（Windows 獨立 vault 檔、Apple Keychain、Linux Secret Service、Android 系統授權），所以不受影響。
+瀏覽器預覽改為刪除 IndexedDB 的工作空間、附件與備份紀錄後重新載入。Google 工作空間暫不顯示重設，等雲端清除完成。
+
+驗證：`desktop-core` 47 項通過；Windows 原生 bridge 測試新增重設（刪除後讀不到工作空間、紀錄與附件，新工作空間可從頭保存）並通過；
+Windows app 與測試專案建置 0 錯誤；瀏覽器預覽實測新增便箋、草稿後重設，重新載入只剩預設群組、0 張便箋、草稿入口隱藏，1280 與 390 寬截圖檢查對話框。
+Apple／Android 原始碼未建置（依指示到 macOS 開發機），Linux 的資料庫需要 GI／Secret Service，本機只做語法檢查。
+
 ## 2026-10-06 Windows 開著時桌面圖示點不到
 
 使用者回報：Work Fleet 執行中（包含只在系統匣）時，桌面捷徑完全點不到。

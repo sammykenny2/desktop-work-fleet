@@ -97,7 +97,8 @@ import UIKit
                 let response: [String: Any]; var next: String?
                 do {
                     let result = try await service.invoke(method, args); response = ["v": 1, "id": id, "ok": true, "result": result]
-                    if ["google.open", "google.signOut", "google.local"].contains(method) { next = (result as? [String: Any])?["profileId"] as? String }
+                    // A reset reopens the same, now empty, profile the same way an account switch opens another one.
+                    if ["google.open", "google.signOut", "google.local", "storage.reset"].contains(method) { next = (result as? [String: Any])?["profileId"] as? String }
                 } catch {
                     let failure = error as? FleetFailure ?? FleetFailure("native-unavailable", "原生操作未完成，請保留草稿後重試。")
                     response = ["v": 1, "id": id, "ok": false, "error": ["code": failure.code, "message": failure.message]]

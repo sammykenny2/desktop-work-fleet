@@ -33,7 +33,7 @@ let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
 let settingsSlots = [];
-let automatic; let automaticError;
+let automatic; let automaticError; let browserJournal;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let nativeFiles;
 let captureInbox; let selectedCapture; let captureBusy = false;
@@ -130,7 +130,7 @@ async function initialize() {
   $('#storage-note').textContent = native ? '本機加密工作空間\n尚未連接 Google' : '瀏覽器本機工作空間\n尚未連接 Google';
   renderAccount(); setSync('off', native ? '只存在這台裝置' : '只存在這個瀏覽器');
   try {
-    const journal = native ? storage.journal() : await IndexedDbBackupJournal.open();
+    const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); if (!native) browserJournal = journal;
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
     const service = new AutomaticBackup({ workspace, storage, journal, files, vault,
       flush: () => desktop ? desktop.perform(flushDraft) : flushDraft() }); await service.load();
@@ -269,6 +269,40 @@ async function changeGoogleAccount(action) {
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
     accountBusy = false; await initializeGoogle();
+  }
+}
+
+// The workspace a data reset deletes, and what it leaves on this device.
+function resetPlan() {
+  const google = profileId.startsWith('google:');
+  const keeps = ['已保存的備份 ZIP 檔'];
+  if (captureInbox) keeps.push('分享收件匣中尚未接收的分享');
+  if (google) keeps.push('Google 登入狀態', '這台裝置上的本機便箋');
+  else if (googleAccount?.configured) keeps.push('這台裝置上的 Google 帳號工作空間');
+  return { cloud: google, keeps, run: resetWorkspace,
+    target: google ? `${googleAccount?.email || 'Google 帳號'} 的 Google 工作空間（所有裝置）` : native ? '本機便箋（這台裝置）' : '本機便箋（這個瀏覽器）' };
+}
+// Deletes the current workspace on this device and reopens it empty, stopping everything that could write it back.
+async function resetWorkspace(say) {
+  if (accountBusy || nativeClosing) throw new Error('帳號或關閉作業進行中，請稍後再試。');
+  accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
+  try {
+    await automatic?.service.whenIdle(); await syncService?.stop(); syncService = null;
+    desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
+    await desktop?.whenIdle(); desktop?.sealClose();
+    await Promise.allSettled([...activeActions, draftPending]);
+    // Nothing of this workspace is kept, so its unsaved drafts must not hold the page open.
+    currentDraft = null; unsavedDrafts.clear(); document.body.inert = true;
+    say('正在刪除這台裝置上的資料…');
+    await storage.reset(profileId);
+    // Native hosts reopen the document on the emptied profile after replying; the browser reloads itself.
+    if (!native) { await browserJournal?.reset(profileId); lease.release(); location.reload(); }
+  } catch (error) {
+    document.body.inert = false; await desktop?.cancelClose();
+    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
+    if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+    accountBusy = false; if (native) await initializeGoogle();
+    throw error;
   }
 }
 
@@ -949,7 +983,9 @@ function bindEvents() {
     if (currentDraft) await flushDraft();
     if (!await controller.endEdit()) return;
     currentDraft = null; controller.cancelDrag(); $('#settings-dialog').close(); render();
-    showBackupDialog({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual,
+    // Google workspaces also clear their Drive data, which this build cannot do yet; they get no reset.
+    const reset = profileId.startsWith('google:') ? null : resetPlan();
+    showBackupDialog({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError, files: nativeBackups?.manual, reset,
       onChanged: async () => { await controller.reconcile(); render(); } });
   });
   $('#reset-layout').onclick = () => $('#reset-layout-dialog').showModal();

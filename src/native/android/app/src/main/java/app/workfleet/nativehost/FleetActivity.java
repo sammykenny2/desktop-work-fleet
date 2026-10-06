@@ -141,6 +141,8 @@ public final class FleetActivity extends Activity {
                 Protocol.require(captures != null, "capture-unavailable", "分享收件匣目前不可用。"); result = captures.invoke(method, args, session);
             } else if (method.equals("file.export")) result = exports.export(args, session);
             else result = session.invoke(method, args);
+            // A reset reopens the same, now empty, profile the same way an account switch opens another one.
+            if (method.equals("storage.reset")) switchTo = ((JSONObject) result).getString("profileId");
             response = Protocol.object("v", 1, "id", id, "ok", true, "result", result);
         } catch (Exception error) {
             switchTo = null;

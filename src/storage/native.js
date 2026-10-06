@@ -110,6 +110,8 @@ export class NativeStorage {
     requireValue(bytes.length <= this.#info.maxAttachmentBytes && await sha256(bytes) === id, 'attachment-integrity', '附件校驗失敗。');
     return new Blob([bytes], { type: 'application/octet-stream' });
   }
+  /** Deletes this profile's data on the device; the host then reopens the document on the same, empty profile. */
+  async reset(profileId) { this.#check(profileId); await this.#bridge.request('storage.reset'); }
   journal() {
     return { load: profileId => this.load(profileId, 'journal'), save: (state, revision) => this.saveJournal(state, revision), close() {} };
   }

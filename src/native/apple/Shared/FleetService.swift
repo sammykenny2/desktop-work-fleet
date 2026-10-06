@@ -94,6 +94,8 @@ actor FleetService {
             let value = try transfer(FleetProtocol.text(args, "token")), offset = Int(try FleetProtocol.number(args, "offset", Int64(FleetProtocol.backup)))
             try FleetProtocol.require(value.kind == "download" && offset <= value.size, "invalid-transfer", "下載位置無效。")
             let end = min(value.size, offset + FleetProtocol.chunk); return ["offset": offset, "base64": value.bytes.subdata(in: offset..<end).base64EncodedString(), "done": end == value.size]
+        case "storage.reset":
+            transfers.removeAll(); staged.removeAll(); try database.reset(); return ["profileId": database.profile]
         case "storage.load": return try download(database.record(FleetProtocol.text(args, "kind")))
         case "storage.attachment": return try download(database.attachment(FleetProtocol.text(args, "id")))
         case "storage.putAttachment":

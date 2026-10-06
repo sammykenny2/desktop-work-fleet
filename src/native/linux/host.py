@@ -321,7 +321,8 @@ class FleetApp(Gtk.Application):
                 try:
                     result = future.result()
                     view.post({"v": 1, "id": value["id"], "ok": True, "result": result})
-                    if method in ("google.open", "google.local", "google.signOut"):
+                    # A reset reopens the same, now empty, profile the same way an account switch opens another one.
+                    if method in ("google.open", "google.local", "google.signOut", "storage.reset"):
                         self.epoch += 1
                         self.close_desktop()
                         self.open_store(result["profileId"], persist=True)

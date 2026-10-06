@@ -34,6 +34,10 @@ export class IndexedDbBackupJournal {
     });
   }
   load(profileId) { requireValue(safeKey(profileId), 'backup-profile', '備份帳號無效。'); return this.#get('journals', profileId); }
+  reset(profileId) {
+    requireValue(safeKey(profileId), 'backup-profile', '備份帳號無效。');
+    return this.#transaction('journals', 'readwrite', store => { store.delete(profileId); });
+  }
   save(state, expectedRevision) {
     state = copy(state);
     return this.#transaction('journals', 'readwrite', (store, context) => {

@@ -88,6 +88,12 @@ final class FleetDatabase {
         try execute("INSERT OR REPLACE INTO secrets VALUES(?,?,?,?)", [profile, kind, id, try seal(bytes, "secret:" + kind, id)])
     } }
     func forget(_ kind: String, _ id: String) throws { try synchronized { try execute("DELETE FROM secrets WHERE profile=? AND kind=? AND id=?", [profile, kind, id]) } }
+    /// Deletes everything this profile keeps on the device; Google credentials live in the Keychain and stay.
+    func reset() throws { try synchronized {
+        try transaction { for table in ["records", "attachments", "staging", "secrets"] { try execute("DELETE FROM \(table) WHERE profile=?", [profile]) } }
+        // Return the freed pages so the deleted notes do not stay behind in the database file.
+        try execute("PRAGMA wal_checkpoint(TRUNCATE)"); try execute("VACUUM")
+    } }
     private func validate(_ bytes: Data) throws -> Int64 { let value = try FleetProtocol.json(bytes); try FleetProtocol.require(FleetProtocol.text(value, "profileId") == profile, "invalid-profile", "資料不屬於目前工作空間。"); return try FleetProtocol.number(value, "revision") }
     func stage(_ kind: String, _ bytes: Data, _ digest: String) throws -> String { try synchronized {
         try FleetProtocol.require(["workspace", "journal", "attachment", "backup"].contains(kind), "invalid-transfer", "傳輸種類無效。")

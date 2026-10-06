@@ -118,6 +118,11 @@ class Service:
                 p.require(value["kind"] == "download", "invalid-transfer", "下載身分無效。")
                 end = min(value["size"], offset + p.CHUNK)
                 return {"offset": offset, "base64": base64.b64encode(value["bytes"][offset:end]).decode("ascii"), "done": end == value["size"]}
+            if method == "storage.reset":
+                self.transfers.clear()
+                self.staged.clear()
+                self.database.reset()
+                return {"profileId": self.database.profile}
             if method == "storage.load":
                 return self.download(self.database.record(p.text(args, "kind")))
             if method == "storage.attachment":

@@ -127,5 +127,13 @@ final class FleetDatabase implements AutoCloseable {
             } finally { db.endTransaction(); }
         } finally { Arrays.fill(bytes, (byte) 0); }
     }
+    /** Deletes everything this profile keeps on the device; Google authorization is held by the system and stays. */
+    synchronized void reset() {
+        db.beginTransaction();
+        try { for (String table : new String[] { "records", "attachments", "staging", "secrets" }) db.delete(table, "profile=?", new String[] { profile }); db.setTransactionSuccessful(); }
+        finally { db.endTransaction(); }
+        // Return the freed pages so the deleted notes do not stay behind in the database file.
+        db.execSQL("VACUUM");
+    }
     @Override public synchronized void close() throws Exception { helper.close(); lock.release(); owner.close(); }
 }

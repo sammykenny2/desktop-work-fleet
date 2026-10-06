@@ -236,6 +236,11 @@ public sealed class FleetWindow : Window
       var result = IsUiRequest(json) ? session.Dispatch(json) : await Task.Run(() => session.Dispatch(json));
       if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(web.CoreWebView2.Source)) web.CoreWebView2.PostWebMessageAsJson(result);
       if (session.CloseReady && closeRequested && epoch == navigation) { shuttingDown = true; Close(); }
+      if (session.ResetDone && epoch == navigation && !shuttingDown)
+      {
+        var profile = database.ProfileId;
+        _ = Dispatcher.BeginInvoke(new Action(() => { if (epoch == navigation && !shuttingDown) SwitchProfile(profile); }));
+      }
     }
     catch { /* A destroyed view cannot acknowledge a durable commit. Reopen reads the transaction. */ }
     finally { queued--; }

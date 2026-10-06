@@ -57,6 +57,16 @@ export class IndexedDbStorage {
     return this.#save(state, expectedRevision, []);
   }
 
+  /** Deletes this profile's workspace and attachments in one transaction. */
+  reset(profileId) {
+    requireValue(safeKey(profileId), 'invalid-profile', '無效的帳號分區。');
+    return this.#transaction(['workspaces', 'attachments'], 'readwrite', tx => {
+      tx.objectStore('workspaces').delete(profileId);
+      // [profileId] sorts before every [profileId, id] and [profileId, []] after every string id.
+      tx.objectStore('attachments').delete(IDBKeyRange.bound([profileId], [profileId, []]));
+    });
+  }
+
   async saveWithAttachments(state, expectedRevision, attachments) {
     state = copy(state);
     requireValue(Array.isArray(attachments), 'invalid-attachment', '需要完整附件清單。');

@@ -21,7 +21,7 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
-## 2026-10-06 Windows 真實 Google 登入；設定視窗開著時不同步
+## 2026-10-06 Windows 真實 Google 登入與 Drive 上傳驗收（修正三個實測問題）
 
 使用者依步驟建立 Google Cloud 專案（同意畫面測試中、Desktop client），填 `.env` 後安裝新包，在 Windows 以真實帳號登入成功，
 帳號區顯示 email；Desktop client secret 的修正因此在真實 Google 上確認可用。
@@ -41,7 +41,11 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   另有 8 筆沒見過的 removed 變更（未完成上傳的預留 ID），FileSync 本來就略過。
 - 修正：五份實作的變更清單都多要 `mimeType`；JS adapter 與原生共用的 `NativeGoogleFileStore` 略過資料夾（`driveFolder`），其他缺欄位的檔案仍然停下。
 - 驗證：`npm test` 242 pass、11 skip（新增 adapter 與原生 store 各一項，用實測到的資料夾形狀）；Linux Python 24 項通過；Windows 重新打包、建置 0 錯誤。
-  Apple／Android 未建置。待使用者安裝後確認同步完成。沒有獨立審閱。
+  Apple／Android 未建置。沒有獨立審閱。
+- 實測結果：使用者安裝後同步顯示「已同步 21:01」；再新增便箋（含附件）同步。用 App 的授權只讀列出 appDataFolder：
+  3 個 revision、1 個 1,975,966 bytes 的 attachment（超過 1 MiB，走了分段續傳），名稱、appProperties 與 Drive 的 sha256Checksum 一致；
+  逐一下載後 SHA-256 與記錄相符。這證明 Windows 的登入、上傳、續傳與變更清單在真實 Drive 上可用。
+- 仍未驗收：另一台裝置從雲端下載與合併（需第二台裝置，例如 Linux VM）、衝突、授權 7 天到期後的重新登入、雲端重設，以及 Linux／Apple／Android。
 
 ## 2026-10-06 Windows／Linux Google Desktop client secret
 
@@ -998,7 +1002,7 @@ Git ignore 確認生成資產與 Local.xcconfig 不進 repo。
 |---|---|---|
 | 1 | 共用 Card/Group、formation、layout/undo、interaction、原子命令 | 已實作 `src/core`、`src/layout`、`src/interaction`、`contracts/desktop.d.ts`；39 個新核心測試及 8 個舊草稿測試通過；獨立唯讀審閱完成，已報問題均修正並複核 |
 | 2 | 正式本機儲存、共用 renderer、Markdown/checklist/附件、完成/封存、完整設定 | 共用 UI／IndexedDB、Windows SQLite／DPAPI 已加入；macOS 簽章 fixture 的 Keychain／SQLite／主畫面初始化通過；Android／iOS／Linux 安全儲存的原生 runtime 尚未驗收 |
-| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。Google 專案未建立，真登入／Drive 未驗收 |
+| 3 | Drive revision graph、OAuth、outbox、衝突、帳號隔離 | 共用版本圖／FileSync／衝突 UI 已實作；Windows 原生 Google 已建置，Android／Apple／Linux 原生授權與 Drive 程式已加入。2026-10-06 Google 專案與 Desktop client 已建立，Windows 真實登入與 Drive 上傳已驗收；跨裝置下載、Linux 與 Apple／Android 未驗收 |
 | 4 | 含群組/版面/附件的手動、自動、加密備份及匯入/合併/取代還原 | 共用 ZIP／三種還原、Windows 原生備份已整合；Android SAF／Apple bookmark／Linux 原生目錄備份程式已加入，後三者 runtime 未執行 |
 | 5 | Windows/macOS/Linux 原生 host、分層/穿透/快捷鍵/顯示器 | 三平台桌面場景、快捷鍵、系統匣／選單列與顯示器程式已加入；Windows 已建置，macOS 未編譯，Linux 未執行；完整 OS 矩陣仍缺 |
 | 6 | iOS/Android 原生 App、檔案/OAuth/分享/生命週期 | Android 原生 preview APK 已產出，含資料／帳號、原生匯出、分享及加密收件匣；iOS 已以 Xcode 27 建置 Debug 開發簽章版並安裝至 iPhone，採用 UIScene 後主畫面可顯示，未產 IPA；兩者未做完整裝置操作／Google 驗收 |

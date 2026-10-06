@@ -2,7 +2,8 @@
 
 五平台原生 host 已接登入、帳號工作空間及 Drive appDataFolder 同步程式。
 瀏覽器開發預覽只有本機資料，不提供 Google 登入。
-Google Cloud 專案尚未建立；以下是啟用程式所需的配置，不代表真實登入已驗收。
+2026-10-06 已建立 Google Cloud 專案（同意畫面測試中）與 Windows／Linux 共用的 Desktop client；
+Windows 真實登入與 Drive 上傳（含 1.9 MB 附件分段續傳）已驗收。Apple／Android clients 尚未建立，跨裝置下載與其他平台尚未驗收。
 
 ## 建立 Google Cloud 設定
 

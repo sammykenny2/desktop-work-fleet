@@ -191,8 +191,12 @@ final class GoogleFiles implements AutoCloseable {
             } else {
                 Response start = request(path("/upload/drive/v3/files", "uploadType", "resumable", "fields", FIELDS), "POST", json, headers("Content-Type", "application/json; charset=UTF-8", "X-Upload-Content-Type", "application/octet-stream", "X-Upload-Content-Length", Integer.toString(size)), 2 * 1024 * 1024, false, "upload");
                 Protocol.require(start.location != null && start.location.length() <= 8192, "invalid-upload-session", "Google 續傳位置無效。"); URI uri = new URI(start.location);
-                Protocol.require(uri.getScheme().equals("https") && uri.getHost().equals("www.googleapis.com") && (uri.getPort() == -1 || uri.getPort() == 443) && uri.getPath().equals("/upload/drive/v3/files") && uri.getUserInfo() == null && uri.getFragment() == null
-                    && uri.getRawQuery() != null && uri.getRawQuery().matches("(?:uploadType=resumable&upload_id=[A-Za-z0-9_%.-]+|upload_id=[A-Za-z0-9_%.-]+&uploadType=resumable)"), "invalid-upload-session", "Google 續傳位置無效。");
+                // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
+                // distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
+                String[] pairs = uri.getRawQuery() == null ? new String[0] : uri.getRawQuery().split("&", -1);
+                Protocol.require("https".equals(uri.getScheme()) && "www.googleapis.com".equals(uri.getHost()) && (uri.getPort() == -1 || uri.getPort() == 443) && "/upload/drive/v3/files".equals(uri.getPath()) && uri.getUserInfo() == null && uri.getFragment() == null
+                    && pairs.length > 0 && Arrays.stream(pairs).allMatch(pair -> pair.matches("[A-Za-z_]+=[A-Za-z0-9_%.-]*")) && Arrays.stream(pairs).map(pair -> pair.split("=", 2)[0]).distinct().count() == pairs.length
+                    && Arrays.asList(pairs).contains("uploadType=resumable") && Arrays.stream(pairs).anyMatch(pair -> pair.startsWith("upload_id=") && pair.length() > 10), "invalid-upload-session", "Google 續傳位置無效。");
                 upload = new Upload(uri.getRawPath() + "?" + uri.getRawQuery(), digest, size); uploads.put(id, upload);
             }
             while (offset < size) {

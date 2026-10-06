@@ -31,14 +31,15 @@ export function googleDescriptor(value) {
 }
 const descriptor = googleDescriptor;
 
+// Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any distinct
+// parameters are accepted; where the contents and the token go is what stays fixed.
 function sessionPath(location) {
   let url;
   try { url = new URL(location); } catch { /* The validated error below omits the supplied URL. */ }
+  const keys = url ? [...url.searchParams.keys()] : [];
   requireValue(url?.origin === 'https://www.googleapis.com' && url.pathname === '/upload/drive/v3/files'
     && !url.username && !url.password && !url.hash && url.searchParams.get('uploadType') === 'resumable'
-    && url.searchParams.getAll('uploadType').length === 1 && url.searchParams.getAll('upload_id').length === 1
-    && [...url.searchParams.keys()].every(key => ['uploadType', 'upload_id'].includes(key))
-    && url.searchParams.get('upload_id')?.length > 0 && location.length <= 8192,
+    && new Set(keys).size === keys.length && url.searchParams.get('upload_id')?.length > 0 && location.length <= 8192,
   'invalid-upload-session', 'Google Drive 上傳連線無效，尚未傳送內容。');
   return url.pathname + url.search;
 }

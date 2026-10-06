@@ -28,8 +28,15 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 - 登入後顯示「1 筆等待同步」：第一次同步確認雲端是空的，才在本機建立預設群組「我的便箋」，這筆要下一次同步才送出。
 - 發現的問題：設定改成一個視窗（`<dialog>`）後，`syncGoogle` 遇到任何開著的對話框就跳過，所以設定開著時自動同步不跑、
   「帳號與同步」頁的「立即同步」也按不動。改為只有設定以外的對話框、或資料頁正在備份／還原時才延後。
-- 驗證：`npm test` 239 pass、11 skip；Windows 重新打包。這個修正沒有自動測試（UI probe 沒有 Google 連線的情境），
-  待使用者在安裝版確認「立即同步」後變成「已同步」。Drive 上的檔案尚未用 App 自己的授權列出確認。沒有獨立審閱。
+- 驗證：`npm test` 239 pass、11 skip；Windows 重新打包。這個修正沒有自動測試（UI probe 沒有 Google 連線的情境）。
+- 修正後第一次真正上傳就失敗：「Google 續傳位置無效」。用 App 存的授權開一個 resumable session（不上傳、立即取消，沒有建立檔案）
+  看 Google 實際回傳的 Location：除了 `uploadType`、`upload_id`，還帶回請求自己的 `fields`，並多一個 Google 的 `session_crd`。
+  五份實作（JS adapter、Windows、Linux、Apple、Android）原本都只接受剛好那兩個參數，所以每次上傳都被擋。
+  改為：協定、主機、port、路徑、無帳密與 fragment 照舊固定；query 每個參數名稱不重複、值只含安全字元，必須有 `uploadType=resumable` 與非空 `upload_id`。
+  Windows 的 Location 改取原字串，相對網址不再丟出非預期例外。
+- 驗證：`npm test` 240 pass、11 skip（新增真實 Location 形狀；拒絕清單改為重複 uploadType、multipart、缺 upload_id）；
+  Linux Python 24 項通過（新增 upload session 兩項，11 skip）；Windows 重新打包、建置 0 錯誤。Apple／Android 未建置。
+  待使用者安裝後確認同步完成；Drive 上的檔案尚未用 App 自己的授權列出確認。沒有獨立審閱。
 
 ## 2026-10-06 Windows／Linux Google Desktop client secret
 

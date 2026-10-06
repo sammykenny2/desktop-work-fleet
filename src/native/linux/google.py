@@ -271,7 +271,12 @@ class Google:
                 _, _, headers = self.request(self.path("/upload/drive/v3/files", uploadType="resumable", fields=FIELDS), "POST", metadata, {"Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": "application/octet-stream", "X-Upload-Content-Length": str(size)})
                 location = headers.get("Location", "")
                 uri = urlsplit(location)
-                p.require(len(location) <= 8192 and uri.scheme == "https" and uri.hostname == "www.googleapis.com" and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment and uri.path == "/upload/drive/v3/files" and re.fullmatch(r"(?:uploadType=resumable&upload_id=[A-Za-z0-9_%.-]+|upload_id=[A-Za-z0-9_%.-]+&uploadType=resumable)", uri.query) is not None, "invalid-upload-uri", "Google 續傳位置無效。")
+                # Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
+                # distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
+                pairs = uri.query.split("&")
+                p.require(len(location) <= 8192 and uri.scheme == "https" and uri.hostname == "www.googleapis.com" and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment and uri.path == "/upload/drive/v3/files"
+                          and all(re.fullmatch(r"[A-Za-z_]+=[A-Za-z0-9_%.-]*", pair) for pair in pairs) and len({pair.split("=")[0] for pair in pairs}) == len(pairs)
+                          and "uploadType=resumable" in pairs and any(pair.startswith("upload_id=") and len(pair) > 10 for pair in pairs), "invalid-upload-uri", "Google 續傳位置無效。")
                 saved = (urlunsplit(("", "", uri.path, uri.query, "")), file["sha256"], size)
                 self.uploads[key] = saved
             while position < size:

@@ -86,6 +86,15 @@ test('resumable creation uses the reserved ID, scoped metadata, binary bytes and
   assert.deepEqual(upload.body, f.bytes);
 });
 
+test('the session Location Google returns, with the echoed fields and its own session_crd, is used as given', async () => {
+  // Shape observed from Drive on 2026-10-06; the values here are made up.
+  const real = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id%2Csize%2Cspaces'
+    + '&upload_id=AHVr-x_y.z&session_crd=AHSo-Bq_9';
+  const f = await fixture(); const s = scripted([empty(200, { Location: real }), response(f.metadata, 201)]);
+  assert.deepEqual(await s.store.createFile(f), f.file); s.done();
+  assert.equal(s.calls[1].path, real.slice('https://www.googleapis.com'.length));
+});
+
 test('resuming a partial lost response queries the server and sends only unreceived bytes', async () => {
   const bytes = new Uint8Array(1024 * 1024 + 3); bytes[1024 * 1024] = 255;
   const f = await fixture(bytes); const accepted = 256 * 1024;
@@ -137,7 +146,8 @@ test('untrusted Location headers cannot send contents or credentials to a differ
   const f = await fixture();
   for (const value of ['https://attacker.invalid/upload/drive/v3/files?uploadType=resumable&upload_id=x',
     'http://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=x',
-    location + '&upload_id=duplicate', location + '&other=extra', location + '#fragment',
+    location + '&upload_id=duplicate', location + '&uploadType=multipart', location + '#fragment',
+    location.replace('uploadType=resumable', 'uploadType=multipart'), location.replace('&upload_id=private-session', ''),
     location.replace('https://', 'https://name:secret@'), location.replace('/upload/drive/v3/files', '/other'), 'not a URL']) {
     const s = scripted([empty(200, { location: value })]);
     await assert.rejects(s.store.createFile(f), failCode('invalid-upload-session')); assert.equal(s.calls.length, 1);

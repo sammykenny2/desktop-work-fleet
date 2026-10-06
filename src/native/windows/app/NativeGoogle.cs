@@ -221,7 +221,7 @@ public sealed class NativeGoogle : IDisposable
         : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error";
       throw new HostError(code, "Google Drive 未完成同步（" + code + "），本機資料與待送內容仍保留。");
     }
-    return (status, bytes, response.Headers.Location?.AbsoluteUri,
+    return (status, bytes, response.Headers.Location?.OriginalString,
       response.Headers.TryGetValues("Range", out var range) ? range.Single() : null);
   }
   private async Task<JsonElement> Json(string path, string context = "")
@@ -322,8 +322,12 @@ public sealed class NativeGoogle : IDisposable
         {
           response = await Request(PathQuery("/upload/drive/v3/files", ("uploadType", "resumable"), ("fields", Fields)), HttpMethod.Post, metadata,
             new() { ["Content-Type"] = "application/json; charset=UTF-8", ["X-Upload-Content-Type"] = "application/octet-stream", ["X-Upload-Content-Length"] = file.Size.ToString(System.Globalization.CultureInfo.InvariantCulture) });
-          HostError.Require(Uri.TryCreate(response.Location, UriKind.Absolute, out var location) && location.Scheme == "https" && location.Host == "www.googleapis.com" && location.Port == 443 && location.AbsolutePath == "/upload/drive/v3/files" && string.IsNullOrEmpty(location.UserInfo) && string.IsNullOrEmpty(location.Fragment)
-            && Regex.IsMatch(location.Query, "^\\?(?:uploadType=resumable&upload_id=[A-Za-z0-9_%.-]+|upload_id=[A-Za-z0-9_%.-]+&uploadType=resumable)$"), "invalid-upload-session", "Google 續傳位置無效。");
+          // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
+          // distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
+          var pairs = Uri.TryCreate(response.Location, UriKind.Absolute, out var location) ? location.Query.TrimStart('?').Split('&') : Array.Empty<string>();
+          HostError.Require(location is not null && response.Location!.Length <= 8192 && location.Scheme == "https" && location.Host == "www.googleapis.com" && location.Port == 443 && location.AbsolutePath == "/upload/drive/v3/files" && string.IsNullOrEmpty(location.UserInfo) && string.IsNullOrEmpty(location.Fragment)
+            && pairs.All(pair => Regex.IsMatch(pair, "^[A-Za-z_]+=[A-Za-z0-9_%.-]*$")) && pairs.Select(pair => pair.Split('=')[0]).Distinct().Count() == pairs.Length
+            && pairs.Contains("uploadType=resumable") && pairs.Any(pair => pair.Length > 10 && pair.StartsWith("upload_id=", StringComparison.Ordinal)), "invalid-upload-session", "Google 續傳位置無效。");
           session = (location!.PathAndQuery, file.Digest, file.Size); uploads[file.Id] = session;
         }
         while (offset < file.Size)

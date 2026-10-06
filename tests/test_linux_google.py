@@ -39,5 +39,35 @@ class TokenRequest(unittest.TestCase):
                 google.Google(FakeVault(), {"google": {"clients": {}, "secrets": {"linux": secret}}}, "local", None)
 
 
+class UploadSession(unittest.TestCase):
+    """Resumable upload sessions follow the Location Google returns, and only to Google's own upload endpoint."""
+    base = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable"
+
+    def start(self, location):
+        g = google.Google(FakeVault(), {"google": {"clients": {}}}, "local", None)
+        sent = []
+
+        def request(path, method="GET", data=None, headers=None, **_):
+            sent.append(path)
+            return (200, b"", {"Location": location}) if method == "POST" else (200, b"{}", {})
+        g.request = request
+        g.completed = lambda body, file: sent[-1]
+        return g.create_file({"id": "allocated-id", "kind": "attachment", "sha256": "0" * 64, "size": 4}, b"\0\1\2\3")
+
+    def test_google_session_shape_is_used_as_given(self):
+        # Shape observed from Drive on 2026-10-06: the request's fields echoed and Google's own session_crd; values made up.
+        location = self.base + "&fields=id%2Csize%2Cspaces&upload_id=AHVr-x_y.z&session_crd=AHSo-Bq_9"
+        self.assertEqual(self.start(location), location[len("https://www.googleapis.com"):])
+
+    def test_other_destinations_and_ambiguous_sessions_are_rejected(self):
+        for location in ("https://attacker.invalid/upload/drive/v3/files?uploadType=resumable&upload_id=x",
+                         "http://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=x",
+                         self.base + "&upload_id=x&upload_id=y", self.base + "&uploadType=multipart&upload_id=x",
+                         self.base, self.base + "&upload_id=x#fragment", self.base.replace("resumable", "multipart") + "&upload_id=x"):
+            with self.assertRaises(p.Failure) as caught:
+                self.start(location)
+            self.assertEqual(caught.exception.code, "invalid-upload-uri")
+
+
 if __name__ == "__main__":
     unittest.main()

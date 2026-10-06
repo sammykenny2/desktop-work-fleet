@@ -109,8 +109,13 @@ actor FleetDrive {
             } else {
                 let (_, response) = try await request(path("/upload/drive/v3/files", [("uploadType", "resumable"), ("fields", Self.fields)]), method: "POST", body: json, headers: ["Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": "application/octet-stream", "X-Upload-Content-Length": String(size)])
                 guard let location = response.value(forHTTPHeaderField: "Location"), location.utf8.count <= 8192, let uri = URLComponents(string: location), uri.scheme == "https", uri.host == "www.googleapis.com", uri.port == nil || uri.port == 443,
-                    uri.path == "/upload/drive/v3/files", uri.user == nil, uri.password == nil, uri.fragment == nil, let query = uri.percentEncodedQuery,
-                    query.range(of: "^(?:uploadType=resumable&upload_id=[A-Za-z0-9_%.-]+|upload_id=[A-Za-z0-9_%.-]+&uploadType=resumable)$", options: .regularExpression) != nil else { throw FleetFailure("invalid-upload-session", "Google 續傳位置無效。") }
+                    uri.path == "/upload/drive/v3/files", uri.user == nil, uri.password == nil, uri.fragment == nil, let query = uri.percentEncodedQuery else { throw FleetFailure("invalid-upload-session", "Google 續傳位置無效。") }
+                // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
+                // distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
+                let pairs = query.split(separator: "&", omittingEmptySubsequences: false).map(String.init)
+                try FleetProtocol.require(pairs.allSatisfy { $0.range(of: "^[A-Za-z_]+=[A-Za-z0-9_%.-]*$", options: .regularExpression) != nil }
+                    && Set(pairs.map { pair in pair.prefix { $0 != "=" } }).count == pairs.count
+                    && pairs.contains("uploadType=resumable") && pairs.contains { $0.hasPrefix("upload_id=") && $0.count > 10 }, "invalid-upload-session", "Google 續傳位置無效。")
                 session = (uri.percentEncodedPath + "?" + query, digest, size); uploads[id] = session
             }
             while position < size {

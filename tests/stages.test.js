@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
 import { InteractionController, cardPolicy } from '../src/interaction/controller.js';
+import { projectDesktop } from '../src/desktop/projection.js';
 import { adjustStage, groupLayer, groupLayersFromPapers, nextGroupStage, stepGroup } from '../src/layout/stages.js';
 
 const area = { x: 0, y: 0, width: 1600, height: 900 };
@@ -81,4 +82,13 @@ test('a workspace saved with per-paper layers opens with group layers', async ()
   assert.deepEqual(opened.layout.state.groupLayers, { [f.a.id]: 'floating' });
   assert.equal('residentLayer' in opened.layout.state.placements[f.a1.id], false);
   assert.deepEqual(opened.state.layout, opened.layout.state, 'workspace and layout store agree');
+});
+
+test('a stage notice travels in the desktop frame only while it is set', async () => {
+  const f = await fixture();
+  const project = notice => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state, interaction: f.controller.state,
+    sessionId: 'notice-test', sequence: 1, workspaceRevision: f.workspace.state.revision, notice });
+  assert.equal(project(null).notice, null);
+  const notice = { id: 7, rect: { x: 0, y: 0, width: 800, height: 900 }, title: '我的便箋', text: '最上層', step: 3, steps: 4 };
+  assert.deepEqual(project({ ...notice, extra: 'dropped' }).notice, notice);
 });

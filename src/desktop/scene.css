@@ -30,3 +30,11 @@ button:focus-visible { outline: 2px solid #245f50; }
 .region-label { position: absolute; width: 160px; height: 28px; padding: 5px 9px; font-size: 12px; background: #f2f6f0e8; border: 1px solid #7d927d60; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border-radius: 4px; pointer-events: none; }
 .region-label.target { background: #245f50; border-color: #245f50; color: #fff; }
 #scene-status { position: absolute; bottom: 12px; left: 12px; max-width: 420px; padding: 10px; margin: 0; background: #fff4dcec; color: #773b28; border-radius: 4px; pointer-events: none; }
+/* Stage notice: a dark pill centred on the group's region, above every paper, never taking the mouse. */
+.stage-notice { position: absolute; z-index: 100000; transform: translate(-50%, -50%); min-width: 176px; padding: 14px 24px 12px; border-radius: 14px; background: #1d2b33e6; color: #fff; text-align: center; pointer-events: none; box-shadow: 0 10px 30px #00000040; animation: stage-notice 1.5s ease-out forwards; }
+.notice-title { font-size: 13px; line-height: 18px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 320px; }
+.notice-text { margin-top: 2px; font-size: 22px; line-height: 30px; font-weight: 600; }
+.notice-steps { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
+.notice-steps span { width: 7px; height: 7px; border-radius: 50%; background: #ffffff52; }
+.notice-steps span.on { background: #fff; }
+@keyframes stage-notice { 0% { opacity: 0; } 10%, 72% { opacity: 1; } 100% { opacity: 0; } }

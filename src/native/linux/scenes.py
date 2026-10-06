@@ -23,7 +23,7 @@ def intersection(a, b):
 
 def frame(data, session, previous):
     value = p.decode(data)
-    p.require(set(value) <= set("protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks".split()), "scene-frame", "桌面畫面含非呈現資料。")
+    p.require(set(value) <= set("protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice".split()), "scene-frame", "桌面畫面含非呈現資料。")
     p.require(p.number(value, "protocol", 1) == 1 and p.text(value, "sessionId") == session and p.number(value, "sequence") > previous, "scene-session", "桌面畫面工作階段或順序已失效。")
     p.number(value, "topology")
     p.number(value, "workspaceRevision")
@@ -49,6 +49,15 @@ def frame(data, session, previous):
         for flag in ("interactive", "draggable", "editing", "selected", "completed", "mine"):
             p.boolean(card, flag)
         p.require(card["layer"] != "wallpaper" or not any(card[flag] for flag in ("interactive", "draggable", "editing")), "scene-frame", "桌布層必須保持滑鼠穿透。")
+    # A stage notice only keeps the topmost scene on screen; it never becomes an input region.
+    notice = value.get("notice")
+    if notice is not None:
+        p.require(isinstance(notice, dict) and set(notice) <= {"id", "rect", "title", "text", "step", "steps"}, "scene-frame", "桌面提示格式無效。")
+        for key in ("id", "step", "steps"):
+            p.number(notice, key)
+        p.text(notice, "title", 200)
+        p.text(notice, "text", 200)
+        rect(notice.get("rect"))
     return value
 
 

@@ -17,9 +17,9 @@ await workspace.layout.setGroupLayer(group.id, 'wallpaper', workspace.snapshot);
 await workspace.layout.setGroupLayer(other.id, 'wallpaper', workspace.snapshot);
 const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace, saveDraft: async () => {} });
 const scenarios = []; const sessionId = crypto.randomUUID();
-const capture = name => scenarios.push({ name, primary: card.id, secondary: second.id,
+const capture = (name, notice = null) => scenarios.push({ name, primary: card.id, secondary: second.id,
   frame: projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
-    sessionId, sequence: scenarios.length + 1, workspaceRevision: workspace.state.revision, layers: ['desktop', 'floating', 'wallpaper'] }) });
+    sessionId, sequence: scenarios.length + 1, workspaceRevision: workspace.state.revision, layers: ['desktop', 'floating', 'wallpaper'], notice }) });
 capture('wallpaper');
 await controller.activate({ kind: 'group', groupId: group.id }); capture('operate-group');
 await controller.activate({ kind: 'none' }); capture('restore-wallpaper');
@@ -30,4 +30,6 @@ await workspace.layout.setGroupLayer(group.id, 'wallpaper', workspace.snapshot);
 await workspace.layout.setCardPolicy(card.id, { visible: false });
 await workspace.layout.setCardPolicy(second.id, { visible: false }); capture('hidden');
 await workspace.layout.setCardPolicy(card.id, { visible: true }); capture('shown-again');
+// With no topmost paper, a stage notice alone keeps the topmost scene up, and it never takes the mouse.
+capture('notice', { id: 1, rect: { x: 700, y: 400, width: 400, height: 200 }, title: 'Synthetic layer probe', text: '最上層', step: 3, steps: 4 });
 await writeFile(process.argv[2], JSON.stringify(scenarios) + '\n');

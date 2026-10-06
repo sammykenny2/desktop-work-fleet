@@ -118,7 +118,10 @@ def main():
             cards = scenario["frame"]["cards"]
             for layer, view in views.items():
                 visible = [card for card in cards if card["layer"] == layer]
-                check(view.window.get_visible() == bool(visible), "Unexpected scene visibility: " + scenario["name"] + "/" + layer)
+                notice = layer == "floating" and scenario["frame"].get("notice") is not None
+                check(view.window.get_visible() == bool(visible or notice), "Unexpected scene visibility: " + scenario["name"] + "/" + layer)
+                if notice and not visible:
+                    check(view.input_region.is_empty(), "Stage notice captured input")
                 if layer == "wallpaper":
                     check(view.input_region.is_empty() and not view.window.get_accept_focus(), "Wallpaper captured input")
                     check(Layer.get_keyboard_mode(view.window) == Layer.KeyboardMode.NONE, "Wallpaper captured keyboard")

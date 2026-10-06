@@ -77,7 +77,8 @@ import WebKit
     func hide() { suspend(); panel.orderOut(nil) }
     func apply(_ frame: FleetSceneFrame) {
         let cards = frame.cards.filter { $0.layer == layer && $0.rect.intersects(viewport) }
-        guard !cards.isEmpty else { hide(); return }
+        let notice = layer == "floating" && (frame.notice?.intersects(viewport) ?? false)
+        guard !cards.isEmpty || notice else { hide(); return }
         // The visual surface always ignores the mouse. Only explicitly interactive paper rectangles receive events.
         panel.orderFrontRegardless(); var live = Set<String>(), covered: [NSRect] = []
         for card in cards.reversed() {

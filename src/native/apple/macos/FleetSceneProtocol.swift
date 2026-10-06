@@ -4,6 +4,8 @@ import CoreFoundation
 struct FleetSceneFrame {
     struct Card { let id: String, layer: String, rect: NSRect, interactive: Bool, draggable: Bool }
     let sequence: Int64, topology: Int64, cards: [Card]
+    /// A stage notice only keeps the topmost scene on screen; it never becomes an input region.
+    var notice: NSRect? = nil
     static func rect(_ object: Any?) throws -> NSRect {
         guard let object = object as? [String: Any] else { throw FleetFailure("scene-frame", "桌面位置無效。") }
         func number(_ key: String) throws -> Double {
@@ -14,7 +16,7 @@ struct FleetSceneFrame {
     }
     static func parse(_ data: Data, session: String, previous: Int64) throws -> FleetSceneFrame {
         let value = try FleetProtocol.json(data)
-        try fields(value, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks")
+        try fields(value, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice")
         try FleetProtocol.require(FleetProtocol.number(value, "protocol", 1) == 1 && FleetProtocol.text(value, "sessionId") == session, "scene-session", "桌面畫面屬於舊工作階段。")
         let sequence = try FleetProtocol.number(value, "sequence"), topology = try FleetProtocol.number(value, "topology")
         try FleetProtocol.require(sequence > previous, "scene-order", "桌面畫面已過期。")
@@ -37,7 +39,15 @@ struct FleetSceneFrame {
             }
             output.append(try Card(id: id, layer: layer, rect: rect(card["rect"]), interactive: FleetProtocol.bool(card, "interactive"), draggable: FleetProtocol.bool(card, "draggable")))
         }
-        return FleetSceneFrame(sequence: sequence, topology: topology, cards: output)
+        var notice: NSRect? = nil
+        if let raw = value["notice"], !(raw is NSNull) {
+            guard let object = raw as? [String: Any] else { throw FleetFailure("scene-frame", "桌面提示格式無效。") }
+            try fields(object, "id rect title text step steps")
+            _ = try FleetProtocol.number(object, "id"); _ = try FleetProtocol.number(object, "step"); _ = try FleetProtocol.number(object, "steps")
+            _ = try FleetProtocol.text(object, "title", 200); _ = try FleetProtocol.text(object, "text", 200)
+            notice = try rect(object["rect"])
+        }
+        return FleetSceneFrame(sequence: sequence, topology: topology, cards: output, notice: notice)
     }
     private static func fields(_ object: [String: Any], _ allowed: String) throws {
         let fields = Set(allowed.split(separator: " ").map(String.init)); try FleetProtocol.require(object.keys.allSatisfy(fields.contains), "scene-frame", "桌面畫面含非呈現資料。")

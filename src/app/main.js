@@ -2,7 +2,7 @@ import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
-import { stepGroup } from '../layout/stages.js';
+import { adjustStage, stepGroup } from '../layout/stages.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -383,7 +383,7 @@ function initializeDesktop() {
   desktop = new DesktopOwner({ bridge: native.bridge, authority, editor: currentDesktopEditor,
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
-        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor() });
+        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor(), notice: desktopNotice });
       // Settings only speaks up when a paper cannot sit on the layer it asks for.
       $('#desktop-note').hidden = !frame.fallbacks.length;
       $('#desktop-note').textContent = `${frame.fallbacks.length} 張便箋設在桌布層，但這台電腦目前不支援，先放在桌面層。`;
@@ -463,16 +463,35 @@ async function desktopAction(target, intent) {
   // while locked would not show the first stages and the browser preview has no layers, so there a group key only
   // switches adjust mode.
   else if (target !== shortcutActions.all && target !== '@stop' && desktop && workspace.layout.state.desktopVisible) {
-    await stepGroup({ workspace, controller, groupId: target, wallpaper: Boolean(desktopInfo?.layers?.includes('wallpaper')) }); activeGroupId = target;
+    const wallpaper = Boolean(desktopInfo?.layers?.includes('wallpaper'));
+    const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper }); activeGroupId = target;
+    const stages = wallpaper ? [0, 1, 2, adjustStage] : [1, 2, adjustStage];
+    announce(target, stageNames[stage], stages.indexOf(stage) + 1, stages.length);
   }
   else {
     const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
     if (changed && target !== shortcutActions.all && target !== '@stop') activeGroupId = target;
+    const adjusting = controller.state.operationScope.kind !== 'none';
+    if (changed && desktop && target !== '@stop') announce(target === shortcutActions.all ? null : target, adjusting ? '調整位置' : target === shortcutActions.all ? '回到原本層級' : '結束調整');
   }
   render();
   if (intent && desktop && target !== shortcutActions.toggle && controller.state.operationScope.kind !== 'none') {
     const sequence = await desktop.whenPublished(); await native.bridge.request('desktop.focus', { intent, sequence });
   }
+}
+
+// After a group or all-groups key the topmost scene shows, for about a second and a half, which group moved and where
+// it is now, with one dot per stage of the cycle. A newer notice replaces an older one, which then is not cleared early.
+const stageNames = ['桌布層', '桌面層', '最上層', '調整位置'];
+let desktopNotice = null; let noticeSerial = 0;
+function announce(groupId, text, step = 0, steps = 0) {
+  const layout = workspace.layout.state; const groups = activeGroups(workspace.snapshot);
+  let rect = layout.grid.area;
+  try { rect = groupId && gridRegions(layout.grid, groups).find(region => region.groupId === groupId) || rect; } catch { /* Overflowing groups use the whole area. */ }
+  const id = ++noticeSerial;
+  desktopNotice = { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+    title: groupId ? groups.find(group => group.id === groupId)?.name || '群組' : '所有群組', text, step, steps };
+  setTimeout(() => { if (desktopNotice?.id === id) { desktopNotice = null; desktop?.publish(); } }, 1600);
 }
 
 // Android's back button arrives as a close request; like other Android apps it first dismisses whatever is on top.

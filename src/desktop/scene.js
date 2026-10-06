@@ -46,6 +46,7 @@ function render(next) {
     const label = make('div', group.name, `region-label${frame.dropTarget?.groupId === group.id ? ' target' : ''}`);
     label.style.left = `${group.region.x + 8}px`; label.style.top = `${group.region.y + 5}px`; root.append(label);
   }
+  renderNotice(info.layer === 'floating' ? next.notice : null);
   const cards = next.cards.filter(card => card.layer === info.layer); const live = new Set(cards.map(card => card.id));
   for (const [id, item] of nodes) if (!live.has(id)) { item.paper.remove(); nodes.delete(id); }
   cards.forEach((card, index) => {
@@ -84,6 +85,21 @@ function render(next) {
     if (gesture?.cardId === card.id && gesture.preview) rect(paper, gesture.preview);
   });
   return true;
+}
+// A notice is drawn once per id, so later frames carrying the same notice do not restart its fade.
+function renderNotice(notice) {
+  let shown = root.querySelector('.stage-notice');
+  if (shown && shown.dataset.id !== String(notice?.id)) { shown.remove(); shown = null; }
+  if (!notice || shown) return;
+  shown = make('div', undefined, 'stage-notice'); shown.dataset.id = String(notice.id); shown.setAttribute('role', 'status');
+  shown.append(make('div', notice.title, 'notice-title'), make('div', notice.text, 'notice-text'));
+  if (notice.steps > 0) {
+    const dots = make('div', undefined, 'notice-steps');
+    for (let step = 1; step <= notice.steps; step++) dots.append(make('span', undefined, step === notice.step ? 'on' : undefined));
+    shown.append(dots);
+  }
+  shown.style.left = `${notice.rect.x + notice.rect.width / 2}px`; shown.style.top = `${notice.rect.y + notice.rect.height / 2}px`;
+  root.append(shown);
 }
 async function refresh() {
   requested = true; if (fetching) return; fetching = true;

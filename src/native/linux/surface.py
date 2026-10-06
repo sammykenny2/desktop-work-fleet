@@ -159,7 +159,8 @@ class Surface:
 
     def apply(self, frame):
         cards = [card for card in frame["cards"] if card["layer"] == self.layer and intersection(card["rect"], self.viewport) is not None]
-        if not cards:
+        notice = frame.get("notice") if self.layer == "floating" else None
+        if not cards and (notice is None or intersection(notice["rect"], self.viewport) is None):
             self.suspend()
             self.window.hide()
             return

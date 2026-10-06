@@ -53,6 +53,14 @@ internal static class SceneTransfersProbe
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), "other", 0), "scene-session");
       frame["groups"] = Enumerable.Range(0, 10).Select(i => new { id = $"group-{i}", name = new string('組', 81), color = "#fff6cc", region = (object?)null }).ToArray();
       Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Sequence == 5);
+      // A stage notice is presentation only: its rectangle is carried for scene visibility, anything else is refused.
+      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 300, height = 200 }, title = "研究", text = "最上層", step = 3, steps = 4 };
+      Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Notice == new LogicalRect(10, 20, 300, 200));
+      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 300, height = 200 }, title = "研究", text = "最上層", step = 3, steps = 4, cards = 1 };
+      Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
+      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 0, height = 200 }, title = "研究", text = "最上層", step = 3, steps = 4 };
+      Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
+      frame["notice"] = null; Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Notice is null);
       frame["outbox"] = new[] { "private" }; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
       using var rect = JsonDocument.Parse("{\"x\":0,\"y\":0,\"width\":-1,\"height\":1}"); Reject(() => DesktopFrame.Rect(rect.RootElement), "scene-frame");
       using var overflow = JsonDocument.Parse("{\"x\":-1500000,\"y\":0,\"width\":2000000,\"height\":50000}");

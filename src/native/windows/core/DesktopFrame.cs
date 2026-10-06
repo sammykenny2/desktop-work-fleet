@@ -5,13 +5,14 @@ namespace WorkFleet.Windows.Core;
 public sealed record LogicalRect(double X, double Y, double Width, double Height);
 public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bool Interactive, bool Operable);
 
-/// <summary>Native input regions are derived only from a complete, validated owner projection.</summary>
-public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0)
+/// <summary>Native input regions are derived only from a complete, validated owner projection. A stage notice only
+/// keeps the topmost scene visible; it never becomes an input region.</summary>
+public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0, LogicalRect? Notice = null)
 {
   public static DesktopFrame Parse(ReadOnlyMemory<byte> bytes, string sessionId, long previous)
   {
     using var document = JsonRules.Parse(bytes); var root = document.RootElement;
-    Fields(root, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks");
+    Fields(root, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice");
     HostError.Require(JsonRules.Integer(root, "protocol") == 1 && JsonRules.Text(root, "sessionId") == sessionId,
       "scene-session", "桌面畫面屬於舊工作階段。");
     var sequence = JsonRules.Integer(root, "sequence");
@@ -42,7 +43,15 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
         "scene-frame", "桌布層便箋必須保持滑鼠穿透；請先調整此組再編輯。");
       cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive"), Boolean(card, "draggable")));
     }
-    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0);
+    LogicalRect? notice = null;
+    if (root.TryGetProperty("notice", out var value) && value.ValueKind != JsonValueKind.Null)
+    {
+      Fields(value, "id rect title text step steps");
+      _ = JsonRules.Integer(value, "id"); _ = JsonRules.Integer(value, "step"); _ = JsonRules.Integer(value, "steps");
+      _ = JsonRules.Text(value, "title", 200); _ = JsonRules.Text(value, "text", 200);
+      notice = Rect(value.GetProperty("rect"));
+    }
+    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0, notice);
   }
   private static bool Boolean(JsonElement value, string key)
   {

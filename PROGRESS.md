@@ -21,6 +21,22 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 換階時在桌面上顯示目前層級（OSD）
+
+使用者要求先做換階提示，之後自行到各平台驗證與除錯。
+- 做法：每次區域鍵或 Ctrl+Shift+0 生效後，桌面畫面資料多帶 `notice`
+  （`id`、`rect`＝該組區域、`title`＝群組名稱、`text`＝桌布層／桌面層／最上層／調整位置、`step`／`steps`＝第幾階與共幾階）。
+  最上層場景在區域中央畫一個深色提示，下方圓點標出目前在第幾階，約 1.5 秒淡出；主程式 1.6 秒後送出不含 `notice` 的畫面。
+  連按時新的提示取代舊的，舊的計時不會提早清掉新的。全部鍵顯示「調整位置」或「回到原本層級」，不含圓點。
+- 原生 host 只做兩件事：允許並檢查 `notice` 欄位，以及最上層在沒有便箋、但提示落在該螢幕時也保持顯示；提示永遠不進輸入區域。
+  - Windows：`src/native/windows/core/DesktopFrame.cs`（解析）、`src/native/windows/app/DesktopCoordinator.cs` 的 `scene.applied`（顯示條件）。
+  - macOS：`src/native/apple/macos/FleetSceneProtocol.swift`（解析）、`FleetSceneSurface.swift` 的 `apply`（顯示條件）。
+  - Linux：`src/native/linux/scenes.py`（解析）、`surface.py` 的 `apply`（顯示條件）。
+- 驗證：Windows App 與 UI 測試專案建置成功，Windows core probe 的畫面解析測試（含 notice 接受與拒絕）通過；
+  Linux 解析器用產生的情境畫面逐一驗證，也拒絕格式錯誤的 notice；`npm test` 全部通過；提示樣式以場景 CSS 截圖確認。
+  macOS 未在這台機器建置。實際按鍵時提示是否出現、是否擋到滑鼠，需要在三個平台安裝後確認；
+  Linux 可跑 `tests/native/linux/scenes_probe.py`，新的 `notice` 情境會檢查最上層有顯示且輸入區域為空。
+
 ## 2026-10-06 層級改成群組設定，區域鍵改為四階
 
 使用者決定：層級屬於群組的桌面 UI，主畫面不該看到或修改，所以從便箋詳情拿掉；

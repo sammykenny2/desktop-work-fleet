@@ -396,7 +396,8 @@ public sealed class DesktopCoordinator : IDisposable
           return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, view.Layer != "wallpaper" && c.Interactive);
         }));
         var wasShown = view.Surface.Shown;
-        if (cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
+        var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
+        if (notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
         view.Applied = sequence; TryFocus(view);
         if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
         return new { accepted = true };

@@ -39,6 +39,8 @@
 - Research lives in docs/resreach/ (the user's requested spelling). Use dated
   lowercase kebab-case filenames and distinguish evidence, proposals and decisions.
 - PROGRESS.md is the execution-status source. Do not create a competing task list.
+  Do not add entries for runs that only rebuild or repackage existing code; report
+  artifact paths, sizes and hashes in the conversation instead.
 - Build this product independently. Do not bulk-port another application's code,
   UI, assets or data contracts. Any targeted future reuse needs source/license notes.
 - Validation runtime choices are recorded in ADR-002; broader platform packaging remains open. Generic A2A/MCP bootstrap

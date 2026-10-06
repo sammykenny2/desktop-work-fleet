@@ -5,6 +5,7 @@ import { canonicalJson, parseJson } from '../sources/json.js';
 import { encodeRevision, revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { regionShortcuts } from './shortcuts.js';
+import { groupLayersFromPapers } from '../layout/stages.js';
 import { sha256, validDigest, validateFile } from '../sources/files.js';
 
 function contentValue(content) {
@@ -96,7 +97,8 @@ export class Workspace {
     this.#state.revisions = this.#graph.records;
     Object.assign(this.#state, projectRevisions(this.#graph, this.#state));
     this.#state.sync ||= { sourceId: null, sessionId: null, cursor: null };
-    // Group-bound keys from older layouts move to regions here and are saved with the next layout change.
+    // Group-bound keys and per-paper layers from older layouts are converted here and saved with the next layout change.
+    this.#state.layout = groupLayersFromPapers(this.#state.layout, this.#state.cards);
     this.#state.layout.shortcuts = regionShortcuts(this.#state.layout.shortcuts, this.#state.layout.grid.slots);
     this.#layout = new LayoutStore(this.#state.layout, (layout, revision, validation) => this.#commit(draft => {
       requireValue(draft.layout.revision === revision, 'stale-layout', '版面已由另一個寫入者變更。');

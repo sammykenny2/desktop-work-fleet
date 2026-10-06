@@ -34,7 +34,8 @@ async function fixture() {
   const deleted = await workspace.createCard({ format: 'future-rich-format', text: '可恢復刪除', opaque: [1, 2] }, b.id);
   await workspace.updateCard(deleted.id, { deleted: true }, deleted.revision);
   await workspace.layout.placeNew(workspace.snapshot, [area]);
-  await workspace.layout.setCardPolicy(card.id, { visible: false, residentLayer: 'wallpaper', readOnlySelect: true });
+  await workspace.layout.setCardPolicy(card.id, { visible: false });
+  await workspace.layout.setGroupLayer(b.id, 'wallpaper', workspace.snapshot);
   await workspace.layout.configure({ myGroupId: a.id, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } }, workspace.snapshot);
   const draft = workspace.blankDraft(a.id, workspace.snapshot.cards.find(item => item.id === card.id));
   draft.content.text = '尚未保存的原稿'; await workspace.saveDraft(draft);

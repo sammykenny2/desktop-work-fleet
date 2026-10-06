@@ -8,7 +8,7 @@ import { sha256 } from '../src/sources/files.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
 import { prepareRestore, RestorePlan, saveSafetyBackup, SafetyBackupReceipt } from '../src/backup/restore.js';
 import { LayoutStore } from '../src/layout/store.js';
-import { backupScheduler } from '../src/backup/archive.js';
+import { backupScheduler, packZip, unpackZip } from '../src/backup/archive.js';
 
 const area = { x: 0, y: 0, width: 1400, height: 900 };
 const fails = code => error => error.code === code;
@@ -44,7 +44,7 @@ async function source() {
   const deleted = await f.workspace.createCard(text('可恢復刪除'), b.id);
   await f.workspace.updateCard(deleted.id, { deleted: true }, deleted.revision);
   await f.workspace.layout.placeNew(f.workspace.snapshot, [area]);
-  await f.workspace.layout.setCardPolicy(card.id, { residentLayer: 'wallpaper', readOnlySelect: true });
+  await f.workspace.layout.setGroupLayer(a.id, 'wallpaper', f.workspace.snapshot);
   const draft = f.workspace.blankDraft(a.id, card); draft.content.text = '未保存草稿'; await f.workspace.saveDraft(draft);
   const recovered = f.workspace.recoverDraft(draft.id); recovered.content.text = '恢復草稿'; await f.workspace.saveDraft(recovered);
   return { ...f, a, b, card, deleted, draft, recovered, id, bytes };
@@ -217,4 +217,22 @@ test('an older backup that bound keys to groups restores them as keys for the re
   assert.equal(layout.shortcuts['Alt+F2'], `@region${layout.grid.slots.indexOf(s.a.id) + 1}`);
   assert.equal(layout.shortcuts['Ctrl+Shift+0'], '@all');
   assert.ok(Object.values(layout.shortcuts).every(value => value.startsWith('@')), 'no key stays bound to a group id');
+});
+
+test('an older backup that kept a layer on each paper restores as the lowest layer of each group', async () => {
+  const s = await source(); const shown = [await s.workspace.createCard(text('桌面上'), s.a.id), await s.workspace.createCard(text('也在桌面上'), s.a.id)];
+  await s.workspace.layout.placeNew(s.workspace.snapshot, [area]); const target = await fixture(s.disk(), s.blobs);
+  const files = await unpackZip((await createBackup({ workspace: s.workspace, storage: s.storage })).bytes);
+  const manifest = parseJson(files.get('manifest.json')); const layout = parseJson(files.get('layout.json'));
+  delete layout.groupLayers;
+  for (const [id, rect] of Object.entries(layout.placements)) Object.assign(rect, { residentLayer: shown.some(card => card.id === id) ? 'floating' : 'wallpaper', readOnlySelect: true });
+  const bytes = new TextEncoder().encode(canonicalJson(layout)); files.set('layout.json', bytes);
+  const entry = manifest.files.find(file => file.name === 'layout.json'); Object.assign(entry, { size: bytes.length, sha256: await sha256(bytes) });
+  files.set('manifest.json', new TextEncoder().encode(canonicalJson(manifest)));
+  const document = await openBackup(await packZip(files));
+  const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'merge', layout: 'backup', workAreas: [area] });
+  await target.workspace.applyRestore(plan, { persist: target.atomic }); const after = target.disk().layout;
+  // The archived and deleted papers sit on the wallpaper but do not count, so group A takes its shown papers' layer.
+  assert.deepEqual(after.groupLayers, { [s.a.id]: 'floating' });
+  assert.ok(Object.values(after.placements).every(rect => !('residentLayer' in rect) && !('readOnlySelect' in rect)));
 });

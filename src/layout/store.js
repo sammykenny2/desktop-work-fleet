@@ -1,19 +1,22 @@
 import { activeGroups, compareId, containsRect, copy, defaultGrid,
   gridRegions, groupKey, membershipKey, requireValue, validRect } from '../core/contracts.js';
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
+import { groupLayerOrder } from './stages.js';
 
 const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
   return { schemaVersion: 1, deviceId, revision: 0, grid: defaultGrid(groups, area),
-    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts() };
+    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(), groupLayers: {} };
 }
 
 export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   const affected = new Set(affectedCards);
   draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
   if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
+  // The receiving group keeps its own layer.
+  if (draft.groupLayers) delete draft.groupLayers[sourceId];
   for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
   const oldLength = draft.history.length;
   draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
@@ -100,22 +103,20 @@ export class LayoutStore {
   }
 
   async setCardPolicy(cardId, patch) {
-    return this.setCardsPolicy([cardId], patch);
+    patch = copy(patch);
+    requireValue(Object.keys(patch).every(key => key === 'visible'), 'invalid-setting', '未知的卡片顯示設定。');
+    requireValue(!('visible' in patch) || typeof patch.visible === 'boolean', 'invalid-setting', '顯示設定必須是布林值。');
+    return this.#transaction(draft => {
+      requireValue(draft.placements[cardId], 'missing-placement', '找不到卡片位置。');
+      Object.assign(draft.placements[cardId], copy(patch));
+    });
   }
 
-  /** One transaction for a whole group, so a layer step never leaves the group half moved. */
-  async setCardsPolicy(cardIds, patch) {
-    cardIds = [...cardIds]; patch = copy(patch);
-    requireValue(Object.keys(patch).every(key => ['visible', 'residentLayer', 'readOnlySelect'].includes(key)),
-      'invalid-setting', '未知的卡片顯示設定。');
-    for (const key of ['visible', 'readOnlySelect']) requireValue(!(key in patch) || typeof patch[key] === 'boolean',
-      'invalid-setting', '顯示設定必須是布林值。');
-    requireValue(!('residentLayer' in patch) || ['desktop', 'wallpaper', 'floating'].includes(patch.residentLayer),
-      'invalid-setting', '未知的常駐層級。');
-    return this.#transaction(draft => {
-      for (const cardId of cardIds) requireValue(draft.placements[cardId], 'missing-placement', '找不到卡片位置。');
-      for (const cardId of cardIds) Object.assign(draft.placements[cardId], copy(patch));
-    });
+  /** The layer belongs to the group on this device; every paper of the group follows it. */
+  async setGroupLayer(groupId, layer, snapshot) {
+    requireValue(groupLayerOrder.includes(layer), 'invalid-setting', '未知的常駐層級。');
+    requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', '群組已不存在。');
+    return this.#transaction(draft => { draft.groupLayers = { ...draft.groupLayers, [groupId]: layer }; });
   }
 
   async placeNew(snapshot, workAreas, paperSize = { width: 280, height: 220 }, checkpoint = null) {
@@ -141,8 +142,7 @@ export class LayoutStore {
         if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
-        let rect = { x: region.x + 12, y: region.y + 12, ...paperSize,
-          order: order++, visible: true, residentLayer: 'desktop', readOnlySelect: false };
+        let rect = { x: region.x + 12, y: region.y + 12, ...paperSize, order: order++, visible: true };
         for (let step = 0; step < 40; step++) {
           const trial = { ...rect, x: rect.x + step * 18, y: rect.y + step * 28 };
           if (containsRect(region, trial) && !existing.some(other =>
@@ -232,8 +232,8 @@ export class LayoutStore {
   }
 
   /**
-   * Resets this device's desktop layout: default group regions, no placements or undo history, papers shown and no
-   * highlighted group. Shortcuts and the device identity stay. Callers re-place papers with placeNew afterwards; a
+   * Resets this device's desktop layout: default group regions, no placements or undo history, papers shown, every
+   * group back on the desktop layer and no highlighted group. Shortcuts and the device identity stay. Callers re-place papers with placeNew afterwards; a
    * crash in between leaves papers unplaced, which the start-up placeNew already repairs.
    */
   async reset(snapshot, area) {
@@ -243,7 +243,7 @@ export class LayoutStore {
       const groups = activeGroups(snapshot);
       // More than nine groups have no default grid; keep the regions and still clear every paper position.
       draft.grid = groups.length <= 9 ? defaultGrid(groups, area) : { ...draft.grid, area };
-      Object.assign(draft, { placements: {}, history: [], desktopVisible: true, myGroupId: null });
+      Object.assign(draft, { placements: {}, history: [], desktopVisible: true, myGroupId: null, groupLayers: {} });
     });
   }
 

@@ -1,43 +1,48 @@
 import { eligible, requireValue } from '../core/contracts.js';
 
 /**
- * A group key steps that group's papers through wallpaper, desktop, desktop with selectable text and topmost, then into
- * adjust mode; the press after adjust mode starts again at the wallpaper. The first four stages are stored on each
- * paper. Adjust mode is the interaction scope and is never stored.
+ * Each group sits on one desktop layer, kept per device. A group key steps it through the wallpaper, the desktop and
+ * the topmost layer, then into adjust mode; the press after adjust mode starts again at the wallpaper. Papers on the
+ * desktop and topmost layers take clicks and text selection, wallpaper papers never do. Adjust mode is the interaction
+ * scope and is never stored.
  */
-export const paperStages = Object.freeze([
-  Object.freeze({ residentLayer: 'wallpaper', readOnlySelect: false }),
-  Object.freeze({ residentLayer: 'desktop', readOnlySelect: false }),
-  Object.freeze({ residentLayer: 'desktop', readOnlySelect: true }),
-  Object.freeze({ residentLayer: 'floating', readOnlySelect: true }),
-]);
-export const adjustStage = paperStages.length;
+export const groupLayerOrder = Object.freeze(['wallpaper', 'desktop', 'floating']);
+export const adjustStage = groupLayerOrder.length;
+export const groupLayer = (layout, groupId) => layout.groupLayers?.[groupId] ?? 'desktop';
 
-export function paperStage(placement) {
-  const layer = placement?.residentLayer ?? 'desktop';
-  return layer === 'wallpaper' ? 0 : layer === 'floating' ? 3 : placement?.readOnlySelect === true ? 2 : 1;
+/** Where the desktop has no wallpaper layer the cycle restarts at the desktop; a group already on the wallpaper still steps on. */
+export function nextGroupStage(layer, { adjusting = false, wallpaper = true } = {}) {
+  if (adjusting) return wallpaper ? 0 : 1;
+  return groupLayerOrder.indexOf(layer) + 1;
 }
 
-/**
- * The group moves on from its lowest paper. Where the desktop has no wallpaper layer, wallpaper papers already show as
- * desktop papers, so the cycle starts at the desktop stage.
- */
-export function nextGroupStage(placements, { adjusting = false, wallpaper = true } = {}) {
-  requireValue(placements.length > 0, 'empty-scope', '這個群組沒有桌面便箋，請在主畫面管理顯示卡片。');
-  const first = wallpaper ? 0 : 1;
-  if (adjusting) return first;
-  return Math.max(first, Math.min(...placements.map(paperStage))) + 1;
-}
-
-/** Moves the whole group one stage on and returns the stage it reached. */
+/** Moves the group one stage on and returns the stage it reached. */
 export async function stepGroup({ workspace, controller, groupId, wallpaper }) {
   const layout = workspace.layout.state; const scope = controller.state.operationScope;
-  const papers = workspace.snapshot.cards.filter(card => card.groupId === groupId && eligible(card, layout) && layout.placements[card.id])
-    .map(card => card.id);
-  const stage = nextGroupStage(papers.map(id => layout.placements[id]), { adjusting: scope.kind === 'group' && scope.groupId === groupId, wallpaper });
-  // Layers change before adjust mode does, so leaving adjust mode drops papers straight to their new layer.
-  await workspace.layout.setCardsPolicy(papers, paperStages[Math.min(stage, adjustStage - 1)]);
+  requireValue(workspace.snapshot.cards.some(card => card.groupId === groupId && eligible(card, layout) && layout.placements[card.id]),
+    'empty-scope', '這個群組沒有桌面便箋，請在主畫面管理顯示卡片。');
+  const stage = nextGroupStage(groupLayer(layout, groupId), { adjusting: scope.kind === 'group' && scope.groupId === groupId, wallpaper });
+  // The layer changes before adjust mode does, so leaving adjust mode drops papers straight onto their new layer.
+  await workspace.layout.setGroupLayer(groupId, groupLayerOrder[Math.min(stage, adjustStage - 1)], workspace.snapshot);
   if (stage === adjustStage) await controller.activate({ kind: 'group', groupId });
   else if (scope.kind !== 'none') await controller.activate({ kind: 'none' });
   return stage;
+}
+
+/**
+ * Older layouts kept a layer and a text-selection switch on every paper. A group without a layer takes the lowest layer
+ * among its shown papers, and the per-paper fields go. Running it again changes nothing.
+ */
+export function groupLayersFromPapers(layout, cards) {
+  const shown = new Map(cards.filter(card => !card.deleted && !card.archived).map(card => [card.id, card.groupId]));
+  const result = { ...layout, groupLayers: { ...layout.groupLayers }, placements: {} }; const lowest = {};
+  for (const [id, { residentLayer, readOnlySelect, ...rect }] of Object.entries(layout.placements)) {
+    result.placements[id] = rect;
+    const groupId = shown.get(id); const rank = groupLayerOrder.indexOf(residentLayer);
+    if (groupId && rect.visible !== false && rank >= 0 && (lowest[groupId] === undefined || rank < lowest[groupId])) lowest[groupId] = rank;
+  }
+  for (const [groupId, rank] of Object.entries(lowest)) {
+    if (!Object.hasOwn(result.groupLayers, groupId) && groupLayerOrder[rank] !== 'desktop') result.groupLayers[groupId] = groupLayerOrder[rank];
+  }
+  return result;
 }

@@ -40,8 +40,6 @@ export interface Snapshot { cards: Card[]; groups: Group[]; writable: boolean; c
 export interface Placement extends Rect {
   order: number;
   visible: boolean;
-  residentLayer: ResidentLayer;
-  readOnlySelect: boolean;
 }
 export interface Grid { rows: number; columns: number; area: Rect; slots: (Id | null)[] }
 export interface Geometry extends Rect { order: number }
@@ -69,6 +67,8 @@ export interface DeviceLayout {
   desktopVisible: boolean;
   myGroupId: Id | null;
   shortcuts: Record<string, Id>;
+  /** Missing groups are on the desktop layer. */
+  groupLayers: Record<Id, ResidentLayer>;
 }
 export interface FormationPlan {
   kind: 'formation';

@@ -4,6 +4,7 @@ import { revisionRecord, RevisionGraph, validId } from '../sources/revisions.js'
 import { projectRevisionsAsync, reconcileSourceLayout } from '../sources/projection.js';
 import { LayoutStore, rescueRect } from '../layout/store.js';
 import { regionShortcuts } from '../core/shortcuts.js';
+import { groupLayersFromPapers } from '../layout/stages.js';
 import { BackupDocument, createBackup } from './payload.js';
 import { backupScheduler, checkCancelled } from './archive.js';
 
@@ -44,6 +45,7 @@ function remapLayout(layout, ids) {
   const geometry = value => Object.fromEntries(Object.entries(value).map(([id, rect]) => [ids.card(id), rect]));
   grid(result.grid); result.placements = geometry(result.placements);
   if (result.myGroupId !== null) result.myGroupId = ids.group(result.myGroupId);
+  if (result.groupLayers) result.groupLayers = Object.fromEntries(Object.entries(result.groupLayers).map(([id, layer]) => [ids.group(id), layer]));
   for (const key of Object.keys(result.shortcuts)) if (!result.shortcuts[key].startsWith('@')) result.shortcuts[key] = ids.group(result.shortcuts[key]);
   for (const undo of result.history) {
     undo.before = geometry(undo.before);
@@ -223,6 +225,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     if (mode === 'import') {
       for (const [id, rect] of Object.entries(restoredLayout.placements)) if (!existingCards.has(id)) next.layout.placements[id] = rescueRect(rect, workAreas);
       next.layout.history.push(...restoredLayout.history);
+      next.layout.groupLayers = { ...restoredLayout.groupLayers, ...next.layout.groupLayers };
     } else {
       next.layout = { ...restoredLayout, deviceId: state.layout.deviceId, revision: state.layout.revision,
         placements: { ...state.layout.placements, ...restoredLayout.placements } };
@@ -232,8 +235,9 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   next.layout = reconcileSourceLayout(next.layout, next);
   const temporaryLayout = new LayoutStore(next.layout, async value => { next.layout = value; });
   const placement = await temporaryLayout.placeNew(next, workAreas, undefined, checkpoint); next.layout.revision = state.layout.revision + 1;
-  // An older backup's group-bound keys move to the regions those groups now hold.
+  // An older backup's group-bound keys move to the regions those groups now hold, and its per-paper layers become group layers.
   next.layout.shortcuts = regionShortcuts(next.layout.shortcuts, next.layout.grid.slots);
+  next.layout = groupLayersFromPapers(next.layout, next.cards);
   const receipt = { jobId, fingerprint: document.fingerprint, mode, layout, profileId: state.profileId,
     baseRevision: state.revision, committedRevision: state.revision + 1, mappings: { ...imported.mappings, restoredDrafts: Object.fromEntries(draftMap) },
     addedRevisions: additions.length, addedDrafts, extraCards, retiredGroups, ambiguousRebases };

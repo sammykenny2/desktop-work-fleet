@@ -1,5 +1,6 @@
 import { activeGroups, containsPoint, copy, eligible, FleetError, gridRegions, inScope,
   requireValue, stableCards } from '../core/contracts.js';
+import { groupLayer } from '../layout/stages.js';
 
 export const idleInteraction = () => ({ operationScope: { kind: 'none' }, activeGroupId: null,
   selectedCardId: null, editingCardId: null, dragSession: null });
@@ -7,11 +8,11 @@ export const idleInteraction = () => ({ operationScope: { kind: 'none' }, active
 export function cardPolicy(card, layout, state) {
   const participates = eligible(card, layout);
   const operating = participates && inScope(card, state.operationScope);
-  const placement = layout.placements[card.id];
+  const layer = operating ? 'floating' : groupLayer(layout, card.groupId);
+  // Desktop and topmost papers take clicks and text selection while locked; wallpaper papers always let clicks through.
   return { visible: participates && (layout.desktopVisible || operating),
-    interactive: operating || (participates && layout.desktopVisible && placement?.residentLayer !== 'wallpaper' && placement?.readOnlySelect === true),
-    draggable: operating, editing: operating && state.editingCardId === card.id,
-    layer: operating ? 'floating' : placement?.residentLayer ?? 'desktop' };
+    interactive: operating || (participates && layout.desktopVisible && layer !== 'wallpaper'),
+    draggable: operating, editing: operating && state.editingCardId === card.id, layer };
 }
 
 /** Back-to-front within a native layer. Hosts split layers without changing these card identities. */

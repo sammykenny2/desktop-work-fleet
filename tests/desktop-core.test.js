@@ -144,11 +144,12 @@ test('C11: consent applies to one preview; undo restores geometry without rewind
   assert.ok(preview.resized.length > 0);
   await f.controller.applyFormation(preview);
   await f.workspace.updateCard(f.a1.id, { content: markdown('較新文字') }, f.a1.revision);
-  await f.workspace.layout.setCardPolicy(f.a1.id, { residentLayer: 'floating', visible: false });
+  await f.workspace.layout.setCardPolicy(f.a1.id, { visible: false });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
   await f.workspace.undo(workAreas);
   const restored = f.workspace.layout.state.placements[f.a1.id];
   assert.equal(restored.width, before.placements[f.a1.id].width);
-  assert.equal(restored.residentLayer, 'floating'); assert.equal(restored.visible, false);
+  assert.equal(f.workspace.layout.state.groupLayers[f.a.id], 'floating'); assert.equal(restored.visible, false);
   assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.a1.id).content.text, '較新文字');
   assert.equal(plan(f).allowResize, false);
 });
@@ -289,7 +290,8 @@ test('C31/C32/C36: new placement only touches new cards; content and membership 
 test('layout reset re-places every paper by group and keeps content, groups and shortcuts', async () => {
   const f = await fixture();
   await f.workspace.layout.move(f.a1.id, { x: 900, y: 700 });
-  await f.workspace.layout.setCardPolicy(f.a2.id, { visible: false, residentLayer: 'floating', readOnlySelect: true });
+  await f.workspace.layout.setCardPolicy(f.a2.id, { visible: false });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
   await f.workspace.layout.configure({ desktopVisible: false, myGroupId: f.b.id,
     grid: { ...f.workspace.layout.state.grid, rows: 2, columns: 1 } }, f.workspace.snapshot);
   const shortcuts = f.workspace.layout.state.shortcuts; const cards = copy(f.workspace.snapshot.cards);
@@ -302,8 +304,8 @@ test('layout reset re-places every paper by group and keeps content, groups and 
   assert.deepEqual(layout.shortcuts, shortcuts); assert.deepEqual(f.workspace.snapshot.cards, cards);
   for (const card of [f.a1, f.a2]) assert.ok(layout.placements[card.id].x < 600, 'first group papers return to its region');
   assert.ok(layout.placements[f.b1.id].x >= 600);
-  assert.deepEqual(Object.values(layout.placements).map(rect => [rect.visible, rect.residentLayer, rect.readOnlySelect]),
-    [[true, 'desktop', false], [true, 'desktop', false], [true, 'desktop', false]]);
+  assert.deepEqual(Object.values(layout.placements).map(rect => rect.visible), [true, true, true]);
+  assert.deepEqual(layout.groupLayers, {}, 'every group is back on the desktop layer');
 });
 
 test('C33: failed draft flush prevents scope exit and formation with editor intact', async () => {
@@ -379,7 +381,7 @@ test('C45/C46: hidden cards stay hidden and exit uses current resident policy', 
   await f.controller.activate({ kind: 'all' });
   assert.equal(cardPolicy(f.a1, f.workspace.layout.state, f.controller.state).visible, false);
   assert.equal(cardPolicy(f.a2, f.workspace.layout.state, f.controller.state).visible, true);
-  await f.workspace.layout.setCardPolicy(f.a2.id, { residentLayer: 'floating' });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
   await f.controller.escape();
   const policy = cardPolicy(f.a2, f.workspace.layout.state, f.controller.state);
   assert.equal(policy.visible, false); assert.equal(policy.layer, 'floating'); assert.equal(policy.editing, false);

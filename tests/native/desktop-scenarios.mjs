@@ -13,8 +13,8 @@ const second = await workspace.createCard({ format: 'markdown', text: 'Other gro
 await workspace.layout.placeNew(workspace.snapshot, [{ x: 0, y: 0, width: 1280, height: 720 }]);
 await workspace.layout.move(card.id, { x: 100, y: 100 });
 await workspace.layout.move(second.id, { x: 500, y: 100 });
-await workspace.layout.setCardPolicy(card.id, { residentLayer: 'wallpaper', readOnlySelect: true });
-await workspace.layout.setCardPolicy(second.id, { residentLayer: 'wallpaper' });
+await workspace.layout.setGroupLayer(group.id, 'wallpaper', workspace.snapshot);
+await workspace.layout.setGroupLayer(other.id, 'wallpaper', workspace.snapshot);
 const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace, saveDraft: async () => {} });
 const scenarios = []; const sessionId = crypto.randomUUID();
 const capture = name => scenarios.push({ name, primary: card.id, secondary: second.id,
@@ -23,9 +23,10 @@ const capture = name => scenarios.push({ name, primary: card.id, secondary: seco
 capture('wallpaper');
 await controller.activate({ kind: 'group', groupId: group.id }); capture('operate-group');
 await controller.activate({ kind: 'none' }); capture('restore-wallpaper');
-await workspace.layout.setCardPolicy(card.id, { residentLayer: 'desktop', readOnlySelect: true }); capture('desktop-selectable');
-await workspace.layout.setCardPolicy(card.id, { residentLayer: 'floating', readOnlySelect: false }); capture('resident-floating');
-await workspace.layout.setCardPolicy(card.id, { residentLayer: 'wallpaper' }); capture('wallpaper-again');
+// Layers belong to groups; desktop and topmost papers always take clicks and text selection while locked.
+await workspace.layout.setGroupLayer(group.id, 'desktop', workspace.snapshot); capture('desktop-selectable');
+await workspace.layout.setGroupLayer(group.id, 'floating', workspace.snapshot); capture('resident-floating');
+await workspace.layout.setGroupLayer(group.id, 'wallpaper', workspace.snapshot); capture('wallpaper-again');
 await workspace.layout.setCardPolicy(card.id, { visible: false });
 await workspace.layout.setCardPolicy(second.id, { visible: false }); capture('hidden');
 await workspace.layout.setCardPolicy(card.id, { visible: true }); capture('shown-again');

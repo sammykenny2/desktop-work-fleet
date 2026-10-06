@@ -458,7 +458,7 @@ async function desktopAction(target, intent) {
     await openEditor(); return;
   }
   if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
-  // A group key moves its group one stage on: wallpaper, desktop, selectable text, topmost, adjust mode, wallpaper again.
+  // A group key moves its group one stage on: wallpaper, desktop, topmost, adjust mode, wallpaper again.
   // Ctrl+Shift+0 keeps its own meaning: every group into adjust mode, then back to each paper's own layer. Papers hidden
   // while locked would not show the first stages and the browser preview has no layers, so there a group key only
   // switches adjust mode.
@@ -588,7 +588,7 @@ function renderStage(cards) {
     const policy = cardPolicy(card, layout, state); const placement = layout.placements[card.id];
     if (!policy.visible || !placement) continue;
     const paper = element('article', undefined, 'card'); paper.dataset.cardId = card.id;
-    paper.classList.toggle('operable', policy.draggable); paper.classList.toggle('selectable', !policy.draggable && placement.readOnlySelect);
+    paper.classList.toggle('operable', policy.draggable); paper.classList.toggle('selectable', !policy.draggable && policy.interactive);
     paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', layout.myGroupId === card.groupId);
     paper.classList.toggle('completed', card.completed);
     paper.style.setProperty('--paper', groupColor(card.groupId)); paper.style.zIndex = String(z++); rectStyle(paper, placement);
@@ -710,31 +710,15 @@ function cardDetails(card) {
   const dialog = element('dialog'); dialog.append(element('h2', summaryText(card)));
   const groupLabel = element('label', '移至群組', 'field'); const select = element('select'); fillGroups(select, card.groupId); groupLabel.append(select);
   const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode('在桌面顯示'));
-  const selection = element('label', undefined, 'check'); const selectable = element('input'); selectable.type = 'checkbox'; selectable.checked = workspace.layout.state.placements[card.id]?.readOnlySelect === true; selection.append(selectable, document.createTextNode('鎖定時可選取文字（不穿透滑鼠）'));
-  const layer = element('label', '常駐層級', 'field'); const layers = element('select');
-  for (const [value, name] of [['wallpaper', '桌布層'], ['desktop', '桌面層'], ['floating', '最上層']]) layers.append(new Option(name, value));
-  layers.value = workspace.layout.state.placements[card.id]?.residentLayer || 'desktop'; layer.append(layers);
-  const layerHint = element('p', '', 'hint');
-  const updateLayerHint = () => {
-    selectable.disabled = Boolean(desktop) && layers.value === 'wallpaper';
-    if (!desktop) return;
-    layerHint.textContent = layers.value === 'wallpaper' ? desktopInfo.layers.includes('wallpaper')
-      ? desktopInfo.wallpaperPlacement === 'background'
-        ? 'Linux 桌布層固定滑鼠穿透；若桌布與圖示由同一個桌面元件繪製，便箋仍會在圖示上方。調整此組時暫時移到最上層，完成後回到桌布層。'
-        : '桌布層在桌面圖示下方，固定滑鼠穿透；調整此組時暫時移到最上層，完成後回到桌布層。'
-      : '目前桌面環境無法使用桌布層，暫以桌面層呈現，原偏好會保留。'
-      : layers.value === 'floating' ? '最上層常駐在所有視窗上方；能否拖曳取決於是否在調整模式，不取決於層級。'
-      : '桌面層在圖示上方、所有視窗下方；調整此組時暫時移到最上層，完成後回到桌面層。';
-  };
-  layers.onchange = updateLayerHint; updateLayerHint();
-  // The browser preview has no desktop layers and phones show no desktop papers; options they cannot show stay unchanged.
-  dialog.append(groupLabel, ...handheld ? [] : [visibility, selection], ...desktop ? [layer, layerHint] : []);
+  // Which layer a paper sits on belongs to its group and changes only with the group's shortcut on the desktop.
+  // Phones show no desktop papers, so the display option they cannot show stays unchanged.
+  dialog.append(groupLabel, ...handheld ? [] : [visibility]);
   const actions = element('div', undefined, 'dialog-actions');
   actions.append(button(card.archived ? '取消封存' : '封存', async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
     button('移至刪除區', async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),
     button('取消', () => dialog.close()), button('套用', async () => {
       if (select.value !== card.groupId) await controller.moveToGroup(card.id, select.value);
-      if (!handheld) await workspace.layout.setCardPolicy(card.id, { visible: check.checked, readOnlySelect: selectable.checked, residentLayer: layers.value });
+      if (!handheld) await workspace.layout.setCardPolicy(card.id, { visible: check.checked });
       await controller.reconcile(); dialog.close(); render(); status('已存本機');
     }, 'primary'));
   dialog.append(actions); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove()); dialog.showModal();

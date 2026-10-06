@@ -53,8 +53,13 @@ function validateLayout(layout, snapshot, graph) {
   // Retired/cyclic targets remain recoverable preferences. Source reconciliation repairs them explicitly.
   fail(layout.myGroupId === null || groups.has(layout.myGroupId)); validateShortcuts(layout.shortcuts, snapshot.groups);
   const geometry = value => validRect(value) && Number.isFinite(value.order);
+  const layers = ['desktop', 'wallpaper', 'floating'];
   for (const [id, rect] of Object.entries(layout.placements)) fail(cards.has(id) && geometry(rect)
-    && typeof rect.visible === 'boolean' && typeof rect.readOnlySelect === 'boolean' && ['desktop', 'wallpaper', 'floating'].includes(rect.residentLayer));
+    && typeof rect.visible === 'boolean' && (rect.readOnlySelect === undefined || typeof rect.readOnlySelect === 'boolean')
+    && (rect.residentLayer === undefined || layers.includes(rect.residentLayer)));
+  // Older backups kept the layer on each paper instead of in groupLayers.
+  fail(layout.groupLayers === undefined || object(layout.groupLayers)
+    && Object.entries(layout.groupLayers).every(([id, layer]) => groups.has(id) && layers.includes(layer)));
   for (const undo of layout.history) {
     fail(object(undo) && ['move', 'formation', 'transfer'].includes(undo.kind) && object(undo.before));
     for (const [id, rect] of Object.entries(undo.before)) fail(cards.has(id) && geometry(rect));

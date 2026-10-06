@@ -71,26 +71,28 @@ test('shortcut focus context is host metadata, not renderer arguments, and a ret
 test('desktop projection separates resident policy, temporary floating and content from historical authority', async () => {
   const f = await fixture(); const before = f.workspace.state;
   let frame = f.frame();
-  assert.ok(frame.cards.every(card => !card.interactive && card.layer === 'desktop'));
+  // Locked desktop papers take clicks and text selection but cannot be dragged.
+  assert.ok(frame.cards.every(card => card.interactive && !card.draggable && card.layer === 'desktop'));
   for (const field of ['revisions', 'outbox', 'drafts', 'sync', 'restoreReceipts']) assert.equal(Object.hasOwn(frame, field), false);
   await f.controller.activate({ kind: 'group', groupId: f.a.id }); frame = f.frame();
   assert.equal(frame.cards.find(c => c.id === f.card.id).layer, 'floating');
-  assert.equal(frame.cards.find(c => c.id === f.other.id).interactive, false);
+  assert.equal(frame.cards.find(c => c.id === f.other.id).draggable, false);
+  assert.equal(frame.cards.find(c => c.id === f.other.id).layer, 'desktop');
   assert.deepEqual(f.workspace.state, before);
   frame.cards[0].rect.x += 500; assert.deepEqual(f.workspace.state, before);
-  await f.workspace.layout.setCardPolicy(f.other.id, { residentLayer: 'wallpaper', readOnlySelect: true });
+  await f.workspace.layout.setGroupLayer(f.b.id, 'wallpaper', f.workspace.snapshot);
   frame = f.frame();
   assert.deepEqual(frame.fallbacks, [{ cardId: f.other.id, requested: 'wallpaper', effective: 'desktop' }]);
   assert.equal(frame.cards.find(c => c.id === f.other.id).interactive, false);
-  assert.equal(f.workspace.layout.state.placements[f.other.id].residentLayer, 'wallpaper');
+  assert.equal(f.workspace.layout.state.groupLayers[f.b.id], 'wallpaper');
   await f.workspace.layout.setCardPolicy(f.card.id, { visible: false });
   assert.equal(f.frame().cards.some(c => c.id === f.card.id), false);
 });
 
 test('wallpaper projections stay passive, float only their operated group, then restore current resident policy', async () => {
   const f = await fixture();
-  await f.workspace.layout.setCardPolicy(f.card.id, { residentLayer: 'wallpaper', readOnlySelect: true });
-  await f.workspace.layout.setCardPolicy(f.other.id, { residentLayer: 'wallpaper' });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);
+  await f.workspace.layout.setGroupLayer(f.b.id, 'wallpaper', f.workspace.snapshot);
   const saved = structuredClone(f.workspace.layout.state.placements[f.card.id]);
   const project = () => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
     interaction: f.controller.state, sessionId: 'wallpaper-test', sequence: 1, workspaceRevision: f.workspace.state.revision,
@@ -108,7 +110,7 @@ test('wallpaper projections stay passive, float only their operated group, then 
   await f.controller.activate({ kind: 'none' });
   assert.ok(project().cards.every(card => card.layer === 'wallpaper' && !card.interactive));
   await f.controller.activate({ kind: 'all' });
-  await f.workspace.layout.setCardPolicy(f.card.id, { residentLayer: 'desktop' });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'desktop', f.workspace.snapshot);
   await f.controller.activate({ kind: 'none' });
   assert.equal(project().cards.find(card => card.id === f.card.id).layer, 'desktop');
   assert.equal(project().cards.find(card => card.id === f.other.id).layer, 'wallpaper');
@@ -143,7 +145,7 @@ test('desktop transfer uses shared atomic command; save failure leaves original 
 });
 
 test('read-only selectable desktop text does not grant editing or card commands', async () => {
-  const f = await fixture(); await f.workspace.layout.setCardPolicy(f.card.id, { readOnlySelect: true });
+  const f = await fixture();
   assert.equal(f.frame().cards.find(c => c.id === f.card.id).interactive, true);
   await rejects(f.command('card.edit', { cardId: f.card.id }), 'outside-scope');
   await rejects(f.command('card.transfer', { cardId: f.card.id, groupId: f.b.id }), 'outside-scope');

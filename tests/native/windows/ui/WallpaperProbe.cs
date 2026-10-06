@@ -33,7 +33,8 @@ internal static class WallpaperProbe
           if (ShellAt(x + (int)(100 * scale), y + (int)(70 * scale), shell)) { bounds = new PhysicalBounds(x, y, 480, 300); uncovered = true; }
       if (!uncovered) await Task.Delay(500);
     } while (!uncovered && DateTime.UtcNow < waitUntil);
-    using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale);
+    // Same kind of surface the app attaches to Explorer: opaque, showing only its papers.
+    using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
     var foreground = GetForegroundWindow();
     surface.SetShellParent(shell.Wallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds);
     surface.SetInput([new(20, 20, 160, 100, false)]);

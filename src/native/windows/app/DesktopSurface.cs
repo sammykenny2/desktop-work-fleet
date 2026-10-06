@@ -15,6 +15,7 @@ public sealed class DesktopSurface : IDisposable
   public WebView2CompositionControl WebView { get; } = new() { DefaultBackgroundColor = System.Drawing.Color.Transparent };
   public Window InputWindow { get; }
   public Window VisualWindow { get; }
+  private readonly bool layered;
   private bool disposed;
   private bool shown;
   private bool floating;
@@ -32,13 +33,20 @@ public sealed class DesktopSurface : IDisposable
   private IntPtr InputHandle => new WindowInteropHelper(InputWindow).Handle;
   private IntPtr VisualHandle => new WindowInteropHelper(VisualWindow).Handle;
 
-  public DesktopSurface(double left, double top, double width, double height)
+  /// <param name="layered">
+  /// Per-pixel transparent windows that let everything around the papers show through. Only a top-level scene can use
+  /// them: as children of Explorer's icon or wallpaper host they are never composed onto the screen (measured on the
+  /// real screen, Windows 11 build 26200, while offscreen rendering looked correct). Attached scenes are therefore opaque
+  /// windows whose regions keep only the papers.
+  /// </param>
+  public DesktopSurface(double left, double top, double width, double height, bool layered = true)
   {
+    this.layered = layered;
     if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(width) || !double.IsFinite(height)
       || Math.Abs(left) > 1_000_000 || Math.Abs(top) > 1_000_000
       || width is <= 0 or > 32768 || height is <= 0 or > 32768) throw new ArgumentException("Invalid scene bounds.");
-    InputWindow = Create(left, top, width, height); InputWindow.Content = WebView;
-    VisualWindow = Create(left, top, width, height);
+    InputWindow = Create(left, top, width, height, layered); InputWindow.Content = WebView;
+    VisualWindow = Create(left, top, width, height, layered);
     VisualWindow.Content = new System.Windows.Shapes.Rectangle { IsHitTestVisible = false,
       Fill = new VisualBrush(WebView) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top } };
     InputWindow.SourceInitialized += (_, _) =>
@@ -50,7 +58,7 @@ public sealed class DesktopSurface : IDisposable
     VisualWindow.SourceInitialized += (_, _) => { SetStyle(VisualHandle, transparent: true); SetRegion(shown ? rectangles : []); };
     InputWindow.Closing += RequestClose; VisualWindow.Closing += RequestClose;
     InputWindow.LocationChanged += (_, _) => AlignVisual();
-    InputWindow.SizeChanged += (_, _) => { AlignVisual(); if (shown) SetRegion(inputSuspended ? [] : rectangles); };
+    InputWindow.SizeChanged += (_, _) => { AlignVisual(); if (shown) SetRegion(Current()); };
   }
 
   private void RequestClose(object? sender, System.ComponentModel.CancelEventArgs e)
@@ -65,11 +73,12 @@ public sealed class DesktopSurface : IDisposable
     }));
   }
 
-  private static Window Create(double left, double top, double width, double height) => new()
+  private static Window Create(double left, double top, double width, double height, bool layered) => new()
   {
     Title = "Work Fleet 桌面", Left = left, Top = top, Width = width, Height = height,
-    WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = true,
-    Background = Brushes.Transparent, ShowActivated = false, ShowInTaskbar = false,
+    WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = layered,
+    // Opaque scenes only ever show paper areas; white keeps the papers' translucent edges close to their design.
+    Background = layered ? Brushes.Transparent : Brushes.White, ShowActivated = false, ShowInTaskbar = false,
     WindowStartupLocation = WindowStartupLocation.Manual, UseLayoutRounding = true,
   };
 
@@ -82,7 +91,7 @@ public sealed class DesktopSurface : IDisposable
     // WPF's Show may refresh native styles. Reassert the child style and client coordinates.
     Attach(InputHandle); Attach(VisualHandle);
     if (physicalBounds is not null) SetPhysicalBounds(physicalBounds);
-    AlignVisual(); SetRegion(inputSuspended ? [] : rectangles); Order();
+    AlignVisual(); SetRegion(Current()); Order();
   }
 
   public void SetShellParent(IntPtr parent)
@@ -153,8 +162,11 @@ public sealed class DesktopSurface : IDisposable
   public void SuspendInput()
   {
     if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); inputSuspended = true;
-    if (NativeAlive) SetRegion([]);
+    if (NativeAlive) SetRegion(Current());
   }
+
+  // While input is suspended no paper takes input; an opaque scene still has to show its papers.
+  private SceneHitRect[] Current() => !inputSuspended ? rectangles : layered ? [] : rectangles.Select(r => r with { Interactive = false }).ToArray();
 
   private void SetRegion(SceneHitRect[] next)
   {
@@ -167,8 +179,10 @@ public sealed class DesktopSurface : IDisposable
       result = BuildRegion(next, 0, next.Length, scale);
       if (VisualHandle != IntPtr.Zero)
       {
-        mirror = NewRegion(0, 0, (int)Math.Ceiling(InputWindow.ActualWidth * scale), (int)Math.Ceiling(InputWindow.ActualHeight * scale));
-        Combine(mirror, mirror, result.Input, 4);
+        // A transparent scene may cover the whole display; an opaque one must show nothing but its papers.
+        mirror = layered ? NewRegion(0, 0, (int)Math.Ceiling(InputWindow.ActualWidth * scale), (int)Math.Ceiling(InputWindow.ActualHeight * scale))
+          : NewRegion(0, 0, 0, 0);
+        Combine(mirror, layered ? mirror : result.Covered, result.Input, 4);
       }
       if (SetWindowRgn(InputHandle, result.Input, true) == 0) throw new InvalidOperationException("Unable to install scene input region.");
       result.Input = IntPtr.Zero;
@@ -282,7 +296,7 @@ public sealed class DesktopSurface : IDisposable
       {
         if (disposed) return;
         if (DpiChanged is { } changed) changed();
-        else if (shown) { inputSuspended = false; AlignVisual(); SetRegion(rectangles); }
+        else if (shown) { inputSuspended = false; AlignVisual(); SetRegion(Current()); }
       }));
     }
     if (message == 0x0047 && shown && !floating && !ordering) // WM_WINDOWPOSCHANGED: activating a selection must not float resident cards.

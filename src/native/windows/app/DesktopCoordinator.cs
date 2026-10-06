@@ -53,8 +53,9 @@ public sealed class DesktopCoordinator : IDisposable
     public DisplayInfo Display = display;
     public string Layer = layer;
     public LogicalRect Viewport = new(display.Bounds.X / scale, display.Bounds.Y / scale, display.Bounds.Width / scale, display.Bounds.Height / scale);
+    // Only the topmost scene is a top-level window; scenes attached to Explorer must be opaque to reach the screen.
     public DesktopSurface Surface = new(display.Bounds.X / (display.Dpi / 96d), display.Bounds.Y / (display.Dpi / 96d),
-      display.Bounds.Width / (display.Dpi / 96d), display.Bounds.Height / (display.Dpi / 96d));
+      display.Bounds.Width / (display.Dpi / 96d), display.Bounds.Height / (display.Dpi / 96d), layered: layer == "floating");
     public bool Ready, Retired, Initialized, Active = true;
     public DesktopFrame? Downloading;
     public string? Download;

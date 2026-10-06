@@ -31,6 +31,20 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 - 新 `tests/test_linux_python_floor.py` 3 項，防止之後用到 3.11+ 語法；標準庫 API 不在檢查範圍。
 - 尚未在 Ubuntu 22.04 實際安裝或執行。
 
+## 2026-10-06 Windows 桌面層與桌布層在真實螢幕上看不到
+
+使用者指出參考專案在同一台電腦上桌布層正常，是我們的實作問題，不是 Windows 的限制。
+- 量測：桌布層探針加上真實螢幕檢查（`--wallpaper DIR --wait-desktop`，等使用者按 Win+D 露出桌面，用粉紅色假便箋讀螢幕像素）。
+  使用者的桌布是純黑色背景。結果：桌布層 rgb(0,0,0)、桌面層 rgb(0,0,0)、最上層 rgb(224,80,160)。
+  也就是掛在 Explorer 底下的兩層在螢幕上完全沒有畫出來，只有獨立的最上層正常；這支探針沒有套用 render popup 的滑鼠穿透，與那個修正無關。
+  原本的探針只用 RenderTargetBitmap 在螢幕外比對 WPF 像素，所以一直顯示通過。
+- 原因：場景是全螢幕的 WPF 逐像素透明視窗（AllowsTransparency，UpdateLayeredWindow）。這種視窗當成 Progman／WorkerW 的子視窗時，
+  在 Windows 11 build 26200 上不會被合成到螢幕。參考專案每張便箋是不透明視窗，用視窗 region 裁出形狀，所以看得到。
+- 修正：`DesktopSurface` 加 `layered` 參數；只有最上層用透明視窗，桌面層與桌布層改成不透明視窗，
+  顯示視窗的 region 只留便箋矩形（扣掉輸入視窗負責的可點選便箋），輸入暫停時仍顯示便箋。
+- 試過但不可靠、不能當證據的讀法：對 Progman 用 PrintWindow（PW_RENDERFULLCONTENT）與 DWM 縮圖，連最上層都讀錯。
+- 驗證：Windows App 與 UI 測試建置 0 錯誤；UI 整合、composition、桌布層探針通過。修正後的真實螢幕結果待使用者再跑一次 `sh build/check-wallpaper.sh`。
+
 ## 2026-10-06 群組設定可以檢視與修改層級
 
 使用者回報：安裝後桌面上看不到兩張便箋，而且群組設定裡沒有顯示與調整層級的地方。

@@ -28,6 +28,9 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
   Windows runner 檢查 Google 設定、匯入 preview 憑證、`Build-WindowsPackage.ps1 -LocalTestSign`；成功後才建立 tag 與 prerelease（MSIX、`.sha256`、CER、安裝說明）。
 - 使用者選擇沿用本機 `CN=Work Fleet Preview` 憑證；PFX 以隨機密碼匯出、在本機重新載入確認後，連同 Google client secret 存為 repository secrets，專案 ID 與 client ID 存為 variables。
 - 發布規則（AGENTS、deployment「Windows 預覽版發布」、ADR-028 修訂）：一般 commit／push 不升版、不發布；使用者要求時升 Windows 版號、push、觸發 workflow；已發布的 tag 不重用。
+- 第一次執行（run 37469200056）三個 job 都通過（含 ubuntu 上的 `npm test`），發布 `windows-v0.1.0` prerelease。
+  下載 release 檢查：MSIX 的 `.sha256` 相符；CER 指紋與本機 preview 憑證相同；本機 `signtool verify /pa` 通過；
+  MSIX 內 `Config/public.json` 有專案 ID、Windows client ID 與 secret（與 `.env` 相同），secret 不在介面資產內。另一台電腦的實際安裝尚未驗收。
 
 ## 2026-10-06 Windows 真實 Google 登入與 Drive 上傳驗收（修正三個實測問題）
 

@@ -21,6 +21,16 @@ macOS 本機 Apple Development team／profile 已配置；其他 Apple target、
 Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 現有安裝產物是 preview，完整 1.0 尚未完成；不再以未固定口徑的百分比回報。
 
+## 2026-10-06 Linux Python 下限降為 3.10（Ubuntu 22.04）
+
+使用者想在 Hyper-V 的 Ubuntu 22.04 VM 安裝 DEB，但 22.04 內建 Python 3.10，原本的 `python3 (>= 3.12)` 無法滿足。
+- 先確認程式碼不需要 3.12：Linux host 以 3.10 語法解析、以 3.11 編譯皆通過，vermin 判定最低 3.6。
+- DEB `Depends` 與 tar.gz `package.json` 改為 3.10；ADR-024、Linux README、setup-guide 同步。
+- 22.04 其他相依：amd64 的 jammy-security 有 `gir1.2-webkit2-4.1` 2.50.4（需要 2.40+，發行時的 2.36 不足）；
+  `python3-cryptography` 3.4.8 已有 `AESGCM`。
+- 新 `tests/test_linux_python_floor.py` 3 項，防止之後用到 3.11+ 語法；標準庫 API 不在檢查範圍。
+- 尚未在 Ubuntu 22.04 實際安裝或執行。
+
 ## 2026-10-06 群組設定可以檢視與修改層級
 
 使用者回報：安裝後桌面上看不到兩張便箋，而且群組設定裡沒有顯示與調整層級的地方。

@@ -97,6 +97,8 @@ FleetDatabase、FleetWebHost／FleetDesktop 和隨包 renderer；原始 Xcode �
 Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequence 與 geometry；不作 UI 證據。
 `python3 -m unittest discover -s tests -p 'test_linux_vault.py' -v` 以假 libsecret 驗證 Linux 儲存金鑰：
 鎖住／解鎖取消回報已鎖定且不建第二把金鑰、真正缺少才回報缺少、已解鎖金鑰優先；不需 GI 或金鑰圈。
+`tests/test_linux_python_floor.py` 從 DEB `Depends` 讀 Python 下限（3.10），確認 tar.gz 宣告相同，
+並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
 場景／協調器，驗證原生 level、三層能力、位置、穿透及桌布拒絕焦點，不需要 Google SDK。
 這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。

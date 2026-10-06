@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted，2026-10-05；加入程式及封裝入口，Linux runtime 未執行。
+Accepted，2026-10-05；加入程式及封裝入口，Linux runtime 未執行。2026-10-06 Python 下限改為 3.10。
 
 ## Context
 
@@ -12,8 +12,11 @@ Accepted，2026-10-05；加入程式及封裝入口，Linux runtime 未執行。
 
 ## Decision
 
-- Python 3.12+／GTK 3／WebKitGTK 4.1（2.40+）／PyGObject；使用 distribution 提供的框架，
+- Python 3.10+／GTK 3／WebKitGTK 4.1（2.40+）／PyGObject；使用 distribution 提供的框架，
   不複製 OS runtime 二進位。secure custom scheme 只提供封裝資產，無常駐 HTTP listener。
+  原定 3.12+；2026-10-06 依維護者指示降為 3.10，讓 Ubuntu 22.04 LTS 可安裝。當時檢查程式碼沒有用到
+  3.11 以後的語法或標準庫 API（vermin 判定最低 3.6），所以只改相依宣告；之後由測試擋下 3.11+ 語法。
+  22.04 的 WebKitGTK 需由 jammy-security 更新到 2.40+，發行時的 2.36 沒有 `evaluate_javascript`。
 - 主 frame 注入封閉 nonce 的 transport；接收端確認 nonce 與固定 document URL。
   其他 navigation／frame、網路 subresources、WebKit permissions 不取得 native bridge 能力。
 - 主畫面唯一 Workspace；SQLite WAL／FULL、revision CAS／附件同交易、flock owner。
@@ -42,6 +45,8 @@ GTK／libsecret、Google、檔案系統與 compositor 的實際環境結果仍�
 
 原有 HTTP note server 不符合 1.0 來源邊界；金鑰寫回設定或 SQLite 明文違反本機保護需求。
 重用 Windows／Apple 平台 API 不能提供 Linux 系統 chooser、金鑰圈及真正的原生窗口。
+維持 Python 3.12+：2026-10-06 放棄，因為程式碼沒有用到 3.12 功能，卻會排除 Ubuntu 22.04 LTS；
+在 22.04 另裝 deadsnakes Python 也不可行，系統的 python3-gi／cryptography 只支援內建的 3.10。
 
 ## References
 

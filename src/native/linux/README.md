@@ -1,8 +1,10 @@
 # Linux 原生 host
 
-Python 3.12+、GTK 3、WebKitGTK 4.1（WebKit 2.40+）、PyGObject／cairo、libsecret／
+Python 3.10+、GTK 3、WebKitGTK 4.1（WebKit 2.40+）、PyGObject／cairo、libsecret／
 Secret Service 與 cryptography，由 Linux distribution 提供。不是 Python 便箋 server；
 原生 GTK 主畫面載入封裝的 `workfleet://app/app/index.html`，没有常駐 HTTP listener。
+Python 3.10 是為了 Ubuntu 22.04；22.04 發行時的 WebKitGTK 2.36 不夠，需安裝 jammy-security 的更新版
+（2026-10 amd64 為 2.50.4）。程式碼不可使用 3.11 以後的語法，由 `tests/test_linux_python_floor.py` 檢查。
 
 ```bash
 npm ci --ignore-scripts

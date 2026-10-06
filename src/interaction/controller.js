@@ -36,16 +36,18 @@ export class InteractionController {
   #layout;
   #commands;
   #saveDraft;
+  #releaseDraft;
   #busy = false;
   #ending = null;
   #composing = false;
   #suppressedCard = null;
 
-  constructor({ getSnapshot, layout, commands, saveDraft }) {
+  constructor({ getSnapshot, layout, commands, saveDraft, releaseDraft }) {
     this.#getSnapshot = getSnapshot;
     this.#layout = layout;
     this.#commands = commands;
     this.#saveDraft = saveDraft;
+    this.#releaseDraft = releaseDraft;
   }
 
   get state() { return copy(this.#state); }
@@ -60,6 +62,12 @@ export class InteractionController {
 
   async #flush() {
     if (this.#state.editingCardId) await this.#saveDraft(this.#state.editingCardId);
+  }
+
+  // Every way out of editing lets the owner drop a draft that holds nothing to keep, unless the edit is handed to another editor.
+  async #finishEdit(keepDraft = false) {
+    const cardId = this.#state.editingCardId; this.#state.editingCardId = null;
+    if (cardId && !keepDraft) await this.#releaseDraft?.(cardId);
   }
 
   async activate(scope, { consumed = false } = {}) {
@@ -77,7 +85,7 @@ export class InteractionController {
       await this.#flush();
       const previous = this.#state.operationScope;
       const toggleOff = previous.kind === scope.kind && previous.groupId === scope.groupId;
-      this.#state.editingCardId = null;
+      await this.#finishEdit();
       this.#state.dragSession = null;
       this.#state.operationScope = toggleOff ? { kind: 'none' } : copy(scope);
       if (this.#state.operationScope.kind === 'none') this.#state = idleInteraction();
@@ -97,7 +105,7 @@ export class InteractionController {
     this.#busy = true;
     try {
       if (this.#state.editingCardId && this.#state.editingCardId !== cardId) {
-        await this.#flush(); this.#state.editingCardId = null;
+        await this.#flush(); await this.#finishEdit();
       }
       this.#state.selectedCardId = cardId;
       this.#state.activeGroupId = card.groupId;
@@ -113,10 +121,10 @@ export class InteractionController {
     return true;
   }
 
-  async endEdit() {
+  async endEdit({ keepDraft = false } = {}) {
     if (this.#composing) return false;
     this.#assertIdle(); this.#busy = true;
-    try { await this.#flush(); this.#state.editingCardId = null; return true; }
+    try { await this.#flush(); await this.#finishEdit(keepDraft); return true; }
     finally { this.#busy = false; }
   }
 
@@ -243,7 +251,7 @@ export class InteractionController {
     try {
       await this.#flush();
       await this.#layout.applyFormation(plan, this.#getSnapshot);
-      this.#state.editingCardId = null; this.#state.dragSession = null; this.#state.selectedCardId = null;
+      await this.#finishEdit(); this.#state.dragSession = null; this.#state.selectedCardId = null;
       this.#state.activeGroupId = plan.scope.kind === 'group' ? plan.scope.groupId : null;
     } finally { this.#busy = false; }
   }

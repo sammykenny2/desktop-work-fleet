@@ -20,6 +20,16 @@ function blankContent(content) {
     && !content.text.trim() && !content.attachments?.length;
 }
 
+// A draft has nothing to keep when it is blank or still an exact copy of its card's current revision.
+function unneededDraft(state, draft) {
+  if (!draft) return false;
+  if (blankContent(draft.content)) return true;
+  const card = draft.baseRevision ? state.cards.find(card => card.id === draft.cardId) : null;
+  const plain = content => canonicalJson({ ...content, attachments: content.attachments || [] });
+  return Boolean(card) && card.revision === draft.baseRevision && card.groupId === draft.groupId
+    && plain(card.content) === plain(draft.content);
+}
+
 function loadRevisions(state) {
   const records = state.revisions || state.outbox.map(entry => revisionRecord(entry.kind, entry.value, entry.parents));
   const graph = new RevisionGraph(records);
@@ -504,16 +514,16 @@ export class Workspace {
     return this.#commit(state => { state.drafts[draft.id] = rebaseDraft(state, copy(draft)); });
   }
 
-  /** Drops a draft with no text or attachments, and blank unchanged drafts it was recovered from. */
-  async discardBlankDraft(draftId) {
+  /** Drops a draft with nothing to keep, and such drafts it was recovered from that have not changed since. */
+  async discardUnneededDraft(draftId) {
     await this.#tail;
-    if (!blankContent(this.#state.drafts[draftId]?.content)) return false;
+    if (!unneededDraft(this.#state, this.#state.drafts[draftId])) return false;
     return this.#commit(state => {
       const draft = state.drafts[draftId];
-      if (!blankContent(draft?.content)) return false;
+      if (!unneededDraft(state, draft)) return false;
       for (const origin of draft.recoveredFrom || []) {
         const original = state.drafts[origin.id];
-        if (origin.id !== draftId && blankContent(original?.content)
+        if (origin.id !== draftId && unneededDraft(state, original)
           && draftBaseline(original) === canonicalJson(parseJson(origin.baseline))) delete state.drafts[origin.id];
       }
       delete state.drafts[draftId];

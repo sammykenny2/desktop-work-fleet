@@ -577,31 +577,66 @@ test('repeated draft recovery consumes unchanged ancestors with linear lineage a
   }
 });
 
-test('closing a blank draft discards it and blank unchanged ancestors but keeps any content', async () => {
+test('ending an edit discards a blank draft and blank unchanged ancestors but keeps any content', async () => {
   const f = await fixture();
   const blank = f.workspace.blankDraft(f.a.id); blank.content.text = ' \n\t';
   await f.workspace.saveDraft(blank);
-  assert.equal(await f.workspace.discardBlankDraft(blank.id), true);
+  assert.equal(await f.workspace.discardUnneededDraft(blank.id), true);
   assert.equal(f.workspace.state.drafts[blank.id], undefined); assert.equal(f.disk().drafts[blank.id], undefined);
-  assert.equal(await f.workspace.discardBlankDraft('missing-draft'), false);
+  assert.equal(await f.workspace.discardUnneededDraft('missing-draft'), false);
   const kept = [];
   for (const content of [markdown('留下這句'), { ...markdown(''), attachments: [{ id: 'blob-a', name: 'a.png' }] }, { ...markdown(''), title: '標題' }]) {
     const draft = f.workspace.blankDraft(f.a.id); draft.content = content; await f.workspace.saveDraft(draft); kept.push(draft.id);
   }
   const revision = f.disk().revision;
-  for (const id of kept) assert.equal(await f.workspace.discardBlankDraft(id), false);
+  for (const id of kept) assert.equal(await f.workspace.discardUnneededDraft(id), false);
   assert.equal(f.disk().revision, revision, 'kept drafts must not cause another write');
   assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [...kept].sort());
   const late = f.workspace.blankDraft(f.a.id); await f.workspace.saveDraft(late);
   const typing = f.workspace.saveDraft({ ...late, content: markdown('剛打的字') });
-  assert.equal(await f.workspace.discardBlankDraft(late.id), false, 'a queued text save wins over the discard');
+  assert.equal(await f.workspace.discardUnneededDraft(late.id), false, 'a queued text save wins over the discard');
   await typing; assert.equal(f.workspace.state.drafts[late.id].content.text, '剛打的字');
   for (const originalText of ['', '原本的內容']) {
     const g = await fixture(); const original = g.workspace.blankDraft(g.a.id); original.content.text = originalText;
     await g.workspace.saveDraft(original);
     const recovered = g.workspace.recoverDraft(original.id); recovered.content.text = '';
     await g.workspace.saveDraft(recovered);
-    assert.equal(await g.workspace.discardBlankDraft(recovered.id), true);
+    assert.equal(await g.workspace.discardUnneededDraft(recovered.id), true);
     assert.deepEqual(Object.keys(g.workspace.state.drafts), originalText ? [original.id] : []);
   }
+});
+
+test('ending an edit discards an unchanged copy of its card but keeps edits and copies of an older revision', async () => {
+  const f = await fixture();
+  const unchanged = f.workspace.blankDraft(f.a.id, f.a1); await f.workspace.saveDraft(unchanged);
+  const edited = f.workspace.blankDraft(f.a.id, f.a2); edited.content.text = '改過的內容'; await f.workspace.saveDraft(edited);
+  assert.equal(await f.workspace.discardUnneededDraft(unchanged.id), true);
+  assert.equal(await f.workspace.discardUnneededDraft(edited.id), false);
+  const stale = f.workspace.blankDraft(f.b.id, f.b1); await f.workspace.saveDraft(stale);
+  await f.workspace.updateCard(f.b1.id, { content: markdown('其他裝置改過') }, f.b1.revision);
+  assert.equal(await f.workspace.discardUnneededDraft(stale.id), false, 'a copy of an older revision is kept');
+  const bare = await f.workspace.createCard({ format: 'markdown', text: '沒有附件欄位' }, f.a.id);
+  const opened = f.workspace.blankDraft(f.a.id, bare); opened.content.attachments ||= []; await f.workspace.saveDraft(opened);
+  assert.equal(await f.workspace.discardUnneededDraft(opened.id), true, 'a missing attachments list equals an empty one');
+  assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [edited.id, stale.id].sort());
+  const first = f.workspace.blankDraft(f.a.id, bare); first.content.attachments = []; await f.workspace.saveDraft(first);
+  const resumed = f.workspace.recoverDraft(first.id); await f.workspace.saveDraft(resumed);
+  assert.equal(await f.workspace.discardUnneededDraft(resumed.id), true);
+  assert.equal(f.workspace.state.drafts[first.id], undefined, 'an unchanged ancestor copy goes with it');
+});
+
+test('every way out of editing releases the draft unless the edit is handed to another editor', async () => {
+  const f = await fixture(); const released = [];
+  const controller = new InteractionController({ getSnapshot: () => f.workspace.snapshot, layout: f.workspace.layout,
+    commands: f.workspace, saveDraft: async () => {}, releaseDraft: async id => { released.push(id); } });
+  await controller.activate({ kind: 'all' });
+  await controller.beginEdit(f.a1.id); await controller.endEdit();
+  await controller.beginEdit(f.a1.id); await controller.endEdit({ keepDraft: true });
+  await controller.beginEdit(f.a1.id); await controller.select(f.a2.id);
+  await controller.beginEdit(f.a2.id); await controller.applyFormation(plan(f));
+  await controller.beginEdit(f.b1.id); await controller.activate({ kind: 'none' });
+  await controller.activate({ kind: 'all' }); await controller.beginEdit(f.a2.id); await controller.escape();
+  await controller.beginEdit(f.a1.id); await f.workspace.updateCard(f.a1.id, { deleted: true }, f.a1.revision); await controller.reconcile();
+  assert.deepEqual(released, [f.a1.id, f.a1.id, f.a2.id, f.b1.id, f.a2.id, f.a1.id]);
+  assert.equal(controller.state.editingCardId, null);
 });

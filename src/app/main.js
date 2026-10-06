@@ -107,7 +107,14 @@ async function initialize() {
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:') });
   activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
-    commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); } });
+    commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); },
+    releaseDraft: async cardId => {
+      if (currentDraft?.cardId !== cardId) return;
+      // Clear first so a background flush cannot write the draft back while it is being discarded.
+      const draft = currentDraft; currentDraft = null;
+      // Dropping is housekeeping: a failure only leaves an extra draft, so report it without failing the action.
+      try { await workspace.discardUnneededDraft(draft.id); } catch (error) { status(`草稿整理失敗：${error.message}`, true); }
+    } });
   await workspace.layout.placeNew(workspace.snapshot, workAreas());
   if (desktopInfo) {
     await workspace.layout.recoverDisplays(workAreas());
@@ -254,7 +261,7 @@ function initializeDesktop() {
         if (previous?.cardId === id && previous.viewId === viewId) return { draftId: previous.draftId, sequence: previous.sequence };
         const reuseId = currentDraft?.cardId === id ? currentDraft.id : null;
         if (currentDraft) {
-          if (controller.state.editingCardId) { if (!await controller.endEdit()) throw new Error('请先完成目前輸入。'); }
+          if (controller.state.editingCardId) { if (!await controller.endEdit({ keepDraft: Boolean(reuseId) })) throw new Error('请先完成目前輸入。'); }
           else await flushDraft();
         }
         const card = currentCard(id); if (!await controller.beginEdit(id, { gesture: true })) return null;
@@ -273,7 +280,7 @@ function initializeDesktop() {
       end: () => closeEditor(),
       full: async intent => {
         await flushDraft(); const draft = copy(currentDraft); const card = currentCard(draft.cardId);
-        if (!await controller.endEdit()) throw new Error('請先完成目前輸入。'); remoteEditor = null;
+        if (!await controller.endEdit({ keepDraft: true })) throw new Error('請先完成目前輸入。'); remoteEditor = null;
         await native.bridge.request('desktop.showMain', { intent }); await openEditor(card, draft); render();
       },
     } });
@@ -464,9 +471,7 @@ function renderStage(cards) {
       input.onkeydown = event => {
         if (event.isComposing || composing) return;
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); run(async () => {
-          await controller.endEdit(); const draft = currentDraft; currentDraft = null; let discarded = false;
-          try { if (draft) discarded = await workspace.discardBlankDraft(draft.id); } finally { render(); }
-          status(closedStatus(discarded));
+          const draft = currentDraft; await controller.endEdit(); currentDraft = null; render(); status(closedStatus(draft));
         }); }
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
       };
@@ -608,7 +613,7 @@ async function openEditor(card = null, recovered = null) {
   if (!card && !recovered && !activeGroups(workspace.snapshot).length) {
     const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render();
   }
-  if (controller.state.editingCardId && currentDraft) await controller.endEdit();
+  if (controller.state.editingCardId && currentDraft) await controller.endEdit({ keepDraft: recovered?.id === currentDraft.id });
   remoteEditor = null;
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);
   currentDraft.content.attachments ||= [];
@@ -622,7 +627,7 @@ async function beginInlineEdit(card, gesture = false) {
   if (composing) return;
   if (remoteEditor) {
     const same = currentDraft?.cardId === card.id;
-    if (!await controller.endEdit()) return; remoteEditor = null;
+    if (!await controller.endEdit({ keepDraft: same })) return; remoteEditor = null;
     if (same) { await controller.beginEdit(card.id, { gesture }); render(); $('#stage .inline-editor')?.focus(); return; }
   }
   if (controller.state.editingCardId === card.id && currentDraft?.cardId === card.id) {
@@ -683,8 +688,8 @@ function setEditorBusy(value) {
   $('#attachment-input').disabled = value;
   $('#editor-group').disabled = value || Boolean(currentDraft?.baseRevision);
 }
-// A draft with no text, attachments or extension data has nothing to keep once its editor closes.
-const closedStatus = discarded => discarded ? '已關閉，空白內容不保留草稿' : '草稿已保留';
+// Ending an edit drops a draft with nothing to keep: blank content or an unchanged copy of its card.
+const closedStatus = draft => draft && !workspace.state.drafts[draft.id] ? '已關閉，沒有需要保留的草稿' : '草稿已保留';
 async function closeEditor() {
   if (editorBusy || composing) return;
   setEditorBusy(true);
@@ -692,10 +697,9 @@ async function closeEditor() {
     // Clear the editor before discarding so a background flush cannot write the blank draft back.
     await flushDraft(); const draft = currentDraft;
     currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false);
-    let discarded = false;
-    try { if (draft) discarded = await workspace.discardBlankDraft(draft.id); }
+    try { if (draft) await workspace.discardUnneededDraft(draft.id); }
     finally { await controller.endEdit(); render(); }
-    status(closedStatus(discarded));
+    status(closedStatus(draft));
   }
   finally { setEditorBusy(false); }
 }

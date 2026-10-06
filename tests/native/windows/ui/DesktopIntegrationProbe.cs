@@ -35,7 +35,9 @@ internal static class DesktopIntegrationProbe
     // clicks blocks every desktop icon whenever no application window covers it.
     await Wait(() => Task.FromResult(RenderPopups(resident.BrowserProcessId) is { Blocking: 0, Visible: > 0 }), "scene render popups pass clicks through", main);
     Console.WriteLine($"PASS {RenderPopups(resident.BrowserProcessId).Visible} visible scene render popup(s) are click-through");
-    if ((await Eval(resident, "document.querySelector('.card').classList.contains('interactive')")).GetBoolean()) throw new Exception("Idle paper intercepted input.");
+    // Locked desktop-layer papers take clicks and text selection but are never dragged.
+    if (!(await Eval(resident, "document.querySelector('.card').classList.contains('interactive') && !document.querySelector('.card').classList.contains('operable')")).GetBoolean())
+      throw new Exception("Idle desktop paper must take clicks without becoming draggable.");
     await Eval(resident, "window.denied=null;chrome.webview.addEventListener('message', e=>{if(e.data.id==='22222222-2222-4222-8222-222222222222')window.denied=e.data});chrome.webview.postMessage({v:1,id:'22222222-2222-4222-8222-222222222222',method:'storage.load',params:{kind:'workspace'}})");
     await Wait(async () => (await Eval(resident, "window.denied?.error?.code==='unsupported-method'")).ValueKind == JsonValueKind.True,
       "display view cannot access storage", main);
@@ -78,17 +80,18 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent==='原生便箋'")).ValueKind == JsonValueKind.True,
       "fixture restored", main);
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
-    await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).ValueKind == JsonValueKind.True,
-      "exit restores resident pass-through policy", main);
+    await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
+      "exit returns the paper to its group's desktop layer", main);
     Console.WriteLine("PASS real display-only WebView2 scene, storage isolation, draft chunks, IME barrier and owner commit");
     if (main.Desktop.Surfaces.Count == 3)
     {
       var wallpaper = main.Desktop.Surfaces[2].WebView.CoreWebView2;
       async Task Layer(string value)
       {
-        await Eval(main.WebView.CoreWebView2, "[...document.querySelectorAll('.list-actions button')].find(b=>b.textContent==='更多操作').click()");
-        await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';s.dispatchEvent(new Event('change'));[...d.querySelectorAll('button')].find(b=>b.textContent==='套用').click()}})()");
-        await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save resident layer", main);
+        // The layer belongs to the group and is set in the group's settings dialog.
+        await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
+        await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click()}})()");
+        await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save group layer", main);
       }
       await Layer("wallpaper");
       await Wait(async () => (await Eval(wallpaper, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).GetBoolean(), "wallpaper receives note", main);

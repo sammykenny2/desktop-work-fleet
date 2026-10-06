@@ -2,7 +2,7 @@ import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
-import { adjustStage, stepGroup } from '../layout/stages.js';
+import { adjustStage, groupLayer, stepGroup } from '../layout/stages.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -667,19 +667,32 @@ async function changeCard(id, patch) {
 
 function groupEditor(group) {
   const dialog = element('dialog'); const form = element('form');
-  const title = element('h2', group ? '群組名稱' : '新增群組');
+  const title = element('h2', group ? '群組設定' : '新增群組');
   const label = element('label', '名稱', 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = group?.name || ''; label.append(input);
+  // Which desktop layer the group sits on belongs to this computer; phones and the browser preview have no desktop layers.
+  const layerField = desktop ? element('label', '桌面上的層級', 'field') : null; const layers = element('select');
+  const currentLayer = group ? groupLayer(workspace.layout.state, group.id) : 'desktop';
+  if (layerField) {
+    for (const [value, name] of [['wallpaper', '桌布層：在圖示下方，滑鼠穿透'], ['desktop', '桌面層：在圖示上方，可選取文字'], ['floating', '最上層：在所有視窗上方']]) {
+      const option = new Option(name, value);
+      option.disabled = value === 'wallpaper' && !desktopInfo?.layers?.includes('wallpaper') && currentLayer !== 'wallpaper'; layers.append(option);
+    }
+    layers.value = currentLayer; layerField.append(layers);
+  }
   const actions = element('div', undefined, 'dialog-actions');
   const save = element('button', '保存', 'primary'); save.type = 'submit';
   if (group) {
     const merge = button('合併／移除群組', () => { dialog.close(); return openGroupMerge(group); });
     merge.disabled = activeGroups(workspace.snapshot).length < 2; actions.append(merge);
   }
-  actions.append(button('取消', () => dialog.close()), save); form.append(title, label, actions); dialog.append(form); document.body.append(dialog);
+  actions.append(button('取消', () => dialog.close()), save);
+  form.append(title, label, ...layerField ? [layerField, element('p', '也可以按這組的快捷鍵依序切換。', 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
+    let groupId = group?.id;
     if (group) await workspace.renameGroup(group.id, input.value, group.revision);
-    else { const created = await workspace.createGroup(input.value); activeGroupId = created.id; }
+    else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; }
+    if (layerField && layers.value !== currentLayer) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status('群組已保存');
   }); });
   dialog.showModal(); input.focus();

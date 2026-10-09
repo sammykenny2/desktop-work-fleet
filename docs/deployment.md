@@ -12,6 +12,9 @@
 
 ## 版號與發佈檔名
 
+Windows 支援範圍依 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)：目標涵蓋早期 Windows 11／23H2 與 24H2+，Windows 10 排除安裝。
+目前 MSIX 產生器仍為 `MinVersion=10.0.26100.0`；`10.0.22000.0` 是待實作與最終包驗證的目標，Store 身份／提交尚未開始。編譯 framework 的 Windows 10 API 基線不等於產品支援範圍。
+
 各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；不同平台可各自升版。
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
 腳本產生的每個發佈檔旁另有同名 `.sha256`，可用 `sha256sum -c` 或 `shasum -a 256 -c` 檢查。

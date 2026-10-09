@@ -1,6 +1,7 @@
 # Windows 原生 App
 
-Windows 10 build 19041+／11，需要 .NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+。
+建置 API 基線為 Windows 10 build 19041+／11，需要 .NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+。
+產品支援目標為早期 Windows 11／23H2 與 24H2+，不適配 Windows 10；目前 MSIX 下限仍是 26100，待相容性實測後調整，見 [ADR-034](../../../docs/decisions/034-windows-11-compatibility-and-install-floor.md) 與 [接手](../../../docs/handoff/2026-10-09-windows-11-compatibility-handoff.md)。
 此目錄為 1.0 原生 host：.NET WPF + WebView2 主畫面、桌面場景與 SQLite／DPAPI 保存。
 
 ## 結構

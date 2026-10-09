@@ -1,6 +1,27 @@
 # 專案進度
 
-更新：2026-10-06。本檔是本 repo 的執行狀態權威。
+更新：2026-10-09。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-09 Windows 11 相容性需求交接
+
+使用者確認先前相容性討論選錯專案，真正目標是本 repo；本輪指示先提交相關 ADR／SPEC／PLAN，
+直接 commit／push main，再於本專案開新 session 接續。這次只有文件交接與唯讀盤點，沒有 runtime／包／版號／release 變更。
+
+- 需求已確認：Windows 11 23H2 及之前、24H2 及之後；Windows 10 不需適配，但未來 Store 必須拒絕安裝。
+  使用者提供 23H2 測試，沒有本輪新版設備，希望盡量避免 regression。
+- [ADR-034](docs/decisions/034-windows-11-compatibility-and-install-floor.md)、[SPEC-005](docs/specs/005-windows-11-compatibility.md)、
+  [PLAN-004](docs/plans/004-windows-11-compatibility.md) 與 [新 session 接手](docs/handoff/2026-10-09-windows-11-compatibility-handoff.md) 已整理；
+  requirements、文件索引、setup／deployment／Windows README 同步區分目前實作與目標。
+- 目前仍有 MSIX 下限 26100；目標為 22000，保留 26200 MaxVersionTested。原生層已有 classic sibling／Progman child、現代 manifest、DPI／座標、Start 顯示與 Explorer 恢復機制。
+- 本輪唯讀盤點確認本機 23H2 build 22631.6199、144 DPI，Progman／DefView 為 PMv2，沒有新版 child WorkerW。
+  沒有呼叫宿主建立訊息、啟動正常 App、跑本專案 native probes 或修改使用者資料。
+- 另一個 Tauri 專案的提交／75 Rust／54 前端／隔離 native PASS 不算本 repo 證據。既有本 repo 的 build 26200 紀錄仍保留，不能當作 26100 或本次 23H2 通過。
+- 文件檢查通過：108 份 Markdown、627 個相對連結、UTF-8／LF 與 `git diff --check`；來源路徑與目前 MinVersion／manifest／版號核對一致。
+  本輪只有文件，依 testing.md 沒有重跑 runtime／GUI 測試；沒有獨立審閱。
+
+下一個 session 從 PLAN-004 Phase 1 開始：先跑現有隔離 native probes，根據 23H2 失敗最小修正並補舊新分支回歸，
+原生通過後改 MSIX 下限與驗證最終包，再與使用者做正常互動驗收。Win+D 手動配合、Explorer 重啟与混合 DPI 另安排。
+Partner Center 尚未保留應用，Store 提交延期。這次沒有發布指令，不自動升版／dispatch 預覽 workflow。
 
 ## 目前優先方向
 

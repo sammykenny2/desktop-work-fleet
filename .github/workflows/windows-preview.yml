@@ -132,7 +132,7 @@ jobs:
         run: |
           cd dist && sha256sum -c "WorkFleet-$VERSION-x64.msix.sha256"
           cat > notes.md <<EOF
-          Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11 24H2 以上。
+          Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11（最低 build 22000）。
 
           ## 第一次安裝
           1. 沒裝過 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0) 的電腦先安裝它。

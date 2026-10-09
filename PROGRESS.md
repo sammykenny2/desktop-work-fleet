@@ -1,6 +1,20 @@
 # 專案進度
 
-更新：2026-10-09。本檔是本 repo 的執行狀態權威。
+更新：2026-10-10。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-10 Windows 23H2 使用者測試回報與 0.1.2 預覽發布
+
+使用者回報「23H2 似乎可以，目前沒看到特別問題」，並明確同意升到 0.1.2、觸發 GitHub preview release。
+此回報只記錄本機使用者測試結果，不代表其他 Windows 11 版本或完整手動矩陣通過。
+
+- Windows 單一版號紀錄升到 0.1.2，MSIX identity／產物檔名沿用既有衍生機制；不改其他平台版號。
+- 發布 workflow 說明更正為 Windows 11 最低 build 22000，與既有包 manifest 一致。
+  交付包含先前拖曳／frame transition 與附著場景相容性修正；原始白塊根因未在隔離案例重現。
+- 0.1.2 的 tag／release 在發布準備時尚不存在。依既有流程先 commit／push main，再 dispatch 一次
+  `windows-preview.yml`；實際 run 與發布結果以 GitHub Actions／Release 為準。
+- 本機 `npm test`：247 pass、11 skip、0 fail；版號讀取與 MSIX manifest 核對為 0.1.2／0.1.2.0、
+  x64、Windows.Desktop 下限 22000／MaxVersionTested 26200。文件檢查 109 份 Markdown／638 相對連結、UTF-8／LF 與 diff 檢查通過。
+- 沒有獨立審閱；先前原生回歸證據見下節，本輪沒有修改 runtime 或重跑 GUI probes。
 
 ## 2026-10-09 恢復實機測試與附著場景相容性修正
 

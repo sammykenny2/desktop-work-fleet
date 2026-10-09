@@ -30,14 +30,15 @@ Partner Center 尚未保留應用，尚未進入 Store 階段。
 - 原生歷史證據是 build 26200／25H2、單螢幕 144 DPI；不能視為 26100／24H2 或本次 23H2 的通過證據。
 - 2026-10-09 唯讀盤點：本機 23H2 build 22631.6199、圖示宿主 Progman／DefView 為 144 DPI／PMv2。
   Progman 下沒有新版 child WorkerW；後續已完成隔離 native probes，真 Explorer 三層像素、座標／附著與切層皆通過，其他手動項目見 PROGRESS。
-- Windows 版號紀錄目前 `0.1.1`；任何升版須先取得使用者對具體版號的同意，Actions dispatch 也須明確授權。private repo 本月 Actions 額度接近用完，優先本機封裝；這次沒有升版或啟動 CI release。
+- Windows 版號紀錄目前 `0.1.2`；2026-10-10 使用者回報 23H2 目前沒有看到特別問題，明確同意升到 0.1.2 並觸發 GitHub preview release。
+  private repo 本月 Actions 額度接近用完；其他工作仍優先本機檢查，後續升版與 dispatch 各自需要授權。
 
 ## 接續入口
 
 先前原生與未簽章包內容已驗證；使用者後續授權建立本機 preview 憑證及信任，已用既有
 `Build-WindowsPackage.ps1 -LocalTestSign` 產生 0.1.1 MSIX，並自行安裝測試。
 私鑰留在本機 CurrentUser/My，設為不可匯出；不把本機憑證當作 GitHub release 的 CI 憑證。
-使用者現在回報最上層快速拖曳回彈及舊位置白色殘影，已授權修正並本機打包。
+使用者先前回報最上層快速拖曳回彈及舊位置白色殘影，已授權修正並本機打包。
 安裝第一輪修正版後，使用者再次確認白塊仍在：調過位置的 note 經堆疊／攤開後舊位置留白，不需拖曳。
 第二輪附著宿主背景與區域生命週期修正見 [ADR-035](../decisions/035-windows-attached-scene-background-lifecycle.md)，
 先前背景修法未測即封裝；恢復測試後發現 23H2 拒絕新增 NOREDIRECTIONBITMAP 樣式，透明 windowed WebView
@@ -45,8 +46,8 @@ Partner Center 尚未保留應用，尚未進入 Store 階段。
 使用者曾要求停止測試及截圖，後續明確表示「我沒使用電腦了，你可以測試或截圖」，已解除限制。
 目前採隔離資料與自有測試便箋；沒有操作正在執行的安裝版或其資料。
 已補實際 owner 調整位置／堆疊／攤開與舊背景像素檢查；安裝版複本也通過相同隔離案例，
-因此尚未重現使用者原始白塊，不能宣稱觸發根因或殘影已完全修復。
-實作與已執行／未執行證據見 PROGRESS，沿用 0.1.1，不升版或 dispatch Actions。
+因此未能在隔離案例重現使用者原始白塊；2026-10-10 使用者實測回報目前沒有看到特別問題，不擴張為所有情境的根因驗證。
+先前本機交付沿用 0.1.1；目前 0.1.2 預覽發布授權與實作／驗證證據見 PROGRESS，發布結果見 GitHub。
 新增原生改動需要回歸時，核對工作區與既有 App，再使用現有隔離入口、保留失敗證據：
 
 ```powershell

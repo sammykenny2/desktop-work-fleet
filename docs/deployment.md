@@ -1,6 +1,6 @@
 # 平台與散布狀態
 
-更新：2026-10-09；Windows 版號為 0.1.1，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
+更新：2026-10-10；Windows 版號為 0.1.2，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
@@ -13,8 +13,9 @@
 ## 版號與發佈檔名
 
 Windows 支援範圍依 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)：目標涵蓋早期 Windows 11／23H2 與 24H2+，Windows 10 排除安裝。
-MSIX 產生器與本次最終未簽章包已驗證 `Windows.Desktop MinVersion=10.0.22000.0`、`MaxVersionTested=10.0.26200.0`。
-本次 23H2 原生探針通過；正常互動與安裝仍待驗收，Store 身份／提交尚未開始。編譯 framework 的 Windows 10 API 基線不等於產品支援範圍。
+MSIX 產生器與先前本機 0.1.1 包已驗證 `Windows.Desktop MinVersion=10.0.22000.0`、`MaxVersionTested=10.0.26200.0`。
+23H2 原生探針通過；2026-10-10 使用者回報本機測試目前沒有看到特別問題，並授權 0.1.2 預覽發布。
+其他 Windows 11 版本與完整互動矩陣仍未驗收，Store 身份／提交尚未開始。編譯 framework 的 Windows 10 API 基線不等於產品支援範圍。
 
 各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；任何升版都須先取得使用者對具體版號的明確同意。
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
@@ -77,8 +78,9 @@ GitHub repository 需要的設定：
 - Secrets：`WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET`、`WORK_FLEET_WINDOWS_SIGNING_PFX_BASE64`、`WORK_FLEET_WINDOWS_SIGNING_PFX_PASSWORD`。
   缺 Google 設定或簽章憑證時 workflow 直接失敗，不發布無法登入或無法安裝的包。
 
-簽章用的是本機 `-LocalTestSign` 那張 `CN=Work Fleet Preview` 自簽憑證（2027-10-05 到期），所以本機包與 CI 包同一個 publisher、可以互相升級。
-換憑證時本機與 secret 要一起換，各台電腦重新信任新的 CER。
+CI 簽章使用上述 repository secrets 內的 preview 憑證；本機 `-LocalTestSign` 使用本機存放區的憑證，兩者不一定是同一張。
+相同 package identity／publisher 且版號較高的包可升級，但安裝端仍須信任該包的簽章憑證；從本機包換成 CI 包時，先核對並信任 release 附的公開 CER。
+更換 CI 憑證時更新 signing secrets，各台測試電腦重新信任新的 CER；不要匯出或上傳本機不可匯出的私鑰。
 安裝端每台電腦第一次要以系統管理員把 CER 匯入 LocalMachine/TrustedPeople，之後版號較高的 MSIX 可直接安裝升級，同版號要先解除安裝。
 repository 是私有的，下載 release 需要登入有權限的 GitHub 帳號。
 

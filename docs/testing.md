@@ -250,22 +250,42 @@ core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換�
 它已接入 Test-WindowsNative，不建立測試 Explorer，也不把模型通過當成新版 OS 實測。
 composition probe 套用 coordinator 既有的 render popup 穿透政策，輸入失敗時回報命中的 HWND／class／PID。
 另以合成 WPF MouseDown／MouseUp 檢查原生 capture、region 移動、意外失去捕獲、hide／topology 解除；
-不注入系統滑鼠，也不能代替使用者快速拖曳驗收。修正前捕獲檢查失敗；2026-10-09 修正後尚未執行。
+不注入系統滑鼠，也不能代替使用者快速拖曳驗收。修正前捕獲檢查失敗；2026-10-09 恢復測試後通過。
 
 另執行 `--wallpaper OUTPUT_DIRECTORY`，要求目前 session 有真正的 Explorer 圖示／桌布宿主；
 不可用即失敗，不標成通過。以合成內容確認兩個自有場景 HWND 的 parent／WS_CHILD、
 實際 WebView 像素、原生空輸入 region、physical bounds、反覆附著／浮動／隱藏與不啟用。
-圖片只捕獲測試表面，不截取使用者桌面；不重啟 Explorer 或注入鍵盤／滑鼠。
+瀏覽器 preview 核對紙面內容；另捕獲測試便箋所在的桌面裁切區域，才能檢查新紙面之外的舊位置。
+不重啟 Explorer 或注入鍵盤／滑鼠。
 真螢幕像素 FAIL 會讓 probe 失敗；外部遮擋仍回報 SKIP，浮動表面以自有 HWND 判定，不把自有視窗當外部遮擋。
+浮動紙面使用另一個 composition surface，與 coordinator 一樣；不把同一個 windowed child 改成 popup。
+前景檢查以 [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook)
+觀察全程，包含自有 WPF 與該 WebView browser 的瞬間啟用；收到即失敗。外部程式自行切換 foreground 時，
+「完全不變」的小項明確 SKIP，仍執行自有場景不得啟用檢查，不以最後 foreground 回到外部代替全程證據。
 另新增隱藏後原像素還原檢查，仿 Explorer 宿主也檢查收起後背景；原像素檢查受遮擋時明確 SKIP。
 主 WPF probe 新增 `scene.prepare` 已確認後才移除附著便箋 DOM 的檢查。
-上述殘影與 prepare 流程的新回歸尚未執行；使用者在本輪要求停止測試及截圖，待有空再驗收。
+使用者後續已明確恢復測試／截圖授權；上述 prepare 流程與隱藏還原回歸已執行。
 2026-10-09 使用者確認上一輪包的白塊仍存在，且只需調過位置後堆疊／攤開、不需要拖曳。
 `--host-check OUTPUT_DIRECTORY` 已改成黑色背景，同時啟動有／無 redirection 的兩種仿宿主：
 檢查移位、堆疊式縮高及攤開式區域變更後，新紙面仍顯示、每個舊位置恢復黑色，最後 hide 與區域外也恢復。
-涵蓋 prepare/hide 與可見區域直接替換，不注入滑鼠。這些是表面幾何操作，不能替代實際 formation owner 流程。
+涵蓋 prepare/hide 與可見區域直接替換，不注入滑鼠。仿宿主以自有 GDI BLACK_BRUSH 背景窗作基準，
+無 redirection 宿主位於黑底上方；不依賴空白 WPF 視窗的繪製或系統主題色，避免背後應用被誤認為背景。
+黑底前置條件仍要求真螢幕像素為零，失敗保存圖與 HWND／style／命中 PID 診斷，不放寬顏色容差。
+這些是表面幾何操作，不能替代實際 formation owner 流程。
+真 Explorer probe 另以整個螢幕尺寸的 scene，反覆移位／縮高／展開；新紙面仍可見時比對舊中心及邊緣。
 新宿主 style 與原生 repaint 順序見 [ADR-035](decisions/035-windows-attached-scene-background-lifecycle.md)；
-回歸未執行、25H2 對照未驗證，也沒有獨立審閱。待使用者解除限制後再用既有 Test-WindowsNative 入口。
+23H2 測試已撤回被 OS 拒絕的 NOREDIRECTIONBITMAP 及造成實際紙面變暗的透明 windowed WebView 背景。
+25H2 對照未驗證，也沒有獨立審閱。
+`--formation OUTPUT_DIRECTORY` 已接入同一入口。主畫面用隔離 native SQLite 建立兩張便箋，
+scene 的合成 PointerEvent 經既有 client／bridge／owner 保存調整位置，完成調整後須保留位置；
+主畫面堆疊／攤開按鈕改變 layout，涵蓋桌面、浮動排列後返回桌面及桌布層。
+scene 仍使用真整個螢幕 viewport；僅注入未遮擋的測試工作區，不更動 OS 工作區或桌布。
+合成 DOM capture 不代表真滑鼠 capture。GDI 一次讀取測試範圍，在新紙面之外逐像素比對原桌面；
+浮動模式另排除實際顯示的群組標籤與六 CSS px 邊框帶（含五 px 圓角），不排除整個群組工作區。
+另檢查紙面可見、全程無便箋場景 foreground 啟用，並保存 native 螢幕 PNG；沒足夠未遮擋區域時明確 SKIP。
+foreground 判定涵蓋所有便箋成對 HWND 與 browser，排除主畫面及 framework helper；建立便箋時主畫面
+編輯器的焦點不是被動紙面自行啟用。Wallpaper-only probe 不作這項排除。
+目前安裝版複本也通過隔離 formation 案例，使用者原始殘影尚未重現；不能把此通過當作根因已證實。
 主 WPF probe 另測實際逐卡設定→wallpaper→調整此組→floating→完成→wallpaper 的 owner／scene 流程。
 Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩陣仍需各自驗收。
 桌布層回退或附著錯誤時，可執行唯讀的 `scripts/windows/Get-ShellLayerInventory.ps1`，
@@ -290,7 +310,7 @@ core 另測 scene lease 跨版本讀取／principal 隔離、半份與壞 hash �
 以及十組／長組名仍可讀。`tests/desktop-authority.test.js`／`desktop-transport.test.js` 驗證重播、世代、
 獨立草稿 admission、未知 ack 重試、失聯 flush 解除與關閉命令封鎖。
 `desktop-frame-refresh.test.js` 另涵蓋舊 frame 下載中收到新 frame、拖曳完成等待及下載失敗後重試；
-`desktop-transport.test.js` 新增拖曳完成／取消必須先等最新 geometry 發布才回覆。這些新增 JS 回歸尚未執行。
+`desktop-transport.test.js` 新增拖曳完成／取消必須先等最新 geometry 發布才回覆。2026-10-09 恢復測試後通過。
 快捷鍵／系統匣 probe 另核對真 shell icon 身分、設定與實際註冊狀態、原生動作→scope、
 就地 scope 鍵先保存草稿、合成 IME 拒絕、關閉 block 不被設定更新解除、收起／重開同一 owner，
 以及自有 TaskbarCreated 訊息重建 icon；沒有重啟 Explorer。

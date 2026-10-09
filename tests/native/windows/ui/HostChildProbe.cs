@@ -2,9 +2,9 @@ using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Interop;
-using System.Windows.Media;
 using WorkFleet.Windows;
 
 /// <summary>
@@ -20,22 +20,26 @@ internal static class HostChildProbe
   /// created like Explorer's Progman, with WS_EX_NOREDIRECTIONBITMAP: it has no GDI surface of its own.</summary>
   public static void Host(bool redirection = true)
   {
+    // A NOREDIRECTIONBITMAP host contributes no GDI background. Give it an owned black backdrop instead of
+    // accidentally using whichever application happens to be behind it as the restoration baseline.
+    var display = NativeDisplays.Read().First(d => d.Primary); var scale = display.Dpi / 96d;
+    // Use a fixed black GDI brush, independent of system colors or an empty WPF window's rendering.
+    var instance = GetModuleHandleW(null);
+    var windowClass = new BlackWindowClass { Procedure = BlackProcedure, Instance = instance, Background = GetStockObject(4), Name = "WorkFleetBlackHostFixture" };
+    if (RegisterClassW(ref windowClass) == 0) throw new Exception("Unable to register the black host fixture.");
+    var handle = CreateWindowExW(0x8 | 0x80 | 0x08000000, windowClass.Name, "Work Fleet host probe", 0x90000000,
+      display.Bounds.X + (int)(40 * scale), display.Bounds.Y + (int)(40 * scale), (int)(360 * scale), (int)(240 * scale),
+      IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
+    if (handle == IntPtr.Zero) throw new Exception("Unable to create the black host backdrop.");
     if (!redirection)
     {
-      // SS_BLACKRECT: a white baseline would falsely pass when a hidden paper leaves the browser's white background.
-      var created = CreateWindowExW(0x00200000 | 0x8 | 0x80, "Static", "Work Fleet host probe", 0x90000004, 60, 60, 540, 360,
-        IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
-      if (created == IntPtr.Zero) throw new Exception("Unable to create the host window.");
-      var scale = GetDpiForWindow(created) / 96d;
-      if (!SetWindowPos(created, IntPtr.Zero, 0, 0, (int)(360 * scale), (int)(240 * scale), 0x16))
-        throw new Exception("Unable to size the host at its actual DPI.");
-      Console.WriteLine($"HOST {created.ToInt64():X}"); Console.Out.Flush(); return;
+      if (!GetWindowRect(handle, out var bounds)) throw new Exception("Unable to read the backdrop bounds.");
+      handle = CreateWindowExW(0x00200000 | 0x8 | 0x80 | 0x08000000, windowClass.Name, "Work Fleet host probe", 0x90000000,
+        bounds.Left, bounds.Top, bounds.Right - bounds.Left, bounds.Bottom - bounds.Top,
+        IntPtr.Zero, IntPtr.Zero, instance, IntPtr.Zero);
+      if (handle == IntPtr.Zero) throw new Exception("Unable to create the host window.");
     }
-    var window = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
-      Topmost = true, Left = 40, Top = 40, Width = 360, Height = 240, Background = Brushes.Black,
-      WindowStartupLocation = WindowStartupLocation.Manual, Title = "Work Fleet host probe" };
-    window.Show();
-    Console.WriteLine($"HOST {new WindowInteropHelper(window).Handle.ToInt64():X}"); Console.Out.Flush();
+    Console.WriteLine($"HOST {handle.ToInt64():X}"); Console.Out.Flush();
   }
 
   /// <summary>Starts a host process, checks an attached scene the way the app starts one, and stops the host.</summary>
@@ -46,6 +50,7 @@ internal static class HostChildProbe
 
   private static async Task CheckHost(string directory, string mode)
   {
+    Console.WriteLine($"Checking black host fixture: {mode}");
     var start = new ProcessStartInfo(Environment.ProcessPath!, mode) { RedirectStandardOutput = true, UseShellExecute = false };
     using var host = Process.Start(start) ?? throw new Exception("Unable to start the host process.");
     try
@@ -73,7 +78,14 @@ internal static class HostChildProbe
     {
       await Task.Delay(50); background = Pixel(point.X, point.Y);
     }
-    if (background is not (0, 0, 0)) throw new Exception($"Host background must be black, not a false-positive white baseline: {background}");
+    if (background is not (0, 0, 0))
+    {
+      NativeScreenCapture.Save(bounds, Path.Combine(directory, "host-background-failure.png"));
+      var hit = GetAncestor(WindowFromPoint(new PointNative { X = point.X, Y = point.Y }), 2);
+      var name = new StringBuilder(128); GetClassNameW(hit, name, name.Capacity); GetWindowThreadProcessId(hit, out var pid);
+      DwmGetWindowAttribute(host, 14, out var cloaked, 4);
+      throw new Exception($"Host background must be black, not a false-positive white baseline: {background}; host={host:X}, visible={IsWindowVisible(host)}, cloaked={cloaked}, style={GetWindowLongPtrW(host, -16).ToInt64():X}, exStyle={GetWindowLongPtrW(host, -20).ToInt64():X}, hit={hit:X}/{name}/PID:{pid}, bounds={bounds}");
+    }
     using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
     // As the app does: place the scene and create its browser, navigate while hidden, show with the first frame's papers.
     surface.SetShellParent(host);
@@ -93,9 +105,6 @@ internal static class HostChildProbe
     var rounded = !(Math.Abs(corner.R - 0xe0) < 24 && Math.Abs(corner.G - 0x50) < 24 && Math.Abs(corner.B - 0xa0) < 24);
     Console.WriteLine($"{(rounded ? "PASS" : "FAIL")} {variant} paper corner is clipped round: rgb({corner.R},{corner.G},{corner.B})");
     var shown = Report(variant, bounds, scale) && rounded;
-    var handle = new WindowInteropHelper(surface.InputWindow).Handle;
-    if ((GetWindowLongPtrW(handle, -20).ToInt64() & 0x00200000) == 0)
-      throw new Exception("Attached browser host still owns a WPF redirection bitmap.");
     // Adjusted position -> stack -> spread, without pointer input. Check both the app's prepare/hide path and
     // a visible region replacement; only checking the final hide missed the user's persistent old-position blocks.
     var previous = (X: 20, Y: 20, Height: 100);
@@ -169,6 +178,28 @@ internal static class HostChildProbe
     finally { ReleaseDC(IntPtr.Zero, dc); }
   }
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
+  private delegate IntPtr WindowProcedure(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  private static readonly WindowProcedure BlackProcedure = DefWindowProcW;
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct BlackWindowClass
+  {
+    public uint Style;
+    public WindowProcedure Procedure;
+    public int ClassBytes, WindowBytes;
+    public IntPtr Instance, Icon, Cursor, Background;
+    public string? Menu;
+    public string Name;
+  }
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern ushort RegisterClassW(ref BlackWindowClass value);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr DefWindowProcW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandleW(string? name);
+  [DllImport("gdi32.dll")] private static extern IntPtr GetStockObject(int index);
+  [StructLayout(LayoutKind.Sequential)] private struct PointNative { public int X, Y; }
+  [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(PointNative point);
+  [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
+  [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, StringBuilder name, int maximum);
+  [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out uint value, int bytes);
   [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out NativeRect rect);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowExW(uint exStyle, string className, string title, uint style,
     int x, int y, int width, int height, IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);

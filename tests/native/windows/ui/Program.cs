@@ -23,9 +23,10 @@ internal static class Program
     var composition = args.Length == 2 && args[0] == "--composition";
     var wallpaper = args.Length == 2 && args[0] == "--wallpaper" || args.Length == 3 && args[0] == "--wallpaper" && args[2] == "--wait-desktop";
     var diagnostics = args.Length == 2 && args[0] == "--diagnostics";
+    var formation = args.Length == 2 && args[0] == "--formation";
     var platform = args.Length == 1 && args[0] == "--platform";
-    if (!composition && !wallpaper && !diagnostics && !hostChild && !hostCheck && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
+    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && args.Length != 1)
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -38,6 +39,7 @@ internal static class Program
         else if (wallpaper) await WallpaperProbe.Run(Path.GetFullPath(args[1]));
         else if (composition) await CompositionProbe.Run(Path.GetFullPath(args[1]));
         else if (diagnostics) await DiagnosticsProbe.Run(Path.GetFullPath(args[1]));
+        else if (formation) await DesktopFormationProbe.Run(Path.GetFullPath(args[1]));
         else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
         app.Shutdown(0);
       }

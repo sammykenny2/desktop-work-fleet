@@ -51,7 +51,7 @@ public sealed class DesktopSurface : IDisposable
   {
     this.layered = layered;
     WebView = layered ? new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.Transparent }
-      : new WebView2 { DefaultBackgroundColor = System.Drawing.Color.Transparent };
+      : new WebView2 { DefaultBackgroundColor = System.Drawing.Color.White };
     if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(width) || !double.IsFinite(height)
       || Math.Abs(left) > 1_000_000 || Math.Abs(top) > 1_000_000
       || width is <= 0 or > 32768 || height is <= 0 or > 32768) throw new ArgumentException("Invalid scene bounds.");
@@ -105,7 +105,7 @@ public sealed class DesktopSurface : IDisposable
   {
     Title = "Work Fleet 桌面", Left = left, Top = top, Width = width, Height = height,
     WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = layered,
-    // Attached scenes have no WPF backing bitmap; the browser alone draws their papers.
+    // Empty browser pixels must not expose a white WPF background during paper-region transitions.
     Background = Brushes.Transparent, ShowActivated = false, ShowInTaskbar = false,
     WindowStartupLocation = WindowStartupLocation.Manual, UseLayoutRounding = true,
   };
@@ -416,13 +416,12 @@ public sealed class DesktopSurface : IDisposable
   {
     var previousStyle = GetWindowLongPtrW(handle, -20).ToInt64();
     var style = previousStyle | 0x80; // TOOLWINDOW, absent from Alt-Tab.
-    // The windowed WebView draws through its own DirectComposition child. Avoid a second, opaque WPF backing bitmap
-    // during paper-region transitions, including under classic Explorer.
-    if (!layered) style |= 0x00200000; // NOREDIRECTIONBITMAP; layered composition scenes retain their WPF pixels.
     if (transparent) style |= 0x20 | 0x08000000; // Layered WS_EX_TRANSPARENT works across processes; never activates.
     if (style == previousStyle) return;
     SetLastError(0); var previous = SetWindowLongPtrW(handle, -20, new IntPtr(style));
-    if (previous == IntPtr.Zero && Marshal.GetLastWin32Error() != 0) throw new InvalidOperationException("Unable to set scene policy.");
+    var error = Marshal.GetLastWin32Error();
+    if (previous == IntPtr.Zero && error != 0)
+      throw new System.ComponentModel.Win32Exception(error, $"Unable to set scene policy (HWND={handle:X}, before={previousStyle:X}, requested={style:X}, actual={GetWindowLongPtrW(handle, -20).ToInt64():X}).");
     if (!layered && !SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x0137))
       throw new InvalidOperationException("Unable to apply scene composition policy.");
   }

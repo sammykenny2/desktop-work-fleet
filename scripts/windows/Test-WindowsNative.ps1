@@ -3,7 +3,8 @@
     Run real Windows persistence, IPC and WPF/WebView2 UI probes with isolated data.
 .DESCRIPTION
     First builds Debug app and probes. WebView2 needs a Windows user session and
-    installed Evergreen Runtime. Probe windows are offscreen; shortcut/tray cases
+    installed Evergreen Runtime. Main probe windows are offscreen; surface/formation
+    probes show synthetic papers in owned windows on an uncovered desktop area. Shortcut/tray cases
     request activation only for owned windows and never inject global input.
     Synthetic databases/screenshots stay in a new build/native-checks-* directory.
     A restricted agent execution environment can prevent WebView2 startup; this is
@@ -52,6 +53,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer wallpaper-layer probe failed.' }
     & $UiProbe --host-check (Join-Path $ProbeRoot 'host')
     if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer-style attached scene probe failed.' }
+    & $UiProbe --formation (Join-Path $ProbeRoot 'formation')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows owner formation pixel regression failed.' }
     & $UiProbe --diagnostics (Join-Path $ProbeRoot 'diagnostics')
     if ($LASTEXITCODE -ne 0) { throw 'Windows Debug WebView diagnostics probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"

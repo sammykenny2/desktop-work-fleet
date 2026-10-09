@@ -2,7 +2,43 @@
 
 更新：2026-10-09。本檔是本 repo 的執行狀態權威。
 
-## 2026-10-09 堆疊／攤開後舊位置白塊再修正
+## 2026-10-09 恢復實機測試與附著場景相容性修正
+
+使用者明確表示「我沒使用電腦了，你可以測試或截圖」，解除先前限制。
+只以隔離資料與自有測試便箋驗證，沒有操作或修改正在執行的安裝版與其資料。
+
+- `8ec8413` 的 NOREDIRECTIONBITMAP 在 23H2 WPF 視窗初始化被拒絕，Win32 error 87，已撤回；
+  保留 HWND／原、目標及實際 style 診斷，不吞掉 OS 錯誤。透明 windowed WebView 的真螢幕顏色
+  也變暗，恢復原白色背景；floating composition 仍透明，WPF 背景／NOCOPYBITS／hide 順序保留。
+- 兩種仿 Explorer 宿主的移位、縮高、展開與新紙面仍可見時的舊位置／邊緣還原已通過。
+  仿宿主另以自有 GDI BLACK_BRUSH backdrop 作基準，避免把背後應用誤作黑色背景。
+  空白 WPF 背景窗曾有命中但未繪製，讀到終端 `(12,12,12)`；系統 Static 黑矩形實際為主題色 `(105,105,105)`，
+  都被原零像素前置條件拒絕。固定 black brush 後兩種宿主通過，沒有放寬判斷或改使用者主題。
+- 真 Explorer 桌面／桌布層以整個 monitor scene 尺寸反覆移位與縮高；紙面顏色、舊中心／邊緣與 hide
+  還原通過。新增 composed-screen 裁切圖，而非只用 browser preview 判定背景正確。
+- 新增實際 owner formation probe，接入 `Test-WindowsNative.ps1`：兩張隔離便箋經真 client／bridge／owner
+  保存合成 PointerEvent 調整位置，再按主畫面堆疊／攤開。桌面、浮動排列後返回桌面及桌布層案例通過；
+  每步逐像素核對原背景，非取樣點間隔，PNG 確認還原。浮動模式只排除實際標籤／圓角邊框帶，保留區域內背景檢查。
+  前景判定鎖定六個便箋 HWND 與 browser，排除主畫面／framework helper；後者初始化也曾產生 foreground 事件，
+  不把 presentation 檢查擴張成整個 owner 程序永不得啟用。測試工作區僅注入 fixture，native scene 仍是實際整個螢幕尺寸。
+- 安裝版 assembly 與 Assets 複本在隔離案例也通過：表面幾何及實際 owner 案例均不能重現原白塊。
+  因此不能宣稱使用者問題根因已證實或已完全修復；原始工作空間與實體快速滑鼠仍待使用者驗收。
+- JS 相關回歸 78／78 通過。完整原生回歸第一次在 wallpaper 最後 foreground 比對失敗：
+  before TeamViewer HWND 仍存活、after 是 Windows Terminal。補全程前景事件後抓到短暫自有啟用，
+  發生於探針將同一 windowed child 改成浮動 popup 的人工路徑，安裝版複本同樣失敗。
+  探針改用產品實際的獨立 composition floating surface 後，切層與全程不啟用檢查通過；保留失敗證據。
+  同次此前的 core、11 項 JS→native、UI／prepare／IME／close、composition capture／region、platform 全通過。
+- 最後 `Test-WindowsNative.ps1 -SkipRestore` 完整通過：core、11 項 JS→native、UI／prepare／IME／close、
+  composition capture／region、platform、真 Explorer、兩種黑底仿宿主、實際 formation 及 Debug diagnostics。
+  正向 foreground grant 小項因 OS 未授權而 SKIP，null intent 拒絕通過；此前同輪有授權時也通過。
+  Native foreground observer 與實際 formation 背景檢查沒有 SKIP。文件、PowerShell 語法與 diff 檢查通過。
+- 電腦操作工具因 native pipe 無法連線而未使用；沒有送真滑鼠／鍵盤。合成 DOM／WPF 回歸不代替實體快速拖曳。
+  沒有獨立審閱，作者測試不是獨立審閱。沿用 0.1.1，以既有本機憑證與打包 SOP 交付；
+  最終產物路徑、大小、hash 與包檢查結果回報於對話。沒有升版、Actions dispatch、tag 或 release。
+
+## 2026-10-09 堆疊／攤開後舊位置白塊再修正（恢復測試前紀錄）
+
+下列保留 `8ec8413` 編譯／未測的歷史狀態；目前修訂與恢復測試證據以上節為準。
 
 使用者安裝上一輪 `9dbd201` 的本機包後確認殘影仍在，新的最小重現不需要拖曳：
 調過位置的 note 經堆疊／攤開移動，黑色桌布在舊位置留下白塊。上一輪提前 hide／非同步重畫未解決。

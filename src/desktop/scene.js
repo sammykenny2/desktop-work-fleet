@@ -3,10 +3,11 @@ import { renderMarkdown } from '../app/markdown.js';
 import { DesktopClient, DesktopDraft } from './client.js';
 import { download, parse } from './transport.js';
 import { shortcutForEvent } from '../core/shortcuts.js';
+import { createFrameRefresher } from './frame-refresh.js';
 
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set();
-let bridge, client, info, frame, editor = null, composing = false, fetching = false, requested = false, gesture = null, lastError, displayPending = false;
+let bridge, client, info, frame, editor = null, composing = false, gesture = null, lastError, displayPending = false;
 let repaintPending = false;
 const make = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const rect = (node, value) => Object.assign(node.style, { left: `${value.x}px`, top: `${value.y}px`, width: `${value.width}px`, height: `${value.height}px` });
@@ -101,22 +102,18 @@ function renderNotice(notice) {
   shown.style.left = `${notice.rect.x + notice.rect.width / 2}px`; shown.style.top = `${notice.rect.y + notice.rect.height / 2}px`;
   root.append(shown);
 }
-async function refresh() {
-  requested = true; if (fetching) return; fetching = true;
+const refresh = createFrameRefresher(async () => {
+  const value = await bridge.request('scene.frame'); if (!value) return;
   try {
-    while (requested) {
-      requested = false; const value = await bridge.request('scene.frame'); if (!value) continue;
-      try {
-        const next = parse(await download(value, offset => bridge.request('scene.read', { token: value.token, offset })));
-        if (displayPending || (next.topology ?? 0) !== (info.topology ?? 0)) continue;
-        if (render(next) || frame?.sequence === next.sequence) {
-          if (document.visibilityState === 'visible') await new Promise(resolve => { requestAnimationFrame(resolve); setTimeout(resolve, 100); });
-          await bridge.request('scene.applied', { sequence: next.sequence, topology: next.topology ?? 0 });
-        }
-      } finally { await bridge.request('scene.discard', { token: value.token }).catch(() => {}); }
+    const next = parse(await download(value, offset => bridge.request('scene.read', { token: value.token, offset })));
+    if (displayPending || (next.topology ?? 0) !== (info.topology ?? 0)) return;
+    if (info.prepareFrames && !(await bridge.request('scene.prepare', { sequence: next.sequence, topology: next.topology ?? 0 })).accepted) return;
+    if (render(next) || frame?.sequence === next.sequence) {
+      if (document.visibilityState === 'visible') await new Promise(resolve => { requestAnimationFrame(resolve); setTimeout(resolve, 100); });
+      await bridge.request('scene.applied', { sequence: next.sequence, topology: next.topology ?? 0 });
     }
-  } finally { fetching = false; }
-}
+  } finally { await bridge.request('scene.discard', { token: value.token }).catch(() => {}); }
+});
 function pointerArgs(current, event) { return { gestureId: current.id, pointerId: current.pointerId, point: point(event), shiftKey: event.shiftKey, labels: labels() }; }
 function paintDrag(current, value) {
   current.preview = { ...current.origin, x: current.origin.x + value.x - current.start.x, y: current.origin.y + value.y - current.start.y };
@@ -148,6 +145,7 @@ async function initialize() {
   bridge = new NativeBridge(transport); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
   root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
   bridge.onEvent('desktop-frame', () => { void run(refresh); });
+  bridge.onEvent('desktop-pointer-cancel', () => { void run(cancel); });
   bridge.onEvent('desktop-repaint', () => {
     if (repaintPending) return;
     repaintPending = true;
@@ -192,7 +190,12 @@ async function initialize() {
   root.onpointerup = event => { void run(async () => {
     const current = gesture; if (!current || current.ended || event.pointerId !== current.pointerId) return;
     const args = pointerArgs(current, event); current.ended = true;
-    try { await current.pumping; if ((await current.down).accepted) await client.command('pointer.up', args); }
+    if (current.preview) paintDrag(current, args.point);
+    try {
+      await current.pumping;
+      if ((await current.down).accepted) await client.command('pointer.up', args);
+      await refresh();
+    }
     catch (error) {
       await client.command('pointer.cancel', { gestureId: current.id, pointerId: current.pointerId }).catch(() => {}); throw error;
     }

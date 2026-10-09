@@ -71,6 +71,19 @@ Accepted，2026-10-04。採用共用命令／草稿協調及 Windows 呈現接�
 
 少一道轉送，但讓所有呈現文件擁有主工作區／vault 能力，且無法建立唯一控制器序列；因此拒絕。
 
+## 2026-10-09 修訂：拖曳完成與附著畫面更新順序
+
+`pointer.up`／`pointer.cancel` 的回覆先等主畫面發布目前 geometry。
+場景的 refresh 呼叫共用同一個進行中的下載與後續更新，放開後仍保留預覽，
+直到最新畫面下載及 native applied 完成，避免舊投影短暫把卡片拉回原位。
+
+Windows 的 `scene.info` 回報選填 `prepareFrames`；場景下載後先呼叫 `scene.prepare`，
+native 驗證 sequence／topology，若 Explorer 附著表面的紙面 geometry 改變，先隱藏舊表面，
+再允許 renderer 移除／搬動便箋，之後沿原有 `scene.applied` 顯示新區域。
+這避免在舊的 opaque region 先畫出空白 WebView 背景；隱藏／釋放後另請原 Explorer parent 重繪。
+其他平台未回報此能力時不呼叫新方法；不變更桌布設定、便箋內容、geometry 保存規則或 IPC 容量。
+白色殘影的根因仍需新包實機確認，這個修正後流程及新增回歸尚未執行。
+
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)

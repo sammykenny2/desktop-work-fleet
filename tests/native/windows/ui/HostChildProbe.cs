@@ -57,6 +57,8 @@ internal static class HostChildProbe
     var bounds = new PhysicalBounds(rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top);
     var scale = GetDpiForWindow(host) / 96d;
     if (variant == "windowed") return await Windowed(host, directory, bounds, scale);
+    var point = (X: bounds.X + (int)(100 * scale), Y: bounds.Y + (int)(70 * scale));
+    var background = Pixel(point.X, point.Y);
     using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
     // As the app does: place the scene and create its browser, navigate while hidden, show with the first frame's papers.
     surface.SetShellParent(host);
@@ -75,7 +77,12 @@ internal static class HostChildProbe
     var corner = Pixel(bounds.X + (int)Math.Floor(20 * scale), bounds.Y + (int)Math.Floor(20 * scale));
     var rounded = !(Math.Abs(corner.R - 0xe0) < 24 && Math.Abs(corner.G - 0x50) < 24 && Math.Abs(corner.B - 0xa0) < 24);
     Console.WriteLine($"{(rounded ? "PASS" : "FAIL")} {variant} paper corner is clipped round: rgb({corner.R},{corner.G},{corner.B})");
-    return Report(variant, bounds, scale) && rounded;
+    var shown = Report(variant, bounds, scale) && rounded;
+    surface.Hide(); await Task.Delay(800);
+    var restored = Pixel(point.X, point.Y);
+    if (restored != background) throw new Exception($"Hidden attached paper left stale pixels: before={background}, after={restored}");
+    Console.WriteLine("PASS hiding an attached paper restores the host background");
+    return shown;
   }
 
   // The browser draws into its own child window through DirectComposition instead of into the WPF surface.

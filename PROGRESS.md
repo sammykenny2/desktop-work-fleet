@@ -2,6 +2,25 @@
 
 更新：2026-10-09。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-09 Windows 拖曳回彈與附著白色殘影修正
+
+使用者已安裝本機簽署的 0.1.1，回報最上層快速拖曳被拉回原位，左上角舊位置留下白色便箋形狀。
+授權直接修正及本機打包，隨後明確要求要使用電腦，繼續改 code 但不要測試及截圖。
+
+- 停止要求之前：唯讀畫面確認白塊；新增捕獲檢查後執行修正前 composition probe，
+  在缺少 native mouse capture 處 FAIL。仿 Explorer 宿主 hide／背景檢查 PASS，不能作真 Explorer 殘影通過證據。
+- 浮動 WebView 補 WPF mouse capture，左鍵放開／hide／topology 暫停／dispose 解除，意外失去捕獲向場景發出取消。
+- `pointer.up`／`pointer.cancel` 先等最新 geometry 發布才回覆；refresh 等待進行中的讀取與後續新 frame，
+  放開後保留最後位置預覽，直到新畫面 applied，避免過期投影先復原舊位置。
+- Windows 以選填 `prepareFrames`／`scene.prepare` 在附著紙面 geometry 改變時先隱藏舊表面，
+  再移除／搬動 DOM；hide／dispose 請原 Explorer parent 重繪，不改桌布設定。白塊根因及修正效果仍待實機確認。
+- 已補 JS 發布屏障／refresh 排程，以及 native 捕獲／解除／prepare 順序／背景還原回歸。
+  依使用者停止要求，修改後所有新增與既有測試、截圖、使用者安裝版操作均未執行；沒有獨立審閱。
+- 本輪交付沿用 Windows 0.1.1、既有本機憑證及打包 SOP，不升版、不 dispatch Actions、不發布 release。
+  `Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign` 已完成，Release 編譯 0 警告／0 錯誤，
+  腳本內建 SignTool 簽署與信任驗證成功；沒有執行 Test-WindowsPackage 或 runtime 測試。
+  產物路徑、大小及 hash 回報於對話；同版號安裝與上述互動修正效果待使用者有空驗收。
+
 ## 2026-10-09 Windows 11 23H2 原生驗證與安裝下限實作
 
 使用者在本專案授權開工，確認本機是 23H2，完成後可共同手動測試。沿 PLAN-004 先驗證原生，再修改封裝。

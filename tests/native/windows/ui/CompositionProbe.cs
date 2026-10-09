@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Diagnostics;
 using System.Reflection;
 using WorkFleet.Windows;
@@ -97,6 +98,27 @@ internal static class CompositionProbe
       surface.SetInput([]); await Task.Delay(100);
       if (Hit(100, 150) != targetHandle) throw new Exception("Ending interaction retained an input region");
       Console.WriteLine("PASS topmost/resident layer, hide/show and empty-input transitions; no activation or input injection");
+      var element = (UIElement)web;
+      element.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseDownEvent, Handled = true });
+      if (Mouse.Captured != element || GetCapture() != handle)
+        throw new Exception("Floating WebView did not capture the native mouse for a drag.");
+      surface.SetInput([new(300, 200, 40, 40, true)]);
+      if (GetCapture() != handle) throw new Exception("Moving the input region dropped native drag capture.");
+      element.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseUpEvent, Handled = true });
+      if (Mouse.Captured == element || GetCapture() == handle) throw new Exception("Mouse release retained native drag capture.");
+      var lostCapture = 0; surface.PointerCaptureLost += () => lostCapture++;
+      element.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseDownEvent, Handled = true });
+      Mouse.Capture(null);
+      if (lostCapture != 1) throw new Exception("Unexpected native capture loss did not notify the scene.");
+      element.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseDownEvent, Handled = true });
+      surface.Hide();
+      if (GetCapture() == handle || lostCapture != 1) throw new Exception("Hidden scene retained drag capture or sent a false cancellation.");
+      surface.Show(topmost: true);
+      element.RaiseEvent(new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = Mouse.MouseDownEvent, Handled = true });
+      surface.SuspendInput();
+      if (GetCapture() == handle || lostCapture != 1) throw new Exception("Topology suspension retained drag capture or sent a false cancellation.");
+      Console.WriteLine("PASS native drag capture survives input-region movement and releases on mouse up");
+      Console.WriteLine("PASS unexpected capture loss notifies the scene; hide and topology suspension release capture");
       var watch = Stopwatch.StartNew();
       surface.SetInput(Enumerable.Range(0, 20000).Select(i => new SceneHitRect((i % 200) * 2, (i / 200) * 2, 1, 1, true)));
       watch.Stop(); VerifySplit(handle, mirrorHandle, bounds);
@@ -165,6 +187,7 @@ internal static class CompositionProbe
   [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
   [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
+  [DllImport("user32.dll")] private static extern IntPtr GetCapture();
   [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr window, uint flags);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, System.Text.StringBuilder name, int capacity);

@@ -60,6 +60,7 @@ public sealed class DesktopCoordinator : IDisposable
     public DesktopFrame? Downloading;
     public string? Download;
     public long Applied = -1;
+    public LogicalRect[] PresentedRects = [];
   }
 
   public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Action showMain, Action<string> openExternal,
@@ -85,6 +86,7 @@ public sealed class DesktopCoordinator : IDisposable
   private void Watch(SceneView view)
   {
     activity.Watch(view.Surface.InputWindow);
+    view.Surface.PointerCaptureLost += () => Post(view, new { v = 1, @event = "desktop-pointer-cancel" });
     view.Surface.DpiChanged += () => { if (started && view.Ready && view.Active && !view.Retired) displayWatcher.Refresh(); };
   }
   private object[] Registrations() => shortcuts.Registrations.Select(r => (object)new { key = r.Key, target = r.Target, status = r.Status }).ToArray();
@@ -369,7 +371,7 @@ public sealed class DesktopCoordinator : IDisposable
       }
       case "scene.info":
         view.Ready = true;
-        return new { sessionId = SessionId, viewId = view.Id, layer = view.Layer, active = view.Active, topology, bindings = BindingMap(), viewport = new { x = view.Viewport.X, y = view.Viewport.Y, width = view.Viewport.Width, height = view.Viewport.Height } };
+        return new { sessionId = SessionId, viewId = view.Id, layer = view.Layer, active = view.Active, topology, prepareFrames = true, bindings = BindingMap(), viewport = new { x = view.Viewport.X, y = view.Viewport.Y, width = view.Viewport.Width, height = view.Viewport.Height } };
       case "scene.report": sendOwner(new { v = 1, @event = "desktop-error", viewId = view.Id, message = JsonRules.Text(args, "message", 2000) }); return null;
       case "scene.frame":
       {
@@ -380,6 +382,16 @@ public sealed class DesktopCoordinator : IDisposable
       }
       case "scene.read": return transfers.Read(view.Id, JsonRules.Text(args, "token"), Size(args, SceneTransfers.MaxFrame, "offset"));
       case "scene.discard": transfers.Drop(view.Id, JsonRules.Text(args, "token")); return null;
+      case "scene.prepare":
+      {
+        if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
+        HostError.Require(view.Downloading?.Sequence == JsonRules.Integer(args, "sequence"), "scene-order", "桌面畫面尚未準備更新。");
+        var nextRects = view.Downloading!.Cards.Where(c => c.Layer == view.Layer && Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
+        // Remove an Explorer-attached surface before its browser erases or moves papers inside the old opaque region.
+        // Otherwise that old region briefly paints the WebView's white background and can remain in the shell surface.
+        if (view.Layer != "floating" && view.Surface.Shown && !view.PresentedRects.SequenceEqual(nextRects)) view.Surface.Hide();
+        return new { accepted = true };
+      }
       case "scene.applied":
       {
         var sequence = JsonRules.Integer(args, "sequence");
@@ -398,6 +410,7 @@ public sealed class DesktopCoordinator : IDisposable
         var wasShown = view.Surface.Shown;
         var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
         if (notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
+        view.PresentedRects = cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
         view.Applied = sequence; TryFocus(view);
         if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
         return new { accepted = true };

@@ -27,6 +27,12 @@ export interface DesktopInfo {
   workAreas: (Rect & { id: string; primary: boolean })[];
   views: { viewId: string; layer: ResidentLayer; viewport: Rect }[];
 }
+/** scene.info response. Hosts opt in before a scene sends the optional scene.prepare call. */
+export interface DesktopSceneInfo {
+  sessionId: string; viewId: string; layer: ResidentLayer; active: boolean;
+  topology: number; viewport: Rect; bindings: Record<string, string>;
+  prepareFrames?: boolean;
+}
 export interface ShortcutRegistration {
   key: string; target: string;
   status: 'available' | 'suspended' | 'conflict' | 'unavailable' | 'reserved' | 'editing' | 'typing' | 'invalid';
@@ -49,3 +55,6 @@ export type DesktopOwnerCall =
 // Command serials are monotonically admitted per view. Replays outside the bounded receipt cache reject.
 // Native transfers are principal-bound, 256 KiB chunks, SHA-256 validated; frame 128 MiB, command 16 MiB.
 // A flush acknowledgement must follow the final durable editor.change acknowledgement, never just local input.
+// With prepareFrames, scene.prepare({sequence, topology}) must be accepted before rendering the downloaded frame.
+// Windows hides an attached surface whose paper geometry changes before its browser erases the old paper region.
+// A pointer.up/cancel reply follows publication of the resulting geometry; the scene drains pending frame reads before clearing its preview.

@@ -42,9 +42,30 @@ internal static class DesktopIntegrationProbe
     await Eval(resident, "window.denied=null;chrome.webview.addEventListener('message', e=>{if(e.data.id==='22222222-2222-4222-8222-222222222222')window.denied=e.data});chrome.webview.postMessage({v:1,id:'22222222-2222-4222-8222-222222222222',method:'storage.load',params:{kind:'workspace'}})");
     await Wait(async () => (await Eval(resident, "window.denied?.error?.code==='unsupported-method'")).ValueKind == JsonValueKind.True,
       "display view cannot access storage", main);
+    await Eval(resident, """
+      window.preparedPaperRemoval = null;
+      let prepareId = null, appliedId = null, regionPrepared = false;
+      const originalScenePost = chrome.webview.postMessage.bind(chrome.webview);
+      chrome.webview.postMessage = request => {
+        if (request.method === 'scene.prepare') prepareId = request.id;
+        if (request.method === 'scene.applied') appliedId = request.id;
+        originalScenePost(request);
+      };
+      chrome.webview.addEventListener('message', event => {
+        if (event.data.id === prepareId) regionPrepared = event.data.ok && event.data.result?.accepted === true;
+        if (event.data.id === appliedId) regionPrepared = false;
+      });
+      new MutationObserver(records => {
+        if (records.some(record => [...record.removedNodes].some(node => node.matches?.('.card'))))
+          window.preparedPaperRemoval = regionPrepared;
+      }).observe(document.querySelector('#scene'), {childList:true});
+      """);
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-all').click()");
     await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('.card.operable'))")).ValueKind == JsonValueKind.True,
       "all scope appears on floating surface", main);
+    await Wait(async () => (await Eval(resident, "window.preparedPaperRemoval === true")).ValueKind == JsonValueKind.True,
+      "native frame preparation acknowledged before removing the resident paper", main);
+    Console.WriteLine("PASS attached paper removal waits for native frame preparation before erasing its DOM");
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");
     await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True,
       "scene inline editor", main);

@@ -14,6 +14,30 @@ function bridge() {
     async request(method, args) { requests.push({ method, args }); return {}; } };
 }
 
+for (const method of ['pointer.up', 'pointer.cancel']) test(`${method} keeps the scene preview until the changed geometry is published`, async () => {
+  const transport = bridge(); const publishing = deferred(); const release = deferred();
+  const received = []; const errors = []; const baseRequest = transport.request;
+  transport.request = async (name, args) => {
+    await baseRequest(name, args);
+    if (name === 'desktop.frame.begin') return { token: 'frame-token' };
+    if (name === 'desktop.frame.append') return { offset: args.offset + Buffer.from(args.base64, 'base64').length };
+    if (name === 'desktop.frame.publish') { publishing.resolve(); await release.promise; }
+    if (name === 'desktop.reply') received.push(args);
+    return {};
+  };
+  const result = method === 'pointer.up' ? { kind: 'moved', cardId: 'card' } : null;
+  const owner = new DesktopOwner({ bridge: transport,
+    authority: { request: async () => result, whenIdle: async () => {}, close() {} },
+    editor: () => null, project: sequence => ({ sequence, x: 300 }),
+    changed: () => owner.publish(), error: error => errors.push(error), lost() {}, dismiss() {} });
+  transport.event('desktop-command', { ticket: 'drag-ended', viewId: 'view', command: { method } });
+  await publishing.promise;
+  assert.deepEqual(received, []);
+  release.resolve(); await owner.whenIdle(); await tick();
+  assert.deepEqual(received, [{ ticket: 'drag-ended', ok: true, result }]);
+  assert.deepEqual(errors, []); owner.close();
+});
+
 test('desktop text retries the exact uncertain version before newer input and only advances sequence on durable acknowledgement', async () => {
   const calls = []; const reply = deferred(); let fail = true;
   const client = { async command(method, args) {

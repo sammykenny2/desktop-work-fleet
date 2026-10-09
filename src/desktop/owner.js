@@ -64,6 +64,8 @@ export class DesktopOwner {
     try {
       if (this.#sealed || this.#closing && command.method !== 'editor.change') throw new FleetError('desktop-closing', 'App 正在保存並關閉，請稍候。');
       const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null, topology: message.topology ?? 0 }); this.#changed();
+      // Keep the scene's drag preview until the native mailbox contains the committed or cancelled geometry.
+      if (command.method === 'pointer.up' || command.method === 'pointer.cancel') await this.whenPublished();
       await this.#reply(message.ticket, true, result);
     } catch (error) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); }
   }

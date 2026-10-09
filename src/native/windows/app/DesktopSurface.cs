@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace WorkFleet.Windows;
@@ -23,6 +24,7 @@ public sealed class DesktopSurface : IDisposable
   private bool ordering;
   private bool closePending;
   private bool inputSuspended;
+  private bool dragCaptured;
   private IntPtr shellParent;
   private PhysicalBounds? physicalBounds;
   public bool Shown => shown;
@@ -30,6 +32,7 @@ public sealed class DesktopSurface : IDisposable
   public uint Dpi => GetDpiForWindow(InputHandle);
   public event Action? CloseRequested;
   public event Action? DpiChanged;
+  public event Action? PointerCaptureLost;
   private SceneHitRect[] rectangles = [];
   private IntPtr InputHandle => new WindowInteropHelper(InputWindow).Handle;
   private IntPtr VisualHandle => new WindowInteropHelper(VisualWindow).Handle;
@@ -53,6 +56,24 @@ public sealed class DesktopSurface : IDisposable
       || Math.Abs(left) > 1_000_000 || Math.Abs(top) > 1_000_000
       || width is <= 0 or > 32768 || height is <= 0 or > 32768) throw new ArgumentException("Invalid scene bounds.");
     InputWindow = Create(left, top, width, height, layered); InputWindow.Content = WebView;
+    if (layered)
+    {
+      var element = (UIElement)WebView;
+      // DOM pointer capture cannot keep WPF mouse events arriving outside a lagging native paper region.
+      element.AddHandler(Mouse.MouseDownEvent, new MouseButtonEventHandler((_, e) =>
+      {
+        if (shown && !inputSuspended && e.ChangedButton == MouseButton.Left) dragCaptured = element.CaptureMouse();
+      }), handledEventsToo: true);
+      element.AddHandler(Mouse.MouseUpEvent, new MouseButtonEventHandler((_, e) =>
+      {
+        if (e.ChangedButton == MouseButton.Left) ReleaseDragCapture();
+      }), handledEventsToo: true);
+      element.LostMouseCapture += (_, _) =>
+      {
+        if (!dragCaptured) return;
+        dragCaptured = false; if (!disposed) PointerCaptureLost?.Invoke();
+      };
+    }
     VisualWindow = Create(left, top, width, height, layered);
     VisualWindow.Content = !layered ? null : new System.Windows.Shapes.Rectangle { IsHitTestVisible = false,
       Fill = new VisualBrush((Visual)WebView) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top } };
@@ -150,9 +171,24 @@ public sealed class DesktopSurface : IDisposable
   public void Hide()
   {
     InputWindow.Dispatcher.VerifyAccess(); if (disposed) return;
+    ReleaseDragCapture();
+    var wasShown = shown;
     shown = false; if (!NativeAlive) return;
     SetRegion([]);
     InputWindow.Hide(); VisualWindow.Hide();
+    if (wasShown) RepaintShellParent();
+  }
+
+  private void ReleaseDragCapture()
+  {
+    dragCaptured = false;
+    if (ReferenceEquals(Mouse.Captured, WebView)) Mouse.Capture(null);
+  }
+
+  private void RepaintShellParent()
+  {
+    if (shellParent != IntPtr.Zero && IsWindow(shellParent))
+      _ = RedrawWindow(shellParent, IntPtr.Zero, IntPtr.Zero, 0x0001 | 0x0004 | 0x0080);
   }
 
   public void SetPhysicalBounds(PhysicalBounds bounds)
@@ -183,6 +219,7 @@ public sealed class DesktopSurface : IDisposable
   public void SuspendInput()
   {
     if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); inputSuspended = true;
+    ReleaseDragCapture();
     if (NativeAlive) SetRegion(Current());
   }
 
@@ -376,8 +413,9 @@ public sealed class DesktopSurface : IDisposable
 
   public void Dispose()
   {
-    if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); disposed = true; shown = false;
+    if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); ReleaseDragCapture(); disposed = true; shown = false;
     VisualWindow.Content = null; VisualWindow.Close(); InputWindow.Close(); ((IDisposable)WebView).Dispose();
+    RepaintShellParent();
   }
 
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
@@ -403,6 +441,7 @@ public sealed class DesktopSurface : IDisposable
   [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll")] private static extern bool ScreenToClient(IntPtr window, ref NativePoint point);
   [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
+  [DllImport("user32.dll")] private static extern bool RedrawWindow(IntPtr window, IntPtr rect, IntPtr region, uint flags);
   [DllImport("user32.dll")] private static extern IntPtr GetWindowDpiAwarenessContext(IntPtr window);
   [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
 }

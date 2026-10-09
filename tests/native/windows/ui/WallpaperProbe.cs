@@ -33,6 +33,8 @@ internal static class WallpaperProbe
           if (ShellAt(x + (int)(100 * scale), y + (int)(70 * scale), shell)) { bounds = new PhysicalBounds(x, y, 480, 300); uncovered = true; }
       if (!uncovered) await Task.Delay(500);
     } while (!uncovered && DateTime.UtcNow < waitUntil);
+    var point = (X: bounds.X + (int)(100 * scale), Y: bounds.Y + (int)(70 * scale));
+    var background = uncovered ? ScreenPixel(point.X, point.Y) : ((int R, int G, int B)?)null;
     // Same kind of surface the app attaches to Explorer: opaque, showing only its papers.
     using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
     var foreground = GetForegroundWindow();
@@ -85,7 +87,6 @@ internal static class WallpaperProbe
     Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, paper-only region, WebView pixels, physical coordinates and no activation");
     // Offscreen pixels prove WPF painted, not that the desktop shows it. Ask DWM to compose the whole Explorer desktop
     // (wallpaper, icon host and their children) even where applications cover it, and read only the test paper's pixel.
-    var point = (X: bounds.X + (int)(100 * scale), Y: bounds.Y + (int)(70 * scale));
     async Task<string> Screen(string layer)
     {
       await Task.Delay(800);
@@ -112,6 +113,14 @@ internal static class WallpaperProbe
     surface.Hide(); surface.Show(false); Parent(shell.Desktop);
     if (GetForegroundWindow() != foreground) throw new Exception("Layer transitions stole foreground focus.");
     Console.WriteLine("PASS wallpaper -> floating -> wallpaper -> icon host, repeated show and unchanged physical bounds");
+    surface.Hide(); await Task.Delay(800);
+    if (background is { } original && ShellAt(point.X, point.Y, shell))
+    {
+      var restored = ScreenPixel(point.X, point.Y);
+      if (restored != original) throw new Exception($"An attached paper left stale desktop pixels after hiding: before={original}, after={restored}");
+      Console.WriteLine("PASS hiding an Explorer-attached paper restores the original desktop pixel");
+    }
+    else Console.WriteLine("SKIP desktop pixel restoration: an application window covers the test spot");
   }
   private static bool ShellAt(int x, int y, NativeShellLayers shell)
   {

@@ -91,8 +91,17 @@ Windows 可另行評估，但不能成為跨平台可控疊序的共同保證，
   建立後才隱藏（`DesktopSurface.Start`）。`--host-check` 以仿 Progman 的宿主自動驗證這個順序。
 - 原本只在螢幕外比對 WPF 像素的探針不足以驗證；桌布層探針改為讀取真實螢幕（被視窗蓋住時略過，`--wait-desktop` 可等待）。
 
+## 2026-10-09 修訂：浮動拖曳的原生捕獲
+
+使用者在 23H2 實測快速拖曳不順及位置回彈。浮動 WebView 原本只有 DOM pointer capture，
+沒有 WPF mouse capture；修正前新增的原生探針確實在捕獲檢查失敗。
+最上層收到左鍵按下時捕獲到自有 WebView，放開、收起、topology 暫停及釋放時解除。
+意外失去原生捕獲通知場景取消手勢，不擴大常態輸入 region，不注入全域輸入。
+修正後的捕獲／區域移動／解除回歸尚未執行，因使用者要求停止測試及截圖。
+
 ## References
 
 - [Windows 場景研究](../resreach/2026-10-04-windows-composition-and-input.md)
 - [ADR-007](007-desktop-scene-and-platform-host.md)、[ADR-015](015-windows-native-storage-and-editor-host.md)
 - [測試命令](../testing.md)、[執行證據](../../PROGRESS.md)
+- [WPF Mouse.Capture](https://learn.microsoft.com/en-us/dotnet/api/system.windows.input.mouse.capture?view=windowsdesktop-8.0)

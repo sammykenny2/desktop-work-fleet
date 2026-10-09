@@ -34,8 +34,13 @@ Partner Center 尚未保留應用，尚未進入 Store 階段。
 
 ## 接續入口
 
-原生與未簽章包內容已驗證；目前先接續 PLAN-004 Phase 3 的使用者正常互動。
-沒有本機 preview 憑證，解壓 `build/WorkFleet-0.1.1-x64.zip` 後執行 `WorkFleet.exe`；MSIX 安裝需另有合適簽章。
+先前原生與未簽章包內容已驗證；使用者後續授權建立本機 preview 憑證及信任，已用既有
+`Build-WindowsPackage.ps1 -LocalTestSign` 產生 0.1.1 MSIX，並自行安裝測試。
+私鑰留在本機 CurrentUser/My，設為不可匯出；不把本機憑證當作 GitHub release 的 CI 憑證。
+使用者現在回報最上層快速拖曳回彈及舊位置白色殘影，已授權修正並本機打包。
+但使用者接著要使用電腦，明確要求停止測試及截圖：這輪修改後不得啟動任何 probe、測試 suite 或截圖，
+也不操作正在執行的安裝版。此限制保持有效，直到使用者授權恢復；修改後通過與否待後續驗收。
+實作與已執行／未執行證據見 PROGRESS，沿用 0.1.1，不升版或 dispatch Actions。
 新增原生改動需要回歸時，核對工作區與既有 App，再使用現有隔離入口、保留失敗證據：
 
 ```powershell

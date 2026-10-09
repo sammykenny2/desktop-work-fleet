@@ -19,9 +19,8 @@ if (args.length === 1 && args[0] === '--help') {
   if (!/^[a-zA-Z0-9.-]{3,50}$/.test(name)) throw new Error('Set WORK_FLEET_WINDOWS_PACKAGE_ID.');
   const version = await readPlatformVersion('windows');
   const publisher = config.windows.publisher || 'CN=Work Fleet Preview', publisherName = config.windows.publisherDisplayName || 'Work Fleet';
-  // Windows 11 24H2 (build 26100) is where Explorer moved the wallpaper host under Progman, the desktop structure the
-  // desktop and wallpaper layers are built and tested for; the Store does not offer the package to older Windows.
-  const minimumWindows = '10.0.26100.0', testedWindows = '10.0.26200.0';
+  // ADR-034: include early Windows 11 and exclude Windows 10 at installation; Explorer topology is discovered at runtime.
+  const minimumWindows = '10.0.22000.0', testedWindows = '10.0.26200.0';
   const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const images = path.join(stage, 'PackageAssets'); await mkdir(images, { recursive: true });
   for (const size of [44, 50, 150]) await writePaperIcon(path.join(images, `paper-${size}.png`), size);

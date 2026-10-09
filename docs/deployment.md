@@ -1,6 +1,6 @@
 # 平台與散布狀態
 
-更新：2026-10-06；目前試用版本降為 0.1.0，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
+更新：2026-10-09；Windows 版號為 0.1.1，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
@@ -13,7 +13,8 @@
 ## 版號與發佈檔名
 
 Windows 支援範圍依 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)：目標涵蓋早期 Windows 11／23H2 與 24H2+，Windows 10 排除安裝。
-目前 MSIX 產生器仍為 `MinVersion=10.0.26100.0`；`10.0.22000.0` 是待實作與最終包驗證的目標，Store 身份／提交尚未開始。編譯 framework 的 Windows 10 API 基線不等於產品支援範圍。
+MSIX 產生器與本次最終未簽章包已驗證 `Windows.Desktop MinVersion=10.0.22000.0`、`MaxVersionTested=10.0.26200.0`。
+本次 23H2 原生探針通過；正常互動與安裝仍待驗收，Store 身份／提交尚未開始。編譯 framework 的 Windows 10 API 基線不等於產品支援範圍。
 
 各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；不同平台可各自升版。
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
@@ -56,6 +57,10 @@ LocalMachine/TrustedPeople 信任的 CurrentUser/My 憑證，不使用 timestamp
 [Microsoft 本機簽章說明](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)。
 ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop／WebView2，不含 runtime 安裝器。
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
+沒有既有受信任 preview 憑證時，可用一般 `Build-WindowsPackage.ps1 -SkipRestore` 產生未簽章 MSIX／ZIP，
+以 `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 僅驗證包內容。
+使用者解壓 ZIP 後執行 `WorkFleet.exe`；正常版本共用 `%LOCALAPPDATA%\WorkFleet`，先關閉舊實例並備份已有資料。
+這條路徑不建立憑證、不改信任，也不構成 MSIX 安裝驗收。
 
 ### Windows 預覽版發布
 

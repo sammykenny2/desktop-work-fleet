@@ -85,7 +85,7 @@ test('packaging work directories are fixed and release files go directly in buil
   assert.ok((await read('scripts/windows/Build-AndroidApp.ps1')).includes("$Delivery = Join-Path $ProjectRoot 'build'"));
 });
 
-test('MSIX identity version comes from the Windows record', async () => {
+test('MSIX uses the Windows version record and includes early Windows 11 while excluding Windows 10', async () => {
   const directory = await checkout({ [versionRecords.windows]: '<Project><PropertyGroup><Version>2.4.6</Version></PropertyGroup></Project>\n' });
   try {
     for (const file of ['generate-windows-manifest.mjs', 'config.mjs', 'apple-icons.mjs', 'platform-version.mjs']) {
@@ -95,7 +95,9 @@ test('MSIX identity version comes from the Windows record', async () => {
     const stage = path.join(directory, 'build', 'windows', 'stage');
     await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
       { env: { PATH: process.env.PATH } });
-    assert.match(await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8'), /<Identity [^>]*Version="2\.4\.6\.0"/);
+    const manifest = await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8');
+    assert.match(manifest, /<Identity [^>]*Version="2\.4\.6\.0"/);
+    assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

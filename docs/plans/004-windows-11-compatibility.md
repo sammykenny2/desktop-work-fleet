@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Status | 需求已確認；本輪完成文件交接，實作由後續 session 接續 |
+| Status | 需求已確認；施工與驗收狀態見 PROGRESS |
 | Owner | 專案維護者 |
-| Assigned To | 後續 Windows 相容性實作 session |
+| Assigned To | Windows 相容性實作 session |
 | Reviewer | 重要原生改動另安排獨立審閱；目前沒有 |
 | 日期 | 2026-10-09 |
 
@@ -89,7 +89,8 @@ Partner Center 保留身份後再配置正式 package identity／publisher、簽
 
 ## Handoff
 
-下一個 session 從 Phase 1 開始。現有 MinVersion 仍是 26100，沒有本次 23H2 runtime PASS，沒有新 preview release。
-這次文件移交由使用者要求直接 commit／push main；未做原生實作、打包、升版或 Store 提交。
+最初文件移交由使用者要求直接 commit／push main；當時 MinVersion 為 26100、沒有本次原生 PASS。
+同日後續已接續 23H2 原生與最終未簽章包驗證，MinVersion 為 22000；完整證據與未測範圍只在 PROGRESS。
+接續 Phase 3 的使用者正常互動與可用簽章下的安裝驗收，其他 Windows 版本實機另安排；沒有新 preview release 或 Store 提交。
 
 *Created: 2026-10-09*

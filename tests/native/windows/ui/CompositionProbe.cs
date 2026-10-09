@@ -31,6 +31,7 @@ internal static class CompositionProbe
     using var surface = new DesktopSurface(-20000, -20000, 480, 300);
     surface.Show(topmost: true); var web = surface.WebView;
     await web.EnsureCoreWebView2Async(await CoreWebView2Environment.CreateAsync(null, Path.Combine(directory, "webview")));
+    surface.PassBrowserClicksThrough();
     var loaded = new TaskCompletionSource();
     web.CoreWebView2.NavigationCompleted += (_, e) => { if (e.IsSuccess) loaded.TrySetResult(); else loaded.TrySetException(new Exception("Composition navigation failed")); };
     // Synthetic rendering only: no product bridge, user notes, paths or network.
@@ -56,12 +57,16 @@ internal static class CompositionProbe
       var handle = new WindowInteropHelper(surface.InputWindow).Handle;
       var mirrorHandle = new WindowInteropHelper(surface.VisualWindow).Handle;
       await Task.Delay(200); surface.Show(topmost: true); await Task.Delay(200);
+      // Match the coordinator's policy when the browser creates or recreates its own render popup.
+      surface.PassBrowserClicksThrough();
       if (!GetWindowRect(handle, out var bounds) || !GetWindowRect(targetHandle, out var targetBounds)
         || !bounds.Equals(targetBounds)) throw new Exception("Probe windows have different physical bounds");
       var scale = (bounds.Right - bounds.Left) / 480d;
       IntPtr Hit(int x, int y) => GetAncestor(WindowFromPoint(new NativePoint { X = bounds.Left + (int)(x * scale), Y = bounds.Top + (int)(y * scale) }), 2);
       AssertOrder(mirrorHandle, handle, targetHandle);
-      if (Hit(100, 150) != targetHandle || Hit(10, 10) != targetHandle) throw new Exception("Empty native region or passive visual intercepted hit");
+      var passiveHit = Hit(100, 150); var emptyHit = Hit(10, 10);
+      if (passiveHit != targetHandle || emptyHit != targetHandle)
+        throw new Exception($"Empty native region or passive visual intercepted hit: paper={Describe(passiveHit)}, empty={Describe(emptyHit)}, target={targetHandle:X}, browser PID={web.CoreWebView2.BrowserProcessId}");
       surface.SetInput([new(80, 50, 260, 170, true)]); await Task.Delay(200);
       if (Hit(100, 150) != handle || Hit(10, 10) != targetHandle) throw new Exception("Interactive paper or empty-space hit region failed");
       await web.CoreWebView2.ExecuteScriptAsync("const cover=document.createElement('article');Object.assign(cover.style,{position:'absolute',left:'180px',top:'100px',width:'130px',height:'60px',background:'#ff7060'});document.body.append(cover)");
@@ -82,10 +87,12 @@ internal static class CompositionProbe
       if ((GetWindowLongPtrW(handle, -20).ToInt64() & 8) != 0 || (GetWindowLongPtrW(mirrorHandle, -20).ToInt64() & 8) != 0)
         throw new Exception("Resident layer retained TOPMOST");
       surface.Show(topmost: true); await Task.Delay(200); AssertOrder(mirrorHandle, handle, targetHandle);
+      surface.PassBrowserClicksThrough();
       if (Hit(100, 150) != handle) throw new Exception("Floating layer did not restore input");
       surface.Hide(); await Task.Delay(100);
       if (Hit(100, 150) != targetHandle) throw new Exception("Hidden scene retained input");
       surface.Show(topmost: true); await Task.Delay(200);
+      surface.PassBrowserClicksThrough();
       if (Hit(100, 150) != handle || Hit(260, 130) != targetHandle) throw new Exception("Reopened scene lost input policy");
       surface.SetInput([]); await Task.Delay(100);
       if (Hit(100, 150) != targetHandle) throw new Exception("Ending interaction retained an input region");
@@ -137,6 +144,12 @@ internal static class CompositionProbe
       if (expected.Contains(next)) ordered.Add(next);
     if (!ordered.SequenceEqual(expected)) throw new Exception("Probe native z order differs from requested layer");
   }
+  private static string Describe(IntPtr window)
+  {
+    var name = new System.Text.StringBuilder(128);
+    GetClassNameW(window, name, name.Capacity); GetWindowThreadProcessId(window, out var process);
+    return $"{window:X}/{name}/PID={process}";
+  }
   private static void VerifySplit(IntPtr input, IntPtr visual, NativeRect bounds)
   {
     var a = CreateRectRgn(0, 0, 0, 0); var b = CreateRectRgn(0, 0, 0, 0);
@@ -154,6 +167,8 @@ internal static class CompositionProbe
   [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
   [DllImport("user32.dll")] private static extern IntPtr GetAncestor(IntPtr window, uint flags);
   [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr window, uint flags);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassNameW(IntPtr window, System.Text.StringBuilder name, int capacity);
+  [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
   [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out NativeRect bounds);
   [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);
   [DllImport("user32.dll")] private static extern int GetWindowRgn(IntPtr window, IntPtr region);

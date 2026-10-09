@@ -14,6 +14,7 @@
     <AssemblyName>WorkFleet</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="WorkFleet.Windows.Ui.Tests" />
     <ProjectReference Include="../core/WorkFleet.Windows.Core.csproj" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
     <Content Include="../../../../build/app/**/*" Link="Assets/%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

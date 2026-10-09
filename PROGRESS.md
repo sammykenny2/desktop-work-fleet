@@ -2,7 +2,38 @@
 
 更新：2026-10-09。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-09 Windows 11 23H2 原生驗證與安裝下限實作
+
+使用者在本專案授權開工，確認本機是 23H2，完成後可共同手動測試。沿 PLAN-004 先驗證原生，再修改封裝。
+
+- 23H2 build 22631.6199、單顯示器 144 DPI、WebView2 154.0.4258.62；Node 24.21.0、Python 3.13.7、.NET SDK 9.0.318，App target 仍 .NET 8。
+  開始時沒有 WorkFleet 實例；隔離 probes 不讀寫 `%LOCALAPPDATA%\WorkFleet`。唯讀 Explorer 盤點、完整原生基線均通過，無需重寫 renderer／SetParent／DPI 路徑。
+- MSIX `Windows.Desktop MinVersion` 從 26100 改為 22000，保留 MaxVersionTested 26200、framework API 基線與版號 0.1.1。
+  manifest 產生回歸與最終包檢查都核對 device family、下限、MaxVersionTested、x64 與版號。
+- 原生宿主查詢抽成內部測試介面，發現／選擇／有界建立與存活語意不變；新增同一演算法的 classic／modern、
+  圖示搬移、PID／隱藏／錯誤宿主／疊序、缺失、建立後重查、健康不重掛與失效重建回歸。
+- 探針修正：真螢幕 FAIL 現在傳播成非零退出；浮動視窗以自有 HWND 識別，避免把自己誤判為外部遮擋。
+  第一次修改後完整回歸曾在 composition passive hit 失敗，當時未捕獲命中 HWND，原因未確證；單獨重跑通過。
+  composition probe 補 coordinator 已有的 render popup 穿透政策與失敗 HWND／class／PID 診斷後，最後完整回歸通過；未據此改產品輸入政策。
+- `Test-WindowsNative.ps1 -SkipRestore` 最後完整通過：35 項 core／備份／scene checks、11 項 JS→native、UI／composition／platform／wallpaper／host-check／diagnostics。
+  真 Explorer 的桌布→桌面→浮動→桌布螢幕像素均 PASS；parent／WS_CHILD／非 topmost、region、physical bounds、切層及仿宿主初次啟動通過。
+  OS 未授予最後一次 UI probe foreground，正向授權該項 SKIP，拒絕檢查通過；前一次 UI probe 有授權通過。這不是實體滑鼠／IME 驗收。
+- 共用檢查：`npm test` 243 pass、11 skip；原有 Python discovery 38 項，27 pass、11 skip（Windows 缺 Linux 工具／fcntl）；
+  新增 `test_windows_package.py` 5／5 pass。後者以真正 MakeAppx 容器測拒絕錯誤下限、family／tested version、版號、環境／私鑰檔及未簽章模式；不執行 fixture。
+- `Build-WindowsPackage.ps1 -SkipRestore` 成功，Release 無警告／錯誤，既有 Debug-only CDP 字串門禁通過。
+  `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-0.1.1-x64.msix -Unsigned` 通過實際內容與簽章參數拒絕檢查。
+  本機沒有既有 preview code-signing 憑證，MSIX 未簽章；新增明確 `-Unsigned` 內容檢查，預設仍要求可信簽章。
+  交付 `build/WorkFleet-0.1.1-x64.zip` 供解壓執行；沒有安裝 App、修改信任、升版、dispatch／tag／release 或 Store 提交。
+- 文件檢查通過：108 份 Markdown、627 個相對連結、UTF-8／LF、`git diff --check` 與變更腳本語法檢查；setup／deployment／Windows README、需求及接手入口已同步。
+
+待使用者驗收：正常資料先備份並關閉舊實例，再測第一次顯示／黑塊／圓角、群組／All 浮動／退出、
+拖動／編輯／唯讀選字、圖示及空白／桌布穿透、關閉重開與 Win+D。23H2 MSIX 安裝因缺簽章未測。
+21H2／22H2／24H2／25H2+ 改動後實機、Windows 10 安裝拒絕、混合 DPI、Explorer 真重啟、休眠／喚醒與虛擬桌面仍未測；Store 未開始。
+新版模型回歸與既有 26200 歷史紀錄不代替這些驗收。沒有獨立審閱，作者執行的測試只作機械驗證。
+
 ## 2026-10-09 Windows 11 相容性需求交接
+
+本節保留最初 c53494a 文件交接時的狀態；同日後續實作與目前待驗事項以上節為準。
 
 使用者確認先前相容性討論選錯專案，真正目標是本 repo；本輪指示先提交相關 ADR／SPEC／PLAN，
 直接 commit／push main，再於本專案開新 session 接續。這次只有文件交接與唯讀盤點，沒有 runtime／包／版號／release 變更。

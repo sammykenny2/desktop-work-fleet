@@ -6,8 +6,8 @@
 
 | 文件 | 效力與用途 |
 |---|---|
-| [Windows 11 相容性接手](handoff/2026-10-09-windows-11-compatibility-handoff.md) | 本輪正確專案、23H2 優先、現況與下一個 session 入口；本批只有文件 |
-| [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)／[SPEC-005](specs/005-windows-11-compatibility.md)／[PLAN-004](plans/004-windows-11-compatibility.md) | 已確認 Windows 11 新舊版目標、Windows 10 安裝排除與施工順序；目前 MSIX 下限仍 26100 |
+| [Windows 11 相容性接手](handoff/2026-10-09-windows-11-compatibility-handoff.md) | 本輪正確專案、23H2 原生與包內容驗證；使用者互動與安裝驗收接續入口 |
+| [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)／[SPEC-005](specs/005-windows-11-compatibility.md)／[PLAN-004](plans/004-windows-11-compatibility.md) | 已確認 Windows 11 新舊版目標、Windows 10 安裝排除與施工順序；目前 MSIX 下限 22000，其他版本實機另驗 |
 | [接手入口](handoff/2026-10-04-desktop-interaction-handoff.md) | 閱讀順序、不可偏離行為、外部參考位置詢問規則 |
 | [需求](requirements.md) | 最新產品範圍與未決項目 |
 | [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) | U／D／已答 Q、完整互動、C01–C48；實作狀態見 PROGRESS |

@@ -1,6 +1,6 @@
 # 建置、測試與證據
 
-更新：2026-10-04。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-09。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
 
 ## 新互動驗收路由
 
@@ -36,7 +36,7 @@ release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件�
 `build/` 沒有其他新檔，且重建 bundle 時清除已不存在的來源檔。
 
 `tests/release-versions.test.js` 驗證各平台版號紀錄的讀取與格式、封裝腳本不再寫死版號、
-Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、Apple Info.plist 取自 xcconfig
+Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、Windows.Desktop 下限 22000／MaxVersionTested 26200、Apple Info.plist 取自 xcconfig
 且拒絕本機覆蓋、Android 檔名設定引用 `versionName`，以及各封裝入口使用固定工作目錄並交付到 `build/`。不需原生 SDK；
 不代表 MakeAppx、Xcode 或 Gradle 實際產物已驗證。
 
@@ -217,6 +217,13 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 並使用 Windows 實際驗證 MSIX 簽章、機器信任、publisher、x64 manifest 與不含私鑰的配套 CER。
 需要與 package publisher 相符的既有 CurrentUser/My 憑證及 LocalMachine/TrustedPeople 信任。
 正式簽章仍使用 `-CertificateThumbprint`／HTTPS `-TimestampUrl`；本機模式不接受 `-Release`。
+最終 MSIX 另核對 x64、目前 Windows 版號、Windows.Desktop 下限 22000 與 MaxVersionTested 26200。
+沒有既有受信任憑證時，用一般 `Build-WindowsPackage.ps1 -SkipRestore` 與
+`Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 檢查未簽章內容；
+這不代表簽章、安裝或 Store 驗收。省略 `-Unsigned` 仍拒絕未簽章包，該選項也拒絕未知／損壞簽章狀態。
+`python -m unittest discover -s tests -p 'test_windows_package.py' -v` 使用 Windows SDK MakeAppx 產生隔離合成容器，
+驗證過高／過低下限、device family／MaxVersionTested、錯誤版號、環境／私鑰檔案與明確未簽章模式。
+fixture 不執行 App，不改憑證；缺 Windows／SDK 時標為略過。子程序優先用 PowerShell 7，輸出明確以 UTF-8 解碼。
 
 ```powershell
 .\scripts\windows\Test-WindowsNative.ps1
@@ -238,10 +245,16 @@ core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換�
 
 同一腳本另執行 `--composition` 與 `--platform` 原生基礎探針：
 
+`--shell-topology` 使用原生發現／存活判斷的同一實作與合成視窗查詢，覆蓋 classic sibling、Progman child、
+圖示宿主搬移、錯誤 PID／隱藏／圖示宿主／疊序、缺失／有界建立重試與 Explorer／句柄替換。
+它已接入 Test-WindowsNative，不建立測試 Explorer，也不把模型通過當成新版 OS 實測。
+composition probe 套用 coordinator 既有的 render popup 穿透政策，輸入失敗時回報命中的 HWND／class／PID。
+
 另執行 `--wallpaper OUTPUT_DIRECTORY`，要求目前 session 有真正的 Explorer 圖示／桌布宿主；
 不可用即失敗，不標成通過。以合成內容確認兩個自有場景 HWND 的 parent／WS_CHILD、
 實際 WebView 像素、原生空輸入 region、physical bounds、反覆附著／浮動／隱藏與不啟用。
 圖片只捕獲測試表面，不截取使用者桌面；不重啟 Explorer 或注入鍵盤／滑鼠。
+真螢幕像素 FAIL 會讓 probe 失敗；外部遮擋仍回報 SKIP，浮動表面以自有 HWND 判定，不把自有視窗當外部遮擋。
 主 WPF probe 另測實際逐卡設定→wallpaper→調整此組→floating→完成→wallpaper 的 owner／scene 流程。
 Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩陣仍需各自驗收。
 桌布層回退或附著錯誤時，可執行唯讀的 `scripts/windows/Get-ShellLayerInventory.ps1`，

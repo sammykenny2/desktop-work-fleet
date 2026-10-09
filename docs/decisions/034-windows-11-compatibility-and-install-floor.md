@@ -2,8 +2,8 @@
 
 ## Status
 
-Accepted（支援範圍與實作邊界），2026-10-09。原生相容性與封裝變更尚待實作、驗收。
-補充 ADR-028／030；取代 setup-guide 與 MSIX 產生器所表達的「只支援 24H2 以後」產品範圍，沒有宣稱目前產物已更新。
+Accepted（支援範圍與實作邊界），2026-10-09。23H2 原生與 MSIX 內容驗證已接續，正常互動、安裝與其他版本實機仍待驗收；執行狀態見 PROGRESS。
+補充 ADR-028／030；取代原本「只支援 24H2 以後」產品範圍。
 
 ## Context
 
@@ -16,7 +16,7 @@ Windows 10 不需適配，但未來上架 Microsoft Store 時必須在安裝階�
 前一輪誤套到另一個 Tauri 專案的程式與通過紀錄不構成本專案的實作或驗收證據。
 
 本專案使用 WPF／WebView2，已有 MSIX／ZIP 封裝與新舊 Explorer 宿主發現路徑。
-目前 `scripts/generate-windows-manifest.mjs` 仍設定 `MinVersion=10.0.26100.0`，排除了 23H2。
+最初文件交接時 `scripts/generate-windows-manifest.mjs` 設定 `MinVersion=10.0.26100.0`，排除了 23H2；同日後續實作改為 22000。
 既有原生紀錄在 build 26200；它對應 25H2，不能當作 build 26100／24H2 的實測。
 
 ## Decision
@@ -49,7 +49,7 @@ Windows 10 不需適配，但未來上架 Microsoft Store 時必須在安裝階�
 
 ### Neutral
 
-- 不改便箋格式、同步、帳號、備份或其他平台。這次文件提交不改 runtime、安裝包或版號。
+- 不改便箋格式、同步、帳號、備份或其他平台；相容性實作沿用現有原生呈現路徑，不自動升版或發布。
 
 ## Alternatives Considered
 

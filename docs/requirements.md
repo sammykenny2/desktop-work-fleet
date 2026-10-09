@@ -58,8 +58,9 @@ appDataFolder provider 已由 ADR-012 採納，協定見 SPEC-004；原生 OAuth
 Windows 11 21H2／22H2／23H2 與 24H2+ 均為支援目標，先用目前 23H2 電腦實測；
 沒有本輪新版設備，保留既有新版顯示路徑並補回歸，不宣稱零 regression。
 Windows 10 不需產品適配，但未來 Store 必須在安裝階段排除；MSIX 目標 MinVersion 為 22000。
-目前產生器仍是 26100，修改與最終包驗證尚未完成。
-Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪不升版、發布或改 runtime。
+產生器已改為 22000、保留 MaxVersionTested 26200，最終未簽章 MSIX 已核對；23H2 隔離原生探針通過。
+正常使用者互動、23H2 MSIX 安裝及其他 Windows 版本實機仍待驗收，細項見 PROGRESS。
+Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪不升版或發布。
 詳細要求、驗收與施工順序見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)、
 [SPEC-005](specs/005-windows-11-compatibility.md)、[PLAN-004](plans/004-windows-11-compatibility.md)。
 這些需求不套用到另一應用；其實作與通過紀錄不能作為本專案證據。

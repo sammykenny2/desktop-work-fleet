@@ -59,8 +59,9 @@ python scripts/testing/serve_preview.py --port 0
 ## Windows 原生主畫面
 
 建置需 Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
-目前 MSIX 產生器最低版本仍為 26100，會排除 Windows 11 23H2；既有原生實測紀錄是 build 26200／25H2，不是 26100／24H2 的證據。
-2026-10-09 使用者要求涵蓋早期 Windows 11／23H2 與 24H2+，目標 MSIX 下限改為 22000、Windows 10 不需適配；相容性與包變更尚待實作，見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md) 與 [接手入口](handoff/2026-10-09-windows-11-compatibility-handoff.md)。Store 尚未進入正式提交階段。
+MSIX 最低版本為 22000，涵蓋早期 Windows 11／23H2 與 24H2+，在安裝資格上排除 Windows 10；MaxVersionTested 保留 26200。
+2026-10-09 已在 23H2 build 22631／144 DPI 通過隔離原生探針與三層真螢幕像素檢查，並驗證未簽章 MSIX 內容；正常互動與 MSIX 安裝仍待使用者驗收。
+沒有本輪其他版本設備，既有 26200／25H2 紀錄不等於 26100／24H2 實測。支援與未測範圍見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)、[接手入口](handoff/2026-10-09-windows-11-compatibility-handoff.md) 與 PROGRESS；Store 尚未正式提交。
 執行已建置 App 的電腦需 .NET 8 Desktop Runtime。主畫面、加密保存與桌面／浮動場景已接通。
 
 ```powershell

@@ -89,7 +89,9 @@ internal static class WallpaperProbe
     async Task<string> Screen(string layer)
     {
       await Task.Delay(800);
-      if (!uncovered || !ShellAt(point.X, point.Y, shell)) return $"SKIP on-screen {layer}: an application window covers the test spot";
+      var root = GetAncestor(WindowFromPoint(new NativePoint { X = point.X, Y = point.Y }), 2);
+      var ownFloating = layer == "floating" && (root == input || root == visual);
+      if (!ownFloating && (!uncovered || !ShellAt(point.X, point.Y, shell))) return $"SKIP on-screen {layer}: an application window covers the test spot";
       var color = ScreenPixel(point.X, point.Y);
       var shown = Math.Abs(color.R - 0xe0) < 24 && Math.Abs(color.G - 0x50) < 24 && Math.Abs(color.B - 0xa0) < 24;
       return $"{(shown ? "PASS" : "FAIL")} on-screen {layer} at {point.X},{point.Y}: rgb({color.R},{color.G},{color.B})";
@@ -99,6 +101,8 @@ internal static class WallpaperProbe
     surface.Hide(); surface.SetShellParent(IntPtr.Zero); surface.Show(true); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("floating"));
     surface.Hide(); surface.SetShellParent(shell.Wallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("wallpaper again"));
     foreach (var line in screen) Console.WriteLine(line);
+    if (screen.Any(line => line.StartsWith("FAIL ")))
+      throw new Exception("An Explorer-attached scene failed the real screen pixel check.");
     // Exercise detach/reattach on owned test surfaces without manipulating other applications.
     surface.Hide(); surface.SetShellParent(IntPtr.Zero); surface.Show(true);
     if ((GetWindowLongPtrW(input, -16).ToInt64() & 0x40000000) != 0 || (GetWindowLongPtrW(input, -20).ToInt64() & 8) == 0)

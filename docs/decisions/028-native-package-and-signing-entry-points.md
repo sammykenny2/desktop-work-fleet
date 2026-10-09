@@ -3,6 +3,7 @@
 ## Status
 
 Accepted，2026-10-05；2026-10-06 補充各平台版號紀錄與發佈檔名。
+2026-10-10 Windows 的 framework-dependent 封裝選擇由 [ADR-036](036-windows-self-contained-packaging.md) supersede；下列保留當時決策，其他平台與簽章契約不變。
 
 ## Context
 

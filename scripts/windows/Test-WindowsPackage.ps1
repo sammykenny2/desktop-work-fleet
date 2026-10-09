@@ -6,6 +6,7 @@
     Unsigned preview inspection must be explicitly requested; it validates package
     contents without claiming installation readiness or trusted signing.
     Does not build, install, create certificates or change trust settings.
+    Requires bundled .NET 8/WPF files and self-contained win-x64 runtime metadata.
 .PARAMETER PackagePath
     Path to an MSIX produced by Build-WindowsPackage.ps1 -LocalTestSign.
 .PARAMETER Unsigned
@@ -63,8 +64,38 @@ try {
     foreach ($Entry in $Archive.Entries) {
         if ($Entry.Name -like '.env*' -or [IO.Path]::GetExtension($Entry.Name) -in @('.pfx', '.p12', '.pem', '.key', '.jks')) { throw 'Environment or private-key file in package.' }
     }
+    foreach ($RequiredFile in @('WorkFleet.runtimeconfig.json', 'WorkFleet.deps.json', 'hostfxr.dll', 'hostpolicy.dll',
+        'coreclr.dll', 'System.Private.CoreLib.dll', 'PresentationFramework.dll', 'PresentationCore.dll',
+        'WindowsBase.dll', 'wpfgfx_cor3.dll', 'PresentationNative_cor3.dll')) {
+        $BundledFile = $Archive.GetEntry($RequiredFile)
+        if (-not $BundledFile -or $BundledFile.Length -eq 0) { throw "Missing bundled .NET/WPF file: $RequiredFile" }
+    }
+    $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('WorkFleet.runtimeconfig.json').Open())
+    try { $RuntimeOptions = ($Reader.ReadToEnd() | ConvertFrom-Json).runtimeOptions } finally { $Reader.Dispose() }
+    if ($RuntimeOptions.tfm -cne 'net8.0' -or $RuntimeOptions.framework -or $RuntimeOptions.frameworks) {
+        throw 'Expected self-contained .NET 8 runtime metadata without shared framework requirements.'
+    }
+    $IncludedFrameworks = @($RuntimeOptions.includedFrameworks)
+    if ($IncludedFrameworks.Count -ne 2) { throw 'Expected bundled .NET 8 Core and Windows Desktop frameworks.' }
+    foreach ($FrameworkName in @('Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App')) {
+        $Included = @($IncludedFrameworks | Where-Object name -CEQ $FrameworkName)
+        if ($Included.Count -ne 1 -or $Included[0].version -cnotmatch '^8\.0\.\d+$') {
+            throw 'Expected bundled .NET 8 Core and Windows Desktop frameworks.'
+        }
+    }
+    $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('WorkFleet.deps.json').Open())
+    try { $RuntimeTarget = ($Reader.ReadToEnd() | ConvertFrom-Json).runtimeTarget.name } finally { $Reader.Dispose() }
+    if ($RuntimeTarget -cne '.NETCoreApp,Version=v8.0/win-x64') { throw 'Expected self-contained win-x64 dependency target.' }
+    foreach ($RuntimeNotice in @('Licenses/dotnet/LICENSE.TXT', 'Licenses/dotnet/THIRD-PARTY-NOTICES.TXT',
+        'Licenses/dotnet/core-runtime.nuspec', 'Licenses/dotnet/desktop-runtime.nuspec',
+        'Licenses/dotnet-desktop-LICENSE.txt', 'Licenses/dotnet-wpf-NOTICES.txt', 'Licenses/dotnet-winforms-NOTICES.txt')) {
+        $BundledNotice = $Archive.GetEntry($RuntimeNotice)
+        if (-not $BundledNotice -or $BundledNotice.Length -eq 0) { throw "Missing bundled runtime notice: $RuntimeNotice" }
+    }
 } finally { $Archive.Dispose() }
 Write-Output 'PASS final MSIX x64 identity/version and Windows.Desktop installation floor 22000, MaxVersionTested 26200'
+Write-Output 'PASS bundled .NET 8/WPF runtime files and self-contained win-x64 runtime metadata'
+Write-Output 'PASS bundled runtime licenses, incorporated notices and package provenance'
 if ($Unsigned) {
     Write-Output 'PASS unsigned preview contents only; installation and trusted signing remain unverified'
 } else {

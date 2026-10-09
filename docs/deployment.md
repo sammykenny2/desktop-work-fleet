@@ -4,7 +4,7 @@
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
-| Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | MSIX／portable ZIP；.NET 8 Desktop、WebView2 runtime，封裝需 Windows SDK |
+| Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | 自帶 .NET 8 Desktop 的 MSIX／portable ZIP；執行仍需 WebView2，封裝需 .NET SDK／Windows SDK |
 | macOS | Xcode Open `src/native/apple/WorkFleet.xcodeproj`；或 `scripts/macos/build-native-app.sh --platform macos --release`、`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Node 22+／npm、Apple team 與 signing identities |
 | Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
 | iOS | 同一份已提交的 Xcode 專案，選 WorkFleetIOS；或 `scripts/macos/build-native-app.sh --platform ios --release`、`package-native-app.sh` | xcarchive／IPA；Xcode、Node 22+／npm、Apple team、App／Extension 的 App Group profiles |
@@ -56,7 +56,13 @@ LocalMachine/TrustedPeople 信任的 CurrentUser/My 憑證，不使用 timestamp
 成功後以 SignTool 驗證簽章並輸出公開 CER，私鑰留憑證存放區；已信任的本機可直接安裝該 MSIX。
 無需 Windows Store 開發者帳號；其他測試電腦需先信任 CER，見
 [Microsoft 本機簽章說明](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)。
-ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop／WebView2，不含 runtime 安裝器。
+Windows 預設改採 self-contained `win-x64`，MSIX／ZIP 都包含 .NET 8 Desktop runtime，接收端不用另外安裝 .NET。
+目前 self-contained runtime patch 固定為 `8.0.31`，與保留的 Desktop 授權／notices 對應；更新時一併核對 runtime 來源與授權。
+WebView2 仍使用系統 Evergreen Runtime。包會增大，內附 .NET 的更新需要重新建置、測試及發布 App，見 [ADR-036](decisions/036-windows-self-contained-packaging.md)。
+`-SkipRestore` 只適用已完成同設定 package restore、快取中含 win-x64 runtime packs 的機器；首次封裝不要加它。
+一般 `Build-WindowsApp.ps1`／IDE 建置仍為 framework-dependent，不等同上述封裝產物。
+既有 GitHub `windows-v0.1.2` 是變更前發布的 framework-dependent 包，仍需另裝 .NET 8 Desktop；本輪不覆蓋它。
+ZIP 包含 `WorkFleet.exe`、內附 runtime 與依賴；MSIX 與 ZIP 都保留 runtime 的完整授權／notices 與 NuGet package metadata，不包含 runtime 安裝器。
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 沒有既有受信任 preview 憑證時，可用一般 `Build-WindowsPackage.ps1 -SkipRestore` 產生未簽章 MSIX／ZIP，
 以 `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 僅驗證包內容。

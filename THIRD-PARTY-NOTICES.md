@@ -1,6 +1,6 @@
 # Third-party notices
 
-Updated: 2026-10-05.
+Updated: 2026-10-10.
 
 ## project-bootstrap
 
@@ -49,12 +49,22 @@ Source modules, other platforms and the default web build keep the ESM format.
 
 NuGet `packages.lock.json` files pin versions and SHA-512 package content hashes.
 The native output retains complete upstream license/notice files from `src/native/licenses`.
-The framework-dependent app requires the user's .NET 8 Desktop Runtime and Evergreen
-WebView2 Runtime; those full runtimes and the .NET SDK are not bundled.
+Default MSIX/ZIP packaging bundles the self-contained .NET 8 Desktop runtime (8.0.31).
+The package retains the Core runtime pack's LICENSE.TXT, THIRD-PARTY-NOTICES.TXT and
+the Core/Desktop runtime pack nuspec files in `Licenses/dotnet/`, including resolved
+versions, copyright and upstream repository commits. The Desktop MIT license and
+WPF/WinForms incorporated notices are retained in `src/native/licenses/dotnet-*`:
+Desktop license from [the runtime pack's windowsdesktop commit](https://github.com/dotnet/windowsdesktop/blob/337963009d48a3016b50172b451b4e80f78791a7/LICENSE),
+[WPF v8.0.31 notices](https://github.com/dotnet/wpf/blob/v8.0.31/THIRD-PARTY-NOTICES.TXT) and
+[WinForms v8.0.31 notices](https://github.com/dotnet/winforms/blob/v8.0.31/THIRD-PARTY-NOTICES.TXT).
+Ordinary development builds remain framework-dependent. Evergreen WebView2 and
+the .NET SDK are not bundled. Runtime patch changes require updating this provenance
+and the retained Desktop notices; see [ADR-036](docs/decisions/036-windows-self-contained-packaging.md).
 
 | Package | Version | Scope / license |
 |---|---|---|
 | Microsoft.Web.WebView2 | 1.0.4258.31 | WPF/Core managed assemblies and WebView2Loader; Microsoft SDK license, complete LICENSE and NOTICE from this exact NuGet package |
+| Microsoft.NETCore.App.Runtime.win-x64 / Microsoft.WindowsDesktop.App.Runtime.win-x64 | 8.0.31 | Bundled .NET/Core/WPF runtime; MIT and incorporated notices retained as described above |
 | Microsoft.Data.Sqlite / .Core | 10.0.12 | SQLite provider; MIT, [upstream tagged license](https://github.com/dotnet/efcore/blob/v10.0.12/LICENSE.txt) |
 | SQLitePCLRaw.core, .bundle_e_sqlite3, .provider.e_sqlite3, .lib.e_sqlite3 | 2.1.12 | SQLite binding/native package; Apache-2.0, Copyright 2014–2024 SourceGear, LLC; [tagged license](https://github.com/ericsink/SQLitePCL.raw/blob/v2.1.12/LICENSE.TXT) |
 | System.Memory | 4.5.3 | Transitive package (framework supplies runtime on net8); MIT and incorporated notices from its exact NuGet package |

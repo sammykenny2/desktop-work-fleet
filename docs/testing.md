@@ -1,6 +1,6 @@
 # 建置、測試與證據
 
-更新：2026-10-09。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-10。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
 
 ## 新互動驗收路由
 
@@ -209,7 +209,7 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 本機簽章 preview 的封裝檢查（不安裝 App、不修改憑證信任）：
 
 ```powershell
-.\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign
+.\scripts\windows\Build-WindowsPackage.ps1 -LocalTestSign
 .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix
 ```
 
@@ -218,11 +218,16 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 需要與 package publisher 相符的既有 CurrentUser/My 憑證及 LocalMachine/TrustedPeople 信任。
 正式簽章仍使用 `-CertificateThumbprint`／HTTPS `-TimestampUrl`；本機模式不接受 `-Release`。
 最終 MSIX 另核對 x64、目前 Windows 版號、Windows.Desktop 下限 22000 與 MaxVersionTested 26200。
-沒有既有受信任憑證時，用一般 `Build-WindowsPackage.ps1 -SkipRestore` 與
+另要求 .NET 8 Core／Windows Desktop 的 `includedFrameworks`，拒絕 shared `framework`／`frameworks`，
+核對 deps 的 win-x64 target、hostfxr／hostpolicy／coreclr、WPF managed／native files 與完整 runtime 授權／notices。
+這是包內容與簽章驗證，不代替未安裝 .NET 的實機啟動／MSIX 安裝驗收。
+第一次封裝會還原 win-x64 self-contained runtime packs；完成同設定 package restore 後才可加 `-SkipRestore`。
+沒有既有受信任憑證時，用一般 `Build-WindowsPackage.ps1` 與
 `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 檢查未簽章內容；
 這不代表簽章、安裝或 Store 驗收。省略 `-Unsigned` 仍拒絕未簽章包，該選項也拒絕未知／損壞簽章狀態。
 `python -m unittest discover -s tests -p 'test_windows_package.py' -v` 使用 Windows SDK MakeAppx 產生隔離合成容器，
-驗證過高／過低下限、device family／MaxVersionTested、錯誤版號、環境／私鑰檔案與明確未簽章模式。
+驗證過高／過低下限、device family／MaxVersionTested、錯誤版號、環境／私鑰檔案、明確未簽章模式，
+以及缺少 runtime／notices、外部 shared .NET 需求與錯誤 deps 架構的拒絕。
 fixture 不執行 App，不改憑證；缺 Windows／SDK 時標為略過。子程序優先用 PowerShell 7，輸出明確以 UTF-8 解碼。
 
 ```powershell

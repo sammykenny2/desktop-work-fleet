@@ -31,6 +31,7 @@
 | [ADR-033](033-apple-local-script-bundles.md) | Accepted（Apple 封裝） | 本機 classic script bundles、保留 CSP／bridge 與獨立開發簽章啟動測試 |
 | [ADR-034](034-windows-11-compatibility-and-install-floor.md) | Accepted（Windows 支援範圍） | 早期 Windows 11／23H2／24H2+、MSIX 目標下限 22000、23H2 實測與 Store 延期；實作見 PROGRESS |
 | [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted（附著場景修正方向） | 移位／堆疊／攤開白塊回報、宿主無 backing bitmap、舊區域撤下／不複製像素；效果未測 |
+| [ADR-036](036-windows-self-contained-packaging.md) | Accepted（Windows 封裝 runtime） | 預設自帶 .NET 8 Desktop／win-x64、runtime notices 與包檢查；WebView2 仍依賴系統 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

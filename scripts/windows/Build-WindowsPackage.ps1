@@ -3,7 +3,8 @@
     Build an x64 MSIX and portable ZIP from the native Windows application.
 .DESCRIPTION
     Uses .NET 8, Windows SDK MakeAppx and public .env settings. Produces a
-    framework-dependent app requiring .NET 8 Desktop and WebView2 runtimes.
+    self-contained app bundling the .NET 8 Desktop runtime. WebView2 is required
+    separately; an installed .NET Desktop runtime is not required.
     File names use the version in src/native/windows/Directory.Build.props.
     Release files go directly in build/; build/windows/package is the work
     directory and is replaced on every run.
@@ -12,7 +13,8 @@
 .PARAMETER Release
     Require final public package and Google/contact configuration.
 .PARAMETER SkipRestore
-    Use dependencies already restored to build/nuget-packages.
+    Use dependencies and win-x64 self-contained runtime packs already restored
+    to build/nuget-packages by a previous package build.
 .PARAMETER CertificateThumbprint
     SHA-1 thumbprint of an existing CurrentUser/My code-signing certificate.
 .PARAMETER LocalTestSign
@@ -75,19 +77,36 @@ try {
     if ($Release) { & node scripts/check-config.mjs --platform windows; if ($LASTEXITCODE -ne 0) { throw 'Release settings are incomplete.' } }
     $PackageVersion = & node scripts/platform-version.mjs --platform windows
     if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version from src/native/windows/Directory.Build.props.' }
-    & "$PSScriptRoot/Build-WindowsApp.ps1" -Configuration Release -SkipRestore:$SkipRestore
+    & "$PSScriptRoot/Build-WindowsApp.ps1" -Configuration Release -SelfContained -SkipRestore:$SkipRestore
     $env:DOTNET_CLI_HOME = Join-Path $ProjectRoot 'build/dotnet-home'; $env:NUGET_PACKAGES = Join-Path $ProjectRoot 'build/nuget-packages'; $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
     $Work = Join-Path $ProjectRoot 'build/windows/package'
     if (Test-Path -LiteralPath $Work) { Remove-Item -LiteralPath $Work -Recurse -Force }
     $Stage = Join-Path $Work 'content'
     New-Item -ItemType Directory -Path $Stage -Force | Out-Null
-    & dotnet publish src/native/windows/app/WorkFleet.Windows.csproj --configuration Release --no-restore --self-contained false --output $Stage -p:PlatformTarget=x64
+    & dotnet publish src/native/windows/app/WorkFleet.Windows.csproj --configuration Release --no-restore --runtime win-x64 --self-contained true --output $Stage -p:PlatformTarget=x64
     if ($LASTEXITCODE -ne 0) { throw 'Windows publish failed.' }
     # The WebView debugging port is Debug-only; its argument is a UTF-16 IL string at either byte alignment.
     $AppAssembly = [IO.File]::ReadAllBytes((Join-Path $Stage 'WorkFleet.dll'))
     if ([Text.Encoding]::Unicode.GetString($AppAssembly).Contains('remote-debugging') -or
         [Text.Encoding]::Unicode.GetString($AppAssembly, 1, $AppAssembly.Length - 1).Contains('remote-debugging')) {
         throw 'Release WorkFleet.dll contains the Debug-only WebView debugging path.'
+    }
+    $RuntimeLicenseDirectory = Join-Path $Stage 'Licenses/dotnet'
+    New-Item -ItemType Directory -Path $RuntimeLicenseDirectory -Force | Out-Null
+    $RuntimeOptions = (Get-Content -LiteralPath (Join-Path $Stage 'WorkFleet.runtimeconfig.json') -Raw | ConvertFrom-Json).runtimeOptions
+    foreach ($RuntimePackage in @(
+        @{ Framework = 'Microsoft.NETCore.App'; Package = 'microsoft.netcore.app.runtime.win-x64'; Notice = 'core-runtime.nuspec' },
+        @{ Framework = 'Microsoft.WindowsDesktop.App'; Package = 'microsoft.windowsdesktop.app.runtime.win-x64'; Notice = 'desktop-runtime.nuspec' }
+    )) {
+        $IncludedRuntime = @($RuntimeOptions.includedFrameworks | Where-Object name -CEQ $RuntimePackage.Framework)
+        if ($IncludedRuntime.Count -ne 1) { throw "Missing bundled runtime metadata: $($RuntimePackage.Framework)" }
+        $RuntimePackageDirectory = Join-Path $env:NUGET_PACKAGES "$($RuntimePackage.Package)/$($IncludedRuntime[0].version)"
+        Copy-Item -LiteralPath (Join-Path $RuntimePackageDirectory "$($RuntimePackage.Package).nuspec") -Destination (Join-Path $RuntimeLicenseDirectory $RuntimePackage.Notice)
+        if ($RuntimePackage.Framework -eq 'Microsoft.NETCore.App') {
+            foreach ($Notice in @('LICENSE.TXT', 'THIRD-PARTY-NOTICES.TXT')) {
+                Copy-Item -LiteralPath (Join-Path $RuntimePackageDirectory $Notice) -Destination $RuntimeLicenseDirectory
+            }
+        }
     }
     Copy-Item -LiteralPath (Join-Path $ProjectRoot 'LICENSE'), (Join-Path $ProjectRoot 'THIRD-PARTY-NOTICES.md') -Destination $Stage
     & node scripts/generate-windows-manifest.mjs --stage $Stage
@@ -140,7 +159,8 @@ try {
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }
-    if (-not $CertificateThumbprint) { Write-Output 'MSIX is unsigned. Installation needs a trusted signature. .NET 8 Desktop and WebView2 are required.' }
+    Write-Output 'Includes the .NET 8 Desktop runtime; WebView2 is required separately.'
+    if (-not $CertificateThumbprint) { Write-Output 'MSIX is unsigned. Installation needs a trusted signature.' }
 } finally {
     Pop-Location
     $env:DOTNET_CLI_HOME = $PreviousDotnetHome; $env:NUGET_PACKAGES = $PreviousNuget; $env:DOTNET_CLI_TELEMETRY_OPTOUT = $PreviousTelemetry

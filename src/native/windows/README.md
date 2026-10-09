@@ -30,4 +30,8 @@ Debug 與安裝版共用 `%LOCALAPPDATA%\WorkFleet`，同一時間只能開一�
 
 腳本先建置共用網頁資產，NuGet 依賴以 lockfile 還原到 Git 忽略的 `build/nuget-packages`。
 IDE 自行還原會使用預設 NuGet 快取，版本仍由 lockfile 固定。
+`Build-WindowsPackage.ps1` 預設 self-contained win-x64，MSIX／ZIP 自帶 .NET 8 Desktop runtime，接收端仍需 Evergreen WebView2。
+首次 package build 不加 `-SkipRestore`；該選項要求已快取對應的 win-x64 runtime packs。
+一般 `Build-WindowsApp.ps1`／IDE 產物仍依賴系統 .NET；`-SelfContained` 是封裝入口使用的 x64 restore／build 選項。
+內附 runtime patch 與授權紀錄見 [ADR-036](../../../docs/decisions/036-windows-self-contained-packaging.md)，更新需重新發布 App。
 完整說明見 [設定](../../../docs/setup-guide.md)、[測試](../../../docs/testing.md) 與 [部署](../../../docs/deployment.md)。

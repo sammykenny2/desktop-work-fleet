@@ -1,4 +1,5 @@
 import base64
+import json
 import os
 from pathlib import Path
 import shutil
@@ -26,7 +27,7 @@ class WindowsPackageTests(unittest.TestCase):
         cls.version = ET.parse(ROOT / "src/native/windows/Directory.Build.props").findtext(".//Version") + ".0"
 
     def inspect(self, *, minimum="10.0.22000.0", tested="10.0.26200.0", family="Windows.Desktop",
-                version=None, unsigned=True, extra=None):
+                version=None, unsigned=True, extra=None, missing_runtime=None, missing_notice=None):
         manifest = f"""<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap rescap">
   <Identity Name="app.workfleet.preview" Publisher="CN=Work Fleet Preview" Version="{version or self.version}" ProcessorArchitecture="x64" />
@@ -45,6 +46,29 @@ class WindowsPackageTests(unittest.TestCase):
             source.mkdir()
             (source / "AppxManifest.xml").write_text(manifest, encoding="utf-8")
             (source / "Fixture.exe").write_bytes(b"synthetic fixture, never executed")
+            runtime_files = ["hostfxr.dll", "hostpolicy.dll", "coreclr.dll", "System.Private.CoreLib.dll",
+                             "PresentationFramework.dll", "PresentationCore.dll", "WindowsBase.dll",
+                             "wpfgfx_cor3.dll", "PresentationNative_cor3.dll"]
+            for name in runtime_files:
+                if name != missing_runtime:
+                    (source / name).write_bytes(b"synthetic runtime fixture, never executed")
+            (source / "WorkFleet.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {
+                "tfm": "net8.0", "includedFrameworks": [
+                    {"name": "Microsoft.NETCore.App", "version": "8.0.0"},
+                    {"name": "Microsoft.WindowsDesktop.App", "version": "8.0.0"},
+                ],
+            }}), encoding="utf-8")
+            (source / "WorkFleet.deps.json").write_text(json.dumps({
+                "runtimeTarget": {"name": ".NETCoreApp,Version=v8.0/win-x64"},
+            }), encoding="utf-8")
+            for name in ["Licenses/dotnet/LICENSE.TXT", "Licenses/dotnet/THIRD-PARTY-NOTICES.TXT",
+                         "Licenses/dotnet/core-runtime.nuspec", "Licenses/dotnet/desktop-runtime.nuspec",
+                         "Licenses/dotnet-desktop-LICENSE.txt", "Licenses/dotnet-wpf-NOTICES.txt",
+                         "Licenses/dotnet-winforms-NOTICES.txt"]:
+                if name != missing_notice:
+                    target = source / name
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_text("synthetic notice fixture", encoding="utf-8")
             (source / "logo.png").write_bytes(base64.b64decode(
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aO8sAAAAASUVORK5CYII="))
             for name, content in (extra or {}).items():
@@ -65,6 +89,7 @@ class WindowsPackageTests(unittest.TestCase):
         result = self.inspect()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("contents only", result.stdout)
+        self.assertIn("bundled .NET 8/WPF", result.stdout)
         result = self.inspect(unsigned=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("signature is not trusted and valid", result.stderr)
@@ -94,6 +119,36 @@ class WindowsPackageTests(unittest.TestCase):
                 result = self.inspect(extra={name: "synthetic fixture"})
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("Environment or private-key file", result.stderr)
+
+    def test_missing_bundled_runtime_files_are_rejected(self):
+        for name in ["hostfxr.dll", "coreclr.dll", "PresentationFramework.dll", "wpfgfx_cor3.dll"]:
+            with self.subTest(name=name):
+                result = self.inspect(missing_runtime=name)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"Missing bundled .NET/WPF file: {name}", result.stderr)
+
+    def test_shared_runtime_requirements_and_missing_desktop_framework_are_rejected(self):
+        for options in [
+            {"tfm": "net8.0", "framework": {"name": "Microsoft.WindowsDesktop.App", "version": "8.0.0"}},
+            {"tfm": "net8.0", "frameworks": [{"name": "Microsoft.WindowsDesktop.App", "version": "8.0.0"}]},
+            {"tfm": "net8.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App", "version": "8.0.0"}]},
+        ]:
+            with self.subTest(options=options):
+                result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertRegex(result.stderr, "Expected self-contained|Expected bundled .NET 8")
+
+    def test_non_x64_dependency_target_is_rejected(self):
+        result = self.inspect(extra={"WorkFleet.deps.json": json.dumps({
+            "runtimeTarget": {"name": ".NETCoreApp,Version=v8.0/win-arm64"},
+        })})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Expected self-contained win-x64 dependency target", result.stderr)
+
+    def test_missing_runtime_notices_are_rejected(self):
+        result = self.inspect(missing_notice="Licenses/dotnet/THIRD-PARTY-NOTICES.TXT")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Missing bundled runtime notice", result.stderr)
 
 
 if __name__ == "__main__":

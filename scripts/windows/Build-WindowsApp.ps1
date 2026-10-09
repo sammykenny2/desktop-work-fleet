@@ -11,6 +11,9 @@
     Also build the native core and real WPF/WebView2 integration probes.
 .PARAMETER SkipRestore
     Use already restored packages without network access.
+.PARAMETER SelfContained
+    Restore and build the app for win-x64 with its .NET runtime for packaging.
+    Regular app and probe builds remain framework-dependent.
 .EXAMPLE
     .\scripts\windows\Build-WindowsApp.ps1 -Configuration Debug -IncludeTests
 #>
@@ -18,7 +21,8 @@
 param(
     [ValidateSet('Debug', 'Release')][string]$Configuration = 'Release',
     [switch]$IncludeTests,
-    [switch]$SkipRestore
+    [switch]$SkipRestore,
+    [switch]$SelfContained
 )
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
@@ -40,14 +44,19 @@ try {
         $Projects += 'tests/native/windows/ui/WorkFleet.Windows.Ui.Tests.csproj'
     }
     foreach ($Project in $Projects) {
+        $RuntimeArguments = @()
+        if ($SelfContained -and $Project -eq $Projects[0]) {
+            $RuntimeArguments = @('--runtime', 'win-x64', '-p:SelfContained=true')
+        }
         if (-not $SkipRestore) {
-            & dotnet restore $Project --locked-mode --source https://api.nuget.org/v3/index.json
+            & dotnet restore $Project @RuntimeArguments --locked-mode --source https://api.nuget.org/v3/index.json
             if ($LASTEXITCODE -ne 0) { throw "Locked restore failed: $Project" }
         }
-        & dotnet build $Project --configuration $Configuration --no-restore
+        & dotnet build $Project @RuntimeArguments --configuration $Configuration --no-restore
         if ($LASTEXITCODE -ne 0) { throw "Native build failed: $Project" }
     }
-    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net8.0-windows10.0.19041.0/WorkFleet.exe"
+    $RuntimeDirectory = if ($SelfContained) { 'win-x64/' } else { '' }
+    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net8.0-windows10.0.19041.0/${RuntimeDirectory}WorkFleet.exe"
 } finally {
     Pop-Location
     foreach ($Name in $SavedEnvironment.Keys) {

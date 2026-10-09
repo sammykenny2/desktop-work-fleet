@@ -135,10 +135,10 @@ jobs:
           Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11（最低 build 22000）。
 
           ## 第一次安裝
-          1. 沒裝過 [.NET 8 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/8.0) 的電腦先安裝它。
-          2. 信任預覽憑證（每台電腦一次）：下載 \`WorkFleet-preview.cer\`，用系統管理員 PowerShell 執行
+          此包已包含 .NET 8 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。
+          1. 信任預覽憑證（每台電腦一次）：下載 \`WorkFleet-preview.cer\`，用系統管理員 PowerShell 執行
              \`Import-Certificate -FilePath .\\WorkFleet-preview.cer -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople\`。
-          3. 雙擊 \`WorkFleet-${VERSION}-x64.msix\` 安裝。
+          2. 雙擊 \`WorkFleet-${VERSION}-x64.msix\` 安裝。
 
           版號比已安裝的高時直接安裝就會升級；同版號要先解除安裝。便箋資料放在 App 外面，解除安裝不會刪除。
           Google 登入目前是測試中，只有加入測試使用者的帳號能登入。

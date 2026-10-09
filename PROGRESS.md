@@ -2,6 +2,23 @@
 
 更新：2026-10-10。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-10 Windows 預設 self-contained 封裝
+
+使用者明確授權先修改文件及預設打包腳本、commit／push，再以既有本機憑證打包。
+沿用 Windows 0.1.2，不升版或觸發 GitHub release；既有 windows-v0.1.2 產物保留原 framework-dependent 內容。
+
+- 打包入口改成 win-x64／self-contained，App build 入口新增對應的 restore／build 選項。
+  app／core 的 RID restore targets 與 lockfiles 同步；一般 Debug／IDE 及 probe 建置仍 framework-dependent。
+- .NET Core／Desktop runtime patch 固定 8.0.31，採分別設定 FrameworkReference metadata。
+  最初全域版本設定使 Windows SDK targeting pack 出現 NU1505，已修正；兩種 app 建置最後均為 0 警告／0 錯誤。
+- 包檢查補內附 runtime／WPF files、runtimeconfig 的 includedFrameworks、拒絕 shared runtime 需求、win-x64 deps 與 notices。
+  Windows 合成 MakeAppx 回歸 9／9、版號與封裝 JS 5／5 通過；合成 DLL 不執行，不作未裝 .NET 實機證據。
+- 保留 Core runtime 完整 license／第三方 notices、Core／Desktop runtime pack nuspec 及官方 Desktop／WPF／WinForms notices。
+  ADR-036 與 setup／deployment／testing／Windows README／未來 release 安裝說明同步。
+- 一般 app 與兩個 probe 專案的 locked restore 通過；self-contained restore 及 Release metadata 核對 Core／Desktop 8.0.31。
+  文件檢查 110 份 Markdown／648 相對連結、UTF-8／LF、PowerShell 語法與 diff 檢查通過。
+  未執行 GUI probes 或安裝 App；沒有獨立審閱。commit／push 後本機包結果只回報於對話，不補發布紀錄提交。
+
 ## 2026-10-10 發布流程收尾界線調整
 
 使用者在 0.1.2 發布後要求調整流程，避免 agent 再補 commit／push 而於未來觸發 push 型 CI。

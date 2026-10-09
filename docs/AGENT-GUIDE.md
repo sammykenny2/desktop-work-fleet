@@ -31,6 +31,11 @@ Older Drive/backup drafts require scope reconciliation before freezing contracts
 - Scripts: use `docs/SCRIPT-STANDARDS.md` for help and naming examples.
 - Research: record dated primary sources in `docs/resreach/` when conclusions
   depend on changing external APIs or protocols.
+- Releases: finish all tracked changes and local check records before the final
+  version-bump commit/push. Follow [deployment](deployment.md) and root AGENTS:
+  dispatch closes repository writes for that release task. Afterwards, monitor,
+  verify ignored artifacts and report in the conversation; do not make a status,
+  documentation or handoff commit. New repository work requires a new explicit user task.
 
 ## Optional Protocol Integrations
 
@@ -77,3 +82,5 @@ Report the affected behavior, commands actually tested, independent-review statu
 documentation updates, and any remaining blockers. Update progress/status only
 within the role ownership rules in `AGENTS.md`. Never label placeholder tests or
 unrun deployment/runtime checks as passing.
+After release dispatch, deliver this handoff in the conversation and use GitHub's
+run/release as the publication record; do not update tracked handoff or progress files.

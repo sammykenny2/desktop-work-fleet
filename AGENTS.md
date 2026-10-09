@@ -41,6 +41,9 @@
 - PROGRESS.md is the execution-status source. Do not create a competing task list.
   Do not add entries for runs that only rebuild or repackage existing code; report
   artifact paths, sizes and hashes in the conversation instead.
+  Complete tracked release-preparation records before dispatch. Subsequent release
+  outcomes belong in the GitHub run/release and the final user report, without a
+  follow-up PROGRESS.md commit. The release boundary below overrides routine status updates.
 - Build this product independently. Do not bulk-port another application's code,
   UI, assets or data contracts. Any targeted future reuse needs source/license notes.
 - Validation runtime choices are recorded in ADR-002; broader platform packaging remains open. Generic A2A/MCP bootstrap
@@ -89,10 +92,23 @@ a preview-release request alone does not authorize choosing and bumping a versio
 GitHub Actions dispatch also requires explicit user authorization. Honor approval
 already given in the current session without asking again. This private repository's
 October 2026 Actions allowance is nearly exhausted; prefer local checks and packaging.
-For an approved Windows preview release, bump `<Version>` in
-`src/native/windows/Directory.Build.props`, commit and push, then dispatch
+For an approved Windows preview release, finish implementation, tests, documentation
+and PROGRESS.md preparation records, and include the approved `<Version>` bump in
+`src/native/windows/Directory.Build.props` in the final release commit. Push it,
+verify a clean worktree and matching local/remote main, then dispatch
 `windows-preview.yml` only with that authorization; it creates the `windows-v<version>`
 tag and prerelease. Never reuse, move or delete a published tag or release. See docs/deployment.md.
+
+For every platform, dispatching a release workflow or starting publication closes
+that release task's repository writes. After that point, agents MUST NOT edit
+tracked files, commit or push follow-up release work, including status, handoff,
+release-result, artifact hash or documentation updates. Monitor the run and verify
+artifacts in Git-ignored directories; report the outcome and links in the conversation.
+Record only known preparation results before dispatch; never pre-record publication
+success. A later explicit user task can authorize new repository changes; the
+original release request and standing commit/push permission do not authorize
+post-release bookkeeping. This boundary overrides ordinary documentation and
+handoff update requirements, even when workflows currently have no push trigger.
 
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,

@@ -2,6 +2,18 @@
 
 更新：2026-10-10。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-10 發布流程收尾界線調整
+
+使用者在 0.1.2 發布後要求調整流程，避免 agent 再補 commit／push 而於未來觸發 push 型 CI。
+此為新的流程修改任務，不延續前一輪發布收尾授權。
+
+- AGENTS、Agent Guide 與 deployment 統一要求：程式、測試與文件紀錄先完成，再做最後一筆升版 commit／push。
+  dispatch 後本輪不得再修改 tracked files、commit 或 push；GitHub 與對話保存事後發布結果。
+- 明確處理 PROGRESS／handoff 更新與 standing commit／push 授權的例外，避免被誤用為事後補交的理由；後續 repo 修改需新的使用者任務。
+- 核對現有兩個 workflow 皆只有 workflow_dispatch；0.1.2 發布後的 `c3daddc` 沒有對應 Actions run。
+  文件檢查 109 份 Markdown／639 相對連結、UTF-8／LF 與 diff 檢查通過。
+  本輪只改流程文件，沒有升版、改 workflow 或 dispatch Actions；沒有獨立審閱。
+
 ## 2026-10-10 Windows 23H2 使用者測試回報與 0.1.2 預覽發布
 
 使用者回報「23H2 似乎可以，目前沒看到特別問題」，並明確同意升到 0.1.2、觸發 GitHub preview release。

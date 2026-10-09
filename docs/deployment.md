@@ -68,10 +68,22 @@ ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop�
 在 GitHub Release 發布 Windows 預覽版，讓其他電腦直接下載 MSIX。只在使用者要求發布時進行；一般實作、commit、push 都不升版、不發布。
 2026-10-09 使用者補充：任何升版須先同意具體版號，單純要求預覽發布不授權自行選版號；GitHub Actions dispatch 也須明確授權，當前 session 已給的同意不重問。
 本 repo 為 private，2026-10 的 Actions 額度接近用完；優先本機檢查、建置與封裝，不以 CI 簽章缺口為理由自動消耗額度。
-1. 獲准升版後：改 `src/native/windows/Directory.Build.props` 的 `<Version>`，commit 並 push。已發布的版號不能再用。
-2. 獲准執行 Actions 後：`gh workflow run windows-preview.yml`（或在 Actions 頁面手動執行 Windows preview release），從 main 目前的 commit 建置。
-3. [windows-preview.yml](../.github/workflows/windows-preview.yml) 先確認 `windows-v<版號>` 的 tag 與 release 都不存在，並跑 `npm test`；
+2026-10-10 使用者要求發布後不得再補 commit／push，以免日後 push 型 CI 重複執行。此規則適用所有平台，也適用 agent 的文件與交接收尾。
+
+1. 獲准具體版號後，先完成本輪程式、測試、文件、交接與 `PROGRESS.md` 的準備紀錄。發布狀態只能記為「已備妥／待發布」，不能提前記成成功。
+   確認目標 tag／release 尚不存在；已發布的版號不能再用。
+2. 跑適當本機檢查並記下實際結果，再把 `src/native/windows/Directory.Build.props` 的 `<Version>` 與全部相關變更納入本輪最後一筆 release commit，push main。
+   dispatch 前確認 worktree 乾淨、local HEAD 與 origin/main 相同，且版號是使用者同意的目標。
+3. 獲准執行 Actions 後：`gh workflow run windows-preview.yml --ref main`（或在 Actions 頁面選 main 執行 Windows preview release）。
+   記下 run URL 並核對 run 的來源 SHA 與最後一筆 release commit 相同；從 dispatch 開始，本輪對 repo 只做唯讀操作。
+4. [windows-preview.yml](../.github/workflows/windows-preview.yml) 先確認 `windows-v<版號>` 的 tag 與 release 都不存在，並跑 `npm test`；
    再在 Windows runner 用 preview 憑證簽章打包，全部成功後才建立 tag 與 prerelease，附 MSIX、`.sha256` 與公開 CER。失敗不會留下 release。
+5. 等待結果、下載至 Git 忽略目錄並驗證產物，在對話回報 run／release URL、來源 commit、驗證結果與必要的檔案大小／雜湊。
+   最終 SHA、run URL 與發布成功／失敗等事後才知道的資料，以 GitHub 與對話為紀錄，不為補填這些資料再修改 tracked files、commit 或 push。
+
+dispatch 後禁止以更新 `PROGRESS.md`、handoff、文件、產物清單或發布結果為理由補交提交；一般文件同步與 standing commit／push 授權不構成例外。
+使用者之後明確要求新的修改任務，才可針對該任務繼續改 repo；不能自行把發布收尾當成新任務。
+此界線不依賴目前 workflow 是否只有手動觸發，也不以 commit message 的 CI skip 指令取代。
 
 GitHub repository 需要的設定：
 - Variables：`WORK_FLEET_GOOGLE_PROJECT_ID`、`WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID`。

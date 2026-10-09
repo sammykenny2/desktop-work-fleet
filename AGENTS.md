@@ -84,10 +84,15 @@ changes. Plan, implement only the authorized scope, run appropriate checks, and 
 independent-review status. Do not interpret a review request as permission to edit.
 
 Ordinary implementation, commit and push requests do not authorize a version bump or
-publication. When the user asks for a Windows preview release, bump `<Version>` in
+publication. Every version bump requires explicit user approval of the target version;
+a preview-release request alone does not authorize choosing and bumping a version.
+GitHub Actions dispatch also requires explicit user authorization. Honor approval
+already given in the current session without asking again. This private repository's
+October 2026 Actions allowance is nearly exhausted; prefer local checks and packaging.
+For an approved Windows preview release, bump `<Version>` in
 `src/native/windows/Directory.Build.props`, commit and push, then dispatch
-`windows-preview.yml`; it creates the `windows-v<version>` tag and prerelease. Never
-reuse, move or delete a published tag or release. See docs/deployment.md.
+`windows-preview.yml` only with that authorization; it creates the `windows-v<version>`
+tag and prerelease. Never reuse, move or delete a published tag or release. See docs/deployment.md.
 
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,

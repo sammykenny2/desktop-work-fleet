@@ -16,7 +16,7 @@ Windows 支援範圍依 [ADR-034](decisions/034-windows-11-compatibility-and-ins
 MSIX 產生器與本次最終未簽章包已驗證 `Windows.Desktop MinVersion=10.0.22000.0`、`MaxVersionTested=10.0.26200.0`。
 本次 23H2 原生探針通過；正常互動與安裝仍待驗收，Store 身份／提交尚未開始。編譯 framework 的 Windows 10 API 基線不等於產品支援範圍。
 
-各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；不同平台可各自升版。
+各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；任何升版都須先取得使用者對具體版號的明確同意。
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
 腳本產生的每個發佈檔旁另有同名 `.sha256`，可用 `sha256sum -c` 或 `shasum -a 256 -c` 檢查。
 
@@ -65,8 +65,10 @@ ZIP 包含 `WorkFleet.exe` 與依賴，兩種產物皆需系統 .NET 8 Desktop�
 ### Windows 預覽版發布
 
 在 GitHub Release 發布 Windows 預覽版，讓其他電腦直接下載 MSIX。只在使用者要求發布時進行；一般實作、commit、push 都不升版、不發布。
-1. 升版：改 `src/native/windows/Directory.Build.props` 的 `<Version>`，commit 並 push。已發布的版號不能再用。
-2. 觸發：`gh workflow run windows-preview.yml`（或在 Actions 頁面手動執行 Windows preview release），從 main 目前的 commit 建置。
+2026-10-09 使用者補充：任何升版須先同意具體版號，單純要求預覽發布不授權自行選版號；GitHub Actions dispatch 也須明確授權，當前 session 已給的同意不重問。
+本 repo 為 private，2026-10 的 Actions 額度接近用完；優先本機檢查、建置與封裝，不以 CI 簽章缺口為理由自動消耗額度。
+1. 獲准升版後：改 `src/native/windows/Directory.Build.props` 的 `<Version>`，commit 並 push。已發布的版號不能再用。
+2. 獲准執行 Actions 後：`gh workflow run windows-preview.yml`（或在 Actions 頁面手動執行 Windows preview release），從 main 目前的 commit 建置。
 3. [windows-preview.yml](../.github/workflows/windows-preview.yml) 先確認 `windows-v<版號>` 的 tag 與 release 都不存在，並跑 `npm test`；
    再在 Windows runner 用 preview 憑證簽章打包，全部成功後才建立 tag 與 prerelease，附 MSIX、`.sha256` 與公開 CER。失敗不會留下 release。
 

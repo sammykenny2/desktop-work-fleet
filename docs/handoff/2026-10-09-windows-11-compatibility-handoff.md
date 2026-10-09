@@ -30,7 +30,7 @@ Partner Center 尚未保留應用，尚未進入 Store 階段。
 - 原生歷史證據是 build 26200／25H2、單螢幕 144 DPI；不能視為 26100／24H2 或本次 23H2 的通過證據。
 - 2026-10-09 唯讀盤點：本機 23H2 build 22631.6199、圖示宿主 Progman／DefView 為 144 DPI／PMv2。
   Progman 下沒有新版 child WorkerW；後續已完成隔離 native probes，真 Explorer 三層像素、座標／附著與切層皆通過，其他手動項目見 PROGRESS。
-- Windows 版號紀錄目前 `0.1.1`；沒有新發布指令，不為本任務自動升版或啟動 CI release。
+- Windows 版號紀錄目前 `0.1.1`；任何升版須先取得使用者對具體版號的同意，Actions dispatch 也須明確授權。private repo 本月 Actions 額度接近用完，優先本機封裝；這次沒有升版或啟動 CI release。
 
 ## 接續入口
 

@@ -43,7 +43,7 @@ public sealed class DesktopSurface : IDisposable
   /// desktop window has no redirection surface (WS_EX_NOREDIRECTIONBITMAP), so a child that paints through WPF, layered
   /// or not, never reaches the screen: transparent ones vanish and opaque ones show black (measured on the real screen,
   /// Windows 11 build 26200, and reproduced under a host created with the same style). An attached scene therefore hosts
-  /// a windowed WebView, which the browser draws into its own child window through DirectComposition, in one opaque window
+  /// a windowed WebView, which the browser draws into its own child window through DirectComposition, in one native host
   /// whose region keeps only the papers. Wallpaper papers lie under the icons and desktop papers always take input, so
   /// the papers taking clicks does not block anything that clicks should reach.
   /// </param>
@@ -51,7 +51,7 @@ public sealed class DesktopSurface : IDisposable
   {
     this.layered = layered;
     WebView = layered ? new WebView2CompositionControl { DefaultBackgroundColor = System.Drawing.Color.Transparent }
-      : new WebView2 { DefaultBackgroundColor = System.Drawing.Color.White };
+      : new WebView2 { DefaultBackgroundColor = System.Drawing.Color.Transparent };
     if (!double.IsFinite(left) || !double.IsFinite(top) || !double.IsFinite(width) || !double.IsFinite(height)
       || Math.Abs(left) > 1_000_000 || Math.Abs(top) > 1_000_000
       || width is <= 0 or > 32768 || height is <= 0 or > 32768) throw new ArgumentException("Invalid scene bounds.");
@@ -105,8 +105,8 @@ public sealed class DesktopSurface : IDisposable
   {
     Title = "Work Fleet 桌面", Left = left, Top = top, Width = width, Height = height,
     WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = layered,
-    // An attached scene is covered by its windowed WebView; its own WPF surface never reaches the screen.
-    Background = layered ? Brushes.Transparent : Brushes.White, ShowActivated = false, ShowInTaskbar = false,
+    // Attached scenes have no WPF backing bitmap; the browser alone draws their papers.
+    Background = Brushes.Transparent, ShowActivated = false, ShowInTaskbar = false,
     WindowStartupLocation = WindowStartupLocation.Manual, UseLayoutRounding = true,
   };
 
@@ -131,6 +131,7 @@ public sealed class DesktopSurface : IDisposable
     Attach(InputHandle); Attach(VisualHandle);
     floating = topmost; InputWindow.Show(); VisualWindow.Show(); shown = true;
     // WPF's Show may refresh native styles. Reassert the child style and client coordinates.
+    if (!layered) { SetStyle(InputHandle, transparent: false); SetStyle(VisualHandle, transparent: true); }
     Attach(InputHandle); Attach(VisualHandle);
     if (physicalBounds is not null) SetPhysicalBounds(physicalBounds);
     AlignVisual(); SetRegion(Current()); Order();
@@ -154,6 +155,7 @@ public sealed class DesktopSurface : IDisposable
       && !SetWindowPos(handle, new IntPtr(-2), 0, 0, 0, 0, 0x13))
       throw new InvalidOperationException("Unable to clear floating desktop style.");
     var next = shellParent == IntPtr.Zero ? (style & ~0x40000000L) | 0x80000000L : (style & ~0x80000000L) | 0x40000000L;
+    if (!layered) next |= 0x02000000L | 0x04000000L; // CLIPCHILDREN / CLIPSIBLINGS: never paint over browser or shell siblings.
     if (next != style)
     {
       SetLastError(0); var previous = SetWindowLongPtrW(handle, -16, new IntPtr(next));
@@ -174,9 +176,10 @@ public sealed class DesktopSurface : IDisposable
     ReleaseDragCapture();
     var wasShown = shown;
     shown = false; if (!NativeAlive) return;
-    SetRegion([]);
+    // Keep the old region while hiding so User32 can uncover its actual footprint, not an already empty one.
     InputWindow.Hide(); VisualWindow.Hide();
     if (wasShown) RepaintShellParent();
+    SetRegion([]);
   }
 
   private void ReleaseDragCapture()
@@ -243,12 +246,12 @@ public sealed class DesktopSurface : IDisposable
         if (layered) Combine(mirror, mirror, result.Input, 4);
       }
       // An attached scene's single window shows every paper; a top-level scene's input window keeps the interactive ones.
-      if (SetWindowRgn(InputHandle, layered ? result.Input : result.Covered, true) == 0) throw new InvalidOperationException("Unable to install scene input region.");
+      if (SetWindowRgn(InputHandle, layered ? result.Input : result.Covered, shown) == 0) throw new InvalidOperationException("Unable to install scene input region.");
       if (layered) result.Input = IntPtr.Zero; else result.Covered = IntPtr.Zero;
       // Disjoint display regions: translucent pixels are drawn exactly once, including paper edges.
       if (mirror != IntPtr.Zero)
       {
-        if (SetWindowRgn(VisualHandle, mirror, true) == 0) throw new InvalidOperationException("Unable to install scene display region.");
+        if (SetWindowRgn(VisualHandle, mirror, shown) == 0) throw new InvalidOperationException("Unable to install scene display region.");
         mirror = IntPtr.Zero;
       }
     }
@@ -360,6 +363,12 @@ public sealed class DesktopSurface : IDisposable
 
   private IntPtr HandleInputMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
   {
+    if (message == 0x0046 && !layered && lParam != IntPtr.Zero) // Includes SetWindowRgn's implicit position change.
+    {
+      var position = Marshal.PtrToStructure<WindowPosition>(lParam);
+      position.Flags |= 0x0100; // SWP_NOCOPYBITS: stale white WPF pixels must not survive a paper-region transition.
+      Marshal.StructureToPtr(position, lParam, false);
+    }
     if (message == 0x02E0) // WPF processes the suggested bounds; input waits for a matching topology/frame.
     {
       SuspendInput();
@@ -403,17 +412,24 @@ public sealed class DesktopSurface : IDisposable
     }, IntPtr.Zero);
   }
 
-  private static void SetStyle(IntPtr handle, bool transparent)
+  private void SetStyle(IntPtr handle, bool transparent)
   {
-    var style = GetWindowLongPtrW(handle, -20).ToInt64() | 0x80; // TOOLWINDOW, absent from Alt-Tab.
+    var previousStyle = GetWindowLongPtrW(handle, -20).ToInt64();
+    var style = previousStyle | 0x80; // TOOLWINDOW, absent from Alt-Tab.
+    // The windowed WebView draws through its own DirectComposition child. Avoid a second, opaque WPF backing bitmap
+    // during paper-region transitions, including under classic Explorer.
+    if (!layered) style |= 0x00200000; // NOREDIRECTIONBITMAP; layered composition scenes retain their WPF pixels.
     if (transparent) style |= 0x20 | 0x08000000; // Layered WS_EX_TRANSPARENT works across processes; never activates.
+    if (style == previousStyle) return;
     SetLastError(0); var previous = SetWindowLongPtrW(handle, -20, new IntPtr(style));
     if (previous == IntPtr.Zero && Marshal.GetLastWin32Error() != 0) throw new InvalidOperationException("Unable to set scene policy.");
+    if (!layered && !SetWindowPos(handle, IntPtr.Zero, 0, 0, 0, 0, 0x0137))
+      throw new InvalidOperationException("Unable to apply scene composition policy.");
   }
 
   public void Dispose()
   {
-    if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); ReleaseDragCapture(); disposed = true; shown = false;
+    if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); Hide(); disposed = true;
     VisualWindow.Content = null; VisualWindow.Close(); InputWindow.Close(); ((IDisposable)WebView).Dispose();
     RepaintShellParent();
   }

@@ -22,13 +22,17 @@ internal static class HostChildProbe
   {
     if (!redirection)
     {
-      var created = CreateWindowExW(0x00200000 | 0x8 | 0x80, "Static", "Work Fleet host probe", 0x90000000, 60, 60, 540, 360,
+      // SS_BLACKRECT: a white baseline would falsely pass when a hidden paper leaves the browser's white background.
+      var created = CreateWindowExW(0x00200000 | 0x8 | 0x80, "Static", "Work Fleet host probe", 0x90000004, 60, 60, 540, 360,
         IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
       if (created == IntPtr.Zero) throw new Exception("Unable to create the host window.");
+      var scale = GetDpiForWindow(created) / 96d;
+      if (!SetWindowPos(created, IntPtr.Zero, 0, 0, (int)(360 * scale), (int)(240 * scale), 0x16))
+        throw new Exception("Unable to size the host at its actual DPI.");
       Console.WriteLine($"HOST {created.ToInt64():X}"); Console.Out.Flush(); return;
     }
     var window = new Window { WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, ShowInTaskbar = false, ShowActivated = false,
-      Topmost = true, Left = 40, Top = 40, Width = 360, Height = 240, Background = new SolidColorBrush(Color.FromRgb(0x20, 0x60, 0x20)),
+      Topmost = true, Left = 40, Top = 40, Width = 360, Height = 240, Background = Brushes.Black,
       WindowStartupLocation = WindowStartupLocation.Manual, Title = "Work Fleet host probe" };
     window.Show();
     Console.WriteLine($"HOST {new WindowInteropHelper(window).Handle.ToInt64():X}"); Console.Out.Flush();
@@ -37,13 +41,18 @@ internal static class HostChildProbe
   /// <summary>Starts a host process, checks an attached scene the way the app starts one, and stops the host.</summary>
   public static async Task Check(string directory)
   {
-    var start = new ProcessStartInfo(Environment.ProcessPath!, "--host-window-dcomp") { RedirectStandardOutput = true, UseShellExecute = false };
+    foreach (var mode in new[] { "--host-window", "--host-window-dcomp" }) await CheckHost(directory, mode);
+  }
+
+  private static async Task CheckHost(string directory, string mode)
+  {
+    var start = new ProcessStartInfo(Environment.ProcessPath!, mode) { RedirectStandardOutput = true, UseShellExecute = false };
     using var host = Process.Start(start) ?? throw new Exception("Unable to start the host process.");
     try
     {
       var line = await host.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(20));
       if (line is null || !line.StartsWith("HOST ")) throw new Exception("Host process did not report its window.");
-      if (!await Run(new IntPtr(Convert.ToInt64(line[5..], 16)), directory, "startup"))
+      if (!await Run(new IntPtr(Convert.ToInt64(line[5..], 16)), Path.Combine(directory, mode[2..]), "startup"))
         throw new Exception("An Explorer-style attached scene did not show its paper on the screen.");
     }
     finally { if (!host.HasExited) host.Kill(); }
@@ -59,6 +68,12 @@ internal static class HostChildProbe
     if (variant == "windowed") return await Windowed(host, directory, bounds, scale);
     var point = (X: bounds.X + (int)(100 * scale), Y: bounds.Y + (int)(70 * scale));
     var background = Pixel(point.X, point.Y);
+    var paintUntil = DateTime.UtcNow.AddSeconds(3);
+    while (background is not (0, 0, 0) && DateTime.UtcNow < paintUntil)
+    {
+      await Task.Delay(50); background = Pixel(point.X, point.Y);
+    }
+    if (background is not (0, 0, 0)) throw new Exception($"Host background must be black, not a false-positive white baseline: {background}");
     using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
     // As the app does: place the scene and create its browser, navigate while hidden, show with the first frame's papers.
     surface.SetShellParent(host);
@@ -78,9 +93,39 @@ internal static class HostChildProbe
     var rounded = !(Math.Abs(corner.R - 0xe0) < 24 && Math.Abs(corner.G - 0x50) < 24 && Math.Abs(corner.B - 0xa0) < 24);
     Console.WriteLine($"{(rounded ? "PASS" : "FAIL")} {variant} paper corner is clipped round: rgb({corner.R},{corner.G},{corner.B})");
     var shown = Report(variant, bounds, scale) && rounded;
+    var handle = new WindowInteropHelper(surface.InputWindow).Handle;
+    if ((GetWindowLongPtrW(handle, -20).ToInt64() & 0x00200000) == 0)
+      throw new Exception("Attached browser host still owns a WPF redirection bitmap.");
+    // Adjusted position -> stack -> spread, without pointer input. Check both the app's prepare/hide path and
+    // a visible region replacement; only checking the final hide missed the user's persistent old-position blocks.
+    var previous = (X: 20, Y: 20, Height: 100);
+    foreach (var prepare in new[] { true, false })
+      foreach (var target in new[] { (Name: "stack", X: 20, Y: 130, Height: 32), (Name: "spread", X: 200, Y: 20, Height: 100),
+        (Name: "adjusted", X: 20, Y: 20, Height: 100) })
+      {
+        if (prepare) surface.Hide();
+        await surface.WebView.ExecuteScriptAsync($"Object.assign(document.getElementById('paper').style, {{left:'{target.X}px',top:'{target.Y}px',height:'{target.Height}px'}})");
+        surface.SetInput([new(target.X, target.Y, 160, target.Height, false)]); surface.Show(false);
+        await Task.Delay(800);
+        var current = (X: bounds.X + (int)((target.X + 80) * scale), Y: bounds.Y + (int)((target.Y + target.Height / 2) * scale));
+        var paper = Pixel(current.X, current.Y);
+        if (!Pink(paper)) throw new Exception($"{target.Name} paper did not appear: {paper}");
+        // Include the old edges as well as its center: a narrow strip must fail just like a full white block.
+        foreach (var x in new[] { previous.X, previous.X + 4, previous.X + 80, previous.X + 155, previous.X + 160 })
+          foreach (var y in new[] { previous.Y, previous.Y + 4, previous.Y + previous.Height / 2, previous.Y + previous.Height - 5, previous.Y + previous.Height })
+          {
+            if (x * scale >= bounds.Width || y * scale >= bounds.Height) continue; // The host clips its right/bottom boundary.
+            var old = Pixel(bounds.X + (int)(x * scale), bounds.Y + (int)(y * scale));
+            if (old != background) throw new Exception($"{target.Name} left stale pixels at its previous position {x},{y} (prepare={prepare}): {old}");
+          }
+        Console.WriteLine($"PASS {target.Name} restores the black background at its previous position (prepare={prepare})");
+        previous = (target.X, target.Y, target.Height);
+      }
     surface.Hide(); await Task.Delay(800);
     var restored = Pixel(point.X, point.Y);
     if (restored != background) throw new Exception($"Hidden attached paper left stale pixels: before={background}, after={restored}");
+    var outside = Pixel(bounds.X + (int)(300 * scale), bounds.Y + (int)(200 * scale));
+    if (outside != background) throw new Exception($"Scene painted outside all paper regions: {outside}");
     Console.WriteLine("PASS hiding an attached paper restores the host background");
     return shown;
   }
@@ -109,10 +154,13 @@ internal static class HostChildProbe
   {
     var paper = Pixel(bounds.X + (int)(100 * scale), bounds.Y + (int)(70 * scale));
     var outside = Pixel(bounds.X + (int)(300 * scale), bounds.Y + (int)(200 * scale));
-    var shown = Math.Abs(paper.R - 0xe0) < 24 && Math.Abs(paper.G - 0x50) < 24 && Math.Abs(paper.B - 0xa0) < 24;
+    var shown = Pink(paper) && outside is (0, 0, 0);
     Console.WriteLine($"{(shown ? "PASS" : "FAIL")} {variant} scene under an Explorer-style host: paper rgb({paper.R},{paper.G},{paper.B}), outside rgb({outside.R},{outside.G},{outside.B})");
     return shown;
   }
+
+  private static bool Pink((int R, int G, int B) pixel) =>
+    Math.Abs(pixel.R - 0xe0) < 24 && Math.Abs(pixel.G - 0x50) < 24 && Math.Abs(pixel.B - 0xa0) < 24;
 
   private static (int R, int G, int B) Pixel(int x, int y)
   {

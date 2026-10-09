@@ -260,6 +260,12 @@ composition probe 套用 coordinator 既有的 render popup 穿透政策，輸�
 另新增隱藏後原像素還原檢查，仿 Explorer 宿主也檢查收起後背景；原像素檢查受遮擋時明確 SKIP。
 主 WPF probe 新增 `scene.prepare` 已確認後才移除附著便箋 DOM 的檢查。
 上述殘影與 prepare 流程的新回歸尚未執行；使用者在本輪要求停止測試及截圖，待有空再驗收。
+2026-10-09 使用者確認上一輪包的白塊仍存在，且只需調過位置後堆疊／攤開、不需要拖曳。
+`--host-check OUTPUT_DIRECTORY` 已改成黑色背景，同時啟動有／無 redirection 的兩種仿宿主：
+檢查移位、堆疊式縮高及攤開式區域變更後，新紙面仍顯示、每個舊位置恢復黑色，最後 hide 與區域外也恢復。
+涵蓋 prepare/hide 與可見區域直接替換，不注入滑鼠。這些是表面幾何操作，不能替代實際 formation owner 流程。
+新宿主 style 與原生 repaint 順序見 [ADR-035](decisions/035-windows-attached-scene-background-lifecycle.md)；
+回歸未執行、25H2 對照未驗證，也沒有獨立審閱。待使用者解除限制後再用既有 Test-WindowsNative 入口。
 主 WPF probe 另測實際逐卡設定→wallpaper→調整此組→floating→完成→wallpaper 的 owner／scene 流程。
 Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩陣仍需各自驗收。
 桌布層回退或附著錯誤時，可執行唯讀的 `scripts/windows/Get-ShellLayerInventory.ps1`，

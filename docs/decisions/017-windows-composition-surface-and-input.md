@@ -4,6 +4,8 @@
 
 2026-10-05：常駐層級由 [ADR-030](030-windows-explorer-wallpaper-layer.md) 更新為 Explorer 附著。
 下方不使用 WorkerW、一般底部視窗等內容為原始切片的歷史限制；其餘 composition／輸入責任保留。
+2026-10-09：附著場景的白底／backing bitmap 與撤下順序由 [ADR-035](035-windows-attached-scene-background-lifecycle.md)
+更新；下方 2026-10-06 的不透明宿主描述保留為歷史，不代表已修復 23H2 殘影。
 
 Accepted，2026-10-04，限 Windows 場景表面、原生輸入區域、快捷鍵註冊與顯示器盤點。
 主畫面與共用控制器的桌面協調仍須整合；本子切片不啟用 `desktopPresentation` capability。

@@ -4,6 +4,8 @@
 
 Accepted，2026-10-05。依使用者要求實作 Windows 桌布層。
 取代 ADR-017 的一般底部視窗常駐政策，以及 ADR-018／020 的兩層場景限制。
+2026-10-09 自有附著 HWND 的額外 composition／clipping styles 與背景生命週期見
+[ADR-035](035-windows-attached-scene-background-lifecycle.md)；不修改 Explorer styles 或桌布設定。
 
 ## Context
 

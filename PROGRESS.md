@@ -2,6 +2,24 @@
 
 更新：2026-10-09。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-09 堆疊／攤開後舊位置白塊再修正
+
+使用者安裝上一輪 `9dbd201` 的本機包後確認殘影仍在，新的最小重現不需要拖曳：
+調過位置的 note 經堆疊／攤開移動，黑色桌布在舊位置留下白塊。上一輪提前 hide／非同步重畫未解決。
+使用者回憶先前 1.0.1／25H2 不會發生；該歷史包未核對，不宣稱 OS 差異根因已證實。
+
+- 附著宿主改採自有 HWND `NOREDIRECTIONBITMAP` 與 child/sibling clipping，WebView／WPF 底色透明；
+  便箋仍由頁面繪製，不填黑色、改桌布或變更 Explorer styles。浮動 composition 路徑保留。
+- 附著 input HWND 的位置／region 更新停用舊 client pixels 複製。Hide 先保留 region 撤下兩面，
+  再要求 parent invalidation，最後清空 region；dispose 也先 hide。不加入同步 Explorer paint 等待。
+- 仿宿主回歸從白底改黑底，補有／無 redirection、無拖曳的移位／縮高／攤開式變更，
+  逐次比對新紙面、舊位置與收起後背景，避免原白底的假陽性。回歸是表面幾何檢查，實際 formation 待驗收。
+- [ADR-035](docs/decisions/035-windows-attached-scene-background-lifecycle.md) 記錄方向與限制。
+  使用者「不要測試及截圖」仍有效：沒有執行任何測試、probe、截圖或操作安裝版；沒有獨立審閱。
+- `Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign` 已完成本機 0.1.1 Release 編譯與封裝，
+  0 警告／0 錯誤，腳本內建 SignTool 簽署／本機信任驗證成功。產物路徑、大小與 SHA256 回報於對話。
+  沒有執行 Test-WindowsPackage／runtime 測試、升版、dispatch Actions 或發布 release；殘影效果待使用者實測。
+
 ## 2026-10-09 Windows 拖曳回彈與附著白色殘影修正
 
 使用者已安裝本機簽署的 0.1.1，回報最上層快速拖曳被拉回原位，左上角舊位置留下白色便箋形狀。

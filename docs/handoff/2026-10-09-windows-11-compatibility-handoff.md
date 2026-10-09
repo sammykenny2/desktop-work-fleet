@@ -38,6 +38,9 @@ Partner Center 尚未保留應用，尚未進入 Store 階段。
 `Build-WindowsPackage.ps1 -LocalTestSign` 產生 0.1.1 MSIX，並自行安裝測試。
 私鑰留在本機 CurrentUser/My，設為不可匯出；不把本機憑證當作 GitHub release 的 CI 憑證。
 使用者現在回報最上層快速拖曳回彈及舊位置白色殘影，已授權修正並本機打包。
+安裝第一輪修正版後，使用者再次確認白塊仍在：調過位置的 note 經堆疊／攤開後舊位置留白，不需拖曳。
+第二輪附著宿主背景與區域生命週期修正見 [ADR-035](../decisions/035-windows-attached-scene-background-lifecycle.md)，
+黑色仿宿主回歸已補，但效果未測；不要把第一輪的 hide/invalidation 記為成功解決殘影。
 但使用者接著要使用電腦，明確要求停止測試及截圖：這輪修改後不得啟動任何 probe、測試 suite 或截圖，
 也不操作正在執行的安裝版。此限制保持有效，直到使用者授權恢復；修改後通過與否待後續驗收。
 實作與已執行／未執行證據見 PROGRESS，沿用 0.1.1，不升版或 dispatch Actions。

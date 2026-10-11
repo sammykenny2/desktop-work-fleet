@@ -18,6 +18,8 @@ export interface SyncState {
   sourceId: string | null;
   sessionId: Id | null;
   cursor: string | null;
+  /** Persisted only after both pulls and all queued uploads complete; absent means unknown. */
+  lastSuccessfulSyncAt?: string;
   files?: Record<string, FileDescriptor>;
   /** Keys are revision:<revisionId> or attachment:<sha256>. Persist before createFile. */
   uploads?: Record<string, UploadReservation>;

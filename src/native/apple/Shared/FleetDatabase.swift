@@ -118,12 +118,14 @@ final class FleetDatabase {
         try execute("INSERT OR IGNORE INTO attachments VALUES(?,?,?)", [profile, id, try seal(data, "attachment", id)]); try discard(token); return id
     }
     func putAttachment(_ token: String) throws -> String { try synchronized { try transaction { try commitAttachment(token) } } }
-    func commit(_ kind: String, _ token: String, _ expected: Int64?, _ attachments: [String]) throws { try synchronized {
+    func commit(_ kind: String, _ token: String, _ expected: Int64?, _ attachments: [String], replaceAttachments: Bool = false) throws { try synchronized {
+        try FleetProtocol.require(!replaceAttachments || (kind == "workspace" && !profile.hasPrefix("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。")
         try self.kind(kind); let bytes = try staged(token, kind), revision = try validate(bytes)
         try FleetProtocol.require(revision == (expected.map { $0 + 1 } ?? 0) && Set(attachments).count == attachments.count && attachments.count <= 20000, "stale-workspace", "資料版本或附件條件不符。")
         try transaction {
             let current = try scalar("SELECT revision FROM records WHERE profile=? AND kind=?", [profile, kind]) as? Int64
             try FleetProtocol.require(current == expected, "stale-workspace", "工作空間已由另一個寫入者變更。")
+            if replaceAttachments { try execute("DELETE FROM attachments WHERE profile=?", [profile]) }
             for attachment in attachments { _ = try commitAttachment(attachment) }
             try execute("INSERT OR REPLACE INTO records VALUES(?,?,?,?)", [profile, kind, revision, try seal(bytes, kind, "record")]); try discard(token)
         }

@@ -108,6 +108,8 @@ export class FileSync {
       }
       this.#check(); await this.#pull(); await this.#push(); await this.#pull();
       this.#check();
+      await this.#workspace.completeSync(this.#session, new Date(this.#now()).toISOString());
+      this.#check();
       this.#failures = 0;
       this.#status = { phase: 'idle', pending: this.#workspace.pendingOperations.length, nextAttemptAt: 0, error: null };
       return this.status;

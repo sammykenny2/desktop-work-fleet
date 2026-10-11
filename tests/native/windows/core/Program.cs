@@ -124,6 +124,36 @@ Test("database files do not contain test plaintext", () =>
     Require(!text.Contains("native-secret-marker") && !text.Contains("unique-backup-password-marker") && !text.Contains("test attachment bytes"));
   }
 });
+Test("full local restore atomically purges old attachments, preserves other profiles and rolls back failed replacement", () =>
+{
+  var folder = Path.Combine(root, "local-replace"); Directory.CreateDirectory(folder);
+  var fresh = Encoding.UTF8.GetBytes("replacement attachment"); var freshId = LocalDatabase.Digest(fresh);
+  using (var other = new LocalDatabase(folder, "other")) other.CommitAttachment(other.Stage("attachment", attachment, id));
+  using (var local = new LocalDatabase(folder, "local"))
+  {
+    string Stage(string kind, byte[] bytes) => local.Stage(kind, bytes, LocalDatabase.Digest(bytes));
+    local.CommitRecord("workspace", Stage("workspace", Record(0)), null, [Stage("attachment", attachment)]);
+    var next = Stage("workspace", Record(1)); var file = Stage("attachment", fresh);
+    using (var conn = new SqliteConnection($"Data Source={Path.Combine(folder, "fleet.sqlite3")};Pooling=False"))
+    {
+      conn.Open(); using var cmd = conn.CreateCommand();
+      cmd.CommandText = "CREATE TRIGGER reject_replace BEFORE UPDATE ON records BEGIN SELECT RAISE(ABORT, 'injected disk failure'); END;"; cmd.ExecuteNonQuery();
+      Fails(() => local.CommitRecord("workspace", next, 0, [file], replaceAttachments: true));
+      Require(local.ReadRecord("workspace")!.SequenceEqual(Record(0)) && local.ReadAttachment(id)!.SequenceEqual(attachment) && local.ReadAttachment(freshId) is null);
+      cmd.CommandText = "DROP TRIGGER reject_replace;"; cmd.ExecuteNonQuery();
+    }
+    Fails(() => local.CommitRecord("workspace", next, null, [file], replaceAttachments: true), "stale-writer");
+    Require(local.ReadAttachment(id) is not null);
+    local.CommitRecord("workspace", next, 0, [file], replaceAttachments: true);
+    Require(local.ReadRecord("workspace")!.SequenceEqual(Record(1)) && local.ReadAttachment(id) is null && local.ReadAttachment(freshId)!.SequenceEqual(fresh));
+    local.CommitRecord("workspace", Stage("workspace", Record(2)), 1, [], replaceAttachments: true);
+    Require(local.ReadAttachment(freshId) is null);
+    Fails(() => local.CommitRecord("journal", Stage("journal", Record(0)), null, [], replaceAttachments: true), "invalid-request");
+  }
+  using (var other = new LocalDatabase(folder, "other")) Require(other.ReadAttachment(id)!.SequenceEqual(attachment));
+  using (var google = new LocalDatabase(folder, "google:fixture"))
+    Fails(() => google.CommitRecord("workspace", "unused", null, [], replaceAttachments: true), "invalid-request");
+});
 Test("navigation allows only the packaged main document", () =>
 {
   Require(NavigationPolicy.IsDocument(NavigationPolicy.Document) && NavigationPolicy.IsDocument(NavigationPolicy.Document + "#view"));

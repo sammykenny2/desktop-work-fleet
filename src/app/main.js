@@ -268,7 +268,7 @@ async function syncGoogle(force = false) {
   finally { syncBusy = false; $('#google-sync').disabled = false; }
 }
 async function changeGoogleAccount(action) {
-  if (accountBusy || nativeClosing) return; accountBusy = true;
+  if (accountBusy || nativeClosing || dataPanel?.busy()) return; accountBusy = true;
   const oldSync = syncService; clearInterval(syncTimer); stopAutomatic?.();
   try {
     await automatic?.service.whenIdle(); await oldSync?.stop(); syncService = null;
@@ -314,6 +314,35 @@ function cloudRestoreOptions() {
       return prepareCloudRestore({ ...options, workspace, sourceId: fileStore.sourceId });
     },
     run: (plan, safety, say) => runCloudRestore(say, { plan, safety, fileStore }) };
+}
+
+function backupSourceOptions() {
+  const google = profileId.startsWith('google:');
+  return { target: google ? `${googleAccount?.email || '目前 Google 帳號'} 的 Google 工作空間` : native ? '本機便箋（這台裝置）' : '本機便箋（這個瀏覽器）',
+    sync: async () => {
+      if (!googleAccount?.connected || !syncService || workspace.state.cloudRestore || nativeClosing || accountBusy)
+        throw new Error('目前無法同步 Google；請確認登入、網路與尚未完成的覆蓋作業。');
+      syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
+      try {
+        const sync = async () => {
+          await syncService.sync({ force: true }); await controller.reconcile();
+          await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
+        };
+        await (desktop ? desktop.perform(sync) : sync());
+        setSync('ok', '已同步');
+      } catch (error) { setSync('error', '同步失敗', error.message); throw error; }
+      finally { syncBusy = false; $('#google-sync').disabled = false; }
+    } };
+}
+
+async function applyLocalRestore(plan, signal) {
+  stopAutomatic?.();
+  try {
+    await automatic?.service.whenIdle();
+    const apply = () => workspace.applyRestore(plan, { signal,
+      persist: (state, revision, attachments, options) => storage.saveWithAttachments(state, revision, attachments, options) });
+    return await (desktop ? desktop.perform(apply) : apply());
+  } finally { if (automatic) stopAutomatic = startAutomaticBackup(automatic.service); }
 }
 
 async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
@@ -1033,9 +1062,12 @@ async function mountDataPanel() {
   if (!await controller.endEdit()) { host.replaceChildren(element('p', '請先完成目前的輸入。', 'hint')); return; }
   currentDraft = null; controller.cancelDrag(); render();
   dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError,
-    files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(),
+    files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
     uninstallNotice: native?.info.platform === 'windows' ? '使用 MSIX 時，解除安裝會清除這台裝置的便箋、草稿、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。' : null,
-    onChanged: async () => { await controller.reconcile(); render(); } });
+    onChanged: async () => {
+      if (!activeGroups(workspace.snapshot).some(group => group.id === activeGroupId)) activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
+      await controller.reconcile(); render();
+    } });
   host.replaceChildren(dataPanel.element);
 }
 function renderDesktopSettings() {

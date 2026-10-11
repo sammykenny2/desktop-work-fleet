@@ -143,7 +143,8 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
             tokens.Add(value!);
           }
         }
-        database.CommitRecord(JsonRules.Text(args, "kind"), token, JsonRules.ExpectedRevision(args), tokens);
+        var replaceAttachments = args.TryGetProperty("replaceAttachments", out var replace) && replace.GetBoolean();
+        database.CommitRecord(JsonRules.Text(args, "kind"), token, JsonRules.ExpectedRevision(args), tokens, replaceAttachments);
         staged.Remove(token); foreach (var value in tokens) staged.Remove(value); return null;
       }
       case "storage.putAttachment":

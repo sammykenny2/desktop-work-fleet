@@ -71,7 +71,8 @@ final class FleetBridge implements AutoCloseable {
                 for (int i = 0; i < attachments.length(); i++) Protocol.require(staged.contains(attachments.getString(i)), "transfer-missing", "附件傳輸不屬於此視窗。");
                 Protocol.require(args.has("expectedRevision"), "invalid-request", "缺少版本條件。");
                 Long expected = args.isNull("expectedRevision") ? null : Protocol.number(args, "expectedRevision", Protocol.SAFE_INTEGER);
-                database.commit(Protocol.text(args, "kind", 32), token, expected, attachments); staged.remove(token);
+                Protocol.require(!args.has("replaceAttachments") || args.get("replaceAttachments") instanceof Boolean, "invalid-request", "布林欄位無效。");
+                database.commit(Protocol.text(args, "kind", 32), token, expected, attachments, args.optBoolean("replaceAttachments", false)); staged.remove(token);
                 for (int i = 0; i < attachments.length(); i++) staged.remove(attachments.getString(i)); return null;
             }
             default: throw new Protocol.Failure("unsupported-method", "原生主機沒有此操作。");

@@ -5,6 +5,7 @@ import { projectRevisionsAsync, reconcileSourceLayout } from '../sources/project
 import { LayoutStore, rescueRect } from '../layout/store.js';
 import { regionShortcuts } from '../core/shortcuts.js';
 import { groupLayersFromPapers } from '../layout/stages.js';
+import { Workspace } from '../core/workspace.js';
 import { BackupDocument, createBackup } from './payload.js';
 import { backupScheduler, checkCancelled } from './archive.js';
 
@@ -128,6 +129,27 @@ export class RestorePlan {
     }
     return copy(this.#state);
   }
+}
+
+/** Replaces only an offline workspace, using the same verified portable document and commit boundary. */
+export async function prepareLocalRestore({ workspace, document, ...options }) {
+  const current = workspace.state;
+  requireValue(!current.profileId.startsWith('google:'), 'restore-profile', '請先切換到本機便箋，再清空本機還原。');
+  requireValue(document instanceof BackupDocument, 'invalid-backup-data', '請先驗證完整備份。');
+  requireValue(options.repeat || !Object.values(current.restoreReceipts || {}).some(item => item.fingerprint === document.fingerprint),
+    'already-restored', '這份備份已還原；只有明確選擇再還原一次才建立新工作。');
+  const empty = await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
+    area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {} });
+  const restore = await prepareRestore({ ...options, workspace: empty, document, mode: 'merge', layout: 'backup' });
+  const next = restore.materialize(empty.state);
+  next.revision = current.revision;
+  next.layout.revision = current.layout.revision + 1;
+  const receipt = { ...restore.receipt, mode: 'local-replace', baseRevision: current.revision, committedRevision: current.revision + 1 };
+  next.restoreReceipts = { [receipt.jobId]: receipt };
+  const preview = { ...restore.preview, mode: 'local-replace', revision: current.revision, requiresSafetyBackup: false,
+    removed: { cards: current.cards.length, groups: current.groups.length, drafts: Object.keys(current.drafts).length,
+      revisions: current.revisions.length } };
+  return new RestorePlan(planKey, next, document, preview, receipt);
 }
 
 export async function prepareRestore({ workspace, document, mode = 'import', layout = 'preserve', workAreas,

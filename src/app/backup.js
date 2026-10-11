@@ -1,5 +1,6 @@
-import { createBackup, openBackup } from '../backup/payload.js';
-import { prepareRestore, saveSafetyBackup } from '../backup/restore.js';
+import { openBackup } from '../backup/payload.js';
+import { createSourceBackup } from '../backup/export.js';
+import { prepareRestore, prepareLocalRestore, saveSafetyBackup } from '../backup/restore.js';
 import { BACKUP_LIMITS, checkCancelled } from '../backup/archive.js';
 import { browserBackupFiles } from '../backup/browser-files.js';
 import { requireValue } from '../core/contracts.js';
@@ -14,6 +15,23 @@ const field = (text, control, className = 'field') => { const label = node('labe
 const check = (text, control) => { const label = node('label', undefined, 'check'); label.append(control, document.createTextNode(text)); return label; };
 const button = (text, className) => { const value = node('button', text, className); value.type = 'button'; return value; };
 const LOST = '所有便箋（含已完成、封存與刪除區）、群組、未完成草稿、附件、版本歷史、桌面佈局、快捷鍵與自動備份設定';
+
+function confirmKnownData(target, error, signal) {
+  return new Promise(resolve => {
+    const dialog = node('dialog'); dialog.id = 'backup-known-data-dialog';
+    const cancel = button('取消'); const proceed = button('只備份這台已知資料'); proceed.id = 'export-known-data';
+    let accepted = false;
+    const abort = () => dialog.close();
+    cancel.onclick = abort; proceed.onclick = () => { accepted = true; dialog.close(); };
+    dialog.onclose = () => { signal?.removeEventListener('abort', abort); dialog.remove(); resolve(accepted); };
+    dialog.append(node('h2', 'Google 同步未完成'), node('p', target), node('p', error.message),
+      node('p', '這份備份只能包含這台裝置已知的資料與草稿，可能缺少其他裝置的最新修改。'), cancel, proceed);
+    document.body.append(dialog); dialog.showModal();
+    signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
+  });
+}
+
+const syncSummary = manifest => `最後成功同步：${manifest.lastSuccessfulSyncAt ? new Date(manifest.lastSuccessfulSyncAt).toLocaleString() : '沒有紀錄'}；${manifest.pendingOperations} 筆待同步、${manifest.counts.drafts} 份草稿、${manifest.counts.conflicts} 個衝突、${manifest.counts.pendingRevisions} 個待補版本。`;
 
 // The warning names the exact workspace, lists what goes and what stays, and keeps a way back to the export.
 function confirmReset(reset, goExport) {
@@ -49,7 +67,9 @@ function confirmReset(reset, goExport) {
  * The 資料與備份 page: export, restore, automatic backup and the reset. It mounts inside the settings window;
  * busy() tells the window to stay open while a backup or restore is running.
  */
-export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, uninstallNotice }) {
+export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, localRestore, backupSource, uninstallNotice }) {
+  const google = workspace.state.profileId.startsWith('google:');
+  const target = backupSource?.target || (google ? '目前 Google 帳號的工作空間' : '本機便箋（這台裝置）');
   const panel = node('div', undefined, 'backup-panel'); panel.id = 'backup-panel';
   const message = node('p', '', 'backup-message');
   message.id = 'backup-status'; message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
@@ -60,6 +80,11 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const mode = node('select'); mode.id = 'restore-mode';
   for (const [value, label] of [['import', '加入成新的便箋'], ['merge', '與目前的便箋合併'], ['replace', '取代目前的便箋']]) mode.append(new Option(label, value));
   if (cloudRestore) mode.append(new Option('清空 Google 後，從備份還原', 'cloud-replace'));
+  if (!google) mode.append(new Option('清空本機後，從備份還原', 'local-replace'));
+  const localAgree = input('restore-local-agree', 'checkbox');
+  const localWarning = node('div'); localWarning.hidden = true;
+  localWarning.append(node('p', `會以備份完整取代${target}的便箋、群組、歷史、草稿、附件與版面。舊內容不會留在刪除區；Google 雲端與其他工作空間不受影響。`),
+    node('p', '備份目前資料是可選的；自動備份設定與已保存的 ZIP 檔會保留。'), check('我了解目前本機內容會永久被備份取代', localAgree));
   const cloudAgree = input('restore-cloud-agree', 'checkbox');
   const cloudWarning = node('div'); cloudWarning.hidden = true;
   if (cloudRestore) cloudWarning.append(node('p', `將永久清空 ${cloudRestore.target} 的所有 Work Fleet 雲端便箋、群組、歷史與附件，再還原這份備份。其他裝置請先停止同步。`),
@@ -82,17 +107,21 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     const names = { read: '讀取檔案', write: '整理資料', attachments: '讀取附件', encrypt: '加密', decrypt: '解密', save: '保存檔案' };
     say(`${names[phase] || '處理中'}：${completed} / ${total}`);
   };
-  const resetPlan = () => { plan = null; safety = null; cloudAgree.checked = false; preview.replaceChildren(); refresh(); };
+  const resetPlan = () => { plan = null; safety = null; cloudAgree.checked = false; localAgree.checked = false; preview.replaceChildren(); refresh(); };
   function refresh() {
-    for (const control of [...controls, encrypt, password, fileInput, readPassword, mode, layout, repeat, cloudAgree]) control.disabled = busy;
+    for (const control of [...controls, encrypt, password, fileInput, readPassword, mode, layout, repeat, cloudAgree, localAgree]) control.disabled = busy;
     password.disabled = busy || !encrypt.checked;
     const destructive = ['replace', 'cloud-replace'].includes(mode.value);
     cloudWarning.hidden = mode.value !== 'cloud-replace';
-    confirm.hidden = !plan; confirm.disabled = busy || !plan || (destructive && !safety) || (mode.value === 'cloud-replace' && !cloudAgree.checked);
-    saveSafety.hidden = !plan || !destructive; safetyInfo.hidden = saveSafety.hidden;
-    saveSafety.disabled = busy || !plan || !files.canConfirmSave;
+    localWarning.hidden = mode.value !== 'local-replace';
+    confirm.hidden = !plan; confirm.disabled = busy || !plan || (destructive && !safety) || (mode.value === 'cloud-replace' && !cloudAgree.checked)
+      || (mode.value === 'local-replace' && !localAgree.checked);
+    saveSafety.hidden = !plan || (!destructive && mode.value !== 'local-replace'); safetyInfo.hidden = saveSafety.hidden;
+    saveSafety.disabled = busy || !plan || (mode.value !== 'local-replace' && !files.canConfirmSave);
     cancel.hidden = !busy; cancel.disabled = committing;
-    safetyInfo.textContent = destructive && !files.canConfirmSave ? '這裡無法確認備份已保存，所以不能取代；請改用 App。' : '取代前，先把目前的資料存一份備份。';
+    safetyInfo.textContent = mode.value === 'local-replace' ? '可以直接確認還原；需要保留舊內容時，再選擇先備份。'
+      : destructive && !files.canConfirmSave ? '這裡無法確認備份已保存，所以不能取代；請改用 App。' : '取代前，先把目前的資料存一份備份。';
+    layout.disabled = busy || mode.value === 'local-replace';
   }
   async function execute(work) {
     if (busy) return; busy = true; abort = new AbortController(); refresh(); say('正在處理…');
@@ -109,20 +138,25 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const exportButton = action('export-backup', '匯出備份', async signal => {
     const secret = exportPassword(); const destination = await files.chooseDestination();
     await flush(); checkCancelled(signal);
-    const result = await createBackup({ workspace, storage, password: secret, signal, progress });
+    if (google) say('正在同步 Google，完成後匯出備份…');
+    const result = await createSourceBackup({ workspace, storage, source: backupSource, password: secret, signal, progress,
+      confirmKnownData: (error, signal) => confirmKnownData(target, error, signal) });
     const saved = await destination.save({ ...result, signal, progress }); password.value = '';
-    say(saved.saved ? '備份已保存，檔案檢查無誤。' : '已交給瀏覽器下載，請確認檔案已保存。');
+    say(`${saved.saved ? '備份已保存，檔案檢查無誤。' : '已交給瀏覽器下載，請確認檔案已保存。'} ${target}；${google ? result.knownDataOnly ? '僅含這台已知副本，Google 同步未完成。' : '包含本次同步取得的雲端便箋，以及這台的草稿；不含其他裝置尚未上傳的內容。' : '本機完整已知資料。'} ${syncSummary(result.manifest)}`);
   }, 'primary');
   const readButton = action('preview-restore', '檢查檔案', async signal => {
     resetPlan(); await flush(); const file = fileInput.files[0];
     requireValue(file && file.size <= BACKUP_LIMITS.encryptedBytes, 'backup-limit', '請選擇容量上限內的 ZIP 備份。');
     loaded = await openBackup(new Uint8Array(await file.arrayBuffer()), { password: readPassword.value, signal, progress });
-    const options = { document: loaded, layout: layout.checked ? 'backup' : 'preserve', repeat: repeat.checked, workAreas: getWorkAreas(), signal };
+    const options = { document: loaded, layout: layout.checked || mode.value === 'local-replace' ? 'backup' : 'preserve', repeat: repeat.checked, workAreas: getWorkAreas(), signal };
     plan = mode.value === 'cloud-replace' ? await cloudRestore.prepare(options)
+      : mode.value === 'local-replace' ? await prepareLocalRestore({ ...options, workspace })
       : await prepareRestore({ ...options, workspace, mode: mode.value });
     const value = plan.preview; const counts = value.backup.counts;
-    preview.append(node('p', `${new Date(value.backup.createdAt).toLocaleString()} 的備份，包含 ${counts.cards} 張便箋、${counts.groups} 個群組、${counts.drafts} 份草稿、${counts.attachments} 個附件。`),
-      node('p', `還原後共 ${value.result.cards} 張便箋、${value.result.groups} 個群組；${value.mode === 'cloud-replace' ? '目前的草稿只留在取代前備份中。' : '目前的草稿都會保留。'}`));
+    preview.append(node('p', `還原目標：${target}`), node('p', `${new Date(value.backup.createdAt).toLocaleString()} 的備份，包含 ${counts.cards} 張便箋、${counts.groups} 個群組、${counts.drafts} 份草稿、${counts.attachments} 個附件。`),
+      node('p', syncSummary(value.backup)),
+      node('p', `還原後共 ${value.result.cards} 張便箋、${value.result.groups} 個群組；${value.mode === 'cloud-replace' ? '目前的草稿只留在取代前備份中。' : value.mode === 'local-replace' ? '只保留備份中的草稿與歷史。' : '目前的草稿都會保留。'}`));
+    if (value.mode === 'local-replace') preview.append(node('p', `將清除目前 ${value.removed.cards} 張便箋、${value.removed.groups} 個群組、${value.removed.drafts} 份草稿與 ${value.removed.revisions} 個歷史版本，再還原備份。`));
     if (value.mode === 'replace') preview.append(node('p', `目前多出的 ${value.extraCards} 張便箋會移到刪除區，可以再還原。`));
     if (value.result.conflicts || value.result.pendingRevisions) preview.append(node('p', `有 ${value.result.conflicts + value.result.pendingRevisions} 個版本需要之後在「版本與衝突」處理。`));
     if (value.recoveryGroup) preview.append(node('p', `會新增「${value.recoveryGroup}」群組。`));
@@ -130,6 +164,13 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     say('檔案可以還原，確認內容後按「確認還原」。');
   });
   const saveSafety = action('save-safety-backup', '先備份目前資料', async signal => {
+    if (mode.value === 'local-replace' && !files.canConfirmSave) {
+      const secret = exportPassword(); const destination = await files.chooseDestination();
+      await flush(); checkCancelled(signal);
+      const result = await createSourceBackup({ workspace, storage, password: secret, signal, progress });
+      await destination.save({ ...result, signal, progress }); password.value = '';
+      say('已交給瀏覽器下載目前資料，請確認檔案已保存；這不影響本機完整還原的確認。'); return;
+    }
     const secret = exportPassword(); const destination = await files.chooseDestination({ requireConfirmed: true });
     await flush(); safety = await saveSafetyBackup({ workspace, storage, save: value => destination.save({ ...value, progress }),
       password: secret, signal, progress }); password.value = '';
@@ -137,26 +178,30 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     say('已備份目前資料，可以確認取代。');
   });
   const confirm = action('confirm-restore', '確認還原', async signal => {
+    requireValue(mode.value !== 'local-replace' || localAgree.checked, 'restore-consent', '請先確認永久取代目前本機內容。');
     await flush(); checkCancelled(signal); committing = true; refresh(); say('正在還原…');
     if (mode.value === 'cloud-replace') { await cloudRestore.run(plan, safety, say); return; }
-    await workspace.applyRestore(plan, { safetyBackup: safety, signal,
-      persist: (state, revision, attachments) => storage.saveWithAttachments(state, revision, attachments) });
+    if (mode.value === 'local-replace' && localRestore) await localRestore(plan, signal);
+    else await workspace.applyRestore(plan, { safetyBackup: safety, signal,
+      persist: (state, revision, attachments, options) => storage.saveWithAttachments(state, revision, attachments, options) });
     resetPlan(); await onChanged(); renderReceipts(); say('已還原。草稿不會自動送出，需要時請從「未完成草稿」繼續。');
   }, 'primary');
   const cancel = button('取消'); cancel.id = 'cancel-backup'; cancel.onclick = () => { if (!committing) abort?.abort(); };
   function renderReceipts() {
     receiptList.replaceChildren(); const receipts = Object.values(workspace.state.restoreReceipts || {}).slice(-3).reverse();
-    for (const receipt of receipts) receiptList.append(node('p', `最近一次${{ import: '加入', merge: '合併', replace: '取代' }[receipt.mode]}還原新增了 ${receipt.addedDrafts} 份草稿。`, 'hint'));
+    for (const receipt of receipts) receiptList.append(node('p', `最近一次${{ import: '加入', merge: '合併', replace: '取代', 'local-replace': '清空本機後' }[receipt.mode]}還原新增了 ${receipt.addedDrafts} 份草稿。`, 'hint'));
   }
   const exportSection = node('section', undefined, 'settings-block'); const exportHeading = node('h4', '匯出備份', 'settings-heading');
-  exportSection.append(exportHeading, node('p', '把便箋、群組、草稿與附件存成一個 ZIP 檔。', 'hint'),
+  exportSection.append(exportHeading, node('p', `備份來源：${target}`, 'hint'),
+    node('p', '把便箋、群組、草稿與附件存成一個 ZIP 檔。本機與 Google 使用相同格式，可以互相還原。', 'hint'),
+    ...google ? [node('p', '匯出前會同步 Google；備份含本次同步取得的雲端便箋與這台的草稿。其他裝置未上傳的內容與草稿不會包含。', 'hint')] : [],
     check('用密碼加密', encrypt), field('密碼', password), exportButton);
   if (uninstallNotice) exportSection.append(node('p', uninstallNotice, 'hint'));
   const options = node('details', undefined, 'restore-options');
   options.append(node('summary', '更多選項'), check('一併還原桌面位置', layout), check('這份備份還原過也照樣還原', repeat));
   const restoreSection = node('section', undefined, 'settings-block');
   restoreSection.append(node('h4', '從備份還原', 'settings-heading'), field('備份檔案', fileInput), field('檔案密碼', readPassword),
-    field('還原方式', mode), cloudWarning, options, readButton, preview, safetyInfo, saveSafety, confirm, receiptList);
+    field('還原方式', mode), cloudWarning, localWarning, options, readButton, preview, safetyInfo, saveSafety, confirm, receiptList);
   const goExport = () => { exportHeading.scrollIntoView({ block: 'start', behavior: 'smooth' }); (encrypt.checked ? password : exportButton).focus({ preventScroll: true }); };
   const resetSection = node('section', undefined, 'reset-section'); resetSection.hidden = !reset;
   if (reset) {
@@ -171,8 +216,10 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   }
   const status = node('div', undefined, 'backup-status-bar'); status.append(message, cancel);
   panel.append(status, exportSection, restoreSection, automaticSection.element, resetSection);
-  for (const control of [mode, layout, repeat]) control.onchange = () => { cloudAgree.checked = false; resetPlan(); };
+  mode.onchange = () => { if (mode.value === 'local-replace') layout.checked = true; resetPlan(); };
+  for (const control of [layout, repeat]) control.onchange = resetPlan;
   cloudAgree.onchange = refresh;
+  localAgree.onchange = refresh;
   fileInput.onchange = () => { loaded = null; resetPlan(); };
   encrypt.onchange = refresh;
   renderReceipts(); refresh();

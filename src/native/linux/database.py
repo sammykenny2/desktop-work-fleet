@@ -179,8 +179,9 @@ class Database:
             self.discard(token)
             return digest
 
-    def commit(self, kind, token, expected, attachments):
+    def commit(self, kind, token, expected, attachments, replace_attachments=False):
         p.require(kind in ("workspace", "journal") and isinstance(attachments, list) and len(attachments) <= 20000 and len(set(attachments)) == len(attachments), "invalid-record", "提交種類或附件清單無效。")
+        p.require(not replace_attachments or (kind == "workspace" and not self.profile.startswith("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。")
         with self.lock:
             _, data = self.staged(token, kind)
             value = p.decode(data)
@@ -190,6 +191,8 @@ class Database:
             try:
                 current = self.connection.execute("SELECT revision FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()
                 p.require((None if current is None else current[0]) == expected, "revision-conflict", "本機資料已更新，請保留目前草稿。")
+                if replace_attachments:
+                    self.connection.execute("DELETE FROM attachments WHERE profile=?", (self.profile,))
                 for item in attachments:
                     self.put_attachment(item)
                 self.connection.execute("INSERT OR REPLACE INTO records VALUES(?,?,?,?)", (self.profile, kind, revision, self.seal("record", kind, data)))

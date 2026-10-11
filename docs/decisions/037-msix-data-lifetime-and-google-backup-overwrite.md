@@ -5,6 +5,7 @@
 Accepted，2026-10-10；2026-10-12 續行實作。維護者確認解除安裝清除本地資料，
 並選擇「先清空 Google 的所有 Work Fleet 資料，再還原備份」。
 本決策取代 ADR-032 中 Debug 與 MSIX 必須共用資料的要求；其 Debug 檢查與 Release 防護不變。
+[ADR-038](038-portable-local-and-cloud-backup-flows.md) 後續補充本機完整還原（舊備份可選）與 Google 同步後匯出；本決策的雲端安全備份規則不變。
 
 ## Context
 

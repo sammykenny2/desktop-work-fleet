@@ -2,6 +2,35 @@
 
 更新：2026-10-12。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-12 本機完整還原與 Google 同步後匯出
+
+使用者確認本機與 Google 都需備份／還原，格式相容並可雙向遷移；本機洗掉舊內容時不強制先備份，授權按最佳實踐實作。
+沿用 Windows 0.1.2，完成本輪後直接 commit／push；不升版、dispatch Actions 或修改既有 release。
+
+- 新增「清空本機後，從備份還原」：完整驗證、綁 profile／revision、預覽清除範圍及永久取代確認。
+  舊資料備份可選，不需先重設；相同 ZIP 保留原身分、全部歷史、草稿、附件與備份版面，deviceId 留在目標裝置。
+  工作空間、receipt 與完整附件集合同一 CAS 交易取代，成功後切換 graph／LayoutStore；舊內容不留在刪除區。
+  空附件備份也清除舊附件；交易中止、過期／錯分區／取消保留原資料，原生失去回應以完整持久 bytes 讀回確認。
+- SQLite／IndexedDB 附件替換限定目前本機分區，禁止 Google／journal 全量替換；其他分區與自動備份設定保留。
+  完整還原前停止自動備份並等待閒置，成功／失敗恢復排程；僅有瀏覽器下載能力也可選擇備份舊內容。
+  原有三種模式及 Google 全量覆蓋的安全備份規則維持；MSIX 更新／解除安裝政策不變。
+- 手動 Google 匯出先同步；失敗／尚有待同步內容時不保存，使用者可明確選擇只備份本機已知副本。
+  取消不保存；備份頁顯示來源／目標、最後同步及 pending／草稿／衝突資訊。
+  FileSync 原先未寫入成功時間，補上完整 pull／push／pull 且 outbox 空時持久記錄，失敗保留上次時間。
+  本機／Google 同格式 ZIP 四方向回歸通過；下載 Google ZIP、切換本機後還原可專門離線使用，不回寫來源 Google。
+- `npm test` 262 pass／12 skip／0 fail；備份／同步集中回歸 48／48。
+  Python documented discover：50 tests，11 skip／0 fail；新增 Linux 儲存測試在真 SQLite 驗證替換／空附件／回滾／CAS／分區隔離，
+  Windows 只替換 fcntl import 與 crypto fixture，不作 Linux GUI／金鑰圈證據。
+- Release app／core／UI probe 建置 0 警告／0 錯誤；原生 core／檔案／coordinator／場景 36／36。
+  `WORK_FLEET_NATIVE_TEST=1`、`WORK_FLEET_NATIVE_TEST_CONFIGURATION=Release` 的真 native bridge 回歸 12／12，
+  含本機完整還原後附件清除、草稿／新 graph、遺失 commit 回應及 receipt 重試。
+- 真 Edge 的完整主畫面 restore-ui、local-backup-ui 及 cloud-restore-ui 三個隔離探針通過；
+  OPFS／IndexedDB 實際保存、完整還原與重啟、舊備份可選、確認失效、Google 同步匯出／明確副本選擇／取消皆驗證。
+  Google transport 為合成 FileStore，沒有啟動或修改真 Work Fleet 資料／套件；沒有新增憑證或信任操作。
+- ADR-038、SPEC-002、PLAN-005、型別契約、需求／架構／Google／設定／測試說明同步；文件、UTF-8／LF、secret／scope 與 diff 檢查通過。
+  本機 Google project／Windows client 尚缺，真 Google／原生場景完整操作、Apple／Android SDK 編譯與 Linux GUI 未驗收；沒有獨立審閱。
+  提交後以既有本機憑證重新打包；產物資訊僅回報對話，不再補打包紀錄提交。
+
 ## 2026-10-12 MSIX 本機資料政策與 Google 全量備份覆蓋
 
 使用者確認解除安裝清除全部本機資料，並明確選擇「先清空 Google 的所有 Work Fleet 資料，再還原備份」。

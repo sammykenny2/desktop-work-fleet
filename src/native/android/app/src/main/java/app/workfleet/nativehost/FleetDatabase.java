@@ -110,7 +110,8 @@ final class FleetDatabase implements AutoCloseable {
     synchronized String putAttachment(String token) throws Exception {
         db.beginTransaction(); try { String id = commitAttachment(token); db.setTransactionSuccessful(); return id; } finally { db.endTransaction(); }
     }
-    synchronized void commit(String kind, String token, Long expected, JSONArray attachments) throws Exception {
+    synchronized void commit(String kind, String token, Long expected, JSONArray attachments, boolean replaceAttachments) throws Exception {
+        Protocol.require(!replaceAttachments || (kind.equals("workspace") && !profile.startsWith("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。");
         kind(kind); byte[] bytes = staged(token, kind);
         try {
             long revision = validate(bytes); Protocol.require(revision == (expected == null ? 0 : expected + 1), "stale-workspace", "資料版本條件不符。");
@@ -121,6 +122,7 @@ final class FleetDatabase implements AutoCloseable {
                 }
                 Protocol.require(attachments.length() <= 20000, "invalid-attachment", "附件數量超限。");
                 java.util.HashSet<String> unique = new java.util.HashSet<>();
+                if (replaceAttachments) db.delete("attachments", "profile=?", new String[] { profile });
                 for (int i = 0; i < attachments.length(); i++) { String attachment = attachments.getString(i); Protocol.require(unique.add(attachment), "invalid-attachment", "附件身分重複。"); commitAttachment(attachment); }
                 ContentValues row = new ContentValues(); row.put("profile", profile); row.put("kind", kind); row.put("revision", revision); row.put("data", protect(bytes, scope(kind, "record")));
                 db.insertWithOnConflict("records", null, row, SQLiteDatabase.CONFLICT_REPLACE); discard(token); db.setTransactionSuccessful();

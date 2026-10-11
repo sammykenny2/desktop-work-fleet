@@ -46,9 +46,10 @@ try {
   await page.locator('#keep-draft').click();
   await openDialog(); const before = await read();
   await page.locator('#backup-encrypt').uncheck(); await page.locator('#export-backup').click();
-  await expect(page.locator('#backup-status')).toHaveText('備份已保存，檔案檢查無誤。'); const plain = await savedBytes();
+  await expect(page.locator('#backup-status')).toContainText('備份已保存，檔案檢查無誤。'); const plain = await savedBytes();
+  await expect(page.locator('#backup-status')).toContainText('本機完整已知資料');
   await page.locator('#backup-encrypt').check(); await page.locator('#backup-password').fill('long password 中文💡');
-  await page.locator('#export-backup').click(); await expect(page.locator('#backup-status')).toHaveText('備份已保存，檔案檢查無誤。');
+  await page.locator('#export-backup').click(); await expect(page.locator('#backup-status')).toContainText('備份已保存，檔案檢查無誤。');
   const encrypted = await savedBytes(); await expect(page.locator('#backup-password')).toHaveValue('');
   assert.deepEqual(await read(), before, 'export has no workspace writes');
   await choose(encrypted); await page.locator('#restore-password').fill('wrong'); await page.locator('#preview-restore').click();
@@ -95,7 +96,18 @@ try {
   await page.screenshot({ path: 'build/restore-ui-probe.png' });
   await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
   assert.equal(Object.keys((await read()).restoreReceipts).length, 2); assert.deepEqual(errors, []);
-  console.log('PASS: real OPFS save/readback, encrypted export, wrong password, preview cancellation, import/repeat, safety-gated replace, retained drafts/history, restart receipts and 390px UI');
+  await openDialog(); await choose(plain); await page.locator('#restore-mode').selectOption('local-replace');
+  await moreOptions(); await page.locator('#restore-repeat').check(); await preview();
+  await expect(page.locator('#confirm-restore')).toBeDisabled();
+  const savesBefore = await page.evaluate(() => window.probeFiles.length);
+  await page.locator('#restore-local-agree').check(); await expect(page.locator('#confirm-restore')).toBeEnabled();
+  await page.locator('#confirm-restore').click(); await expect(page.locator('#backup-status')).toContainText('已還原');
+  const full = await read(); assert.equal(full.cards.length, 1); assert.equal(Object.keys(full.drafts).length, 1);
+  assert.deepEqual(full.revisions, before.revisions); assert.equal(full.layout.deviceId, before.layout.deviceId);
+  assert.equal(await page.evaluate(() => window.probeFiles.length), savesBefore, 'old backup is optional');
+  await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
+  assert.deepEqual((await read()).revisions, before.revisions); assert.deepEqual(errors, []);
+  console.log('PASS: full app OPFS export/import/repeat, safety-gated replace, retained drafts/history, restart receipts, 390px UI and atomic local full restore without an old backup');
 } catch (error) {
   console.error('Browser errors:', errors);
   await page.screenshot({ path: 'build/restore-ui-probe-failure.png' }); throw error;

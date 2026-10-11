@@ -1,6 +1,6 @@
 # 建置、測試與證據
 
-更新：2026-10-10。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-12。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
 
 ## 新互動驗收路由
 
@@ -140,6 +140,11 @@ profile 綁定、並行快照、未知 conflict 拒絕、加密與大量圖取�
 它含大量個別 ZIP／SHA 作業，執行時間高於一般小 fixture，不是最低手機裝置 benchmark。
 `tests/backup-restore.test.js` 驗證三種還原、完整 ID／草稿 lineage 映射、缺 parent、過期計畫、
 安全備份綁定、交易失敗、重啟 receipt／明確重複及大量新卡定位取消後佇列仍可使用。
+另驗證本機完整還原不需安全備份、舊 graph／草稿／附件清除、過期／取消／交易回滾，
+以及本機／Google 四方向同格式往返。`tests/backup-export.test.js` 用 MemoryFileStore 驗證同步後匯出新遠端內容、
+明確副本 fallback、取消／切 profile、不完整同步及成功時間；未連真 Google。
+`python -m unittest discover -s tests -p 'test_linux_local_restore.py' -v` 執行真 SQLite 的替換／空附件／回滾／CAS／分區隔離；
+在 Windows 只替換 fcntl import，crypto 使用 identity fixture，不代表 Linux GUI／金鑰圈已測。
 `tests/backup-files.test.js` 驗證 write／close／讀回故障、大小／hash、取消、owned bytes 及保存能力。
 `tests/automatic-backup.test.js` 使用合成原子 FileHost 驗證每日／變更／resume、合併觸發、排隊取消、
 pending／ack／重啟／清理、換位置、最新檔遺失、加密 policy 變更、vault 暫停及 journal 失聯通知。
@@ -156,8 +161,12 @@ node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/restore-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/cloud-restore-ui-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/local-backup-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 ```
+
+`local-backup-ui-probe` 使用合成 Google FileStore、真實 IDB，驗證舊備份可選、確認失效、附件移除／其他分區保留，
+以及 Google 匯出同步、失敗明確選擇與取消；沒有存取使用者便箋或 Google 帳號。
 
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
 `npx playwright install chromium`。Playwright 與測試 browser 不放進產品產物。
@@ -176,6 +185,7 @@ backup probe 使用真 Edge／IndexedDB、2 MiB 附件及草稿／版面，驗�
 restore UI probe 經完整畫面執行匯出／預覽／匯入／重複與取代，安全備份先保存才解鎖確認，
 檢查原草稿／歷史及 390px 畫面。它只替換 picker，真實保存／close／SHA 讀回使用 OPFS handle，
 沒有開啟個人檔案選擇器。截圖在 `build/restore-ui-probe.png`，失敗另存同名前綴 failure 圖。
+另在完整主畫面確認本機完整還原不產生舊資料備份、只留下備份 graph／草稿，重啟仍可讀回。
 上述不代表原生 OS picker、外部磁碟斷電耐久或最低手機容量壓測。
 automatic probe 先確認真 App 的自動檔案能力停用，再以真 IDB journal／Workspace 與合成 FileHost
 檢查完整 UI、執行中停用、reservation abort、ack 遺失／重啟、CAS、授權暫停及可讀取的 ZIP bytes。

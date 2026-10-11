@@ -6,7 +6,7 @@ import { revisionRecord } from '../src/sources/revisions.js';
 import { canonicalJson, parseJson } from '../src/sources/json.js';
 import { sha256 } from '../src/sources/files.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
-import { prepareRestore, RestorePlan, saveSafetyBackup, SafetyBackupReceipt } from '../src/backup/restore.js';
+import { prepareRestore, prepareLocalRestore, RestorePlan, saveSafetyBackup, SafetyBackupReceipt } from '../src/backup/restore.js';
 import { LayoutStore } from '../src/layout/store.js';
 import { backupScheduler, packZip, unpackZip } from '../src/backup/archive.js';
 
@@ -14,20 +14,20 @@ const area = { x: 0, y: 0, width: 1400, height: 900 };
 const fails = code => error => error.code === code;
 const text = value => ({ format: 'markdown', text: value, attachments: [], extra: { retained: true } });
 
-async function fixture(initial = null, sourceBlobs = new Map()) {
+async function fixture(initial = null, sourceBlobs = new Map(), profileId = crypto.randomUUID()) {
   let disk = initial ? copy(initial) : null; const blobs = new Map(sourceBlobs); let writes = 0; let fail = false;
   const persist = async (state, previous) => {
     assert.equal(disk?.revision ?? null, previous); disk = copy(state); writes++;
   };
-  const workspace = initial ? new Workspace(initial, persist) : await Workspace.create({ profileId: crypto.randomUUID(),
+  const workspace = initial ? new Workspace(initial, persist) : await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area, persist });
   const storage = { getAttachment: async (profile, id) => {
     assert.equal(profile, workspace.state.profileId); return blobs.has(id) ? new Blob([blobs.get(id)]) : null;
   } };
-  const atomic = async (state, previous, attachments) => {
+  const atomic = async (state, previous, attachments, { replaceAttachments = false } = {}) => {
     assert.equal(disk.revision, previous);
     if (fail) throw new Error('injected transaction abort');
-    const pending = new Map(blobs); for (const { id, bytes } of attachments) {
+    const pending = new Map(replaceAttachments ? [] : blobs); for (const { id, bytes } of attachments) {
       assert.equal(await sha256(bytes), id); pending.set(id, bytes.slice());
     }
     disk = copy(state); blobs.clear(); for (const [id, bytes] of pending) blobs.set(id, bytes); writes++;
@@ -36,8 +36,8 @@ async function fixture(initial = null, sourceBlobs = new Map()) {
     fail: value => { fail = value; }, export: async () => openBackup((await createBackup({ workspace, storage })).bytes) };
 }
 
-async function source() {
-  const f = await fixture(); const a = f.workspace.snapshot.groups[0]; const b = await f.workspace.createGroup('B');
+async function source(profileId) {
+  const f = await fixture(null, new Map(), profileId); const a = f.workspace.snapshot.groups[0]; const b = await f.workspace.createGroup('B');
   const bytes = new TextEncoder().encode('附件 中文 💡 <svg onload="x()">'); const id = await sha256(bytes); f.blobs.set(id, bytes);
   let card = await f.workspace.createCard({ ...text('原始中文 💡\n- [ ] 工作'), attachments: [{ id, name: 'file.svg', size: bytes.length }] }, a.id);
   card = await f.workspace.updateCard(card.id, { completed: true, archived: true }, card.revision);
@@ -49,6 +49,62 @@ async function source() {
   const recovered = f.workspace.recoverDraft(draft.id); recovered.content.text = '恢復草稿'; await f.workspace.saveDraft(recovered);
   return { ...f, a, b, card, deleted, draft, recovered, id, bytes };
 }
+
+test('full local replacement needs no safety backup and removes old history, drafts, graph and attachment bytes in one commit', async () => {
+  const s = await source('google:source'); const target = await source('local'); const before = target.disk();
+  const orphan = new TextEncoder().encode('unused old attachment'); const orphanId = await sha256(orphan); target.blobs.set(orphanId, orphan);
+  const document = await s.export(); const plan = await prepareLocalRestore({ workspace: target.workspace, document, workAreas: [area], layout: 'backup' });
+  assert.equal(plan.preview.requiresSafetyBackup, false); assert.deepEqual(target.disk(), before);
+  const writes = target.writes();
+  const receipts = await Promise.all([target.workspace.applyRestore(plan, { persist: target.atomic }), target.workspace.applyRestore(plan, { persist: target.atomic })]);
+  assert.deepEqual(receipts[0], receipts[1]); assert.equal(target.writes(), writes + 1);
+  const after = target.disk(); assert.equal(after.profileId, 'local'); assert.equal(after.layout.deviceId, before.layout.deviceId);
+  assert.deepEqual(after.revisions, document.data.records); assert.deepEqual(Object.values(after.drafts), document.data.drafts);
+  assert.equal(target.workspace.revisionHeads('card', target.card.id).length, 0);
+  assert.equal(target.workspace.revisionHeads('card', s.card.id).length, 1); assert.equal(target.blobs.has(orphanId), false);
+  assert.deepEqual([...target.blobs.keys()], [s.id]); assert.equal(after.revision, before.revision + 1);
+  assert.deepEqual(target.workspace.layout.state, after.layout); assert.deepEqual(after.layout.placements, s.disk().layout.placements);
+  const reopened = new Workspace(after, target.persist);
+  assert.deepEqual(await reopened.applyRestore(plan, { persist: target.atomic }), receipts[0]); assert.equal(target.writes(), writes + 1);
+  const updated = await reopened.updateCard(s.card.id, { content: text('edit after replacement') }, s.card.revision);
+  assert.equal(updated.content.text, 'edit after replacement'); assert.equal(reopened.revisionHistory('card', s.card.id).length, 3);
+});
+
+test('full local replacement rejects stale/profile/cancelled plans and rolls back all old state and attachments on storage failure', async () => {
+  const s = await source(); const target = await source('local'); const document = await s.export();
+  const plan = await prepareLocalRestore({ workspace: target.workspace, document, workAreas: [area] });
+  assert.equal(plan.preview.layout, 'backup');
+  const before = target.disk(); const blobs = new Map(target.blobs); target.fail(true);
+  await assert.rejects(target.workspace.applyRestore(plan, { persist: target.atomic }), /transaction abort/);
+  assert.deepEqual(target.disk(), before); assert.deepEqual(target.workspace.state, before);
+  assert.deepEqual(target.workspace.layout.state, before.layout); assert.deepEqual(target.blobs, blobs);
+  assert.equal(target.workspace.revisionHeads('card', target.card.id).length, 1);
+  const cancelled = new AbortController(); cancelled.abort();
+  await assert.rejects(target.workspace.applyRestore(plan, { persist: target.atomic, signal: cancelled.signal }), fails('backup-cancelled'));
+  const other = await fixture(); await assert.rejects(other.workspace.applyRestore(plan, { persist: other.atomic }), fails('restore-profile'));
+  const cloud = await fixture(null, new Map(), 'google:destination');
+  await assert.rejects(prepareLocalRestore({ workspace: cloud.workspace, document, workAreas: [area] }), fails('restore-profile'));
+  target.fail(false); await target.workspace.createCard(text('changed after preview'));
+  await assert.rejects(target.workspace.applyRestore(plan, { persist: target.atomic }), fails('stale-restore-plan'));
+  const retry = await prepareLocalRestore({ workspace: target.workspace, document, workAreas: [area] });
+  await target.workspace.applyRestore(retry, { persist: target.atomic }); assert.deepEqual(target.disk().revisions, document.data.records);
+});
+
+test('local and Google use the same backup format in all four migration directions, retaining histories, drafts and attachments', async () => {
+  for (const sourceProfile of ['local', 'google:source']) for (const targetProfile of ['local', 'google:target']) {
+    const s = await source(sourceProfile); const target = await fixture(null, new Map(), targetProfile); const document = await s.export();
+    const plan = targetProfile === 'local' ? await prepareLocalRestore({ workspace: target.workspace, document, layout: 'backup', workAreas: [area] })
+      : await prepareRestore({ workspace: target.workspace, document, mode: 'merge', layout: 'backup', workAreas: [area] });
+    await target.workspace.applyRestore(plan, { persist: target.atomic });
+    assert.equal(target.disk().profileId, targetProfile); assert.deepEqual(target.blobs.get(s.id), s.bytes);
+    assert.deepEqual(target.workspace.revisionHistory('card', s.card.id), s.workspace.revisionHistory('card', s.card.id));
+    assert.deepEqual(target.disk().drafts, s.disk().drafts);
+    const again = await target.export(); assert.equal(again.manifest.format, document.manifest.format);
+    const sourceIds = new Set(document.data.records.map(record => record.revisionId));
+    assert.deepEqual(again.data.records.filter(record => sourceIds.has(record.revisionId)), document.data.records);
+    assert.deepEqual(again.attachment(s.id), document.attachment(s.id));
+  }
+});
 
 test('import preview is read-only; commit maps complete identities and atomically retains existing data, attachments and layout', async () => {
   const s = await source(); const document = await s.export(); const target = await fixture();

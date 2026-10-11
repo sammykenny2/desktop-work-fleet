@@ -144,9 +144,11 @@ public sealed class LocalDatabase : IDisposable
       return data is null ? null : UserProtection.Unprotect(data, Scope(kind, id));
     }
   }
-  public void CommitRecord(string kind, string token, long? expectedRevision, IReadOnlyList<string> attachmentTokens)
+  public void CommitRecord(string kind, string token, long? expectedRevision, IReadOnlyList<string> attachmentTokens, bool replaceAttachments = false)
   {
     Kind(kind);
+    HostError.Require(!replaceAttachments || (kind == "workspace" && !ProfileId.StartsWith("google:", StringComparison.Ordinal)),
+      "invalid-request", "只有本機工作空間可以清空附件後還原。");
     HostError.Require(kind == "workspace" || attachmentTokens.Count == 0, "invalid-request", "備份紀錄不可夾帶附件。");
     HostError.Require(attachmentTokens.Count <= 20000 && attachmentTokens.Distinct(StringComparer.Ordinal).Count() == attachmentTokens.Count,
       "invalid-request", "附件傳輸清單無效。");
@@ -161,6 +163,7 @@ public sealed class LocalDatabase : IDisposable
           kind == "workspace" ? "stale-writer" : "stale-backup-writer", "本機資料已變更；保留草稿，重新載入後再保存。");
         HostError.Require(revision == (expectedRevision is null ? 0 : expectedRevision + 1) && revision <= JsonRules.MaxRevision,
           "invalid-revision", "本機保存版本不連續。");
+        if (replaceAttachments) Execute("DELETE FROM attachments WHERE profile=$p;", tx, ("$p", ProfileId));
         foreach (var attachment in attachmentTokens) CommitAttachment(attachment, tx);
         var encrypted = UserProtection.Protect(bytes, Scope(kind, "record"));
         Execute("INSERT INTO records VALUES($p,$k,$r,$d) ON CONFLICT(profile,kind) DO UPDATE SET revision=excluded.revision,data=excluded.data;",

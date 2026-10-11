@@ -104,7 +104,8 @@ actor FleetService {
             let id = try owned(args), attachments = args["attachments"] as? [String] ?? []
             try FleetProtocol.require(args["expectedRevision"] != nil && attachments.allSatisfy({ staged.contains($0) }), "invalid-request", "提交條件或附件身分無效。")
             let expected = args["expectedRevision"] is NSNull ? nil : try FleetProtocol.number(args, "expectedRevision")
-            try database.commit(FleetProtocol.text(args, "kind"), id, expected, attachments); staged.remove(id); for id in attachments { staged.remove(id) }; return NSNull()
+            let replaceAttachments = args["replaceAttachments"] == nil ? false : try FleetProtocol.bool(args, "replaceAttachments")
+            try database.commit(FleetProtocol.text(args, "kind"), id, expected, attachments, replaceAttachments: replaceAttachments); staged.remove(id); for id in attachments { staged.remove(id) }; return NSNull()
         default: throw FleetFailure("unsupported-method", "原生主機沒有此操作。")
         }
     }

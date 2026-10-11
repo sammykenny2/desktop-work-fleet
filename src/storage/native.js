@@ -63,9 +63,13 @@ export class NativeStorage {
   }
   save(state, expectedRevision) { return this.#save(state, expectedRevision, [], 'workspace'); }
   saveJournal(state, expectedRevision) { return this.#save(state, expectedRevision, [], 'journal'); }
-  saveWithAttachments(state, expectedRevision, attachments) { return this.#save(state, expectedRevision, attachments, 'workspace'); }
-  async #save(state, expectedRevision, attachments, kind) {
+  saveWithAttachments(state, expectedRevision, attachments, { replaceAttachments = false } = {}) {
+    return this.#save(state, expectedRevision, attachments, 'workspace', replaceAttachments);
+  }
+  async #save(state, expectedRevision, attachments, kind, replaceAttachments = false) {
     state = copy(state); this.#check(state.profileId);
+    requireValue(typeof replaceAttachments === 'boolean' && (!replaceAttachments || (kind === 'workspace' && !state.profileId.startsWith('google:'))),
+      'invalid-request', '只有本機工作空間可以清空附件後還原。');
     requireValue(Array.isArray(attachments) && attachments.length <= 20000, 'invalid-attachment', '附件清單格式或數量無效。');
     attachments = attachments.map(item => {
       requireValue(item?.bytes instanceof Uint8Array && validDigest(item.id), 'invalid-attachment', '附件格式無效。');
@@ -79,7 +83,7 @@ export class NativeStorage {
         tokens.push(await this.#upload('attachment', item.bytes));
       }
       token = await this.#upload(kind, bytes);
-      try { await this.#bridge.request('storage.commit', { kind, token, expectedRevision, attachments: tokens }); }
+      try { await this.#bridge.request('storage.commit', { kind, token, expectedRevision, attachments: tokens, replaceAttachments }); }
       catch (error) {
         // A lost acknowledgement is not a rollback. Confirm the complete next record before publishing it.
         if (error.code !== 'native-outcome-unknown') throw error;

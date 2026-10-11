@@ -12,8 +12,11 @@ import { Workspace } from '../src/core/workspace.js';
 import { nativeBackupAdapters } from '../src/backup/native.js';
 import { AutomaticBackup } from '../src/backup/automatic.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
+import { prepareLocalRestore } from '../src/backup/restore.js';
 
-const executable = path.resolve('tests/native/windows/core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll');
+const configuration = process.env.WORK_FLEET_NATIVE_TEST_CONFIGURATION || 'Debug';
+assert.ok(['Debug', 'Release'].includes(configuration), 'native test configuration must be Debug or Release');
+const executable = path.resolve(`tests/native/windows/core/bin/${configuration}/net8.0-windows/WorkFleet.Windows.Core.Tests.dll`);
 const enabled = process.env.WORK_FLEET_NATIVE_TEST === '1';
 if (enabled) await access(executable); // An explicitly requested but missing native build must fail.
 const nativeTest = (name, action) => test(name, { skip: !enabled, timeout: 60_000 }, action);
@@ -62,6 +65,31 @@ nativeTest('native reset deletes the profile workspace, journal and attachments,
     assert.equal(await host.storage.getAttachment('local', digest), null);
     const fresh = await Workspace.create({ profileId: 'local', deviceId: 'reset-native-2', area, persist: (state, revision) => host.storage.save(state, revision) });
     assert.equal((await host.storage.load('local')).revision, fresh.state.revision);
+  } finally { await host.close(); }
+});
+
+nativeTest('full local restore survives a lost commit reply with new graph, drafts and exact attachment replacement', async () => {
+  const host = await session(undefined, 300); const area = { x: 0, y: 0, width: 1000, height: 800 };
+  try {
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'replace-target', area,
+      persist: (state, revision) => host.storage.save(state, revision) });
+    const old = await workspace.createCard({ format: 'markdown', text: 'old local note' });
+    const oldBytes = new TextEncoder().encode('old blob'); const oldId = await sha256(oldBytes);
+    await host.storage.putAttachmentBytes('local', oldId, oldBytes);
+    const source = await Workspace.create({ profileId: 'google:fixture', deviceId: 'replace-source', area, persist: async () => {} });
+    const fresh = new TextEncoder().encode('new blob'); const freshId = await sha256(fresh);
+    await source.createCard({ format: 'markdown', text: 'restored cloud note', attachments: [{ id: freshId, size: fresh.length, name: 'new.txt' }] });
+    const draft = source.blankDraft(source.snapshot.groups[0].id); draft.content.text = 'offline draft'; await source.saveDraft(draft);
+    const document = await openBackup((await createBackup({ workspace: source, storage: { getAttachment: async () => new Blob([fresh]) } })).bytes);
+    const plan = await prepareLocalRestore({ workspace, document, layout: 'backup', workAreas: [area] });
+    host.dropCommitReply();
+    const receipt = await workspace.applyRestore(plan, { persist: (...args) => host.storage.saveWithAttachments(...args) });
+    assert.equal(receipt.mode, 'local-replace'); assert.equal(workspace.revisionHeads('card', old.id).length, 0);
+    assert.deepEqual(workspace.state.revisions, document.data.records); assert.deepEqual(workspace.state.drafts, source.state.drafts);
+    assert.deepEqual(await host.storage.load('local'), workspace.state);
+    assert.equal(await host.storage.getAttachment('local', oldId), null);
+    assert.deepEqual(new Uint8Array(await (await host.storage.getAttachment('local', freshId)).arrayBuffer()), fresh);
+    assert.deepEqual(await workspace.applyRestore(plan, { persist: (...args) => host.storage.saveWithAttachments(...args) }), receipt);
   } finally { await host.close(); }
 });
 

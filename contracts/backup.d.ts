@@ -8,7 +8,7 @@ export interface BackupManifest {
   counts: { cards: number; groups: number; revisions: number; drafts: number; attachments: number; conflicts: number; pendingRevisions: number };
   files: { name: string; size: number; sha256: string }[];
 }
-export type RestoreMode = 'import' | 'merge' | 'replace';
+export type RestoreMode = 'import' | 'merge' | 'replace' | 'local-replace';
 export type RestoreLayout = 'preserve' | 'backup';
 export interface RestoreReceipt {
   jobId: Id; fingerprint: string; mode: RestoreMode; layout: RestoreLayout; profileId: Id;
@@ -21,6 +21,7 @@ export interface RestorePreview {
   backup: BackupManifest; addedRevisions: number; addedDrafts: number; extraCards: number; retiredGroups: number;
   recoveryGroup: string | null; ambiguousRebases: number; deferredPlacements: number; requiresSafetyBackup: boolean;
   result: { cards: number; groups: number; conflicts: number; pendingRevisions: number };
+  removed?: { cards: number; groups: number; drafts: number; revisions: number };
 }
 export type BackupProgress = (value: { phase: string; completed: number; total: number }) => void;
 export interface BackupSaveInput { bytes: Uint8Array; signal?: AbortSignal; progress?: BackupProgress }
@@ -37,7 +38,7 @@ export interface BackupFiles {
 }
 /** One CAS transaction for Workspace, receipt and all attachment bytes; reject means no partial publication. */
 export type PersistRestoredWorkspace = (state: WorkspaceState, expectedRevision: number,
-  attachments: { id: string; bytes: Uint8Array }[]) => Promise<void>;
+  attachments: { id: string; bytes: Uint8Array }[], options?: { replaceAttachments: boolean }) => Promise<void>;
 
 export interface AutomaticBackupJob {
   id: Id; scheduleId: Id; policyId: Id; destinationId: string; name: string;

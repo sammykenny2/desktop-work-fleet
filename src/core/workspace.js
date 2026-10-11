@@ -120,13 +120,13 @@ export class Workspace {
   assertSyncSession(session) { this.#session(this.#state, session); }
   uploadState(session, operation) { this.#session(this.#state, session); return copy(this.#state.sync.uploads?.[operation] || null); }
 
-  #commit(change, persist = this.#persist) {
+  #commit(change, persist = this.#persist, replaceGraph = false) {
     const operation = this.#tail.then(async () => {
       const draft = copy(this.#state);
       const result = change(draft);
       const additions = draft.revisions.slice(this.#state.revisions.length);
-      const graph = additions.length ? this.#graph.fork(additions) : this.#graph;
-      if (additions.length) Object.assign(draft, projectRevisions(graph, draft));
+      const graph = replaceGraph ? new RevisionGraph(draft.revisions) : additions.length ? this.#graph.fork(additions) : this.#graph;
+      if (replaceGraph || additions.length) Object.assign(draft, projectRevisions(graph, draft));
       draft.revision++;
       await persist(copy(draft), this.#state.revision);
       this.#state = draft; this.#graph = graph;
@@ -140,15 +140,19 @@ export class Workspace {
   async applyRestore(plan, { persist, safetyBackup, signal } = {}) {
     const { RestorePlan } = await import('../backup/restore.js');
     requireValue(plan instanceof RestorePlan && typeof persist === 'function', 'invalid-restore-plan', '需要有效預覽及原子還原儲存介面。');
+    const replaceGraph = plan.preview.mode === 'local-replace';
     const cancelled = () => requireValue(!signal?.aborted, 'backup-cancelled', '還原已取消，現有資料未變更。');
     cancelled();
     return this.#layout.integrateSource(() => {
       cancelled(); const existing = plan.existing(this.#state);
       if (existing) return { layout: this.#state.layout, value: existing };
       return this.#commit(state => {
-        cancelled(); Object.assign(state, plan.materialize(state, safetyBackup));
+        cancelled(); const next = plan.materialize(state, safetyBackup);
+        if (replaceGraph) for (const key of Object.keys(state)) delete state[key];
+        Object.assign(state, next);
         return { layout: state.layout, value: plan.receipt };
-      }, (state, revision) => persist(state, revision, plan.attachments));
+      }, (state, revision) => persist(state, revision, plan.attachments,
+        { replaceAttachments: replaceGraph }), replaceGraph);
     });
   }
 
@@ -241,6 +245,18 @@ export class Workspace {
   async endSync(session) {
     session = copy(session);
     return this.#commit(state => { this.#session(state, session); state.sync.sessionId = null; });
+  }
+
+  async completeSync(session, completedAt) {
+    requireValue(typeof completedAt === 'string' && Number.isFinite(Date.parse(completedAt)) && new Date(completedAt).toISOString() === completedAt,
+      'invalid-sync-time', '同步完成時間無效。');
+    session = copy(session);
+    return this.#commit(state => {
+      this.#session(state, session);
+      if (state.outbox.length) return false;
+      state.sync.lastSuccessfulSyncAt = completedAt;
+      return true;
+    });
   }
 
   #file(state, file) {

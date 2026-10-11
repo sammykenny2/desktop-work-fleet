@@ -74,6 +74,13 @@ Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪�
 契約、生命週期與失敗續行見 [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)、
 [SPEC-002](specs/002-portable-backup-and-restore.md)、[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md)。
 
+## 2026-10-12 本機／Google 備份雙向遷移
+
+使用者確認兩種工作空間都需備份與還原，格式相同或相容，能將本機搬至 Google，或將 Google 搬至本機後專門離線使用。
+本機完整還原不強制先備份舊資料：先驗證、預覽及明確確認，再在同交易取代全部便箋、歷史、草稿、版面與附件。
+手動 Google 匯出先同步；失敗預設不保存，可明確選擇匯出已知副本。原取代及 Google 全量覆蓋仍維持安全備份要求。
+決策及實作契約見 [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) 與 [SPEC-002](specs/002-portable-backup-and-restore.md)。
+
 ## 延後而保留的方向
 
 完整 PM、Project/Item/View、自架 server 與多歸屬留作後續研究；

@@ -136,7 +136,8 @@ class Service:
                 token, attachments = self.owned(args), args.get("attachments", [])
                 p.require("expectedRevision" in args and isinstance(attachments, list) and all(item in self.staged for item in attachments), "invalid-request", "提交條件或附件身分無效。")
                 expected = None if args["expectedRevision"] is None else p.number(args, "expectedRevision")
-                self.database.commit(p.text(args, "kind"), token, expected, attachments)
+                replace_attachments = p.boolean(args, "replaceAttachments") if "replaceAttachments" in args else False
+                self.database.commit(p.text(args, "kind"), token, expected, attachments, replace_attachments)
                 self.staged.discard(token)
                 self.staged.difference_update(attachments)
                 return None

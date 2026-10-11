@@ -1,6 +1,6 @@
 # 需求與版本範圍
 
-更新：2026-10-09。互動規範以 [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) 為準。
+更新：2026-10-12。互動規範以 [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) 為準。
 該規格明列 U（已確認）、D（授權工作預設）、Q（待決），不能把研究候選當成已批准功能。
 
 ## 已確認產品方向
@@ -64,6 +64,15 @@ Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪�
 詳細要求、驗收與施工順序見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)、
 [SPEC-005](specs/005-windows-11-compatibility.md)、[PLAN-004](plans/004-windows-11-compatibility.md)。
 這些需求不套用到另一應用；其實作與通過紀錄不能作為本專案證據。
+
+## 2026-10-10 解除安裝與 Google 覆蓋政策
+
+使用者確認 MSIX 解除安裝應清除全部本機資料；先匯出備份，再登入 Google，
+可明確選擇「先清空 Google 的所有 Work Fleet 資料，再還原備份」。
+更新保留資料；匯出 ZIP 與 Google 雲端不由解除安裝刪除。ZIP／Debug 的舊獨立目錄不自動搬移或刪除。
+新增全量覆蓋，不改原有匯入／合併／取代歷史保留語意；需已保存安全備份及明確清空確認，草稿不自動發布。
+契約、生命週期與失敗續行見 [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)、
+[SPEC-002](specs/002-portable-backup-and-restore.md)、[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md)。
 
 ## 延後而保留的方向
 

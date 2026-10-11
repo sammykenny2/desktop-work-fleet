@@ -55,6 +55,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 |------|-------|--------|--------------|
 | [004-windows-11-compatibility](004-windows-11-compatibility.md) | 23H2 native baseline, minimal fixes and Windows 11 package floor | Requirements confirmed; next session implementation, status in PROGRESS | [SPEC-005](../specs/005-windows-11-compatibility.md) |
 | [003-desktop-interaction-implementation](003-desktop-interaction-implementation.md) | Cards, groups, formation, renderer and native hosts | Planned; product implementation not started | [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) |
+| [005-msix-data-and-cloud-overwrite](005-msix-data-and-cloud-overwrite.md) | MSIX 私有資料與安全、可續行的 Google 全量覆蓋 | 使用者要求已確認；狀態在 PROGRESS | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Validation version implemented; platform matrix incomplete | [SPEC-001](../specs/001-validation-version.md) |
 | [002-google-drive-notes-mvp](002-google-drive-notes-mvp.md) | Google Drive notes with portable backup | Draft | [SPEC-002](../specs/002-portable-backup-and-restore.md) |

@@ -66,7 +66,10 @@ ZIP 包含 `WorkFleet.exe`、內附 runtime 與依賴；MSIX 與 ZIP 都保留 r
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 沒有既有受信任 preview 憑證時，可用一般 `Build-WindowsPackage.ps1 -SkipRestore` 產生未簽章 MSIX／ZIP，
 以 `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 僅驗證包內容。
-使用者解壓 ZIP 後執行 `WorkFleet.exe`；正常版本共用 `%LOCALAPPDATA%\WorkFleet`，先關閉舊實例並備份已有資料。
+使用者解壓 ZIP 後執行 `WorkFleet.exe`；ZIP／未封裝 Debug 共用 `%LOCALAPPDATA%\WorkFleet`，先關閉同資料區的舊實例。
+MSIX 使用套件私有資料區；更新保留，解除安裝清除所有套件內本機資料（含 Google 帳號分區、草稿、設定、憑證及 cache）。
+同版號解除安裝再重裝前請先匯出備份，匯出的 ZIP 與 Google 雲端不受影響。
+舊獨立目錄不自動搬移或刪除，先以舊版／ZIP 匯出，再於 MSIX 匯入；見 [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)。
 這條路徑不建立憑證、不改信任，也不構成 MSIX 安裝驗收。
 
 ### Windows 預覽版發布

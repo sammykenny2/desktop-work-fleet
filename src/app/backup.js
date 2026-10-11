@@ -49,7 +49,7 @@ function confirmReset(reset, goExport) {
  * The 資料與備份 page: export, restore, automatic backup and the reset. It mounts inside the settings window;
  * busy() tells the window to stay open while a backup or restore is running.
  */
-export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset }) {
+export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, uninstallNotice }) {
   const panel = node('div', undefined, 'backup-panel'); panel.id = 'backup-panel';
   const message = node('p', '', 'backup-message');
   message.id = 'backup-status'; message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
@@ -59,6 +59,12 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const readPassword = input('restore-password', 'password'); readPassword.autocomplete = 'current-password'; readPassword.maxLength = 1024; readPassword.placeholder = '沒有加密可留白';
   const mode = node('select'); mode.id = 'restore-mode';
   for (const [value, label] of [['import', '加入成新的便箋'], ['merge', '與目前的便箋合併'], ['replace', '取代目前的便箋']]) mode.append(new Option(label, value));
+  if (cloudRestore) mode.append(new Option('清空 Google 後，從備份還原', 'cloud-replace'));
+  const cloudAgree = input('restore-cloud-agree', 'checkbox');
+  const cloudWarning = node('div'); cloudWarning.hidden = true;
+  if (cloudRestore) cloudWarning.append(node('p', `將永久清空 ${cloudRestore.target} 的所有 Work Fleet 雲端便箋、群組、歷史與附件，再還原這份備份。其他裝置請先停止同步。`),
+    node('p', '目前資料必須先匯出備份。備份中的草稿只還原到這台裝置，不會自動發布。'),
+    check('我了解這會永久清空 Google 的 Work Fleet 資料', cloudAgree));
   const layout = input('restore-layout', 'checkbox'); const repeat = input('restore-repeat', 'checkbox');
   const preview = node('div'); preview.id = 'restore-preview';
   const safetyInfo = node('p', '取代前，先把目前的資料存一份備份。', 'hint');
@@ -76,18 +82,20 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     const names = { read: '讀取檔案', write: '整理資料', attachments: '讀取附件', encrypt: '加密', decrypt: '解密', save: '保存檔案' };
     say(`${names[phase] || '處理中'}：${completed} / ${total}`);
   };
-  const resetPlan = () => { plan = null; safety = null; preview.replaceChildren(); refresh(); };
+  const resetPlan = () => { plan = null; safety = null; cloudAgree.checked = false; preview.replaceChildren(); refresh(); };
   function refresh() {
-    for (const control of [...controls, encrypt, password, fileInput, readPassword, mode, layout, repeat]) control.disabled = busy;
+    for (const control of [...controls, encrypt, password, fileInput, readPassword, mode, layout, repeat, cloudAgree]) control.disabled = busy;
     password.disabled = busy || !encrypt.checked;
-    confirm.hidden = !plan; confirm.disabled = busy || !plan || (mode.value === 'replace' && !safety);
-    saveSafety.hidden = !plan || mode.value !== 'replace'; safetyInfo.hidden = saveSafety.hidden;
+    const destructive = ['replace', 'cloud-replace'].includes(mode.value);
+    cloudWarning.hidden = mode.value !== 'cloud-replace';
+    confirm.hidden = !plan; confirm.disabled = busy || !plan || (destructive && !safety) || (mode.value === 'cloud-replace' && !cloudAgree.checked);
+    saveSafety.hidden = !plan || !destructive; safetyInfo.hidden = saveSafety.hidden;
     saveSafety.disabled = busy || !plan || !files.canConfirmSave;
     cancel.hidden = !busy; cancel.disabled = committing;
-    if (mode.value === 'replace' && !files.canConfirmSave) safetyInfo.textContent = '這裡無法確認備份已保存，所以不能取代；請改用 App。';
+    safetyInfo.textContent = destructive && !files.canConfirmSave ? '這裡無法確認備份已保存，所以不能取代；請改用 App。' : '取代前，先把目前的資料存一份備份。';
   }
   async function execute(work) {
-    if (busy) return; busy = true; abort = new AbortController(); refresh();
+    if (busy) return; busy = true; abort = new AbortController(); refresh(); say('正在處理…');
     try { await work(abort.signal); }
     catch (error) {
       say(error.name === 'AbortError' || error.code === 'backup-cancelled' ? '已取消。' : error.message, true);
@@ -109,11 +117,12 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     resetPlan(); await flush(); const file = fileInput.files[0];
     requireValue(file && file.size <= BACKUP_LIMITS.encryptedBytes, 'backup-limit', '請選擇容量上限內的 ZIP 備份。');
     loaded = await openBackup(new Uint8Array(await file.arrayBuffer()), { password: readPassword.value, signal, progress });
-    plan = await prepareRestore({ workspace, document: loaded, mode: mode.value, layout: layout.checked ? 'backup' : 'preserve',
-      repeat: repeat.checked, workAreas: getWorkAreas(), signal });
+    const options = { document: loaded, layout: layout.checked ? 'backup' : 'preserve', repeat: repeat.checked, workAreas: getWorkAreas(), signal };
+    plan = mode.value === 'cloud-replace' ? await cloudRestore.prepare(options)
+      : await prepareRestore({ ...options, workspace, mode: mode.value });
     const value = plan.preview; const counts = value.backup.counts;
     preview.append(node('p', `${new Date(value.backup.createdAt).toLocaleString()} 的備份，包含 ${counts.cards} 張便箋、${counts.groups} 個群組、${counts.drafts} 份草稿、${counts.attachments} 個附件。`),
-      node('p', `還原後共 ${value.result.cards} 張便箋、${value.result.groups} 個群組；目前的草稿都會保留。`));
+      node('p', `還原後共 ${value.result.cards} 張便箋、${value.result.groups} 個群組；${value.mode === 'cloud-replace' ? '目前的草稿只留在取代前備份中。' : '目前的草稿都會保留。'}`));
     if (value.mode === 'replace') preview.append(node('p', `目前多出的 ${value.extraCards} 張便箋會移到刪除區，可以再還原。`));
     if (value.result.conflicts || value.result.pendingRevisions) preview.append(node('p', `有 ${value.result.conflicts + value.result.pendingRevisions} 個版本需要之後在「版本與衝突」處理。`));
     if (value.recoveryGroup) preview.append(node('p', `會新增「${value.recoveryGroup}」群組。`));
@@ -129,6 +138,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   });
   const confirm = action('confirm-restore', '確認還原', async signal => {
     await flush(); checkCancelled(signal); committing = true; refresh(); say('正在還原…');
+    if (mode.value === 'cloud-replace') { await cloudRestore.run(plan, safety, say); return; }
     await workspace.applyRestore(plan, { safetyBackup: safety, signal,
       persist: (state, revision, attachments) => storage.saveWithAttachments(state, revision, attachments) });
     resetPlan(); await onChanged(); renderReceipts(); say('已還原。草稿不會自動送出，需要時請從「未完成草稿」繼續。');
@@ -141,11 +151,12 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const exportSection = node('section', undefined, 'settings-block'); const exportHeading = node('h4', '匯出備份', 'settings-heading');
   exportSection.append(exportHeading, node('p', '把便箋、群組、草稿與附件存成一個 ZIP 檔。', 'hint'),
     check('用密碼加密', encrypt), field('密碼', password), exportButton);
+  if (uninstallNotice) exportSection.append(node('p', uninstallNotice, 'hint'));
   const options = node('details', undefined, 'restore-options');
   options.append(node('summary', '更多選項'), check('一併還原桌面位置', layout), check('這份備份還原過也照樣還原', repeat));
   const restoreSection = node('section', undefined, 'settings-block');
   restoreSection.append(node('h4', '從備份還原', 'settings-heading'), field('備份檔案', fileInput), field('檔案密碼', readPassword),
-    field('還原方式', mode), options, readButton, preview, safetyInfo, saveSafety, confirm, receiptList);
+    field('還原方式', mode), cloudWarning, options, readButton, preview, safetyInfo, saveSafety, confirm, receiptList);
   const goExport = () => { exportHeading.scrollIntoView({ block: 'start', behavior: 'smooth' }); (encrypt.checked ? password : exportButton).focus({ preventScroll: true }); };
   const resetSection = node('section', undefined, 'reset-section'); resetSection.hidden = !reset;
   if (reset) {
@@ -160,13 +171,15 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   }
   const status = node('div', undefined, 'backup-status-bar'); status.append(message, cancel);
   panel.append(status, exportSection, restoreSection, automaticSection.element, resetSection);
-  for (const control of [mode, layout, repeat]) control.onchange = resetPlan;
+  for (const control of [mode, layout, repeat]) control.onchange = () => { cloudAgree.checked = false; resetPlan(); };
+  cloudAgree.onchange = refresh;
   fileInput.onchange = () => { loaded = null; resetPlan(); };
   encrypt.onchange = refresh;
   renderReceipts(); refresh();
   return {
     element: panel,
     busy: () => busy,
+    blocksSync: () => mode.value === 'cloud-replace' && Boolean(plan),
     abort: () => { if (!committing) abort?.abort(); },
     dispose: () => { password.value = ''; readPassword.value = ''; loaded = null; plan = null; safety = null; automaticSection.dispose(); panel.remove(); },
   };

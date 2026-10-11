@@ -86,18 +86,22 @@ export class FileSync {
     return this.#running;
   }
 
-  async stop() {
+  async stop({ endSession = true } = {}) {
     this.#closed = true; this.#abort.abort();
-    if (this.#session) {
+    if (this.#session && endSession) {
       try { await this.#workspace.endSync(this.#session); }
       catch (error) { if (error.code !== 'stale-session') throw error; }
     }
     this.#status = { ...this.#status, phase: 'stopped' };
   }
 
+  async whenIdle() { await this.#running?.catch(() => {}); }
+
   async #run() {
     this.#status = { phase: 'syncing', pending: this.#workspace.pendingOperations.length, nextAttemptAt: 0, error: null };
     try {
+      requireValue(this.#workspace.state.cloudRestore?.phase !== 'reset', 'cloud-restore-pending',
+        'Google 覆蓋尚未完成清空，普通同步已暫停，請繼續覆蓋。');
       if (!this.#session) {
         this.#session = await this.#workspace.beginSync(this.#store.sourceId);
         if (this.#closed) { await this.#workspace.endSync(this.#session); throw new FleetError('stale-session', '此來源工作已結束。'); }

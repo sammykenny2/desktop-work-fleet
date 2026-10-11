@@ -23,6 +23,7 @@ import { projectDesktop } from '../desktop/projection.js';
 import { NativeShortcutSettings } from '../native/shortcuts.js';
 import { NativeGoogleFileStore } from '../native/google.js';
 import { FileSync, resetSource } from '../sources/file-sync.js';
+import { prepareCloudRestore, stageCloudRestore, resumeCloudRestore } from '../backup/cloud-restore.js';
 
 const $ = selector => document.querySelector(selector);
 // Group paper, shared with the desktop scenes. Neighbouring entries differ in hue so the first groups stay distinct.
@@ -196,7 +197,15 @@ async function initializeGoogle() {
   $('#google-sign-out').hidden = !connected;
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
-  $('#google-sync').onclick = () => { void syncGoogle(true); };
+  $('#google-sync').textContent = workspace.state.cloudRestore ? '繼續覆蓋 Google' : '立即同步';
+  $('#google-sync').onclick = () => {
+    if (workspace.state.cloudRestore) askResumeCloudRestore(); else void syncGoogle(true);
+  };
+  if (workspace.state.cloudRestore) {
+    clearInterval(syncTimer); syncService = null;
+    setSync('attention', 'Google 覆蓋尚未完成', workspace.state.cloudRestore.error || '還原資料已保存在這台裝置；請按「繼續覆蓋 Google」。');
+    return;
+  }
   renderAccount();
   if (connected) {
     $('#storage-note').textContent = '同步到你的 Google 帳號';
@@ -237,7 +246,7 @@ async function syncGoogle(force = false) {
   // Settings edits nothing a sync could overwrite and holds 立即同步, so it does not hold syncing; a running backup or
   // restore on its data page does.
   const settings = $('#settings-dialog');
-  if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy()
+  if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync()
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
   syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
   try {
@@ -293,6 +302,74 @@ function resetPlan() {
 }
 function requireConnected() {
   if (!googleAccount?.connected) throw new Error('請先在帳號選單重新登入 Google，才能一併清除雲端資料。');
+}
+
+function cloudRestoreOptions() {
+  if (!native || !googleAccount?.connected || !profileId.startsWith('google:') || workspace.state.cloudRestore) return null;
+  const fileStore = new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId);
+  return { target: googleAccount.email || '目前 Google 帳號',
+    prepare: async options => {
+      requireConnected();
+      await syncService?.sync({ force: true });
+      return prepareCloudRestore({ ...options, workspace, sourceId: fileStore.sourceId });
+    },
+    run: (plan, safety, say) => runCloudRestore(say, { plan, safety, fileStore }) };
+}
+
+async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
+  if (accountBusy || nativeClosing) throw new Error('帳號或關閉作業進行中，請稍後再試。');
+  requireConnected(); accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
+  let durable = false;
+  try {
+    await automatic?.service.whenIdle();
+    desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
+    await desktop?.whenIdle(); desktop?.sealClose();
+    await Promise.allSettled([...activeActions, draftPending]);
+    await syncService?.stop({ endSession: false }); await syncService?.whenIdle(); syncService = null;
+    document.body.inert = true;
+    fileStore ||= new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId);
+    let state;
+    if (plan) state = await stageCloudRestore({ workspace, storage, fileStore, plan, safetyBackup: safety });
+    else state = await storage.load(profileId);
+    durable = Boolean(state?.cloudRestore);
+    await resumeCloudRestore({ state, storage, fileStore, progress: say });
+    location.reload();
+  } catch (error) {
+    // A lost save acknowledgement or a failed remote step must reopen the durable job, never the old writer.
+    const saved = await storage.load(profileId).catch(() => null);
+    durable ||= Boolean(saved?.cloudRestore);
+    if (durable) {
+      if (saved?.cloudRestore) {
+        saved.cloudRestore.error = String(error.message || '覆蓋尚未完成').slice(0, 2048);
+        const revision = saved.revision; saved.revision++;
+        await storage.save(saved, revision).catch(() => {});
+      }
+      location.reload(); return;
+    }
+    document.body.inert = false; await desktop?.cancelClose();
+    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
+    accountBusy = false;
+    if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+    await initializeGoogle(); throw error;
+  }
+}
+
+function askResumeCloudRestore() {
+  if ([...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
+  const dialog = element('dialog'); const state = element('p', '', 'backup-message');
+  const resume = element('button', '繼續覆蓋 Google', 'danger'); resume.type = 'button';
+  const cancel = element('button', '稍後'); cancel.type = 'button'; cancel.onclick = () => dialog.close();
+  resume.onclick = async () => {
+    resume.disabled = true; cancel.disabled = true;
+    try { await runCloudRestore(text => { state.textContent = text; }); }
+    catch (error) { state.textContent = error.message; resume.disabled = false; cancel.disabled = false; }
+  };
+  dialog.append(element('h2', '完成 Google 覆蓋'),
+    element('p', workspace.state.cloudRestore.phase === 'reset'
+      ? `將繼續清空 ${googleAccount.email || '目前 Google 帳號'} 的 Work Fleet 雲端資料，再上傳已保存的還原資料。其他裝置請先停止同步。`
+      : '將繼續上傳已保存的還原資料，不會再次清空雲端。'), state, cancel, resume);
+  dialog.oncancel = event => { if (resume.disabled) event.preventDefault(); };
+  dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
 }
 // Another device cleared this account's Drive data. This device keeps its copy until the user chooses.
 function askAfterSourceReset() {
@@ -956,7 +1033,9 @@ async function mountDataPanel() {
   if (!await controller.endEdit()) { host.replaceChildren(element('p', '請先完成目前的輸入。', 'hint')); return; }
   currentDraft = null; controller.cancelDrag(); render();
   dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError,
-    files: nativeBackups?.manual, reset: resetPlan(), onChanged: async () => { await controller.reconcile(); render(); } });
+    files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(),
+    uninstallNotice: native?.info.platform === 'windows' ? '使用 MSIX 時，解除安裝會清除這台裝置的便箋、草稿、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。' : null,
+    onChanged: async () => { await controller.reconcile(); render(); } });
   host.replaceChildren(dataPanel.element);
 }
 function renderDesktopSettings() {

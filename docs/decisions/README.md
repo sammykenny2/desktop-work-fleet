@@ -27,11 +27,12 @@
 | [ADR-029](029-portable-apple-xcode-project.md) | Accepted（Apple 專案交付） | 已提交的可攜 Xcode 專案、clone 直接開啟、本機配置與建置資產 |
 | [ADR-030](030-windows-explorer-wallpaper-layer.md) | Accepted（Windows 桌布層） | Explorer 圖示／桌布宿主、三層場景、穿透與退出恢復 |
 | [ADR-031](031-macos-and-linux-wallpaper-scenes.md) | Accepted（Mac／Linux 桌布層） | Mac 圖示下方、Linux BACKGROUND、穿透與重畫、參考實測接續 |
-| [ADR-032](032-windows-debug-webview-inspection.md) | Accepted（Windows Debug 檢查） | 僅 Debug 開 DevTools、opt-in loopback CDP、共用正式資料與 Release 封裝防護 |
+| [ADR-032](032-windows-debug-webview-inspection.md) | Accepted（Windows Debug 檢查） | 僅 Debug 開 DevTools、opt-in loopback CDP 與 Release 封裝防護；資料共用要求由 ADR-037 取代 |
 | [ADR-033](033-apple-local-script-bundles.md) | Accepted（Apple 封裝） | 本機 classic script bundles、保留 CSP／bridge 與獨立開發簽章啟動測試 |
 | [ADR-034](034-windows-11-compatibility-and-install-floor.md) | Accepted（Windows 支援範圍） | 早期 Windows 11／23H2／24H2+、MSIX 目標下限 22000、23H2 實測與 Store 延期；實作見 PROGRESS |
 | [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted（附著場景修正方向） | 移位／堆疊／攤開白塊回報、宿主無 backing bitmap、舊區域撤下／不複製像素；效果未測 |
 | [ADR-036](036-windows-self-contained-packaging.md) | Accepted（Windows 封裝 runtime） | 預設自帶 .NET 8 Desktop／win-x64、runtime notices 與包檢查；WebView2 仍依賴系統 |
+| [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted（資料生命週期與覆蓋） | MSIX 解除安裝清除本機資料；完整備份、安全備份與可續行的 Google 全量覆蓋 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 
 驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。

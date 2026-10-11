@@ -18,7 +18,11 @@
   「Debug + CDP 9339」另開 loopback CDP，見 [ADR-032](../../../docs/decisions/032-windows-debug-webview-inspection.md)。
 - Visual Studio 2022：開啟 `WorkFleet.sln`。直接建置前先在根目錄執行 `npm run build`，否則缺少封裝資產。
 
-Debug 與安裝版共用 `%LOCALAPPDATA%\WorkFleet`，同一時間只能開一個；啟動 Debug 前先關閉已安裝的 App。
+ZIP／未封裝 Debug 使用 `%LOCALAPPDATA%\WorkFleet`；MSIX 使用套件私有的
+`%LOCALAPPDATA%\Packages\<PackageFamilyName>\LocalCache\Local\WorkFleet`。
+每個資料區只允許一個實例。MSIX 更新保留資料，解除安裝清除本機／Google 分區、設定、草稿、附件、憑證及 cache；
+請先從「資料與備份」匯出 ZIP。已匯出的檔案與 Google 雲端不受影響。
+舊獨立目錄不自動搬移／刪除；以舊版／ZIP 匯出後再於 MSIX 匯入。政策見 [ADR-037](../../../docs/decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)。
 
 ## 命令列
 

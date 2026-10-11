@@ -49,6 +49,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows desktop-surface probe failed.' }
     & $UiProbe --platform
     if ($LASTEXITCODE -ne 0) { throw 'Windows native display/shortcut probe failed.' }
+    & $UiProbe --app-data (Join-Path $ProbeRoot 'app-data')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows app data directory probe failed.' }
     & $UiProbe --wallpaper (Join-Path $ProbeRoot 'wallpaper')
     if ($LASTEXITCODE -ne 0) { throw 'Windows Explorer wallpaper-layer probe failed.' }
     & $UiProbe --host-check (Join-Path $ProbeRoot 'host')

@@ -78,7 +78,11 @@ Release 與 MSIX 都不開；用法見 [測試](testing.md)、決策見 [ADR-032
 Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 PerMonitorV2 manifest。
 這個 TFM 是建置下限，不是支援的最低 OS；混合 DPI 實機驗收另見 PROGRESS。
 沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於
-`%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
+ZIP／Debug 的 `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，或 MSIX 套件私有資料區的
+`LocalCache\Local\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
+MSIX 更新保留資料；解除安裝清除套件內全部本機／Google 帳號資料、設定、憑證及 cache。
+重裝前先匯出 ZIP；匯出的檔案與 Google 雲端不受影響。舊獨立目錄需以舊版／ZIP 匯出再於 MSIX 匯入，不自動搬移或刪除。
+登入 Google 後若要全部覆蓋，使用「清空 Google 後，從備份還原」，詳見 [Google 操作](google-setup.md)。
 同一路徑只允許一個 App，另一個視窗會提示使用原視窗。
 關閉先等草稿保存及自動備份收尾；還在對話框或 IME 輸入時先完成該操作。
 保存失败保留視窗及草稿；重新開啟會讀取已提交內容。

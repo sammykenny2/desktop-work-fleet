@@ -61,7 +61,8 @@ Partner Center 尚未保留應用，尚未進入 Store 階段。
 分析 classic host 建立／選擇、SetParent／DPI 與 WebView2 顯示；只改實際失敗。
 原生成功後才改 MSIX 下限並驗證最終包，補舊新分支與包版本回歸。
 
-正常 Debug 與安裝版共用 `%LOCALAPPDATA%\WorkFleet`，先備份再進互動測試；
+2026-10-10 資料政策改由 [ADR-037](../decisions/037-msix-data-lifetime-and-google-backup-overwrite.md) 決定：
+ZIP／未封裝 Debug 使用 `%LOCALAPPDATA%\WorkFleet`，MSIX 固定使用套件私有資料區；解除安裝前先匯出備份。
 不要刪資料、移除安裝或改憑證信任。Win+D 由使用者手動操作；Explorer 重啟／混合 DPI 另安排。
 Store 身份與提交延期；23H2 先完成，缺新版設備與獨立審閱明確記在 PROGRESS。
 

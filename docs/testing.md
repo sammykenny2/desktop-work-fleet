@@ -155,6 +155,7 @@ node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/restore-ui-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/cloud-restore-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 ```
 
@@ -205,6 +206,21 @@ WebKit 測試透過真實 DOM 與 server，傳輸斷線／回應遺失採可控�
 Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 
 ## Windows 原生主畫面與保存
+
+`node --test tests/cloud-restore.test.js` 以合成 FileStore 驗證全量清空後只留下備份內容、
+附件、草稿不發布、舊裝置遇重設標記、沒有安全備份／過期／錯帳號／磁碟失敗零遠端刪除，
+以及清空／上傳失敗後重啟續行、上傳重試不再次清空。
+`cloud-restore-ui-probe.mjs` 使用真 Edge／IndexedDB／OPFS 與合成 FileStore，
+驗證安全保存及清空勾選雙門檻、換檔案後確認失效、預覽暫停普通同步與全量還原。
+只掛載備份面板，未模擬原生帳號切換／完整主畫面續行；不等於真 Google 端到端。
+
+未封裝路徑探針 `WorkFleet.Windows.Ui.Tests.exe --app-data OUTPUT_DIRECTORY` 只解析路徑，不寫入正式 ZIP／Debug 資料。
+已有 Release app／UI probe 與 package/content 時，可用
+`scripts/windows/Test-WindowsAppData.ps1 -CertificateThumbprint THUMBPRINT`：
+使用既有受信任本機憑證建立獨立 `app.workfleet.storageprobe.*` identity，
+實際驗證明確私有位置、寫入、解除安裝刪除及外部匯出 fixture 留存，最後只移除自己的測試套件。
+證據留在 `build/storage-probe-*`；沒有新憑證、UAC、真 Work Fleet 安裝／解除安裝或 Google 操作。
+實際產品更新、舊外部 DB 匯出／匯入及不同 Windows 版本仍需各自驗收。
 
 本機簽章 preview 的封裝檢查（不安裝 App、不修改憑證信任）：
 

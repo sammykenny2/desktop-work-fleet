@@ -1,6 +1,30 @@
 # 專案進度
 
-更新：2026-10-10。本檔是本 repo 的執行狀態權威。
+更新：2026-10-12。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-12 MSIX 本機資料政策與 Google 全量備份覆蓋
+
+使用者確認解除安裝清除全部本機資料，並明確選擇「先清空 Google 的所有 Work Fleet 資料，再還原備份」。
+本輪完成程式、回歸與文件，沿用 0.1.2，不升版、dispatch Actions 或修改既有 release。
+
+- MSIX 明確使用套件的 LocalCache/Local/WorkFleet，保持目前私有 SQLite／WAL 位置；所有帳號、設定、憑證與 WebView2 cache 在同資料區。
+  ZIP／未封裝 Debug 保留原獨立目錄；不自動搬移或刪除舊資料，空白 MSIX 找到外部舊 DB 時提示匯出／匯入。
+  更新保留，解除安裝清除套件資料，已匯出 ZIP 與 Google 雲端保留；備份頁加入 Windows MSIX 提醒。
+- 新增「清空 Google 後，從備份還原」：先同步及驗證輸入，預覽綁定帳號／revision，成功保存目前資料安全 ZIP 並勾選清空確認後才能執行。
+  完整新 Workspace／附件與工作同交易落盤，再寫雲端重設標記並清空 appDataFolder，最後上傳備份。
+  reset／upload 階段持久保存，失敗／重啟提供續行；上傳重試不再次清空、回應遺失重用 file ID。
+  備份草稿只在本機還原；舊工作區草稿留在安全 ZIP。原有三種模式保持歷史與草稿語意。
+- 清空階段拒絕普通同步，預覽期間暫停背景同步；換檔案／模式後清空確認失效。
+  既有瀏覽器探針暴露舊成功訊息被當成新保存完成的時序問題，作業開始即更新狀態後回歸通過。
+- `npm test` 254 pass／11 skip／0 fail；雲端覆蓋、備份還原及同步集中回歸 40／40。
+  Python documented discover：47 tests，11 skip、0 fail（含 Windows MakeAppx 包回歸 9／9）。
+  真 Edge／IndexedDB／OPFS 的原有 restore-ui 與新增 cloud-restore-ui 探針通過；使用合成 FileStore，不連 Google。
+- Release app／core／UI probe 建置均 0 警告／0 錯誤；原生 core／備份檔案／coordinator／場景傳輸 35／35。
+  未封裝資料路徑只讀探針通過；23H2 上獨立 `app.workfleet.storageprobe.*` MSIX 實際寫入私有區、解除安裝刪除及外部匯出留存通過，測試套件已移除。
+  沒有啟動／解除安裝／修改真 Work Fleet 套件或其資料，也沒有變更憑證信任。
+- ADR-037、PLAN-005、SPEC-002、需求、設定／Google／封裝／測試說明及未來 workflow 安裝文案同步；ADR-032 資料共用要求改由新政策取代。
+  本機 Google 設定仍缺，真 Google、完整原生主畫面失敗續行、實際產品更新及其他 Windows 版本未驗收；沒有獨立審閱。
+  提交後使用既有本機憑證重新打包，產物資訊僅回報對話，不另補打包紀錄提交。
 
 ## 2026-10-10 Windows 預設 self-contained 封裝
 

@@ -97,5 +97,6 @@ try {
   assert.equal(Object.keys((await read()).restoreReceipts).length, 2); assert.deepEqual(errors, []);
   console.log('PASS: real OPFS save/readback, encrypted export, wrong password, preview cancellation, import/repeat, safety-gated replace, retained drafts/history, restart receipts and 390px UI');
 } catch (error) {
+  console.error('Browser errors:', errors);
   await page.screenshot({ path: 'build/restore-ui-probe-failure.png' }); throw error;
 } finally { await context.close(); await browser.close(); }

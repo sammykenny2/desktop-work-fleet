@@ -41,6 +41,7 @@
 | [ADR-033](decisions/033-apple-local-script-bundles.md) | Accepted：Apple 本機腳本合併、保留資產安全邊界與開發簽章啟動測試 |
 | [ADR-035](decisions/035-windows-attached-scene-background-lifecycle.md) | Accepted：23H2 堆疊／攤開殘影的附著宿主與背景生命週期修正；效果待實測 |
 | [ADR-036](decisions/036-windows-self-contained-packaging.md) | Accepted：Windows MSIX／ZIP 預設自帶 .NET 8 Desktop runtime，接收端仍需 WebView2 |
+| [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)／[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md) | Accepted：MSIX 私有資料與解除安裝政策、可續行的 Google 全量備份覆蓋 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

@@ -5,6 +5,10 @@
 Accepted，2026-10-05。依使用者要求，只有 Debug 組態可開 DevTools，Release 一律關閉。
 修訂 ADR-015 的「停用 DevTools」：該限制改為只適用 Release／MSIX；其餘 bridge 邊界不變。
 
+資料共用要求於 2026-10-10 由 [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) 取代：
+MSIX 使用套件私有資料區，ZIP／未封裝 Debug 保留獨立目錄。以下共用資料的敘述僅為當時決策背景。
+Debug 檢查與 Release／MSIX 防護要求仍有效。
+
 ## Context
 
 ADR-015 在所有組態都停用 DevTools，`Build-WindowsApp.ps1 -Configuration Debug` 與 Release 行為相同。

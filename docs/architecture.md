@@ -87,6 +87,8 @@ token／resumable URL 不進 renderer、Workspace 或備份；可替換介面見
 BackupService 屬於共用核心，不由 Drive 或 renderer 私自定義格式。
 [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md)
 定義群組／版面／附件、自動與加密備份，以及匯入／合併／取代還原的現行契約。
+[ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md) 另定義 MSIX 套件私有資料與解除安裝清除政策，
+以及先保存完整本機還原資料、再分持久 reset／upload 階段執行的全量 Google 覆蓋；不是 Drive 多檔案原子交易。
 備份必須保留最終共用卡片／群組語意；未知內容不能靜默丟棄後宣稱成功。
 `prepareRestore` 只產生綁定目標 revision 的不可變計畫；Workspace 提交時一起保存附件、
 receipt 及新 outbox。`contracts/backup.d.ts` 定義 file adapter／原子 persistence 邊界，

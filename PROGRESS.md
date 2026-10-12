@@ -1,6 +1,20 @@
 # 專案進度
 
-更新：2026-10-12。本檔是本 repo 的執行狀態權威。
+更新：2026-10-13。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-13 Linux 安裝 GTK 4 typelib 時無法啟動
+
+使用者在 Ubuntu 22.04 x64（GNOME Wayland）以既有 `build-native-app.sh --deb` 建置並安裝 0.1.0 DEB，點選圖示後沒有視窗。
+不升版；本輪只修正啟動並 commit／push。
+
+- `journalctl --user` 顯示 host 一啟動即 `Requiring namespace 'Gdk' version '3.0', but '4.0' is already loaded`：
+  系統另裝 `gir1.2-gtk-4.0`，host 只固定 Gtk 3.0，先 import 的 Gdk 解析成 4.0。沒有 GTK 4 typelib 的機器不受影響。
+- host.py 與同樣寫法的 surface.py 在 import 前固定 Gdk 3.0；系統 Python 3.10 匯入整條 host 模組鏈成功，Gdk／Gtk 皆 3.0，GtkLayerShell 可用。
+- 新增 `tests/test_linux_gi_versions.py` 以 `ast` 檢查固定 Gtk 3.0 的模組先固定 Gdk 3.0；未修正版本確認失敗、修正後通過。
+  Python documented discover：52 tests，10 skip／0 fail；`npm test` 264 pass／10 skip／0 fail；文件檢查通過。
+- 重建 DEB 後以 `dpkg -i` 覆蓋安裝，桌面圖示啟動的 host 程序持續執行、未再出現 traceback。
+  GNOME AppIndicator 記錄一次 `unable to update icon`，系統匣、金鑰圈、Google 與桌面場景未逐項驗收；
+  `run-work-fleet.sh` 以 PATH 的 `python3` 啟動，pyenv 終端機會選到無 GI 的直譯器，尚未處理。沒有獨立審閱。
 
 ## 2026-10-12 本機完整還原與 Google 同步後匯出
 

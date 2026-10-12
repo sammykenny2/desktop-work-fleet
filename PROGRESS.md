@@ -2,6 +2,25 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 GNOME 調整模式改為遮罩
+
+GNOME 最上層實測會鎖住其他視窗；使用者定義桌面層與最上層都包含焦點，選擇群組只常駐桌布層，
+並要求保留調整模式：遮罩覆蓋桌面、主視窗隱藏、浮動「完成、堆疊、攤開、復原」。實機確認後要求 commit／push，不升版。
+
+- 證據：群組設為最上層或進入調整模式後，終端機與主視窗無法操作，最上層隱藏或 App 結束後恢復，鍵盤仍可輸入其他程式；
+  input shape 只有便箋範圍，沒有 X 獨占或 XDND。獨立 keep-above XWayland 視窗不取得焦點時正常，取得焦點即鎖住
+  （bounding shape、NORMAL 類型、把焦點交給主視窗皆無效）；App 的最上層永不接受焦點時調整模式仍鎖住，改用 DMA-BUF 亦同，原因未判定。
+- GNOME X11 建立桌布與最上層場景，`residentLayers` 只有桌布；`adjustOverlay` 時最上層在調整模式顯示於每個螢幕、
+  以整個工作區為 input region、約 35% 深灰遮罩並 present 取得焦點。遮罩工具列送出 `interaction.done` 與
+  `layout.arrange`（stack／spread／undo，保持尺寸套用到調整範圍）。主視窗在遮罩畫面發布後隱藏、去掉遮罩後恢復，
+  並還原位置、大小與最大化；詳細資料、完整編輯器與快速記錄先結束調整模式。快捷鍵略過不能常駐的層且進入調整時不改寫常駐層。
+  frame 欄位不變，Windows／macOS 不受影響；ADR-039 第三次修訂。
+- 新增 Linux 遮罩 input region／present／info、視窗位置還原，共用投影常駐層回退、遮罩指令與快捷鍵測試；
+  新測試在 HEAD 失敗、修正後通過。Python documented discover 66 tests，10 skip／0 fail；`npm test` 269 pass／10 skip／0 fail；文件檢查通過。
+- 實機（Ubuntu 22.04 GNOME Wayland、`GDK_BACKEND=x11`）：記錄顯示調整時主視窗 unmapped、最上層 input `(0,0,954,741)` 且 FOCUSED，
+  完成後主視窗恢復並保留最大化。使用者確認遮罩、工具列、堆疊／攤開／復原無殘影、Esc 與「⋯」路徑；
+  位置還原修正後重裝並要求 commit。工具列、遮罩與主視窗隱藏沒有自動化測試；多螢幕、Xorg 工作階段與 App 卡住時的行為未實測；沒有獨立審閱。
+
 ## 2026-10-13 Linux 透明場景殘影與 DMA-BUF 預設
 
 使用者回報經 XWayland 拖曳或堆疊、攤開、復原後，移走的便箋在原處留下殘影；確認修正後要求先單獨 commit／push。不升版。

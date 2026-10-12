@@ -10,7 +10,7 @@ const uuid = () => crypto.randomUUID();
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 async function fixture() {
-  let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent;
+  let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent; const arranged = [];
   const workspace = await Workspace.create({ profileId: 'local', deviceId: uuid(), area,
     persist: async value => { if (fail) throw new Error('disk full'); durable = structuredClone(value); } });
   const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('另一組');
@@ -21,6 +21,7 @@ async function fixture() {
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
   const authority = new DesktopAuthority({ workspace, controller, sessionId, details: async id => ({ cardId: id }),
+    arrange: async kind => { arranged.push(kind); return null; },
     shortcut: (target, intent) => { shortcutIntent = intent; return controller.activate(target === '@all' ? { kind: 'all' } : { kind: 'group', groupId: target }); }, editor: {
     current: () => editor && structuredClone(editor),
     begin: async (id, viewId) => {
@@ -44,7 +45,7 @@ async function fixture() {
   const frame = () => projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
     sessionId, sequence: 1, workspaceRevision: workspace.state.revision, editor });
   return { workspace, controller, authority, card, other, a, b, view, foreign, sessionId, command, envelope, frame,
-    editor: () => editor, shortcutIntent: () => shortcutIntent, durable: () => durable, fail: value => { fail = value; }, flush: value => { flush = value; } };
+    editor: () => editor, shortcutIntent: () => shortcutIntent, arranged, durable: () => durable, fail: value => { fail = value; }, flush: value => { flush = value; } };
 }
 
 test('scene shortcuts resolve the current owner bindings and cannot supply a different target or reuse removed bindings', async () => {
@@ -132,6 +133,34 @@ test('without a desktop layer, desktop papers rest on the wallpaper and the save
   await f.workspace.layout.setGroupLayer(f.b.id, 'floating', f.workspace.snapshot);
   assert.deepEqual(project(['wallpaper', 'floating']).fallbacks.map(value => value.cardId), [f.card.id]);
   assert.throws(() => project(['floating']), error => error.code === 'desktop-layer');
+});
+
+test('a host whose topmost scene only carries adjusted papers rests every other paper on the wallpaper', async () => {
+  const f = await fixture(); const layers = ['wallpaper', 'floating']; const residentLayers = ['wallpaper'];
+  const project = (resident = residentLayers) => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
+    interaction: f.controller.state, sessionId: 'adjust-only', sequence: 1, workspaceRevision: f.workspace.state.revision, layers, residentLayers: resident });
+  await f.workspace.layout.setGroupLayer(f.b.id, 'floating', f.workspace.snapshot);
+  let frame = project();
+  assert.deepEqual(Object.fromEntries(frame.fallbacks.map(value => [value.cardId, [value.requested, value.effective]])),
+    { [f.card.id]: ['desktop', 'wallpaper'], [f.other.id]: ['floating', 'wallpaper'] });
+  assert.ok(frame.cards.every(card => card.layer === 'wallpaper' && !card.interactive && !card.draggable));
+  await f.controller.activate({ kind: 'group', groupId: f.b.id }); frame = project();
+  const adjusted = frame.cards.find(card => card.id === f.other.id);
+  assert.deepEqual([adjusted.layer, adjusted.interactive, adjusted.draggable], ['floating', true, true], 'adjust mode still uses the topmost scene');
+  assert.deepEqual(frame.fallbacks.map(value => value.cardId), [f.card.id]);
+  assert.equal(f.workspace.layout.state.groupLayers[f.b.id], 'floating', 'the saved preference is not rewritten');
+  assert.throws(() => project(['desktop']), error => error.code === 'desktop-layer', 'resting layers must be scenes the host has');
+});
+
+test('the adjust overlay arranges only while adjusting and its done button ends adjust mode', async () => {
+  const f = await fixture();
+  await rejects(f.command('layout.arrange', { kind: 'stack' }), 'desktop-arrange');
+  await f.controller.activate({ kind: 'group', groupId: f.a.id });
+  for (const kind of ['stack', 'spread', 'undo']) await f.command('layout.arrange', { kind });
+  assert.deepEqual(f.arranged, ['stack', 'spread', 'undo']);
+  await rejects(f.command('layout.arrange', { kind: 'shuffle' }), 'desktop-arrange');
+  await f.command('interaction.done');
+  assert.equal(f.controller.state.operationScope.kind, 'none');
 });
 
 test('desktop gesture owns one view and commits one move despite a duplicate pointer-up receipt', async () => {

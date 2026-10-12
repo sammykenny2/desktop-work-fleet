@@ -39,6 +39,29 @@ def layers(mode, environ=os.environ):
     return ("wallpaper", "floating") if gnome_shell(environ) else ("desktop", "floating")
 
 
+def adjust_overlay(mode, environ=os.environ):
+    # A keep-above Xwayland scene on GNOME stops clicks reaching every other window, so there adjust mode is an open
+    # modal overlay over the whole work area, and papers only rest on the wallpaper.
+    return mode == "x11" and gnome_shell(environ)
+
+
+def resident_layers(mode, environ=os.environ):
+    return ("wallpaper",) if adjust_overlay(mode, environ) else layers(mode, environ)
+
+
+def remember_place(window):
+    return window.get_position(), window.get_size(), window.is_maximized()
+
+
+def restore_place(window, place):
+    # A window shown again is placed afresh by the window manager, so it goes back to where it was hidden.
+    position, size, maximized = place
+    window.move(*position)
+    window.resize(*size)
+    if maximized:
+        window.maximize()
+
+
 def scene_viewport(mode, geometry, work):
     # Layer-shell surfaces cover the whole monitor. Window managers keep ordinary X11 windows inside the work area
     # (GNOME moves a full-monitor window below its top bar), so X11 scenes cover the work area to land where asked.
@@ -70,6 +93,8 @@ class Surface:
         self.repaint_timer = None
         self.input_region = cairo.Region()
         self.mode, self.dispatch, self.lost = mode, dispatch, lost
+        self.overlay = layer == "floating" and adjust_overlay(mode)
+        self.adjusting = False
         self.window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
         self.window.set_title("Work Fleet desktop")
         self.window.set_decorated(False)
@@ -121,7 +146,7 @@ class Surface:
         self.local.load(lambda error: self.lost(self) if error else None)
 
     def info(self):
-        return {"viewId": self.id, "layer": self.layer, "active": self.active, "viewport": self.viewport}
+        return {"viewId": self.id, "layer": self.layer, "active": self.active, "viewport": self.viewport, "adjustOverlay": self.overlay}
 
     def input(self, _web, event):
         if self.layer == "wallpaper":
@@ -183,12 +208,17 @@ class Surface:
     def apply(self, frame):
         cards = [card for card in frame["cards"] if card["layer"] == self.layer and intersection(card["rect"], self.viewport) is not None]
         notice = frame.get("notice") if self.layer == "floating" else None
-        if not cards and (notice is None or intersection(notice["rect"], self.viewport) is None):
+        adjusting = self.overlay and frame.get("operationScope", {}).get("kind", "none") != "none"
+        if not cards and not adjusting and (notice is None or intersection(notice["rect"], self.viewport) is None):
+            self.adjusting = False
             self.suspend()
             self.window.hide()
             return
         region = cairo.Region()
-        for card in cards:
+        # Every monitor's overlay takes the clicks on its whole work area, so nothing below reacts while adjusting.
+        if adjusting:
+            region.union(cairo.RectangleInt(0, 0, math.ceil(self.viewport["width"]), math.ceil(self.viewport["height"])))
+        for card in cards if not adjusting else []:
             paper = intersection(card["rect"], self.viewport)
             x, y = math.floor(paper["x"] - self.viewport["x"]), math.floor(paper["y"] - self.viewport["y"])
             right = math.ceil(paper["x"] + paper["width"] - self.viewport["x"])
@@ -199,6 +229,10 @@ class Surface:
                 region.union(clipped)
         self.set_input_region(region)
         self.window.show_all()
+        if adjusting and not self.adjusting:
+            # Keys such as Esc reach the overlay at once; hiding it at the end gives the focus back.
+            self.window.present()
+        self.adjusting = adjusting
         self.schedule_repaint()
 
     def focus(self, timestamp=0):

@@ -48,6 +48,7 @@ function render(next) {
     label.style.left = `${group.region.x + 8}px`; label.style.top = `${group.region.y + 5}px`; root.append(label);
   }
   renderNotice(info.layer === 'floating' ? next.notice : null);
+  renderAdjustOverlay(info.adjustOverlay === true && info.layer === 'floating' && next.operationScope.kind !== 'none');
   const cards = next.cards.filter(card => card.layer === info.layer); const live = new Set(cards.map(card => card.id));
   for (const [id, item] of nodes) if (!live.has(id)) { item.paper.remove(); nodes.delete(id); }
   cards.forEach((card, index) => {
@@ -86,6 +87,19 @@ function render(next) {
     if (gesture?.cardId === card.id && gesture.preview) rect(paper, gesture.preview);
   });
   return true;
+}
+// Where adjust mode is a modal overlay (GNOME), the topmost scene tints the whole work area and carries the controls
+// the hidden main window would offer. The tint takes every click outside the papers, so nothing below reacts.
+function renderAdjustOverlay(on) {
+  const shown = document.querySelector('.adjust-overlay');
+  if (!on) { shown?.remove(); document.querySelector('.adjust-tools')?.remove(); return; }
+  if (shown) return;
+  const tools = make('div', undefined, 'adjust-tools'); tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', '調整便箋');
+  const arrange = kind => client.command('layout.arrange', { kind });
+  const done = button('完成', async () => { await saveDraft(); await client.command('interaction.done', {}); }); done.classList.add('primary');
+  tools.append(make('span', '調整位置', 'adjust-title'), button('堆疊', () => arrange('stack')), button('攤開', () => arrange('spread')),
+    button('復原', () => arrange('undo')), done);
+  document.body.prepend(make('div', undefined, 'adjust-overlay')); document.body.append(tools);
 }
 // A notice is drawn once per id, so later frames carrying the same notice do not restart its fade.
 function renderNotice(notice) {

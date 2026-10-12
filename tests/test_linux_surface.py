@@ -126,6 +126,63 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.assertEqual(self.window_calls("set_keep_below"), [(False,)])
         self.assertEqual(self.window_calls("set_keep_above"), [(True,)])
 
+    def test_gnome_adjust_mode_is_an_overlay_and_papers_rest_on_the_wallpaper(self):
+        gnome, other = {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}, {"XDG_CURRENT_DESKTOP": "LXDE"}
+        self.assertTrue(self.surface.adjust_overlay("x11", gnome))
+        self.assertFalse(self.surface.adjust_overlay("x11", other))
+        self.assertFalse(self.surface.adjust_overlay("wayland-layer-shell", gnome))
+        self.assertEqual(self.surface.resident_layers("x11", gnome), ("wallpaper",))
+        self.assertEqual(self.surface.resident_layers("x11", other), ("desktop", "floating"))
+        self.assertTrue(self.create("floating", "ubuntu:GNOME").info()["adjustOverlay"])
+        self.assertFalse(self.create("wallpaper", "ubuntu:GNOME").info()["adjustOverlay"])
+        self.assertFalse(self.create("floating", "LXDE").info()["adjustOverlay"])
+
+    def frame(self, kind, cards=()):
+        return {"operationScope": {"kind": kind}, "cards": list(cards)}
+
+    def test_gnome_overlay_covers_the_work_area_while_adjusting(self):
+        view = self.create("floating", "ubuntu:GNOME")
+        self.journal.clear()
+        view.apply(self.frame("group"))
+        self.assertEqual(view.input_region.rectangles, [(0, 0, VIEWPORT["width"], VIEWPORT["height"])],
+                         "the overlay takes the whole work area even on a monitor without papers")
+        self.assertTrue(self.window_calls("show_all"))
+        self.assertEqual(len(self.window_calls("present")), 1, "the overlay takes the keys as it appears")
+        self.journal.clear()
+        view.apply(self.frame("group"))
+        self.assertEqual(self.window_calls("present"), [], "a later frame does not take the focus again")
+        paper = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
+        view.apply(self.frame("none", [paper]))
+        self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)], "outside adjust mode only papers take clicks")
+        self.journal.clear()
+        view.apply(self.frame("none"))
+        self.assertTrue(self.window_calls("hide"))
+
+    def test_other_x11_topmost_scene_keeps_paper_regions_while_adjusting(self):
+        view = self.create("floating", "LXDE")
+        paper = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
+        view.apply(self.frame("group", [paper]))
+        self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)])
+
+    def test_a_hidden_window_returns_where_it_was(self):
+        class Window:
+            def __init__(self, maximized):
+                self.calls, self.maximized = [], maximized
+            def get_position(self):
+                return (296, 234)
+            def get_size(self):
+                return (715, 518)
+            def is_maximized(self):
+                return self.maximized
+            def __getattr__(self, name):
+                return lambda *args: self.calls.append((name, args))
+        for maximized in (False, True):
+            with self.subTest(maximized=maximized):
+                window = Window(maximized)
+                self.surface.restore_place(window, self.surface.remember_place(window))
+                expected = [("move", (296, 234)), ("resize", (715, 518))] + ([("maximize", ())] if maximized else [])
+                self.assertEqual(window.calls, expected)
+
     def test_gnome_x11_refuses_the_desktop_layer(self):
         with self.assertRaises(Exception) as caught:
             self.create("desktop", "ubuntu:GNOME")

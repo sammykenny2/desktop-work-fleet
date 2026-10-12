@@ -41,6 +41,19 @@ test('without a desktop layer the wallpaper steps straight to the topmost layer'
   assert.equal(await press(), 2); assert.equal(f.layer(f.a.id), 'floating', 'the missing desktop layer is never stored by a key');
 });
 
+test('where the topmost layer is for adjusting only, the wallpaper steps straight into adjust mode and keeps its layer', async () => {
+  const options = { desktop: false, floating: false };
+  assert.equal(nextGroupStage('wallpaper', options), adjustStage);
+  assert.equal(nextGroupStage('desktop', options), adjustStage);
+  assert.equal(nextGroupStage('floating', options), adjustStage);
+  assert.equal(nextGroupStage('floating', { ...options, adjusting: true }), 0);
+  const f = await fixture(); const press = () => stepGroup({ workspace: f.workspace, controller: f.controller, groupId: f.a.id, wallpaper: true, ...options });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);
+  assert.equal(await press(), adjustStage); assert.equal(f.layer(f.a.id), 'wallpaper', 'adjust mode never stores the topmost layer');
+  assert.deepEqual(f.controller.state.operationScope, { kind: 'group', groupId: f.a.id });
+  assert.equal(await press(), 0); assert.equal(f.layer(f.a.id), 'wallpaper'); assert.equal(f.controller.state.operationScope.kind, 'none');
+});
+
 test('four presses walk the group round, and only that group moves', async () => {
   const f = await fixture();
   assert.equal(f.layer(f.a.id), 'desktop', 'groups start on the desktop layer');

@@ -12,22 +12,24 @@ export const groupLayer = (layout, groupId) => layout.groupLayers?.[groupId] ?? 
 
 /**
  * Where the desktop has no wallpaper layer the cycle restarts at the desktop; a group already on the wallpaper still steps on.
- * Where it has no desktop layer the wallpaper steps straight to the topmost layer.
+ * A desktop or topmost layer that papers cannot rest on is skipped on the way to adjust mode.
  */
-export function nextGroupStage(layer, { adjusting = false, wallpaper = true, desktop = true } = {}) {
+export function nextGroupStage(layer, { adjusting = false, wallpaper = true, desktop = true, floating = true } = {}) {
   if (adjusting) return wallpaper ? 0 : 1;
-  const stage = groupLayerOrder.indexOf(layer) + 1;
-  return stage === 1 && !desktop ? 2 : stage;
+  let stage = groupLayerOrder.indexOf(layer) + 1;
+  if (stage === 1 && !desktop) stage = 2;
+  return stage === 2 && !floating ? adjustStage : stage;
 }
 
 /** Moves the group one stage on and returns the stage it reached. */
-export async function stepGroup({ workspace, controller, groupId, wallpaper, desktop = true }) {
+export async function stepGroup({ workspace, controller, groupId, wallpaper, desktop = true, floating = true }) {
   const layout = workspace.layout.state; const scope = controller.state.operationScope;
   requireValue(workspace.snapshot.cards.some(card => card.groupId === groupId && eligible(card, layout) && layout.placements[card.id]),
     'empty-scope', '這個群組沒有桌面便箋，請在主畫面管理顯示卡片。');
-  const stage = nextGroupStage(groupLayer(layout, groupId), { adjusting: scope.kind === 'group' && scope.groupId === groupId, wallpaper, desktop });
+  const stage = nextGroupStage(groupLayer(layout, groupId), { adjusting: scope.kind === 'group' && scope.groupId === groupId, wallpaper, desktop, floating });
   // The layer changes before adjust mode does, so leaving adjust mode drops papers straight onto their new layer.
-  await workspace.layout.setGroupLayer(groupId, groupLayerOrder[Math.min(stage, adjustStage - 1)], workspace.snapshot);
+  // Adjust mode itself keeps the resting layer, which matters where the topmost layer is skipped.
+  if (stage < adjustStage) await workspace.layout.setGroupLayer(groupId, groupLayerOrder[stage], workspace.snapshot);
   if (stage === adjustStage) await controller.activate({ kind: 'group', groupId });
   else if (scope.kind !== 'none') await controller.activate({ kind: 'none' });
   return stage;

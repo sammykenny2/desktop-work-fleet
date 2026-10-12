@@ -105,9 +105,13 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 避免已安裝 GTK 4 typelib 時先載入 Gdk 4.0 而啟動失敗；不需 GI 或 display。
 `tests/test_linux_surface.py` 以假 GI／cairo 建立 X11 場景，確認 X11 以工作區、layer-shell 以整個螢幕為 viewport，
 視窗依 viewport 設 size request、換顯示器時更新，
-GNOME 只提供桌布層與最上層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層；不代表 GNOME 實機已驗收。
+GNOME 只常駐桌布層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層；GNOME 最上層在調整模式以整個工作區為
+input region、即使該螢幕沒有便箋也顯示並只在出現時 present，其他 X11 仍只有便箋接收輸入；
+隱藏的主視窗以原位置、大小與最大化狀態恢復；不代表 GNOME 實機已驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
-桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影。
+桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，
+常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；
+遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。遮罩畫面、工具列與主視窗隱藏／恢復只有實機驗證。
 `tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設停用 DMA-BUF，
 且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit

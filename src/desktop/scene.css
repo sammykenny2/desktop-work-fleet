@@ -38,3 +38,9 @@ button:focus-visible { outline: 2px solid #245f50; }
 .notice-steps span { width: 7px; height: 7px; border-radius: 50%; background: #ffffff52; }
 .notice-steps span.on { background: #fff; }
 @keyframes stage-notice { 0% { opacity: 0; } 10%, 72% { opacity: 1; } 100% { opacity: 0; } }
+/* Adjust overlay (GNOME): a modal tint under the papers over the whole work area, with the adjust controls on top. */
+.adjust-overlay { position: fixed; inset: 0; z-index: 0; background: #1c242c59; pointer-events: auto; }
+.adjust-tools { position: fixed; top: 16px; left: 50%; z-index: 100001; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 16px; border-radius: 12px; background: #1d2b33f0; color: #fff; box-shadow: 0 10px 30px #00000040; pointer-events: auto; white-space: nowrap; }
+.adjust-title { margin-right: 6px; font-size: 13px; font-weight: 600; }
+.adjust-tools button { padding: 5px 12px; font-size: 13px; color: #fff; background: #ffffff1f; border-color: #ffffff40; }
+.adjust-tools button.primary { background: #245f50; border-color: #245f50; }

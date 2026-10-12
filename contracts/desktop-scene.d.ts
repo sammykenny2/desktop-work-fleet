@@ -17,12 +17,21 @@ export interface DesktopFrame {
 export interface DesktopCommand {
   sessionId: string; id: string; serial: number;
   method: 'pointer.down' | 'pointer.move' | 'pointer.up' | 'pointer.cancel' | 'card.select' | 'card.edit' | 'card.details' | 'card.transfer'
-    | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut';
+    | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut'
+    /** Adjust overlay controls: end adjust mode, or arrange the adjusted scope with args.kind stack, spread or undo. */
+    | 'interaction.done' | 'layout.arrange';
   args: Record<string, unknown>;
 }
 export interface DesktopInfo {
-  /** Always floating plus desktop, wallpaper or both; a paper on a missing resident layer is shown on the other. */
+  /** Native scenes: always floating plus desktop, wallpaper or both. */
   sessionId: string; referenceDpi: number; layers: ResidentLayer[];
+  /** Layers a group can rest on, defaulting to `layers`; a resting paper on another layer is shown on the desktop or wallpaper. */
+  residentLayers?: ResidentLayer[];
+  /**
+   * Adjust mode is a modal overlay: the topmost scene tints and takes the whole work area, offers its own controls,
+   * and the main window is hidden until adjust mode ends. Used on GNOME, where a keep-above scene blocks other windows.
+   */
+  adjustOverlay?: boolean;
   /**
    * Background is a real layer-shell band; icon placement depends on the desktop shell. Desktop-window is an X11
    * desktop-type window that the shell's own icon window covers, as with GNOME's desktop icons.
@@ -36,6 +45,8 @@ export interface DesktopSceneInfo {
   sessionId: string; viewId: string; layer: ResidentLayer; active: boolean;
   topology: number; viewport: Rect; bindings: Record<string, string>;
   prepareFrames?: boolean;
+  /** The topmost scene draws the adjust overlay and its controls; see DesktopInfo.adjustOverlay. */
+  adjustOverlay?: boolean;
 }
 export interface ShortcutRegistration {
   key: string; target: string;

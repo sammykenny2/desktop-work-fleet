@@ -458,7 +458,8 @@ function initializeDesktop() {
   const authority = new DesktopAuthority({ workspace, controller, sessionId: desktopInfo.sessionId,
     perform: action => desktop.perform(action),
     shortcut: (target, intent) => desktopAction(target, intent),
-    details: async (id, intent) => { await native.bridge.request('desktop.showMain', { intent }); cardDetails(currentCard(id)); },
+    details: async (id, intent) => { await leaveAdjustOverlay(); await native.bridge.request('desktop.showMain', { intent }); cardDetails(currentCard(id)); },
+    arrange: kind => arrangeDesktop(kind),
     editor: {
       current: currentDesktopEditor,
       begin: async (id, viewId) => {
@@ -487,14 +488,14 @@ function initializeDesktop() {
       full: async intent => {
         await flushDraft(); const draft = copy(currentDraft); const card = currentCard(draft.cardId);
         if (!await controller.endEdit({ keepDraft: true })) throw new Error('請先完成目前輸入。'); remoteEditor = null;
-        await native.bridge.request('desktop.showMain', { intent }); await openEditor(card, draft); render();
+        await leaveAdjustOverlay(); await native.bridge.request('desktop.showMain', { intent }); await openEditor(card, draft); render();
       },
     } });
   authority.configureDisplays(desktopInfo.topology ?? 0, desktopInfo.views);
   desktop = new DesktopOwner({ bridge: native.bridge, authority, editor: currentDesktopEditor,
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
-        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor(), notice: desktopNotice });
+        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, residentLayers: residentLayers(), editor: currentDesktopEditor(), notice: desktopNotice });
       // Settings only speaks up when a paper cannot sit on the layer it asks for.
       const [fallback] = frame.fallbacks; const layerName = layer => stageNames[groupLayerOrder.indexOf(layer)];
       $('#desktop-note').hidden = !fallback;
@@ -566,6 +567,7 @@ async function desktopAction(target, intent) {
   if (composing || editorBusy || document.querySelector('dialog[open]')) throw new Error('請先完成目前輸入或對話框。');
   if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
   if (target === shortcutActions.capture) {
+    await leaveAdjustOverlay();
     if (desktop) await native.bridge.request('desktop.showMain', { intent: intent ?? null });
     await openEditor(); return;
   }
@@ -576,8 +578,8 @@ async function desktopAction(target, intent) {
   // while locked would not show the first stages and the browser preview has no layers, so there a group key only
   // switches adjust mode.
   else if (target !== shortcutActions.all && target !== '@stop' && desktop && workspace.layout.state.desktopVisible) {
-    const layers = desktopInfo?.layers || [];
-    const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper: layers.includes('wallpaper'), desktop: layers.includes('desktop') });
+    const layers = residentLayers();
+    const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper: layers.includes('wallpaper'), desktop: layers.includes('desktop'), floating: layers.includes('floating') });
     activeGroupId = target; const stages = desktopStages();
     announce(target, stageNames[stage], stages.indexOf(stage) + 1, stages.length);
   }
@@ -596,7 +598,9 @@ async function desktopAction(target, intent) {
 // After a group or all-groups key the topmost scene shows, for about a second and a half, which group moved and where
 // it is now, with one dot per stage of the cycle. A newer notice replaces an older one, which then is not cleared early.
 const stageNames = ['桌布層', '桌面層', '最上層', '調整位置'];
-const desktopStages = () => [0, 1, 2].filter(stage => desktopInfo?.layers?.includes(groupLayerOrder[stage])).concat(adjustStage);
+// Layers a group can rest on; on GNOME the topmost scene only carries the adjust overlay.
+const residentLayers = () => desktopInfo?.residentLayers || desktopInfo?.layers || [];
+const desktopStages = () => [0, 1, 2].filter(stage => residentLayers().includes(groupLayerOrder[stage])).concat(adjustStage);
 let desktopNotice = null; let noticeSerial = 0;
 function announce(groupId, text, step = 0, steps = 0) {
   const layout = workspace.layout.state; const groups = activeGroups(workspace.snapshot);
@@ -692,7 +696,33 @@ function render() {
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
   $('#desktop-hidden').hidden = handheld || !hidden || filter !== 'active' || Boolean(query);
   $('#desktop-hidden-text').textContent = `${hidden} 張便箋目前不顯示在桌面上；顯示後會回到原本的位置。`;
-  desktop?.publish();
+  desktop?.publish(); syncAdjustOverlay();
+}
+
+// Where adjust mode is a modal overlay (GNOME), the main window steps aside while it is on and returns after any exit.
+// Hiding waits for the overlay frame and showing for the frame without it, so one window always stays on screen and
+// the returning main window is not stacked under a still-mapped overlay.
+let adjustHidesMain = false; let adjustSync = Promise.resolve();
+function syncAdjustOverlay() {
+  if (!desktop || !desktopInfo?.adjustOverlay) return;
+  const adjusting = controller.state.operationScope.kind !== 'none';
+  if (adjusting === adjustHidesMain) return;
+  adjustHidesMain = adjusting;
+  adjustSync = adjustSync.then(async () => {
+    await desktop.whenPublished(); await native.bridge.request('desktop.mainVisible', { visible: !adjusting });
+  }).catch(error => status(error.message, true));
+}
+// The overlay covers the main window, so anything that needs the main window ends adjust mode first.
+async function leaveAdjustOverlay() {
+  if (!desktopInfo?.adjustOverlay || controller.state.operationScope.kind === 'none') return;
+  await controller.activate({ kind: 'none' }); render(); await adjustSync;
+}
+// The overlay's 堆疊／攤開 apply to the adjusted scope at once, keeping sizes; 復原 undoes like the main window.
+async function arrangeDesktop(kind) {
+  if (kind === 'undo') { await workspace.undo(workAreas()); await controller.reconcile(); render(); status('已復原'); return null; }
+  const scope = controller.state.operationScope;
+  const plan = formationPlan(kind, scope.kind === 'all' ? { kind: 'all' } : { kind: 'group', groupId: scope.groupId }, false);
+  await controller.applyFormation(plan); render(); status('排列已完成，可按復原還原'); return null;
 }
 
 // Drafts and the share inbox appear only when they hold something; version history stays reachable.
@@ -789,7 +819,7 @@ function groupEditor(group) {
   if (layerField) {
     for (const [value, name] of [['wallpaper', '桌布層：在圖示下方，滑鼠穿透'], ['desktop', '桌面層：在圖示上方，可選取文字'], ['floating', '最上層：在所有視窗上方']]) {
       const option = new Option(name, value);
-      option.disabled = !desktopInfo?.layers?.includes(value) && currentLayer !== value; layers.append(option);
+      option.disabled = !residentLayers().includes(value) && currentLayer !== value; layers.append(option);
     }
     layers.value = currentLayer; layerField.append(layers);
   }
@@ -1018,16 +1048,18 @@ function openFormation(mode) {
   $('#formation-scope').value = controller.state.operationScope.kind === 'all' ? 'all' : 'group';
   $('#formation-dialog').showModal(); updateFormation();
 }
+function formationPlan(mode, scope, allowResize) {
+  const snapshot = workspace.snapshot;
+  const measure = element('div', '量測摘要', 'card-summary'); measure.style.position = 'absolute'; measure.style.visibility = 'hidden'; document.body.append(measure);
+  const measuredBand = measure.getBoundingClientRect().height; measure.remove();
+  const summaryBands = Object.fromEntries(snapshot.cards.map(card => [card.id, measuredBand]));
+  for (const paper of $('#stage').querySelectorAll('.card')) summaryBands[paper.dataset.cardId] = paper.querySelector('.card-summary').getBoundingClientRect().height;
+  return planFormation({ snapshot, layout: workspace.layout.state, scope, mode, workAreas: workAreas(), summaryBands, allowResize });
+}
 function updateFormation() {
   try {
-    const snapshot = workspace.snapshot;
-    const measure = element('div', '量測摘要', 'card-summary'); measure.style.position = 'absolute'; measure.style.visibility = 'hidden'; document.body.append(measure);
-    const measuredBand = measure.getBoundingClientRect().height; measure.remove();
-    const summaryBands = Object.fromEntries(snapshot.cards.map(card => [card.id, measuredBand]));
-    for (const paper of $('#stage').querySelectorAll('.card')) summaryBands[paper.dataset.cardId] = paper.querySelector('.card-summary').getBoundingClientRect().height;
-    formationPreview = planFormation({ snapshot, layout: workspace.layout.state,
-      scope: $('#formation-scope').value === 'all' ? { kind: 'all' } : { kind: 'group', groupId: activeGroupId },
-      mode: formationMode, workAreas: workAreas(), summaryBands, allowResize: $('#allow-resize').checked });
+    formationPreview = formationPlan(formationMode, $('#formation-scope').value === 'all' ? { kind: 'all' } : { kind: 'group', groupId: activeGroupId },
+      $('#allow-resize').checked);
     $('#formation-description').textContent = `排列 ${Object.keys(formationPreview.changes).length} 張便箋。${formationPreview.resized.length ? ` ${formationPreview.resized.length} 張會調整大小。` : ' 保持原尺寸。'}${formationPreview.overflow.length ? ` ${formationPreview.overflow.length} 張會超出群組區域。` : ''} 可透過復原還原這次排列。`;
     $('#apply-formation').disabled = false;
   } catch (error) { formationPreview = null; $('#formation-description').textContent = error.message; $('#apply-formation').disabled = true; }

@@ -6,17 +6,19 @@ import { sha256 } from '../sources/files.js';
 
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
-  'card.details', 'card.transfer', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut']);
+  'card.details', 'card.transfer', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
+  'interaction.done', 'layout.arrange']);
+const arrangements = new Set(['stack', 'spread', 'undo']);
 
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
 export class DesktopAuthority {
-  #workspace; #controller; #sessionId; #editor; #details; #shortcut; #perform; #views = new Map(); #seenViews = new Set();
+  #workspace; #controller; #sessionId; #editor; #details; #shortcut; #arrange; #perform; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #closed = false;
   #topology = 0; #displayPending = false;
-  constructor({ workspace, controller, sessionId, editor, details, shortcut, perform = action => action() }) {
+  constructor({ workspace, controller, sessionId, editor, details, shortcut, arrange, perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', '桌面工作階段身分無效。');
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
-    this.#editor = editor; this.#details = details; this.#shortcut = shortcut; this.#perform = perform;
+    this.#editor = editor; this.#details = details; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
   }
   get sessionId() { return this.#sessionId; }
   addView(viewId) {
@@ -183,6 +185,12 @@ export class DesktopAuthority {
           && current.sequence === args.sequence, 'desktop-editor', '草稿仍在保存或編輯視窗已失效。');
         return method === 'editor.save' ? this.#editor.save() : method === 'editor.full' ? this.#editor.full(intent) : this.#editor.end();
       }
+      // The adjust overlay's own buttons, for desktops where the main window is hidden while adjusting.
+      case 'interaction.done': return controller.activate({ kind: 'none' });
+      case 'layout.arrange':
+        requireValue(arrangements.has(args.kind) && this.#arrange && controller.state.operationScope.kind !== 'none',
+          'desktop-arrange', '只能在調整時排列便箋。');
+        return this.#arrange(args.kind);
       case 'interaction.escape': {
         const current = this.#editor.current();
         requireValue(!current || current.viewId === viewId, 'desktop-editor', '請先完成另一個視窗的文字輸入。');

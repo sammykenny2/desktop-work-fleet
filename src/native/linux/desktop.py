@@ -5,7 +5,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk
 import protocol as p
 import scenes
 from shortcuts import Shortcuts
-from surface import Surface, backend, layers, rectangle, scene_viewport, wallpaper_placement
+from surface import Surface, adjust_overlay, backend, layers, rectangle, remember_place, resident_layers, restore_place, scene_viewport, wallpaper_placement
 
 
 class Desktop:
@@ -23,7 +23,7 @@ class Desktop:
         self.started = self.closed = self.pending = self.blocked = self.native_menu = False
         self.bindings, self.signals, self.timers = {}, [], []
         self.last_input = self.last_timestamp = 0
-        self.display_timer = None
+        self.display_timer = self.main_place = None
         self.shortcuts = Shortcuts(self.mode, self.action, lambda values: self.send("desktop-shortcut-status", registrations=values))
         self.watch(main)
         display = Gdk.Display.get_default()
@@ -103,7 +103,7 @@ class Desktop:
         return [{"id": value["id"], "primary": value["primary"], **value["work"]} for value in displays]
 
     def info(self):
-        return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "backend": self.mode, "wallpaperPlacement": wallpaper_placement(self.mode, self.layers), "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
+        return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "residentLayers": list(resident_layers(self.mode)), "adjustOverlay": adjust_overlay(self.mode), "backend": self.mode, "wallpaperPlacement": wallpaper_placement(self.mode, self.layers), "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
 
     def new_view(self, display, layer):
         p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "桌面視窗容量已滿，請保存後重新開啟。")
@@ -284,6 +284,19 @@ class Desktop:
         if method == "desktop.hideMain":
             p.require(self.hide(), "tray-unavailable", "系統匣目前不可用，主畫面保持開啟。")
             return None
+        if method == "desktop.mainVisible":
+            # The adjust overlay hides the main window and brings it back where it was; without a tray it is hidden directly.
+            if p.boolean(args, "visible"):
+                if self.main_place is not None and not self.main.get_visible():
+                    restore_place(self.main, self.main_place)
+                self.main_place = None
+                self.main.show()
+                self.main.present()
+            elif self.main.get_visible():
+                self.main_place = remember_place(self.main)
+                if not self.hide():
+                    self.main.hide()
+            return None
         if method in ("desktop.showMain", "desktop.focus"):
             if self.intent is None or args.get("intent") != self.intent["id"] or not self.current(self.intent):
                 return {"activated" if method == "desktop.showMain" else "accepted": False}
@@ -389,7 +402,7 @@ class Desktop:
             p.require(isinstance(command, dict) and (token is not None or len(p.encode(command)) <= 65536), "scene-size", "桌面命令格式或容量無效。")
             key, operation = p.text(command, "id"), p.text(command, "method")
             p.require(p.is_uuid(key) and command.get("sessionId") == self.session and p.number(command, "serial") > 0 and isinstance(command.get("args"), dict), "scene-session", "桌面命令工作階段無效。")
-            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut")
+            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange")
             p.require(operation in allowed, "unsupported-method", "桌面表面沒有此操作。")
             draft, topology = operation == "editor.change", p.number(args, "topology")
             p.require(draft or not self.pending and view.active and topology == self.topology, "desktop-topology", "桌面座標正在更新，請保留目前文字。")

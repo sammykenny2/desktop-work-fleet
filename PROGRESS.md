@@ -2,6 +2,19 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 Linux X11 場景尺寸與工作區位置
+
+使用者在 Ubuntu 22.04 GNOME Wayland 以 `GDK_BACKEND=x11` 經 XWayland 啟動後，桌面便箋被裁切；不升版，修正後 commit／push。
+
+- `xwininfo` 顯示螢幕 1024×768 時兩個場景視窗都是 200×200，擷取最上層只剩便箋左上角。場景視窗不可調整大小，
+  GTK 3 依 size request 定尺寸而忽略 `resize()`；ADR-031 只在 layer-shell 設 size request，X11 現在也設定。
+- 補上後最上層成為 `1024x768+0+27`：Mutter 把一般視窗上緣推到頂部工作列下，便箋低 27 像素。
+  X11 場景 viewport 改用 GDK 工作區（`_NET_WORKAREA` 70,27 954×741），layer-shell 仍涵蓋整個螢幕。
+- 重裝後兩個場景視窗都是 `954x741+70+27`，desktop-type 視窗也落在要求位置；擷取的便箋位於螢幕 (70,76)，與保存位置一致。
+- 新增 `tests/test_linux_surface.py` 以假 GI／cairo 驗證 X11 size request、換顯示器更新及工作區 viewport；未修正版本失敗、修正後通過。
+  此 commit 的獨立 worktree：Python documented discover 54 tests，10 skip／0 fail；`npm test` 264 pass／10 skip／0 fail。
+  多螢幕、Dock 自動隱藏與非 GNOME X11 桌面未實測；沒有獨立審閱。
+
 ## 2026-10-13 Linux 安裝 GTK 4 typelib 時無法啟動
 
 使用者在 Ubuntu 22.04 x64（GNOME Wayland）以既有 `build-native-app.sh --deb` 建置並安裝 0.1.0 DEB，點選圖示後沒有視窗。

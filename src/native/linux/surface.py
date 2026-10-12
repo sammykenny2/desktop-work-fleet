@@ -30,6 +30,12 @@ def layers(mode):
     return ("desktop", "floating", "wallpaper") if mode == "wayland-layer-shell" else ("desktop", "floating")
 
 
+def scene_viewport(mode, geometry, work):
+    # Layer-shell surfaces cover the whole monitor. Window managers keep ordinary X11 windows inside the work area
+    # (GNOME moves a full-monitor window below its top bar), so X11 scenes cover the work area to land where asked.
+    return geometry if mode == "wayland-layer-shell" else work
+
+
 def rectangle(value):
     return {"x": value.x, "y": value.y, "width": value.width, "height": value.height}
 
@@ -123,9 +129,10 @@ class Surface:
         self.suspend()
         self.display, self.viewport = display, display["viewport"]
         self.applied = -1
+        # The window is not resizable, so GTK sizes it from this request; resize() alone leaves it at the WebView minimum.
+        self.window.set_size_request(int(self.viewport["width"]), int(self.viewport["height"]))
         if self.mode == "wayland-layer-shell":
             Layer.set_monitor(self.window, display["monitor"])
-            self.window.set_size_request(int(self.viewport["width"]), int(self.viewport["height"]))
         else:
             self.window.move(int(self.viewport["x"]), int(self.viewport["y"]))
             self.window.resize(int(self.viewport["width"]), int(self.viewport["height"]))

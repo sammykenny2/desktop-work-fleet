@@ -5,7 +5,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk
 import protocol as p
 import scenes
 from shortcuts import Shortcuts
-from surface import Surface, backend, layers, rectangle
+from surface import Surface, backend, layers, rectangle, scene_viewport
 
 
 class Desktop:
@@ -89,9 +89,10 @@ class Desktop:
             occurrence = seen.get(name, 0)
             seen[name] = occurrence + 1
             key = name + ":" + str(occurrence)
-            viewport, work = rectangle(monitor.get_geometry()), rectangle(monitor.get_workarea())
-            scenes.rect(viewport)
+            geometry, work = rectangle(monitor.get_geometry()), rectangle(monitor.get_workarea())
+            scenes.rect(geometry)
             scenes.rect(work)
+            viewport = scene_viewport(self.mode, geometry, work)
             values.append({"id": key, "primary": monitor == primary if primary is not None else index == 0, "viewport": viewport, "work": work, "monitor": monitor, "scale": monitor.get_scale_factor()})
         return values
 

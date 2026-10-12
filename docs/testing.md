@@ -103,6 +103,8 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。
 `tests/test_linux_gi_versions.py` 以 `ast` 確認固定 Gtk 3.0 的 Linux 模組在 import Gdk 前也固定 Gdk 3.0，
 避免已安裝 GTK 4 typelib 時先載入 Gdk 4.0 而啟動失敗；不需 GI 或 display。
+`tests/test_linux_surface.py` 以假 GI／cairo 建立 X11 場景，確認 X11 以工作區、layer-shell 以整個螢幕為 viewport，
+視窗依 viewport 設 size request、換顯示器時更新；不需 GI 或 display，不代表實機驗收。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
 場景／協調器，驗證原生 level、三層能力、位置、穿透及桌布拒絕焦點，不需要 Google SDK。
 這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。

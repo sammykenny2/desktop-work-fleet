@@ -3,7 +3,7 @@
 ## Status
 
 Accepted，2026-10-05。更新 ADR-023／025 的兩層限制；實測結果記於 PROGRESS。
-Linux X11 場景尺寸與 GNOME 的層級對應由 [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) 更新。
+Linux X11 場景尺寸、GNOME 的層級對應與 DMA-BUF 預設由 [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) 更新。
 
 ## Context
 

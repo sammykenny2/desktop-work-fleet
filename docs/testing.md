@@ -108,6 +108,8 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 GNOME 只提供桌布層與最上層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層；不代表 GNOME 實機已驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影。
+`tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設停用 DMA-BUF，
+且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
 場景／協調器，驗證原生 level、三層能力、位置、穿透及桌布拒絕焦點，不需要 Google SDK。
 這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。

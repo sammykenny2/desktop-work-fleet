@@ -3,6 +3,7 @@
 ## Status
 
 Accepted，2026-10-13。維護者在 Ubuntu 22.04 GNOME 實機回報後選擇此方案；更新 ADR-031 的 Linux X11 兩層描述。
+同日另更新 ADR-031 的 DMA-BUF 預設：只在 Raspberry Pi／V3D 停用。
 
 ## Context
 
@@ -24,6 +25,11 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 `keep_below` 只會進入 BOTTOM 層，仍低於 DING；一般 X11 client 也無法相對 Wayland 視窗重排。
 要在 GNOME 提供可互動的桌面層，只能由 GNOME Shell 擴充等 Shell 內部機制安排堆疊。
 
+拖曳或堆疊、攤開、復原移動便箋後，原處留下殘影；擷取場景視窗本身可見殘影，強制整窗重畫後消失。
+獨立的透明 WebKit 視窗移動一張便箋即可重現：`WEBKIT_DISABLE_DMABUF_RENDERER=1`（ADR-031 的 Linux 預設）時舊位置留下殘影，
+在視窗或 WebView 的 draw 先清成透明也無效；不設定或設為 `0` 改用 DMA-BUF renderer 時沒有殘影。
+維護者以 `WEBKIT_DISABLE_DMABUF_RENDERER=0` 啟動 App 後確認殘影消失。這台 x86 VM 沒有 Pi 的 device-tree model 或 V3D 驅動。
+
 ## Decision
 
 - 所有 X11 場景視窗與 layer-shell 一樣設定 viewport 的 size request，X11 另保留 `move()`／`resize()`。
@@ -34,6 +40,8 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
   在 DING 圖示下方且滑鼠穿透。`wallpaperPlacement` 回報 `desktop-window`，不冒稱 layer-shell 背景 band。
 - 共用投影接受只有桌布層或只有桌面層的組合。常駐層缺少時改放另一個常駐層並列入 `fallbacks`；
   落在桌布層的便箋一律不可互動、拖曳或編輯。保存的群組偏好不改寫，回到支援的環境即恢復。
+- 只有 `/proc/device-tree/model` 含 Raspberry Pi 或存在 `/sys/module/v3d` 時，使用者未指定才預設
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1`；其他機器沿用 WebKit 預設，使用者的明確設定仍優先。
 - 群組快捷鍵略過主機沒有的層級；群組設定停用不可用的層級（目前所在層除外），設定頁依實際回退方向說明，
   快捷鍵說明列出本機實際的循環順序。
 - 操作群組時仍暫轉最上層，因此 GNOME 上可在最上層選字、編輯與拖曳。
@@ -59,7 +67,8 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 ### Neutral
 
 - 正規 GNOME Xorg 工作階段同樣套用此對應，但未實測；GNOME Flashback 等同樣宣告 `GNOME` 的工作階段也未實測。
-- 拖曳陰影殘留須在尺寸修正後重新確認；若仍存在，下一步檢查 XWayland 透明視窗的重畫流程。
+- 殘影來自共享記憶體 renderer，改用 DMA-BUF 後消失。
+- 非 Pi 的 Linux 改用 DMA-BUF renderer，GPU／驅動相容性只在這台 x86 VM 確認；Pi 以外有相同錯亂的機器可自行設定環境變數。
 
 ## Alternatives Considered
 

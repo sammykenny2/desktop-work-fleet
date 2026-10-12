@@ -2,6 +2,20 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 Linux 透明場景殘影與 DMA-BUF 預設
+
+使用者回報經 XWayland 拖曳或堆疊、攤開、復原後，移走的便箋在原處留下殘影；確認修正後要求先單獨 commit／push。不升版。
+
+- 擷取場景視窗本身即可見殘影，強制整窗重畫後消失，屬 App 端重畫。獨立透明 WebKit 視窗移動一張便箋可重現：
+  `WEBKIT_DISABLE_DMABUF_RENDERER=1`（ADR-031 的 Linux 預設）留下殘影，在視窗或 WebView draw 先清成透明無效；
+  不設定或設為 `0` 改用 DMA-BUF 時沒有殘影。使用者以 `=0` 啟動 App 確認堆疊／攤開／復原及調整模式拖曳都沒有殘影。
+- 新增 `renderer.py`：只有 device-tree model 含 Raspberry Pi 或存在 `/sys/module/v3d` 時才預設停用 DMA-BUF，
+  host 在 import WebKit 前決定，使用者的明確設定仍優先。ADR-039 記錄並更新 ADR-031 的預設。
+- 新增 `tests/test_linux_renderer.py`（假檔案系統）；host 判斷順序的測試在舊 host 失敗、修正後通過。
+  此 commit 的獨立 worktree：Python documented discover 62 tests，10 skip／0 fail；`npm test` 266 pass／10 skip／0 fail；文件檢查通過。
+- 重裝含新預設的 DEB 並以未設定該變數的環境啟動，確認行程環境沒有覆寫；新預設下的畫面由使用者另行確認前，以 `=0` 的實測為證據。
+  Pi、其他 GPU／驅動與非 GNOME X11 未實測；沒有獨立審閱。
+
 ## 2026-10-13 GNOME 桌面圖示下的層級對應
 
 使用者回報經 XWayland 時桌面層看得到但無法選字、原生 Wayland 沒有群組層級設定，並在無法解決時選擇當作桌布層；同意 ADR-039 計畫。

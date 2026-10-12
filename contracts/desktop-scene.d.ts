@@ -21,9 +21,13 @@ export interface DesktopCommand {
   args: Record<string, unknown>;
 }
 export interface DesktopInfo {
+  /** Always floating plus desktop, wallpaper or both; a paper on a missing resident layer is shown on the other. */
   sessionId: string; referenceDpi: number; layers: ResidentLayer[];
-  /** Background is a real layer-shell band; icon placement depends on the desktop shell. */
-  wallpaperPlacement?: 'background' | 'unavailable';
+  /**
+   * Background is a real layer-shell band; icon placement depends on the desktop shell. Desktop-window is an X11
+   * desktop-type window that the shell's own icon window covers, as with GNOME's desktop icons.
+   */
+  wallpaperPlacement?: 'background' | 'desktop-window' | 'unavailable';
   workAreas: (Rect & { id: string; primary: boolean })[];
   views: { viewId: string; layer: ResidentLayer; viewport: Rect }[];
 }

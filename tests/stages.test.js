@@ -29,6 +29,18 @@ test('four stages: wallpaper, desktop, topmost, adjust mode, and a missing wallp
   assert.equal(nextGroupStage('wallpaper', { wallpaper: false }), 1, 'a group already on the wallpaper still steps to the desktop');
 });
 
+test('without a desktop layer the wallpaper steps straight to the topmost layer', async () => {
+  assert.equal(nextGroupStage('wallpaper', { desktop: false }), 2);
+  assert.equal(nextGroupStage('desktop', { desktop: false }), 2, 'a group saved on the desktop shows on the wallpaper and steps on');
+  assert.equal(nextGroupStage('floating', { desktop: false }), adjustStage);
+  assert.equal(nextGroupStage('floating', { adjusting: true, desktop: false }), 0);
+  const f = await fixture(); const press = () => stepGroup({ workspace: f.workspace, controller: f.controller, groupId: f.a.id, wallpaper: true, desktop: false });
+  assert.equal(await press(), 2); assert.equal(f.layer(f.a.id), 'floating');
+  assert.equal(await press(), adjustStage);
+  assert.equal(await press(), 0); assert.equal(f.layer(f.a.id), 'wallpaper');
+  assert.equal(await press(), 2); assert.equal(f.layer(f.a.id), 'floating', 'the missing desktop layer is never stored by a key');
+});
+
 test('four presses walk the group round, and only that group moves', async () => {
   const f = await fixture();
   assert.equal(f.layer(f.a.id), 'desktop', 'groups start on the desktop layer');

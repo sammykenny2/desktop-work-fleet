@@ -116,6 +116,24 @@ test('wallpaper projections stay passive, float only their operated group, then 
   assert.equal(project().cards.find(card => card.id === f.other.id).layer, 'wallpaper');
 });
 
+test('without a desktop layer, desktop papers rest on the wallpaper and the saved layer stays desktop', async () => {
+  const f = await fixture();
+  const project = layers => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
+    interaction: f.controller.state, sessionId: 'gnome-test', sequence: 1, workspaceRevision: f.workspace.state.revision, layers });
+  let frame = project(['wallpaper', 'floating']);
+  assert.deepEqual(frame.fallbacks.map(value => [value.requested, value.effective]), [['desktop', 'wallpaper'], ['desktop', 'wallpaper']]);
+  assert.ok(frame.cards.every(card => card.layer === 'wallpaper' && !card.interactive && !card.draggable && !card.editing));
+  assert.equal(f.workspace.layout.state.groupLayers[f.a.id], undefined, 'the saved preference is not rewritten');
+  await f.controller.activate({ kind: 'group', groupId: f.a.id }); frame = project(['wallpaper', 'floating']);
+  const operated = frame.cards.find(card => card.id === f.card.id);
+  assert.deepEqual([operated.layer, operated.interactive, operated.draggable], ['floating', true, true]);
+  assert.equal(frame.cards.find(card => card.id === f.other.id).layer, 'wallpaper');
+  await f.controller.activate({ kind: 'none' });
+  await f.workspace.layout.setGroupLayer(f.b.id, 'floating', f.workspace.snapshot);
+  assert.deepEqual(project(['wallpaper', 'floating']).fallbacks.map(value => value.cardId), [f.card.id]);
+  assert.throws(() => project(['floating']), error => error.code === 'desktop-layer');
+});
+
 test('desktop gesture owns one view and commits one move despite a duplicate pointer-up receipt', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'all' });
   const gestureId = uuid(); const args = { gestureId, pointerId: 4 }; const original = f.workspace.layout.state.placements[f.card.id];

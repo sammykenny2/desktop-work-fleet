@@ -5,7 +5,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk
 import protocol as p
 import scenes
 from shortcuts import Shortcuts
-from surface import Surface, backend, layers, rectangle, scene_viewport
+from surface import Surface, backend, layers, rectangle, scene_viewport, wallpaper_placement
 
 
 class Desktop:
@@ -103,7 +103,7 @@ class Desktop:
         return [{"id": value["id"], "primary": value["primary"], **value["work"]} for value in displays]
 
     def info(self):
-        return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "backend": self.mode, "wallpaperPlacement": "background" if "wallpaper" in self.layers else "unavailable", "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
+        return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "backend": self.mode, "wallpaperPlacement": wallpaper_placement(self.mode, self.layers), "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
 
     def new_view(self, display, layer):
         p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "桌面視窗容量已滿，請保存後重新開啟。")

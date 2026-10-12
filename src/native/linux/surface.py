@@ -1,5 +1,6 @@
 """GTK input regions and X11/Wayland presentation; all card ordering stays in the renderer."""
 import math
+import os
 import time
 import cairo
 import gi
@@ -26,14 +27,28 @@ def backend():
     return None
 
 
-def layers(mode):
-    return ("desktop", "floating", "wallpaper") if mode == "wayland-layer-shell" else ("desktop", "floating")
+def gnome_shell(environ=os.environ):
+    return "GNOME" in environ.get("XDG_CURRENT_DESKTOP", "").upper().split(":")
+
+
+def layers(mode, environ=os.environ):
+    if mode == "wayland-layer-shell":
+        return ("desktop", "floating", "wallpaper")
+    # GNOME's desktop icons (DING) keep a transparent full-screen window above every X11 desktop-type window and take
+    # its clicks, so there the bottom window can only be a click-through wallpaper below the icons.
+    return ("wallpaper", "floating") if gnome_shell(environ) else ("desktop", "floating")
 
 
 def scene_viewport(mode, geometry, work):
     # Layer-shell surfaces cover the whole monitor. Window managers keep ordinary X11 windows inside the work area
     # (GNOME moves a full-monitor window below its top bar), so X11 scenes cover the work area to land where asked.
     return geometry if mode == "wayland-layer-shell" else work
+
+
+def wallpaper_placement(mode, available):
+    if "wallpaper" not in available:
+        return "unavailable"
+    return "background" if mode == "wayland-layer-shell" else "desktop-window"
 
 
 def rectangle(value):
@@ -81,7 +96,7 @@ class Surface:
         else:
             self.window.set_type_hint(Gdk.WindowTypeHint.UTILITY if layer == "floating" else Gdk.WindowTypeHint.DESKTOP)
             self.window.set_keep_above(layer == "floating")
-            self.window.set_keep_below(layer == "desktop")
+            self.window.set_keep_below(layer != "floating")
             self.window.stick()
         self.local = web_factory(assets, "workfleet://app/desktop/index.html", self.receive, lambda: lost(self))
         self.local.context.connect("download-started", lambda _context, download: download.cancel())

@@ -2,7 +2,7 @@ import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
-import { adjustStage, groupLayer, stepGroup } from '../layout/stages.js';
+import { adjustStage, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -454,6 +454,7 @@ function currentDesktopEditor() {
   return remoteEditor && currentDraft?.id === remoteEditor.draftId && controller.state.editingCardId === remoteEditor.cardId ? copy(remoteEditor) : null;
 }
 function initializeDesktop() {
+  $('#stage-hint').textContent = `每按一次換到下一階：${desktopStages().map(stage => stageNames[stage]).join(' → ')}。數字對應「桌面」頁的區域，由左到右、由上到下。`;
   const authority = new DesktopAuthority({ workspace, controller, sessionId: desktopInfo.sessionId,
     perform: action => desktop.perform(action),
     shortcut: (target, intent) => desktopAction(target, intent),
@@ -495,8 +496,9 @@ function initializeDesktop() {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
         sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, editor: currentDesktopEditor(), notice: desktopNotice });
       // Settings only speaks up when a paper cannot sit on the layer it asks for.
-      $('#desktop-note').hidden = !frame.fallbacks.length;
-      $('#desktop-note').textContent = `${frame.fallbacks.length} 張便箋設在桌布層，但這台電腦目前不支援，先放在桌面層。`;
+      const [fallback] = frame.fallbacks; const layerName = layer => stageNames[groupLayerOrder.indexOf(layer)];
+      $('#desktop-note').hidden = !fallback;
+      $('#desktop-note').textContent = fallback ? `${frame.fallbacks.length} 張便箋設在${layerName(fallback.requested)}，但這台電腦目前不支援，先放在${layerName(fallback.effective)}。` : '';
       return frame;
     },
     changed: () => render(), error: error => status(error.message, true),
@@ -568,14 +570,15 @@ async function desktopAction(target, intent) {
     await openEditor(); return;
   }
   if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
-  // A group key moves its group one stage on: wallpaper, desktop, topmost, adjust mode, wallpaper again.
+  // A group key moves its group one stage on: wallpaper, desktop, topmost, adjust mode, wallpaper again, skipping a layer
+  // this desktop does not offer.
   // Ctrl+Shift+0 keeps its own meaning: every group into adjust mode, then back to each paper's own layer. Papers hidden
   // while locked would not show the first stages and the browser preview has no layers, so there a group key only
   // switches adjust mode.
   else if (target !== shortcutActions.all && target !== '@stop' && desktop && workspace.layout.state.desktopVisible) {
-    const wallpaper = Boolean(desktopInfo?.layers?.includes('wallpaper'));
-    const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper }); activeGroupId = target;
-    const stages = wallpaper ? [0, 1, 2, adjustStage] : [1, 2, adjustStage];
+    const layers = desktopInfo?.layers || [];
+    const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper: layers.includes('wallpaper'), desktop: layers.includes('desktop') });
+    activeGroupId = target; const stages = desktopStages();
     announce(target, stageNames[stage], stages.indexOf(stage) + 1, stages.length);
   }
   else {
@@ -593,6 +596,7 @@ async function desktopAction(target, intent) {
 // After a group or all-groups key the topmost scene shows, for about a second and a half, which group moved and where
 // it is now, with one dot per stage of the cycle. A newer notice replaces an older one, which then is not cleared early.
 const stageNames = ['桌布層', '桌面層', '最上層', '調整位置'];
+const desktopStages = () => [0, 1, 2].filter(stage => desktopInfo?.layers?.includes(groupLayerOrder[stage])).concat(adjustStage);
 let desktopNotice = null; let noticeSerial = 0;
 function announce(groupId, text, step = 0, steps = 0) {
   const layout = workspace.layout.state; const groups = activeGroups(workspace.snapshot);
@@ -785,7 +789,7 @@ function groupEditor(group) {
   if (layerField) {
     for (const [value, name] of [['wallpaper', '桌布層：在圖示下方，滑鼠穿透'], ['desktop', '桌面層：在圖示上方，可選取文字'], ['floating', '最上層：在所有視窗上方']]) {
       const option = new Option(name, value);
-      option.disabled = value === 'wallpaper' && !desktopInfo?.layers?.includes('wallpaper') && currentLayer !== 'wallpaper'; layers.append(option);
+      option.disabled = !desktopInfo?.layers?.includes(value) && currentLayer !== value; layers.append(option);
     }
     layers.value = currentLayer; layerField.append(layers);
   }

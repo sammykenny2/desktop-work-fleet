@@ -2,6 +2,24 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 GNOME 桌面圖示下的層級對應
+
+使用者回報經 XWayland 時桌面層看得到但無法選字、原生 Wayland 沒有群組層級設定，並在無法解決時選擇當作桌布層；同意 ADR-039 計畫。
+
+- GNOME Shell 42.9 沒有 layer-shell（`GtkLayerShell.is_supported()` false），原生 Wayland 回報 `desktop-unsupported`，
+  所以沒有桌面便箋與層級選單。XWayland 下 DING 以透明一般視窗覆蓋桌面並在被提升時降到最底，desktop-type 視窗位於其下，
+  便箋可見但點擊由 DING 接收；依 Mutter 層級與 DING 原始碼推得，X11 工具看不到 Wayland 視窗。
+- `XDG_CURRENT_DESKTOP` 含 GNOME 的 X11 只提供桌布層與最上層；桌布為 keep below 的 desktop-type 視窗，`wallpaperPlacement: desktop-window`。
+  共用投影接受沒有桌面層，桌面偏好回退桌布且不可互動、拖曳或編輯，保存的偏好不改寫；快捷鍵略過缺少的層，
+  群組設定停用不可用層，回退說明依方向，快捷鍵說明顯示本機循環。ADR-039 記錄決策並更新 ADR-031。
+- 新增 GNOME 層級、desktop-type keep below、拒絕桌面層的 Linux 測試，以及無桌面層的投影回退與快捷鍵測試；未修正版本失敗、修正後通過。
+  Python documented discover 58 tests，10 skip／0 fail；`npm test` 266 pass／10 skip／0 fail；文件檢查通過。
+- 重裝後預設桌面層的群組顯示於 desktop-type 視窗 `954x741+70+27`，便箋位置正確，啟動紀錄無錯誤。
+  桌布點擊穿透、設定提示、選項停用與最上層選字尚未由使用者逐項確認。
+- 未解決：群組在最上層時使用者無法點選其他程式、主視窗無法拖曳／縮放，結束 App 後恢復；當時最上層視窗已隱藏、桌布 input shape 為空。
+  獨立 XWayland probe 顯示 GNOME 遵守 X11 input shape，原因仍在調查。調整模式拖曳殘影仍存在。
+  GNOME Wayland 圖示啟動仍需手動 `GDK_BACKEND=x11`；Xorg 工作階段未實測。沒有獨立審閱。
+
 ## 2026-10-13 Linux X11 場景尺寸與工作區位置
 
 使用者在 Ubuntu 22.04 GNOME Wayland 以 `GDK_BACKEND=x11` 經 XWayland 啟動後，桌面便箋被裁切；不升版，修正後 commit／push。

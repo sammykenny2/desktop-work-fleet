@@ -47,6 +47,9 @@ layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個
 操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
 pcmanfm 把桌布與圖示畫在同一 surface，背景便箋不能插入圖示下方，可能仍顯示在圖示上方；
 設定會說明這項限制。X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存。
+GNOME 的桌面圖示（DING）以透明視窗蓋住 X11 desktop-type 視窗並接收點擊，所以 `XDG_CURRENT_DESKTOP`
+含 GNOME 時 X11 改提供桌布層與最上層，桌面偏好明示回退桌布層；見 [ADR-039](../../../docs/decisions/039-gnome-desktop-icons-and-x11-scene-size.md)。
+GNOME Wayland 沒有 layer-shell，需以 `GDK_BACKEND=x11` 啟動才有桌面便箋，正規 Xorg 工作階段未實測。
 X11 使用原生窗口層級與輸入區域，場景涵蓋螢幕工作區（視窗管理員會把一般視窗推離工作列），
 視窗不可調整大小，以 viewport size request 決定尺寸；
 Wayland 使用 GtkLayerShell 支援的 compositor。

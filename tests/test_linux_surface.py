@@ -1,9 +1,11 @@
-"""Linux X11 scene windows cover the work area at the viewport size, using fake GI/cairo without a display."""
+"""Linux scene windows take the viewport size and the desktop shell's layer set, using fake GI/cairo without a display."""
 import importlib.util
+import os
 from pathlib import Path
 import sys
 import types
 import unittest
+from unittest import mock
 
 NATIVE = Path(__file__).resolve().parents[1] / "src/native/linux"
 VIEWPORT = {"x": 70, "y": 27, "width": 954, "height": 741}
@@ -75,12 +77,30 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.journal = []
         self.surface = load_surface(self.journal)
 
-    def create(self, layer):
+    def create(self, layer, desktop=""):
         display = {"id": "display-1", "viewport": dict(VIEWPORT), "monitor": None}
-        return self.surface.Surface(display, layer, "assets", lambda *_: Fake(self.journal, "web"), None, None, None, "x11")
+        web = lambda *_: Fake(self.journal, "web")
+        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": desktop}):
+            return self.surface.Surface(display, layer, "assets", web, None, None, None, "x11")
 
     def window_calls(self, method):
         return [args for path, args in self.journal if path == f"Gtk.Window().{method}"]
+
+    def test_gnome_x11_offers_wallpaper_and_floating(self):
+        layers = self.surface.layers
+        for desktop in ("ubuntu:GNOME", "GNOME", "GNOME-Classic:GNOME", "gnome"):
+            with self.subTest(desktop=desktop):
+                self.assertEqual(layers("x11", {"XDG_CURRENT_DESKTOP": desktop}), ("wallpaper", "floating"))
+        for environ in ({"XDG_CURRENT_DESKTOP": "LXDE"}, {"XDG_CURRENT_DESKTOP": "XFCE"}, {}):
+            with self.subTest(environ=environ):
+                self.assertEqual(layers("x11", environ), ("desktop", "floating"))
+        self.assertEqual(layers("wayland-layer-shell", {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}), ("desktop", "floating", "wallpaper"))
+
+    def test_wallpaper_placement_names_the_window_kind(self):
+        placement = self.surface.wallpaper_placement
+        self.assertEqual(placement("wayland-layer-shell", ("desktop", "floating", "wallpaper")), "background")
+        self.assertEqual(placement("x11", ("wallpaper", "floating")), "desktop-window")
+        self.assertEqual(placement("x11", ("desktop", "floating")), "unavailable")
 
     def test_x11_scenes_cover_the_work_area(self):
         geometry, work = {"x": 0, "y": 0, "width": 1024, "height": 768}, dict(VIEWPORT)
@@ -94,6 +114,22 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.journal.clear()
         view.set_display({"id": "display-2", "viewport": {"x": 0, "y": 0, "width": 1280, "height": 800}, "monitor": None})
         self.assertEqual(self.window_calls("set_size_request"), [(1280, 800)], "a new display resizes the window")
+
+    def test_gnome_wallpaper_is_a_desktop_window_kept_below(self):
+        self.create("wallpaper", "ubuntu:GNOME")
+        self.assertEqual([args[0]._path for args in self.window_calls("set_type_hint")], ["Gdk.WindowTypeHint.DESKTOP"])
+        self.assertEqual(self.window_calls("set_keep_below"), [(True,)])
+        self.assertEqual(self.window_calls("set_keep_above"), [(False,)])
+        self.journal.clear()
+        self.create("floating", "ubuntu:GNOME")
+        self.assertEqual([args[0]._path for args in self.window_calls("set_type_hint")], ["Gdk.WindowTypeHint.UTILITY"])
+        self.assertEqual(self.window_calls("set_keep_below"), [(False,)])
+        self.assertEqual(self.window_calls("set_keep_above"), [(True,)])
+
+    def test_gnome_x11_refuses_the_desktop_layer(self):
+        with self.assertRaises(Exception) as caught:
+            self.create("desktop", "ubuntu:GNOME")
+        self.assertEqual(getattr(caught.exception, "code", None), "desktop-layer")
 
 
 if __name__ == "__main__":

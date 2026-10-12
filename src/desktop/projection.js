@@ -8,8 +8,10 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
   layers = ['desktop', 'floating'], editor = null, topology = 0, notice = null }) {
   requireValue(typeof sessionId === 'string' && sessionId.length > 0 && Number.isSafeInteger(sequence) && sequence >= 0,
     'desktop-frame', '桌面畫面身分無效。');
-  requireValue(layers.includes('desktop') && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)),
+  // A host offers the desktop layer, the wallpaper layer or both; a paper asking for a missing one sits on the other.
+  requireValue((layers.includes('desktop') || layers.includes('wallpaper')) && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)),
     'desktop-layer', '桌面主機沒有可用的呈現層。');
+  const resident = layers.includes('desktop') ? 'desktop' : 'wallpaper';
   const groups = activeGroups(snapshot); const groupIndex = new Map(groups.map((group, index) => [group.id, index]));
   let regions = [];
   try { regions = gridRegions(layout.grid, groups); } catch { /* A group overflow must not hide existing cards. */ }
@@ -19,12 +21,14 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
     if (!policy.visible || !saved) continue;
     const placement = interaction.dragSession?.cardId === card.id ? interaction.dragSession.position : saved;
     requireValue(validRect(placement), 'desktop-geometry', '桌面卡片的位置或尺寸無效，尚未更新畫面。');
-    let layer = policy.layer;
-    if (!layers.includes(layer)) { fallbacks.push({ cardId: card.id, requested: layer, effective: 'desktop' }); layer = 'desktop'; }
+    let layer = policy.layer; let { interactive, draggable, editing } = policy;
+    if (!layers.includes(layer)) { fallbacks.push({ cardId: card.id, requested: layer, effective: resident }); layer = resident; }
+    // Wallpaper papers always let clicks through, including desktop papers that fell back onto the wallpaper.
+    if (layer === 'wallpaper') interactive = draggable = editing = false;
     cards.push({ id: card.id, groupId: card.groupId, revision: card.revision, summary: summaryText(card),
       text: card.content.text, format: card.content.format, attachmentCount: card.content.attachments?.length || 0,
       rect: { x: placement.x, y: placement.y, width: placement.width, height: placement.height }, layer,
-      interactive: policy.interactive, draggable: policy.draggable, editing: policy.editing,
+      interactive, draggable, editing,
       selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,
       color: groupColors[(groupIndex.get(card.groupId) ?? 0) % groupColors.length] });
   }

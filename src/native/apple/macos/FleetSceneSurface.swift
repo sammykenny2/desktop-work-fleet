@@ -93,7 +93,8 @@ import WebKit
                     let id = "\(card.id):\(index)"; live.insert(id)
                     let bounds = NSRect(x: nativeBounds.minX + piece.minX - viewport.minX, y: nativeBounds.maxY - piece.maxY + viewport.minY, width: piece.width, height: piece.height)
                     let hit = hits[id] ?? FleetScenePanel(rect: bounds, level: panel.level)
-                    if hits[id] == nil { let input = FleetSceneInput(frame: NSRect(origin: .zero, size: bounds.size)); input.autoresizingMask = [.width, .height]; input.surface = self; hit.contentView = input; hits[id] = hit }
+                    // Set explicitly: left at the default, WindowServer passes clicks through the clear panel's transparent pixels.
+                    if hits[id] == nil { let input = FleetSceneInput(frame: NSRect(origin: .zero, size: bounds.size)); input.autoresizingMask = [.width, .height]; input.surface = self; hit.contentView = input; hit.ignoresMouseEvents = false; hits[id] = hit }
                     (hit.contentView as? FleetSceneInput)?.operable = card.draggable; hit.setFrame(bounds, display: false); hit.order(.above, relativeTo: panel.windowNumber)
                 }
             }

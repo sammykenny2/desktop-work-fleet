@@ -2,6 +2,21 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 macOS 桌面便箋無法拖曳
+
+使用者回報這台 macOS 27.0.1 在「調整此組」等狀態拖不動便箋，游標有變化；正式 App 與合成資料測試工具都沒有移動跡象。
+重裝修正版後確認正式 App 可以拖動，要求 commit／push。不升版。
+
+- 可操作的紙面上各有一個透明輸入 panel，收到滑鼠後轉給場景 WKWebView。直接對 panel `sendEvent` 的合成拖曳完整通過
+  （pointerdown／move／up 與 `pointer.*` 命令都送出），但使用者用真實滑鼠拖同一張合成紙面時，輸入 panel 一個事件都沒收到。
+- 原因：透明 panel 的 `ignoresMouseEvents` 停在預設值時讀取為 false，WindowServer 卻讓點擊穿過完全透明的像素；
+  `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)` 只在明確設為 false 時回傳該視窗。macOS 桌面紙面的拖曳、按鈕與雙擊因此都落到下層。
+- `FleetSceneSurface` 建立輸入 panel 時明確設定 `ignoresMouseEvents = false`。`SceneLayersProbe` 新增互動紙面的 WindowServer 點擊判定檢查，
+  修正前失敗、修正後連續三次通過；`docs/testing.md` 註明合成事件不能取代此檢查。
+- 作者檢查：`scripts/macos/test-desktop-layers.sh` 通過；`npm test` 269 pass／10 skip／0 fail；Python documented discover 84 tests，
+  14 skip／0 fail；文件檢查與 `git diff --check` 通過。重建 DMG 後 `hdiutil verify`、唯讀掛載的 `codesign --verify --deep --strict`、
+  主程式與 dylib 雙架構檢查通過。使用者只確認拖動；便箋按鈕、雙擊編輯與多螢幕未個別確認。沒有獨立審閱。
+
 ## 2026-10-14 pcmanfm 桌面不提供桌布層
 
 使用者在 Pi 5 labwc 回報桌布層便箋蓋住桌面捷徑，要求修正或在此環境停用該層；比較把便箋畫進桌布圖片與停用後選擇停用，

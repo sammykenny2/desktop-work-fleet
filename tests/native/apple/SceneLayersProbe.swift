@@ -68,6 +68,19 @@ import AppKit
             surface.hide()
         }
         try check(NSWorkspace.shared.frontmostApplication?.processIdentifier == front, "Passive layer operations must not activate the app")
+        // Interactive paper must catch real clicks; WindowServer passes them through a clear panel's transparent pixels unless told not to.
+        // Synthetic events sent straight to the panel skip this hit test, so ask WindowServer which window a mouse-down would reach.
+        let area = screen.visibleFrame, inputBounds = NSRect(x: area.midX - 150, y: area.midY - 100, width: 300, height: 200)
+        let floating = FleetSceneSurface(display: "synthetic", viewport: NSRect(x: 0, y: 0, width: 300, height: 200), nativeBounds: inputBounds, layer: "floating", assets: assets)
+        surfaces.append(floating)
+        floating.apply(FleetSceneFrame(sequence: 1, topology: 0, cards: [.init(id: "paper", layer: "floating", rect: NSRect(x: 20, y: 20, width: 120, height: 80), interactive: true, draggable: true)]))
+        guard let input = NSApplication.shared.windows.first(where: { $0.isVisible && $0 is FleetScenePanel && $0.contentView is FleetSceneInput }) else {
+            throw FleetFailure("probe", "Interactive paper must create an input panel")
+        }
+        _ = serverWindow(input.windowNumber, level: input.level.rawValue)
+        try check(NSWindow.windowNumber(at: NSPoint(x: input.frame.midX, y: input.frame.midY), belowWindowWithWindowNumber: 0) == input.windowNumber,
+            "Interactive paper must receive real mouse clicks")
+        floating.hide()
         let session = FleetProtocol.uuid()
         var card: [String: Any] = ["id": "paper", "groupId": "group", "text": "Synthetic layer probe", "color": "#ff7799",
             "rect": ["x": -280, "y": 70, "width": 120, "height": 80], "layer": "wallpaper",

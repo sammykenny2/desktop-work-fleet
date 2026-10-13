@@ -125,7 +125,8 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 使用者設定優先、重新啟動移除自己設定的值、只詢問一次、資料鎖未釋放時不重新啟動；對話框與實際重新啟動只有實機驗證。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
 場景／協調器，驗證原生 level、三層能力、位置、穿透、桌布拒絕焦點，以及場景 WKWebView 不畫不透明底色
-（否則整片場景會蓋住桌布），不需要 Google SDK。
+（否則整片場景會蓋住桌布），不需要 Google SDK。互動紙面另以 `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
+確認 WindowServer 會把真實點擊交給輸入 panel；直接送進 panel 的合成事件會略過這個判定，無法取代此檢查。
 WindowServer 非同步套用視窗排序與 level，剛顯示的視窗會先回報 layer 0、不在螢幕上；probe 會 flush 並等到視窗上螢幕且 level 相符
 （最多 2 秒）再檢查。
 這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。

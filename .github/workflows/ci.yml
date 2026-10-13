@@ -63,7 +63,9 @@ jobs:
             --mount "type=bind,source=$PWD/build/linux-layer-checks,target=/evidence" \
             work-fleet-linux-desktop-tests dbus-run-session -- \
             bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
+      # Independent of the desktop-layer result, so one failure does not hide the other.
       - name: Main window and startup behavior on X11 and labwc
+        if: ${{ !cancelled() }}
         run: |
           mkdir -p build/linux-host-checks
           docker run --rm --network none \

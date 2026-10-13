@@ -76,6 +76,28 @@ class LinuxShortcutTests(unittest.TestCase):
         shortcuts.suspend(True)
         self.assertEqual(keybinder.handlers, {}, "a focused Work Fleet window releases the global chords")
 
+    def test_labwc_keys_are_available_once_written_even_while_work_fleet_has_the_focus(self):
+        class Labwc:
+            def __init__(self):
+                self.written = []
+            def keys(self):
+                return list(self.written)
+            def write(self, keys):
+                self.written = list(keys)
+            def status(self, keys):
+                return {"state": "current" if sorted(keys) == sorted(self.written) else "outdated", "path": "rc.xml"}
+        config, events = Labwc(), []
+        shortcuts = install_fakes(self, FakeKeybinder()).Shortcuts("wayland-layer-shell", lambda *_: None, events.append, config)
+        self.assertIsNone(shortcuts.bus, "labwc has no GlobalShortcuts portal to ask")
+        result = shortcuts.configure({"bindings": [{"key": "Ctrl+Shift+1", "target": "group-1"}, {"key": "Ctrl+C", "target": "group-2"}]})
+        self.assertEqual([value["status"] for value in result["registrations"]], ["unwritten", "editing"])
+        self.assertEqual(shortcuts.labwc_status()["state"], "outdated")
+        shortcuts.write_labwc()
+        self.assertEqual(config.written, ["Ctrl+Shift+1"], "keys the app keeps for text editing are not written")
+        shortcuts.suspend(True)
+        self.assertEqual([value["status"] for value in events[-1]], ["available", "editing"])
+        self.assertEqual(shortcuts.labwc_status()["state"], "current")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -28,9 +28,9 @@ export interface DesktopInfo {
   /** Layers a group can rest on, defaulting to `layers`; a resting paper on another layer is shown on the desktop or wallpaper. */
   residentLayers?: ResidentLayer[];
   /**
-   * Adjust mode is a modal overlay: the topmost scene tints and takes the whole work area, offers its own controls,
-   * and the main window is hidden until adjust mode ends. Used on GNOME Xwayland, where a keep-above scene blocks other
-   * windows, and on layer-shell desktops, which keep every resting layer.
+   * Adjust mode is a modal overlay: the topmost scene tints and takes its whole viewport and offers its own controls,
+   * and a main window that had the focus as adjust mode began is moved aside (desktop.mainVisible) until it ends.
+   * Every desktop host reports it; the browser preview has no overlay.
    */
   adjustOverlay?: boolean;
   /**
@@ -53,12 +53,17 @@ export interface DesktopSceneInfo {
 }
 export interface ShortcutRegistration {
   key: string; target: string;
-  status: 'available' | 'suspended' | 'conflict' | 'unavailable' | 'reserved' | 'editing' | 'typing' | 'invalid';
+  /** Unwritten: on labwc the key is not yet in the keybinds Work Fleet writes to the user's rc.xml. */
+  status: 'available' | 'suspended' | 'conflict' | 'unavailable' | 'reserved' | 'editing' | 'typing' | 'invalid' | 'unwritten';
 }
+/** Linux on labwc only: whether the user's rc.xml holds the current keys in Work Fleet's block; null elsewhere. */
+export interface LabwcShortcuts { state: 'absent' | 'outdated' | 'current'; path: string }
 /** Main document only. Scene documents cannot invoke these methods. */
 export type DesktopOwnerCall =
   | { method: 'desktop.info' | 'desktop.start' | 'desktop.hideMain' | 'desktop.intent'; params: Record<string, never> }
   | { method: 'desktop.showMain'; params: { intent: string | null } }
+  /** Moves a main window that had the focus aside for the adjust overlay (false) and brings back only that one (true). */
+  | { method: 'desktop.mainVisible'; params: { visible: boolean } }
   | { method: 'desktop.frame.begin'; params: { size: number; sha256: string } }
   | { method: 'desktop.frame.append'; params: { token: string; offset: number; base64: string } }
   | { method: 'desktop.frame.publish' | 'desktop.frame.discard'; params: { token: string } }
@@ -69,6 +74,8 @@ export type DesktopOwnerCall =
   | { method: 'desktop.flush.release'; params: { id: string; viewId: string | null; draftId: string | null } }
   | { method: 'desktop.shortcuts.configure'; params: { bindings: { key: string; target: string }[] } }
   | { method: 'desktop.shortcuts.block'; params: { blocked: boolean } }
+  /** Writes the current keys into rc.xml's Work Fleet block and reloads labwc; returns registrations and LabwcShortcuts. */
+  | { method: 'desktop.shortcuts.labwc'; params: Record<string, never> }
   | { method: 'desktop.focus'; params: { intent: string; sequence: number } };
 // Command serials are monotonically admitted per view. Replays outside the bounded receipt cache reject.
 // Native transfers are principal-bound, 256 KiB chunks, SHA-256 validated; frame 128 MiB, command 16 MiB.

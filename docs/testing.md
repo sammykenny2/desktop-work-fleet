@@ -110,8 +110,11 @@ GNOME Wayland 經 XWayland 時只常駐桌布層、桌布為 keep below 的 desk
 input region、即使該螢幕沒有便箋也顯示並只在出現時 present；GNOME Xorg 提供三層且沒有遮罩，桌面層為一般視窗加 keep below，
 最上層有便箋時可取得焦點；layer-shell 常駐三層，調整模式同樣是遮罩，以整個螢幕為 input region 並以 EXCLUSIVE 取得鍵盤、
 結束後回到 ON_DEMAND；同一 Wayland socket 上有 `pcmanfm --desktop` 時 layer-shell 不提供桌布層，偵測以假 `/proc` 排除
-檔案管理員視窗、其他工作階段與沒有 Wayland 顯示的行程；其他 X11 仍只有便箋接收輸入且桌面層為 desktop-type；
-隱藏的主視窗以原位置、大小與最大化狀態恢復；不代表 GNOME 實機已驗收。
+檔案管理員視窗、其他工作階段與沒有 Wayland 顯示的行程；其他 X11 調整時同樣以整個工作區為遮罩，平時只有便箋接收輸入且桌面層為 desktop-type；
+隱藏的主視窗以原位置、大小與最大化狀態恢復，layer-shell 改為最小化並以 activation 叫回、被拒絕時重新顯示，
+原本不在畫面上的主視窗不被叫回；`tests/desktop-overlay.test.js` 確認只有調整開始時有焦點的主視窗讓開並在結束後恢復。
+不代表 GNOME 或 labwc 實機已驗收。Windows 的 `SceneTransfersProbe` 另檢查 `operationScope` 解析出調整狀態並拒絕未知範圍；
+Windows 與 macOS 的遮罩畫面、輸入範圍與主視窗最小化沒有自動化測試，兩者的 layer probe 仍只檢查原有分層。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，
 常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；
@@ -120,7 +123,10 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 `tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設 DMA-BUF renderer 的共享記憶體 buffer、
 使用者設定任一 renderer 變數時不覆寫，且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
 `tests/test_linux_shortcuts.py` 以假 Keybinder 確認 X11 先關閉 cooked 比對再登記，Ctrl+Shift 組合觸發動作、主視窗取得焦點時釋放；
-不代表實際按鍵已驗收。
+labwc 模式不詢問 portal，未寫入的組合為 `unwritten`，寫入後即使 Work Fleet 有焦點也是可用；不代表實際按鍵已驗收。
+`tests/test_linux_labwc.py` 以暫存檔驗證 labwc 按鍵語法、只取代標記區塊並保留其他內容與註解、找到或建立 `<keyboard>`、
+拒絕格式錯誤的檔案、合併／非合併模式的新檔、只備份一次、保留權限、狀態判斷與從 labwc cmdline 偵測設定目錄；
+`tests/native-shortcuts.test.js` 另確認寫入等待進行中的設定並回報 rc.xml 狀態。不讀寫使用者的 rc.xml。
 `tests/test_linux_xwayland.py` 驗證 GNOME Wayland 偵測、偏好檔的權限與原子寫入、GTK 前依選擇設定 `GDK_BACKEND`、
 使用者設定優先、重新啟動移除自己設定的值、只詢問一次、資料鎖未釋放時不重新啟動；對話框與實際重新啟動只有實機驗證。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit

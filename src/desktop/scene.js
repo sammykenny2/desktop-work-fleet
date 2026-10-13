@@ -90,7 +90,7 @@ function render(next) {
   });
   return true;
 }
-// Where adjust mode is a modal overlay (GNOME Xwayland, layer-shell), the topmost scene tints its whole area and carries
+// Where adjust mode is a modal overlay (every desktop host), the topmost scene tints its whole area and carries
 // the controls the hidden main window would offer. The tint takes every click outside the adjusted papers.
 function renderAdjustOverlay(on) {
   const shown = document.querySelector('.adjust-overlay');

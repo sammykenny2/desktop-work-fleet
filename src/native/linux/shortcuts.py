@@ -1,4 +1,4 @@
-"""X11 keybinder or desktop-portal shortcuts; no keyboard hooks or input taps."""
+"""X11 keybinder, labwc keybinds or desktop-portal shortcuts; no keyboard hooks or input taps."""
 import hashlib
 import re
 import gi
@@ -26,8 +26,8 @@ def parse(key):
 
 
 class Shortcuts:
-    def __init__(self, mode, action, changed):
-        self.mode, self.action, self.changed = mode, action, changed
+    def __init__(self, mode, action, changed, labwc=None):
+        self.mode, self.action, self.changed, self.labwc = mode, action, changed, labwc
         self.bindings, self.registrations, self.active = [], [], {}
         self.generation = 0
         self.suspended = self.closed = False
@@ -44,7 +44,7 @@ class Shortcuts:
                 self.keybinder = Keybinder
             except (ValueError, ImportError):
                 pass
-        if self.keybinder is None:
+        if self.keybinder is None and self.labwc is None:
             try:
                 self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
                 for name in ("Activated", "ShortcutsChanged"):
@@ -73,7 +73,10 @@ class Shortcuts:
         self.registrations = []
         for binding in self.bindings:
             status = binding["status"]
-            if status == "available":
+            if status == "available" and self.labwc is not None:
+                # labwc runs the keybind whichever window has the focus, Work Fleet's own included.
+                status = "available" if binding["id"] in registered else "unwritten"
+            elif status == "available":
                 status = "suspended" if self.suspended else "available" if binding["id"] in registered else "unavailable"
             result = {"key": binding["key"], "target": binding["target"], "status": status}
             if registered.get(binding["id"]):
@@ -87,9 +90,20 @@ class Shortcuts:
         self.suspended = value
         self.refresh()
 
+    def labwc_status(self):
+        return None if self.labwc is None else self.labwc.status([value["key"] for value in self.bindings if value["chord"]])
+
+    def write_labwc(self):
+        self.labwc.write([value["key"] for value in self.bindings if value["chord"]])
+        self.refresh()
+
     def refresh(self):
         self.generation += 1
         self.clear()
+        if self.labwc is not None:
+            keys = set(self.labwc.keys())
+            self.statuses({value["id"]: "labwc" for value in self.bindings if value["chord"] and value["key"] in keys})
+            return
         self.statuses()
         if self.closed or self.suspended:
             return

@@ -30,3 +30,20 @@ test('failed native registration configuration reports once, explicit retry work
   const retried = settings.update(bindings, true); assert.equal(calls, 2); settings.close();
   settle({ registrations: [] }); await retried; assert.equal(status.length, 0); settings.update(bindings, true); assert.equal(calls, 2);
 });
+
+test('labwc keybinds are written only on request, after pending bindings, and report the rc.xml state', async () => {
+  const calls = [], status = []; let settle, listener;
+  const bridge = { onEvent: (_, value) => { listener = value; return () => { listener = null; }; }, request: (method, args) => {
+    calls.push(method); return method === 'desktop.shortcuts.labwc'
+      ? Promise.resolve({ registrations: [{ key: 'Ctrl+Shift+1', status: 'available' }], labwc: { state: 'current', path: 'rc.xml' } })
+      : new Promise(resolve => { settle = resolve; });
+  } };
+  const settings = new NativeShortcutSettings(bridge, (value, labwc) => status.push([value, labwc]), assert.fail);
+  settings.update({ 'Ctrl+Shift+1': 'group-1' }); const written = settings.writeLabwc(); await tick();
+  assert.deepEqual(calls, ['desktop.shortcuts.configure'], 'the keys being configured are written, not the previous ones');
+  settle({ registrations: [{ key: 'Ctrl+Shift+1', status: 'unwritten' }], labwc: { state: 'absent', path: 'rc.xml' } }); await written;
+  assert.deepEqual(calls, ['desktop.shortcuts.configure', 'desktop.shortcuts.labwc']);
+  assert.deepEqual(status.map(([, labwc]) => labwc.state), ['absent', 'current']);
+  listener({ registrations: [] }); assert.equal(status.at(-1)[1], null, 'other hosts report no labwc state');
+  settings.close();
+});

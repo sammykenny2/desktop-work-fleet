@@ -139,6 +139,10 @@ class FleetApp(Gtk.Application):
         super().__init__(application_id=config.get("appId") or "app.workfleet.preview", flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.connect("activate", self.activate)
         self.connect("shutdown", self.shutdown)
+        # labwc keybinds written from the shortcut settings run `gapplication action <app id> shortcut "'<key>'"`.
+        shortcut = Gio.SimpleAction.new("shortcut", GLib.VariantType.new("s"))
+        shortcut.connect("activate", lambda _action, value: self.desktop.shortcut(value.get_string()) if self.desktop is not None else None)
+        self.add_action(shortcut)
         self.window = self.view = self.service = None
         self.desktop = self.tray = self.display = None
         self.restart = False

@@ -20,6 +20,8 @@ python scripts/testing/serve_preview.py --port 0
 - 「記下想法」開啟 editor，支援 Markdown／checklist；可附加每檔至多 25 MiB 的檔案。
   附件僅下載，不直接執行 HTML／SVG。保存完成會移除對應草稿，保留草稿則可稍後繼續。
 - 便箋平時是「鎖定」狀態，無法改文；按「調整此組／調整全部」進入調整模式後單擊選卡、雙擊就地編輯，按「完成」回到鎖定。
+  桌面版的調整模式以半透明遮罩覆蓋螢幕，上方有堆疊、攤開、復原與完成；進入時主視窗有焦點才會先最小化，結束後恢復
+  （[ADR-042](decisions/042-adjust-overlay-on-every-desktop-host.md)）。
   Ctrl／Command＋Enter 保存；Esc 保留草稿並結束編輯；空白或未修改的內容不保留草稿。完整編輯可管理附件及預覽。
 - 拖曳只移動位置；放在另一組接收標籤或按住 Shift 放到另一組區域才轉組。
   堆疊／攤開先預覽，調整大小須每次勾選；復原依序還原 geometry／轉組。
@@ -265,8 +267,7 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，桌面便箋要經 XWayland；首次啟動會詢問是否改用，
 之後可在設定的「桌面」頁切換（[ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)），也可直接以 `GDK_BACKEND=x11 work-fleet` 啟動。
-經 XWayland 時群組只常駐桌布層；調整模式以遮罩覆蓋工作區並隱藏主視窗，
-遮罩上有堆疊、攤開、復原與完成（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
+經 XWayland 時群組只常駐桌布層（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
 Raspberry Pi OS（labwc）等 layer-shell 桌面的常駐層不受遮罩限制（預設 pcmanfm 桌面沒有桌布層），調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
 產生 source/runtime tar.gz；`--deb` 需 Debian 工具，`--release` 另需正式公開設定。隔離 headless Linux compositor
 的原生場景檢查見 testing／PROGRESS，沒有金鑰圈或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。

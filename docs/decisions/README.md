@@ -35,8 +35,10 @@
 | [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted（資料生命週期與覆蓋） | MSIX 解除安裝清除本機資料；完整備份、安全備份與可續行的 Google 全量覆蓋 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 | [ADR-038](038-portable-local-and-cloud-backup-flows.md) | Accepted（雙向備份遷移） | 同格式 ZIP、本機原子完整還原與 Google 同步後匯出；失敗副本需明確選擇 |
+| [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted（調整模式） | 所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |
+| [ADR-041](041-labwc-shortcuts-through-rc-xml-keybinds.md) | Accepted（labwc 快捷鍵） | 設定頁把快捷鍵寫進 rc.xml 標記區塊，keybind 經 gapplication 交給 App |
 | [ADR-040](040-gnome-wayland-xwayland-choice.md) | Accepted（GNOME Wayland 顯示方式） | 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用、重新啟動保存草稿 |
-| [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted（GNOME／X11 場景） | X11 場景依工作區定尺寸；GNOME XWayland 只常駐桌布層；GNOME XWayland 與 layer-shell 調整模式為遮罩並隱藏主視窗；Pi 的 DMA-BUF renderer 使用共享記憶體 buffer；pcmanfm 桌面不提供桌布層 |
+| [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted（GNOME／X11 場景） | X11 場景依工作區定尺寸；GNOME XWayland 只常駐桌布層；調整遮罩起於 GNOME XWayland（現行範圍見 ADR-042）；Pi 的 DMA-BUF renderer 使用共享記憶體 buffer；pcmanfm 桌面不提供桌布層 |
 
 驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [resreach](../resreach/README.md)，不要自動改成 Accepted。
 

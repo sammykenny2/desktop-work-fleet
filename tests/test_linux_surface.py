@@ -112,10 +112,10 @@ class LinuxSurfaceTests(unittest.TestCase):
                 self.assertEqual(layers("x11", environ), ("desktop", "floating"))
         self.assertEqual(layers("wayland-layer-shell", XWAYLAND), ("desktop", "floating", "wallpaper"))
 
-    def test_gnome_xorg_offers_all_three_layers_without_the_overlay(self):
+    def test_gnome_xorg_offers_all_three_layers_with_the_overlay(self):
         self.assertEqual(self.surface.layers("x11", XORG), ("desktop", "floating", "wallpaper"))
         self.assertEqual(self.surface.resident_layers("x11", XORG), ("desktop", "floating", "wallpaper"))
-        self.assertFalse(self.surface.adjust_overlay("x11", XORG))
+        self.assertTrue(self.surface.adjust_overlay("x11", XORG))
         self.assertEqual(self.surface.wallpaper_placement("x11", self.surface.layers("x11", XORG)), "desktop-window")
 
     def test_gnome_xorg_desktop_layer_is_an_ordinary_window_kept_below(self):
@@ -123,7 +123,7 @@ class LinuxSurfaceTests(unittest.TestCase):
         for layer, (hint, below, above) in expected.items():
             with self.subTest(layer=layer):
                 self.journal.clear()
-                self.assertFalse(self.create(layer, XORG).info()["adjustOverlay"])
+                self.assertEqual(self.create(layer, XORG).info()["adjustOverlay"], layer == "floating")
                 self.assertEqual(self.type_hints(), [hint])
                 self.assertEqual(self.window_calls("set_keep_below"), [(below,)])
                 self.assertEqual(self.window_calls("set_keep_above"), [(above,)])
@@ -135,8 +135,8 @@ class LinuxSurfaceTests(unittest.TestCase):
         view = self.create("floating", XORG)
         paper = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
         self.journal.clear()
-        view.apply({"operationScope": {"kind": "group"}, "cards": [paper]})
-        self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)], "no overlay on GNOME Xorg")
+        view.apply({"operationScope": {"kind": "none"}, "cards": [paper]})
+        self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)], "resting topmost papers take their own clicks")
         self.assertEqual(self.window_calls("set_accept_focus"), [(True,)])
 
     def test_wallpaper_placement_names_the_window_kind(self):
@@ -172,12 +172,12 @@ class LinuxSurfaceTests(unittest.TestCase):
     def test_gnome_xwayland_adjust_mode_is_an_overlay_and_papers_rest_on_the_wallpaper(self):
         gnome, other = XWAYLAND, OTHER
         self.assertTrue(self.surface.adjust_overlay("x11", gnome))
-        self.assertFalse(self.surface.adjust_overlay("x11", other))
+        self.assertTrue(self.surface.adjust_overlay("x11", other), "every host adjusts in the overlay")
         self.assertEqual(self.surface.resident_layers("x11", gnome), ("wallpaper",))
         self.assertEqual(self.surface.resident_layers("x11", other), ("desktop", "floating"))
         self.assertTrue(self.create("floating", XWAYLAND).info()["adjustOverlay"])
         self.assertFalse(self.create("wallpaper", XWAYLAND).info()["adjustOverlay"])
-        self.assertFalse(self.create("floating", OTHER).info()["adjustOverlay"])
+        self.assertTrue(self.create("floating", OTHER).info()["adjustOverlay"])
 
     def frame(self, kind, cards=()):
         return {"operationScope": {"kind": kind}, "cards": list(cards)}
@@ -266,10 +266,12 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.assertEqual(self.keyboard_modes(), ["NONE"])
         self.assertTrue(self.window_calls("hide"))
 
-    def test_other_x11_topmost_scene_keeps_paper_regions_while_adjusting(self):
+    def test_other_x11_overlay_covers_the_work_area_while_adjusting(self):
         view = self.create("floating", OTHER)
         paper = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
         view.apply(self.frame("group", [paper]))
+        self.assertEqual(view.input_region.rectangles, [(0, 0, VIEWPORT["width"], VIEWPORT["height"])])
+        view.apply(self.frame("none", [paper]))
         self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)])
 
     def test_a_hidden_window_returns_where_it_was(self):
@@ -290,6 +292,42 @@ class LinuxSurfaceTests(unittest.TestCase):
                 self.surface.restore_place(window, self.surface.remember_place(window))
                 expected = [("move", (296, 234)), ("resize", (715, 518))] + ([("maximize", ())] if maximized else [])
                 self.assertEqual(window.calls, expected)
+
+    def test_the_main_window_steps_aside_and_comes_back(self):
+        class Window:
+            def __init__(self, visible=True):
+                self.calls, self.visible = [], visible
+            def get_visible(self):
+                return self.visible
+            def get_position(self):
+                return (296, 234)
+            def get_size(self):
+                return (715, 518)
+            def is_maximized(self):
+                return False
+            def hide(self):
+                self.calls.append("hide"); self.visible = False
+            def __getattr__(self, name):
+                return lambda *args: self.calls.append(name)
+        place = ((296, 234), (715, 518), False)
+        window = Window()
+        self.assertEqual(self.surface.step_aside(window, "wayland-layer-shell", lambda: self.fail("no tray on Wayland")), place)
+        self.assertEqual(window.calls, ["iconify"], "minimized, the window keeps the place labwc gave it")
+        window.calls.clear()
+        self.surface.come_back(window, "wayland-layer-shell", place)
+        self.assertEqual(window.calls, ["deiconify", "present"])
+        window.calls.clear()
+        self.surface.remap(window, place)
+        self.assertEqual(window.calls, ["hide", "move", "resize", "show", "present"], "an activation labwc refused still brings it back")
+        for tray in (True, False):
+            with self.subTest(tray=tray):
+                window = Window()
+                self.assertEqual(self.surface.step_aside(window, "x11", lambda: tray), place)
+                self.assertEqual(window.calls, [] if tray else ["hide"])
+                window.visible, window.calls = False, []
+                self.surface.come_back(window, "x11", place)
+                self.assertEqual(window.calls, ["move", "resize", "show", "present"])
+        self.assertIsNone(self.surface.step_aside(Window(visible=False), "wayland-layer-shell", lambda: True), "a window in the tray stays there")
 
     def test_gnome_xwayland_refuses_the_desktop_layer(self):
         with self.assertRaises(Exception) as caught:

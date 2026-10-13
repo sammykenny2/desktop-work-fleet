@@ -18,6 +18,7 @@ import { NativeCaptureInbox } from '../native/capture.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
 import { DesktopAuthority } from '../desktop/authority.js';
+import { overlayMainStep } from '../desktop/overlay.js';
 import { DesktopOwner } from '../desktop/owner.js';
 import { projectDesktop } from '../desktop/projection.js';
 import { NativeShortcutSettings } from '../native/shortcuts.js';
@@ -40,7 +41,7 @@ let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let nativeFiles;
 let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
-let nativeShortcuts; let shortcutStatus = [];
+let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
@@ -154,7 +155,7 @@ async function initialize() {
     if (desktop) await native.bridge.request('desktop.start');
   }
   if (desktop) {
-    nativeShortcuts = new NativeShortcutSettings(native.bridge, value => { shortcutStatus = value; renderShortcutStatus(); }, error => status(error.message, true));
+    nativeShortcuts = new NativeShortcutSettings(native.bridge, (value, labwc) => { shortcutStatus = value; labwcShortcuts = labwc; renderShortcutStatus(); }, error => status(error.message, true));
     native.bridge.onEvent('desktop-action', message => { void run(async () => {
       try { await desktopAction(message.target, message.intent); }
       catch (error) { await native.bridge.request('desktop.showMain', { intent: message.intent }).catch(() => {}); throw error; }
@@ -555,7 +556,7 @@ function liveShortcuts() { const layout = workspace.layout.state; return resolve
 // Each shortcut row shows only what keeps a key from working; working keys stay quiet. Hosts report registrations
 // against the resolved group, so rows match them by key.
 function renderShortcutStatus() {
-  const labels = { conflict: '已被其他程式使用', unavailable: '無法使用', reserved: '系統保留', editing: '保留給文字輸入', typing: '請改用 Ctrl+Shift 組合', invalid: '不支援這個組合' };
+  const labels = { conflict: '已被其他程式使用', unavailable: '無法使用', reserved: '系統保留', editing: '保留給文字輸入', typing: '請改用 Ctrl+Shift 組合', invalid: '不支援這個組合', unwritten: '尚未寫入 labwc 設定' };
   const layout = workspace.layout.state; const bound = regionShortcuts(layout.shortcuts, layout.grid.slots);
   for (const node of document.querySelectorAll('[data-shortcut-status]')) {
     const items = shortcutStatus.filter(item => bound[item.key] === node.dataset.shortcutStatus);
@@ -563,7 +564,15 @@ function renderShortcutStatus() {
     node.textContent = problems.map(item => `${item.key} ${labels[item.status]}`).join('；');
     node.dataset.state = items.map(item => item.status).join(' '); node.classList.toggle('error', problems.length > 0);
   }
-  $('#retry-shortcuts').hidden = !shortcutStatus.some(item => ['conflict', 'unavailable'].includes(item.status));
+  $('#retry-shortcuts').hidden = Boolean(labwcShortcuts) || !shortcutStatus.some(item => ['conflict', 'unavailable'].includes(item.status));
+  // labwc has no way for an app to register keys, so its own keybinds run them; the user writes them on purpose.
+  $('#labwc-shortcuts').hidden = !labwcShortcuts;
+  if (labwcShortcuts) {
+    const notes = { absent: `labwc 不提供程式註冊全域快捷鍵的方式。寫入後，目前的快捷鍵會加進 ${labwcShortcuts.path} 中由 Work Fleet 管理的區塊（原檔先備份），並重新載入 labwc 設定。`,
+      outdated: `快捷鍵已變更，${labwcShortcuts.path} 中的組合需要重新寫入。`, current: `${labwcShortcuts.path} 已包含目前的快捷鍵；之後變更組合時需再寫入一次。` };
+    $('#labwc-shortcuts-note').textContent = notes[labwcShortcuts.state] || notes.absent;
+    $('#labwc-write').textContent = labwcShortcuts.state === 'current' ? '重新寫入 labwc 設定' : '寫入 labwc 設定';
+  }
 }
 
 async function desktopAction(target, intent) {
@@ -702,17 +711,18 @@ function render() {
   desktop?.publish(); syncAdjustOverlay();
 }
 
-// Where adjust mode is a modal overlay (GNOME Xwayland, layer-shell), the main window steps aside while it is on and
-// returns after any exit. Hiding waits for the overlay frame and showing for the frame without it, so one window always
-// stays on screen and the returning main window is not stacked under a still-mapped overlay.
-let adjustHidesMain = false; let adjustSync = Promise.resolve();
+// Where adjust mode is a modal overlay (every desktop host), a focused main window steps aside while it is on
+// and returns after any exit; one that was minimized or behind another app stays as it was. The focus is read before
+// the overlay maps and takes it. Hiding waits for the overlay frame and showing for the frame without it, so one window
+// always stays on screen and the returning main window is not stacked under a still-mapped overlay.
+let adjustMain = { adjusting: false, aside: false }; let adjustSync = Promise.resolve();
 function syncAdjustOverlay() {
   if (!desktop || !desktopInfo?.adjustOverlay) return;
-  const adjusting = controller.state.operationScope.kind !== 'none';
-  if (adjusting === adjustHidesMain) return;
-  adjustHidesMain = adjusting;
+  const step = overlayMainStep(adjustMain, controller.state.operationScope.kind !== 'none', document.hasFocus());
+  adjustMain = step.state;
+  if (step.visible === null) return;
   adjustSync = adjustSync.then(async () => {
-    await desktop.whenPublished(); await native.bridge.request('desktop.mainVisible', { visible: !adjusting });
+    await desktop.whenPublished(); await native.bridge.request('desktop.mainVisible', { visible: step.visible });
   }).catch(error => status(error.message, true));
 }
 // The overlay covers the main window, so anything that needs the main window ends adjust mode first.
@@ -1275,6 +1285,7 @@ function bindEvents() {
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
+  $('#labwc-write').onclick = () => run(async () => { await nativeShortcuts?.writeLabwc(); status('已寫入 labwc 快捷鍵設定'); });
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status('已顯示桌面便箋');

@@ -2,10 +2,11 @@
 import time
 from gi.repository import Gdk, Gio, GLib, Gtk
 
+import labwc
 import protocol as p
 import scenes
 from shortcuts import Shortcuts
-from surface import Surface, adjust_overlay, backend, layers, rectangle, remember_place, resident_layers, restore_place, scene_viewport, wallpaper_placement
+from surface import Surface, adjust_overlay, backend, come_back, layers, rectangle, remap, resident_layers, scene_viewport, step_aside, wallpaper_placement
 
 
 class Desktop:
@@ -23,8 +24,10 @@ class Desktop:
         self.started = self.closed = self.pending = self.blocked = self.native_menu = False
         self.bindings, self.signals, self.timers = {}, [], []
         self.last_input = self.last_timestamp = 0
-        self.display_timer = self.main_place = None
-        self.shortcuts = Shortcuts(self.mode, self.action, lambda values: self.send("desktop-shortcut-status", registrations=values))
+        self.display_timer = self.main_place = self.main_timer = None
+        application = main.get_application() if hasattr(main, "get_application") else None
+        compositor = labwc.Config.detect(self.mode, application.get_application_id() if application is not None else None)
+        self.shortcuts = Shortcuts(self.mode, self.action, lambda values: self.send("desktop-shortcut-status", registrations=values, labwc=self.shortcuts.labwc_status()), compositor)
         self.watch(main)
         display = Gdk.Display.get_default()
         self.connect(display, "monitor-added", lambda *_: self.refresh_displays())
@@ -148,13 +151,23 @@ class Desktop:
             return value["foreground"] is not None and self.active_window() == value["foreground"]
         return bool(value["token"]) or value["source"] is not None and value["source"].is_active()
 
-    def action(self, target, timestamp=0, token=None):
+    def action(self, target, timestamp=0, token=None, source=None):
         if self.closed or not self.started:
             return
-        captured = self.capture(timestamp or Gtk.get_current_event_time(), token)
+        captured = self.capture(timestamp or Gtk.get_current_event_time(), token, source)
         if captured is not None:
             self.intent, self.focus_sequence = captured, None
             self.send("desktop-action", target=target, intent=captured["id"])
+
+    def shortcut(self, key):
+        """A labwc keybind handed over by gapplication. It runs whichever window has the focus, so a focused Work Fleet
+        window lends the intent its focus, as an in-app key would."""
+        if self.closed or not self.started or self.blocked or self.native_menu or self.shortcuts.labwc is None:
+            return
+        binding = next((value for value in self.shortcuts.bindings if value["key"] == key and value["chord"]), None)
+        if binding is not None:
+            windows = [self.main, *(view.window for view in self.views if not view.retired)]
+            self.action(binding["target"], 0, None, next((window for window in windows if window.is_active()), None))
 
     def activate(self, window, value):
         if value.get("token"):
@@ -271,7 +284,16 @@ class Desktop:
             for view in self.views:
                 if view.ready and not view.retired:
                     view.local.event("desktop-shortcuts", bindings=self.bindings)
-            return result
+            return {**result, "labwc": self.shortcuts.labwc_status()}
+        if method == "desktop.shortcuts.labwc":
+            p.require(self.shortcuts.labwc is not None, "labwc-unavailable", "這個桌面不是 labwc。")
+            try:
+                self.shortcuts.write_labwc()
+            except labwc.ConfigError:
+                raise p.Failure("labwc-config", "labwc 設定檔格式有誤，沒有修改；請先修正 rc.xml。") from None
+            except OSError:
+                raise p.Failure("labwc-write", "無法寫入 labwc 設定檔，沒有修改。") from None
+            return {"registrations": self.shortcuts.registrations, "labwc": self.shortcuts.labwc_status()}
         if method == "desktop.shortcuts.block":
             self.blocked = p.boolean(args, "blocked")
             self.update_suspension()
@@ -285,17 +307,13 @@ class Desktop:
             p.require(self.hide(), "tray-unavailable", "系統匣目前不可用，主畫面保持開啟。")
             return None
         if method == "desktop.mainVisible":
-            # The adjust overlay hides the main window and brings it back where it was; without a tray it is hidden directly.
+            # The adjust overlay moves the main window aside and brings it back where it was, only if it moved it.
             if p.boolean(args, "visible"):
-                if self.main_place is not None and not self.main.get_visible():
-                    restore_place(self.main, self.main_place)
-                self.main_place = None
-                self.main.show()
-                self.main.present()
-            elif self.main.get_visible():
-                self.main_place = remember_place(self.main)
-                if not self.hide():
-                    self.main.hide()
+                place, self.main_place = self.main_place, None
+                if place is not None:
+                    self.return_main(place)
+            elif self.main_place is None:
+                self.main_place = step_aside(self.main, self.mode, self.hide)
             return None
         if method in ("desktop.showMain", "desktop.focus"):
             if self.intent is None or args.get("intent") != self.intent["id"] or not self.current(self.intent):
@@ -430,6 +448,21 @@ class Desktop:
             return None
         raise p.Failure("unsupported-method", "桌面表面沒有儲存或系統操作權限。")
 
+    def return_main(self, place):
+        come_back(self.main, self.mode, place)
+        if self.mode != "wayland-layer-shell":
+            return
+        if self.main_timer is not None:
+            GLib.source_remove(self.main_timer)
+
+        def check():
+            # labwc refuses the activation without a recent click, leaving the window minimized and unfocused.
+            self.main_timer = None
+            if not self.closed and self.main_place is None and not self.main.is_active():
+                remap(self.main, place)
+            return False
+        self.main_timer = GLib.timeout_add(600, check)
+
     def try_focus(self, view):
         if self.focus_sequence is None or not self.current(self.intent):
             return False
@@ -476,6 +509,8 @@ class Desktop:
         self.shortcuts.close()
         if self.display_timer is not None:
             GLib.source_remove(self.display_timer)
+        if self.main_timer is not None:
+            GLib.source_remove(self.main_timer)
         for timer in self.timers:
             GLib.source_remove(timer)
         if self.sleep_subscription is not None:

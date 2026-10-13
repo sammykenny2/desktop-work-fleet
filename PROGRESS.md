@@ -2,6 +2,41 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 所有桌面主機以遮罩調整
+
+使用者要求進入調整模式前已最小化的主視窗結束後維持最小化，並要求有桌面分層的平台行為一致（ADR-042）；不升版。
+
+- 主畫面在調整開始、遮罩出現前讀取 `document.hasFocus()`，只有有焦點時才要求 `desktop.mainVisible`，結束時只叫回它收起的主視窗；
+  抽成 `src/desktop/overlay.js` 並新增 `tests/desktop-overlay.test.js`。Wayland 不提供最小化狀態，所以以焦點判斷。
+- Linux X11（GNOME Xorg 與其他 X11）也使用遮罩；常駐層不變，只有 GNOME XWayland 仍只常駐桌布層。`tests/test_linux_surface.py` 改為新規則。
+- Windows：`DesktopFrame` 解析 `operationScope`，調整中的最上層場景以整個 viewport 為輸入區域並在出現時啟用輸入視窗；
+  回報 `adjustOverlay`／`residentLayers`，接受 `interaction.done`／`layout.arrange`；`desktop.mainVisible` 以 WPF 最小化並還原原本狀態。
+  `SceneTransfersProbe` 加入調整範圍解析檢查。
+- macOS：frame 解析 `operationScope`，調整中以覆蓋整個螢幕的 hit panel 轉送點擊，nonactivating 場景 panel 出現時成為 key window；
+  回報 `adjustOverlay`／`residentLayers`，允許清單補上原本缺少的 `interaction.done`／`layout.arrange`；`desktop.mainVisible` 縮到 Dock 並展開；
+  兩個 probe 補上新參數與 `operationScope`。
+- Python documented discover 94 tests，9 skip／0 fail；`npm test` 272 pass／10 skip／0 fail；headless labwc probe 通過；文件檢查通過。
+  Windows 與 macOS 的修改在 Raspberry Pi 上撰寫，這台沒有 .NET SDK 與 Xcode，**沒有編譯、沒有執行 probe、沒有實機驗證**。
+  Linux 的焦點規則與 X11 遮罩尚未實機確認；沒有獨立審閱。
+
+## 2026-10-14 labwc 全域快捷鍵與 layer-shell 主視窗最小化
+
+使用者在 Pi 5 labwc（經遠端桌面）回報：調整模式收起主視窗後位置與大小改變；焦點不在主視窗或主視窗最小化時快捷鍵無法切換層級。
+選擇最小化並在叫不回時重新顯示，以及由 App 寫入 rc.xml（ADR-041）；不升版。
+
+- headless labwc 實測：隱藏後再顯示的視窗被重新置中（290,148 → 230,124），大小保留；最小化後沒有輸入序號的 activation 叫不回。
+  `surface.py` 新增 `step_aside`／`come_back`／`remap`：layer-shell 最小化並以 `present()` 經 xdg-activation 叫回，600 ms 未取得焦點則重新顯示。
+- 這台的 portal（`xdg-desktop-portal-wlr` 0.7.1、`-gtk` 1.15）沒有 GlobalShortcuts。新增 `labwc.py`：從 `LABWC_PID` 的 cmdline 判斷 `-m` 與
+  `--config-dir`，只改寫 rc.xml 中標記的區塊、寫入前後檢查 XML、第一次修改既有檔案前備份、原子替換後 `labwc --reconfigure`；
+  非合併模式新建時複製系統 rc.xml。App 匯出 `shortcut` GAction，keybind 執行 `gapplication action <app id> shortcut "'<key>'"`。
+  設定頁顯示 rc.xml 狀態與寫入按鈕；DEB 推薦 `libglib2.0-bin`。
+- headless 驗證 `C-S-1`／`C-S-d`／`C-S-F5`／`C-A-0` 觸發、keybind 經 gapplication 把 `'Ctrl+Shift+1'` 交給 GTK Application，
+  以及 `labwc -m` 下只含區塊的使用者 rc.xml 不影響系統 keybind。新增 `tests/test_linux_labwc.py`，並擴充 shortcuts、surface 與 JS 測試。
+- 使用者在設定頁寫入後，這台的 rc.xml 新建並含 Ctrl+Shift+0／1／D／N（原本沒有檔案，沒有備份）。遠端桌面的連線端會攔截 Ctrl+Shift 組合，
+  所以以 `wtype` 直接送進 labwc：Ctrl+Shift+D 兩次、Ctrl+Shift+1 三次（主視窗最小化、焦點在其他程式），`dbus-monitor` 記錄到對應的
+  `ActivateAction("shortcut", …)`；使用者確認層級切換到最上層、進入調整模式並在 5 秒後切到桌面層，調整模式下 labwc keybind 仍有效。
+  `Desktop.shortcut` 到 `desktop-action` 的路徑沒有自動化測試；快速記錄在其他程式有焦點時能否帶出主視窗未測；沒有獨立審閱。
+
 ## 2026-10-14 macOS 主視窗最小化時快捷鍵失效
 
 使用者回報這台 macOS 27.0.1 的快捷鍵組合不論焦點在不在主視窗、或主視窗最小化都沒作用；在實體鍵盤重裝修正版後確認三種狀態都可以，要求 commit／push。不升版。

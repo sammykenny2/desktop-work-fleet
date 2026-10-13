@@ -88,10 +88,10 @@ def layers(mode, environ=os.environ):
 
 
 def adjust_overlay(mode, environ=os.environ):
-    # A keep-above Xwayland scene on GNOME stops clicks reaching every other window, so there adjust mode is an open
-    # modal overlay over the whole work area. Layer-shell desktops use the same overlay over the whole screen, keeping
-    # every resting layer. GNOME Xorg and other X11 desktops adjust papers in place.
-    return mode == "wayland-layer-shell" or mode == "x11" and gnome_xwayland(environ)
+    # Adjust mode is a modal overlay on every host, as on Windows and macOS: the topmost scene tints its whole viewport
+    # (the work area on X11, the screen on layer-shell) and carries the adjust controls. It began on GNOME, where a
+    # keep-above Xwayland scene stops clicks reaching every other window anyway.
+    return mode in ("x11", "wayland-layer-shell")
 
 
 def x11_type_hint(layer, environ=os.environ):
@@ -121,6 +121,38 @@ def restore_place(window, place):
     window.resize(*size)
     if maximized:
         window.maximize()
+
+
+def step_aside(window, mode, hide):
+    """Moves the main window out of the adjust overlay's way and returns its place, or None when it was not shown."""
+    if not window.get_visible():
+        return None
+    place = remember_place(window)
+    # A minimized Wayland window keeps the place the compositor gave it; a hidden one is placed afresh when shown.
+    if mode == "wayland-layer-shell":
+        window.iconify()
+    elif not hide():
+        window.hide()
+    return place
+
+
+def come_back(window, mode, place):
+    if mode == "wayland-layer-shell":
+        # Only an activation carrying a recent input serial un-minimizes; the caller remaps the window if it stays away.
+        window.deiconify()
+        window.present()
+        return
+    if not window.get_visible():
+        restore_place(window, place)
+    window.show()
+    window.present()
+
+
+def remap(window, place):
+    window.hide()
+    restore_place(window, place)
+    window.show()
+    window.present()
 
 
 def scene_viewport(mode, geometry, work):

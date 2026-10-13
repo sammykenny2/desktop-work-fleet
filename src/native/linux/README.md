@@ -49,7 +49,9 @@ layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個
 主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
 操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
 layer-shell 的調整模式是遮罩：最上層場景覆蓋整個螢幕（含面板），調整期間以 EXCLUSIVE 鍵盤模式讓 Esc 立即可用，
-不在調整範圍的最上層便箋畫在遮罩下方；主視窗隱藏，結束後恢復大小與最大化狀態，位置由 compositor 決定。
+不在調整範圍的最上層便箋畫在遮罩下方；調整開始時有焦點的主視窗最小化，結束後經 xdg-activation 叫回原位，被拒絕時改為重新顯示
+（位置由 compositor 決定）；已最小化或沒有焦點的主視窗不動，結束後也不叫回。X11 同樣使用遮罩（工作區範圍），
+與 Windows、macOS 一致（[ADR-042](../../../docs/decisions/042-adjust-overlay-on-every-desktop-host.md)）。
 `pcmanfm --desktop` 把桌布與圖示畫在同一 surface，背景便箋只能蓋住圖示，所以偵測到它連在同一個 Wayland 顯示時
 不建立桌布層，桌布偏好回退桌面層；只在啟動時偵測，改用 swaybg（`use_swaybg=1`，沒有桌面圖示）後重新開啟 App 才有桌布層。
 X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存；群組設定寫明不支援的層級與實際顯示的層。
@@ -70,7 +72,10 @@ map／configure／frame 後合併完整重畫，避免透明 WebKit 的局部殘
 載入 V3D 驅動時，使用者未指定才預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`，避開 Pi／V3D 已知的 DMA-BUF 錯亂；
 不改用停用 DMA-BUF renderer，因為那樣滑鼠移過場景就會整片消失，在其他機器也會在移走的便箋原處留下殘影。
 顯示器／工作區／休眠變更先停止場景輸入，保存草稿後由主畫面套用新版面，保留原 WebView。
-X11 快捷鍵使用 Keybinder 3 的 raw 比對（預設的 cooked 比對會讓 Ctrl+Shift 加字母／數字只被攔截而不觸發）；否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
+X11 快捷鍵使用 Keybinder 3 的 raw 比對（預設的 cooked 比對會讓 Ctrl+Shift 加字母／數字只被攔截而不觸發）；
+labwc 沒有讓程式註冊全域快捷鍵的方式，設定頁按下寫入後，把目前組合寫進 rc.xml 中由 Work Fleet 管理的區塊（先備份、`labwc --reconfigure`），
+keybind 執行 `gapplication action <app id> shortcut` 交給 App（[ADR-041](../../../docs/decisions/041-labwc-shortcuts-through-rc-xml-keybinds.md)）；
+否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
 系統可改配按鍵，設定顯示實際 trigger description。App 焦點／對話框期間釋放全域註冊；
 portal session 重建可能再次出現系統授權介面，實際流程仍待原生環境確認。
 Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統匣可用後隱藏主畫面。
@@ -93,14 +98,14 @@ GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是
 - 只提供 DEB（Debian／Ubuntu 系）。Fedora、Arch、openSUSE 需用 tar.gz 並自行安裝 Python 3.10+、GTK 3、
   WebKitGTK 4.1、PyGObject 與 libsecret；沒有 WebKitGTK 4.1 的發行版（如 Ubuntu 20.04、Debian 11）無法執行。
 - 系統匣需要 AppIndicator／StatusNotifier 或舊式系統匣；沒有時關閉主視窗即結束 App。Ubuntu 預設提供，原生 GNOME 沒有。
-- 全域快捷鍵：X11 工作階段使用 Keybinder，XWayland 下收不到；Wayland 需要 GlobalShortcuts portal，
-  GNOME 42 與 wlroots portal（sway、labwc）沒有。
+- 全域快捷鍵：X11 工作階段使用 Keybinder，XWayland 下收不到；labwc 由設定頁把快捷鍵寫進 rc.xml 的 keybind（ADR-041）；
+  其他 Wayland 需要 GlobalShortcuts portal，GNOME 42 與 wlroots portal（sway、wayfire）沒有。
 
 各桌面：
 
 - GNOME Wayland：原生 Wayland 沒有桌面便箋，首次啟動或設定中選擇 XWayland 後才有。
   經 XWayland 時沒有常駐桌面層與最上層，便箋只在桌布層顯示且不可互動；調整模式是遮罩，期間其他程式無法點選。目前唯一完整實測的環境。
-- GNOME Xorg：桌布、桌面、最上層三層，桌面層在桌面圖示上方可選字，最上層可取得焦點，調整模式沒有遮罩；
+- GNOME Xorg：桌布、桌面、最上層三層，桌面層在桌面圖示上方可選字，最上層可取得焦點，調整模式是遮罩（未在 Xorg 實測）；
   桌布層在使用者點過桌面前可能顯示在圖示上方。只在 xrdp 遠端工作階段驗證視窗分層，以及主視窗在系統匣時全域快捷鍵實際觸發；各層互動與本機 Xorg 登入未實測。
 - KDE Plasma Wayland：KWin 支援 layer-shell，走三層路徑；Plasma 桌面也在 layer-shell 背景層，
   桌布層便箋可能被桌面蓋住或順序不定。未實測。

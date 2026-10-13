@@ -2,6 +2,16 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 全平台共用版號 0.2.0
+
+使用者核准五個平台共用 0.2.0（像參考專案一樣跨平台同號），只升版、未發布、未 dispatch 任何 release workflow。
+
+- Windows `Directory.Build.props` 0.1.2→0.2.0；Linux `VERSION`、Apple `MARKETING_VERSION`、Android `versionName` 0.1.0→0.2.0；
+  Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode` 100→200。tag 仍是 `windows-v`／`linux-v`／`macos-v` 加版號。
+- 0.2.0 是第一個帶 App 內更新的版本：已安裝的 Windows 0.1.2 沒有更新器，要手動安裝 0.2.0；
+  各平台的更新流程要等 0.2.0 之後再發一版（例如 0.2.1）才能在真實 release 上驗證。
+- 待辦：使用者在 Mac 設定 Team ID、Sparkle 金鑰與 GitHub variables／secrets；各平台發布需另行授權 dispatch。
+
 ## 2026-10-14 App 內更新：macOS（Sparkle）
 
 使用者選定 Sparkle 2.10.0、Developer ID 版保留沙盒、App Store 版上架時再分開；不升版、不發布。

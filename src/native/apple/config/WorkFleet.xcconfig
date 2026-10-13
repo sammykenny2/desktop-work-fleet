@@ -3,6 +3,6 @@ WORK_FLEET_APP_ID = app.workfleet.preview
 WORK_FLEET_APP_GROUP_ID = group.$(WORK_FLEET_APP_ID)
 DEVELOPMENT_TEAM =
 // Apple release version; packages are named from it. Local.xcconfig must not override these.
-MARKETING_VERSION = 0.1.0
-CURRENT_PROJECT_VERSION = 100
+MARKETING_VERSION = 0.2.0
+CURRENT_PROJECT_VERSION = 200
 #include? "Local.xcconfig"

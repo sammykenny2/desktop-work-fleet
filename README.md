@@ -4,7 +4,7 @@
 
 ## Current Status
 
-更新：2026-10-04。1.0 已開始分 slice 實作，共用卡片／群組／formation／拖放語意核心已加入。
+更新：2026-10-13。1.0 已開始分 slice 實作，共用卡片／群組／formation／拖放語意核心已加入。
 **接手開發先讀 [桌面互動交接](docs/handoff/2026-10-04-desktop-interaction-handoff.md) 與
 [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md)**，其中區分已確認需求、工作預設、待決問題與 48 個驗收案例。
 
@@ -15,6 +15,8 @@
 - 本次包含 Windows/macOS/Linux、iOS/Android 原生 App 與商店提交準備；原生 host／Google／打包尚待整合與驗收。
 - 已核准 Markdown、checklist、附件、完成／封存、逐卡設定與完整備份／還原範圍；見 SPEC-003 已答 Q 及 [ADR-008](docs/decisions/008-portable-interaction-core.md)。
 - [現有驗證報告](docs/validation/2026-10-03-validation-report.md) 保留其原範圍；不能當作新桌面互動或商店通過。
+- Linux 實機只驗證過 Ubuntu 22.04 GNOME（經 XWayland）；各桌面環境的限制、金鑰圈等共同前提見
+  [Linux 桌面支援現況](src/native/linux/README.md#桌面環境支援現況)。
 - 執行狀態以 [PROGRESS](PROGRESS.md) 為準；模型測試不代替原生桌面、真實同步或商店證據。
 
 ## 產品方向

@@ -74,3 +74,38 @@ Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統�
 可用隔離 headless labwc 執行本產品原生場景回歸，命令見 [testing](../../../docs/testing.md)。
 實際結果見 [PROGRESS](../../../PROGRESS.md)；沒有把 headless x64 測試當成 Pi／V3D、
 pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。
+
+## 桌面環境支援現況
+
+更新：2026-10-13。實機只驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland、x86 VM、單螢幕）；
+另有隔離 headless labwc 自動測試，不是實際桌面驗收。以下依程式行為整理，未實測者不代表已支援。
+
+所有桌面共同前提：
+
+- 必須有 Secret Service 金鑰圈（gnome-keyring、KeePassXC 或啟用 Secret Service API 的 KWallet）。
+  本機與 Google 帳號的便箋都存在加密 SQLite，金鑰在金鑰圈；Google refresh token 也存在金鑰圈。
+  沒有金鑰圈時 App 拒絕開啟資料，不改存明文；KDE、Xfce、sway 等精簡安裝最可能缺少。
+- 只提供 DEB（Debian／Ubuntu 系）。Fedora、Arch、openSUSE 需用 tar.gz 並自行安裝 Python 3.10+、GTK 3、
+  WebKitGTK 4.1、PyGObject 與 libsecret；沒有 WebKitGTK 4.1 的發行版（如 Ubuntu 20.04、Debian 11）無法執行。
+- 系統匣需要 AppIndicator／StatusNotifier 或舊式系統匣；沒有時關閉主視窗即結束 App。Ubuntu 預設提供，原生 GNOME 沒有。
+- 全域快捷鍵：X11 工作階段使用 Keybinder，XWayland 下收不到；Wayland 需要 GlobalShortcuts portal，
+  GNOME 42 與 wlroots portal（sway、labwc）沒有。
+
+各桌面：
+
+- GNOME Wayland：原生 Wayland 沒有桌面便箋，首次啟動或設定中選擇 XWayland 後才有。
+  經 XWayland 時沒有常駐桌面層與最上層，便箋只在桌布層顯示且不可互動；調整模式是遮罩，期間其他程式無法點選。唯一實測環境。
+- GNOME Xorg：套用與 XWayland 相同的對應，未實測。
+- KDE Plasma Wayland：KWin 支援 layer-shell，走三層路徑；Plasma 桌面也在 layer-shell 背景層，
+  桌布層便箋可能被桌面蓋住或順序不定。未實測。
+- X11 桌面（KDE X11、Xfce、Cinnamon、MATE、LXQt、LXDE）：只有桌面層與最上層，桌布偏好回退桌面層。
+  檔案管理員以 desktop-type 視窗畫圖示，桌面層便箋可能被蓋住而無法點選，與 GNOME 的 DING 類似。未實測。
+- Raspberry Pi OS（labwc、wayfire）：原定主要目標，三層；pcmanfm 把桌布與圖示畫在同一 surface，
+  桌布層便箋可能在圖示上方。只有 headless 測試，沒有 Pi 實機驗收。
+- sway、Hyprland 等其他 layer-shell compositor：三層可用但通常沒有桌面圖示；sway 沒有全域快捷鍵 portal，
+  系統匣依面板而定。未實測。
+- 不支援 layer-shell 的其他 Wayland 桌面：沒有桌面便箋；XWayland 選項只在 GNOME 提供，其他桌面需自行設定 `GDK_BACKEND=x11`。
+
+所有 Linux 桌面都尚未驗證：多螢幕、HiDPI／分數縮放（XWayland 下會較模糊）、WebKitGTK 中的中文輸入法，
+以及真實 Google 登入與 Drive 同步（Google client 尚未建立）。
+

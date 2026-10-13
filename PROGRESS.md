@@ -17,7 +17,8 @@
   兩個 probe 補上新參數與 `operationScope`。
 - Python documented discover 94 tests，9 skip／0 fail；`npm test` 272 pass／10 skip／0 fail；headless labwc probe 通過；文件檢查通過。
   Windows 與 macOS 的修改在 Raspberry Pi 上撰寫，這台沒有 .NET SDK 與 Xcode，**沒有編譯、沒有執行 probe、沒有實機驗證**。
-  Linux 的焦點規則與 X11 遮罩尚未實機確認；沒有獨立審閱。
+  重裝 `7e5611e` 後在 Pi 5 labwc 以 `wtype` 送 Ctrl+Shift+1 經最上層、調整模式（停 5 秒）回到桌面層，主視窗先最小化到工作列、
+  再收進系統匣各測一次，使用者確認兩次都沒有跳出來。X11 遮罩尚未實機確認；沒有獨立審閱。
 
 ## 2026-10-14 labwc 全域快捷鍵與 layer-shell 主視窗最小化
 

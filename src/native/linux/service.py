@@ -12,6 +12,7 @@ class Service:
     def __init__(self, database, vault, config, choose, open_browser, desktop=None):
         self.database, self.desktop = database, desktop
         self.desktop_reason = None
+        self.display = None
         self.backup = Backup(database, choose)
         self.google = Google(vault, config, database.profile, open_browser)
         self.transfers, self.staged = {}, set()
@@ -75,7 +76,7 @@ class Service:
             if method.startswith("backup."):
                 return self.backup.invoke(method, args, self.upload, self.download)
             if method == "host.info":
-                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, "storage": "sqlite-secret-service", "desktopReason": self.desktop_reason, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
+                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, "storage": "sqlite-secret-service", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
                         "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None}}
             if method == "host.ready":
                 self.ready = True
@@ -85,6 +86,12 @@ class Service:
                 return None
             if method == "host.closeCancel":
                 self.close_ready = False
+                return None
+            if method == "host.displayBackend":
+                p.require(self.display is not None and self.display.switchable, "display-fixed", "這個桌面環境不能切換顯示方式。")
+                return self.display.choose(p.boolean(args, "xwayland"))
+            if method == "host.restart":
+                # The host closes like the tray's exit item, then starts again with the saved display choice.
                 return None
             if method == "transfer.begin":
                 kind, digest = p.text(args, "kind"), p.text(args, "sha256")

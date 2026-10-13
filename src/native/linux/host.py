@@ -12,11 +12,14 @@ import threading
 from urllib.parse import unquote, urlsplit
 
 import renderer
+import xwayland
 
 # The shared-memory renderer avoids the Pi/V3D DMA-BUF corruption but leaves stale pixels in transparent scenes
 # elsewhere, so it is only the Pi default; an explicit user setting wins. This must happen before importing WebKit.
 if renderer.disable_dmabuf():
     os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+# GNOME Wayland shows desktop papers only through XWayland, when the user chose it; GDK reads this at import.
+xwayland.configure(os.environ, xwayland.data_directory(sys.argv[1:], os.environ))
 
 import gi
 gi.require_version("Gdk", "3.0")
@@ -27,6 +30,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, WebKit2
 from database import Database, Vault
 from service import Service
 from desktop import Desktop
+from surface import backend
 from tray import Tray
 import protocol as p
 
@@ -137,7 +141,8 @@ class FleetApp(Gtk.Application):
         self.connect("activate", self.activate)
         self.connect("shutdown", self.shutdown)
         self.window = self.view = self.service = None
-        self.desktop = self.tray = None
+        self.desktop = self.tray = self.display = None
+        self.restart = False
         self.native_dialogs = 0
         self.tray_menu = False
         self.storage = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-storage")
@@ -167,7 +172,40 @@ class FleetApp(Gtk.Application):
             profile = "local"
         if not (profile == "local" or profile.startswith("google:") and p.is_account(profile[7:])):
             profile = "local"
-        self.open_store(profile)
+        current = "x11" if "x11" in type(Gdk.Display.get_default()).__name__.lower() else "wayland"
+        self.display = xwayland.DisplayChoice(self.directory, os.environ, current)
+        # Asked before any data opens, so choosing XWayland can start again at once without closing anything.
+        if self.display.ask() and backend() is None:
+            self.ask_display(profile)
+        else:
+            self.open_store(profile)
+
+    def ask_display(self, profile):
+        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.QUESTION,
+                                   buttons=Gtk.ButtonsType.NONE, text="要改用 XWayland 顯示桌面便箋嗎？")
+        dialog.format_secondary_text("GNOME Wayland 沒有 Work Fleet 需要的桌面圖層，桌面便箋要經 XWayland 才能顯示；"
+                                     "改用後主畫面的輸入法與縮放也會改走 XWayland。之後可在設定的「桌面」頁變更。")
+        dialog.add_buttons("維持目前方式", Gtk.ResponseType.REJECT, "改用 XWayland 重新啟動", Gtk.ResponseType.ACCEPT)
+        dialog.set_default_response(Gtk.ResponseType.ACCEPT)
+        self.dialog_opened()
+
+        def answered(dialog, response):
+            dialog.destroy()
+            self.dialog_closed()
+            xwayland_chosen = response == Gtk.ResponseType.ACCEPT
+            # Closing the dialog without an answer keeps this run as it is and asks again next time.
+            if response in (Gtk.ResponseType.ACCEPT, Gtk.ResponseType.REJECT):
+                try:
+                    self.display.choose(xwayland_chosen)
+                except OSError:
+                    xwayland_chosen = False
+            if xwayland_chosen:
+                self.restart = True
+                self.quit()
+            else:
+                self.open_store(profile)
+        dialog.connect("response", answered)
+        dialog.show()
 
     def menu_active(self, active):
         self.tray_menu = active
@@ -282,6 +320,7 @@ class FleetApp(Gtk.Application):
                 return False
             try:
                 self.service = future.result()
+                self.service.display = self.display
                 self.close_desktop()
                 if self.view is not None:
                     self.view.close()
@@ -331,7 +370,11 @@ class FleetApp(Gtk.Application):
                         self.close_desktop()
                         self.open_store(result["profileId"], persist=True)
                     elif method == "host.closeCancel":
-                        self.closing = False
+                        self.closing = self.restart = False
+                    elif method == "host.restart" and not self.closing:
+                        # The usual close saves drafts and closes the data first; main() then starts again.
+                        self.restart = True
+                        self.close_requested()
                     elif self.closing and session.close_ready:
                         self.quit()
                 except Exception as error:
@@ -433,11 +476,22 @@ def main():
     parser = argparse.ArgumentParser(description="Work Fleet Linux native host")
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
-    parser.add_argument("--data", type=Path, default=Path(GLib.get_user_data_dir()) / "WorkFleet")
+    parser.add_argument("--data", type=Path, default=xwayland.data_directory([], os.environ))
     args = parser.parse_args()
     config = p.decode(args.config.read_bytes())
-    application = FleetApp(args.assets.resolve(strict=True), config, args.data.expanduser().absolute())
-    return application.run([sys.argv[0]])
+    directory = args.data.expanduser().absolute()
+    application = FleetApp(args.assets.resolve(strict=True), config, directory)
+    code = application.run([sys.argv[0]])
+    if not application.restart:
+        return code
+    # Storage finishes closing before the new process takes the data lock; the new display choice applies there.
+    application.storage.shutdown(wait=True)
+    if not xwayland.data_unlocked(directory):
+        print("Work Fleet closed but its data is still in use; open it again to apply the display choice.", file=sys.stderr)
+        return code
+    environment = dict(os.environ)
+    xwayland.configure(environment, directory)
+    os.execve(sys.executable, [sys.executable, *sys.argv], environment)
 
 
 if __name__ == "__main__":

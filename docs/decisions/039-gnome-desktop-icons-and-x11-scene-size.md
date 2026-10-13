@@ -82,8 +82,8 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 - 遮罩上的堆疊與攤開不提供調整尺寸選項；需要時從主畫面的對話框操作。
 - X11 便箋超出工作區（工作列、Dock 下方）的部分會被裁掉；工作區改變（例如 Dock 自動隱藏）時，
   既有的顯示器變更流程會一併調整場景視窗大小。
-- GNOME Wayland 仍需手動以 `GDK_BACKEND=x11` 啟動才有桌面便箋；預設圖示啟動維持原生 Wayland 並回報不支援。
-  是否在 GNOME Wayland 自動改用 XWayland（會連帶影響主畫面的輸入法與縮放）尚待另行決定。
+- GNOME Wayland 要經 XWayland 才有桌面便箋；改用 XWayland 會連帶影響主畫面的輸入法與縮放，
+  由使用者在首次啟動或設定中選擇，見 [ADR-040](040-gnome-wayland-xwayland-choice.md)。
 - GNOME 42 Wayland 沒有 GlobalShortcuts portal，XWayland 的 X11 全域快捷鍵也可能收不到按鍵，
   切換層級主要透過群組設定。
 

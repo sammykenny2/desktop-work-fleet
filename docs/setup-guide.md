@@ -263,8 +263,9 @@ bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
-GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，主畫面可用但不建立桌面便箋；可結束 App 後以
-`GDK_BACKEND=x11 work-fleet` 經 XWayland 啟動。此時群組只常駐桌布層；調整模式以遮罩覆蓋工作區並隱藏主視窗，
+GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，桌面便箋要經 XWayland；首次啟動會詢問是否改用，
+之後可在設定的「桌面」頁切換（[ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)），也可直接以 `GDK_BACKEND=x11 work-fleet` 啟動。
+經 XWayland 時群組只常駐桌布層；調整模式以遮罩覆蓋工作區並隱藏主視窗，
 遮罩上有堆疊、攤開、復原與完成（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
 產生 source/runtime tar.gz；`--deb` 需 Debian 工具，`--release` 另需正式公開設定。隔離 headless Linux compositor
 的原生場景檢查見 testing／PROGRESS，沒有金鑰圈或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。

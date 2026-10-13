@@ -2,6 +2,23 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 GNOME Wayland 的 XWayland 選擇
+
+從應用程式選單啟動時以原生 Wayland 執行，沒有桌面便箋；使用者要求設定選項，並在首次啟動偵測環境後以確認對話框建議改用 XWayland。
+實機確認後要求 commit／push，不升版。
+
+- 新增 `xwayland.py`：GNOME Wayland（session、`WAYLAND_DISPLAY`、`DISPLAY`、GNOME）偵測，資料目錄 `display-backend.txt`
+  以暫存檔、fsync、rename 寫入；`host.py` 在載入 GTK 前依選擇設定 `GDK_BACKEND=x11` 並以 `WORK_FLEET_GDK_BACKEND` 標記，使用者自己的值優先。
+- 尚未選擇且為原生 GNOME Wayland、沒有桌面呈現能力時，在開啟資料前以原生對話框詢問一次；選 XWayland 保存後直接 `execve`。
+  設定「桌面」頁的開關與「立即重新啟動」先關閉設定，走一般關閉流程保存草稿、等資料鎖釋放後 `execve`；
+  使用者設定 `GDK_BACKEND` 時顯示停用與原因；關閉流程進行中時忽略重新啟動。ADR-040 記錄，ADR-039 改為引用。
+- 新增 `tests/test_linux_xwayland.py`（偵測、偏好權限與原子寫入、GTK 前套用、使用者優先、重新啟動移除自己的值、只問一次、資料鎖）；
+  Python documented discover 74 tests，10 skip／0 fail；`npm test` 269 pass／10 skip／0 fail；文件檢查通過。
+- 實機：刪除偏好後從圖示啟動，對話框選 XWayland，同一 PID 重新執行並帶 `GDK_BACKEND=x11`、標記，偏好檔 0600、目錄 0700。
+  第一版設定頁的重新啟動被開著的設定對話框擋下（關閉流程拒絕開啟中的對話框），改為先關閉設定後，
+  使用者確認 Wayland → XWayland → Wayland 切換正常，最後行程沒有 `GDK_BACKEND`。對話框、重新啟動與設定列沒有自動化測試；
+  `--data` 非預設路徑、未儲存草稿時取消重新啟動、GNOME 停用 XWayland 未實測；沒有獨立審閱。
+
 ## 2026-10-13 Linux 啟動腳本優先使用系統 Python
 
 使用者的終端機 PATH 上 `python3` 是 pyenv 3.15（沒有 GI 繫結），直接執行 `work-fleet` 會失敗；詢問靜態連結後同意改啟動腳本。不升版。

@@ -54,7 +54,9 @@ GNOME 的桌面圖示（DING）以透明視窗蓋住 X11 desktop-type 視窗並�
 含 GNOME 時 X11 只讓群組常駐桌布層，桌面／最上層偏好明示回退桌布層。最上層在 GNOME 會鎖住其他視窗，
 所以只在調整模式出現：遮罩覆蓋工作區、主視窗隱藏並在結束後回到原位，遮罩上提供堆疊、攤開、復原與完成；
 見 [ADR-039](../../../docs/decisions/039-gnome-desktop-icons-and-x11-scene-size.md)。
-GNOME Wayland 沒有 layer-shell，需以 `GDK_BACKEND=x11` 啟動才有桌面便箋，正規 Xorg 工作階段未實測。
+GNOME Wayland 沒有 layer-shell，桌面便箋要經 XWayland：首次啟動會詢問，之後可在設定的「桌面」頁切換並重新啟動；
+偏好存在資料目錄的 `display-backend.txt`，使用者自己設定的 `GDK_BACKEND` 優先並讓設定停用（[ADR-040](../../../docs/decisions/040-gnome-wayland-xwayland-choice.md)）。
+正規 Xorg 工作階段未實測。
 X11 使用原生窗口層級與輸入區域，場景涵蓋螢幕工作區（視窗管理員會把一般視窗推離工作列），
 視窗不可調整大小，以 viewport size request 決定尺寸；
 Wayland 使用 GtkLayerShell 支援的 compositor。

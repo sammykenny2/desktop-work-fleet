@@ -162,7 +162,10 @@ async function initialize() {
     $('#shortcut-note').textContent = '在任何程式中都能使用。一個動作可以設多組，用逗號分開。';
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
-  bindEvents(); render(); status(native?.info.desktopReason || '已開啟本機資料');
+  displayBackend = native?.info.displayBackend ?? null;
+  // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
+  const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed ? ' 可在設定的「桌面」頁改用 XWayland。' : '';
+  bindEvents(); render(); status(native?.info.desktopReason ? native.info.desktopReason + displayHint : '已開啟本機資料');
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
   if (native?.info.capabilities.shareInbox) {
@@ -1106,7 +1109,20 @@ async function mountDataPanel() {
     } });
   host.replaceChildren(dataPanel.element);
 }
+// Only GNOME Wayland can switch: desktop papers there need XWayland, which also carries the main window after a restart.
+let displayBackend = null;
+function renderDisplaySetting() {
+  $('#display-row').hidden = !displayBackend;
+  if (!displayBackend) return;
+  const fixed = displayBackend.fixed === true;
+  const chosen = fixed ? displayBackend.current : displayBackend.preference ?? displayBackend.current; const pending = chosen !== displayBackend.current;
+  $('#display-xwayland').checked = chosen === 'x11'; $('#display-xwayland').disabled = fixed; $('#display-restart').hidden = !pending;
+  $('#display-detail').textContent = fixed ? '目前由環境變數 GDK_BACKEND 決定顯示方式，這個設定不會生效。'
+    : pending ? '重新啟動後生效；未保存的文字會先保存。'
+    : 'GNOME Wayland 的桌面便箋需要 XWayland；主畫面的輸入法與縮放也會一起改走 XWayland。';
+}
 function renderDesktopSettings() {
+  renderDisplaySetting();
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
   settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
@@ -1245,6 +1261,14 @@ function bindEvents() {
   });
   settings.addEventListener('close', () => { dataPanel?.dispose(); dataPanel = null; if (narrow.matches) settingsPage = null; });
   $('#desktop-visible').onchange = () => applyLayout({ desktopVisible: $('#desktop-visible').checked });
+  $('#display-xwayland').onchange = () => run(async () => {
+    displayBackend = await native.bridge.request('host.displayBackend', { xwayland: $('#display-xwayland').checked }); renderDisplaySetting();
+  });
+  // The close behind a restart refuses while any dialog is open, so settings closes first, as its own close button would.
+  $('#display-restart').onclick = () => run(async () => {
+    if (dataPanel?.busy()) throw new Error('備份或還原進行中，完成後再重新啟動。');
+    $('#settings-dialog').close(); await native.bridge.request('host.restart');
+  });
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };

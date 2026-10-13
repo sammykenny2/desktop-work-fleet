@@ -38,6 +38,9 @@ class Shortcuts:
                 gi.require_version("Keybinder", "3.0")
                 from gi.repository import Keybinder
                 Keybinder.init()
+                # Cooked matching turns Shift+letter into the capital and treats Shift as used, so Ctrl+Shift chords such as
+                # the defaults are grabbed but never reach their handler; raw matching compares keycode and modifiers.
+                Keybinder.set_use_cooked_accelerators(False)
                 self.keybinder = Keybinder
             except (ValueError, ImportError):
                 pass

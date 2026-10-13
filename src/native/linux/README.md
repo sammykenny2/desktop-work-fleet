@@ -67,7 +67,7 @@ map／configure／frame 後合併完整重畫，避免透明 WebKit 的局部殘
 載入 V3D 驅動時，使用者未指定才預設 `WEBKIT_DISABLE_DMABUF_RENDERER=1`，接續 Pi／V3D 已知修正；
 其他機器沿用 WebKit 預設，因為共享記憶體 renderer 會在移走的便箋原處留下殘影。
 顯示器／工作區／休眠變更先停止場景輸入，保存草稿後由主畫面套用新版面，保留原 WebView。
-X11 快捷鍵使用 Keybinder 3；否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
+X11 快捷鍵使用 Keybinder 3 的 raw 比對（預設的 cooked 比對會讓 Ctrl+Shift 加字母／數字只被攔截而不觸發）；否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
 系統可改配按鍵，設定顯示實際 trigger description。App 焦點／對話框期間釋放全域註冊；
 portal session 重建可能再次出現系統授權介面，實際流程仍待原生環境確認。
 Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統匣可用後隱藏主畫面。

@@ -116,6 +116,8 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。遮罩畫面、工具列與主視窗隱藏／恢復只有實機驗證。
 `tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設停用 DMA-BUF，
 且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
+`tests/test_linux_shortcuts.py` 以假 Keybinder 確認 X11 先關閉 cooked 比對再登記，Ctrl+Shift 組合觸發動作、主視窗取得焦點時釋放；
+不代表實際按鍵已驗收。
 `tests/test_linux_xwayland.py` 驗證 GNOME Wayland 偵測、偏好檔的權限與原子寫入、GTK 前依選擇設定 `GDK_BACKEND`、
 使用者設定優先、重新啟動移除自己設定的值、只詢問一次、資料鎖未釋放時不重新啟動；對話框與實際重新啟動只有實機驗證。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit

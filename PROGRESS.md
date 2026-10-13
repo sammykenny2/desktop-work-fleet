@@ -2,6 +2,20 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 X11 全域快捷鍵無法觸發
+
+使用者在 GNOME Xorg（xrdp）回報主視窗縮到系統匣後 `Ctrl+Shift+D／N` 沒有反應；確認修正後要求 commit／push。不升版。
+
+- Work Fleet 是唯一載入 Keybinder 的行程，焦點在其他視窗時預設組合都已全域登記；XTEST 送出 `Ctrl+Shift+D` 時測試視窗收不到 `D`，
+  但桌面便箋不變。診斷紀錄顯示 Keybinder handler 從未被呼叫；`GDK_CORE_DEVICE_EVENTS=1`、關閉 NumLock 都無效，
+  純 Xlib 抓取可收到 KeyPress。最小 Keybinder 程式在預設 cooked 比對下同樣不觸發，`set_use_cooked_accelerators(False)` 後立即觸發。
+  cooked 比對把 Shift+字母轉成大寫並視 Shift 為已用，所以 Ctrl+Shift 加字母／數字只被攔截而不觸發；這是 X11 路徑原有的錯誤。
+- `shortcuts.py` 在 `Keybinder.init()` 後改用 raw 比對。新增 `tests/test_linux_shortcuts.py`（假 Keybinder：先關 cooked 再登記、
+  Ctrl+Shift 組合觸發動作、取得焦點時釋放），新測試在修正前失敗。Python documented discover 79 tests，10 skip／0 fail；
+  `npm test` 269 pass／10 skip／0 fail；文件檢查通過。
+- 重裝後以測試視窗取得焦點、XTEST 送出 `Ctrl+Shift+D` 兩次，桌布層場景依序隱藏與恢復；使用者確認焦點在終端機時 `Ctrl+Shift+D`、
+  主視窗在系統匣時 `Ctrl+Shift+N` 都正常。XWayland 下 X11 鍵盤抓取仍收不到原生 Wayland 視窗的按鍵；沒有獨立審閱。
+
 ## 2026-10-13 GNOME Xorg 改用三層
 
 使用者把 VM 改用 Xorg 登入（xrdp，`DISPLAY=:10.0`、`XDG_SESSION_TYPE=x11`）後同意實測；確認結果後選擇只改 GNOME Xorg，

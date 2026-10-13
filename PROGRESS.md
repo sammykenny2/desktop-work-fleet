@@ -12,7 +12,8 @@
   Xcode 專案只在 macOS target 加入 Sparkle，`Package.resolved` 以 2.10.0 的 tag commit 釘選。
 - 發布：`package-native-app.sh` 在 Developer ID 公證後另產生 Sparkle 更新 ZIP、`appcast.xml`（`write-update-feed.mjs`）與 `work-fleet-update.json`；
   新增手動 `macos-release.yml`（需要的 variables／secrets 見 deployment.md）。
-- 測試：`tests/update-feed-writer.test.js`、`apple-project.test.js` 通過；Swift 未在本機編譯，待手動 Apple 建置。
+- 測試：`tests/update-feed-writer.test.js`、`apple-project.test.js` 通過；手動 Apple 建置 run 38479522454（5d16214）編譯 iOS／macOS 成功。
+  `macos-release.yml` 原本以 `--platform macos` 查版號，但腳本只認 `apple`，已修正並由 `release-versions.test.js` 檢查所有呼叫者。
 - 未驗證：Sparkle 沙盒安裝、appcast 與 EdDSA 金鑰、登入項目與更新的 Mac 實機流程、`macos-release.yml` 與 CI 簽章 provisioning。
 
 ## 2026-10-14 App 內更新：Linux

@@ -122,3 +122,15 @@ test('Apple Info.plist uses the xcconfig record and rejects local overrides', as
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('workflows and scripts ask platform-version.mjs only for platforms it records', async () => {
+  const callers = ['.github/workflows/ci.yml', '.github/workflows/linux-release.yml', '.github/workflows/macos-release.yml',
+    '.github/workflows/windows-preview.yml', 'scripts/linux/build-android-app.sh', 'scripts/linux/build-native-app.sh',
+    'scripts/windows/Build-AndroidApp.ps1', 'scripts/windows/Build-LinuxPackage.ps1', 'scripts/windows/Build-WindowsPackage.ps1',
+    'scripts/windows/Test-WindowsPackage.ps1', 'scripts/windows/Test-WindowsUpdate.ps1'];
+  for (const file of callers) {
+    const platforms = [...(await readFile(path.join(root, file), 'utf8')).matchAll(/platform-version\.mjs'?\)? --platform ([a-z]+)/g)].map(match => match[1]);
+    assert.ok(platforms.length > 0, file);
+    for (const platform of platforms) assert.ok(Object.hasOwn(versionRecords, platform), `${file} asks for ${platform}`);
+  }
+});

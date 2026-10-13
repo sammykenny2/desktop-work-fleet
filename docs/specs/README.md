@@ -52,6 +52,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
+| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | 主視窗位置、啟動行為與 App 內更新 | In Review; U confirmed, D/Q pending; not implemented | [PLAN-006](../plans/006-desktop-window-startup-and-updates.md) |
 | [005-windows-11-compatibility](005-windows-11-compatibility.md) | Windows 11 new/classic shell and install eligibility | Approved requirements; implementation and evidence in PROGRESS | [PLAN-004](../plans/004-windows-11-compatibility.md) |
 | [004-revision-graph-and-file-sync](004-revision-graph-and-file-sync.md) | Immutable revisions and file sync | Accepted technical contract; execution in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
 | [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / answered Q; execution in PROGRESS | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |

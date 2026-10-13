@@ -2,6 +2,19 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 macOS 上兩項既有測試失敗
+
+使用者要求處理上一節記錄的兩項既有失敗。只改測試與文件，不改產品程式，不升版。
+
+- macOS 圖層 probe：2026-10-05 撰寫時沒有 Apple SDK，從未在 Mac 執行。本機實驗顯示 WindowServer 非同步排序視窗，
+  `orderFrontRegardless` 後立即讀取為 layer 0、不在螢幕上，`CATransaction.flush()` 後才是要求的 level；之後變更 level 要等 run loop 轉一圈。
+  `SceneLayersProbe` 改為 flush 並等到視窗上螢幕且 level 相符（最多 2 秒）再檢查；macOS 27.0.1 連續三次通過，
+  改成比對錯誤 level 的副本仍失敗於同一檢查。
+- MSIX 版號測試：Node 以腳本的實際路徑（`/private/var/...`）推算 repo，而 macOS 的 `tmpdir()` 是 `/var` symlink，
+  stage 因而被判定不在 `build/windows`。測試改在 `realpath(tmpdir())` 下建立暫存 checkout；腳本的路徑檢查不變。
+- 作者檢查（macOS 27.0.1）：`scripts/macos/test-desktop-layers.sh` 通過；`npm test` 269 pass／10 skip／0 fail；
+  Python documented discover 81 tests，14 skip／0 fail；文件檢查與 `git diff --check` 通過。沒有獨立審閱。
+
 ## 2026-10-14 macOS 加便箋後桌布整片變色
 
 使用者在本機 macOS 27.0.1 安裝 universal 開發簽章 DMG 後回報加一張便箋整個桌布就變色；重裝修正版後確認看似正常，要求 commit／push。不升版。

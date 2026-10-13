@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,7 +13,9 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const execute = promisify(execFile);
 
 async function checkout(records) {
-  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-versions-'));
+  // Node runs a copied script from its real path, while macOS tmpdir() is the /var symlink to /private/var; a symlinked
+  // checkout would put build/windows outside the stage path the script is given.
+  const directory = await mkdtemp(path.join(await realpath(tmpdir()), 'work-fleet-versions-'));
   for (const [file, content] of Object.entries(records)) {
     await mkdir(path.dirname(path.join(directory, file)), { recursive: true });
     await writeFile(path.join(directory, file), content);

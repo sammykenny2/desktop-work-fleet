@@ -15,6 +15,20 @@ import AppKit
             exit(1)
         }
     }
+    // WindowServer orders windows asynchronously: a panel just ordered front reads as layer 0 and off screen until the
+    // transaction is committed, and a level change lands only after the run loop turns. Wait for both, then let the caller check.
+    static func serverWindow(_ number: Int, level: Int) -> [String: Any]? {
+        var native: [String: Any]?
+        let deadline = Date().addingTimeInterval(2)
+        repeat {
+            CATransaction.flush()
+            let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+            native = windows.first { ($0[kCGWindowNumber as String] as? Int) == number }
+            if native?[kCGWindowIsOnscreen as String] as? Bool == true && native?[kCGWindowLayer as String] as? Int == level { break }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.02))
+        } while Date() < deadline
+        return native
+    }
     static func run() throws {
         guard let screen = NSScreen.screens.first else { throw FleetFailure("probe", "A graphical Mac session is required") }
         let assets = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/app")
@@ -39,8 +53,7 @@ import AppKit
             let card = FleetSceneFrame.Card(id: "paper", layer: layer, rect: NSRect(x: -280, y: 70, width: 120, height: 80), interactive: false, draggable: false)
             surface.apply(FleetSceneFrame(sequence: 1, topology: 0, cards: [card]))
             try check(surface.panel.isVisible && surface.panel.frame == bounds, "Showing a layer must preserve screen geometry")
-            let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
-            let native = windows.first { ($0[kCGWindowNumber as String] as? Int) == surface.panel.windowNumber }
+            let native = serverWindow(surface.panel.windowNumber, level: surface.panel.level.rawValue)
             try check((native?[kCGWindowLayer as String] as? Int) == surface.panel.level.rawValue, "WindowServer must apply the requested level")
             try check(surface.panel.ignoresMouseEvents && !surface.panel.canBecomeKey, "Passive paper must not receive input")
             if layer == "wallpaper" {

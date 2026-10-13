@@ -15,7 +15,7 @@
 - 本次包含 Windows/macOS/Linux、iOS/Android 原生 App 與商店提交準備；原生 host／Google／打包尚待整合與驗收。
 - 已核准 Markdown、checklist、附件、完成／封存、逐卡設定與完整備份／還原範圍；見 SPEC-003 已答 Q 及 [ADR-008](docs/decisions/008-portable-interaction-core.md)。
 - [現有驗證報告](docs/validation/2026-10-03-validation-report.md) 保留其原範圍；不能當作新桌面互動或商店通過。
-- Linux 實機只驗證過 Ubuntu 22.04 GNOME（經 XWayland）；各桌面環境的限制、金鑰圈等共同前提見
+- Linux 實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）與 xrdp 的 GNOME Xorg；各桌面環境的限制、金鑰圈等共同前提見
   [Linux 桌面支援現況](src/native/linux/README.md#桌面環境支援現況)。
 - 執行狀態以 [PROGRESS](PROGRESS.md) 為準；模型測試不代替原生桌面、真實同步或商店證據。
 

@@ -78,8 +78,9 @@ pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。
 
 ## 桌面環境支援現況
 
-更新：2026-10-13。實機只驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland、x86 VM、單螢幕）；
-另有隔離 headless labwc 自動測試，不是實際桌面驗收。以下依程式行為整理，未實測者不代表已支援。
+更新：2026-10-13。實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）完整操作，以及同一台 x86 VM 以 xrdp 登入的
+GNOME Xorg 的視窗分層（各層互動尚未測）；都是單螢幕。另有隔離 headless labwc 自動測試，不是實際桌面驗收。
+以下依程式行為整理，未實測者不代表已支援。
 
 所有桌面共同前提：
 
@@ -95,8 +96,9 @@ pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。
 各桌面：
 
 - GNOME Wayland：原生 Wayland 沒有桌面便箋，首次啟動或設定中選擇 XWayland 後才有。
-  經 XWayland 時沒有常駐桌面層與最上層，便箋只在桌布層顯示且不可互動；調整模式是遮罩，期間其他程式無法點選。唯一實測環境。
-- GNOME Xorg：套用與 XWayland 相同的對應，未實測。
+  經 XWayland 時沒有常駐桌面層與最上層，便箋只在桌布層顯示且不可互動；調整模式是遮罩，期間其他程式無法點選。目前唯一完整實測的環境。
+- GNOME Xorg：桌布、桌面、最上層三層，桌面層在桌面圖示上方可選字，最上層可取得焦點，調整模式沒有遮罩；
+  桌布層在使用者點過桌面前可能顯示在圖示上方。只在 xrdp 遠端工作階段驗證視窗分層與全域快捷鍵登記，各層互動與本機 Xorg 登入未實測。
 - KDE Plasma Wayland：KWin 支援 layer-shell，走三層路徑；Plasma 桌面也在 layer-shell 背景層，
   桌布層便箋可能被桌面蓋住或順序不定。未實測。
 - X11 桌面（KDE X11、Xfce、Cinnamon、MATE、LXQt、LXDE）：只有桌面層與最上層，桌布偏好回退桌面層。

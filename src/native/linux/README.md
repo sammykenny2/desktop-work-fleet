@@ -80,6 +80,9 @@ keybind 執行 `gapplication action <app id> shortcut` 交給 App（[ADR-041](..
 portal session 重建可能再次出現系統授權介面，實際流程仍待原生環境確認。
 Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統匣可用後隱藏主畫面。
 系統匣退出沿用草稿保存流程；系統匣斷線時恢復主畫面，帳號切換則關閉舊桌面工作階段。
+主視窗大小、X11 位置與最大化存在資料目錄的 `window-placement.json`，啟動行為存在 `host-preferences.json`（ADR-043）。
+登入啟動寫入 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（DEB 用 `work-fleet`，tar.gz 用 bundle 的啟動檔，原始碼執行不支援），
+只在第一次啟動套用預設與使用者切換時改寫；`--launch-at-login` 啟動時主畫面留在系統匣，沒有系統匣則 5 秒後顯示。
 可用隔離 headless labwc 執行本產品原生場景回歸，命令見 [testing](../../../docs/testing.md)。
 實際結果見 [PROGRESS](../../../PROGRESS.md)；沒有把 headless x64 測試當成 Pi／V3D、
 pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。

@@ -4,8 +4,9 @@ from gi.repository import Gtk
 
 
 class Tray:
-    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None):
+    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None):
         self.main, self.action, self.menu_active = main, action, menu_active
+        self.reveal = reveal
         self.available = self.closed = False
         self.indicator = self.icon = None
         self.menu = Gtk.Menu()
@@ -44,22 +45,23 @@ class Tray:
             self.icon.connect("popup-menu", lambda _icon, button, timestamp: self.menu.popup(None, None, Gtk.StatusIcon.position_menu, self.icon, button, timestamp))
             self.icon.connect("notify::embedded", lambda *_: self.connection(self.icon.is_embedded()))
             self.icon.set_visible(True)
-            self.connection(self.icon.is_embedded())
+            # Embedding is asynchronous: the start only records it, and a hidden sign-in start waits for it (ADR-043).
+            self.available = self.icon.is_embedded()
 
     def connection(self, connected):
         if self.closed:
             return
         self.available = connected
         if not connected and not self.main.get_visible():
-            self.main.set_focus_on_map(False)
-            self.main.show_all()
+            if self.reveal is not None:
+                self.reveal()
+            else:
+                self.main.set_focus_on_map(False)
+                self.main.show_all()
 
     def dispatch(self, target):
         self.menu_active(False)
-        if target == "show":
-            self.main.present()
-        else:
-            self.action(target, Gtk.get_current_event_time(), None)
+        self.action(target, Gtk.get_current_event_time(), None)
 
     def hide(self):
         if not self.available or self.closed:

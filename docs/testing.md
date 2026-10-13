@@ -153,6 +153,22 @@ docker run --rm --network none \
   bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
 ```
 
+同一映像以真 GTK owner 檢查 ADR-043（不開啟 workspace 資料庫，也不需要 Secret Service）：
+
+```bash
+mkdir -p build/linux-host-checks
+docker run --rm --network none \
+  --mount "type=bind,source=$PWD,target=/workspace,readonly" \
+  --mount "type=bind,source=$PWD/build/linux-host-checks,target=/evidence" \
+  work-fleet-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
+```
+
+Xvfb＋openbox（X11）驗證預設大小、移動／最大化／最小化／還原後的 `window-placement.json`、重新開啟回到保存位置、重置、
+第一次啟動寫入 bundle 啟動檔的 autostart 項目、關閉後之後啟動不重新建立，以及 `--launch-at-login` 時主畫面先隱藏、
+沒有系統匣時 5 秒後顯示、再次啟動叫出主畫面。headless labwc 驗證只保存大小與最大化並在重開時套用。
+`tests/test_linux_hostsettings.py` 以共用 fixture 驗證位置規則、檔案、Exec 引號與只移除自己寫入的 autostart 項目。
+這些不是 GNOME／Pi 實際登入時的 autostart 證據。
+
 投影來自實際共用 Workspace／InteractionController；native owner 分片發布並由真正 WebKit renderer
 接收、確認、畫出。涵蓋 wallpaper→調整此組 floating→完成後還原、常駐 desktop／floating、
 反覆隱藏／顯示與 topology 重用；調整此組時確認最上層整個畫面接收輸入、鍵盤為 EXCLUSIVE，便箋外的畫面被遮罩染色，

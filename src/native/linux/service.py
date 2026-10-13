@@ -13,6 +13,9 @@ class Service:
         self.database, self.desktop = database, desktop
         self.desktop_reason = None
         self.display = None
+        # ADR-043: set by the GTK owner, which runs startup settings and the main window on its own thread.
+        self.identity = {"appVersion": "0.0.0", "distribution": "source"}
+        self.shell = None
         self.backup = Backup(database, choose)
         self.google = Google(vault, config, database.profile, open_browser)
         self.transfers, self.staged = {}, set()
@@ -68,6 +71,9 @@ class Service:
             return self.download(result) if isinstance(result, bytes) else result
         if method.startswith("desktop.") and self.desktop is not None:
             return self.desktop(method, args)
+        if method in ("host.preferences.get", "host.preferences.set", "host.preferences.openSystem", "host.window.resetPlacement"):
+            p.require(self.shell is not None, "unsupported-method", "原生主機沒有此操作。")
+            return self.shell(method, args)
         with self.lock:
             p.require(not self.closed, "native-closed", "原生工作階段已結束。")
             for token, value in list(self.transfers.items()):
@@ -76,8 +82,9 @@ class Service:
             if method.startswith("backup."):
                 return self.backup.invoke(method, args, self.upload, self.download)
             if method == "host.info":
-                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, "storage": "sqlite-secret-service", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
-                        "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None}}
+                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-secret-service", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
+                        "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
+                                         "hostPreferences": self.shell is not None, "updates": False}}
             if method == "host.ready":
                 self.ready = True
                 return None

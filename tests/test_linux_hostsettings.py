@@ -1,0 +1,116 @@
+"""ADR-043 host settings on Linux: the shared placement rule, host files and the XDG autostart entry. No GI or display."""
+import importlib.util
+import json
+import os
+from pathlib import Path
+import shutil
+import stat
+import tempfile
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+spec = importlib.util.spec_from_file_location("hostsettings", ROOT / "src/native/linux/hostsettings.py")
+hostsettings = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(hostsettings)
+
+
+@unittest.skipUnless(os.name == "posix", "Linux host files use POSIX directory sync and permissions")
+class LinuxHostSettingsTests(unittest.TestCase):
+    def folder(self):
+        base = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, base)
+        return base
+
+    def test_placement_rule_matches_the_shared_fixture(self):
+        fixture = json.loads((ROOT / "tests/fixtures/window-placement.json").read_text("utf-8"))
+        size = fixture["defaultSize"]
+        for case in fixture["cases"]:
+            with self.subTest(case["name"]):
+                self.assertEqual(hostsettings.resolve(case["saved"], case["areas"], size["width"], size["height"]), case["expected"])
+
+    def test_placement_round_trip_and_damaged_files(self):
+        folder = self.folder() / "WorkFleet"
+        for value in ({"x": -1200, "y": 40, "width": 900, "height": 700, "maximized": True},
+                      {"x": None, "y": None, "width": 800, "height": 600, "maximized": False}):
+            hostsettings.write_placement(folder, value)
+            self.assertEqual(hostsettings.read_placement(folder), value)
+        self.assertEqual(stat.S_IMODE(folder.stat().st_mode), 0o700)
+        self.assertEqual([path.name for path in folder.iterdir()], ["window-placement.json"])
+        for text in ("", "{", "[]", '{"version":2,"x":0,"y":0,"width":10,"height":10,"maximized":false}',
+                     '{"version":1,"x":0,"y":0,"width":0,"height":10,"maximized":false}', '{"version":1,"x":0,"width":10,"height":10,"maximized":false}',
+                     '{"version":1,"x":0,"y":0,"width":10,"height":10}', '{"version":1,"x":0.5,"y":0,"width":10,"height":10,"maximized":false}',
+                     '{"version":1,"version":1,"x":0,"y":0,"width":10,"height":10,"maximized":false}', '{"version":true,"x":0,"y":0,"width":10,"height":10,"maximized":false}'):
+            (folder / "window-placement.json").write_text(text, "utf-8")
+            self.assertIsNone(hostsettings.read_placement(folder), text)
+        hostsettings.remove_placement(folder)
+        hostsettings.remove_placement(folder)
+        self.assertIsNone(hostsettings.read_placement(folder))
+
+    def test_preferences_default_once_and_round_trip(self):
+        folder = self.folder()
+        value, existed = hostsettings.read_preferences(folder)
+        self.assertFalse(existed)
+        self.assertEqual(value, {"startAtLogin": True, "closeToTray": True, "openMainAtLogin": False, "lastUpdateCheck": None})
+        changed = hostsettings.change(hostsettings.change(value, "startAtLogin", False), "openMainAtLogin", True)
+        hostsettings.write_preferences(folder, changed)
+        self.assertEqual(hostsettings.read_preferences(folder), (changed, True))
+        with self.assertRaises(ValueError):
+            hostsettings.change(value, "unknown", True)
+        with self.assertRaises(ValueError):
+            hostsettings.change(value, "closeToTray", "no")
+        (folder / "host-preferences.json").write_text('{"version":1,"startAtLogin":"no","closeToTray":false}', "utf-8")
+        self.assertEqual(hostsettings.read_preferences(folder)[0]["startAtLogin"], True)
+        self.assertEqual(hostsettings.read_preferences(folder)[0]["closeToTray"], False)
+
+    def test_distribution_version_and_sign_in_command(self):
+        base = self.folder()
+        bundle = base / "work fleet $1"
+        (bundle / "Assets").mkdir(parents=True)
+        (bundle / "run-work-fleet.sh").write_text("#!/bin/bash\n", "utf-8")
+        (bundle / "package.json").write_text('{"version": "0.2.0"}', "utf-8")
+        self.assertEqual(hostsettings.distribution(bundle / "Assets"), "bundle")
+        self.assertEqual(hostsettings.version(bundle / "Assets", base / "host.py"), "0.2.0")
+        default = base / "data"
+        command, reason = hostsettings.launch_command(bundle / "Assets", default, default)
+        self.assertIsNone(reason)
+        self.assertEqual(command, '"' + str(bundle / "run-work-fleet.sh").replace("$", "\\$") + '" --launch-at-login')
+        command, _ = hostsettings.launch_command(bundle / "Assets", base / "other 100%", default)
+        self.assertTrue(command.endswith(' --data "' + str(base / "other 100%%") + '" --launch-at-login'))
+        self.assertEqual(hostsettings.distribution(Path("/usr/lib/work-fleet/Assets")), "deb")
+        self.assertEqual(hostsettings.launch_command(Path("/usr/lib/work-fleet/Assets"), default, default), ("work-fleet --launch-at-login", None))
+        source = base / "checkout" / "build" / "app"
+        source.mkdir(parents=True)
+        (base / "native").mkdir()
+        (base / "native" / "VERSION").write_text("0.1.0\n", "utf-8")
+        self.assertEqual(hostsettings.distribution(source), "source")
+        self.assertEqual(hostsettings.version(source, base / "native" / "host.py"), "0.1.0")
+        command, reason = hostsettings.launch_command(source, default, default)
+        self.assertIsNone(command)
+        self.assertIn("原始碼", reason)
+
+    def test_autostart_entry_follows_xdg_config_home_and_only_removes_its_own(self):
+        base = self.folder()
+        self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": str(base / "config")}), base / "config/autostart/work-fleet.desktop")
+        self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": "relative"}), Path.home() / ".config/autostart/work-fleet.desktop")
+        path = base / "config/autostart/work-fleet.desktop"
+        self.assertEqual(hostsettings.autostart_state(path), "disabled")
+        hostsettings.write_autostart(path, "work-fleet --launch-at-login", "app.workfleet.preview")
+        text = path.read_text("utf-8")
+        self.assertIn("Exec=work-fleet --launch-at-login\n", text)
+        self.assertIn("X-Work-Fleet-Managed=true\n", text)
+        self.assertEqual(hostsettings.autostart_state(path), "enabled")
+        path.write_text(text.replace("X-GNOME-Autostart-enabled=true", "X-GNOME-Autostart-enabled=false"), "utf-8")
+        self.assertEqual(hostsettings.autostart_state(path), "disabled")
+        path.write_text(text + "Hidden=true\n", "utf-8")
+        self.assertEqual(hostsettings.autostart_state(path), "disabled")
+        hostsettings.remove_autostart(path)
+        self.assertFalse(path.exists())
+        hostsettings.remove_autostart(path)
+        path.write_text("[Desktop Entry]\nExec=someone-else\n", "utf-8")
+        with self.assertRaises(PermissionError):
+            hostsettings.remove_autostart(path)
+        self.assertTrue(path.exists())
+
+
+if __name__ == "__main__":
+    unittest.main()

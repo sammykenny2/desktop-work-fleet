@@ -11,6 +11,7 @@ import tempfile
 import threading
 from urllib.parse import unquote, urlsplit
 
+import hostsettings
 import renderer
 import xwayland
 
@@ -134,8 +135,17 @@ class LocalWeb:
 
 
 class FleetApp(Gtk.Application):
-    def __init__(self, assets, config, directory):
+    def __init__(self, assets, config, directory, launched_at_login=False, default_data=None):
         self.assets, self.config, self.directory = assets, config, directory
+        self.default_data = default_data or directory
+        # ADR-043: startup behaviour and the main window's bounds belong to this data directory, not to a profile.
+        self.preferences, existed = hostsettings.read_preferences(directory)
+        self.first_run = not existed
+        self.hidden_start = launched_at_login and not self.preferences["openMainAtLogin"]
+        self.placement = hostsettings.read_placement(directory)
+        self.placement_dirty = self.tracking = self.pending_maximize = False
+        self.placement_timer = None
+        self.x11 = False
         super().__init__(application_id=config.get("appId") or "app.workfleet.preview", flags=Gio.ApplicationFlags.FLAGS_NONE)
         self.connect("activate", self.activate)
         self.connect("shutdown", self.shutdown)
@@ -153,21 +163,32 @@ class FleetApp(Gtk.Application):
         self.epoch = self.admitted = 0
         self.closing = self.stopped = False
         self.vault = Vault(config.get("appId") or "app.workfleet.preview")
+        self.launched_at_login = launched_at_login
 
     def activate(self, _application):
         if self.window is not None:
-            self.window.present()
+            # Launching Work Fleet again shows the running one, including after a hidden sign-in start.
+            self.show_main()
             return
         self.window = Gtk.ApplicationWindow(application=self, title="Work Fleet")
         icon = self.assets.parent / "Icons" / ((self.config.get("appId") or "app.workfleet.preview") + ".png")
         if icon.is_file():
             self.window.set_icon_from_file(str(icon))
+        self.x11 = "x11" in type(Gdk.Display.get_default()).__name__.lower()
         self.window.set_default_size(1180, 800)
+        self.apply_placement()
         self.window.connect("delete-event", self.window_close)
+        self.window.connect("configure-event", lambda *_: self.window_changed())
+        self.window.connect("window-state-event", lambda _window, event: self.window_changed(event.new_window_state))
         self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
-        self.window.show_all()
+        self.reveal()
         self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active,
-                         icon if icon.is_file() else None)
+                         icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False))
+        if self.hidden_start:
+            # A tray that never connects would leave the hidden window unreachable, so it shows after a short wait.
+            GLib.timeout_add_seconds(5, self.hidden_fallback)
+        if self.first_run:
+            self.first_preferences()
         marker = self.directory / "profile.txt"
         try:
             profile = marker.read_text("utf-8").strip()
@@ -182,6 +203,198 @@ class FleetApp(Gtk.Application):
             self.ask_display(profile)
         else:
             self.open_store(profile)
+
+    def reveal(self):
+        """Shows the main window, or on a hidden sign-in start only realizes it so the page still loads."""
+        if self.hidden_start:
+            child = self.window.get_child()
+            if child is not None:
+                child.show_all()
+            self.window.realize()
+            return
+        self.window.show_all()
+        self.take_maximize()
+
+    def take_maximize(self):
+        if self.pending_maximize:
+            self.pending_maximize = False
+            self.window.maximize()
+
+    def hidden_fallback(self):
+        if self.hidden_start and (self.tray is None or not self.tray.available):
+            self.show_main(activate=False)
+        return False
+
+    def show_main(self, timestamp=None, activate=True):
+        if self.window is None:
+            return
+        if self.hidden_start or not self.window.get_visible():
+            self.hidden_start = False
+            self.validate_placement()
+            if not activate:
+                self.window.set_focus_on_map(False)
+            self.window.show_all()
+            self.window.set_focus_on_map(True)
+            self.take_maximize()
+        if activate:
+            self.window.present_with_time(timestamp or Gdk.CURRENT_TIME)
+
+    def work_areas(self):
+        display = Gdk.Display.get_default()
+        monitors = [display.get_monitor(index) for index in range(display.get_n_monitors())]
+        primary = display.get_primary_monitor() or (monitors[0] if monitors else None)
+        ordered = [primary] + [monitor for monitor in monitors if monitor is not primary] if primary is not None else monitors
+        areas = []
+        for monitor in ordered:
+            area = monitor.get_workarea()
+            areas.append({"x": area.x, "y": area.y, "width": area.width, "height": area.height})
+        return areas or [{"x": 0, "y": 0, "width": 1180, "height": 800}]
+
+    def apply_placement(self):
+        """Saved bounds before the window maps; Wayland compositors place windows themselves, so only size counts there."""
+        saved = self.placement
+        if saved is not None and not self.x11:
+            saved = {**saved, "x": None, "y": None}
+        resolved = hostsettings.resolve(saved, self.work_areas(), 1180, 800)
+        self.window.set_default_size(resolved["width"], resolved["height"])
+        self.window.resize(resolved["width"], resolved["height"])
+        if self.x11 and resolved["x"] is not None:
+            self.window.move(resolved["x"], resolved["y"])
+        self.pending_maximize = resolved["maximized"]
+        self.placement = resolved if self.x11 else {**resolved, "x": None, "y": None}
+        self.tracking = True
+
+    def validate_placement(self):
+        """A hidden window waits in the tray for days; a display may be gone when it shows again."""
+        if not self.x11 or self.window.is_maximized() or not self.window.get_realized():
+            return
+        x, y = self.window.get_position()
+        width, height = self.window.get_size()
+        current = {"x": x, "y": y, "width": width, "height": height, "maximized": False}
+        resolved = hostsettings.resolve(current, self.work_areas(), 1180, 800)
+        if resolved != current:
+            self.window.resize(resolved["width"], resolved["height"])
+            self.window.move(resolved["x"], resolved["y"])
+
+    def window_changed(self, state=None):
+        if not self.tracking or self.window is None or not self.window.get_visible():
+            return False
+        if state is None:
+            gdk = self.window.get_window()
+            state = gdk.get_state() if gdk is not None else Gdk.WindowState(0)
+        # A minimize, including the adjust overlay stepping aside, never changes the saved bounds or maximized flag.
+        if state & (Gdk.WindowState.ICONIFIED | Gdk.WindowState.WITHDRAWN | Gdk.WindowState.FULLSCREEN):
+            return False
+        if state & Gdk.WindowState.MAXIMIZED:
+            if self.placement is not None and not self.placement["maximized"]:
+                self.placement = {**self.placement, "maximized": True}
+                self.schedule_placement()
+            return False
+        width, height = self.window.get_size()
+        x, y = self.window.get_position() if self.x11 else (None, None)
+        current = {"x": x, "y": y, "width": width, "height": height, "maximized": False}
+        if current != self.placement:
+            self.placement = current
+            self.schedule_placement()
+        return False
+
+    def schedule_placement(self):
+        self.placement_dirty = True
+        if self.placement_timer is not None:
+            GLib.source_remove(self.placement_timer)
+        self.placement_timer = GLib.timeout_add(500, self.flush_placement)
+
+    def flush_placement(self):
+        if self.placement_timer is not None:
+            GLib.source_remove(self.placement_timer)
+            self.placement_timer = None
+        if self.placement_dirty and self.placement is not None:
+            try:
+                hostsettings.write_placement(self.directory, self.placement)
+                self.placement_dirty = False
+            except OSError:
+                pass
+        return False
+
+    def reset_placement(self):
+        if self.placement_timer is not None:
+            GLib.source_remove(self.placement_timer)
+            self.placement_timer = None
+        self.placement_dirty = False
+        try:
+            hostsettings.remove_placement(self.directory)
+        except OSError as error:
+            raise p.Failure("placement-reset", "無法清除主視窗位置，請稍後重試。") from error
+        self.placement = None
+        if self.window.is_maximized():
+            self.window.unmaximize()
+        self.apply_placement()
+        self.pending_maximize = False
+
+    def hide_to_tray(self):
+        if self.tray is None:
+            return False
+        self.flush_placement()
+        return self.tray.hide()
+
+    def startup_command(self):
+        return hostsettings.launch_command(self.assets, self.directory, self.default_data)
+
+    def first_preferences(self):
+        """A first launch applies the sign-in default once; later launches never re-create an entry the user removed."""
+        try:
+            command, _reason = self.startup_command()
+            path = hostsettings.autostart_path(os.environ)
+            if self.preferences["startAtLogin"] and command is not None and not path.exists():
+                hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview")
+            hostsettings.write_preferences(self.directory, self.preferences)
+        except OSError:
+            pass
+
+    def describe_preferences(self):
+        command, reason = self.startup_command()
+        if command is None:
+            start = {"available": False, "enabled": False, "preference": self.preferences["startAtLogin"], "state": "unavailable", "reason": reason, "systemSettings": False}
+        else:
+            state = hostsettings.autostart_state(hostsettings.autostart_path(os.environ))
+            start = {"available": True, "enabled": state == "enabled", "preference": self.preferences["startAtLogin"], "state": state, "reason": None, "systemSettings": False}
+        return {"startAtLogin": start,
+                "closeToTray": {"available": self.tray is not None and self.tray.available, "enabled": self.preferences["closeToTray"]},
+                "openMainAtLogin": {"available": command is not None, "enabled": self.preferences["openMainAtLogin"]},
+                "launchedAtLogin": self.launched_at_login}
+
+    def shell_invoke(self, method, args):
+        if method == "host.preferences.get":
+            return self.describe_preferences()
+        if method == "host.preferences.set":
+            name, value = p.text(args, "name", 32), p.boolean(args, "value")
+            p.require(name in hostsettings.DEFAULTS, "invalid-request", "沒有這個啟動行為設定。")
+            if name == "startAtLogin":
+                path = hostsettings.autostart_path(os.environ)
+                try:
+                    if value:
+                        command, reason = self.startup_command()
+                        p.require(command is not None, "startup-unavailable", reason or "這台電腦目前不支援登入時啟動。")
+                        hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview")
+                    else:
+                        hostsettings.remove_autostart(path)
+                except PermissionError as error:
+                    raise p.Failure("startup-foreign", "這個登入啟動項目不是 Work Fleet 建立的，請在系統設定中移除。") from error
+                except OSError as error:
+                    raise p.Failure("startup-write", "無法更新登入啟動項目，請稍後重試。") from error
+            changed = hostsettings.change(self.preferences, name, value)
+            try:
+                hostsettings.write_preferences(self.directory, changed)
+            except OSError as error:
+                raise p.Failure("preferences-write", "無法保存啟動行為設定，請稍後重試。") from error
+            self.preferences = changed
+            return self.describe_preferences()
+        if method == "host.preferences.openSystem":
+            raise p.Failure("startup-settings", "這個桌面環境沒有可開啟的登入項目設定。")
+        if method == "host.window.resetPlacement":
+            self.reset_placement()
+            return None
+        raise p.Failure("unsupported-method", "原生主機沒有此操作。")
 
     def ask_display(self, profile):
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.QUESTION,
@@ -227,8 +440,11 @@ class FleetApp(Gtk.Application):
         self.update_native_block()
 
     def tray_action(self, target, timestamp, token):
+        if target == "show":
+            self.show_main(timestamp)
+            return
         if target == "@capture" or self.desktop is None:
-            self.window.present_with_time(timestamp or Gdk.CURRENT_TIME)
+            self.show_main(timestamp)
         if self.desktop is not None:
             self.desktop.action(target, timestamp, token)
 
@@ -324,6 +540,8 @@ class FleetApp(Gtk.Application):
             try:
                 self.service = future.result()
                 self.service.display = self.display
+                self.service.identity = {"appVersion": hostsettings.version(self.assets, __file__), "distribution": hostsettings.distribution(self.assets)}
+                self.service.shell = lambda method, args: self.ui(lambda: self.shell_invoke(method, args))
                 self.close_desktop()
                 if self.view is not None:
                     self.view.close()
@@ -334,7 +552,7 @@ class FleetApp(Gtk.Application):
                     self.window.remove(child)
                 self.window.add(self.view.web)
                 try:
-                    desktop = Desktop(self.assets, LocalWeb, self.view.event, self.window, lambda: self.tray is not None and self.tray.hide())
+                    desktop = Desktop(self.assets, LocalWeb, self.view.event, self.window, self.hide_to_tray)
                     self.desktop = desktop
                     self.service.desktop = lambda method, args: self.ui(lambda: desktop.invoke(method, args))
                     desktop.connect(self.view.web, "button-press-event", desktop.input)
@@ -344,7 +562,7 @@ class FleetApp(Gtk.Application):
                     self.close_desktop()
                     self.service.desktop = None
                     self.service.desktop_reason = str(error) if isinstance(error, p.Failure) else "桌面呈現目前無法啟動；仍可在主畫面保存便箋。"
-                self.window.show_all()
+                self.reveal()
                 self.view.load(lambda error: self.failure(error) if error else None)
             except Exception as error:
                 self.failure(error)
@@ -389,8 +607,8 @@ class FleetApp(Gtk.Application):
             pass
 
     def window_close(self, *_):
-        # The title-bar close keeps Work Fleet in the tray; the tray's exit item still saves and quits.
-        if self.tray is not None and self.tray.hide():
+        # The title-bar close keeps Work Fleet in the tray unless that setting is off; the tray's exit item saves and quits.
+        if self.preferences["closeToTray"] and self.hide_to_tray():
             return True
         return self.close_requested()
 
@@ -398,6 +616,7 @@ class FleetApp(Gtk.Application):
         if self.closing:
             return True
         self.closing = True
+        self.flush_placement()
         if self.service is not None and self.service.ready and self.view is not None:
             self.view.event("host-close-requested")
         else:
@@ -460,6 +679,7 @@ class FleetApp(Gtk.Application):
         self.failure(p.Failure("native-view", "畫面程序已停止；已確認保存的資料仍保留，請重新開啟。"))
 
     def shutdown(self, _application):
+        self.flush_placement()
         self.stopped = True
         self.vault.cancellable.cancel()
         self.epoch += 1
@@ -480,10 +700,12 @@ def main():
     parser.add_argument("--assets", type=Path, required=True)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--data", type=Path, default=xwayland.data_directory([], os.environ))
+    # Written into the XDG autostart entry, so a sign-in launch can stay in the tray.
+    parser.add_argument(hostsettings.LOGIN_ARGUMENT, dest="login", action="store_true")
     args = parser.parse_args()
     config = p.decode(args.config.read_bytes())
     directory = args.data.expanduser().absolute()
-    application = FleetApp(args.assets.resolve(strict=True), config, directory)
+    application = FleetApp(args.assets.resolve(strict=True), config, directory, args.login, xwayland.data_directory([], os.environ))
     code = application.run([sys.argv[0]])
     if not application.restart:
         return code
@@ -494,7 +716,8 @@ def main():
         return code
     environment = dict(os.environ)
     xwayland.configure(environment, directory)
-    os.execve(sys.executable, [sys.executable, *sys.argv], environment)
+    # A restart is not a sign-in launch, so it never starts hidden again.
+    os.execve(sys.executable, [sys.executable, *(value for value in sys.argv if value != hostsettings.LOGIN_ARGUMENT)], environment)
 
 
 if __name__ == "__main__":

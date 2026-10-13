@@ -2,6 +2,24 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 主視窗位置記憶與啟動行為：Linux
+
+PLAN-006 Phase 1–3 的 Linux 部分，沿用上一節的 bridge 與設定頁；不升版。
+
+- `hostsettings.py`：主機層級偏好與位置檔、與 Windows 共用 fixture 的位置規則、版本與發行形式（DEB／bundle／原始碼）、
+  `$XDG_CONFIG_HOME/autostart/work-fleet.desktop` 的寫入／讀回／只移除自己寫入的項目。
+- `host.py`：X11 保存位置與大小、Wayland 只保存大小與最大化；最小化（含調整遮罩讓開）不改寫；顯示前重新驗證；
+  收到系統匣、結束與關閉前補寫。`--launch-at-login` 時主畫面只 realize 不顯示，系統匣 5 秒內沒有就緒則顯示；
+  再次啟動（GtkApplication activate）叫出主畫面；重新啟動會移除這個參數。登入啟動只在第一次啟動套用預設與使用者切換時寫入。
+  `tray.py` 不再於 StatusIcon 尚未嵌入時立即顯示主畫面，改由上述等待處理。
+- 測試：WSL Ubuntu 的 Linux discover 76 tests，1 skip／0 fail（含新增的 `test_linux_hostsettings.py` 5 項）；
+  新 `scripts/linux/test-host-shell.sh` 在 Docker 的 Xvfb＋openbox 與 headless labwc 以真 GTK owner 全部通過。
+  上一個提交在 `Test-WindowsPackage.ps1` 加入 StartupTask 檢查時漏改 `tests/test_windows_package.py` 的 fixture，
+  這次補上並加入拒絕案例，10 tests 通過；新包 `Test-WindowsPackage.ps1` 通過。
+- 未驗證：Debian GNOME／Xorg 與 Pi labwc 實際登入時的 autostart。Pi 上需確認 labwc session 會處理 XDG autostart：
+  `cat /etc/xdg/labwc/autostart ~/.config/labwc/autostart`、`pgrep -a 'lxsession|xdg-autostart|dex'`；若不處理，需改寫 labwc autostart。
+  沒有獨立審閱。
+
 ## 2026-10-14 主視窗位置記憶與啟動行為：Windows 與共用介面
 
 使用者指示依 ADR-043／044、SPEC-006 開工，兼顧 Windows、macOS、Linux（含 Debian GNOME／Xorg 與 Pi labwc）；不升版。

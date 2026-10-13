@@ -4,7 +4,13 @@ import ServiceManagement
 /// ADR-043 on macOS: startup behaviour, the main window frame and the SMAppService login item for this data directory.
 /// Nothing here is part of a profile, a backup or Google. Frames are in points with AppKit's bottom-left origin.
 @MainActor final class FleetHostShell {
-    struct Placement: Equatable { var x: Int?, y: Int?, width: Int, height: Int, maximized: Bool }
+    struct Placement: Equatable {
+        var x: Int?
+        var y: Int?
+        var width: Int
+        var height: Int
+        var maximized: Bool
+    }
     struct Area { let x: Int, y: Int, width: Int, height: Int }
     static let preferencesFile = "host-preferences.json", placementFile = "window-placement.json"
     let directory: URL

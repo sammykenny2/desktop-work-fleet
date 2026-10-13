@@ -252,7 +252,7 @@ automatic probe 先確認真 App 的自動檔案能力停用，再以真 IDB jou
 檢查完整 UI、執行中停用、reservation abort、ack 遺失／重啟、CAS、授權暫停及可讀取的 ZIP bytes。
 它不使用原生 OS 自動檔案或 vault，截圖為 `build/automatic-backup-probe.png`。
 輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
-這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；尚未配置 GitHub Actions CI。
+這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；這些瀏覽器 probe 不在 GitHub Actions CI 中，需在本機執行。
 
 既有 Mac 驗證版另在 macOS 執行：
 

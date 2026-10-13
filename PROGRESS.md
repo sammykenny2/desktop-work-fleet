@@ -2,6 +2,16 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 repo 公開與 CI
+
+使用者確認 OAuth client 為「電腦」類型、要求先回報參考專案的問題並移除其名稱與私有骨架 repo 的提及後，以 `gh` 改為 public；
+加入 `ci.yml`（push 到 main 與 pull request），並授權手動跑一次 Apple 建置。
+
+- 第一次 CI：JS／Python 測試與 build、Windows 建置／core probe／未簽章包檢查通過；Linux 的 `test-host-shell.sh` 在 X11 與 labwc 全部通過。
+- `test-desktop-layers.sh` 在 x64 Docker 失敗於 `operate-group`：便箋位置只看到遮罩底色 `(21, 75, 168)`，最上層便箋沒有畫出。
+  以本機 Docker 重跑 `000ea8b`（本批改動之前）同樣失敗，屬於 `11313e9` 之後就存在、只在 Pi 驗證過的問題，原因未查；CI 因此仍為紅燈。
+- Apple 建置：iOS 第一次即通過，macOS 修正後通過（見下一節）。
+
 ## 2026-10-14 主視窗位置記憶與啟動行為：macOS（未編譯）
 
 PLAN-006 Phase 1–3 的 macOS 部分，沿用同一 bridge 與設定頁；不升版。
@@ -13,7 +23,8 @@ PLAN-006 Phase 1–3 的 macOS 部分，沿用同一 bridge 與設定頁；不�
   登入啟動且未選開啟主畫面時留在選單列；顯示前重新驗證、縮放延到第一次顯示；關到選單列、選單列消失時與結束前補寫；
   「關閉主畫面時保留在選單列」關閉後關閉按鈕會保存並結束。`FleetService` 的 `host.info` 加入版本與 `hostPreferences`。
   重新產生 Xcode 專案，`tests/apple-project.test.js` 通過。
-- **這台 Windows 沒有 Xcode：沒有編譯、沒有執行、沒有實機驗證。** 需在 Mac 建置後驗證位置往返、多螢幕、登入項目註冊與
+- 在 Windows 撰寫。repo 公開後以 `apple-native-build.yml`（hosted Xcode 16.4、Debug、未簽章）編譯：第一次只有 `Placement`
+  單行宣告的錯誤，`723e126` 修正後 macOS 與 iOS 都編譯通過。**沒有執行、沒有實機驗證**；需在 Mac 驗證位置往返、多螢幕、登入項目註冊與
   登入啟動判斷（SMAppService 下 Apple event 標記是否可靠未證實；判斷不到時會顯示主畫面），以及從未顯示的主畫面是否照常載入。
   沒有獨立審閱。
 

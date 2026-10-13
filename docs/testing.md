@@ -109,7 +109,8 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 GNOME Wayland 經 XWayland 時只常駐桌布層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層，最上層在調整模式以整個工作區為
 input region、即使該螢幕沒有便箋也顯示並只在出現時 present；GNOME Xorg 提供三層且沒有遮罩，桌面層為一般視窗加 keep below，
 最上層有便箋時可取得焦點；layer-shell 常駐三層，調整模式同樣是遮罩，以整個螢幕為 input region 並以 EXCLUSIVE 取得鍵盤、
-結束後回到 ON_DEMAND；其他 X11 仍只有便箋接收輸入且桌面層為 desktop-type；
+結束後回到 ON_DEMAND；同一 Wayland socket 上有 `pcmanfm --desktop` 時 layer-shell 不提供桌布層，偵測以假 `/proc` 排除
+檔案管理員視窗、其他工作階段與沒有 Wayland 顯示的行程；其他 X11 仍只有便箋接收輸入且桌面層為 desktop-type；
 隱藏的主視窗以原位置、大小與最大化狀態恢復；不代表 GNOME 實機已驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，

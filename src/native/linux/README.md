@@ -50,8 +50,9 @@ layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個
 操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
 layer-shell 的調整模式是遮罩：最上層場景覆蓋整個螢幕（含面板），調整期間以 EXCLUSIVE 鍵盤模式讓 Esc 立即可用，
 不在調整範圍的最上層便箋畫在遮罩下方；主視窗隱藏，結束後恢復大小與最大化狀態，位置由 compositor 決定。
-pcmanfm 把桌布與圖示畫在同一 surface，背景便箋不能插入圖示下方，可能仍顯示在圖示上方；
-設定會說明這項限制。X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存。
+`pcmanfm --desktop` 把桌布與圖示畫在同一 surface，背景便箋只能蓋住圖示，所以偵測到它連在同一個 Wayland 顯示時
+不建立桌布層，桌布偏好回退桌面層；只在啟動時偵測，改用 swaybg（`use_swaybg=1`，沒有桌面圖示）後重新開啟 App 才有桌布層。
+X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存；群組設定寫明不支援的層級與實際顯示的層。
 GNOME Wayland 經 XWayland 時，桌面圖示（DING）以透明 Wayland 視窗蓋住 X11 desktop-type 視窗並接收點擊，
 最上層也會鎖住其他視窗，所以只讓群組常駐桌布層，桌面／最上層偏好明示回退桌布層；調整模式以遮罩覆蓋工作區、
 主視窗隱藏並在結束後回到原位，遮罩上提供堆疊、攤開、復原與完成。GNOME Xorg 沒有這些限制，提供三層：
@@ -105,8 +106,9 @@ GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是
   桌布層便箋可能被桌面蓋住或順序不定。未實測。
 - X11 桌面（KDE X11、Xfce、Cinnamon、MATE、LXQt、LXDE）：只有桌面層與最上層，桌布偏好回退桌面層。
   檔案管理員以 desktop-type 視窗畫圖示，桌面層便箋可能被蓋住而無法點選，與 GNOME 的 DING 類似。未實測。
-- Raspberry Pi OS（labwc、wayfire）：原定主要目標，三層；pcmanfm 把桌布與圖示畫在同一 surface，
-  桌布層便箋可能在圖示上方。調整模式是遮罩，期間面板與其他程式無法點選，所有 layer-shell 桌面相同。
+- Raspberry Pi OS（labwc、wayfire）：原定主要目標。預設的 pcmanfm 桌面把桌布與圖示畫在同一 surface，
+  只有桌面層與最上層，桌布偏好顯示在桌面層；改用 swaybg（沒有桌面圖示）時三層。
+  調整模式是遮罩，期間面板與其他程式無法點選，所有 layer-shell 桌面相同。
   Pi 5 labwc 實機確認調整遮罩移動滑鼠後仍完整；wayfire 與多螢幕尚未驗收。
 - sway、Hyprland 等其他 layer-shell compositor：三層可用但通常沒有桌面圖示；sway 沒有全域快捷鍵 portal，
   系統匣依面板而定。未實測。

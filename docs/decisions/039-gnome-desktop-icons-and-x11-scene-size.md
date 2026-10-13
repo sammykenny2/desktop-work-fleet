@@ -8,6 +8,7 @@ Accepted，2026-10-13。維護者在 Ubuntu 22.04 GNOME 實機回報後選擇此
 同日再修訂：GNOME Xorg 實測沒有這些限制，改用三層；只常駐桌布層與遮罩只用於 GNOME Wayland 工作階段（XWayland）。
 2026-10-14 修訂：維護者在 Raspberry Pi OS labwc 選擇所有 layer-shell 桌面也以遮罩調整，常駐層維持三層，主視窗同樣隱藏。
 同日再修訂：Pi 停用 DMA-BUF renderer 時，滑鼠移過場景就整片消失；Pi 改為保留 DMA-BUF renderer 並使用共享記憶體 buffer。
+同日三修訂：維護者確認 pcmanfm 桌面上桌布層蓋住捷徑後，選擇在該環境不提供桌布層，不把便箋畫進桌布圖片。
 
 ## Context
 
@@ -39,6 +40,12 @@ headless labwc 以合成的 GTK 指標事件重現：只有移入不會消失，
 鍵盤改回 ON_DEMAND 同樣消失，沒有遮罩時滑過常駐最上層便箋也會消失，所以是停用 DMA-BUF renderer 時 WebKit 原有的問題；
 常駐合成圖層、固定游標與停用硬體加速都無效。保留 DMA-BUF renderer 並設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` 時，
 headless 移動滑鼠後畫面完整、移走的便箋沒有殘影；維護者在 Pi 5 實機確認調整模式恢復正常，未回報黑塊、花屏或殘影。
+
+維護者另確認 Pi 5 labwc 的桌布層便箋蓋住桌面捷徑。Raspberry Pi OS 的 `pcmanfm-pi` 在預設設定執行 `pcmanfm --desktop`，
+把桌布圖片與捷徑畫在同一個背景 surface（ADR-031 已記錄）；設定 `use_swaybg=1` 時改由 swaybg 只畫桌布、沒有捷徑。
+桌布層場景只能整個在該 surface 上方（蓋住捷徑）或下方（被不透明的桌布擋住），與桌面層位置相同卻不可互動，沒有用處。
+把便箋畫進桌布圖片再交給 pcmanfm 會改寫使用者的桌布設定、需處理當機與重開機後的還原、各種桌布模式與多螢幕，
+並把便箋內容以明文寫成圖片，維護者選擇不做。
 
 最上層同樣受限。群組設為最上層或進入調整模式後，使用者無法點選其他程式，也無法拖曳或縮放主視窗；
 最上層視窗隱藏或 App 結束後恢復，期間鍵盤仍可輸入其他程式。持續記錄顯示 input shape 只有便箋範圍，沒有 X 獨占或 XDND。
@@ -90,7 +97,10 @@ headless 移動滑鼠後畫面完整、移走的便箋沒有殘影；維護者�
   或 `WEBKIT_DMABUF_RENDERER_FORCE_SHM` 才預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`：保留 DMA-BUF renderer，不使用 V3D 的
   DMA-BUF buffer；其他機器沿用 WebKit 預設，使用者的明確設定仍優先。
 - 群組快捷鍵略過不能常駐的層級，進入調整模式時不改寫常駐層；群組設定停用不能常駐的層級（目前所在層除外），
-  設定頁依實際回退方向說明，快捷鍵說明列出本機實際的循環順序。
+  設定頁依實際回退方向說明，快捷鍵說明列出本機實際的循環順序。不能常駐的層級選項直接寫明目前不支援及會顯示在哪一層。
+- layer-shell 啟動時若同一使用者的 `pcmanfm --desktop` 連到同一個 Wayland socket（`XDG_RUNTIME_DIR` 與 `WAYLAND_DISPLAY`），
+  只建立桌面層與最上層，`wallpaperPlacement` 回報 `unavailable`；桌布偏好依共用投影回退桌面層，原偏好保存。
+  只在啟動時偵測，改用 swaybg 或恢復 pcmanfm 桌面後要重新開啟 App。不提供設定開關，因為這個環境的桌布層沒有可取捨的好處。
 
 ## Consequences
 
@@ -104,6 +114,7 @@ headless 移動滑鼠後畫面完整、移走的便箋沒有殘影；維護者�
 ### Negative
 
 - GNOME 沒有常駐的桌面層與最上層；選字、複製與編輯在調整模式或主畫面進行。
+- pcmanfm 桌面沒有桌布層，便箋無法放在捷徑下方；其他把桌面圖示畫在背景層的 layer-shell 桌面（例如 KDE Plasma）未實測、未偵測。
 - 調整模式中其他程式依設計無法點選；若場景卡住，滑鼠會一直被擋到 App 結束，鍵盤仍可操作其他程式。
   layer-shell 調整期間面板也無法點選，鍵盤由遮罩獨占；場景卡住時滑鼠與鍵盤都要等 App 結束才恢復。
 - 遮罩上的堆疊與攤開不提供調整尺寸選項；需要時從主畫面的對話框操作。

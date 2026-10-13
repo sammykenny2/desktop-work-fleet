@@ -3,6 +3,7 @@ import importlib.util
 import os
 from pathlib import Path
 import sys
+import tempfile
 import types
 import unittest
 from unittest import mock
@@ -79,6 +80,8 @@ class LinuxSurfaceTests(unittest.TestCase):
     def setUp(self):
         self.journal = []
         self.surface = load_surface(self.journal)
+        # The machine running the tests may have its own pcmanfm desktop; each test chooses.
+        self.surface.shared_background = lambda: False
 
     def create(self, layer, environ=OTHER, mode="x11"):
         display = {"id": "display-1", "viewport": dict(VIEWPORT), "monitor": None}
@@ -196,6 +199,45 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.journal.clear()
         view.apply(self.frame("none"))
         self.assertTrue(self.window_calls("hide"))
+
+    def processes(self, *entries):
+        root = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(root))
+        (root / "self").mkdir()
+        for pid, argv, environ in entries:
+            (root / pid).mkdir()
+            (root / pid / "cmdline").write_bytes(b"\0".join(argv) + b"\0")
+            (root / pid / "environ").write_bytes(b"".join(key + b"=" + value + b"\0" for key, value in environ.items()))
+        return root
+
+    def test_pcmanfm_desktop_counts_only_on_this_wayland_display(self):
+        ours = {"XDG_RUNTIME_DIR": "/run/user/1000", "WAYLAND_DISPLAY": "wayland-0"}
+        session = {b"XDG_RUNTIME_DIR": b"/run/user/1000", b"WAYLAND_DISPLAY": b"wayland-0"}
+        desktop = (b"pcmanfm", b"--desktop")
+        self.assertTrue(self.surface.pcmanfm_desktop(ours, self.processes(("2080", desktop, session))))
+        self.assertTrue(self.surface.pcmanfm_desktop(ours, self.processes(("2080", (b"/usr/bin/pcmanfm", b"--desktop"), session))))
+        cases = {
+            "file manager window": self.processes(("2080", (b"pcmanfm", b"/home"), session)),
+            "another session": self.processes(("2080", desktop, {**session, b"XDG_RUNTIME_DIR": b"/tmp/headless"})),
+            "no Wayland display": self.processes(("2080", desktop, {b"XDG_RUNTIME_DIR": b"/run/user/1000"})),
+            "other program": self.processes(("2080", (b"pcmanfm-pi", b"--desktop"), session)),
+            "none": self.processes(),
+        }
+        for name, root in cases.items():
+            with self.subTest(name):
+                self.assertFalse(self.surface.pcmanfm_desktop(ours, root))
+        self.assertFalse(self.surface.pcmanfm_desktop({}, self.processes(("2080", desktop, session))))
+
+    def test_layer_shell_under_pcmanfm_desktop_has_no_wallpaper_layer(self):
+        self.surface.shared_background = lambda: True
+        self.assertEqual(self.surface.layers("wayland-layer-shell"), ("desktop", "floating"))
+        self.assertEqual(self.surface.resident_layers("wayland-layer-shell"), ("desktop", "floating"))
+        self.assertEqual(self.surface.wallpaper_placement("wayland-layer-shell", self.surface.layers("wayland-layer-shell")), "unavailable")
+        self.assertTrue(self.surface.adjust_overlay("wayland-layer-shell"))
+        with self.assertRaises(Exception) as caught:
+            self.create("wallpaper", mode="wayland-layer-shell")
+        self.assertEqual(getattr(caught.exception, "code", None), "desktop-layer")
+        self.assertEqual(self.surface.layers("x11", XORG), ("desktop", "floating", "wallpaper"), "X11 does not look for pcmanfm")
 
     def test_layer_shell_adjust_mode_is_an_overlay_and_papers_keep_every_layer(self):
         for environ in ({"XDG_CURRENT_DESKTOP": "labwc:wlroots", "XDG_SESSION_TYPE": "wayland"}, {"XDG_CURRENT_DESKTOP": "KDE"}, {}):

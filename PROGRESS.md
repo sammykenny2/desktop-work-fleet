@@ -2,6 +2,22 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 pcmanfm 桌面不提供桌布層
+
+使用者在 Pi 5 labwc 回報桌布層便箋蓋住桌面捷徑，要求修正或在此環境停用該層；比較把便箋畫進桌布圖片與停用後選擇停用，
+也不仿照 GNOME 的 XWayland 設定開關。實機大致確認後要求提交；不升版。
+
+- `pcmanfm-pi` 預設執行 `pcmanfm --desktop`，把桌布與捷徑畫在同一個背景 surface；`use_swaybg=1` 時改由 swaybg 只畫桌布、沒有捷徑。
+  畫進桌布圖片需改寫使用者桌布設定、處理當機與重開機還原、桌布模式與多螢幕，且會把便箋內容寫成明文圖片，所以不做。
+- `surface.py` 在 layer-shell 啟動時檢查同一使用者、同一 Wayland socket 的 `pcmanfm --desktop`，有則只建立桌面層與最上層，
+  `wallpaperPlacement` 為 `unavailable`；只在啟動時偵測。群組設定的不支援層級寫明「這台電腦目前不支援，會顯示在…」。
+  ADR-039 修訂，ADR-031、Linux README、setup、testing 與契約註解同步。
+- `tests/test_linux_surface.py` 以假 `/proc` 測偵測（排除檔案管理員視窗、其他工作階段、沒有 Wayland 顯示的行程），
+  並測 pcmanfm 桌面下沒有桌布層；各測試固定偵測結果，不受執行機器影響。Python documented discover 84 tests，9 skip／0 fail；
+  `npm test` 269 pass／10 skip／0 fail；headless labwc probe 仍為三層並全部通過；文件檢查通過。
+- 重裝後 App 的 WebKit 子行程由 4 個變為 3 個，沒有建立桌布層場景。使用者大致確認回退行為，另有待處理的問題；
+  桌布偏好的便箋改在桌面層，仍位於捷徑上方。群組設定文字未在實機截圖確認；沒有獨立審閱。
+
 ## 2026-10-14 Pi 調整遮罩移動滑鼠後消失
 
 裝上 layer-shell 調整遮罩後，使用者在 Pi 5 labwc 回報：遮罩出現後只要移動滑鼠，工具列、校準線與便箋就整片消失，

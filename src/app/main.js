@@ -820,9 +820,12 @@ function groupEditor(group) {
   const layerField = desktop ? element('label', '桌面上的層級', 'field') : null; const layers = element('select');
   const currentLayer = group ? groupLayer(workspace.layout.state, group.id) : 'desktop';
   if (layerField) {
+    // A layer this desktop cannot rest papers on says so and names where they show instead, as the desktop note does.
+    const fallback = stageNames[groupLayerOrder.indexOf(residentLayers().includes('desktop') ? 'desktop' : 'wallpaper')];
     for (const [value, name] of [['wallpaper', '桌布層：在圖示下方，滑鼠穿透'], ['desktop', '桌面層：在圖示上方，可選取文字'], ['floating', '最上層：在所有視窗上方']]) {
-      const option = new Option(name, value);
-      option.disabled = !residentLayers().includes(value) && currentLayer !== value; layers.append(option);
+      const supported = residentLayers().includes(value);
+      const option = new Option(supported ? name : `${name.split('：')[0]}：這台電腦目前不支援，會顯示在${fallback}`, value);
+      option.disabled = !supported && currentLayer !== value; layers.append(option);
     }
     layers.value = currentLayer; layerField.append(layers);
   }

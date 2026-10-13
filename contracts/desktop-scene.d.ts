@@ -36,7 +36,8 @@ export interface DesktopInfo {
   /**
    * Background is a real layer-shell band; icon placement depends on the desktop shell. Desktop-window is an X11
    * desktop-type window that the shell's own icon window covers, as with GNOME's desktop icons; on GNOME Xorg only
-   * once the icons have been clicked and risen.
+   * once the icons have been clicked and risen. Unavailable also covers layer-shell under pcmanfm --desktop, which
+   * draws the wallpaper and the icons on one background surface that papers could only cover.
    */
   wallpaperPlacement?: 'background' | 'desktop-window' | 'unavailable';
   workAreas: (Rect & { id: string; primary: boolean })[];

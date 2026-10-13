@@ -1,6 +1,8 @@
 """GTK input regions and X11/Wayland presentation; all card ordering stays in the renderer."""
+import functools
 import math
 import os
+from pathlib import Path
 import time
 import cairo
 import gi
@@ -36,9 +38,45 @@ def gnome_xwayland(environ=os.environ):
     return gnome_shell(environ) and (environ.get("XDG_SESSION_TYPE") == "wayland" or bool(environ.get("WAYLAND_DISPLAY")))
 
 
+def wayland_socket(environ):
+    display = environ.get("WAYLAND_DISPLAY")
+    return os.path.join(environ.get("XDG_RUNTIME_DIR", ""), display) if display else None
+
+
+def pcmanfm_desktop(environ=os.environ, proc="/proc"):
+    """Whether pcmanfm --desktop of this user draws on our Wayland display, checked against its own socket so that a
+    pcmanfm in another session does not count."""
+    socket = wayland_socket(environ)
+    if socket is None:
+        return False
+    for entry in Path(proc).iterdir():
+        if not entry.name.isdigit():
+            continue
+        try:
+            if entry.stat().st_uid != os.getuid():
+                continue
+            argv = (entry / "cmdline").read_bytes().split(b"\0")
+            if os.path.basename(argv[0]) != b"pcmanfm" or b"--desktop" not in argv[1:]:
+                continue
+            values = dict(item.split(b"=", 1) for item in (entry / "environ").read_bytes().split(b"\0") if b"=" in item)
+        except OSError:
+            continue
+        theirs = {key.decode("utf-8", "replace"): value.decode("utf-8", "replace") for key, value in values.items()}
+        if wayland_socket(theirs) == socket:
+            return True
+    return False
+
+
+@functools.lru_cache(maxsize=None)
+def shared_background():
+    # pcmanfm --desktop draws the wallpaper and the desktop icons on one background surface, so a wallpaper scene can
+    # only cover the icons or hide under the picture. Checked once; switching to swaybg needs a restart of the app.
+    return pcmanfm_desktop()
+
+
 def layers(mode, environ=os.environ):
     if mode == "wayland-layer-shell":
-        return ("desktop", "floating", "wallpaper")
+        return ("desktop", "floating") if shared_background() else ("desktop", "floating", "wallpaper")
     # Under XWayland, GNOME's desktop icons (DING) are a Wayland window above every X11 desktop-type window and take
     # its clicks, so there the bottom window can only be a click-through wallpaper below the icons. On GNOME Xorg the
     # icons are an X11 desktop-type window, so the desktop layer can sit above them and the wallpaper below.

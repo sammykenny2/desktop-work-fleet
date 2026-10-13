@@ -102,7 +102,7 @@ Windows Explorer 環境的桌布層附著到圖示下方。電腦版在群組旁
 主畫面不再鏡像桌面版面；拖拉直接在桌面上進行。右上「版面地圖」目前只是空白預留畫面。
 宿主不可用時會提示暫以桌面層呈現，原偏好保留；分層決策見 [ADR-030](decisions/030-windows-explorer-wallpaper-layer.md)。
 macOS 同一操作入口使用 AppKit 三層；Linux layer-shell 使用三個原生 band。
-pcmanfm 將桌布和圖示畫在同一 surface 時，背景便箋仍可能在圖示上方；X11 的桌布偏好回退。
+pcmanfm 桌面將桌布和圖示畫在同一 surface，便箋無法放在圖示下方，所以不提供桌布層；它與 X11 的桌布偏好都回退桌面層。
 上述範圍、穿透／重畫及原生驗證見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
 調整管理視窗大小不搬動桌面卡片；啟動採當時顯示器工作區。
 Windows 全域快捷鍵依設定啟用；設定內顯示每鍵註冊、衝突或保留狀態，可重試或改鍵。
@@ -267,7 +267,7 @@ GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，桌面便箋�
 之後可在設定的「桌面」頁切換（[ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)），也可直接以 `GDK_BACKEND=x11 work-fleet` 啟動。
 經 XWayland 時群組只常駐桌布層；調整模式以遮罩覆蓋工作區並隱藏主視窗，
 遮罩上有堆疊、攤開、復原與完成（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
-Raspberry Pi OS（labwc）等 layer-shell 桌面保留三層常駐，調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
+Raspberry Pi OS（labwc）等 layer-shell 桌面的常駐層不受遮罩限制（預設 pcmanfm 桌面沒有桌布層），調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
 產生 source/runtime tar.gz；`--deb` 需 Debian 工具，`--release` 另需正式公開設定。隔離 headless Linux compositor
 的原生場景檢查見 testing／PROGRESS，沒有金鑰圈或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
 

@@ -24,6 +24,7 @@ public static class Program
           "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Information);
       var window = new FleetWindow(directory, shell: new HostShell(directory, launchedAtLogin, HostShell.Distribution()));
       instance.Listen(() => window.Dispatcher.BeginInvoke(new Action(window.ShowFromLaunch)));
+      window.Instance = instance;
       application.Run(window);
     }
     catch (Exception error)

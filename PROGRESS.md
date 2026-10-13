@@ -2,6 +2,25 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 App 內更新：Windows
+
+使用者指示依 Windows → Linux → macOS 做更新器，macOS 採 Sparkle（SPEC-006 Q02 定案，與參考專案同樣需要 Developer ID 簽章與公證）；不升版、不發布。
+
+- 共用：公開設定新增 `update`（`WORK_FLEET_UPDATE_REPOSITORY`，預設本 repo；`channel` 目前只有 `preview`），隨 `Config/public.json` 進入各平台。
+  設定＞桌面「版本與更新」顯示狀態與一個主按鈕（檢查更新／下載更新／重新啟動並安裝），以 `update-state` 事件更新進度。
+- Windows：`UpdateFeed`（core）依 `windows-vX.Y.Z` 篩選 GitHub REST releases、預覽頻道含 prerelease、拒絕前置零版號，核對 release 的
+  `work-fleet-update.json` 與 MSIX 身分；`NativeUpdater` 只連 `api.github.com` 與 GitHub release 資產主機、不帶憑證、最多三次轉址、
+  容量上限與串流 SHA-256。安裝前沿用保存並結束流程，再 `RegisterApplicationRestart`、釋放場景／資料／單一實例通道，
+  以 `PackageManager.AddPackageAsync(ForceApplicationShutdown)` 安裝。系統匣在安裝版顯示「檢查更新…」，以原生對話框回答並可直接更新。
+  `Build-WindowsPackage.ps1` 產生 `work-fleet-update.json`，`Test-WindowsPackage.ps1` 核對，`windows-preview.yml` 附在 release。
+- 測試：core probe 29 項更新規則（`tests/fixtures/update-feed.json`，之後 Linux 共用）；`npm test` 270 pass／12 skip／0 fail。
+  新 `Test-WindowsUpdate.ps1` 以 `app.workfleet.updateprobe.e2e` 兩個版本實測：0.1.2 自行下載、核對、保存並關閉後由 Windows 換成 0.1.3，
+  不需要 `packageManagement` 受限能力；測試後移除該套件。`--host-shell`、`--host-check`、`--diagnostics`、`--wallpaper`（重跑）通過。
+- `--formation` 與第一次 `--wallpaper` 失敗於「非啟用場景取得前景」。這次桌面沒有被其他視窗遮住，像素段落才真正執行；
+  在未含更新器的 `b844bbc` 同樣失敗，與更新器無關，是否早於 2026-10-14 的改動仍在比對中。
+- 未驗證：真 GitHub release 的查詢與下載（需升版並發布含 manifest 的版本，須使用者另外授權）；系統匣對話框；
+  執行滿 60 秒後安裝會自動重新開啟（測試在 60 秒內完成）；沒有獨立審閱。
+
 ## 2026-10-14 CI：Linux 桌面層截圖等到預期像素
 
 使用者詢問 CI 紅燈的處理方式；不升版。

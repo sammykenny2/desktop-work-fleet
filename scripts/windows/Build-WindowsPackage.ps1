@@ -25,13 +25,16 @@
     HTTPS RFC3161 timestamp service; required for signing outside LocalTestSign.
 .PARAMETER SdkBin
     Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
+.PARAMETER UpdateSummary
+    Plain-text release summary (at most 500 characters) written into build/work-fleet-update.json, the
+    in-app update manifest (ADR-044) that a GitHub release carries beside the MSIX.
 .EXAMPLE
     .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore
 .EXAMPLE
     .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore -LocalTestSign
 #>
 [CmdletBinding()]
-param([switch]$Release, [switch]$SkipRestore, [string]$CertificateThumbprint, [switch]$LocalTestSign, [string]$TimestampUrl, [string]$SdkBin)
+param([switch]$Release, [switch]$SkipRestore, [string]$CertificateThumbprint, [switch]$LocalTestSign, [string]$TimestampUrl, [string]$SdkBin, [string]$UpdateSummary = '')
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 function Write-Checksum([string]$Path) {
@@ -58,6 +61,7 @@ function Find-SdkTool([string]$Name) {
     }
     throw "Windows SDK $Name is required. Set -SdkBin to its directory."
 }
+if ($UpdateSummary.Length -gt 500) { throw 'UpdateSummary must be at most 500 characters.' }
 if ($LocalTestSign -and $Release) { throw 'LocalTestSign is for preview packages; it cannot be combined with Release.' }
 if ($LocalTestSign -and $TimestampUrl) { throw 'LocalTestSign does not use a timestamp service. Use CertificateThumbprint and TimestampUrl for distribution signing.' }
 if ($CertificateThumbprint -and $CertificateThumbprint -notmatch '^[A-Fa-f0-9]{40}$') { throw 'Invalid certificate thumbprint.' }
@@ -149,15 +153,22 @@ try {
     $PublishedFiles = Get-ChildItem -LiteralPath $Stage -Force | Select-Object -ExpandProperty FullName
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
     Write-Checksum $Msix; Write-Checksum $Zip
+    # ADR-044: the release's update manifest names this exact MSIX by size and SHA-256 for the in-app updater.
+    $UpdateManifest = Join-Path $Work 'work-fleet-update.json'
+    $MsixFile = Get-Item -LiteralPath $Msix
+    $Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $PackageVersion; tag = "windows-v$PackageVersion"; summary = $UpdateSummary
+        assets = @([ordered]@{ arch = 'x64'; name = $MsixFile.Name; size = $MsixFile.Length; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $Msix).Hash.ToLowerInvariant() }) }
+    [IO.File]::WriteAllText($UpdateManifest, ($Update | ConvertTo-Json -Depth 4) + "`n", [Text.UTF8Encoding]::new($false))
     # Only a completely built and signed set replaces the release files in build/.
     $Delivery = Join-Path $ProjectRoot 'build'
-    $Delivered = @($Msix, "$Msix.sha256", $Zip, "$Zip.sha256")
+    $Delivered = @($Msix, "$Msix.sha256", $Zip, "$Zip.sha256", $UpdateManifest)
     if ($LocalTestSign) { $Delivered += $PublicCertificate }
     Move-Item -LiteralPath $Delivered -Destination $Delivery -Force
     $Msix = Join-Path $Delivery (Split-Path -Leaf $Msix); $Zip = Join-Path $Delivery (Split-Path -Leaf $Zip)
     if ($LocalTestSign) { $PublicCertificate = Join-Path $Delivery 'WorkFleet-preview.cer' }
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
+    Write-Output "Update manifest: $(Join-Path $Delivery 'work-fleet-update.json')"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }
     Write-Output 'Includes the .NET 8 Desktop runtime; WebView2 is required separately.'
     if (-not $CertificateThumbprint) { Write-Output 'MSIX is unsigned. Installation needs a trusted signature.' }

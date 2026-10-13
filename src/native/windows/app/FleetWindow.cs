@@ -27,6 +27,11 @@ public sealed class FleetWindow : Window
   private readonly IReadOnlyList<DisplayInfo>? desktopDisplays;
   private readonly HostShell? shell;
   private readonly MainWindowPlacement? placement;
+  private readonly NativeUpdater? updater;
+  private string? installPath;
+  private bool installRequested;
+  /// <summary>The second-launch channel, closed before an update replaces this process.</summary>
+  public SingleInstance? Instance { get; set; }
   // A sign-in launch first shows the window far off-screen so WPF loads it, then hides it once the tray is ready.
   private bool offscreen;
   private Task messageQueue = Task.CompletedTask;
@@ -56,12 +61,13 @@ public sealed class FleetWindow : Window
       WindowStartupLocation = WindowStartupLocation.Manual; placement = new MainWindowPlacement(this, this.dataDirectory);
       if (shell.StartHidden) { offscreen = true; Left = -20000; Top = -20000; ShowInTaskbar = false; ShowActivated = false; }
       if (Application.Current is { } application) application.SessionEnding += (_, _) => placement.Flush();
+      updater = new NativeUpdater(this.dataDirectory, shell.Preferences.LastUpdateCheck, PublishUpdate, shell.RecordUpdateCheck);
     }
     Loaded += async (_, _) =>
     {
       try
       {
-        tray = new NativeTray(TrayAction); tray.Changed += () => { if (!tray.Available) ShowMain(false); };
+        tray = new NativeTray(TrayAction, updater?.Capable == true); tray.Changed += () => { if (!tray.Available) ShowMain(false); };
         tray.MenuActive += active => desktop?.MenuActive(active); await Initialize();
       }
       catch
@@ -85,7 +91,7 @@ public sealed class FleetWindow : Window
       // Saved bounds apply before the first paint; a maximized window maximizes as it is shown.
       if (placement is not null && !offscreen) { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
     };
-    Closed += (_, _) => { placement?.Flush(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   /// <summary>A second launch of Work Fleet shows the running instance's main window.</summary>
   public void ShowFromLaunch() { if (!shuttingDown) ShowMain(true); }
@@ -101,6 +107,7 @@ public sealed class FleetWindow : Window
     }
     placement.Track();
     if (shell is not null) _ = shell.SyncStartup();
+    if (updater?.Probe == true) _ = ProbeUpdate();
   }
   private void ShowMain() => ShowMain(true);
   private void ShowMain(bool activate)
@@ -130,6 +137,7 @@ public sealed class FleetWindow : Window
     if (shuttingDown) return;
     if (action == "show") ShowMain(intent.Current);
     else if (action == "exit") { ShowMain(intent.Current); Close(); }
+    else if (action == "update") _ = TrayUpdate();
     else desktop?.DispatchAction(action, intent);
   }
   private async Task Initialize()
@@ -155,7 +163,7 @@ public sealed class FleetWindow : Window
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
       }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; });
-      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell?.Identity);
+      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true });
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -211,7 +219,8 @@ public sealed class FleetWindow : Window
     try
     {
       using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json));
-      return JsonRules.Text(value.RootElement, "method") is "host.preferences.get" or "host.preferences.set" or "host.preferences.openSystem" or "host.window.resetPlacement";
+      return JsonRules.Text(value.RootElement, "method") is "host.preferences.get" or "host.preferences.set" or "host.preferences.openSystem" or "host.window.resetPlacement"
+        or "update.state" or "update.check" or "update.download" or "update.install";
     }
     catch { return false; }
   }
@@ -233,7 +242,11 @@ public sealed class FleetWindow : Window
           HostError.Require(args.TryGetProperty("value", out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False, "invalid-request", "設定值無效。");
           result = await shell!.Set(JsonRules.Text(args, "name", 32), value.GetBoolean(), tray?.Available == true); break;
         case "host.preferences.openSystem": HostShell.OpenSystemSettings(); break;
-        default: placement!.Reset(); break;
+        case "host.window.resetPlacement": placement!.Reset(); break;
+        case "update.state": result = updater!.Snapshot(); break;
+        case "update.check": _ = updater!.Check(); result = updater.Snapshot(); break;
+        case "update.download": _ = updater!.Download(); result = updater.Snapshot(); break;
+        default: await BeginInstall(); result = updater!.Snapshot(); break;
       }
       reply = JsonSerializer.Serialize(new { v = 1, id, ok = true, result });
     }
@@ -313,7 +326,12 @@ public sealed class FleetWindow : Window
       // Modal OS pickers run on this dispatcher. Never invoke it from a worker holding the session lock.
       var result = IsUiRequest(json) ? session.Dispatch(json) : await Task.Run(() => session.Dispatch(json));
       if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(web.CoreWebView2.Source)) web.CoreWebView2.PostWebMessageAsJson(result);
-      if (session.CloseReady && closeRequested && epoch == navigation) { shuttingDown = true; Close(); }
+      if (session.CloseReady && closeRequested && epoch == navigation) { shuttingDown = true; if (installRequested) _ = Install(); else Close(); }
+      if (session.TakeCloseCancelled() && installRequested)
+      {
+        // The document kept a dialog or an edit open, so nothing closed and the update waits.
+        installRequested = false; updater?.InstallFailed("請先完成或關閉目前的對話框與編輯，再安裝更新。");
+      }
       if (session.TakeResetDone() && epoch == navigation && !shuttingDown)
       {
         var profile = database.ProfileId;
@@ -346,9 +364,88 @@ public sealed class FleetWindow : Window
         closeRequested = true; web.CoreWebView2.PostWebMessageAsJson("{\"v\":1,\"event\":\"host-close-requested\"}");
         return;
       }
-      await messageQueue; shuttingDown = true; Close();
+      await messageQueue; shuttingDown = true;
+      if (installRequested) await Install(); else Close();
     }
     finally { closing = false; }
+  }
+  private void PublishUpdate(object state) => Dispatcher.BeginInvoke(new Action(() =>
+  {
+    tray?.SetTip(updater?.Percent is { } percent ? $"Work Fleet · 下載更新 {percent}%" : null);
+    if (shuttingDown || web.CoreWebView2 is null || !NavigationPolicy.IsDocument(web.CoreWebView2.Source)) return;
+    web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { v = 1, @event = "update-state", state }));
+  }));
+  /// <summary>Verifies the downloaded installer, then saves drafts and closes through the usual close request.</summary>
+  private async Task BeginInstall()
+  {
+    HostError.Require(updater is not null && !shuttingDown && !installRequested, "update-busy", "目前不能安裝更新。");
+    installPath = await updater!.Ready();
+    installRequested = true; updater.Installing();
+    await PrepareClose();
+  }
+  /// <summary>
+  /// After the document saved its drafts: scenes, Explorer, data and the owner lock are released first, then Windows replaces
+  /// the package and ends this process. RegisterApplicationRestart reopens Work Fleet when it had run for at least 60 seconds.
+  /// </summary>
+  private async Task Install()
+  {
+    placement?.Flush();
+    _ = RegisterApplicationRestart(null, 0);
+    Hide();
+    tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose();
+    Instance?.Dispose(); Instance = null;
+    try
+    {
+      var manager = new global::Windows.Management.Deployment.PackageManager();
+      var result = await manager.AddPackageAsync(new Uri(installPath!), null, global::Windows.Management.Deployment.DeploymentOptions.ForceApplicationShutdown);
+      if (result.ExtendedErrorCode is not null && result.ExtendedErrorCode.HResult != 0) throw new InvalidOperationException(result.ErrorText);
+    }
+    catch (Exception error)
+    {
+      if (updater?.Probe == true) { ProbeResult("install_failed: " + error.Message); Application.Current?.Shutdown(); return; }
+      MessageBox.Show("更新沒有完成，Work Fleet 會重新開啟；已保存的資料不受影響。\n\n" + error.Message, "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Warning);
+      try
+      {
+        var family = global::Windows.ApplicationModel.Package.Current.Id.FamilyName;
+        Process.Start(new ProcessStartInfo("explorer.exe", $"shell:AppsFolder\\{family}!WorkFleet") { UseShellExecute = true });
+      }
+      catch { }
+    }
+    Application.Current?.Shutdown();
+  }
+  /// <summary>Test-WindowsUpdate.ps1 only: once the document is ready, the probe identity downloads and installs its update.</summary>
+  private async Task ProbeUpdate()
+  {
+    for (var i = 0; i < 600 && bridge?.Ready != true; i++) await Task.Delay(100);
+    await updater!.Download();
+    if (updater.Status == "downloaded") await BeginInstall();
+    else ProbeResult($"{updater.Status}: {updater.ErrorMessage}");
+  }
+  private void ProbeResult(string text)
+  {
+    try { File.WriteAllText(Path.Combine(dataDirectory, "update-probe-result.txt"), text); } catch { }
+  }
+  /// <summary>The tray asks once: a fresh check, then a native answer; updating saves and restarts like the settings page.</summary>
+  private async Task TrayUpdate()
+  {
+    if (updater is null || shuttingDown) return;
+    await updater.Check();
+    if (updater.Status is "update_available" or "downloaded")
+    {
+      var text = $"有新版本 {updater.PendingVersion}（目前 {HostIdentity.BuildVersion()}）。"
+        + (string.IsNullOrWhiteSpace(updater.PendingSummary) ? "" : "\n\n" + updater.PendingSummary) + "\n\n要現在更新並重新啟動 Work Fleet 嗎？未保存的文字會先保存。";
+      if (MessageBox.Show(text, "Work Fleet 更新", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+      if (updater.Status != "downloaded") await updater.Download();
+      if (updater.Status == "downloaded")
+      {
+        try { await BeginInstall(); }
+        catch (HostError error) { MessageBox.Show(error.Message, "Work Fleet 更新", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        return;
+      }
+    }
+    var upToDate = updater.Status == "up_to_date";
+    MessageBox.Show(upToDate ? $"Work Fleet {HostIdentity.BuildVersion()} 已是最新版本。" : updater.ErrorMessage ?? "更新沒有完成，請稍後再試。",
+      "Work Fleet 更新", MessageBoxButton.OK, upToDate ? MessageBoxImage.Information : MessageBoxImage.Warning);
   }
   private static void OpenExternal(string uri)
   {
@@ -356,4 +453,5 @@ public sealed class FleetWindow : Window
     try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); } catch { }
   }
   [DllImport("user32.dll")] private static extern bool ShowWindow(IntPtr window, int command);
+  [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern int RegisterApplicationRestart(string? commandLine, int flags);
 }

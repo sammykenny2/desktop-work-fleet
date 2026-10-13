@@ -104,7 +104,7 @@
 | D05 | 本機以相同 identity 封裝的預覽包也有更新能力，設定頁標示來源 |
 | D06 | 只做手動檢查；系統匣點擊一律重新檢查，不使用記憶的結果 |
 | D07 | 更新器各平台實作，以共用 JSON fixture 測試 feed 與 manifest 規則 |
-| D08 | 測試 feed 只能在 Debug 組態指定；Release 包驗證不含此路徑 |
+| D08 | 測試 feed 只由 `app.workfleet.updateprobe.*` 套件身分讀取（資料目錄的 `update-probe.txt`），正式身分一律忽略 |
 | D09 | 備份的 `appVersion` 改用 `host.info` 版本，作為同批小修 |
 
 ## Open Questions（Q）

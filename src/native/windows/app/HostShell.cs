@@ -91,6 +91,12 @@ public sealed class HostShell(string directory, bool launchedAtLogin, string dis
     if (name == "startAtLogin") await SyncStartup();
     return await Describe(trayAvailable);
   }
+  /// <summary>Remembers the last update check; losing it only changes the 上次檢查 time shown.</summary>
+  public void RecordUpdateCheck(string time)
+  {
+    var next = Preferences with { LastUpdateCheck = time };
+    try { next.Write(Directory); Preferences = next; } catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+  }
   public static void OpenSystemSettings()
   {
     HostError.Require(StartupSupported, "startup-unavailable", "只有安裝版（MSIX）支援登入時啟動。");

@@ -109,6 +109,7 @@ jobs:
             build/WorkFleet-${{ needs.guard.outputs.version }}-x64.msix
             build/WorkFleet-${{ needs.guard.outputs.version }}-x64.msix.sha256
             build/WorkFleet-preview.cer
+            build/work-fleet-update.json
           if-no-files-found: error
           retention-days: 7
 
@@ -141,10 +142,11 @@ jobs:
           2. 雙擊 \`WorkFleet-${VERSION}-x64.msix\` 安裝。
 
           版號比已安裝的高時直接安裝升級並保留資料；同版號要先解除安裝。
+          從包含 App 內更新的版本開始，可在系統匣或設定＞桌面「版本與更新」直接檢查並更新。
           解除安裝會清除所有套件內本機資料（含草稿、設定與 Google 登入），請先從「資料與備份」匯出 ZIP。
           已匯出的 ZIP 與 Google 雲端資料不受影響；舊 ZIP／Debug 資料需先以原版本匯出，再於 MSIX 匯入。
           Google 登入目前是測試中，只有加入測試使用者的帳號能登入。
           EOF
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
             --title "Work Fleet for Windows $VERSION（預覽）" --notes-file notes.md \
-            "WorkFleet-$VERSION-x64.msix" "WorkFleet-$VERSION-x64.msix.sha256" WorkFleet-preview.cer
+            "WorkFleet-$VERSION-x64.msix" "WorkFleet-$VERSION-x64.msix.sha256" WorkFleet-preview.cer work-fleet-update.json

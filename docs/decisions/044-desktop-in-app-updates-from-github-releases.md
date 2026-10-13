@@ -36,12 +36,13 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
 
 ### 能力閘門
 
-- 打包腳本把 `update-source.json` 放進安裝包：`schemaVersion`、`platform`、`channel`（目前 `preview`）、
-  `repository`（`owner/repo`）與 `tagPrefix`。來源取自公開設定，缺少或無效時只顯示版本。
+- 更新來源放在每個平台都會帶的 `Config/public.json` 的 `update` 區段：`repository`（`owner/repo`，
+  `WORK_FLEET_UPDATE_REPOSITORY`，預設本 repo）與 `channel`（目前只有 `preview`）。無效時只顯示版本。
 - 只有可就地升級的安裝形式有更新能力：Windows MSIX、已用 Developer ID 簽章並公證的 macOS App、以 DEB 安裝的 Linux。
   Windows ZIP／Debug、未簽章 macOS、tar.gz 與原始碼執行只顯示版本與 Releases 頁面連結。
-- 本機以相同 identity 封裝的預覽包也可檢查與更新；設定頁標示來源。開發組態可用 Debug 專用設定指向測試 feed，
-  Release 包不得包含此路徑（比照 ADR-032）。
+- 本機以相同 identity 封裝的預覽包也可檢查與更新；設定頁標示來源。
+- 測試來源：只有套件身分以 `app.workfleet.updateprobe.` 開頭時，資料目錄的 `update-probe.txt` 可指定本機資料夾取代 GitHub，
+  並在啟動後自動下載安裝。Release 程式包含這段判斷，但正式身分一律忽略。不用 Debug 組態，因為安裝必須是已簽章的 MSIX。
 
 ### Feed 與下載
 
@@ -59,6 +60,7 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
 - **Windows（MSIX）**：先從 MSIX 讀取 AppxManifest，核對 Name、Publisher、架構與更高版本。
   使用者按「重新啟動並安裝」後，走既有保存並結束流程：保存草稿、撤下場景並還原 Explorer、關閉資料並釋放 `owner.lock`。
   接著以 `PackageManager.AddPackageAsync` 搭配 `ForceApplicationShutdown` 安裝，並以 `RegisterApplicationRestart` 讓更新後重新開啟。
+  更新自己的套件不需要 `packageManagement` 受限能力（2026-10-14 以測試身分實測）。Windows 只重新開啟執行滿 60 秒的程序。
   簽章與信任由 Windows 檢查，使用與既有預覽包相同的憑證。安裝失敗時重新開啟 App 並顯示錯誤；草稿已先保存。
   不使用預設停用的 `ms-appinstaller` 協定。Publisher 改變（正式憑證或 Store）不能就地更新，另行處理。
 - **macOS**：採用 Sparkle 2（MIT）負責替換 App 與重新開啟，以自訂 user driver 接到本專案的狀態與介面，不使用 Sparkle 內建視窗。

@@ -11,14 +11,15 @@ public sealed class NativeTray : IDisposable
   private readonly Action<string, ForegroundIntent> invoke;
   private readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
   private readonly IntPtr icon;
-  private readonly bool ownsIcon;
+  private readonly bool ownsIcon, updates;
+  private string tip = "Work Fleet · 記錄與桌面便箋";
   private bool disposed;
   public bool Available { get; private set; }
   public event Action? Changed;
   public event Action<bool>? MenuActive;
-  public NativeTray(Action<string, ForegroundIntent> invoke)
+  public NativeTray(Action<string, ForegroundIntent> invoke, bool updates = false)
   {
-    this.invoke = invoke;
+    this.invoke = invoke; this.updates = updates;
     // The executable's embedded icon at notification-area size; the stock application icon only if none is embedded.
     var small = new IntPtr[1];
     ownsIcon = Environment.ProcessPath is { } path && ExtractIconExW(path, 0, null, small, 1) > 0 && small[0] != IntPtr.Zero;
@@ -30,7 +31,13 @@ public sealed class NativeTray : IDisposable
   }
   private NotifyData Data() => new() { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = receiver.Handle, Id = 1,
     Flags = 1 | 2 | 4 | 0x80, Message = Callback, Icon = icon,
-    Tip = "Work Fleet · 記錄與桌面便箋", Info = "", Title = "", Version = 4 };
+    Tip = tip, Info = "", Title = "", Version = 4 };
+  /// <summary>An open menu does not repaint, so update progress shows in the tooltip instead.</summary>
+  public void SetTip(string? text)
+  {
+    tip = string.IsNullOrEmpty(text) ? "Work Fleet · 記錄與桌面便箋" : text.Length > 120 ? text[..120] : text;
+    if (disposed || !Available) return; var value = Data(); _ = Shell_NotifyIconW(1, ref value);
+  }
   private void Add()
   {
     if (disposed) return; var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = Shell_NotifyIconW(0, ref value);
@@ -58,7 +65,8 @@ public sealed class NativeTray : IDisposable
     {
       MenuActive?.Invoke(true);
       var choices = new[] { ("show", "開啟主畫面"), ("@capture", "快速記錄"), ("@all", "調整所有便箋"),
-        ("@stop", "完成調整"), ("@toggle", "顯示／隱藏桌面便箋"), ("@hide", "收起主畫面"), ("exit", "保存並結束 Work Fleet") };
+        ("@stop", "完成調整"), ("@toggle", "顯示／隱藏桌面便箋"), ("@hide", "收起主畫面") }
+        .Concat(updates ? [("update", "檢查更新…")] : Array.Empty<(string, string)>()).Append(("exit", "保存並結束 Work Fleet")).ToArray();
       for (var i = 0; i < choices.Length; i++) if (!AppendMenuW(menu, 0, (UIntPtr)(i + 1), choices[i].Item2)) return;
       var packed = coordinates.ToInt64(); var x = (int)(short)(packed & 0xffff); var y = (int)(short)((packed >> 16) & 0xffff);
       if (x == -1 && y == -1) { _ = GetCursorPos(out var point); x = point.X; y = point.Y; }

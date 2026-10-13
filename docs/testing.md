@@ -429,6 +429,11 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 每個資料目錄的 pipe 喚起既有實例。核心 probe 以 `tests/fixtures/window-placement.json` 驗證與 Linux／macOS 共用的位置規則。
 登入時啟動、隱藏啟動與 StartupTask 只能以安裝後的 MSIX 由使用者登出再登入驗證；混合 DPI 需要真多顯示器。
 
+App 內更新（ADR-044）：core probe 以 `tests/fixtures/update-feed.json` 驗證 release 篩選、版本比較、`work-fleet-update.json` 與 MSIX 身分檢查。
+`Test-WindowsUpdate.ps1` 在 `Build-WindowsPackage.ps1 -LocalTestSign` 之後執行：把 MSIX 改成 `app.workfleet.updateprobe.e2e` 的兩個版本、
+以同一張本機憑證簽章，安裝舊版並給它本機測試來源，確認它自行下載、核對、保存並關閉後由 Windows 換成新版，最後移除測試套件。
+不碰已安裝的 Work Fleet；過程中測試身分的主視窗與空白桌面場景會短暫出現。真 GitHub release 的查詢與下載需等含 manifest 的版本發布後驗證。
+
 開發時以 CDP 檢查 Debug App（使用正式資料目錄；需先關閉已安裝的 App）：
 
 ```powershell

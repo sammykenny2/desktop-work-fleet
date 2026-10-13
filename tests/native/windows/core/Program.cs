@@ -170,5 +170,6 @@ try
   Console.WriteLine($"{coordinator}/{coordinator} native Windows backup coordinator checks passed.");
   var scenes = SceneTransfersProbe.Run(); Console.WriteLine($"{scenes}/{scenes} native Windows scene transfer checks passed.");
   var host = HostSettingsProbe.Run(root); Console.WriteLine($"{host}/{host} native Windows host settings checks passed.");
+  var feed = UpdateFeedProbe.Run(); Console.WriteLine($"{feed}/{feed} native Windows update feed checks passed.");
 }
 catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }

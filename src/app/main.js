@@ -141,6 +141,7 @@ async function initialize() {
   } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
   if (native) {
     native.bridge.onCloseRequested(() => { void prepareNativeClose(); });
+    native.bridge.onEvent('update-state', message => { updateState = message.state; if ($('#settings-dialog').open) renderUpdate(); });
     native.bridge.onEvent('host-background', message => {
       stopAutomatic?.(); void run(async () => {
         await flushDraft(); await automatic?.service.whenIdle();
@@ -1145,7 +1146,8 @@ function renderHostSettings() {
   $('#app-version').textContent = `Work Fleet ${native.info.appVersion}（預覽）`;
   $('#app-distribution').textContent = distributionNames[native.info.distribution] || '';
   $('#close-tray-label').textContent = `關閉主畫面時保留在${trayName()}`;
-  renderHostPreferences();
+  renderHostPreferences(); renderUpdate();
+  if (native.info.capabilities.updates) void native.bridge.request('update.state').then(value => { updateState = value; renderUpdate(); }, error => status(error.message, true));
   void native.bridge.request('host.preferences.get').then(value => { hostPreferences = value; renderHostPreferences(); }, error => status(error.message, true));
 }
 function renderHostPreferences() {
@@ -1165,6 +1167,47 @@ function renderHostPreferences() {
   $('#close-tray').checked = value.closeToTray.enabled; $('#close-tray').disabled = !value.closeToTray.available;
   $('#close-tray-detail').textContent = value.closeToTray.available ? '關閉時，關閉主畫面會保存並結束 Work Fleet。' : `目前沒有${trayName()}，關閉主畫面一律保存並結束。`;
   $('#open-main').checked = value.openMainAtLogin.enabled; $('#open-main').disabled = !value.openMainAtLogin.available;
+}
+// ADR-044: the host owns the update state; the page shows it and offers the one next step.
+let updateState = null;
+const updateActions = { check: ['檢查更新', 'update.check'], download: ['下載更新', 'update.download'], install: ['重新啟動並安裝', 'update.install'] };
+function renderUpdate() {
+  const when = value => value ? new Date(value).toLocaleString('zh-TW', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  const state = updateState; const button = $('#update-action');
+  if (!native?.info.capabilities.updates || !state) {
+    $('#update-status').textContent = 'App 內更新';
+    $('#update-detail').textContent = native?.info.platform === 'windows' ? '只有安裝版（MSIX）支援 App 內更新。' : '這個平台的 App 內更新尚未提供。';
+    button.hidden = true; return;
+  }
+  const checked = state.lastCheckedAt ? `上次檢查：${when(state.lastCheckedAt)}` : '尚未檢查';
+  const percent = state.progress?.total ? Math.floor(state.progress.received * 100 / state.progress.total) : 0;
+  const [label, detail] = {
+    unavailable: ['無法使用 App 內更新', state.reason || ''],
+    idle: ['檢查更新', checked],
+    checking: ['正在檢查更新…', ''],
+    up_to_date: ['已是最新版本', checked],
+    update_available: [`有新版本 ${state.version}`, state.summary || ''],
+    downloading: [`正在下載 ${state.version}…`, `${percent}%`],
+    downloaded: [`${state.version} 已下載`, '重新啟動後安裝；未保存的文字會先保存。'],
+    installing: ['正在保存並安裝…', 'Work Fleet 會關閉，安裝完成後重新開啟。'],
+    failed: ['更新沒有完成', ''],
+  }[state.status] || ['App 內更新', ''];
+  $('#update-status').textContent = label;
+  $('#update-detail').textContent = state.error?.message || detail;
+  $('#update-detail').classList.toggle('error', Boolean(state.error));
+  const action = updateActions[state.nextAction];
+  button.hidden = !action; if (action) button.textContent = action[0];
+}
+function runUpdateAction() {
+  const action = updateActions[updateState?.nextAction]; if (!action) return;
+  return run(async () => {
+    // Installing closes Work Fleet through the usual close, which waits for open dialogs, so settings closes first.
+    if (action[1] === 'update.install') {
+      if (dataPanel?.busy()) throw new Error('備份或還原進行中，完成後再安裝更新。');
+      $('#settings-dialog').close();
+    }
+    updateState = await native.bridge.request(action[1]); renderUpdate();
+  });
 }
 function setHostPreference(name, input) {
   return run(async () => {
@@ -1324,6 +1367,7 @@ function bindEvents() {
   $('#close-tray').onchange = () => setHostPreference('closeToTray', $('#close-tray'));
   $('#open-main').onchange = () => setHostPreference('openMainAtLogin', $('#open-main'));
   $('#start-login-system').onclick = () => run(() => native.bridge.request('host.preferences.openSystem'));
+  $('#update-action').onclick = () => runUpdateAction();
   $('#reset-window').onclick = () => run(async () => { await native.bridge.request('host.window.resetPlacement'); status('主視窗已回到預設大小與位置'); });
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);

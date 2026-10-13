@@ -25,7 +25,9 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   private readonly object gate = new();
   private bool disposed;
   public bool CloseReady { get; private set; }
-  private bool resetDone;
+  private bool resetDone, closeCancelled;
+  /// <summary>True once after the document refused a close request, for example because a dialog was open.</summary>
+  public bool TakeCloseCancelled() { lock (gate) { var value = closeCancelled; closeCancelled = false; return value; } }
   /// <summary>True once after the profile's data was deleted; the host then reopens the document on the empty profile.</summary>
   public bool TakeResetDone() { lock (gate) { var value = resetDone; resetDone = false; return value; } }
   public bool Ready { get; private set; }
@@ -34,7 +36,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
       backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null,
-      hostPreferences = identity?.HostPreferences == true, updates = false } };
+      hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true } };
 
   public string Dispatch(string message)
   {
@@ -81,7 +83,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
       case "host.info": return Info();
       case "host.ready": Ready = true; return null;
       case "host.closeReady": CloseReady = true; return null;
-      case "host.closeCancel": CloseReady = false; return null;
+      case "host.closeCancel": CloseReady = false; closeCancelled = true; return null;
       case "transfer.begin":
       {
         var kind = JsonRules.Text(args, "kind"); var size = (int)JsonRules.Integer(args, "size", WindowsBackupDirectory.MaxBackupBytes);

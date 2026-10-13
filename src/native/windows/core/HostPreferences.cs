@@ -47,7 +47,7 @@ public sealed record HostPreferences(bool StartAtLogin = true, bool CloseToTray 
 }
 
 /// <summary>What host.info reports about this build. The version comes from Directory.Build.props.</summary>
-public sealed record HostIdentity(string AppVersion, string Distribution, bool HostPreferences)
+public sealed record HostIdentity(string AppVersion, string Distribution, bool HostPreferences, bool Updates = false)
 {
   public static HostIdentity Default { get; } = new(BuildVersion(), "unknown", false);
   public static string BuildVersion()

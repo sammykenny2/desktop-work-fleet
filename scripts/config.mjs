@@ -49,6 +49,10 @@ export async function readBuildConfig(root, environment = process.env, { platfor
     }
   }
   if (config.release.supportEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.release.supportEmail)) throw new Error('WORK_FLEET_SUPPORT_EMAIL 格式無效。');
+  // ADR-044: in-app updates read this public repository's GitHub Releases; only the preview channel exists so far.
+  config.update = { repository: value('WORK_FLEET_UPDATE_REPOSITORY') || 'sammykenny2/desktop-work-fleet', channel: value('WORK_FLEET_UPDATE_CHANNEL') || 'preview' };
+  if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/.test(config.update.repository)) throw new Error('WORK_FLEET_UPDATE_REPOSITORY 必須是 owner/repo。');
+  if (config.update.channel !== 'preview') throw new Error('WORK_FLEET_UPDATE_CHANNEL 目前只支援 preview。');
   return config;
 }
 

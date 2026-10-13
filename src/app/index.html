@@ -126,7 +126,10 @@
                 <label class="settings-row"><span class="row-text"><span class="row-label">登入啟動後開啟主畫面</span><span class="row-value" id="open-main-detail">關閉時，登入後只在背景顯示桌面便箋；自己開啟 Work Fleet 時一律顯示主畫面。</span></span><input id="open-main" class="switch" type="checkbox"></label>
               </div>
               <h4 class="settings-heading">版本與更新</h4>
-              <div class="settings-list"><div class="settings-row"><span class="row-text"><span class="row-label" id="app-version">Work Fleet</span><span class="row-value" id="app-distribution"></span></span></div></div>
+              <div class="settings-list">
+                <div class="settings-row"><span class="row-text"><span class="row-label" id="app-version">Work Fleet</span><span class="row-value" id="app-distribution"></span></span></div>
+                <div class="settings-row" id="update-row"><span class="row-text"><span class="row-label" id="update-status"></span><span class="row-value" id="update-detail"></span></span><button type="button" id="update-action" hidden></button></div>
+              </div>
               <section class="reset-section"><h4 class="settings-heading">重置主視窗</h4><p class="hint">主視窗回到預設大小，並置中於主要螢幕。桌面便箋不受影響。</p><button id="reset-window" type="button">重置主視窗大小與位置</button></section>
             </div>
             <section class="reset-section"><h4 class="settings-heading">重置桌面佈局</h4><p class="hint">把便箋放回各自的群組區域，並恢復預設大小與顯示方式。</p><button id="reset-layout" type="button">重置桌面佈局…</button></section>

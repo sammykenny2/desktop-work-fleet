@@ -106,6 +106,11 @@ CI 簽章使用上述 repository secrets 內的 preview 憑證；本機 `-LocalT
 安裝端每台電腦第一次要以系統管理員把 CER 匯入 LocalMachine/TrustedPeople，之後版號較高的 MSIX 可直接安裝升級，同版號要先解除安裝。
 repository 公開後，release 頁面不需登入即可下載。
 
+App 內更新（ADR-044）：`Build-WindowsPackage.ps1` 在 MSIX 旁產生 `build/work-fleet-update.json`（版號、tag、x64 安裝檔名稱、大小與 SHA-256；
+`-UpdateSummary` 可加 500 字內的摘要），`Test-WindowsPackage.ps1` 會核對它與 MSIX 相符，`windows-preview.yml` 把它和 MSIX 一起附在 release。
+已安裝的 MSIX 從設定＞桌面「版本與更新」或系統匣「檢查更新…」查詢 `windows-v<版號>` 的 release，下載、核對後先保存草稿並關閉，
+再由 Windows 安裝；執行滿 60 秒的 App 會在安裝後重新開啟。沒有附 `work-fleet-update.json` 的舊 release 不會被選為更新。
+
 直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
 命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。
 Apple export 使用 `--method app-store-connect|developer-id|debugging|release-testing`；iOS 不接受

@@ -61,6 +61,18 @@ try {
     $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $ExpectedVersion = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
     if ($LASTEXITCODE -ne 0 -or $Manifest.Package.Identity.Version -cne "$ExpectedVersion.0") { throw 'Package version differs from the Windows version record.' }
+    # ADR-044: when the package has its update manifest beside it, the manifest must name exactly this file.
+    $UpdateManifest = Join-Path (Split-Path -Parent $Package) 'work-fleet-update.json'
+    if (Test-Path -LiteralPath $UpdateManifest) {
+        $Update = Get-Content -LiteralPath $UpdateManifest -Raw | ConvertFrom-Json
+        $Asset = @($Update.assets)
+        if ($Update.schemaVersion -ne 1 -or $Update.platform -cne 'windows' -or $Update.version -cne $ExpectedVersion -or $Update.tag -cne "windows-v$ExpectedVersion" -or
+            $Asset.Count -ne 1 -or $Asset[0].arch -cne 'x64' -or $Asset[0].name -cne (Split-Path -Leaf $Package) -or $Asset[0].size -ne (Get-Item -LiteralPath $Package).Length -or
+            $Asset[0].sha256 -cne (Get-FileHash -Algorithm SHA256 -LiteralPath $Package).Hash.ToLowerInvariant()) {
+            throw 'work-fleet-update.json does not describe this package.'
+        }
+        Write-Output 'PASS update manifest matches the package version, size and SHA-256'
+    }
     # ADR-043: one sign-in StartupTask, disabled in the manifest and enabled by the app from its own preference.
     $Startup = @($Manifest.GetElementsByTagName('StartupTask', 'http://schemas.microsoft.com/appx/manifest/uap/windows10/5'))
     if ($Startup.Count -ne 1 -or $Startup[0].TaskId -cne 'WorkFleetStartup' -or $Startup[0].Enabled -cne 'false' -or

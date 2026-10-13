@@ -31,7 +31,8 @@ PLAN-006 Phase 1–3 的 Linux 部分，沿用上一節的 bridge 與設定頁�
   新 `scripts/linux/test-host-shell.sh` 在 Docker 的 Xvfb＋openbox 與 headless labwc 以真 GTK owner 全部通過。
   上一個提交在 `Test-WindowsPackage.ps1` 加入 StartupTask 檢查時漏改 `tests/test_windows_package.py` 的 fixture，
   這次補上並加入拒絕案例，10 tests 通過；新包 `Test-WindowsPackage.ps1` 通過。
-- 未驗證：Debian GNOME／Xorg 與 Pi labwc 實際登入時的 autostart。Pi 上需確認 labwc session 會處理 XDG autostart：
+- 未驗證：Docker probe 不開啟資料（避開 Secret Service），只證明隱藏啟動時主視窗 realize 但不顯示、之後會出現，
+  沒有證明隱藏期間 WebKit 頁面照常載入並啟動桌面便箋。Debian GNOME／Xorg 與 Pi labwc 實際登入時的 autostart。Pi 上需確認 labwc session 會處理 XDG autostart：
   `cat /etc/xdg/labwc/autostart ~/.config/labwc/autostart`、`pgrep -a 'lxsession|xdg-autostart|dex'`；若不處理，需改寫 labwc autostart。
   沒有獨立審閱。
 

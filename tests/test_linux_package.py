@@ -167,6 +167,19 @@ class LinuxPackageTests(unittest.TestCase):
         self.assert_checksum(archive)
         self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
         self.assertFalse(stale.exists())
+        # The launcher prefers the distribution's interpreter over a PATH python3 such as a pyenv shim.
+        launcher = build / "linux/work-fleet-9.8.7/run-work-fleet.sh"
+        self.assertIn("PYTHON=/usr/bin/python3", launcher.read_text(encoding="utf-8"))
+        record = checkout / "interpreter-args.txt"
+        fake = checkout / "fake-python"
+        fake.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{record}"\n', encoding="utf-8")
+        fake.chmod(0o755)
+        run = subprocess.run(["bash", str(launcher), "--data", "/tmp/fleet"], env={**environment, "WORK_FLEET_PYTHON": str(fake)},
+                             capture_output=True, text=True, timeout=10)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        arguments = record.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(arguments[0], str(launcher.parent / "Native/host.py"))
+        self.assertEqual(arguments[-2:], ["--data", "/tmp/fleet"])
         # Release files sit directly in build/, at the same depth as every other platform's.
         self.assertEqual(
             sorted(p.name for p in build.iterdir() if p.is_file()),

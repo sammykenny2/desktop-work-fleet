@@ -27,15 +27,21 @@ if (process.argv.includes('--help')) {
   await writePaperIcon(path.join(destination, 'Icons', `${appId}.png`));
   await writeFile(path.join(destination, 'run-work-fleet.sh'), `#!/bin/bash
 # Launch the packaged native app using the distribution's Python/GI runtime.
+# Uses /usr/bin/python3 when present; WORK_FLEET_PYTHON selects another interpreter with the same GI bindings.
 # Usage: ./run-work-fleet.sh [--help] [--data PATH]
 set -euo pipefail
 usage() { echo 'Usage: ./run-work-fleet.sh [--help] [--data PATH]'; }
 if [[ "\${1:-}" == '--help' ]]; then usage; exit 0; fi
 APP_ROOT="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+# A python3 found on PATH may be a pyenv or virtualenv interpreter without the distribution's GI bindings.
+PYTHON="\${WORK_FLEET_PYTHON:-}"
+if [[ -z "$PYTHON" ]]; then
+  if [[ -x /usr/bin/python3 ]]; then PYTHON=/usr/bin/python3; else PYTHON=python3; fi
+fi
 export PYTHONNOUSERSITE=1
 export PYTHONDONTWRITEBYTECODE=1
 umask 077
-exec python3 "$APP_ROOT/Native/host.py" --assets "$APP_ROOT/Assets" --config "$APP_ROOT/Config/public.json" "$@"
+exec "$PYTHON" "$APP_ROOT/Native/host.py" --assets "$APP_ROOT/Assets" --config "$APP_ROOT/Config/public.json" "$@"
 `, { mode: 0o755 });
   await writeFile(path.join(destination, 'Desktop', `${appId}.desktop`), `[Desktop Entry]
 Type=Application

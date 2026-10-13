@@ -33,7 +33,8 @@ release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件�
 另驗證成功／失敗都清除本次 staging，保留既有輸出。有 Node 22+／npm 與 lockfile 依賴時，
 在含空白路徑的隔離 checkout 改寫 `src/native/linux/VERSION` 後執行完整 `--deb` 建置，
 確認 DEB 與 tar.gz 直接輸出到 `build/` 根目錄、檔名跟隨該版號、`.sha256` 與檔案相符，
-`build/` 沒有其他新檔，且重建 bundle 時清除已不存在的來源檔。
+`build/` 沒有其他新檔，且重建 bundle 時清除已不存在的來源檔；啟動腳本優先使用 `/usr/bin/python3`，
+`WORK_FLEET_PYTHON` 指定的直譯器會收到 host 路徑與原有參數。
 
 `tests/release-versions.test.js` 驗證各平台版號紀錄的讀取與格式、封裝腳本不再寫死版號、
 Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、Windows.Desktop 下限 22000／MaxVersionTested 26200、Apple Info.plist 取自 xcconfig

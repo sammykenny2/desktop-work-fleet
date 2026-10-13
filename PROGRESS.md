@@ -2,6 +2,18 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 Linux 啟動腳本優先使用系統 Python
+
+使用者的終端機 PATH 上 `python3` 是 pyenv 3.15（沒有 GI 繫結），直接執行 `work-fleet` 會失敗；詢問靜態連結後同意改啟動腳本。不升版。
+
+- Linux host 透過 PyGObject 使用發行版的 GTK／WebKitGTK／libsecret，沒有可靜態連結的編譯產物；
+  改為自帶 Python 與 GTK／WebKit runtime 會大幅增加體積並需自行追 WebKit 安全更新，也違背 DEB 使用系統 runtime 的設計。
+- `run-work-fleet.sh` 優先使用 `/usr/bin/python3`（DEB 依賴的直譯器），`WORK_FLEET_PYTHON` 可指定其他直譯器，
+  沒有 `/usr/bin/python3` 的環境才使用 PATH 上的 `python3`。
+- 完整 `--deb` 整合測試執行產生的啟動腳本，確認優先順序與參數傳遞；未修正版本失敗、修正後通過。
+  Python documented discover 66 tests，10 skip／0 fail；`npm test` 269 pass／10 skip／0 fail；文件檢查通過。
+- 重裝後在 PATH 為 pyenv 3.15、未設定 `PYENV_VERSION` 的環境以 `GDK_BACKEND=x11 work-fleet` 啟動，行程為 `/usr/bin/python3.10` 並正常開啟。沒有獨立審閱。
+
 ## 2026-10-13 GNOME 調整模式改為遮罩
 
 GNOME 最上層實測會鎖住其他視窗；使用者定義桌面層與最上層都包含焦點，選擇群組只常駐桌布層，

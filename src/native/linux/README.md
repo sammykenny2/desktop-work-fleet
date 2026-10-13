@@ -15,6 +15,9 @@ bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
+啟動腳本優先使用 `/usr/bin/python3`，避免 PATH 上的 pyenv／virtualenv `python3` 缺少發行版的 GI 繫結；
+需要其他直譯器時以 `WORK_FLEET_PYTHON` 指定，沒有 `/usr/bin/python3` 的環境才使用 PATH 上的 `python3`。
+
 `.env.example` 的 Linux client ID 使用 Google Desktop app 類型。Google 尚未設定時可離線
 記錄；登入以系統瀏覽器 PKCE／state 及臨時 loopback callback，完成或 110 秒逾時即關閉。
 登入後以 HTTPS userinfo sub 建立帳號分區；原生金鑰圈保存 refresh credential，renderer 不讀憑證。

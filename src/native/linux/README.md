@@ -50,9 +50,10 @@ layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個
 操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
 pcmanfm 把桌布與圖示畫在同一 surface，背景便箋不能插入圖示下方，可能仍顯示在圖示上方；
 設定會說明這項限制。X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存。
-GNOME 的桌面圖示（DING）以透明視窗蓋住 X11 desktop-type 視窗並接收點擊，所以 `XDG_CURRENT_DESKTOP`
-含 GNOME 時 X11 只讓群組常駐桌布層，桌面／最上層偏好明示回退桌布層。最上層在 GNOME 會鎖住其他視窗，
-所以只在調整模式出現：遮罩覆蓋工作區、主視窗隱藏並在結束後回到原位，遮罩上提供堆疊、攤開、復原與完成；
+GNOME Wayland 經 XWayland 時，桌面圖示（DING）以透明 Wayland 視窗蓋住 X11 desktop-type 視窗並接收點擊，
+最上層也會鎖住其他視窗，所以只讓群組常駐桌布層，桌面／最上層偏好明示回退桌布層；調整模式以遮罩覆蓋工作區、
+主視窗隱藏並在結束後回到原位，遮罩上提供堆疊、攤開、復原與完成。GNOME Xorg 沒有這些限制，提供三層：
+桌面層用一般視窗加 keep below 穩定位於 DING 上方，桌布層在使用者點過桌面前可能顯示在圖示上方；
 見 [ADR-039](../../../docs/decisions/039-gnome-desktop-icons-and-x11-scene-size.md)。
 GNOME Wayland 沒有 layer-shell，桌面便箋要經 XWayland：首次啟動會詢問，之後可在設定的「桌面」頁切換並重新啟動；
 偏好存在資料目錄的 `display-backend.txt`，使用者自己設定的 `GDK_BACKEND` 優先並讓設定停用（[ADR-040](../../../docs/decisions/040-gnome-wayland-xwayland-choice.md)）。

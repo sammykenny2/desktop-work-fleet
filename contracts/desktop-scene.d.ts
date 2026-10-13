@@ -34,7 +34,8 @@ export interface DesktopInfo {
   adjustOverlay?: boolean;
   /**
    * Background is a real layer-shell band; icon placement depends on the desktop shell. Desktop-window is an X11
-   * desktop-type window that the shell's own icon window covers, as with GNOME's desktop icons.
+   * desktop-type window that the shell's own icon window covers, as with GNOME's desktop icons; on GNOME Xorg only
+   * once the icons have been clicked and risen.
    */
   wallpaperPlacement?: 'background' | 'desktop-window' | 'unavailable';
   workAreas: (Rect & { id: string; primary: boolean })[];

@@ -9,6 +9,9 @@ from unittest import mock
 
 NATIVE = Path(__file__).resolve().parents[1] / "src/native/linux"
 VIEWPORT = {"x": 70, "y": 27, "width": 954, "height": 741}
+XWAYLAND = {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME", "XDG_SESSION_TYPE": "wayland", "WAYLAND_DISPLAY": "wayland-0"}
+XORG = {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME", "XDG_SESSION_TYPE": "x11"}
+OTHER = {"XDG_CURRENT_DESKTOP": "LXDE", "XDG_SESSION_TYPE": "x11"}
 
 
 class Fake:
@@ -77,24 +80,56 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.journal = []
         self.surface = load_surface(self.journal)
 
-    def create(self, layer, desktop=""):
+    def create(self, layer, environ=OTHER):
         display = {"id": "display-1", "viewport": dict(VIEWPORT), "monitor": None}
         web = lambda *_: Fake(self.journal, "web")
-        with mock.patch.dict(os.environ, {"XDG_CURRENT_DESKTOP": desktop}):
+        # The session decides the layers, so the test pins it instead of inheriting the one it runs in.
+        with mock.patch.dict(os.environ, environ, clear=True):
             return self.surface.Surface(display, layer, "assets", web, None, None, None, "x11")
+
+    def type_hints(self):
+        return [args[0]._path.rsplit(".", 1)[1] for args in self.window_calls("set_type_hint")]
 
     def window_calls(self, method):
         return [args for path, args in self.journal if path == f"Gtk.Window().{method}"]
 
-    def test_gnome_x11_offers_wallpaper_and_floating(self):
+    def test_gnome_xwayland_offers_wallpaper_and_floating(self):
         layers = self.surface.layers
         for desktop in ("ubuntu:GNOME", "GNOME", "GNOME-Classic:GNOME", "gnome"):
             with self.subTest(desktop=desktop):
-                self.assertEqual(layers("x11", {"XDG_CURRENT_DESKTOP": desktop}), ("wallpaper", "floating"))
-        for environ in ({"XDG_CURRENT_DESKTOP": "LXDE"}, {"XDG_CURRENT_DESKTOP": "XFCE"}, {}):
+                self.assertEqual(layers("x11", {**XWAYLAND, "XDG_CURRENT_DESKTOP": desktop}), ("wallpaper", "floating"))
+        self.assertEqual(layers("x11", {"XDG_CURRENT_DESKTOP": "GNOME", "WAYLAND_DISPLAY": "wayland-0"}), ("wallpaper", "floating"))
+        for environ in (OTHER, {"XDG_CURRENT_DESKTOP": "XFCE"}, {}):
             with self.subTest(environ=environ):
                 self.assertEqual(layers("x11", environ), ("desktop", "floating"))
-        self.assertEqual(layers("wayland-layer-shell", {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}), ("desktop", "floating", "wallpaper"))
+        self.assertEqual(layers("wayland-layer-shell", XWAYLAND), ("desktop", "floating", "wallpaper"))
+
+    def test_gnome_xorg_offers_all_three_layers_without_the_overlay(self):
+        self.assertEqual(self.surface.layers("x11", XORG), ("desktop", "floating", "wallpaper"))
+        self.assertEqual(self.surface.resident_layers("x11", XORG), ("desktop", "floating", "wallpaper"))
+        self.assertFalse(self.surface.adjust_overlay("x11", XORG))
+        self.assertEqual(self.surface.wallpaper_placement("x11", self.surface.layers("x11", XORG)), "desktop-window")
+
+    def test_gnome_xorg_desktop_layer_is_an_ordinary_window_kept_below(self):
+        expected = {"desktop": ("NORMAL", True, False), "wallpaper": ("DESKTOP", True, False), "floating": ("UTILITY", False, True)}
+        for layer, (hint, below, above) in expected.items():
+            with self.subTest(layer=layer):
+                self.journal.clear()
+                self.assertFalse(self.create(layer, XORG).info()["adjustOverlay"])
+                self.assertEqual(self.type_hints(), [hint])
+                self.assertEqual(self.window_calls("set_keep_below"), [(below,)])
+                self.assertEqual(self.window_calls("set_keep_above"), [(above,)])
+        self.journal.clear()
+        self.create("desktop", OTHER)
+        self.assertEqual(self.type_hints(), ["DESKTOP"], "other X11 desktops keep the desktop-type window")
+
+    def test_gnome_xorg_topmost_scene_takes_focus_with_its_papers(self):
+        view = self.create("floating", XORG)
+        paper = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
+        self.journal.clear()
+        view.apply({"operationScope": {"kind": "group"}, "cards": [paper]})
+        self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)], "no overlay on GNOME Xorg")
+        self.assertEqual(self.window_calls("set_accept_focus"), [(True,)])
 
     def test_wallpaper_placement_names_the_window_kind(self):
         placement = self.surface.wallpaper_placement
@@ -115,33 +150,33 @@ class LinuxSurfaceTests(unittest.TestCase):
         view.set_display({"id": "display-2", "viewport": {"x": 0, "y": 0, "width": 1280, "height": 800}, "monitor": None})
         self.assertEqual(self.window_calls("set_size_request"), [(1280, 800)], "a new display resizes the window")
 
-    def test_gnome_wallpaper_is_a_desktop_window_kept_below(self):
-        self.create("wallpaper", "ubuntu:GNOME")
-        self.assertEqual([args[0]._path for args in self.window_calls("set_type_hint")], ["Gdk.WindowTypeHint.DESKTOP"])
+    def test_gnome_xwayland_wallpaper_is_a_desktop_window_kept_below(self):
+        self.create("wallpaper", XWAYLAND)
+        self.assertEqual(self.type_hints(), ["DESKTOP"])
         self.assertEqual(self.window_calls("set_keep_below"), [(True,)])
         self.assertEqual(self.window_calls("set_keep_above"), [(False,)])
         self.journal.clear()
-        self.create("floating", "ubuntu:GNOME")
-        self.assertEqual([args[0]._path for args in self.window_calls("set_type_hint")], ["Gdk.WindowTypeHint.UTILITY"])
+        self.create("floating", XWAYLAND)
+        self.assertEqual(self.type_hints(), ["UTILITY"])
         self.assertEqual(self.window_calls("set_keep_below"), [(False,)])
         self.assertEqual(self.window_calls("set_keep_above"), [(True,)])
 
-    def test_gnome_adjust_mode_is_an_overlay_and_papers_rest_on_the_wallpaper(self):
-        gnome, other = {"XDG_CURRENT_DESKTOP": "ubuntu:GNOME"}, {"XDG_CURRENT_DESKTOP": "LXDE"}
+    def test_gnome_xwayland_adjust_mode_is_an_overlay_and_papers_rest_on_the_wallpaper(self):
+        gnome, other = XWAYLAND, OTHER
         self.assertTrue(self.surface.adjust_overlay("x11", gnome))
         self.assertFalse(self.surface.adjust_overlay("x11", other))
         self.assertFalse(self.surface.adjust_overlay("wayland-layer-shell", gnome))
         self.assertEqual(self.surface.resident_layers("x11", gnome), ("wallpaper",))
         self.assertEqual(self.surface.resident_layers("x11", other), ("desktop", "floating"))
-        self.assertTrue(self.create("floating", "ubuntu:GNOME").info()["adjustOverlay"])
-        self.assertFalse(self.create("wallpaper", "ubuntu:GNOME").info()["adjustOverlay"])
-        self.assertFalse(self.create("floating", "LXDE").info()["adjustOverlay"])
+        self.assertTrue(self.create("floating", XWAYLAND).info()["adjustOverlay"])
+        self.assertFalse(self.create("wallpaper", XWAYLAND).info()["adjustOverlay"])
+        self.assertFalse(self.create("floating", OTHER).info()["adjustOverlay"])
 
     def frame(self, kind, cards=()):
         return {"operationScope": {"kind": kind}, "cards": list(cards)}
 
-    def test_gnome_overlay_covers_the_work_area_while_adjusting(self):
-        view = self.create("floating", "ubuntu:GNOME")
+    def test_gnome_xwayland_overlay_covers_the_work_area_while_adjusting(self):
+        view = self.create("floating", XWAYLAND)
         self.journal.clear()
         view.apply(self.frame("group"))
         self.assertEqual(view.input_region.rectangles, [(0, 0, VIEWPORT["width"], VIEWPORT["height"])],
@@ -159,7 +194,7 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.assertTrue(self.window_calls("hide"))
 
     def test_other_x11_topmost_scene_keeps_paper_regions_while_adjusting(self):
-        view = self.create("floating", "LXDE")
+        view = self.create("floating", OTHER)
         paper = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
         view.apply(self.frame("group", [paper]))
         self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)])
@@ -183,9 +218,9 @@ class LinuxSurfaceTests(unittest.TestCase):
                 expected = [("move", (296, 234)), ("resize", (715, 518))] + ([("maximize", ())] if maximized else [])
                 self.assertEqual(window.calls, expected)
 
-    def test_gnome_x11_refuses_the_desktop_layer(self):
+    def test_gnome_xwayland_refuses_the_desktop_layer(self):
         with self.assertRaises(Exception) as caught:
-            self.create("desktop", "ubuntu:GNOME")
+            self.create("desktop", XWAYLAND)
         self.assertEqual(getattr(caught.exception, "code", None), "desktop-layer")
 
 

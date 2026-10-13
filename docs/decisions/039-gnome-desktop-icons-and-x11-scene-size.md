@@ -5,6 +5,7 @@
 Accepted，2026-10-13。維護者在 Ubuntu 22.04 GNOME 實機回報後選擇此方案；更新 ADR-031 的 Linux X11 兩層描述。
 同日另更新 ADR-031 的 DMA-BUF 預設：只在 Raspberry Pi／V3D 停用。
 同日修訂：最上層在 GNOME 會鎖住其他視窗，維護者選擇群組只常駐桌布層，調整模式改為覆蓋工作區的遮罩並隱藏主視窗。
+同日再修訂：GNOME Xorg 實測沒有這些限制，改用三層；只常駐桌布層與遮罩只用於 GNOME Wayland 工作階段（XWayland）。
 
 ## Context
 
@@ -43,18 +44,30 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 維護者定義的桌面層與最上層都包含焦點，以便用鍵盤快速複製文字，所以不提供沒有焦點的常駐最上層。
 調整模式既然會讓其他視窗無法點選，就改成明確的模式：遮罩覆蓋工作區、主視窗隱藏、遮罩上提供操作按鈕。
 
+之後在同一台 VM 以 xrdp 的 GNOME Xorg 工作階段（`XDG_SESSION_TYPE=x11`、沒有 `WAYLAND_DISPLAY`）以獨立視窗對照：
+
+- keep-above 視窗取得焦點後，終端機與主視窗仍可點選、拖曳；XWayland 的鎖住不會發生。
+- DING 在 Xorg 是 X11 desktop-type 視窗。desktop-type 測試視窗一開始在 DING 上方可點，但使用者點過桌面後
+  DING 升到它上方，之後點擊都由 DING 接收。
+- 一般視窗加 keep below 位於 Mutter 的 BOTTOM 層，始終在所有 desktop-type 視窗（含 DING）上方、一般視窗下方；
+  點過桌面後仍可點，方框外的桌面圖示照常可用。
+- 對 desktop-type 視窗呼叫 lower 被 Mutter 忽略，啟動時仍在 DING 上方，要等 DING 被點而升起後才在圖示下方。
+
 ## Decision
 
 - 所有 X11 場景視窗與 layer-shell 一樣設定 viewport 的 size request，X11 另保留 `move()`／`resize()`。
 - X11 場景的 viewport 改用螢幕工作區（GDK 讀取 `_NET_WORKAREA`），layer-shell 仍涵蓋整個螢幕，
   讓視窗落在要求的位置，不被視窗管理員移開。
-- `XDG_CURRENT_DESKTOP` 以 `:` 分隔後含 `GNOME`（不分大小寫）且使用 X11 backend 時，Linux host 建立
-  `wallpaper` 與 `floating` 場景，但 `residentLayers` 只有 `wallpaper`。桌布層使用 X11 desktop-type、keep below，
+- `XDG_CURRENT_DESKTOP` 以 `:` 分隔後含 `GNOME`（不分大小寫），且是 GNOME Wayland 工作階段（`XDG_SESSION_TYPE=wayland`
+  或有 `WAYLAND_DISPLAY`）經 X11 backend 時，Linux host 建立 `wallpaper` 與 `floating` 場景，但 `residentLayers` 只有 `wallpaper`。桌布層使用 X11 desktop-type、keep below，
   沿用桌布的空 input region 與拒絕輸入，在 DING 圖示下方且滑鼠穿透。`wallpaperPlacement` 回報 `desktop-window`，
   不冒稱 layer-shell 背景 band。
 - 同一環境回報 `adjustOverlay`。調整模式時每個螢幕的最上層場景都顯示並以整個工作區為 input region，
   畫上約 35% 不透明的深灰遮罩，調整中的便箋在遮罩上方可拖曳；出現時 present 取得焦點，鍵盤可用。
   遮罩上方提供「堆疊、攤開、復原、完成」：堆疊與攤開直接套用到調整中的範圍並保持尺寸，復原同主畫面，完成結束調整模式。
+- GNOME Xorg 工作階段提供桌布、桌面、最上層三層且都可常駐，沒有遮罩，調整模式與其他 X11 相同。
+  桌面層使用一般視窗加 keep below，穩定位於 DING 上方且可選字、取得焦點；桌布層仍是 desktop-type 視窗並滑鼠穿透，
+  啟動後到使用者點過桌面前可能顯示在圖示上方；最上層 keep above 並可取得焦點。其他 X11 桌面維持 desktop-type 桌面層。
 - 調整模式開始後隱藏主視窗，任何方式結束後恢復；隱藏等遮罩畫面發布、恢復等去掉遮罩的畫面發布。
   視窗管理員會重新安排再次顯示的視窗，所以隱藏前記下位置、大小與最大化狀態並在顯示前還原。
   詳細資料、完整編輯器與快速記錄需要主視窗，先結束調整模式。
@@ -89,7 +102,8 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 
 ### Neutral
 
-- 正規 GNOME Xorg 工作階段同樣套用此對應，但未實測；GNOME Flashback 等同樣宣告 `GNOME` 的工作階段也未實測。
+- GNOME Xorg 只在 xrdp 遠端工作階段驗證；本機 Xorg 登入、GNOME Flashback 等同樣宣告 `GNOME` 的工作階段未實測。
+- 其他 X11 桌面的檔案管理員也以 desktop-type 視窗畫圖示，桌面層可能同樣在點過桌面後被蓋住；未實測，暫不改變。
 - GNOME 上最上層鎖住其他視窗的根本原因仍未判定，遮罩是以此行為為前提的設計。
 - 殘影來自共享記憶體 renderer，改用 DMA-BUF 後消失。
 - 非 Pi 的 Linux 改用 DMA-BUF renderer，GPU／驅動相容性只在這台 x86 VM 確認；Pi 以外有相同錯亂的機器可自行設定環境變數。

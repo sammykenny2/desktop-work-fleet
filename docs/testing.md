@@ -104,10 +104,11 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。
 `tests/test_linux_gi_versions.py` 以 `ast` 確認固定 Gtk 3.0 的 Linux 模組在 import Gdk 前也固定 Gdk 3.0，
 避免已安裝 GTK 4 typelib 時先載入 Gdk 4.0 而啟動失敗；不需 GI 或 display。
-`tests/test_linux_surface.py` 以假 GI／cairo 建立 X11 場景，確認 X11 以工作區、layer-shell 以整個螢幕為 viewport，
+`tests/test_linux_surface.py` 以假 GI／cairo 建立 X11 場景並固定測試用的工作階段環境，確認 X11 以工作區、layer-shell 以整個螢幕為 viewport，
 視窗依 viewport 設 size request、換顯示器時更新，
-GNOME 只常駐桌布層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層；GNOME 最上層在調整模式以整個工作區為
-input region、即使該螢幕沒有便箋也顯示並只在出現時 present，其他 X11 仍只有便箋接收輸入；
+GNOME Wayland 經 XWayland 時只常駐桌布層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層，最上層在調整模式以整個工作區為
+input region、即使該螢幕沒有便箋也顯示並只在出現時 present；GNOME Xorg 提供三層且沒有遮罩，桌面層為一般視窗加 keep below，
+最上層有便箋時可取得焦點；其他 X11 仍只有便箋接收輸入且桌面層為 desktop-type；
 隱藏的主視窗以原位置、大小與最大化狀態恢復；不代表 GNOME 實機已驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，

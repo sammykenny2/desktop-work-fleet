@@ -31,18 +31,38 @@ def gnome_shell(environ=os.environ):
     return "GNOME" in environ.get("XDG_CURRENT_DESKTOP", "").upper().split(":")
 
 
+def gnome_xwayland(environ=os.environ):
+    # GDK_BACKEND=x11 in a GNOME Wayland session keeps WAYLAND_DISPLAY; a GNOME Xorg session has neither marker.
+    return gnome_shell(environ) and (environ.get("XDG_SESSION_TYPE") == "wayland" or bool(environ.get("WAYLAND_DISPLAY")))
+
+
 def layers(mode, environ=os.environ):
     if mode == "wayland-layer-shell":
         return ("desktop", "floating", "wallpaper")
-    # GNOME's desktop icons (DING) keep a transparent full-screen window above every X11 desktop-type window and take
-    # its clicks, so there the bottom window can only be a click-through wallpaper below the icons.
-    return ("wallpaper", "floating") if gnome_shell(environ) else ("desktop", "floating")
+    # Under XWayland, GNOME's desktop icons (DING) are a Wayland window above every X11 desktop-type window and take
+    # its clicks, so there the bottom window can only be a click-through wallpaper below the icons. On GNOME Xorg the
+    # icons are an X11 desktop-type window, so the desktop layer can sit above them and the wallpaper below.
+    if mode == "x11" and gnome_xwayland(environ):
+        return ("wallpaper", "floating")
+    if mode == "x11" and gnome_shell(environ):
+        return ("desktop", "floating", "wallpaper")
+    return ("desktop", "floating")
 
 
 def adjust_overlay(mode, environ=os.environ):
     # A keep-above Xwayland scene on GNOME stops clicks reaching every other window, so there adjust mode is an open
-    # modal overlay over the whole work area, and papers only rest on the wallpaper.
-    return mode == "x11" and gnome_shell(environ)
+    # modal overlay over the whole work area, and papers only rest on the wallpaper. GNOME Xorg has no such block.
+    return mode == "x11" and gnome_xwayland(environ)
+
+
+def x11_type_hint(layer, environ=os.environ):
+    if layer == "floating":
+        return "UTILITY"
+    # GNOME Xorg's icon window is desktop-type and rises above its desktop-type siblings when clicked; an ordinary window
+    # kept below sits in Mutter's layer above every desktop-type window, so the desktop layer stays over the icons.
+    if layer == "desktop" and gnome_shell(environ) and not gnome_xwayland(environ):
+        return "NORMAL"
+    return "DESKTOP"
 
 
 def resident_layers(mode, environ=os.environ):
@@ -119,7 +139,7 @@ class Surface:
                 Layer.set_anchor(self.window, edge, True)
             Layer.set_keyboard_mode(self.window, Layer.KeyboardMode.NONE)
         else:
-            self.window.set_type_hint(Gdk.WindowTypeHint.UTILITY if layer == "floating" else Gdk.WindowTypeHint.DESKTOP)
+            self.window.set_type_hint(getattr(Gdk.WindowTypeHint, x11_type_hint(layer)))
             self.window.set_keep_above(layer == "floating")
             self.window.set_keep_below(layer != "floating")
             self.window.stick()

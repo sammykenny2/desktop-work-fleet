@@ -2,6 +2,23 @@
 
 更新：2026-10-13。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-13 GNOME Xorg 改用三層
+
+使用者把 VM 改用 Xorg 登入（xrdp，`DISPLAY=:10.0`、`XDG_SESSION_TYPE=x11`）後同意實測；確認結果後選擇只改 GNOME Xorg，
+其他 X11 桌面不變，並要求先 commit／push。不升版。
+
+- 獨立視窗對照：keep-above 視窗取得焦點後終端機與主視窗仍可操作（XWayland 會鎖住）；DING 在 Xorg 是 X11 desktop-type 視窗，
+  desktop-type 測試視窗在使用者點過桌面後被 DING 蓋住；一般視窗加 keep below 位於 Mutter BOTTOM 層，點過桌面後仍在 DING 上方且可點；
+  對 desktop-type 視窗呼叫 lower 被忽略，啟動時仍在 DING 上方。
+- GNOME 限制（只常駐桌布層、調整遮罩）改為只在 GNOME Wayland 工作階段（`XDG_SESSION_TYPE=wayland` 或有 `WAYLAND_DISPLAY`）套用。
+  GNOME Xorg 提供桌布、桌面、最上層並可常駐：桌面層為一般視窗加 keep below，桌布層為 desktop-type（點過桌面前可能在圖示上方），
+  最上層可取得焦點，調整模式不使用遮罩。ADR-039 再修訂，Linux README 與測試說明同步。
+- `tests/test_linux_surface.py` 改為固定測試的工作階段環境，新增 GNOME Xorg 三層、視窗類型與焦點測試；新測試在舊程式失敗、修正後通過。
+  Python documented discover 77 tests，10 skip／0 fail；`npm test` 269 pass／10 skip／0 fail；文件檢查通過。
+- 重裝後在 Xorg 啟動，行程沒有 `GDK_BACKEND`，建立 UTILITY 最上層、NORMAL 桌面層與 DESKTOP 桌布層視窗；焦點在終端機時
+  `Ctrl+Shift+N／D／0／1` 已被全域登記（未占用的對照鍵為空閒），未實際觸發。各層互動、調整模式、殘影與系統匣由使用者暫緩測試，尚未驗證；
+  xrdp 啟動時 WebKit 有 `libEGL warning: DRI2: failed to authenticate`。本機 Xorg 登入未實測；沒有獨立審閱。
+
 ## 2026-10-13 GNOME Wayland 的 XWayland 選擇
 
 從應用程式選單啟動時以原生 Wayland 執行，沒有桌面便箋；使用者要求設定選項，並在首次啟動偵測環境後以確認對話框建議改用 XWayland。

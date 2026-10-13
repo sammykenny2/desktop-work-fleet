@@ -35,6 +35,7 @@ import AppKit
         for layer in ["wallpaper", "floating", "desktop", "wallpaper"] {
             let surface = FleetSceneSurface(display: "synthetic", viewport: viewport, nativeBounds: bounds, layer: layer, assets: assets)
             surfaces.append(surface)
+            try check(!surface.web.isOpaque, "The full-screen scene web view must not paint an opaque background over the wallpaper")
             let card = FleetSceneFrame.Card(id: "paper", layer: layer, rect: NSRect(x: -280, y: 70, width: 120, height: 80), interactive: false, draggable: false)
             surface.apply(FleetSceneFrame(sequence: 1, topology: 0, cards: [card]))
             try check(surface.panel.isVisible && surface.panel.frame == bounds, "Showing a layer must preserve screen geometry")

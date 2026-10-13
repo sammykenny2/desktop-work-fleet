@@ -38,6 +38,9 @@ import WebKit
         panel = FleetScenePanel(rect: nativeBounds, level: level); panel.ignoresMouseEvents = true
         let config = WKWebViewConfiguration(); config.websiteDataStore = .nonPersistent(); config.preferences.javaScriptCanOpenWindowsAutomatically = false
         web = WKWebView(frame: NSRect(origin: .zero, size: nativeBounds.size), configuration: config); web.underPageBackgroundColor = .clear
+        // WebKit paints an opaque base under transparent pages, which would turn the whole full-screen scene into a solid sheet over the wallpaper.
+        // The guard keeps a WebKit without this setter from raising; the layer probe then fails on isOpaque instead.
+        if web.responds(to: NSSelectorFromString("_setDrawsBackground:")) { web.setValue(false, forKey: "drawsBackground") }
         super.init(); web.autoresizingMask = [.width, .height]; panel.contentView = web; web.navigationDelegate = self; config.userContentController.add(self, name: "workFleet")
         if #available(macOS 13.3, *) { web.isInspectable = false }
     }

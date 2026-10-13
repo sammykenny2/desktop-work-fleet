@@ -2,6 +2,21 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 macOS 加便箋後桌布整片變色
+
+使用者在本機 macOS 27.0.1 安裝 universal 開發簽章 DMG 後回報加一張便箋整個桌布就變色；重裝修正版後確認看似正常，要求 commit／push。不升版。
+
+- 桌面場景是覆蓋整個螢幕的透明 NSPanel，內含 WKWebView；macOS 的 WKWebView 預設在透明頁面下仍畫不透明底色，`underPageBackgroundColor` 不影響。
+  沒有便箋時場景隱藏，出現便箋後整片底色蓋住桌布，圖示在更上層，看起來像桌布變色。Windows 已設 `DefaultBackgroundColor = Transparent`；
+  調整遮罩只在主機回報 `adjustOverlay` 時出現，macOS 不回報，已排除。
+- `FleetSceneSurface` 建立 web view 時關閉 `drawsBackground`；本機 WebKit 只有 `_setDrawsBackground:`，以 `responds(to:)` 保護，缺少時不拋例外。
+  `SceneLayersProbe` 新增 `!web.isOpaque` 檢查，修正前失敗、修正後通過。
+- `scripts/macos/test-desktop-layers.sh` 在本機（修正前的 HEAD 亦同）失敗於「WindowServer must apply the requested level」：probe 的視窗沒有上螢幕，
+  回報 layer 0；暫時移除該項後其餘檢查含新檢查通過。這是既有 probe 問題，尚未修正。`node --test tests/apple-project.test.js` 5／5 通過；
+  `npm test` 268 pass／10 skip／1 fail，失敗的 MSIX 版號測試在 macOS 暫存路徑（`/var` 與 `/private/var`）判定 stage 不在 `build/windows`，
+  修正前的 HEAD 同樣失敗，尚未修正；文件檢查通過。
+- 重建 DMG 後 `hdiutil verify`、唯讀掛載的 `codesign --verify --deep --strict`、主程式與 dylib 雙架構檢查通過；使用者重裝後確認看似正常。沒有獨立審閱。
+
 ## 2026-10-14 layer-shell 調整模式改為遮罩
 
 使用者在 Raspberry Pi 5 的 labwc 要求把 GNOME 的調整遮罩（主視窗隱藏、浮動按鈕）也用於目前桌面；

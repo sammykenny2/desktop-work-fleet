@@ -17,7 +17,7 @@
   新 `Test-WindowsUpdate.ps1` 以 `app.workfleet.updateprobe.e2e` 兩個版本實測：0.1.2 自行下載、核對、保存並關閉後由 Windows 換成 0.1.3，
   不需要 `packageManagement` 受限能力；測試後移除該套件。`--host-shell`、`--host-check`、`--diagnostics`、`--wallpaper`（重跑）通過。
 - `--formation` 與第一次 `--wallpaper` 失敗於「非啟用場景取得前景」。這次桌面沒有被其他視窗遮住，像素段落才真正執行；
-  在未含更新器的 `b844bbc` 同樣失敗，與更新器無關，是否早於 2026-10-14 的改動仍在比對中。
+  在未含更新器的 `b844bbc` 與本日改動之前的 `000ea8b` 都同樣失敗，是既有問題，與本日改動無關；原因未查。
 - 未驗證：真 GitHub release 的查詢與下載（需升版並發布含 manifest 的版本，須使用者另外授權）；系統匣對話框；
   執行滿 60 秒後安裝會自動重新開啟（測試在 60 秒內完成）；沒有獨立審閱。
 

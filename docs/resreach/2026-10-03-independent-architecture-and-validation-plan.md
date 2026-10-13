@@ -9,7 +9,7 @@
 
 建立新 repo 的目的，是讓產品概念與架構從目前需求出發。歷史專案的視窗 label、事件名稱、插件機制、筆記 JSON、排程器及 UI 結構都不是本專案的相容性要求。
 
-本次唯一 scaffold 來源為 project-bootstrap minimal。它提供協作與文件慣例，不提供產品 runtime，也不代表採用了 A2A、MCP 或多 Agent 排程。
+本次唯一 scaffold 來源為維護者專案骨架範本的 minimal。它提供協作與文件慣例，不提供產品 runtime，也不代表採用了 A2A、MCP 或多 Agent 排程。
 
 「獨立實作」不是宣稱已進行法律意義的 clean-room 隔離；本次有參考公開文件與前期技術觀察，沒有大量搬入其他應用的來源內容。
 
@@ -109,7 +109,7 @@ V-01 與 V-03 可分別推進；哪一項先實作由下一個開發任務決定
 
 ## 8. 本次 bootstrap 來源
 
-- 來源：sammykenny2/project-bootstrap。
+- 來源：維護者的專案骨架範本（未公開）。
 - 來源版本：a7438cf81d44519db89d2783dc14b7cfc9e0e851。
 - 技能：skills/bootstrap-project/SKILL.md。
 - 生成器：scripts/windows/Initialize-Project.ps1。

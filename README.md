@@ -104,7 +104,7 @@ scripts/        建置、啟動、探針與維護腳本
 ## 來源與授權
 
 本專案獨立設計，未搬入其他 sticky-note 應用的產品程式碼或資產。
-骨架使用 [project-bootstrap](https://github.com/sammykenny2/project-bootstrap)；來源與範圍見
+骨架使用維護者自己的專案範本（MIT）；來源與範圍見
 [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES.md)。
 初始授權為 [MIT](LICENSE)。未來加入的第三方元件須分別確認授權與各平台散布義務。
 中性稱呼輔助參考資料不取代真正採用元件所需的來源與法律聲明。

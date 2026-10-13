@@ -2,9 +2,9 @@
 
 Updated: 2026-10-10.
 
-## project-bootstrap
+## Project scaffold template
 
-- Source: [sammykenny2/project-bootstrap](https://github.com/sammykenny2/project-bootstrap).
+- Source: the maintainer's own project scaffold template (not published).
 - Revision used: a7438cf81d44519db89d2783dc14b7cfc9e0e851.
 - Composition: templates/base via the minimal preset.
 - Scope: shared agent instructions, agent-specific template files, documentation scaffolds, configuration defaults, and maintenance helper scripts.

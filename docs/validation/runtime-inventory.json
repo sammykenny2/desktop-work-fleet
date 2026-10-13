@@ -5,7 +5,7 @@
   "scope": "macOS app and source-distributed validation server, no store package",
   "thirdPartyRuntimePackages": [],
   "bundledExternalCode": [
-    { "name": "project-bootstrap", "revision": "a7438cf81d44519db89d2783dc14b7cfc9e0e851", "license": "MIT", "scope": "existing scaffold only", "notice": "../../THIRD-PARTY-NOTICES.md" }
+    { "name": "project scaffold template", "revision": "a7438cf81d44519db89d2783dc14b7cfc9e0e851", "license": "MIT", "scope": "existing scaffold only", "notice": "../../THIRD-PARTY-NOTICES.md" }
   ],
   "buildAndTestTools": [
     { "name": "Swift", "versionTested": "6.3.3", "license": "Apache-2.0 WITH Swift-exception", "bundled": false, "source": "https://www.swift.org/LICENSE.txt" },

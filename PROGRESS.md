@@ -595,7 +595,7 @@ Developer ID 簽章及公開隱私／支援設定仍需維護者配置。
 
 ## 2026-10-06 Windows 預覽版由 CI 發布到 GitHub Release
 
-使用者要在另一台 Windows 從 GitHub release 頁面直接下載 MSIX，參考 cats-platform 的手動 preview 發布與升版規則。
+使用者要在另一台 Windows 從 GitHub release 頁面直接下載 MSIX，參考另一個專案的手動 preview 發布與升版規則。
 - 新增手動觸發的 `windows-preview.yml`：guard 解析 `Directory.Build.props` 版號、拒絕已存在的 `windows-v<版號>` tag／release、跑 `npm test`；
   Windows runner 檢查 Google 設定、匯入 preview 憑證、`Build-WindowsPackage.ps1 -LocalTestSign`；成功後才建立 tag 與 prerelease（MSIX、`.sha256`、CER、安裝說明）。
 - 使用者選擇沿用本機 `CN=Work Fleet Preview` 憑證；PFX 以隨機密碼匯出、在本機重新載入確認後，連同 Google client secret 存為 repository secrets，專案 ID 與 client ID 存為 variables。

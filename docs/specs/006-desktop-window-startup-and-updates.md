@@ -14,7 +14,7 @@
 ## Summary
 
 讓 Windows、macOS、Linux 的 Work Fleet 記得主視窗位置與大小，提供「啟動行為」設定，
-並可從系統匣與設定頁檢查、下載及安裝新版。需求來自 Cats 桌面版的使用經驗，但依本產品的原生 host 重新設計。
+並可從系統匣與設定頁檢查、下載及安裝新版。需求來自一個 Electron 桌面參考專案的使用經驗，但依本產品的原生 host 重新設計。
 執行狀態只在 PROGRESS 記錄。
 
 ## Goals
@@ -28,20 +28,20 @@
 - iOS／Android 的版本顯示與更新（由商店處理）、Microsoft Store／Mac App Store 的更新流程。
 - 自動檢查、定期檢查、略過版本與背景自動安裝（見 Q01）。
 - 記住桌面場景視窗或多個主視窗的位置；場景依顯示器重新計算，卡片位置仍屬於 `layout`。
-- 更換 WPF／AppKit／GTK，或搬移 Cats 的 Electron 程式碼、UI 與資料格式。
+- 更換 WPF／AppKit／GTK，或搬移參考專案的 Electron 程式碼、UI 與資料格式。
 - 由 agent 把 repo 改為 public、升版或 dispatch 發布流程。
 
 ## User Requirements（U，2026-10-14 已確認）
 
 | ID | 要求 |
 |---|---|
-| U01 | 記住主視窗位置與大小，參考 Cats 的行為 |
+| U01 | 記住主視窗位置與大小，參考既有桌面專案的行為 |
 | U02 | 系統匣與設定頁提供「檢查更新」 |
-| U03 | 設定＞桌面提供「啟動行為」，參考 Cats 的選項 |
+| U03 | 設定＞桌面提供「啟動行為」，參考既有桌面專案的選項 |
 | U04 | 維護者會把 repo 改為 public；更新從本 repo 的 GitHub Releases 取得 |
 | U05 | Windows、macOS、Linux 都納入 App 內升級；Windows 是 MSIX，不是 NSIS |
 | U06 | 「登入電腦時啟動 Work Fleet」預設開啟 |
-| U07 | 架構不同，不直接搬 Cats 的程式碼；先完成 ADR／SPEC／PLAN |
+| U07 | 架構不同，不直接搬參考專案的程式碼；先完成 ADR／SPEC／PLAN |
 
 ## Functional Requirements
 
@@ -109,7 +109,7 @@
 
 ## Open Questions（Q）
 
-- [ ] Q01：是否加入啟動後自動檢查與間隔，或之後的背景下載（Cats 預設關閉）。
+- [ ] Q01：是否加入啟動後自動檢查與間隔，或之後的背景下載（參考專案預設關閉）。
 - [ ] Q02：macOS 是否採用 Sparkle 2，或改為自寫替換程式。
 - [ ] Q03：Linux 之後是否改提供簽章 APT 套件庫，交給系統更新。
 - [ ] Q04：預覽之外是否要正式頻道；正式頻道是否排除 prerelease。

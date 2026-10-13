@@ -1,7 +1,7 @@
 # Optional A2A Integration
 
 This project does not include a runtime A2A integration by default. Full, versioned
-Agent Card and JSON-RPC/SSE examples are available in project-bootstrap's optional
+Agent Card and JSON-RPC/SSE examples are available in the scaffold template's optional
 `a2a` flavor.
 
 From a separate bootstrap checkout, add them to an existing child with:

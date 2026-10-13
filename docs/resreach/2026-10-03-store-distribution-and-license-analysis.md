@@ -72,7 +72,7 @@ wlr-layer-shell 的協定提供 background、bottom、top、overlay 等 layer；
 
 ## 6. 獨立開發與授權邊界
 
-本專案使用 project-bootstrap 的 minimal 骨架；產品研究文件重新撰寫，沒有帶入其他 sticky-note 應用的程式碼、資產、lockfile、資料格式或平台模組。
+本專案使用維護者專案骨架範本的 minimal 骨架；產品研究文件重新撰寫，沒有帶入其他 sticky-note 應用的程式碼、資產、lockfile、資料格式或平台模組。
 
 目前根目錄採用 bootstrap 的 MIT 授權，保留來源聲明並新增本專案原創部分的聲明。此處的 MIT 不會把後續加入的第三方元件重新授權。
 

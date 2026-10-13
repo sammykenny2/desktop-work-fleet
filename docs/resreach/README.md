@@ -4,7 +4,7 @@
 
 ## 最新設計：優先閱讀
 
-- [主視窗位置、啟動行為與 App 更新參考](2026-10-14-desktop-window-startup-and-update-reference.md)：Cats 桌面版的行為與失敗經驗、本專案現況；建議見 ADR-043／044。
+- [主視窗位置、啟動行為與 App 更新參考](2026-10-14-desktop-window-startup-and-update-reference.md)：Electron 參考專案的行為與設計教訓、本專案現況；建議見 ADR-043／044。
 - [桌面卡片需求演進](2026-10-04-desktop-card-interaction-design.md)：使用者確認、補充與失效方案。
 - [跨平台互動可行性](2026-10-04-desktop-interaction-platform-feasibility.md)：Win／Mac／labwc 的能力、證據及 renderer 限制。
 - [桌面分層成果接續](2026-10-05-desktop-layer-reference-follow-through.md)：已核對的參考原生成果、Pi 修正與本產品驗證分界。

@@ -12,7 +12,7 @@ App 沒有版本顯示，也沒有更新檢查；使用者要自己到 GitHub �
 只有 Windows 以 `windows-v<版號>` prerelease 發布 MSIX、`.sha256` 與 CER；macOS、Linux 目前只有本機建置。
 
 Renderer 被 CSP 與原生政策封閉，不能連外；原生 HTTP 只允許固定 Google 端點並拒絕轉址。
-GitHub 會成為新的網路目的地，隱私說明需要更新。Cats 的 electron-updater、`latest.yml`、NSIS 與 Squirrel.Mac
+GitHub 會成為新的網路目的地，隱私說明需要更新。參考專案的 electron-updater、`latest.yml`、NSIS 與 Squirrel.Mac
 都不能用在 WPF／AppKit／GTK；它的狀態機、能力閘門與失敗經驗可以沿用。
 GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，而且需要轉址。
 

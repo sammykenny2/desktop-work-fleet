@@ -1,23 +1,23 @@
 # 主視窗位置、啟動行為與 App 更新參考
 
-更新：2026-10-14。整理 Cats 桌面版的做法與本專案現況，供 [ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md)、
+更新：2026-10-14。整理一個 Electron 桌面參考專案的做法與本專案現況，供 [ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md)、
 [ADR-044](../decisions/044-desktop-in-app-updates-from-github-releases.md) 與 [SPEC-006](../specs/006-desktop-window-startup-and-updates.md) 使用。
 
 ## 來源與界線
 
-- Cats 桌面版是同一維護者的 Electron 專案（MIT）。只參考行為、限制與失敗經驗；
-  本產品是 WPF／AppKit／GTK 原生 host，不搬移程式碼、UI 或資料格式。本機 checkout 位置不記錄。
-- 2026-10-14 以讀碼取得，沒有建置或執行 Cats；標示「推論」者僅由程式或函式庫文件推得。
+- 參考專案是 Electron 桌面 App（MIT）。只參考行為、限制與設計教訓；
+  本產品是 WPF／AppKit／GTK 原生 host，不搬移程式碼、UI 或資料格式。不記錄它的名稱與本機位置。
+- 2026-10-14 以讀碼取得，沒有建置或執行參考專案；標示「推論」者僅由程式或函式庫文件推得。
 
 ## 使用者需求（2026-10-14）
 
-- 帶入 Cats 的主視窗位置／大小記憶、系統匣與設定頁的「檢查更新」、設定＞桌面＞「啟動行為」。
+- 帶入參考專案的主視窗位置／大小記憶、系統匣與設定頁的「檢查更新」、設定＞桌面＞「啟動行為」。
 - 架構不同，先轉成本專案的 ADR／SPEC／PLAN。
 - 維護者會把本 repo 改為 public，App 從其 GitHub Releases 取得新版。
-- Windows、macOS、Linux 都要 App 內升級；Windows 是 MSIX，不是 Cats 的 NSIS。
+- Windows、macOS、Linux 都要 App 內升級；Windows 是 MSIX，不是 NSIS 安裝程式。
 - 「登入電腦時啟動」預設開啟。
 
-## 外部證據：Cats 桌面版
+## 外部證據：參考專案
 
 ### 主視窗位置與大小
 
@@ -28,7 +28,7 @@
 - 還原時選與保存範圍交集最大的工作區，縮小到可容納並夾回畫面內；與所有顯示器都不相交時改用預設。
   首次為主工作區 85%，限制在 1280×800–1680×1050 並置中；工作區太小則最大化並保留較小的還原尺寸。
 - 最大化延到第一次顯示才套用，避免隱藏啟動時被顯示。只在啟動時驗證，沒有顯示器變更處理。
-- 「重設平台資料」後會刪檔並套用預設位置。有完整單元測試；導入原因是固定尺寸在 1080p／125% 超出工作區。
+- 「重設平台資料」後會刪檔並套用預設位置。導入原因是固定尺寸在 1080p／125% 超出工作區。
 
 ### 檢查更新
 
@@ -39,27 +39,27 @@
 - 能力由 CI 寫入安裝包的建置描述決定，不看環境變數；開發版與本機封裝只顯示版本。
 - 系統匣固定一項「檢查更新…」，點擊後一律重新檢查，再以原生對話框回答；可直接下載並安裝。
   下載進度放在 tooltip。設定＞桌面最上方「App 更新」以單一主按鈕對應 nextAction，結果用 toast。
-- 傳輸是 electron-updater 讀公開 GitHub Releases（Atom feed、`releases/latest` 轉址與 `latest*.yml` 的 sha512）。
-  私有 repo 需把 token 帶到用戶端，Cats 明確不支援。自動檢查預設關閉、沒有略過版本或間隔設定。
+- 傳輸是 electron-updater 讀公開 GitHub Releases（Atom feed、`releases/latest` 轉址與 `latest*.yml` 的 sha512），
+  不支援私有 repo。自動檢查預設關閉、沒有略過版本或間隔設定。
 - 安裝前先停止子程序，失敗則恢復；安裝 watchdog 逾時就結束程序，不猜測狀態。
-  Windows NSIS 的 Authenticode 檢查只在有 publisherName 時執行；macOS 依賴 Squirrel.Mac 同團隊簽章；Linux 以 `pkexec dpkg -i`。
 
 ### 啟動行為
 
 - 三個選項：「登入電腦時啟動」預設開啟、「關閉視窗時保留在系統匣」預設開啟、「登入後自動開啟主視窗」預設關閉。
 - 只有登入啟動、未選擇開啟主視窗、而且系統匣可用時才隱藏主視窗；手動開啟一律顯示，系統匣不可用時也顯示。
 - 登入啟動以 `--launch-at-login` 參數（Windows／Linux）或 macOS 的登入項目旗標判斷。
-- Windows 寫 HKCU Run，macOS 用 SMAppService，Linux 寫 `~/.config/autostart`。每次啟動依偏好重新同步。
 - 單一實例固定開啟；第二次啟動會顯示既有主視窗。
 
-### 已記錄的問題（失敗證據）
+## 設計時要避免的情況
 
-- UI 只顯示儲存的偏好，不讀回作業系統狀態；推論每次啟動的同步會重新啟用使用者在工作管理員停用的項目。
-- 預設開啟使第一次封裝啟動即註冊登入項目，沒有另外詢問。Linux autostart 路徑寫死，未遵守 `XDG_CONFIG_HOME`。
-- 解除安裝不清除 Run 值或 autostart 檔；偏好檔非原子寫入；啟動行為 IPC 未檢查呼叫來源。
-- macOS 無父視窗對話框會開在其他視窗後方；已下載的版本被拒後無法重新檢查。
-- Linux `app.relaunch()` 帶入 NoNewPrivs 導致下一次 pkexec 失敗；安裝 watchdog 曾與 polkit 認證競爭。
-- 未簽章 macOS 版無法自我更新成已簽章版；Windows 尚無正式憑證。
+- 只顯示儲存的偏好、每次啟動都重新註冊登入項目，會蓋掉使用者在系統中的停用，設定頁也與實際不符。
+- autostart 路徑要遵守 `XDG_CONFIG_HOME`，Exec 中的 `%` 要寫成 `%%`。
+- 登入項目同步失敗不應讓 App 無法啟動。
+- 偏好檔要原子寫入，讀不到時不能以空白內容覆蓋其他設定。
+- 會改變系統狀態的 bridge／IPC 要確認呼叫來源。
+- 解除安裝或關閉設定時要清掉自己建立的登入項目。
+- 無父視窗的 macOS 對話框可能開在其他視窗後方；Linux 重新啟動方式可能帶入 NoNewPrivs，使下一次 pkexec 失敗；
+  安裝逾時檢查要避開使用者正在輸入密碼的時間；未簽章版無法自我更新成已簽章版。
 
 ## 本專案現況（2026-10-14 讀碼）
 
@@ -86,6 +86,6 @@
 
 ## 推論與未驗證
 
-- 對應建議見 ADR-043／044 與 SPEC-006；都是 Proposed，不代表已實作或已驗收。
+- 決策見 ADR-043／044 與 SPEC-006；實作與驗收狀態只記 PROGRESS。
 - MSIX StartupTask 的登入啟動判斷、`PackageManager` 自我更新後重新開啟、macOS 登入啟動判斷、
   GitHub release 資產轉址主機、公開 repo 的 Actions 計費都需實作時查證或實測。

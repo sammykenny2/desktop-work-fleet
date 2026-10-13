@@ -11,7 +11,8 @@ OUTPUT="$(cd "$1" && pwd)"
 SCENARIOS="$(realpath "$2")"
 export XDG_RUNTIME_DIR="$(mktemp -d)"
 export WLR_BACKENDS=headless WLR_HEADLESS_OUTPUTS=1 WLR_RENDERER=pixman
-export GDK_BACKEND=wayland LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+# The Raspberry Pi renderer default: WebKit without its DMA-BUF renderer blanks a scene once the pointer moves over it.
+export GDK_BACKEND=wayland LIBGL_ALWAYS_SOFTWARE=1 WEBKIT_DMABUF_RENDERER_FORCE_SHM=1
 # This flag is scoped to the isolated root Docker test, never the product launcher.
 if [[ "$(id -u)" == 0 ]]; then export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1; fi
 labwc --config-dir "$XDG_RUNTIME_DIR" > "$OUTPUT/compositor.log" 2>&1 &

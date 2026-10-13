@@ -14,10 +14,9 @@ from urllib.parse import unquote, urlsplit
 import renderer
 import xwayland
 
-# The shared-memory renderer avoids the Pi/V3D DMA-BUF corruption but leaves stale pixels in transparent scenes
-# elsewhere, so it is only the Pi default; an explicit user setting wins. This must happen before importing WebKit.
-if renderer.disable_dmabuf():
-    os.environ.setdefault("WEBKIT_DISABLE_DMABUF_RENDERER", "1")
+# The Pi keeps WebKit's DMA-BUF renderer on shared-memory buffers; an explicit user setting wins. This must happen
+# before importing WebKit.
+renderer.configure(os.environ)
 # GNOME Wayland shows desktop papers only through XWayland, when the user chose it; GDK reads this at import.
 xwayland.configure(os.environ, xwayland.data_directory(sys.argv[1:], os.environ))
 

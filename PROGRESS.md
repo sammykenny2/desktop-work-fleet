@@ -2,6 +2,23 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 Pi 調整遮罩移動滑鼠後消失
+
+裝上 layer-shell 調整遮罩後，使用者在 Pi 5 labwc 回報：遮罩出現後只要移動滑鼠，工具列、校準線與便箋就整片消失，
+滑鼠仍被擋住，只能按 Esc 離開。上一筆的實機合成檢查沒有移動指標，所以沒有發現。實機確認修正後要求提交；不升版。
+
+- headless labwc 以合成 GTK 指標事件重現：移入不會消失、移動才會；GTK 重畫救不回，強制 WebKit 整頁重畫可恢復。
+  鍵盤改回 ON_DEMAND 仍消失，沒有遮罩時滑過常駐最上層便箋也消失，所以是 Pi 預設停用 DMA-BUF renderer 時 WebKit 原有的問題，
+  遮罩讓整個螢幕都會觸發。常駐合成圖層、固定游標、停用硬體加速都無效；`WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`
+  及完整 DMA-BUF 在 headless 移動滑鼠後畫面完整，移走的便箋也沒有殘影。
+- `renderer.py` 改為 Pi／V3D 在使用者沒有設定任一 renderer 變數時預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`，不再停用 DMA-BUF renderer。
+  重裝後 App 的 WebKit 子行程確認帶此變數；使用者確認調整模式移動滑鼠後恢復正常，未回報黑塊、花屏或殘影。完整 DMA-BUF 未在實機重新驗證。
+- `scripts/linux/test-desktop-layers.sh` 改用 Pi 預設的 renderer；probe 在調整此組後送出合成指標移入／移動並確認便箋與遮罩仍在，
+  這項檢查在停用 DMA-BUF renderer 時失敗。`tests/test_linux_renderer.py` 改測新預設與使用者設定優先。
+  Pi 上以系統 Python 執行 headless probe 四次：建置後第一次在調整此組時便箋尚未畫出就截圖而失敗，其後三次全部通過。
+  Python documented discover 82 tests，9 skip／0 fail；`npm test` 269 pass／10 skip／0 fail；文件檢查通過。ADR-039 與 Linux README、testing 同步。
+- 使用者另回報桌布層便箋蓋住桌面捷徑；這是 ADR-031 已記錄的 pcmanfm 限制（桌布與圖示同一 surface），本次未變更。沒有獨立審閱。
+
 ## 2026-10-14 macOS 上兩項既有測試失敗
 
 使用者要求處理上一節記錄的兩項既有失敗。只改測試與文件，不改產品程式，不升版。

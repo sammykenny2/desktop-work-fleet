@@ -68,6 +68,20 @@ def snapshot(view, path):
     check(any(data[index] > 200 for index in range(3, len(data), 4)), "WebKit produced a blank/transparent paper")
 
 
+def pointer_motion(view):
+    # Pointer motion over a scene used to blank it under WebKit without the DMA-BUF renderer, the old Pi default.
+    web, seat = view.local.web, Gdk.Display.get_default().get_default_seat()
+    for index in range(21):
+        event = Gdk.Event.new(Gdk.EventType.ENTER_NOTIFY if index == 0 else Gdk.EventType.MOTION_NOTIFY)
+        event.set_device(seat.get_pointer())
+        event.window = web.get_window()
+        event.x, event.y = 900.0 + index * 10, 500.0 + index * 5
+        event.time = Gtk.get_current_event_time()
+        web.event(event)
+        start = time.monotonic()
+        spin(lambda: time.monotonic() - start > 0.03)
+
+
 def compositor_image(path):
     start = time.monotonic()
     spin(lambda: time.monotonic() - start > 0.2)
@@ -153,6 +167,12 @@ def main():
                 blue = pixel_at(image, image.get_width() - 40, image.get_height() - 40)[2]
                 adjusting = scenario["frame"]["operationScope"]["kind"] != "none"
                 check(blue < 150 if adjusting else abs(blue - 168) < 5, "Wrong adjust overlay tint: " + scenario["name"] + str(blue))
+            if scenario["name"] == "operate-group":
+                pointer_motion(views["floating"])
+                after = compositor_image(output / "operate-group-pointer-compositor.png")
+                corner = (image.get_width() - 40, image.get_height() - 40)
+                before, now = color_at(image, primary) + pixel_at(image, *corner), color_at(after, primary) + pixel_at(after, *corner)
+                check(all(abs(a - b) < 5 for a, b in zip(before, now)), "Pointer motion blanked the adjust overlay: " + str(now))
             print("PASS native scene " + scenario["name"], flush=True)
         ids = [view.id for view in desktop.views]
         desktop.refresh_displays()

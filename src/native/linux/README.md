@@ -66,8 +66,8 @@ Wayland 使用 GtkLayerShell 支援的 compositor。
 不支援 layer-shell 時回報原因，仍可在主畫面記錄。卡片外與不可互動的紙面不攔截桌面輸入。
 輸入區域設於 GTK widget 並 queue draw，避免重新配置後失去穿透；明確設 viewport size request。
 map／configure／frame 後合併完整重畫，避免透明 WebKit 的局部殘留。只有 Raspberry Pi（device-tree model）或
-載入 V3D 驅動時，使用者未指定才預設 `WEBKIT_DISABLE_DMABUF_RENDERER=1`，接續 Pi／V3D 已知修正；
-其他機器沿用 WebKit 預設，因為共享記憶體 renderer 會在移走的便箋原處留下殘影。
+載入 V3D 驅動時，使用者未指定才預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`，避開 Pi／V3D 已知的 DMA-BUF 錯亂；
+不改用停用 DMA-BUF renderer，因為那樣滑鼠移過場景就會整片消失，在其他機器也會在移走的便箋原處留下殘影。
 顯示器／工作區／休眠變更先停止場景輸入，保存草稿後由主畫面套用新版面，保留原 WebView。
 X11 快捷鍵使用 Keybinder 3 的 raw 比對（預設的 cooked 比對會讓 Ctrl+Shift 加字母／數字只被攔截而不觸發）；否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
 系統可改配按鍵，設定顯示實際 trigger description。App 焦點／對話框期間釋放全域註冊；
@@ -107,7 +107,7 @@ GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是
   檔案管理員以 desktop-type 視窗畫圖示，桌面層便箋可能被蓋住而無法點選，與 GNOME 的 DING 類似。未實測。
 - Raspberry Pi OS（labwc、wayfire）：原定主要目標，三層；pcmanfm 把桌布與圖示畫在同一 surface，
   桌布層便箋可能在圖示上方。調整模式是遮罩，期間面板與其他程式無法點選，所有 layer-shell 桌面相同。
-  Pi 5 labwc 只以合成場景確認遮罩、工具列在面板上方及 Esc 不需先點；完整 App 流程與 wayfire 尚未驗收。
+  Pi 5 labwc 實機確認調整遮罩移動滑鼠後仍完整；wayfire 與多螢幕尚未驗收。
 - sway、Hyprland 等其他 layer-shell compositor：三層可用但通常沒有桌面圖示；sway 沒有全域快捷鍵 portal，
   系統匣依面板而定。未實測。
 - 不支援 layer-shell 的其他 Wayland 桌面：沒有桌面便箋；XWayland 選項只在 GNOME 提供，其他桌面需自行設定 `GDK_BACKEND=x11`。

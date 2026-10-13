@@ -116,8 +116,8 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；
 遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。headless labwc probe 檢查遮罩染色；
 工具列與主視窗隱藏／恢復只有實機驗證。
-`tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設停用 DMA-BUF，
-且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
+`tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設 DMA-BUF renderer 的共享記憶體 buffer、
+使用者設定任一 renderer 變數時不覆寫，且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
 `tests/test_linux_shortcuts.py` 以假 Keybinder 確認 X11 先關閉 cooked 比對再登記，Ctrl+Shift 組合觸發動作、主視窗取得焦點時釋放；
 不代表實際按鍵已驗收。
 `tests/test_linux_xwayland.py` 驗證 GNOME Wayland 偵測、偏好檔的權限與原子寫入、GTK 前依選擇設定 `GDK_BACKEND`、
@@ -145,7 +145,9 @@ docker run --rm --network none \
 
 投影來自實際共用 Workspace／InteractionController；native owner 分片發布並由真正 WebKit renderer
 接收、確認、畫出。涵蓋 wallpaper→調整此組 floating→完成後還原、常駐 desktop／floating、
-反覆隱藏／顯示與 topology 重用；調整此組時確認最上層整個畫面接收輸入、鍵盤為 EXCLUSIVE，便箋外的畫面被遮罩染色。
+反覆隱藏／顯示與 topology 重用；調整此組時確認最上層整個畫面接收輸入、鍵盤為 EXCLUSIVE，便箋外的畫面被遮罩染色，
+並對最上層送出合成的指標移入／移動事件後確認便箋與遮罩仍在。場景使用 Pi 預設的 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`；
+停用 DMA-BUF renderer 時這項檢查會失敗。
 輸出合成畫面 PNG、版本與 Wayland trace；trace 檢查接受新舊 libwayland 的物件編號格式。
 已安裝 labwc、grim 與 GTK／WebKit 繫結的 Linux（如 Raspberry Pi OS）也可不用 Docker，以系統 Python 直接執行：
 `PATH=/usr/bin:$PATH dbus-run-session -- bash scripts/linux/test-desktop-layers.sh OUTPUT OUTPUT/scenarios.json`。

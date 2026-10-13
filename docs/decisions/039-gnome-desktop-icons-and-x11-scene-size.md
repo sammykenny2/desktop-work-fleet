@@ -7,6 +7,7 @@ Accepted，2026-10-13。維護者在 Ubuntu 22.04 GNOME 實機回報後選擇此
 同日修訂：最上層在 GNOME 會鎖住其他視窗，維護者選擇群組只常駐桌布層，調整模式改為覆蓋工作區的遮罩並隱藏主視窗。
 同日再修訂：GNOME Xorg 實測沒有這些限制，改用三層；只常駐桌布層與遮罩只用於 GNOME Wayland 工作階段（XWayland）。
 2026-10-14 修訂：維護者在 Raspberry Pi OS labwc 選擇所有 layer-shell 桌面也以遮罩調整，常駐層維持三層，主視窗同樣隱藏。
+同日再修訂：Pi 停用 DMA-BUF renderer 時，滑鼠移過場景就整片消失；Pi 改為保留 DMA-BUF renderer 並使用共享記憶體 buffer。
 
 ## Context
 
@@ -32,6 +33,12 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 獨立的透明 WebKit 視窗移動一張便箋即可重現：`WEBKIT_DISABLE_DMABUF_RENDERER=1`（ADR-031 的 Linux 預設）時舊位置留下殘影，
 在視窗或 WebView 的 draw 先清成透明也無效；不設定或設為 `0` 改用 DMA-BUF renderer 時沒有殘影。
 維護者以 `WEBKIT_DISABLE_DMABUF_RENDERER=0` 啟動 App 後確認殘影消失。這台 x86 VM 沒有 Pi 的 device-tree model 或 V3D 驅動。
+
+Pi 5 labwc 改用調整遮罩後，維護者回報遮罩出現後只要移動滑鼠，工具列、校準線與便箋就整片消失，但滑鼠仍被擋住、Esc 仍有效。
+headless labwc 以合成的 GTK 指標事件重現：只有移入不會消失，移動才會；GTK 重畫救不回，強制 WebKit 整頁重畫可恢復。
+鍵盤改回 ON_DEMAND 同樣消失，沒有遮罩時滑過常駐最上層便箋也會消失，所以是停用 DMA-BUF renderer 時 WebKit 原有的問題；
+常駐合成圖層、固定游標與停用硬體加速都無效。保留 DMA-BUF renderer 並設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` 時，
+headless 移動滑鼠後畫面完整、移走的便箋沒有殘影；維護者在 Pi 5 實機確認調整模式恢復正常，未回報黑塊、花屏或殘影。
 
 最上層同樣受限。群組設為最上層或進入調整模式後，使用者無法點選其他程式，也無法拖曳或縮放主視窗；
 最上層視窗隱藏或 App 結束後恢復，期間鍵盤仍可輸入其他程式。持續記錄顯示 input shape 只有便箋範圍，沒有 X 獨占或 XDND。
@@ -79,8 +86,9 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 - 共用投影區分場景層 `layers` 與常駐層 `residentLayers`（預設相同）。常駐便箋要求的層不能常駐時，
   改放桌面層或桌布層並列入 `fallbacks`；調整中的便箋可用任何場景。落在桌布層的便箋一律不可互動、拖曳或編輯。
   保存的群組偏好不改寫，回到支援的環境即恢復。
-- 只有 `/proc/device-tree/model` 含 Raspberry Pi 或存在 `/sys/module/v3d` 時，使用者未指定才預設
-  `WEBKIT_DISABLE_DMABUF_RENDERER=1`；其他機器沿用 WebKit 預設，使用者的明確設定仍優先。
+- 只有 `/proc/device-tree/model` 含 Raspberry Pi 或存在 `/sys/module/v3d` 時，使用者沒有設定 `WEBKIT_DISABLE_DMABUF_RENDERER`
+  或 `WEBKIT_DMABUF_RENDERER_FORCE_SHM` 才預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`：保留 DMA-BUF renderer，不使用 V3D 的
+  DMA-BUF buffer；其他機器沿用 WebKit 預設，使用者的明確設定仍優先。
 - 群組快捷鍵略過不能常駐的層級，進入調整模式時不改寫常駐層；群組設定停用不能常駐的層級（目前所在層除外），
   設定頁依實際回退方向說明，快捷鍵說明列出本機實際的循環順序。
 
@@ -114,6 +122,8 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 - 殘影來自共享記憶體 renderer，改用 DMA-BUF 後消失。
 - layer-shell 遮罩只在 Raspberry Pi 5 的 labwc 實機確認；wayfire、sway、KDE Plasma Wayland 等其他 compositor 未實測。
 - 非 Pi 的 Linux 改用 DMA-BUF renderer，GPU／驅動相容性只在這台 x86 VM 確認；Pi 以外有相同錯亂的機器可自行設定環境變數。
+- Pi 的共享記憶體 buffer 只在一台 Pi 5（WebKitGTK 2.54）短時間使用確認；Pi 4、wayfire 與長時間使用未實測。
+  原本停用 DMA-BUF 所依據的 V3D 錯亂來自參考專案的回報，這次沒有以完整 DMA-BUF 重新驗證。
 
 ## Alternatives Considered
 

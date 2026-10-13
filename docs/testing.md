@@ -177,7 +177,9 @@ Xvfb＋openbox（X11）驗證預設大小、移動／最大化／最小化／還
 接收、確認、畫出。涵蓋 wallpaper→調整此組 floating→完成後還原、常駐 desktop／floating、
 反覆隱藏／顯示與 topology 重用；調整此組時確認最上層整個畫面接收輸入、鍵盤為 EXCLUSIVE，便箋外的畫面被遮罩染色，
 並對最上層送出合成的指標移入／移動事件後確認便箋與遮罩仍在。場景使用 Pi 預設的 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`；
-停用 DMA-BUF renderer 時這項檢查會失敗。
+停用 DMA-BUF renderer 時這項檢查在 Pi 會失敗，x64 Docker 則仍通過，所以 CI 擋不住這個回歸。
+合成畫面截圖會等到預期像素出現（最多 10 秒）、再截一次才檢查：軟體 GL 下新顯示場景的第一個畫面較晚到達 compositor
+（x64 Docker 的桌布層約 0.4 秒、調整遮罩約 1.6 秒），固定等 0.2 秒會失敗。
 輸出合成畫面 PNG、版本與 Wayland trace；trace 檢查接受新舊 libwayland 的物件編號格式。
 已安裝 labwc、grim 與 GTK／WebKit 繫結的 Linux（如 Raspberry Pi OS）也可不用 Docker，以系統 Python 直接執行：
 `PATH=/usr/bin:$PATH dbus-run-session -- bash scripts/linux/test-desktop-layers.sh OUTPUT OUTPUT/scenarios.json`。

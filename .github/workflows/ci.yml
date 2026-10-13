@@ -72,6 +72,11 @@ jobs:
             --mount "type=bind,source=$PWD,target=/workspace,readonly" \
             --mount "type=bind,source=$PWD/build/linux-host-checks,target=/evidence" \
             work-fleet-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
+      # The containers run as root and the host check makes private 0700 data and XDG config folders, which the
+      # runner user could not read for the upload.
+      - name: Let the runner read the evidence
+        if: failure()
+        run: sudo chmod -R a+rX build/linux-layer-checks build/linux-host-checks
       - if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

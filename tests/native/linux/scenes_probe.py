@@ -82,16 +82,30 @@ def pointer_motion(view):
         spin(lambda: time.monotonic() - start > 0.03)
 
 
-def compositor_image(path):
+def capture(path):
     start = time.monotonic()
     spin(lambda: time.monotonic() - start > 0.2)
     subprocess.run(["grim", str(path)], check=True)
     return cairo.ImageSurface.create_from_png(str(path))
 
 
+def compositor_image(path, settled=lambda _image: True, seconds=10):
+    # Under software GL the first frame of a newly shown scene reaches the compositor late (x64 Docker: about 0.4 s for
+    # the wallpaper, 1.6 s for the adjust overlay), so wait for the expected pixels instead of a fixed delay. The
+    # checks run on one more capture, so a passing frame must stay; after the deadline they report the actual pixels.
+    end = time.monotonic() + seconds
+    while not settled(capture(path)) and time.monotonic() < end:
+        pass
+    return capture(path)
+
+
 def color_at(image, card):
     rect = card["rect"]
     return pixel_at(image, int(rect["x"] + rect["width"] / 2), int(rect["y"] + rect["height"] * 0.8))
+
+
+def near(actual, expected):
+    return all(abs(a - b) < 5 for a, b in zip(actual, expected))
 
 
 def pixel_at(image, x, y):
@@ -153,26 +167,25 @@ def main():
                     # Snapshot the real WebKit view after native map/reconfigure repaint.
                     spin(lambda: view.repaint_timer is None)
                     snapshot(view, output / (scenario["name"] + "-" + layer + ".png"))
-            image = compositor_image(output / (scenario["name"] + "-compositor.png"))
             primary = next((card for card in cards if card["id"] == scenario["primary"]), None)
-            if primary is not None:
-                actual = color_at(image, primary)
-                if cover.get_visible() and primary["layer"] != "floating":
-                    expected = (21, 75, 168)
-                else:
-                    expected = tuple(int(primary["color"][index:index + 2], 16) for index in (1, 3, 5))
-                check(all(abs(a - b) < 5 for a, b in zip(actual, expected)), "Wrong actual compositor stacking/pixels: " + scenario["name"] + str(actual))
-            if cover.get_visible():
-                # Away from every paper the cover app shows through, tinted only while the adjust overlay is up.
-                blue = pixel_at(image, image.get_width() - 40, image.get_height() - 40)[2]
-                adjusting = scenario["frame"]["operationScope"]["kind"] != "none"
-                check(blue < 150 if adjusting else abs(blue - 168) < 5, "Wrong adjust overlay tint: " + scenario["name"] + str(blue))
+            if primary is not None and cover.get_visible() and primary["layer"] != "floating":
+                expected = (21, 75, 168)
+            elif primary is not None:
+                expected = tuple(int(primary["color"][index:index + 2], 16) for index in (1, 3, 5))
+            adjusting = scenario["frame"]["operationScope"]["kind"] != "none"
+            stacked = lambda image: primary is None or near(color_at(image, primary), expected)
+            # Away from every paper the cover app shows through, tinted only while the adjust overlay is up.
+            blue = lambda image: pixel_at(image, image.get_width() - 40, image.get_height() - 40)[2]
+            tinted = lambda image: not cover.get_visible() or (blue(image) < 150 if adjusting else abs(blue(image) - 168) < 5)
+            image = compositor_image(output / (scenario["name"] + "-compositor.png"), lambda image: stacked(image) and tinted(image))
+            check(stacked(image), "Wrong actual compositor stacking/pixels: " + scenario["name"] + str(primary and color_at(image, primary)))
+            check(tinted(image), "Wrong adjust overlay tint: " + scenario["name"] + str(blue(image)))
             if scenario["name"] == "operate-group":
                 pointer_motion(views["floating"])
                 after = compositor_image(output / "operate-group-pointer-compositor.png")
                 corner = (image.get_width() - 40, image.get_height() - 40)
                 before, now = color_at(image, primary) + pixel_at(image, *corner), color_at(after, primary) + pixel_at(after, *corner)
-                check(all(abs(a - b) < 5 for a, b in zip(before, now)), "Pointer motion blanked the adjust overlay: " + str(now))
+                check(near(before, now), "Pointer motion blanked the adjust overlay: " + str(now))
             print("PASS native scene " + scenario["name"], flush=True)
         ids = [view.id for view in desktop.views]
         desktop.refresh_displays()

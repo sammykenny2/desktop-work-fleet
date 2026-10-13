@@ -2,6 +2,22 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 CI：Linux 桌面層截圖等到預期像素
+
+使用者詢問 CI 紅燈的處理方式；不升版。
+
+- 在這台 x64 Ubuntu VM 以 Docker 重現，而且更早就失敗：`wallpaper` 的合成畫面全黑，但 WebKit 自己的快照有便箋。
+  原因是 probe 發布後固定等 0.2 秒就以 grim 截圖，而軟體 GL 下每個場景第一次顯示的畫面較晚到達 compositor。
+  輪詢量得桌布層約 0.4 秒、調整遮罩（最上層第一次顯示）約 1.6 秒，三次一致，之後的場景約 0.05 秒。
+  固定等 0.5 或 1 秒都在 `operate-group` 失敗（與 CI 相同）；等 2 秒，或停用 DMA-BUF renderer、停用 compositing mode 都通過。
+  上一節的 `operate-group` 失敗因此是測試等待太短，不是產品回歸；Pi 用硬體 GL，0.2 秒內就畫出來。
+- `scenes_probe.py` 改為每 0.2 秒重截，直到主要便箋顏色與遮罩染色都符合（最多 10 秒），再截一次才檢查；逾時就以最後一張回報實際像素。
+  以 CI 相同指令連續三次通過；故意把預期顏色改錯時，約 10 秒後失敗並回報實際像素。
+- 另一個紅燈：失敗時上傳證據的步驟遇到 EACCES，因為 root 容器建立的 0700 資料夾（`config/autostart`）runner 讀不到。
+  `ci.yml` 在上傳前以 `sudo chmod -R a+rX` 開放讀取。這一步只在失敗時執行，綠燈時驗證不到。
+- 觀察：x64 Docker 停用 DMA-BUF renderer 時指標移動檢查仍通過，所以 CI 擋不住 Pi 的那個回歸；已在 `docs/testing.md` 註明。
+- 沒有獨立審閱。
+
 ## 2026-10-14 repo 公開與 CI
 
 使用者確認 OAuth client 為「電腦」類型、要求先回報參考專案的問題並移除其名稱與私有骨架 repo 的提及後，以 `gh` 改為 public；

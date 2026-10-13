@@ -282,7 +282,7 @@ DEB 適用提供上述系統依賴的發行版。
 Apple 手動建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
 在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub
 repository variables；不設值時採 preview ID／無 Google 的本機模式。
-Private repository 使用 hosted runner 會占用 Actions 額度，啟動前確認計費授權。
+公開 repository 的 hosted runner 不計費；手動 workflow 仍需使用者授權才啟動。
 取得 developer account／簽章後仍需前述正式 archive／export；未簽章 device IPA 需要重新簽署才可安裝。
 
 ## 既有 0.1.0 需求

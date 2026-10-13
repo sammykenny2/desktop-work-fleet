@@ -1,0 +1,110 @@
+name: CI
+
+# The documented local checks on every push to main and every pull request. No secrets and a read-only token:
+# Google settings are left empty, packages are unsigned and nothing is published.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  shared:
+    name: JavaScript and Python tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      # The Linux host tests use the distribution's Python with the same GI bindings the DEB depends on.
+      - name: Install the Linux host test dependencies
+        run: |
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            python3-gi python3-cryptography gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-secret-1 dpkg-dev
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - run: node --test tests/*.test.js
+      - run: /usr/bin/python3 -B -m unittest discover -s tests -p 'test_*.py' -v
+
+  linux-desktop:
+    name: Linux GTK host and desktop layers
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Build the headless desktop test image
+        run: docker build -t work-fleet-linux-desktop-tests -f tests/native/linux/Dockerfile tests/native/linux
+      - name: Desktop layers in headless labwc
+        run: |
+          mkdir -p build/linux-layer-checks
+          node tests/native/desktop-scenarios.mjs build/linux-layer-checks/scenarios.json
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/workspace,readonly" \
+            --mount "type=bind,source=$PWD/build/linux-layer-checks,target=/evidence" \
+            work-fleet-linux-desktop-tests dbus-run-session -- \
+            bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
+      - name: Main window and startup behavior on X11 and labwc
+        run: |
+          mkdir -p build/linux-host-checks
+          docker run --rm --network none \
+            --mount "type=bind,source=$PWD,target=/workspace,readonly" \
+            --mount "type=bind,source=$PWD/build/linux-host-checks,target=/evidence" \
+            work-fleet-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
+      - if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-desktop-evidence
+          path: |
+            build/linux-layer-checks
+            build/linux-host-checks
+          retention-days: 7
+
+  windows:
+    name: Windows build, core checks and unsigned package
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '8.0.x'
+      - run: npm ci --ignore-scripts
+      # The WebView2 UI probes need a signed-in desktop session, so CI runs the core probes; Test-WindowsNative stays local.
+      - name: Build and run the core probes
+        run: |
+          ./scripts/windows/Build-WindowsApp.ps1 -Configuration Debug -IncludeTests
+          dotnet tests/native/windows/core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $env:RUNNER_TEMP 'core')
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Build and inspect an unsigned package
+        run: |
+          ./scripts/windows/Build-WindowsPackage.ps1
+          $version = node scripts/platform-version.mjs --platform windows
+          ./scripts/windows/Test-WindowsPackage.ps1 -PackagePath "build/WorkFleet-$version-x64.msix" -Unsigned
+          python -B -m unittest tests.test_windows_package -v
+          if ($LASTEXITCODE -ne 0) { exit 1 }

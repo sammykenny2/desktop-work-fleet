@@ -90,8 +90,9 @@ Ordinary implementation, commit and push requests do not authorize a version bum
 publication. Every version bump requires explicit user approval of the target version;
 a preview-release request alone does not authorize choosing and bumping a version.
 GitHub Actions dispatch also requires explicit user authorization. Honor approval
-already given in the current session without asking again. This private repository's
-October 2026 Actions allowance is nearly exhausted; prefer local checks and packaging.
+already given in the current session without asking again. The repository is public
+since 2026-10-14: `ci.yml` runs the documented checks on every push to main and every
+pull request; release workflows still run only when dispatched with authorization.
 For an approved Windows preview release, finish implementation, tests, documentation
 and PROGRESS.md preparation records, and include the approved `<Version>` bump in
 `src/native/windows/Directory.Build.props` in the final release commit. Push it,

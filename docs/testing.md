@@ -27,6 +27,10 @@ python3 scripts/testing/check_docs.py
 git diff --check
 ```
 
+`.github/workflows/ci.yml` 在 push 到 main 與 pull request 時，於 GitHub hosted runner 執行上述 JS／Python 測試與 build、
+Linux Docker 的桌面層與主機檢查（`test-desktop-layers.sh`、`test-host-shell.sh`），以及 Windows Debug 建置、core probe 與未簽章包檢查。
+不使用 secrets；WebView2 UI probe（`Test-WindowsNative.ps1`）、簽章、Apple 建置與實機驗收仍在本機或手動 workflow。
+
 `python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v` 在有 bash 與 dpkg-deb 的環境
 實際封裝隔離 fixture，驗證一般／release DEB 的版號與檔名都取自 bundle `package.json`，缺版號時拒絕，
 release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件或啟動 GUI。

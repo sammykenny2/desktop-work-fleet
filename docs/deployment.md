@@ -76,7 +76,8 @@ MSIX 使用套件私有資料區；更新保留，解除安裝清除所有套件
 
 在 GitHub Release 發布 Windows 預覽版，讓其他電腦直接下載 MSIX。只在使用者要求發布時進行；一般實作、commit、push 都不升版、不發布。
 2026-10-09 使用者補充：任何升版須先同意具體版號，單純要求預覽發布不授權自行選版號；GitHub Actions dispatch 也須明確授權，當前 session 已給的同意不重問。
-本 repo 為 private，2026-10 的 Actions 額度接近用完；優先本機檢查、建置與封裝，不以 CI 簽章缺口為理由自動消耗額度。
+本 repo 自 2026-10-14 公開，GitHub hosted 標準 runner 不計費；`ci.yml` 在每次 push 到 main 與 pull request 時執行文件化的檢查。
+發布 workflow 仍只在使用者授權後手動 dispatch。
 2026-10-10 使用者要求發布後不得再補 commit／push，以免日後 push 型 CI 重複執行。此規則適用所有平台，也適用 agent 的文件與交接收尾。
 
 1. 獲准具體版號後，先完成本輪程式、測試、文件、交接與 `PROGRESS.md` 的準備紀錄。發布狀態只能記為「已備妥／待發布」，不能提前記成成功。
@@ -103,7 +104,7 @@ CI 簽章使用上述 repository secrets 內的 preview 憑證；本機 `-LocalT
 相同 package identity／publisher 且版號較高的包可升級，但安裝端仍須信任該包的簽章憑證；從本機包換成 CI 包時，先核對並信任 release 附的公開 CER。
 更換 CI 憑證時更新 signing secrets，各台測試電腦重新信任新的 CER；不要匯出或上傳本機不可匯出的私鑰。
 安裝端每台電腦第一次要以系統管理員把 CER 匯入 LocalMachine/TrustedPeople，之後版號較高的 MSIX 可直接安裝升級，同版號要先解除安裝。
-repository 是私有的，下載 release 需要登入有權限的 GitHub 帳號。
+repository 公開後，release 頁面不需登入即可下載。
 
 直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
 命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。
@@ -113,7 +114,7 @@ Developer ID 散布可指定 installer identity 與已存在的 Keychain notary 
 可選 DMG 使用 application identity 簽署；公證 DMG 必須提供該 identity。憑證、profiles 與帳號由維護者配置。
 
 Apple 可在手動 `.github/workflows/apple-native-build.yml` 使用 hosted Mac 編譯原生 unsigned
-Debug ZIP／iOS device IPA，包含 iOS Extension。Private repo hosted runner 可能占用計費額度；
+Debug ZIP／iOS device IPA，包含 iOS Extension；公開 repo 的 hosted runner 不計費，仍需使用者授權才 dispatch。
 workflow 上限每 target 20 分鐘，產物保存七天。未簽章 IPA 仍需有效 signing／provisioning 才能安裝。
 Android `-Signed`／`--signed` 要求四個簽章環境變數並產生 release AAB，詳見
 [商店準備](release/README.md)。一般 release 在沒有 signing inputs 時產生未簽章 AAB。

@@ -21,5 +21,11 @@ internal static class AppDataDirectory
     return Path.Combine(global::Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path, "Local", "WorkFleet");
   }
 
-  internal static string Unpackaged => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WorkFleet");
+  /// <summary>True for the MSIX; ZIP and Debug run without package identity.</summary>
+  internal static bool Packaged
+  {
+    get { uint length = 0; return GetCurrentPackageFullName(ref length, IntPtr.Zero) != 15700; }
+  }
+
+  internal static string Unpackaged =>Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "WorkFleet");
 }

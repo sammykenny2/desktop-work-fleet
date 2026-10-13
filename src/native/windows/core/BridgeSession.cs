@@ -6,7 +6,7 @@ namespace WorkFleet.Windows.Core;
 
 /// <summary>Per-document bounded protocol. The UI host authenticates source and navigation before dispatch.</summary>
 public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? backupFiles = null, Func<string?>? chooseBackupDirectory = null,
-  Func<string, JsonElement, object?>? desktop = null, bool googleAvailable = false) : IDisposable
+  Func<string, JsonElement, object?>? desktop = null, bool googleAvailable = false, HostIdentity? identity = null) : IDisposable
 {
   public const int ChunkSize = 256 * 1024;
   // Includes a complete manifest of 20,000 UUID attachment tokens plus the fixed envelope.
@@ -30,10 +30,11 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   public bool TakeResetDone() { lock (gate) { var value = resetDone; resetDone = false; return value; } }
   public bool Ready { get; private set; }
   private object Info() => new { protocol = 1, platform = "windows", profileId = database.ProfileId,
-    storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
+    appVersion = (identity ?? HostIdentity.Default).AppVersion, distribution = (identity ?? HostIdentity.Default).Distribution, storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
-      backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null } };
+      backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null,
+      hostPreferences = identity?.HostPreferences == true, updates = false } };
 
   public string Dispatch(string message)
   {

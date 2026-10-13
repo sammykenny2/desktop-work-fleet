@@ -61,6 +61,12 @@ try {
     $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
     $ExpectedVersion = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
     if ($LASTEXITCODE -ne 0 -or $Manifest.Package.Identity.Version -cne "$ExpectedVersion.0") { throw 'Package version differs from the Windows version record.' }
+    # ADR-043: one sign-in StartupTask, disabled in the manifest and enabled by the app from its own preference.
+    $Startup = @($Manifest.GetElementsByTagName('StartupTask', 'http://schemas.microsoft.com/appx/manifest/uap/windows10/5'))
+    if ($Startup.Count -ne 1 -or $Startup[0].TaskId -cne 'WorkFleetStartup' -or $Startup[0].Enabled -cne 'false' -or
+        $Startup[0].ParentNode.Category -cne 'windows.startupTask' -or $Startup[0].ParentNode.Executable -cne 'WorkFleet.exe') {
+        throw 'Expected one disabled WorkFleetStartup sign-in task for WorkFleet.exe.'
+    }
     foreach ($Entry in $Archive.Entries) {
         if ($Entry.Name -like '.env*' -or [IO.Path]::GetExtension($Entry.Name) -in @('.pfx', '.p12', '.pem', '.key', '.jks')) { throw 'Environment or private-key file in package.' }
     }

@@ -59,7 +59,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Validation version implemented; platform matrix incomplete | [SPEC-001](../specs/001-validation-version.md) |
 | [002-google-drive-notes-mvp](002-google-drive-notes-mvp.md) | Google Drive notes with portable backup | Draft | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
-| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | 主視窗位置、啟動行為與三平台 App 內更新 | Draft；待審閱 ADR-043／044 | [SPEC-006](../specs/006-desktop-window-startup-and-updates.md) |
+| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | 主視窗位置、啟動行為與三平台 App 內更新 | In Progress；狀態在 PROGRESS | [SPEC-006](../specs/006-desktop-window-startup-and-updates.md) |
 <!-- Add new plans above this line -->
 
 ## For AI Agents

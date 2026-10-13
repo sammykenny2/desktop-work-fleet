@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft（等待維護者審閱 ADR-043／044 與 SPEC-006 的 D／Q） |
+| Status | In Progress（2026-10-14 開工；執行狀態只記 PROGRESS） |
 | Owner | 專案維護者 |
 | Assigned To | 實作責任：Windows、macOS、Linux host、共用介面與發布腳本 |
 | Reviewer | 獨立審閱尚不可用 |

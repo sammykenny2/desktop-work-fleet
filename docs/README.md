@@ -43,7 +43,7 @@
 | [ADR-036](decisions/036-windows-self-contained-packaging.md) | Accepted：Windows MSIX／ZIP 預設自帶 .NET 8 Desktop runtime，接收端仍需 WebView2 |
 | [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)／[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md) | Accepted：MSIX 私有資料與解除安裝政策、可續行的 Google 全量備份覆蓋 |
 | [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) | Accepted：同格式雙向遷移、Google 同步後匯出、本機原子完整還原且舊備份可選 |
-| [SPEC-006](specs/006-desktop-window-startup-and-updates.md)／[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)／[ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md)／[PLAN-006](plans/006-desktop-window-startup-and-updates.md) | Proposed：主視窗位置記憶、啟動行為與三平台 App 內更新；U 已確認，D／Q 待審閱，尚未實作 |
+| [SPEC-006](specs/006-desktop-window-startup-and-updates.md)／[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)／[ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md)／[PLAN-006](plans/006-desktop-window-startup-and-updates.md) | Accepted：主視窗位置記憶、啟動行為與三平台 App 內更新；Q 待回答，實作狀態見 PROGRESS |
 | [ADR-042](decisions/042-adjust-overlay-on-every-desktop-host.md) | Accepted：所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |
 | [ADR-041](decisions/041-labwc-shortcuts-through-rc-xml-keybinds.md) | Accepted：labwc 快捷鍵由設定頁寫進 rc.xml 標記區塊，keybind 經 gapplication 交給 App |
 | [ADR-040](decisions/040-gnome-wayland-xwayland-choice.md) | Accepted：GNOME Wayland 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用 |

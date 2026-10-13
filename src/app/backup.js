@@ -67,7 +67,7 @@ function confirmReset(reset, goExport) {
  * The 資料與備份 page: export, restore, automatic backup and the reset. It mounts inside the settings window;
  * busy() tells the window to stay open while a backup or restore is running.
  */
-export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, localRestore, backupSource, uninstallNotice }) {
+export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, localRestore, backupSource, uninstallNotice, appVersion }) {
   const google = workspace.state.profileId.startsWith('google:');
   const target = backupSource?.target || (google ? '目前 Google 帳號的工作空間' : '本機便箋（這台裝置）');
   const panel = node('div', undefined, 'backup-panel'); panel.id = 'backup-panel';
@@ -139,7 +139,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     const secret = exportPassword(); const destination = await files.chooseDestination();
     await flush(); checkCancelled(signal);
     if (google) say('正在同步 Google，完成後匯出備份…');
-    const result = await createSourceBackup({ workspace, storage, source: backupSource, password: secret, signal, progress,
+    const result = await createSourceBackup({ workspace, storage, appVersion, source: backupSource, password: secret, signal, progress,
       confirmKnownData: (error, signal) => confirmKnownData(target, error, signal) });
     const saved = await destination.save({ ...result, signal, progress }); password.value = '';
     say(`${saved.saved ? '備份已保存，檔案檢查無誤。' : '已交給瀏覽器下載，請確認檔案已保存。'} ${target}；${google ? result.knownDataOnly ? '僅含這台已知副本，Google 同步未完成。' : '包含本次同步取得的雲端便箋，以及這台的草稿；不含其他裝置尚未上傳的內容。' : '本機完整已知資料。'} ${syncSummary(result.manifest)}`);
@@ -167,12 +167,12 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     if (mode.value === 'local-replace' && !files.canConfirmSave) {
       const secret = exportPassword(); const destination = await files.chooseDestination();
       await flush(); checkCancelled(signal);
-      const result = await createSourceBackup({ workspace, storage, password: secret, signal, progress });
+      const result = await createSourceBackup({ workspace, storage, appVersion, password: secret, signal, progress });
       await destination.save({ ...result, signal, progress }); password.value = '';
       say('已交給瀏覽器下載目前資料，請確認檔案已保存；這不影響本機完整還原的確認。'); return;
     }
     const secret = exportPassword(); const destination = await files.chooseDestination({ requireConfirmed: true });
-    await flush(); safety = await saveSafetyBackup({ workspace, storage, save: value => destination.save({ ...value, progress }),
+    await flush(); safety = await saveSafetyBackup({ workspace, storage, appVersion, save: value => destination.save({ ...value, progress }),
       password: secret, signal, progress }); password.value = '';
     requireValue(safety.binding.revision === plan.preview.revision, 'stale-restore-plan', '備份期間資料有變更，請重新檢查檔案。');
     say('已備份目前資料，可以確認取代。');

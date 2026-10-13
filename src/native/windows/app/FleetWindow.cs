@@ -25,6 +25,10 @@ public sealed class FleetWindow : Window
   private DesktopCoordinator? desktop;
   private NativeTray? tray;
   private readonly IReadOnlyList<DisplayInfo>? desktopDisplays;
+  private readonly HostShell? shell;
+  private readonly MainWindowPlacement? placement;
+  // A sign-in launch first shows the window far off-screen so WPF loads it, then hides it once the tray is ready.
+  private bool offscreen;
   private Task messageQueue = Task.CompletedTask;
   private int queued;
   private long navigation;
@@ -32,7 +36,7 @@ public sealed class FleetWindow : Window
   public WebView2 WebView => web;
   public DesktopCoordinator? Desktop => desktop;
 
-  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null, IReadOnlyList<DisplayInfo>? desktopDisplays = null)
+  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null, IReadOnlyList<DisplayInfo>? desktopDisplays = null, HostShell? shell = null)
   {
     this.dataDirectory = Path.GetFullPath(dataDirectory);
     // Reject a bad Debug port before the database takes the single-owner lock.
@@ -46,6 +50,13 @@ public sealed class FleetWindow : Window
     backupFiles = new NativeBackupFiles(database);
     Title = "Work Fleet"; Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
     Content = web; WindowStartupLocation = WindowStartupLocation.CenterScreen;
+    this.shell = shell;
+    if (shell is not null)
+    {
+      WindowStartupLocation = WindowStartupLocation.Manual; placement = new MainWindowPlacement(this, this.dataDirectory);
+      if (shell.StartHidden) { offscreen = true; Left = -20000; Top = -20000; ShowInTaskbar = false; ShowActivated = false; }
+      if (Application.Current is { } application) application.SessionEnding += (_, _) => placement.Flush();
+    }
     Loaded += async (_, _) =>
     {
       try
@@ -58,6 +69,7 @@ public sealed class FleetWindow : Window
         Content = new TextBlock { Text = "無法開啟原生工作空間。請確認 WebView2 Runtime 已安裝，並保留原資料後重試。",
           TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
       }
+      finally { FinishStart(); }
     };
     Closing += (_, e) =>
     {
@@ -67,13 +79,36 @@ public sealed class FleetWindow : Window
       // Defer even when no work is pending: WPF forbids a second Close inside Closing.
       Dispatcher.BeginInvoke(new Action(() => { _ = PrepareClose(); }));
     };
-    SourceInitialized += (_, _) => System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle)?.AddHook(CloseToTray);
-    Closed += (_, _) => { tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    SourceInitialized += (_, _) =>
+    {
+      System.Windows.Interop.HwndSource.FromHwnd(new System.Windows.Interop.WindowInteropHelper(this).Handle)?.AddHook(CloseToTray);
+      // Saved bounds apply before the first paint; a maximized window maximizes as it is shown.
+      if (placement is not null && !offscreen) { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
+    };
+    Closed += (_, _) => { placement?.Flush(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+  }
+  /// <summary>A second launch of Work Fleet shows the running instance's main window.</summary>
+  public void ShowFromLaunch() { if (!shuttingDown) ShowMain(true); }
+  private void FinishStart()
+  {
+    if (placement is null) return;
+    if (offscreen)
+    {
+      offscreen = false; ShowInTaskbar = true;
+      // Without a tray the hidden window could not be reached, so a sign-in launch then shows it.
+      if (tray?.Available == true) { Hide(); placement.Apply(); }
+      else { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
+    }
+    placement.Track();
+    if (shell is not null) _ = shell.SyncStartup();
   }
   private void ShowMain() => ShowMain(true);
   private void ShowMain(bool activate)
   {
+    if (offscreen) { offscreen = false; ShowInTaskbar = true; placement?.Apply(); }
+    else placement?.BeforeShow();
     var previous = ShowActivated; ShowActivated = activate; Show(); ShowActivated = previous;
+    if (placement?.PendingMaximize == true) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; }
     if (WindowState == WindowState.Minimized)
     {
       if (activate) WindowState = WindowState.Normal;
@@ -85,7 +120,9 @@ public sealed class FleetWindow : Window
   {
     // X, Alt+F4 and the taskbar close command (WM_SYSCOMMAND/SC_CLOSE) keep Work Fleet in the tray.
     // A programmatic Close(), WM_CLOSE and the tray's exit item still save and quit.
-    if (message == 0x0112 && (wParam.ToInt64() & 0xfff0) == 0xF060 && tray?.Available == true && !shuttingDown) { handled = true; Hide(); }
+    // With 關閉主畫面時保留在系統匣 turned off, the close command saves and quits instead.
+    if (message == 0x0112 && (wParam.ToInt64() & 0xfff0) == 0xF060 && tray?.Available == true && !shuttingDown && shell?.Preferences.CloseToTray != false)
+    { handled = true; placement?.Flush(); Hide(); }
     return IntPtr.Zero;
   }
   private void TrayAction(string action, ForegroundIntent intent)
@@ -117,8 +154,8 @@ public sealed class FleetWindow : Window
       desktop = new DesktopCoordinator(environment, value =>
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
-      }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; Hide(); return true; });
-      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available);
+      }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; });
+      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell?.Identity);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -135,6 +172,7 @@ public sealed class FleetWindow : Window
       if (TryIntent(json, out var captured)) { core.PostWebMessageAsJson(captured!); return; }
       var session = bridge; var epoch = navigation; queued++;
       if (IsGoogleRequest(json)) { _ = HandleGoogle(session, epoch, json); return; }
+      if (shell is not null && IsShellRequest(json)) { _ = HandleShell(epoch, json); return; }
       messageQueue = HandleMessage(messageQueue, session, epoch, json);
     };
     core.ProcessFailed += (_, _) =>
@@ -167,6 +205,46 @@ public sealed class FleetWindow : Window
   {
     try { using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); return JsonRules.Text(value.RootElement, "method").StartsWith("google.", StringComparison.Ordinal); }
     catch { return false; }
+  }
+  private static bool IsShellRequest(string json)
+  {
+    try
+    {
+      using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json));
+      return JsonRules.Text(value.RootElement, "method") is "host.preferences.get" or "host.preferences.set" or "host.preferences.openSystem" or "host.window.resetPlacement";
+    }
+    catch { return false; }
+  }
+  /// <summary>Startup preferences and the main window run on the UI thread: StartupTask requests and window moves belong there.</summary>
+  private async Task HandleShell(long epoch, string json)
+  {
+    string? id = null; string reply;
+    try
+    {
+      using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var request = document.RootElement;
+      id = JsonRules.Text(request, "id"); var method = JsonRules.Text(request, "method"); var args = request.GetProperty("params");
+      HostError.Require(Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1 && args.ValueKind == JsonValueKind.Object && epoch == navigation && !shuttingDown,
+        "stale-session", "工作階段已結束。");
+      object? result = null;
+      switch (method)
+      {
+        case "host.preferences.get": result = await shell!.Describe(tray?.Available == true); break;
+        case "host.preferences.set":
+          HostError.Require(args.TryGetProperty("value", out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False, "invalid-request", "設定值無效。");
+          result = await shell!.Set(JsonRules.Text(args, "name", 32), value.GetBoolean(), tray?.Available == true); break;
+        case "host.preferences.openSystem": HostShell.OpenSystemSettings(); break;
+        default: placement!.Reset(); break;
+      }
+      reply = JsonSerializer.Serialize(new { v = 1, id, ok = true, result });
+    }
+    catch (Exception error)
+    {
+      reply = JsonSerializer.Serialize(new { v = 1, id, ok = false, error = new { code = (error as HostError)?.Code ?? "host-preferences",
+        message = (error as HostError)?.Message ?? "無法完成這項設定，請稍後重試。" } });
+    }
+    finally { queued--; }
+    if (epoch != navigation || shuttingDown || !NavigationPolicy.IsDocument(web.CoreWebView2.Source)) return;
+    web.CoreWebView2.PostWebMessageAsJson(reply);
   }
   private async Task HandleGoogle(BridgeSession session, long epoch, string json)
   {
@@ -259,7 +337,7 @@ public sealed class FleetWindow : Window
   private bool closeRequested;
   private async Task PrepareClose()
   {
-    if (closing || shuttingDown) return; closing = true;
+    if (closing || shuttingDown) return; closing = true; placement?.Flush();
     try
     {
       if (bridge?.Ready == true && web.CoreWebView2 is not null && NavigationPolicy.IsDocument(web.CoreWebView2.Source))

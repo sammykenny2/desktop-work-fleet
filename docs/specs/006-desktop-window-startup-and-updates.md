@@ -4,9 +4,9 @@
 
 | Field | Value |
 |---|---|
-| Status | In Review（U 已確認；D 待維護者審閱；Q 未答） |
+| Status | Approved（U 已確認；2026-10-14 指示依 D 開工；Q 未答） |
 | Owner | 專案維護者 |
-| Reviewer | 技術方案待維護者審閱；獨立審閱尚未安排 |
+| Reviewer | 維護者；獨立審閱尚未安排 |
 | 日期 | 2026-10-14 |
 | Decision | [ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md)、[ADR-044](../decisions/044-desktop-in-app-updates-from-github-releases.md) |
 | Related Plan | [PLAN-006](../plans/006-desktop-window-startup-and-updates.md) |
@@ -71,7 +71,7 @@
 | SB-F07 | 登入啟動且未選擇開啟主畫面時，主畫面隱藏、桌面便箋照常開始；手動開啟或系統匣不可用時一律顯示 |
 | SB-F08 | 關閉保留在系統匣關閉時，關閉主畫面走既有保存並結束流程；系統匣不可用時仍結束 |
 | SB-F09 | Windows 第二次啟動喚起既有實例的主畫面後正常結束，不顯示「已開啟」錯誤；macOS／Linux 保持既有喚起 |
-| SB-F10 | 啟動與切換選項時同步作業系統；不靜默重新啟用使用者在系統中停用的項目 |
+| SB-F10 | 切換選項時同步作業系統；Windows 每次啟動也同步，macOS／Linux 只在第一次啟動套用預設；不靜默重新啟用使用者在系統中停用的項目 |
 
 ### App 更新（UP）
 

@@ -400,6 +400,13 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 `Build-WindowsPackage.ps1` 在 publish 後掃描 `WorkFleet.dll`，找到 `remote-debugging` 字串即停止封裝；
 `Test-WindowsNative.ps1` 要求同一掃描命中 Debug `WorkFleet.dll`，避免檢查失效；腳本也會先清除 shell 已設的 port 變數。
 
+接著執行 `--host-shell OUTPUT_DIRECTORY`（[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)）：
+主視窗會不取得焦點地短暫出現在主要螢幕。檢查設定＞桌面的版本與「啟動行為」（Debug 沒有 StartupTask，登入啟動選項停用並說明原因）、
+「關閉主畫面時保留在系統匣」寫入 `host-preferences.json`、移動／最大化／最小化／還原後的 `window-placement.json`、
+重置後回到預設大小並置中、重新開啟回到保存位置、保存位置所在顯示器不存在時改用預設，以及第二次啟動經每位使用者、
+每個資料目錄的 pipe 喚起既有實例。核心 probe 以 `tests/fixtures/window-placement.json` 驗證與 Linux／macOS 共用的位置規則。
+登入時啟動、隱藏啟動與 StartupTask 只能以安裝後的 MSIX 由使用者登出再登入驗證；混合 DPI 需要真多顯示器。
+
 開發時以 CDP 檢查 Debug App（使用正式資料目錄；需先關閉已安裝的 App）：
 
 ```powershell

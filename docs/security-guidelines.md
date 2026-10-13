@@ -39,6 +39,8 @@ IPC 有 1 MiB envelope／256 KiB chunk 上限及完整 SHA，20,000 token manife
 上傳暫存與正式資料隔離，SQLite CAS transaction 一起保存 Workspace／receipt／附件；
 同目錄唯一原生 owner，重啟回收失去 owner 的暫存。已提交回覆遺失只能以完整 bytes 確認，不能宣稱回滾。
 正式畫面可互動前先準備關閉協定，保存失敗／未完成對話框保留視窗。
+第二次啟動的 named pipe 名稱由使用者 SID 與資料目錄雜湊而成，ACL 只允許目前使用者，只接受固定的 `show` 請求、不傳資料或路徑；
+`owner.lock` 仍是最後保護（ADR-043）。主視窗位置與啟動偏好存在資料目錄，不含便箋內容，也不進入備份或 Google。
 Windows 自動檔案與安全備份密碼整合見 ADR-016；OAuth 與其他平台仍需實作／驗收。
 Native grants／file identity 以 DPAPI 保護並綁 profile，renderer 無路徑／metadata 讀取方法。
 NTFS 子檔相對 held directory handle 建立；清理核對同 handle 的實體／size／SHA 後 disposition，

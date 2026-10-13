@@ -19,13 +19,14 @@ if (args.length === 1 && args[0] === '--help') {
   if (!/^[a-zA-Z0-9.-]{3,50}$/.test(name)) throw new Error('Set WORK_FLEET_WINDOWS_PACKAGE_ID.');
   const version = await readPlatformVersion('windows');
   const publisher = config.windows.publisher || 'CN=Work Fleet Preview', publisherName = config.windows.publisherDisplayName || 'Work Fleet';
+  // ADR-043: the app enables the sign-in StartupTask from its own preference, so the manifest leaves it disabled.
   // ADR-034: include early Windows 11 and exclude Windows 10 at installation; Explorer topology is discovered at runtime.
   const minimumWindows = '10.0.22000.0', testedWindows = '10.0.26200.0';
   const escape = value => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   const images = path.join(stage, 'PackageAssets'); await mkdir(images, { recursive: true });
   for (const size of [44, 50, 150]) await writePaperIcon(path.join(images, `paper-${size}.png`), size);
   await writeFile(path.join(stage, 'AppxManifest.xml'), `<?xml version="1.0" encoding="utf-8"?>
-<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap10 rescap">
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10" xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10" xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5" xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10" xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities" IgnorableNamespaces="uap uap5 uap10 rescap">
   <Identity Name="${escape(name)}" Version="${version}.0" Publisher="${escape(publisher)}" ProcessorArchitecture="x64" />
   <Properties><DisplayName>Work Fleet</DisplayName><PublisherDisplayName>${escape(publisherName)}</PublisherDisplayName><Description>Work notes with local storage and optional Google sync</Description><Logo>PackageAssets\\paper-50.png</Logo></Properties>
   <Resources><Resource Language="zh-TW" /><Resource Language="en-US" /></Resources>
@@ -33,6 +34,7 @@ if (args.length === 1 && args[0] === '--help') {
   <Capabilities><Capability Name="internetClient" /><rescap:Capability Name="runFullTrust" /></Capabilities>
   <Applications><Application Id="WorkFleet" Executable="WorkFleet.exe" uap10:RuntimeBehavior="packagedClassicApp" uap10:TrustLevel="mediumIL">
     <uap:VisualElements DisplayName="Work Fleet" Description="Quick work notes" Square150x150Logo="PackageAssets\\paper-150.png" Square44x44Logo="PackageAssets\\paper-44.png" BackgroundColor="transparent" />
+    <Extensions><uap5:Extension Category="windows.startupTask" Executable="WorkFleet.exe" EntryPoint="Windows.FullTrustApplication"><uap5:StartupTask TaskId="WorkFleetStartup" Enabled="false" DisplayName="Work Fleet" /></uap5:Extension></Extensions>
   </Application></Applications>
 </Package>\n`);
   console.log('Generated x64 MSIX manifest and icons.');

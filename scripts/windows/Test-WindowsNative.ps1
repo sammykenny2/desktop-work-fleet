@@ -59,6 +59,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows owner formation pixel regression failed.' }
     & $UiProbe --diagnostics (Join-Path $ProbeRoot 'diagnostics')
     if ($LASTEXITCODE -ne 0) { throw 'Windows Debug WebView diagnostics probe failed.' }
+    & $UiProbe --host-shell (Join-Path $ProbeRoot 'host-shell')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows startup settings and main window placement probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

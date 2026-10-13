@@ -41,13 +41,14 @@ export function validateAutomaticState(state, profileId) {
 
 /** One instance per leased profile. The journal is separate from content so backups cannot trigger themselves. */
 export class AutomaticBackup {
-  #workspace; #storage; #journal; #files; #vault; #flush; #now; #uuid; #listeners = new Set();
+  #workspace; #storage; #journal; #files; #vault; #flush; #now; #uuid; #appVersion; #listeners = new Set();
   #state; #persisted = false; #tail = Promise.resolve(); #running = null; #controller = null;
   #phase = 'idle'; #transientError = null;
   #runtimePaused = false; #issued = new Set();
 
   constructor({ workspace, storage, journal, files, vault = null, flush = async () => {}, now = () => Date.now(),
-    uuid = () => crypto.randomUUID(), onStatus = () => {} }) {
+    uuid = () => crypto.randomUUID(), onStatus = () => {}, appVersion = undefined }) {
+    this.#appVersion = appVersion;
     this.#workspace = workspace; this.#storage = storage; this.#journal = journal; this.#files = files;
     this.#vault = vault; this.#flush = flush; this.#now = now; this.#uuid = uuid; this.#listeners.add(onStatus);
     this.#state = { schemaVersion: 1, profileId: workspace.state.profileId, revision: 0, enabled: false, paused: false,
@@ -221,7 +222,7 @@ export class AutomaticBackup {
     await this.#flush(); checkCancelled(signal);
     const settings = copy(this.#state.settings); const snapshot = this.#workspace.state;
     requireValue(snapshot.profileId === this.#state.profileId, 'backup-profile', '備份帳號已切換。');
-    const id = this.#fresh(); const backup = await createBackup({ workspace: { state: snapshot }, storage: this.#storage,
+    const id = this.#fresh(); const backup = await createBackup({ workspace: { state: snapshot }, storage: this.#storage, appVersion: this.#appVersion,
       uuid: () => id, now: () => new Date(now), signal });
     if (settings.encrypted) {
       requireValue(this.#vault?.available === true && typeof this.#vault.encrypt === 'function',

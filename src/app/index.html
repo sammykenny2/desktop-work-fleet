@@ -118,6 +118,17 @@
             <div class="grid-size"><label>列<select id="grid-rows" aria-label="列數"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label>欄<select id="grid-columns" aria-label="欄數"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
             <div id="grid-preview" aria-label="區域配置"></div>
             <p id="grid-message" class="settings-note error" role="status" hidden></p>
+            <div id="host-settings" hidden>
+              <h4 class="settings-heading">啟動行為</h4>
+              <div class="settings-list">
+                <div class="settings-row"><span class="row-text"><span class="row-label">登入電腦時啟動 Work Fleet</span><span class="row-value" id="start-login-detail"></span></span><span class="row-actions"><button type="button" id="start-login-system" hidden>開啟系統設定</button><input id="start-login" class="switch" type="checkbox" aria-label="登入電腦時啟動 Work Fleet"></span></div>
+                <label class="settings-row"><span class="row-text"><span class="row-label" id="close-tray-label">關閉主畫面時保留在系統匣</span><span class="row-value" id="close-tray-detail"></span></span><input id="close-tray" class="switch" type="checkbox"></label>
+                <label class="settings-row"><span class="row-text"><span class="row-label">登入啟動後開啟主畫面</span><span class="row-value" id="open-main-detail">關閉時，登入後只在背景顯示桌面便箋；自己開啟 Work Fleet 時一律顯示主畫面。</span></span><input id="open-main" class="switch" type="checkbox"></label>
+              </div>
+              <h4 class="settings-heading">版本與更新</h4>
+              <div class="settings-list"><div class="settings-row"><span class="row-text"><span class="row-label" id="app-version">Work Fleet</span><span class="row-value" id="app-distribution"></span></span></div></div>
+              <section class="reset-section"><h4 class="settings-heading">重置主視窗</h4><p class="hint">主視窗回到預設大小，並置中於主要螢幕。桌面便箋不受影響。</p><button id="reset-window" type="button">重置主視窗大小與位置</button></section>
+            </div>
             <section class="reset-section"><h4 class="settings-heading">重置桌面佈局</h4><p class="hint">把便箋放回各自的群組區域，並恢復預設大小與顯示方式。</p><button id="reset-layout" type="button">重置桌面佈局…</button></section>
           </section>
           <section class="settings-page" data-panel="shortcuts" hidden>

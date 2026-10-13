@@ -2,8 +2,8 @@
 
 ## Status
 
-Proposed，2026-10-14。使用者要求帶入 Cats 桌面版的主視窗位置記憶與「啟動行為」，並確認「登入電腦時啟動」預設開啟；
-技術方案待維護者審閱。參考與證據見 [研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)。
+Accepted，2026-10-14。使用者要求帶入 Cats 桌面版的主視窗位置記憶與「啟動行為」，確認「登入電腦時啟動」預設開啟，
+並在同日指示依此開工；SPEC-006 的 Q 仍待回答。參考與證據見 [研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)。
 
 ## Context
 
@@ -31,7 +31,9 @@ Cats 每次啟動重新註冊、只顯示儲存值，會與使用者在系統中
 ### 主視窗位置與大小
 
 - 保存還原狀態（normal）的位置與大小，以及是否最大化；不保存全螢幕、最小化或顯示器識別。
-- 座標：Windows 以 Win32 window placement 的實體像素保存與套用，避免 WPF DIP 在混合 DPI 下換算錯誤；
+- 座標：Windows 以 `GetWindowRect`／`SetWindowPos` 的實體螢幕像素保存與套用，避免 WPF DIP 在混合 DPI 下換算錯誤；
+  `WINDOWPLACEMENT` 使用 workspace 座標，不適合拿來對照顯示器工作區。移到不同 DPI 的顯示器會先被縮放一次，所以套用兩次。
+  以 `IsZoomed`／`IsIconic` 判斷實際狀態；
   macOS 以 points 的視窗 frame；Linux X11 保存位置與大小，Wayland 只保存大小與最大化（合成器決定位置）。
 - 還原：選與保存範圍交集最大的顯示器工作區，必要時縮小並夾回工作區內，再套用最小尺寸；
   與所有顯示器都不相交時使用預設。最大化在主視窗第一次顯示時才套用，登入隱藏啟動不因此顯示。
@@ -64,7 +66,9 @@ Cats 每次啟動重新註冊、只顯示儲存值，會與使用者在系統中
 - Linux：寫入或移除 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（未設定時為 `~/.config`），
   啟動命令加 `--launch-at-login`。讀回時，檔案不存在、`Hidden=true` 或 `X-GNOME-Autostart-enabled=false` 視為關閉。
   只寫或移除自己的檔案。
-- 啟動與切換選項時同步；讀回的系統狀態與偏好不同時，以系統狀態為準顯示，不靜默重新啟用。
+- Windows 每次啟動與切換選項時同步：`RequestEnableAsync` 對套件桌面 App 不顯示詢問，也不會覆蓋使用者停用。
+  macOS 與 Linux 沒有這種保護，只在第一次啟動（尚無 `host-preferences.json`）套用預設，以及使用者切換選項時寫入；
+  之後啟動不重新建立使用者移除的項目。讀回的系統狀態與偏好不同時，以系統狀態為準顯示。
 
 ### 第二次啟動
 
@@ -123,5 +127,5 @@ Windows 加入每位使用者、每個資料目錄的單一實例通道：第二
 
 ---
 
-*Decision proposed: 2026-10-14*
-*Decision makers: 維護者（待審閱）*
+*Decision made: 2026-10-14*
+*Decision makers: 維護者*

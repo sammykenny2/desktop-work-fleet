@@ -2,8 +2,8 @@
 
 ## Status
 
-Proposed，2026-10-14。使用者確認：維護者會把 repo 改為 public；Windows、macOS、Linux 都要 App 內升級，
-Windows 使用 MSIX。技術方案待維護者審閱。參考與證據見 [研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)。
+Accepted，2026-10-14。使用者確認：維護者會把 repo 改為 public；Windows、macOS、Linux 都要 App 內升級，
+Windows 使用 MSIX；同日指示開工。macOS 安裝方式（SPEC-006 Q02）與其他 Q 仍待回答。參考與證據見 [研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)。
 
 ## Context
 
@@ -140,5 +140,5 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
 
 ---
 
-*Decision proposed: 2026-10-14*
-*Decision makers: 維護者（待審閱）*
+*Decision made: 2026-10-14*
+*Decision makers: 維護者*

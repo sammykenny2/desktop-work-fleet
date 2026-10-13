@@ -2,6 +2,28 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 主視窗位置記憶與啟動行為：Windows 與共用介面
+
+使用者指示依 ADR-043／044、SPEC-006 開工，兼顧 Windows、macOS、Linux（含 Debian GNOME／Xorg 與 Pi labwc）；不升版。
+本節是 PLAN-006 Phase 1–3 的 Windows 與共用部分，Linux、macOS 另記。
+
+- 共用：`host.info` 增加 `appVersion`、`distribution` 與 `capabilities.hostPreferences`／`updates`（目前 false）；
+  新增 `host.preferences.get`／`set`／`openSystem` 與 `host.window.resetPlacement`，protocol 仍為 1。
+  設定＞桌面新增「啟動行為」、「版本與更新」與「重置主視窗大小與位置」，只在主機支援時顯示。
+  備份的 `appVersion` 改用 `host.info` 版本，原本一律記成 0.1.0。
+- Windows：資料目錄的 `host-preferences.json`／`window-placement.json`（主機層級、原子寫入，損壞時用預設）。
+  以 `GetWindowRect`／`SetWindowPos` 的實體像素保存與套用、兩次套用處理跨 DPI、以 `IsZoomed`／`IsIconic` 判斷狀態；
+  從系統匣顯示前重新驗證；收到系統匣、結束、登出／關機時補寫。MSIX 宣告停用的 `WorkFleetStartup` StartupTask，
+  App 依偏好 `RequestEnableAsync`／`Disable`，使用者或原則停用時不覆蓋並可開啟 `ms-settings:startupapps`；
+  以 `AppInstance.GetActivatedEventArgs` 判斷登入啟動，登入啟動且未選開啟主畫面時先在畫面外載入、系統匣就緒後收起，
+  系統匣不可用時顯示。「關閉主畫面時保留在系統匣」關閉後 X 會保存並結束。第二次啟動經每位使用者、每個資料目錄的
+  named pipe 喚起既有實例，不再顯示「已開啟」錯誤。
+- 測試：core probe 新增 31 項 host settings（含 `tests/fixtures/window-placement.json` 共用規則）；新 `--host-shell` UI probe 通過。
+  `Test-WindowsNative.ps1 -SkipRestore` 完整通過，7 項 SKIP 是桌面測試區被其他視窗遮住或系統未授與前景。
+  UI probe 的手動備份完成訊息在 `7a00fdd` 加入來源說明後就已不符，改為比對開頭；`npm test` 270 pass／12 skip／0 fail。
+  `Test-WindowsPackage.ps1` 新增 StartupTask 檢查。
+- 未驗證：登入啟動、隱藏啟動與 StartupTask 需安裝 MSIX 後由使用者登出再登入；混合 DPI 與多顯示器；沒有獨立審閱。
+
 ## 2026-10-14 所有桌面主機以遮罩調整
 
 使用者要求進入調整模式前已最小化的主視窗結束後維持最小化，並要求有桌面分層的平台行為一致（ADR-042）；不升版。

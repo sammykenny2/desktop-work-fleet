@@ -134,7 +134,7 @@ async function initialize() {
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); if (!native) browserJournal = journal;
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
-    const service = new AutomaticBackup({ workspace, storage, journal, files, vault,
+    const service = new AutomaticBackup({ workspace, storage, journal, files, vault, appVersion: native?.info.appVersion,
       flush: () => desktop ? desktop.perform(flushDraft) : flushDraft() }); await service.load();
     automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
@@ -1115,7 +1115,7 @@ async function mountDataPanel() {
   currentDraft = null; controller.cancelDrag(); render();
   dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError,
     files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
-    uninstallNotice: native?.info.platform === 'windows' ? '使用 MSIX 時，解除安裝會清除這台裝置的便箋、草稿、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。' : null,
+    appVersion: native?.info.appVersion, uninstallNotice: native?.info.platform === 'windows' ? '使用 MSIX 時，解除安裝會清除這台裝置的便箋、草稿、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。' : null,
     onChanged: async () => {
       if (!activeGroups(workspace.snapshot).some(group => group.id === activeGroupId)) activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); render();
@@ -1134,8 +1134,46 @@ function renderDisplaySetting() {
     : pending ? '重新啟動後生效；未保存的文字會先保存。'
     : 'GNOME Wayland 的桌面便箋需要 XWayland；主畫面的輸入法與縮放也會一起改走 XWayland。';
 }
+// ADR-043: startup behaviour and the main window belong to this computer's host, not to the workspace or its backups.
+// The switches show what the system actually does; a sign-in item the user turned off there stays off.
+let hostPreferences = null;
+const distributionNames = { msix: '安裝版（MSIX）', zip: '免安裝版（ZIP）', debug: '開發版', deb: '安裝版（DEB）', bundle: '免安裝版', source: '原始碼執行', app: 'macOS App' };
+const trayName = () => native?.info.platform === 'macos' ? '選單列' : '系統匣';
+function renderHostSettings() {
+  const available = native?.info.capabilities.hostPreferences === true; $('#host-settings').hidden = !available;
+  if (!available) return;
+  $('#app-version').textContent = `Work Fleet ${native.info.appVersion}（預覽）`;
+  $('#app-distribution').textContent = distributionNames[native.info.distribution] || '';
+  $('#close-tray-label').textContent = `關閉主畫面時保留在${trayName()}`;
+  renderHostPreferences();
+  void native.bridge.request('host.preferences.get').then(value => { hostPreferences = value; renderHostPreferences(); }, error => status(error.message, true));
+}
+function renderHostPreferences() {
+  const value = hostPreferences;
+  for (const id of ['#start-login', '#close-tray', '#open-main']) $(id).disabled = value === null;
+  if (value === null) return;
+  const start = value.startAtLogin; const fixed = ['disabled-by-user', 'disabled-by-policy', 'enabled-by-policy'].includes(start.state);
+  const system = native.info.platform === 'windows' ? ' Windows 的「啟動應用程式」' : native.info.platform === 'macos' ? '系統設定的「登入項目」' : '系統設定';
+  $('#start-login').checked = start.enabled || start.state === 'requires-approval'; $('#start-login').disabled = !start.available || fixed;
+  $('#start-login-detail').textContent = !start.available ? start.reason || '這台電腦目前不支援登入時啟動。'
+    : start.state === 'disabled-by-user' ? `已在${system}關閉，請到那裡重新開啟。`
+    : start.state === 'disabled-by-policy' ? '已由系統管理原則關閉。'
+    : start.state === 'enabled-by-policy' ? '已由系統管理原則開啟。'
+    : start.state === 'requires-approval' ? `需要在${system}允許後才會生效。`
+    : '登入後桌面便箋就會出現。';
+  $('#start-login-system').hidden = !(start.systemSettings && ['disabled-by-user', 'requires-approval'].includes(start.state));
+  $('#close-tray').checked = value.closeToTray.enabled; $('#close-tray').disabled = !value.closeToTray.available;
+  $('#close-tray-detail').textContent = value.closeToTray.available ? '關閉時，關閉主畫面會保存並結束 Work Fleet。' : `目前沒有${trayName()}，關閉主畫面一律保存並結束。`;
+  $('#open-main').checked = value.openMainAtLogin.enabled; $('#open-main').disabled = !value.openMainAtLogin.available;
+}
+function setHostPreference(name, input) {
+  return run(async () => {
+    try { hostPreferences = await native.bridge.request('host.preferences.set', { name, value: input.checked }); }
+    finally { renderHostPreferences(); }
+  });
+}
 function renderDesktopSettings() {
-  renderDisplaySetting();
+  renderDisplaySetting(); renderHostSettings();
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
   settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
@@ -1282,6 +1320,11 @@ function bindEvents() {
     if (dataPanel?.busy()) throw new Error('備份或還原進行中，完成後再重新啟動。');
     $('#settings-dialog').close(); await native.bridge.request('host.restart');
   });
+  $('#start-login').onchange = () => setHostPreference('startAtLogin', $('#start-login'));
+  $('#close-tray').onchange = () => setHostPreference('closeToTray', $('#close-tray'));
+  $('#open-main').onchange = () => setHostPreference('openMainAtLogin', $('#open-main'));
+  $('#start-login-system').onclick = () => run(() => native.bridge.request('host.preferences.openSystem'));
+  $('#reset-window').onclick = () => run(async () => { await native.bridge.request('host.window.resetPlacement'); status('主視窗已回到預設大小與位置'); });
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };

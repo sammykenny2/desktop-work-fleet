@@ -36,6 +36,12 @@ import AppKit
         defer { coordinator.close() }
         let info = try coordinator.invoke("desktop.info", [:]) as! [String: Any]
         try check((info["layers"] as? [String]) == ["desktop", "floating", "wallpaper"], "Native capability must expose all three layers")
+        // Shortcuts are released only while a Work Fleet window has the keyboard; NSApp.isActive cannot be faked here.
+        try check(FleetShortcuts.suspends(blocked: false, active: true, keyWindow: true), "A focused Work Fleet window must handle shortcuts itself")
+        try check(!FleetShortcuts.suspends(blocked: false, active: true, keyWindow: false), "A minimized main window must keep shortcuts registered")
+        try check(!FleetShortcuts.suspends(blocked: false, active: false, keyWindow: false), "Shortcuts must work from other apps")
+        try check(!FleetShortcuts.suspends(blocked: false, active: false, keyWindow: true), "A key desktop panel of an inactive app must not release shortcuts")
+        try check(FleetShortcuts.suspends(blocked: true, active: false, keyWindow: false), "Blocked shortcuts must stay released")
         let wallpaperLevel = FleetSceneSurface.windowLevel("wallpaper").rawValue
         let desktopLevel = FleetSceneSurface.windowLevel("desktop").rawValue
         try check(wallpaperLevel > Int(CGWindowLevelForKey(.desktopWindow)), "Wallpaper must stay above the background")

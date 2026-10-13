@@ -127,6 +127,8 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 場景／協調器，驗證原生 level、三層能力、位置、穿透、桌布拒絕焦點，以及場景 WKWebView 不畫不透明底色
 （否則整片場景會蓋住桌布），不需要 Google SDK。互動紙面另以 `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
 確認 WindowServer 會把真實點擊交給輸入 panel；直接送進 panel 的合成事件會略過這個判定，無法取代此檢查。
+全域快捷鍵只在 Work Fleet 視窗取得鍵盤時釋放；probe 以 `FleetShortcuts.suspends` 檢查主視窗最小化、關到選單列（App 仍在前景但沒有 key window）
+仍保留註冊。實際按鍵送達需要在實體鍵盤測試；遠端桌面不一定會傳送按鍵組合。
 WindowServer 非同步套用視窗排序與 level，剛顯示的視窗會先回報 layer 0、不在螢幕上；probe 會 flush 並等到視窗上螢幕且 level 相符
 （最多 2 秒）再檢查。
 這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。

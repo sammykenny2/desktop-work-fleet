@@ -22,7 +22,10 @@ import Carbon
             return result
         }, 1, &type, Unmanaged.passUnretained(self).toOpaque(), &handler)
     }
-    var suspended: Bool { blocked || NSApplication.shared.isActive || NSApplication.shared.keyWindow != nil }
+    var suspended: Bool { Self.suspends(blocked: blocked, active: NSApplication.shared.isActive, keyWindow: NSApplication.shared.keyWindow != nil) }
+    /// A focused Work Fleet window handles shortcuts itself, so registrations are released only while one has the keyboard.
+    /// A minimized or menu-bar-only main window leaves the app active with no key window, and nothing else would see the keys.
+    nonisolated static func suspends(blocked: Bool, active: Bool, keyWindow: Bool) -> Bool { blocked || active && keyWindow }
     func configure(_ args: [String: Any]) throws -> Any {
         guard let values = args["bindings"] as? [[String: Any]], values.count <= 32 else { throw FleetFailure("shortcut-settings", "此裝置最多設定 32 組快捷鍵。") }
         var next: [(String, String)] = [], keys = Set<String>()

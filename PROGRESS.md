@@ -2,6 +2,22 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 macOS 主視窗最小化時快捷鍵失效
+
+使用者回報這台 macOS 27.0.1 的快捷鍵組合不論焦點在不在主視窗、或主視窗最小化都沒作用；在實體鍵盤重裝修正版後確認三種狀態都可以，要求 commit／push。不升版。
+
+- 使用者原本經遠端桌面操作。合成資料測試工具顯示：測試視窗在前景時 WKWebView 收不到 `Control+Shift+D`，切到其他 App 時
+  三組 Carbon 快捷鍵都註冊成功（OSStatus 0）卻沒有觸發，代表按鍵組合沒有經遠端桌面送到 Mac；這兩種狀態不是 App 的錯誤。
+- 最小化與關到選單列是 App 的錯誤：`FleetShortcuts` 在 `NSApp.isActive` 或有 key window 時就釋放註冊，主視窗最小化或 orderOut 後
+  App 仍在前景但沒有 key window，Carbon 已釋放、也沒有網頁接收按鍵。改為只在 App 在前景且有 key window 時釋放（`FleetShortcuts.suspends`）；
+  App 不在前景時即使非啟用的桌面 panel 仍是 key 也保留註冊，文字編輯組合本來就不註冊。
+- `SceneLayersProbe` 檢查五種狀態，修正後通過，換回舊條件失敗於最小化；以真實 AppKit 視窗程式化最小化、還原、orderOut，
+  註冊依序為暫停、可用、暫停、可用。`docs/testing.md` 註明實際按鍵需在實體鍵盤測試。
+- 作者檢查：`scripts/macos/test-desktop-layers.sh` 通過；`npm test` 269 pass／10 skip／0 fail；Python documented discover 84 tests，
+  14 skip／0 fail；文件檢查與 `git diff --check` 通過。重建 DMG 後 `hdiutil verify`、唯讀掛載的 `codesign --verify --deep --strict`、
+  主程式與 dylib 雙架構檢查通過。使用者在實體鍵盤確認主視窗在前景、其他 App 在前景、主視窗最小化三種狀態都可用；
+  關到選單列只有自動狀態測試。沒有獨立審閱。
+
 ## 2026-10-14 macOS 桌面便箋無法拖曳
 
 使用者回報這台 macOS 27.0.1 在「調整此組」等狀態拖不動便箋，游標有變化；正式 App 與合成資料測試工具都沒有移動跡象。

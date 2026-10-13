@@ -45,7 +45,8 @@ App 內更新（ADR-044）只在使用者動作時由原生 host 連線：不帶
 下載只允許 `github.com` 與 GitHub release 資產主機且最多三次轉址；回應與安裝檔有容量上限，安裝檔大小與 SHA-256 必須符合
 release 的 `work-fleet-update.json`，MSIX 身分（Name／Publisher／架構）必須與已安裝套件相同且版本較高，簽章由 Windows 安裝時檢查。
 這份 manifest 與安裝檔來自同一個 release，只防損毀與單一檔案被換，不防 GitHub 帳號被盜。renderer 不能指定任何 URL。
-本機測試來源只由 `app.workfleet.updateprobe.*` 套件身分讀取，其他身分忽略。
+本機測試來源只由 `app.workfleet.updateprobe.*` 套件身分讀取，其他身分忽略。Linux 以 `dpkg-deb` 核對套件名稱 `work-fleet`、
+架構與更高版本後才以 pkexec 安裝；DEB 沒有作業系統簽章檢查，只靠同一 release 的 manifest 與 SHA-256。
 Windows 自動檔案與安全備份密碼整合見 ADR-016；OAuth 與其他平台仍需實作／驗收。
 Native grants／file identity 以 DPAPI 保護並綁 profile，renderer 無路徑／metadata 讀取方法。
 NTFS 子檔相對 held directory handle 建立；清理核對同 handle 的實體／size／SHA 後 disposition，

@@ -111,6 +111,11 @@ App 內更新（ADR-044）：`Build-WindowsPackage.ps1` 在 MSIX 旁產生 `buil
 已安裝的 MSIX 從設定＞桌面「版本與更新」或系統匣「檢查更新…」查詢 `windows-v<版號>` 的 release，下載、核對後先保存草稿並關閉，
 再由 Windows 安裝；執行滿 60 秒的 App 會在安裝後重新開啟。沒有附 `work-fleet-update.json` 的舊 release 不會被選為更新。
 
+Linux 預覽版：手動 `linux-release.yml` 以 `src/native/linux/VERSION` 建立 `linux-v<版號>` prerelease，附 DEB、`.sha256` 與
+`work-fleet-update.json`（`package-deb.sh` 產生，`--update-summary` 可加摘要）。同樣需要使用者授權升版與 dispatch；需要的 repository 設定為
+variables `WORK_FLEET_GOOGLE_PROJECT_ID`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` 與 secret `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET`。
+以 DEB 安裝的 App 才有 App 內更新：下載、核對後以 pkexec 安裝（需要系統密碼與 polkit 驗證代理程式），成功後保存並重新啟動。
+
 直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
 命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。
 Apple export 使用 `--method app-store-connect|developer-id|debugging|release-testing`；iOS 不接受

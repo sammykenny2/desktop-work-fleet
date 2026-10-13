@@ -2,6 +2,20 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 App 內更新：Linux
+
+接續 Windows，沿用同一 bridge、設定頁與 `tests/fixtures/update-feed.json`；不升版、不發布。
+
+- `updater.py`：與 Windows 相同的 release／manifest 規則、只連 GitHub 固定主機且不帶憑證、最多三次轉址、容量上限與串流 SHA-256，
+  以 `dpkg-deb` 核對 `work-fleet`、架構與更高版本。只在 DEB 安裝（`/usr/lib/work-fleet`）且有 pkexec 與 dpkg-deb 時啟用。
+  安裝以 `pkexec apt-get install -y <DEB>`（沒有 apt-get 時 `dpkg -i`）在執行中完成，成功後走保存並結束流程再重新執行新版；
+  取消授權維持執行並顯示原因。系統匣在可用時加入「檢查更新…」與 GTK 對話框。
+- 發布：`package-deb.sh` 產生 `work-fleet-update.json`（`build-native-app.sh --update-summary` 傳入摘要）；新增手動 `linux-release.yml`
+  建立 `linux-v<版號>` prerelease，需要使用者授權升版、dispatch，以及 Linux 的 Google 變數與 secret。
+- 測試：WSL Ubuntu 的 Linux discover 83 tests，1 skip／0 fail（新增 `test_linux_updater.py` 7 項，`test_linux_package.py` 核對 manifest）；
+  Docker 的 `test-host-shell.sh` 在 X11 與 labwc 通過並確認 bundle 執行回報不支援。
+- 未驗證：真 GitHub release、真 pkexec／polkit 安裝與重新啟動（Debian GNOME、Pi labwc 的驗證代理程式），以及 `linux-release.yml` 本身。
+
 ## 2026-10-14 App 內更新：Windows
 
 使用者指示依 Windows → Linux → macOS 做更新器，macOS 採 Sparkle（SPEC-006 Q02 定案，與參考專案同樣需要 Developer ID 簽章與公證）；不升版、不發布。

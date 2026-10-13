@@ -4,7 +4,7 @@ from gi.repository import Gtk
 
 
 class Tray:
-    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None):
+    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None, update=None):
         self.main, self.action, self.menu_active = main, action, menu_active
         self.reveal = reveal
         self.available = self.closed = False
@@ -14,6 +14,10 @@ class Tray:
             item = Gtk.MenuItem.new_with_label(title)
             item.connect("activate", lambda _item, value=target: self.dispatch(value))
             self.menu.append(item)
+        if update is not None:
+            update_item = Gtk.MenuItem.new_with_label("檢查更新…")
+            update_item.connect("activate", lambda *_: (self.menu_active(False), update()))
+            self.menu.append(update_item)
         self.menu.append(Gtk.SeparatorMenuItem())
         quit_item = Gtk.MenuItem.new_with_label("保存並結束")
         quit_item.connect("activate", lambda *_: (self.menu_active(False), quit_app()))

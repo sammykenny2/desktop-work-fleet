@@ -13,6 +13,7 @@ from urllib.parse import unquote, urlsplit
 
 import hostsettings
 import renderer
+import updater as updates
 import xwayland
 
 # The Pi keeps WebKit's DMA-BUF renderer on shared-memory buffers; an explicit user setting wins. This must happen
@@ -164,6 +165,10 @@ class FleetApp(Gtk.Application):
         self.closing = self.stopped = False
         self.vault = Vault(config.get("appId") or "app.workfleet.preview")
         self.launched_at_login = launched_at_login
+        # ADR-044: checks and downloads run on a worker thread; their state reaches the page through the main loop.
+        self.updater = updates.Updater(directory, config, hostsettings.version(assets, __file__), hostsettings.distribution(assets),
+                                       lambda state: GLib.idle_add(self.publish_update, state), self.record_update_check,
+                                       self.preferences.get("lastUpdateCheck"))
 
     def activate(self, _application):
         if self.window is not None:
@@ -183,7 +188,8 @@ class FleetApp(Gtk.Application):
         self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
         self.reveal()
         self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active,
-                         icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False))
+                         icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False),
+                         update=self.tray_update if self.updater.capable else None)
         if self.hidden_start:
             # A tray that never connects would leave the hidden window unreachable, so it shows after a short wait.
             GLib.timeout_add_seconds(5, self.hidden_fallback)
@@ -391,10 +397,94 @@ class FleetApp(Gtk.Application):
             return self.describe_preferences()
         if method == "host.preferences.openSystem":
             raise p.Failure("startup-settings", "這個桌面環境沒有可開啟的登入項目設定。")
+        if method == "update.state":
+            return self.updater.snapshot()
+        if method == "update.check":
+            self.updater.check()
+            return self.updater.snapshot()
+        if method == "update.download":
+            self.updater.download()
+            return self.updater.snapshot()
+        if method == "update.install":
+            self.begin_install()
+            return self.updater.snapshot()
         if method == "host.window.resetPlacement":
             self.reset_placement()
             return None
         raise p.Failure("unsupported-method", "原生主機沒有此操作。")
+
+    def record_update_check(self, time):
+        changed = {**self.preferences, "lastUpdateCheck": time}
+        try:
+            hostsettings.write_preferences(self.directory, changed)
+            self.preferences = changed
+        except OSError:
+            pass
+
+    def publish_update(self, state):
+        if self.view is not None and not self.stopped:
+            self.view.event("update-state", state=state)
+        return False
+
+    def begin_install(self):
+        """pkexec installs the verified DEB while Work Fleet runs; on success the usual close saves drafts and restarts it."""
+        p.require(self.updater.status == "downloaded" and not self.closing, "update-not-ready", "還沒有下載好的更新。")
+        self.updater.install(lambda ok: GLib.idle_add(self.installed, ok))
+
+    def installed(self, ok):
+        if ok and not self.closing:
+            self.restart = True
+            self.close_requested()
+        elif not ok and self.updater.error is not None:
+            self.message(Gtk.MessageType.WARNING, str(self.updater.error))
+        return False
+
+    def message(self, kind, text, question=False, answer=None):
+        dialog = Gtk.MessageDialog(transient_for=self.window if self.window is not None and self.window.get_visible() else None, modal=True,
+                                   message_type=kind, buttons=Gtk.ButtonsType.YES_NO if question else Gtk.ButtonsType.CLOSE, text="Work Fleet 更新")
+        dialog.format_secondary_text(text)
+        self.dialog_opened()
+
+        def responded(dialog, response):
+            dialog.destroy()
+            self.dialog_closed()
+            if answer is not None:
+                answer(response == Gtk.ResponseType.YES)
+        dialog.connect("response", responded)
+        dialog.show()
+
+    def tray_update(self):
+        """The tray asks once: a fresh check, then a native answer; updating saves and restarts like the settings page."""
+        self.updater.check(done=lambda: GLib.idle_add(self.tray_checked))
+
+    def tray_checked(self):
+        status, current = self.updater.status, self.updater.current_text
+        if status in ("update_available", "downloaded"):
+            pending = self.updater.pending
+            text = f"有新版本 {pending['version']}（目前 {current}）。" + (f"\n\n{pending['summary']}" if pending["summary"] else "") \
+                + "\n\n要現在更新並重新啟動 Work Fleet 嗎？安裝需要系統密碼，未保存的文字會先保存。"
+            self.message(Gtk.MessageType.QUESTION, text, True, lambda yes: yes and self.tray_download())
+        elif status == "up_to_date":
+            self.message(Gtk.MessageType.INFO, f"Work Fleet {current} 已是最新版本。")
+        else:
+            self.message(Gtk.MessageType.WARNING, str(self.updater.error) if self.updater.error else "更新沒有完成，請稍後再試。")
+        return False
+
+    def tray_download(self):
+        if self.updater.status == "downloaded":
+            self.begin_install()
+            return
+        self.updater.download(done=lambda: GLib.idle_add(self.tray_downloaded))
+
+    def tray_downloaded(self):
+        if self.updater.status == "downloaded":
+            try:
+                self.begin_install()
+            except p.Failure as error:
+                self.message(Gtk.MessageType.WARNING, str(error))
+        else:
+            self.message(Gtk.MessageType.WARNING, str(self.updater.error) if self.updater.error else "更新沒有完成，請稍後再試。")
+        return False
 
     def ask_display(self, profile):
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.QUESTION,
@@ -542,6 +632,7 @@ class FleetApp(Gtk.Application):
                 self.service.display = self.display
                 self.service.identity = {"appVersion": hostsettings.version(self.assets, __file__), "distribution": hostsettings.distribution(self.assets)}
                 self.service.shell = lambda method, args: self.ui(lambda: self.shell_invoke(method, args))
+                self.service.updates = self.updater.capable
                 self.close_desktop()
                 if self.view is not None:
                     self.view.close()

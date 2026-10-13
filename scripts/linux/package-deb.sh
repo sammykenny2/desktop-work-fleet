@@ -2,10 +2,11 @@
 # Package the generated Linux app with the distribution's dpkg-deb.
 # The version comes from the bundle's package.json, generated from src/native/linux/VERSION.
 # The temporary staging directory is removed on exit.
-# Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--release]
+# Also writes work-fleet-update.json, the in-app update manifest (ADR-044) a linux-vVERSION release carries beside the DEB.
+# Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--update-summary TEXT] [--release]
 set -euo pipefail
-usage() { echo 'Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--release]'; }
-BUNDLE=''; OUTPUT=''; APP_ID=''; EMAIL=''; RELEASE=0
+usage() { echo 'Usage: package-deb.sh --source PATH --output PATH --app-id ID [--maintainer-email EMAIL] [--update-summary TEXT] [--release]'; }
+BUNDLE=''; OUTPUT=''; APP_ID=''; EMAIL=''; SUMMARY=''; RELEASE=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --help) usage; exit 0 ;;
@@ -13,6 +14,7 @@ while [[ $# -gt 0 ]]; do
         --output) OUTPUT="${2:-}"; shift 2 ;;
         --app-id) APP_ID="${2:-}"; shift 2 ;;
         --maintainer-email) EMAIL="${2:-}"; shift 2 ;;
+        --update-summary) SUMMARY="${2:-}"; shift 2 ;;
         --release) RELEASE=1; shift ;;
         *) usage >&2; exit 2 ;;
     esac
@@ -58,4 +60,15 @@ CONTROL
 PACKAGE="$OUTPUT/work-fleet_${VERSION}_all.deb"
 dpkg-deb --build --root-owner-group "$STAGE" "$PACKAGE"
 (cd "$OUTPUT" && sha256sum "${PACKAGE##*/}" > "$PACKAGE.sha256")
+python3 - "$PACKAGE" "$VERSION" "$SUMMARY" "$OUTPUT/work-fleet-update.json" <<'MANIFEST'
+import hashlib, json, os, sys
+package, version, summary, target = sys.argv[1:]
+if len(summary) > 500:
+    sys.exit('The update summary must be at most 500 characters.')
+digest = hashlib.sha256(open(package, 'rb').read()).hexdigest()
+value = {'schemaVersion': 1, 'platform': 'linux', 'version': version, 'tag': 'linux-v' + version, 'summary': summary,
+         'assets': [{'arch': 'all', 'name': os.path.basename(package), 'size': os.path.getsize(package), 'sha256': digest}]}
+open(target, 'w', encoding='utf-8').write(json.dumps(value, ensure_ascii=False, indent=2) + chr(10))
+MANIFEST
 echo "Debian package: $PACKAGE"
+echo "Update manifest: $OUTPUT/work-fleet-update.json"

@@ -83,6 +83,7 @@ Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣；只在確認系統�
 主視窗大小、X11 位置與最大化存在資料目錄的 `window-placement.json`，啟動行為存在 `host-preferences.json`（ADR-043）。
 登入啟動寫入 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（DEB 用 `work-fleet`，tar.gz 用 bundle 的啟動檔，原始碼執行不支援），
 只在第一次啟動套用預設與使用者切換時改寫；`--launch-at-login` 啟動時主畫面留在系統匣，沒有系統匣則 5 秒後顯示。
+`updater.py`（ADR-044）只在 DEB 安裝時啟用：查詢 `linux-v<版號>` release、下載並核對後以 pkexec 安裝，成功後保存並重新啟動。
 可用隔離 headless labwc 執行本產品原生場景回歸，命令見 [testing](../../../docs/testing.md)。
 實際結果見 [PROGRESS](../../../PROGRESS.md)；沒有把 headless x64 測試當成 Pi／V3D、
 pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。

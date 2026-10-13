@@ -66,7 +66,8 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
 - **macOS**：採用 Sparkle 2（MIT）負責替換 App 與重新開啟，以自訂 user driver 接到本專案的狀態與介面，不使用 Sparkle 內建視窗。
   Feed 由本更新器取得對應 `macos-v` release 後交給 Sparkle。更新需 Sparkle EdDSA 簽章與相同 Team ID 的 Developer ID 公證版。
   安裝前走既有保存並結束流程。第三方授權記入 THIRD-PARTY-NOTICES。
-- **Linux（DEB）**：以 `dpkg-deb` 讀取並核對套件名稱、架構與更高版本，在 App 執行中以 `pkexec` 安裝本機 DEB。
+- **Linux（DEB）**：以 `dpkg-deb` 讀取並核對套件名稱、架構（`all` 或本機架構）與更高版本，在 App 執行中以
+  `pkexec apt-get install -y <本機 DEB>` 安裝，讓 apt 補上新增的系統依賴；沒有 apt-get 時改用 `pkexec dpkg -i`。
   成功後保存並關閉資料，再沿用 ADR-040 的 `host.restart` 重新執行新版本。取消授權時維持執行並顯示 authorization_cancelled。
   不透過會帶入 NoNewPrivs 的重新啟動方式。
 

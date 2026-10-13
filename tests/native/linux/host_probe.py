@@ -77,6 +77,10 @@ if MODE == "place":
     app.window.unmaximize()
     spin(lambda: hostsettings.read_placement(data) == {"x": 100, "y": 80, "width": 900, "height": 640, "maximized": False}, message=f"unmaximize clears the flag: {hostsettings.read_placement(data)}")
     check(True, "unmaximize clears the flag")
+    update = app.shell_invoke("update.state", {})
+    check(update["status"] == "unavailable" and "DEB" in update["reason"] and update["currentVersion"] == "9.8.7",
+          "a bundle run reports why in-app updates are unavailable")
+    check(app.shell_invoke("update.check", {})["status"] == "unavailable", "checking does nothing without update support")
     described = app.shell_invoke("host.preferences.get", {})
     check(described["startAtLogin"] == {"available": True, "enabled": True, "preference": True, "state": "enabled", "reason": None, "systemSettings": False}, "settings show the sign-in entry")
     app.shell_invoke("host.preferences.set", {"name": "startAtLogin", "value": False})

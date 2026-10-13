@@ -40,12 +40,14 @@ test('empty config supports local builds but reports missing release values and 
     { WORK_FLEET_GOOGLE_WEB_CLIENT_ID: 'not-an-id' }, { WORK_FLEET_WINDOWS_PACKAGE_ID: 'has spaces' },
     { WORK_FLEET_PRIVACY_URL: 'http://example.com/privacy' }, { WORK_FLEET_SUPPORT_URL: 'https://user:secret@example.com' },
     { WORK_FLEET_SUPPORT_EMAIL: 'not-an-email' }, { WORK_FLEET_UPDATE_REPOSITORY: 'https://github.com/o/r' },
-    { WORK_FLEET_UPDATE_REPOSITORY: 'owner/repo/extra' }, { WORK_FLEET_UPDATE_CHANNEL: 'stable' }]) {
+    { WORK_FLEET_UPDATE_REPOSITORY: 'owner/repo/extra' }, { WORK_FLEET_UPDATE_CHANNEL: 'stable' }, { WORK_FLEET_SPARKLE_PUBLIC_KEY: 'not-a-key' }]) {
     await assert.rejects(readBuildConfig(root, environment));
   }
   // ADR-044: every platform's public config names the release repository; an override must still be owner/repo.
-  assert.deepEqual(empty.update, { repository: 'sammykenny2/desktop-work-fleet', channel: 'preview' });
-  assert.deepEqual((await readBuildConfig(root, { WORK_FLEET_UPDATE_REPOSITORY: 'fork-owner/work.fleet' })).update, { repository: 'fork-owner/work.fleet', channel: 'preview' });
+  assert.deepEqual(empty.update, { repository: 'sammykenny2/desktop-work-fleet', channel: 'preview', macosPublicKey: '' });
+  assert.deepEqual((await readBuildConfig(root, { WORK_FLEET_UPDATE_REPOSITORY: 'fork-owner/work.fleet' })).update, { repository: 'fork-owner/work.fleet', channel: 'preview', macosPublicKey: '' });
+  const key = 'A'.repeat(43) + '=';
+  assert.equal((await readBuildConfig(root, { WORK_FLEET_SPARKLE_PUBLIC_KEY: key })).update.macosPublicKey, key);
   assert.throws(() => missingReleaseConfig(empty, 'unknown'));
 });
 

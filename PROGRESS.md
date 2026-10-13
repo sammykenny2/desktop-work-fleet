@@ -2,6 +2,19 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 App 內更新：macOS（Sparkle）
+
+使用者選定 Sparkle 2.10.0、Developer ID 版保留沙盒、App Store 版上架時再分開；不升版、不發布。
+
+- `FleetUpdates.swift`：以同一規則找出最新 `macos-v` release，把其 `appcast.xml` 交給 Sparkle 標準對話框；沒有較新 release 時直接回答已是最新。
+  只有 Info.plist 有 `SUPublicEDKey`（`WORK_FLEET_SPARKLE_PUBLIC_KEY`）且以 Developer ID（有 Team ID）簽章時啟用；設定頁與選單列「檢查更新…」。
+  Info.plist 加 `SUEnableInstallerLauncherService`、關閉自動檢查與自動更新；entitlements 加 `-spks`／`-spki` mach-lookup 例外。
+  Xcode 專案只在 macOS target 加入 Sparkle，`Package.resolved` 以 2.10.0 的 tag commit 釘選。
+- 發布：`package-native-app.sh` 在 Developer ID 公證後另產生 Sparkle 更新 ZIP、`appcast.xml`（`write-update-feed.mjs`）與 `work-fleet-update.json`；
+  新增手動 `macos-release.yml`（需要的 variables／secrets 見 deployment.md）。
+- 測試：`tests/update-feed-writer.test.js`、`apple-project.test.js` 通過；Swift 未在本機編譯，待手動 Apple 建置。
+- 未驗證：Sparkle 沙盒安裝、appcast 與 EdDSA 金鑰、登入項目與更新的 Mac 實機流程、`macos-release.yml` 與 CI 簽章 provisioning。
+
 ## 2026-10-14 App 內更新：Linux
 
 接續 Windows，沿用同一 bridge、設定頁與 `tests/fixtures/update-feed.json`；不升版、不發布。

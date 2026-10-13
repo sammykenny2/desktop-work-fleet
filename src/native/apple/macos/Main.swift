@@ -8,6 +8,7 @@ import AppKit
     private var terminating = false
     private var mainAside = false
     private var shell: FleetHostShell?
+    private var updates: FleetUpdates?
     static func main() { let application = NSApplication.shared; let delegate = FleetApp(); application.delegate = delegate; application.setActivationPolicy(.regular); application.run() }
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Read before anything else handles events: macOS marks a login-item launch on the open-application event.
@@ -16,6 +17,10 @@ import AppKit
             let directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("WorkFleet", isDirectory: true)
             let host = try FleetWebHost(directory: directory); self.host = host
             let shell = FleetHostShell(directory: directory, launchedAtLogin: launchedAtLogin); self.shell = shell
+            let config = (try? FleetProtocol.json(Data(contentsOf: Bundle.main.resourceURL!.appendingPathComponent("Config/public.json")))) ?? [:]
+            let updates = FleetUpdates(config: config, lastChecked: shell.lastUpdateCheck); self.updates = updates
+            updates.publish = { [weak host] state in host?.event("update-state", ["state": state]) }
+            updates.recordCheck = { [weak shell] time in shell?.recordUpdateCheck(time) }
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 800), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "Work Fleet"; window.minSize = NSSize(width: 380, height: 520); window.contentView = host.web; window.delegate = self; shell.apply(window)
             host.configure = { [weak self, weak host] service in
@@ -26,6 +31,7 @@ import AppKit
                 }, mainVisible: { [weak self] in self?.mainVisible($0) }); self.desktop = desktop
                 await service.setDesktop { [weak desktop] method, args in guard let desktop else { throw FleetFailure("desktop-closed", "桌面工作階段已結束。") }; return try desktop.invoke(method, args) }
                 await service.setShell { [weak self] method, args in guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }; return try self.shellInvoke(method, args) }
+                await service.setUpdates(self.updates?.capable == true)
             }
             host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil }
             host.finished = { [weak self] in guard let self else { return }; self.terminating = true; NSApplication.shared.reply(toApplicationShouldTerminate: true) }
@@ -37,6 +43,7 @@ import AppKit
             for (title, target) in [("快速記錄", "@capture"), ("調整所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")] {
                 let item = NSMenuItem(title: title, action: #selector(desktopAction(_:)), keyEquivalent: ""); item.target = self; item.representedObject = target; menu.addItem(item)
             }
+            if updates.capable { let item = NSMenuItem(title: "檢查更新…", action: #selector(checkUpdates), keyEquivalent: ""); item.target = self; menu.addItem(item) }
             menu.addItem(.separator()); let quitItem = NSMenuItem(title: "保存並結束", action: #selector(quit), keyEquivalent: "q"); quitItem.target = self; menu.addItem(quitItem); statusItem?.menu = menu
             let mainMenu = NSMenu(), appItem = NSMenuItem(), appMenu = NSMenu(); mainMenu.addItem(appItem); appItem.submenu = appMenu
             let appQuit = NSMenuItem(title: "保存並結束 Work Fleet", action: #selector(quit), keyEquivalent: "q"); appQuit.target = self; appMenu.addItem(appQuit)
@@ -60,7 +67,25 @@ import AppKit
         case "host.preferences.get": return shell.describe(trayAvailable: statusItem?.button != nil)
         case "host.preferences.set": return try shell.set(FleetProtocol.text(args, "name", 32), FleetProtocol.bool(args, "value"), trayAvailable: statusItem?.button != nil)
         case "host.preferences.openSystem": FleetHostShell.openSystemSettings(); return NSNull()
-        default: try shell.reset(window); return NSNull()
+        case "host.window.resetPlacement": try shell.reset(window); return NSNull()
+        case "update.state": return updates?.snapshot() ?? [:]
+        case "update.check":
+            if let updates { Task { await updates.check() } }
+            return updates?.snapshot() ?? [:]
+        // Sparkle's own dialogs download and install, so the page never asks for these on macOS.
+        default: throw FleetFailure("unsupported-method", "原生主機沒有此操作。")
+        }
+    }
+    /// The menu bar asks once: no newer release gets a short answer here; a newer one opens Sparkle's update dialog.
+    @objc private func checkUpdates() {
+        guard let updates else { return }
+        Task {
+            await updates.check()
+            guard updates.status == "up_to_date" || updates.status == "failed" else { return }
+            NSApplication.shared.activate(ignoringOtherApps: true)
+            let alert = NSAlert(); alert.messageText = "Work Fleet 更新"
+            alert.informativeText = updates.status == "up_to_date" ? "Work Fleet \(updates.currentText) 已是最新版本。" : updates.error?.message ?? "更新沒有完成，請稍後再試。"
+            alert.runModal()
         }
     }
     func windowDidMove(_ notification: Notification) { shell?.observe(window) }

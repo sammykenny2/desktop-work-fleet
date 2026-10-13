@@ -116,6 +116,21 @@ Linux 預覽版：手動 `linux-release.yml` 以 `src/native/linux/VERSION` 建�
 variables `WORK_FLEET_GOOGLE_PROJECT_ID`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` 與 secret `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET`。
 以 DEB 安裝的 App 才有 App 內更新：下載、核對後以 pkexec 安裝（需要系統密碼與 polkit 驗證代理程式），成功後保存並重新啟動。
 
+macOS 預覽版與更新（Sparkle）：
+1. 在 Mac 上一次性產生 Sparkle 金鑰：建置一次後執行 `build/apple/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys`，
+   私鑰存入登入鑰匙圈；把印出的公鑰設為 `.env` 與 repository variable 的 `WORK_FLEET_SPARKLE_PUBLIC_KEY`。
+   CI 需要時以 `generate_keys -x 檔案` 匯出私鑰存成 secret `SPARKLE_PRIVATE_KEY`，再刪除匯出檔。
+2. 本機發布：`build-native-app.sh --platform macos --release`，再以 `package-native-app.sh --platform macos --method developer-id
+   --application-identity … --installer-identity … --notary-profile … --dmg [--update-summary 文字]`。公證後除 PKG／DMG 外另產生
+   `WorkFleet-<版號>-macos-universal.zip`（Sparkle 更新檔）、`appcast.xml` 與 `work-fleet-update.json`，全部附在 `macos-v<版號>` release。
+3. 手動 `macos-release.yml` 執行同樣步驟，需要 variables `WORK_FLEET_APPLE_TEAM_ID`、`WORK_FLEET_APP_ID`、`WORK_FLEET_GOOGLE_PROJECT_ID`、
+   `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID`、`WORK_FLEET_SPARKLE_PUBLIC_KEY`、`MACOS_APPLICATION_IDENTITY`、`MACOS_INSTALLER_IDENTITY`，
+   secrets `MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64`、`MACOS_DEVELOPER_ID_INSTALLER_P12_BASE64`、`MACOS_CERTIFICATES_PASSWORD`、
+   `MACOS_NOTARY_KEY_P8_BASE64`、`MACOS_NOTARY_KEY_ID`、`MACOS_NOTARY_ISSUER_ID`、`SPARKLE_PRIVATE_KEY`。尚未執行；CI 對鑰匙圈 entitlement
+   的 provisioning 未驗證，失敗時以 Mac 本機發布。
+4. 只有含公鑰、Developer ID 簽章的 App 有「檢查更新」；Sparkle 以 `sparkle:version`（`CURRENT_PROJECT_VERSION`）判斷新舊，
+   所以每次發布都要提高它。
+
 直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
 命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。
 Apple export 使用 `--method app-store-connect|developer-id|debugging|release-testing`；iOS 不接受

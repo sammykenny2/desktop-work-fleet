@@ -53,6 +53,9 @@ export async function readBuildConfig(root, environment = process.env, { platfor
   config.update = { repository: value('WORK_FLEET_UPDATE_REPOSITORY') || 'sammykenny2/desktop-work-fleet', channel: value('WORK_FLEET_UPDATE_CHANNEL') || 'preview' };
   if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/.test(config.update.repository)) throw new Error('WORK_FLEET_UPDATE_REPOSITORY 必須是 owner/repo。');
   if (config.update.channel !== 'preview') throw new Error('WORK_FLEET_UPDATE_CHANNEL 目前只支援 preview。');
+  // The Sparkle EdDSA public key the macOS app checks updates against; the private key never leaves the maintainer's Mac or CI secret.
+  config.update.macosPublicKey = value('WORK_FLEET_SPARKLE_PUBLIC_KEY');
+  if (config.update.macosPublicKey && !/^[A-Za-z0-9+/]{43}=$/.test(config.update.macosPublicKey)) throw new Error('WORK_FLEET_SPARKLE_PUBLIC_KEY 必須是 generate_keys 印出的 base64 公鑰。');
   return config;
 }
 

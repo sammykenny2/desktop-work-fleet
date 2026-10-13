@@ -47,6 +47,8 @@ release 的 `work-fleet-update.json`，MSIX 身分（Name／Publisher／架構�
 這份 manifest 與安裝檔來自同一個 release，只防損毀與單一檔案被換，不防 GitHub 帳號被盜。renderer 不能指定任何 URL。
 本機測試來源只由 `app.workfleet.updateprobe.*` 套件身分讀取，其他身分忽略。Linux 以 `dpkg-deb` 核對套件名稱 `work-fleet`、
 架構與更高版本後才以 pkexec 安裝；DEB 沒有作業系統簽章檢查，只靠同一 release 的 manifest 與 SHA-256。
+macOS 只自己查詢 `api.github.com`（拒絕轉址），之後由 Sparkle 依 appcast 下載並自行跟隨 GitHub 轉址，上述主機白名單不適用；
+Sparkle 以 appcast 的 EdDSA 簽章（App 內建公鑰）與 Apple 程式碼簽章（同 Team ID）驗證後才安裝。私鑰只在維護者的 Mac 鑰匙圈或 CI secret。
 Windows 自動檔案與安全備份密碼整合見 ADR-016；OAuth 與其他平台仍需實作／驗收。
 Native grants／file identity 以 DPAPI 保護並綁 profile，renderer 無路徑／metadata 讀取方法。
 NTFS 子檔相對 held directory handle 建立；清理核對同 handle 的實體／size／SHA 後 disposition，

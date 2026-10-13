@@ -147,6 +147,9 @@ approval or license audit for future store packages or unselected frameworks.
 GoogleSignIn 9.2.0 is resolved as an unmodified Swift package from
 [Google's repository](https://github.com/google/GoogleSignIn-iOS/tree/9.2.0), under its
 [Apache-2.0 license](https://github.com/google/GoogleSignIn-iOS/blob/9.2.0/LICENSE).
+Sparkle 2.10.0 is resolved for the macOS target only, as an unmodified Swift package from
+[the Sparkle project](https://github.com/sparkle-project/Sparkle/tree/2.10.0), under its
+[MIT license](https://github.com/sparkle-project/Sparkle/blob/2.10.0/LICENSE); it installs in-app updates (ADR-044).
 Its resolved transitive packages remain subject to their individual licenses. The Xcode
 build phase copies package root LICENSE/NOTICE/COPYING files before signing the bundle.
 The final package inventory and merged SDK privacy manifests remain to be recorded from

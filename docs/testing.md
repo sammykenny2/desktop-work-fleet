@@ -435,6 +435,8 @@ App 內更新（ADR-044）：core probe 以 `tests/fixtures/update-feed.json` �
 不碰已安裝的 Work Fleet；過程中測試身分的主視窗與空白桌面場景會短暫出現。真 GitHub release 的查詢與下載需等含 manifest 的版本發布後驗證。
 Linux 更新器由 `tests/test_linux_updater.py` 以同一份 fixture 驗證，並以假 HTTP／指令驗證轉址白名單、容量與 SHA-256、`dpkg-deb` 欄位、
 取消 pkexec 與下載後被改動；`test-host-shell.sh` 確認非 DEB 執行時回報不支援。真 pkexec／polkit 安裝需在 Debian／Pi 以 DEB 實測。
+macOS：`tests/update-feed-writer.test.js` 驗證 `write-update-feed.mjs` 產生的 appcast 與 manifest；Swift 程式由手動 Apple 建置 workflow 編譯。
+Sparkle 的沙盒安裝、`feedURLString` 與 EdDSA 金鑰只能在 Mac 上以 Developer ID 公證的舊版更新到新版驗證。
 
 開發時以 CDP 檢查 Debug App（使用正式資料目錄；需先關閉已安裝的 App）：
 

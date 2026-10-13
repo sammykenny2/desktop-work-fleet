@@ -21,6 +21,9 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     file(path.join(root, 'LICENSE'), 'text'), file(path.join(root, 'THIRD-PARTY-NOTICES.md'), 'text')];
   const packageId = add({ isa: 'XCRemoteSwiftPackageReference', repositoryURL: 'https://github.com/google/GoogleSignIn-iOS',
     requirement: { kind: 'exactVersion', version: '9.2.0' } });
+  // ADR-044: macOS updates through Sparkle; the iOS target and any future App Store build do not link it.
+  const sparkleId = add({ isa: 'XCRemoteSwiftPackageReference', repositoryURL: 'https://github.com/sparkle-project/Sparkle',
+    requirement: { kind: 'exactVersion', version: '2.10.0' } });
   const group = add({ isa: 'PBXGroup', children: [...shared, ...resources], sourceTree: '<group>' });
   const products = add({ isa: 'PBXGroup', children: [], name: 'Products', sourceTree: '<group>' }); objects[group].children.push(products);
   const baseConfig = file(path.join(output, 'config', 'WorkFleet.xcconfig'), 'text.xcconfig'); objects[group].children.push(baseConfig);
@@ -56,14 +59,16 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     const icon = file(await generateAppleIcons(path.join(output, 'resources'), platform), 'folder.assetcatalog'); objects[group].children.push(icon);
     const generated = ['Assets', 'Config'].map(folder => file(path.join(output, '.generated', name, folder), 'folder')); objects[group].children.push(...generated);
     const resourcePhase = add({ isa: 'PBXResourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles([...resources, ...generated, icon]), runOnlyForDeploymentPostprocessing: 0 });
-    const frameworkPhase = add({ isa: 'PBXFrameworksBuildPhase', buildActionMask: 2147483647, files: [add({ isa: 'PBXBuildFile', productRef: google })], runOnlyForDeploymentPostprocessing: 0 });
+    const sparkle = platform === 'macos' ? add({ isa: 'XCSwiftPackageProductDependency', package: sparkleId, productName: 'Sparkle' }) : null;
+    const frameworkPhase = add({ isa: 'PBXFrameworksBuildPhase', buildActionMask: 2147483647,
+      files: [google, ...(sparkle ? [sparkle] : [])].map(productRef => add({ isa: 'PBXBuildFile', productRef })), runOnlyForDeploymentPostprocessing: 0 });
     const licensePhase = add({ isa: 'PBXShellScriptBuildPhase', name: 'Copy native dependency notices', buildActionMask: 2147483647,
       files: [], inputPaths: ['$(WORK_FLEET_ROOT)/scripts/macos/copy-native-notices.sh', '$(WORK_FLEET_PACKAGES_DIR)/checkouts'],
       outputPaths: ['$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/Licenses'], runOnlyForDeploymentPostprocessing: 0,
       shellPath: '/bin/bash', shellScript: 'bash "$WORK_FLEET_ROOT/scripts/macos/copy-native-notices.sh" "$WORK_FLEET_PACKAGES_DIR/checkouts" "$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/Licenses"\n' });
     const id = add({ isa: 'PBXNativeTarget', name, productName: name, productReference: product, productType: 'com.apple.product-type.application',
       buildConfigurationList: configs(mode => settings(platform, mode)), buildPhases: [preparePhase(platform, name), sourcePhase, frameworkPhase, resourcePhase, licensePhase],
-      buildRules: [], dependencies: [], packageProductDependencies: [google] }); targets.push(id);
+      buildRules: [], dependencies: [], packageProductDependencies: [google, ...(sparkle ? [sparkle] : [])] }); targets.push(id);
     if (platform === 'ios') iosTarget = id;
     const reference = `<BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="${id}" BuildableName="${name}.app" BlueprintName="${name}" ReferencedContainer="container:WorkFleet.xcodeproj"/>`;
     await writeFile(path.join(project, 'xcshareddata', 'xcschemes', `${name}.xcscheme`), `<?xml version="1.0" encoding="UTF-8"?>
@@ -86,7 +91,7 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     files: [add({ isa: 'PBXBuildFile', fileRef: shareProduct, settings: { ATTRIBUTES: ['CodeSignOnCopy', 'RemoveHeadersOnCopy'] } })], runOnlyForDeploymentPostprocessing: 0 }));
   objects[projectId] = { isa: 'PBXProject', attributes: { LastUpgradeCheck: '1600' }, buildConfigurationList: configs(() => ({})), compatibilityVersion: 'Xcode 14.0',
     developmentRegion: 'en', hasScannedForEncodings: 0, knownRegions: ['en', 'zh-Hant', 'Base'], mainGroup: group, productRefGroup: products,
-    projectDirPath: '', projectRoot: '', targets, packageReferences: [packageId] };
+    projectDirPath: '', projectRoot: '', targets, packageReferences: [packageId, sparkleId] };
   const serialize = value => Array.isArray(value) ? value.length ? `(${value.map(serialize).join(', ')},)` : '()'
     : value && typeof value === 'object' ? `{\n${Object.entries(value).map(([key, item]) => `${JSON.stringify(key)} = ${serialize(item)};`).join('\n')}\n}`
       : typeof value === 'number' ? String(value) : JSON.stringify(value);

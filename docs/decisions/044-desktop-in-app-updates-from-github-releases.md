@@ -63,9 +63,16 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
   更新自己的套件不需要 `packageManagement` 受限能力（2026-10-14 以測試身分實測）。Windows 只重新開啟執行滿 60 秒的程序。
   簽章與信任由 Windows 檢查，使用與既有預覽包相同的憑證。安裝失敗時重新開啟 App 並顯示錯誤；草稿已先保存。
   不使用預設停用的 `ms-appinstaller` 協定。Publisher 改變（正式憑證或 Store）不能就地更新，另行處理。
-- **macOS**：採用 Sparkle 2（MIT）負責替換 App 與重新開啟，以自訂 user driver 接到本專案的狀態與介面，不使用 Sparkle 內建視窗。
-  Feed 由本更新器取得對應 `macos-v` release 後交給 Sparkle。更新需 Sparkle EdDSA 簽章與相同 Team ID 的 Developer ID 公證版。
-  安裝前走既有保存並結束流程。第三方授權記入 THIRD-PARTY-NOTICES。
+- **macOS**：Sparkle 2.10.0（MIT，2026-10-14 使用者選定）負責下載、驗證、替換與重新開啟，使用 Sparkle 的標準對話框
+  （`SPUStandardUpdaterController`，含繁中）。原本考慮自訂 user driver，但約 15 個協定方法在沒有 Mac 的環境無法驗證，
+  標準介面也是參考專案使用者熟悉的樣子。設定頁與選單列的「檢查更新」先以同一規則找出最新的 `macos-v` release，
+  把該 release 的 `appcast.xml` 交給 Sparkle（`feedURLString(for:)`）再檢查；沒有更新的 release 直接回答已是最新。
+  Sparkle 以 appcast 的 `sparkle:version` 比對 `CFBundleVersion`（`CURRENT_PROJECT_VERSION`），打包腳本同時寫入兩種版號。
+  更新需 Sparkle EdDSA 簽章（公鑰 `WORK_FLEET_SPARKLE_PUBLIC_KEY` 進 Info.plist `SUPublicEDKey`）與相同 Team ID 的 Developer ID 公證版；
+  沒有公鑰或不是 Developer ID 簽章時只顯示版本。App 保留沙盒（使用者 2026-10-14 選擇），依 Sparkle 沙盒說明加
+  `SUEnableInstallerLauncherService` 與 `-spks`／`-spki` mach-lookup 暫時例外；已有 network.client，所以不開下載服務。
+  自動檢查與自動更新關閉（Q01）。安裝時 Sparkle 結束 App，走既有保存並結束流程。未來 Mac App Store 版不得包含 Sparkle，
+  上架時再分出不含 Sparkle 的建置（使用者同意）。第三方授權記入 THIRD-PARTY-NOTICES。
 - **Linux（DEB）**：以 `dpkg-deb` 讀取並核對套件名稱、架構（`all` 或本機架構）與更高版本，在 App 執行中以
   `pkexec apt-get install -y <本機 DEB>` 安裝，讓 apt 補上新增的系統依賴；沒有 apt-get 時改用 `pkexec dpkg -i`。
   成功後保存並關閉資料，再沿用 ADR-040 的 `host.restart` 重新執行新版本。取消授權時維持執行並顯示 authorization_cancelled。
@@ -133,7 +140,7 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
 
 - **Pros**：沒有第三方依賴。
 - **Cons**：需自行處理執行中替換、權限、隔離屬性與簽章驗證，風險高。
-- **Why rejected**：Sparkle 2 是成熟做法；最終選擇列為 SPEC-006 的 Q。
+- **Why rejected**：Sparkle 2 是成熟做法；使用者 2026-10-14 選定 Sparkle（SPEC-006 Q02）。
 
 ## References
 

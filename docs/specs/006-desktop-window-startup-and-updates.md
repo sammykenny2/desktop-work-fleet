@@ -87,7 +87,7 @@
 | UP-F08 | 下載前重新檢查；已下載版本不再是最新就重新下載；只持久化上次檢查時間 |
 | UP-F09 | 安裝前走既有保存並結束流程，確保草稿保存、場景撤下、資料關閉 |
 | UP-F10 | Windows 核對 MSIX 的 Name、Publisher、架構與版本後以 `PackageManager` 安裝並重新開啟；失敗時重新開啟並顯示錯誤 |
-| UP-F11 | macOS 以 Sparkle 2 安裝已簽章公證的新版，UI 使用本專案狀態與文案 |
+| UP-F11 | macOS 以 Sparkle 2.10.0 的標準對話框下載、驗證並安裝已簽章公證的新版；本專案只負責找出 release 與檢查入口 |
 | UP-F12 | Linux 核對 DEB 名稱、架構與版本，以 `pkexec` 安裝後重新執行；取消授權時維持執行並顯示原因 |
 | UP-F13 | 錯誤以穩定代碼與繁中文案顯示；原始回應不進 UI，記錄不含 token 或個人資料 |
 | UP-F14 | 每個平台 release 附安裝檔、`.sha256` 與 `work-fleet-update.json`；tag 為 `<platform>-v<版號>` |
@@ -110,7 +110,7 @@
 ## Open Questions（Q）
 
 - [ ] Q01：是否加入啟動後自動檢查與間隔，或之後的背景下載（參考專案預設關閉）。
-- [ ] Q02：macOS 是否採用 Sparkle 2，或改為自寫替換程式。
+- [x] Q02：macOS 採用 Sparkle 2.10.0、標準對話框、Developer ID 版保留沙盒；App Store 版上架時再分出不含 Sparkle 的建置（2026-10-14）。
 - [ ] Q03：Linux 之後是否改提供簽章 APT 套件庫，交給系統更新。
 - [ ] Q04：預覽之外是否要正式頻道；正式頻道是否排除 prerelease。
 - [ ] Q05：本機封裝包（D05）是否應改為只顯示版本，避免開發中版本被發布版取代。

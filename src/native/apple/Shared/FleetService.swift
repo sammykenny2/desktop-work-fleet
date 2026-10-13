@@ -19,6 +19,7 @@ actor FleetService {
     private var capture: ((String, [String: Any]) async throws -> Any)?
     /// ADR-043: startup settings and the main window, owned by the macOS app delegate on the main actor.
     private var shell: (@MainActor (String, [String: Any]) throws -> Any)?
+    private var updates = false
     init(database: FleetDatabase, google: FleetGoogle, platform: String, choose: @escaping @MainActor () async throws -> URL) {
         self.database = database; self.google = google; self.platform = platform
         backups = FleetBackup(database: database, choose: choose); drive = FleetDrive(google: google, profile: database.profile)
@@ -27,6 +28,7 @@ actor FleetService {
     func setExports(_ handler: @escaping @MainActor (Data, String, String) async throws -> Any) { exports = handler }
     func setCapture(_ handler: @escaping (String, [String: Any]) async throws -> Any) { capture = handler }
     func setShell(_ handler: @escaping @MainActor (String, [String: Any]) throws -> Any) { shell = handler }
+    func setUpdates(_ available: Bool) { updates = available }
     private func add(_ value: Transfer) throws -> String {
         try FleetProtocol.require(!closed && transfers.count < 8 && transfers.values.reduce(value.size, { $0 + $1.size }) <= 256 * 1024 * 1024, "transfer-busy", "原生傳輸忙碌。")
         let id = FleetProtocol.uuid(); transfers[id] = value; return id
@@ -67,7 +69,8 @@ actor FleetService {
                 if let data = result as? Data { return try download(data) }; return result
             }
         }
-        if ["host.preferences.get", "host.preferences.set", "host.preferences.openSystem", "host.window.resetPlacement"].contains(method) {
+        if ["host.preferences.get", "host.preferences.set", "host.preferences.openSystem", "host.window.resetPlacement",
+            "update.state", "update.check", "update.download", "update.install"].contains(method) {
             guard let shell else { throw FleetFailure("unsupported-method", "原生主機沒有此操作。") }
             return try await shell(method, args)
         }
@@ -77,7 +80,7 @@ actor FleetService {
                 "distribution": "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
                 "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
-                                 "hostPreferences": shell != nil, "updates": false]]
+                                 "hostPreferences": shell != nil, "updates": updates]]
         case "host.ready": ready = true; return NSNull()
         case "host.closeReady": closeReady = true; return NSNull()
         case "host.closeCancel": closeReady = false; return NSNull()

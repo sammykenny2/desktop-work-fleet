@@ -1,0 +1,165 @@
+name: macOS preview release
+
+# Manual only. Archives the universal app, signs it with Developer ID, notarizes it and publishes a GitHub prerelease
+# tagged macos-v<MARKETING_VERSION> with the PKG, DMG, the Sparkle update ZIP, appcast.xml and work-fleet-update.json
+# (ADR-044). An existing tag or release is never replaced. Not yet run: it needs the variables and secrets listed in
+# docs/deployment.md, and CI provisioning for the keychain entitlement is unverified; packaging on the maintainer's Mac
+# with the same scripts is the fallback.
+
+on:
+  workflow_dispatch:
+    inputs:
+      summary:
+        description: Plain-text summary shown by the in-app updater (at most 500 characters)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Check version and tests
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Resolve the release tag
+        id: version
+        run: |
+          version=$(node scripts/platform-version.mjs --platform macos)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=macos-v$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Refuse a version that was already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1 || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG already exists. Bump MARKETING_VERSION in src/native/apple/config/WorkFleet.xcconfig to publish another preview."
+            exit 1
+          fi
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  build:
+    name: Archive, sign and notarize
+    needs: guard
+    runs-on: macos-15
+    env:
+      WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
+      WORK_FLEET_APPLE_TEAM_ID: ${{ vars.WORK_FLEET_APPLE_TEAM_ID }}
+      WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+      WORK_FLEET_GOOGLE_MACOS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_MACOS_CLIENT_ID }}
+      WORK_FLEET_SPARKLE_PUBLIC_KEY: ${{ vars.WORK_FLEET_SPARKLE_PUBLIC_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Check settings
+        run: |
+          node scripts/check-config.mjs --google --platform macos
+          [ -n "$WORK_FLEET_APPLE_TEAM_ID" ] || { echo 'Variable WORK_FLEET_APPLE_TEAM_ID is not set.'; exit 1; }
+          [ -n "$WORK_FLEET_SPARKLE_PUBLIC_KEY" ] || { echo 'Variable WORK_FLEET_SPARKLE_PUBLIC_KEY is not set.'; exit 1; }
+      # A throwaway keychain holds the Developer ID identities and the notary profile for this job only.
+      - name: Import signing identities and notary credentials
+        env:
+          APPLICATION_P12: ${{ secrets.MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+          INSTALLER_P12: ${{ secrets.MACOS_DEVELOPER_ID_INSTALLER_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.MACOS_CERTIFICATES_PASSWORD }}
+          NOTARY_KEY: ${{ secrets.MACOS_NOTARY_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.MACOS_NOTARY_KEY_ID }}
+          NOTARY_ISSUER: ${{ secrets.MACOS_NOTARY_ISSUER_ID }}
+        run: |
+          for value in "$APPLICATION_P12" "$INSTALLER_P12" "$P12_PASSWORD" "$NOTARY_KEY" "$NOTARY_KEY_ID" "$NOTARY_ISSUER"; do
+            [ -n "$value" ] || { echo 'A macOS signing or notarization secret is not set.'; exit 1; }
+          done
+          keychain="$RUNNER_TEMP/release.keychain-db"; password="$(uuidgen)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          for p12 in "$APPLICATION_P12" "$INSTALLER_P12"; do
+            printf '%s' "$p12" | base64 --decode > "$RUNNER_TEMP/identity.p12"
+            security import "$RUNNER_TEMP/identity.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+            rm -f "$RUNNER_TEMP/identity.p12"
+          done
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          printf '%s' "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          xcrun notarytool store-credentials work-fleet-notary --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --keychain "$keychain"
+          rm -f "$RUNNER_TEMP/notary.p8"
+      - name: Archive and package
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+          APPLICATION_IDENTITY: ${{ vars.MACOS_APPLICATION_IDENTITY }}
+          INSTALLER_IDENTITY: ${{ vars.MACOS_INSTALLER_IDENTITY }}
+          SUMMARY: ${{ inputs.summary }}
+        run: |
+          [ -n "$SPARKLE_PRIVATE_KEY" ] && [ -n "$APPLICATION_IDENTITY" ] && [ -n "$INSTALLER_IDENTITY" ] || { echo 'Sparkle key or signing identity names are not set.'; exit 1; }
+          umask 077; printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle.key"
+          export SPARKLE_PRIVATE_KEY_FILE="$RUNNER_TEMP/sparkle.key"
+          bash scripts/macos/build-native-app.sh --platform macos --release
+          bash scripts/macos/package-native-app.sh --platform macos --method developer-id --application-identity "$APPLICATION_IDENTITY" \
+            --installer-identity "$INSTALLER_IDENTITY" --notary-profile work-fleet-notary --dmg --update-summary "$SUMMARY"
+          rm -f "$RUNNER_TEMP/sparkle.key"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: macos-preview
+          path: |
+            build/WorkFleet-${{ needs.guard.outputs.version }}-macos-universal.*
+            build/appcast.xml
+            build/work-fleet-update.json
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish the prerelease
+    needs: [guard, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: macos-preview
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.guard.outputs.tag }}
+          VERSION: ${{ needs.guard.outputs.version }}
+          COMMIT: ${{ needs.guard.outputs.commit }}
+        run: |
+          cd dist
+          for file in WorkFleet-"$VERSION"-macos-universal.*.sha256; do shasum -a 256 -c "$file"; done
+          cat > notes.md <<EOF
+          macOS 預覽版，從 ${COMMIT} 建置，已用 Developer ID 簽章並經 Apple 公證。需要 macOS 13 以上。
+
+          ## 安裝
+          開啟 \`WorkFleet-${VERSION}-macos-universal.dmg\`，把 Work Fleet 拖到「應用程式」；或執行 \`.pkg\`。
+          之後可在選單列或設定＞桌面「版本與更新」檢查更新，由 Sparkle 下載、驗證並重新開啟。
+          Google 登入目前是測試中，只有加入測試使用者的帳號能登入。
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
+            --title "Work Fleet for macOS $VERSION（預覽）" --notes-file notes.md \
+            WorkFleet-"$VERSION"-macos-universal.* appcast.xml work-fleet-update.json

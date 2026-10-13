@@ -16,7 +16,7 @@ import ServiceManagement
     let directory: URL
     let launchedAtLogin: Bool
     private(set) var startAtLogin = true, closeToTray = true, openMainAtLogin = false
-    private var lastUpdateCheck: String?
+    private(set) var lastUpdateCheck: String?
     private let firstRun: Bool
     private var current: Placement?
     private var dirty = false, tracking = false
@@ -205,5 +205,7 @@ import ServiceManagement
         return describe(trayAvailable: trayAvailable)
     }
     static func openSystemSettings() { SMAppService.openSystemSettingsLoginItems() }
+    /// Remembers the last update check; losing it only changes the 上次檢查 time shown.
+    func recordUpdateCheck(_ time: String) { lastUpdateCheck = time; try? writePreferences() }
     static var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0" }
 }

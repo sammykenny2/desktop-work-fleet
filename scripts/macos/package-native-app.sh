@@ -2,10 +2,13 @@
 # Export an existing native archive; optionally package/notarize the macOS app.
 # Names come from the archive's version; macOS requires a universal binary. Release files and their
 # .sha256 go directly in build/; build/apple/export-PLATFORM is replaced on every run.
-# Usage: scripts/macos/package-native-app.sh --platform ios|macos --method METHOD [--archive PATH] [--application-identity NAME] [--installer-identity NAME] [--notary-profile NAME] [--dmg]
+# A notarized Developer ID macOS export also writes the Sparkle update archive (the stapled app as a ZIP), its appcast.xml and
+# work-fleet-update.json for the macos-vVERSION release (ADR-044). sign_update reads the EdDSA private key from the login
+# keychain, or from the file in SPARKLE_PRIVATE_KEY_FILE.
+# Usage: scripts/macos/package-native-app.sh --platform ios|macos --method METHOD [--archive PATH] [--application-identity NAME] [--installer-identity NAME] [--notary-profile NAME] [--dmg] [--update-summary TEXT]
 set -euo pipefail
-usage() { echo 'Usage: scripts/macos/package-native-app.sh --platform ios|macos --method app-store-connect|developer-id|debugging|release-testing [--archive PATH] [--application-identity NAME] [--installer-identity NAME] [--notary-profile NAME] [--dmg]'; }
-PLATFORM=''; METHOD=''; ARCHIVE=''; APPLICATION=''; INSTALLER=''; NOTARY=''; DMG=0
+usage() { echo 'Usage: scripts/macos/package-native-app.sh --platform ios|macos --method app-store-connect|developer-id|debugging|release-testing [--archive PATH] [--application-identity NAME] [--installer-identity NAME] [--notary-profile NAME] [--dmg] [--update-summary TEXT]'; }
+PLATFORM=''; METHOD=''; ARCHIVE=''; APPLICATION=''; INSTALLER=''; NOTARY=''; DMG=0; SUMMARY=''
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --help) usage; exit 0 ;;
@@ -16,6 +19,7 @@ while [[ $# -gt 0 ]]; do
         --installer-identity) INSTALLER="${2:-}"; shift 2 ;;
         --notary-profile) NOTARY="${2:-}"; shift 2 ;;
         --dmg) DMG=1; shift ;;
+        --update-summary) SUMMARY="${2:-}"; shift 2 ;;
         *) usage >&2; exit 2 ;;
     esac
 done
@@ -50,7 +54,7 @@ if [[ "$PLATFORM" == macos ]]; then
         echo "macOS packages must be universal; found:$ARCHITECTURES. Archive with scripts/macos/build-native-app.sh." >&2; exit 1; }
     NAME="WorkFleet-$VERSION-macos-universal"
 fi
-DELIVERED=()
+DELIVERED=(); FEED=()
 deliver() { (cd "$OUTPUT"; shasum -a 256 "$1" > "$1.sha256"); DELIVERED+=("$1"); }
 exported() {
     local found=("$OUTPUT/products"/*."$1")
@@ -68,6 +72,17 @@ else
         ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/app-for-notary.zip"
         xcrun notarytool submit "$OUTPUT/app-for-notary.zip" --keychain-profile "$NOTARY" --wait
         xcrun stapler staple "$APP"
+        # The stapled app doubles as the Sparkle update archive; Sparkle checks its EdDSA signature and Apple code signature.
+        ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/$NAME.zip"
+        SIGN_UPDATE="$PROJECT_ROOT/build/apple/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/sign_update"
+        [[ -x "$SIGN_UPDATE" ]] || { echo 'Sparkle sign_update was not found; archive with scripts/macos/build-native-app.sh first.' >&2; exit 1; }
+        if [[ -n "${SPARKLE_PRIVATE_KEY_FILE:-}" ]]; then SIGNATURE="$("$SIGN_UPDATE" --ed-key-file "$SPARKLE_PRIVATE_KEY_FILE" "$OUTPUT/$NAME.zip")"
+        else SIGNATURE="$("$SIGN_UPDATE" "$OUTPUT/$NAME.zip")"; fi
+        BUILD="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleVersion' "$ARCHIVE/Info.plist")"
+        REPOSITORY="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).update.repository);' "$APP/Contents/Resources/Config/public.json")"
+        node scripts/macos/write-update-feed.mjs --archive "$OUTPUT/$NAME.zip" --signature "$SIGNATURE" --version "$VERSION" --build "$BUILD" \
+            --repository "$REPOSITORY" --output "$OUTPUT" --summary "$SUMMARY"
+        deliver "$NAME.zip"; FEED=(appcast.xml work-fleet-update.json)
     fi
     PACKAGE="$OUTPUT/$NAME.pkg"; SIGN=()
     [[ -z "$INSTALLER" ]] || SIGN=(--sign "$INSTALLER")
@@ -92,4 +107,5 @@ for FILE in "${DELIVERED[@]}"; do
     mv -f "$OUTPUT/$FILE" "$OUTPUT/$FILE.sha256" "$PROJECT_ROOT/build/"
     echo "Release package: build/$FILE"
 done
+for FILE in "${FEED[@]}"; do mv -f "$OUTPUT/$FILE" "$PROJECT_ROOT/build/"; echo "Update feed: build/$FILE"; done
 echo "Export work directory: $OUTPUT"

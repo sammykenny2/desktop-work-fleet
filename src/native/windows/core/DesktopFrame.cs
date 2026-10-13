@@ -6,8 +6,9 @@ public sealed record LogicalRect(double X, double Y, double Width, double Height
 public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bool Interactive, bool Operable);
 
 /// <summary>Native input regions are derived only from a complete, validated owner projection. A stage notice only
-/// keeps the topmost scene visible; it never becomes an input region.</summary>
-public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0, LogicalRect? Notice = null)
+/// keeps the topmost scene visible; it never becomes an input region. While adjusting, the topmost scene is the
+/// modal adjust overlay.</summary>
+public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0, LogicalRect? Notice = null, bool Adjusting = false)
 {
   public static DesktopFrame Parse(ReadOnlyMemory<byte> bytes, string sessionId, long previous)
   {
@@ -18,6 +19,9 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
     var sequence = JsonRules.Integer(root, "sequence");
     HostError.Require(sequence > previous, "scene-order", "桌面畫面已過期。");
     _ = JsonRules.Integer(root, "workspaceRevision"); _ = JsonRules.Integer(root, "layoutRevision");
+    var scope = root.GetProperty("operationScope"); Fields(scope, "kind groupId");
+    var kind = JsonRules.Text(scope, "kind");
+    HostError.Require(kind is "none" or "group" or "all", "scene-frame", "桌面調整範圍無效。");
     // Imported/concurrent groups beyond the formation limit remain visible until the user merges them.
     HostError.Require(root.GetProperty("groups").ValueKind == JsonValueKind.Array && root.GetProperty("groups").GetArrayLength() <= 20000,
       "scene-frame", "桌面群組格式無效。");
@@ -51,7 +55,7 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
       _ = JsonRules.Text(value, "title", 200); _ = JsonRules.Text(value, "text", 200);
       notice = Rect(value.GetProperty("rect"));
     }
-    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0, notice);
+    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0, notice, kind != "none");
   }
   private static bool Boolean(JsonElement value, string key)
   {

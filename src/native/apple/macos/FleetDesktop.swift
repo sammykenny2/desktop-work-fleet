@@ -7,7 +7,7 @@ import AppKit
     private struct Intent { let id = FleetProtocol.uuid(), process: pid_t, created = ProcessInfo.processInfo.systemUptime }
     let session = FleetProtocol.uuid()
     private let assets: URL, referenceTop: CGFloat
-    private let send: (String, [String: Any]) -> Void, show: () -> Void, hide: () -> Bool
+    private let send: (String, [String: Any]) -> Void, show: () -> Void, hide: () -> Bool, mainVisible: (Bool) -> Void
     private let transfers = FleetSceneTransfers(), shortcuts = FleetShortcuts()
     private var displays: [Display], proposed: [Display]?
     private var views: [FleetSceneSurface] = [], commands: [String: Command] = [:], flushes: [String: (String, String)] = [:], frozen: [String: String] = [:]
@@ -16,8 +16,8 @@ import AppKit
     private var topology: Int64 = 0, proposedTopology: Int64 = 0
     private var started = false, closed = false, displayPending = false, blocked = false, menu = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = [], displayTask: Task<Void, Never>?
-    init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Void, hide: @escaping () -> Bool) throws {
-        self.assets = assets; self.send = send; self.show = show; self.hide = hide
+    init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Void, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void) throws {
+        self.assets = assets; self.send = send; self.show = show; self.hide = hide; self.mainVisible = mainVisible
         guard let primary = NSScreen.screens.first else { throw FleetFailure("desktop-display", "目前沒有可用螢幕。") }
         referenceTop = primary.frame.maxY; displays = try Self.readDisplays(top: primary.frame.maxY)
         for display in displays { for layer in Self.layers { _ = newView(display, layer) } }
@@ -50,8 +50,12 @@ import AppKit
     }
     private func rect(_ value: NSRect) -> [String: Any] { ["x": value.minX, "y": value.minY, "width": value.width, "height": value.height] }
     private func workAreas(_ displays: [Display]) -> [[String: Any]] { displays.map { var value = rect($0.work); value["id"] = $0.id; value["primary"] = $0.primary; return value } }
-    private func viewInfo(_ view: FleetSceneSurface) -> [String: Any] { ["viewId": view.id, "layer": view.layer, "active": view.active, "viewport": rect(view.viewport)] }
-    private func info() -> [String: Any] { ["sessionId": session, "referenceDpi": 96, "topology": topology, "layers": Self.layers, "workAreas": workAreas(displays), "views": views.filter { !$0.retired }.map(viewInfo)] }
+    private func viewInfo(_ view: FleetSceneSurface) -> [String: Any] { ["viewId": view.id, "layer": view.layer, "active": view.active, "viewport": rect(view.viewport), "adjustOverlay": view.layer == "floating"] }
+    // Adjust mode is a modal overlay on every host: the topmost scene tints the screen and carries the adjust controls.
+    private func info() -> [String: Any] {
+        ["sessionId": session, "referenceDpi": 96, "topology": topology, "layers": Self.layers, "residentLayers": Self.layers, "adjustOverlay": true,
+            "workAreas": workAreas(displays), "views": views.filter { !$0.retired }.map(viewInfo)]
+    }
     private func view(_ id: String) throws -> FleetSceneSurface {
         guard let value = views.first(where: { $0.id == id && !$0.retired && $0.ready }) else { throw FleetFailure("desktop-view", "桌面視窗已關閉或尚未就緒。") }; return value
     }
@@ -129,6 +133,7 @@ import AppKit
         case "desktop.intent":
             if NSApplication.shared.isActive, let captured = capture() { intent = captured; focusSequence = nil; return ["intent": captured.id] }; return ["intent": NSNull()]
         case "desktop.hideMain": try FleetProtocol.require(hide(), "tray-unavailable", "選單列目前不可用，主畫面保持開啟。"); return NSNull()
+        case "desktop.mainVisible": mainVisible(try FleetProtocol.bool(args, "visible")); return NSNull()
         case "desktop.showMain":
             guard let id = args["intent"] as? String, let intent, id == intent.id, current(intent) else { return ["activated": false] }
             revokeIntent(); show(); return ["activated": true]
@@ -187,7 +192,7 @@ import AppKit
             else { throw FleetFailure("scene-command", "桌面命令格式無效。") }
             let id = try FleetProtocol.text(command, "id"), method = try FleetProtocol.text(command, "method"), requested = try FleetProtocol.number(args, "topology")
             try FleetProtocol.require(FleetProtocol.isUUID(id) && FleetProtocol.text(command, "sessionId") == session && FleetProtocol.number(command, "serial") > 0 && command["args"] is [String: Any], "scene-session", "桌面命令工作階段無效。")
-            let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut"]
+            let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange"]
             try FleetProtocol.require(allowed.contains(method), "unsupported-method", "桌面表面沒有此操作。")
             let draft = method == "editor.change"
             try FleetProtocol.require(draft || !displayPending && view.active && requested == topology, "desktop-topology", "桌面座標正在更新，請保留目前文字。")

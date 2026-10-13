@@ -32,7 +32,7 @@ import AppKit
     static func run() throws {
         guard let screen = NSScreen.screens.first else { throw FleetFailure("probe", "A graphical Mac session is required") }
         let assets = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/app")
-        let coordinator = try FleetDesktop(assets: assets, send: { _, _ in }, show: {}, hide: { false })
+        let coordinator = try FleetDesktop(assets: assets, send: { _, _ in }, show: {}, hide: { false }, mainVisible: { _ in })
         defer { coordinator.close() }
         let info = try coordinator.invoke("desktop.info", [:]) as! [String: Any]
         try check((info["layers"] as? [String]) == ["desktop", "floating", "wallpaper"], "Native capability must expose all three layers")
@@ -93,7 +93,7 @@ import AppKit
             "interactive": false, "draggable": false, "editing": false, "selected": false, "completed": false, "mine": false]
         func parse(_ card: [String: Any]) throws -> FleetSceneFrame {
             try FleetSceneFrame.parse(FleetProtocol.encode(["protocol": 1, "sessionId": session, "sequence": 1, "topology": 0,
-                "workspaceRevision": 1, "layoutRevision": 1, "groups": [], "cards": [card]]), session: session, previous: -1)
+                "workspaceRevision": 1, "layoutRevision": 1, "groups": [], "operationScope": ["kind": "none"], "cards": [card]]), session: session, previous: -1)
         }
         _ = try parse(card)
         for flag in ["interactive", "draggable", "editing"] {

@@ -23,6 +23,9 @@ public sealed class DesktopCoordinator : IDisposable
   private readonly Action showMain;
   private readonly Action<string> openExternal;
   private readonly Func<bool>? hideMain;
+  private readonly Window? mainWindow;
+  // The state a focused main window had when the adjust overlay minimized it; null when the overlay did not move it.
+  private WindowState? mainAside;
   private readonly NativeShortcuts shortcuts;
   private readonly NativeActivity activity;
   private ShortcutBinding[] bindings = [];
@@ -61,13 +64,14 @@ public sealed class DesktopCoordinator : IDisposable
     public string? Download;
     public long Applied = -1;
     public LogicalRect[] PresentedRects = [];
+    public bool Adjusting;
   }
 
   public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Action showMain, Action<string> openExternal,
     IReadOnlyList<DisplayInfo>? displayOverride = null, Window? mainWindow = null, Func<bool>? hideMain = null)
   {
     this.environment = environment; this.sendOwner = sendOwner; this.showMain = showMain; this.openExternal = openExternal;
-    this.hideMain = hideMain;
+    this.hideMain = hideMain; this.mainWindow = mainWindow;
     displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = displays.First(d => d.Primary).Dpi / 96d;
     shell = NativeShellLayers.Discover();
     foreach (var display in displays) foreach (var layer in Layers) views.Add(new(display, layer, scale));
@@ -113,9 +117,11 @@ public sealed class DesktopCoordinator : IDisposable
   private object WorkAreas(IReadOnlyList<DisplayInfo> values) => values.Select(d => new { id = d.Id, primary = d.Primary,
     x = d.WorkArea.X / scale, y = d.WorkArea.Y / scale, width = d.WorkArea.Width / scale, height = d.WorkArea.Height / scale }).ToArray();
   private object ViewInfo(SceneView v) => new { viewId = v.Id, layer = v.Layer, active = v.Active,
-    viewport = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height } };
+    viewport = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height },
+    adjustOverlay = v.Layer == "floating" };
+  // Adjust mode is a modal overlay on every host: the topmost scene tints the screen and carries the adjust controls.
   private object Info() => new { sessionId = SessionId, referenceDpi = scale * 96, topology,
-    layers = Layers,
+    layers = Layers, residentLayers = Layers, adjustOverlay = true,
     workAreas = WorkAreas(displays), views = views.Where(v => !v.Retired).Select(ViewInfo).ToArray() };
 
   private void InvalidateDisplays()
@@ -236,6 +242,19 @@ public sealed class DesktopCoordinator : IDisposable
       }
       case "desktop.hideMain":
         HostError.Require(hideMain?.Invoke() == true, "tray-unavailable", "系統匣目前不可用，主畫面保持開啟。"); return null;
+      case "desktop.mainVisible":
+      {
+        // The owner asks only for a main window that had the focus as adjust mode began. Minimized, it keeps its place;
+        // only the window minimized here comes back, in the state it had.
+        var visible = args.GetProperty("visible").GetBoolean();
+        if (mainWindow is null) return null;
+        if (visible) { if (mainAside is { } state) { mainAside = null; mainWindow.WindowState = state; mainWindow.Activate(); } }
+        else if (mainAside is null && mainWindow.IsVisible && mainWindow.WindowState != WindowState.Minimized)
+        {
+          mainAside = mainWindow.WindowState; mainWindow.WindowState = WindowState.Minimized;
+        }
+        return null;
+      }
       case "desktop.frame.begin": return new { token = transfers.Begin(Owner, Size(args, SceneTransfers.MaxFrame), JsonRules.Text(args, "sha256"), SceneTransfers.MaxFrame) };
       case "desktop.frame.append": return new { offset = transfers.Append(Owner, JsonRules.Text(args, "token"), Size(args, SceneTransfers.MaxFrame, "offset"), JsonRules.Text(args, "base64", BridgeSession.MaxMessage)) };
       case "desktop.frame.publish":
@@ -399,7 +418,10 @@ public sealed class DesktopCoordinator : IDisposable
         HostError.Require(view.Downloading?.Sequence == sequence && sequence >= view.Applied, "scene-order", "桌面輸入區域尚未對應已顯示畫面。");
         var cards = view.Downloading!.Cards.Where(c => c.Layer == view.Layer).ToArray();
         var zoom = scale / (view.Surface.Dpi / 96d);
-        view.Surface.SetInput(cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c =>
+        // The adjust overlay takes the clicks on its whole screen, so nothing below reacts while adjusting.
+        var adjusting = view.Layer == "floating" && view.Downloading.Adjusting;
+        view.Surface.SetInput(adjusting ? new[] { new SceneHitRect(0, 0, view.Viewport.Width * zoom, view.Viewport.Height * zoom, true) }
+          : cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c =>
         {
           // Native region limits apply to the clipped viewport, not to persisted paper geometry.
           var x = Math.Max(c.Rect.X, view.Viewport.X); var y = Math.Max(c.Rect.Y, view.Viewport.Y);
@@ -409,10 +431,13 @@ public sealed class DesktopCoordinator : IDisposable
         }));
         var wasShown = view.Surface.Shown;
         var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
-        if (notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
+        if (adjusting || notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
         view.PresentedRects = cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
         view.Applied = sequence; TryFocus(view);
         if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
+        // Keys such as Esc reach the overlay as it appears.
+        if (adjusting && !view.Adjusting && view.Surface.InputWindow.Activate()) { view.Surface.WebView.Focus(); Post(view, new { v = 1, @event = "desktop-focus" }); }
+        view.Adjusting = adjusting;
         return new { accepted = true };
       }
       case "scene.command.begin": return new { token = transfers.Begin(view.Id, Size(args, SceneTransfers.MaxCommand), JsonRules.Text(args, "sha256"), SceneTransfers.MaxCommand) };
@@ -429,7 +454,8 @@ public sealed class DesktopCoordinator : IDisposable
         HostError.Require(JsonRules.Text(command, "sessionId") == SessionId && id.Length == 36 && Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(command, "serial") > 0,
           "scene-command", "桌面命令工作階段無效。");
         HostError.Require(commandMethod is "pointer.down" or "pointer.move" or "pointer.up" or "pointer.cancel" or "card.select" or "card.edit"
-          or "card.details" or "card.transfer" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut",
+          or "card.details" or "card.transfer" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut"
+          or "interaction.done" or "layout.arrange",
           "unsupported-method", "桌面主機沒有此操作。");
         var draft = commandMethod == "editor.change";
         var commandTopology = JsonRules.Integer(args, "topology");

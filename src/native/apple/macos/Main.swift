@@ -6,6 +6,7 @@ import AppKit
     private var statusItem: NSStatusItem?
     private var desktop: FleetDesktop?
     private var terminating = false
+    private var mainAside = false
     static func main() { let application = NSApplication.shared; let delegate = FleetApp(); application.delegate = delegate; application.setActivationPolicy(.regular); application.run() }
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -18,7 +19,7 @@ import AppKit
                 self.desktop?.close()
                 let desktop = try FleetDesktop(assets: host.assets, send: { [weak host] name, values in host?.event(name, values) }, show: { [weak self] in self?.showMain() }, hide: { [weak self] in
                     guard let self, self.statusItem?.button != nil else { return false }; self.window.orderOut(nil); return true
-                }); self.desktop = desktop
+                }, mainVisible: { [weak self] in self?.mainVisible($0) }); self.desktop = desktop
                 await service.setDesktop { [weak desktop] method, args in guard let desktop else { throw FleetFailure("desktop-closed", "桌面工作階段已結束。") }; return try desktop.invoke(method, args) }
             }
             host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil }
@@ -40,6 +41,12 @@ import AppKit
         } catch { let alert = NSAlert(); alert.messageText = "Work Fleet"; alert.informativeText = (error as? FleetFailure)?.message ?? "無法開啟安全工作空間。"; alert.runModal(); NSApplication.shared.terminate(nil) }
     }
     @objc private func showMain() { window.makeKeyAndOrderFront(nil); NSApplication.shared.activate(ignoringOtherApps: false) }
+    /// The owner asks only for a main window that had the focus as adjust mode began. Minimized, it keeps its frame;
+    /// only the window minimized here comes back.
+    private func mainVisible(_ visible: Bool) {
+        if visible { if mainAside { mainAside = false; window.deminiaturize(nil); showMain() } }
+        else if !mainAside && window.isVisible && !window.isMiniaturized { mainAside = true; window.miniaturize(nil) }
+    }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
     @objc private func desktopAction(_ item: NSMenuItem) { if let target = item.representedObject as? String { desktop?.menuActive(false); desktop?.action(target) } }
     func menuWillOpen(_ menu: NSMenu) { desktop?.menuActive(true) }

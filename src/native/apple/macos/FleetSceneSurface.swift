@@ -28,7 +28,7 @@ import WebKit
     private(set) var lastInput: TimeInterval = 0
     let panel: FleetScenePanel, web: WKWebView, document: URL, assets: URL
     private var hits: [String: FleetScenePanel] = [:]
-    private var started = false, admitted = 0
+    private var started = false, admitted = 0, adjusting = false
     var dispatch: ((FleetSceneSurface, String, [String: Any]) throws -> Any)?
     var lost: ((FleetSceneSurface) -> Void)?
     init(display: String, viewport: NSRect, nativeBounds: NSRect, layer: String, assets: URL) {
@@ -77,31 +77,40 @@ import WebKit
         suspend(); self.display = display; self.viewport = viewport; self.nativeBounds = nativeBounds; panel.setFrame(nativeBounds, display: true); applied = -1
     }
     func suspend() { for hit in hits.values { hit.orderOut(nil) }; panel.allowKey = false }
-    func hide() { suspend(); panel.orderOut(nil) }
+    func hide() { suspend(); panel.orderOut(nil); adjusting = false }
     func apply(_ frame: FleetSceneFrame) {
         let cards = frame.cards.filter { $0.layer == layer && $0.rect.intersects(viewport) }
         let notice = layer == "floating" && (frame.notice?.intersects(viewport) ?? false)
-        guard !cards.isEmpty || notice else { hide(); return }
+        // Adjust mode is a modal overlay: each screen's topmost scene tints and takes its whole screen, even without papers.
+        let overlay = layer == "floating" && frame.adjusting
+        guard !cards.isEmpty || notice || overlay else { hide(); return }
         // The visual surface always ignores the mouse. Only explicitly interactive paper rectangles receive events.
         panel.orderFrontRegardless(); var live = Set<String>(), covered: [NSRect] = []
-        for card in cards.reversed() {
+        if overlay { live.insert("overlay"); place(hit: "overlay", nativeBounds, operable: false) }
+        for card in overlay ? [] : Array(cards.reversed()) {
             let clipped = card.rect.intersection(viewport)
             var pieces = [clipped]
             if layer != "wallpaper" && card.interactive {
                 for cover in covered { pieces = pieces.flatMap { Self.subtract($0, cover) }; if pieces.isEmpty { break } }
                 for (index, piece) in pieces.enumerated() {
                     let id = "\(card.id):\(index)"; live.insert(id)
-                    let bounds = NSRect(x: nativeBounds.minX + piece.minX - viewport.minX, y: nativeBounds.maxY - piece.maxY + viewport.minY, width: piece.width, height: piece.height)
-                    let hit = hits[id] ?? FleetScenePanel(rect: bounds, level: panel.level)
-                    // Set explicitly: left at the default, WindowServer passes clicks through the clear panel's transparent pixels.
-                    if hits[id] == nil { let input = FleetSceneInput(frame: NSRect(origin: .zero, size: bounds.size)); input.autoresizingMask = [.width, .height]; input.surface = self; hit.contentView = input; hit.ignoresMouseEvents = false; hits[id] = hit }
-                    (hit.contentView as? FleetSceneInput)?.operable = card.draggable; hit.setFrame(bounds, display: false); hit.order(.above, relativeTo: panel.windowNumber)
+                    place(hit: id, NSRect(x: nativeBounds.minX + piece.minX - viewport.minX, y: nativeBounds.maxY - piece.maxY + viewport.minY, width: piece.width, height: piece.height), operable: card.draggable)
                 }
             }
             covered.append(clipped)
         }
         for (id, hit) in hits where !live.contains(id) { hit.orderOut(nil) }
-        if live.isEmpty { panel.allowKey = false; if panel.isKeyWindow { panel.resignKey() } }
+        // Keys such as Esc reach the overlay as it appears, and again after a display change suspended it; the nonactivating
+        // panel takes them without raising the app. Leaving the overlay hands the keyboard back.
+        if overlay && (!adjusting || !panel.allowKey) { panel.allowKey = true; panel.makeKey(); panel.makeFirstResponder(web) }
+        if live.isEmpty || adjusting && !overlay { panel.allowKey = false; if panel.isKeyWindow { panel.resignKey() } }
+        adjusting = overlay
+    }
+    private func place(hit id: String, _ bounds: NSRect, operable: Bool) {
+        let hit = hits[id] ?? FleetScenePanel(rect: bounds, level: panel.level)
+        // Set explicitly: left at the default, WindowServer passes clicks through the clear panel's transparent pixels.
+        if hits[id] == nil { let input = FleetSceneInput(frame: NSRect(origin: .zero, size: bounds.size)); input.autoresizingMask = [.width, .height]; input.surface = self; hit.contentView = input; hit.ignoresMouseEvents = false; hits[id] = hit }
+        (hit.contentView as? FleetSceneInput)?.operable = operable; hit.setFrame(bounds, display: false); hit.order(.above, relativeTo: panel.windowNumber)
     }
     private static func subtract(_ rect: NSRect, _ cover: NSRect) -> [NSRect] {
         let overlap = rect.intersection(cover); if overlap.isEmpty { return [rect] }

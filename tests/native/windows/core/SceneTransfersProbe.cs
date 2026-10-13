@@ -49,6 +49,11 @@ internal static class SceneTransfersProbe
         ["groups"] = Array.Empty<object>(), ["operationScope"] = new { kind = "none" }, ["activeGroupId"] = null, ["cards"] = Array.Empty<object>(), ["editor"] = null,
         ["dropTarget"] = null, ["fallbacks"] = Array.Empty<object>() };
       var frame = Frame(); Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 4).Sequence == 5);
+      // Adjusting makes the topmost scene the modal adjust overlay; an unknown scope is refused.
+      Check(!DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 4).Adjusting);
+      frame["operationScope"] = new { kind = "group", groupId = "group-1" }; Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 4).Adjusting);
+      frame["operationScope"] = new { kind = "drag" }; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 4), "scene-frame");
+      frame["operationScope"] = new { kind = "none" };
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 5), "scene-order");
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), "other", 0), "scene-session");
       frame["groups"] = Enumerable.Range(0, 10).Select(i => new { id = $"group-{i}", name = new string('組', 81), color = "#fff6cc", region = (object?)null }).ToArray();

@@ -6,6 +6,8 @@ struct FleetSceneFrame {
     let sequence: Int64, topology: Int64, cards: [Card]
     /// A stage notice only keeps the topmost scene on screen; it never becomes an input region.
     var notice: NSRect? = nil
+    /// While adjusting, the topmost scene is the modal adjust overlay.
+    var adjusting = false
     static func rect(_ object: Any?) throws -> NSRect {
         guard let object = object as? [String: Any] else { throw FleetFailure("scene-frame", "桌面位置無效。") }
         func number(_ key: String) throws -> Double {
@@ -21,6 +23,9 @@ struct FleetSceneFrame {
         let sequence = try FleetProtocol.number(value, "sequence"), topology = try FleetProtocol.number(value, "topology")
         try FleetProtocol.require(sequence > previous, "scene-order", "桌面畫面已過期。")
         _ = try FleetProtocol.number(value, "workspaceRevision"); _ = try FleetProtocol.number(value, "layoutRevision")
+        guard let scope = value["operationScope"] as? [String: Any] else { throw FleetFailure("scene-frame", "桌面調整範圍無效。") }
+        try fields(scope, "kind groupId"); let kind = try FleetProtocol.text(scope, "kind")
+        try FleetProtocol.require(["none", "group", "all"].contains(kind), "scene-frame", "桌面調整範圍無效。")
         guard let groups = value["groups"] as? [[String: Any]], let cards = value["cards"] as? [[String: Any]], groups.count <= 20000, cards.count <= 20000 else { throw FleetFailure("scene-frame", "桌面畫面容量無效。") }
         for group in groups {
             try fields(group, "id name color region"); _ = try FleetProtocol.text(group, "id", 128); _ = try FleetProtocol.text(group, "name", FleetProtocol.record); try color(group)
@@ -47,7 +52,7 @@ struct FleetSceneFrame {
             _ = try FleetProtocol.text(object, "title", 200); _ = try FleetProtocol.text(object, "text", 200)
             notice = try rect(object["rect"])
         }
-        return FleetSceneFrame(sequence: sequence, topology: topology, cards: output, notice: notice)
+        return FleetSceneFrame(sequence: sequence, topology: topology, cards: output, notice: notice, adjusting: kind != "none")
     }
     private static func fields(_ object: [String: Any], _ allowed: String) throws {
         let fields = Set(allowed.split(separator: " ").map(String.init)); try FleetProtocol.require(object.keys.allSatisfy(fields.contains), "scene-frame", "桌面畫面含非呈現資料。")

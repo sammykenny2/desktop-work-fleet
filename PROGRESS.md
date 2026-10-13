@@ -2,6 +2,21 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 主視窗位置記憶與啟動行為：macOS（未編譯）
+
+PLAN-006 Phase 1–3 的 macOS 部分，沿用同一 bridge 與設定頁；不升版。
+
+- 新 `macos/FleetHostShell.swift`：資料目錄的 `host-preferences.json`／`window-placement.json`，與 Windows／Linux 相同的位置規則
+  （points、左下原點、`NSScreen.visibleFrame`，主螢幕在前）；縮放（zoom）視為最大化，最小化與全螢幕不改寫；
+  `SMAppService.mainApp` 登入項目只在第一次啟動套用預設與使用者切換時註冊／取消，需要核准時可開啟系統設定的登入項目。
+- `Main.swift`：主視窗在顯示前套用保存的 frame；以 open-application Apple event 的 login item 標記判斷登入啟動，
+  登入啟動且未選開啟主畫面時留在選單列；顯示前重新驗證、縮放延到第一次顯示；關到選單列、選單列消失時與結束前補寫；
+  「關閉主畫面時保留在選單列」關閉後關閉按鈕會保存並結束。`FleetService` 的 `host.info` 加入版本與 `hostPreferences`。
+  重新產生 Xcode 專案，`tests/apple-project.test.js` 通過。
+- **這台 Windows 沒有 Xcode：沒有編譯、沒有執行、沒有實機驗證。** 需在 Mac 建置後驗證位置往返、多螢幕、登入項目註冊與
+  登入啟動判斷（SMAppService 下 Apple event 標記是否可靠未證實；判斷不到時會顯示主畫面），以及從未顯示的主畫面是否照常載入。
+  沒有獨立審閱。
+
 ## 2026-10-14 主視窗位置記憶與啟動行為：Linux
 
 PLAN-006 Phase 1–3 的 Linux 部分，沿用上一節的 bridge 與設定頁；不升版。

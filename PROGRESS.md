@@ -1,6 +1,22 @@
 # 專案進度
 
-更新：2026-10-13。本檔是本 repo 的執行狀態權威。
+更新：2026-10-14。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-14 layer-shell 調整模式改為遮罩
+
+使用者在 Raspberry Pi 5 的 labwc 要求把 GNOME 的調整遮罩（主視窗隱藏、浮動按鈕）也用於目前桌面；
+選擇套用到所有 layer-shell 桌面，主視窗沿用隱藏而非最小化。不升版。
+
+- `adjust_overlay` 對 `wayland-layer-shell` 也回報 true；`resident_layers` 改為只在 GNOME XWayland 限制為桌布層，layer-shell 維持三層。
+  調整期間最上層 layer surface 改用 EXCLUSIVE 鍵盤模式（on-demand 要被點過才有鍵盤，`present()` 無效），結束後回到 ON_DEMAND。
+  遮罩模式下不在調整範圍的最上層常駐便箋畫在遮罩下方。ADR-039 修訂，Linux README、setup、testing 與契約註解同步。
+- `tests/test_linux_surface.py` 新增 layer-shell 遮罩、三層常駐、整個螢幕 input region 與鍵盤模式測試，新測試在舊程式失敗。
+  headless labwc probe 在調整此組時另檢查 input region、EXCLUSIVE 鍵盤與遮罩染色；`check_trace.py` 接受 libwayland 1.24 的
+  `wl_region#44` 格式，在 Pi 上以系統 Python 直接執行 10 個情境與 trace 檢查全數通過。
+  Python documented discover 81 tests，9 skip／0 fail；`npm test` 269 pass／10 skip／0 fail；文件檢查通過。
+- 在 Pi 5 labwc 實際桌面以合成 frame（不讀使用者資料）進入調整此組：最上層為 TOP 且鍵盤 EXCLUSIVE，工具列畫在 wf-panel-pi 上方，
+  面板與桌布被約 35% 深灰染色，`wtype` 送出 Esc 不需先點即產生 `interaction.escape`；結束後鍵盤為 NONE、場景隱藏。
+  完整 App 的主視窗隱藏／恢復、系統匣、堆疊／攤開／復原與範圍外最上層便箋的顯示尚待使用者實機確認；wayfire、多螢幕未測；沒有獨立審閱。
 
 ## 2026-10-13 X11 全域快捷鍵無法觸發
 

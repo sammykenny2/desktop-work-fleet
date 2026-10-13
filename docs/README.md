@@ -44,7 +44,7 @@
 | [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)／[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md) | Accepted：MSIX 私有資料與解除安裝政策、可續行的 Google 全量備份覆蓋 |
 | [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) | Accepted：同格式雙向遷移、Google 同步後匯出、本機原子完整還原且舊備份可選 |
 | [ADR-040](decisions/040-gnome-wayland-xwayland-choice.md) | Accepted：GNOME Wayland 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用 |
-| [ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted：X11 場景依工作區定尺寸；GNOME 只常駐桌布層，調整模式為遮罩並隱藏主視窗 |
+| [ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted：X11 場景依工作區定尺寸；GNOME XWayland 只常駐桌布層；GNOME XWayland 與 layer-shell 調整模式為遮罩並隱藏主視窗 |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
 | [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
 | [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |

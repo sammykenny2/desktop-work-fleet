@@ -48,7 +48,8 @@ function render(next) {
     label.style.left = `${group.region.x + 8}px`; label.style.top = `${group.region.y + 5}px`; root.append(label);
   }
   renderNotice(info.layer === 'floating' ? next.notice : null);
-  renderAdjustOverlay(info.adjustOverlay === true && info.layer === 'floating' && next.operationScope.kind !== 'none');
+  const overlay = info.adjustOverlay === true && info.layer === 'floating' && next.operationScope.kind !== 'none';
+  renderAdjustOverlay(overlay);
   const cards = next.cards.filter(card => card.layer === info.layer); const live = new Set(cards.map(card => card.id));
   for (const [id, item] of nodes) if (!live.has(id)) { item.paper.remove(); nodes.delete(id); }
   cards.forEach((card, index) => {
@@ -60,7 +61,8 @@ function render(next) {
     }
     const { paper, summary, body, actions } = item;
     paper.className = `card${card.interactive ? ' interactive' : ''}${card.draggable ? ' operable' : ' selectable'}${card.selected ? ' selected' : ''}${card.mine ? ' mine' : ''}${card.completed ? ' completed' : ''}`;
-    paper.style.setProperty('--paper', card.color); paper.style.zIndex = String(index + 5); paper.tabIndex = card.draggable ? 0 : -1;
+    // Topmost papers resting outside the adjusted scope stay under the overlay's tint, like the papers on lower layers.
+    paper.style.setProperty('--paper', card.color); paper.style.zIndex = String(overlay && !card.draggable ? -1 : index + 5); paper.tabIndex = card.draggable ? 0 : -1;
     paper.setAttribute('aria-label', card.summary); summary.textContent = card.summary; rect(paper, card.rect);
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {
@@ -88,8 +90,8 @@ function render(next) {
   });
   return true;
 }
-// Where adjust mode is a modal overlay (GNOME), the topmost scene tints the whole work area and carries the controls
-// the hidden main window would offer. The tint takes every click outside the papers, so nothing below reacts.
+// Where adjust mode is a modal overlay (GNOME Xwayland, layer-shell), the topmost scene tints its whole area and carries
+// the controls the hidden main window would offer. The tint takes every click outside the adjusted papers.
 function renderAdjustOverlay(on) {
   const shown = document.querySelector('.adjust-overlay');
   if (!on) { shown?.remove(); document.querySelector('.adjust-tools')?.remove(); return; }

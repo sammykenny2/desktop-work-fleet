@@ -6,6 +6,7 @@ Accepted，2026-10-13。維護者在 Ubuntu 22.04 GNOME 實機回報後選擇此
 同日另更新 ADR-031 的 DMA-BUF 預設：只在 Raspberry Pi／V3D 停用。
 同日修訂：最上層在 GNOME 會鎖住其他視窗，維護者選擇群組只常駐桌布層，調整模式改為覆蓋工作區的遮罩並隱藏主視窗。
 同日再修訂：GNOME Xorg 實測沒有這些限制，改用三層；只常駐桌布層與遮罩只用於 GNOME Wayland 工作階段（XWayland）。
+2026-10-14 修訂：維護者在 Raspberry Pi OS labwc 選擇所有 layer-shell 桌面也以遮罩調整，常駐層維持三層，主視窗同樣隱藏。
 
 ## Context
 
@@ -65,11 +66,15 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 - 同一環境回報 `adjustOverlay`。調整模式時每個螢幕的最上層場景都顯示並以整個工作區為 input region，
   畫上約 35% 不透明的深灰遮罩，調整中的便箋在遮罩上方可拖曳；出現時 present 取得焦點，鍵盤可用。
   遮罩上方提供「堆疊、攤開、復原、完成」：堆疊與攤開直接套用到調整中的範圍並保持尺寸，復原同主畫面，完成結束調整模式。
+- layer-shell 桌面同樣回報 `adjustOverlay`，但這是維護者選擇的操作方式而非限制，`residentLayers` 維持桌布、桌面、最上層三層。
+  遮罩涵蓋整個螢幕，包括面板。on-demand 的 layer surface 要被點過才取得鍵盤，`present()` 對它無效，所以調整期間最上層
+  改用 EXCLUSIVE 鍵盤模式讓 Esc 立即可用，結束後回到 ON_DEMAND。不在調整範圍的最上層常駐便箋畫在遮罩下方，與其他層一致。
 - GNOME Xorg 工作階段提供桌布、桌面、最上層三層且都可常駐，沒有遮罩，調整模式與其他 X11 相同。
   桌面層使用一般視窗加 keep below，穩定位於 DING 上方且可選字、取得焦點；桌布層仍是 desktop-type 視窗並滑鼠穿透，
   啟動後到使用者點過桌面前可能顯示在圖示上方；最上層 keep above 並可取得焦點。其他 X11 桌面維持 desktop-type 桌面層。
 - 調整模式開始後隱藏主視窗，任何方式結束後恢復；隱藏等遮罩畫面發布、恢復等去掉遮罩的畫面發布。
   視窗管理員會重新安排再次顯示的視窗，所以隱藏前記下位置、大小與最大化狀態並在顯示前還原。
+  Wayland 不讓 App 指定視窗位置，layer-shell 桌面只還原大小與最大化狀態，位置由 compositor 決定。
   詳細資料、完整編輯器與快速記錄需要主視窗，先結束調整模式。
 - 共用投影區分場景層 `layers` 與常駐層 `residentLayers`（預設相同）。常駐便箋要求的層不能常駐時，
   改放桌面層或桌布層並列入 `fallbacks`；調整中的便箋可用任何場景。落在桌布層的便箋一律不可互動、拖曳或編輯。
@@ -86,12 +91,13 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 - X11 便箋不再被裁成 200×200，也不再因工作列被推離原位；所有 X11 桌面都受益。
 - GNOME 上的層級名稱與實際行為一致，不再出現看得到卻無法點的「桌面層」。
 - GNOME 的調整模式看得出來、可完整操作，不會在一般使用時意外鎖住其他視窗。
-- Windows、macOS 與 layer-shell 的層級組合與行為不變。
+- Windows、macOS 與 layer-shell 的層級組合不變；layer-shell 的調整模式和 GNOME 一樣明確，主視窗不會遮住調整中的便箋。
 
 ### Negative
 
 - GNOME 沒有常駐的桌面層與最上層；選字、複製與編輯在調整模式或主畫面進行。
 - 調整模式中其他程式依設計無法點選；若場景卡住，滑鼠會一直被擋到 App 結束，鍵盤仍可操作其他程式。
+  layer-shell 調整期間面板也無法點選，鍵盤由遮罩獨占；場景卡住時滑鼠與鍵盤都要等 App 結束才恢復。
 - 遮罩上的堆疊與攤開不提供調整尺寸選項；需要時從主畫面的對話框操作。
 - X11 便箋超出工作區（工作列、Dock 下方）的部分會被裁掉；工作區改變（例如 Dock 自動隱藏）時，
   既有的顯示器變更流程會一併調整場景視窗大小。
@@ -106,6 +112,7 @@ Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈�
 - 其他 X11 桌面的檔案管理員也以 desktop-type 視窗畫圖示，桌面層可能同樣在點過桌面後被蓋住；未實測，暫不改變。
 - GNOME 上最上層鎖住其他視窗的根本原因仍未判定，遮罩是以此行為為前提的設計。
 - 殘影來自共享記憶體 renderer，改用 DMA-BUF 後消失。
+- layer-shell 遮罩只在 Raspberry Pi 5 的 labwc 實機確認；wayfire、sway、KDE Plasma Wayland 等其他 compositor 未實測。
 - 非 Pi 的 Linux 改用 DMA-BUF renderer，GPU／驅動相容性只在這台 x86 VM 確認；Pi 以外有相同錯亂的機器可自行設定環境變數。
 
 ## Alternatives Considered

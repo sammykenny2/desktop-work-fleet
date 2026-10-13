@@ -77,7 +77,10 @@ def compositor_image(path):
 
 def color_at(image, card):
     rect = card["rect"]
-    x, y = int(rect["x"] + rect["width"] / 2), int(rect["y"] + rect["height"] * 0.8)
+    return pixel_at(image, int(rect["x"] + rect["width"] / 2), int(rect["y"] + rect["height"] * 0.8))
+
+
+def pixel_at(image, x, y):
     data = image.get_data()
     offset = y * image.get_stride() + x * 4
     return tuple(data[offset + index] for index in (2, 1, 0))
@@ -102,6 +105,7 @@ def main():
         info = desktop.invoke("desktop.start", {})
         check(info["layers"] == ["desktop", "floating", "wallpaper"], "Missing third native scene")
         check(info["wallpaperPlacement"] == "background", "Linux must report the icon-stacking limitation")
+        check(info["adjustOverlay"] is True and info["residentLayers"] == info["layers"], "Layer-shell adjust mode must be an overlay over every resting layer")
         spin(lambda: all(view.ready for view in desktop.views))
         views = {view.layer: view for view in desktop.views}
         for layer, native in (("wallpaper", Layer.Layer.BACKGROUND), ("desktop", Layer.Layer.BOTTOM), ("floating", Layer.Layer.TOP)):
@@ -127,6 +131,10 @@ def main():
                     check(Layer.get_keyboard_mode(view.window) == Layer.KeyboardMode.NONE, "Wallpaper captured keyboard")
                     view.focus()
                     check(not view.window.get_accept_focus(), "Wallpaper accepted explicit focus")
+                if layer == "floating" and scenario["frame"]["operationScope"]["kind"] != "none":
+                    width, height = view.window.get_size()
+                    check(view.input_region.contains_point(1, 1) and view.input_region.contains_point(width - 2, height - 2), "Adjust overlay left clicks to the windows below")
+                    check(Layer.get_keyboard_mode(view.window) == Layer.KeyboardMode.EXCLUSIVE, "Adjust overlay did not take the keyboard")
                 if visible:
                     # Snapshot the real WebKit view after native map/reconfigure repaint.
                     spin(lambda: view.repaint_timer is None)
@@ -140,6 +148,11 @@ def main():
                 else:
                     expected = tuple(int(primary["color"][index:index + 2], 16) for index in (1, 3, 5))
                 check(all(abs(a - b) < 5 for a, b in zip(actual, expected)), "Wrong actual compositor stacking/pixels: " + scenario["name"] + str(actual))
+            if cover.get_visible():
+                # Away from every paper the cover app shows through, tinted only while the adjust overlay is up.
+                blue = pixel_at(image, image.get_width() - 40, image.get_height() - 40)[2]
+                adjusting = scenario["frame"]["operationScope"]["kind"] != "none"
+                check(blue < 150 if adjusting else abs(blue - 168) < 5, "Wrong adjust overlay tint: " + scenario["name"] + str(blue))
             print("PASS native scene " + scenario["name"], flush=True)
         ids = [view.id for view in desktop.views]
         desktop.refresh_displays()

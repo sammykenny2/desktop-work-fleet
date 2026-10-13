@@ -51,8 +51,9 @@ def layers(mode, environ=os.environ):
 
 def adjust_overlay(mode, environ=os.environ):
     # A keep-above Xwayland scene on GNOME stops clicks reaching every other window, so there adjust mode is an open
-    # modal overlay over the whole work area, and papers only rest on the wallpaper. GNOME Xorg has no such block.
-    return mode == "x11" and gnome_xwayland(environ)
+    # modal overlay over the whole work area. Layer-shell desktops use the same overlay over the whole screen, keeping
+    # every resting layer. GNOME Xorg and other X11 desktops adjust papers in place.
+    return mode == "wayland-layer-shell" or mode == "x11" and gnome_xwayland(environ)
 
 
 def x11_type_hint(layer, environ=os.environ):
@@ -66,7 +67,8 @@ def x11_type_hint(layer, environ=os.environ):
 
 
 def resident_layers(mode, environ=os.environ):
-    return ("wallpaper",) if adjust_overlay(mode, environ) else layers(mode, environ)
+    # GNOME's Xwayland topmost scene would block other windows, so there papers only rest on the wallpaper.
+    return ("wallpaper",) if mode == "x11" and gnome_xwayland(environ) else layers(mode, environ)
 
 
 def remember_place(window):
@@ -74,7 +76,8 @@ def remember_place(window):
 
 
 def restore_place(window, place):
-    # A window shown again is placed afresh by the window manager, so it goes back to where it was hidden.
+    # A window shown again is placed afresh by the window manager, so it goes back to where it was hidden. Wayland
+    # ignores the move and the compositor picks the position; size and maximized state still return.
     position, size, maximized = place
     window.move(*position)
     window.resize(*size)
@@ -212,14 +215,17 @@ class Surface:
             return False
         self.repaint_timer = GLib.timeout_add(120, repaint)
 
-    def set_input_region(self, region):
+    def set_input_region(self, region, adjusting=False):
         self.input_region = region
         # GTK keeps the widget shape when a layer surface receives a new allocation.
         if self.window.get_realized():
             self.window.input_shape_combine_region(region)
         self.window.set_accept_focus(not region.is_empty())
         if self.mode == "wayland-layer-shell":
-            Layer.set_keyboard_mode(self.window, Layer.KeyboardMode.NONE if region.is_empty() else Layer.KeyboardMode.ON_DEMAND)
+            # An on-demand layer surface gets the keys only once clicked and present() does not focus it, so the adjust
+            # overlay takes the keyboard outright for Esc; the main window is hidden then anyway.
+            keyboard = "NONE" if region.is_empty() else "EXCLUSIVE" if adjusting else "ON_DEMAND"
+            Layer.set_keyboard_mode(self.window, getattr(Layer.KeyboardMode, keyboard))
         self.window.queue_draw()
 
     def suspend(self):
@@ -235,7 +241,7 @@ class Surface:
             self.window.hide()
             return
         region = cairo.Region()
-        # Every monitor's overlay takes the clicks on its whole work area, so nothing below reacts while adjusting.
+        # Every monitor's overlay takes the clicks on its whole viewport, so nothing below reacts while adjusting.
         if adjusting:
             region.union(cairo.RectangleInt(0, 0, math.ceil(self.viewport["width"]), math.ceil(self.viewport["height"])))
         for card in cards if not adjusting else []:
@@ -247,7 +253,7 @@ class Surface:
             region.subtract(clipped)
             if self.layer != "wallpaper" and card["interactive"]:
                 region.union(clipped)
-        self.set_input_region(region)
+        self.set_input_region(region, adjusting)
         self.window.show_all()
         if adjusting and not self.adjusting:
             # Keys such as Esc reach the overlay at once; hiding it at the end gives the focus back.

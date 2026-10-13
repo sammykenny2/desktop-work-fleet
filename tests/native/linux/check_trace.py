@@ -7,6 +7,8 @@ import sys
 surfaces, layers, regions = {}, {}, {}
 passive = interactive = 0
 for line in Path(sys.argv[1]).read_text().splitlines():
+    # Newer libwayland (1.24 on Raspberry Pi OS, not 1.22 in the test image) prints wl_region#44 for wl_region@44.
+    line = re.sub(r"([a-z0-9_]+)#(\d+)", r"\1@\2", line)
     match = re.search(r'get_layer_surface\(new id zwlr_layer_surface_v1@(\d+), wl_surface@(\d+), wl_output@\d+, (\d+), "work-fleet"\)', line)
     if match:
         role, surface, layer = map(int, match.groups())

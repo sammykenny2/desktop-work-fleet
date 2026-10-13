@@ -601,7 +601,7 @@ async function desktopAction(target, intent) {
 // After a group or all-groups key the topmost scene shows, for about a second and a half, which group moved and where
 // it is now, with one dot per stage of the cycle. A newer notice replaces an older one, which then is not cleared early.
 const stageNames = ['桌布層', '桌面層', '最上層', '調整位置'];
-// Layers a group can rest on; on GNOME the topmost scene only carries the adjust overlay.
+// Layers a group can rest on; on GNOME Xwayland the topmost scene only carries the adjust overlay.
 const residentLayers = () => desktopInfo?.residentLayers || desktopInfo?.layers || [];
 const desktopStages = () => [0, 1, 2].filter(stage => residentLayers().includes(groupLayerOrder[stage])).concat(adjustStage);
 let desktopNotice = null; let noticeSerial = 0;
@@ -702,9 +702,9 @@ function render() {
   desktop?.publish(); syncAdjustOverlay();
 }
 
-// Where adjust mode is a modal overlay (GNOME), the main window steps aside while it is on and returns after any exit.
-// Hiding waits for the overlay frame and showing for the frame without it, so one window always stays on screen and
-// the returning main window is not stacked under a still-mapped overlay.
+// Where adjust mode is a modal overlay (GNOME Xwayland, layer-shell), the main window steps aside while it is on and
+// returns after any exit. Hiding waits for the overlay frame and showing for the frame without it, so one window always
+// stays on screen and the returning main window is not stacked under a still-mapped overlay.
 let adjustHidesMain = false; let adjustSync = Promise.resolve();
 function syncAdjustOverlay() {
   if (!desktop || !desktopInfo?.adjustOverlay) return;

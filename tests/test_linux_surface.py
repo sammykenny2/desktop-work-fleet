@@ -80,18 +80,23 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.journal = []
         self.surface = load_surface(self.journal)
 
-    def create(self, layer, environ=OTHER):
+    def create(self, layer, environ=OTHER, mode="x11"):
         display = {"id": "display-1", "viewport": dict(VIEWPORT), "monitor": None}
         web = lambda *_: Fake(self.journal, "web")
+        if mode == "wayland-layer-shell":
+            self.surface.Layer = Fake(self.journal, "Layer")
         # The session decides the layers, so the test pins it instead of inheriting the one it runs in.
         with mock.patch.dict(os.environ, environ, clear=True):
-            return self.surface.Surface(display, layer, "assets", web, None, None, None, "x11")
+            return self.surface.Surface(display, layer, "assets", web, None, None, None, mode)
 
     def type_hints(self):
         return [args[0]._path.rsplit(".", 1)[1] for args in self.window_calls("set_type_hint")]
 
     def window_calls(self, method):
         return [args for path, args in self.journal if path == f"Gtk.Window().{method}"]
+
+    def keyboard_modes(self):
+        return [args[1]._path.rsplit(".", 1)[1] for path, args in self.journal if path == "Layer.set_keyboard_mode"]
 
     def test_gnome_xwayland_offers_wallpaper_and_floating(self):
         layers = self.surface.layers
@@ -165,7 +170,6 @@ class LinuxSurfaceTests(unittest.TestCase):
         gnome, other = XWAYLAND, OTHER
         self.assertTrue(self.surface.adjust_overlay("x11", gnome))
         self.assertFalse(self.surface.adjust_overlay("x11", other))
-        self.assertFalse(self.surface.adjust_overlay("wayland-layer-shell", gnome))
         self.assertEqual(self.surface.resident_layers("x11", gnome), ("wallpaper",))
         self.assertEqual(self.surface.resident_layers("x11", other), ("desktop", "floating"))
         self.assertTrue(self.create("floating", XWAYLAND).info()["adjustOverlay"])
@@ -191,6 +195,33 @@ class LinuxSurfaceTests(unittest.TestCase):
         self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)], "outside adjust mode only papers take clicks")
         self.journal.clear()
         view.apply(self.frame("none"))
+        self.assertTrue(self.window_calls("hide"))
+
+    def test_layer_shell_adjust_mode_is_an_overlay_and_papers_keep_every_layer(self):
+        for environ in ({"XDG_CURRENT_DESKTOP": "labwc:wlroots", "XDG_SESSION_TYPE": "wayland"}, {"XDG_CURRENT_DESKTOP": "KDE"}, {}):
+            with self.subTest(environ=environ):
+                self.assertTrue(self.surface.adjust_overlay("wayland-layer-shell", environ))
+                self.assertEqual(self.surface.resident_layers("wayland-layer-shell", environ), ("desktop", "floating", "wallpaper"))
+        self.assertTrue(self.create("floating", mode="wayland-layer-shell").info()["adjustOverlay"])
+        for layer in ("desktop", "wallpaper"):
+            with self.subTest(layer=layer):
+                self.assertFalse(self.create(layer, mode="wayland-layer-shell").info()["adjustOverlay"])
+
+    def test_layer_shell_overlay_covers_the_screen_and_takes_the_keyboard_while_adjusting(self):
+        view = self.create("floating", mode="wayland-layer-shell")
+        resting = {"layer": "floating", "rect": {"x": 100, "y": 100, "width": 200, "height": 120}, "interactive": True}
+        self.journal.clear()
+        view.apply(self.frame("group", [resting]))
+        self.assertEqual(view.input_region.rectangles, [(0, 0, VIEWPORT["width"], VIEWPORT["height"])],
+                         "resting topmost papers sit under the overlay, which takes every click")
+        self.assertEqual(self.keyboard_modes(), ["EXCLUSIVE"], "Esc reaches the overlay without a click first")
+        self.journal.clear()
+        view.apply(self.frame("none", [resting]))
+        self.assertEqual(view.input_region.rectangles, [(30, 73, 200, 120)])
+        self.assertEqual(self.keyboard_modes(), ["ON_DEMAND"], "resting papers take the keys only when clicked")
+        self.journal.clear()
+        view.apply(self.frame("none"))
+        self.assertEqual(self.keyboard_modes(), ["NONE"])
         self.assertTrue(self.window_calls("hide"))
 
     def test_other_x11_topmost_scene_keeps_paper_regions_while_adjusting(self):

@@ -108,12 +108,14 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 視窗依 viewport 設 size request、換顯示器時更新，
 GNOME Wayland 經 XWayland 時只常駐桌布層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層，最上層在調整模式以整個工作區為
 input region、即使該螢幕沒有便箋也顯示並只在出現時 present；GNOME Xorg 提供三層且沒有遮罩，桌面層為一般視窗加 keep below，
-最上層有便箋時可取得焦點；其他 X11 仍只有便箋接收輸入且桌面層為 desktop-type；
+最上層有便箋時可取得焦點；layer-shell 常駐三層，調整模式同樣是遮罩，以整個螢幕為 input region 並以 EXCLUSIVE 取得鍵盤、
+結束後回到 ON_DEMAND；其他 X11 仍只有便箋接收輸入且桌面層為 desktop-type；
 隱藏的主視窗以原位置、大小與最大化狀態恢復；不代表 GNOME 實機已驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，
 常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；
-遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。遮罩畫面、工具列與主視窗隱藏／恢復只有實機驗證。
+遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。headless labwc probe 檢查遮罩染色；
+工具列與主視窗隱藏／恢復只有實機驗證。
 `tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設停用 DMA-BUF，
 且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
 `tests/test_linux_shortcuts.py` 以假 Keybinder 確認 X11 先關閉 cooked 比對再登記，Ctrl+Shift 組合觸發動作、主視窗取得焦點時釋放；
@@ -140,7 +142,10 @@ docker run --rm --network none \
 
 投影來自實際共用 Workspace／InteractionController；native owner 分片發布並由真正 WebKit renderer
 接收、確認、畫出。涵蓋 wallpaper→調整此組 floating→完成後還原、常駐 desktop／floating、
-反覆隱藏／顯示與 topology 重用；輸出合成畫面 PNG、版本與 Wayland trace。
+反覆隱藏／顯示與 topology 重用；調整此組時確認最上層整個畫面接收輸入、鍵盤為 EXCLUSIVE，便箋外的畫面被遮罩染色。
+輸出合成畫面 PNG、版本與 Wayland trace；trace 檢查接受新舊 libwayland 的物件編號格式。
+已安裝 labwc、grim 與 GTK／WebKit 繫結的 Linux（如 Raspberry Pi OS）也可不用 Docker，以系統 Python 直接執行：
+`PATH=/usr/bin:$PATH dbus-run-session -- bash scripts/linux/test-desktop-layers.sh OUTPUT OUTPUT/scenarios.json`。
 root Docker probe 的 WebKit sandbox 例外僅存在測試 shell，不套用到產品 launcher。
 這些測試不是 Pi／V3D、pcmanfm-pi、實體拖曳／IME 或多螢幕證據；X11 不假冒三層能力。
 `npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。

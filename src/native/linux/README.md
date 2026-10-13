@@ -48,6 +48,8 @@ image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 scri
 layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個 WebKit 場景；
 主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
 操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
+layer-shell 的調整模式是遮罩：最上層場景覆蓋整個螢幕（含面板），調整期間以 EXCLUSIVE 鍵盤模式讓 Esc 立即可用，
+不在調整範圍的最上層便箋畫在遮罩下方；主視窗隱藏，結束後恢復大小與最大化狀態，位置由 compositor 決定。
 pcmanfm 把桌布與圖示畫在同一 surface，背景便箋不能插入圖示下方，可能仍顯示在圖示上方；
 設定會說明這項限制。X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存。
 GNOME Wayland 經 XWayland 時，桌面圖示（DING）以透明 Wayland 視窗蓋住 X11 desktop-type 視窗並接收點擊，
@@ -78,7 +80,7 @@ pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。
 
 ## 桌面環境支援現況
 
-更新：2026-10-13。實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）完整操作，以及同一台 x86 VM 以 xrdp 登入的
+更新：2026-10-14。實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）完整操作，以及同一台 x86 VM 以 xrdp 登入的
 GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是單螢幕。另有隔離 headless labwc 自動測試，不是實際桌面驗收。
 以下依程式行為整理，未實測者不代表已支援。
 
@@ -104,7 +106,8 @@ GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是
 - X11 桌面（KDE X11、Xfce、Cinnamon、MATE、LXQt、LXDE）：只有桌面層與最上層，桌布偏好回退桌面層。
   檔案管理員以 desktop-type 視窗畫圖示，桌面層便箋可能被蓋住而無法點選，與 GNOME 的 DING 類似。未實測。
 - Raspberry Pi OS（labwc、wayfire）：原定主要目標，三層；pcmanfm 把桌布與圖示畫在同一 surface，
-  桌布層便箋可能在圖示上方。只有 headless 測試，沒有 Pi 實機驗收。
+  桌布層便箋可能在圖示上方。調整模式是遮罩，期間面板與其他程式無法點選，所有 layer-shell 桌面相同。
+  Pi 5 labwc 只以合成場景確認遮罩、工具列在面板上方及 Esc 不需先點；完整 App 流程與 wayfire 尚未驗收。
 - sway、Hyprland 等其他 layer-shell compositor：三層可用但通常沒有桌面圖示；sway 沒有全域快捷鍵 portal，
   系統匣依面板而定。未實測。
 - 不支援 layer-shell 的其他 Wayland 桌面：沒有桌面便箋；XWayland 選項只在 GNOME 提供，其他桌面需自行設定 `GDK_BACKEND=x11`。

@@ -29,7 +29,8 @@ export interface DesktopInfo {
   residentLayers?: ResidentLayer[];
   /**
    * Adjust mode is a modal overlay: the topmost scene tints and takes the whole work area, offers its own controls,
-   * and the main window is hidden until adjust mode ends. Used on GNOME, where a keep-above scene blocks other windows.
+   * and the main window is hidden until adjust mode ends. Used on GNOME Xwayland, where a keep-above scene blocks other
+   * windows, and on layer-shell desktops, which keep every resting layer.
    */
   adjustOverlay?: boolean;
   /**

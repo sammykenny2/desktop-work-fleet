@@ -37,6 +37,7 @@ signing() {
     else echo 'Preview packages accept only unsigned or Apple Development builds.' >&2; return 1; fi
 }
 if [[ "$PLATFORM" == macos ]]; then
+    python3 scripts/testing/check_macos_runtime.py "$APP"
     EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$PLIST")"
     ARCHITECTURES=" $(lipo -archs "$APP/Contents/MacOS/$EXECUTABLE") "
     [[ "$ARCHITECTURES" == *' arm64 '* && "$ARCHITECTURES" == *' x86_64 '* ]] || {

@@ -2,6 +2,22 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 macOS 0.2.2 啟動時找不到 Sparkle：runpath 修正
+
+使用者回報 GitHub 0.2.2（202）安裝版在 dyld 階段退出：`@rpath/Sparkle.framework/Versions/B/Sparkle`、`no LC_RPATH's found`。
+
+- 實際安裝 App 內有 Sparkle，但 arm64、x86_64 主程式都沒有 `LC_RPATH`；舊包的依賴檢查重現失敗。
+- 可攜 Xcode 專案生成器與已提交專案，為 macOS Debug／Release target 加入繼承設定與 `@executable_path/../Frameworks`。
+- build／preview package／Release export 檢查兩種架構的主程式及隨附動態依賴；拒絕缺檔、缺架構與只存在建置機器的 framework。
+- Release export 在公證前執行 `--check-runtime`，真實 App 載入後即退出，不建立 UI、storage 或登入項目；失敗時不送公證、不取代既有交付檔。
+- Mac release job 在匯入秘密前執行 Mach-O 回歸。文件：ADR-028、deployment、testing。
+- 檢查：Apple project／signing／release version JS 16／16；真正編譯 universal Mach-O fixture 的 Python 7／7。
+  包含搬移與空白路徑、缺 runpath、只有 Intel slice 壞掉、framework 缺檔／缺架構／外部路徑，以及 Debug dylib 繼承。
+- 原生驗證：未簽章 Debug universal build、Developer ID Release universal archive／export 通過；實際 exported App 與唯讀掛載 DMG 內 App 的
+  兩種架構依賴、建置機器上的原生載入、deep strict 簽章檢查通過。DMG `hdiutil verify` 通過。沒有開啟使用者 workspace。
+- 限制：本次修正包尚未重新公證／發布；沒有主畫面、Google 登入／Drive 同步或 Sparkle 真正更新驗收。
+  沒有獨立 reviewer；上述為作者執行的測試與機械檢查。未升版、未 dispatch、未覆蓋既有 0.2.2 release。
+
 ## 2026-10-14 共用版號 0.2.2 與 Windows、Linux、macOS 預覽版
 
 使用者核准 0.2.2，並要求發布 Windows、Linux、macOS 三個平台的預覽版。

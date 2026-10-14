@@ -154,6 +154,10 @@ SPARKLE_PRIVATE_KEY_FILE="$HOME/Signing/WorkFleet-Sparkle.key" \
   --notary-profile work-fleet-notary --dmg --no-pkg
 ```
 
+macOS Debug／Release target 明確設定 `LD_RUNPATH_SEARCH_PATHS` 的 `@executable_path/../Frameworks`，
+讓 Sparkle 隨 App 搬移後仍可載入。archive 與 export 會檢查兩種架構的實際動態依賴；
+export 在公證前另以 `--check-runtime` 啟動後立即退出，不開 UI 或 workspace。
+缺 framework、載入路徑或原生載入失敗時停止封裝，不送公證、不交付更新檔。詳見 [測試](testing.md)。
 公證後會檢查 App／DMG 簽章、Gatekeeper 與 staple，更新 ZIP 使用 Sparkle EdDSA 簽署；
 全部成功才交付 `WorkFleet-<版號>-macos-universal.dmg`／`.zip`、各自 `.sha256`、`appcast.xml` 與 `work-fleet-update.json` 到 `build/`。
 一般本機封裝仍預設產生 PKG；只有 `--no-pkg` 跳過它。若要公證 PKG，仍需 `--installer-identity`。

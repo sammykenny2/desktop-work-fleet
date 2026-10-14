@@ -54,3 +54,8 @@ mkdir -p "$PROJECT_ROOT/build/apple"
 xcodebuild -project "$PROJECT_ROOT/src/native/apple/WorkFleet.xcodeproj" -scheme "$SCHEME" -configuration "$CONFIGURATION" \
   -destination "$DESTINATION" -derivedDataPath "$PROJECT_ROOT/build/apple/DerivedData" \
   -clonedSourcePackagesDirPath "$PROJECT_ROOT/build/apple/SourcePackages" "${EXTRA[@]}" "$ACTION"
+if [[ "$PLATFORM" == macos ]]; then
+    APP="$PROJECT_ROOT/build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app"
+    [[ "$CONFIGURATION" != Release ]] || APP="$PROJECT_ROOT/build/apple/$SCHEME.xcarchive/Products/Applications/WorkFleetMac.app"
+    python3 scripts/testing/check_macos_runtime.py "$APP"
+fi

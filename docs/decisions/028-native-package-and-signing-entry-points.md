@@ -104,6 +104,11 @@ archive 透過 WorkFleet 專用 build settings，只在 macOS Release App target
 App Sandbox 與 Keychain 資料契約保留；簽章、公證、staple 與 Gatekeeper 檢查全數成功才交付。
 配置完成、流程測試、真實 signed app 驗證與 GitHub release dispatch 分開記錄，不以其中一項代替其他驗收。
 
+同日修正 0.2.2 啟動時找不到 Sparkle 的錯誤：可攜專案生成器為 macOS Debug／Release App target
+明確設定 `@executable_path/../Frameworks` 的 runpath。build 與封裝檢查兩種架構的 Mach-O 依賴；
+direct distribution export 在公證前執行 `--check-runtime`，由 App 在 main 入口直接回報並退出，
+不建立 UI、storage 或登入項目。簽章／公證檢查不代替此載入檢查，也不把它當作 Google 或主畫面驗收。
+
 ## Alternatives Considered
 
 將簽章密碼放入 `.env` 或公共 JSON：拒絕，公共設定會封裝進 App。
@@ -121,6 +126,7 @@ Linux DEB 改用 `WorkFleet-<版號>` 格式：拒絕，Debian 工具與套件�
 - [Microsoft MakeAppx](https://learn.microsoft.com/en-us/windows/msix/package/create-app-package-with-makeappx-tool)。
 - [Microsoft packaged desktop manifest](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-manual-conversion)。
 - [Apple notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。
+- [Sparkle framework 與 runpath 設定](https://sparkle-project.org/documentation/)。
 - [Debian binary package format](https://manpages.debian.org/bookworm/dpkg-dev/deb.5.en.html)。
 - [Debian control fields](https://www.debian.org/doc/debian-policy/ch-controlfields.html)。
 - [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。

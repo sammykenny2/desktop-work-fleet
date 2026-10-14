@@ -59,6 +59,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
   const directory = await realpath(await mkdtemp(path.join(tmpdir(), 'work-fleet-signing-')));
   try {
     for (const file of ['scripts/macos/package-native-app.sh', 'scripts/macos/write-update-feed.mjs',
+      'scripts/testing/check_macos_runtime.py',
       'scripts/generate-apple-export-options.mjs', 'scripts/config.mjs', 'scripts/toolchain-env.mjs']) {
       const target = path.join(directory, file);
       await mkdir(path.dirname(target), { recursive: true });
@@ -71,13 +72,18 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     await mkdir(path.join(app, 'Contents/Resources/Config'), { recursive: true });
     await writeFile(path.join(archive, 'Info.plist'), '<?xml version="1.0"?><plist version="1.0"><dict><key>ApplicationProperties</key><dict><key>CFBundleShortVersionString</key><string>0.2.0</string><key>CFBundleVersion</key><string>200</string></dict></dict></plist>');
     await writeFile(path.join(app, 'Contents/Info.plist'), '<?xml version="1.0"?><plist version="1.0"><dict><key>CFBundleExecutable</key><string>WorkFleetMac</string></dict></plist>');
-    await writeFile(path.join(app, 'Contents/MacOS/WorkFleetMac'), 'fixture');
+    await writeFile(path.join(app, 'Contents/MacOS/WorkFleetMac'), '#!/bin/bash\n[[ "$1" == --check-runtime ]] || exit 99\necho "PASS Work Fleet runtime load"\n');
+    await chmod(path.join(app, 'Contents/MacOS/WorkFleetMac'), 0o755);
+    const framework = path.join(app, 'Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle');
+    await mkdir(path.dirname(framework), { recursive: true });
+    await writeFile(framework, 'fixture');
     await writeFile(path.join(app, 'Contents/Resources/Config/public.json'), JSON.stringify({ update: { repository: 'sammykenny2/desktop-work-fleet' } }));
     const tools = path.join(directory, 'tools');
     await mkdir(tools);
     const scripts = {
       xcodebuild: 'while [[ $# -gt 0 ]]; do case "$1" in -archivePath) archive="$2"; shift 2;; -exportPath) output="$2"; shift 2;; *) shift;; esac; done\nmkdir -p "$output"\ncp -R "$archive/Products/Applications/WorkFleetMac.app" "$output/"',
       lipo: 'echo "arm64 x86_64"',
+      otool: 'if [[ "$*" == *WorkFleetMac ]]; then\nif [[ "${FAIL_RUNTIME:-}" != 1 || "$2" != x86_64 ]]; then printf "Load command 0\\n cmd LC_RPATH\\n path @executable_path/../Frameworks (offset 12)\\n"; fi\nprintf "Load command 1\\n cmd LC_LOAD_DYLIB\\n name @rpath/Sparkle.framework/Versions/B/Sparkle (offset 24)\\n"\nfi',
       ditto: 'if [[ "$1" == -c ]]; then printf archive > "${@: -1}"; else cp -R "$1" "$2"; fi',
       hdiutil: 'printf image > "${@: -1}"',
       productbuild: '[[ "${ALLOW_PKG:-}" == 1 ]] || exit 99\nprintf package > "${@: -1}"',
@@ -122,6 +128,13 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     assert.ok((await readdir(path.join(directory, 'build'))).includes('WorkFleet-0.2.0-macos-universal.pkg'));
     const output = path.join(directory, 'build/WorkFleet-0.2.0-macos-universal.dmg');
     await writeFile(output, 'previous successful package');
+    const priorFeed = await readFile(path.join(directory, 'build/appcast.xml'), 'utf8');
+    const beforeRuntimeFailure = await readFile(env.TOOL_LOG, 'utf8');
+    await assert.rejects(execute('bash', args, { cwd: directory, env: { ...env, FAIL_RUNTIME: '1' } }));
+    const runtimeFailureLog = (await readFile(env.TOOL_LOG, 'utf8')).slice(beforeRuntimeFailure.length);
+    assert.equal(runtimeFailureLog.includes('notarytool submit'), false);
+    assert.equal(await readFile(output, 'utf8'), 'previous successful package');
+    assert.equal(await readFile(path.join(directory, 'build/appcast.xml'), 'utf8'), priorFeed);
     await assert.rejects(execute('bash', args, { cwd: directory, env: { ...env, FAIL_DMG: '1' } }), error => error.code === 9);
     assert.equal(await readFile(output, 'utf8'), 'previous successful package');
   } finally {

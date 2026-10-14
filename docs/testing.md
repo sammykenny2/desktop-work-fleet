@@ -60,9 +60,17 @@ CSP 不放寬、release 缺值與唯讀依賴授權檔的重複複製。
 `tests/apple-signing.test.js` 驗證 manual Developer ID export 的憑證／profile 設定與不合法簽章參數；
 Mac 上另以真 PlistBuddy 與假的 Xcode／notary／codesign 工具執行 DMG＋更新 ZIP 封裝，確認不需要 Installer、
 不產生 PKG、傳遞暫時 notary keychain、無公證 DMG／automatic export／一般 PKG 在 macOS Bash 3 的空陣列相容性，
-以及公證失敗時不覆蓋上次交付的檔案。其他 OS 略過該封裝 fixture。
+以及 runtime 載入路徑檢查／公證失敗時不覆蓋上次交付的檔案；缺載入路徑時不得送公證。其他 OS 略過該封裝 fixture。
 `tests/test_macos_profile.py` 驗證過期、錯誤 Team／App ID／憑證／Keychain group、development profile 與不合法 UUID 的拒絕。
 這些是流程回歸，不能當成 Apple 公證或真 signed app 通過；實際 archive、export、Gatekeeper 與 Sparkle 更新另需驗證。
+`python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v` 在 Mac 編譯真正的 universal Mach-O fixture，
+驗證搬移／空白路徑、缺 `LC_RPATH`、只有 x86_64 壞掉、framework 缺檔／缺架構／只在建置機器可用，
+以及 Debug dylib 繼承主程式搜尋路徑；其他 OS 略過。
+`macos-release.yml` 的 Mac job 在匯入簽章秘密前執行此回歸。
+原生 macOS build／preview package／Release export 都執行 `scripts/testing/check_macos_runtime.py`，
+逐一檢查 arm64、x86_64 主程式及其 bundle 內動態依賴，不接受建置機器外部 framework。
+Release export 在公證前加 `--launch`，執行 App 的 `--check-runtime`：讓真實 dyld 載入後立即退出，
+不建立 NSApplication、不開啟 workspace、登入項目或 Google。只證明建置機器架構的原生載入，不能當作主畫面或 Google 往返驗收。
 Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
 Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
 
@@ -78,6 +86,7 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
   "WORK_FLEET_PACKAGES_DIR=$PWD/build/apple/SourcePackages" \
   'ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO CODE_SIGNING_ALLOWED=NO build
 lipo -archs build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app/Contents/MacOS/WorkFleetMac
+python3 scripts/testing/check_macos_runtime.py build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app
 ```
 
 `scripts/macos/build-native-app.sh --platform macos --unsigned` 已固定使用上述架構設定；

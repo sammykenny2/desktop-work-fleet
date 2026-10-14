@@ -78,6 +78,7 @@ elif [[ "$METHOD" == app-store-connect ]]; then
 else
     APP="$OUTPUT/products/WorkFleetMac.app"
     [[ -d "$APP" ]] || { echo 'Exported macOS app was not found.' >&2; exit 1; }
+    python3 scripts/testing/check_macos_runtime.py "$APP" --launch
     if [[ -n "$NOTARY" ]]; then
         ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/app-for-notary.zip"
         xcrun notarytool submit "$OUTPUT/app-for-notary.zip" "${NOTARY_ARGS[@]}" --wait

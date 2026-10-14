@@ -67,6 +67,9 @@ test('Xcode project is location independent and does not embed local configurati
       for (const target of targets) {
         const configurations = objects[target.buildConfigurationList].buildConfigurations.map(id => objects[id]);
         for (const configuration of configurations) {
+          if (target.name === 'WorkFleetMac') {
+            assert.ok(configuration.buildSettings.LD_RUNPATH_SEARCH_PATHS.includes('@executable_path/../Frameworks'));
+          }
           if (target.name === 'WorkFleetMac' && configuration.name === 'Release') {
             assert.equal(configuration.buildSettings.CODE_SIGN_STYLE, '$(WORK_FLEET_MACOS_SIGNING_STYLE)');
             assert.equal(configuration.buildSettings.PROVISIONING_PROFILE_SPECIFIER, '$(WORK_FLEET_MACOS_PROFILE)');

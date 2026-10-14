@@ -9,7 +9,11 @@ import AppKit
     private var mainAside = false
     private var shell: FleetHostShell?
     private var updates: FleetUpdates?
-    static func main() { let application = NSApplication.shared; let delegate = FleetApp(); application.delegate = delegate; application.setActivationPolicy(.regular); application.run() }
+    static func main() {
+        // Release packaging exercises the actual dyld loader without opening UI, storage or login items.
+        if CommandLine.arguments.contains("--check-runtime") { print("PASS Work Fleet runtime load"); return }
+        let application = NSApplication.shared; let delegate = FleetApp(); application.delegate = delegate; application.setActivationPolicy(.regular); application.run()
+    }
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Read before anything else handles events: macOS marks a login-item launch on the open-application event.
         let launchedAtLogin = FleetHostShell.detectLoginLaunch()

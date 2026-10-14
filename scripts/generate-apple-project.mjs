@@ -35,7 +35,8 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     INFOPLIST_FILE: '$(SRCROOT)/.generated/$(TARGET_NAME)/Info.plist', GENERATE_INFOPLIST_FILE: 'NO',
     OTHER_LDFLAGS: ['$(inherited)', '-lsqlite3'], ENABLE_USER_SCRIPT_SANDBOXING: 'NO', ASSETCATALOG_COMPILER_APPICON_NAME: 'AppIcon',
     WORK_FLEET_ROOT: '$(SRCROOT)/../../..', WORK_FLEET_PACKAGES_DIR: '$(BUILD_DIR)/../../SourcePackages',
-    ...(platform === 'macos' ? { SDKROOT: 'macosx', MACOSX_DEPLOYMENT_TARGET: '13.0', SUPPORTED_PLATFORMS: 'macosx', ENABLE_HARDENED_RUNTIME: 'YES' }
+    ...(platform === 'macos' ? { SDKROOT: 'macosx', MACOSX_DEPLOYMENT_TARGET: '13.0', SUPPORTED_PLATFORMS: 'macosx', ENABLE_HARDENED_RUNTIME: 'YES',
+      LD_RUNPATH_SEARCH_PATHS: ['$(inherited)', '@executable_path/../Frameworks'] }
       : { SDKROOT: 'iphoneos', IPHONEOS_DEPLOYMENT_TARGET: '16.0', TARGETED_DEVICE_FAMILY: '1,2', SUPPORTED_PLATFORMS: 'iphoneos iphonesimulator', SUPPORTS_MACCATALYST: 'NO' }),
     ...(platform === 'macos' && mode === 'Release' ? { CODE_SIGN_STYLE: '$(WORK_FLEET_MACOS_SIGNING_STYLE)',
       CODE_SIGN_IDENTITY: '$(WORK_FLEET_MACOS_SIGNING_IDENTITY)', PROVISIONING_PROFILE_SPECIFIER: '$(WORK_FLEET_MACOS_PROFILE)' } : {}),

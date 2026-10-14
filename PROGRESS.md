@@ -14,6 +14,21 @@
 - 發布準備：使用者 2026-10-14 授權 dispatch `windows-preview.yml`；Linux 與 macOS 的 0.2.1 這次不發。
   Windows 更新說明留空（workflow 不帶摘要）。狀態：已備妥／待發布，結果見對話。
 
+## 2026-10-14 macOS Developer ID 預覽簽章準備
+
+- 維護者選擇 GitHub macOS 預覽只交付 DMG 與 Sparkle 更新 ZIP；Application 憑證沿用既有 Apple team，公證 API 與 Sparkle 更新各用本專案獨立金鑰。
+- `macos-release.yml` 改為暫時 keychain、驗證 Developer ID profile、manual archive／export，補齊公開 release 設定檢查與失敗清理。
+  `--no-pkg` 免除 Installer 憑證；一般本機 PKG／商店匯出保留。App Sandbox 與 Data Protection Keychain 保留。
+- 公證帳號已以 `notarytool history` 驗證；GitHub 已設定六個簽章／公證／Sparkle secrets、App ID／Team／identity／Sparkle 公鑰與公開支援資訊。
+  憑證以 Apple Keychain 相容的 PKCS#12 格式重新匯出；隔離暫時 keychain 的匯入、identity trust、帶時間戳與 hardened runtime 的測試執行檔簽章／驗證通過。
+- 驗證：JS 279 通過、10 略過；Python 110 項、15 略過，其餘通過（HTTP 測試需 sandbox 外的 loopback listener）。
+  Mac 的 DMG／更新 ZIP fixture 驗證無 Installer、無 PKG、公證失敗不覆蓋上次交付；profile 錯誤的拒絕回歸通過。
+  Xcode 27.0 的 unsigned Debug universal build（0.2.0）通過；Sparkle 備份與公鑰配對、`sign_update` 簽名驗證通過。
+  YAML／10 個 workflow Bash steps、文件連結與 `git diff --check` 通過。
+- 尚待維護者提供 Google macOS OAuth Client ID 與 Developer ID distribution profile；Developer 角色 API key 的 profile 建立被 Apple 拒絕，需從 Apple Developer 網站建立。
+  真實 signed Release archive／export、公證、安裝與 Sparkle 跨版更新尚未驗證；workflow 尚未 dispatch，未升版或發布。
+- 獨立審閱尚未取得；本輪驗證是作者測試與機械檢查。
+
 ## 2026-10-14 Windows 登入啟動當掉與 Explorer 保護（ADR-045）
 
 使用者回報 GitHub 的 0.2.0 重開機後沒有自己啟動。查出它其實有啟動，但當掉了，而且拖住了 Explorer。

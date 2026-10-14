@@ -1,10 +1,10 @@
 #!/bin/bash
 # Build or archive the native Apple app; signing credentials remain in Xcode/Keychain.
 # macOS always builds arm64 + x86_64, so every Mac produces the same universal package.
-# Usage: scripts/macos/build-native-app.sh --platform macos|ios [--release] [--simulator] [--unsigned]
+# Usage: scripts/macos/build-native-app.sh --platform macos|ios [--release] [--simulator] [--unsigned] [--application-identity NAME --provisioning-profile UUID]
 set -euo pipefail
-usage() { echo 'Usage: scripts/macos/build-native-app.sh --platform macos|ios [--release] [--simulator] [--unsigned]'; }
-PLATFORM=''; CONFIGURATION='Debug'; SIMULATOR=0; UNSIGNED=0
+usage() { echo 'Usage: scripts/macos/build-native-app.sh --platform macos|ios [--release] [--simulator] [--unsigned] [--application-identity NAME --provisioning-profile UUID]'; }
+PLATFORM=''; CONFIGURATION='Debug'; SIMULATOR=0; UNSIGNED=0; APPLICATION=''; PROFILE=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --help) usage; exit 0 ;;
@@ -12,12 +12,18 @@ while [[ $# -gt 0 ]]; do
     --release) CONFIGURATION='Release'; shift ;;
     --simulator) SIMULATOR=1; shift ;;
     --unsigned) UNSIGNED=1; shift ;;
+    --application-identity) APPLICATION="${2:-}"; shift 2 ;;
+    --provisioning-profile) PROFILE="${2:-}"; shift 2 ;;
     *) usage >&2; exit 2 ;;
   esac
 done
 [[ "$PLATFORM" == 'macos' || "$PLATFORM" == 'ios' ]] || { usage >&2; exit 2; }
 [[ "$SIMULATOR" == 0 || ( "$PLATFORM" == 'ios' && "$CONFIGURATION" == 'Debug' ) ]] || { usage >&2; exit 2; }
 [[ "$UNSIGNED" == 0 || "$CONFIGURATION" == 'Debug' ]] || { echo '--unsigned is available only for preview Debug builds.' >&2; exit 2; }
+if [[ -n "$APPLICATION" || -n "$PROFILE" ]]; then
+    [[ "$PLATFORM" == macos && "$CONFIGURATION" == Release && -n "$APPLICATION" && -n "$PROFILE" ]] || {
+        echo 'Manual Developer ID signing requires a macOS Release archive, --application-identity and --provisioning-profile.' >&2; exit 2; }
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
@@ -35,6 +41,7 @@ EXTRA=()
 [[ -z "$APPLE_TEAM" ]] || EXTRA+=("DEVELOPMENT_TEAM=$APPLE_TEAM")
 EXTRA+=("WORK_FLEET_PACKAGES_DIR=$PROJECT_ROOT/build/apple/SourcePackages")
 if [[ "$PLATFORM" == 'macos' ]]; then EXTRA+=('ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO); fi
+if [[ -n "$PROFILE" ]]; then EXTRA+=(CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=$APPLICATION" "PROVISIONING_PROFILE_SPECIFIER=$PROFILE"); fi
 if [[ "$SIMULATOR" == 1 ]]; then DESTINATION='generic/platform=iOS Simulator'; fi
 if [[ "$SIMULATOR" == 1 || "$UNSIGNED" == 1 ]]; then EXTRA+=(CODE_SIGNING_ALLOWED=NO); fi
 ACTION='build'

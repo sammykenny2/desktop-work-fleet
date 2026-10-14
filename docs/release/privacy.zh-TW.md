@@ -1,6 +1,7 @@
 # Work Fleet 隱私與資料說明
 
-以下內容供產品維護者發布於 `WORK_FLEET_PRIVACY_URL`。發布時加入實際維護者名稱、聯絡方式及生效日期。
+維護者：sammykenny2。聯絡方式：[sammykenny2@gmail.com](mailto:sammykenny2@gmail.com)。生效日期：2026-10-14。
+本文件是 GitHub 預覽版的公開隱私說明；商店提交仍需依實際 SDK 與散布產物核對各商店表單。
 
 Work Fleet 用於記錄便箋、待辦、草稿與附件。使用者可以只用本機工作空間，或主動登入 Google 以同步資料。
 

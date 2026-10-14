@@ -119,19 +119,44 @@ variables `WORK_FLEET_GOOGLE_PROJECT_ID`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` �
 以 DEB 安裝的 App 才有 App 內更新：下載、核對後以 pkexec 安裝（需要系統密碼與 polkit 驗證代理程式），成功後保存並重新啟動。
 
 macOS 預覽版與更新（Sparkle）：
-1. 在 Mac 上一次性產生 Sparkle 金鑰：建置一次後執行 `build/apple/DerivedData/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys`，
-   私鑰存入登入鑰匙圈；把印出的公鑰設為 `.env` 與 repository variable 的 `WORK_FLEET_SPARKLE_PUBLIC_KEY`。
-   CI 需要時以 `generate_keys -x 檔案` 匯出私鑰存成 secret `SPARKLE_PRIVATE_KEY`，再刪除匯出檔。
-2. 本機發布：`build-native-app.sh --platform macos --release`，再以 `package-native-app.sh --platform macos --method developer-id
-   --application-identity … --installer-identity … --notary-profile … --dmg [--update-summary 文字]`。公證後除 PKG／DMG 外另產生
-   `WorkFleet-<版號>-macos-universal.zip`（Sparkle 更新檔）、`appcast.xml` 與 `work-fleet-update.json`，全部附在 `macos-v<版號>` release。
-3. 手動 `macos-release.yml` 執行同樣步驟，需要 variables `WORK_FLEET_APPLE_TEAM_ID`、`WORK_FLEET_APP_ID`、`WORK_FLEET_GOOGLE_PROJECT_ID`、
-   `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID`、`WORK_FLEET_SPARKLE_PUBLIC_KEY`、`MACOS_APPLICATION_IDENTITY`、`MACOS_INSTALLER_IDENTITY`，
-   secrets `MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64`、`MACOS_DEVELOPER_ID_INSTALLER_P12_BASE64`、`MACOS_CERTIFICATES_PASSWORD`、
-   `MACOS_NOTARY_KEY_P8_BASE64`、`MACOS_NOTARY_KEY_ID`、`MACOS_NOTARY_ISSUER_ID`、`SPARKLE_PRIVATE_KEY`。尚未執行；CI 對鑰匙圈 entitlement
-   的 provisioning 未驗證，失敗時以 Mac 本機發布。
+1. 手動 `macos-release.yml` 發布 Developer ID 簽章、公證並 staple 的 DMG 與 Sparkle 更新 ZIP，
+   不產生 PKG、不需要 Installer 憑證。版本、tag 與 GitHub prerelease 規則不變；dispatch 仍需使用者明確授權。
+2. 準備 Developer ID Application `.p12`（含私鑰及 Apple intermediate）、匯出密碼，以及符合 App ID、
+   Team、該憑證及 Keychain access group 的 **Developer ID distribution profile**。從 Apple Developer＞Profiles＞＋＞Developer ID 建立；
+   Developer 角色的 API key 可能無權建立該 profile，可由 Account Holder／Admin 在網站下載。
+   App sandbox 與 Data Protection Keychain 不因 CI 簽章而移除。
+3. 公證使用本專案專用的 App Store Connect Team API key；Key ID 必須與 `.p8` 配對，Issuer ID 使用同一 team。
+   GitHub variables：`WORK_FLEET_APPLE_TEAM_ID`、`WORK_FLEET_APP_ID`、`WORK_FLEET_GOOGLE_PROJECT_ID`、
+   `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID`、`WORK_FLEET_SPARKLE_PUBLIC_KEY`、`MACOS_APPLICATION_IDENTITY`、
+   `WORK_FLEET_PRIVACY_URL`、`WORK_FLEET_SUPPORT_URL`、`WORK_FLEET_SUPPORT_EMAIL`。
+   Secrets：`MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64`、`MACOS_CERTIFICATES_PASSWORD`、`MACOS_DEVELOPER_ID_PROFILE_BASE64`、
+   `MACOS_NOTARY_KEY_P8_BASE64`、`MACOS_NOTARY_KEY_ID`、`MACOS_NOTARY_ISSUER_ID`、`SPARKLE_PRIVATE_KEY`。
+   runner 使用暫時 keychain、驗證 profile 的效期／Team／App ID／Keychain group／憑證，再以 manual signing archive 與 export；
+   即使失敗也清除暫存秘密。release 公開欄位在建置前一次檢查，不等 archive 才發現缺值。
 4. 只有含公鑰、Developer ID 簽章的 App 有「檢查更新」；Sparkle 以 `sparkle:version`（`CURRENT_PROJECT_VERSION`）判斷新舊，
    所以每次發布都要提高它。
+
+一次性 Sparkle 金鑰準備：resolve／build 套件後，工具位於 `build/apple/SourcePackages/artifacts/sparkle/Sparkle/bin/`。
+以 `generate_keys --account app.workfleet.preview` 建立獨立 keychain item；以相同 account 的 `-p` 取得公鑰、
+`-x 私鑰檔案` 匯出到 repo 外的安全備份，將其內容設為 secret `SPARKLE_PRIVATE_KEY`。
+不要每次 release 重新產生或覆蓋此金鑰；本機以該 account 產生的金鑰需透過 `SPARKLE_PRIVATE_KEY_FILE` 傳給封裝腳本。
+私鑰、憑證密碼與 `.p8` 不得放入公共設定或 Git；原始檔案的 base64 設定須是單行、無多餘前綴。
+
+本機已安裝對應 profile／identity 並配置公開欄位後，可執行相同的 archive／export：
+
+```bash
+bash scripts/macos/build-native-app.sh --platform macos --release \
+  --application-identity "$APPLICATION_IDENTITY" --provisioning-profile "$PROFILE_UUID"
+SPARKLE_PRIVATE_KEY_FILE="$HOME/Signing/WorkFleet-Sparkle.key" \
+  bash scripts/macos/package-native-app.sh --platform macos --method developer-id \
+  --application-identity "$APPLICATION_IDENTITY" --provisioning-profile "$PROFILE_UUID" \
+  --notary-profile work-fleet-notary --dmg --no-pkg
+```
+
+公證後會檢查 App／DMG 簽章、Gatekeeper 與 staple，更新 ZIP 使用 Sparkle EdDSA 簽署；
+全部成功才交付 `WorkFleet-<版號>-macos-universal.dmg`／`.zip`、各自 `.sha256`、`appcast.xml` 與 `work-fleet-update.json` 到 `build/`。
+一般本機封裝仍預設產生 PKG；只有 `--no-pkg` 跳過它。若要公證 PKG，仍需 `--installer-identity`。
+使用非預設 notary keychain 時，設定 `WORK_FLEET_SIGNING_KEYCHAIN`。
 
 直接 Xcode 的 app ID／App Group／Team 使用 [Apple 專案](../src/native/apple/README.md) 的本機 xcconfig；
 命令列 build wrapper 可用 `.env` 中非空的 identity 覆蓋。生成資產、DerivedData、archives 保留於忽略的目錄。

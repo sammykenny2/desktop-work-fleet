@@ -92,6 +92,16 @@ Maven POM 與 AAR／JAR 內的 notices，保留 Apache-2.0 全文。Generated as
 - 預覽版仍不加 timestamp；憑證到期後簽章失效，要換憑證並重新信任。
 - 正式商店或 Developer 簽章仍走 `-CertificateThumbprint`／`-TimestampUrl` 與 Partner Center，不受此修訂影響。
 
+## 2026-10-14 修訂：macOS GitHub 預覽採 DMG 與更新 ZIP
+
+維護者選擇沿用 Developer ID Application 憑證，只發布 DMG＋Sparkle 更新 ZIP，
+不要求額外的 Developer ID Installer 憑證。封裝入口新增 `--no-pkg`；一般本機／商店封裝保留原有 PKG 路徑。
+CI 匯入本專案 Developer ID provisioning profile，驗證其 Team、App ID、Keychain entitlement、效期與簽章憑證，
+archive／export 都使用該 identity 與 profile 的 manual signing，不依賴 runner 登入 Xcode 或持有 development 憑證。
+公證使用本專案獨立的 Team API key；Sparkle 使用獨立更新金鑰，秘密僅存 OS keychain／repo 外備份／GitHub secrets。
+App Sandbox 與 Keychain 資料契約保留；簽章、公證、staple 與 Gatekeeper 檢查全數成功才交付。
+配置完成、流程測試、真實 signed app 驗證與 GitHub release dispatch 分開記錄，不以其中一項代替其他驗收。
+
 ## Alternatives Considered
 
 將簽章密碼放入 `.env` 或公共 JSON：拒絕，公共設定會封裝進 App。

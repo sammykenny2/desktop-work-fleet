@@ -57,6 +57,11 @@ APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結
 主 App／Share Extension 依賴、機器配置不進專案、生成資產／Info.plist、Apple 主畫面／場景 classic bundles、
 CSP 不放寬、release 缺值與唯讀依賴授權檔的重複複製。
 `node --test tests/apple-project.test.js` 不需要 Apple SDK；不代表 Xcode 載入、Swift 編譯或簽章通過。
+`tests/apple-signing.test.js` 驗證 manual Developer ID export 的憑證／profile 設定與不合法簽章參數；
+Mac 上另以真 PlistBuddy 與假的 Xcode／notary／codesign 工具執行 DMG＋更新 ZIP 封裝，確認不需要 Installer、
+不產生 PKG、傳遞暫時 notary keychain，以及公證失敗時不覆蓋上次交付的檔案。其他 OS 略過該封裝 fixture。
+`tests/test_macos_profile.py` 驗證過期、錯誤 Team／App ID／憑證／Keychain group、development profile 與不合法 UUID 的拒絕。
+這些是流程回歸，不能當成 Apple 公證或真 signed app 通過；實際 archive、export、Gatekeeper 與 Sparkle 更新另需驗證。
 Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
 Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
 

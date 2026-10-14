@@ -2,6 +2,25 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 共用版號 0.2.2 與 Windows、Linux、macOS 預覽版
+
+使用者核准 0.2.2，並要求發布 Windows、Linux、macOS 三個平台的預覽版。
+
+- 版號：依共用版號規則，五個平台一起升版。
+  - Windows `Directory.Build.props`、Linux `VERSION`、Apple `MARKETING_VERSION`、Android `versionName`：0.2.1→0.2.2。
+  - Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode`：201→202。iOS 與 Android 這次不發。
+- Windows（相對 `windows-v0.2.1`）：
+  - `host.log` 記錄螢幕清單變化（ADR-045）。下次登入時當掉，可以對照螢幕切換的時間。
+  - Google 登入 callback 不再被 Chrome 預先開啟的空連線卡住。
+  - 已安裝的 0.2.1 可以用 App 內更新升到 0.2.2。
+- Linux：上一版是 `linux-v0.2.0`，0.2.1 沒有發。已安裝的 DEB 0.2.0 可以用 App 內更新升到 0.2.2。
+- macOS：第一個 GitHub 預覽版。`macos-release.yml` 第一次 dispatch，會送 Apple 公證（Developer ID 簽章準備見下方 macOS 段落）。
+  Gatekeeper、公證、安裝與 Sparkle 更新都還沒在真實 release 上驗證過。
+- GitHub 設定：三個平台 workflow 需要的 variables 與 secrets 名稱都已存在（只核對名稱）；三個 0.2.2 tag 與 release 都還不存在。
+- 本機檢查：升版前同一份程式碼的結果記在下一段；升版只改版號紀錄。
+- 發布準備：使用者 2026-10-14 授權 dispatch `windows-preview.yml`、`linux-release.yml`、`macos-release.yml`。
+  更新說明留空（workflow 不帶摘要）。狀態：已備妥／待發布，結果見對話。
+
 ## 2026-10-14 0.2.1 登入當掉：螢幕切換紀錄與重現測試（ADR-045）
 
 使用者裝 0.2.1 後重開機（21:12），請我看 `host.log` 和 dump。之後要求做兩件事：`host.log` 記錄螢幕清單變化，以及不重開機的重現測試。

@@ -127,7 +127,8 @@ test('workflows and scripts ask platform-version.mjs only for platforms it recor
   const callers = ['.github/workflows/ci.yml', '.github/workflows/linux-release.yml', '.github/workflows/macos-release.yml',
     '.github/workflows/windows-preview.yml', 'scripts/linux/build-android-app.sh', 'scripts/linux/build-native-app.sh',
     'scripts/windows/Build-AndroidApp.ps1', 'scripts/windows/Build-LinuxPackage.ps1', 'scripts/windows/Build-WindowsPackage.ps1',
-    'scripts/windows/Test-WindowsPackage.ps1', 'scripts/windows/Test-WindowsRecovery.ps1', 'scripts/windows/Test-WindowsUpdate.ps1'];
+    'scripts/windows/Test-WindowsDisplaySwitch.ps1', 'scripts/windows/Test-WindowsPackage.ps1', 'scripts/windows/Test-WindowsRecovery.ps1',
+    'scripts/windows/Test-WindowsUpdate.ps1'];
   for (const file of callers) {
     const platforms = [...(await readFile(path.join(root, file), 'utf8')).matchAll(/platform-version\.mjs'?\)? --platform ([a-z]+)/g)].map(match => match[1]);
     assert.ok(platforms.length > 0, file);

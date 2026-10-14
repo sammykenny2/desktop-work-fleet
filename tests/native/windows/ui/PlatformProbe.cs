@@ -17,6 +17,13 @@ internal static class PlatformProbe
         || display.Dpi is < 48 or > 960) throw new Exception("Invalid physical work area or DPI");
     }
     Console.WriteLine($"PASS native physical display inventory: {displays.Count} monitor(s), DPI {string.Join(", ", displays.Select(d => d.Dpi))}");
+    // ADR-045: the sign-in topology change that preceded the render-thread failure, as host.log records it.
+    var described = NativeDisplays.Describe(NativeDisplays.Validate([
+      new(@"\\.\DISPLAY2", false, new(-3840, -120, 3840, 2160), new(-3840, -120, 3840, 2100), 144),
+      new(@"\\.\DISPLAY1", true, new(0, 0, 1920, 1080), new(0, 0, 1920, 1032), 120)]));
+    if (described != @"2 display(s): \\.\DISPLAY1 primary 0,0 1920x1080 dpi=120; \\.\DISPLAY2 -3840,-120 3840x2160 dpi=144")
+      throw new Exception("Display inventory log line changed: " + described);
+    Console.WriteLine("PASS display inventory log line");
     foreach (var key in new[] { "Meta+1", "Ctrl+F12", "Alt+F4" })
       if (NativeShortcuts.Parse(key, out _, out _) != "reserved") throw new Exception("Reserved key accepted");
     foreach (var key in new[] { "Ctrl+C", "Ctrl+Shift+Z", "Ctrl+A" })

@@ -2,6 +2,46 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 0.2.1 登入當掉：螢幕切換紀錄與重現測試（ADR-045）
+
+使用者裝 0.2.1 後重開機（21:12），請我看 `host.log` 和 dump。之後要求做兩件事：`host.log` 記錄螢幕清單變化，以及不重開機的重現測試。
+使用者也提到：裝了自啟動版本後，登入時會先看到不對的解析度或縮放，過一下才恢復。
+
+- 重開機結果：
+  - Explorer 沒被拖住：沒有被重新啟動，也沒有 hang 報告。CrashGuard 拆離 8 個場景視窗、剩 0 個。
+    隱藏重開成功，新實例等舊程序寫完 849 MB dump 才接手，之後正常執行。
+  - Work Fleet 在登入後約 62 秒（21:13:47）才由 StartupTask 啟動，12.6 秒後當掉。
+  - dump 裡的螢幕清單：啟動時 Windows 還以合上的內建螢幕（1920×1080、125%）為主螢幕，外接 4K（150%）在右側；
+    當掉前內建螢幕被關掉，只剩外接 4K。UI 執行緒在 `ApplyDisplays` 隱藏場景時，`SyncFlush` 發現 render thread 已失敗。
+  - 使用者看到的縮放異常，就是內建螢幕還是主螢幕的那段時間；它在 Work Fleet 啟動前就開始了。
+    Work Fleet 沒有任何改變螢幕設定的程式碼。
+  - NVIDIA 驅動 10/12 18:02 更新；之後的兩次開機都同時有 Work Fleet 自啟動，無法分辨哪個是新現象的原因。
+  - 0.2.0 那次留下的兩個 dump 是不含 heap 的小 dump，無法確認是不是同一個原因。
+  - 事件記錄裡的 LiveKernelEvent／BlueScreen 是 2025-10 到 2026-09 的舊報告在開機時重送，不是這次產生的。
+- `host.log` 螢幕紀錄（`DesktopCoordinator`、`NativeDisplays.Describe`）：
+  - 記錄時機：啟動時、清單有變化時、開始套用新版面時、讀不到螢幕時。
+  - 每台螢幕記下裝置名稱、是否為主螢幕、實體位置與大小、DPI。
+- `Test-WindowsDisplaySwitch.ps1`：
+  - 以 `app.workfleet.displayprobe.e2e` 測試身分，在「延伸」狀態啟動。
+  - 之後用 DisplaySwitch 交替「只用第二個螢幕」與「延伸」，或由使用者合上上蓋，並檢查 Explorer 回應。
+- 重現結果（本機簽章的 0.2.1 MSIX，使用者先結束正式版、打開上蓋）：沒有重現。
+  - 場景穩定後切換 3 輪：通過，Explorer 453 次檢查都有回應。
+  - App 啟動後約 6、8、11、14 秒切換（`-SwitchAfter 3/6/9/12`）：都通過。
+  - 啟動後約 13 秒合上上蓋：測試套件撐過 30 秒，`host.log` 記到變更與套用。
+    當時腳本在合蓋分支結尾有參數檢查錯誤，已修正，修正後沒有再用合蓋重跑。
+  - 上蓋合著時 Windows 不讓 DisplaySwitch 延伸到內建螢幕。所以登入時「上蓋合著、內建螢幕卻仍啟用」的狀態，腳本做不出來。
+- 測試：
+  - `--platform` 通過，含螢幕清單紀錄格式的新檢查。
+  - `--diagnostics`、`--host-shell`、`--crash-guard` 通過。
+  - `Test-WindowsNative.ps1` 在 formation 之前的步驟都通過。
+  - core probe 通過；`node --test tests/*.test.js` 272 通過、12 略過。
+  - `--formation`：新加的 `host.log` 檢查通過，但之後的前景檢查失敗（`A non-activating scene received foreground`）。
+    用未修改的程式碼重跑、以及關掉正式版後重跑，都一樣失敗。這是重開機後就有的問題，待查。
+- 未完成：
+  - 縮放異常的對照：關掉 Work Fleet 自啟動，重開機一次。
+  - 修正方向待決定：場景改用軟體繪圖（ADR-045 替代方案 3），或登入時遇到「合蓋但內建螢幕仍啟用」先延後掛場景。
+  - 沒有獨立審閱。
+
 ## 2026-10-14 Windows Google 登入 callback 被空連線卡住
 
 使用者回報：一台新裝 GitHub 0.2.1 的機器登入 Google 時，Chrome 最後停在 `127.0.0.1` 的 `ERR_CONNECTION_REFUSED`。

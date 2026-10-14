@@ -36,6 +36,9 @@ public sealed class DesktopCoordinator : IDisposable
   private bool nativeMenu;
   private readonly double scale;
   private IReadOnlyList<DisplayInfo> displays;
+  // ADR-045: host.log times display changes against fatal errors; a sign-in topology change killed the renderer.
+  private readonly Action<string>? note;
+  private string? notedDisplays;
   private readonly NativeDisplayWatcher displayWatcher;
   private readonly DispatcherTimer shellWatcher;
   private NativeShellLayers shell;
@@ -68,17 +71,18 @@ public sealed class DesktopCoordinator : IDisposable
   }
 
   public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Action showMain, Action<string> openExternal,
-    IReadOnlyList<DisplayInfo>? displayOverride = null, Window? mainWindow = null, Func<bool>? hideMain = null)
+    IReadOnlyList<DisplayInfo>? displayOverride = null, Window? mainWindow = null, Func<bool>? hideMain = null, Action<string>? note = null)
   {
     this.environment = environment; this.sendOwner = sendOwner; this.showMain = showMain; this.openExternal = openExternal;
-    this.hideMain = hideMain; this.mainWindow = mainWindow;
+    this.hideMain = hideMain; this.mainWindow = mainWindow; this.note = note;
     displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = displays.First(d => d.Primary).Dpi / 96d;
+    NoteDisplays("displays at start", displays);
     shell = NativeShellLayers.Discover();
     foreach (var display in displays) foreach (var layer in Layers) views.Add(new(display, layer, scale));
     shortcuts = new NativeShortcuts(DispatchAction); activity = new NativeActivity(shortcuts);
     displayWatcher = new NativeDisplayWatcher(() => { shell = NativeShellLayers.Discover(); return displayOverride ?? NativeDisplays.Read(); }, InvalidateDisplays, ProposeDisplays, () =>
     {
-      if (displayError) return; displayError = true;
+      if (displayError) return; displayError = true; note?.Invoke("displays unreadable; retrying");
       sendOwner(new { v = 1, @event = "desktop-error", message = "目前無法讀取顯示器，已保留資料及編輯文字；正在重試。" });
     });
     shellWatcher = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
@@ -144,9 +148,15 @@ public sealed class DesktopCoordinator : IDisposable
     if (!disposed && started && !displayPending && (shell.Changed
       || views.Any(v => !v.Retired && v.Initialized && !v.Surface.NativeAlive))) displayWatcher.Refresh();
   }
+  private void NoteDisplays(string label, IReadOnlyList<DisplayInfo> values)
+  {
+    var text = NativeDisplays.Describe(values);
+    if (text != notedDisplays) { notedDisplays = text; note?.Invoke($"{label} {text}"); }
+  }
   private void ProposeDisplays(IReadOnlyList<DisplayInfo> next)
   {
     if (disposed) return; proposedDisplays = next; proposedTopology++; displayError = false;
+    NoteDisplays($"displays changed topology={proposedTopology}", next);
     if (started) sendOwner(new { v = 1, @event = "desktop-displays", topology = proposedTopology, workAreas = WorkAreas(next) });
   }
   private object ApplyDisplays(JsonElement args)
@@ -159,6 +169,7 @@ public sealed class DesktopCoordinator : IDisposable
     HostError.Require(editorId.ValueKind == JsonValueKind.Null || editing is not null, "desktop-view", "編輯視窗已失聯，請保留最後輸入。");
     var editorRect = editing is null ? null : DesktopFrame.Rect(args.GetProperty("editorRect"));
     var next = proposedDisplays!; var assignments = new List<(SceneView View, DisplayInfo Display)>();
+    if (NativeDisplays.Describe(next) != NativeDisplays.Describe(displays)) note?.Invoke($"displays applying topology={requested}");
     if (editing is not null)
     {
       static double Overlap(LogicalRect a, LogicalRect b) => Math.Max(0, Math.Min(a.X + a.Width, b.X + b.Width) - Math.Max(a.X, b.X))

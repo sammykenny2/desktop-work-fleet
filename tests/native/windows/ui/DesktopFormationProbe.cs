@@ -63,6 +63,9 @@ internal static class DesktopFormationProbe
     try
     {
       await Program.Wait(window, "document.querySelector('#status')?.textContent==='已開啟本機資料'", "formation fixture initialized");
+      var log = File.ReadAllText(Path.Combine(directory, "data", "host.log"));
+      if (!log.Contains(" displays at start " + NativeDisplays.Describe([display with { WorkArea = bounds }]) + "\n", StringComparison.Ordinal))
+        throw new Exception("host.log did not record the display inventory at start: " + log);
       var main = window.WebView.CoreWebView2;
       focus.BrowserProcess = main.BrowserProcessId;
       foreach (var title in new[] { "Formation A", "Formation B" })

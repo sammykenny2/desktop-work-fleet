@@ -25,6 +25,9 @@ public static class NativeDisplays
     }
     return values.OrderByDescending(d => d.Primary).ThenBy(d => d.Id, StringComparer.Ordinal).ToArray();
   }
+  /// <summary>One host.log line per inventory (ADR-045): device, primary, physical bounds and DPI; no monitor names or work areas.</summary>
+  public static string Describe(IReadOnlyList<DisplayInfo> values) => $"{values.Count} display(s): " + string.Join("; ", values.Select(d =>
+    FormattableString.Invariant($"{d.Id}{(d.Primary ? " primary" : "")} {d.Bounds.X},{d.Bounds.Y} {d.Bounds.Width}x{d.Bounds.Height} dpi={d.Dpi}")));
   public static IReadOnlyList<DisplayInfo> Read()
   {
     var values = new List<DisplayInfo>(); Exception? failure = null;

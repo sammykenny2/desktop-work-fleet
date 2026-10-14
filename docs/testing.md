@@ -381,6 +381,7 @@ scene 仍使用真整個螢幕 viewport；僅注入未遮擋的測試工作區�
 合成 DOM capture 不代表真滑鼠 capture。GDI 一次讀取測試範圍，在新紙面之外逐像素比對原桌面；
 浮動模式另排除實際顯示的群組標籤與六 CSS px 邊框帶（含五 px 圓角），不排除整個群組工作區。
 另檢查紙面可見、全程無便箋場景 foreground 啟用，並保存 native 螢幕 PNG；沒足夠未遮擋區域時明確 SKIP。
+formation probe 也確認 `host.log` 記下啟動時的螢幕清單；`--platform` 檢查這行的格式（ADR-045）。
 foreground 判定涵蓋所有便箋成對 HWND 與 browser，排除主畫面及 framework helper；建立便箋時主畫面
 編輯器的焦點不是被動紙面自行啟用。Wallpaper-only probe 不作這項排除。
 目前安裝版複本也通過隔離 formation 案例，使用者原始殘影尚未重現；不能把此通過當作根因已證實。
@@ -456,6 +457,19 @@ MSIX 端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test
 - 不碰已安裝的 Work Fleet。
 - 沒有反向驗證「不拆離時 Explorer 會卡住」，因為那會凍結使用者的 Explorer。
 - 真實登入時的 render thread 失敗，只能裝新版後重開機觀察 `host.log`。
+
+螢幕切換端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsDisplaySwitch.ps1`。
+- 需要兩台螢幕；筆電要打開上蓋，因為上蓋合著時 Windows 不讓 DisplaySwitch 延伸到內建螢幕。
+- 先切到「延伸」，安裝並啟動 `app.workfleet.displayprobe.e2e` 測試身分。等場景進入 Explorer 後，
+  交替「只用第二個螢幕」與「延伸」，預設 3 輪。
+- `-SwitchAfter N`：啟動後 N 秒就切換，不等場景穩定。`-Lid`：改由使用者合上上蓋觸發一次切換。
+- 通過條件：
+  - 測試套件沒有致命錯誤。
+  - Explorer 沒有連續 5 秒不回應，也沒有 hang 報告。
+- 會改變目前登入工作階段的螢幕配置，其他視窗會跟著移動；結束時切回 `-Final`，預設是只用第二個螢幕。
+- 有其他 Work Fleet 執行中時拒絕執行，因為同樣的螢幕變更也會影響它。
+- 結束時移除測試套件與它的 dump，`host.log` 留在 `build/windows/display-probe/`。
+- 登入時「上蓋合著、內建螢幕卻仍啟用」的狀態，腳本做不出來，只能靠重開機觀察 `host.log` 的螢幕紀錄。
 
 查登入當掉時，可在本機開啟 Windows Error Reporting 的完整 dump（需系統管理員，App 不會自己設定）：
 

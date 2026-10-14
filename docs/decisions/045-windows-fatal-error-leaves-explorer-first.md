@@ -38,6 +38,8 @@ Accepted，2026-10-14。使用者回報 0.2.0 重開機後沒有自己啟動；�
   - 交給已在執行的實例、啟動失敗、結束。
   - 致命錯誤：執行了多久、拆離數量、剩下數量，以及例外鏈每一層的 HRESULT 與完整文字。
   - 未觀察的 Task 例外。
+  - 螢幕清單：啟動時、清單有變化時、開始套用新版面時，以及讀不到螢幕時。每台螢幕記下裝置名稱、是否為主螢幕、
+    實體位置與大小、DPI；不記螢幕型號與工作區。用來對照螢幕變化和致命錯誤發生的時間。
 - 不記錄便箋內容。檔案達 256 KiB 時轉存為 `host.log.1`。寫入失敗不影響 App。
 
 ### 登入啟動重開一次
@@ -70,6 +72,8 @@ Accepted，2026-10-14。使用者回報 0.2.0 重開機後沒有自己啟動；�
   這是場景掛在 Explorer 的架構風險，需要另外評估。
 - 重開使用 shell 啟動，依賴 Explorer 能回應；拆離之後 Explorer 應該可以回應。
 - 0x88980406 的原因仍未知；重開只是保底，不是修正。
+  - 0.2.1 登入當掉的 dump 顯示：Windows 先以合上的筆電內建螢幕當主螢幕，再把它關掉；App 套用新版面時發現 render thread 已失敗。
+  - 用 DisplaySwitch 做同樣的切換（含 App 啟動後 6 到 14 秒）、在 App 啟動後合上上蓋，都沒有重現（`Test-WindowsDisplaySwitch.ps1`）。
 - 完整 dump 約 1 GB（0.2.0 測試身分實測 1016 MB）。
 
 ### Neutral
@@ -106,7 +110,7 @@ Accepted，2026-10-14。使用者回報 0.2.0 重開機後沒有自己啟動；�
 
 - [ADR-030](030-windows-explorer-wallpaper-layer.md)、[ADR-035](035-windows-attached-scene-background-lifecycle.md)：場景掛在 Explorer
 - [ADR-043](043-desktop-window-placement-and-startup-behavior.md)：登入啟動與隱藏啟動
-- [docs/testing.md](../testing.md)：`--crash-guard` probe、`Test-WindowsRecovery.ps1`、LocalDumps
+- [docs/testing.md](../testing.md)：`--crash-guard` probe、`Test-WindowsRecovery.ps1`、`Test-WindowsDisplaySwitch.ps1`、LocalDumps
 
 ---
 

@@ -162,7 +162,8 @@ public sealed class FleetWindow : Window
       desktop = new DesktopCoordinator(environment, value =>
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
-      }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; });
+      }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
+        text => HostLog.Append(dataDirectory, DateTimeOffset.Now, text));
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true });
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);

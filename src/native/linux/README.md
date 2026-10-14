@@ -1,7 +1,6 @@
 # Linux 原生 host
 
-Python 3.10+、GTK 3、WebKitGTK 4.1（WebKit 2.40+）、PyGObject／cairo、libsecret／
-Secret Service 與 cryptography，由 Linux distribution 提供。不是 Python 便箋 server；
+Python 3.10+、GTK 3、WebKitGTK 4.1（WebKit 2.40+）、PyGObject／cairo 與 cryptography，由 Linux distribution 提供。不是 Python 便箋 server；
 原生 GTK 主畫面載入封裝的 `workfleet://app/app/index.html`，没有常駐 HTTP listener。
 Python 3.10 是為了 Ubuntu 22.04；22.04 發行時的 WebKitGTK 2.36 不夠，需安裝 jammy-security 的更新版
 （2026-10 amd64 為 2.50.4）。程式碼不可使用 3.11 以後的語法，由 `tests/test_linux_python_floor.py` 檢查。
@@ -20,16 +19,22 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 `.env.example` 的 Linux client ID 使用 Google Desktop app 類型。Google 尚未設定時可離線
 記錄；登入以系統瀏覽器 PKCE／state 及臨時 loopback callback，完成或 110 秒逾時即關閉。
-登入後以 HTTPS userinfo sub 建立帳號分區；原生金鑰圈保存 refresh credential，renderer 不讀憑證。
+登入後以 HTTPS userinfo sub 建立帳號分區；加密 SQLite 保存 refresh credential，renderer 不讀憑證。
 Drive 僅固定 appDataFolder FileStore 操作，SHA-256／metadata 校驗與 1 MiB resumable chunks。
 
 資料預設在 `$XDG_DATA_HOME/WorkFleet`（通常 `~/.local/share/WorkFleet`）；可用 `--data PATH`
-指定同樣受保護的新目錄。AES-GCM 加密 SQLite payload 與原生 backup metadata；32-byte 主金鑰
-由 libsecret 保存於使用者系統金鑰圈。金鑰圈缺失／鎖定／不可用時明確停止，不改存明文。
-查詢以 application／kind／id 比對、不比對 schema 名稱（鎖住的 gnome-keyring 項目不公開它），
-所以鎖住的金鑰會由 libsecret 要求解鎖；解鎖取消時回報「已鎖定」而非「缺少原金鑰」，也不另建第二把金鑰。
-SQLite revision 與新附件同交易，flock 保持唯一 owner。清除金鑰圈會失去 DB 解密能力，
-跨機備份使用 App 可攜 ZIP，不直接搬 SQLite 代替備份。
+指定同樣受保護的新目錄。[ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md)：
+AES-GCM 加密 SQLite payload 與原生 backup metadata；32-byte 主金鑰保存於同目錄的 `storage-key`（0600），
+目錄必須屬於目前使用者且為 0700。本機與 Google 工作空間啟動都不要求 keyring 密碼。
+Google refresh credential 存在 SQLite 的獨立加密 `credentials` 表，帳號切換與清空工作空間保留憑證，登出保存撤銷標記。
+這是 OS 帳號／檔案權限保護；能讀取整個資料目錄的人仍能解密，遺失 `storage-key` 也會失去資料。
+SQLite revision 與新附件同交易，flock 保持唯一 owner；跨機備份使用 App 可攜 ZIP。
+
+舊版首次開啟需遷移原 keyring 金鑰：libsecret 僅讀取已解鎖項目，驗證所有帳號的既有加密 payload 後，
+才原子保存本機金鑰；不改寫或刪除原 keyring 項目。原 keyring 仍鎖定時不跳密碼視窗，
+顯示一次性遷移說明並保留資料；需在系統金鑰圈管理員解鎖後重新開啟，或由可攜備份還原。
+新資料目錄與已遷移工作空間不需要 Secret Service。舊 Google 憑證在首次使用帳號時遷移；
+若憑證鎖定或服務不存在，可重新登入 Google，已保存便箋仍可離線使用。
 
 原生資料夾 chooser 保存授權位置與 device/inode 身分；新備份使用 O_EXCL／NOFOLLOW、
 fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新已確認備份及保留份數，
@@ -90,17 +95,16 @@ pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。
 
 ## 桌面環境支援現況
 
-更新：2026-10-14。實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）完整操作，以及同一台 x86 VM 以 xrdp 登入的
+更新：2026-10-15。實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）完整操作，以及同一台 x86 VM 以 xrdp 登入的
 GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是單螢幕。另有隔離 headless labwc 自動測試，不是實際桌面驗收。
 以下依程式行為整理，未實測者不代表已支援。
 
 所有桌面共同前提：
 
-- 必須有 Secret Service 金鑰圈（gnome-keyring、KeePassXC 或啟用 Secret Service API 的 KWallet）。
-  本機與 Google 帳號的便箋都存在加密 SQLite，金鑰在金鑰圈；Google refresh token 也存在金鑰圈。
-  沒有金鑰圈時 App 拒絕開啟資料，不改存明文；KDE、Xfce、sway 等精簡安裝最可能缺少。
+- 新工作空間與完成遷移的工作空間不需要金鑰圈；本機金鑰以 0600／0700 權限保存，Google 憑證存在加密 SQLite。
+  只有舊版資料的一次性遷移需要 libsecret 與已解鎖的原 Secret Service 金鑰圈。
 - 只提供 DEB（Debian／Ubuntu 系）。Fedora、Arch、openSUSE 需用 tar.gz 並自行安裝 Python 3.10+、GTK 3、
-  WebKitGTK 4.1、PyGObject 與 libsecret；沒有 WebKitGTK 4.1 的發行版（如 Ubuntu 20.04、Debian 11）無法執行。
+  WebKitGTK 4.1、PyGObject 與 cryptography；沒有 WebKitGTK 4.1 的發行版（如 Ubuntu 20.04、Debian 11）無法執行。
 - 系統匣需要 AppIndicator／StatusNotifier 或舊式系統匣；沒有時關閉主視窗即結束 App。Ubuntu 預設提供，原生 GNOME 沒有。
 - 全域快捷鍵：X11 工作階段使用 Keybinder，XWayland 下收不到；labwc 由設定頁把快捷鍵寫進 rc.xml 的 keybind（ADR-041）；
   其他 Wayland 需要 GlobalShortcuts portal，GNOME 42 與 wlroots portal（sway、wayfire）沒有。

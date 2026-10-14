@@ -747,7 +747,7 @@ class FleetApp(Gtk.Application):
         download.connect("decide-destination", destination)
 
     def failure(self, error):
-        message = str(error) if isinstance(error, p.Failure) else "無法開啟安全工作空間，請保留 App 資料與金鑰圈後重試。"
+        message = str(error) if isinstance(error, p.Failure) else "無法開啟工作空間，請保留 App 資料與本機金鑰後重試。"
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text="Work Fleet")
         dialog.format_secondary_text(message)
         self.dialog_opened()
@@ -772,7 +772,7 @@ class FleetApp(Gtk.Application):
     def shutdown(self, _application):
         self.flush_placement()
         self.stopped = True
-        self.vault.cancellable.cancel()
+        self.vault.close()
         self.epoch += 1
         self.close_desktop()
         if self.tray is not None:

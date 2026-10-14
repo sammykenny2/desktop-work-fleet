@@ -1,6 +1,6 @@
 # 安全邊界
 
-更新：2026-10-04。
+更新：2026-10-15。
 
 ## 1.0 本機 renderer
 
@@ -24,6 +24,17 @@
   Upload URL 目前僅在 adapter 記憶體，程序重啟用持久 file ID 安全重送；不進 JSON／backup／log。
 - 開發 listener 僅 loopback 靜態資產，沒有便箋或 token API。原生 host 的 OAuth、OS 安全儲存、
   加密備份與正式封裝尚需各自驗收，不能由此介面測試代替。
+
+## Linux 本機金鑰與憑證
+
+[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md) 取代 ADR-024 的強制 keyring 啟動要求。
+AES-GCM payload 與 AAD 維持原格式；主金鑰在 App 資料目錄的 `storage-key`，目錄 0700／金鑰 0600、同使用者，
+拒絕符號連結及過寬權限。金鑰完整写入及 fsync 後 create-only 發布，沿用唯一 owner 鎖。
+Google 憑證在獨立的加密 SQLite 表，不進入 workspace reset／ZIP／renderer，登出標記阻止舊憑證再遷移。
+舊版只讀取已解鎖 keyring 項目、不要求解鎖，所有既有帳號的 payload 通過驗證才保存本機金鑰；
+失敗不更换金鑰、不刪資料或原 keyring 項目。舊 Google 憑證不可讀時可重新登入，不阻擋離線便箋。
+本機金鑰和 DB 在同目錄，保護邊界是 OS 帳號／檔案權限，不提供整個資料目錄被複製後的機密性；
+root、同帳號惡意程序與未加密磁碟被讀取不在此保護邊界。敏感跨機備份仍可明確選用密碼加密。
 
 ## Windows 原生主畫面
 

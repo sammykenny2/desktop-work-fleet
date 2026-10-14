@@ -2,6 +2,35 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 Linux 啟動移除 keyring 密碼依賴（ADR-047）
+
+使用者回報 Pi 重開機自動啟動要求 keyring 密碼，輸入仍不能開啟 App，並指出這個 UX 不可接受。
+
+- 已確認設計問題：原生 DB 啟動必須從 keyring 讀整個工作空間的主金鑰；Google 憑證也依賴 keyring。
+  Pi 安裝版 0.2.2，唯讀查到兩把已解鎖同名儲存金鑰，只有一把能驗證全部既有 payload。
+  這是解鎖後仍可能失敗的具體風險；沒有重現本次開機究竟取到哪一把，不宣稱完整根因已證實。
+- 本機主金鑰改存 App 資料目錄的 `storage-key`（0600／同使用者、目錄 0700），維持原 AES-GCM 格式。
+  新目錄與已遷移資料不讀 storage keyring。libsecret lazy import，移至可選 runtime／DEB Recommends。
+  OS 帳號／檔案權限是保護邊界，能讀取整個資料目錄的人仍可解密，沒有宣稱磁碟離線機密性。
+- 舊 DB 缺本機金鑰時，僅查已解鎖的原 keyring 候選；逐把驗證所有 profile／record／附件／staging／secret
+  後才 create-only 保存相符原金鑰並 fsync，不重加密 DB、不修改原 keyring。
+  鎖定／缺失／錯誤金鑰／損毀時保留資料，不跳系統密碼視窗，顯示一次性遷移說明。
+- Google 憑證改存獨立加密 SQLite 表，舊憑證首次使用時遷移；不可讀可重新登入，離線便箋仍可使用。
+  reset／帳號切換保留憑證；登出保存撤銷標記，含 disconnected 狀態，阻止解鎖後重新匯入舊 token。
+  整合遠端 b1ab1a0 的只登出本機政策，保留原有兩組登出測試。
+- 作者驗證：最終 Python 143 項中 112 通過、31 項平台限定略過；金鑰測試 16 項使用真 AES-GCM／SQLite、假 libsecret。
+  私人 D-Bus／合成 gnome-keyring probe 通過：原金鑰與憑證遷移、鎖定後已遷移資料仍可讀、未遷移資料原樣保留，沒有密碼視窗。
+  probe 強制核對 dbus-run-session parent 與 bus daemon 身分，負向測試確認 Python -O 也不能繞過。
+  JavaScript 全套以這台 Pi 的兩個 worker 執行，290 項中 279 通過、11 略過；文件連結與差異格式檢查通過。
+  初次平行全套測試有一項既有 updater 的 10 秒等待逾時；重跑完整套件通過。
+- 獨立唯讀審閱：兩項 P2（probe 可能誤接桌面 bus、disconnected 登出不保存標記）已修正並複核，沒有剩餘 blocker。
+  reviewer 獨立跑金鑰 16／Google 7、登出禁止 revoke 檢查與合成 AES-GCM 登出情境通過；
+  reviewer 的真 D-Bus 重跑受 sandbox socket 限制，沒有將作者 runtime 證據列為自己的驗證。
+- 文件更新 ADR-047／ADR-024 註記、索引、安全邊界、setup／testing／Linux README。
+  本機 DEB／tar.gz 沿用 repo 的既有 0.2.3 建置通過；公開設定未填的測試包不作正式 Google 登入交付。
+- 限制：沒有遷移或修改使用者的正式資料與 keyring，也沒有更換這台 Pi 的 0.2.2 安裝；
+  真實重開機／登入自啟動、正式 Google 同步與已安裝 App 仍待驗收。本次未升版、未 dispatch、未發布。
+
 ## 2026-10-15 Google 登出不再撤銷授權（ADR-021 修訂）
 
 使用者回報多台機器陸續出現「Google 授權未完成或已失效，請重新登入。」，而且原本都正常。

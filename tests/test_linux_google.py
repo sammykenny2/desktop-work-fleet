@@ -93,5 +93,18 @@ class UploadSession(unittest.TestCase):
             self.assertEqual(caught.exception.code, "invalid-upload-uri")
 
 
+class DisconnectedSignOut(unittest.TestCase):
+    def test_disconnected_account_is_revoked_locally_without_a_network_request(self):
+        removed = []
+        vault = FakeVault()
+        vault.remove = lambda kind, account: removed.append((kind, account))
+        g = google.Google(vault, {"google": {"clients": {}}}, "google:fixture", None)
+        g.uploads["file"] = "pending"
+        g.sign_out()
+        self.assertEqual(removed, [("google-account", "fixture")])
+        self.assertIsNone(g.credentials)
+        self.assertEqual(g.uploads, {})
+
+
 if __name__ == "__main__":
     unittest.main()

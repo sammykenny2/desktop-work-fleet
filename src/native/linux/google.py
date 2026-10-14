@@ -159,10 +159,12 @@ class Google:
     def sign_out(self):
         # Only this device signs out. Google's revocation removes the project's grant for every client, so every other
         # device signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
-        if self.credentials is not None:
-            self.vault.remove("google-account", self.credentials["accountId"])
-            self.credentials = None
-            self.uploads.clear()
+        credentials = self.credentials
+        account = credentials["accountId"] if credentials is not None else self.account
+        if account:
+            self.vault.remove("google-account", account)
+        self.credentials = self.prepared = None
+        self.uploads.clear()
 
     def token(self):
         p.require(not self.closed.is_set() and self.credentials is not None and self.profile == "google:" + self.credentials["accountId"], "unauthorized", "請先登入目前 Google 帳號。")

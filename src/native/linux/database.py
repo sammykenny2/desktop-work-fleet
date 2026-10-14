@@ -1,62 +1,175 @@
-"""Single-owner encrypted SQLite transactions, with the key in Secret Service."""
+"""Single-owner encrypted SQLite, with an owner-only local key and legacy keyring migration."""
 import base64
+from contextlib import closing
 import fcntl
 import os
 from pathlib import Path
 import sqlite3
 import stat
+import tempfile
 import threading
 
-import gi
-gi.require_version("Secret", "1")
-from gi.repository import Gio, Secret
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 import protocol as p
 
 
 class Vault:
+    """Read legacy secrets without requesting an unlock. New secrets never go to Secret Service."""
     def __init__(self, app_id):
         self.app_id = app_id
-        self.cancellable = Gio.Cancellable()
-        # A locked gnome-keyring collection hides each item's schema name, so matching on it would never
-        # find (or offer to unlock) a locked key; match on the attributes, which stay searchable.
+        self.cancellable = None
+
+    def connect(self):
+        import gi
+        gi.require_version("Secret", "1")
+        from gi.repository import Gio, Secret
+        if self.cancellable is None:
+            self.cancellable = Gio.Cancellable()
+        # Locked collections hide the schema name; match the attributes, which stay searchable without unlocking.
         self.schema = Secret.Schema.new("app.workfleet.native.v1", Secret.SchemaFlags.DONT_MATCH_NAME, {
             "application": Secret.SchemaAttributeType.STRING,
             "kind": Secret.SchemaAttributeType.STRING,
             "id": Secret.SchemaAttributeType.STRING,
         })
+        return Secret
 
     def attributes(self, kind, key):
         return {"application": self.app_id, "kind": kind, "id": key}
 
     def read(self, kind, key):
-        try:
-            return Secret.password_lookup_sync(self.schema, self.attributes(kind, key), self.cancellable)
-        except Exception as error:
-            raise p.Failure("vault-unavailable", "無法開啟系統金鑰圈；請解鎖後重試，未改存明文。") from error
+        values = self.values(kind, key)
+        return values[0] if values else None
 
-    def stored(self, kind, key):
-        # Lookup returns None for a key whose collection stays locked; this search neither unlocks nor loads secrets.
+    def values(self, kind, key):
         try:
+            Secret = self.connect()
             service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, self.cancellable)
-            return bool(service.search_sync(self.schema, self.attributes(kind, key), Secret.SearchFlags.ALL, self.cancellable))
-        except Exception as error:
-            raise p.Failure("vault-unavailable", "無法開啟系統金鑰圈；請解鎖後重試，未改存明文。") from error
-
-    def save(self, kind, key, value):
-        try:
-            p.require(Secret.password_store_sync(self.schema, self.attributes(kind, key), Secret.COLLECTION_DEFAULT, "Work Fleet " + kind, value, self.cancellable), "vault-unavailable", "系統金鑰圈未確認保存。")
+            items = service.search_sync(self.schema, self.attributes(kind, key),
+                                        Secret.SearchFlags.ALL | Secret.SearchFlags.LOAD_SECRETS, self.cancellable)
+            values = [item.get_secret().get_text() for item in items if not item.get_locked() and item.get_secret() is not None]
+            if values:
+                return values
+            p.require(not items, "vault-locked", "舊版 Work Fleet 金鑰圈仍鎖定；請在系統金鑰圈管理員解鎖後重試一次遷移。原資料未變更。")
+            return []
         except p.Failure:
             raise
         except Exception as error:
-            raise p.Failure("vault-unavailable", "無法保存系統金鑰圈，未改存明文。") from error
+            raise p.Failure("vault-unavailable", "無法讀取舊版 Work Fleet 金鑰圈；請恢復原金鑰圈或由可攜備份還原。原資料未變更。") from error
+
+    def close(self):
+        if self.cancellable is not None:
+            self.cancellable.cancel()
+
+
+class Credentials:
+    """Account credentials stay in encrypted SQLite, across workspace resets and account switches."""
+    def __init__(self, database, legacy):
+        self.database, self.legacy = database, legacy
+
+    def read(self, kind, key):
+        p.require(kind == "google-account" and p.is_account(key), "invalid-credential", "Google 憑證身分無效。")
+        with self.database.lock:
+            row = self.database.connection.execute("SELECT data FROM credentials WHERE kind=? AND id=?", (kind, key)).fetchone()
+            if row is not None:
+                try:
+                    value = self.database.cipher.decrypt(row[0][:12], row[0][12:], self.aad(kind, key)).decode("utf-8")
+                except Exception as error:
+                    raise p.Failure("storage-integrity", "Google 憑證驗證失敗；請保留 App 資料與本機金鑰。") from error
+                return value or None
+            try:
+                value = self.legacy.read(kind, key)
+            except p.Failure:
+                # Google may need sign-in again; the local workspace remains usable without an unlock dialog.
+                return None
+            if value is not None:
+                self.save(kind, key, value)
+            return value
+
+    @staticmethod
+    def aad(kind, key):
+        return ("credential|" + kind + "|" + key).encode("utf-8")
+
+    def save(self, kind, key, value):
+        p.require(kind == "google-account" and p.is_account(key) and isinstance(value, str) and len(value.encode("utf-8")) <= 65536,
+                  "invalid-credential", "Google 憑證種類或容量無效。")
+        with self.database.lock:
+            nonce = os.urandom(12)
+            data = nonce + self.database.cipher.encrypt(nonce, value.encode("utf-8"), self.aad(kind, key))
+            self.database.connection.execute("INSERT OR REPLACE INTO credentials VALUES(?,?,?)", (kind, key, data))
 
     def remove(self, kind, key):
+        # A durable tombstone prevents importing the legacy token again after sign-out.
+        self.save(kind, key, "")
+
+
+def validate_legacy_key(filename, raw):
+    cipher = AESGCM(raw)
+    # Read-only validation covers every profile before publishing a key or changing SQLite/staging.
+    with closing(sqlite3.connect(filename.absolute().as_uri() + "?mode=ro", uri=True)) as connection:
+        p.require(connection.execute("PRAGMA user_version").fetchone()[0] == 1,
+                  "native-version", "舊資料版本不支援遷移；請保留原資料並使用對應版本匯出備份。")
+        for table, kind, key in (("records", "'record'", "kind"), ("attachments", "'attachment'", "id"),
+                                 ("staging", "'stage:' || kind", "token"), ("secrets", "'secret:' || kind", "id")):
+            for profile, purpose, identity, data in connection.execute(f"SELECT profile,{kind},{key},data FROM {table}"):
+                aad = f"{len(profile.encode('utf-8'))}:{profile}|{purpose}|{identity}".encode("utf-8")
+                cipher.decrypt(data[:12], data[12:], aad)
+        if connection.execute("SELECT 1 FROM sqlite_master WHERE name='credentials'").fetchone():
+            for kind, key, data in connection.execute("SELECT kind,id,data FROM credentials"):
+                cipher.decrypt(data[:12], data[12:], Credentials.aad(kind, key))
+
+
+def storage_key(directory, filename, legacy):
+    path = directory / "storage-key"
+    try:
+        descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
+    except FileNotFoundError:
+        descriptor = None
+    except OSError as error:
+        raise p.Failure("native-storage", "無法讀取本機金鑰；請保留 App 資料後檢查檔案權限。") from error
+    if descriptor is not None:
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            p.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
+                      "native-storage", "本機金鑰檔案身分或權限無效。")
+            raw = stream.read(33)
+            p.require(len(raw) == 32, "native-storage", "本機金鑰格式無效；原資料未變更。")
+            return raw
+    if filename.exists():
+        values = legacy.values("storage-key", "v1")
+        p.require(bool(values), "vault-unavailable", "現有資料缺少原金鑰；請保留 App 資料並恢復原金鑰圈或可攜備份。")
+        raw = None
+        for value in values:
+            try:
+                candidate = base64.b64decode(value, validate=True)
+                if len(candidate) != 32:
+                    continue
+                validate_legacy_key(filename, candidate)
+                raw = candidate
+                break
+            except p.Failure:
+                raise
+            except Exception:
+                continue
+        p.require(raw is not None, "storage-integrity", "原金鑰無法驗證舊資料；未遷移或更換金鑰，請保留 App 資料與原金鑰圈。")
+    else:
+        raw = os.urandom(32)
+    descriptor, temporary = tempfile.mkstemp(dir=directory, prefix="storage-key-")
+    try:
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        # Publish a complete file without overwriting any existing key, even after an interrupted migration.
+        os.link(temporary, path, follow_symlinks=False)
+        folder = os.open(directory, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
         try:
-            Secret.password_clear_sync(self.schema, self.attributes(kind, key), self.cancellable)
-        except Exception as error:
-            raise p.Failure("vault-unavailable", "金鑰圈尚未完成移除。") from error
+            os.fsync(folder)
+        finally:
+            os.close(folder)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+    return raw
 
 
 class Database:
@@ -80,17 +193,7 @@ class Database:
             if existing:
                 info = filename.lstat()
                 p.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), "native-storage", "App 資料檔案身分無效。")
-            key = vault.read("storage-key", "v1")
-            if key is None:
-                # A locked key is neither missing nor replaceable: a second key would leave lookups to pick either one.
-                p.require(not vault.stored("storage-key", "v1"), "vault-unavailable",
-                          "系統金鑰圈已鎖定或解鎖已取消，未讀取金鑰；資料未變更，請解鎖後重新開啟。" if existing
-                          else "系統金鑰圈內已有鎖定的 Work Fleet 金鑰；未建立新金鑰，請解鎖該金鑰圈後重新開啟。")
-                p.require(not existing, "vault-unavailable", "現有資料缺少原金鑰；請保留資料並恢復系統金鑰圈。")
-                key = base64.b64encode(os.urandom(32)).decode("ascii")
-                vault.save("storage-key", "v1", key)
-            raw = base64.b64decode(key, validate=True)
-            p.require(len(raw) == 32, "vault-unavailable", "系統金鑰格式無效。")
+            raw = storage_key(self.directory, filename, vault)
             self.cipher = AESGCM(raw)
             self.connection = sqlite3.connect(filename, timeout=5, isolation_level=None, check_same_thread=False)
             os.chmod(filename, 0o600)
@@ -103,6 +206,7 @@ class Database:
                 CREATE TABLE IF NOT EXISTS attachments(profile TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,id));
                 CREATE TABLE IF NOT EXISTS staging(profile TEXT,token TEXT,kind TEXT,digest TEXT,size INTEGER,data BLOB,PRIMARY KEY(profile,token));
                 CREATE TABLE IF NOT EXISTS secrets(profile TEXT,kind TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,kind,id));
+                CREATE TABLE IF NOT EXISTS credentials(kind TEXT,id TEXT,data BLOB,PRIMARY KEY(kind,id));
                 PRAGMA user_version=1;
             """)
             self.connection.execute("DELETE FROM staging WHERE profile=?", (profile,))
@@ -121,7 +225,7 @@ class Database:
         try:
             return self.cipher.decrypt(data[:12], data[12:], self.aad(kind, key))
         except Exception as error:
-            raise p.Failure("storage-integrity", "資料驗證失敗；請保留原資料與金鑰圈後重試。") from error
+            raise p.Failure("storage-integrity", "資料驗證失敗；請保留 App 資料與本機金鑰後重試。") from error
 
     def record(self, kind):
         p.require(kind in ("workspace", "journal"), "invalid-record", "儲存種類無效。")
@@ -203,7 +307,7 @@ class Database:
                 raise
 
     def reset(self):
-        """Deletes everything this profile keeps on the device; Google credentials live in Secret Service and stay."""
+        """Deletes this profile's workspace; separately stored Google credentials stay."""
         with self.lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:

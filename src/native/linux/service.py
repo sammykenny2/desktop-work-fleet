@@ -4,6 +4,7 @@ import threading
 import time
 
 from backup import Backup
+from database import Credentials
 from google import Google
 import protocol as p
 
@@ -18,7 +19,7 @@ class Service:
         self.shell = None
         self.updates = False
         self.backup = Backup(database, choose)
-        self.google = Google(vault, config, database.profile, open_browser)
+        self.google = Google(Credentials(database, vault), config, database.profile, open_browser)
         self.transfers, self.staged = {}, set()
         self.lock = threading.RLock()
         self.closed = False
@@ -84,7 +85,7 @@ class Service:
             if method.startswith("backup."):
                 return self.backup.invoke(method, args, self.upload, self.download)
             if method == "host.info":
-                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-secret-service", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
+                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
                         "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
                                          "hostPreferences": self.shell is not None, "updates": self.updates}}
             if method == "host.ready":

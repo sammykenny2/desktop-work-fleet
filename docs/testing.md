@@ -128,8 +128,21 @@ WORK_FLEET_TEST_LOGIN_ITEMS=1 python3 -B -m unittest discover -s tests -p 'test_
 三平台桌面分層契約見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
 `python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證
 Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequence 與 geometry；不作 UI 證據。
-`python3 -m unittest discover -s tests -p 'test_linux_vault.py' -v` 以假 libsecret 驗證 Linux 儲存金鑰：
-鎖住／解鎖取消回報已鎖定且不建第二把金鑰、真正缺少才回報缺少、已解鎖金鑰優先；不需 GI 或金鑰圈。
+`python3 -m unittest discover -s tests -p 'test_linux_vault.py' -v` 以真 AES-GCM／SQLite 與假 libsecret 驗證
+[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md)：首次啟動／重開不接觸金鑰圈、0600 本機金鑰、
+舊資料跨帳號完整驗證後遷移、鎖定／缺金鑰／錯誤金鑰／損毀／寫入失敗保留原資料、拒絕 symlink／不安全權限，
+以及 Google 憑證加密／切換／reset／登出標記與鎖定時重新登入。不需 GI 或使用者金鑰圈；需 python3-cryptography。
+
+真 libsecret probe 在私人 D-Bus session 與 `/tmp` 合成金鑰圈驗證遷移，以及鎖住後不跳密碼視窗、
+已遷移資料和 Google 憑證仍可讀、未遷移資料原樣保留。需要 dbus-run-session、gnome-keyring-daemon、libsecret；
+不修改桌面的 keyring，不代替實際登入／重開機驗收：
+
+```bash
+task_probe_dir=$(mktemp -d /tmp/work-fleet-storage-probe-XXXXXXXX)
+mkdir -m 700 "$task_probe_dir/data" "$task_probe_dir/runtime"
+XDG_DATA_HOME="$task_probe_dir/data" XDG_RUNTIME_DIR="$task_probe_dir/runtime" \
+  timeout 30s dbus-run-session -- python3 -B tests/native/linux/storage_probe.py "$task_probe_dir"
+```
 `python3 -m unittest discover -s tests -p 'test_linux_google.py' -v` 以假 HTTP 確認 Linux 換 token 時，
 有設定才送 Desktop client secret、格式不對時停用；不連網，也不代表真實登入。
 同一檔也確認登出只刪除本機憑證、完全不發網路請求。`node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、

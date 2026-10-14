@@ -82,6 +82,8 @@ class LinuxPackageTests(unittest.TestCase):
                 self.assert_checksum(packages[0])
                 self.assertEqual(self.field(packages[0], "Package"), "work-fleet")
                 self.assertEqual(self.field(packages[0], "Architecture"), "all")
+                self.assertNotIn("gir1.2-secret-1", self.field(packages[0], "Depends"))
+                self.assertIn("gir1.2-secret-1", self.field(packages[0], "Recommends"))
                 # ADR-044: the release's update manifest names exactly this DEB.
                 manifest = json.loads((self.output / "work-fleet-update.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest, {"schemaVersion": 1, "platform": "linux", "version": "2.3.4", "tag": "linux-v2.3.4", "summary": "",

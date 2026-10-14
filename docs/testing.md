@@ -548,13 +548,19 @@ Google 登入 callback（ADR-021）：core probe 以真 loopback socket 驗證 `
 - 帶這次 state 的 `error=access_denied` 交給呼叫端拒絕；取消時 port 與已開的連線都關閉。
 - 真 Google 帳號的瀏覽器登入仍需手動在安裝版確認。
 
-App 內更新（ADR-044）：core probe 以 `tests/fixtures/update-feed.json` 驗證 release 篩選、版本比較、`work-fleet-update.json` 與 MSIX 身分檢查。
+App 內更新（ADR-044，2026-10-15 修訂）：core probe 以 `tests/fixtures/update-feed.atom`／`update-feed.json` 驗證公開 Atom 平台篩選、
+數值版本比較、同 repo／tag 的下載位置、未知頻道與未列平台拒絕、DTD／外部實體拒絕、manifest 與 MSIX 身分檢查。
 `Test-WindowsUpdate.ps1` 在 `Build-WindowsPackage.ps1 -LocalTestSign` 之後執行：把 MSIX 改成 `app.workfleet.updateprobe.e2e` 的兩個版本、
 以同一張本機憑證簽章，安裝舊版並給它本機測試來源，確認它自行下載、核對、保存並關閉後由 Windows 換成新版，最後移除測試套件。
-不碰已安裝的 Work Fleet；過程中測試身分的主視窗與空白桌面場景會短暫出現。真 GitHub release 的查詢與下載需等含 manifest 的版本發布後驗證。
+不碰已安裝的 Work Fleet；過程中測試身分的主視窗與空白桌面場景會短暫出現；本機 feed 同樣使用 Atom。
+公開 feed／manifest 可唯讀查詢現有 release 驗證，不需發布或修改 release。
 Linux 更新器由 `tests/test_linux_updater.py` 以同一份 fixture 驗證，並以假 HTTP／指令驗證轉址白名單、容量與 SHA-256、`dpkg-deb` 欄位、
-取消 pkexec 與下載後被改動；`test-host-shell.sh` 確認非 DEB 執行時回報不支援。真 pkexec／polkit 安裝需在 Debian／Pi 以 DEB 實測。
+取消 pkexec 與下載後被改動；另驗證查詢不碰 REST API、一般 403 與 429／帶 Retry-After 的 403 分類、feed 不轉址與檔名不可穿越。
+`test-host-shell.sh` 確認非 DEB 執行時回報不支援。真 pkexec／polkit 安裝需在 Debian／Pi 以 DEB 實測。
 macOS：`tests/update-feed-writer.test.js` 驗證 `write-update-feed.mjs` 產生的 appcast 與 manifest；Swift 程式由手動 Apple 建置 workflow 編譯。
+`python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v` 在 Mac 編譯正式 `FleetReleaseFeed` 與共用 fixture，
+驗證 macOS 選版、較新本機不降版、appcast 位置、空 feed、DTD／錯誤 namespace／未知頻道／不同 repo 與嚴格版號；
+沒有 Swift SDK 的平台略過。Mac release job 在簽章前執行，不連網或使用真實 App／使用者資料。
 Sparkle 的沙盒安裝、`feedURLString` 與 EdDSA 金鑰只能在 Mac 上以 Developer ID 公證的舊版更新到新版驗證。
 
 開發時以 CDP 檢查 Debug App（使用正式資料目錄；需先關閉已安裝的 App）：

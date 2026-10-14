@@ -24,7 +24,7 @@ import Sparkle
         let update = config["update"] as? [String: Any] ?? [:]
         let repository = update["repository"] as? String ?? ""
         self.repository = repository.range(of: "^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$", options: .regularExpression) != nil ? repository : ""
-        channel = "preview"
+        channel = update["channel"] as? String ?? "preview"
         currentText = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
         current = Self.version(currentText) ?? [0, 0, 0]
         let key = Bundle.main.infoDictionary?["SUPublicEDKey"] as? String ?? ""
@@ -49,24 +49,7 @@ import Sparkle
     }
     /// A strict x.y.z version without leading zeros, as in tests/fixtures/update-feed.json.
     nonisolated static func version(_ text: String) -> [Int]? {
-        guard text.range(of: "^(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})\\.(0|[1-9][0-9]{0,8})$", options: .regularExpression) != nil else { return nil }
-        return text.split(separator: ".").compactMap { Int($0) }
-    }
-    /// The newest macOS release for this channel that is newer than `current`, with its appcast.xml if it has one.
-    nonisolated static func latest(_ data: Data, channel: String, current: [Int]) throws -> (tag: String, version: [Int], appcast: String?)? {
-        guard let releases = (try? JSONSerialization.jsonObject(with: data)) as? [[String: Any]] else {
-            throw FleetFailure("metadata_invalid", "更新資訊格式不符，未下載任何檔案。")
-        }
-        var best: (tag: String, version: [Int], appcast: String?)?
-        for release in releases {
-            guard let tag = release["tag_name"] as? String, tag.hasPrefix("macos-v"), let version = version(String(tag.dropFirst(7))) else { continue }
-            let draft = release["draft"] as? Bool == true, prerelease = release["prerelease"] as? Bool == true
-            if draft || (prerelease && channel != "preview") || !current.lexicographicallyPrecedes(version) { continue }
-            if let best, !best.version.lexicographicallyPrecedes(version) { continue }
-            let assets = release["assets"] as? [[String: Any]] ?? []
-            best = (tag, version, assets.first { $0["name"] as? String == "appcast.xml" }?["browser_download_url"] as? String)
-        }
-        return best
+        FleetReleaseFeed.version(text)
     }
 
     func snapshot() -> [String: Any] {
@@ -84,20 +67,18 @@ import Sparkle
         guard capable, let controller, status != "checking" else { return }
         error = nil; set("checking")
         do {
-            var request = URLRequest(url: URL(string: "https://api.github.com/repos/\(repository)/releases?per_page=30")!)
-            request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+            var request = URLRequest(url: URL(string: "https://github.com/\(repository)/releases.atom")!)
+            request.setValue("application/atom+xml", forHTTPHeaderField: "Accept")
             request.setValue("WorkFleet/\(currentText)", forHTTPHeaderField: "User-Agent")
-            request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
             let (data, response) = try await BoundedHTTP(maximum: 2 * 1024 * 1024).send(request)
-            if response.statusCode == 403 || response.statusCode == 429 { throw FleetFailure("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。") }
+            if response.statusCode == 429 || (response.statusCode == 403 && response.value(forHTTPHeaderField: "Retry-After") != nil) {
+                throw FleetFailure("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。")
+            }
             guard (200..<300).contains(response.statusCode) else { throw FleetFailure("provider_rejected", "GitHub 回應錯誤（\(response.statusCode)），請稍後再試。") }
-            let release = try Self.latest(data, channel: channel, current: current)
+            let release = try FleetReleaseFeed.latest(data, repository: repository, channel: channel, current: current)
             let now = ISO8601DateFormatter().string(from: Date()); lastChecked = now; recordCheck?(now)
             guard let release else { set("up_to_date"); return }
-            guard let appcast = release.appcast, URL(string: appcast)?.scheme == "https" else {
-                throw FleetFailure("metadata_invalid", "這個版本缺少更新資訊，未下載任何檔案。")
-            }
-            feed = appcast
+            feed = release.appcast
             set("update_available")
             controller.checkForUpdates(nil)
         } catch let failure as FleetFailure { error = failure; set("failed") }

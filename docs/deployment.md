@@ -118,6 +118,9 @@ Linux 預覽版：手動 `linux-release.yml` 以 `src/native/linux/VERSION` 建�
 variables `WORK_FLEET_GOOGLE_PROJECT_ID`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` 與 secret `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET`。
 以 DEB 安裝的 App 才有 App 內更新：下載、核對後以 pkexec 安裝（需要系統密碼與 polkit 驗證代理程式），成功後保存並重新啟動。
 
+桌面更新查詢三平台都使用公開 `releases.atom`，不使用未驗證 REST API；現有 release 的 manifest／appcast 不需改寫。
+目前只支援 preview；Atom 的近期列表與正式頻道限制見 [ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md)。
+
 macOS 預覽版與更新（Sparkle）：
 1. 手動 `macos-release.yml` 發布 Developer ID 簽章、公證並 staple 的 DMG 與 Sparkle 更新 ZIP，
    不產生 PKG、不需要 Installer 憑證。版本、tag 與 GitHub prerelease 規則不變；dispatch 仍需使用者明確授權。

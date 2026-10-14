@@ -1,24 +1,24 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml;
+using System.Xml.Linq;
 
 namespace WorkFleet.Windows.Core;
 
-public sealed record ReleaseAsset(string Name, long Size, string Url);
-public sealed record UpdateRelease(string Tag, Version Version, bool Prerelease, string PageUrl, IReadOnlyList<ReleaseAsset> Assets);
-/// <summary>One installer chosen from a release's work-fleet-update.json, with the download URL from the release itself.</summary>
+public sealed record UpdateRelease(string Repository, string Tag, Version Version, string PageUrl);
+/// <summary>One installer chosen from a release's work-fleet-update.json, downloaded from that same release.</summary>
 public sealed record UpdatePackage(string Version, string Tag, string Summary, string Name, long Size, string Sha256, string Url, string PageUrl);
 
 /// <summary>
-/// ADR-044 feed rules shared with the Linux and macOS hosts (tests/fixtures/update-feed.json): a GitHub REST releases page,
+/// ADR-044 feed rules shared with the Linux and macOS hosts (tests/fixtures/update-feed.json): a public GitHub Atom feed,
 /// the per-platform tag `platform-vX.Y.Z`, and the release's work-fleet-update.json. Every refusal is metadata_invalid.
 /// </summary>
 public static partial class UpdateFeed
 {
   public const string ManifestName = "work-fleet-update.json";
   public const long MaxPackageBytes = 512L * 1024 * 1024;
-  [GeneratedRegex(@"^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$")] private static partial Regex VersionPattern();
-  [GeneratedRegex("^[0-9a-f]{64}$")] private static partial Regex DigestPattern();
+  [GeneratedRegex(@"^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\z")] private static partial Regex VersionPattern();
+  [GeneratedRegex(@"^[0-9a-f]{64}\z")] private static partial Regex DigestPattern();
 
   /// <summary>A strict x.y.z release version without leading zeros, or null.</summary>
   public static Version? ParseVersion(string? text)
@@ -29,35 +29,49 @@ public static partial class UpdateFeed
   private static HostError Invalid(string detail) => new("metadata_invalid", "更新資訊格式不符，未下載任何檔案。" + detail);
 
   /// <summary>The newest release for this platform and channel that is newer than the running version, if any.</summary>
-  public static UpdateRelease? Latest(ReadOnlySpan<byte> releases, string platform, string channel, Version current)
+  public static UpdateRelease? Latest(ReadOnlySpan<byte> releases, string repository, string platform, string channel, Version current)
   {
+    // Atom includes published prereleases but has no reliable prerelease flag. Only the approved preview channel is supported.
+    if (channel != "preview") throw Invalid("不支援這個更新頻道。");
     UpdateRelease? best = null;
     try
     {
-      using var document = JsonDocument.Parse(releases.ToArray(), new JsonDocumentOptions { MaxDepth = 32 });
-      if (document.RootElement.ValueKind != JsonValueKind.Array) throw Invalid("");
+      using var stream = new MemoryStream(releases.ToArray());
+      using var reader = XmlReader.Create(stream, new XmlReaderSettings
+        { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 2 * 1024 * 1024 });
+      var document = XDocument.Load(reader);
+      XNamespace atom = "http://www.w3.org/2005/Atom";
+      if (document.Root?.Name != atom + "feed") throw Invalid("");
+      var pagePrefix = $"https://github.com/{repository}/releases/tag/";
       var prefix = platform + "-v";
-      foreach (var item in document.RootElement.EnumerateArray())
+      var entries = document.Root.Elements(atom + "entry").ToArray();
+      var foundPlatform = false;
+      foreach (var item in entries)
       {
-        if (item.ValueKind != JsonValueKind.Object || !item.TryGetProperty("tag_name", out var tag) || tag.ValueKind != JsonValueKind.String) continue;
-        var name = tag.GetString()!;
-        if (!name.StartsWith(prefix, StringComparison.Ordinal) || ParseVersion(name[prefix.Length..]) is not { } version) continue;
-        if (Flag(item, "draft") || Flag(item, "prerelease") && channel != "preview" || version <= current) continue;
-        if (best is not null && version <= best.Version) continue;
-        var assets = new List<ReleaseAsset>();
-        if (item.TryGetProperty("assets", out var list) && list.ValueKind == JsonValueKind.Array)
-          foreach (var asset in list.EnumerateArray())
-            if (asset.ValueKind == JsonValueKind.Object && Text(asset, "name") is { } assetName && Text(asset, "browser_download_url") is { } url
-              && asset.TryGetProperty("size", out var size) && size.TryGetInt64(out var bytes) && bytes >= 0)
-              assets.Add(new(assetName, bytes, url));
-        best = new(name, version, Flag(item, "prerelease"), Text(item, "html_url") ?? "", assets);
+        foreach (var link in item.Elements(atom + "link"))
+        {
+          if ((string?)link.Attribute("rel") is { } rel && rel != "alternate") continue;
+          var page = (string?)link.Attribute("href");
+          if (page is null || !page.StartsWith(pagePrefix, StringComparison.Ordinal)) continue;
+          var tag = page[pagePrefix.Length..];
+          if (!tag.StartsWith(prefix, StringComparison.Ordinal) || ParseVersion(tag[prefix.Length..]) is not { } version) continue;
+          foundPlatform = true;
+          if (version > current && (best is null || version > best.Version)) best = new(repository, tag, version, page);
+        }
       }
+      // A recent-release feed is bounded: do not claim "up to date" when another platform has displaced this one's entries.
+      if (entries.Length > 0 && !foundPlatform) throw Invalid("來源未列出這個平台的版本，請至 Releases 頁面確認。");
     }
-    catch (JsonException) { throw Invalid(""); }
+    catch (XmlException) { throw Invalid(""); }
     return best;
   }
-  private static bool Flag(JsonElement value, string key) => value.TryGetProperty(key, out var field) && field.ValueKind == JsonValueKind.True;
   private static string? Text(JsonElement value, string key) => value.TryGetProperty(key, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
+
+  public static string AssetUrl(UpdateRelease release, string name)
+  {
+    if (!Regex.IsMatch(name, @"^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\z")) throw Invalid("下載檔名無效。");
+    return $"https://github.com/{release.Repository}/releases/download/{release.Tag}/{name}";
+  }
 
   /// <summary>Checks a release's work-fleet-update.json against the release it came from and picks this architecture's installer.</summary>
   public static UpdatePackage Manifest(ReadOnlySpan<byte> manifest, UpdateRelease release, string platform, string arch)
@@ -75,9 +89,7 @@ public static partial class UpdateFeed
       var name = Text(chosen, "name"); var sha256 = Text(chosen, "sha256");
       if (name is null || sha256 is null || !DigestPattern().IsMatch(sha256) || !chosen.TryGetProperty("size", out var size) || !size.TryGetInt64(out var bytes)
         || bytes <= 0 || bytes > MaxPackageBytes) throw Invalid("");
-      var asset = release.Assets.FirstOrDefault(item => item.Name == name);
-      if (asset is null || asset.Size != bytes) throw Invalid("");
-      return new(version!, release.Tag, summary.Length > 500 ? summary[..500] : summary, name, bytes, sha256, asset.Url, release.PageUrl);
+      return new(version!, release.Tag, summary.Length > 500 ? summary[..500] : summary, name, bytes, sha256, AssetUrl(release, name), release.PageUrl);
     }
     catch (JsonException) { throw Invalid(""); }
   }

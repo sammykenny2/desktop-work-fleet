@@ -14,6 +14,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 
 PLATFORM = "linux"
 ARCHITECTURE = "all"
@@ -22,7 +23,7 @@ MANIFEST = "work-fleet-update.json"
 MAX_FEED = 2 * 1024 * 1024
 MAX_MANIFEST = 64 * 1024
 MAX_PACKAGE = 512 * 1024 * 1024
-API_HOSTS = ("api.github.com",)
+FEED_HOSTS = ("github.com",)
 DOWNLOAD_HOSTS = ("github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com")
 VERSION = re.compile(r"^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})$")
 DIGEST = re.compile(r"^[0-9a-f]{64}$")
@@ -41,33 +42,47 @@ def invalid(detail=""):
 
 def parse_version(text):
     """A strict x.y.z release version without leading zeros, as a tuple, or None."""
-    match = VERSION.match(text) if isinstance(text, str) else None
+    match = VERSION.fullmatch(text) if isinstance(text, str) else None
     return tuple(int(part) for part in match.groups()) if match else None
 
 
-def latest(releases, platform, channel, current):
+def latest(releases, repository, platform, channel, current):
     """The newest release for this platform and channel that is newer than `current` (a tuple), or None."""
+    if channel != "preview":
+        raise invalid("不支援這個更新頻道。")
     try:
-        value = json.loads(releases)
-    except (ValueError, UnicodeDecodeError) as error:
+        text = releases.decode("utf-8")
+        if "<!DOCTYPE" in text or "<!ENTITY" in text:
+            raise invalid()
+        value = ET.fromstring(text)
+    except (ET.ParseError, UnicodeDecodeError) as error:
         raise invalid() from error
-    if not isinstance(value, list):
+    atom = "{http://www.w3.org/2005/Atom}"
+    if value.tag != atom + "feed":
         raise invalid()
-    prefix, best = platform + "-v", None
-    for item in value:
-        if not isinstance(item, dict) or not isinstance(item.get("tag_name"), str) or not item["tag_name"].startswith(prefix):
-            continue
-        version = parse_version(item["tag_name"][len(prefix):])
-        if version is None or item.get("draft") is True or item.get("prerelease") is True and channel != "preview" or version <= current:
-            continue
-        if best is not None and version <= best["version"]:
-            continue
-        assets = [{"name": asset["name"], "size": asset["size"], "url": asset["browser_download_url"]}
-                  for asset in item.get("assets") or [] if isinstance(asset, dict) and isinstance(asset.get("name"), str)
-                  and isinstance(asset.get("browser_download_url"), str) and type(asset.get("size")) is int and asset["size"] >= 0]
-        best = {"tag": item["tag_name"], "version": version, "prerelease": item.get("prerelease") is True,
-                "page": item.get("html_url") if isinstance(item.get("html_url"), str) else "", "assets": assets}
+    page_prefix, prefix, best = f"https://github.com/{repository}/releases/tag/", platform + "-v", None
+    entries, found_platform = value.findall(atom + "entry"), False
+    for item in entries:
+        for link in item.findall(atom + "link"):
+            page = link.get("href", "")
+            if link.get("rel", "alternate") != "alternate" or not page.startswith(page_prefix):
+                continue
+            tag = page[len(page_prefix):]
+            version = parse_version(tag[len(prefix):]) if tag.startswith(prefix) else None
+            if version is None:
+                continue
+            found_platform = True
+            if version > current and (best is None or version > best["version"]):
+                best = {"repository": repository, "tag": tag, "version": version, "page": page}
+    if entries and not found_platform:
+        raise invalid("來源未列出這個平台的版本，請至 Releases 頁面確認。")
     return best
+
+
+def asset_url(release, name):
+    if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}", name):
+        raise invalid("下載檔名無效。")
+    return f"https://github.com/{release['repository']}/releases/download/{release['tag']}/{name}"
 
 
 def manifest(data, release, platform, arch):
@@ -94,13 +109,10 @@ def manifest(data, release, platform, arch):
         raise invalid("沒有這個架構的安裝檔。")
     chosen = matches[0]
     name, sha256, size = chosen.get("name"), chosen.get("sha256"), chosen.get("size")
-    if not isinstance(name, str) or not isinstance(sha256, str) or not DIGEST.match(sha256) or type(size) is not int or not 0 < size <= MAX_PACKAGE:
-        raise invalid()
-    asset = next((item for item in release["assets"] if item["name"] == name), None)
-    if asset is None or asset["size"] != size:
+    if not isinstance(name, str) or not isinstance(sha256, str) or not DIGEST.fullmatch(sha256) or type(size) is not int or not 0 < size <= MAX_PACKAGE:
         raise invalid()
     return {"version": value["version"], "tag": release["tag"], "summary": summary[:500], "name": name, "size": size,
-            "sha256": sha256, "url": asset["url"], "page": release["page"]}
+            "sha256": sha256, "url": asset_url(release, name), "page": release["page"]}
 
 
 def host_architecture(run=subprocess.run):
@@ -144,17 +156,17 @@ class Fetcher:
             if parts.scheme != "https" or parts.port not in (None, 443) or parts.username or parts.password or (parts.hostname or "").lower() not in hosts:
                 raise UpdateError("provider_rejected", "更新來源指向未允許的位置，已停止。")
             headers = {"User-Agent": self.user_agent, "Accept": accept}
-            if hosts == API_HOSTS:
-                headers["X-GitHub-Api-Version"] = "2022-11-28"
             try:
                 return self.opener.open(urllib.request.Request(url, headers=headers), timeout=timeout)
             except urllib.error.HTTPError as error:
                 location = error.headers.get("Location") if error.headers else None
                 error.close()
                 if error.code in (301, 302, 303, 307, 308) and location:
+                    if hosts == FEED_HOSTS:
+                        raise UpdateError("provider_rejected", "更新來源轉址，已停止。") from error
                     url, hosts = urllib.parse.urljoin(url, location), DOWNLOAD_HOSTS
                     continue
-                if error.code in (403, 429):
+                if error.code == 429 or error.code == 403 and error.headers and error.headers.get("Retry-After"):
                     raise UpdateError("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。") from error
                 raise UpdateError("provider_rejected", f"GitHub 回應錯誤（{error.code}），請稍後再試。") from error
             except urllib.error.URLError as error:
@@ -164,7 +176,7 @@ class Fetcher:
         raise UpdateError("provider_rejected", "更新來源轉址次數過多，已停止。")
 
     def fetch(self, url, limit, hosts):
-        with self.open(url, hosts, "application/vnd.github+json" if hosts == API_HOSTS else "application/octet-stream", 30) as response:
+        with self.open(url, hosts, "application/atom+xml" if hosts == FEED_HOSTS else "application/octet-stream", 30) as response:
             data = response.read(limit + 1)
         if len(data) > limit:
             raise invalid("超過容量上限。")
@@ -196,7 +208,7 @@ class Updater:
         update = config.get("update") if isinstance(config.get("update"), dict) else {}
         repository = update.get("repository") if isinstance(update.get("repository"), str) else ""
         self.repository = repository if REPOSITORY.match(repository) else ""
-        self.channel = update.get("channel") if update.get("channel") == "preview" else "preview"
+        self.channel = update.get("channel") if isinstance(update.get("channel"), str) else "preview"
         self.folder = Path(directory) / "updates"
         self.current_text, self.current = version, parse_version(version) or (0, 0, 0)
         self.publish, self.record_check, self.run = publish, record_check, run
@@ -268,8 +280,8 @@ class Updater:
 
     def check_now(self):
         self.set("checking")
-        releases = self.fetcher.fetch(f"https://api.github.com/repos/{self.repository}/releases?per_page=30", MAX_FEED, API_HOSTS)
-        release = latest(releases, PLATFORM, self.channel, self.current)
+        releases = self.fetcher.fetch(f"https://github.com/{self.repository}/releases.atom", MAX_FEED, FEED_HOSTS)
+        release = latest(releases, self.repository, PLATFORM, self.channel, self.current)
         self.last_checked = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         self.record_check(self.last_checked)
         if release is None:
@@ -277,10 +289,7 @@ class Updater:
             self.clean(None)
             self.set("up_to_date")
             return
-        asset = next((item for item in release["assets"] if item["name"] == MANIFEST), None)
-        if asset is None:
-            raise UpdateError("metadata_invalid", "這個版本缺少更新資訊，未下載任何檔案。")
-        package = manifest(self.fetcher.fetch(asset["url"], MAX_MANIFEST, DOWNLOAD_HOSTS), release, PLATFORM, ARCHITECTURE)
+        package = manifest(self.fetcher.fetch(asset_url(release, MANIFEST), MAX_MANIFEST, DOWNLOAD_HOSTS), release, PLATFORM, ARCHITECTURE)
         self.pending = package
         file = self.folder / package["name"]
         # A downloaded package counts only while the feed still names the same version and bytes.

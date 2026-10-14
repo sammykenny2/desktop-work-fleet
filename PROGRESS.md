@@ -2,6 +2,29 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 更新查詢移除未驗證 GitHub API 配額依賴（ADR-044 修訂）
+
+使用者回報 Work Fleet 查更新顯示 GitHub 限制次數，同機另一公開 Releases App 卻可成功，要求修改 ADR 與程式。
+唯讀實測舊 API 回 403／剩餘 0、每小時額度 60；同 repo 的 Atom 回 200。官方規則按出口 IP 共用，手動查詢無法解決公司 NAT 配額問題。
+
+- Windows／Linux／macOS 都改讀 `github.com/<repo>/releases.atom`，不使用或回退 REST API。
+  只接受同 repo 的 Atom alternate link、合法平台 tag，按數值版號選 feed 中最高且更高的版本。
+  XML 限 2 MiB、拒絕 DTD／外部實體與查詢轉址；Windows HTTP 明確關閉 cookies。
+- manifest／appcast／安裝檔 URL 由設定 repo、驗證 tag 與單層檔名建立；檔名不可帶路徑、URL、query 或 fragment。
+  manifest 記錄預期大小，實際下載 bytes、SHA-256、MSIX／DEB 身分與 Sparkle 簽章驗證保留。
+  一般 403 顯示來源拒絕，429 或帶 Retry-After 的 403 才分類為限流。
+- Atom 無可靠 prerelease 欄位，目前只支援核准的 preview，其他頻道拒絕，不默默改成預覽。
+  非空 feed 未列平台時顯示來源不足，不能假報已是最新。正式頻道／長期各平台索引仍需後續決策。
+- 共用 fixture 改為 Atom；Windows 本機 MSIX 更新 probe 也產生 Atom，從實際解包的 public config 取得來源。
+  macOS 新增獨立 `FleetReleaseFeed`、Swift fixture probe 與 Mac release 的簽章前回歸；可攜 Xcode 專案同步產生。
+- 作者驗證：Windows Debug App、core 與 UI probe 均編譯成功（0 warnings／errors）；core 158 項通過，含更新規則 41 項。
+  Linux 更新器 Python 回歸 10 項全部通過；Apple 專案／feed 產生器 Node 回歸 4 通過、2 平台限定略過；Mac feed 回歸在 Windows 因缺 SDK 略過。
+  Windows sandbox 阻擋 Node 子程序與 Python 測試暫存目錄／UI probe 編譯，使用核准的正常權限完成對應檢查。
+- 真 GitHub 唯讀驗證：修改後的 Python 更新器成功取得 `windows-v0.2.3` 與現有 manifest，兩次查詢、0 次 REST API；
+  正式 C# `UpdateFeed` 同樣成功解析這兩份實測內容，指向 `WorkFleet-0.2.3-x64.msix`（79,881,626 bytes）。未下載或安裝這個 MSIX。
+- 文件更新 ADR／SPEC／PLAN、研究與索引、安全、部署、測試。本次未升版、未 dispatch、未發布；已安裝版本仍是原程式。
+  沒有獨立審閱；作者測試與機械檢查不當作獨立 review。Mac 原生編譯／Sparkle 安裝及三平台真實安裝升級仍未測。
+
 ## 2026-10-15 Linux 啟動移除 keyring 密碼依賴（ADR-047）
 
 使用者回報 Pi 重開機自動啟動要求 keyring 密碼，輸入仍不能開啟 App，並指出這個 UX 不可接受。

@@ -52,13 +52,15 @@ IPC 有 1 MiB envelope／256 KiB chunk 上限及完整 SHA，20,000 token manife
 正式畫面可互動前先準備關閉協定，保存失敗／未完成對話框保留視窗。
 第二次啟動的 named pipe 名稱由使用者 SID 與資料目錄雜湊而成，ACL 只允許目前使用者，只接受固定的 `show` 請求、不傳資料或路徑；
 `owner.lock` 仍是最後保護（ADR-043）。主視窗位置與啟動偏好存在資料目錄，不含便箋內容，也不進入備份或 Google。
-App 內更新（ADR-044）只在使用者動作時由原生 host 連線：不帶任何憑證或 cookie，只用 HTTPS，API 只連 `api.github.com`，
+App 內更新（ADR-044）只在使用者動作時由原生 host 連線：不帶任何憑證或 cookie，只用 HTTPS，查詢只讀設定 repo 的
+`github.com/<repository>/releases.atom` 並拒絕轉址，不呼叫 REST API。XML 限 2 MiB、拒絕 DTD／外部實體，
+只接受同 repo 的 Atom entry／alternate link 與合法平台 tag。manifest／appcast 與安裝檔 URL 固定由 repo／tag／單層檔名建立；
 下載只允許 `github.com` 與 GitHub release 資產主機且最多三次轉址；回應與安裝檔有容量上限，安裝檔大小與 SHA-256 必須符合
 release 的 `work-fleet-update.json`，MSIX 身分（Name／Publisher／架構）必須與已安裝套件相同且版本較高，簽章由 Windows 安裝時檢查。
 這份 manifest 與安裝檔來自同一個 release，只防損毀與單一檔案被換，不防 GitHub 帳號被盜。renderer 不能指定任何 URL。
 本機測試來源只由 `app.workfleet.updateprobe.*` 套件身分讀取，其他身分忽略。Linux 以 `dpkg-deb` 核對套件名稱 `work-fleet`、
 架構與更高版本後才以 pkexec 安裝；DEB 沒有作業系統簽章檢查，只靠同一 release 的 manifest 與 SHA-256。
-macOS 只自己查詢 `api.github.com`（拒絕轉址），之後由 Sparkle 依 appcast 下載並自行跟隨 GitHub 轉址，上述主機白名單不適用；
+macOS 只自己查詢上述 Atom feed（拒絕轉址），之後由 Sparkle 依同 repo／tag 的 appcast 下載並自行跟隨 GitHub 轉址，上述主機白名單不適用；
 Sparkle 以 appcast 的 EdDSA 簽章（App 內建公鑰）與 Apple 程式碼簽章（同 Team ID）驗證後才安裝。私鑰只在維護者的 Mac 鑰匙圈或 CI secret。
 Windows 自動檔案與安全備份密碼整合見 ADR-016；OAuth 與其他平台仍需實作／驗收。
 Native grants／file identity 以 DPAPI 保護並綁 profile，renderer 無路徑／metadata 讀取方法。

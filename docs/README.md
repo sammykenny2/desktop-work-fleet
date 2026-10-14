@@ -74,6 +74,7 @@
 
 ## Google、備份及歷史研究
 
+- [公開 Release feed 與公司出口 IP 配額](resreach/2026-10-15-public-release-feed-without-api-quota.md)：ADR-044 移除三平台的未驗證 REST API 查詢，改讀 Atom 的官方規則、實測與限制。
 完整研究索引在 [docs/resreach](resreach/README.md)，保留使用者指定拼字。
 
 - [Drive 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 與

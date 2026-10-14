@@ -11,15 +11,23 @@ internal static class UpdateFeedProbe
     void Require(bool value, string message) { if (!value) throw new Exception(message); count++; }
     using var document = JsonDocument.Parse(File.ReadAllBytes(Fixture()));
     var root = document.RootElement;
-    var releases = Encoding.UTF8.GetBytes(root.GetProperty("releases").GetRawText());
+    var repository = root.GetProperty("repository").GetString()!;
+    var releases = File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(Fixture())!, root.GetProperty("feed").GetString()!));
     foreach (var item in root.GetProperty("selection").EnumerateArray())
     {
       var expected = item.GetProperty("expected").ValueKind == JsonValueKind.Null ? null : item.GetProperty("expected").GetString();
-      var chosen = UpdateFeed.Latest(releases, item.GetProperty("platform").GetString()!, item.GetProperty("channel").GetString()!,
+      if (item.TryGetProperty("error", out var failure))
+      {
+        try { UpdateFeed.Latest(releases, repository, item.GetProperty("platform").GetString()!, item.GetProperty("channel").GetString()!,
+          UpdateFeed.ParseVersion(item.GetProperty("current").GetString())!); throw new Exception("unsupported selection accepted"); }
+        catch (HostError error) { Require(error.Code == failure.GetString(), "selection refusal"); }
+        continue;
+      }
+      var chosen = UpdateFeed.Latest(releases, repository, item.GetProperty("platform").GetString()!, item.GetProperty("channel").GetString()!,
         UpdateFeed.ParseVersion(item.GetProperty("current").GetString())!);
       Require(chosen?.Tag == expected, $"{item.GetProperty("name").GetString()}: {chosen?.Tag ?? "none"} != {expected ?? "none"}");
     }
-    var release = UpdateFeed.Latest(releases, "windows", "preview", new Version(0, 1, 2))!;
+    var release = UpdateFeed.Latest(releases, repository, "windows", "preview", new Version(0, 1, 2))!;
     Require(release.Tag == root.GetProperty("manifestRelease").GetString(), "manifest release");
     foreach (var item in root.GetProperty("manifests").EnumerateArray())
     {
@@ -37,13 +45,21 @@ internal static class UpdateFeedProbe
         && package.Name == expected.GetProperty("name").GetString() && package.Size == expected.GetProperty("size").GetInt64()
         && package.Sha256 == expected.GetProperty("sha256").GetString() && package.Url == expected.GetProperty("url").GetString(), $"{name}: {package}");
     }
-    foreach (var damaged in new[] { "", "{", "{}", "[1,", "\"text\"" })
+    foreach (var item in root.GetProperty("invalidFeeds").EnumerateArray())
     {
-      try { UpdateFeed.Latest(Encoding.UTF8.GetBytes(damaged), "windows", "preview", new Version(0, 1, 2)); throw new Exception($"damaged feed accepted: {damaged}"); }
+      var damaged = item.GetString()!;
+      try { UpdateFeed.Latest(Encoding.UTF8.GetBytes(damaged), repository, "windows", "preview", new Version(0, 1, 2)); throw new Exception($"damaged feed accepted: {damaged}"); }
       catch (HostError error) { Require(error.Code == "metadata_invalid", $"damaged feed code: {damaged}"); }
     }
     Require(UpdateFeed.ParseVersion("0.1.10") == new Version(0, 1, 10) && UpdateFeed.ParseVersion("01.2.3") is null && UpdateFeed.ParseVersion("1.2") is null
-      && UpdateFeed.ParseVersion("1.2.3.4") is null && UpdateFeed.ParseVersion("1.2.3-beta") is null, "strict versions");
+      && UpdateFeed.ParseVersion("1.2.3.4") is null && UpdateFeed.ParseVersion("1.2.3-beta") is null && UpdateFeed.ParseVersion("1.2.3\n") is null, "strict versions");
+    Require(UpdateFeed.Latest(Encoding.UTF8.GetBytes("<feed xmlns=\"http://www.w3.org/2005/Atom\" />"), repository, "windows", "preview", new Version(0, 1, 2)) is null,
+      "empty published feed");
+    foreach (var name in new[] { "../outside.msix", "sub/file.msix", "sub\\file.msix", "https://evil.example/x", "file.msix?x", "file.msix#x", "file.msix\n", "%2e%2e.msix", "" })
+    {
+      try { UpdateFeed.AssetUrl(release, name); throw new Exception($"unsafe asset accepted: {name}"); }
+      catch (HostError error) { Require(error.Code == "metadata_invalid", "unsafe asset refusal"); }
+    }
 
     static MemoryStream Appx(string name, string publisher, string version, string arch = "x64") => new(Encoding.UTF8.GetBytes(
       $"<?xml version=\"1.0\" encoding=\"utf-8\"?><Package xmlns=\"http://schemas.microsoft.com/appx/manifest/foundation/windows10\"><Identity Name=\"{name}\" Version=\"{version}\" Publisher=\"{publisher}\" ProcessorArchitecture=\"{arch}\" /></Package>"));

@@ -17,9 +17,9 @@ public sealed class NativeUpdater : IDisposable
 {
   public const string Platform = "windows", Architecture = "x64";
   private const long MaxFeedBytes = 2 * 1024 * 1024, MaxManifestBytes = 64 * 1024;
-  private static readonly string[] ApiHosts = ["api.github.com"];
+  private static readonly string[] FeedHosts = ["github.com"];
   private static readonly string[] DownloadHosts = ["github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"];
-  private readonly HttpClient http = new(new SocketsHttpHandler { AllowAutoRedirect = false, PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
+  private readonly HttpClient http = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false, PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
   { Timeout = Timeout.InfiniteTimeSpan };
   private readonly CancellationTokenSource lifetime = new();
   private readonly string folder, repository, channel, currentText, reason;
@@ -134,15 +134,13 @@ public sealed class NativeUpdater : IDisposable
   {
     Set("checking");
     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
-    var releases = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, "releases.json"), timeout.Token)
-      : await Fetch(new Uri($"https://api.github.com/repos/{repository}/releases?per_page=30"), MaxFeedBytes, ApiHosts, timeout.Token);
-    var release = UpdateFeed.Latest(releases, Platform, channel, current);
+    var releases = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, "releases.atom"), timeout.Token)
+      : await Fetch(new Uri($"https://github.com/{repository}/releases.atom"), MaxFeedBytes, FeedHosts, timeout.Token);
+    var release = UpdateFeed.Latest(releases, repository, Platform, channel, current);
     lastChecked = DateTimeOffset.UtcNow.ToString("O"); recordCheck(lastChecked);
     if (release is null) { pending = null; Clean(null); Set("up_to_date"); return; }
-    var asset = release.Assets.FirstOrDefault(item => item.Name == UpdateFeed.ManifestName)
-      ?? throw new HostError("metadata_invalid", "這個版本缺少更新資訊，未下載任何檔案。");
-    var manifest = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, asset.Name), timeout.Token)
-      : await Fetch(Download(asset.Url), MaxManifestBytes, DownloadHosts, timeout.Token);
+    var manifest = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, UpdateFeed.ManifestName), timeout.Token)
+      : await Fetch(Download(UpdateFeed.AssetUrl(release, UpdateFeed.ManifestName)), MaxManifestBytes, DownloadHosts, timeout.Token);
     var package = UpdateFeed.Manifest(manifest, release, Platform, Architecture);
     pending = package; var file = Path.Combine(folder, package.Name);
     // A downloaded installer counts only while the feed still names the same version and bytes.
@@ -223,7 +221,7 @@ public sealed class NativeUpdater : IDisposable
 
   private async Task<byte[]> Fetch(Uri uri, long limit, string[] hosts, CancellationToken token)
   {
-    using var response = await Send(uri, hosts, hosts == ApiHosts ? "application/vnd.github+json" : "application/octet-stream", token);
+    using var response = await Send(uri, hosts, hosts == FeedHosts ? "application/atom+xml" : "application/octet-stream", token);
     if (response.Content.Headers.ContentLength > limit) throw new HostError("metadata_invalid", "更新資訊超過容量上限。");
     await using var stream = await response.Content.ReadAsStreamAsync(token);
     using var buffer = new MemoryStream(); var chunk = new byte[16384];
@@ -244,16 +242,19 @@ public sealed class NativeUpdater : IDisposable
         throw new HostError("provider_rejected", "更新來源指向未允許的位置，已停止。");
       using var request = new HttpRequestMessage(HttpMethod.Get, uri);
       request.Headers.UserAgent.ParseAdd($"WorkFleet/{currentText}"); request.Headers.Accept.ParseAdd(accept);
-      if (hosts == ApiHosts) request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
       var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
       if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308 && response.Headers.Location is { } location)
       {
-        response.Dispose(); uri = location.IsAbsoluteUri ? location : new Uri(uri, location);
+        response.Dispose();
+        if (hosts == FeedHosts) throw new HostError("provider_rejected", "更新來源轉址，已停止。");
+        uri = location.IsAbsoluteUri ? location : new Uri(uri, location);
         hosts = DownloadHosts; continue;
       }
       if (response.IsSuccessStatusCode) return response;
-      var code = response.StatusCode; response.Dispose();
-      throw code is HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests
+      var code = response.StatusCode;
+      var limited = code == HttpStatusCode.TooManyRequests || code == HttpStatusCode.Forbidden && response.Headers.RetryAfter is not null;
+      response.Dispose();
+      throw limited
         ? new HostError("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。")
         : new HostError("provider_rejected", $"GitHub 回應錯誤（{(int)code}），請稍後再試。");
     }

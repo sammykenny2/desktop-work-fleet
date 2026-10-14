@@ -78,11 +78,11 @@
 | ID | 要求 |
 |---|---|
 | UP-F01 | `host.info` 增加 App 版本與發行形式；設定＞桌面「App 更新」一律顯示版本與頻道 |
-| UP-F02 | 只有內嵌有效 `update-source.json` 且可就地升級的安裝形式有更新能力：Windows MSIX、Developer ID 公證的 macOS App、DEB 安裝的 Linux |
+| UP-F02 | 只有內嵌 `Config/public.json` 的有效 update 來源且可就地升級的安裝形式有更新能力：Windows MSIX、Developer ID 公證的 macOS App、DEB 安裝的 Linux |
 | UP-F03 | 原生 host 擁有更新狀態機與單一主按鈕對應：檢查更新、下載更新、重新啟動並安裝；重複要求加入進行中的工作 |
 | UP-F04 | 系統匣在有能力時顯示「檢查更新…」，由原生處理；點擊重新檢查後以原生對話框回答，可直接更新並重新啟動 |
-| UP-F05 | 以未驗證身分的 GitHub REST API 列出 releases，依 `<platform>-v<版號>` 篩選，預覽頻道包含 prerelease，選最高且較新的版本 |
-| UP-F06 | 讀取 release 的 `work-fleet-update.json`，核對平台、版本、tag、大小與 SHA-256；不符則拒絕 |
+| UP-F05 | 讀公開 GitHub `releases.atom`，依設定 repo 與 `<platform>-v<版號>` 篩選，preview 包含已發布 prerelease，選 feed 中最高且較新的版本；不呼叫或回退 REST API，不支援的頻道與非空 feed 未列平台時拒絕 |
+| UP-F06 | 由設定 repo／驗證 tag 建立該 release 的 `work-fleet-update.json` URL；核對平台、版本、tag、單層檔名，依 manifest 驗證實際下載大小與 SHA-256；不符則拒絕 |
 | UP-F07 | 下載只用 HTTPS、不送憑證；只允許轉到 GitHub release 資產主機；大小有上限並邊下載邊驗證 |
 | UP-F08 | 下載前重新檢查；已下載版本不再是最新就重新下載；只持久化上次檢查時間 |
 | UP-F09 | 安裝前走既有保存並結束流程，確保草稿保存、場景撤下、資料關閉 |
@@ -117,10 +117,12 @@
 
 ## Non-Functional Requirements
 
-- 安全：renderer 不能發出網路請求或指定 URL；更新 URL 只由 host 依 `update-source.json` 與 manifest 決定。
+- 安全：renderer 不能發出網路請求或指定 URL；更新 URL 只由 host 依 `Config/public.json`、Atom tag 與 manifest 決定。
 - 資料：任何更新、結束或重新啟動前完成草稿保存；失敗不得遺失已保存資料。
 - 隱私：只在使用者動作時連 GitHub；不送帳號、裝置識別或使用資料。
 - 可用性：沒有更新能力的平台與形式清楚說明原因，不顯示無法完成的按鈕。
+- 查詢（2026-10-15 修訂）：避開公司 NAT 共用的未驗證 REST API 配額；Atom 限 2 MiB、拒絕 DTD／外部實體與轉址。
+  Atom 沒有可靠的 prerelease 欄位，正式頻道與長期平台索引屬 Q04 後續決策，不把預覽誤當正式版。
 
 ## Acceptance
 

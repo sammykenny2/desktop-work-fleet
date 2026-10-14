@@ -85,6 +85,7 @@ jobs:
           python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v
           python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -v
           python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
+          python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v
       - name: Check settings
         run: |
           node scripts/check-config.mjs --platform macos

@@ -1,9 +1,10 @@
 # 研究索引
 
-更新：2026-10-14。目錄拼字 `resreach` 依使用者指定保留。
+更新：2026-10-15。目錄拼字 `resreach` 依使用者指定保留。
 
 ## 最新設計：優先閱讀
 
+- [公開 Release feed 與公司出口 IP 配額](2026-10-15-public-release-feed-without-api-quota.md)：官方未驗證 REST API 配額、同機實測與三平台改讀 Atom 的決策界線。
 - [主視窗位置、啟動行為與 App 更新參考](2026-10-14-desktop-window-startup-and-update-reference.md)：Electron 參考專案的行為與設計教訓、本專案現況；建議見 ADR-043／044。
 - [macOS 登入項目首次註冊](2026-10-15-macos-login-item-first-registration.md)：`notFound` 不能作為停用註冊或判斷 App 安裝位置的依據，正式 host 回歸與沙盒實測界線。
 - [桌面卡片需求演進](2026-10-04-desktop-card-interaction-design.md)：使用者確認、補充與失效方案。

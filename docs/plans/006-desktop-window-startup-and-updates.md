@@ -63,8 +63,8 @@
 ### Phase 4: 更新器共用規則與 Windows MSIX
 
 - [ ] 4.1 共用 fixture：release 列表篩選、版本比較、manifest 驗證、錯誤代碼對應。
-- [ ] 4.2 `update-source.json` 由封裝腳本產生；公開設定新增更新來源 repo。
-- [ ] 4.3 Windows 更新器：GitHub API 查詢、限定轉址與大小的下載、SHA-256、MSIX identity 核對。
+- [ ] 4.2 `Config/public.json` 的 update 區段由封裝腳本產生；公開設定新增更新來源 repo。
+- [ ] 4.3 Windows 更新器：公開 Atom 查詢／平台選版、限定轉址與大小的下載、SHA-256、MSIX identity 核對（2026-10-15 修訂，移除 REST API）。
 - [ ] 4.4 Windows 安裝：既有保存並結束流程後以 `PackageManager` 安裝、`RegisterApplicationRestart` 重新開啟；失敗恢復。
 - [ ] 4.5 Windows 系統匣「檢查更新…」與原生對話框；下載進度提示文字。
 - [ ] 4.6 `windows-preview.yml` 與本機封裝產生 `work-fleet-update.json` 並上傳。
@@ -103,7 +103,7 @@
 | `src/native/linux/host.py`、`tray.py`、`service.py` 及新模組 | Modify/Create | 位置、autostart、更新器、系統匣 |
 | `src/app/index.html`、`src/app/main.js`、`src/native/bridge.js` | Modify | 設定＞桌面兩個區塊、版本與更新狀態 |
 | `src/backup/payload.js` 與呼叫端 | Modify | 備份 `appVersion` |
-| `scripts/generate-windows-manifest.mjs`、`scripts/windows/Build-WindowsPackage.ps1` | Modify | StartupTask、`update-source.json`、manifest 產生 |
+| `scripts/generate-windows-manifest.mjs`、`scripts/windows/Build-WindowsPackage.ps1` | Modify | StartupTask、`Config/public.json` update 來源、manifest 產生 |
 | `scripts/config.mjs`、`.env.example` | Modify | 更新來源 repo 的公開設定 |
 | `scripts/generate-linux-package.mjs`、`scripts/linux/` | Modify | autostart 啟動參數、DEB 更新 manifest |
 | `scripts/generate-apple-project.mjs` | Modify | Sparkle 依賴（Phase 6） |
@@ -131,7 +131,8 @@
 |---|---|---|
 | MSIX 自我更新後未重新開啟或登入啟動判斷不如預期 | Medium | Phase 4 先以測試 identity 實測；不可行時改為安裝後提示手動開啟 |
 | 登入時 Explorer 尚未就緒，場景附著失敗 | Medium | 沿用 ADR-020／030 的重建恢復；C05 實機驗證 |
-| GitHub API rate limit | Low | 只做手動檢查；rate_limited 顯示稍後再試 |
+| 公司 NAT 共用 GitHub 未驗證 API 配額 | High | 三平台改讀公開 Atom，不使用或回退 REST API；一般 403 與帶 Retry-After 的限流分開 |
+| Atom 未列平台或無 prerelease 欄位 | Medium | 預覽頻道只篩 tag；未列平台與不支援頻道時拒絕；正式頻道／長期平台索引後續決策 |
 | GitHub 轉址主機變更 | Medium | 主機清單集中設定；失敗顯示錯誤並提供 Releases 頁面連結 |
 | macOS 簽章與公證條件未就緒 | High | 更新能力保持關閉，只顯示版本；不阻擋其他階段 |
 | Linux 安裝中檔案被替換 | Medium | 安裝成功後立即保存並重新執行；失敗時不重新啟動 |

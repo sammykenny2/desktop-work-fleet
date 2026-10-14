@@ -1,10 +1,13 @@
 """Linux Google token requests carry a configured Desktop client secret, and only then; no network is used."""
 import json
+import ast
+from contextlib import nullcontext
 from pathlib import Path
 import time
 import sys
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 from urllib.parse import parse_qs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/native/linux"))
@@ -114,8 +117,11 @@ class VaultPause(unittest.TestCase):
         class Vault:
             def __init__(self):
                 self.locked, self.reads = False, 0
+                self.unlocks, self.cancelled, self.unavailable = 0, False, False
             def read(self, kind, account):
                 self.reads += 1
+                if self.unavailable:
+                    raise p.Failure("vault-unavailable", "service unavailable")
                 if self.locked:
                     raise p.Failure("vault-locked", "同步暫停，便箋仍可使用")
                 return json.dumps({"accountId": account, "email": "synthetic@example.test", "clientId": "client", "scope": google.SCOPE,
@@ -123,6 +129,13 @@ class VaultPause(unittest.TestCase):
             def writable(self):
                 if self.locked:
                     raise p.Failure("vault-locked", "vault locked")
+            def interaction(self, _closed, _deadline=None, _cancelled=None):
+                return nullcontext()
+            def unlock(self, _closed=None):
+                self.unlocks += 1
+                if self.cancelled:
+                    raise p.Failure("vault-unlock-cancelled", "已取消解鎖")
+                self.locked = False
         vault = Vault()
         g = google.Google(vault, {"google": {"clients": {"linux": "client"}}}, "google:fixture", lambda _: self.fail("browser should not launch"))
         return g, vault
@@ -136,6 +149,87 @@ class VaultPause(unittest.TestCase):
         self.assertTrue(status["paused"])
         self.assertEqual(status["accountId"], "fixture")
         self.assertIn("暫停", status["pauseReason"])
+        self.assertIn("立即同步", status["pauseReason"])
+        self.assertEqual(vault.unlocks, 0)
+
+    def test_manual_unlock_resumes_same_account_without_oauth(self):
+        g, vault = self.fixture()
+        vault.locked = True
+        self.assertTrue(g.status()["paused"])
+        result = g.unlock_vault()
+        self.assertTrue(result["connected"])
+        self.assertFalse(result["paused"])
+        self.assertEqual(result["accountId"], "fixture")
+        self.assertEqual(g.token(), "synthetic-access")
+        self.assertEqual(vault.unlocks, 1)
+        g.unlock_vault()
+        self.assertEqual(vault.unlocks, 1)
+
+    def test_cancelled_manual_unlock_stays_paused_and_can_retry(self):
+        g, vault = self.fixture()
+        vault.locked = vault.cancelled = True
+        with self.assertRaises(p.Failure) as error:
+            g.unlock_vault()
+        self.assertEqual(error.exception.code, "vault-unlock-cancelled")
+        self.assertIsNone(g.credentials)
+        self.assertTrue(g.status()["paused"])
+        self.assertEqual(vault.unlocks, 1)
+        vault.cancelled = False
+        self.assertTrue(g.unlock_vault()["connected"])
+        self.assertEqual(vault.unlocks, 2)
+
+    def test_missing_service_does_not_request_unlock_or_oauth(self):
+        g, vault = self.fixture()
+        vault.unavailable = True
+        with self.assertRaises(p.Failure) as error:
+            g.unlock_vault()
+        self.assertEqual(error.exception.code, "vault-unavailable")
+        self.assertEqual(vault.unlocks, 0)
+
+    def test_account_change_admission_cancels_unlock_even_while_it_is_queued(self):
+        tree = ast.parse((Path(__file__).resolve().parents[1] / "src/native/linux/host.py").read_text())
+        host_class = next(node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == "FleetApp")
+        receive = next(node for node in host_class.body if isinstance(node, ast.FunctionDef) and node.name == "receive")
+        scope = {"p": p, "time": time, "Vault": SimpleNamespace(UNLOCK_TIMEOUT=90), "GLib": SimpleNamespace()}
+        exec(compile(ast.Module(body=[receive], type_ignores=[]), "host-receive", "exec"), scope)
+        for method in ("google.signIn", "google.open", "google.local", "google.signOut", "storage.reset", "host.closeReady"):
+            g, vault = self.fixture()
+            vault.locked = True
+            submitted = []
+            def submit(function, *args):
+                submitted.append((function, args))
+                return SimpleNamespace(add_done_callback=lambda _callback: None)
+            worker = SimpleNamespace(submit=submit)
+            def invoke(method, _args, deadline, cancelled):
+                return g.unlock_vault(deadline, cancelled) if method == "google.unlockVault" else {"profileId": "local"}
+            host = SimpleNamespace(stopped=False, admitted=0, service=SimpleNamespace(google=g, invoke=invoke),
+                                   epoch=0, view=object(), network=worker, storage=worker)
+            def admit(method):
+                scope["receive"](host, {"v": 1, "id": p.identifier(), "method": method, "params": {}})
+            admit("google.unlockVault")
+            self.assertEqual(len(submitted), 1)
+            old_request = submitted[0]
+            admit(method)
+            self.assertEqual(len(submitted), 2)
+            with self.assertRaises(p.Failure) as error:
+                old_request[0](*old_request[1])
+            self.assertEqual(error.exception.code, "vault-unlock-cancelled", method)
+            self.assertEqual((vault.reads, vault.unlocks), (0, 0), method)
+            # Cancelling an old request does not poison a newly admitted action.
+            admit("google.unlockVault")
+            fresh_request = submitted[-1]
+            self.assertTrue(fresh_request[0](*fresh_request[1])["connected"])
+
+    def test_close_cancels_pending_manual_unlock(self):
+        g, vault = self.fixture()
+        vault.locked = True
+        vault.unlock = lambda *_: g.close()
+        cancelled = []
+        vault.cancel_unlock = lambda: cancelled.append(True)
+        with self.assertRaises(p.Failure) as error:
+            g.unlock_vault()
+        self.assertEqual(error.exception.code, "stale-session")
+        self.assertEqual(cancelled, [True])
 
     def test_keyring_lock_clears_cached_token_and_unlock_resumes_without_oauth(self):
         g, vault = self.fixture()

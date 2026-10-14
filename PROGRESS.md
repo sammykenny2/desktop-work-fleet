@@ -2,6 +2,28 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 Linux 手動同步提供系統金鑰圈解鎖
+
+使用者回報 0.2.4 在重開機後顯示同步暫停，按「立即同步」仍不顯示解鎖視窗，無法從 App 恢復同步。
+
+- Linux 新增 `vaultUnlock` capability／`google.unlockVault`；只有明確手動同步且 default collection 鎖住時
+  呼叫 Secret Service Unlock／Prompt。系統處理密碼輸入，App 不接收密碼；成功重讀原憑證並接續同步，不重新 OAuth。
+  開機／背景重試維持非互動，服務缺失不要求無關密碼；取消／逾時顯示暫停，按鈕可立即再次使用。
+- deadline 從 native admission 起算 90 秒，前置查詢／Prompt／讀回共用 cancellable，排隊逾期不開遲到視窗。
+  自行限定 Completed 等待，取消時非阻塞 Dismiss，不依賴錯誤 provider 的 Completed；筆記不持鎖等待 Prompt。
+  切換帳號／本機／登出／關閉同時取消排隊及進行中的解鎖，renderer 丟棄舊來源結果，不保存或同步錯誤帳號。
+- 作者最終 Python 172 項中 140 通過、32 平台限定略過；JavaScript 301 項中 290 通過、11 略過。
+  一次完整 Python 執行遇到既有 updater install callback／worker 結束時序失敗，未修改無關更新器；
+  分開 JS／建置負載後重跑完整 Python 通過。Google 16、Vault 31、renderer 11 項回歸通過。
+- 真 GI／私人 D-Bus 合成 provider 九組通過：背景零 Prompt、取消／成功重試、已解鎖不提示、
+  Dismiss 不發 Completed 仍逾時返回、慢 preflight／讀回共用期限、排隊逾期不提示、owner 關閉及 session close。
+  既有私人 gnome-keyring 七組仍通過，系統秘密保存／遷移與背景非互動政策維持。
+- 獨立唯讀複核完成，deadline／Dismiss 等待、owner preflight、排隊取消、舊 renderer 結果及按鈕恢復均修正並複核；
+  無剩餘 blocker。Reviewer 獨立 Google 16、renderer 11、私人 D-Bus 九組及差異檢查通過。
+- ADR-048／研究、安全、setup／testing／Linux README 已更新。文件連結／UTF-8／LF 與差異格式檢查通過，
+  本機 Linux DEB／tar.gz 測試封裝成功；不當作正式發布產物。Pi 真實解鎖視窗、密碼輸入與重開機仍待驗收。
+  本次是發布後的新修正任務，未升版、未 dispatch、未發布，已發布 0.2.4 安裝包仍不含此修正。
+
 ## 2026-10-15 desktop preview 0.2.4 發布前準備
 
 使用者明確授權升至 0.2.4 並發布 Windows／Linux／macOS desktop preview；以下只記錄 dispatch 前已知結果，發布結果以 GitHub run／release 與對話為準。

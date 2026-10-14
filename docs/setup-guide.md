@@ -255,8 +255,9 @@ Apple 可使用 `--archive` 指定既有 archive；macOS 正式簽章與公證�
 需要 Linux 的 Python 3.10+、GTK 3、WebKitGTK 4.1、PyGObject／cairo
 及 cryptography。新工作空間與完成主金鑰遷移的離線便箋不需要 keyring。
 Google 權杖、保存的自動備份密碼及舊資料首次遷移需要 libsecret／已解鎖的持久 Secret Service；
-鎖住時只暫停相關功能，App 不主動要求密碼（[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)）。
-自動登入可能讓金鑰圈保持鎖定，需要同步時請在系統中解鎖後重試。原生主畫面／SQLite／加密／Google／備份與桌面場景已接入。
+鎖住時只暫停相關功能，開機與背景同步不要求密碼（[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)）。
+自動登入可能讓金鑰圈保持鎖定；按「立即同步」會開啟系統解鎖視窗，成功後接續同步，取消／逾時可再次重試。
+原生主畫面／SQLite／加密／Google／備份與桌面場景已接入。
 X11 全域鍵可使用 Keybinder 3；Wayland 桌面需 GtkLayerShell 支援，快捷鍵需 GlobalShortcuts portal
 backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用；缺能力時主畫面仍可記錄。
 

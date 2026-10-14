@@ -3,6 +3,7 @@
 ## Status
 
 Accepted，2026-10-15。取代 ADR-047 的 Google 憑證與備份密碼政策；保留其本機便箋金鑰及舊工作空間遷移方式。
+同日補充：使用者回報 0.2.4 按「立即同步」仍無法解除暫停，新增明確手動操作的系統互動解鎖，背景政策維持。
 
 ## Context
 
@@ -23,10 +24,17 @@ ADR-047 把工作空間主金鑰放入同目錄，解決啟動依賴，但連登
   canonical 讀取只搜尋持久 default；透過 GetSecret／libsecret session decode 取得新值，不使用 proxy 的舊鎖定／secret 快取。
   舊跨 collection 憑證只有 default 沒有憑證且可用時才遷入，不能覆寫已有 default 憑證。
   儲存使用 libsecret 協商的 session 編碼後直接呼叫 `CreateItem`，刪除直接呼叫 Item `Delete`；
-  收到 prompt object 時回報暫停，絕不呼叫 `Prompt.Prompt`。避免便利 store／clear API 自動解鎖或顯示提示。
+  讀取／寫入／刪除遇到 prompt object 時回報暫停，不自動呼叫 `Prompt.Prompt`。避免便利 store／clear API 自動解鎖或顯示提示。
 - Google 建構不讀 vault；頁面先開啟離線內容。`google.status` 回傳可暫停狀態而非讓工作空間開啟失敗。
   每次使用 token 前重新檢查 vault；後來鎖定也不能繼續使用快取 token。
-  UI 顯示「同步暫停」，保留立即同步與本機登出，定期重試；解鎖後沿用原帳號，不需要重新 OAuth。
+  UI 顯示「同步暫停」並指向立即同步；定期與開機重試不要求解鎖。
+  Linux 宣告 `vaultUnlock` capability；使用者按「立即同步」時才呼叫固定 `google.unlockVault`，
+  確認為 vault-locked 後呼叫 D-Bus `Service.Unlock`／`Prompt.Prompt`，僅解鎖持久 default collection。
+  系統負責密碼輸入，App 不接收密碼；解鎖後重讀原憑證並接續原帳號同步，不需要重新 OAuth。
+  已解鎖時不重複 Prompt；服務缺失等其他問題不要求無關密碼。取消／90 秒逾時回到暫停並保留重試；
+  deadline 自 host 收到請求起算，涵蓋排隊、前置查詢、Prompt 及憑證讀回，逾期請求不開啟延遲視窗。
+  關閉或切換帳號取消待完成操作；UI 丟棄舊來源結果。Completed 等待有期限，Dismiss 不阻擋返回，
+  不依賴 provider 在取消後仍發出 Completed。互動操作在 network worker，不持有筆記 DB 或 bridge lock 等待 Prompt。
   HTTP 401 的強制 refresh 狀態不被 vault 重讀覆蓋。
 - 加密備份的 vault 故障回報 `backup-vault-unavailable`，既有排程暫停機制保留待辦及上次成功備份，不改存明文。
   Google 與涉及 vault 的備份操作使用 network worker，在等待 vault 時不持有 DB 或 storage bridge 的鎖。
@@ -44,7 +52,7 @@ ADR-047 把工作空間主金鑰放入同目錄，解決啟動依賴，但連登
 
 ### Positive
 
-- 日常便箋與自動啟動不被系統 vault 密碼對話框阻擋；需要秘密的功能可明確暫停與重試。
+- 日常便箋與自動啟動不被系統 vault 密碼對話框阻擋；手動同步有直接解鎖及接續同步的出口。
 - 完成遷移後，僅複製 App 資料目錄不能取得 Google 權杖或保存的備份密碼。
 - 重複 collection、暫存 vault、服務重啟與遷移中斷有失敗保留／重試行為。
 
@@ -52,7 +60,7 @@ ADR-047 把工作空間主金鑰放入同目錄，解決啟動依賴，但連登
 
 - Linux 的本機便箋金鑰仍與資料同目錄；其離線機密性弱於另由 OS vault 保護主金鑰的方案。
 - 自動登入可能讓金鑰圈持續鎖住，因此不能承諾同時做到零密碼輸入與無條件自動同步／加密備份。
-  使用者須透過系統解鎖金鑰圈，或自行設定可自動解鎖的系統安全儲存。
+  使用者可按「立即同步」透過系統視窗解鎖，或自行設定可自動解鎖的系統安全儲存。
 - 清理目前 SQLite 檔案不等於儲存裝置、快照或舊備份的實體安全抹除；同帳號惡意程式、root 與記憶體讀取不在保護邊界。
 - default alias 改配其他持久 collection 後，已記錄的秘密可能暫時找不到；還原原 default 或重新登入／設定備份密碼。
 

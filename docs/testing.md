@@ -153,7 +153,16 @@ XDG_DATA_HOME="$task_probe_dir/data" XDG_RUNTIME_DIR="$task_probe_dir/runtime" \
 同一檔也確認建構不讀 vault、鎖住清除快取 token／status 非致命、解鎖恢復不需 OAuth、
 鎖住時不啟動登入瀏覽器，以及 401 強制 refresh 在 vault 重讀與暫時鎖定後仍保留。
 `node --test tests/google-vault-pause.test.js` 執行實際帳號 UI 函式，確認同步暫停仍有重試／登出控制、解鎖恢復同帳號，
-Windows／macOS 未回傳 paused 欄位時維持原行為。登出仍只刪除本機憑證、完全不發網路請求。
+另執行實際 syncGoogle 函式，確認只有手動同步呼叫 google.unlockVault、成功接續同步、取消／逾時可重試、
+同一 Prompt 期間重複點擊不重送，以及切換帳號／本機／登出／關閉後丟棄舊結果，不保存或同步舊來源。
+Windows／macOS 沒有 vaultUnlock capability 時不新增 bridge 呼叫，背景一律不解鎖。
+`python3 -B -m unittest discover -s tests -p 'test_linux_unlock.py' -v` 使用真 libsecret／GLib、私人 D-Bus 與合成 provider，
+確認 Unlock／Prompt 的手動取消、成功重試、已解鎖不提示、90 秒操作期限（測試縮短）、close 取消及背景零 Prompt。
+另確認慢前置查詢／憑證讀回共用期限、排隊已逾期不開 Prompt、owner 在 preflight 關閉不開 Prompt，
+以及 provider 回覆 Dismiss 卻不發 Completed 時仍能返回。
+不讀取使用者金鑰圈或密碼，也不代表實際 GNOME／KWallet 視窗的可見性與輸入已驗收。
+Google Python 回歸另確認 unlock_vault 只處理 vault-locked、服務缺失不要求密碼，成功返回原帳號且不 OAuth。
+登出仍只刪除本機憑證、完全不發網路請求。
 `node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、
 Apple、Android 的原始碼都沒有向 Google 撤銷授權的呼叫（ADR-021 修訂）；Swift 與 Java 不在每個檢查環境編譯，所以用原始碼檢查。
 `tests/test_linux_python_floor.py` 從 DEB `Depends` 讀 Python 下限（3.10），確認 tar.gz 宣告相同，

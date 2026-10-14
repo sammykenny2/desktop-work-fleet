@@ -260,16 +260,33 @@ async function syncGoogle(force = false) {
   const settings = $('#settings-dialog');
   if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync()
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
+  const sourceSync = syncService; const sourceProfile = profileId;
+  const current = () => !nativeClosing && !accountBusy && syncService === sourceSync && profileId === sourceProfile;
   syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
   try {
+    if (force && native?.info.capabilities?.vaultUnlock) {
+      setSync('busy', '正在準備同步…', '金鑰圈若已鎖定，請在系統視窗中解鎖；完成後會接續同步。');
+      const unlockedAccount = await native.bridge.request('google.unlockVault');
+      if (!current()) return;
+      googleAccount = unlockedAccount;
+      renderGoogleAccess(); renderAccount();
+      $('#storage-note').textContent = googleAccount.connected ? '同步到你的 Google 帳號' : '重新登入後才會繼續同步';
+      setSync('busy', '正在同步…');
+    }
     await (desktop ? desktop.perform(sync) : sync());
     async function sync() {
-      await flushDraft(); await syncService.sync({ force });
+      if (!current()) return;
+      await flushDraft();
+      if (!current()) return;
+      await sourceSync.sync({ force });
+      if (!current()) return;
       if (!activeGroups(workspace.snapshot).length && !workspace.snapshot.groups.length) await workspace.createGroup('我的便箋');
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       if (googleAccount?.paused) {
-        googleAccount = await native.bridge.request('google.status'); renderGoogleAccess(); renderAccount();
+        const account = await native.bridge.request('google.status');
+        if (!current()) return;
+        googleAccount = account; renderGoogleAccess(); renderAccount();
         $('#storage-note').textContent = googleAccount.paused ? '便箋可離線使用；系統安全儲存可用後會繼續同步' : '同步到你的 Google 帳號';
         if (googleAccount.paused) { setSync('attention', '同步暫停', googleAccount.pauseReason); return; }
       }
@@ -278,8 +295,9 @@ async function syncGoogle(force = false) {
       else setSync('ok', `已同步 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     }
   } catch (error) {
+    if (!current()) return;
     if (error.code === 'source-reset') { setSync('attention', '雲端已重設', error.message); askAfterSourceReset(); return; }
-    const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup'].includes(error.code);
+    const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup', 'vault-unlock-cancelled', 'vault-unlock-timeout'].includes(error.code);
     if (vaultPaused) {
       googleAccount = { ...googleAccount, connected: false, paused: true, pauseReason: error.message };
       renderGoogleAccess(); renderAccount();

@@ -1,6 +1,6 @@
 """Single-owner encrypted SQLite, with an owner-only local key and legacy keyring migration."""
 import base64
-from contextlib import closing
+from contextlib import closing, contextmanager
 import fcntl
 import os
 from pathlib import Path
@@ -8,6 +8,7 @@ import sqlite3
 import stat
 import tempfile
 import threading
+import time
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
@@ -16,16 +17,72 @@ import protocol as p
 
 
 class Vault:
-    """System secrets; read without UNLOCK and mutate through D-Bus without performing prompts."""
+    """Noninteractive reads/writes, with a separate, user-requested system unlock."""
+    UNLOCK_TIMEOUT = 90
+
     def __init__(self, app_id):
         self.app_id = app_id
-        self.cancellable = None
+        self.base_cancellable = None
+        self.request_local = threading.local()
         self.service = None
         self.owner = None
         self.retired_services = []
         self.lock = threading.RLock()
+        self.prompt_cancellable = None
+        self.closed = threading.Event()
+
+    @property
+    def cancellable(self):
+        interaction = getattr(self.request_local, "interaction", None)
+        return interaction[0] if interaction is not None else self.base_cancellable
+
+    @cancellable.setter
+    def cancellable(self, value):
+        self.base_cancellable = value
+
+    def check_interaction(self):
+        interaction = getattr(self.request_local, "interaction", None)
+        p.require(not self.closed.is_set(), "stale-session", "安全儲存工作階段已結束。")
+        if interaction is not None:
+            cancellable, deadline, owner_closed, action_closed, request_cancelled = interaction
+            p.require(not any(event is not None and event.is_set() for event in (owner_closed, action_closed)),
+                      "stale-session", "安全儲存工作階段已結束。")
+            p.require(time.monotonic() < deadline, "vault-unlock-timeout", "系統解鎖已逾時；同步維持暫停，請按「立即同步」重試。")
+            p.require(not cancellable.is_cancelled() and not (request_cancelled is not None and request_cancelled.is_set()),
+                      "vault-unlock-cancelled", "已取消或未完成解鎖；同步維持暫停，便箋仍可使用。")
+
+    @contextmanager
+    def interaction(self, owner_closed=None, action_closed=None, deadline=None, request_cancelled=None):
+        """One deadline/cancellation token for preflight, the system prompt and credential readback."""
+        from gi.repository import Gio
+        if getattr(self.request_local, "interaction", None) is not None:
+            self.check_interaction()
+            yield
+            self.check_interaction()
+            return
+        deadline = time.monotonic() + self.UNLOCK_TIMEOUT if deadline is None else deadline
+        cancellable = Gio.Cancellable()
+        self.request_local.interaction = (cancellable, deadline, owner_closed, action_closed, request_cancelled)
+        self.prompt_cancellable = cancellable
+        timer = threading.Timer(max(0, deadline - time.monotonic()), cancellable.cancel)
+        timer.daemon = True
+        try:
+            self.check_interaction()
+            timer.start()
+            yield
+            self.check_interaction()
+        except Exception:
+            # GIO/libsecret errors can wrap cancellation. Preserve the actionable deadline/session reason.
+            self.check_interaction()
+            raise
+        finally:
+            timer.cancel()
+            self.request_local.interaction = None
+            if self.prompt_cancellable is cancellable:
+                self.prompt_cancellable = None
 
     def connect(self):
+        self.check_interaction()
         import gi
         gi.require_version("Secret", "1")
         from gi.repository import Gio, GLib, Secret
@@ -93,12 +150,11 @@ class Vault:
         except Exception as error:
             raise p.Failure("vault-unavailable", "系統安全儲存目前無法使用；便箋仍可使用，相關同步或加密備份已暫停。") from error
 
-    def writable(self):
+    def collection(self):
         try:
             Secret = self.connect()
             collection = Secret.Collection.for_alias_sync(self.service, "default", Secret.CollectionFlags.NONE, self.cancellable)
             p.require(collection is not None, "vault-unavailable", "系統尚未設定可保存秘密的金鑰圈；便箋仍可使用。")
-            p.require(not self.is_locked(collection), "vault-locked", "系統金鑰圈已鎖定；請在系統中解鎖後再設定登入或備份密碼。便箋仍可使用。")
             session = Secret.Collection.for_alias_sync(self.service, Secret.COLLECTION_SESSION, Secret.CollectionFlags.NONE, self.cancellable)
             path = collection.get_object_path()
             p.require(path != "/org/freedesktop/secrets/collection/session" and (session is None or path != session.get_object_path()),
@@ -108,6 +164,73 @@ class Vault:
             raise
         except Exception as error:
             raise p.Failure("vault-unavailable", "系統安全儲存目前無法保存秘密；便箋仍可使用。") from error
+
+    def writable(self):
+        try:
+            Secret, collection = self.collection()
+            p.require(not self.is_locked(collection), "vault-locked", "系統金鑰圈已鎖定；便箋仍可使用，相關同步或加密備份已暫停。")
+            return Secret, collection
+        except p.Failure:
+            raise
+        except Exception as error:
+            raise p.Failure("vault-unavailable", "系統安全儲存目前無法使用；便箋仍可使用。") from error
+
+    def unlock(self, owner_closed=None, action_closed=None):
+        """Explicit UI action only. Password entry belongs to the system's prompt, never to this app."""
+        from gi.repository import Gio, GLib
+        with self.interaction(owner_closed, action_closed), self.lock:
+            self.check_interaction()
+            _, collection = self.collection()
+            self.check_interaction()
+            if not self.is_locked(collection):
+                return
+            try:
+                _, prompt = self.call("/org/freedesktop/secrets", "org.freedesktop.Secret.Service", "Unlock",
+                                      GLib.Variant("(ao)", ([collection.get_object_path()],)), "(aoo)").unpack()
+            except p.Failure:
+                raise
+            except Exception as error:
+                self.check_interaction()
+                raise p.Failure("vault-unavailable", "系統解鎖視窗未能啟動；同步維持暫停，請稍後重試。") from error
+            if prompt == "/":
+                p.require(not self.is_locked(collection), "vault-unlock-cancelled", "系統未完成解鎖；同步維持暫停。")
+                return
+            connection, owner = self.service.get_connection(), self.service.get_name_owner()
+            completed, result = threading.Event(), []
+            def on_completed(_connection, _sender, _path, _interface, _signal, parameters):
+                result.append(parameters.unpack()[0])
+                completed.set()
+            subscription = connection.signal_subscribe(owner, "org.freedesktop.Secret.Prompt", "Completed", prompt,
+                                                        None, Gio.DBusSignalFlags.NONE, on_completed)
+            try:
+                self.check_interaction()
+                self.call(prompt, "org.freedesktop.Secret.Prompt", "Prompt", GLib.Variant("(s)", ("",)), "()")
+                # libsecret's synchronous prompt waits for Completed even after a successful Dismiss.
+                # Bound our own wait so an unresponsive provider cannot keep the bridge request alive.
+                while not completed.wait(0.05):
+                    self.check_interaction()
+                self.check_interaction()
+                p.require(not result[0] and not self.is_locked(collection), "vault-unlock-cancelled",
+                          "已取消或未完成解鎖；同步維持暫停，便箋仍可使用。")
+            except p.Failure:
+                raise
+            except Exception as error:
+                self.check_interaction()
+                raise p.Failure("vault-unavailable", "系統解鎖視窗未能完成；同步維持暫停，請稍後重試。") from error
+            finally:
+                connection.signal_unsubscribe(subscription)
+                if not completed.is_set():
+                    try:
+                        # Best effort only: returning must never depend on Dismiss or Completed.
+                        connection.call(owner, prompt, "org.freedesktop.Secret.Prompt", "Dismiss", None, None,
+                                        Gio.DBusCallFlags.NONE, 1000, None, None)
+                    except Exception:
+                        pass
+
+    def cancel_unlock(self):
+        cancellable = self.prompt_cancellable
+        if cancellable is not None:
+            cancellable.cancel()
 
     def save(self, kind, key, value):
         with self.lock:
@@ -135,6 +258,7 @@ class Vault:
 
     def call(self, path, interface, method, parameters, result):
         from gi.repository import Gio, GLib
+        self.check_interaction()
         owner = self.service.get_name_owner()
         p.require(owner is not None, "vault-unavailable", "系統安全儲存服務已停止。")
         return self.service.get_connection().call_sync(owner, path, interface, method, parameters,
@@ -177,8 +301,10 @@ class Vault:
                 raise p.Failure("vault-unavailable", "系統安全儲存尚未完成移除；這台裝置的登出狀態仍會保留。") from error
 
     def close(self):
-        if self.cancellable is not None:
-            self.cancellable.cancel()
+        self.closed.set()
+        self.cancel_unlock()
+        if self.base_cancellable is not None:
+            self.base_cancellable.cancel()
 
 
 class SystemSecrets:
@@ -352,6 +478,17 @@ class Credentials:
 
     def writable(self):
         self.secrets.vault.writable()
+
+    def interaction(self, action_closed, deadline=None, request_cancelled=None):
+        return self.secrets.vault.interaction(self.secrets.closed, action_closed, deadline, request_cancelled)
+
+    def unlock(self, action_closed=None):
+        self.secrets.check()
+        self.secrets.vault.unlock(self.secrets.closed, action_closed)
+        self.secrets.check()
+
+    def cancel_unlock(self):
+        self.secrets.vault.cancel_unlock()
 
 
 def validate_legacy_key(filename, raw):

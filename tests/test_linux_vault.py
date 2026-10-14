@@ -597,7 +597,7 @@ class LinuxVaultTests(unittest.TestCase):
             isinstance(target, ast.Name) and target.id == "worker" for target in node.targets))
         expression = compile(ast.Expression(assignment.value), "host-worker", "eval")
         host = types.SimpleNamespace(network=object(), storage=object())
-        for method in ("google.status", "google.signOut", "backup.key.create", "backup.encrypt"):
+        for method in ("google.status", "google.unlockVault", "google.signOut", "backup.key.create", "backup.encrypt"):
             self.assertIs(eval(expression, {"self": host, "method": method}), host.network)
         for method in ("storage.commit", "storage.load", "backup.file.create", "host.ready"):
             self.assertIs(eval(expression, {"self": host, "method": method}), host.storage)

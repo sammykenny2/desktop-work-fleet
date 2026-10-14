@@ -35,5 +35,14 @@
 
 ## 驗證界線
 
+同日手動操作補充：[libsecret unlock_sync](https://gnome.pages.gitlab.gnome.org/libsecret/method.Service.unlock_sync.html)
+可能無限等待；[SecretPrompt 原始碼](https://raw.githubusercontent.com/GNOME/libsecret/master/libsecret/secret-prompt.c)
+顯示取消後會呼叫 Dismiss，但其成功回覆仍不足以完成等待，尚需 Completed。由此推論只加 cancellable timer
+不能保證錯誤 provider 下的有限返回。本專案因此在明確手動同步時直接使用 Secret Service 的 Unlock／Prompt，
+先訂閱固定 owner／path 的 Completed，再顯示系統視窗；自身等待有期限，逾時以非阻塞 Dismiss 收尾。
+90 秒 deadline 從 host admission 起算，前後查詢共用 cancellable；取消或換帳號後不接受舊來源結果。
+私人合成 provider 的真 GI probe 驗證 cancel／accept／timeout／close、慢 preflight／讀回、排隊逾時不開 Prompt，
+以及 Dismiss 成功卻不發 Completed 時仍能返回。不使用真密碼或圖形視窗，不等於已驗收 provider 的實際 UI。
+
 已驗證合成 gnome-keyring；沒有完整驗收 KWallet／其他 Secret Service provider、使用者重開機或正式 Google OAuth。
 Secret Service 規格是 draft；此實作使用既有 CreateItem／Delete／alias／session 介面，沒有聲稱完整規格相容性。

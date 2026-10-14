@@ -60,6 +60,8 @@ class Google:
         self.account = profile[7:] if profile.startswith("google:") else ""
         self.prepared = None
         self.closed = threading.Event()
+        self.unlock_lock = threading.Lock()
+        self.unlock_cancelled = threading.Event()
         # The owner workspace opens before any optional vault/network operation.
         self.credentials = None
         self.vault_error = None
@@ -86,10 +88,16 @@ class Google:
 
     def status(self):
         self.refresh_credentials()
+        return self.describe_status()
+
+    def describe_status(self):
+        reason = None if self.vault_error is None else str(self.vault_error)
+        if self.vault_error is not None and self.vault_error.code == "vault-locked":
+            reason = "系統金鑰圈已鎖定，同步暫停。按「立即同步」可開啟系統解鎖視窗，完成後會接續同步。便箋仍可離線使用。"
         return {"configured": self.available, "connected": self.credentials is not None, "profileId": self.profile,
                 "accountId": self.account if self.credentials is None and self.vault_error else None if self.credentials is None else self.credentials["accountId"],
                 "email": None if self.credentials is None else self.credentials["email"],
-                "paused": self.vault_error is not None, "pauseReason": None if self.vault_error is None else str(self.vault_error)}
+                "paused": self.vault_error is not None, "pauseReason": reason}
 
     def refresh_credentials(self, required=False):
         self.vault_error = None
@@ -102,6 +110,32 @@ class Google:
             self.vault_error = error if isinstance(error, p.Failure) else p.Failure("vault-unavailable", "系統安全儲存目前無法讀取；同步暫停，便箋仍可使用。")
             if required:
                 raise self.vault_error
+
+    def request_unlock(self):
+        with self.unlock_lock:
+            return self.unlock_cancelled
+
+    def cancel_unlock(self):
+        with self.unlock_lock:
+            self.unlock_cancelled.set()
+            self.unlock_cancelled = threading.Event()
+        cancel = getattr(self.vault, "cancel_unlock", None)
+        if cancel is not None:
+            cancel()
+
+    def unlock_vault(self, deadline=None, request_cancelled=None):
+        p.require(not self.closed.is_set() and self.account, "google-account", "請在 Google 便箋中使用手動同步。")
+        request_cancelled = self.request_unlock() if request_cancelled is None else request_cancelled
+        p.require(not request_cancelled.is_set(), "vault-unlock-cancelled", "已取消解鎖；同步維持暫停。")
+        with self.vault.interaction(self.closed, deadline, request_cancelled):
+            self.refresh_credentials()
+            if self.vault_error is not None:
+                if self.vault_error.code != "vault-locked":
+                    raise self.vault_error
+                self.vault.unlock(self.closed)
+            p.require(not self.closed.is_set(), "stale-session", "Google 工作階段已結束。")
+            self.refresh_credentials(required=True)
+            return self.describe_status()
 
     def token_request(self, fields):
         if self.secret:
@@ -349,4 +383,5 @@ class Google:
 
     def close(self):
         self.closed.set()
+        self.cancel_unlock()
         self.uploads.clear()

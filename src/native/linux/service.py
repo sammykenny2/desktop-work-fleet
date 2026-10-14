@@ -54,11 +54,13 @@ class Service:
         digest = p.digest(data)
         return {"token": self.add("download", len(data), digest, data), "size": len(data), "sha256": digest}
 
-    def invoke(self, method, args):
+    def invoke(self, method, args, deadline=None, request_cancelled=None):
         p.require(not self.closed, "native-closed", "原生工作階段已結束。")
         if method.startswith("google."):
             if method == "google.status":
                 return self.google.status()
+            if method == "google.unlockVault":
+                return self.google.unlock_vault(deadline, request_cancelled)
             if method == "google.signIn":
                 return self.google.sign_in()
             if method == "google.open":
@@ -93,7 +95,7 @@ class Service:
             if method == "host.info":
                 return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
                         "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
-                                         "hostPreferences": self.shell is not None, "updates": self.updates}}
+                                         "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True}}
             if method == "host.ready":
                 self.ready = True
                 return None

@@ -9,6 +9,7 @@ import secrets
 import sys
 import tempfile
 import threading
+import time
 from urllib.parse import unquote, urlsplit
 
 import hostsettings
@@ -666,11 +667,16 @@ class FleetApp(Gtk.Application):
             method = p.text(value, "method", 64)
             self.admitted += 1
             session, current, view = self.service, self.epoch, self.view
+            # Account changes/exit must not wait behind a password window in the serial network queue.
+            if method in ("google.signIn", "google.open", "google.local", "google.signOut", "storage.reset", "host.closeReady"):
+                session.google.cancel_unlock()
             if method == "host.ready":
                 # Vault work is optional and starts only after the owner can show/edit its workspace.
                 self.network.submit(session.secrets.migrate_pending)
             worker = self.network if method.startswith("google.") or method in ("backup.key.create", "backup.encrypt") else self.storage
-            future = worker.submit(session.invoke, method, value["params"])
+            deadline = time.monotonic() + Vault.UNLOCK_TIMEOUT if method == "google.unlockVault" else None
+            request_cancelled = session.google.request_unlock() if method == "google.unlockVault" else None
+            future = worker.submit(session.invoke, method, value["params"], deadline, request_cancelled)
 
             def complete():
                 self.admitted -= 1

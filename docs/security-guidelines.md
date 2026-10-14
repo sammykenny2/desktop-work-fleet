@@ -35,8 +35,10 @@ Google access／refresh token 與保存的自動備份密碼由已解鎖的持�
 不寫本機 credential／secret payload，也不在故障時 fallback。SQLite 只保存 reference、撤銷與清理狀態；
 Google 憑證不進 workspace reset／ZIP／renderer，備份密碼 ID 綁定 profile。session collection 不可作持久保存。
 先即時讀取 Locked 屬性，再搜尋已解鎖 collection 並重新 GetSecret，不使用舊 secret／Locked 快取。
-避免 provider 的全域 SearchItems 自行觸發解鎖 UI；寫入／刪除不執行回傳的 Prompt。
-vault 鎖住或不可用時只暫停 Google 同步／需要保存密碼的加密備份，便箋仍可使用；解鎖後可重試，不必重新 OAuth。
+避免 provider 的全域 SearchItems 自行觸發解鎖 UI；背景讀取與寫入／刪除不執行回傳的 Prompt。
+vault 鎖住或不可用時只暫停 Google 同步／需要保存密碼的加密備份，便箋仍可使用。
+使用者手動按「立即同步」才可開啟持久 default collection 的系統解鎖視窗；App 不接收金鑰圈密碼，
+成功後使用原憑證接續同步，不必重新 OAuth。取消／逾時保留暫停與重試，關閉工作階段可取消 Prompt。
 每次用 token 前重新讀 vault，不能繼續用先前快取的 token。慢 vault 不占用筆記儲存 worker 或 DB／bridge lock。
 舊版只讀取已解鎖 keyring 項目、不要求解鎖，所有既有帳號的 payload 通過驗證才保存本機金鑰；
 失敗不更換金鑰、不刪資料或原 keyring 項目。ADR-047 的舊本機憑證／備份密碼先移入 vault 並確認讀回後才刪除；

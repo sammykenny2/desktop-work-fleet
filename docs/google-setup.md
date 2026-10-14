@@ -31,6 +31,22 @@ Android 本機 debug、upload key 與 Google Play App Signing 的憑證可能不
 尚未指定正式 App ID 時，預覽 package／bundle ID 是 `app.workfleet.preview`。
 Apple callback scheme 由生成腳本從 client ID 產生，不須手寫 Info.plist。
 
+macOS 在 Google Auth Platform＞Clients＞Create client 的欄位：
+
+| 欄位 | 設定 |
+|---|---|
+| Application type | iOS，供 Google 的 Apple SDK 使用 |
+| Name | 例如 `Work Fleet macOS`，僅供管理識別 |
+| Bundle ID | 與 `WORK_FLEET_APP_ID` 相同；目前預覽為 `app.workfleet.preview` |
+| App Store ID | GitHub 預覽版留空；上架後才填 App Store 網址中的數字 ID |
+| Apple Team ID | 選填；已有 Apple team 時可填 `WORK_FLEET_APPLE_TEAM_ID` 的值 |
+| Firebase App Check | 本專案尚未配置該驗證，建立時維持關閉；啟用它會要求 Team ID |
+| Use this client for an AI-powered agent | 維持未勾選；本 client 用於 App 的 Google 登入與 Drive 同步 |
+
+建立後，把公開的 Client ID 設為 `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID`，GitHub Actions 使用同名 repository variable。
+欄位定義見 [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)，
+AI client 宣告見 [Manage OAuth Clients](https://support.google.com/cloud/answer/15549257?hl=en)。
+
 授權流程依 [Google installed-app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)、
 [Apple Google 登入設定](https://developers.google.com/identity/sign-in/ios/start-integrating)
 及 [Android Google 登入設定](https://developer.android.com/identity/sign-in/credential-manager-siwg)。

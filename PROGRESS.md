@@ -25,7 +25,8 @@
   Mac 的 DMG／更新 ZIP fixture 驗證無 Installer、無 PKG、公證失敗不覆蓋上次交付；profile 錯誤的拒絕回歸通過。
   Xcode 27.0 的 unsigned Debug universal build（0.2.0）通過；Sparkle 備份與公鑰配對、`sign_update` 簽名驗證通過。
   YAML／10 個 workflow Bash steps、文件連結與 `git diff --check` 通過。
-- 尚待維護者提供 Google macOS OAuth Client ID 與 Developer ID distribution profile；Developer 角色 API key 的 profile 建立被 Apple 拒絕，需從 Apple Developer 網站建立。
+- 維護者已提供 Google macOS OAuth Client ID；已寫入 GitHub variable 並讀回比對，`check-config.mjs --platform macos` 的完整公開 release 設定檢查通過，真實登入仍待驗證。
+- 尚待 Developer ID distribution profile；Developer 角色 API key 的 profile 建立被 Apple 拒絕，需從 Apple Developer 網站建立。
   真實 signed Release archive／export、公證、安裝與 Sparkle 跨版更新尚未驗證；workflow 尚未 dispatch，未升版或發布。
 - 獨立審閱尚未取得；本輪驗證是作者測試與機械檢查。
 

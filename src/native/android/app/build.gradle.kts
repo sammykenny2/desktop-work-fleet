@@ -43,8 +43,8 @@ android {
         applicationId = configuredId.ifEmpty { "app.workfleet.preview" }
         minSdk = 28
         targetSdk = 36
-        versionCode = 200
-        versionName = "0.2.0"
+        versionCode = 201
+        versionName = "0.2.1"
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/notices").get().asFile)

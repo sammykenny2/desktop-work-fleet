@@ -2,6 +2,18 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 共用版號 0.2.1 與 Windows 預覽版
+
+使用者核准 0.2.1，並要求發布 Windows 預覽版。
+
+- 版號：依共用版號規則，五個平台一起升版。
+  - Windows `Directory.Build.props`、Linux `VERSION`、Apple `MARKETING_VERSION`、Android `versionName`：0.2.0→0.2.1。
+  - Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode`：200→201。
+- 內容：ADR-045 的當掉保護。當掉時先讓場景離開 Explorer，寫 `host.log`，登入啟動遇到 render thread 失敗時隱藏重開一次。
+- 已安裝的 0.2.0 可以用 App 內更新升到 0.2.1。這是第一次在真實的 GitHub release 上走完 Windows 更新流程。
+- 發布準備：使用者 2026-10-14 授權 dispatch `windows-preview.yml`；Linux 與 macOS 的 0.2.1 這次不發。
+  Windows 更新說明留空（workflow 不帶摘要）。狀態：已備妥／待發布，結果見對話。
+
 ## 2026-10-14 Windows 登入啟動當掉與 Explorer 保護（ADR-045）
 
 使用者回報 GitHub 的 0.2.0 重開機後沒有自己啟動。查出它其實有啟動，但當掉了，而且拖住了 Explorer。

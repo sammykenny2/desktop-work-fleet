@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
-    Prove the sign-in crash recovery end to end with an isolated probe package.
+    Prove end to end that a sign-in crash leaves Explorer first, with an isolated probe package.
 .DESCRIPTION
     Takes the locally signed build/WorkFleet-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and installs a
     copy under the probe identity app.workfleet.crashprobe.e2e, signed with the same locally trusted certificate.
     crash-probe.txt in its data directory makes this identity (ADR-045; no other reads it) start as a sign-in launch and,
     once its desktop scenes are inside Explorer, fail the way the 0.2.0 sign-in launch did: a render-thread failure.
     Passes when the probe took every window out of Explorer before Windows reported the crash, Explorer kept answering
-    and reported no hang, and exactly one hidden instance reopened and stayed up. Then removes the probe package, its
-    data and its crash dump; host.log is kept under build/windows/crash-probe. The installed Work Fleet package, its data
-    and its certificate trust are never touched. The probe's empty desktop scenes exist briefly.
+    and reported no hang, and no instance reopened: the user turned the sign-in reopen off on 2026-10-14. Then removes
+    the probe package, its data and its crash dump; host.log is kept under build/windows/crash-probe. The installed Work
+    Fleet package, its data and its certificate trust are never touched. The probe's empty desktop scenes exist briefly.
 .PARAMETER PackagePath
     Signed MSIX to copy. Defaults to build/WorkFleet-VERSION-x64.msix.
 .PARAMETER SdkBin
@@ -40,24 +40,10 @@ Add-Type -Namespace WorkFleetProbe -Name Shell -MemberDefinition @'
 [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindowW(string className, string title);
 [DllImport("user32.dll")] public static extern IntPtr SendMessageTimeoutW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam, uint flags, uint timeout, out IntPtr result);
 [DllImport("user32.dll")] public static extern bool IsHungAppWindow(IntPtr window);
-public delegate bool EnumCallback(IntPtr window, IntPtr parameter);
-[DllImport("user32.dll")] public static extern bool EnumWindows(EnumCallback callback, IntPtr parameter);
-[DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
-[DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
-[DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetWindowTextW(IntPtr window, System.Text.StringBuilder text, int capacity);
 // SMTO_ABORTIFHUNG: a window whose thread is hung fails at once instead of after the timeout.
 public static bool Answers(string className) {
     var window = FindWindowW(className, null); IntPtr result;
     return window != IntPtr.Zero && SendMessageTimeoutW(window, 0, IntPtr.Zero, IntPtr.Zero, 0x2, 2000, out result) != IntPtr.Zero && !IsHungAppWindow(window);
-}
-public static bool MainVisible(uint process) {
-    var visible = false; var title = new System.Text.StringBuilder(64);
-    EnumWindows((window, _) => {
-        uint owner; GetWindowThreadProcessId(window, out owner);
-        if (owner == process && IsWindowVisible(window)) { title.Clear(); GetWindowTextW(window, title, title.Capacity); if (title.ToString() == "Work Fleet") visible = true; }
-        return true;
-    }, IntPtr.Zero);
-    return visible;
 }
 '@
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'; $SignTool = Find-SdkTool 'SignTool.exe'
@@ -112,32 +98,28 @@ try {
     $Detached = [int]$Matches[1]
     if ($Detached -lt 1) { throw "The probe had no scene inside Explorer when it failed:`n$Text" }
 
-    # While Windows reports the crash and the next instance waits for this one, Explorer must keep answering.
+    # While Windows reports the crash, Explorer must keep answering.
     $Checks = 0; $Unanswered = 0
     $Deadline = (Get-Date).AddMinutes(2)
     while ((Get-Date) -lt $Deadline) {
         $Checks++
         if (-not [WorkFleetProbe.Shell]::Answers('Progman') -or -not [WorkFleetProbe.Shell]::Answers('Shell_TrayWnd')) { $Unanswered++ }
-        if (-not (Get-Process -Id $FirstId -ErrorAction SilentlyContinue) -and (Read-Log) -match 'restarted=True') { break }
+        if (-not (Get-Process -Id $FirstId -ErrorAction SilentlyContinue)) { break }
         Start-Sleep -Milliseconds 250
     }
-    $Text = Read-Log
-    if ($Text -notmatch 'reopening hidden once') { throw "The probe did not reopen itself:`n$Text" }
-    if ($Text -notmatch 'start version=\S+ distribution=msix pid=(\d+) launchedAtLogin=True restarted=True') { throw "No reopened instance with the package identity and data:`n$Text" }
-    $SecondId = [int]$Matches[1]
-    if ($Text -notmatch 'reopened after render-thread; previous instance (exited|ended|gone)') { throw "The reopened instance did not wait for the old one:`n$Text" }
-    $Previous = $Matches[1]
+    if (Get-Process -Id $FirstId -ErrorAction SilentlyContinue) { throw "The failed probe $FirstId did not end within 2 minutes." }
 
-    Start-Sleep -Seconds 20
+    # The reopen is off: a failed sign-in launch stays gone, so the user can tell it failed.
+    Start-Sleep -Seconds 10
     $Text = Read-Log
+    if ($Text -match 'reopening hidden once|restarted=True') { throw "The probe reopened itself although the reopen is off:`n$Text" }
+    if (Test-Path -LiteralPath (Join-Path $Data 'restart.json')) { throw 'The probe left a restart marker although the reopen is off.' }
     $Running = @(Get-ProbeProcess)
-    if ($Running.Count -ne 1 -or $Running[0].Id -ne $SecondId) { throw "Expected only the reopened instance $SecondId to run; found $($Running.Id -join ', ')." }
-    if (([regex]::Matches($Text, 'fatal ')).Count -ne 1) { throw "The reopened instance failed again:`n$Text" }
-    if ([WorkFleetProbe.Shell]::MainVisible([uint32]$SecondId)) { throw 'The reopened instance showed its main window; a sign-in launch stays hidden.' }
+    if ($Running.Count -ne 0) { throw "Expected no probe instance after the failure; found $($Running.Id -join ', ')." }
     $Hangs = @(Get-WinEvent -FilterHashtable @{ LogName = 'Application'; ProviderName = 'Windows Error Reporting'; StartTime = $Started } -ErrorAction SilentlyContinue |
         Where-Object { $_.Message -match 'AppHang' -and $_.Message -match 'explorer\.exe' })
     if ($Unanswered -gt 0 -or $Hangs.Count -gt 0) { throw "Explorer stopped answering $Unanswered of $Checks checks and reported $($Hangs.Count) hangs during the crash." }
-    Write-Output "PASS sign-in crash recovery: $Detached scene windows left Explorer before the report, Explorer answered $Checks checks, previous instance $Previous, one hidden instance reopened"
+    Write-Output "PASS sign-in crash: $Detached scene windows left Explorer before the report, Explorer answered $Checks checks, no instance reopened"
 } finally {
     if ($Log -and (Test-Path -LiteralPath $Log)) { Copy-Item -LiteralPath $Log -Destination (Join-Path $Work 'host.log') -Force }
     Remove-Probe

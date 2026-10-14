@@ -39,6 +39,13 @@ public sealed class DesktopCoordinator : IDisposable
   // ADR-045: host.log times display changes against fatal errors; a sign-in topology change killed the renderer.
   private readonly Action<string>? note;
   private string? notedDisplays;
+  // ADR-046: a sign-in launch keeps its scenes out of Explorer until the displays settle.
+  private bool holding;
+  private readonly Func<BuiltInDisplays>? builtInOverride;
+  private readonly DateTime created = DateTime.UtcNow;
+  private DateTime? displaysChangedAt;
+  private string? holdReason;
+  private DispatcherTimer? holdTimer;
   private readonly NativeDisplayWatcher displayWatcher;
   private readonly DispatcherTimer shellWatcher;
   private NativeShellLayers shell;
@@ -71,10 +78,11 @@ public sealed class DesktopCoordinator : IDisposable
   }
 
   public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Action showMain, Action<string> openExternal,
-    IReadOnlyList<DisplayInfo>? displayOverride = null, Window? mainWindow = null, Func<bool>? hideMain = null, Action<string>? note = null)
+    IReadOnlyList<DisplayInfo>? displayOverride = null, Window? mainWindow = null, Func<bool>? hideMain = null, Action<string>? note = null,
+    bool holdAtSignIn = false, Func<BuiltInDisplays>? builtInOverride = null)
   {
     this.environment = environment; this.sendOwner = sendOwner; this.showMain = showMain; this.openExternal = openExternal;
-    this.hideMain = hideMain; this.mainWindow = mainWindow; this.note = note;
+    this.hideMain = hideMain; this.mainWindow = mainWindow; this.note = note; holding = holdAtSignIn; this.builtInOverride = builtInOverride;
     displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = displays.First(d => d.Primary).Dpi / 96d;
     NoteDisplays("displays at start", displays);
     shell = NativeShellLayers.Discover();
@@ -85,6 +93,7 @@ public sealed class DesktopCoordinator : IDisposable
       if (displayError) return; displayError = true; note?.Invoke("displays unreadable; retrying");
       sendOwner(new { v = 1, @event = "desktop-error", message = "目前無法讀取顯示器，已保留資料及編輯文字；正在重試。" });
     });
+    displayWatcher.LidChanged += Release;
     shellWatcher = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
     shellWatcher.Tick += CheckShell; shellWatcher.Start();
     if (mainWindow is not null) activity.Watch(mainWindow);
@@ -148,15 +157,16 @@ public sealed class DesktopCoordinator : IDisposable
     if (!disposed && started && !displayPending && (shell.Changed
       || views.Any(v => !v.Retired && v.Initialized && !v.Surface.NativeAlive))) displayWatcher.Refresh();
   }
-  private void NoteDisplays(string label, IReadOnlyList<DisplayInfo> values)
+  private bool NoteDisplays(string label, IReadOnlyList<DisplayInfo> values)
   {
     var text = NativeDisplays.Describe(values);
-    if (text != notedDisplays) { notedDisplays = text; note?.Invoke($"{label} {text}"); }
+    if (text == notedDisplays) return false;
+    notedDisplays = text; note?.Invoke($"{label} {text}"); return true;
   }
   private void ProposeDisplays(IReadOnlyList<DisplayInfo> next)
   {
     if (disposed) return; proposedDisplays = next; proposedTopology++; displayError = false;
-    NoteDisplays($"displays changed topology={proposedTopology}", next);
+    if (NoteDisplays($"displays changed topology={proposedTopology}", next)) displaysChangedAt = DateTime.UtcNow;
     if (started) sendOwner(new { v = 1, @event = "desktop-displays", topology = proposedTopology, workAreas = WorkAreas(next) });
   }
   private object ApplyDisplays(JsonElement args)
@@ -324,12 +334,39 @@ public sealed class DesktopCoordinator : IDisposable
 
   private async Task Start()
   {
+    if (Held()) return;
     foreach (var view in views.Where(v => v.Active && !v.Retired && !v.Initialized).ToArray())
     {
       if (disposed) return;
       try { await Initialize(view); }
       catch { Retire(view, "桌面視窗未能啟動，已保存資料仍保留於主畫面。"); }
     }
+  }
+  // ADR-046: no scene window exists while held, so a display change cannot reach one inside Explorer.
+  private bool Held()
+  {
+    if (!holding || disposed) return false;
+    BuiltInDisplays state;
+    try { state = builtInOverride?.Invoke() ?? NativeDisplays.ReadBuiltIn(displayWatcher.LidClosed); }
+    catch (InvalidOperationException) { state = new(displayWatcher.LidClosed, false, false); }
+    var now = DateTime.UtcNow; var hold = SignInDisplays.Check(state.LidClosed, state.BuiltInOn, state.OtherOn, now - displaysChangedAt, now - created);
+    if (hold.Waiting)
+    {
+      if (hold.Reason != holdReason) { holdReason = hold.Reason; note?.Invoke($"scenes waiting: {hold.Reason}"); }
+      if (holdTimer is null)
+      {
+        holdTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
+        holdTimer.Tick += (_, _) => Release(); holdTimer.Start();
+      }
+      return true;
+    }
+    holding = false; holdTimer?.Stop();
+    note?.Invoke(FormattableString.Invariant($"scenes attaching after {(now - created).TotalSeconds:0.0}s") + (hold.Expired ? $" although {hold.Reason}" : ""));
+    return false;
+  }
+  private void Release()
+  {
+    if (holding && started && !disposed && !Held()) _ = Start();
   }
   private async Task Initialize(SceneView view)
   {
@@ -553,7 +590,7 @@ public sealed class DesktopCoordinator : IDisposable
   public void Dispose()
   {
     if (disposed) return; disposed = true;
-    displayWatcher.Dispose(); activity.Dispose(); shortcuts.Dispose();
+    holdTimer?.Stop(); displayWatcher.LidChanged -= Release; displayWatcher.Dispose(); activity.Dispose(); shortcuts.Dispose();
     shellWatcher.Stop(); shellWatcher.Tick -= CheckShell;
     foreach (var view in views) view.Surface.Dispose(); transfers.Dispose(); commands.Clear(); flushes.Clear(); frozen.Clear(); sceneIntents.Clear();
   }

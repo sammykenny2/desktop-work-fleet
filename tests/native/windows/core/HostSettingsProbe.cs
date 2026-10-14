@@ -48,6 +48,25 @@ internal static class HostSettingsProbe
       Require(HostPreferences.Parse(Encoding.UTF8.GetBytes(damaged)).StartAtLogin, $"damaged preferences keep defaults: {damaged}");
     Require(HostIdentity.BuildVersion() is { Length: > 0 } version && !version.Contains('+'), "build version without commit suffix");
     count += Recovery(Path.Combine(root, "host-recovery"));
+    count += SignInHold();
+    return count;
+  }
+  /// <summary>ADR-046: when a sign-in launch keeps its scenes out of Explorer.</summary>
+  private static int SignInHold()
+  {
+    var count = 0;
+    void Expect(SceneHold actual, string? reason, bool waiting, string message)
+    { if (actual.Reason != reason || actual.Waiting != waiting) throw new Exception($"{message}: {actual}"); count++; }
+    var start = TimeSpan.FromSeconds(2); var quiet = SignInDisplays.Quiet; var limit = SignInDisplays.Limit;
+    Expect(SignInDisplays.Check(true, true, true, null, start), SignInDisplays.LidClosedReason, true, "the 2026-10-14 sign-in: closed lid, panel on next to the external display");
+    Expect(SignInDisplays.Check(true, false, true, null, start), null, false, "panel turned off: attach");
+    Expect(SignInDisplays.Check(true, false, true, TimeSpan.FromSeconds(1), start), SignInDisplays.ChangedReason, true, "just after the panel turned off: wait for quiet");
+    Expect(SignInDisplays.Check(true, false, true, quiet, start + quiet), null, false, "quiet period over: attach");
+    Expect(SignInDisplays.Check(false, true, true, null, start), null, false, "lid open: both displays stay");
+    Expect(SignInDisplays.Check(null, true, true, null, start), null, false, "no lid reported: never wait for one");
+    Expect(SignInDisplays.Check(true, true, false, null, start), null, false, "closed laptop with nothing else: its panel stays");
+    Expect(SignInDisplays.Check(true, true, true, null, limit), SignInDisplays.LidClosedReason, false, "limit reached: attach although the panel is on");
+    Expect(SignInDisplays.Check(false, false, true, TimeSpan.Zero, limit + start), SignInDisplays.ChangedReason, false, "limit reached during a change: attach");
     return count;
   }
   /// <summary>ADR-045 files: host.log entries and rotation, the HRESULT chain, and the restart marker taken once.</summary>

@@ -24,6 +24,16 @@ internal static class PlatformProbe
     if (described != @"2 display(s): \\.\DISPLAY1 primary 0,0 1920x1080 dpi=120; \\.\DISPLAY2 -3840,-120 3840x2160 dpi=144")
       throw new Exception("Display inventory log line changed: " + described);
     Console.WriteLine("PASS display inventory log line");
+    // ADR-046: connections of the active targets. The values depend on the machine; a clone shows several targets as one monitor.
+    var builtIn = NativeDisplays.ReadBuiltIn(null);
+    if (!builtIn.BuiltInOn && !builtIn.OtherOn) throw new Exception("No active display target found.");
+    Console.WriteLine($"PASS display connections: built-in panel {(builtIn.BuiltInOn ? "on" : "off")}, other display {(builtIn.OtherOn ? "on" : "off")}");
+    // Windows answers the lid registration with the current state; a machine without a lid answers nothing.
+    using (var watcher = new NativeDisplayWatcher(NativeDisplays.Read, () => { }, _ => { }, () => { }))
+    {
+      for (var waited = 0; watcher.LidClosed is null && waited < 20; waited++) await Task.Delay(100);
+      Console.WriteLine($"PASS lid state read: {watcher.LidClosed switch { true => "closed", false => "open", null => "not reported" }}");
+    }
     foreach (var key in new[] { "Meta+1", "Ctrl+F12", "Alt+F4" })
       if (NativeShortcuts.Parse(key, out _, out _) != "reserved") throw new Exception("Reserved key accepted");
     foreach (var key in new[] { "Ctrl+C", "Ctrl+Shift+Z", "Ctrl+A" })

@@ -454,14 +454,25 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
   - 之後的例外只記成 nested。
 - 交給 Windows 與重開只記錄、不實際執行。
 - 另外驗證重開政策，以及等待舊程序：結束、逾時強制結束、PID 被重用時不動。
+- 這個 probe 直接開啟重開來驗證機制；App 本身自 2026-10-14 起停用重開（ADR-045 修訂）。
 - 核心 probe 驗證 `host.log` 格式與轉存，以及標記只能取一次、過期與損壞時丟棄。
+
+接著執行 `--sign-in-hold OUTPUT_DIRECTORY`（[ADR-046](decisions/046-windows-sign-in-scenes-wait-for-settled-displays.md)）：
+- 以登入啟動的身分開啟主畫面（隱藏），注入「上蓋合著、內建螢幕開著、還有其他螢幕」的狀態。
+- 檢查三件事：
+  - 等待期間沒有任何場景視窗，`host.log` 記下 `scenes waiting`。
+  - 改成內建螢幕關掉後，所有場景都建立視窗。
+  - `host.log` 記下 `scenes attaching after`，而且不是因為到達上限。
+- 核心 probe 以表格驗證判斷規則：合蓋與內建螢幕、沒有上蓋狀態、只有內建螢幕、5 秒靜止、3 分鐘上限。
+- `--platform` 讀出這台電腦作用中螢幕的連接方式與上蓋狀態，只檢查讀得到、不檢查值。
+- 真實登入時的螢幕切換只能重開機驗證，看 `host.log` 的 `scenes waiting` 與 `scenes attaching after`。
 
 MSIX 端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsRecovery.ps1`。
 - 安裝 `app.workfleet.crashprobe.e2e` 測試身分，讓它以登入啟動的身分在場景進入 Explorer 後丟出同一個錯誤。
 - 檢查四件事：
   - 場景視窗在 Windows 寫報告前全部離開 Explorer。
   - 期間 `Progman` 與 `Shell_TrayWnd` 一直有回應，也沒有 Explorer hang 報告。
-  - 重開的實例帶套件身分、使用同一份資料、隱藏，並在等舊程序結束後撐過 20 秒。
+  - 沒有重開：沒有新實例、沒有 `restart.json`、`host.log` 沒有重開紀錄。
   - 測試最後移除測試套件與它的 dump，`host.log` 留在 `build/windows/crash-probe/`。
 - 不碰已安裝的 Work Fleet。
 - 沒有反向驗證「不拆離時 Explorer 會卡住」，因為那會凍結使用者的 Explorer。

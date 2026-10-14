@@ -63,6 +63,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows startup settings and main window placement probe failed.' }
     & $UiProbe --crash-guard (Join-Path $ProbeRoot 'crash-guard')
     if ($LASTEXITCODE -ne 0) { throw 'Windows fatal-error guard probe failed.' }
+    & $UiProbe --sign-in-hold (Join-Path $ProbeRoot 'sign-in-hold')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows sign-in scene hold probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

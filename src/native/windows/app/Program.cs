@@ -22,7 +22,9 @@ public static class Program
       var previous = restart is null ? null : CrashGuard.AwaitPrevious(restart, TimeSpan.FromSeconds(60));
       var probe = restart is null && CrashGuard.ProbeRequested(directory);
       var signIn = launchedAtLogin || restart is not null || probe;
-      guard = new CrashGuard(directory, signIn, restart is not null, AppDataDirectory.Packaged);
+      // ADR-045 amended 2026-10-14: the user turned the sign-in reopen off for now, so a failed sign-in launch stays visible
+      // as a missing Work Fleet. A marker left by an earlier version is still taken above.
+      guard = new CrashGuard(directory, signIn, restart is not null, canReopen: false);
       guard.Install(application, HostShell.Distribution());
       if (restart is not null) guard.Note($"reopened after {restart.Reason}; previous instance {previous}");
       // A running Work Fleet on the same data shows its main window instead of this one failing on the owner lock.

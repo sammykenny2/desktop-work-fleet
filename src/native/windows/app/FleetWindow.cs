@@ -25,6 +25,7 @@ public sealed class FleetWindow : Window
   private DesktopCoordinator? desktop;
   private NativeTray? tray;
   private readonly IReadOnlyList<DisplayInfo>? desktopDisplays;
+  private readonly Func<BuiltInDisplays>? desktopBuiltIn;
   private readonly HostShell? shell;
   private readonly MainWindowPlacement? placement;
   private readonly NativeUpdater? updater;
@@ -41,13 +42,14 @@ public sealed class FleetWindow : Window
   public WebView2 WebView => web;
   public DesktopCoordinator? Desktop => desktop;
 
-  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null, IReadOnlyList<DisplayInfo>? desktopDisplays = null, HostShell? shell = null)
+  public FleetWindow(string dataDirectory, Func<string?>? backupDirectoryPicker = null, IReadOnlyList<DisplayInfo>? desktopDisplays = null, HostShell? shell = null,
+    Func<BuiltInDisplays>? desktopBuiltIn = null)
   {
     this.dataDirectory = Path.GetFullPath(dataDirectory);
     // Reject a bad Debug port before the database takes the single-owner lock.
     webViewOptions = WebViewDiagnostics.EnvironmentOptions();
     this.backupDirectoryPicker = backupDirectoryPicker;
-    this.desktopDisplays = desktopDisplays;
+    this.desktopDisplays = desktopDisplays; this.desktopBuiltIn = desktopBuiltIn;
     var selected = Path.Combine(this.dataDirectory, "profile.txt");
     var profile = File.Exists(selected) ? File.ReadAllText(selected).Trim() : "local";
     if (profile != "local" && !System.Text.RegularExpressions.Regex.IsMatch(profile, "^google:[A-Za-z0-9_-]{1,255}$")) profile = "local";
@@ -163,7 +165,7 @@ public sealed class FleetWindow : Window
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
       }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
-        text => HostLog.Append(dataDirectory, DateTimeOffset.Now, text));
+        text => HostLog.Append(dataDirectory, DateTimeOffset.Now, text), holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true });
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);

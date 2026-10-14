@@ -6,6 +6,10 @@ Accepted，2026-10-14。使用者回報 0.2.0 重開機後沒有自己啟動；�
 「他會引發 explorer 當掉的話，這專案也不用 go 下去了。三件事情你都做吧，我們再來抓問題。」
 三件事是錯誤紀錄、登入啟動當掉時重開一次、本機 Windows Error Reporting 完整 dump。
 
+2026-10-14 修訂：使用者要求「先幫我把自動重啟一次的功能關閉，這樣我才能知道到底有沒有crash過」。
+重開機制保留但停用：`Program` 一律傳 `canReopen: false`，登入啟動當掉後不再重開，系統匣與桌面上就看得出來。
+同時以 [ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) 讓登入啟動等螢幕穩定後才掛場景。
+
 ## Context
 
 - 2026-10-14 14:09 重開機。`WorkFleetStartup` StartupTask 為已啟用；14:11:29 Windows 以 StartupTask 啟動 0.2.0
@@ -42,7 +46,7 @@ Accepted，2026-10-14。使用者回報 0.2.0 重開機後沒有自己啟動；�
     實體位置與大小、DPI；不記螢幕型號與工作區。用來對照螢幕變化和致命錯誤發生的時間。
 - 不記錄便箋內容。檔案達 256 KiB 時轉存為 `host.log.1`。寫入失敗不影響 App。
 
-### 登入啟動重開一次
+### 登入啟動重開一次（2026-10-14 起停用）
 
 - 只在四個條件都成立時重開：MSIX、登入啟動、這次不是重開出來的實例、錯誤鏈含 0x88980406。
   寫入 `restart.json`（PID、時間、原因）後，以 `explorer.exe shell:AppsFolder\<PFN>!WorkFleet` 啟動新實例，再交給 Windows。
@@ -64,7 +68,8 @@ Accepted，2026-10-14。使用者回報 0.2.0 重開機後沒有自己啟動；�
 - 當掉不再讓 Explorer 跟著卡住。MSIX 端到端測試中，4 個場景視窗在 Windows 寫 dump 前就離開 Explorer，
   Explorer 全程有回應，也沒有 hang 報告。
 - 下次登入時再當掉，會留下 `host.log`，有設定 LocalDumps 時還有 dump。
-- 登入啟動因 render thread 失敗時，使用者仍會得到一個隱藏在系統匣的 Work Fleet。
+- 重開啟用時，登入啟動因 render thread 失敗，使用者仍會得到一個隱藏在系統匣的 Work Fleet。
+  停用後（目前），失敗的登入啟動不會留下 Work Fleet，使用者看得出來它當掉了。
 
 ### Negative
 

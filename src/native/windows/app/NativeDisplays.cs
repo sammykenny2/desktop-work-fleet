@@ -4,6 +4,8 @@ namespace WorkFleet.Windows;
 
 public sealed record PhysicalBounds(int X, int Y, int Width, int Height);
 public sealed record DisplayInfo(string Id, bool Primary, PhysicalBounds Bounds, PhysicalBounds WorkArea, uint Dpi);
+/// <summary>ADR-046 inputs: the lid state (null without one) and whether a built-in panel and any other display are on.</summary>
+public sealed record BuiltInDisplays(bool? LidClosed, bool BuiltInOn, bool OtherOn);
 
 /// <summary>Physical monitor inventory. Consumers explicitly map these pixels into their logical scene coordinate space.</summary>
 public static class NativeDisplays
@@ -56,6 +58,25 @@ public static class NativeDisplays
     if (!succeeded || values.Count == 0) throw new InvalidOperationException("No usable displays.");
     return Validate(values);
   }
+  /// <summary>Active display targets by connection: a laptop's own panel (internal, LVDS, embedded DisplayPort or UDI) or anything else.</summary>
+  public static BuiltInDisplays ReadBuiltIn(bool? lidClosed)
+  {
+    for (var attempt = 0; attempt < 3; attempt++)
+    {
+      var status = GetDisplayConfigBufferSizes(2, out var pathCount, out var modeCount); // QDC_ONLY_ACTIVE_PATHS
+      if (status != 0) throw new InvalidOperationException($"Unable to size the display configuration ({status}).");
+      var paths = new PathInfo[pathCount]; var modes = new ModeInfo[modeCount];
+      status = QueryDisplayConfig(2, ref pathCount, paths, ref modeCount, modes, IntPtr.Zero);
+      if (status == 122) continue; // ERROR_INSUFFICIENT_BUFFER: the topology changed between the two calls.
+      if (status != 0) throw new InvalidOperationException($"Unable to read the display configuration ({status}).");
+      // A cloned target has several paths; count each target once.
+      var targets = paths.Take((int)pathCount).Where(p => (p.Flags & 1) != 0)
+        .GroupBy(p => (p.TargetAdapterLow, p.TargetAdapterHigh, p.TargetId)).Select(g => g.First().OutputTechnology).ToArray();
+      static bool BuiltIn(uint technology) => technology is 0x80000000 or 6 or 11 or 13;
+      return new(lidClosed, targets.Any(BuiltIn), targets.Any(t => !BuiltIn(t)));
+    }
+    throw new InvalidOperationException("The display configuration kept changing.");
+  }
   private static PhysicalBounds Bounds(NativeRect r)
   {
     if (r.Right <= r.Left || r.Bottom <= r.Top) throw new InvalidOperationException("Invalid display bounds.");
@@ -65,6 +86,16 @@ public static class NativeDisplays
   [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] private struct MonitorInfo
   { public int Size; public NativeRect Monitor, Work; public uint Flags; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string Device; }
   private delegate bool MonitorCallback(IntPtr monitor, IntPtr dc, ref NativeRect rect, IntPtr data);
+  // DISPLAYCONFIG_PATH_INFO (72 bytes): source info, then target adapter LUID, id, mode index, output technology, ...
+  [StructLayout(LayoutKind.Explicit, Size = 72)] private struct PathInfo
+  {
+    [FieldOffset(20)] public uint TargetAdapterLow; [FieldOffset(24)] public int TargetAdapterHigh; [FieldOffset(28)] public uint TargetId;
+    [FieldOffset(36)] public uint OutputTechnology; [FieldOffset(68)] public uint Flags;
+  }
+  [StructLayout(LayoutKind.Sequential, Size = 64)] private struct ModeInfo { public uint InfoType; }
+  [DllImport("user32.dll")] private static extern int GetDisplayConfigBufferSizes(uint flags, out uint pathCount, out uint modeCount);
+  [DllImport("user32.dll")] private static extern int QueryDisplayConfig(uint flags, ref uint pathCount, [Out] PathInfo[] paths,
+    ref uint modeCount, [Out] ModeInfo[] modes, IntPtr currentTopology);
   [DllImport("user32.dll")] private static extern bool EnumDisplayMonitors(IntPtr dc, IntPtr clip, MonitorCallback callback, IntPtr data);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool GetMonitorInfoW(IntPtr monitor, ref MonitorInfo info);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr CreateWindowExW(uint extended, string className, string title, uint style,

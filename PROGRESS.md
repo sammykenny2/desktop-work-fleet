@@ -2,6 +2,35 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 Windows 登入啟動等螢幕穩定再掛場景（ADR-046），停用自動重開
+
+使用者裝 0.2.2 後重開機（23:00）。Explorer 沒有被卡住；Work Fleet 又在登入時當掉，並隱藏重開成功。
+`host.log` 的螢幕紀錄：登入後約 60 秒啟動時有兩台螢幕（合著的內建螢幕是主螢幕），約 75 秒時 Windows 關掉內建螢幕，
+Work Fleet 開始套用新版面約 1 秒後 render thread 失敗。與 0.2.1 那次相同。
+使用者指示：「先做登入時等螢幕穩定再掛場景的修正，還有，先幫我把自動重啟一次的功能關閉，這樣我才能知道到底有沒有crash過。」
+這次不升版、不發布。
+
+- 登入啟動等螢幕穩定（ADR-046）：
+  - 核心 `SignInDisplays`：上蓋合著、內建螢幕仍開著、另外還有其他螢幕時等待；螢幕清單變過後等 5 秒靜止；最多 3 分鐘。
+  - `NativeDisplays.ReadBuiltIn` 以 `QueryDisplayConfig` 讀作用中目標的連接方式；`NativeDisplayWatcher` 註冊上蓋狀態通知。
+  - `DesktopCoordinator` 只在登入啟動時延後 `Start()`。等待期間場景不建立視窗；`host.log` 記錄 `scenes waiting` 與 `scenes attaching after`。
+- 停用自動重開（ADR-045 修訂）：`Program` 傳 `canReopen: false`。機制保留，舊的 `restart.json` 仍會被取走。
+  `Test-WindowsRecovery.ps1` 改為檢查沒有重開。
+- 測試：
+  - core probe 通過（host settings 60/60，含 9 條判斷規則）。
+  - `--platform` 通過：這台電腦讀到內建螢幕關、其他螢幕開，上蓋合著，與實際相符。
+  - 新的 `--sign-in-hold` 通過：等待期間 3 個場景都沒有視窗，內建螢幕一關就全部建立。
+  - `--diagnostics`、`--host-shell`、`--crash-guard` 通過。`Test-WindowsNative.ps1` 在 formation 之前的步驟都通過；
+    formation 仍是先前記錄的前景檢查失敗。
+  - `Test-WindowsRecovery.ps1`（本機簽章的 0.2.2 MSIX）通過：4 個場景視窗在報告前離開 Explorer，Explorer 35 次檢查都有回應，
+    沒有重開；測試身分的 `host.log` 記到 `scenes attaching after 0.6s`。
+  - JS／Python 這次沒有在本機重跑（只改 C#、PowerShell 與文件），以 CI 為準。
+- 未完成：
+  - 真實登入的驗證要發新版並重開機；已安裝的 0.2.2 沒有這次的修改。
+  - 等待期間主畫面仍以看不到的位置顯示。如果之後在 `scenes waiting` 期間仍當掉，代表原因不在場景掛在 Explorer 上。
+  - 縮放異常的對照（關掉自啟動重開機一次）與 formation 的前景檢查失敗都還沒做。
+  - 沒有獨立審閱。
+
 ## 2026-10-14 macOS 0.2.2 啟動時找不到 Sparkle：runpath 修正
 
 使用者回報 GitHub 0.2.2（202）安裝版在 dyld 階段退出：`@rpath/Sparkle.framework/Versions/B/Sparkle`、`no LC_RPATH's found`。

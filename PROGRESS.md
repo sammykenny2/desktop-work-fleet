@@ -2,6 +2,24 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 共用版號 0.2.3 與 Windows、Linux、macOS 預覽版
+
+使用者核准 0.2.3，並要求發布 Windows、Linux、macOS 三個平台的預覽版。
+
+- 版號：依共用版號規則，五個平台一起升版。
+  - Windows `Directory.Build.props`、Linux `VERSION`、Apple `MARKETING_VERSION`、Android `versionName`：0.2.2→0.2.3。
+  - Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode`：202→203。iOS 與 Android 這次不發。
+- Windows（相對 `windows-v0.2.2`）：
+  - 登入啟動等螢幕穩定後才把場景掛進 Explorer（ADR-046）。
+  - 停用登入當掉後的自動重開（ADR-045 修訂）。
+  - 已安裝的 0.2.2 可以用 App 內更新升到 0.2.3。
+- Linux：與 0.2.2 相同的 Linux 程式，只有版號不同。已安裝的 DEB 可以用 App 內更新升級。
+- macOS（相對 `macos-v0.2.2`）：主程式加入 Sparkle 所需的 runpath，修正 0.2.2 一啟動就退出。
+  0.2.2 啟動不了，沒辦法用 Sparkle 更新，要手動用 0.2.3 的 DMG 安裝。
+- 本機檢查：升版前同一份程式碼的結果記在下兩段（Windows 與 macOS）；升版只改版號紀錄。
+- 發布準備：使用者 2026-10-14 授權 dispatch `windows-preview.yml`、`linux-release.yml`、`macos-release.yml`；三個 0.2.3 tag 都還不存在。
+  更新說明留空（workflow 不帶摘要）。狀態：已備妥／待發布，結果見對話。
+
 ## 2026-10-14 Windows 登入啟動等螢幕穩定再掛場景（ADR-046），停用自動重開
 
 使用者裝 0.2.2 後重開機（23:00）。Explorer 沒有被卡住；Work Fleet 又在登入時當掉，並隱藏重開成功。

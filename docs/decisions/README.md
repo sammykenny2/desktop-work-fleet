@@ -35,6 +35,7 @@
 | [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted（資料生命週期與覆蓋） | MSIX 解除安裝清除本機資料；完整備份、安全備份與可續行的 Google 全量覆蓋 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 | [ADR-038](038-portable-local-and-cloud-backup-flows.md) | Accepted（雙向備份遷移） | 同格式 ZIP、本機原子完整還原與 Google 同步後匯出；失敗副本需明確選擇 |
+| [ADR-045](045-windows-fatal-error-leaves-explorer-first.md) | Accepted（Windows 致命錯誤） | 當掉時先把場景視窗移出 Explorer 再交給 WER；`host.log` 紀錄；登入啟動 render thread 失敗時隱藏重開一次 |
 | [ADR-044](044-desktop-in-app-updates-from-github-releases.md) | Accepted（App 內更新） | 公開 GitHub Releases 依平台 tag 篩選、manifest／SHA-256、MSIX／Sparkle／DEB 安裝前保存並結束 |
 | [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted（主視窗與啟動） | 主機層級的主視窗位置／大小記憶、登入啟動預設開啟、系統狀態優先、Windows 第二次啟動喚起 |
 | [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted（調整模式） | 所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |

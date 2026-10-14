@@ -27,8 +27,9 @@ internal static class Program
     var formation = args.Length == 2 && args[0] == "--formation";
     var platform = args.Length == 1 && args[0] == "--platform";
     var hostShell = args.Length == 2 && args[0] == "--host-shell";
-    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
+    var crashGuard = args.Length == 2 && args[0] == "--crash-guard";
+    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && args.Length != 1)
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -43,6 +44,7 @@ internal static class Program
         else if (diagnostics) await DiagnosticsProbe.Run(Path.GetFullPath(args[1]));
         else if (formation) await DesktopFormationProbe.Run(Path.GetFullPath(args[1]));
         else if (hostShell) await HostShellProbe.Run(Path.GetFullPath(args[1]));
+        else if (crashGuard) await CrashGuardProbe.Run(Path.GetFullPath(args[1]));
         else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
         app.Shutdown(0);
       }

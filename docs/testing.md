@@ -429,6 +429,42 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 每個資料目錄的 pipe 喚起既有實例。核心 probe 以 `tests/fixtures/window-placement.json` 驗證與 Linux／macOS 共用的位置規則。
 登入時啟動、隱藏啟動與 StartupTask 只能以安裝後的 MSIX 由使用者登出再登入驗證；混合 DPI 需要真多顯示器。
 
+最後執行 `--crash-guard OUTPUT_DIRECTORY`（[ADR-045](decisions/045-windows-fatal-error-leaves-explorer-first.md)）：
+- 場景以跨程序子視窗掛在 Explorer 式宿主上，再在 dispatcher 丟出 `UCEERR_RENDERTHREADFAILURE`。
+- 檢查四件事：
+  - 兩個場景視窗都變成隱藏的頂層視窗。
+  - `host.log` 先記下 HRESULT 與拆離數量，之後才記錄重開。
+  - `restart.json` 指向本程序。
+  - 之後的例外只記成 nested。
+- 交給 Windows 與重開只記錄、不實際執行。
+- 另外驗證重開政策，以及等待舊程序：結束、逾時強制結束、PID 被重用時不動。
+- 核心 probe 驗證 `host.log` 格式與轉存，以及標記只能取一次、過期與損壞時丟棄。
+
+MSIX 端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsRecovery.ps1`。
+- 安裝 `app.workfleet.crashprobe.e2e` 測試身分，讓它以登入啟動的身分在場景進入 Explorer 後丟出同一個錯誤。
+- 檢查四件事：
+  - 場景視窗在 Windows 寫報告前全部離開 Explorer。
+  - 期間 `Progman` 與 `Shell_TrayWnd` 一直有回應，也沒有 Explorer hang 報告。
+  - 重開的實例帶套件身分、使用同一份資料、隱藏，並在等舊程序結束後撐過 20 秒。
+  - 測試最後移除測試套件與它的 dump，`host.log` 留在 `build/windows/crash-probe/`。
+- 不碰已安裝的 Work Fleet。
+- 沒有反向驗證「不拆離時 Explorer 會卡住」，因為那會凍結使用者的 Explorer。
+- 真實登入時的 render thread 失敗，只能裝新版後重開機觀察 `host.log`。
+
+查登入當掉時，可在本機開啟 Windows Error Reporting 的完整 dump（需系統管理員，App 不會自己設定）：
+
+```powershell
+$k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\WorkFleet.exe'
+New-Item -Path $k -Force | Out-Null
+New-ItemProperty -Path $k -Name DumpFolder -PropertyType ExpandString -Value '%LOCALAPPDATA%\CrashDumps' -Force | Out-Null
+New-ItemProperty -Path $k -Name DumpType -PropertyType DWord -Value 2 -Force | Out-Null
+New-ItemProperty -Path $k -Name DumpCount -PropertyType DWord -Value 5 -Force | Out-Null
+```
+
+- dump 寫在 `%LOCALAPPDATA%\CrashDumps\WorkFleet.exe.<PID>.dmp`，每個約 1 GB，最多保留 5 個。
+- 不需要時，刪除 `LocalDumps\WorkFleet.exe` 機碼即可。
+- 安裝版的紀錄在 `%LOCALAPPDATA%\Packages\app.workfleet.preview_<id>\LocalCache\Local\WorkFleet\host.log`。
+
 App 內更新（ADR-044）：core probe 以 `tests/fixtures/update-feed.json` 驗證 release 篩選、版本比較、`work-fleet-update.json` 與 MSIX 身分檢查。
 `Test-WindowsUpdate.ps1` 在 `Build-WindowsPackage.ps1 -LocalTestSign` 之後執行：把 MSIX 改成 `app.workfleet.updateprobe.e2e` 的兩個版本、
 以同一張本機憑證簽章，安裝舊版並給它本機測試來源，確認它自行下載、核對、保存並關閉後由 Windows 換成新版，最後移除測試套件。

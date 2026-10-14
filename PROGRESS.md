@@ -2,6 +2,42 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 Windows 登入啟動當掉與 Explorer 保護（ADR-045）
+
+使用者回報 GitHub 的 0.2.0 重開機後沒有自己啟動。查出它其實有啟動，但當掉了，而且拖住了 Explorer。
+使用者指示先做三件事（錯誤紀錄、登入啟動當掉時重開一次、本機完整 dump），再一起查原因。這次不升版、不發布。
+
+- 調查：
+  - StartupTask 為已啟用；14:11:29 Windows 以 StartupTask 啟動 0.2.0，14:12:13 因 WPF `UCEERR_RENDERTHREADFAILURE`（0x88980406）結束。
+  - 場景是 Explorer 的跨程序子視窗，WER 寫報告期間 Explorer 被卡住（AppHangXProcB1），14:12:39 Explorer 被重新啟動。
+  - 手動啟動跑 150 秒、Debug 模擬登入啟動（隱藏，加一張桌面便箋）跑 65 秒都正常；原因未知。
+- `CrashGuard`（app）：
+  - 發生致命錯誤時，先把本程序放在其他程序視窗裡的視窗隱藏、改成頂層視窗，並確認一個都沒剩；之後才記錄並以 `FailFast` 交給 WER。
+  - 拆不乾淨時直接結束程序，不產生報告。
+  - 登入啟動的 render thread 失敗會留下 `restart.json`，並經 shell 重開一次。
+  - 新實例取走標記、等舊程序結束（最多 60 秒），以隱藏方式開啟，而且不會再重開。
+- `HostLog`／`RestartMarker`（core）：
+  - 資料目錄的 `host.log` 記錄啟動、交給執行中實例、啟動失敗、結束、致命錯誤與每層 HRESULT；達 256 KiB 時轉存。
+  - 標記先改名再讀，所以只有一個實例拿得到；2 分鐘後過期。
+- 測試身分：`app.workfleet.crashprobe.` 身分加上 `crash-probe.txt` 時，App 模擬登入啟動並丟出 0x88980406，供 `Test-WindowsRecovery.ps1` 使用。
+- 使用者這台電腦已經由 UAC 設定 LocalDumps 完整 dump（HKLM），設定方法記在 testing.md。
+- 測試：
+  - core probe 通過（host settings 51/51，含紀錄與標記的新檢查）；`--crash-guard` probe 通過。
+  - `Test-WindowsRecovery.ps1`（本機簽章的 0.2.0 MSIX）通過：
+    - 4 個場景視窗在 Windows 寫報告前就離開 Explorer。
+    - Explorer 50 次檢查都有回應，沒有 hang 報告。
+    - WER 寫出 1016 MB dump 後舊程序結束；隱藏的新實例帶套件身分、用同一份資料啟動，並撐過 20 秒。
+  - npm test 272 通過、12 略過。
+  - Python 只有既有的 3 個 POSIX 專用測試失敗。
+  - `Test-WindowsNative.ps1`：
+    - 第一次在 composition probe 的命中測試（`Reopened scene lost input policy`）失敗。這個 probe 不經過新程式，單獨重跑通過。
+    - 整套重跑通過，含 `--crash-guard`。被其他視窗擋住的像素檢查照例略過。
+- 未驗證：
+  - 真實登入時的 render thread 失敗與其原因：需要裝新版後重開機，看 `host.log` 或 dump。
+  - 沒有反向驗證「不拆離時 Explorer 會卡住」。
+  - UI 執行緒長時間停住時，仍可能拖住 Explorer；這是架構風險，待評估。
+  - 沒有獨立審閱。
+
 ## 2026-10-14 全平台共用版號 0.2.0
 
 使用者核准五個平台共用 0.2.0（像參考專案一樣跨平台同號）。

@@ -47,6 +47,48 @@ internal static class HostSettingsProbe
     foreach (var damaged in new[] { "", "{", "{\"version\":9,\"startAtLogin\":false}", "{\"version\":1,\"startAtLogin\":\"no\"}" })
       Require(HostPreferences.Parse(Encoding.UTF8.GetBytes(damaged)).StartAtLogin, $"damaged preferences keep defaults: {damaged}");
     Require(HostIdentity.BuildVersion() is { Length: > 0 } version && !version.Contains('+'), "build version without commit suffix");
+    count += Recovery(Path.Combine(root, "host-recovery"));
+    return count;
+  }
+  /// <summary>ADR-045 files: host.log entries and rotation, the HRESULT chain, and the restart marker taken once.</summary>
+  private static int Recovery(string directory)
+  {
+    var count = 0;
+    void Require(bool value, string message) { if (!value) throw new Exception(message); count++; }
+    if (Directory.Exists(directory)) Directory.Delete(directory, true);
+    var log = Path.Combine(directory, HostLog.FileName);
+    var time = new DateTimeOffset(2026, 10, 14, 14, 12, 13, 250, TimeSpan.FromHours(8));
+    HostLog.Append(directory, time, "start version=0.2.0"); HostLog.Append(directory, time, "exit\n");
+    Require(File.ReadAllText(log) == "2026-10-14 14:12:13.250+08:00 start version=0.2.0\n2026-10-14 14:12:13.250+08:00 exit\n", "host.log lines carry local time and offset");
+    File.WriteAllText(log, new string('x', (int)HostLog.Limit));
+    HostLog.Append(directory, time, "after rotation");
+    Require(new FileInfo(log + ".1").Length == HostLog.Limit && File.ReadAllText(log).EndsWith("after rotation\n") && new FileInfo(log).Length < 100, "a full log moves to host.log.1");
+    using (var held = new FileStream(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+      HostLog.Append(directory, time, "while read");
+    Require(File.ReadAllText(log).Contains("while read"), "appends while another reader has the log open");
+    var render = new System.Runtime.InteropServices.COMException("UCEERR_RENDERTHREADFAILURE", HostLog.RenderThreadFailure);
+    var described = HostLog.Describe(new InvalidOperationException("outer", render));
+    Require(described.StartsWith("System.InvalidOperationException HRESULT=0x80131509 <- System.Runtime.InteropServices.COMException HRESULT=0x88980406\n")
+      && described.Contains("UCEERR_RENDERTHREADFAILURE"), "the exception chain names each HRESULT");
+    Require(HostLog.IsRenderThreadFailure(render) && HostLog.IsRenderThreadFailure(new AggregateException(render)) && !HostLog.IsRenderThreadFailure(new InvalidOperationException()),
+      "render-thread failures are found in the chain");
+
+    var now = DateTimeOffset.UtcNow;
+    var marker = new RestartMarker(4242, now.AddSeconds(-5), "render-thread");
+    Require(RestartMarker.Parse(marker.Serialize()) == marker with { Created = marker.Created.ToUniversalTime() }, "restart marker round trip");
+    marker.Write(directory);
+    Require(RestartMarker.Take(directory, now) == marker, "the reopened launch takes the marker");
+    Require(RestartMarker.Take(directory, now) is null, "a marker is taken only once");
+    Require(Directory.GetFiles(directory, RestartMarker.FileName + "*").Length == 0, "taking leaves no marker files");
+    (marker with { Created = now - RestartMarker.Lifetime - TimeSpan.FromSeconds(1) }).Write(directory);
+    Require(RestartMarker.Take(directory, now) is null && !File.Exists(Path.Combine(directory, RestartMarker.FileName)), "a stale marker is dropped");
+    (marker with { Created = now.AddMinutes(5) }).Write(directory);
+    Require(RestartMarker.Take(directory, now) is null, "a future-dated marker is dropped");
+    foreach (var damaged in new[] { "", "{", "[]", "{\"version\":2,\"processId\":1,\"created\":\"2026-10-14T06:12:13Z\",\"reason\":\"x\"}",
+      "{\"version\":1,\"processId\":0,\"created\":\"2026-10-14T06:12:13Z\",\"reason\":\"x\"}", "{\"version\":1,\"processId\":1,\"created\":\"soon\",\"reason\":\"x\"}",
+      "{\"version\":1,\"processId\":1,\"created\":\"2026-10-14T06:12:13Z\"}", "{\"version\":1,\"processId\":1,\"processId\":2,\"created\":\"2026-10-14T06:12:13Z\",\"reason\":\"x\"}" })
+      Require(RestartMarker.Parse(Encoding.UTF8.GetBytes(damaged)) is null, $"damaged marker rejected: {damaged}");
+    Require(RestartMarker.Take(Path.Combine(directory, "missing"), now) is null, "no marker in a missing directory");
     return count;
   }
   private static string FindFixture()

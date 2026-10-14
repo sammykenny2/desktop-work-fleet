@@ -61,6 +61,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows Debug WebView diagnostics probe failed.' }
     & $UiProbe --host-shell (Join-Path $ProbeRoot 'host-shell')
     if ($LASTEXITCODE -ne 0) { throw 'Windows startup settings and main window placement probe failed.' }
+    & $UiProbe --crash-guard (Join-Path $ProbeRoot 'crash-guard')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows fatal-error guard probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

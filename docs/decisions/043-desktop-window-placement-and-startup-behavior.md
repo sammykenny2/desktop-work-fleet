@@ -3,7 +3,7 @@
 ## Status
 
 Accepted，2026-10-14。使用者要求參考一個 Electron 桌面專案，帶入主視窗位置記憶與「啟動行為」，確認「登入電腦時啟動」預設開啟，
-並在同日指示依此開工；SPEC-006 的 Q 仍待回答。參考與證據見 [研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)。
+並在同日指示依此開工；SPEC-006 的 Q 仍待回答。參考與證據見 [研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)。
 
 ## Context
 
@@ -66,7 +66,7 @@ MSIX 的登入啟動以 StartupTask 宣告，使用者可在工作管理員或�
   尚未註冊過的主 App 可能回傳 `notFound`，視為未啟用且可註冊；不能據此停用設定或推斷 App 不在「應用程式」。
   第一次啟動的預設註冊接受 `notFound`／`notRegistered`，既有偏好不自動重試，但使用者仍可手動開啟。
   `enabled`／`requiresApproval` 不重新註冊；取消未見過的服務不呼叫 `unregister`。
-  修正來源與驗證界線見 [登入項目研究](../resreach/2026-10-15-macos-login-item-first-registration.md)。
+  修正來源與驗證界線見 [登入項目研究](../research/2026-10-15-macos-login-item-first-registration.md)。
 - Linux：寫入或移除 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（未設定時為 `~/.config`），
   啟動命令加 `--launch-at-login`。讀回時，檔案不存在、`Hidden=true` 或 `X-GNOME-Autostart-enabled=false` 視為關閉。
   只寫或移除自己的檔案。
@@ -125,7 +125,7 @@ Windows 加入每位使用者、每個資料目錄的單一實例通道：第二
 
 ## References
 
-- [SPEC-006](../specs/006-desktop-window-startup-and-updates.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)
+- [SPEC-006](../specs/006-desktop-window-startup-and-updates.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)
 - [ADR-019](019-windows-shortcuts-and-tray.md)、[ADR-020](020-windows-display-lifecycle.md)、[ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md)、[ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md)、[ADR-040](040-gnome-wayland-xwayland-choice.md)、[ADR-042](042-adjust-overlay-on-every-desktop-host.md)
 - [StartupTask](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.startuptask)、[SMAppService](https://developer.apple.com/documentation/servicemanagement/smappservice)、[XDG Autostart](https://specifications.freedesktop.org/autostart-spec/latest/)
 

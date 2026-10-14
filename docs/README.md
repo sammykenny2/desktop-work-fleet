@@ -51,8 +51,8 @@
 | [ADR-040](decisions/040-gnome-wayland-xwayland-choice.md) | Accepted：GNOME Wayland 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用 |
 | [ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted：X11 場景依工作區定尺寸；GNOME XWayland 只常駐桌布層；調整遮罩起於 GNOME XWayland（現行範圍見 ADR-042） |
 | [PLAN-003](plans/003-desktop-interaction-implementation.md) | 從契約到平台／來源整合的開發交接 |
-| [討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
-| [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |
+| [討論演進](research/2026-10-04-desktop-card-interaction-design.md) | 決策來源、補充及已被取代的方案 |
+| [平台研究](research/2026-10-04-desktop-interaction-platform-feasibility.md) | Windows／公開 AppKit／labwc-Wayland 的證據與限制 |
 
 ## 專案與現有程式
 
@@ -74,23 +74,23 @@
 
 ## Google、備份及歷史研究
 
-- [公開 Release feed 與公司出口 IP 配額](resreach/2026-10-15-public-release-feed-without-api-quota.md)：ADR-044 移除三平台的未驗證 REST API 查詢，改讀 Atom 的官方規則、實測與限制。
-完整研究索引在 [docs/resreach](resreach/README.md)，保留使用者指定拼字。
+- [公開 Release feed 與公司出口 IP 配額](research/2026-10-15-public-release-feed-without-api-quota.md)：ADR-044 移除三平台的未驗證 REST API 查詢，改讀 Atom 的官方規則、實測與限制。
+完整研究索引在 [docs/research](research/README.md)。
 
-- [Drive 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 與
+- [Drive 研究](research/2026-10-03-google-drive-notes-mvp-feasibility.md) 與
   [ADR-004](decisions/004-google-drive-notes-mvp.md)：初始提案；provider 已由 ADR-012 採納，協定見 SPEC-004。
-- [Drive 傳輸研究](resreach/2026-10-04-drive-file-transport.md)：API、分頁、預產生 ID、續傳與未驗證界線。
-- [備份歷史研究](resreach/2026-10-03-appdata-backup-and-restore-design.md)／[ADR-005](decisions/005-portable-backup-and-restore.md)
+- [Drive 傳輸研究](research/2026-10-04-drive-file-transport.md)：API、分頁、預產生 ID、續傳與未驗證界線。
+- [備份歷史研究](research/2026-10-03-appdata-backup-and-restore-design.md)／[ADR-005](decisions/005-portable-backup-and-restore.md)
   保留候選背景；最新完整契約見 SPEC-002／ADR-013，
-  [容器與加密研究](resreach/2026-10-04-backup-container-and-encryption.md) 記錄官方來源及驗證界線。
+  [容器與加密研究](research/2026-10-04-backup-container-and-encryption.md) 記錄官方來源及驗證界線。
 - [PLAN-002](plans/002-google-drive-notes-mvp.md)：來源／Google／backup 的工作順序，與 PLAN-003 合併執行。
-- [Backlog 原始研究](resreach/2026-10-03-backlog-first-product-requirements.md) 與
-  [輕量 PM 模型](resreach/2026-10-03-lightweight-project-management-and-view-model.md)：歷史討論，最新修正優先。
-- [同步與衝突](resreach/2026-10-03-source-of-truth-sync-and-conflict-analysis.md)、
-  [macOS 公開 API](resreach/2026-10-03-macos-public-api-desktop-feasibility.md)、
-  [散布與授權](resreach/2026-10-03-store-distribution-and-license-analysis.md)、
-  [獨立開發](resreach/2026-10-03-independent-architecture-and-validation-plan.md)：保留證據及研究日期。
-- [完整 PM/server 架構](resreach/2026-10-03-product-architecture-blueprint.md)／
+- [Backlog 原始研究](research/2026-10-03-backlog-first-product-requirements.md) 與
+  [輕量 PM 模型](research/2026-10-03-lightweight-project-management-and-view-model.md)：歷史討論，最新修正優先。
+- [同步與衝突](research/2026-10-03-source-of-truth-sync-and-conflict-analysis.md)、
+  [macOS 公開 API](research/2026-10-03-macos-public-api-desktop-feasibility.md)、
+  [散布與授權](research/2026-10-03-store-distribution-and-license-analysis.md)、
+  [獨立開發](research/2026-10-03-independent-architecture-and-validation-plan.md)：保留證據及研究日期。
+- [完整 PM/server 架構](research/2026-10-03-product-architecture-blueprint.md)／
   [ADR-003](decisions/003-product-architecture-boundaries.md)：Deferred；其 Note 容器模型不得覆蓋最新規格。
 
 ## 既有驗證證據

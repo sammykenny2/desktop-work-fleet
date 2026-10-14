@@ -3,11 +3,11 @@
 ## Status
 
 Accepted，2026-10-14。使用者確認：維護者會把 repo 改為 public；Windows、macOS、Linux 都要 App 內升級，
-Windows 使用 MSIX；同日指示開工。macOS 安裝方式（SPEC-006 Q02）與其他 Q 仍待回答。參考與證據見 [研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)。
+Windows 使用 MSIX；同日指示開工。macOS 安裝方式（SPEC-006 Q02）與其他 Q 仍待回答。參考與證據見 [研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)。
 
 2026-10-15 修訂：使用者回報 Work Fleet 查更新受限、同機的公開 release feed 可成功，要求修改 ADR 與程式。
 三平台移除未驗證 GitHub REST API 查詢，改用公開 Atom feed。共用 NAT 出口的 API 配額不能作為桌面更新的前提；
-官方規則與實測見 [更新查詢限流研究](../resreach/2026-10-15-public-release-feed-without-api-quota.md)。
+官方規則與實測見 [更新查詢限流研究](../research/2026-10-15-public-release-feed-without-api-quota.md)。
 
 ## Context
 
@@ -160,7 +160,7 @@ GitHub 的 `releases/latest` 是整個 repo 的最新版，無法區分平台，
 
 ## References
 
-- [SPEC-006](../specs/006-desktop-window-startup-and-updates.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)
+- [SPEC-006](../specs/006-desktop-window-startup-and-updates.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)
 - [ADR-028](028-native-package-and-signing-entry-points.md)、[ADR-032](032-windows-debug-webview-inspection.md)、[ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md)、[ADR-040](040-gnome-wayland-xwayland-choice.md)、[ADR-043](043-desktop-window-placement-and-startup-behavior.md)
 - [GitHub REST releases](https://docs.github.com/en/rest/releases/releases)、[PackageManager.AddPackageAsync](https://learn.microsoft.com/en-us/uwp/api/windows.management.deployment.packagemanager.addpackageasync)、[Sparkle](https://sparkle-project.org/documentation/)
 

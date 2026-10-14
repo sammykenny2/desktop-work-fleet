@@ -36,7 +36,7 @@ Drive 可儲存本 App 的資料檔案。
   草稿、衝突與中斷續傳見 [ADR-005](005-portable-backup-and-restore.md)。
 - ADR-003 的 PM／自架 server 路線延後，保留全文與未來適用性。
 
-詳細證據與待決問題見 [Drive MVP 可行性](../resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)。
+詳細證據與待決問題見 [Drive MVP 可行性](../research/2026-10-03-google-drive-notes-mvp-feasibility.md)。
 
 ## Consequences
 
@@ -65,6 +65,6 @@ appDataFolder 不能讓使用者直接在 Drive UI 編輯，也不支持跨帳�
 
 ## References
 
-- [Drive MVP 研究](../resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)
+- [Drive MVP 研究](../research/2026-10-03-google-drive-notes-mvp-feasibility.md)
 - [ADR-003（Deferred）](003-product-architecture-boundaries.md)
 - [既有驗證報告](../validation/2026-10-03-validation-report.md)

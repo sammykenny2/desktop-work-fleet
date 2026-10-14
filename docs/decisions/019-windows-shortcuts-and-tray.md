@@ -67,7 +67,7 @@ IME 組合、實體键盤配置及 Windows shell 行為仍需實機驗收；保�
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
 - [ADR-017](017-windows-composition-surface-and-input.md)、[ADR-018](018-single-owner-desktop-views.md)
-- [Windows 快捷鍵與 shell 研究](../resreach/2026-10-04-windows-shortcuts-and-tray.md)
+- [Windows 快捷鍵與 shell 研究](../research/2026-10-04-windows-shortcuts-and-tray.md)
 - [桌面 IPC 契約](../../contracts/desktop-scene.d.ts)
 
 Decision made: 2026-10-04.

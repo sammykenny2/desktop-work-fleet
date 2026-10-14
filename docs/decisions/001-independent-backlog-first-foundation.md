@@ -8,7 +8,7 @@ Accepted，2026-10-03。接受範圍限於使用者已表達的方向及本次 b
 
 使用者需要多裝置同步的工作便箋，主要作為 backlog 與快速記錄靈感的位置。先前討論擴展到多 Agent 執行管理，使用者澄清那會增加主要操作的負擔。
 
-使用者要求建立獨立新 repo，使用專案骨架範本技能，將研究詳細記錄到 docs/resreach，並避免大量複製既有應用內容。
+使用者要求建立獨立新 repo，使用專案骨架範本技能，將研究詳細記錄到 docs/research，並避免大量複製既有應用內容。
 
 ## Decision
 
@@ -16,7 +16,7 @@ Accepted，2026-10-03。接受範圍限於使用者已表達的方向及本次 b
 - 以獨立架構開始，沒有既有應用格式、UI 或平台模組的移植要求。
 - 以 backlog／快速記錄作為產品重心，保留簡單預設與未來檢視彈性。
 - 保留 Apple／Google 自有 App 上架目標與跨裝置同步需求。
-- 本次採專案骨架範本的 minimal 骨架；研究文件位於使用者指定的 docs/resreach。
+- 本次採專案骨架範本的 minimal 骨架；研究文件位於 docs/research。
 - 不在本次選定 framework、backend、同步協定或實作產品原型。
 
 ## Consequences
@@ -49,6 +49,6 @@ Minimal 提供文件與協作模板，沒有應用 runtime。MIT skeleton notice
 
 ## References
 
-- [Backlog 需求](../resreach/2026-10-03-backlog-first-product-requirements.md)
-- [獨立架構與驗證](../resreach/2026-10-03-independent-architecture-and-validation-plan.md)
+- [Backlog 需求](../research/2026-10-03-backlog-first-product-requirements.md)
+- [獨立架構與驗證](../research/2026-10-03-independent-architecture-and-validation-plan.md)
 - [第三方來源](../../THIRD-PARTY-NOTICES.md)

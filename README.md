@@ -37,9 +37,8 @@
 3. [互動規格](docs/specs/003-desktop-cards-groups-and-formation.md)
 4. [已接受語意](docs/decisions/006-card-group-and-formation-semantics.md) 與 [呈現架構提案](docs/decisions/007-desktop-scene-and-platform-host.md)
 5. [實作計畫](docs/plans/003-desktop-interaction-implementation.md)
-6. [平台能力研究](docs/resreach/2026-10-04-desktop-interaction-platform-feasibility.md) 與 [研究索引](docs/resreach/README.md)
+6. [平台能力研究](docs/research/2026-10-04-desktop-interaction-platform-feasibility.md) 與 [研究索引](docs/research/README.md)
 
-研究目錄依使用者指定命名為 `docs/resreach/`；`docs/research/` 只有導引文件。
 本 repo 的規格不依賴另一個 checkout 的固定位置；需要輔助原生桌面實作時先向維護者詢問。
 
 ## 預覽新的本機介面
@@ -83,7 +82,7 @@ bash scripts/macos/start-validation.sh
 ## 專案結構
 
 ```text
-docs/resreach/   日期與主題命名的研究
+docs/research/   日期與主題命名的研究
 docs/decisions/  已接受／待決／延後的決策
 docs/specs/      行為規格與驗收案例
 docs/plans/      實作順序與交付條件

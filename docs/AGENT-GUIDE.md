@@ -29,7 +29,7 @@ Older Drive/backup drafts require scope reconciliation before freezing contracts
 - Review: use `review-code` if installed and you did not author the code. Review
   read-only and report actionable findings with evidence.
 - Scripts: use `docs/SCRIPT-STANDARDS.md` for help and naming examples.
-- Research: record dated primary sources in `docs/resreach/` when conclusions
+- Research: record dated primary sources in `docs/research/` when conclusions
   depend on changing external APIs or protocols.
 - Releases: finish all tracked changes and local check records before the final
   version-bump commit/push. Follow [deployment](deployment.md) and root AGENTS:

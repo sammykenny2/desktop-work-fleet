@@ -151,7 +151,7 @@
 
 ## References
 
-- [ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md)、[ADR-044](../decisions/044-desktop-in-app-updates-from-github-releases.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../resreach/2026-10-14-desktop-window-startup-and-update-reference.md)
+- [ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md)、[ADR-044](../decisions/044-desktop-in-app-updates-from-github-releases.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)
 - [SPEC-003](003-desktop-cards-groups-and-formation.md)（同步與裝置狀態分界）、[部署](../deployment.md)、[安全邊界](../security-guidelines.md)
 
 ---

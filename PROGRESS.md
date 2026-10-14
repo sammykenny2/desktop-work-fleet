@@ -1648,7 +1648,7 @@ App 暫存副本、README、hash 與包裝驗證紀錄。DMG SHA-256 與原交�
 可重用的啟動驗證已在 `scripts/testing/apple_startup_probe.py` 與
 `tests/native/apple/StartupProbe.swift`；Apple 資產準備與授權複製也已提交。
 臨時診斷片段、baseline 與 probe 來源副本沒有需要另行移入 repo 的程式；
-結論已記錄於 [研究紀錄](docs/resreach/2026-10-05-apple-signed-startup-and-local-scripts.md) 與 ADR-033。
+結論已記錄於 [研究紀錄](docs/research/2026-10-05-apple-signed-startup-and-local-scripts.md) 與 ADR-033。
 
 刪除 DerivedData、下載依賴／npm 快取、測試副本、舊包、暫存日誌、路徑指標與 Xcode 備份。
 下方歷史段落引用的本機 Apple 暫存證據路徑已清除，測試結果保留為當時紀錄。
@@ -1724,7 +1724,7 @@ project／iOS scheme，不提交機器簽章配置、憑證或 provisioning prof
 Apple 資產準備改用固定 esbuild 0.28.2 將主畫面與場景合併為 classic deferred scripts，
 來源與其他平台仍為 ESM，保留 CSP／bridge／Sandbox 與完整 runtime LICENSE。
 決策與診斷見 [ADR-033](docs/decisions/033-apple-local-script-bundles.md) 及
-[研究紀錄](docs/resreach/2026-10-05-apple-signed-startup-and-local-scripts.md)。
+[研究紀錄](docs/research/2026-10-05-apple-signed-startup-and-local-scripts.md)。
 
 以 Debug、`ARCHS=arm64 x86_64`、`ONLY_ACTIVE_ARCH=NO` 成功重建並開發簽章。
 主程式與兩個 dylib 均含 arm64／x86_64；`codesign --verify --deep --strict`、
@@ -1882,7 +1882,7 @@ desktop／floating 使用 BOTTOM／TOP。三層場景池、能力回報、frame 
 已改用真正的 `Region.subtract`／`union`，修復原生紙面套用。
 Linux 使用者未指定 renderer 時停用 DMA-BUF，未改用者桌布檔案或設定。
 決策見 [ADR-031](docs/decisions/031-macos-and-linux-wallpaper-scenes.md)，
-參考核對見 [研究紀錄](docs/resreach/2026-10-05-desktop-layer-reference-follow-through.md)；沒有複製參考程式碼。
+參考核對見 [研究紀錄](docs/research/2026-10-05-desktop-layer-reference-follow-through.md)；沒有複製參考程式碼。
 
 作者檢查：Python 全套 19／19、共用桌面及 Apple 專案 JavaScript 66／66 通過。
 Windows `Test-WindowsNative.ps1 -SkipRestore` 最終完整通過：35 項 native core／備份／frame、
@@ -2610,8 +2610,8 @@ Java archive／debug keystore lock 在受限環境被拒絕，使用核准的建
 ## 2026-10-04 文件交付
 
 - [完整規格](docs/specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、資料分界、狀態轉移、故障行為、C01–C48。
-- [需求演進](docs/resreach/2026-10-04-desktop-card-interaction-design.md)：保留各次修正及被取代方案。
-- [平台研究](docs/resreach/2026-10-04-desktop-interaction-platform-feasibility.md)：API、既有報告、推論與未測範圍分開。
+- [需求演進](docs/research/2026-10-04-desktop-card-interaction-design.md)：保留各次修正及被取代方案。
+- [平台研究](docs/research/2026-10-04-desktop-interaction-platform-feasibility.md)：API、既有報告、推論與未測範圍分開。
 - [ADR-007](docs/decisions/007-desktop-scene-and-platform-host.md)：Proposed；renderer 自管卡片疊序，host 管原生能力。
 - [PLAN-003](docs/plans/003-desktop-interaction-implementation.md)：契約、模型、renderer、平台、來源與發佈的交接順序。
 - [接手文件](docs/handoff/2026-10-04-desktop-interaction-handoff.md)：必讀順序、不可偏離行為、何時詢問輔助參考位置。

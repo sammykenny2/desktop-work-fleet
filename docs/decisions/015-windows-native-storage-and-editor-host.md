@@ -71,6 +71,6 @@ Windows 桌面層／穿透、全域快捷鍵、monitor mapping、原生檔案 pi
 
 ## References
 
-- [Windows 主機研究](../resreach/2026-10-04-windows-native-storage-and-webview.md)
+- [Windows 主機研究](../research/2026-10-04-windows-native-storage-and-webview.md)
 - [原生契約](../../contracts/native.d.ts)、[ADR-009](009-local-renderer-and-persistence.md)、[ADR-014](014-durable-automatic-backups.md)
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)、[PROGRESS](../../PROGRESS.md)

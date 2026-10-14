@@ -17,7 +17,7 @@
 ## Related Spec
 
 [SPEC-002：可攜備份與安全還原](../specs/002-portable-backup-and-restore.md)。
-普通便箋、Google 登入與 renderer 範圍承接 [MVP 研究](../resreach/2026-10-03-google-drive-notes-mvp-feasibility.md)
+普通便箋、Google 登入與 renderer 範圍承接 [MVP 研究](../research/2026-10-03-google-drive-notes-mvp-feasibility.md)
 及 [ADR-004](../decisions/004-google-drive-notes-mvp.md)，來源傳輸決策採
 [ADR-012](../decisions/012-durable-file-store-and-drive-adapter.md)。
 本計畫列工作順序和驗收條件；執行狀態只更新 [PROGRESS](../../PROGRESS.md)，不另建完成清單。

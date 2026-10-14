@@ -10,7 +10,7 @@ Accepted（Apple 資產封裝修正），2026-10-05。
 在有效 Apple Development 簽章與 profile 下，真 Keychain／SQLite 已通過，
 WKWebView 能載入本機 HTML，但 `type="module"` 主腳本載入失敗，主畫面停在正在載入。
 獨立 fixture 的 resource error 指向封裝的 `app/main.js`，bridge 尚未建立。
-證據與限制見 [研究紀錄](../resreach/2026-10-05-apple-signed-startup-and-local-scripts.md)。
+證據與限制見 [研究紀錄](../research/2026-10-05-apple-signed-startup-and-local-scripts.md)。
 
 ## Decision
 

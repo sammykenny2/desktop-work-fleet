@@ -20,8 +20,8 @@ Q01–Q07 的答案與工作預設已更新在 SPEC-003；包含 iOS／Android �
 5. [ADR-006](../decisions/006-card-group-and-formation-semantics.md) 與
    [ADR-007](../decisions/007-desktop-scene-and-platform-host.md)。
 6. [PLAN-003](../plans/003-desktop-interaction-implementation.md) 與
-   [平台研究](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)。
-7. 需要追溯意圖時讀 [討論演進](../resreach/2026-10-04-desktop-card-interaction-design.md)。
+   [平台研究](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
+7. 需要追溯意圖時讀 [討論演進](../research/2026-10-04-desktop-card-interaction-design.md)。
 8. Google／backup 工作讀 SPEC-004／ADR-012 及 SPEC-002／ADR-013 的現行契約，施工順序見 PLAN-002。
    ADR-004／005 保留歷史背景，早期排除清單不適用。
 

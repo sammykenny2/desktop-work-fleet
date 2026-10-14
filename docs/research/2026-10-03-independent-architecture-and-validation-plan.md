@@ -103,7 +103,7 @@ V-01 與 V-03 可分別推進；哪一項先實作由下一個開發任務決定
 - 使用者需求：[Backlog 研究](2026-10-03-backlog-first-product-requirements.md)。
 - 已接受的專案邊界：[ADR-001](../decisions/001-independent-backlog-first-foundation.md)。
 - 執行狀態：根目錄 [PROGRESS.md](../../PROGRESS.md)。
-- 後續研究：繼續放 docs/resreach，採 YYYY-MM-DD-topic.md。
+- 後續研究：繼續放 docs/research，採 YYYY-MM-DD-topic.md。
 - 研究標示來源日期、事實／推論／候選／已驗證，不能把候選建議升格為使用者決策。
 - 平台與同步探針完成後，要新增結果與限制，不覆寫過去未驗證的歷史成已驗證。
 
@@ -116,6 +116,5 @@ V-01 與 V-03 可分別推進；哪一項先實作由下一個開發任務決定
 - 選擇：Preset minimal，base only，沒有附加 flavor。
 - 沒有安裝 application dependencies、啟動服務或發布商店。
 - GitHub remote 與遠端 repo 建立不包含在本次本機 bootstrap。
-- docs/resreach 使用使用者指定拼字；bootstrap 的 docs/research 僅作轉址索引。
 
 來源見 [第三方聲明](../../THIRD-PARTY-NOTICES.md)。本次驗證範圍與實際命令以 [testing.md](../testing.md) 為準。

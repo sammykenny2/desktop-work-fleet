@@ -58,7 +58,7 @@ App 關閉或 OS 暫停期間不保證準時，resume 檢查補跑。公開設�
 ## References
 
 - [SPEC-002](../specs/002-portable-backup-and-restore.md)、[ADR-013](013-complete-portable-backup.md)
-- [檔案能力研究](../resreach/2026-10-04-automatic-backup-file-safety.md)
+- [檔案能力研究](../research/2026-10-04-automatic-backup-file-safety.md)
 - [契約](../../contracts/backup.d.ts)、[PROGRESS](../../PROGRESS.md)
 
 Decision made: 2026-10-04.

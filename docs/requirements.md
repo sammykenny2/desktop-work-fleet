@@ -19,7 +19,7 @@
 - 不加入 Focus／番茄鐘／回顧；不照搬外部產品 UI、架構或大量原始碼。
 
 [ADR-006](decisions/006-card-group-and-formation-semantics.md) 接受上述語意；
-[討論演進](resreach/2026-10-04-desktop-card-interaction-design.md) 保存修正原因。
+[討論演進](research/2026-10-04-desktop-card-interaction-design.md) 保存修正原因。
 「浮到一般 App 上方」及轉組手勢已在整理期間獲明確確認，後續 agent 不必重問。
 
 ## 可直接採用的工作預設
@@ -46,7 +46,7 @@ SPEC-003 的 Q01–Q07 表已記錄這些答案與工作預設。
 
 ## Google 與備份的現況
 
-[Drive 研究](resreach/2026-10-03-google-drive-notes-mvp-feasibility.md) 建議 Drive 而非 Keep，
+[Drive 研究](research/2026-10-03-google-drive-notes-mvp-feasibility.md) 建議 Drive 而非 Keep，
 appDataFolder provider 已由 ADR-012 採納，協定見 SPEC-004；原生 OAuth／真 Google 整合仍待驗收。
 [SPEC-002](specs/002-portable-backup-and-restore.md) 與 [ADR-013](decisions/013-complete-portable-backup.md)
 定義完整 ZIP／JSON、群組／版面／附件、自動／加密備份及三種還原；取代 ADR-005 早期候選。
@@ -90,6 +90,6 @@ Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪�
 ## 證據及接手
 
 API 可行、原生基礎實測、新功能驗收與商店核准分開紀錄。
-參見 [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md)、
+參見 [平台研究](research/2026-10-04-desktop-interaction-platform-feasibility.md)、
 [0.1.0 驗證報告](validation/2026-10-03-validation-report.md) 及
 [接手規則](handoff/2026-10-04-desktop-interaction-handoff.md)。

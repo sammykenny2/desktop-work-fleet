@@ -52,7 +52,7 @@ does not override the new one-card-one-thing contract.
 - docs/decisions/006-card-group-and-formation-semantics.md: accepted semantics.
 - docs/decisions/007-desktop-scene-and-platform-host.md: proposed implementation boundaries.
 - docs/plans/003-desktop-interaction-implementation.md: implementation sequence.
-- docs/resreach/2026-10-04-desktop-interaction-platform-feasibility.md: platform evidence and limits.
+- docs/research/2026-10-04-desktop-interaction-platform-feasibility.md: platform evidence and limits.
 - docs/plans/002-google-drive-notes-mvp.md: source/backup plan requiring scope reconciliation.
 - docs/specs/002-portable-backup-and-restore.md: backup proposal requiring group/schema updates.
 - docs/validation/2026-10-03-validation-report.md: historical Mac evidence, not new feature acceptance.

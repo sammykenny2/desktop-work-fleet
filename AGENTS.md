@@ -36,7 +36,7 @@
   Continue independent contract work while waiting. Reference behavior and failure
   evidence, not its UI/code/assets/schema. Genuine reuse still needs provenance/license records.
 - Agent orchestration and execution status machines are deferred, not default UI.
-- Research lives in docs/resreach/ (the user's requested spelling). Use dated
+- Research lives in docs/research/. Use dated
   lowercase kebab-case filenames and distinguish evidence, proposals and decisions.
 - PROGRESS.md is the execution-status source. Do not create a competing task list.
   Do not add entries for runs that only rebuild or repackage existing code; report

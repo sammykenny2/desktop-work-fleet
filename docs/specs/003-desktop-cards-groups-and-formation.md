@@ -391,7 +391,7 @@ Renderer 接收共同語意模型，平台 host 回報桌面層、浮動層、�
 不可把 NoteSource 或編輯資料綁到 OS 視窗數量，也不能讓每張卡自行連 Google。
 具體 module boundary、候選合成表面與協定限制見
 [ADR-007](../decisions/007-desktop-scene-and-platform-host.md) 與
-[平台研究](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)。
+[平台研究](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
 
 ## Acceptance cases
 
@@ -466,7 +466,7 @@ Renderer 接收共同語意模型，平台 host 回報桌面層、浮動層、�
 
 ## References
 
-- [今天討論與決策來源](../resreach/2026-10-04-desktop-card-interaction-design.md)
-- [平台證據及未驗證範圍](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)
+- [今天討論與決策來源](../research/2026-10-04-desktop-card-interaction-design.md)
+- [平台證據及未驗證範圍](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
 - [實作順序](../plans/003-desktop-interaction-implementation.md)
 - [接手入口與輔助參考取得規則](../handoff/2026-10-04-desktop-interaction-handoff.md)

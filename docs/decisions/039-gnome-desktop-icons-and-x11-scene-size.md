@@ -180,7 +180,7 @@ headless 移動滑鼠後畫面完整、移走的便箋沒有殘影；維護者�
 ## References
 
 - [ADR-031](031-macos-and-linux-wallpaper-scenes.md)、[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
-- [平台可行性研究 5.5](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)。
+- [平台可行性研究 5.5](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
 - [gtk-layer-shell 支援的桌面](https://github.com/wmww/gtk-layer-shell#supported-desktops)。
 - [Desktop Icons NG](https://gitlab.com/rastersoft/desktop-icons-ng)。
 - [GtkWindow resizable](https://docs.gtk.org/gtk3/method.Window.set_resizable.html)。

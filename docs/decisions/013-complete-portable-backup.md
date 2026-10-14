@@ -62,7 +62,7 @@ Node >=22 支援 deflate-raw，各 WebView 仍需能力檢查及實測。
 ## References
 
 - [SPEC-002](../specs/002-portable-backup-and-restore.md)
-- [研究與官方來源](../resreach/2026-10-04-backup-container-and-encryption.md)
+- [研究與官方來源](../research/2026-10-04-backup-container-and-encryption.md)
 - [ADR-011](011-immutable-revision-graph.md)、[ADR-012](012-durable-file-store-and-drive-adapter.md)
 
 Decision made: 2026-10-04.

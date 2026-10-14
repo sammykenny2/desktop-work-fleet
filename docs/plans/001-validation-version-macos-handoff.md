@@ -23,10 +23,10 @@
 
 1. AGENTS.md、目前 Agent 自己的指引檔、docs/AGENT-GUIDE.md。
 2. docs/README.md、PROGRESS.md、docs/decisions/001-independent-backlog-first-foundation.md。
-3. docs/resreach/2026-10-03-backlog-first-product-requirements.md。
-4. docs/resreach/2026-10-03-source-of-truth-sync-and-conflict-analysis.md。
-5. docs/resreach/2026-10-03-macos-public-api-desktop-feasibility.md。
-6. docs/resreach/2026-10-03-store-distribution-and-license-analysis.md。
+3. docs/research/2026-10-03-backlog-first-product-requirements.md。
+4. docs/research/2026-10-03-source-of-truth-sync-and-conflict-analysis.md。
+5. docs/research/2026-10-03-macos-public-api-desktop-feasibility.md。
+6. docs/research/2026-10-03-store-distribution-and-license-analysis.md。
 7. 其他研究與架構候選依當前工作再讀。
 
 先確認本機與遠端 HEAD、工作目錄變更、Xcode／Command Line Tools、可用 SDK 與簽章方式。保留使用者已有工作，不假設可以覆寫。
@@ -126,6 +126,6 @@ Windows 優先評估 Store MSIX，使用者未計畫購買商業簽章憑證。L
 
 ## References
 
-- [研究索引](../resreach/README.md)
-- [最新需求](../resreach/2026-10-03-backlog-first-product-requirements.md)
+- [研究索引](../research/README.md)
+- [最新需求](../research/2026-10-03-backlog-first-product-requirements.md)
 - [專案進度](../../PROGRESS.md)

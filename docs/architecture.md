@@ -75,7 +75,7 @@ formation / undo] <--> Scene
 [ADR-007](decisions/007-desktop-scene-and-platform-host.md) 提议少量共同繪製表面及平台 adapter。
 尤其 Wayland，同層多個獨立 surface 的排序未定義，不能以一卡一原生視窗保證群組輪播。
 這是選型限制，並未決定所有平台必須使用同一 framework 或相同視窗數。
-參見 [平台研究](resreach/2026-10-04-desktop-interaction-platform-feasibility.md)。
+參見 [平台研究](research/2026-10-04-desktop-interaction-platform-feasibility.md)。
 
 ## 來源、backup 與後續擴充
 
@@ -101,7 +101,7 @@ receipt 及新 outbox。`contracts/backup.d.ts` 定義 file adapter／原子 per
 與 policy generation，詳見 [ADR-014](decisions/014-durable-automatic-backups.md)。
 Browser 手動保存可用；自動建立／清理能力明確 unavailable。Windows host 已提供本機 NTFS backend。
 
-[完整 PM／server 草案](resreach/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
+[完整 PM／server 草案](research/2026-10-03-product-architecture-blueprint.md) 與 ADR-003 保留為 Deferred。
 其中 Note 容器的模型不再規範 1.0；未來採用也須重新對齊一事一卡。
 施工順序見 [PLAN-003](plans/003-desktop-interaction-implementation.md) 與修訂後 [PLAN-002](plans/002-google-drive-notes-mvp.md)。
 

@@ -77,7 +77,7 @@ older Python validation runtime. Microsoft WebView2's complete incorporated noti
 are retained without alteration. Building this host is not evidence of Store approval.
 The Windows SDK targeting pack has its own explicit version pin; it is not a normal
 PackageReference in packages.lock.json. Its package SHA-512 and packaged assembly
-scope are recorded in the [composition research](docs/resreach/2026-10-04-windows-composition-and-input.md).
+scope are recorded in the [composition research](docs/research/2026-10-04-windows-composition-and-input.md).
 The SDK's original license was retrieved through the exact package's license URL,
 `https://aka.ms/WinSDKLicenseURL`, on 2026-10-04. The full SDK, analyzers, Windows metadata
 and tooling are not copied into the app output; only the required runtime projection

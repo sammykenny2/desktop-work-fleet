@@ -270,6 +270,6 @@ App 啟動／resume 逾期補跑一次，不宣稱 App 關閉或手機暫停時�
 ## Dependencies and References
 
 - [PLAN-002](../plans/002-google-drive-notes-mvp.md)、[SPEC-003](003-desktop-cards-groups-and-formation.md)、[SPEC-004](004-revision-graph-and-file-sync.md)。
-- [ADR-013](../decisions/013-complete-portable-backup.md)、[容器與加密研究](../resreach/2026-10-04-backup-container-and-encryption.md)。
+- [ADR-013](../decisions/013-complete-portable-backup.md)、[容器與加密研究](../research/2026-10-04-backup-container-and-encryption.md)。
 - 一致 Workspace、完整附件、原子 persistence、原生檔案授權／安全儲存／生命週期。
 - 原生環境、最低裝置容量及 OS 保存確認逐平台驗收；狀態見 [PROGRESS](../../PROGRESS.md)。

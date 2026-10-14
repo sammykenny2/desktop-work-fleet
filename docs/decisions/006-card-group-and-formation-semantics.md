@@ -75,5 +75,5 @@ Accepted（限使用者已確認的產品語意），2026-10-04。
 ## References
 
 - [SPEC-003：完整行為及 C01–C48](../specs/003-desktop-cards-groups-and-formation.md)
-- [討論演進及決策來源](../resreach/2026-10-04-desktop-card-interaction-design.md)
+- [討論演進及決策來源](../research/2026-10-04-desktop-card-interaction-design.md)
 - [PLAN-003](../plans/003-desktop-interaction-implementation.md)

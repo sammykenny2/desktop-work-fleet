@@ -29,7 +29,7 @@ Deferred，2026-10-03。原 Proposed 內容保留為完整 PM／自架 server �
 - App 自帶 UI／client 功能；平台 adapter 處理 OS 能力，所有桌面視窗共用一份 client 狀態。
 - 先完成 schema／同步／技術選型，再接多視窗與平台整合驗收。
 
-完整不變量、取捨與原型遷移策略見 [正式架構草案](../resreach/2026-10-03-product-architecture-blueprint.md)。
+完整不變量、取捨與原型遷移策略見 [正式架構草案](../research/2026-10-03-product-architecture-blueprint.md)。
 
 ## Consequences
 
@@ -67,4 +67,4 @@ Framework、server 語言、wire format、最低 OS 版本尚未因本提案而�
 
 - [ADR-001](001-independent-backlog-first-foundation.md)
 - [ADR-002](002-validation-runtime.md)
-- [正式架構草案](../resreach/2026-10-03-product-architecture-blueprint.md)
+- [正式架構草案](../research/2026-10-03-product-architecture-blueprint.md)

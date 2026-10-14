@@ -103,7 +103,7 @@ Windows 可另行評估，但不能成為跨平台可控疊序的共同保證，
 
 ## References
 
-- [Windows 場景研究](../resreach/2026-10-04-windows-composition-and-input.md)
+- [Windows 場景研究](../research/2026-10-04-windows-composition-and-input.md)
 - [ADR-007](007-desktop-scene-and-platform-host.md)、[ADR-015](015-windows-native-storage-and-editor-host.md)
 - [測試命令](../testing.md)、[執行證據](../../PROGRESS.md)
 - [WPF Mouse.Capture](https://learn.microsoft.com/en-us/dotnet/api/system.windows.input.mouse.capture?view=windowsdesktop-8.0)

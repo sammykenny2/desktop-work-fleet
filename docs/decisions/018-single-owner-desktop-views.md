@@ -88,7 +88,7 @@ native 驗證 sequence／topology，若 Explorer 附著表面的紙面 geometry 
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
 - [ADR-017](017-windows-composition-surface-and-input.md)
-- [Windows 場景傳輸與座標研究](../resreach/2026-10-04-windows-desktop-coordination.md)
+- [Windows 場景傳輸與座標研究](../research/2026-10-04-windows-desktop-coordination.md)
 - [桌面通道契約](../../contracts/desktop-scene.d.ts)
 
 Decision made: 2026-10-04.

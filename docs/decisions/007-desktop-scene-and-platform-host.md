@@ -12,7 +12,7 @@ Proposed，2026-10-04。產品語意以已接受的 [ADR-006](006-card-group-and
 來源還需能從 Drive 擴充到 API 來源，renderer 也不只有桌面。
 Wayland layer-shell 不定義同一層內多個獨立 surface 的排序，
 因此不能依賴「每卡一個 native window」作跨平台的任意卡片 z-order 保證。
-詳見 [平台研究](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)。
+詳見 [平台研究](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
 
 ## Decision
 
@@ -84,6 +84,6 @@ Linux 協定限制明確進入選型，不在最後發佈才發現無法任意�
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
-- [平台能力與證據](../resreach/2026-10-04-desktop-interaction-platform-feasibility.md)
+- [平台能力與證據](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
 - [PLAN-003](../plans/003-desktop-interaction-implementation.md)
 - [來源與 renderer 的先前提案](004-google-drive-notes-mvp.md)

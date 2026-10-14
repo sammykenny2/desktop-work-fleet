@@ -60,5 +60,5 @@ ADR-004 保持 Proposed；ADR-003 的 PM／server 設計保持 Deferred。
 
 - [SPEC-002](../specs/002-portable-backup-and-restore.md)
 - [PLAN-002](../plans/002-google-drive-notes-mvp.md)
-- [備份官方能力與設計](../resreach/2026-10-03-appdata-backup-and-restore-design.md)
+- [備份官方能力與設計](../research/2026-10-03-appdata-backup-and-restore-design.md)
 - [ADR-004](004-google-drive-notes-mvp.md)

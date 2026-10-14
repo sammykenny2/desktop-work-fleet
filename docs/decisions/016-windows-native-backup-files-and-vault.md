@@ -65,6 +65,6 @@ Accepted，2026-10-04。實作 SPEC-002／ADR-014 的 Windows backend；其他�
 
 ## References
 
-- [原生檔案／加密研究](../resreach/2026-10-04-windows-native-backup-files.md)
+- [原生檔案／加密研究](../research/2026-10-04-windows-native-backup-files.md)
 - [SPEC-002](../specs/002-portable-backup-and-restore.md)、[ADR-014](014-durable-automatic-backups.md)
 - [ADR-015](015-windows-native-storage-and-editor-host.md)、[驗證命令](../testing.md)

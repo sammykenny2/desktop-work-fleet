@@ -67,7 +67,7 @@ Drive 檔案不等於完整備份，SPEC-003 核准的自動／加密／匯入�
 ## References
 
 - [SPEC-004](../specs/004-revision-graph-and-file-sync.md)
-- [Drive 傳輸研究](../resreach/2026-10-04-drive-file-transport.md)
+- [Drive 傳輸研究](../research/2026-10-04-drive-file-transport.md)
 - [ADR-004](004-google-drive-notes-mvp.md)、[ADR-011](011-immutable-revision-graph.md)
 
 決策日期：2026-10-04；執行與實測結果只記在 [PROGRESS](../../PROGRESS.md)。

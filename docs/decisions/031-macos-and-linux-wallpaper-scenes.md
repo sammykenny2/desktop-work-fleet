@@ -46,7 +46,7 @@ Linux headless compositor 測試不取代 Pi／V3D、pcmanfm-pi、實體中文�
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)、[ADR-030](030-windows-explorer-wallpaper-layer.md)。
-- [本次參考核對](../resreach/2026-10-05-desktop-layer-reference-follow-through.md)。
+- [本次參考核對](../research/2026-10-05-desktop-layer-reference-follow-through.md)。
 - [CGWindowLevelKey](https://developer.apple.com/documentation/coregraphics/cgwindowlevelkey)。
 - [wlr-layer-shell 原始協定](https://github.com/swaywm/wlr-protocols/blob/master/unstable/wlr-layer-shell-unstable-v1.xml)。
 - [GtkLayerShell](https://wmww.github.io/gtk-layer-shell/)、[Gtk widget input shape](https://docs.gtk.org/gtk3/method.Widget.input_shape_combine_region.html)。

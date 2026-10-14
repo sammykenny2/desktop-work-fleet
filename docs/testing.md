@@ -132,6 +132,8 @@ Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequenc
 鎖住／解鎖取消回報已鎖定且不建第二把金鑰、真正缺少才回報缺少、已解鎖金鑰優先；不需 GI 或金鑰圈。
 `python3 -m unittest discover -s tests -p 'test_linux_google.py' -v` 以假 HTTP 確認 Linux 換 token 時，
 有設定才送 Desktop client secret、格式不對時停用；不連網，也不代表真實登入。
+同一檔也確認登出只刪除本機憑證、完全不發網路請求。`node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、
+Apple、Android 的原始碼都沒有向 Google 撤銷授權的呼叫（ADR-021 修訂）；Swift 與 Java 不在每個檢查環境編譯，所以用原始碼檢查。
 `tests/test_linux_python_floor.py` 從 DEB `Depends` 讀 Python 下限（3.10），確認 tar.gz 宣告相同，
 並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。
 `tests/test_linux_gi_versions.py` 以 `ast` 確認固定 Gtk 3.0 的 Linux 模組在 import Gdk 前也固定 Gdk 3.0，

@@ -7,7 +7,6 @@ import com.google.android.gms.auth.api.identity.AuthorizationRequest;
 import com.google.android.gms.auth.api.identity.AuthorizationResult;
 import com.google.android.gms.auth.api.identity.ClearTokenRequest;
 import com.google.android.gms.auth.api.identity.Identity;
-import com.google.android.gms.auth.api.identity.RevokeAccessRequest;
 import com.google.android.gms.common.api.Scope;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -23,7 +22,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 final class GoogleFiles implements AutoCloseable {
     private static final String FIELDS = "id,size,spaces,trashed,appProperties,sha256Checksum";
@@ -89,11 +87,12 @@ final class GoogleFiles implements AutoCloseable {
         return Protocol.object("accountId", preparedAccount, "email", email, "profileId", "google:" + preparedAccount);
     }
     synchronized String open(String id) throws Exception { Protocol.require(id.equals(preparedAccount) && load(id) != null, "google-account", "請先完成此 Google 帳號登入。"); preparedAccount = null; return "google:" + id; }
+    // Only this device signs out: revoking access removes the project's grant for every client, so every other device
+    // signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
     synchronized void signOut() throws Exception {
         if (account == null) return;
         JSONObject previous = account; account = null; accessToken = null; uploads.clear();
         Protocol.require(preferences.edit().remove(previous.getString("accountId")).commit(), "native-storage", "登入憑證尚未移除。");
-        try { com.google.android.gms.tasks.Tasks.await(Identity.getAuthorizationClient(activity).revokeAccess(RevokeAccessRequest.builder().setAccount(new Account(previous.getString("email"), "com.google")).setScopes(SCOPES).build()), 20, TimeUnit.SECONDS); } catch (Exception ignored) { }
     }
     private String token() throws Exception {
         Protocol.require(account != null && database.profile.equals("google:" + account.getString("accountId")), "unauthorized", "請先登入 Google。");

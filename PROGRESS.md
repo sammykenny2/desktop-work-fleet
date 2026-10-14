@@ -2,6 +2,29 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 Google 登出不再撤銷授權（ADR-021 修訂）
+
+使用者回報多台機器陸續出現「Google 授權未完成或已失效，請重新登入。」，而且原本都正常。
+我一開始推測是 OAuth 同意畫面在 Testing 時的 7 天效期。但這台的 MSIX 資料是 10/14 07:11 才建立，憑證不到 18 小時，所以不成立。
+程式顯示：Windows、Linux 的「登出」會呼叫 `oauth2.googleapis.com/revoke`，Apple 會呼叫 SDK 的 `disconnect`，Android 會呼叫 `revokeAccess`。
+Google 文件說明，撤銷會移除整個專案的授權，所有 client 的 token 都會失效。
+所以在任一台按「登出」，同一帳號的其他裝置會在存取權杖到期（最多一小時）後陸續失效。
+使用者：「這什麼鬼實作??? 怎麼可能接受這種UX?」。這次不升版、不發布。
+
+- 四個原生 host 的登出都只刪除這台裝置的憑證，不再向 Google 撤銷；Android 移除兩個不再使用的 import。
+- 「重新登入」「切換帳號」「使用本機資料」與清除資料原本就不撤銷，沒有改。
+- 文件：ADR-021 Status 修訂、`docs/google-setup.md`、`docs/testing.md`。
+- 測試：
+  - `tests/test_linux_google.py` 新增登出測試：刪除本機憑證、不發任何網路請求。
+  - 新增 `tests/google-sign-out.test.js`：檢查四個平台的原始碼都沒有撤銷呼叫。兩個測試在修改前的程式碼上都會失敗，修改後通過。
+  - Windows Debug 建置通過。Swift 與 Java 沒有在本機編譯；CI 也不編譯它們。macOS 會在下次 release workflow 編譯。
+- 未完成：
+  - 已安裝的 0.2.3（含）以前版本，按「登出」仍會撤銷。發布新版之前，任何一台都不要按「登出」。
+    已經失效的裝置按「重新登入」即可，不會影響其他裝置。
+  - 這台這次失效是哪一台的登出造成的，沒有紀錄可以確認。
+  - OAuth 同意畫面仍是 Testing；依 Google 文件，這個狀態下的 refresh token 7 天到期，要改為正式發布才會消失。
+  - 沒有獨立審閱。
+
 ## 2026-10-15 Apple Google 同步：接受續傳網址中的原始逗號
 
 使用者回報這台 Mac 安裝 GitHub 0.2.3、登入並同步後，重開機持續顯示「Google 續傳位置無效」。

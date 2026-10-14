@@ -39,6 +39,30 @@ class TokenRequest(unittest.TestCase):
                 google.Google(FakeVault(), {"google": {"clients": {}, "secrets": {"linux": secret}}}, "local", None)
 
 
+class SignOut(unittest.TestCase):
+    """ADR-021 (amended 2026-10-15): signing out forgets this device's credentials and never revokes the grant at Google,
+    which would sign out every other device on the same account."""
+
+    def test_sign_out_removes_local_credentials_without_network(self):
+        removed, calls = [], []
+
+        class Vault(FakeVault):
+            def remove(self, *args):
+                removed.append(args)
+        original = google.http
+        google.http = lambda *args, **kwargs: calls.append(args)
+        try:
+            g = google.Google(Vault(), {"google": {"clients": {}}}, "local", None)
+            g.credentials = {"accountId": "123", "refreshToken": "synthetic-refresh"}
+            g.sign_out()
+            g.sign_out()
+        finally:
+            google.http = original
+        self.assertEqual(removed, [("google-account", "123")])
+        self.assertIsNone(g.credentials)
+        self.assertEqual(calls, [])
+
+
 class UploadSession(unittest.TestCase):
     """Resumable upload sessions follow the Location Google returns, and only to Google's own upload endpoint."""
     base = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable"

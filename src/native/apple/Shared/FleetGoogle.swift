@@ -80,9 +80,10 @@ import UIKit
         let identity = try await identify(user.accessToken.tokenString)
         try FleetProtocol.require(FleetProtocol.text(identity, "sub", 255) == expected, "stale-session", "Google SDK 回傳另一個帳號，未傳送便箋。"); return user.accessToken.tokenString
     }
+    // Only this device signs out: the SDK's disconnect revokes the project's grant for every client, so every other device
+    // signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
     func signOut() async throws {
         if let id = account?["accountId"] as? String { try FleetKeychain.remove("google-account:" + id) }; account = nil
-        await withCheckedContinuation { continuation in GIDSignIn.sharedInstance.disconnect { _ in continuation.resume() } }
         GIDSignIn.sharedInstance.signOut()
     }
     func close() { closed = true }

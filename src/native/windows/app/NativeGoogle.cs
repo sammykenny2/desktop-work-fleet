@@ -168,13 +168,9 @@ public sealed class NativeGoogle : IDisposable
     try
     {
       if (credentials is null) return;
-      // Disconnect locally even if the remote revocation is temporarily unreachable.
-      var token = credentials.RefreshToken; var path = CredentialPath(credentials.AccountId); credentials = null; uploads.Clear(); File.Delete(path);
-      try
-      {
-        using var response = await http.PostAsync("https://oauth2.googleapis.com/revoke", new FormUrlEncodedContent(new Dictionary<string, string> { ["token"] = token }), lifetime.Token);
-      }
-      catch (HttpRequestException) { }
+      // Only this device signs out. Google's revocation removes the project's grant for every client, so every other
+      // device signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
+      var path = CredentialPath(credentials.AccountId); credentials = null; uploads.Clear(); File.Delete(path);
     }
     finally { gate.Release(); }
   }

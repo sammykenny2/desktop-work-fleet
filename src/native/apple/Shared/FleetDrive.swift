@@ -112,8 +112,9 @@ actor FleetDrive {
                     uri.path == "/upload/drive/v3/files", uri.user == nil, uri.password == nil, uri.fragment == nil, let query = uri.percentEncodedQuery else { throw FleetFailure("invalid-upload-session", "Google 續傳位置無效。") }
                 // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
                 // distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
+                // URLComponents leaves commas in fields unescaped, and Google's Location can echo those literal commas.
                 let pairs = query.split(separator: "&", omittingEmptySubsequences: false).map(String.init)
-                try FleetProtocol.require(pairs.allSatisfy { $0.range(of: "^[A-Za-z_]+=[A-Za-z0-9_%.-]*$", options: .regularExpression) != nil }
+                try FleetProtocol.require(pairs.allSatisfy { $0.range(of: "^[A-Za-z_]+=[A-Za-z0-9_%.,-]*$", options: .regularExpression) != nil }
                     && Set(pairs.map { pair in pair.prefix { $0 != "=" } }).count == pairs.count
                     && pairs.contains("uploadType=resumable") && pairs.contains { $0.hasPrefix("upload_id=") && $0.count > 10 }, "invalid-upload-session", "Google 續傳位置無效。")
                 session = (uri.percentEncodedPath + "?" + query, digest, size); uploads[id] = session

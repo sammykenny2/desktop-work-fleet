@@ -2,6 +2,26 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 Apple Google 同步：接受續傳網址中的原始逗號
+
+使用者回報這台 Mac 安裝 GitHub 0.2.3、登入並同步後，重開機持續顯示「Google 續傳位置無效」。
+使用者不確定重開前是否曾成功上傳；未擷取此次 Google 的實際 Location，因此不將重開機列為已確認根因。
+
+- 已重現的缺陷：Apple `URLComponents` 產生的 `fields=id,size,...` 保留原始逗號，
+  `FleetDrive` 的 Location 參數檢查卻只接受 `%2C`，遇到回傳原始逗號就自行拋出上述錯誤。
+- 修正 Apple 共用傳輸（macOS／iOS）允許參數值中的逗號；保留固定 HTTPS／Google 主機／port／路徑、
+  無帳密／fragment、不重複參數、必要 uploadType／upload_id 與長度限制，保留回傳網址原樣。
+- 新增 Swift 原生 probe：編譯正式 `FleetDrive`／`FleetProtocol`，以合成授權與 HTTP 驗證
+  原始／編碼逗號、內容與網址保留、19 種不合法 Location、網路中斷後查進度、adapter 重建後同 file ID 新 session。
+  舊程式 5 項中有 3 項失敗，包含相同錯誤訊息；修正後 5／5 通過。
+- 相關 JS（Google Drive／FileSync／Apple project）42／42 通過；首次缺少 esbuild，依 lockfile 安裝後重跑通過。
+  Markdown 連結、workflow YAML、UTF-8／LF 與差異格式檢查通過。
+- 完整未簽章 macOS Debug universal build 通過，產物含 arm64／x86_64，6 個 Mach-O slices 的依賴檢查通過。
+- 文件更新 testing；Mac release workflow 在匯入簽章秘密前執行原生 Drive 回歸。
+  獨立唯讀審閱未發現需修正的問題；審閱未重跑 Swift 測試，不代替作者測試或真實 Google 驗收。
+- 限制：沒有讀取 Keychain 或連真實 Google，未驗收已安裝 App 的同步／重開機、iOS 裝置或正式簽章包。
+  本次未升版或 dispatch；已安裝及 GitHub 的 0.2.3 仍不含此修正。
+
 ## 2026-10-15 macOS 0.2.3 登入項目開關停用：首次註冊狀態修正
 
 使用者回報「登入電腦時啟動 Work Fleet」失效，設定提示放到「應用程式」後重試。

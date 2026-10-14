@@ -220,6 +220,12 @@ runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意
 reservation／ack 故障、附件、來源不可變、撤權／退避、取消與帳號 session。
 `tests/google-drive.test.js` 使用 scripted HTTP 回應，驗證 appDataFolder 路由／metadata、
 resumable 分段及 Range、4xx 重開、同 file ID、讀回校驗與 Location 邊界；不使用 Google 憑證。
+`python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v` 編譯正式 Apple
+`FleetDrive`／`FleetProtocol`，只替換授權與 HTTP，驗證 Google 回傳的原始逗號／`%2C` fields 參數、
+上傳 bytes 與 URL 保留、失敗後查進度續傳，以及 adapter 重建後沿同 file ID 開新 session。
+另驗證缺失／不合法 Location、外部主機、HTTP、錯誤 port／路徑、帳密、fragment、重複參數與過長網址
+在傳送內容前被拒絕。沒有 Swift SDK 的平台略過；Mac release job 在匯入秘密前執行。
+不讀 Keychain、不連真實 Google，也不代表已安裝版本的重開機／帳號往返驗收。
 
 `tests/backup-archive.test.js` 驗證 ZIP 路徑／目錄／CRC／容量／惡意 DEFLATE／取消及加密，
 並透過固定 Python 標準庫 fixture 獨立讀取 ZIP（Windows 支援 pyenv 的 python.bat）。

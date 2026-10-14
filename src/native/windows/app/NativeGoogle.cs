@@ -1,9 +1,7 @@
 using System.Diagnostics;
 using System.IO;
-using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -111,39 +109,22 @@ public sealed class NativeGoogle : IDisposable
   {
     HostError.Require(Available, "google-config", "請先在 .env 設定 Windows Google client ID 並重新建置。");
     await gate.WaitAsync(lifetime.Token);
+    var started = Stopwatch.StartNew(); var outcome = "failed"; double? received = null; LoopbackCallback? callback = null;
     try
     {
       using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(110));
-      var cancel = timeout.Token; var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(4);
-      try
+      var cancel = timeout.Token; var state = RandomToken(); var verifier = RandomToken();
+      using (callback = new LoopbackCallback(state))
       {
-        var port = ((IPEndPoint)listener.LocalEndpoint).Port; var redirect = $"http://127.0.0.1:{port}/oauth2/callback";
-        var state = RandomToken(); var verifier = RandomToken();
+        var redirect = callback.RedirectUri;
         var challenge = Convert.ToBase64String(SHA256.HashData(Encoding.ASCII.GetBytes(verifier))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
         var auth = "https://accounts.google.com/o/oauth2/v2/auth?" + Query(new Dictionary<string, string> {
           ["client_id"] = clientId, ["redirect_uri"] = redirect, ["response_type"] = "code", ["scope"] = "openid email " + DriveScope,
           ["state"] = state, ["code_challenge"] = challenge, ["code_challenge_method"] = "S256", ["access_type"] = "offline", ["prompt"] = "consent select_account" });
-        Process.Start(new ProcessStartInfo(auth) { UseShellExecute = true }); string? code = null;
-        while (code is null)
-        {
-          using var connection = await listener.AcceptTcpClientAsync(cancel); using var stream = connection.GetStream();
-          using var readTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancel); readTimeout.CancelAfter(TimeSpan.FromSeconds(5));
-          var header = new List<byte>(); var one = new byte[1];
-          while (header.Count < 8192 && await stream.ReadAsync(one, readTimeout.Token) == 1)
-          { header.Add(one[0]); if (header.Count >= 4 && header.TakeLast(4).SequenceEqual(new byte[] { 13, 10, 13, 10 })) break; }
-          var line = Encoding.ASCII.GetString(header.ToArray()).Split("\r\n")[0].Split(' ');
-          Uri? callback = null;
-          if (line.Length == 3 && line[0] == "GET" && line[1].StartsWith("/oauth2/callback?", StringComparison.Ordinal)) Uri.TryCreate("http://127.0.0.1:" + port + line[1], UriKind.Absolute, out callback);
-          var query = callback is null ? new Dictionary<string, string[]>() : callback.Query.TrimStart('?').Split('&').Select(part => part.Split('=', 2))
-            .GroupBy(part => Uri.UnescapeDataString(part[0])).ToDictionary(group => group.Key, group => group.Select(part => part.Length == 2 ? Uri.UnescapeDataString(part[1].Replace('+', ' ')) : "").ToArray());
-          var valid = callback?.AbsolutePath == "/oauth2/callback" && query.TryGetValue("state", out var states) && states.Length == 1 && states[0] == state;
-          var body = Encoding.UTF8.GetBytes(valid ? "Work Fleet: You may close this browser tab." : "Invalid callback.");
-          var response = Encoding.ASCII.GetBytes($"HTTP/1.1 {(valid ? "200 OK" : "400 Bad Request")}\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: {body.Length}\r\n\r\n");
-          await stream.WriteAsync(response, cancel); await stream.WriteAsync(body, cancel);
-          if (!valid) continue;
-          HostError.Require(!query.ContainsKey("error") && query.TryGetValue("code", out var codes) && codes.Length == 1 && codes[0].Length is > 0 and <= 8192, "google-cancelled", "Google 登入已取消或未授權。");
-          code = query["code"][0];
-        }
+        Process.Start(new ProcessStartInfo(auth) { UseShellExecute = true });
+        var query = await callback.WaitAsync(cancel); received = started.Elapsed.TotalSeconds;
+        HostError.Require(!query.ContainsKey("error") && query.TryGetValue("code", out var codes) && codes.Length == 1 && codes[0].Length is > 0 and <= 8192, "google-cancelled", "Google 登入已取消或未授權。");
+        var code = query["code"][0];
         var tokens = await Token(new() { ["client_id"] = clientId, ["code"] = code, ["code_verifier"] = verifier,
           ["redirect_uri"] = redirect, ["grant_type"] = "authorization_code" }, cancel);
         var access = JsonRules.Text(tokens, "access_token", 8192);
@@ -158,13 +139,23 @@ public sealed class NativeGoogle : IDisposable
         var email = identity.RootElement.TryGetProperty("email", out var emailValue) ? emailValue.GetString() ?? "" : "";
         var saved = new Credentials(account, email, clientId, JsonRules.Text(tokens, "refresh_token", 8192), access,
           DateTimeOffset.UtcNow.ToUnixTimeSeconds() + JsonRules.Integer(tokens, "expires_in", 86400));
-        Save(saved); preparedAccount = account;
+        Save(saved); preparedAccount = account; outcome = "connected";
         return new { accountId = account, email, profileId = "google:" + account };
       }
-      finally { listener.Stop(); }
     }
-    catch (OperationCanceledException) { throw new HostError("google-cancelled", "Google 登入逾時或已取消，請重試。"); }
-    finally { gate.Release(); }
+    catch (OperationCanceledException)
+    {
+      outcome = lifetime.IsCancellationRequested ? "closed" : "timeout";
+      throw new HostError("google-cancelled", "Google 登入逾時或已取消，請重試。");
+    }
+    catch (HostError error) { outcome = error.Code; throw; }
+    finally
+    {
+      // ADR-045's host.log: how the sign-in ended and what reached its callback, never a code, token or account.
+      HostLog.Append(directory, DateTimeOffset.Now, $"google sign-in {outcome} after {started.Elapsed.TotalSeconds:F1}s " + (callback is null ? "without a listener"
+        : $"port={callback.Port} callback={(received is null ? "none" : $"{received:F1}s")} connections={callback.Accepted} dropped={callback.Dropped} rejected={callback.Rejected}"));
+      gate.Release();
+    }
   }
   public string OpenAccount(string account)
   {

@@ -471,6 +471,15 @@ New-ItemProperty -Path $k -Name DumpCount -PropertyType DWord -Value 5 -Force | 
 - 不需要時，刪除 `LocalDumps\WorkFleet.exe` 機碼即可。
 - 安裝版的紀錄在 `%LOCALAPPDATA%\Packages\app.workfleet.preview_<id>\LocalCache\Local\WorkFleet\host.log`。
 
+Google 登入 callback（ADR-021）：core probe 以真 loopback socket 驗證 `LoopbackCallback`。
+- 先開一條不送資料的連線、再送真正的 redirect：要在單條連線的 5 秒期限內收到 code，空連線隨 listener 關閉。
+  這是 0.2.1 的失敗情境；逐條處理的版本會在這裡慢 5 秒而失敗。
+- 錯誤 state、重複 state、別的路徑、POST 都回 400 並繼續等；先斷線的連線只算 dropped。
+- 分三次送達、header 結尾的空行被切開的請求照常解析。
+- 同時 16 條空連線時，第 17 條立刻被關掉；空連線斷開後，callback 照常收到。
+- 帶這次 state 的 `error=access_denied` 交給呼叫端拒絕；取消時 port 與已開的連線都關閉。
+- 真 Google 帳號的瀏覽器登入仍需手動在安裝版確認。
+
 App 內更新（ADR-044）：core probe 以 `tests/fixtures/update-feed.json` 驗證 release 篩選、版本比較、`work-fleet-update.json` 與 MSIX 身分檢查。
 `Test-WindowsUpdate.ps1` 在 `Build-WindowsPackage.ps1 -LocalTestSign` 之後執行：把 MSIX 改成 `app.workfleet.updateprobe.e2e` 的兩個版本、
 以同一張本機憑證簽章，安裝舊版並給它本機測試來源，確認它自行下載、核對、保存並關閉後由 Windows 換成新版，最後移除測試套件。

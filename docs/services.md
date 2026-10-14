@@ -33,6 +33,9 @@ loopback 不分 Windows 使用者，本機任何程序都能經此 port 讀取�
 
 登入期間以 TcpListener 綁定 `127.0.0.1:0`，由 OS 分配空閒 port，路徑 `/oauth2/callback`。
 只接受符合該次隨機 state 的 code；PKCE verifier 留在原生服務。完成、取消或 110 秒逾時即關閉。
+每條連線各自處理，最多同時 16 條，每條 5 秒內要送完請求。
+瀏覽器可能先開一條空的預備連線（Chrome 留著抓 favicon），它逾時或斷線只關掉自己，不會結束登入。
+`host.log` 記下每次登入的結果、port、收到 callback 的時間與連線數，不記 code、token 或帳號。
 此 listener 不提供便箋 API，不綁定 LAN、不使用固定 port，也不變更外部 port registry。
 Google HTTPS token、userinfo 及 Drive 請求皆由原生端送出，renderer 不持有憑證或任意 HTTP 能力。
 

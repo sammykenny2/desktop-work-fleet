@@ -2,6 +2,45 @@
 
 更新：2026-10-14。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-14 Windows Google 登入 callback 被空連線卡住
+
+使用者回報：一台新裝 GitHub 0.2.1 的機器登入 Google 時，Chrome 最後停在 `127.0.0.1` 的 `ERR_CONNECTION_REFUSED`。
+Chrome 已登入該帳號，只選帳號、按同意；重試一次就成功。其他 Windows 11 機器裝同一版都能登入。
+使用者要求實作、測試後 commit 到 main。這次不升版、不發布。
+
+- 調查：
+  - App 還在執行，沒有當掉；登入 listener 已經關閉，所以 Google 轉回 callback 時被拒絕連線。
+  - 本機 probe（scratchpad，不進 repo）記錄 Chrome 轉到 loopback 的連線：
+    7 次中有 3 次，Chrome 多開的一條空連線比帶 redirect 的那條先被接受；它要等頁面顯示後才拿來抓 favicon。
+  - 照 0.2.1 寫法逐條處理、每條等 5 秒的 probe，5 次中 1 次重現：卡在空連線 5 秒，逾時中止整個登入，Chrome 落到錯誤頁。
+  - 110 秒上限不是這次的原因：使用者只花幾次點擊。
+- `LoopbackCallback`（core）：
+  - 從 `NativeGoogle` 抽出，每條連線各自處理，最多同時 16 條；單條 5 秒讀不到、先斷線或寫入失敗只關掉自己。
+  - 第一個帶這次 state 的 callback 路徑請求才算數，其他請求回 400 並繼續等。
+  - accept 時被瀏覽器 reset 的連線也只略過那一條。
+  - 完成、取消或逾時時關閉 listener 與未完成的連線。
+- `NativeGoogle`：
+  - 改用 `LoopbackCallback`，code、PKCE、token 流程不變；110 秒上限不變。
+  - `host.log` 加一行 `google sign-in <結果>`：耗時、port、收到 callback 的時間、連線數、dropped、rejected。不記 code、token 或帳號。
+    dropped 只算自己斷掉的連線；登入結束時才關掉的預備連線不算。
+- 審閱：另一個 agent 獨立審閱，沒有阻擋性問題。依意見補上 accept reset、計數語意、listener 建立失敗也記 log，
+  以及 header 結尾跨讀取與 16 條上限的測試。這些後續修改沒有再審。
+- 測試：
+  - core probe 新增 21 項 callback 檢查，用真 loopback socket。
+  - 反向驗證：
+    - 暫時改回逐條處理：空連線檢查以「慢 5.16 秒」失敗。
+    - 拿掉 header 結尾跨讀取的重疊搜尋：probe 沒有通過。
+    - 還原後 21/21 通過。
+  - npm test 272 通過、12 略過。
+  - `Test-WindowsNative.ps1`：
+    - Debug 建置無警告；`--shell-topology`、core probe、JS→native bridge（12/12）通過。
+    - 主 UI probe 在第一個視窗就失敗：WebView2 建 D3D9 裝置得到 `0x8876086A`。
+      未修改的 HEAD 在同一台機器同樣失敗，是這次執行環境的問題；其後的 UI probe 因此沒有執行。
+  - Python 測試沒有跑：這次沒有改 Python。
+- 未驗證：
+  - 用真 Google 帳號在安裝版登入，需要之後的版本。
+  - 這次執行環境跑不了 WebView2 UI probe，要在能建 D3D9 裝置的桌面 session 重跑。
+
 ## 2026-10-14 共用版號 0.2.1 與 Windows 預覽版
 
 使用者核准 0.2.1，並要求發布 Windows 預覽版。

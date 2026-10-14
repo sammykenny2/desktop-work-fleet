@@ -186,7 +186,7 @@ jobs:
           cat > notes.md <<EOF
           macOS 預覽版，從 ${COMMIT} 建置，已用 Developer ID 簽章並經 Apple 公證。需要 macOS 13 以上。
 
-          Google 登出只影響這台裝置，更新查詢改用公開 Release feed，並修正登入啟動項目的首次註冊。
+          同步期間切換帳號或關閉程式時，避免舊操作更新已切換的畫面。
 
           ## 安裝
           開啟 \`WorkFleet-${VERSION}-macos-universal.dmg\`，把 Work Fleet 拖到「應用程式」。

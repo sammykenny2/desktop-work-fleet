@@ -100,7 +100,7 @@ jobs:
           WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET }}
           VERSION: ${{ needs.guard.outputs.version }}
         run: |
-          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign
+          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary '同步期間切換帳號或關閉程式時，避免舊操作更新已切換的畫面。'
           if (-not (Test-Path -LiteralPath "build/WorkFleet-$env:VERSION-x64.msix")) { throw "build/WorkFleet-$env:VERSION-x64.msix was not produced." }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -135,7 +135,7 @@ jobs:
           cat > notes.md <<EOF
           Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11（最低 build 22000）。
 
-          Google 登出只影響這台裝置，更新查詢改用公開 Release feed，避免未驗證 GitHub API 的共用配額問題。
+          同步期間切換帳號或關閉程式時，避免舊操作更新已切換的畫面。
 
           ## 第一次安裝
           此包已包含 .NET 8 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。

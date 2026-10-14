@@ -2,6 +2,28 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 desktop preview 0.2.5 發布前準備
+
+使用者明確授權升至 0.2.5 並發布 Windows／Linux／macOS desktop preview；以下只記錄 dispatch 前已知結果。
+
+- Windows props、Linux VERSION、Apple xcconfig、Android Gradle 依五平台共用版號規則同步為 0.2.5；
+  Apple build／Android versionCode 為 205。iOS／Android 只同步版號，本次不發布行動平台。
+- 發布來源包含 Linux「立即同步」呼叫系統解鎖、成功接續原帳號同步、取消／逾時可重試，
+  以及共用 UI 在切換帳號／關閉後丟棄舊來源結果。背景非互動與系統 vault 保護維持。
+  三平台 release notes 更新為此次修正，Windows 更新 manifest 加入共用同步修正摘要；Linux／macOS dispatch 使用對應摘要。
+- 程式來源 afa46ae 的完整 CI 38628505383 已成功，含共用 JavaScript／Python、Linux 桌面與主機、Windows build／core／包檢查。
+  作者完整回歸與獨立程式審查見下一工作紀錄；本次準備未再修改程式行為。
+- 作者發布前檢查：版號／Apple project／公開設定 Node 15 項、Linux package Python 5 項通過；
+  resolver 核對四個版號紀錄 0.2.5 與 Apple build 205，文件連結／UTF-8／LF 與差異格式檢查通過。
+  Linux 本機 0.2.5 DEB／tar.gz 測試封裝成功，DEB 版號／all 架構、manifest、SHA-256 sidecar 與更新摘要核對通過。
+  本機缺 Google 公開設定的測試包不作發布產物；正式配置與 Windows 簽章、macOS 簽章／公證由授權 workflow 執行。
+- 獨立唯讀發布準備審查通過，版號回歸 6 項及差異檢查通過；三 workflow 維持 manual-only、
+  guard commit 固定、拒絕既有 tag／release、原架構與簽章政策，未發現 blocker。
+- GitHub 唯讀檢查確認 windows-v0.2.5／linux-v0.2.5／macos-v0.2.5 tag 尚不存在，近期 release 未使用這些版號；
+  三平台必要 secret／variable 名稱備妥，未輸出秘密值。待最後發布準備 commit 推送、工作樹／遠端 SHA 核對後 dispatch。
+- dispatch 後本次任務不再修改 tracked files、commit 或 push；只監控 run、在 Git 忽略目錄驗證產物並於對話回報。
+  此紀錄不宣稱已發布成功；Pi 真實解鎖視窗、密碼輸入與重開機仍待安裝驗收。
+
 ## 2026-10-15 Linux 手動同步提供系統金鑰圈解鎖
 
 使用者回報 0.2.4 在重開機後顯示同步暫停，按「立即同步」仍不顯示解鎖視窗，無法從 App 恢復同步。

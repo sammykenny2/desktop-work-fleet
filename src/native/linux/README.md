@@ -19,22 +19,28 @@ bash scripts/linux/build-native-app.sh --release --deb
 
 `.env.example` 的 Linux client ID 使用 Google Desktop app 類型。Google 尚未設定時可離線
 記錄；登入以系統瀏覽器 PKCE／state 及臨時 loopback callback，完成或 110 秒逾時即關閉。
-登入後以 HTTPS userinfo sub 建立帳號分區；加密 SQLite 保存 refresh credential，renderer 不讀憑證。
+登入後以 HTTPS userinfo sub 建立帳號分區；系統 Secret Service 保存 access／refresh credential，renderer 不讀憑證。
 Drive 僅固定 appDataFolder FileStore 操作，SHA-256／metadata 校驗與 1 MiB resumable chunks。
 
 資料預設在 `$XDG_DATA_HOME/WorkFleet`（通常 `~/.local/share/WorkFleet`）；可用 `--data PATH`
-指定同樣受保護的新目錄。[ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md)：
+指定同樣受保護的新目錄。[ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md)／
+[ADR-048](../../../docs/decisions/048-linux-offline-workspace-and-system-secrets.md)：
 AES-GCM 加密 SQLite payload 與原生 backup metadata；32-byte 主金鑰保存於同目錄的 `storage-key`（0600），
 目錄必須屬於目前使用者且為 0700。本機與 Google 工作空間啟動都不要求 keyring 密碼。
-Google refresh credential 存在 SQLite 的獨立加密 `credentials` 表，帳號切換與清空工作空間保留憑證，登出保存撤銷標記。
-這是 OS 帳號／檔案權限保護；能讀取整個資料目錄的人仍能解密，遺失 `storage-key` 也會失去資料。
+Google 權杖與保存的自動備份密碼存在已解鎖的持久 default keyring；SQLite 只保存 reference／撤銷狀態，
+vault 不可用時不退回本機保存。帳號切換與清空工作空間保留 Google 憑證；清空只撤銷該 profile 的備份密碼，登出先保存撤銷標記。
+本機便箋是 OS 帳號／檔案權限保護；能讀取整個資料目錄的人仍能解密便箋，遺失 `storage-key` 也會失去資料。
 SQLite revision 與新附件同交易，flock 保持唯一 owner；跨機備份使用 App 可攜 ZIP。
 
 舊版首次開啟需遷移原 keyring 金鑰：libsecret 僅讀取已解鎖項目，驗證所有帳號的既有加密 payload 後，
 才原子保存本機金鑰；不改寫或刪除原 keyring 項目。原 keyring 仍鎖定時不跳密碼視窗，
 顯示一次性遷移說明並保留資料；需在系統金鑰圈管理員解鎖後重新開啟，或由可攜備份還原。
-新資料目錄與已遷移工作空間不需要 Secret Service。舊 Google 憑證在首次使用帳號時遷移；
-若憑證鎖定或服務不存在，可重新登入 Google，已保存便箋仍可離線使用。
+新資料目錄與完成主金鑰遷移的離線便箋不需要 Secret Service；Google 與保存備份密碼需要 libsecret 及已解鎖的持久 vault。
+vault 鎖住時不主動要求密碼，顯示同步暫停；解鎖後立即同步或定期重試即可恢復，不需重新登入。
+加密備份只暫停需讀取密碼的工作，保留上次成功備份與待辦，不改存明文。
+舊本機憑證／備份密碼在頁面 ready 後或使用時遷移，確認 vault 保存與讀回後清理目前 DB／WAL 副本；
+失敗時保留副本但不繞過 vault。完成遷移前仍有舊版的較弱保護，不保證清除舊快照／備份。
+資料 schema 升至 2；舊 schema 1 程式降版將拒絕開啟，避免重新把秘密複製到本機。
 
 原生資料夾 chooser 保存授權位置與 device/inode 身分；新備份使用 O_EXCL／NOFOLLOW、
 fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新已確認備份及保留份數，
@@ -101,8 +107,8 @@ GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是
 
 所有桌面共同前提：
 
-- 新工作空間與完成遷移的工作空間不需要金鑰圈；本機金鑰以 0600／0700 權限保存，Google 憑證存在加密 SQLite。
-  只有舊版資料的一次性遷移需要 libsecret 與已解鎖的原 Secret Service 金鑰圈。
+- 新工作空間與完成主金鑰遷移的離線便箋不需要金鑰圈，本機金鑰以 0600／0700 權限保存。
+  Google 權杖／保存備份密碼及舊資料首次遷移需要 libsecret／已解鎖 Secret Service；鎖住只暫停相關功能。
 - 只提供 DEB（Debian／Ubuntu 系）。Fedora、Arch、openSUSE 需用 tar.gz 並自行安裝 Python 3.10+、GTK 3、
   WebKitGTK 4.1、PyGObject 與 cryptography；沒有 WebKitGTK 4.1 的發行版（如 Ubuntu 20.04、Debian 11）無法執行。
 - 系統匣需要 AppIndicator／StatusNotifier 或舊式系統匣；沒有時關閉主視窗即結束 App。Ubuntu 預設提供，原生 GNOME 沒有。

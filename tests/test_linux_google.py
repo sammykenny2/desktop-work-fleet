@@ -1,7 +1,10 @@
 """Linux Google token requests carry a configured Desktop client secret, and only then; no network is used."""
+import json
 from pathlib import Path
+import time
 import sys
 import unittest
+from unittest.mock import patch
 from urllib.parse import parse_qs
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/native/linux"))
@@ -104,6 +107,88 @@ class DisconnectedSignOut(unittest.TestCase):
         self.assertEqual(removed, [("google-account", "fixture")])
         self.assertIsNone(g.credentials)
         self.assertEqual(g.uploads, {})
+
+
+class VaultPause(unittest.TestCase):
+    def fixture(self):
+        class Vault:
+            def __init__(self):
+                self.locked, self.reads = False, 0
+            def read(self, kind, account):
+                self.reads += 1
+                if self.locked:
+                    raise p.Failure("vault-locked", "同步暫停，便箋仍可使用")
+                return json.dumps({"accountId": account, "email": "synthetic@example.test", "clientId": "client", "scope": google.SCOPE,
+                                   "accessToken": "synthetic-access", "refreshToken": "synthetic-refresh", "expiresAt": int(time.time()) + 3600})
+            def writable(self):
+                if self.locked:
+                    raise p.Failure("vault-locked", "vault locked")
+        vault = Vault()
+        g = google.Google(vault, {"google": {"clients": {"linux": "client"}}}, "google:fixture", lambda _: self.fail("browser should not launch"))
+        return g, vault
+
+    def test_owner_construction_does_not_read_vault_and_locked_status_is_nonfatal(self):
+        g, vault = self.fixture()
+        self.assertEqual(vault.reads, 0)
+        vault.locked = True
+        status = g.status()
+        self.assertFalse(status["connected"])
+        self.assertTrue(status["paused"])
+        self.assertEqual(status["accountId"], "fixture")
+        self.assertIn("暫停", status["pauseReason"])
+
+    def test_keyring_lock_clears_cached_token_and_unlock_resumes_without_oauth(self):
+        g, vault = self.fixture()
+        self.assertTrue(g.status()["connected"])
+        self.assertEqual(g.token(), "synthetic-access")
+        vault.locked = True
+        with self.assertRaises(p.Failure) as error:
+            g.token()
+        self.assertEqual(error.exception.code, "vault-locked")
+        self.assertIsNone(g.credentials)
+        vault.locked = False
+        self.assertEqual(g.token(), "synthetic-access")
+        self.assertFalse(g.status()["paused"])
+
+    def test_locked_sign_in_stops_before_system_browser_or_network(self):
+        g, vault = self.fixture()
+        vault.locked = True
+        with self.assertRaises(p.Failure) as error:
+            g.sign_in()
+        self.assertEqual(error.exception.code, "vault-locked")
+
+    def test_401_refresh_survives_vault_reload_and_temporary_lock(self):
+        g, vault = self.fixture()
+        saved = [vault.read("google-account", "fixture")]
+        reads, refreshes = [], []
+        def read(*_):
+            if vault.locked:
+                raise p.Failure("vault-locked", "locked")
+            return saved[0]
+        vault.read = read
+        vault.save = lambda _kind, _account, value: saved.__setitem__(0, value)
+        def http(url, method="GET", data=None, headers=None, maximum=0):
+            if url == "https://oauth2.googleapis.com/token":
+                refreshes.append(parse_qs(data.decode()))
+                return 200, b'{"access_token":"new-access","expires_in":3600}', {}
+            if url.endswith("/userinfo"):
+                return 200, b'{"sub":"fixture"}', {}
+            reads.append(headers["Authorization"])
+            return (401, b"{}", {}) if headers["Authorization"] == "Bearer synthetic-access" else (200, b"{}", {})
+        with patch.object(google, "http", http):
+            with self.assertRaises(p.Failure) as error:
+                g.request("/drive/v3/files")
+            self.assertEqual(error.exception.code, "unauthorized")
+            vault.locked = True
+            with self.assertRaises(p.Failure) as error:
+                g.request("/drive/v3/files")
+            self.assertEqual(error.exception.code, "vault-locked")
+            vault.locked = False
+            self.assertEqual(g.request("/drive/v3/files")[0], 200)
+            self.assertEqual(g.token(), "new-access")
+        self.assertEqual(reads, ["Bearer synthetic-access", "Bearer new-access"])
+        self.assertEqual(len(refreshes), 1)
+        self.assertEqual(refreshes[0]["grant_type"], ["refresh_token"])
 
 
 if __name__ == "__main__":

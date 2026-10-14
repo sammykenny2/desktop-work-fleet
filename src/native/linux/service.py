@@ -4,7 +4,7 @@ import threading
 import time
 
 from backup import Backup
-from database import Credentials
+from database import Credentials, SystemSecrets
 from google import Google
 import protocol as p
 
@@ -18,8 +18,9 @@ class Service:
         self.identity = {"appVersion": "0.0.0", "distribution": "source"}
         self.shell = None
         self.updates = False
-        self.backup = Backup(database, choose)
-        self.google = Google(Credentials(database, vault), config, database.profile, open_browser)
+        self.secrets = SystemSecrets(database, vault)
+        self.backup = Backup(database, choose, self.secrets)
+        self.google = Google(Credentials(database, vault, self.secrets), config, database.profile, open_browser)
         self.transfers, self.staged = {}, set()
         self.lock = threading.RLock()
         self.closed = False
@@ -73,6 +74,11 @@ class Service:
             return self.download(result) if isinstance(result, bytes) else result
         if method.startswith("desktop.") and self.desktop is not None:
             return self.desktop(method, args)
+        if method in ("backup.key.create", "backup.encrypt"):
+            # Vault and encryption work must not hold the local-storage bridge lock.
+            result = self.backup.invoke(method, args, self.upload, self.download)
+            p.require(not self.closed, "stale-session", "原生工作階段已結束。")
+            return result
         if method in ("host.preferences.get", "host.preferences.set", "host.preferences.openSystem", "host.window.resetPlacement",
                       "update.state", "update.check", "update.download", "update.install"):
             p.require(self.shell is not None, "unsupported-method", "原生主機沒有此操作。")
@@ -163,6 +169,7 @@ class Service:
     def close(self):
         self.closed = True
         self.google.close()
+        self.secrets.close()
         with self.lock:
             for token in self.staged:
                 self.database.discard(token)

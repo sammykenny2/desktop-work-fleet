@@ -2,6 +2,37 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 Linux 便箋免提示、敏感秘密恢復系統 vault（ADR-048）
+
+使用者要求修正 ADR-047 將 Google 權杖與自動備份密碼一同放在本機金鑰下的較弱保護，保留直接啟動便箋。
+
+- 本機便箋／草稿／歷史／附件／待同步內容維持 0600 主金鑰與 0700 資料目錄；Google access／refresh token、
+  保存的自動備份密碼改由持久 Secret Service default collection 保護，故障不退回本機保存。
+  SQLite schema 升至 2，只新增非秘密 reference／revocation／cleanup 狀態；舊 schema 1 程式降版不能開啟。
+- Google 建構不讀 vault，頁面先開啟離線內容。鎖住／不可用顯示同步暫停，保留重試及本機登出；
+  解鎖後沿用原帳號。加密備份回報既有暫停碼，保留待辦／上次成功備份、不改存明文。
+  每次用 token 前檢查 vault，401 refresh 意圖在重讀或暫時鎖住後仍保留。
+- 即時讀取 Locked，再只搜尋已解鎖 collection；GetSecret 使用新值與 libsecret 協商 session 解碼，不讀舊 proxy cache。
+  寫入／刪除直接呼叫 D-Bus 並拒絕執行回傳 Prompt，不使用會自動解鎖的便利 API；拒絕暫存 session vault。
+  canonical 只讀 default，已有 default token 優先於其他 collection 的舊值；provider 重啟後重建 owner proxy／session。
+- 舊本機憑證／備份密碼先保存到 vault 並確認讀回，才交易式移除副本；secure_delete、checkpoint／truncate、VACUUM
+  清理目前 DB／WAL 的 ciphertext，失敗可重試。鎖住時保留待遷移副本但不使用；完成前仍有 ADR-047 的較弱保護，
+  不宣稱抹除裝置／快照／舊備份。登出先保存持久撤銷狀態，防止日後解鎖或 reset 重新匯入舊 token。
+- Google 與涉及 vault 的備份操作使用 network worker，不占用筆記 storage worker 或 DB／bridge lock；
+  Service 回歸確認慢 vault 下 storage commit/load 仍完成。Windows／macOS vault 行為維持，共用 UI 兼容未回傳 paused 的 host。
+- 作者最終驗證：整合遠端更新器／研究目錄提交後，Python 166 項中 134 通過、32 平台限定略過；
+  JavaScript 293 項中 282 通過、11 略過。Vault 31 項、Google 11 項、真 GI MIME／容量檢查均通過。
+  初次與完整 JS／建置同時跑 Python 有既有 updater 的 10 秒等待逾時；分開負載後最終全套通過。
+- 私人 D-Bus／合成 gnome-keyring 七組通過：秘密僅存 vault、外部 token 換新、舊主金鑰遷移、鎖住後便箋可編輯而秘密暫停、
+  precheck 後鎖住不呼叫 Prompt、provider 重啟不直接重設 production Vault 即可恢復、舊副本從目前 DB／WAL 清理。
+  probe 不接使用者 desktop bus／金鑰圈；沒有將此證據當作真 Google 或重開機驗收。
+- 獨立唯讀複核完成，發現的 session 保存、401 refresh、慢 vault 阻塞、重複 collection、provider 全域搜尋提示與 MIME 問題
+  均已修正並複核，沒有剩餘 blocker。Reviewer 獨立跑 Vault 31／Google 11、真 GI／GLib 合成 wire 驗證與差異檢查通過；
+  作者真 provider probe 不列為 reviewer 的獨立 bus runtime 證據。
+- ADR-048／研究與索引、安全、setup／testing／Linux README 已更新，文件連結／差異檢查通過。
+  本機沿用既有 0.2.3 的 DEB／tar.gz 建置成功；公開 Google 設定未填的測試包不當正式登入交付。
+  本次未升版、未 dispatch、未發布、未更換 Pi 的 0.2.2 安裝；正式資料未遷移，重開機／正式 OAuth／其他 provider 仍待驗收。
+
 ## 2026-10-15 更新查詢移除未驗證 GitHub API 配額依賴（ADR-044 修訂）
 
 使用者回報 Work Fleet 查更新顯示 GitHub 限制次數，同機另一公開 Releases App 卻可成功，要求修改 ADR 與程式。

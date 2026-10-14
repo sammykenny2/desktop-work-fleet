@@ -194,12 +194,9 @@ async function initializeGoogle() {
   clearInterval(syncTimer);
   googleAccount = await native.bridge.request('google.status');
   const google = profileId.startsWith('google:'); const connected = googleAccount.connected;
-  $('#google-row').hidden = false; $('#local-row').hidden = !google; $('#sync-row').hidden = !connected;
-  $('#google-value').textContent = connected ? googleAccount.email || 'Google 帳號' : googleAccount.configured ? '未登入' : '這個版本還不能登入';
-  $('#google-sign-in').hidden = !googleAccount.configured;
-  $('#google-sign-in').textContent = connected ? '切換帳號' : google ? '重新登入' : '登入';
+  const paused = google && googleAccount.paused === true;
+  renderGoogleAccess();
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
-  $('#google-sign-out').hidden = !connected;
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
   $('#google-sync').textContent = workspace.state.cloudRestore ? '繼續覆蓋 Google' : '立即同步';
@@ -212,14 +209,14 @@ async function initializeGoogle() {
     return;
   }
   renderAccount();
-  if (connected) {
-    $('#storage-note').textContent = '同步到你的 Google 帳號';
-    setSync('off', '等待同步');
+  if (connected || paused) {
+    $('#storage-note').textContent = paused ? '便箋可離線使用；系統安全儲存可用後會繼續同步' : '同步到你的 Google 帳號';
+    setSync(paused ? 'attention' : 'off', paused ? '同步暫停' : '等待同步', paused ? googleAccount.pauseReason : '');
     syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId) });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
-    void syncGoogle();
+    if (!paused) void syncGoogle();
   } else if (google) {
     $('#storage-note').textContent = '重新登入後才會繼續同步';
     setSync('attention', '請重新登入 Google', '這台裝置上的便箋和還沒同步的修改都還在。');
@@ -227,6 +224,16 @@ async function initializeGoogle() {
     setSync('off', googleAccount.configured ? '尚未連接 Google' : '只存在這台裝置',
       googleAccount.configured ? '登入後會改用該帳號的便箋；這裡的本機便箋會留在這台裝置。' : '');
   }
+}
+function renderGoogleAccess() {
+  const google = profileId.startsWith('google:');
+  const connected = Boolean(googleAccount?.connected);
+  const paused = google && googleAccount?.paused === true;
+  $('#google-row').hidden = false; $('#local-row').hidden = !google; $('#sync-row').hidden = !(connected || paused);
+  $('#google-value').textContent = paused ? '同步暫停' : connected ? googleAccount.email || 'Google 帳號' : googleAccount.configured ? '未登入' : '這個版本還不能登入';
+  $('#google-sign-in').hidden = !googleAccount.configured;
+  $('#google-sign-in').textContent = connected || paused ? '切換帳號' : google ? '重新登入' : '登入';
+  $('#google-sign-out').hidden = !(connected || paused);
 }
 // The account chip and the settings identity say where the papers live and how syncing goes.
 function renderAccount() {
@@ -261,13 +268,23 @@ async function syncGoogle(force = false) {
       if (!activeGroups(workspace.snapshot).length && !workspace.snapshot.groups.length) await workspace.createGroup('我的便箋');
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
+      if (googleAccount?.paused) {
+        googleAccount = await native.bridge.request('google.status'); renderGoogleAccess(); renderAccount();
+        $('#storage-note').textContent = googleAccount.paused ? '便箋可離線使用；系統安全儲存可用後會繼續同步' : '同步到你的 Google 帳號';
+        if (googleAccount.paused) { setSync('attention', '同步暫停', googleAccount.pauseReason); return; }
+      }
       const pending = workspace.pendingOperations.length;
       if (pending) setSync('pending', `${pending} 筆等待同步`);
       else setSync('ok', `已同步 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
     }
   } catch (error) {
     if (error.code === 'source-reset') { setSync('attention', '雲端已重設', error.message); askAfterSourceReset(); return; }
-    setSync('error', '同步失敗', error.message);
+    const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup'].includes(error.code);
+    if (vaultPaused) {
+      googleAccount = { ...googleAccount, connected: false, paused: true, pauseReason: error.message };
+      renderGoogleAccess(); renderAccount();
+    }
+    setSync(vaultPaused ? 'attention' : 'error', vaultPaused ? '同步暫停' : '同步失敗', error.message);
     if (error.code === 'unauthorized' || error.code === 'source-permission') $('#google-sign-in').textContent = '重新登入 Google';
   }
   finally { syncBusy = false; $('#google-sync').disabled = false; }

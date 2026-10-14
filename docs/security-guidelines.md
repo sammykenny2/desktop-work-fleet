@@ -27,14 +27,24 @@
 
 ## Linux 本機金鑰與憑證
 
-[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md) 取代 ADR-024 的強制 keyring 啟動要求。
+[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md) 與 [ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)
+將離線便箋與需要系統秘密的功能分開。
 AES-GCM payload 與 AAD 維持原格式；主金鑰在 App 資料目錄的 `storage-key`，目錄 0700／金鑰 0600、同使用者，
-拒絕符號連結及過寬權限。金鑰完整写入及 fsync 後 create-only 發布，沿用唯一 owner 鎖。
-Google 憑證在獨立的加密 SQLite 表，不進入 workspace reset／ZIP／renderer，登出標記阻止舊憑證再遷移。
+拒絕符號連結及過寬權限。金鑰完整寫入及 fsync 後 create-only 發布，沿用唯一 owner 鎖。
+Google access／refresh token 與保存的自動備份密碼由已解鎖的持久 Secret Service default collection 保存，
+不寫本機 credential／secret payload，也不在故障時 fallback。SQLite 只保存 reference、撤銷與清理狀態；
+Google 憑證不進 workspace reset／ZIP／renderer，備份密碼 ID 綁定 profile。session collection 不可作持久保存。
+先即時讀取 Locked 屬性，再搜尋已解鎖 collection 並重新 GetSecret，不使用舊 secret／Locked 快取。
+避免 provider 的全域 SearchItems 自行觸發解鎖 UI；寫入／刪除不執行回傳的 Prompt。
+vault 鎖住或不可用時只暫停 Google 同步／需要保存密碼的加密備份，便箋仍可使用；解鎖後可重試，不必重新 OAuth。
+每次用 token 前重新讀 vault，不能繼續用先前快取的 token。慢 vault 不占用筆記儲存 worker 或 DB／bridge lock。
 舊版只讀取已解鎖 keyring 項目、不要求解鎖，所有既有帳號的 payload 通過驗證才保存本機金鑰；
-失敗不更换金鑰、不刪資料或原 keyring 項目。舊 Google 憑證不可讀時可重新登入，不阻擋離線便箋。
+失敗不更換金鑰、不刪資料或原 keyring 項目。ADR-047 的舊本機憑證／備份密碼先移入 vault 並確認讀回後才刪除；
+清理目前 SQLite／WAL 的 ciphertext，不聲稱實體抹除磁碟或舊備份。鎖住時保留待遷移副本但不使用，
+因此完成遷移前仍有較弱的保護。登出先保存持久撤銷標記，阻止 vault 解鎖或重啟後重新匯入舊 token。
 本機金鑰和 DB 在同目錄，保護邊界是 OS 帳號／檔案權限，不提供整個資料目錄被複製後的機密性；
-root、同帳號惡意程序與未加密磁碟被讀取不在此保護邊界。敏感跨機備份仍可明確選用密碼加密。
+root、同帳號惡意程序與未加密磁碟被讀取不在此保護邊界。完成秘密遷移後，複製此目錄不能取得 vault 中的權杖或備份密碼。
+其他平台的儲存政策維持，Linux 本機內容的保護仍較弱；敏感跨機備份可明確選用密碼加密。
 
 ## Windows 原生主畫面
 

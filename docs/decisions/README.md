@@ -1,6 +1,6 @@
 # 決策索引
 
-更新：2026-10-14。
+更新：2026-10-15。
 
 | 記錄 | 狀態 | 範圍 |
 |---|---|---|
@@ -33,7 +33,8 @@
 | [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted（附著場景修正方向） | 移位／堆疊／攤開白塊回報、宿主無 backing bitmap、舊區域撤下／不複製像素；效果未測 |
 | [ADR-036](036-windows-self-contained-packaging.md) | Accepted（Windows 封裝 runtime） | 預設自帶 .NET 8 Desktop／win-x64、runtime notices 與包檢查；WebView2 仍依賴系統 |
 | [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted（資料生命週期與覆蓋） | MSIX 解除安裝清除本機資料；完整備份、安全備份與可續行的 Google 全量覆蓋 |
-| [ADR-047](047-linux-local-key-without-keyring-prompts.md) | Accepted（Linux 啟動與金鑰） | 0600 本機金鑰、驗證舊資料後遷移、Google 憑證加密 SQLite；啟動不要求 keyring 密碼 |
+| [ADR-047](047-linux-local-key-without-keyring-prompts.md) | Accepted（本機便箋金鑰） | 0600 本機金鑰、驗證舊資料後遷移；憑證與備份密碼政策由 ADR-048 取代 |
+| [ADR-048](048-linux-offline-workspace-and-system-secrets.md) | Accepted（Linux 系統秘密） | 權杖／保存備份密碼用持久 vault；鎖住時只暫停同步與加密備份，離線便箋免提示 |
 | [000-template](000-template.md) | Template | 後續決策格式 |
 | [ADR-038](038-portable-local-and-cloud-backup-flows.md) | Accepted（雙向備份遷移） | 同格式 ZIP、本機原子完整還原與 Google 同步後匯出；失敗副本需明確選擇 |
 | [ADR-045](045-windows-fatal-error-leaves-explorer-first.md) | Accepted（Windows 致命錯誤） | 當掉時先把場景視窗移出 Explorer 再交給 WER；`host.log` 紀錄；登入啟動 render thread 失敗時隱藏重開一次（2026-10-14 起停用） |

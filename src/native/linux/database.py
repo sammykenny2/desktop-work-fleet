@@ -14,18 +14,34 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import protocol as p
 
 
+
 class Vault:
-    """Read legacy secrets without requesting an unlock. New secrets never go to Secret Service."""
+    """System secrets; read without UNLOCK and mutate through D-Bus without performing prompts."""
     def __init__(self, app_id):
         self.app_id = app_id
         self.cancellable = None
+        self.service = None
+        self.owner = None
+        self.retired_services = []
+        self.lock = threading.RLock()
 
     def connect(self):
         import gi
         gi.require_version("Secret", "1")
-        from gi.repository import Gio, Secret
+        from gi.repository import Gio, GLib, Secret
         if self.cancellable is None:
             self.cancellable = Gio.Cancellable()
+        bus = Gio.bus_get_sync(Gio.BusType.SESSION, self.cancellable)
+        owner = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "GetNameOwner",
+                              GLib.Variant("(s)", ("org.freedesktop.secrets",)), GLib.VariantType.new("(s)"),
+                              Gio.DBusCallFlags.NONE, 5000, self.cancellable).unpack()[0]
+        if self.service is None or self.owner != owner:
+            # A provider restart invalidates its encrypted session. Open a proxy pinned to the current owner.
+            if self.service is not None:
+                # libsecret's pending collection callbacks may still reference the former service.
+                self.retired_services.append(self.service)
+            self.service = Secret.Service.open_sync(Secret.Service.__gtype__, owner, Secret.ServiceFlags.NONE, self.cancellable)
+            self.owner = owner
         # Locked collections hide the schema name; match the attributes, which stay searchable without unlocking.
         self.schema = Secret.Schema.new("app.workfleet.native.v1", Secret.SchemaFlags.DONT_MATCH_NAME, {
             "application": Secret.SchemaAttributeType.STRING,
@@ -38,76 +54,311 @@ class Vault:
         return {"application": self.app_id, "kind": kind, "id": key}
 
     def read(self, kind, key):
+        with self.lock:
+            values = self.lookup(kind, key, canonical=True)
+            return values[0] if values else None
+
+    def legacy_read(self, kind, key):
         values = self.values(kind, key)
         return values[0] if values else None
 
     def values(self, kind, key):
+        with self.lock:
+            return self.lookup(kind, key)
+
+    def lookup(self, kind, key, canonical=False):
         try:
             Secret = self.connect()
-            service = Secret.Service.get_sync(Secret.ServiceFlags.NONE, self.cancellable)
-            items = service.search_sync(self.schema, self.attributes(kind, key),
-                                        Secret.SearchFlags.ALL | Secret.SearchFlags.LOAD_SECRETS, self.cancellable)
-            values = [item.get_secret().get_text() for item in items if not item.get_locked() and item.get_secret() is not None]
+            if canonical:
+                _, collection = self.writable()
+                collections = [collection]
+            else:
+                self.service.load_collections_sync(self.cancellable)
+                collections = self.service.get_collections()
+            items, locked = [], False
+            for collection in collections:
+                if self.is_locked(collection):
+                    locked = True
+                    continue
+                # Some providers display their own unlock UI from global SearchItems, without a Prompt object.
+                items.extend(collection.search_sync(self.schema, self.attributes(kind, key),
+                                                    Secret.SearchFlags.ALL, self.cancellable))
+            values = [self.read_item(item) for item in items if not self.is_locked(item, "org.freedesktop.Secret.Item")]
             if values:
                 return values
-            p.require(not items, "vault-locked", "舊版 Work Fleet 金鑰圈仍鎖定；請在系統金鑰圈管理員解鎖後重試一次遷移。原資料未變更。")
+            p.require(not items and not locked, "vault-locked", "系統金鑰圈已鎖定；便箋仍可使用，相關同步或加密備份已暫停。解鎖金鑰圈後重試即可。")
             return []
         except p.Failure:
             raise
         except Exception as error:
-            raise p.Failure("vault-unavailable", "無法讀取舊版 Work Fleet 金鑰圈；請恢復原金鑰圈或由可攜備份還原。原資料未變更。") from error
+            raise p.Failure("vault-unavailable", "系統安全儲存目前無法使用；便箋仍可使用，相關同步或加密備份已暫停。") from error
+
+    def writable(self):
+        try:
+            Secret = self.connect()
+            collection = Secret.Collection.for_alias_sync(self.service, "default", Secret.CollectionFlags.NONE, self.cancellable)
+            p.require(collection is not None, "vault-unavailable", "系統尚未設定可保存秘密的金鑰圈；便箋仍可使用。")
+            p.require(not self.is_locked(collection), "vault-locked", "系統金鑰圈已鎖定；請在系統中解鎖後再設定登入或備份密碼。便箋仍可使用。")
+            session = Secret.Collection.for_alias_sync(self.service, Secret.COLLECTION_SESSION, Secret.CollectionFlags.NONE, self.cancellable)
+            path = collection.get_object_path()
+            p.require(path != "/org/freedesktop/secrets/collection/session" and (session is None or path != session.get_object_path()),
+                      "vault-unavailable", "預設金鑰圈只保存本次工作階段，無法持久保存登入或備份密碼。")
+            return Secret, collection
+        except p.Failure:
+            raise
+        except Exception as error:
+            raise p.Failure("vault-unavailable", "系統安全儲存目前無法保存秘密；便箋仍可使用。") from error
+
+    def save(self, kind, key, value):
+        with self.lock:
+            try:
+                Secret, collection = self.writable()
+                secret = Secret.Value.new(value, -1, "text/plain")
+                self.store(collection, kind, key, secret)
+                p.require(self.read(kind, key) == value, "vault-unavailable", "系統金鑰圈讀回不符；未確認保存，沒有改存本機檔案。")
+            except p.Failure:
+                raise
+            except Exception as error:
+                raise p.Failure("vault-unavailable", "系統安全儲存未確認保存；沒有改存本機檔案。") from error
+
+    def store(self, collection, kind, key, secret):
+        from gi.repository import GLib
+        self.service.ensure_session_sync(self.cancellable)
+        encoded = self.service.encode_dbus_secret(secret)
+        attributes = {**self.attributes(kind, key), "xdg:schema": "app.workfleet.native.v1"}
+        properties = {"org.freedesktop.Secret.Item.Label": GLib.Variant("s", "Work Fleet " + kind),
+                      "org.freedesktop.Secret.Item.Attributes": GLib.Variant("a{ss}", attributes)}
+        reply = self.call(collection.get_object_path(), "org.freedesktop.Secret.Collection", "CreateItem",
+                          GLib.Variant("(a{sv}(oayays)b)", (properties, encoded.unpack(), True)), "(oo)")
+        item, prompt = reply.unpack()
+        p.require(prompt == "/" and item != "/", "vault-locked", "系統金鑰圈未完成保存；相關工作已暫停，沒有改存本機檔案。")
+
+    def call(self, path, interface, method, parameters, result):
+        from gi.repository import Gio, GLib
+        owner = self.service.get_name_owner()
+        p.require(owner is not None, "vault-unavailable", "系統安全儲存服務已停止。")
+        return self.service.get_connection().call_sync(owner, path, interface, method, parameters,
+                                                       GLib.VariantType.new(result), Gio.DBusCallFlags.NONE, 5000, self.cancellable)
+
+    def is_locked(self, proxy, interface="org.freedesktop.Secret.Collection"):
+        from gi.repository import GLib
+        # Properties on a libsecret proxy can lag behind a lock, especially outside the UI main context.
+        return self.call(proxy.get_object_path(), "org.freedesktop.DBus.Properties", "Get",
+                         GLib.Variant("(ss)", (interface, "Locked")), "(v)").unpack()[0]
+
+    def read_item(self, item):
+        from gi.repository import GLib
+        self.service.ensure_session_sync(self.cancellable)
+        reply = self.call(item.get_object_path(), "org.freedesktop.Secret.Item", "GetSecret",
+                          GLib.Variant("(o)", (self.service.get_session_dbus_path(),)), "((oayays))")
+        # Always fetch and decode a new value: never reuse libsecret's pre-lock or pre-refresh secret cache.
+        secret = self.service.decode_dbus_secret(reply.get_child_value(0))
+        p.require(secret is not None, "vault-unavailable", "系統安全儲存未能讀取秘密，相關工作已暫停。")
+        raw = secret.get()
+        p.require(raw is not None and len(raw) <= 65536, "vault-unavailable", "系統安全儲存秘密格式或容量無效，相關工作已暫停。")
+        return bytes(raw).decode("utf-8")
+
+    def remove(self, kind, key):
+        with self.lock:
+            try:
+                Secret = self.connect()
+                self.service.load_collections_sync(self.cancellable)
+                items = []
+                for collection in self.service.get_collections():
+                    if not self.is_locked(collection):
+                        items.extend(collection.search_sync(self.schema, self.attributes(kind, key), Secret.SearchFlags.ALL, self.cancellable))
+                for item in items:
+                    if not self.is_locked(item, "org.freedesktop.Secret.Item"):
+                        reply = self.call(item.get_object_path(), "org.freedesktop.Secret.Item", "Delete", None, "(o)")
+                        p.require(reply.unpack()[0] == "/", "vault-locked", "金鑰圈已鎖定；這台裝置的登出狀態仍會保留。")
+            except p.Failure:
+                raise
+            except Exception as error:
+                raise p.Failure("vault-unavailable", "系統安全儲存尚未完成移除；這台裝置的登出狀態仍會保留。") from error
 
     def close(self):
         if self.cancellable is not None:
             self.cancellable.cancel()
 
 
-class Credentials:
-    """Account credentials stay in encrypted SQLite, across workspace resets and account switches."""
-    def __init__(self, database, legacy):
-        self.database, self.legacy = database, legacy
+class SystemSecrets:
+    """Vault-backed secrets; SQLite contains references, revocations and pending upgrade data only."""
+    def __init__(self, database, vault):
+        self.database, self.vault = database, vault
+        self.lock = threading.RLock()
+        self.closed = threading.Event()
 
-    def read(self, kind, key):
-        p.require(kind == "google-account" and p.is_account(key), "invalid-credential", "Google 憑證身分無效。")
-        with self.database.lock:
+    def check(self):
+        p.require(not self.closed.is_set() and self.database.connection is not None, "stale-session", "安全儲存工作階段已結束。")
+
+    def close(self):
+        self.closed.set()
+
+    @staticmethod
+    def identity(scope, kind, key):
+        p.require(kind in ("google-account", "backup-key") and isinstance(key, str) and 0 < len(key) <= 256,
+                  "invalid-credential", "安全儲存身分無效。")
+        if kind == "google-account":
+            p.require(scope == "account" and p.is_account(key), "invalid-credential", "Google 憑證身分無效。")
+            return key
+        p.require(scope == "local" or scope.startswith("google:") and p.is_account(scope[7:]),
+                  "invalid-profile", "備份金鑰分區無效。")
+        return f"{len(scope.encode('utf-8'))}:{scope}|{key}"
+
+    def reference(self, scope, kind, key):
+        return self.database.connection.execute("SELECT state FROM secret_refs WHERE scope=? AND kind=? AND id=?", (scope, kind, key)).fetchone()
+
+    def legacy(self, scope, kind, key):
+        if kind == "google-account":
             row = self.database.connection.execute("SELECT data FROM credentials WHERE kind=? AND id=?", (kind, key)).fetchone()
-            if row is not None:
-                try:
-                    value = self.database.cipher.decrypt(row[0][:12], row[0][12:], self.aad(kind, key)).decode("utf-8")
-                except Exception as error:
-                    raise p.Failure("storage-integrity", "Google 憑證驗證失敗；請保留 App 資料與本機金鑰。") from error
-                return value or None
-            try:
-                value = self.legacy.read(kind, key)
-            except p.Failure:
-                # Google may need sign-in again; the local workspace remains usable without an unlock dialog.
+            if row is None:
                 return None
-            if value is not None:
-                self.save(kind, key, value)
+            return self.database.cipher.decrypt(row[0][:12], row[0][12:], Credentials.aad(kind, key)).decode("utf-8")
+        row = self.database.connection.execute("SELECT data FROM secrets WHERE profile=? AND kind=? AND id=?", (scope, kind, key)).fetchone()
+        if row is None:
+            return None
+        aad = f"{len(scope.encode('utf-8'))}:{scope}|secret:{kind}|{key}".encode("utf-8")
+        return self.database.cipher.decrypt(row[0][:12], row[0][12:], aad).decode("utf-8")
+
+    def record(self, scope, kind, key, state):
+        connection = self.database.connection
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            if kind == "google-account":
+                removed = connection.execute("DELETE FROM credentials WHERE kind=? AND id=?", (kind, key)).rowcount
+            else:
+                removed = connection.execute("DELETE FROM secrets WHERE profile=? AND kind=? AND id=?", (scope, kind, key)).rowcount
+            connection.execute("INSERT INTO secret_refs VALUES(?,?,?,?,?) ON CONFLICT(scope,kind,id) DO UPDATE SET state=excluded.state,cleanup=MAX(secret_refs.cleanup,excluded.cleanup)",
+                               (scope, kind, key, state, int(removed > 0)))
+            connection.execute("COMMIT")
+        except Exception:
+            connection.execute("ROLLBACK")
+            raise
+        self.cleanup()
+
+    def cleanup(self):
+        connection = self.database.connection
+        if not connection.execute("SELECT 1 FROM secret_refs WHERE cleanup=1 LIMIT 1").fetchone():
+            return
+        # The old ciphertext is decryptable with the local key: remove it from free pages and active WAL too.
+        result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        p.require(result[0] == 0, "storage-cleanup", "秘密已移至系統安全儲存；舊副本清理尚未完成，請稍後重試。")
+        connection.execute("VACUUM")
+        result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
+        p.require(result[0] == 0, "storage-cleanup", "秘密已移至系統安全儲存；舊副本清理尚未完成，請稍後重試。")
+        connection.execute("UPDATE secret_refs SET cleanup=0 WHERE cleanup=1")
+
+    def read(self, scope, kind, key):
+        identity = self.identity(scope, kind, key)
+        with self.lock:
+            with self.database.lock:
+                self.check()
+                self.cleanup()
+                reference = self.reference(scope, kind, key)
+                if reference is not None and reference[0] == "revoked":
+                    return None
+                try:
+                    old = self.legacy(scope, kind, key)
+                except Exception as error:
+                    raise p.Failure("storage-integrity", "舊版秘密無法驗證；保留原資料，相關同步或加密備份已暫停。") from error
+                if kind == "google-account" and old == "":
+                    self.record(scope, kind, key, "revoked")
+                    return None
+                if kind == "backup-key" and reference is None and old is None:
+                    return None
+            # No database lock is held while the system vault is contacted: local edits remain available.
+            if old is None and reference is None and kind == "google-account":
+                # Older versions could have saved the same account in another collection. Canonical reads use default only.
+                current = self.vault.read(kind, identity)
+                if current is None:
+                    current = self.vault.legacy_read(kind, identity)
+                    if current is not None:
+                        self.vault.save(kind, identity, current)
+                if current is not None:
+                    with self.database.lock:
+                        self.check()
+                        self.record(scope, kind, key, "active")
+            if old is not None:
+                self.vault.save(kind, identity, old)
+                with self.database.lock:
+                    self.check()
+                    if self.legacy(scope, kind, key) != old or (self.reference(scope, kind, key) or [None])[0] == "revoked":
+                        raise p.Failure("stale-session", "舊版秘密遷移期間資料已變更；未重新啟用秘密。")
+                    self.record(scope, kind, key, "active")
+            value = self.vault.read(kind, identity)
+            with self.database.lock:
+                self.check()
             return value
+
+    def save(self, scope, kind, key, value):
+        identity = self.identity(scope, kind, key)
+        p.require(isinstance(value, str) and len(value.encode("utf-8")) <= 65536, "invalid-credential", "安全儲存容量無效。")
+        with self.lock:
+            with self.database.lock:
+                self.check()
+                old = self.legacy(scope, kind, key)
+            if old is not None:
+                self.read(scope, kind, key)
+            self.vault.save(kind, identity, value)
+            with self.database.lock:
+                self.check()
+                self.record(scope, kind, key, "active")
+
+    def remove(self, scope, kind, key):
+        identity = self.identity(scope, kind, key)
+        with self.lock:
+            with self.database.lock:
+                self.check()
+                # Revocation precedes optional vault cleanup, even when the keyring stays locked.
+                self.record(scope, kind, key, "revoked")
+            try:
+                self.vault.remove(kind, identity)
+            except p.Failure:
+                pass
+
+    def migrate_pending(self):
+        """Worker-only best effort upgrade, called after the owner page is ready."""
+        with self.database.lock:
+            self.check()
+            pending = [("account", kind, key) for kind, key in self.database.connection.execute("SELECT kind,id FROM credentials")]
+            pending += [(profile, kind, key) for profile, kind, key in self.database.connection.execute("SELECT profile,kind,id FROM secrets WHERE kind='backup-key'")]
+        for scope, kind, key in pending:
+            try:
+                self.read(scope, kind, key)
+            except p.Failure as error:
+                if error.code in ("vault-locked", "vault-unavailable"):
+                    break
+        with self.database.lock:
+            self.check()
+            return self.database.connection.execute("SELECT COUNT(*) FROM credentials").fetchone()[0] + self.database.connection.execute("SELECT COUNT(*) FROM secrets WHERE kind='backup-key'").fetchone()[0]
+
+
+class Credentials:
+    def __init__(self, database, vault, secrets=None):
+        self.secrets = secrets or SystemSecrets(database, vault)
 
     @staticmethod
     def aad(kind, key):
         return ("credential|" + kind + "|" + key).encode("utf-8")
 
+    def read(self, kind, key):
+        return self.secrets.read("account", kind, key)
+
     def save(self, kind, key, value):
-        p.require(kind == "google-account" and p.is_account(key) and isinstance(value, str) and len(value.encode("utf-8")) <= 65536,
-                  "invalid-credential", "Google 憑證種類或容量無效。")
-        with self.database.lock:
-            nonce = os.urandom(12)
-            data = nonce + self.database.cipher.encrypt(nonce, value.encode("utf-8"), self.aad(kind, key))
-            self.database.connection.execute("INSERT OR REPLACE INTO credentials VALUES(?,?,?)", (kind, key, data))
+        self.secrets.save("account", kind, key, value)
 
     def remove(self, kind, key):
-        # A durable tombstone prevents importing the legacy token again after sign-out.
-        self.save(kind, key, "")
+        self.secrets.remove("account", kind, key)
+
+    def writable(self):
+        self.secrets.vault.writable()
 
 
 def validate_legacy_key(filename, raw):
     cipher = AESGCM(raw)
     # Read-only validation covers every profile before publishing a key or changing SQLite/staging.
     with closing(sqlite3.connect(filename.absolute().as_uri() + "?mode=ro", uri=True)) as connection:
-        p.require(connection.execute("PRAGMA user_version").fetchone()[0] == 1,
+        p.require(connection.execute("PRAGMA user_version").fetchone()[0] in (1, 2),
                   "native-version", "舊資料版本不支援遷移；請保留原資料並使用對應版本匯出備份。")
         for table, kind, key in (("records", "'record'", "kind"), ("attachments", "'attachment'", "id"),
                                  ("staging", "'stage:' || kind", "token"), ("secrets", "'secret:' || kind", "id")):
@@ -199,15 +450,17 @@ class Database:
             os.chmod(filename, 0o600)
             self.connection.execute("PRAGMA journal_mode=WAL")
             self.connection.execute("PRAGMA synchronous=FULL")
+            self.connection.execute("PRAGMA secure_delete=ON")
             version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-            p.require(version in (0, 1), "native-version", "本機資料版本較新，請更新 App。")
+            p.require(version in (0, 1, 2), "native-version", "本機資料版本較新，請更新 App。")
             self.connection.executescript("""
                 CREATE TABLE IF NOT EXISTS records(profile TEXT,kind TEXT,revision INTEGER,data BLOB,PRIMARY KEY(profile,kind));
                 CREATE TABLE IF NOT EXISTS attachments(profile TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,id));
                 CREATE TABLE IF NOT EXISTS staging(profile TEXT,token TEXT,kind TEXT,digest TEXT,size INTEGER,data BLOB,PRIMARY KEY(profile,token));
                 CREATE TABLE IF NOT EXISTS secrets(profile TEXT,kind TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,kind,id));
                 CREATE TABLE IF NOT EXISTS credentials(kind TEXT,id TEXT,data BLOB,PRIMARY KEY(kind,id));
-                PRAGMA user_version=1;
+                CREATE TABLE IF NOT EXISTS secret_refs(scope TEXT,kind TEXT,id TEXT,state TEXT,cleanup INTEGER,PRIMARY KEY(scope,kind,id));
+                PRAGMA user_version=2;
             """)
             self.connection.execute("DELETE FROM staging WHERE profile=?", (profile,))
         except Exception:
@@ -313,6 +566,7 @@ class Database:
             try:
                 for table in ("records", "attachments", "staging", "secrets"):
                     self.connection.execute(f"DELETE FROM {table} WHERE profile=?", (self.profile,))
+                self.connection.execute("UPDATE secret_refs SET state='revoked' WHERE scope=? AND kind='backup-key'", (self.profile,))
                 self.connection.execute("COMMIT")
             except Exception:
                 self.connection.execute("ROLLBACK")
@@ -321,9 +575,10 @@ class Database:
             self.connection.execute("VACUUM")
 
     def close(self):
-        if self.connection is not None:
-            self.connection.close()
-            self.connection = None
-        if self.owner is not None:
-            os.close(self.owner)
-            self.owner = None
+        with self.lock:
+            if self.connection is not None:
+                self.connection.close()
+                self.connection = None
+            if self.owner is not None:
+                os.close(self.owner)
+                self.owner = None

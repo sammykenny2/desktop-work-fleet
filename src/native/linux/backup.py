@@ -14,8 +14,8 @@ import protocol as p
 class Backup:
     FIELDS = ("id", "scheduleId", "policyId", "destinationId", "name", "sourceRevision", "createdAt", "encrypted", "sha256", "size")
 
-    def __init__(self, database, choose):
-        self.database, self.choose = database, choose
+    def __init__(self, database, choose, secrets):
+        self.database, self.choose, self.secrets = database, choose, secrets
         self.manual = {}
 
     def metadata(self, kind, key):
@@ -176,16 +176,22 @@ class Backup:
             password = p.text(args, "password", 1024)
             p.require(len(password) >= 12, "backup-password", "備份密碼至少 12 個字元。")
             key = p.identifier()
-            self.database.secret("backup-key", key, password.encode("utf-8"))
+            try:
+                self.secrets.save(self.database.profile, "backup-key", key, password)
+            except p.Failure as error:
+                raise p.Failure("backup-vault-unavailable", str(error)) from error
             return {"keyId": key}
         if method == "backup.encrypt":
-            password = self.database.secret("backup-key", p.text(args, "keyId"))
+            try:
+                password = self.secrets.read(self.database.profile, "backup-key", p.text(args, "keyId"))
+            except p.Failure as error:
+                raise p.Failure("backup-vault-unavailable", str(error)) from error
             p.require(password is not None, "backup-key-unavailable", "備份金鑰不存在，未改存明文。")
             data = upload(args, "backup")
             salt, nonce = os.urandom(16), os.urandom(12)
             header = {"cipher": "AES-256-GCM", "format": "work-fleet-encrypted-backup", "iterations": 600000, "kdf": "PBKDF2-HMAC-SHA256", "nonce": nonce.hex(), "salt": salt.hex(), "schemaVersion": 1, "tagBits": 128}
             aad = p.encode(header)
-            key = hashlib.pbkdf2_hmac("sha256", password, salt, 600000, 32)
+            key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 600000, 32)
             payload = AESGCM(key).encrypt(nonce, data, aad)
             result = io.BytesIO()
             with zipfile.ZipFile(result, "w", compression=zipfile.ZIP_STORED) as archive:

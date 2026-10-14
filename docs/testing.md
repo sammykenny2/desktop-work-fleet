@@ -129,12 +129,17 @@ WORK_FLEET_TEST_LOGIN_ITEMS=1 python3 -B -m unittest discover -s tests -p 'test_
 `python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證
 Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequence 與 geometry；不作 UI 證據。
 `python3 -m unittest discover -s tests -p 'test_linux_vault.py' -v` 以真 AES-GCM／SQLite 與假 libsecret 驗證
-[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md)：首次啟動／重開不接觸金鑰圈、0600 本機金鑰、
+[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md)／[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)：首次啟動／重開便箋不接觸金鑰圈、0600 本機金鑰、
 舊資料跨帳號完整驗證後遷移、鎖定／缺金鑰／錯誤金鑰／損毀／寫入失敗保留原資料、拒絕 symlink／不安全權限，
-以及 Google 憑證加密／切換／reset／登出標記與鎖定時重新登入。不需 GI 或使用者金鑰圈；需 python3-cryptography。
+以及系統憑證／備份密碼的 profile 隔離、鎖住暫停、session collection 拒絕、重複 collection、reset／登出標記、
+舊副本保存確認後 DB／WAL 清理與寫入失敗重試。慢 vault 下 owner bridge 仍完成 storage commit/load，
+host 將 vault 備份分流至 network worker。不需 GI 或使用者金鑰圈；需 python3-cryptography。
 
 真 libsecret probe 在私人 D-Bus session 與 `/tmp` 合成金鑰圈驗證遷移，以及鎖住後不跳密碼視窗、
-已遷移資料和 Google 憑證仍可讀、未遷移資料原樣保留。需要 dbus-run-session、gnome-keyring-daemon、libsecret；
+便箋仍可讀寫、憑證／備份密碼不能讀或新存；precheck 後再鎖住仍不執行 Prompt，
+provider 重啟無須直接重設 production Vault 即可恢復；鎖定／secret cache 不可繞過鎖定，外部換 token 後讀到新值。
+舊本機副本確認移至 vault 後從目前 DB／WAL 清理。
+需要 dbus-run-session、dbus-monitor、gnome-keyring-daemon、libsecret；
 不修改桌面的 keyring，不代替實際登入／重開機驗收：
 
 ```bash
@@ -145,7 +150,11 @@ XDG_DATA_HOME="$task_probe_dir/data" XDG_RUNTIME_DIR="$task_probe_dir/runtime" \
 ```
 `python3 -m unittest discover -s tests -p 'test_linux_google.py' -v` 以假 HTTP 確認 Linux 換 token 時，
 有設定才送 Desktop client secret、格式不對時停用；不連網，也不代表真實登入。
-同一檔也確認登出只刪除本機憑證、完全不發網路請求。`node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、
+同一檔也確認建構不讀 vault、鎖住清除快取 token／status 非致命、解鎖恢復不需 OAuth、
+鎖住時不啟動登入瀏覽器，以及 401 強制 refresh 在 vault 重讀與暫時鎖定後仍保留。
+`node --test tests/google-vault-pause.test.js` 執行實際帳號 UI 函式，確認同步暫停仍有重試／登出控制、解鎖恢復同帳號，
+Windows／macOS 未回傳 paused 欄位時維持原行為。登出仍只刪除本機憑證、完全不發網路請求。
+`node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、
 Apple、Android 的原始碼都沒有向 Google 撤銷授權的呼叫（ADR-021 修訂）；Swift 與 Java 不在每個檢查環境編譯，所以用原始碼檢查。
 `tests/test_linux_python_floor.py` 從 DEB `Depends` 讀 Python 下限（3.10），確認 tar.gz 宣告相同，
 並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。

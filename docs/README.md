@@ -29,7 +29,7 @@
 | [ADR-021](decisions/021-windows-google-account-and-sync.md) | Accepted：Windows 原生 Google OAuth、帳號分區及同步入口 |
 | [ADR-022](decisions/022-android-native-host.md) | Accepted：Android host、Keystore、SAF 與 Google 授權 |
 | [ADR-023](decisions/023-apple-native-host-and-scenes.md) | Accepted：Apple host、Keychain、Google 與 macOS 場景 |
-| [ADR-024](decisions/024-linux-native-owner-and-storage.md)／[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md) | Accepted：Linux GTK owner、備份與 Google；本機金鑰／加密 SQLite 憑證免 keyring 啟動及舊資料驗證遷移 |
+| [ADR-024](decisions/024-linux-native-owner-and-storage.md)／[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md)／[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md) | Accepted：Linux GTK owner；本機便箋金鑰免提示、權杖／保存備份密碼由系統 vault 保護，鎖住只暫停相關功能 |
 | [ADR-025](decisions/025-linux-desktop-scenes-and-shortcuts.md) | Accepted：Linux 分層場景、輸入區域、快捷鍵與系統匣 |
 | [ADR-026](decisions/026-native-file-export-and-sharing.md) | Accepted：原生檔案匯出、手機文字與附件分享 |
 | [ADR-027](decisions/027-native-share-inbox-and-extension.md) | Accepted：加密分享收件匣、群組選擇與 iOS Extension |

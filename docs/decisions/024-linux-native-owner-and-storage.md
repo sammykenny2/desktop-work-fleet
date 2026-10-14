@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted，2026-10-05；金鑰與憑證保存政策於 2026-10-15 由 [ADR-047](047-linux-local-key-without-keyring-prompts.md) 取代。加入程式及封裝入口，Linux runtime 未執行。2026-10-06 Python 下限改為 3.10。
+Accepted，2026-10-05；金鑰與憑證保存政策於 2026-10-15 由 [ADR-047](047-linux-local-key-without-keyring-prompts.md)／
+[ADR-048](048-linux-offline-workspace-and-system-secrets.md) 取代。加入程式及封裝入口時 Linux runtime 未執行，後續驗證見 PROGRESS。
+2026-10-06 Python 下限改為 3.10。
 
 ## Context
 

@@ -4,6 +4,7 @@
 
 ## 最新設計：優先閱讀
 
+- [Linux Secret Service 免主動提示](2026-10-15-linux-secret-service-without-prompts.md)：持久 collection、即時鎖定／secret 讀取、provider 搜尋提示與私人 keyring 驗證界線；決策見 ADR-048。
 - [公開 Release feed 與公司出口 IP 配額](2026-10-15-public-release-feed-without-api-quota.md)：官方未驗證 REST API 配額、同機實測與三平台改讀 Atom 的決策界線。
 - [主視窗位置、啟動行為與 App 更新參考](2026-10-14-desktop-window-startup-and-update-reference.md)：Electron 參考專案的行為與設計教訓、本專案現況；建議見 ADR-043／044。
 - [macOS 登入項目首次註冊](2026-10-15-macos-login-item-first-registration.md)：`notFound` 不能作為停用註冊或判斷 App 安裝位置的依據，正式 host 回歸與沙盒實測界線。

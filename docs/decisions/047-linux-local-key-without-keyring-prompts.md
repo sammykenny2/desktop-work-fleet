@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted，2026-10-15。取代 ADR-024 的本機金鑰與 Google 憑證保存政策；其餘 Linux 契約維持。
+Accepted（本機便箋金鑰），2026-10-15。Google 憑證及備份密碼政策已由 [ADR-048](048-linux-offline-workspace-and-system-secrets.md) 取代，
+改回系統 vault，鎖住時暫停相關功能；以下保留當時決策記錄。其餘 Linux 契約維持。
 
 ## Context
 

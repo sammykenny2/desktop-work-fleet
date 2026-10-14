@@ -253,7 +253,10 @@ Apple 可使用 `--archive` 指定既有 archive；macOS 正式簽章與公證�
 ## Linux 1.0 原生建置
 
 需要 Linux 的 Python 3.10+、GTK 3、WebKitGTK 4.1、PyGObject／cairo
-及 cryptography。新工作空間與已遷移資料不需要 keyring；舊資料首次遷移需要 libsecret 與已解鎖的原金鑰圈（[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md)）。原生主畫面／SQLite／加密／Google／備份與桌面場景已接入。
+及 cryptography。新工作空間與完成主金鑰遷移的離線便箋不需要 keyring。
+Google 權杖、保存的自動備份密碼及舊資料首次遷移需要 libsecret／已解鎖的持久 Secret Service；
+鎖住時只暫停相關功能，App 不主動要求密碼（[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)）。
+自動登入可能讓金鑰圈保持鎖定，需要同步時請在系統中解鎖後重試。原生主畫面／SQLite／加密／Google／備份與桌面場景已接入。
 X11 全域鍵可使用 Keybinder 3；Wayland 桌面需 GtkLayerShell 支援，快捷鍵需 GlobalShortcuts portal
 backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用；缺能力時主畫面仍可記錄。
 
@@ -270,7 +273,7 @@ GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，桌面便箋�
 經 XWayland 時群組只常駐桌布層（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
 Raspberry Pi OS（labwc）等 layer-shell 桌面的常駐層不受遮罩限制（預設 pcmanfm 桌面沒有桌布層），調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
 產生 source/runtime tar.gz；`--deb` 需 Debian 工具，`--release` 另需正式公開設定。隔離 headless Linux compositor
-的原生場景檢查見 testing／PROGRESS，沒有金鑰圈或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
+的原生場景及私人合成金鑰圈檢查見 testing／PROGRESS，不代替使用者重開機或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
 
 Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
 dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。

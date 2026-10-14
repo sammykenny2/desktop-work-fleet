@@ -666,7 +666,10 @@ class FleetApp(Gtk.Application):
             method = p.text(value, "method", 64)
             self.admitted += 1
             session, current, view = self.service, self.epoch, self.view
-            worker = self.network if method.startswith("google.") else self.storage
+            if method == "host.ready":
+                # Vault work is optional and starts only after the owner can show/edit its workspace.
+                self.network.submit(session.secrets.migrate_pending)
+            worker = self.network if method.startswith("google.") or method in ("backup.key.create", "backup.encrypt") else self.storage
             future = worker.submit(session.invoke, method, value["params"])
 
             def complete():

@@ -60,7 +60,10 @@ class Google:
         self.account = profile[7:] if profile.startswith("google:") else ""
         self.prepared = None
         self.closed = threading.Event()
-        self.credentials = self.load(self.account) if self.account else None
+        # The owner workspace opens before any optional vault/network operation.
+        self.credentials = None
+        self.vault_error = None
+        self.rejected_access = None
         self.uploads = {}
 
     @property
@@ -82,9 +85,23 @@ class Google:
         self.vault.save("google-account", credentials["accountId"], p.encode(credentials).decode("ascii"))
 
     def status(self):
+        self.refresh_credentials()
         return {"configured": self.available, "connected": self.credentials is not None, "profileId": self.profile,
-                "accountId": None if self.credentials is None else self.credentials["accountId"],
-                "email": None if self.credentials is None else self.credentials["email"]}
+                "accountId": self.account if self.credentials is None and self.vault_error else None if self.credentials is None else self.credentials["accountId"],
+                "email": None if self.credentials is None else self.credentials["email"],
+                "paused": self.vault_error is not None, "pauseReason": None if self.vault_error is None else str(self.vault_error)}
+
+    def refresh_credentials(self, required=False):
+        self.vault_error = None
+        if not self.account:
+            return
+        try:
+            self.credentials = self.load(self.account)
+        except Exception as error:
+            self.credentials = None
+            self.vault_error = error if isinstance(error, p.Failure) else p.Failure("vault-unavailable", "系統安全儲存目前無法讀取；同步暫停，便箋仍可使用。")
+            if required:
+                raise self.vault_error
 
     def token_request(self, fields):
         if self.secret:
@@ -102,6 +119,7 @@ class Google:
 
     def sign_in(self):
         p.require(self.available and not self.closed.is_set(), "google-config", "請先填寫 .env 的 Linux Google client ID 並重新建置。")
+        self.vault.writable()
         verifier, state = secrets.token_urlsafe(64), secrets.token_urlsafe(32)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
         result = {}
@@ -164,17 +182,22 @@ class Google:
         if account:
             self.vault.remove("google-account", account)
         self.credentials = self.prepared = None
+        self.vault_error = None
         self.uploads.clear()
+        self.rejected_access = None
 
     def token(self):
+        # A later keyring lock must also stop use of an access token previously loaded into memory.
+        self.refresh_credentials(required=True)
         p.require(not self.closed.is_set() and self.credentials is not None and self.profile == "google:" + self.credentials["accountId"], "unauthorized", "請先登入目前 Google 帳號。")
-        if self.credentials["expiresAt"] <= int(time.time()) + 60:
+        if self.credentials["expiresAt"] <= int(time.time()) + 60 or self.credentials["accessToken"] == self.rejected_access:
             tokens = self.token_request({"client_id": self.client, "refresh_token": self.credentials["refreshToken"], "grant_type": "refresh_token"})
             access = p.text(tokens, "access_token", 8192)
             p.require(self.identity(access)["sub"] == self.account, "google-account", "Google 回傳不同帳號，已停止同步。")
             updated = {**self.credentials, "accessToken": access, "expiresAt": int(time.time()) + p.number(tokens, "expires_in", 86400)}
             self.save(updated)
             self.credentials = updated
+            self.rejected_access = None
         return self.credentials["accessToken"]
 
     def path(self, base, **query):
@@ -193,7 +216,7 @@ class Google:
         code = "source-error"
         if status == 401:
             if self.credentials is not None:
-                self.credentials["expiresAt"] = 0
+                self.rejected_access = self.credentials["accessToken"]
             code = "unauthorized"
         elif status == 409:
             code = "file-exists"

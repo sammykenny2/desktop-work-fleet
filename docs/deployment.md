@@ -132,6 +132,7 @@ macOS 預覽版與更新（Sparkle）：
    Secrets：`MACOS_DEVELOPER_ID_APPLICATION_P12_BASE64`、`MACOS_CERTIFICATES_PASSWORD`、`MACOS_DEVELOPER_ID_PROFILE_BASE64`、
    `MACOS_NOTARY_KEY_P8_BASE64`、`MACOS_NOTARY_KEY_ID`、`MACOS_NOTARY_ISSUER_ID`、`SPARKLE_PRIVATE_KEY`。
    runner 使用暫時 keychain、驗證 profile 的效期／Team／App ID／Keychain group／憑證，再以 manual signing archive 與 export；
+   archive 的手動 profile 僅套用 WorkFleetMac Release target，不使用會影響 SPM 資源 bundle 的全域 provisioning override。
    即使失敗也清除暫存秘密。release 公開欄位在建置前一次檢查，不等 archive 才發現缺值。
 4. 只有含公鑰、Developer ID 簽章的 App 有「檢查更新」；Sparkle 以 `sparkle:version`（`CURRENT_PROJECT_VERSION`）判斷新舊，
    所以每次發布都要提高它。

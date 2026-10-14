@@ -37,6 +37,8 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     WORK_FLEET_ROOT: '$(SRCROOT)/../../..', WORK_FLEET_PACKAGES_DIR: '$(BUILD_DIR)/../../SourcePackages',
     ...(platform === 'macos' ? { SDKROOT: 'macosx', MACOSX_DEPLOYMENT_TARGET: '13.0', SUPPORTED_PLATFORMS: 'macosx', ENABLE_HARDENED_RUNTIME: 'YES' }
       : { SDKROOT: 'iphoneos', IPHONEOS_DEPLOYMENT_TARGET: '16.0', TARGETED_DEVICE_FAMILY: '1,2', SUPPORTED_PLATFORMS: 'iphoneos iphonesimulator', SUPPORTS_MACCATALYST: 'NO' }),
+    ...(platform === 'macos' && mode === 'Release' ? { CODE_SIGN_STYLE: '$(WORK_FLEET_MACOS_SIGNING_STYLE)',
+      CODE_SIGN_IDENTITY: '$(WORK_FLEET_MACOS_SIGNING_IDENTITY)', PROVISIONING_PROFILE_SPECIFIER: '$(WORK_FLEET_MACOS_PROFILE)' } : {}),
   });
   const configs = fn => add({ isa: 'XCConfigurationList', buildConfigurations: ['Debug', 'Release'].map(name =>
     add({ isa: 'XCBuildConfiguration', name, baseConfigurationReference: baseConfig, buildSettings: fn(name) })), defaultConfigurationIsVisible: 0, defaultConfigurationName: 'Release' });

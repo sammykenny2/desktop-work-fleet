@@ -47,9 +47,9 @@ SCHEME='WorkFleetMac'; [[ "$PLATFORM" == macos ]] || SCHEME='WorkFleetIOS'
 OUTPUT="$PROJECT_ROOT/build/apple/export-$PLATFORM"
 rm -rf -- "$OUTPUT"; mkdir -p "$OUTPUT"
 OPTIONS="$OUTPUT/ExportOptions.plist"
-EXPORT_SIGNING=()
-[[ -z "$PROFILE" ]] || EXPORT_SIGNING=(--application-identity "$APPLICATION" --provisioning-profile "$PROFILE")
-node scripts/generate-apple-export-options.mjs --platform "$PLATFORM" --method "$METHOD" --output "$OPTIONS" "${EXPORT_SIGNING[@]}"
+EXPORT_ARGS=(--platform "$PLATFORM" --method "$METHOD" --output "$OPTIONS")
+[[ -z "$PROFILE" ]] || EXPORT_ARGS+=(--application-identity "$APPLICATION" --provisioning-profile "$PROFILE")
+node scripts/generate-apple-export-options.mjs "${EXPORT_ARGS[@]}"
 xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUTPUT/products" -exportOptionsPlist "$OPTIONS"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$ARCHIVE/Info.plist")"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected archive version: $VERSION" >&2; exit 1; }
@@ -99,9 +99,9 @@ else
         deliver "$NAME.zip"; FEED=(appcast.xml work-fleet-update.json)
     fi
     if [[ "$PKG" == 1 ]]; then
-        PACKAGE="$OUTPUT/$NAME.pkg"; SIGN=()
-        [[ -z "$INSTALLER" ]] || SIGN=(--sign "$INSTALLER")
-        productbuild --component "$APP" /Applications "${SIGN[@]}" "$PACKAGE"
+        PACKAGE="$OUTPUT/$NAME.pkg"; PACKAGE_ARGS=(--component "$APP" /Applications)
+        [[ -z "$INSTALLER" ]] || PACKAGE_ARGS+=(--sign "$INSTALLER")
+        productbuild "${PACKAGE_ARGS[@]}" "$PACKAGE"
         if [[ -n "$NOTARY" ]]; then
             xcrun notarytool submit "$PACKAGE" "${NOTARY_ARGS[@]}" --wait
             xcrun stapler staple "$PACKAGE"
@@ -129,5 +129,7 @@ for FILE in "${DELIVERED[@]}"; do
     mv -f "$OUTPUT/$FILE" "$OUTPUT/$FILE.sha256" "$PROJECT_ROOT/build/"
     echo "Release package: build/$FILE"
 done
-for FILE in "${FEED[@]}"; do mv -f "$OUTPUT/$FILE" "$PROJECT_ROOT/build/"; echo "Update feed: build/$FILE"; done
+if [[ ${#FEED[@]} -gt 0 ]]; then
+    for FILE in "${FEED[@]}"; do mv -f "$OUTPUT/$FILE" "$PROJECT_ROOT/build/"; echo "Update feed: build/$FILE"; done
+fi
 echo "Export work directory: $OUTPUT"

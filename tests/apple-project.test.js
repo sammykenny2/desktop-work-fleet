@@ -63,6 +63,19 @@ test('Xcode project is location independent and does not embed local configurati
       const targets = Object.values(objects).filter(object => object.isa === 'PBXNativeTarget');
       assert.deepEqual(targets.map(target => target.name).sort(), ['WorkFleetIOS', 'WorkFleetMac', 'WorkFleetShare']);
       for (const target of targets) assert.equal(objects[target.buildPhases[0]].name, 'Prepare local resources');
+      // A distribution profile belongs only to the macOS Release app, never Debug, iOS, or package resource bundles.
+      for (const target of targets) {
+        const configurations = objects[target.buildConfigurationList].buildConfigurations.map(id => objects[id]);
+        for (const configuration of configurations) {
+          if (target.name === 'WorkFleetMac' && configuration.name === 'Release') {
+            assert.equal(configuration.buildSettings.CODE_SIGN_STYLE, '$(WORK_FLEET_MACOS_SIGNING_STYLE)');
+            assert.equal(configuration.buildSettings.PROVISIONING_PROFILE_SPECIFIER, '$(WORK_FLEET_MACOS_PROFILE)');
+          } else {
+            assert.equal(configuration.buildSettings.CODE_SIGN_STYLE, 'Automatic');
+            assert.equal(configuration.buildSettings.PROVISIONING_PROFILE_SPECIFIER, undefined);
+          }
+        }
+      }
       const ios = targets.find(target => target.name === 'WorkFleetIOS');
       assert.equal(ios.dependencies.length, 1);
       assert.ok(ios.buildPhases.some(id => objects[id].name === 'Embed Share Extension'));

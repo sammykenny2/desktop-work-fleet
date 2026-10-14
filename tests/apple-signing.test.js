@@ -80,7 +80,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
       lipo: 'echo "arm64 x86_64"',
       ditto: 'if [[ "$1" == -c ]]; then printf archive > "${@: -1}"; else cp -R "$1" "$2"; fi',
       hdiutil: 'printf image > "${@: -1}"',
-      productbuild: 'exit 99',
+      productbuild: '[[ "${ALLOW_PKG:-}" == 1 ]] || exit 99\nprintf package > "${@: -1}"',
       codesign: ':',
       spctl: ':',
       xcrun: 'if [[ "$1" == notarytool && "${FAIL_DMG:-}" == 1 && "$3" == *.dmg ]]; then exit 9; fi',
@@ -109,6 +109,17 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     assert.ok(log.includes('--keychain ' + env.WORK_FLEET_SIGNING_KEYCHAIN));
     assert.match(log, /stapler validate .*WorkFleetMac\.app/);
     assert.match(log, /spctl --assess --type open/);
+    // Notarization is optional for a local signed DMG. macOS Bash 3 must also handle the empty feed array.
+    const notaryIndex = args.indexOf('--notary-profile');
+    const localArgs = args.filter((value, index) => index !== notaryIndex && index !== notaryIndex + 1);
+    const local = await execute('bash', localArgs, { cwd: directory, env });
+    assert.match(local.stdout, /Export work directory:/);
+    const profileIndex = localArgs.indexOf('--provisioning-profile');
+    const automaticArgs = localArgs.filter((value, index) => index !== profileIndex && index !== profileIndex + 1);
+    await execute('bash', automaticArgs, { cwd: directory, env });
+    const pkgArgs = automaticArgs.filter(value => value !== '--no-pkg');
+    await execute('bash', pkgArgs, { cwd: directory, env: { ...env, ALLOW_PKG: '1' } });
+    assert.ok((await readdir(path.join(directory, 'build'))).includes('WorkFleet-0.2.0-macos-universal.pkg'));
     const output = path.join(directory, 'build/WorkFleet-0.2.0-macos-universal.dmg');
     await writeFile(output, 'previous successful package');
     await assert.rejects(execute('bash', args, { cwd: directory, env: { ...env, FAIL_DMG: '1' } }), error => error.code === 9);

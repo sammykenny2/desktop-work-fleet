@@ -41,7 +41,11 @@ EXTRA=()
 [[ -z "$APPLE_TEAM" ]] || EXTRA+=("DEVELOPMENT_TEAM=$APPLE_TEAM")
 EXTRA+=("WORK_FLEET_PACKAGES_DIR=$PROJECT_ROOT/build/apple/SourcePackages")
 if [[ "$PLATFORM" == 'macos' ]]; then EXTRA+=('ARCHS=arm64 x86_64' ONLY_ACTIVE_ARCH=NO); fi
-if [[ -n "$PROFILE" ]]; then EXTRA+=(CODE_SIGN_STYLE=Manual "CODE_SIGN_IDENTITY=$APPLICATION" "PROVISIONING_PROFILE_SPECIFIER=$PROFILE"); fi
+# Only WorkFleetMac's Release target maps these settings to signing. Global CODE_SIGN_*/
+# PROVISIONING_PROFILE_SPECIFIER overrides would incorrectly apply the profile to SPM resource bundles.
+if [[ -n "$PROFILE" ]]; then
+    EXTRA+=(WORK_FLEET_MACOS_SIGNING_STYLE=Manual "WORK_FLEET_MACOS_SIGNING_IDENTITY=$APPLICATION" "WORK_FLEET_MACOS_PROFILE=$PROFILE")
+fi
 if [[ "$SIMULATOR" == 1 ]]; then DESTINATION='generic/platform=iOS Simulator'; fi
 if [[ "$SIMULATOR" == 1 || "$UNSIGNED" == 1 ]]; then EXTRA+=(CODE_SIGNING_ALLOWED=NO); fi
 ACTION='build'

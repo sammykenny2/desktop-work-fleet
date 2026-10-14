@@ -2,6 +2,10 @@
 WORK_FLEET_APP_ID = app.workfleet.preview
 WORK_FLEET_APP_GROUP_ID = group.$(WORK_FLEET_APP_ID)
 DEVELOPMENT_TEAM =
+// Only the macOS Release app target consumes these; SPM resource bundles must not inherit a profile.
+WORK_FLEET_MACOS_SIGNING_STYLE = Automatic
+WORK_FLEET_MACOS_SIGNING_IDENTITY = Apple Development
+WORK_FLEET_MACOS_PROFILE =
 // Apple release version; packages are named from it. Local.xcconfig must not override these.
 MARKETING_VERSION = 0.2.1
 CURRENT_PROJECT_VERSION = 201

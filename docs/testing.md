@@ -59,7 +59,8 @@ CSP 不放寬、release 缺值與唯讀依賴授權檔的重複複製。
 `node --test tests/apple-project.test.js` 不需要 Apple SDK；不代表 Xcode 載入、Swift 編譯或簽章通過。
 `tests/apple-signing.test.js` 驗證 manual Developer ID export 的憑證／profile 設定與不合法簽章參數；
 Mac 上另以真 PlistBuddy 與假的 Xcode／notary／codesign 工具執行 DMG＋更新 ZIP 封裝，確認不需要 Installer、
-不產生 PKG、傳遞暫時 notary keychain，以及公證失敗時不覆蓋上次交付的檔案。其他 OS 略過該封裝 fixture。
+不產生 PKG、傳遞暫時 notary keychain、無公證 DMG／automatic export／一般 PKG 在 macOS Bash 3 的空陣列相容性，
+以及公證失敗時不覆蓋上次交付的檔案。其他 OS 略過該封裝 fixture。
 `tests/test_macos_profile.py` 驗證過期、錯誤 Team／App ID／憑證／Keychain group、development profile 與不合法 UUID 的拒絕。
 這些是流程回歸，不能當成 Apple 公證或真 signed app 通過；實際 archive、export、Gatekeeper 與 Sparkle 更新另需驗證。
 Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；

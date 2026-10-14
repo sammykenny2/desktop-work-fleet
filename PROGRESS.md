@@ -1,6 +1,26 @@
 # 專案進度
 
-更新：2026-10-14。本檔是本 repo 的執行狀態權威。
+更新：2026-10-15。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-15 macOS 0.2.3 登入項目開關停用：首次註冊狀態修正
+
+使用者回報「登入電腦時啟動 Work Fleet」失效，設定提示放到「應用程式」後重試。
+實際執行的 0.2.3 已位於 `/Applications/Work Fleet.app`，帶 Developer ID 簽章、沙盒 entitlement 與公證 ticket。
+
+- 原因：尚未註冊過的主 App 回傳 `SMAppService.Status.notFound`；原實作只接受 `notRegistered` 才首次註冊，
+  又把 `notFound` 解釋成安裝位置錯誤並停用開關，因此既沒有預設註冊，也無法手動重試。
+- 修正：`notFound`／`notRegistered` 都顯示未啟用且可操作；首次啟動可註冊，既有偏好仍須使用者手動開啟，
+  避免重新啟用使用者在系統中移除的項目。取消未見過的服務不再呼叫 `unregister`。
+  已啟用與等待系統核准的服務不重複註冊；真正註冊失敗仍回報錯誤。
+- 回歸：編譯正式 Swift host 的 8 項服務狀態／偏好測試通過；另以唯一 ad-hoc 簽章沙盒 App 的真實
+  `SMAppService.mainApp` 驗證首次狀態 3（notFound）→註冊 1（enabled）→取消 0（notRegistered）通過。
+  真實測試只修改並清除自己的登入項目，不開啟正式 workspace。預設測試略過這個 opt-in 系統操作。
+- 其他檢查：Apple project／signing／release version JS 16／16、Mach-O Python 7／7；
+  完整未簽章 macOS Debug universal build 與 6 個 Mach-O slices 的依賴檢查通過。
+  Markdown、workflow YAML 與差異格式檢查通過。Mac release job 加入 Swift host 回歸。
+- 文件：ADR-043、testing、登入項目研究與研究索引。
+- 限制：未修改已安裝 0.2.3，尚無真實登出再登入、修正後正式簽章包或完整設定 UI 驗收；沒有獨立審閱。
+  本次未升版、未送公證或 dispatch，也未覆蓋既有 release。GitHub 0.2.3 仍不含此修正。
 
 ## 2026-10-14 共用版號 0.2.3 與 Windows、Linux、macOS 預覽版
 

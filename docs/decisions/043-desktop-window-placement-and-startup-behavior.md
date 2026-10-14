@@ -63,6 +63,10 @@ MSIX 的登入啟動以 StartupTask 宣告，使用者可在工作管理員或�
   登入啟動以 StartupTask activation 判斷。ZIP／Debug 不支援登入啟動，選項停用並說明只有安裝版支援；不寫 Run 機碼。
 - macOS：`SMAppService.mainApp` 註冊與取消（部署目標 13.0）。`requiresApproval` 時顯示需要在系統設定核准，
   並提供開啟登入項目設定。無法可靠判斷登入啟動時當作手動開啟，顯示主畫面。
+  尚未註冊過的主 App 可能回傳 `notFound`，視為未啟用且可註冊；不能據此停用設定或推斷 App 不在「應用程式」。
+  第一次啟動的預設註冊接受 `notFound`／`notRegistered`，既有偏好不自動重試，但使用者仍可手動開啟。
+  `enabled`／`requiresApproval` 不重新註冊；取消未見過的服務不呼叫 `unregister`。
+  修正來源與驗證界線見 [登入項目研究](../resreach/2026-10-15-macos-login-item-first-registration.md)。
 - Linux：寫入或移除 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（未設定時為 `~/.config`），
   啟動命令加 `--launch-at-login`。讀回時，檔案不存在、`Hidden=true` 或 `X-GNOME-Autostart-enabled=false` 視為關閉。
   只寫或移除自己的檔案。

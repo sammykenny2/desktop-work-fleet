@@ -4,6 +4,14 @@ import ServiceManagement
 /// ADR-043 on macOS: startup behaviour, the main window frame and the SMAppService login item for this data directory.
 /// Nothing here is part of a profile, a backup or Google. Frames are in points with AppKit's bottom-left origin.
 @MainActor final class FleetHostShell {
+    struct LoginItem {
+        let status: @MainActor () -> SMAppService.Status
+        let register: @MainActor () throws -> Void
+        let unregister: @MainActor () throws -> Void
+        static let system = LoginItem(status: { SMAppService.mainApp.status },
+                                      register: { try SMAppService.mainApp.register() },
+                                      unregister: { try SMAppService.mainApp.unregister() })
+    }
     struct Placement: Equatable {
         var x: Int?
         var y: Int?
@@ -18,6 +26,7 @@ import ServiceManagement
     private(set) var startAtLogin = true, closeToTray = true, openMainAtLogin = false
     private(set) var lastUpdateCheck: String?
     private let firstRun: Bool
+    private let loginItem: LoginItem
     private var current: Placement?
     private var dirty = false, tracking = false
     private var pending: Task<Void, Never>?
@@ -26,8 +35,9 @@ import ServiceManagement
     /// Hidden at sign-in unless the user asked for the main window; opening Work Fleet yourself always shows it.
     var startHidden: Bool { launchedAtLogin && !openMainAtLogin }
 
-    init(directory: URL, launchedAtLogin: Bool) {
+    init(directory: URL, launchedAtLogin: Bool, loginItem: LoginItem = .system) {
         self.directory = directory; self.launchedAtLogin = launchedAtLogin
+        self.loginItem = loginItem
         let file = directory.appendingPathComponent(Self.preferencesFile)
         firstRun = !FileManager.default.fileExists(atPath: file.path)
         if let value = Self.object(file) {
@@ -47,7 +57,8 @@ import ServiceManagement
     /// The first launch registers the default login item once; later launches never re-register one the user removed.
     func firstLaunch() {
         guard firstRun else { return }
-        if startAtLogin && SMAppService.mainApp.status == .notRegistered { try? SMAppService.mainApp.register() }
+        // A service macOS has never seen can be .notFound before its first registration.
+        if startAtLogin && [.notRegistered, .notFound].contains(loginItem.status()) { try? loginItem.register() }
         try? writePreferences()
     }
 
@@ -171,18 +182,18 @@ import ServiceManagement
                                          "lastUpdateCheck": lastUpdateCheck.map { $0 as Any } ?? NSNull()])
     }
     private func loginState() -> String {
-        switch SMAppService.mainApp.status {
+        switch loginItem.status() {
         case .enabled: return "enabled"
         case .requiresApproval: return "requires-approval"
-        case .notRegistered: return "disabled"
-        default: return "unavailable"
+        case .notRegistered, .notFound: return "disabled"
+        @unknown default: return "unavailable"
         }
     }
     func describe(trayAvailable: Bool) -> [String: Any] {
         let state = loginState(), available = state != "unavailable"
         return [
             "startAtLogin": ["available": available, "enabled": state == "enabled", "preference": startAtLogin, "state": state,
-                             "reason": available ? NSNull() : "macOS 目前無法註冊登入項目，請把 Work Fleet 放在「應用程式」檔案夾後重試。", "systemSettings": available] as [String: Any],
+                             "reason": available ? NSNull() : "macOS 回報未知的登入項目狀態，請到系統設定的「登入項目」確認。", "systemSettings": true] as [String: Any],
             "closeToTray": ["available": trayAvailable, "enabled": closeToTray] as [String: Any],
             "openMainAtLogin": ["available": available, "enabled": openMainAtLogin] as [String: Any],
             "launchedAtLogin": launchedAtLogin,
@@ -192,9 +203,9 @@ import ServiceManagement
         switch name {
         case "startAtLogin":
             do {
-                let service = SMAppService.mainApp
-                if value && service.status != .enabled && service.status != .requiresApproval { try service.register() }
-                if !value && service.status != .notRegistered { try service.unregister() }
+                let state = loginItem.status()
+                if value && state != .enabled && state != .requiresApproval { try loginItem.register() }
+                if !value && state != .notRegistered && state != .notFound { try loginItem.unregister() }
             } catch { throw FleetFailure("startup-write", "無法更新登入項目，請到系統設定的「登入項目」調整。") }
             startAtLogin = value
         case "closeToTray": closeToTray = value

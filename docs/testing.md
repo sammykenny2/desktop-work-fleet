@@ -1,6 +1,6 @@
 # 建置、測試與證據
 
-更新：2026-10-12。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-15。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
 
 ## 新互動驗收路由
 
@@ -111,6 +111,19 @@ FleetDatabase、FleetWebHost／FleetDesktop 和隨包 renderer；原始 Xcode �
 2026-10-05 簽章 probe 通過 Keychain、SQLite 與主畫面 native 初始化；原樣 ESM 載入失敗的
 證據與封裝修正見 [ADR-033](decisions/033-apple-local-script-bundles.md)。
 它不建立憑證、不登記裝置、不測試 Google 登入或完整桌面手勢，也不代表 Developer ID／公證驗收。
+
+macOS 登入項目（ADR-043）：`python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -v`
+編譯正式 `FleetHostShell`／`FleetProtocol`，以注入的登入服務驗證未見過的 `notFound` 可註冊且設定可操作、
+第一次啟動套用預設、既有偏好只允許手動重試、系統核准不被覆蓋、取消與重開保持關閉，以及失敗不假報成功。
+沒有 Swift／AppKit 的平台略過；預設不改系統登入項目。Mac release job 在匯入秘密前執行。
+要在 Mac 額外驗證實際 ServiceManagement，可執行：
+
+```bash
+WORK_FLEET_TEST_LOGIN_ITEMS=1 python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -k real_sandboxed -v
+```
+
+這會建立隨機 `app.workfleet.loginprobe.*` 的 ad-hoc 簽章沙盒 App，暫時註冊並取消自己的登入項目，
+不碰已安裝 Work Fleet 或使用者工作區。測試只證明註冊、系統狀態與取消；實際登出再登入仍需手動驗收。
 
 三平台桌面分層契約見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
 `python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證

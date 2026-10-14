@@ -80,8 +80,10 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Verify Mach-O runtime dependency checks
-        run: python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v
+      - name: Verify macOS runtime and host-shell regressions
+        run: |
+          python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v
+          python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -v
       - name: Check settings
         run: |
           node scripts/check-config.mjs --platform macos

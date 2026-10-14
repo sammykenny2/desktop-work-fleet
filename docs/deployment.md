@@ -1,12 +1,12 @@
 # 平台與散布狀態
 
-更新：2026-10-14；各平台版號為 0.2.3，完整 1.0 仍是目標。實際完成狀態以 [PROGRESS](../PROGRESS.md) 為準。
+更新：2026-10-15；各平台版號紀錄為 0.2.4，完整 1.0 仍是目標。發布前準備以 [PROGRESS](../PROGRESS.md) 為準，發布結果見 GitHub Releases。
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
 | Windows x64 | `scripts/windows/Build-WindowsPackage.ps1` | 自帶 .NET 8 Desktop 的 MSIX／portable ZIP；執行仍需 WebView2，封裝需 .NET SDK／Windows SDK |
 | macOS | Xcode Open `src/native/apple/WorkFleet.xcodeproj`；或 `scripts/macos/build-native-app.sh --platform macos --release`、`package-native-app.sh` | xcarchive／PKG／可選 DMG；Xcode、Node 22+／npm、Apple team 與 signing identities |
-| Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；系統 GTK／WebKitGTK／Secret Service |
+| Linux | `scripts/linux/build-native-app.sh`；可選 `--release --deb`；Windows 可用 `Build-LinuxPackage.ps1` | source/runtime tar.gz／DEB；離線便箋需系統 GTK／WebKitGTK，Google／保存備份密碼另需 Secret Service |
 | iOS | 同一份已提交的 Xcode 專案，選 WorkFleetIOS；或 `scripts/macos/build-native-app.sh --platform ios --release`、`package-native-app.sh` | xcarchive／IPA；Xcode、Node 22+／npm、Apple team、App／Extension 的 App Group profiles |
 | Android | Android Studio Open `src/native/android`；或 `scripts/windows/Build-AndroidApp.ps1`／`scripts/linux/build-android-app.sh` | debug APK／release AAB；Node 22+、npm、JDK 17、Android SDK 36。已附 Gradle 8.13 Wrapper，自動產生資產；[開啟與建置說明](../src/native/android/README.md) |
 
@@ -19,7 +19,7 @@ MSIX 產生器與先前本機 0.1.1 包已驗證 `Windows.Desktop MinVersion=10.
 
 各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；任何升版都須先取得使用者對具體版號的明確同意。
 自 0.2.0 起五個平台共用同一版號（使用者 2026-10-14 決定），一起升版；release tag 仍以平台前綴區分（`windows-v`、`linux-v`、`macos-v`），
-因為各平台的 App 內更新只找自己前綴的 release。Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode` 同步提高（0.2.0 為 200，0.2.1 為 201，0.2.2 為 202，0.2.3 為 203）。
+因為各平台的 App 內更新只找自己前綴的 release。Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode` 同步提高（0.2.0 為 200，0.2.1 為 201，0.2.2 為 202，0.2.3 為 203，0.2.4 為 204）。
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
 腳本產生的每個發佈檔旁另有同名 `.sha256`，可用 `sha256sum -c` 或 `shasum -a 256 -c` 檢查。
 

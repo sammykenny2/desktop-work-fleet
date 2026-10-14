@@ -2,6 +2,27 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 desktop preview 0.2.4 發布前準備
+
+使用者明確授權升至 0.2.4 並發布 Windows／Linux／macOS desktop preview；以下只記錄 dispatch 前已知結果，發布結果以 GitHub run／release 與對話為準。
+
+- 依既定五平台共用版號規則，Windows props、Linux VERSION、Apple xcconfig、Android Gradle 同步為 0.2.4；
+  Apple build／Android versionCode 同步為 204。iOS／Android 只同步紀錄，本次不發布行動平台。
+- 發布來源包含 Google 登出僅影響本機、三桌面公開 Atom 更新查詢、macOS 登入項目首次註冊、Linux 離線便箋／系統秘密分離。
+  更新三平台 release notes，Linux 明確區分離線 runtime 與 Secret Service 需求及舊資料首次遷移。
+- 作者發布前檢查：版本／Apple project／公開 config 的 Node 15 項、Linux package Python 5 項通過，
+  實際 resolver 核對各平台 0.2.4 與 build 204，文件連結／差異格式檢查通過。
+  Linux 本機 0.2.4 DEB／tar.gz 測試建置成功，DEB identity／版號／all 架構、SHA-256 sidecar 與更新 manifest tag 核對通過；
+  本機缺公開 Google 設定的測試包不作發布產物，正式設定及各平台簽章／公證由授權的 release workflow 執行。
+- 升版前來源 eb725bc 的完整 CI 38615343270 已成功，含先前實作的共用及原生檢查；
+  Linux vault 修正的作者完整回歸與獨立審查見上一工作紀錄，本次未修改其實作。
+- 獨立唯讀審查通過，release version 6 項與差異檢查通過；確認 manual-only、不可重用 tag／release、
+  guard 的 commit 固定到各 build job，沒有剩餘 blocker。Linux Secret Service 發布文案的非阻擋提醒已修正。
+- dispatch 前 GitHub 唯讀檢查確認 windows-v0.2.4／linux-v0.2.4／macos-v0.2.4 的 tag／release 皆不存在，
+  Actions 已啟用，三平台所需 repository secret／variable 名稱備妥，未輸出秘密值。
+  待最後 release commit 推送、工作樹／遠端 SHA 確認後執行已授權的三個 workflow；此紀錄不宣稱已發布成功。
+- dispatch 後本次任務不再修改 tracked files、commit 或 push；產物下載／驗證只在 Git 忽略目錄，結果回報於對話。
+
 ## 2026-10-15 Linux 便箋免提示、敏感秘密恢復系統 vault（ADR-048）
 
 使用者要求修正 ADR-047 將 Google 權杖與自動備份密碼一同放在本機金鑰下的較弱保護，保留直接啟動便箋。

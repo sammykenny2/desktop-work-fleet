@@ -118,7 +118,11 @@ jobs:
         run: |
           cd dist && sha256sum -c "work-fleet_${VERSION}_all.deb.sha256"
           cat > notes.md <<EOF
-          Linux 預覽版 DEB，從 ${COMMIT} 建置。需要 Debian／Ubuntu／Raspberry Pi OS 的系統 GTK 3、WebKitGTK 4.1 與 Secret Service。
+          Linux 預覽版 DEB，從 ${COMMIT} 建置。需要 Debian／Ubuntu／Raspberry Pi OS 的系統 GTK 3 與 WebKitGTK 4.1。
+
+          便箋啟動不主動要求金鑰圈密碼。Google 權杖與保存的自動備份密碼由 Secret Service 保護；
+          金鑰圈鎖住時只暫停同步／加密備份，解鎖後重試即可。舊版資料首次遷移仍需解鎖原金鑰圈。
+          Google 登出只影響這台裝置，更新查詢改用公開 Release feed，避免未驗證 GitHub API 的共用配額問題。
 
           ## 安裝
           \`sudo apt install ./work-fleet_${VERSION}_all.deb\`

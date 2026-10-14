@@ -135,6 +135,8 @@ jobs:
           cat > notes.md <<EOF
           Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11（最低 build 22000）。
 
+          Google 登出只影響這台裝置，更新查詢改用公開 Release feed，避免未驗證 GitHub API 的共用配額問題。
+
           ## 第一次安裝
           此包已包含 .NET 8 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。
           1. 信任預覽憑證（每台電腦一次）：下載 \`WorkFleet-preview.cer\`，用系統管理員 PowerShell 執行

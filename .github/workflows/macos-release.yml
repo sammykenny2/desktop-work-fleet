@@ -186,6 +186,8 @@ jobs:
           cat > notes.md <<EOF
           macOS 預覽版，從 ${COMMIT} 建置，已用 Developer ID 簽章並經 Apple 公證。需要 macOS 13 以上。
 
+          Google 登出只影響這台裝置，更新查詢改用公開 Release feed，並修正登入啟動項目的首次註冊。
+
           ## 安裝
           開啟 \`WorkFleet-${VERSION}-macos-universal.dmg\`，把 Work Fleet 拖到「應用程式」。
           之後可在選單列或設定＞桌面「版本與更新」檢查更新，由 Sparkle 下載、驗證並重新開啟。

@@ -21,7 +21,8 @@ internal static class SignInHoldProbe
     try
     {
       await Program.Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "sign-in launch initialization");
-      await Until(() => Log(directory).Contains("scenes waiting: " + SignInDisplays.LidClosedReason + "\n"), "scenes wait while the closed lid's panel is on");
+      await Until(() => Log(directory).Contains($"scenes waiting: {SignInDisplays.LidClosedReason}; lid=closed builtIn=on other=on changed=none\n"),
+        "scenes wait while the closed lid's panel is on");
       await Task.Delay(2500);
       var surfaces = window.Desktop!.Surfaces;
       if (surfaces.Count == 0 || surfaces.Any(s => s.NativeAlive)) throw new Exception($"Scene windows exist while held: {surfaces.Count(s => s.NativeAlive)} of {surfaces.Count}.");
@@ -29,7 +30,8 @@ internal static class SignInHoldProbe
 
       state = state with { BuiltInOn = false };
       await Until(() => window.Desktop!.Surfaces.Count > 0 && window.Desktop.Surfaces.All(s => s.NativeAlive), "scenes start once the panel is off");
-      if (!Regex.IsMatch(Log(directory), @" scenes attaching after \d+\.\ds\n")) throw new Exception("host.log did not record the release: " + Log(directory));
+      if (!Regex.IsMatch(Log(directory), @" scenes attaching after \d+\.\ds; lid=closed builtIn=off other=on changed=none\n"))
+        throw new Exception("host.log did not record the release with its inputs: " + Log(directory));
       if (Log(directory).Contains(" although ")) throw new Exception("The release was logged as the time limit: " + Log(directory));
       Console.WriteLine($"PASS sign-in hold: {window.Desktop!.Surfaces.Count} scene(s) started after the panel turned off");
     }

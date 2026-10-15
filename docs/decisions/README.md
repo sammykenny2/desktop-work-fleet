@@ -38,7 +38,8 @@
 | [000-template](000-template.md) | Template | 後續決策格式 |
 | [ADR-038](038-portable-local-and-cloud-backup-flows.md) | Accepted（雙向備份遷移） | 同格式 ZIP、本機原子完整還原與 Google 同步後匯出；失敗副本需明確選擇 |
 | [ADR-045](045-windows-fatal-error-leaves-explorer-first.md) | Accepted（Windows 致命錯誤） | 當掉時先把場景視窗移出 Explorer 再交給 WER；`host.log` 紀錄；登入啟動 render thread 失敗時隱藏重開一次（2026-10-14 起停用） |
-| [ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted（Windows 登入啟動） | 合蓋筆電的內建螢幕仍開著、或螢幕剛變過時，場景先不掛進 Explorer；最多等 3 分鐘 |
+| [ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted（Windows 登入啟動） | 合蓋筆電的內建螢幕仍開著、或螢幕剛變過時，場景先不掛進 Explorer；最多等 3 分鐘；2026-10-15 起 `host.log` 記錄上蓋回報與判斷輸入 |
+| [ADR-049](049-windows-attached-scenes-render-in-software.md) | Accepted（Windows 場景繪圖） | 掛在 Explorer 的場景視窗以軟體繪製 WPF，不持有 Direct3D 狀態；浮動層與主視窗不變 |
 | [ADR-044](044-desktop-in-app-updates-from-github-releases.md) | Accepted（App 內更新，2026-10-15 修訂） | 公開 Atom 依平台 tag 篩選、不使用 REST API 配額、manifest／SHA-256、MSIX／Sparkle／DEB 安裝前保存並結束 |
 | [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted（主視窗與啟動） | 主機層級的主視窗位置／大小記憶、登入啟動預設開啟、系統狀態優先、Windows 第二次啟動喚起 |
 | [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted（調整模式） | 所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |

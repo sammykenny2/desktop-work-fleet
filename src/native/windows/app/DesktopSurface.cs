@@ -79,15 +79,28 @@ public sealed class DesktopSurface : IDisposable
       Fill = new VisualBrush((Visual)WebView) { Stretch = Stretch.None, AlignmentX = AlignmentX.Left, AlignmentY = AlignmentY.Top } };
     InputWindow.SourceInitialized += (_, _) =>
     {
+      if (!layered) RenderInSoftware(InputHandle);
       SetStyle(InputHandle, transparent: false);
       SetRegion([]); // No full-screen input interval, including first navigation.
       HwndSource.FromHwnd(InputHandle).AddHook(HandleInputMessage);
     };
-    VisualWindow.SourceInitialized += (_, _) => { SetStyle(VisualHandle, transparent: true); SetRegion(shown ? rectangles : []); };
+    VisualWindow.SourceInitialized += (_, _) =>
+    {
+      if (!layered) RenderInSoftware(VisualHandle);
+      SetStyle(VisualHandle, transparent: true); SetRegion(shown ? rectangles : []);
+    };
     InputWindow.Closing += RequestClose; VisualWindow.Closing += RequestClose;
     InputWindow.LocationChanged += (_, _) => AlignVisual();
     InputWindow.SizeChanged += (_, _) => { AlignVisual(); if (shown) SetRegion(Current()); };
   }
+
+  /// <summary>
+  /// ADR-049: what WPF draws in an attached scene never reaches the screen (see the constructor), yet each of its two
+  /// windows kept a Direct3D render target inside Explorer's desktop window. WPF has one render thread per process; it
+  /// failed during display changes while these windows were attached, and every window of the process went with it.
+  /// In software they hold no Direct3D state. The browser still draws the papers through its own GPU process.
+  /// </summary>
+  private static void RenderInSoftware(IntPtr handle) => HwndSource.FromHwnd(handle).CompositionTarget.RenderMode = RenderMode.SoftwareOnly;
 
   private void RequestClose(object? sender, System.ComponentModel.CancelEventArgs e)
   {

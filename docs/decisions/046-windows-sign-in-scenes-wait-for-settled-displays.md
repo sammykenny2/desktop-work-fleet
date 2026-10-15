@@ -4,6 +4,19 @@
 
 Accepted，2026-10-14。使用者看過兩次登入當掉的 `host.log` 後指示：「先做登入時等螢幕穩定再掛場景的修正」。
 
+2026-10-15 修訂：
+- 0.2.5 登入啟動時，等待沒有生效，場景 2.8 秒就掛進 Explorer。啟動時兩台螢幕都在，內建螢幕是主螢幕。
+- 約 100 秒後 Windows 關掉內建螢幕；再 30 秒，外接螢幕改編號，程式隨即當掉（[ADR-049](049-windows-attached-scenes-render-in-software.md)）。
+- 當時的 `host.log` 看不出等待為何放行。依程式，有三種情況都會立刻放行：
+  - `lid=open`：Windows 回報上蓋是開的。推論（未驗證）：開機時 Windows 自己也以為上蓋開著，所以才點亮內建螢幕。
+  - `lid=unreported`：判斷時還沒收到第一次上蓋回報，視同打開。判斷只做一次，之後才到的 `lid closed` 不會讓場景重新等待；
+    `lid closed` 出現在 `scenes attaching` 之後，就是這種情況。
+  - `builtIn=unread other=unread`：讀不到螢幕設定，視同不必等。
+- 因此 `host.log` 補上判斷依據，下次就分得出是哪一種：
+  - 每次 Windows 回報上蓋狀態都記一行 `lid closed` 或 `lid open`，包括註冊當下回報的那一次。
+  - `scenes waiting` 與 `scenes attaching after` 兩行後面加上判斷輸入，例如 `; lid=open builtIn=on other=on changed=none`。
+- 等待本身只能避開第一次變動，判斷規則不變。後續的修正方向見 ADR-049。
+
 ## Context
 
 - 這台筆電平常合著上蓋、只用外接 4K。開機後要先開蓋再合蓋，外接螢幕才有畫面，然後才登入。
@@ -27,6 +40,7 @@ Accepted，2026-10-14。使用者看過兩次登入當掉的 `host.log` 後指�
 - 上蓋狀態：顯示器監看視窗註冊 `GUID_LIDSWITCH_STATE_CHANGE`，Windows 在註冊當下就回報目前狀態，之後每次變化都通知；
   上蓋變化與每秒一次的檢查都會重新判斷。連接方式由 `QueryDisplayConfig` 的作用中目標讀取。
 - `host.log` 記錄 `scenes waiting: <原因>`（原因改變時）與 `scenes attaching after <秒>s`；到達上限時多記 `although <原因>`。
+  2026-10-15 起兩行都附上判斷輸入，另外記錄每次上蓋回報（見 Status 的修訂）。
 
 ## Consequences
 
@@ -68,6 +82,7 @@ Accepted，2026-10-14。使用者看過兩次登入當掉的 `host.log` 後指�
 - **Pros**: 可能避開 GPU 相關的 render thread 失敗。
 - **Cons**: 原因未知，不保證有效；4K 全螢幕場景效能變差；只能靠重開機驗證。
 - **Why rejected**: 先避開已知會出事的時間點；如果等待期間仍當掉，再評估這個方案。
+  2026-10-15 改為只讓掛在 Explorer 的場景用軟體繪圖，見 ADR-049。
 
 ## References
 

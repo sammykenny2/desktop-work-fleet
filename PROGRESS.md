@@ -2,6 +2,39 @@
 
 更新：2026-10-15。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-15 Windows 掛在 Explorer 的場景改用軟體繪圖（ADR-049），記錄登入等待的判斷輸入
+
+使用者回報 0.2.5 重開機後正常不到一分鐘就當掉。看過 `host.log` 與分析後指示：「先做 1 和 2」。
+
+- 當掉經過（0.2.5 安裝版 `host.log`）：
+  - 登入啟動時兩台螢幕：合著的內建螢幕是主螢幕，外接 4K 在右側。ADR-046 的等待沒有生效，場景 2.8 秒就掛進 Explorer。
+  - 約 100 秒後 Windows 關掉內建螢幕，這次沒事。再 30 秒，外接螢幕從 DISPLAY2 改編為 DISPLAY1，140 ms 後 render thread 失敗。
+  - 8 個 Explorer 子視窗先移出後才結束，沒有自動重開。同時段沒有驅動逾時或顯示相關的系統事件。
+  - WER 開機後重送的 LiveKernelEvent／BlueScreen 都是 2025-10～2026-09 的舊報告，與此次無關。
+- 1：`host.log` 每次上蓋回報記 `lid closed|open`；`scenes waiting`／`scenes attaching after` 附上判斷輸入（ADR-046 修訂）。
+- 2：非分層（掛在 Explorer）的場景兩個 WPF 視窗，建立 HWND 時改用 `RenderMode.SoftwareOnly`；浮動層與主視窗不變（ADR-049）。
+- 作者檢查（Debug，這台筆電合蓋、只接外接 4K）：
+  - 建置成功；core probe 63／41／21 項通過，含判斷輸入格式 3 項；node 全部 286 項通過（15 項略過）。
+  - Python 在 Windows 有 4 項 Linux 專用測試失敗（labwc、pcmanfm、xwayland、vault）；改動前的版本同樣是這 4 項。
+  - UI、composition、platform、app-data、diagnostics、host-shell、crash-guard、sign-in-hold 都通過。
+  - `--wallpaper`：真 Explorer 桌布層／桌面層、整螢幕移動與還原像素、新增的繪圖模式檢查都通過。
+    第一次執行時，桌面層第 4 步的便箋沒出現；重跑全部通過。改動前的版本在同樣條件下也全部通過。
+  - `--host-check`：改動前後兩個版本的結果相同，都通過。
+  - `--formation`：改動前後都在既有的前景視窗檢查失敗（desktop-initial），與本次改動無關。
+  - 記憶體（`--wallpaper`，一個 4K 全螢幕附著場景）：working set 峰值 150→215 MB；private bytes 181→174 MB。
+    App 每台 4K 螢幕有兩個附著場景，約多 130 MB working set。
+- 獨立唯讀審查：沒有阻擋性問題。依審查修正了以下幾項：
+  - 程式註解的 ADR 編號改正為 049。
+  - 上蓋回報改為每次都記（原本只在狀態改變時記）。
+  - 軟體繪圖改在 handler 第一行設定。
+  - ADR-046 修訂列出三種會立刻放行的情況。
+  - ADR-049 補上記憶體隨螢幕數增加的說明；testing 註明 probe 只檢查設定值。
+  - 修正後重跑 core、`--sign-in-hold`、`--wallpaper` 的設定值檢查，都通過。
+    `--sign-in-hold` 的 host.log 依序記下 `lid closed`、等待與放行兩行，判斷輸入都在。
+  - 重跑時螢幕已鎖定，`--host-check` 的宿主底色檢查失敗（命中 LockScreenBackstopFrame），`--wallpaper` 的像素檢查回報 SKIP，所以這兩項沿用修正前的通過結果。
+- 待驗證：下次登入重開機看 `lid`、判斷輸入、是否仍有 `fatal`。若仍當掉，再評估整個程序改用軟體繪圖，或為 WorkFleet.exe 開 LocalDumps（需使用者同意）。
+- 未升版、未發布。
+
 ## 2026-10-15 desktop preview 0.2.5 發布前準備
 
 使用者明確授權升至 0.2.5 並發布 Windows／Linux／macOS desktop preview；以下只記錄 dispatch 前已知結果。

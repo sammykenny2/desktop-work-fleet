@@ -51,6 +51,9 @@ internal static class WallpaperProbe
     var input = new WindowInteropHelper(surface.InputWindow).Handle;
     var visual = new WindowInteropHelper(surface.VisualWindow).Handle;
     Console.WriteLine($"Wallpaper test handles: input={input:X}, visual={visual:X}");
+    // ADR-049: no Direct3D render target inside Explorer.
+    if (new[] { input, visual }.Any(handle => HwndSource.FromHwnd(handle).CompositionTarget.RenderMode != RenderMode.SoftwareOnly))
+      throw new Exception("Attached scene windows must render WPF in software.");
     void Parent(IntPtr parent)
     {
       if (GetAncestor(input, 1) != parent || GetAncestor(visual, 1) != parent) throw new Exception("Scene is not attached to its requested Explorer host.");
@@ -96,7 +99,7 @@ internal static class WallpaperProbe
     try { if (GetWindowRgn(input, region) is not (2 or 3)) throw new Exception("Wallpaper scene is not clipped to its paper."); }
     finally { DeleteObject(region); }
     focus.Check();
-    Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, paper-only region, WebView pixels, physical coordinates and no activation");
+    Console.WriteLine("PASS live Explorer wallpaper host, WS_CHILD, software WPF rendering, paper-only region, WebView pixels, physical coordinates and no activation");
     // Offscreen pixels prove WPF painted, not that the desktop shows it. Ask DWM to compose the whole Explorer desktop
     // (wallpaper, icon host and their children) even where applications cover it, and read only the test paper's pixel.
     // Product layers have separate surface types: never detach a windowed Explorer child and turn it into a popup.
@@ -109,6 +112,9 @@ internal static class WallpaperProbe
     floatingSurface.WebView.CoreWebView2.NavigateToString(page); await floatingLoaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
     var floatingInput = new WindowInteropHelper(floatingSurface.InputWindow).Handle;
     var floatingVisual = new WindowInteropHelper(floatingSurface.VisualWindow).Handle;
+    // The floating scene shows WPF's own drawing of the composition WebView, so it keeps hardware rendering.
+    if (new[] { floatingInput, floatingVisual }.Any(handle => HwndSource.FromHwnd(handle).CompositionTarget.RenderMode != RenderMode.Default))
+      throw new Exception("The floating scene must keep WPF's default rendering.");
     async Task<string> Screen(string layer)
     {
       await Task.Delay(800);

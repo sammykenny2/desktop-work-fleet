@@ -23,6 +23,15 @@ public static class SignInDisplays
       : sinceChange is { } quiet && quiet < Quiet ? ChangedReason : null;
     return new(reason, reason is not null && sinceStart >= Limit);
   }
+
+  /// <summary>The inputs of a decision for host.log. Null display states mean the display configuration could not be read.</summary>
+  public static string Describe(bool? lidClosed, bool? builtInOn, bool? otherOn, TimeSpan? sinceChange)
+  {
+    static string On(bool? value) => value is { } on ? on ? "on" : "off" : "unread";
+    var lid = lidClosed is { } closed ? closed ? "closed" : "open" : "unreported";
+    var changed = sinceChange is { } ago ? FormattableString.Invariant($"{ago.TotalSeconds:0.0}s ago") : "none";
+    return $"lid={lid} builtIn={On(builtInOn)} other={On(otherOn)} changed={changed}";
+  }
 }
 
 /// <param name="Reason">Why the scenes would still wait, or null when the displays look settled.</param>

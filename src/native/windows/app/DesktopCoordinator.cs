@@ -93,7 +93,7 @@ public sealed class DesktopCoordinator : IDisposable
       if (displayError) return; displayError = true; note?.Invoke("displays unreadable; retrying");
       sendOwner(new { v = 1, @event = "desktop-error", message = "目前無法讀取顯示器，已保留資料及編輯文字；正在重試。" });
     });
-    displayWatcher.LidChanged += Release;
+    displayWatcher.LidChanged += NoteLid; displayWatcher.LidChanged += Release;
     shellWatcher = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
     shellWatcher.Tick += CheckShell; shellWatcher.Start();
     if (mainWindow is not null) activity.Watch(mainWindow);
@@ -346,13 +346,16 @@ public sealed class DesktopCoordinator : IDisposable
   private bool Held()
   {
     if (!holding || disposed) return false;
-    BuiltInDisplays state;
+    BuiltInDisplays state; var readable = true;
     try { state = builtInOverride?.Invoke() ?? NativeDisplays.ReadBuiltIn(displayWatcher.LidClosed); }
-    catch (InvalidOperationException) { state = new(displayWatcher.LidClosed, false, false); }
-    var now = DateTime.UtcNow; var hold = SignInDisplays.Check(state.LidClosed, state.BuiltInOn, state.OtherOn, now - displaysChangedAt, now - created);
+    catch (InvalidOperationException) { state = new(displayWatcher.LidClosed, false, false); readable = false; }
+    var now = DateTime.UtcNow; var sinceChange = now - displaysChangedAt;
+    var hold = SignInDisplays.Check(state.LidClosed, state.BuiltInOn, state.OtherOn, sinceChange, now - created);
+    // On 2026-10-15 the hold let the scenes in at once and host.log could not say why; record what it saw.
+    var inputs = SignInDisplays.Describe(state.LidClosed, readable ? state.BuiltInOn : null, readable ? state.OtherOn : null, sinceChange);
     if (hold.Waiting)
     {
-      if (hold.Reason != holdReason) { holdReason = hold.Reason; note?.Invoke($"scenes waiting: {hold.Reason}"); }
+      if (hold.Reason != holdReason) { holdReason = hold.Reason; note?.Invoke($"scenes waiting: {hold.Reason}; {inputs}"); }
       if (holdTimer is null)
       {
         holdTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
@@ -361,9 +364,11 @@ public sealed class DesktopCoordinator : IDisposable
       return true;
     }
     holding = false; holdTimer?.Stop();
-    note?.Invoke(FormattableString.Invariant($"scenes attaching after {(now - created).TotalSeconds:0.0}s") + (hold.Expired ? $" although {hold.Reason}" : ""));
+    note?.Invoke(FormattableString.Invariant($"scenes attaching after {(now - created).TotalSeconds:0.0}s") + (hold.Expired ? $" although {hold.Reason}" : "") + $"; {inputs}");
     return false;
   }
+  /// <summary>Each lid state Windows reports, starting with the one it sends at registration.</summary>
+  private void NoteLid() => note?.Invoke($"lid {(displayWatcher.LidClosed == true ? "closed" : "open")}");
   private void Release()
   {
     if (holding && started && !disposed && !Held()) _ = Start();
@@ -590,7 +595,7 @@ public sealed class DesktopCoordinator : IDisposable
   public void Dispose()
   {
     if (disposed) return; disposed = true;
-    holdTimer?.Stop(); displayWatcher.LidChanged -= Release; displayWatcher.Dispose(); activity.Dispose(); shortcuts.Dispose();
+    holdTimer?.Stop(); displayWatcher.LidChanged -= NoteLid; displayWatcher.LidChanged -= Release; displayWatcher.Dispose(); activity.Dispose(); shortcuts.Dispose();
     shellWatcher.Stop(); shellWatcher.Tick -= CheckShell;
     foreach (var view in views) view.Surface.Dispose(); transfers.Dispose(); commands.Clear(); flushes.Clear(); frozen.Clear(); sceneIntents.Clear();
   }

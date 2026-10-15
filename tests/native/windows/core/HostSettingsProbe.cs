@@ -67,6 +67,10 @@ internal static class HostSettingsProbe
     Expect(SignInDisplays.Check(true, true, false, null, start), null, false, "closed laptop with nothing else: its panel stays");
     Expect(SignInDisplays.Check(true, true, true, null, limit), SignInDisplays.LidClosedReason, false, "limit reached: attach although the panel is on");
     Expect(SignInDisplays.Check(false, false, true, TimeSpan.Zero, limit + start), SignInDisplays.ChangedReason, false, "limit reached during a change: attach");
+    void Describe(string actual, string expected, string message) { if (actual != expected) throw new Exception($"{message}: {actual}"); count++; }
+    Describe(SignInDisplays.Describe(false, true, true, null), "lid=open builtIn=on other=on changed=none", "lid open next to the panel and another display");
+    Describe(SignInDisplays.Describe(true, false, true, TimeSpan.FromMilliseconds(1250)), "lid=closed builtIn=off other=on changed=1.3s ago", "panel just turned off");
+    Describe(SignInDisplays.Describe(null, null, null, null), "lid=unreported builtIn=unread other=unread changed=none", "no lid, unreadable configuration");
     return count;
   }
   /// <summary>ADR-045 files: host.log entries and rotation, the HRESULT chain, and the restart marker taken once.</summary>

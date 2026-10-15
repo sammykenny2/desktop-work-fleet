@@ -413,6 +413,7 @@ composition probe 套用 coordinator 既有的 render popup 穿透政策，輸�
 
 另執行 `--wallpaper OUTPUT_DIRECTORY`，要求目前 session 有真正的 Explorer 圖示／桌布宿主；
 不可用即失敗，不標成通過。以合成內容確認兩個自有場景 HWND 的 parent／WS_CHILD、
+附著場景兩個視窗的繪圖模式設為軟體、浮動場景維持預設（只檢查設定值，[ADR-049](decisions/049-windows-attached-scenes-render-in-software.md)）、
 實際 WebView 像素、原生空輸入 region、physical bounds、反覆附著／浮動／隱藏與不啟用。
 瀏覽器 preview 核對紙面內容；另捕獲測試便箋所在的桌面裁切區域，才能檢查新紙面之外的舊位置。
 不重啟 Explorer 或注入鍵盤／滑鼠。
@@ -512,12 +513,13 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 接著執行 `--sign-in-hold OUTPUT_DIRECTORY`（[ADR-046](decisions/046-windows-sign-in-scenes-wait-for-settled-displays.md)）：
 - 以登入啟動的身分開啟主畫面（隱藏），注入「上蓋合著、內建螢幕開著、還有其他螢幕」的狀態。
 - 檢查三件事：
-  - 等待期間沒有任何場景視窗，`host.log` 記下 `scenes waiting`。
+  - 等待期間沒有任何場景視窗，`host.log` 記下 `scenes waiting` 與判斷輸入 `lid=closed builtIn=on other=on changed=none`。
   - 改成內建螢幕關掉後，所有場景都建立視窗。
-  - `host.log` 記下 `scenes attaching after`，而且不是因為到達上限。
-- 核心 probe 以表格驗證判斷規則：合蓋與內建螢幕、沒有上蓋狀態、只有內建螢幕、5 秒靜止、3 分鐘上限。
+  - `host.log` 記下 `scenes attaching after` 與判斷輸入 `builtIn=off`，而且不是因為到達上限。
+- 核心 probe 以表格驗證判斷規則：合蓋與內建螢幕、沒有上蓋狀態、只有內建螢幕、5 秒靜止、3 分鐘上限；
+  另驗證判斷輸入的記錄格式，包括讀不到螢幕設定與沒有上蓋狀態。
 - `--platform` 讀出這台電腦作用中螢幕的連接方式與上蓋狀態，只檢查讀得到、不檢查值。
-- 真實登入時的螢幕切換只能重開機驗證，看 `host.log` 的 `scenes waiting` 與 `scenes attaching after`。
+- 真實登入時的螢幕切換只能重開機驗證，看 `host.log` 的 `lid closed|open`、`scenes waiting` 與 `scenes attaching after` 及其判斷輸入。
 
 MSIX 端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsRecovery.ps1`。
 - 安裝 `app.workfleet.crashprobe.e2e` 測試身分，讓它以登入啟動的身分在場景進入 Explorer 後丟出同一個錯誤。

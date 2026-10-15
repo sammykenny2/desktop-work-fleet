@@ -1,6 +1,6 @@
 <Project>
   <PropertyGroup>
     <!-- Windows release version. Assembly versions, the MSIX identity and package file names derive from it. -->
-    <Version>0.2.5</Version>
+    <Version>0.2.6</Version>
   </PropertyGroup>
 </Project>

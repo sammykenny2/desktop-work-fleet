@@ -1,6 +1,26 @@
 # 專案進度
 
-更新：2026-10-15。本檔是本 repo 的執行狀態權威。
+更新：2026-10-16。本檔是本 repo 的執行狀態權威。
+
+## 2026-10-16 desktop preview 0.2.6 發布前準備（只發 Windows）
+
+使用者問 macOS／Linux 是否要一起發，得知 0.2.5 之後只有 Windows 程式改動，指示：「好, 只發windows 0.2.6」。
+狀態：已備妥／待發布。以下只記錄 dispatch 前已知結果。
+
+- 版號依五平台共用規則，Windows props、Linux VERSION、Apple xcconfig、Android Gradle 都改為 0.2.6，Apple build／Android versionCode 為 206。
+  只發 Windows；Linux／macOS／行動平台只同步版號，沿用 0.2.1 的前例。
+- 發布來源比 0.2.5 只多 0a23266（ADR-049 掛在 Explorer 的場景軟體繪圖、ADR-046 修訂的判斷輸入記錄），Windows 以外的程式都沒改。
+- Windows release notes 與 App 內更新摘要改為這次的修正，寫「可望降低」當掉的機會（ADR-049：不保證有效），並註明每台 4K 螢幕約多用 130 MB 記憶體。
+- 作者檢查：
+  - resolver 讀到四個版號紀錄都是 0.2.6，Apple build 與 Android versionCode 都是 206。
+  - 版號測試 6 項通過；node 全部 286 項通過（15 項略過）；workflow YAML 可解析。
+  - 本機 `-LocalTestSign` 打包成功：MSIX identity 為 `app.workfleet.preview 0.2.6.0 x64`，SHA-256 sidecar 相符；
+    更新 manifest 的 tag 是 `windows-v0.2.6`，摘要 84 字。本機包不作發布產物。
+- 0a23266 的完整 CI 38703675191 成功，含 Linux、Windows、JavaScript／Python 各工作。
+- 獨立唯讀審查：沒有阻擋問題。依建議把措辭改為「可望降低」、App 內摘要補上記憶體成本，改完重新打包核對。
+- GitHub 唯讀檢查：`windows-v0.2.6` 的 tag 與 release 都不存在，Actions 已啟用，Windows 需要的 secret／variable 名稱都在，沒有輸出秘密值。
+- 推送 release commit、確認工作樹乾淨且與 origin/main 同 SHA 後才 dispatch。dispatch 後本次任務不再修改 tracked files、commit 或 push。
+  此紀錄不宣稱已發布成功；登入重開機的驗證仍待使用者安裝後進行。
 
 ## 2026-10-15 Windows 掛在 Explorer 的場景改用軟體繪圖（ADR-049），記錄登入等待的判斷輸入
 

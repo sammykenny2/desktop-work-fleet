@@ -65,6 +65,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows fatal-error guard probe failed.' }
     & $UiProbe --sign-in-hold (Join-Path $ProbeRoot 'sign-in-hold')
     if ($LASTEXITCODE -ne 0) { throw 'Windows sign-in scene hold probe failed.' }
+    & $UiProbe --grid-area (Join-Path $ProbeRoot 'grid-area')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows group regions on a grown work area probe failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

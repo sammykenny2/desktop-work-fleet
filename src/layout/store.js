@@ -247,8 +247,14 @@ export class LayoutStore {
     });
   }
 
-  async recoverDisplays(workAreas) {
+  /**
+   * Rescues only papers whose title can no longer be reached. The group regions are laid on the primary work area, as
+   * settings lay them, so they follow it when it grows as well as when it shrinks; papers inside them do not move.
+   */
+  async recoverDisplays(workAreas, primary) {
     workAreas = copy(workAreas);
+    requireValue(validRect(primary), 'invalid-area', '沒有可用顯示器。');
+    const { x, y, width, height } = primary;
     return this.#transaction(draft => {
       const rescued = [];
       for (const [id, rect] of Object.entries(draft.placements)) {
@@ -256,7 +262,7 @@ export class LayoutStore {
         draft.placements[id] = rescueRect(rect, workAreas);
         rescued.push(id);
       }
-      if (!workAreas.some(area => containsRect(area, draft.grid.area))) draft.grid.area = copy(workAreas[0]);
+      draft.grid.area = { x, y, width, height };
       return { reason: 'display-unreachable', rescued };
     });
   }

@@ -521,6 +521,12 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 - `--platform` 讀出這台電腦作用中螢幕的連接方式與上蓋狀態，只檢查讀得到、不檢查值。
 - 真實登入時的螢幕切換只能重開機驗證，看 `host.log` 的 `lid closed|open`、`scenes waiting` 與 `scenes attaching after` 及其判斷輸入。
 
+接著執行 `--grid-area OUTPUT_DIRECTORY`（SPEC-003「顯示器改變」）：
+- 同一份測試資料開兩次主畫面。第一次只給主螢幕工作區的左上四分之一，新增一張便箋；第二次給完整的工作區。
+- 每次都按「調整全部」，讀浮動場景畫出的區域框。只有一個群組，所以區域框應該等於當次的工作區。
+- 修正前，第二次的區域框仍是四分之一大小，與使用者回報的 `Ctrl+Shift+數字` 虛線框相同。
+- 只檢查啟動時的路徑。版面保存的規則由 node 的 C43b 驗證；執行中螢幕變動的接線與 `Ctrl+Shift+數字` 提示沒有自動測試，待實機確認。
+
 MSIX 端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsRecovery.ps1`。
 - 安裝 `app.workfleet.crashprobe.e2e` 測試身分，讓它以登入啟動的身分在場景進入 Explorer 後丟出同一個錯誤。
 - 檢查四件事：

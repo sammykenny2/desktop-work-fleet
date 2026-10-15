@@ -68,8 +68,9 @@ async function run(action) {
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
   finally { activeActions.delete(pending); }
 }
+function primaryArea(workAreas) { const { x, y, width, height } = workAreas.find(area => area.primary) || workAreas[0]; return { x, y, width, height }; }
 function screenArea() {
-  if (desktopInfo) { const { x, y, width, height } = desktopInfo.workAreas.find(area => area.primary) || desktopInfo.workAreas[0]; return { x, y, width, height }; }
+  if (desktopInfo) return primaryArea(desktopInfo.workAreas);
   const shell = $('#stage-shell'); const bounds = shell.getBoundingClientRect();
   if (!shell.hidden && bounds.width > 0 && bounds.height > 0) {
     lastVisibleArea = { x: 0, y: 0, width: Math.max(320, bounds.width - 2), height: Math.max(280, bounds.height - 2) };
@@ -124,11 +125,10 @@ async function initialize() {
       // Dropping is housekeeping: a failure only leaves an extra draft, so report it without failing the action.
       try { await workspace.discardUnneededDraft(draft.id); } catch (error) { status(`草稿整理失敗：${error.message}`, true); }
     } });
+  // The regions move to today's primary display before new papers take a place in them.
+  if (desktopInfo) await workspace.layout.recoverDisplays(workAreas(), screenArea());
   await workspace.layout.placeNew(workspace.snapshot, workAreas());
-  if (desktopInfo) {
-    await workspace.layout.recoverDisplays(workAreas());
-    initializeDesktop();
-  }
+  if (desktopInfo) initializeDesktop();
   $('#storage-note').textContent = native ? '加密保存在這台裝置' : '保存在這個瀏覽器';
   renderAccount(); setSync('off', native ? '只存在這台裝置' : '只存在這個瀏覽器');
   try {
@@ -176,17 +176,23 @@ async function initialize() {
     native.bridge.onEvent('host-foreground', () => { void refreshCaptures().catch(error => status(error.message, true)); });
     await refreshCaptures();
   }
-  let lastArea = JSON.stringify(screenArea());
+  // The browser canvas is the work area: the first observation lays the regions on it, and resizing the window writes
+  // the layout once the size settles rather than on every frame.
+  let lastArea = JSON.stringify(workspace.layout.state.grid.area); let resizeTimer = null;
   new ResizeObserver(() => {
-    if (desktopInfo || $('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
-    const area = screenArea();
-    if (JSON.stringify(area) === lastArea) return;
-    lastArea = JSON.stringify(area);
-    run(async () => {
-      controller.cancelDrag();
-      const result = await workspace.layout.recoverDisplays([area]);
-      render(); if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
-    });
+    if (desktopInfo) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if ($('#stage-shell').hidden || !$('#stage-shell').getClientRects().length) return;
+      const area = screenArea();
+      if (JSON.stringify(area) === lastArea) return;
+      lastArea = JSON.stringify(area);
+      run(async () => {
+        controller.cancelDrag();
+        const result = await workspace.layout.recoverDisplays([area], area);
+        render(); if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
+      });
+    }, 250);
   }).observe($('#stage-shell'));
 }
 
@@ -545,7 +551,8 @@ function initializeDesktop() {
     changed: () => render(), error: error => status(error.message, true),
     displays: async proposal => {
       controller.cancelDrag();
-      const result = await workspace.layout.recoverDisplays(proposal.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })));
+      const result = await workspace.layout.recoverDisplays(proposal.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })),
+        primaryArea(proposal.workAreas));
       const editor = currentDesktopEditor();
       try {
         const info = await native.bridge.request('desktop.displays.apply', { topology: proposal.topology,

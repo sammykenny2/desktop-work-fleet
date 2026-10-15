@@ -359,10 +359,28 @@ test('C39: undo skips deleted cards and keeps newly added cards, respecting inte
 test('C43: display recovery moves only inaccessible titles and explains the reason', async () => {
   const f = await fixture(); await f.workspace.layout.move(f.a1.id, { x: 1800, y: 400 });
   const before = f.workspace.layout.state.placements;
-  const result = await f.workspace.layout.recoverDisplays(workAreas);
+  const result = await f.workspace.layout.recoverDisplays(workAreas, area);
   assert.deepEqual(result, { reason: 'display-unreachable', rescued: [f.a1.id] });
   assert.deepEqual(f.workspace.layout.state.placements[f.b1.id], before[f.b1.id]);
   assert.equal(reachable(f.workspace.layout.state.placements[f.a1.id], workAreas), true);
+});
+
+test('C43b: group regions follow the primary work area, also when it grows, without moving papers', async () => {
+  const f = await fixture(); const layout = f.workspace.layout;
+  // A laptop panel is primary at sign-in next to an external display, then goes dark and leaves the external one.
+  const panel = { x: 0, y: 0, width: 960, height: 540 }; const external = { x: 960, y: 0, width: 1920, height: 1080 };
+  await layout.recoverDisplays([panel, { ...external }], { ...panel, id: 'panel', primary: true });
+  assert.deepEqual(layout.state.grid.area, panel);
+  const placements = layout.state.placements;
+  const wide = { x: 0, y: 0, width: 1920, height: 1080 };
+  await layout.recoverDisplays([wide], wide);
+  assert.deepEqual(layout.state.grid.area, wide);
+  assert.deepEqual(gridRegions(layout.state.grid, activeGroups(f.workspace.snapshot)).at(-1),
+    { groupId: layout.state.grid.slots.at(-1), x: 960, y: 0, width: 960, height: 1080 });
+  assert.deepEqual(layout.state.placements, placements);
+  const revision = layout.state.revision;
+  await layout.recoverDisplays([wide], { ...wide });
+  assert.equal(layout.state.revision, revision);
 });
 
 test('C44: creation stops at nine; reading ten preserves data and rejects formation', async () => {

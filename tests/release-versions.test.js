@@ -94,6 +94,8 @@ test('MSIX uses the Windows version record and includes early Windows 11 while e
       await mkdir(path.join(directory, 'scripts'), { recursive: true });
       await copyFile(path.join(root, 'scripts', file), path.join(directory, 'scripts', file));
     }
+    await mkdir(path.join(directory, 'config'), { recursive: true });
+    await copyFile(path.join(root, 'config', 'startup.json'), path.join(directory, 'config', 'startup.json'));
     const stage = path.join(directory, 'build', 'windows', 'stage');
     await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
       { env: { PATH: process.env.PATH } });

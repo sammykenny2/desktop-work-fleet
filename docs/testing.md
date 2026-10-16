@@ -236,7 +236,7 @@ docker run --rm --network none \
 
 Xvfb＋openbox（X11）驗證預設大小、移動／最大化／最小化／還原後的 `window-placement.json`、重新開啟回到保存位置、重置、
 第一次啟動寫入 bundle 啟動檔的 autostart 項目、關閉後之後啟動不重新建立，以及 `--launch-at-login` 時主畫面先隱藏、
-沒有系統匣時等待後顯示（probe 把 30 秒縮成 3 秒）、再次啟動叫出主畫面。`hidden-tray` 模式用 Ayatana AppIndicator
+沒有系統匣時等待後顯示（probe 透過公開設定的 `startup` 改用 3 秒）、再次啟動叫出主畫面。`hidden-tray` 模式用 Ayatana AppIndicator
 （映像與 DEB Recommends 相同）並在 App 之後才登記 StatusNotifierWatcher，驗證晚到的系統匣讓主畫面保持隱藏，
 系統匣消失時才顯示；也從 D-Bus 讀回系統匣的 `Title` 是「Work Fleet」，並確認 `host.log` 記下這次登入啟動與系統匣的來去。
 headless labwc 驗證只保存大小與最大化並在重開時套用。

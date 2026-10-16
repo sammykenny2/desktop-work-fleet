@@ -9,6 +9,18 @@ import { parseEnv } from 'node:util';
 
 export const platforms = ['windows', 'macos', 'linux', 'ios', 'android'];
 export const secretPlatforms = ['windows', 'linux'];
+
+/**
+ * ADR-043 startup timings, the one source every desktop host reads through Config/public.json. They live in
+ * config/startup.json rather than .env: they are product behaviour, the same for every build, not a builder's setting.
+ */
+export function parseStartupConfig(text) {
+  const value = JSON.parse(text);
+  const seconds = value?.trayWaitSeconds;
+  if (!Number.isInteger(seconds) || seconds < 0 || seconds > 300) throw new Error('config/startup.json 的 trayWaitSeconds 必須是 0–300 的整數秒。');
+  return { trayWaitSeconds: seconds };
+}
+
 export async function readBuildConfig(root, environment = process.env, { platform } = {}) {
   let file = {};
   try { file = parseEnv(await readFile(new URL('.env', root), 'utf8')); }
@@ -56,6 +68,7 @@ export async function readBuildConfig(root, environment = process.env, { platfor
   // The Sparkle EdDSA public key the macOS app checks updates against; the private key never leaves the maintainer's Mac or CI secret.
   config.update.macosPublicKey = value('WORK_FLEET_SPARKLE_PUBLIC_KEY');
   if (config.update.macosPublicKey && !/^[A-Za-z0-9+/]{43}=$/.test(config.update.macosPublicKey)) throw new Error('WORK_FLEET_SPARKLE_PUBLIC_KEY 必須是 generate_keys 印出的 base64 公鑰。');
+  config.startup = parseStartupConfig(await readFile(new URL('../config/startup.json', import.meta.url), 'utf8'));
   return config;
 }
 

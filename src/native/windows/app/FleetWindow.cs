@@ -35,9 +35,6 @@ public sealed class FleetWindow : Window
   public SingleInstance? Instance { get; set; }
   // A sign-in launch first shows the window far off-screen so WPF loads it, then hides it once the page is loaded.
   private bool offscreen;
-  // A hidden sign-in start waits this long for the tray before showing the main window: at sign-in the notification area
-  // can be busy or not created yet (ADR-043).
-  private static readonly TimeSpan TrayWait = TimeSpan.FromSeconds(30);
   private Task messageQueue = Task.CompletedTask;
   private int queued;
   private long navigation;
@@ -72,7 +69,7 @@ public sealed class FleetWindow : Window
     {
       try
       {
-        // How long the tray takes at sign-in is the evidence for TrayWait.
+        // How long the tray takes at sign-in is the evidence for trayWaitSeconds in config/startup.json.
         tray = new NativeTray(TrayAction, updater?.Capable == true); Log($"tray available={tray.Available} uptime={Uptime()}");
         tray.Changed += () => { Log($"tray available={tray.Available} uptime={Uptime()}"); if (!tray.Available) ShowMain(false); };
         tray.MenuActive += active => desktop?.MenuActive(active); await Initialize();
@@ -119,9 +116,10 @@ public sealed class FleetWindow : Window
   /// <summary>Without a tray the hidden window could not be reached, so a sign-in launch shows it when none arrived in time.</summary>
   private async Task ShowWithoutTray()
   {
-    await Task.Delay(TrayWait);
+    var wait = shell?.TrayWait ?? TimeSpan.Zero;
+    await Task.Delay(wait);
     if (shuttingDown || tray?.Available == true || IsVisible) return;
-    Log($"no tray within {TrayWait.TotalSeconds:F0}s; showing the main window"); ShowMain(false);
+    Log($"no tray within {wait.TotalSeconds:F0}s; showing the main window"); ShowMain(false);
   }
   private void Log(string text) => HostLog.Append(dataDirectory, DateTimeOffset.Now, text);
   private static string Uptime()

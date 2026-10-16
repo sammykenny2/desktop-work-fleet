@@ -39,7 +39,7 @@ def main():
         shutil.copytree(root / "src" / directory, fixture / "src" / directory)
     shutil.copytree(root / "src/native/apple", fixture / "src/native/apple",
                     ignore=shutil.ignore_patterns(".generated", "xcuserdata", "Local.xcconfig"))
-    files = ["LICENSE", "THIRD-PARTY-NOTICES.md", "package.json", "package-lock.json",
+    files = ["LICENSE", "THIRD-PARTY-NOTICES.md", "package.json", "package-lock.json", "config/startup.json",
              "scripts/build-web.mjs", "scripts/config.mjs", "scripts/prepare-apple-build.mjs",
              "scripts/macos/prepare-apple-assets.sh", "scripts/macos/copy-native-notices.sh"]
     files += ["src/native/" + name + ".js" for name in ["bridge", "files", "capture", "shortcuts", "google"]]

@@ -60,7 +60,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
   try {
     for (const file of ['scripts/macos/package-native-app.sh', 'scripts/macos/write-update-feed.mjs',
       'scripts/testing/check_macos_runtime.py',
-      'scripts/generate-apple-export-options.mjs', 'scripts/config.mjs', 'scripts/toolchain-env.mjs']) {
+      'scripts/generate-apple-export-options.mjs', 'scripts/config.mjs', 'config/startup.json', 'scripts/toolchain-env.mjs']) {
       const target = path.join(directory, file);
       await mkdir(path.dirname(target), { recursive: true });
       await cp(new URL('../' + file, import.meta.url), target);

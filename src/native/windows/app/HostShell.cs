@@ -18,6 +18,11 @@ public sealed class HostShell(string directory, bool launchedAtLogin, string dis
   public static bool StartupSupported => AppDataDirectory.Packaged;
   /// <summary>Hidden at sign-in unless the user asked for the main window; a manual launch always shows it.</summary>
   public bool StartHidden => LaunchedAtLogin && !Preferences.OpenMainAtLogin;
+  /// <summary>
+  /// How long a hidden sign-in start waits for the tray: at sign-in the notification area can be busy or not created yet.
+  /// From config/startup.json through Config/public.json.
+  /// </summary>
+  public TimeSpan TrayWait { get; } = StartupConfig.ReadTrayWait(AppContext.BaseDirectory);
 
   /// <summary>Must run first in Main: packaged activation arguments are only returned on the first call.</summary>
   public static bool DetectLoginLaunch()

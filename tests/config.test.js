@@ -4,7 +4,7 @@ import { mkdtemp, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { missingGoogleConfig, missingReleaseConfig, readBuildConfig } from '../scripts/config.mjs';
+import { missingGoogleConfig, missingReleaseConfig, parseStartupConfig, readBuildConfig } from '../scripts/config.mjs';
 import { buildWebAssets } from '../scripts/build-web.mjs';
 
 test('public config reads .env, prefers environment and excludes non-allowlisted credentials', async () => {
@@ -79,4 +79,15 @@ test('only a Windows build writes its Desktop client secret, beside the app rath
       }
     }
   } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test('startup timings come from config/startup.json for every build, not from .env', async () => {
+  const source = parseStartupConfig(await readFile(new URL('../config/startup.json', import.meta.url), 'utf8'));
+  const root = new URL('../build/nonexistent-config/', import.meta.url);
+  assert.deepEqual((await readBuildConfig(root, {})).startup, source);
+  assert.deepEqual((await readBuildConfig(root, { WORK_FLEET_TRAY_WAIT_SECONDS: '1' })).startup, source);
+  assert.deepEqual(parseStartupConfig('{"trayWaitSeconds":0,"other":1}'), { trayWaitSeconds: 0 });
+  for (const text of ['{}', '{"trayWaitSeconds":-1}', '{"trayWaitSeconds":1.5}', '{"trayWaitSeconds":"30"}', '{"trayWaitSeconds":301}', 'null', '{']) {
+    assert.throws(() => parseStartupConfig(text), undefined, text);
+  }
 });

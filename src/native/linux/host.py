@@ -140,10 +140,6 @@ class LocalWeb:
 
 
 class FleetApp(Gtk.Application):
-    # A hidden sign-in start waits this long for the tray before showing the main window: the panel that hosts the tray can
-    # start in the same second as Work Fleet, as wf-panel-pi does on Raspberry Pi OS, and register its watcher later (ADR-043).
-    TRAY_WAIT_SECONDS = 30
-
     def __init__(self, assets, config, directory, launched_at_login=False, default_data=None):
         self.assets, self.config, self.directory = assets, config, directory
         self.default_data = default_data or directory
@@ -151,6 +147,9 @@ class FleetApp(Gtk.Application):
         self.preferences, existed = hostsettings.read_preferences(directory)
         self.first_run = not existed
         self.hidden_start = launched_at_login and not self.preferences["openMainAtLogin"]
+        # A hidden sign-in start waits this long for the tray before showing the main window: the panel that hosts the tray can
+        # start in the same second as Work Fleet, as wf-panel-pi does on Raspberry Pi OS, and register its watcher later (ADR-043).
+        self.tray_wait = hostsettings.tray_wait(config)
         self.placement = hostsettings.read_placement(directory)
         self.placement_dirty = self.tracking = self.pending_maximize = False
         self.placement_timer = None
@@ -197,7 +196,7 @@ class FleetApp(Gtk.Application):
         self.reveal()
         self.log(f"start version={hostsettings.version(self.assets, __file__)} distribution={hostsettings.distribution(self.assets)} "
                  f"pid={os.getpid()} launchedAtLogin={self.launched_at_login} hidden={self.hidden_start}")
-        # How long the tray takes at sign-in is the evidence for TRAY_WAIT_SECONDS.
+        # How long the tray takes at sign-in is the evidence for trayWaitSeconds in config/startup.json.
         self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active,
                          icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False),
                          update=self.tray_update if self.updater.capable else None,
@@ -205,7 +204,7 @@ class FleetApp(Gtk.Application):
         self.log(f"tray available={self.tray.available} uptime={self.uptime()}")
         if self.hidden_start:
             # A tray that never connects would leave the hidden window unreachable, so it shows after the wait.
-            GLib.timeout_add_seconds(self.TRAY_WAIT_SECONDS, self.hidden_fallback)
+            GLib.timeout_add_seconds(self.tray_wait, self.hidden_fallback)
         if self.first_run:
             self.first_preferences()
         marker = self.directory / "profile.txt"
@@ -241,7 +240,7 @@ class FleetApp(Gtk.Application):
 
     def hidden_fallback(self):
         if self.hidden_start and (self.tray is None or not self.tray.available):
-            self.log(f"no tray within {self.TRAY_WAIT_SECONDS}s; showing the main window")
+            self.log(f"no tray within {self.tray_wait}s; showing the main window")
             self.show_main(activate=False)
         return False
 

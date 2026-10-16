@@ -2,6 +2,30 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 系統匣等待秒數的單一來源
+
+使用者表示「我不喜歡魔術數字散落各處」，看過選項後選 A：共用設定檔，並指示「做完commit&push」。不升版、不發布。
+
+- 來源與傳遞：
+  - `trayWaitSeconds` 只定義在新的 `config/startup.json`（取代 `config/.gitkeep`）。
+  - `scripts/config.mjs` 的 `parseStartupConfig` 只接受 0–300 的整數秒，並寫進 `Config/public.json` 的 `startup` 區段。
+  - 不放 `.env`：它是產品行為，建置者不能各自調整。`.env.example` 與 setup-guide 註明這點。
+- 讀取：
+  - Linux `hostsettings.tray_wait`、Windows core `StartupConfig.TrayWait`（由 `HostShell.TrayWait` 讀一次）。
+  - 讀不到有效值時不等待；程式裡不再有 30。
+  - ADR-043、Linux README 與 testing.md 改為引用 `config/startup.json`，只有 ADR 記錄初始值與理由。
+- 測試：
+  - `config.test.js`：從 `config/startup.json` 讀出，`.env` 無法覆蓋，並拒絕無效值。
+  - `test_linux_hostsettings.py`：`tray_wait` 的有效值與各種無效值。
+  - Windows core probe 加入 `StartupConfig` 案例。Linux 上無法執行整個 core probe，因為更早的案例會用到 DPAPI。
+    改用臨時 console 專案在 Pi 的 .NET 10.0.13 跑同樣 11 個案例，全部通過，並從實際建置的 `public.json` 讀到 30 秒。
+  - Docker host probe 改由公開設定給 3 秒；Pi（arm64）本機全部通過。
+  - `test_linux_package.py`、`release-versions.test.js` 的暫存 checkout 加上 `config/startup.json`。
+    只在 macOS 執行的 `apple-signing.test.js` 與 `apple_startup_probe.py` 也同樣補上，這兩項未在 Mac 執行。
+  - rebase 到 `f6b2c12` 後 Python discover 181 tests（skip 34）全部通過；node 307 tests 為 296 pass／11 skip／0 fail。
+  - Windows app 與 core probe 專案在 Pi 上以 `EnableWindowsTargeting` 編譯，0 warning／0 error。
+- 沒有獨立審閱。
+
 ## 2026-10-17 系統匣等待紀錄與 Linux 系統匣名稱
 
 使用者問「所以目前有個魔術數字30秒?」，看過說明後回覆「加log OK」，並要求修正 Linux 系統匣滑鼠移上去顯示 `host.py` 的問題。

@@ -46,6 +46,12 @@ internal static class HostSettingsProbe
     catch (HostError error) { Require(error.Code == "invalid-request", "unknown preference code"); }
     foreach (var damaged in new[] { "", "{", "{\"version\":9,\"startAtLogin\":false}", "{\"version\":1,\"startAtLogin\":\"no\"}" })
       Require(HostPreferences.Parse(Encoding.UTF8.GetBytes(damaged)).StartAtLogin, $"damaged preferences keep defaults: {damaged}");
+    Require(StartupConfig.TrayWait("{\"schemaVersion\":1,\"startup\":{\"trayWaitSeconds\":30}}"u8) == TimeSpan.FromSeconds(30), "tray wait from the public config");
+    Require(StartupConfig.TrayWait("{\"startup\":{\"trayWaitSeconds\":0}}"u8) == TimeSpan.Zero, "a zero tray wait");
+    foreach (var invalid in new[] { "", "{", "{}", "{\"startup\":null}", "{\"startup\":{}}", "{\"startup\":{\"trayWaitSeconds\":-1}}",
+      "{\"startup\":{\"trayWaitSeconds\":1.5}}", "{\"startup\":{\"trayWaitSeconds\":\"30\"}}", "{\"startup\":{\"trayWaitSeconds\":2147483648}}" })
+      Require(StartupConfig.TrayWait(Encoding.UTF8.GetBytes(invalid)) == TimeSpan.Zero, $"no valid tray wait waits for nothing: {invalid}");
+    Require(StartupConfig.ReadTrayWait(Path.Combine(root, "missing-app")) == TimeSpan.Zero, "an app without Config/public.json waits for nothing");
     Require(HostIdentity.BuildVersion() is { Length: > 0 } version && !version.Contains('+'), "build version without commit suffix");
     count += Recovery(Path.Combine(root, "host-recovery"));
     count += SignInHold();

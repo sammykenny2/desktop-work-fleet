@@ -95,7 +95,7 @@ Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣，滑鼠移上去顯�
 系統匣退出沿用草稿保存流程；曾連上的系統匣斷線時恢復主畫面，帳號切換則關閉舊桌面工作階段。
 主視窗大小、X11 位置與最大化存在資料目錄的 `window-placement.json`，啟動行為存在 `host-preferences.json`（ADR-043）。
 登入啟動寫入 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（DEB 用 `work-fleet`，tar.gz 用 bundle 的啟動檔，原始碼執行不支援），
-只在第一次啟動套用預設與使用者切換時改寫；`--launch-at-login` 啟動時主畫面留在系統匣；登入時面板可能比 App 晚就緒，系統匣 30 秒內沒有連上才顯示。
+只在第一次啟動套用預設與使用者切換時改寫；`--launch-at-login` 啟動時主畫面留在系統匣；登入時面板可能比 App 晚就緒，系統匣在 `config/startup.json` 的 `trayWaitSeconds` 秒內沒有連上才顯示。
 資料目錄的 `host.log` 記錄每次啟動、系統匣可用狀態改變與啟動後秒數，格式與轉存同 Windows（ADR-045），不含便箋內容。
 `updater.py`（ADR-044）只在 DEB 安裝時啟用：查詢 `linux-v<版號>` release、下載並核對後以 pkexec 安裝，成功後保存並重新啟動。
 可用隔離 headless labwc 執行本產品原生場景回歸，命令見 [testing](../../../docs/testing.md)。

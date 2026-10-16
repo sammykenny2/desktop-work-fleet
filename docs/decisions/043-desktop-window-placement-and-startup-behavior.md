@@ -62,11 +62,13 @@ MSIX 的登入啟動以 StartupTask 宣告，使用者可在工作管理員或�
 
 - 登入時提供系統匣的面板或工作列可能比 Work Fleet 晚就緒。Raspberry Pi OS 的 `wf-panel-pi` 與 Work Fleet 在同一秒啟動，
   libayatana 在它登記 StatusNotifierWatcher 前就回報未連線；舊版把這當成系統匣消失，立刻顯示主畫面。
-- 隱藏啟動最多等系統匣 30 秒，期間內出現就保持隱藏，逾時才顯示主畫面。再次開啟 App 仍立即顯示。
+- 隱藏啟動最多等系統匣 `trayWaitSeconds` 秒，期間內出現就保持隱藏，逾時才顯示主畫面。再次開啟 App 仍立即顯示。
+- `trayWaitSeconds` 只定義在 `config/startup.json`，建置時寫進每個平台都帶的 `Config/public.json` 的 `startup` 區段，
+  Linux 與 Windows 從那裡讀；讀不到有效值時不等待，立即依系統匣狀態決定。它是產品行為，不放 `.env`，建置者不能各自調整。
 - 只有曾經連上、後來消失的系統匣才立即顯示隱藏中的主畫面。
 - Windows 在頁面載入後先收起主畫面；圖示加入失敗時每 2 秒重試，最多 1 分鐘，之後仍由 `TaskbarCreated` 補上。
   macOS 的選單列圖示同步建立，不需等待。
-- 30 秒是估計值，沒有實測。Windows 與 Linux 的 `host.log` 都記錄每次系統匣可用狀態改變與啟動後經過秒數（`uptime`），
+- 初始值 30 秒是估計值，沒有實測。Windows 與 Linux 的 `host.log` 都記錄每次系統匣可用狀態改變與啟動後經過秒數（`uptime`），
   逾時顯示主畫面時也記一筆；之後以實際登入紀錄調整。Linux 的 `host.log` 與 ADR-045 的 Windows 版格式、轉存規則相同。
 
 作業系統註冊：

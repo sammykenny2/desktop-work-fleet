@@ -70,8 +70,10 @@ bundle = OUTPUT / "bundle"
 (bundle / "package.json").write_text('{"version": "9.8.7"}', "utf-8")
 data = OUTPUT / "data"
 host.FleetApp.open_store = lambda self, profile, persist=False: None
-host.FleetApp.TRAY_WAIT_SECONDS = 3
-app = host.FleetApp(bundle / "Assets", {"appId": "app.workfleet.hostprobe"}, data, launched_at_login=MODE.startswith("hidden"), default_data=data)
+# A shorter wait than config/startup.json, delivered the same way: through the public config.
+WAIT = 3
+app = host.FleetApp(bundle / "Assets", {"appId": "app.workfleet.hostprobe", "startup": {"trayWaitSeconds": WAIT}}, data,
+                    launched_at_login=MODE.startswith("hidden"), default_data=data)
 app.register(None)
 autostart = hostsettings.autostart_path(os.environ)
 
@@ -173,7 +175,7 @@ elif MODE == "hidden-tray":
     spin(lambda: titles, message="the tray item answers for its title")
     check(titles == ["Work Fleet"], f"the tray shows the product name on hover, not the program name ({titles})")
     # timeout_add_seconds may fire up to a second late, so this settles past the latest moment the wait can end.
-    settle(host.FleetApp.TRAY_WAIT_SECONDS + 1.5 - 1)
+    settle(WAIT + 1.5 - 1)
     check(not app.window.get_visible(), "the tray connected within the wait, so the window stays hidden after it")
     Gio.bus_unown_name(ownership)
     spin(lambda: app.window.get_visible(), message="losing the tray shows the hidden window")

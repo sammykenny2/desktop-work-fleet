@@ -124,7 +124,7 @@ class LinuxPackageTests(unittest.TestCase):
     def test_build_entry_point_writes_deb_directly_to_build_root(self):
         checkout = self.bundle.parent / "checkout with spaces"
         for relative in (
-            "package.json", "LICENSE", "THIRD-PARTY-NOTICES.md",
+            "package.json", "LICENSE", "THIRD-PARTY-NOTICES.md", "config/startup.json",
             "scripts/build-web.mjs", "scripts/config.mjs", "scripts/apple-icons.mjs",
             "scripts/platform-version.mjs",
             "scripts/generate-linux-package.mjs", "scripts/package-linux.py",

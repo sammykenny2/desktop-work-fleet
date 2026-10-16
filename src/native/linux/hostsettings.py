@@ -100,6 +100,17 @@ def append_log(directory, text, now=None):
         pass
 
 
+def tray_wait(config):
+    """
+    Seconds a hidden sign-in start waits for the tray (ADR-043). The value comes from config/startup.json through
+    Config/public.json; a bundle without a valid one waits for nothing, so the hidden window is never stranded.
+    """
+    startup = config.get("startup") if isinstance(config, dict) else None
+    seconds = startup.get("trayWaitSeconds") if isinstance(startup, dict) else None
+    # The int32 range the Windows host reads, which also fits GLib's unsigned timeout.
+    return seconds if type(seconds) is int and 0 <= seconds <= 2**31 - 1 else 0
+
+
 def change(preferences, name, value):
     if name not in DEFAULTS or not isinstance(value, bool):
         raise ValueError(name)

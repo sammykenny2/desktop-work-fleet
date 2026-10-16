@@ -111,6 +111,15 @@ class LinuxHostSettingsTests(unittest.TestCase):
             hostsettings.remove_autostart(path)
         self.assertTrue(path.exists())
 
+    def test_tray_wait_comes_from_the_public_config_or_is_none(self):
+        self.assertEqual(hostsettings.tray_wait({"startup": {"trayWaitSeconds": 30}}), 30)
+        self.assertEqual(hostsettings.tray_wait({"startup": {"trayWaitSeconds": 0}}), 0)
+        # A bundle without a valid value shows a hidden start's window at once rather than guessing a wait.
+        for config in ({}, {"startup": None}, {"startup": {}}, {"startup": {"trayWaitSeconds": -1}}, {"startup": {"trayWaitSeconds": 1.5}},
+                       {"startup": {"trayWaitSeconds": True}}, {"startup": {"trayWaitSeconds": "30"}}, {"startup": {"trayWaitSeconds": 2**31}}, None):
+            with self.subTest(config=config):
+                self.assertEqual(hostsettings.tray_wait(config), 0)
+
     def test_host_log_lines_rotation_and_failures(self):
         from datetime import datetime, timedelta, timezone
         folder = self.folder() / "WorkFleet"

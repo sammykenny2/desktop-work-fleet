@@ -65,16 +65,16 @@ python scripts/testing/serve_preview.py --port 0
 
 ## Windows 原生主畫面
 
-建置需 Windows 10 build 19041+／11、.NET 8 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
+建置需 Windows 10 build 19041+／11、.NET 10 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
 MSIX 最低版本為 22000，涵蓋早期 Windows 11／23H2 與 24H2+，在安裝資格上排除 Windows 10；MaxVersionTested 保留 26200。
 2026-10-09 已在 23H2 build 22631／144 DPI 通過隔離原生探針與三層真螢幕像素檢查，並驗證未簽章 MSIX 內容；正常互動與 MSIX 安裝仍待使用者驗收。
 沒有本輪其他版本設備，既有 26200／25H2 紀錄不等於 26100／24H2 實測。支援與未測範圍見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)、[接手入口](handoff/2026-10-09-windows-11-compatibility-handoff.md) 與 PROGRESS；Store 尚未正式提交。
-直接執行 `Build-WindowsApp.ps1`／IDE 的一般建置產物需 .NET 8 Desktop Runtime；`Build-WindowsPackage.ps1` 的 MSIX／ZIP 預設自帶 runtime。
+直接執行 `Build-WindowsApp.ps1`／IDE 的一般建置產物需 .NET 10 Desktop Runtime；`Build-WindowsPackage.ps1` 的 MSIX／ZIP 預設自帶 runtime。
 兩者仍需 Evergreen WebView2 Runtime。主畫面、加密保存與桌面／浮動場景已接通。
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1
-& .\src\native\windows\app\bin\Release\net8.0-windows10.0.19041.0\WorkFleet.exe
+& .\src\native\windows\app\bin\Release\net10.0-windows10.0.19041.0\WorkFleet.exe
 ```
 
 資產與 native libraries／Licenses 隨輸出目錄保留，不單獨移動 exe。
@@ -214,7 +214,7 @@ App Groups。直接 IDE 使用 Local.xcconfig 的 WORK_FLEET_APP_GROUP_ID；CLI 
 
 ## 原生安裝包與簽章入口
 
-Windows x64 封裝預設使用 self-contained .NET 8 Desktop，MSIX／ZIP 接收端不用另外安裝 .NET；WebView2 仍是執行前置條件。
+Windows x64 封裝預設使用 self-contained .NET 10 Desktop，MSIX／ZIP 接收端不用另外安裝 .NET；WebView2 仍是執行前置條件。
 建置端需要 .NET SDK，Windows SDK 提供 MakeAppx／SignTool。首次打包會還原 win-x64 runtime packs，完成後才可使用 `-SkipRestore`。
 公開 identity／publisher 由 `.env.example` 配置；preview 可以暫不設定正式 Google 帳號。
 

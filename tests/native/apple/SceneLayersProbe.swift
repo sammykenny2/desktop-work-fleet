@@ -36,6 +36,11 @@ import AppKit
         defer { coordinator.close() }
         let info = try coordinator.invoke("desktop.info", [:]) as! [String: Any]
         try check((info["layers"] as? [String]) == ["desktop", "floating", "wallpaper"], "Native capability must expose all three layers")
+        try check(info["adjustOverlay"] as? Bool == true, "The desktop must advertise the common adjust overlay")
+        guard let initialViews = info["views"] as? [[String: Any]], !initialViews.isEmpty else { throw FleetFailure("probe", "Initial scene capabilities are missing") }
+        for view in initialViews {
+            try check(view["adjustOverlay"] as? Bool == ((view["layer"] as? String) == "floating"), "Initial per-view overlay capability must match its layer")
+        }
         // Shortcuts are released only while a Work Fleet window has the keyboard; NSApp.isActive cannot be faked here.
         try check(FleetShortcuts.suspends(blocked: false, active: true, keyWindow: true), "A focused Work Fleet window must handle shortcuts itself")
         try check(!FleetShortcuts.suspends(blocked: false, active: true, keyWindow: false), "A minimized main window must keep shortcuts registered")
@@ -87,6 +92,13 @@ import AppKit
         try check(NSWindow.windowNumber(at: NSPoint(x: input.frame.midX, y: input.frame.midY), belowWindowWithWindowNumber: 0) == input.windowNumber,
             "Interactive paper must receive real mouse clicks")
         floating.hide()
+        floating.apply(FleetSceneFrame(sequence: 2, topology: 0, cards: [], adjusting: true))
+        try check(floating.panel.isVisible && floating.panel.canBecomeKey, "Adjustment must show an empty monitor and accept Esc")
+        let overlays = NSApplication.shared.windows.filter { $0.isVisible && $0 is FleetScenePanel && $0.contentView is FleetSceneInput }
+        try check(overlays.count == 1 && overlays[0].frame == inputBounds, "Adjustment must receive input across the whole viewport")
+        floating.apply(FleetSceneFrame(sequence: 3, topology: 0, cards: []))
+        try check(!floating.panel.isVisible && !floating.panel.canBecomeKey, "Leaving adjustment must release the overlay and keyboard")
+        try check(!overlays[0].isVisible, "Leaving adjustment must remove the full-screen input panel")
         let session = FleetProtocol.uuid()
         var card: [String: Any] = ["id": "paper", "groupId": "group", "text": "Synthetic layer probe", "color": "#ff7799",
             "rect": ["x": -280, "y": 70, "width": 120, "height": 80], "layer": "wallpaper",

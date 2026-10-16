@@ -2,5 +2,7 @@
   <PropertyGroup>
     <!-- Windows release version. Assembly versions, the MSIX identity and package file names derive from it. -->
     <Version>0.2.7</Version>
+    <!-- ADR-050: WPF display-loss protection is included in the bundled .NET 10 runtime. -->
+    <WindowsRuntimeVersion>10.0.13</WindowsRuntimeVersion>
   </PropertyGroup>
 </Project>

@@ -46,6 +46,7 @@ internal static class DesktopFormationProbe
     var samples = (from dx in Enumerable.Range(0, width)
                    from dy in Enumerable.Range(0, height)
                    select (X: bounds.X + dx, Y: bounds.Y + dy)).ToArray();
+    bool adjusting = false;
     int Pixel(byte[] pixels, (int X, int Y) point)
     {
       var offset = ((point.Y - bounds.Y) * bounds.Width + point.X - bounds.X) * 4;
@@ -88,7 +89,7 @@ internal static class DesktopFormationProbe
         await Task.Delay(800);
         focus.Phase = name; focus.Check();
         var papers = await Papers(surface.WebView.CoreWebView2);
-        var decorationJson = await Eval(surface.WebView.CoreWebView2, "[...document.querySelectorAll('.region,.region-label')].map(c=>{const r=c.getBoundingClientRect();return {Id:c.classList.contains('region')?'border':'label',X:r.x,Y:r.y,Width:r.width,Height:r.height}})");
+        var decorationJson = await Eval(surface.WebView.CoreWebView2, "[...document.querySelectorAll('.region,.region-label,.adjust-tools')].map(c=>{const r=c.getBoundingClientRect();return {Id:c.classList.contains('region')?'border':'label',X:r.x,Y:r.y,Width:r.width,Height:r.height}})");
         var decorations = JsonSerializer.Deserialize<Paper[]>(decorationJson.GetRawText())!;
         var current = NativeScreenCapture.Read(bounds);
         if (!surface.Shown) throw new Exception($"{name}: scene is not visible");
@@ -101,7 +102,15 @@ internal static class DesktopFormationProbe
         var backgroundSamples = samples.Where(p => !papers.Any(c => Inside(p, c, 4))
           && !decorations.Any(c => c.Id == "label" ? Inside(p, c, 4) : Inside(p, c, 6) && !Inside(p, c, -6))).ToArray();
         foreach (var p in backgroundSamples)
-          if (Pixel(current, p) != Pixel(original, p)) throw new Exception($"{name}: stale background at {p}, before={Pixel(original, p)}, after={Pixel(current, p)}");
+        {
+          var originalPixel = Pixel(original, p); var currentPixel = Pixel(current, p);
+          // The shared adjust overlay intentionally tints the desktop with #1c242c59.
+          int Expected(int shift, int tint) => adjusting ? (int)Math.Round(((originalPixel >> shift & 255) * 166 + tint * 89) / 255d) : originalPixel >> shift & 255;
+          if (Math.Abs((currentPixel & 255) - Expected(0, 28)) > (adjusting ? 2 : 0)
+            || Math.Abs((currentPixel >> 8 & 255) - Expected(8, 36)) > (adjusting ? 2 : 0)
+            || Math.Abs((currentPixel >> 16 & 255) - Expected(16, 44)) > (adjusting ? 2 : 0))
+            throw new Exception($"{name}: stale background at {p}, before={originalPixel}, after={currentPixel}, overlay={adjusting}");
+        }
         var paperPixels = samples.Where(p => papers.Any(c =>
           p.X > display.Bounds.X + (c.X + 10) * scale && p.X < display.Bounds.X + (c.X + c.Width - 10) * scale &&
           p.Y > display.Bounds.Y + (c.Y + 10) * scale && p.Y < display.Bounds.Y + (c.Y + c.Height - 10) * scale));
@@ -110,6 +119,7 @@ internal static class DesktopFormationProbe
         Console.WriteLine($"PASS actual owner {name}: new paper shown and {backgroundSamples.Length} background samples checked");
       }
       await Check(resident, "desktop-initial");
+      adjusting = true; focus.AllowedSceneWindows.Add(new WindowInteropHelper(floating.InputWindow).Handle);
       await Eval(main, "document.querySelector('#operate-all').click()");
       var core = floating.WebView.CoreWebView2;
       await Wait(core, "document.querySelectorAll('.card.operable').length===2", "floating operation scope");
@@ -127,6 +137,7 @@ internal static class DesktopFormationProbe
       await Task.Delay(800);
       await Eval(main, "document.querySelector('#stop-operation').click()");
       await Wait(core, "document.querySelectorAll('.card').length===0", "leave adjustment scope");
+      adjusting = false; focus.AllowedSceneWindows.Clear();
       await Check(resident, "desktop-adjusted");
       var adjusted = (await Papers(resident.WebView.CoreWebView2)).Single(c => c.Id == origin.Id);
       if (Math.Abs(adjusted.X - origin.X - 40) > 1 || Math.Abs(adjusted.Y - origin.Y - 90) > 1)
@@ -134,10 +145,15 @@ internal static class DesktopFormationProbe
       async Task Formation(string mode, DesktopSurface surface, string name)
       {
         var previous = await Papers(surface.WebView.CoreWebView2);
-        await Eval(main, $"document.querySelector('#{mode}').click()");
-        await Wait(main, "document.querySelector('#formation-dialog').open&&!document.querySelector('#apply-formation').disabled", name + " preview");
-        await Eval(main, "document.querySelector('#apply-formation').click()");
-        await Wait(main, "!document.querySelector('#formation-dialog').open&&document.querySelector('#status').textContent.includes('排列已完成')", name + " durable formation");
+        if (ReferenceEquals(surface, floating))
+          await Eval(surface.WebView.CoreWebView2, $"[...document.querySelectorAll('.adjust-tools button')].find(b=>b.textContent==='{(mode == "stack" ? "堆疊" : "攤開")}').click()");
+        else
+        {
+          await Eval(main, $"document.querySelector('#{mode}').click()");
+          await Wait(main, "document.querySelector('#formation-dialog').open&&!document.querySelector('#apply-formation').disabled", name + " preview");
+          await Eval(main, "document.querySelector('#apply-formation').click()");
+          await Wait(main, "!document.querySelector('#formation-dialog').open&&document.querySelector('#status').textContent.includes('排列已完成')", name + " durable formation");
+        }
         var until = DateTime.UtcNow.AddSeconds(10);
         while ((await Papers(surface.WebView.CoreWebView2)).SequenceEqual(previous) && DateTime.UtcNow < until) await Task.Delay(100);
         if ((await Papers(surface.WebView.CoreWebView2)).SequenceEqual(previous)) throw new Exception(name + ": geometry did not change");
@@ -148,12 +164,14 @@ internal static class DesktopFormationProbe
         await Formation("stack", resident, $"desktop-stack-{pass}");
         await Formation("spread", resident, $"desktop-spread-{pass}");
       }
+      adjusting = true; focus.AllowedSceneWindows.Add(new WindowInteropHelper(floating.InputWindow).Handle);
       await Eval(main, "document.querySelector('#operate-all').click()");
       await Wait(core, "document.querySelectorAll('.card.operable').length===2", "formation in floating scope");
       await Formation("stack", floating, "floating-stack");
       await Formation("spread", floating, "floating-spread");
       await Eval(main, "document.querySelector('#stop-operation').click()");
       await Wait(core, "document.querySelectorAll('.card').length===0", "return after floating formation");
+      adjusting = false; focus.AllowedSceneWindows.Clear();
       await Check(resident, "desktop-after-floating-formation");
       if (window.Desktop.Surfaces.Count > 2)
       {

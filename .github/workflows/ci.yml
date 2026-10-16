@@ -100,13 +100,13 @@ jobs:
           cache: npm
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
       - run: npm ci --ignore-scripts
       # The WebView2 UI probes need a signed-in desktop session, so CI runs the core probes; Test-WindowsNative stays local.
       - name: Build and run the core probes
         run: |
           ./scripts/windows/Build-WindowsApp.ps1 -Configuration Debug -IncludeTests
-          dotnet tests/native/windows/core/bin/Debug/net8.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $env:RUNNER_TEMP 'core')
+          dotnet tests/native/windows/core/bin/Debug/net10.0-windows/WorkFleet.Windows.Core.Tests.dll (Join-Path $env:RUNNER_TEMP 'core')
           if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Build and inspect an unsigned package
         run: |

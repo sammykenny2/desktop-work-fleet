@@ -51,7 +51,7 @@ internal static class CrashGuardProbe
       var marker = RestartMarker.Parse(File.ReadAllBytes(Path.Combine(directory, RestartMarker.FileName)));
       Require(marker is { Reason: "render-thread" } && marker.ProcessId == Environment.ProcessId, "restart marker names this process");
       var log = File.ReadAllText(Path.Combine(directory, HostLog.FileName));
-      foreach (var text in new[] { "start version=", "launchedAtLogin=True restarted=False", "fatal ui", $"detached={scene.Length} attachedLeft=0",
+      foreach (var text in new[] { "start version=", "launchedAtLogin=True restarted=False", $"runtime={Environment.Version}", "fatal ui", $"detached={scene.Length} attachedLeft=0",
         "System.Runtime.InteropServices.COMException HRESULT=0x88980406", "reopening hidden once" })
         Require(log.Contains(text), $"host.log has '{text}'");
       Require(log.IndexOf("fatal ui", StringComparison.Ordinal) < log.IndexOf("reopening hidden once", StringComparison.Ordinal), "the failure is logged before reopening");

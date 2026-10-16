@@ -8,7 +8,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "windows: build debug",
-      "program": "${workspaceFolder}/src/native/windows/app/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.exe",
+      "program": "${workspaceFolder}/src/native/windows/app/bin/Debug/net10.0-windows10.0.19041.0/WorkFleet.exe",
       "cwd": "${workspaceFolder}",
       "console": "internalConsole"
     },
@@ -17,7 +17,7 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "windows: build debug",
-      "program": "${workspaceFolder}/src/native/windows/app/bin/Debug/net8.0-windows10.0.19041.0/WorkFleet.exe",
+      "program": "${workspaceFolder}/src/native/windows/app/bin/Debug/net10.0-windows10.0.19041.0/WorkFleet.exe",
       "cwd": "${workspaceFolder}",
       "console": "internalConsole",
       "env": { "WORK_FLEET_WEBVIEW_DEBUG_PORT": "9339" }

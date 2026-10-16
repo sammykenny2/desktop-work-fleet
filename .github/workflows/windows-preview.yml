@@ -65,7 +65,7 @@ jobs:
           cache: npm
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
       - run: npm ci --ignore-scripts
       # A preview that cannot sign in to Google is not worth installing on another machine.
       - name: Check Google settings
@@ -139,7 +139,7 @@ jobs:
           啟動時與螢幕改變後重新鋪設，便箋不因此移動。
 
           ## 第一次安裝
-          此包已包含 .NET 8 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。
+          此包已包含 .NET 10 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。
           1. 信任預覽憑證（每台電腦一次）：下載 \`WorkFleet-preview.cer\`，用系統管理員 PowerShell 執行
              \`Import-Certificate -FilePath .\\WorkFleet-preview.cer -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople\`。
           2. 雙擊 \`WorkFleet-${VERSION}-x64.msix\` 安裝。

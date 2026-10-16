@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net8.0-windows10.0.19041": {
+    "net10.0-windows10.0.19041": {
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
         "resolved": "10.0.12",
@@ -37,10 +37,7 @@
       "SQLitePCLRaw.core": {
         "type": "Transitive",
         "resolved": "2.1.12",
-        "contentHash": "ETpNw9DY3ckWLgRRAeCHj+GKOuPi61aeczkXhgHexUvqoZBAYg8RYESE2J7O1M7+o6QbdSEZwrw9bfqztUVWXg==",
-        "dependencies": {
-          "System.Memory": "4.5.3"
-        }
+        "contentHash": "ETpNw9DY3ckWLgRRAeCHj+GKOuPi61aeczkXhgHexUvqoZBAYg8RYESE2J7O1M7+o6QbdSEZwrw9bfqztUVWXg=="
       },
       "SQLitePCLRaw.lib.e_sqlite3": {
         "type": "Transitive",
@@ -55,16 +52,11 @@
           "SQLitePCLRaw.core": "2.1.12"
         }
       },
-      "System.Memory": {
-        "type": "Transitive",
-        "resolved": "4.5.3",
-        "contentHash": "3oDzvc/zzetpTKWMShs1AADwZjQ/36HnsufHRPcOjyRAAMLDlu2iD33MBI2opxnezcVUtXyqDXXjoFMOU9c7SA=="
-      },
       "WorkFleet": {
         "type": "Project",
         "dependencies": {
           "Microsoft.Web.WebView2": "[1.0.4258.31, )",
-          "WorkFleet.Windows.Core": "[1.0.0, )"
+          "WorkFleet.Windows.Core": "[0.2.7, )"
         }
       },
       "workfleet.windows.core": {

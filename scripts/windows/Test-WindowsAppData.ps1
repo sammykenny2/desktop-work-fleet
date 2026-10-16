@@ -26,7 +26,7 @@ $SdkVersions = Get-ChildItem -LiteralPath (Join-Path ${env:ProgramFiles(x86)} 'W
     Sort-Object { [version]$_.Name } -Descending
 if (-not $SdkVersions) { throw 'Windows SDK MakeAppx and SignTool are required.' }
 $Sdk = Join-Path $SdkVersions[0].FullName 'x64'
-$ProbeBin = Join-Path $ProjectRoot 'tests/native/windows/ui/bin/Release/net8.0-windows10.0.19041.0'
+$ProbeBin = Join-Path $ProjectRoot 'tests/native/windows/ui/bin/Release/net10.0-windows10.0.19041.0'
 $Certificate = Get-Item -LiteralPath "Cert:\CurrentUser\My\$CertificateThumbprint"
 if (-not $Certificate.HasPrivateKey -or $Certificate.NotAfter -le (Get-Date) -or
     -not (Test-Path -LiteralPath "Cert:\LocalMachine\TrustedPeople\$CertificateThumbprint")) { throw 'Use an existing valid, trusted local signing certificate.' }

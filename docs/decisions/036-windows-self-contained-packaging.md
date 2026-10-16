@@ -4,6 +4,9 @@
 
 Accepted，2026-10-10。取代 ADR-028 的 Windows framework-dependent 封裝選擇。
 
+2026-10-16 修訂：runtime 版本與 target 由 [ADR-050](050-windows-wpf-display-loss-runtime.md) 更新為 .NET 10.0.13。
+以下保留原決策背景與當時版本；目前建置與授權來源見 ADR-050、部署文件及 THIRD-PARTY-NOTICES。
+
 ## Context
 
 使用者希望其他電腦下載 MSIX 後，不用先手動安裝 .NET 8 Desktop Runtime。

@@ -179,12 +179,14 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 隱藏的主視窗以原位置、大小與最大化狀態恢復，layer-shell 改為最小化並以 activation 叫回、被拒絕時重新顯示，
 原本不在畫面上的主視窗不被叫回；`tests/desktop-overlay.test.js` 確認只有調整開始時有焦點的主視窗讓開並在結束後恢復。
 不代表 GNOME 或 labwc 實機已驗收。Windows 的 `SceneTransfersProbe` 另檢查 `operationScope` 解析出調整狀態並拒絕未知範圍；
-Windows 與 macOS 的遮罩畫面、輸入範圍與主視窗最小化沒有自動化測試，兩者的 layer probe 仍只檢查原有分層。
+Windows 的 `--adjust-overlay` 以真 WPF／WebView2 檢查首次載入就顯示工具列、全部／此組調整、排列與退出，以及主視窗已最小化時不被叫回；
+macOS 的 layer probe 另檢查初始 overlay capability、空螢幕調整時的全 viewport input panel 與退出時釋放。
+macOS 工具列與主視窗縮回／展開仍須實機驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，
 常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；
 遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。headless labwc probe 檢查遮罩染色；
-工具列與主視窗隱藏／恢復只有實機驗證。
+Linux 工具列與主視窗隱藏／恢復仍以實機驗證為準。
 `tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設 DMA-BUF renderer 的共享記憶體 buffer、
 使用者設定任一 renderer 變數時不覆寫，且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
 `tests/test_linux_shortcuts.py` 以假 Keybinder 確認 X11 先關閉 cooked 比對再登記，Ctrl+Shift 組合觸發動作、主視窗取得焦點時釋放；
@@ -196,7 +198,8 @@ labwc 模式不詢問 portal，未寫入的組合為 `unwritten`，寫入後即�
 使用者設定優先、重新啟動移除自己設定的值、只詢問一次、資料鎖未釋放時不重新啟動；對話框與實際重新啟動只有實機驗證。
 在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
 場景／協調器，驗證原生 level、三層能力、位置、穿透、桌布拒絕焦點，以及場景 WKWebView 不畫不透明底色
-（否則整片場景會蓋住桌布），不需要 Google SDK。互動紙面另以 `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
+（否則整片場景會蓋住桌布），以及調整時即使沒有便箋仍顯示、整個 viewport 接收輸入、退出後釋放鍵盤與 input panel，
+不需要 Google SDK。互動紙面另以 `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
 確認 WindowServer 會把真實點擊交給輸入 panel；直接送進 panel 的合成事件會略過這個判定，無法取代此檢查。
 全域快捷鍵只在 Work Fleet 視窗取得鍵盤時釋放；probe 以 `FleetShortcuts.suspends` 檢查主視窗最小化、關到選單列（App 仍在前景但沒有 key window）
 仍保留註冊。實際按鍵送達需要在實體鍵盤測試；遠端桌面不一定會傳送按鍵組合。
@@ -372,9 +375,10 @@ Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
 需要與 package publisher 相符的既有 CurrentUser/My 憑證及 LocalMachine/TrustedPeople 信任。
 正式簽章仍使用 `-CertificateThumbprint`／HTTPS `-TimestampUrl`；本機模式不接受 `-Release`。
 最終 MSIX 另核對 x64、目前 Windows 版號、Windows.Desktop 下限 22000 與 MaxVersionTested 26200。
-另要求 .NET 8 Core／Windows Desktop 的 `includedFrameworks`，拒絕 shared `framework`／`frameworks`，
+另要求 .NET 10 Core／Windows Desktop 的 `includedFrameworks`，拒絕 shared `framework`／`frameworks`，
 核對 deps 的 win-x64 target、hostfxr／hostpolicy／coreclr、WPF managed／native files 與完整 runtime 授權／notices。
 這是包內容與簽章驗證，不代替未安裝 .NET 的實機啟動／MSIX 安裝驗收。
+Windows 套件檢查要求 .NET 10 的 Core／Desktop 版本都精確等於 `WindowsRuntimeVersion`，拒絕 WPF 8、混合 patch 與舊 tfm；fixture 不代表 runtime DLL 可執行。
 第一次封裝會還原 win-x64 self-contained runtime packs；完成同設定 package restore 後才可加 `-SkipRestore`。
 沒有既有受信任憑證時，用一般 `Build-WindowsPackage.ps1` 與
 `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 檢查未簽章內容；
@@ -401,6 +405,12 @@ core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換�
 受管檔修改保留、manual 保存證明與失效／跨 profile key 不降級。
 需要一般 Windows 使用者 session 與 WebView2 Runtime；受限工具環境若造成 WebView2 crash，需在可運行環境重測，
 不能當作通過或停用 WebView2 sandbox。主畫面／保存測試不代表多螢幕、OS 桌面整合或真實斷電證據。
+
+同一腳本執行 `--adjust-overlay OUTPUT_DIRECTORY`：在沒有顯示器更新的首次場景握手後進入調整，
+確認工具列可見、在 viewport 內且可命中，堆疊／攤開／復原經 owner 寫回，完成移除遮罩與操作狀態；
+此組調整沿用同一工具列並可用 Esc 離開。合成 CompositionEvent 阻止完成，完成後可從未完成草稿恢復文字，
+已最小化的主視窗維持最小化，退出再進入保留排列。截圖為 `adjust-overlay/adjust-toolbar.png`。
+這是螢幕外場景與合成 DOM 輸入，不能代替真滑鼠、實際輸入法、多螢幕或 macOS／Linux 圖形 session 驗收。
 
 同一腳本另執行 `--composition` 與 `--platform` 原生基礎探針：
 
@@ -438,11 +448,12 @@ composition probe 套用 coordinator 既有的 render popup 穿透政策，輸�
 25H2 對照未驗證，也沒有獨立審閱。
 `--formation OUTPUT_DIRECTORY` 已接入同一入口。主畫面用隔離 native SQLite 建立兩張便箋，
 scene 的合成 PointerEvent 經既有 client／bridge／owner 保存調整位置，完成調整後須保留位置；
-主畫面堆疊／攤開按鈕改變 layout，涵蓋桌面、浮動排列後返回桌面及桌布層。
+主畫面堆疊／攤開按鈕及浮動工具列改變 layout，涵蓋桌面、浮動排列後返回桌面及桌布層。
 scene 仍使用真整個螢幕 viewport；僅注入未遮擋的測試工作區，不更動 OS 工作區或桌布。
 合成 DOM capture 不代表真滑鼠 capture。GDI 一次讀取測試範圍，在新紙面之外逐像素比對原桌面；
-浮動模式另排除實際顯示的群組標籤與六 CSS px 邊框帶（含五 px 圓角），不排除整個群組工作區。
-另檢查紙面可見、全程無便箋場景 foreground 啟用，並保存 native 螢幕 PNG；沒足夠未遮擋區域時明確 SKIP。
+浮動調整模式按共用遮罩的 #1c242c59 染色比對，另排除工具列、實際顯示的群組標籤與六 CSS px 邊框帶（含五 px 圓角），不排除整個群組工作區。
+另檢查紙面可見、被動便箋不自行取得 foreground；明確進入調整時只允許對應浮動輸入 HWND 啟用。
+保存 native 螢幕 PNG；沒足夠未遮擋區域時明確 SKIP。
 formation probe 也確認 `host.log` 記下啟動時的螢幕清單；`--platform` 檢查這行的格式（ADR-045）。
 foreground 判定涵蓋所有便箋成對 HWND 與 browser，排除主畫面及 framework helper；建立便箋時主畫面
 編輯器的焦點不是被動紙面自行啟用。Wallpaper-only probe 不作這項排除。
@@ -458,7 +469,7 @@ Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩
 - 螢幕 physical bounds／work area／DPI；真實快捷鍵衝突、解除／恢復、保留鍵拒絕與舊事件清理。
   快捷鍵 callback 只向自有 HWND 發合成 WM_HOTKEY，未注入真鍵盤或滑鼠。
 
-probe 與 App 共用 PerMonitorV2 manifest 及 `net8.0-windows10.0.19041.0`。
+probe 與 App 共用 PerMonitorV2 manifest 及 `net10.0-windows10.0.19041.0`。
 必須透過 `.exe` apphost 執行，包含跨程序目標；入口驗證 thread DPI awareness 確實為 PerMonitorV2。
 直接 `dotnet ...Ui.Tests.dll` 未套用這份 executable manifest，不能作相同 DPI 設定的證據。
 這不是使用者桌面手勢、WebView capture／IME、多螢幕拔插、Win+D、虛擬桌面或休眠驗收。
@@ -519,6 +530,7 @@ WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置�
 - 核心 probe 以表格驗證判斷規則：合蓋與內建螢幕、沒有上蓋狀態、只有內建螢幕、5 秒靜止、3 分鐘上限；
   另驗證判斷輸入的記錄格式，包括讀不到螢幕設定與沒有上蓋狀態。
 - `--platform` 讀出這台電腦作用中螢幕的連接方式與上蓋狀態，只檢查讀得到、不檢查值。
+- [ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) 的同版號 runtime 測試包，在啟動行記錄 `runtime=10.0.13`；先確認這一行，避免仍測到舊程序。
 - 真實登入時的螢幕切換只能重開機驗證，看 `host.log` 的 `lid closed|open`、`scenes waiting` 與 `scenes attaching after` 及其判斷輸入。
 
 接著執行 `--grid-area OUTPUT_DIRECTORY`（SPEC-003「顯示器改變」）：
@@ -594,7 +606,7 @@ Sparkle 的沙盒安裝、`feedURLString` 與 EdDSA 金鑰只能在 Mac 上以 D
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1 -Configuration Debug
 $env:WORK_FLEET_WEBVIEW_DEBUG_PORT = '9339'
-& .\src\native\windows\app\bin\Debug\net8.0-windows10.0.19041.0\WorkFleet.exe
+& .\src\native\windows\app\bin\Debug\net10.0-windows10.0.19041.0\WorkFleet.exe
 Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT
 # http://127.0.0.1:9339/json/list 列出主畫面與桌面場景 target
 ```

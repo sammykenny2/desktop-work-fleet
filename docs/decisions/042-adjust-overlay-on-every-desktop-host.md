@@ -43,7 +43,8 @@ Wayland 不告訴 App 視窗已被最小化（GTK 的 iconified 狀態不變）�
 
 - 調整期間其他程式與工作列、選單列都無法點選；場景卡住時要等 App 結束或重新整理才恢復滑鼠。
 - 主視窗顯示中但沒有焦點時，以全域快捷鍵進入調整模式，主視窗留在原位被遮罩染暗。
-- Windows 與 macOS 的修改在 Raspberry Pi 上撰寫，沒有編譯或實機執行；需在各平台建置並實測後才算完成。
+- 初版 Windows 與 macOS 的修改在 Raspberry Pi 上撰寫，當時沒有編譯或實機執行。2026-10-16 Windows 已補修首次握手並執行原生回歸；
+  macOS 仍需建置與實機執行，不能把共用 renderer 與測試原始碼當作各平台已驗收。
 
 ### Neutral
 
@@ -62,6 +63,18 @@ Wayland 不告訴 App 視窗已被最小化（GTK 的 iconified 狀態不變）�
 - **Pros**：不依賴焦點，主視窗在其他程式後方時也能讓開。
 - **Cons**：Wayland 不提供最小化狀態；各平台的判斷方式不同。
 - **Why rejected**：焦點是每個主機都能可靠取得的訊號。
+
+## 2026-10-16 Windows 首次握手修正
+
+Windows 的 `desktop.info` 與後續 viewport 更新有 `adjustOverlay`，但首次 `scene.info` 另組回覆時漏傳此欄位，
+導致剛開啟就調整時只有可移動的便箋，沒有浮動工具列。改為三者共用 `ViewInfo`；Linux 與 macOS 原本已共用各自的 view info。
+
+三平台沿用 `src/desktop/scene.js` 的同一組「堆疊、攤開、復原、完成」，全部／此組調整皆適用；
+完成先保存草稿再離開，輸入法組字時不得退出；Esc 依 SPEC-003 先取消目前拖曳或編輯，再退出調整。
+主視窗是否讓開與恢復仍由調整開始時的焦點決定，原本已最小化者維持最小化。
+
+Windows 新增真 WPF／WebView2 首次調整回歸，檢查工具列、排列／復原、完成、Esc、草稿／IME 與已最小化主視窗；
+Mac layer probe 增加能力與全 viewport 輸入／釋放檢查。實際執行結果與未驗收範圍見 PROGRESS.md 及測試文件。
 
 ## References
 

@@ -6,7 +6,7 @@
     Unsigned preview inspection must be explicitly requested; it validates package
     contents without claiming installation readiness or trusted signing.
     Does not build, install, create certificates or change trust settings.
-    Requires bundled .NET 8/WPF files and self-contained win-x64 runtime metadata.
+    Requires bundled .NET 10/WPF files and self-contained win-x64 runtime metadata.
 .PARAMETER PackagePath
     Path to an MSIX produced by Build-WindowsPackage.ps1 -LocalTestSign.
 .PARAMETER Unsigned
@@ -59,6 +59,9 @@ try {
         throw 'Expected Windows.Desktop MinVersion=10.0.22000.0 and MaxVersionTested=10.0.26200.0.'
     }
     $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    [xml]$WindowsBuild = Get-Content -LiteralPath (Join-Path $ProjectRoot 'src/native/windows/Directory.Build.props') -Raw
+    $ExpectedRuntimeVersion = $WindowsBuild.Project.PropertyGroup.WindowsRuntimeVersion
+    if ($ExpectedRuntimeVersion -cnotmatch '^10\.0\.\d+$') { throw 'Expected a pinned .NET 10 runtime version.' }
     $ExpectedVersion = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
     if ($LASTEXITCODE -ne 0 -or $Manifest.Package.Identity.Version -cne "$ExpectedVersion.0") { throw 'Package version differs from the Windows version record.' }
     # ADR-044: when the package has its update manifest beside it, the manifest must name exactly this file.
@@ -90,20 +93,20 @@ try {
     }
     $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('WorkFleet.runtimeconfig.json').Open())
     try { $RuntimeOptions = ($Reader.ReadToEnd() | ConvertFrom-Json).runtimeOptions } finally { $Reader.Dispose() }
-    if ($RuntimeOptions.tfm -cne 'net8.0' -or $RuntimeOptions.framework -or $RuntimeOptions.frameworks) {
-        throw 'Expected self-contained .NET 8 runtime metadata without shared framework requirements.'
+    if ($RuntimeOptions.tfm -cne 'net10.0' -or $RuntimeOptions.framework -or $RuntimeOptions.frameworks) {
+        throw 'Expected self-contained .NET 10 runtime metadata without shared framework requirements.'
     }
     $IncludedFrameworks = @($RuntimeOptions.includedFrameworks)
-    if ($IncludedFrameworks.Count -ne 2) { throw 'Expected bundled .NET 8 Core and Windows Desktop frameworks.' }
+    if ($IncludedFrameworks.Count -ne 2) { throw 'Expected bundled .NET 10 Core and Windows Desktop frameworks.' }
     foreach ($FrameworkName in @('Microsoft.NETCore.App', 'Microsoft.WindowsDesktop.App')) {
         $Included = @($IncludedFrameworks | Where-Object name -CEQ $FrameworkName)
-        if ($Included.Count -ne 1 -or $Included[0].version -cnotmatch '^8\.0\.\d+$') {
-            throw 'Expected bundled .NET 8 Core and Windows Desktop frameworks.'
+        if ($Included.Count -ne 1 -or $Included[0].version -cne $ExpectedRuntimeVersion) {
+            throw 'Expected bundled .NET 10 Core and Windows Desktop frameworks.'
         }
     }
     $Reader = [System.IO.StreamReader]::new($Archive.GetEntry('WorkFleet.deps.json').Open())
     try { $RuntimeTarget = ($Reader.ReadToEnd() | ConvertFrom-Json).runtimeTarget.name } finally { $Reader.Dispose() }
-    if ($RuntimeTarget -cne '.NETCoreApp,Version=v8.0/win-x64') { throw 'Expected self-contained win-x64 dependency target.' }
+    if ($RuntimeTarget -cne '.NETCoreApp,Version=v10.0/win-x64') { throw 'Expected self-contained win-x64 dependency target.' }
     foreach ($RuntimeNotice in @('Licenses/dotnet/LICENSE.TXT', 'Licenses/dotnet/THIRD-PARTY-NOTICES.TXT',
         'Licenses/dotnet/core-runtime.nuspec', 'Licenses/dotnet/desktop-runtime.nuspec',
         'Licenses/dotnet-desktop-LICENSE.txt', 'Licenses/dotnet-wpf-NOTICES.txt', 'Licenses/dotnet-winforms-NOTICES.txt')) {
@@ -112,7 +115,7 @@ try {
     }
 } finally { $Archive.Dispose() }
 Write-Output 'PASS final MSIX x64 identity/version and Windows.Desktop installation floor 22000, MaxVersionTested 26200'
-Write-Output 'PASS bundled .NET 8/WPF runtime files and self-contained win-x64 runtime metadata'
+Write-Output 'PASS bundled .NET 10/WPF runtime files and self-contained win-x64 runtime metadata'
 Write-Output 'PASS bundled runtime licenses, incorporated notices and package provenance'
 if ($Unsigned) {
     Write-Output 'PASS unsigned preview contents only; installation and trusted signing remain unverified'

@@ -46,7 +46,7 @@ public sealed class CrashGuard
     application.DispatcherUnhandledException += OnDispatcherException;
     AppDomain.CurrentDomain.UnhandledException += OnUnhandled;
     TaskScheduler.UnobservedTaskException += (_, e) => { if (Interlocked.Increment(ref nested) <= MaxNested) Log("unobserved task " + HostLog.Describe(e.Exception)); };
-    Log($"start version={HostIdentity.BuildVersion()} distribution={distribution} pid={Environment.ProcessId} launchedAtLogin={launchedAtLogin} restarted={restarted}");
+    Log($"start version={HostIdentity.BuildVersion()} distribution={distribution} pid={Environment.ProcessId} launchedAtLogin={launchedAtLogin} restarted={restarted} runtime={Environment.Version}");
   }
   public void Note(string text) => Log(text);
   private void Log(string text) => HostLog.Append(directory, DateTimeOffset.Now, text);

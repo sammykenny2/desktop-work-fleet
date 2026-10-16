@@ -1,6 +1,6 @@
 # 決策索引
 
-更新：2026-10-15。
+更新：2026-10-16。
 
 | 記錄 | 狀態 | 範圍 |
 |---|---|---|
@@ -31,7 +31,7 @@
 | [ADR-033](033-apple-local-script-bundles.md) | Accepted（Apple 封裝） | 本機 classic script bundles、保留 CSP／bridge 與獨立開發簽章啟動測試 |
 | [ADR-034](034-windows-11-compatibility-and-install-floor.md) | Accepted（Windows 支援範圍） | 早期 Windows 11／23H2／24H2+、MSIX 目標下限 22000、23H2 實測與 Store 延期；實作見 PROGRESS |
 | [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted（附著場景修正方向） | 移位／堆疊／攤開白塊回報、宿主無 backing bitmap、舊區域撤下／不複製像素；效果未測 |
-| [ADR-036](036-windows-self-contained-packaging.md) | Accepted（Windows 封裝 runtime） | 預設自帶 .NET 8 Desktop／win-x64、runtime notices 與包檢查；WebView2 仍依賴系統 |
+| [ADR-036](036-windows-self-contained-packaging.md) | Accepted（Windows 封裝 runtime） | 預設自帶 Desktop／win-x64，版本由 ADR-050 更新、runtime notices 與包檢查；WebView2 仍依賴系統 |
 | [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted（資料生命週期與覆蓋） | MSIX 解除安裝清除本機資料；完整備份、安全備份與可續行的 Google 全量覆蓋 |
 | [ADR-047](047-linux-local-key-without-keyring-prompts.md) | Accepted（本機便箋金鑰） | 0600 本機金鑰、驗證舊資料後遷移；憑證與備份密碼政策由 ADR-048 取代 |
 | [ADR-048](048-linux-offline-workspace-and-system-secrets.md) | Accepted（Linux 系統秘密） | 權杖／保存備份密碼用持久 vault；鎖住時只暫停同步與加密備份，離線便箋免提示 |
@@ -40,6 +40,7 @@
 | [ADR-045](045-windows-fatal-error-leaves-explorer-first.md) | Accepted（Windows 致命錯誤） | 當掉時先把場景視窗移出 Explorer 再交給 WER；`host.log` 紀錄；登入啟動 render thread 失敗時隱藏重開一次（2026-10-14 起停用） |
 | [ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted（Windows 登入啟動） | 合蓋筆電的內建螢幕仍開著、或螢幕剛變過時，場景先不掛進 Explorer；最多等 3 分鐘；2026-10-15 起 `host.log` 記錄上蓋回報與判斷輸入 |
 | [ADR-049](049-windows-attached-scenes-render-in-software.md) | Accepted（Windows 場景繪圖） | 掛在 Explorer 的場景視窗以軟體繪製 WPF，不持有 Direct3D 狀態；浮動層與主視窗不變 |
+| [ADR-050](050-windows-wpf-display-loss-runtime.md) | Accepted（Windows runtime） | .NET 10.0.13、WPF 顯示器失效保護、精確 runtime 封裝檢查；三次登入啟動未再當掉，早期移除主螢幕與其他 OS 仍待驗證 |
 | [ADR-044](044-desktop-in-app-updates-from-github-releases.md) | Accepted（App 內更新，2026-10-15 修訂） | 公開 Atom 依平台 tag 篩選、不使用 REST API 配額、manifest／SHA-256、MSIX／Sparkle／DEB 安裝前保存並結束 |
 | [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted（主視窗與啟動） | 主機層級的主視窗位置／大小記憶、登入啟動預設開啟、系統狀態優先、Windows 第二次啟動喚起 |
 | [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted（調整模式） | 所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |

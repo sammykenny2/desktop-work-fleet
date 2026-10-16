@@ -2,7 +2,7 @@
 .SYNOPSIS
     Build the local Windows native management/editor app and optional probes.
 .DESCRIPTION
-    Requires npm dependencies, .NET 8 SDK and Windows. Builds local bundled assets,
+    Requires npm dependencies, .NET 10 SDK and Windows. Builds local bundled assets,
     restores locked official NuGet dependencies, and retains third-party licenses.
     No application server, signing, installation or publication is performed.
 .PARAMETER Configuration
@@ -27,7 +27,7 @@ param(
 $ErrorActionPreference = 'Stop'
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $SavedEnvironment = @{}
-foreach ($Name in @('DOTNET_CLI_HOME', 'NUGET_PACKAGES', 'DOTNET_CLI_TELEMETRY_OPTOUT')) {
+foreach ($Name in @('DOTNET_CLI_HOME', 'NUGET_PACKAGES', 'DOTNET_CLI_TELEMETRY_OPTOUT', 'DOTNET_GENERATE_ASPNET_CERTIFICATE')) {
     $SavedEnvironment[$Name] = [Environment]::GetEnvironmentVariable($Name, 'Process')
 }
 Push-Location $ProjectRoot
@@ -35,6 +35,7 @@ try {
     $env:DOTNET_CLI_HOME = Join-Path $ProjectRoot 'build/dotnet-home'
     $env:NUGET_PACKAGES = Join-Path $ProjectRoot 'build/nuget-packages'
     $env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+    $env:DOTNET_GENERATE_ASPNET_CERTIFICATE = 'false'
     # Config/public.json beside the app also carries the Windows Desktop client secret when .env has one.
     & node scripts/build-web.mjs --platform windows
     if ($LASTEXITCODE -ne 0) { throw 'Web asset build failed.' }
@@ -56,7 +57,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Native build failed: $Project" }
     }
     $RuntimeDirectory = if ($SelfContained) { 'win-x64/' } else { '' }
-    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net8.0-windows10.0.19041.0/${RuntimeDirectory}WorkFleet.exe"
+    Write-Output "Windows app: src/native/windows/app/bin/$Configuration/net10.0-windows10.0.19041.0/${RuntimeDirectory}WorkFleet.exe"
 } finally {
     Pop-Location
     foreach ($Name in $SavedEnvironment.Keys) {

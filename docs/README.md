@@ -1,6 +1,6 @@
 # 文件索引
 
-更新：2026-10-15。先讀最新規格；研究、工作預設、實作完成與實測通過各自區分。
+更新：2026-10-16。先讀最新規格；研究、工作預設、實作完成與實測通過各自區分。
 
 ## 本次開發接手：優先閱讀
 
@@ -40,13 +40,14 @@
 | [ADR-032](decisions/032-windows-debug-webview-inspection.md) | Accepted：Windows 僅 Debug 開 DevTools／opt-in CDP，Release 封裝防護 |
 | [ADR-033](decisions/033-apple-local-script-bundles.md) | Accepted：Apple 本機腳本合併、保留資產安全邊界與開發簽章啟動測試 |
 | [ADR-035](decisions/035-windows-attached-scene-background-lifecycle.md) | Accepted：23H2 堆疊／攤開殘影的附著宿主與背景生命週期修正；效果待實測 |
-| [ADR-036](decisions/036-windows-self-contained-packaging.md) | Accepted：Windows MSIX／ZIP 預設自帶 .NET 8 Desktop runtime，接收端仍需 WebView2 |
+| [ADR-036](decisions/036-windows-self-contained-packaging.md) | Accepted：Windows MSIX／ZIP 預設自帶 Desktop runtime（ADR-050 更新為 .NET 10），接收端仍需 WebView2 |
 | [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)／[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md) | Accepted：MSIX 私有資料與解除安裝政策、可續行的 Google 全量備份覆蓋 |
 | [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) | Accepted：同格式雙向遷移、Google 同步後匯出、本機原子完整還原且舊備份可選 |
 | [SPEC-006](specs/006-desktop-window-startup-and-updates.md)／[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)／[ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md)／[PLAN-006](plans/006-desktop-window-startup-and-updates.md) | Accepted：主視窗位置記憶、啟動行為與三平台 App 內更新；Q 待回答，實作狀態見 PROGRESS |
 | [ADR-045](decisions/045-windows-fatal-error-leaves-explorer-first.md) | Accepted：Windows 當掉時先讓場景離開 Explorer 再交給 WER、`host.log`、登入啟動 render thread 失敗隱藏重開一次（2026-10-14 起停用） |
 | [ADR-046](decisions/046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted：Windows 登入啟動等螢幕穩定（合蓋筆電的內建螢幕關掉、清單 5 秒沒變）才掛場景，最多 3 分鐘；2026-10-15 起記錄判斷輸入 |
 | [ADR-049](decisions/049-windows-attached-scenes-render-in-software.md) | Accepted：Windows 掛在 Explorer 的場景視窗以軟體繪製 WPF，浮動層與主視窗不變（2026-10-16 實測沒有防止當掉） |
+| [ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) | Accepted：Windows 改用 .NET 10.0.13，取得 WPF 顯示器失效保護；三次登入啟動未再當掉，維護者授權整合；早期移除主螢幕與其他 OS 仍待驗證 |
 | [ADR-042](decisions/042-adjust-overlay-on-every-desktop-host.md) | Accepted：所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |
 | [ADR-041](decisions/041-labwc-shortcuts-through-rc-xml-keybinds.md) | Accepted：labwc 快捷鍵由設定頁寫進 rc.xml 標記區塊，keybind 經 gapplication 交給 App |
 | [ADR-040](decisions/040-gnome-wayland-xwayland-choice.md) | Accepted：GNOME Wayland 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用 |

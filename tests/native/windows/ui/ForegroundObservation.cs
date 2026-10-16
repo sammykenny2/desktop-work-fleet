@@ -7,10 +7,12 @@ internal sealed class ForegroundObservation : IDisposable
   private readonly WinEvent callback;
   private readonly GCHandle callbackRoot;
   private readonly IntPtr hook;
-  private readonly List<(IntPtr Window, IntPtr Root, uint Process, string Class, string Phase)> events = [];
+  private readonly List<(IntPtr Window, IntPtr Root, uint Process, string Class, string Phase, bool Allowed)> events = [];
   public uint BrowserProcess { get; set; }
   public IntPtr AllowedWindow { get; set; }
   public HashSet<IntPtr>? SceneWindows { get; set; }
+  // Explicit adjust-mode activation is allowed only during the operation that requested it.
+  public HashSet<IntPtr> AllowedSceneWindows { get; } = [];
   public string Phase { get; set; } = "initialization";
   public ForegroundObservation()
   {
@@ -18,7 +20,7 @@ internal sealed class ForegroundObservation : IDisposable
     {
       GetWindowThreadProcessId(window, out var process);
       var name = new StringBuilder(128); GetClassNameW(window, name, name.Capacity);
-      events.Add((window, GetAncestor(window, 2), process, name.ToString(), Phase));
+      events.Add((window, GetAncestor(window, 2), process, name.ToString(), Phase, AllowedSceneWindows.Contains(GetAncestor(window, 2))));
     };
     callbackRoot = GCHandle.Alloc(callback);
     // OUTOFCONTEXT, without SKIPOWNPROCESS: WPF's message loop delivers owned and external activations on this thread.
@@ -28,11 +30,11 @@ internal sealed class ForegroundObservation : IDisposable
   public void Check()
   {
     bool Scene(IntPtr window, uint process) => SceneWindows is null ? process == Environment.ProcessId : SceneWindows.Contains(window);
-    var owned = events.Where(e => (AllowedWindow == IntPtr.Zero || e.Root != AllowedWindow)
+    var owned = events.Where(e => !e.Allowed && (AllowedWindow == IntPtr.Zero || e.Root != AllowedWindow)
       && (Scene(e.Window, e.Process) || BrowserProcess != 0 && e.Process == BrowserProcess)).ToArray();
     if (owned.Length != 0) throw new Exception($"A non-activating scene received foreground (allowed={AllowedWindow:X}): " + string.Join(",", owned.Select(e => $"{e.Window:X}/root:{e.Root:X}/{e.Class}/PID:{e.Process}/phase:{e.Phase}")));
     var foreground = GetForegroundWindow(); GetWindowThreadProcessId(foreground, out var current);
-    if ((AllowedWindow == IntPtr.Zero || GetAncestor(foreground, 2) != AllowedWindow)
+    if (!AllowedSceneWindows.Contains(GetAncestor(foreground, 2)) && (AllowedWindow == IntPtr.Zero || GetAncestor(foreground, 2) != AllowedWindow)
       && (Scene(foreground, current) || BrowserProcess != 0 && current == BrowserProcess)) throw new Exception("Scene currently owns foreground.");
   }
   public void Dispose() { UnhookWinEvent(hook); callbackRoot.Free(); }

@@ -2,6 +2,75 @@
 
 更新：2026-10-16。本檔是本 repo 的執行狀態權威。
 
+
+## 2026-10-16 三次重開機驗證與整合 main
+
+使用者完成三次重新開機後回報正常，授權檢查、整合 main 並清理本輪 worktree。
+
+- Windows 11 build 26200 的系統啟動事件為 22:13:21、22:54:47、23:15:13；安裝版 `host.log` 對應
+  22:14:40、22:56:06、23:16:52 三次 `launchedAtLogin=True restarted=False runtime=10.0.13`。
+  23:20 檢查時最後一個程序仍執行，22:10 起沒有 WorkFleet Application Error／WER／.NET Runtime 錯誤事件。
+  21:51 的測試程式參數錯誤在這些重開機之前，不是安裝版 crash。
+- 第一次登入時內建 1920×1080／125% 是主螢幕，外接為 3840×2160／150%；22:24 合蓋後只剩外接，
+  `displays applying topology=2` 後沒有 fatal 紀錄。另兩次登入時已只有外接螢幕。
+  已安裝 `WorkFleet.dll` 的 SHA-256 與本輪簽章包 staging 完全相同。
+- 此次實機觀察支持整合 .NET 10 修正，尚不足以保證所有登入時序；第一次移除內建螢幕是在啟動約十分鐘後，
+  尚未再次覆蓋原本啟動 13～43 秒內移除的條件。23H2／其他支援版本及 macOS 圖形 session 仍未在本輪驗收。
+- 合併前 author-run：`npm test` 302 項，287 pass／15 skip；WSL Ubuntu Python unittest 174 項，137 pass／37 skip
+  （缺少 Apple SDK、Secret GI／Linux build 環境及 Windows trust APIs 的案例略過）。Windows MSIX 12 項另於 Windows 執行，全部通過。
+  前一輪完整 Windows native、已簽署 MSIX 的 trust／publisher／runtime 驗證及工具列回歸結果延續有效；產品碼未再改動。
+- 更新 ADR-050 與索引，保留驗證界線。獨立程式審閱未取得；作者測試與維護者三次重開機不算獨立程式審閱。
+  本輪不升版、不 dispatch 或發布 release。整合 commit、推送與 cleanup 的最終結果在對話回報。
+
+## 2026-10-16 Windows 調整工具列與桌面跨平台行為
+
+使用者回報 Windows 調整位置時沒有 Linux 的浮動工具列，要求 Windows／Linux／macOS 行為接近一致。
+沿用前一輪 detached worktree，保留 .NET 10 登入 crash 候選修正與 0.2.7 版號。
+
+- Windows 初始 `scene.info` 漏傳 `adjustOverlay`，共用 renderer 因此不顯示遮罩／工具列；改為與 `desktop.info`、viewport 更新共用 `ViewInfo`。
+  改前原生 probe 能重現首次調整缺少工具列；改後無須顯示器更新即通過。
+- 三平台皆使用同一個場景 renderer 的「堆疊、攤開、復原、完成」及相同 owner 指令；核對 Linux／macOS 首次回覆已包含此旗標，未改寫其 host 行為。
+  完成保存草稿、組字中阻止退出、Esc 分階取消與原本最小化主視窗不被叫回，沿用 ADR-042／SPEC-003。
+- 新增 Windows `--adjust-overlay` 並接入原生測試入口：首次工具列、viewport 內可命中、排列／復原、完成、此組／Esc、合成 IME、
+  未完成草稿恢復與最小化狀態通過。更新 owner formation 像素／前景判定，使其辨識調整期間預期的遮罩、工具列與輸入視窗啟用。
+  macOS layer probe 增加初始 capability、空場景全 viewport 輸入與退出釋放檢查；未在此 Windows 主機編譯／執行。
+- Author-run：Debug App／core／UI build 零警告／零錯誤；`Test-WindowsNative.ps1 -SkipRestore` 完整執行通過，
+  部分真桌布／桌面像素與 owner formation 因視窗遮擋明確 SKIP。
+  共用 desktop-overlay／desktop-authority／stages／desktop-transport 36/36 通過；
+  WSL Ubuntu 的 Linux surface 18/18、scenes 5/5 通過。Windows Python 跑 surface 時 17/18 通過，
+  一項 `/proc` 偵測因平台沒有 `os.getuid` 失敗，於 WSL 原樣重跑全部通過；未更動產品或測試來略過此限制。
+- 更新 ADR-042 與測試文件。獨立審閱尚未進行；真 Linux／macOS 圖形 session、真滑鼠／輸入法、多螢幕驗收仍未於此輪執行。
+  本次工具列交付時尚未重開機；後續三次登入觀察見本檔上方整合紀錄。
+- 所有變更留在 worktree，未 commit／push、未升版或發布。已簽署產物與檢查結果在對話交付。
+
+## 2026-10-16 Windows WPF 10 登入 crash 候選修正（獨立 worktree）
+
+使用者要求「開 worktree 幫我改並且 build」。本輪在獨立 detached worktree 實作與建置，main 保持原樣。
+
+- 根因候選與決策見 [ADR-050](docs/decisions/050-windows-wpf-display-loss-runtime.md)：浮動層的 D3DImage／D3D9 裝置碰上原主螢幕消失，
+  原安裝包的 WPF 8.0.31 缺少 NULL monitor fallback。WPF #10394 與本輪核對的 v10.0.13／包內精確 source commit 都包含修正。
+  沒有從 dump 還原 WPF 原始失敗紀錄，仍不宣稱根因或修復已由實機對照證實。
+- Windows App／core／probes target .NET 10，自帶 Core／Desktop runtime 固定 10.0.13；應用版本維持 0.2.7。
+  WebView2／SQLite 直接依賴、登入等待與桌面呈現方式保持原設定。啟動 log 新增實際 runtime 版本，辨識同版號測試包。
+- 更新 scripts／CI／IDE 路徑、lockfiles、runtime 完整授權／notices、部署與測試文件。
+  封裝檢查拒絕舊 tfm、舊 runtime 與不符合精確 pin 的混合版本；直接執行仍須 .NET 10 Desktop，MSIX／ZIP 自帶。
+- 本機使用 SDK 10.0.402（官方 SHA512 核對）與 runtime 10.0.13，工具鏈只放 worktree 的 ignored build 目錄。
+  不複製原 .env；測試包採本機預設配置，沒有驗證 Google 登入。首次 SDK 自動產生的 localhost 開發憑證已依使用者明確同意精確移除；
+  建置腳本停用後續 ASP.NET 憑證初始化，沒有改信任。
+- 已完成的 author-run 檢查：
+  - Debug App／core／UI probes 與 self-contained Release App：零警告、零錯誤。
+  - Test-WindowsNative.ps1 -SkipRestore：完成；真 SQLite／DPAPI、JS→native、WPF/WebView2、composition、Explorer-style 宿主、
+    主視窗設定、CrashGuard、sign-in hold、grid area 通過。真螢幕浮動便箋像素通過；部分桌布／桌面像素與 owner formation 因遮擋略過。
+  - runtime log 變更後重建並單獨重跑 --crash-guard 通過。
+  - node --test tests/release-versions.test.js：6/6。
+  - python -B -m unittest discover -s tests -p test_windows_package.py -v：12/12。
+  - Build-WindowsPackage.ps1 -SkipRestore 與實際 MSIX 的 Test-WindowsPackage.ps1 -Unsigned：通過。
+    包內 runtimeconfig、WPF/Core 二進位版本皆為 10.0.13 對應版本，WebView2 保持 1.0.4258.31。
+  - 自有變更的 git diff --check 通過；保留的上游原樣 notices 含既有尾端空白，不重排授權本文。
+- 獨立 review 尚未進行。初次交付時未安裝或重開機；後續使用者安裝並完成三次重開機／一次內建螢幕移除，見上方整合紀錄。
+  23H2 與啟動早期移除內建主螢幕的原始條件仍待驗證。
+- 未升應用版本、未合併 main、未 commit／push 或發布。後續依使用者要求以既有信任憑證簽章，沒有變更信任；產物／hash 在對話交付。
+
 ## 2026-10-16 0.2.7 登入重開機仍當掉（ADR-049 無效），交接
 
 使用者回報：「重開機照樣crash喔」。之後自己開合蓋測了三次，最後指示：

@@ -2,8 +2,8 @@
 .SYNOPSIS
     Build an x64 MSIX and portable ZIP from the native Windows application.
 .DESCRIPTION
-    Uses .NET 8, Windows SDK MakeAppx and public .env settings. Produces a
-    self-contained app bundling the .NET 8 Desktop runtime. WebView2 is required
+    Uses .NET 10, Windows SDK MakeAppx and public .env settings. Produces a
+    self-contained app bundling the .NET 10 Desktop runtime. WebView2 is required
     separately; an installed .NET Desktop runtime is not required.
     File names use the version in src/native/windows/Directory.Build.props.
     Release files go directly in build/; build/windows/package is the work
@@ -170,7 +170,7 @@ try {
     Write-Output "Portable ZIP: $Zip"
     Write-Output "Update manifest: $(Join-Path $Delivery 'work-fleet-update.json')"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }
-    Write-Output 'Includes the .NET 8 Desktop runtime; WebView2 is required separately.'
+    Write-Output 'Includes the .NET 10 Desktop runtime; WebView2 is required separately.'
     if (-not $CertificateThumbprint) { Write-Output 'MSIX is unsigned. Installation needs a trusted signature.' }
 } finally {
     Pop-Location

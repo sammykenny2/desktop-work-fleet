@@ -26,7 +26,9 @@ class WindowsPackageTests(unittest.TestCase):
         if not tools:
             raise unittest.SkipTest("Windows SDK required by existing signing-option guards")
         cls.makeappx = tools[-1]
-        cls.version = ET.parse(ROOT / "src/native/windows/Directory.Build.props").findtext(".//Version") + ".0"
+        build = ET.parse(ROOT / "src/native/windows/Directory.Build.props")
+        cls.version = build.findtext(".//Version") + ".0"
+        cls.runtime_version = build.findtext(".//WindowsRuntimeVersion")
 
     def inspect(self, *, minimum="10.0.22000.0", tested="10.0.26200.0", family="Windows.Desktop",
                 version=None, unsigned=True, extra=None, missing_runtime=None, missing_notice=None, startup=STARTUP):
@@ -55,13 +57,13 @@ class WindowsPackageTests(unittest.TestCase):
                 if name != missing_runtime:
                     (source / name).write_bytes(b"synthetic runtime fixture, never executed")
             (source / "WorkFleet.runtimeconfig.json").write_text(json.dumps({"runtimeOptions": {
-                "tfm": "net8.0", "includedFrameworks": [
-                    {"name": "Microsoft.NETCore.App", "version": "8.0.0"},
-                    {"name": "Microsoft.WindowsDesktop.App", "version": "8.0.0"},
+                "tfm": "net10.0", "includedFrameworks": [
+                    {"name": "Microsoft.NETCore.App", "version": self.runtime_version},
+                    {"name": "Microsoft.WindowsDesktop.App", "version": self.runtime_version},
                 ],
             }}), encoding="utf-8")
             (source / "WorkFleet.deps.json").write_text(json.dumps({
-                "runtimeTarget": {"name": ".NETCoreApp,Version=v8.0/win-x64"},
+                "runtimeTarget": {"name": ".NETCoreApp,Version=v10.0/win-x64"},
             }), encoding="utf-8")
             for name in ["Licenses/dotnet/LICENSE.TXT", "Licenses/dotnet/THIRD-PARTY-NOTICES.TXT",
                          "Licenses/dotnet/core-runtime.nuspec", "Licenses/dotnet/desktop-runtime.nuspec",
@@ -91,7 +93,7 @@ class WindowsPackageTests(unittest.TestCase):
         result = self.inspect()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("contents only", result.stdout)
-        self.assertIn("bundled .NET 8/WPF", result.stdout)
+        self.assertIn("bundled .NET 10/WPF", result.stdout)
         result = self.inspect(unsigned=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("signature is not trusted and valid", result.stderr)
@@ -140,18 +142,39 @@ class WindowsPackageTests(unittest.TestCase):
 
     def test_shared_runtime_requirements_and_missing_desktop_framework_are_rejected(self):
         for options in [
-            {"tfm": "net8.0", "framework": {"name": "Microsoft.WindowsDesktop.App", "version": "8.0.0"}},
-            {"tfm": "net8.0", "frameworks": [{"name": "Microsoft.WindowsDesktop.App", "version": "8.0.0"}]},
-            {"tfm": "net8.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App", "version": "8.0.0"}]},
+            {"tfm": "net10.0", "framework": {"name": "Microsoft.WindowsDesktop.App", "version": self.runtime_version}},
+            {"tfm": "net10.0", "frameworks": [{"name": "Microsoft.WindowsDesktop.App", "version": self.runtime_version}]},
+            {"tfm": "net10.0", "includedFrameworks": [{"name": "Microsoft.NETCore.App", "version": self.runtime_version}]},
         ]:
             with self.subTest(options=options):
                 result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
                 self.assertNotEqual(result.returncode, 0)
-                self.assertRegex(result.stderr, "Expected self-contained|Expected bundled .NET 8")
+                self.assertRegex(result.stderr, "Expected self-contained|Expected bundled .NET 10")
+
+    def test_old_or_mismatched_bundled_runtime_is_rejected(self):
+        for versions in [("8.0.31", "8.0.31"), ("10.0.0", self.runtime_version),
+                         (self.runtime_version, "10.0.0")]:
+            with self.subTest(versions=versions):
+                options = {"tfm": "net10.0", "includedFrameworks": [
+                    {"name": "Microsoft.NETCore.App", "version": versions[0]},
+                    {"name": "Microsoft.WindowsDesktop.App", "version": versions[1]},
+                ]}
+                result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Expected bundled .NET 10", result.stderr)
+
+    def test_old_framework_target_is_rejected(self):
+        options = {"tfm": "net8.0", "includedFrameworks": [
+            {"name": "Microsoft.NETCore.App", "version": self.runtime_version},
+            {"name": "Microsoft.WindowsDesktop.App", "version": self.runtime_version},
+        ]}
+        result = self.inspect(extra={"WorkFleet.runtimeconfig.json": json.dumps({"runtimeOptions": options})})
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Expected self-contained .NET 10", result.stderr)
 
     def test_non_x64_dependency_target_is_rejected(self):
         result = self.inspect(extra={"WorkFleet.deps.json": json.dumps({
-            "runtimeTarget": {"name": ".NETCoreApp,Version=v8.0/win-arm64"},
+            "runtimeTarget": {"name": ".NETCoreApp,Version=v10.0/win-arm64"},
         })})
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("Expected self-contained win-x64 dependency target", result.stderr)

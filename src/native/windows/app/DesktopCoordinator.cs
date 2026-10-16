@@ -129,9 +129,12 @@ public sealed class DesktopCoordinator : IDisposable
   }
   private object WorkAreas(IReadOnlyList<DisplayInfo> values) => values.Select(d => new { id = d.Id, primary = d.Primary,
     x = d.WorkArea.X / scale, y = d.WorkArea.Y / scale, width = d.WorkArea.Width / scale, height = d.WorkArea.Height / scale }).ToArray();
-  private object ViewInfo(SceneView v) => new { viewId = v.Id, layer = v.Layer, active = v.Active,
-    viewport = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height },
-    adjustOverlay = v.Layer == "floating" };
+  private Dictionary<string, object> ViewInfo(SceneView v) => new()
+  {
+    ["viewId"] = v.Id, ["layer"] = v.Layer, ["active"] = v.Active,
+    ["viewport"] = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height },
+    ["adjustOverlay"] = v.Layer == "floating",
+  };
   // Adjust mode is a modal overlay on every host: the topmost scene tints the screen and carries the adjust controls.
   private object Info() => new { sessionId = SessionId, referenceDpi = scale * 96, topology,
     layers = Layers, residentLayers = Layers, adjustOverlay = true,
@@ -442,8 +445,13 @@ public sealed class DesktopCoordinator : IDisposable
         return new { intent = captured?.Id };
       }
       case "scene.info":
+      {
         view.Ready = true;
-        return new { sessionId = SessionId, viewId = view.Id, layer = view.Layer, active = view.Active, topology, prepareFrames = true, bindings = BindingMap(), viewport = new { x = view.Viewport.X, y = view.Viewport.Y, width = view.Viewport.Width, height = view.Viewport.Height } };
+        // Initial navigation and display updates must advertise the same per-view capabilities.
+        var info = ViewInfo(view);
+        info["sessionId"] = SessionId; info["topology"] = topology; info["prepareFrames"] = true; info["bindings"] = BindingMap();
+        return info;
+      }
       case "scene.report": sendOwner(new { v = 1, @event = "desktop-error", viewId = view.Id, message = JsonRules.Text(args, "message", 2000) }); return null;
       case "scene.frame":
       {

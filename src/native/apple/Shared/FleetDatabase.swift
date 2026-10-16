@@ -118,14 +118,34 @@ final class FleetDatabase {
         try execute("INSERT OR IGNORE INTO attachments VALUES(?,?,?)", [profile, id, try seal(data, "attachment", id)]); try discard(token); return id
     }
     func putAttachment(_ token: String) throws -> String { try synchronized { try transaction { try commitAttachment(token) } } }
-    func commit(_ kind: String, _ token: String, _ expected: Int64?, _ attachments: [String], replaceAttachments: Bool = false) throws { try synchronized {
+    func recovery(_ kind: String, _ fromVersion: Int64) throws -> Data? { try synchronized {
+        try self.kind(kind); try FleetProtocol.require(fromVersion > 0 && fromVersion <= 9_007_199_254_740_991, "invalid-migration", "資料升級版本無效。")
+        let key = "migration:\(kind):\(fromVersion)"
+        guard let bytes = try scalar("SELECT data FROM records WHERE profile=? AND kind=?", [profile, key]) as? Data else { return nil }
+        return try open(bytes, key, "record")
+    } }
+    func commit(_ kind: String, _ token: String, _ expected: Int64?, _ attachments: [String], replaceAttachments: Bool = false, migrationFrom: Int64? = nil) throws { try synchronized {
         try FleetProtocol.require(!replaceAttachments || (kind == "workspace" && !profile.hasPrefix("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。")
         try self.kind(kind); let bytes = try staged(token, kind), revision = try validate(bytes)
         try FleetProtocol.require(revision == (expected.map { $0 + 1 } ?? 0) && Set(attachments).count == attachments.count && attachments.count <= 20000, "stale-workspace", "資料版本或附件條件不符。")
         try transaction {
             let current = try scalar("SELECT revision FROM records WHERE profile=? AND kind=?", [profile, kind]) as? Int64
             try FleetProtocol.require(current == expected, "stale-workspace", "工作空間已由另一個寫入者變更。")
-            if replaceAttachments { try execute("DELETE FROM attachments WHERE profile=?", [profile]) }
+            try FleetProtocol.require(migrationFrom == nil || current != nil, "invalid-migration", "找不到原始資料。")
+            if let previous = try record(kind) {
+                let before = try FleetProtocol.json(previous), after = try FleetProtocol.json(bytes)
+                let oldSchema = before["schemaVersion"] == nil ? nil : try FleetProtocol.number(before, "schemaVersion")
+                let newSchema = after["schemaVersion"] == nil ? nil : try FleetProtocol.number(after, "schemaVersion")
+                if let from = migrationFrom {
+                    try FleetProtocol.require(from > 0 && oldSchema == from && newSchema != nil && newSchema! > from && !replaceAttachments && attachments.isEmpty, "invalid-migration", "資料升級版本與原始資料不同。")
+                    let key = "migration:\(kind):\(from)"
+                    try execute("INSERT INTO records VALUES(?,?,?,?)", [profile, key, current!, try seal(previous, key, "record")])
+                } else { try FleetProtocol.require(oldSchema == newSchema, "migration-required", "資料升級需要安全保存原始副本。") }
+            }
+            if replaceAttachments {
+                try execute("DELETE FROM attachments WHERE profile=?", [profile])
+                try execute("DELETE FROM records WHERE profile=? AND kind LIKE 'migration:workspace:%'", [profile])
+            }
             for attachment in attachments { _ = try commitAttachment(attachment) }
             try execute("INSERT OR REPLACE INTO records VALUES(?,?,?,?)", [profile, kind, revision, try seal(bytes, kind, "record")]); try discard(token)
         }

@@ -1,6 +1,6 @@
 # 建置、測試與證據
 
-更新：2026-10-15。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
+更新：2026-10-17。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
 
 ## 新互動驗收路由
 
@@ -10,6 +10,20 @@
 原子保存失敗、草稿安全退出與 adapter 替換；注入的記憶體 persist 不證明 OS 實際落盤。
 測試名稱中的 C 編號只標示模擬語意部分；C16／C35／C40–C43／C46–C47 的原生能力仍需實際 host 驗收。
 不能把舊測試綠燈列為新功能通過，也不為文件變更重新啟動舊 Mac probe。
+
+`tests/schema-migrations.test.js` 驗證 SPEC-007：固定舊版 workspace fixture、逐版／跳版、缺步驟、
+原資料不變、啟動提交屏障、重試／重開、未來雲端版本停止 upload 與游標，以及 v1 ZIP 跨本機／Google 還原。
+`tests/test_linux_local_restore.py` 用真 SQLite 注入提交故障，確認原始副本與新資料一起回滾／重試；
+`tests/test_linux_vault.py` 另以真 AES-GCM 驗證副本加密、重開與重設清除。
+Windows core probe 與 opt-in `tests/native-storage.test.js` 驗證 DPAPI、原子副本、重開及 migration commit 回應遺失讀回。
+以下 probe 在隔離的隨機 IndexedDB 建立舊結構，執行真交易 abort／重試、附件／profile 隔離、重開與清理；
+不開啟使用者 workspace。先 build 並啟動上述 loopback 預覽，再把 URL 傳入：
+
+```bash
+node scripts/testing/schema-migration-probe.mjs --url http://127.0.0.1:PORT/app/index.html
+```
+
+Apple／Android 共用 JS 轉換與各自原生交易實作；缺 SDK 的 host 不以來源檢查冒充編譯或實機通過。
 文件工作執行 check_docs.py、git diff --check 與範圍／語意一致性檢查即可。
 
 ## 可重現命令

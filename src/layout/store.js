@@ -2,12 +2,13 @@ import { activeGroups, compareId, containsRect, copy, defaultGrid,
   gridRegions, groupKey, membershipKey, requireValue, validRect } from '../core/contracts.js';
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { groupLayerOrder } from './stages.js';
+import { schemas } from '../core/schema.js';
 
 const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
-  return { schemaVersion: 1, deviceId, revision: 0, grid: defaultGrid(groups, area),
+  return { schemaVersion: schemas.layout, deviceId, revision: 0, grid: defaultGrid(groups, area),
     placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(), groupLayers: {} };
 }
 

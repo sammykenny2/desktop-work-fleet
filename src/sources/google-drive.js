@@ -1,6 +1,7 @@
 import { FleetError, requireValue } from '../core/contracts.js';
 import { canonicalJson, parseJson } from './json.js';
 import { validFileId, validateFile, verifyFile } from './files.js';
+import { schemas } from '../core/schema.js';
 
 const FIELDS = 'id,size,spaces,trashed,appProperties,sha256Checksum';
 const JSON_BYTES = 2 * 1024 * 1024;
@@ -21,7 +22,7 @@ export function googleDescriptor(value) {
   const properties = value?.appProperties;
   requireValue(value && (value.trashed === undefined || value.trashed === false)
     && Array.isArray(value.spaces) && value.spaces.includes('appDataFolder')
-    && properties?.wfFormat === 'work-fleet-file' && properties.wfSchema === '1'
+    && properties?.wfFormat === 'work-fleet-file' && properties.wfSchema === String(schemas.driveFile)
     && typeof value.size === 'string' && /^(0|[1-9][0-9]*)$/.test(value.size),
   'unsupported-source-file', 'Google Drive 包含無法辨識或不同版本的資料檔，尚未略過或覆寫。');
   const file = validateFile({ id: value.id, kind: properties.wfKind, sha256: properties.wfSha256, size: Number(value.size) });
@@ -192,7 +193,7 @@ export class GoogleDriveFileStore {
     file = validateFile(file); bytes = await verifyFile(file, bytes);
     const metadata = { id: file.id, name: `work-fleet-v1-${file.kind}-${file.sha256}.${file.kind === 'revision' ? 'json' : 'bin'}`,
       mimeType: 'application/octet-stream', parents: ['appDataFolder'], appProperties: {
-        wfFormat: 'work-fleet-file', wfSchema: '1', wfKind: file.kind, wfSha256: file.sha256,
+        wfFormat: 'work-fleet-file', wfSchema: String(schemas.driveFile), wfKind: file.kind, wfSha256: file.sha256,
       } };
     if (file.size === 0) {
       // Multipart represents an empty attachment unambiguously, without an invalid 0--1 Content-Range.

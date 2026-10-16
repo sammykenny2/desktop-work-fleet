@@ -6,18 +6,18 @@ const scalarString = value => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\
 const invalid = condition => requireValue(condition, 'invalid-json', '資料必須是有效且無重複欄位的 JSON。');
 
 /** Protocol canonical form: sorted UTF-16 keys, JSON string escapes and ECMAScript finite numbers. */
-export function canonicalJson(value) {
+export function canonicalJson(value, limits = JSON_LIMITS) {
   let nodes = 0; let bytes = 0;
   const chunks = [];
   const ancestors = new Set();
   const reserve = count => {
     bytes += count;
-    requireValue(bytes <= JSON_LIMITS.bytes, 'json-limit', '單筆資料上限為 8 MiB。');
+    requireValue(bytes <= limits.bytes, 'json-limit', '資料超過此格式的容量上限。');
   };
   const literal = text => { reserve(text.length); chunks.push(text); };
   const string = text => {
     // Count escaped UTF-8 before allocating JSON.stringify's output, including repeated references.
-    requireValue(text.length <= JSON_LIMITS.bytes - bytes, 'json-limit', '單筆資料上限為 8 MiB。');
+    requireValue(text.length <= limits.bytes - bytes, 'json-limit', '資料超過此格式的容量上限。');
     reserve(2);
     for (let index = 0; index < text.length; index++) {
       const code = text.charCodeAt(index);
@@ -32,7 +32,7 @@ export function canonicalJson(value) {
     chunks.push(JSON.stringify(text));
   };
   const visit = (item, depth) => {
-    requireValue(depth <= JSON_LIMITS.depth && ++nodes <= JSON_LIMITS.nodes,
+    requireValue(depth <= limits.depth && ++nodes <= limits.nodes,
       'json-limit', '資料結構超過可處理的深度或項目數。');
     if (item === null || typeof item === 'boolean') { literal(JSON.stringify(item)); return; }
     if (typeof item === 'number') {
@@ -44,7 +44,7 @@ export function canonicalJson(value) {
     invalid(Object.getOwnPropertySymbols(item).length === 0);
     ancestors.add(item);
     if (Array.isArray(item)) {
-      requireValue(item.length <= JSON_LIMITS.nodes - nodes, 'json-limit', '資料結構超過可處理的項目數。');
+      requireValue(item.length <= limits.nodes - nodes, 'json-limit', '資料結構超過可處理的項目數。');
       invalid(Object.getOwnPropertyNames(item).length === item.length + 1);
       literal('[');
       for (let index = 0; index < item.length; index++) {

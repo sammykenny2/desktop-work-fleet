@@ -11,6 +11,7 @@ export interface NativeHostInfo {
   maxBackupBytes: 142610432;
   capabilities: {
     nativeStorage: boolean;
+    schemaMigration: boolean;
     automaticFiles: boolean;
     backupFiles: boolean;
     secureBackup: boolean;
@@ -27,8 +28,9 @@ export type NativeRequest = { v: 1; id: string } & (
   | { method: 'transfer.finish' | 'transfer.discard' | 'storage.putAttachment'; params: { token: string } }
   | { method: 'transfer.read'; params: { token: string; offset: number } }
   | { method: 'storage.load'; params: { kind: NativeRecordKind } }
+  | { method: 'storage.recovery'; params: { kind: NativeRecordKind; fromVersion: number } }
   | { method: 'storage.attachment'; params: { id: string } }
-  | { method: 'storage.commit'; params: { kind: NativeRecordKind; token: string; expectedRevision: number | null; attachments: string[] } }
+  | { method: 'storage.commit'; params: { kind: NativeRecordKind; token: string; expectedRevision: number | null; attachments: string[]; replaceAttachments?: boolean; migrationFrom?: number } }
   | { method: 'backup.choose' | 'backup.manual.choose'; params: Record<string, never> }
   | { method: 'backup.authorize'; params: { destinationId: string } }
   | { method: 'backup.manual.save'; params: { destinationId: string; token: string } }

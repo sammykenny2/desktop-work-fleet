@@ -21,6 +21,26 @@ const enabled = process.env.WORK_FLEET_NATIVE_TEST === '1';
 if (enabled) await access(executable); // An explicitly requested but missing native build must fail.
 const nativeTest = (name, action) => test(name, { skip: !enabled, timeout: 60_000 }, action);
 
+nativeTest('v1 migration keeps an encrypted original and resolves a lost commit reply before publishing v2', async () => {
+  let host = await session(undefined, 100);
+  const historical = JSON.parse(await readFile(new URL('./fixtures/workspace-v1.json', import.meta.url), 'utf8'));
+  try {
+    const initial = { ...historical, revision: 0 }; await host.storage.save(initial, null);
+    host.dropCommitReply();
+    const workspace = await Workspace.open(initial, (state, revision) => host.storage.save(state, revision),
+      (state, revision, from) => host.storage.migrate(state, revision, from));
+    assert.equal(workspace.state.schemaVersion, 2); assert.equal(workspace.state.revision, 1);
+    assert.deepEqual(await host.storage.recovery('local', 1), initial);
+    await assert.rejects(host.storage.recovery('other', 1), { code: 'invalid-profile' });
+    const directory = host.directory; await host.close(); host = await session(directory);
+    const reopened = await Workspace.open(await host.storage.load('local'), (state, revision) => host.storage.save(state, revision),
+      () => { throw new Error('must not migrate twice'); });
+    assert.equal(reopened.state.revision, 1); assert.deepEqual(await host.storage.recovery('local', 1), initial);
+    await host.storage.saveWithAttachments({ ...reopened.state, revision: 2 }, 1, [], { replaceAttachments: true });
+    assert.equal(await host.storage.recovery('local', 1), null);
+  } finally { await host.close(); }
+});
+
 async function session(directory = path.resolve(`build/native-js-${crypto.randomUUID()}`), timeout = 10_000) {
   await mkdir(directory, { recursive: true });
   const process = spawn('dotnet', [executable, '--bridge', directory], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });

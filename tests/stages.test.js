@@ -101,6 +101,7 @@ test('per-paper layers from older layouts become the lowest layer of each group,
 
 test('a workspace saved with per-paper layers opens with group layers', async () => {
   const f = await fixture(); const state = f.workspace.state;
+  state.schemaVersion = 1;
   for (const id of [f.a1.id, f.a2.id]) Object.assign(state.layout.placements[id], { residentLayer: 'floating', readOnlySelect: false });
   delete state.layout.groupLayers;
   const opened = new Workspace(state, async () => {});

@@ -47,6 +47,7 @@ test('a workspace opened from an older layout uses region keys without moving an
   const created = await Workspace.create({ profileId: 'local', deviceId: 'device', area, persist: async state => { saved.push(state); } });
   const state = created.state; const [group] = state.groups;
   state.layout.shortcuts = { 'Ctrl+Shift+1': group.id, 'Ctrl+Shift+0': '@all' };
+  state.schemaVersion = 1;
   const opened = new Workspace(state, async () => {});
   assert.equal(opened.layout.state.shortcuts['Ctrl+Shift+1'], '@region1'); assert.equal(opened.layout.state.shortcuts['Ctrl+Shift+2'], '@region2');
   assert.deepEqual(opened.layout.state.grid, state.layout.grid); assert.equal(opened.layout.state.revision, state.layout.revision);

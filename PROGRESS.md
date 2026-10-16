@@ -2,6 +2,39 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 Schema 演進與原子 migration
+
+使用者要求規劃並實作 schema version 偵測及 migration。契約見
+[ADR-051](docs/decisions/051-schema-evolution-and-atomic-migrations.md)、
+[SPEC-007](docs/specs/007-schema-evolution-and-migrations.md) 及
+[PLAN-007](docs/plans/007-schema-evolution-and-migrations.md)。
+
+- 新增共用版本登錄、逐版純 runner 與 `Workspace.open` 持久提交屏障。本機 v1→v2 集中舊完整 outbox、
+  版面及快捷鍵轉換；保留原始 revision、草稿、pending、未知擴充與待送內容，不杜撰缺失 parent。
+  缺 group/base 的早期草稿及 recovered baseline 保留缺席欄位，不猜測編輯基線。
+- IndexedDB 結構 v2 新增 migrations store；Windows／Linux／Apple／Android 原生重用 records 的受限命名空間，
+  沿用各平台加密與 profile 邊界，不變更 SQLite 表版本。原始副本與新資料同 CAS 交易提交；
+  普通 save 禁止改 schema，缺 native capability 時拒絕遷移，回應遺失核對完整持久 bytes。
+  reset／本機完整還原清除該工作空間副本，其他帳號與 journal 保留；副本不進 ZIP。
+- 同步 revision／Drive metadata、ZIP／加密封裝、Layout 及自動備份 journal 維持 v1，未知版本明確拒絕。
+  雲端歷史不就地改寫；未來版本停止失敗頁及後續 upload。跨版本留下的 Google 覆蓋工作在任何遠端 reset／upload 前先遷移。
+- 新增目的資料驗證、固定歷史 fixture、跳版／缺步驟／故障／重試／重開／CAS／混版與備份往返回歸。
+  累積 sync.files/uploads 等索引逐筆驗證，不把單筆 JSON 的 8 MiB／200,000 nodes 套到整份工作空間。
+- Author-run 檢查：完整 JS 313 項，297 pass／16 skip；最後追加的 migration／cloud-restore 回歸 18/18。
+  WSL Ubuntu 完整 Python 180 項，144 pass／36 skip；最終 Linux SQLite 清理回歸 4/4。
+  Windows App／core／UI probes Debug build 零 warning/error；core executable 的 SQLite／DPAPI、備份、scene、
+  settings、update feed 與 callback 全部通過（含新增 migration 原子性／加密／重開）；JS→native bridge 13/13。
+  真 IndexedDB probe 通過舊結構、abort／重試、副本、附件、跨 profile、CAS、重開、reset／完整取代。
+  `npm run build`、config 檢查命令、`node --check src/web/app.js`、文件連結／LF 與 diff 檢查通過。
+- 獨立唯讀審閱已完成；原生普通提交可繞過副本、目的驗證不足、累積索引容量三項發現均修正並重驗，無未修正的重要發現。
+  審閱另直接執行前版 Workspace，驗證其真實 v1 輸出及原始 v1 ZIP 可遷移／還原到 v2 Google 分區，未知擴充保留。
+- 未測界線：Apple／Android 原生 SDK 編譯與裝置、真 Google 往返／混版裝置、Windows GUI 互動本輪未驗收；
+  Windows package Python 檢查因缺 Windows SDK 整類略過，沒有產安裝包或發布。公開設定仍缺 Google／release 欄位，
+  config 檢查命令成功不代表正式設定完整。SDK 10.0.402 僅下載至 ignored build，已核對官方 SHA512，未改系統工具鏈或信任。
+- 未升 App 版號、未 dispatch Actions 或發布 release。commit／push 最終結果於對話回報。
+- 推送前整合遠端 `3aa9e19` 系統匣啟動修正，保留其程式與進度紀錄；本輪 schema 程式與審閱範圍未改。
+  整合後 Windows App／core／UI probes 再建置零 warning/error，完整 Python 180 項結果如上。
+
 
 ## 2026-10-17 登入啟動等待系統匣（Linux／Windows）
 

@@ -94,7 +94,7 @@ class Service:
                 return self.backup.invoke(method, args, self.upload, self.download)
             if method == "host.info":
                 return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
-                        "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
+                        "capabilities": {"nativeStorage": True, "schemaMigration": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
                                          "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True}}
             if method == "host.ready":
                 self.ready = True
@@ -150,6 +150,8 @@ class Service:
                 return {"profileId": self.database.profile}
             if method == "storage.load":
                 return self.download(self.database.record(p.text(args, "kind")))
+            if method == "storage.recovery":
+                return self.download(self.database.recovery(p.text(args, "kind"), p.number(args, "fromVersion")))
             if method == "storage.attachment":
                 return self.download(self.database.attachment(p.text(args, "id")))
             if method == "storage.putAttachment":
@@ -162,7 +164,8 @@ class Service:
                 p.require("expectedRevision" in args and isinstance(attachments, list) and all(item in self.staged for item in attachments), "invalid-request", "提交條件或附件身分無效。")
                 expected = None if args["expectedRevision"] is None else p.number(args, "expectedRevision")
                 replace_attachments = p.boolean(args, "replaceAttachments") if "replaceAttachments" in args else False
-                self.database.commit(p.text(args, "kind"), token, expected, attachments, replace_attachments)
+                migration_from = p.number(args, "migrationFrom") if "migrationFrom" in args else None
+                self.database.commit(p.text(args, "kind"), token, expected, attachments, replace_attachments, migration_from)
                 self.staged.discard(token)
                 self.staged.difference_update(attachments)
                 return None

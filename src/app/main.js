@@ -113,7 +113,7 @@ async function initialize() {
   });
   const saved = await storage.load(profileId);
   const persist = (state, revision) => storage.save(state, revision);
-  workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
+  workspace = saved ? await Workspace.open(saved, persist, (state, revision, fromVersion) => storage.migrate(state, revision, fromVersion)) : await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:') });
   activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,

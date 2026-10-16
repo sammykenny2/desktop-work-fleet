@@ -1,8 +1,13 @@
 # 安全邊界
 
-更新：2026-10-15。
+更新：2026-10-17。
 
 ## 1.0 本機 renderer
+
+- [ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md)：本機 Workspace 升級前，原始記錄與新資料在同一 CAS 交易提交；
+  原生 recovery 副本使用原有 OS 加密與 profile 邊界，bridge 只接受固定記錄種類／來源版本。
+  不暴露 SQL、路徑、憑證或任意歷史命名空間。副本不進可攜備份，reset／本機完整還原同交易清除。
+  副本不是附件的第二份副本，也不提供跨機還原；跨機及降版前應保留可攜 ZIP。
 
 - 便箋、草稿、outbox 與版面在同一 IndexedDB 交易提交，成功前不發布新 Workspace。
   profile key 與附件 composite key 隔離資料；Web Locks 加 revision CAS 防止獨立 writer 覆寫。

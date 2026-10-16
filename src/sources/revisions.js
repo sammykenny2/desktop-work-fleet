@@ -1,5 +1,6 @@
 import { compareId, copy, requireValue, safeKey } from '../core/contracts.js';
 import { canonicalJson, parseJson } from './json.js';
+import { schemas, requireSchemaVersion } from '../core/schema.js';
 
 export const REVISION_FORMAT = 'work-fleet-revision';
 const envelopeKeys = ['entityId', 'format', 'kind', 'parents', 'revisionId', 'schemaVersion', 'value'].sort();
@@ -11,7 +12,8 @@ const invalid = condition => requireValue(condition, 'invalid-revision-record', 
 export function validateRevision(input) {
   const record = parseJson(canonicalJson(input));
   invalid(record && typeof record === 'object' && !Array.isArray(record));
-  requireValue(record.format === REVISION_FORMAT && record.schemaVersion === 1,
+  requireSchemaVersion(record, 'revision', { code: 'unsupported-revision-format' });
+  requireValue(record.format === REVISION_FORMAT,
     'unsupported-revision-format', '此同步資料需要其他或較新版 App；本機內容仍保留。');
   invalid(JSON.stringify(Object.keys(record).sort()) === JSON.stringify(envelopeKeys));
   invalid(['card', 'group'].includes(record.kind) && validId(record.entityId) && validId(record.revisionId));
@@ -45,7 +47,7 @@ export function validateRevision(input) {
 }
 
 export function revisionRecord(kind, value, parents = []) {
-  return validateRevision({ format: REVISION_FORMAT, schemaVersion: 1, kind,
+  return validateRevision({ format: REVISION_FORMAT, schemaVersion: schemas.revision, kind,
     entityId: value.id, revisionId: value.revision, parents, value });
 }
 

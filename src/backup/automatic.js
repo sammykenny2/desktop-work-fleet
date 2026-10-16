@@ -4,6 +4,7 @@ import { canonicalJson } from '../sources/json.js';
 import { createBackup } from './payload.js';
 import { BACKUP_LIMITS, checkCancelled } from './archive.js';
 import { validateEncryptedBackup } from './encryption.js';
+import { schemas, requireSchemaVersion } from '../core/schema.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -19,7 +20,8 @@ export function validateAutomaticJob(job) {
 }
 
 export function validateAutomaticState(state, profileId) {
-  requireValue(state && state.schemaVersion === 1 && state.profileId === profileId && integer(state.revision)
+  requireSchemaVersion(state, 'journal', { code: 'unsupported-backup-journal' });
+  requireValue(state && state.profileId === profileId && integer(state.revision)
     && typeof state.enabled === 'boolean' && typeof state.paused === 'boolean' && integer(state.failures) && integer(state.nextAttemptAt)
     && Array.isArray(state.inventory) && state.inventory.length <= 10000
     && state.inventory.every(item => validJob(item) && ['verified', 'unconfirmed'].includes(item.status))
@@ -51,7 +53,7 @@ export class AutomaticBackup {
     this.#appVersion = appVersion;
     this.#workspace = workspace; this.#storage = storage; this.#journal = journal; this.#files = files;
     this.#vault = vault; this.#flush = flush; this.#now = now; this.#uuid = uuid; this.#listeners.add(onStatus);
-    this.#state = { schemaVersion: 1, profileId: workspace.state.profileId, revision: 0, enabled: false, paused: false,
+    this.#state = { schemaVersion: schemas.journal, profileId: workspace.state.profileId, revision: 0, enabled: false, paused: false,
       settings: null, inventory: [], pending: null, lastSuccess: null, lastFailure: null, failures: 0, nextAttemptAt: 0 };
   }
 

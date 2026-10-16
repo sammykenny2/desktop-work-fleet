@@ -4,6 +4,7 @@ import { canonicalJson, parseJson } from '../sources/json.js';
 import { decodeRevision, encodeRevision, revisionRecord, RevisionGraph, validId } from '../sources/revisions.js';
 import { projectRevisionsAsync, projectionConflictKinds } from '../sources/projection.js';
 import { sha256, validDigest } from '../sources/files.js';
+import { schemas, requireSchemaVersion } from '../core/schema.js';
 import { BACKUP_LIMITS, backupScheduler, checkCancelled, entryLimit, packZip, unpackZip } from './archive.js';
 import { decryptBackup, encryptBackup } from './encryption.js';
 
@@ -45,7 +46,8 @@ function validateGrid(grid, groups) {
 }
 
 function validateLayout(layout, snapshot, graph) {
-  fail(object(layout) && layout.schemaVersion === 1 && validId(layout.deviceId) && count(layout.revision)
+  requireSchemaVersion(layout, 'layout', { code: 'unsupported-backup-schema' });
+  fail(object(layout) && validId(layout.deviceId) && count(layout.revision)
     && typeof layout.desktopVisible === 'boolean' && (layout.myGroupId === null || validId(layout.myGroupId))
     && object(layout.placements) && Array.isArray(layout.history));
   const groups = new Set(snapshot.groups.map(item => item.id)); const cards = new Set(snapshot.cards.map(item => item.id));
@@ -143,8 +145,9 @@ export class BackupDocument {
 }
 
 function validateManifest(manifest) {
+  requireSchemaVersion(manifest, 'backup', { code: 'unsupported-backup-schema' });
   exact(manifest, ['format', 'schemaVersion', 'backupId', 'createdAt', 'appVersion', 'scope', 'pendingOperations', 'lastSuccessfulSyncAt', 'counts', 'files']);
-  fail(manifest.format === 'work-fleet-backup' && manifest.schemaVersion === 1 && validId(manifest.backupId)
+  fail(manifest.format === 'work-fleet-backup' && validId(manifest.backupId)
     && date(manifest.createdAt) && typeof manifest.appVersion === 'string' && manifest.appVersion.length > 0 && manifest.appVersion.length <= 64
     && manifest.scope === 'known-local-data' && count(manifest.pendingOperations)
     && (manifest.lastSuccessfulSyncAt === null || date(manifest.lastSuccessfulSyncAt)) && Array.isArray(manifest.files));
@@ -217,7 +220,7 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   }
   const entries = [];
   for (const [name, bytes] of files) { entries.push({ name, size: bytes.length, sha256: await sha256(bytes) }); await checkpoint(); }
-  const manifest = { format: 'work-fleet-backup', schemaVersion: 1, backupId: uuid(), createdAt: now().toISOString(),
+  const manifest = { format: 'work-fleet-backup', schemaVersion: schemas.backup, backupId: uuid(), createdAt: now().toISOString(),
     appVersion, scope: 'known-local-data', pendingOperations: state.outbox.length,
     lastSuccessfulSyncAt: state.sync?.lastSuccessfulSyncAt || null, counts: validated.counts, files: entries };
   validateManifest(manifest); add('manifest.json', encode(manifest));

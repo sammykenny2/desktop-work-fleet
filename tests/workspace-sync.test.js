@@ -158,7 +158,7 @@ test('ten concurrent groups are retained, can be merged to nine and cannot be ov
 });
 
 test('local migration builds the same graph from full outbox, missing history refuses invented roots', async () => {
-  const f = await fixture(); const old = f.disk(); delete old.revisions; delete old.sync;
+  const f = await fixture(); const old = f.disk(); old.schemaVersion = 1; delete old.revisions; delete old.sync;
   const migrated = new Workspace(old, async () => {});
   assert.equal(migrated.revisionHeads('card', f.card.id)[0].revisionId, f.card.revision);
   const broken = copy(old); broken.outbox = broken.outbox.filter(item => item.entityId !== f.card.id);

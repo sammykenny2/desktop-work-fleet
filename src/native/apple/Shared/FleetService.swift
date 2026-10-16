@@ -79,7 +79,7 @@ actor FleetService {
             return ["protocol": 1, "platform": platform, "profileId": database.profile, "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
                 "distribution": "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
-                "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
+                "capabilities": ["nativeStorage": true, "schemaMigration": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
                                  "hostPreferences": shell != nil, "updates": updates]]
         case "host.ready": ready = true; return NSNull()
         case "host.closeReady": closeReady = true; return NSNull()
@@ -109,6 +109,7 @@ actor FleetService {
         case "storage.reset":
             transfers.removeAll(); staged.removeAll(); try database.reset(); return ["profileId": database.profile]
         case "storage.load": return try download(database.record(FleetProtocol.text(args, "kind")))
+        case "storage.recovery": return try download(database.recovery(FleetProtocol.text(args, "kind"), FleetProtocol.number(args, "fromVersion")))
         case "storage.attachment": return try download(database.attachment(FleetProtocol.text(args, "id")))
         case "storage.putAttachment":
             let id = try owned(args), digest = try database.putAttachment(id); staged.remove(id); return ["id": digest]
@@ -117,7 +118,8 @@ actor FleetService {
             try FleetProtocol.require(args["expectedRevision"] != nil && attachments.allSatisfy({ staged.contains($0) }), "invalid-request", "提交條件或附件身分無效。")
             let expected = args["expectedRevision"] is NSNull ? nil : try FleetProtocol.number(args, "expectedRevision")
             let replaceAttachments = args["replaceAttachments"] == nil ? false : try FleetProtocol.bool(args, "replaceAttachments")
-            try database.commit(FleetProtocol.text(args, "kind"), id, expected, attachments, replaceAttachments: replaceAttachments); staged.remove(id); for id in attachments { staged.remove(id) }; return NSNull()
+            let migrationFrom = args["migrationFrom"] == nil ? nil : try FleetProtocol.number(args, "migrationFrom")
+            try database.commit(FleetProtocol.text(args, "kind"), id, expected, attachments, replaceAttachments: replaceAttachments, migrationFrom: migrationFrom); staged.remove(id); for id in attachments { staged.remove(id) }; return NSNull()
         default: throw FleetFailure("unsupported-method", "原生主機沒有此操作。")
         }
     }

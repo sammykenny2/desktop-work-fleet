@@ -120,6 +120,8 @@ export interface Draft {
   baseRevision: Revision | null;
   recoveredFrom?: { id: Id; baseline: string }[];
 }
+/** Early saveDraft callers could omit membership/baseline. Keep them without inventing ancestry; editing must complete them. */
+export type PersistedDraft = Omit<Draft, 'groupId' | 'baseRevision'> & Partial<Pick<Draft, 'groupId' | 'baseRevision'>>;
 export interface OutboxEntry {
   operationId: Id;
   kind: 'card' | 'group';
@@ -128,17 +130,17 @@ export interface OutboxEntry {
   value: Card | Group;
 }
 export interface WorkspaceState {
-  schemaVersion: 1;
+  schemaVersion: 2;
   profileId: Id;
   revision: number;
   cards: Card[];
   groups: Group[];
-  drafts: Record<Id, Draft>;
+  drafts: Record<Id, PersistedDraft>;
   membershipRebases?: Record<Revision, { cardId: Id; revision: Revision }>;
   outbox: OutboxEntry[];
-  /** Legacy local previews migrate these from their complete outbox before the next atomic save. */
-  revisions?: RevisionRecord[];
-  sync?: SyncState;
+  /** v1 is migrated before the production owner, editor, sync and automatic backup are created. */
+  revisions: RevisionRecord[];
+  sync: SyncState;
   restoreReceipts?: Record<Id, RestoreReceipt>;
   conflicts: unknown[];
   layout: DeviceLayout;

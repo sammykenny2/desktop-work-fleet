@@ -37,6 +37,14 @@ Workspace／receipt／附件共同提交，journal 獨立 CAS；OS vault 沒有 
 Windows backup adapter 以 DPAPI metadata 綁定 profile／目錄／檔案身分，SQLite schema version 2
 保留既有資料並新增 native capabilities。NTFS 子檔相對已持有的目錄 handle 開啟；
 create-only、Flush／讀回校驗、同 handle 清理見 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)。
+
+[ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md) 將資料 schema 與 App／CAS revision 分開：
+共用 `core/schema.js` 的逐版 runner、`workspace-schema.js` 的 v1→v2 與 `Workspace.open` 啟動屏障。
+先驗證完整候選，再經 adapter 的同一 CAS 交易保存原始副本與 v2；成功後才建立 editor／sync／backup。
+原生副本在現有 records 的 profile-bound `migration:workspace:<fromVersion>` 命名空間，沿用 OS 加密；
+IndexedDB 結構 v2 的 migrations store 同交易保存。`storage.recovery` 只讀固定種類及來源版本。
+reset／本機完整還原同交易清理副本；一般 ZIP 不含它。雲端 revision／Drive metadata、備份／加密 envelope、
+版面及自動備份 journal 保持 v1，各有未知版本拒絕；不可變雲端歷史不原地改寫。
 自動備份以 opaque key ID 請 native 產生可攜加密 ZIP，保存密碼不回 renderer；手動密碼留在當次匯出流程。
 桌面分層／穿透表面與主畫面共用權威資料，不能各自寫入副本；Windows 已啟用 desktopPresentation。
 Windows 原生表面基礎由 [ADR-017](decisions/017-windows-composition-surface-and-input.md) 採納：

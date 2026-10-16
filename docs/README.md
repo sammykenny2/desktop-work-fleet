@@ -1,6 +1,10 @@
 # 文件索引
 
-更新：2026-10-16。先讀最新規格；研究、工作預設、實作完成與實測通過各自區分。
+更新：2026-10-17。先讀最新規格；研究、工作預設、實作完成與實測通過各自區分。
+
+資料格式演進見 [SPEC-007](specs/007-schema-evolution-and-migrations.md)、
+[ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md) 與 [PLAN-007](plans/007-schema-evolution-and-migrations.md)：
+本機 Workspace v1→v2 的原子 migration／原始副本；同步與備份仍為 v1。
 
 ## 本次開發接手：優先閱讀
 

@@ -62,11 +62,23 @@ export class NativeStorage {
     return bytes === null ? null : JSON.parse(decoder.decode(bytes));
   }
   save(state, expectedRevision) { return this.#save(state, expectedRevision, [], 'workspace'); }
+  migrate(state, expectedRevision, fromVersion) {
+    requireValue(this.#info.capabilities.schemaMigration === true, 'migration-unavailable', '請更新 App 以安全升級本機資料；原資料仍保留。');
+    requireValue(Number.isSafeInteger(fromVersion) && fromVersion >= 1 && Number.isSafeInteger(state.schemaVersion)
+      && state.schemaVersion > fromVersion, 'invalid-migration', '資料升級版本無效。');
+    return this.#save(state, expectedRevision, [], 'workspace', false, fromVersion);
+  }
+  async recovery(profileId, fromVersion) {
+    this.#check(profileId);
+    requireValue(Number.isSafeInteger(fromVersion) && fromVersion >= 1, 'invalid-migration', '資料升級版本無效。');
+    const bytes = await this.#download('storage.recovery', { kind: 'workspace', fromVersion });
+    return bytes === null ? null : JSON.parse(decoder.decode(bytes));
+  }
   saveJournal(state, expectedRevision) { return this.#save(state, expectedRevision, [], 'journal'); }
   saveWithAttachments(state, expectedRevision, attachments, { replaceAttachments = false } = {}) {
     return this.#save(state, expectedRevision, attachments, 'workspace', replaceAttachments);
   }
-  async #save(state, expectedRevision, attachments, kind, replaceAttachments = false) {
+  async #save(state, expectedRevision, attachments, kind, replaceAttachments = false, migrationFrom) {
     state = copy(state); this.#check(state.profileId);
     requireValue(typeof replaceAttachments === 'boolean' && (!replaceAttachments || (kind === 'workspace' && !state.profileId.startsWith('google:'))),
       'invalid-request', '只有本機工作空間可以清空附件後還原。');
@@ -83,7 +95,8 @@ export class NativeStorage {
         tokens.push(await this.#upload('attachment', item.bytes));
       }
       token = await this.#upload(kind, bytes);
-      try { await this.#bridge.request('storage.commit', { kind, token, expectedRevision, attachments: tokens, replaceAttachments }); }
+      try { await this.#bridge.request('storage.commit', { kind, token, expectedRevision, attachments: tokens, replaceAttachments,
+        ...(migrationFrom === undefined ? {} : { migrationFrom }) }); }
       catch (error) {
         // A lost acknowledgement is not a rollback. Confirm the complete next record before publishing it.
         if (error.code !== 'native-outcome-unknown') throw error;

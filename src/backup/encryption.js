@@ -1,6 +1,7 @@
 import { FleetError, requireValue } from '../core/contracts.js';
 import { canonicalJson, parseJson } from '../sources/json.js';
 import { BACKUP_LIMITS, checkCancelled, packZip, unpackZip } from './archive.js';
+import { schemas, requireSchemaVersion } from '../core/schema.js';
 
 const ITERATIONS = 600000;
 const hex = bytes => Array.from(bytes, value => value.toString(16).padStart(2, '0')).join('');
@@ -8,8 +9,9 @@ const unhex = text => Uint8Array.from(text.match(/../g), value => Number.parseIn
 const encoded = value => new TextEncoder().encode(canonicalJson(value));
 
 function validateHeader(value) {
+  requireSchemaVersion(value, 'encryptedBackup', { code: 'unsupported-backup-encryption' });
   requireValue(value && Object.keys(value).sort().join(',') === 'cipher,format,iterations,kdf,nonce,salt,schemaVersion,tagBits'
-    && value.format === 'work-fleet-encrypted-backup' && value.schemaVersion === 1 && value.cipher === 'AES-256-GCM'
+    && value.format === 'work-fleet-encrypted-backup' && value.cipher === 'AES-256-GCM'
     && value.kdf === 'PBKDF2-HMAC-SHA256' && value.iterations === ITERATIONS && value.tagBits === 128
     && typeof value.salt === 'string' && /^[0-9a-f]{32}$/.test(value.salt)
     && typeof value.nonce === 'string' && /^[0-9a-f]{24}$/.test(value.nonce),
@@ -47,7 +49,7 @@ export async function encryptBackup(input, password, options = {}) {
   requireValue(typeof password === 'string' && password.length <= 1024 && [...password].length >= 12,
     'backup-password', '備份密碼至少需要 12 個字元，最多 1,024 字元。');
   const bytes = new Uint8Array(input); checkCancelled(options.signal);
-  const header = validateHeader({ format: 'work-fleet-encrypted-backup', schemaVersion: 1, cipher: 'AES-256-GCM',
+  const header = validateHeader({ format: 'work-fleet-encrypted-backup', schemaVersion: schemas.encryptedBackup, cipher: 'AES-256-GCM',
     kdf: 'PBKDF2-HMAC-SHA256', iterations: ITERATIONS, salt: hex(crypto.getRandomValues(new Uint8Array(16))),
     nonce: hex(crypto.getRandomValues(new Uint8Array(12))), tagBits: 128 });
   const aad = encoded(header);

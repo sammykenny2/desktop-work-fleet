@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "profileId": "local",
+  "revision": 3,
+  "groups": [
+    {
+      "deleted": false,
+      "id": "fixture-1",
+      "name": "我的便箋",
+      "revision": "fixture-2"
+    }
+  ],
+  "cards": [
+    {
+      "archived": false,
+      "completed": false,
+      "content": {
+        "attachments": [],
+        "custom": {
+          "retained": "擴充資料"
+        },
+        "format": "markdown",
+        "text": "舊便箋\n- [ ] 未完成"
+      },
+      "createdAt": "2026-10-06T12:00:00.000Z",
+      "deleted": false,
+      "groupId": "fixture-1",
+      "id": "fixture-3",
+      "revision": "fixture-4"
+    }
+  ],
+  "drafts": {
+    "fixture-5": {
+      "id": "fixture-5",
+      "cardId": "fixture-3",
+      "groupId": "fixture-1",
+      "baseRevision": "fixture-4",
+      "content": {
+        "format": "markdown",
+        "text": "尚未儲存的草稿",
+        "attachments": [],
+        "custom": {
+          "retained": "擴充資料"
+        }
+      }
+    }
+  },
+  "outbox": [
+    {
+      "operationId": "fixture-2",
+      "kind": "group",
+      "entityId": "fixture-1",
+      "parents": [],
+      "value": {
+        "id": "fixture-1",
+        "name": "我的便箋",
+        "revision": "fixture-2",
+        "deleted": false
+      }
+    },
+    {
+      "operationId": "fixture-4",
+      "kind": "card",
+      "entityId": "fixture-3",
+      "parents": [],
+      "value": {
+        "id": "fixture-3",
+        "revision": "fixture-4",
+        "groupId": "fixture-1",
+        "content": {
+          "format": "markdown",
+          "text": "舊便箋\n- [ ] 未完成",
+          "attachments": [],
+          "custom": {
+            "retained": "擴充資料"
+          }
+        },
+        "deleted": false,
+        "archived": false,
+        "completed": false,
+        "createdAt": "2026-10-06T12:00:00.000Z"
+      }
+    }
+  ],
+  "conflicts": [],
+  "layout": {
+    "schemaVersion": 1,
+    "deviceId": "historical-device",
+    "revision": 1,
+    "grid": {
+      "rows": 1,
+      "columns": 1,
+      "area": {
+        "x": 0,
+        "y": 0,
+        "width": 1000,
+        "height": 800
+      },
+      "slots": [
+        "fixture-1"
+      ]
+    },
+    "placements": {
+      "fixture-3": {
+        "x": 12,
+        "y": 12,
+        "width": 280,
+        "height": 220,
+        "order": 1,
+        "visible": true,
+        "residentLayer": "floating",
+        "readOnlySelect": true
+      }
+    },
+    "history": [],
+    "desktopVisible": true,
+    "myGroupId": null,
+    "shortcuts": {
+      "Ctrl+1": "fixture-1"
+    }
+  },
+  "extension": {
+    "retained": [
+      "歷史格式",
+      42
+    ]
+  }
+}

@@ -4,8 +4,8 @@ import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js'
 import { canonicalJson, parseJson } from '../sources/json.js';
 import { encodeRevision, revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
-import { regionShortcuts } from './shortcuts.js';
-import { groupLayersFromPapers } from '../layout/stages.js';
+import { schemas } from './schema.js';
+import { migrateWorkspace } from './workspace-schema.js';
 import { sha256, validDigest, validateFile } from '../sources/files.js';
 
 function contentValue(content) {
@@ -30,18 +30,6 @@ function unneededDraft(state, draft) {
   const plain = content => canonicalJson({ ...content, attachments: content.attachments || [] });
   return Boolean(card) && card.revision === draft.baseRevision && card.groupId === draft.groupId
     && plain(card.content) === plain(draft.content);
-}
-
-function loadRevisions(state) {
-  const records = state.revisions || state.outbox.map(entry => revisionRecord(entry.kind, entry.value, entry.parents));
-  const graph = new RevisionGraph(records);
-  for (const [kind, values] of [['group', state.groups], ['card', state.cards]]) {
-    for (const value of values) {
-      requireValue(graph.get(value.revision)?.entityId === value.id && graph.get(value.revision)?.kind === kind
-        && graph.isComplete(value.revision), 'incomplete-local-history', '本機版本歷史不完整，資料保留，請先恢復來源。');
-    }
-  }
-  return graph;
 }
 
 function draftBaseline(draft) {
@@ -80,10 +68,11 @@ export class Workspace {
   #graph;
   #now;
   #runtimeId = crypto.randomUUID();
+  #migrationPending = false;
 
   static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID(), now = Date.now }) {
     const groups = bootstrapGroup ? [{ id: uuid(), name: '我的便箋', revision: uuid(), deleted: false }] : [];
-    const state = { schemaVersion: 1, profileId, revision: 0, groups, cards: [],
+    const state = { schemaVersion: schemas.workspace, profileId, revision: 0, groups, cards: [],
       drafts: {}, membershipRebases: {}, outbox: groups.map(group => ({ operationId: group.revision, kind: 'group', entityId: group.id,
         parents: [], value: copy(group) })), revisions: groups.map(group => revisionRecord('group', group)),
       conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, groups, area) };
@@ -91,16 +80,26 @@ export class Workspace {
     return new Workspace(state, persist, uuid, now);
   }
 
+  /** Production load barrier: no editor, sync or backup sees an upgrade before its durable CAS commit. */
+  static async open(state, persist, migrate) {
+    const workspace = new Workspace(state, persist);
+    if (state.schemaVersion !== schemas.workspace) {
+      requireValue(typeof migrate === 'function', 'migration-unavailable', '此儲存尚不支援安全升級，請更新 App；原資料仍保留。');
+      requireValue(Number.isSafeInteger(state.revision + 1), 'invalid-revision', '本機保存版本超過上限，尚未升級。');
+      workspace.#state.revision = state.revision + 1;
+      await migrate(workspace.state, state.revision, state.schemaVersion);
+      workspace.#migrationPending = false;
+    }
+    return workspace;
+  }
+
   constructor(state, persist, uuid = () => crypto.randomUUID(), now = Date.now) {
-    requireValue(state.schemaVersion === 1, 'unsupported-schema', '此資料版本需要較新版 App。');
-    this.#state = copy(state); this.#persist = persist; this.#uuid = uuid; this.#now = now;
-    this.#graph = loadRevisions(this.#state);
+    const loaded = migrateWorkspace(state);
+    this.#migrationPending = loaded.changed;
+    this.#state = loaded.state; this.#persist = persist; this.#uuid = uuid; this.#now = now;
+    this.#graph = loaded.graph;
     this.#state.revisions = this.#graph.records;
     Object.assign(this.#state, projectRevisions(this.#graph, this.#state));
-    this.#state.sync ||= { sourceId: null, sessionId: null, cursor: null };
-    // Group-bound keys and per-paper layers from older layouts are converted here and saved with the next layout change.
-    this.#state.layout = groupLayersFromPapers(this.#state.layout, this.#state.cards);
-    this.#state.layout.shortcuts = regionShortcuts(this.#state.layout.shortcuts, this.#state.layout.grid.slots);
     this.#layout = new LayoutStore(this.#state.layout, (layout, revision, validation) => this.#commit(draft => {
       requireValue(draft.layout.revision === revision, 'stale-layout', '版面已由另一個寫入者變更。');
       if (validation?.membership) requireValue(validation.membership === membershipKey(draft, draft.layout),
@@ -122,6 +121,7 @@ export class Workspace {
 
   #commit(change, persist = this.#persist, replaceGraph = false) {
     const operation = this.#tail.then(async () => {
+      requireValue(!this.#migrationPending, 'migration-required', '請先完成本機資料升級；原資料仍保留。');
       const draft = copy(this.#state);
       const result = change(draft);
       const additions = draft.revisions.slice(this.#state.revisions.length);

@@ -13,6 +13,12 @@ function tasks(text) {
   return found;
 }
 
+/** Done and total checklist steps, counted from parsed GFM tasks like toggleChecklist. */
+export function checklistProgress(text) {
+  const found = tasks(text);
+  return { done: found.filter(task => task.checked).length, total: found.length };
+}
+
 // Confirm a source-character edit against parsed GFM tasks, so code blocks and escaped lookalikes never toggle.
 export function toggleChecklist(text, taskIndex) {
   const original = tasks(text);

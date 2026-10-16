@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { activeGroups, copy, defaultGrid, FleetError, gridRegions, summaryText, validateGrid } from '../src/core/contracts.js';
 import { Workspace } from '../src/core/workspace.js';
 import { planFormation } from '../src/layout/formation.js';
-import { createLayout, LayoutStore, reachable } from '../src/layout/store.js';
+import { createLayout, LayoutStore, mainView, reachable } from '../src/layout/store.js';
 import { cardPolicy, InteractionController, resolveDropTarget, sceneOrder } from '../src/interaction/controller.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 };
@@ -285,6 +285,20 @@ test('C31/C32/C36: new placement only touches new cards; content and membership 
   await f.workspace.transferCard({ cardId: f.a1.id, groupId: f.b.id, expectedRevision: f.a1.revision });
   await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas);
   assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], before[f.a1.id]);
+});
+
+test('new papers are square and the main-window view is a per-device setting kept through a layout reset', async () => {
+  const f = await fixture();
+  for (const card of [f.a1, f.a2, f.b1]) {
+    const { width, height } = f.workspace.layout.state.placements[card.id];
+    assert.deepEqual({ width, height }, { width: 240, height: 240 });
+  }
+  assert.equal(f.workspace.layout.state.mainView, undefined); assert.equal(mainView(f.workspace.layout.state), 'board');
+  await rejectsCode(f.workspace.layout.configure({ mainView: 'grid' }, f.workspace.snapshot), 'invalid-setting');
+  await f.workspace.layout.configure({ mainView: 'list' }, f.workspace.snapshot);
+  assert.equal(mainView(f.workspace.layout.state), 'list'); assert.equal(f.disk().layout.mainView, 'list');
+  await f.workspace.layout.reset(f.workspace.snapshot, area);
+  assert.equal(mainView(f.workspace.layout.state), 'list', 'resetting the desktop layout keeps the main-window view');
 });
 
 test('layout reset re-places every paper by group and keeps content, groups and shortcuts', async () => {

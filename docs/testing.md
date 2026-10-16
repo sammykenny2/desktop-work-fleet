@@ -320,7 +320,8 @@ node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
 `npx playwright install chromium`。Playwright 與測試 browser 不放進產品產物。
 probe 驗證新增／重開、Markdown／checklist、附件 bytes 與惡意 HTML 隔離、固定紙面 inline 編輯、
-普通／Shift 拖放、undo、搜尋／filter 不搬卡、多步草稿操作、離頁慢寫提示、窄螢幕入口與單 writer。
+普通／Shift 拖放、undo、搜尋／filter 不搬卡、便箋／清單檢視（正方形、不重複標題、重開後保留選擇）、
+多步草稿操作、離頁慢寫提示、窄螢幕入口與單 writer。
 另用真實 IDB 驗證並行 CAS、非連續 revision 拒絕、附件及 profile 隔離。
 group probe 驗證群組預覽／取消／合併、封存資料／草稿完整性、區域交換不搬卡、
 自訂與重複快捷鍵、多綁定在合併及再次設定後仍保留。

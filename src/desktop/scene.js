@@ -82,7 +82,9 @@ function render(next) {
       updateFrozen();
       actions.replaceChildren(button('重試保存', saveDraft), button('完整編輯', () => editAction('editor.full')), button('保存', () => editAction('editor.save')));
     } else {
-      if (item.editorId || item.text !== card.text) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; }
+      if (item.editorId || item.text !== card.text || item.summary !== card.summary) {
+        renderMarkdown(body, card.text, { title: card.summary }); item.text = card.text; item.summary = card.summary; item.editorId = null;
+      }
       actions.replaceChildren();
       if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
     }

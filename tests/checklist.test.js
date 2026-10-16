@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { markdown, toggleChecklist } from '../src/app/checklist.js';
+import { checklistProgress, markdown, toggleChecklist } from '../src/app/checklist.js';
 
 test('task toggle changes one parsed checkbox, preserving code and escaped lookalikes', () => {
   const source = '```md\n- [ ] fake\n```\n\n- [ ] first\n  - [X] nested\n\n> - [ ] quoted\n\n\\[ ] literal';
@@ -19,4 +19,10 @@ test('raw HTML is text, so it cannot masquerade as generated GFM checkboxes', ()
   assert.ok(html.includes('&lt;input'));
   assert.ok(html.includes('&lt;script&gt;'));
   assert.equal((html.match(/<input/g) || []).length, 1);
+});
+
+test('checklist progress counts parsed tasks only', () => {
+  const source = '```md\n- [x] fake\n```\n\n- [x] first\n  - [ ] nested\n\n\\[x] literal\n\n- plain item';
+  assert.deepEqual(checklistProgress(source), { done: 1, total: 2 });
+  assert.deepEqual(checklistProgress('no steps'), { done: 0, total: 0 });
 });

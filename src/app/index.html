@@ -32,18 +32,25 @@
       <button id="drawer-toggle" class="icon-button" aria-label="開啟側欄" aria-controls="sidebar" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg><span id="attention-dot" hidden></span></button>
       <h1 id="workspace-title">我的便箋</h1>
       <div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋內容…" aria-label="搜尋便箋"></label>
-      <button id="search-toggle" class="icon-button" aria-label="搜尋"><svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><svg class="icon close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
-      <button id="view-toggle" data-arrange aria-pressed="false">清單檢視</button></div>
+      <button id="search-toggle" class="icon-button" aria-label="搜尋"><svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><svg class="icon close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     </header>
     <div class="toolbar" data-arrange aria-label="便箋操作">
       <div><button id="operate-group">調整此組</button><button id="operate-all">調整全部</button><button id="stop-operation" hidden>完成</button></div>
       <div><button id="cycle-prev" title="上一張">←</button><button id="cycle-next" title="下一張">→</button><span class="divider"></span><button id="stack">堆疊</button><button id="spread">攤開</button><button id="undo">復原</button></div>
     </div>
-    <div class="view-filters"><button data-filter="active" class="active">待處理</button><button data-filter="completed">已完成</button><button data-filter="archived">封存</button><button data-filter="deleted">刪除區</button><span id="count"></span></div>
+    <div class="view-bar">
+      <div class="view-filters"><button data-filter="active" class="active">待處理</button><button data-filter="completed">已完成</button><button data-filter="archived">封存</button><button data-filter="deleted">刪除區</button></div>
+      <span id="count"></span>
+      <div class="view-switch" role="group" aria-label="檢視方式">
+        <button type="button" data-view="board" aria-pressed="true" title="便箋"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span>便箋</span></button>
+        <button type="button" data-view="list" aria-pressed="false" title="清單"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="4" height="4" rx=".8"/><rect x="4" y="15" width="4" height="4" rx=".8"/><path d="M11 7h9M11 17h9"/></svg><span>清單</span></button>
+        <button type="button" data-view="desktop" data-arrange aria-pressed="false" title="桌面"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg><span id="desktop-view-label">桌面</span></button>
+      </div>
+    </div>
     <div id="desktop-hidden" hidden><div><strong>桌面便箋已隱藏</strong><p id="desktop-hidden-text"></p></div><button id="show-desktop" class="primary">顯示桌面便箋</button></div>
     <div id="stage-shell"><div id="stage" aria-label="便箋桌面"></div><div id="empty" hidden><div class="empty-paper">＋</div><h2>先記下一件事。</h2><p>一個想法、一個待辦，都可以從這裡開始。</p><button id="empty-add" class="primary">新增第一張便箋</button></div></div>
     <section id="layout-map" aria-label="版面地圖" hidden><h2>版面地圖尚未提供</h2><p>之後會在這裡縮小顯示所有螢幕、群組區域與便箋位置。</p><p>要移動便箋，請按「調整此組」或「調整全部」，直接在桌面上拖拉。</p></section>
-    <section id="list" aria-label="便箋清單" hidden></section>
+    <section id="list" aria-label="便箋" hidden></section>
     <footer><span id="mode-label" data-arrange>鎖定中</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
     <button id="compose" class="primary" aria-label="記下想法"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>

@@ -78,6 +78,22 @@ try {
   await expect(page.locator('#stage-shell')).not.toBeVisible();
   await page.locator('#search').fill('');
   assert.deepEqual(await paper.boundingBox(), moved, 'search must preserve desktop geometry');
+  // The board and the list show the same papers without repeating the title; the choice is kept on this device.
+  await page.locator('[data-view="board"]').click();
+  const tile = page.locator('.note-paper').filter({ hasText: '第一件事' });
+  await expect(tile.locator('.note-title')).toHaveText('第一件事');
+  await expect(tile.locator('.note-body')).toContainText('就地編輯保存'); await expect(tile.locator('.note-body h1')).toHaveCount(0);
+  await expect(tile.locator('.note-meta span')).toHaveText(['1/1 步驟', '1 個附件']);
+  assert.ok(await tile.evaluate(node => Math.abs(node.offsetWidth - node.offsetHeight) <= 1), 'board papers are square');
+  await page.locator('[data-view="list"]').click();
+  await expect(page.locator('.note-row .note-title')).toHaveText('第一件事');
+  await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
+  await page.locator('#search').fill('第一件事'); await expect(page.locator('.note-row .note-title')).toHaveText('第一件事');
+  await page.locator('[data-view="desktop"]').click(); await expect(page.locator('#search')).toHaveValue('');
+  await expect(page.locator('.card-body h1')).toHaveCount(0);
+  assert.deepEqual(await paper.boundingBox(), moved, 'board and list must not move desktop papers');
+  // The reload ended adjust mode; the drags below need it again.
+  await page.getByRole('button', { name: '調整全部', exact: true }).click(); await expect(paper).toHaveClass(/operable/);
   await page.getByRole('button', { name: '復原', exact: true }).click();
   await expect.poll(async () => (await paper.boundingBox())?.x).toBe(beforeDrag.x);
   await dragTo(true);
@@ -201,7 +217,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture, Markdown/checklist, attachment isolation, reload, inline edit, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture, Markdown/checklist, attachment isolation, reload, inline edit, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

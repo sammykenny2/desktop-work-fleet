@@ -2,6 +2,31 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 正方形便箋與主畫面便箋牆
+
+使用者指出預設便箋長寬比與 Post-it 差太多，主畫面的橫條清單難以對應桌面上的便箋。
+看過方案後選定：新便箋 240×240、主畫面預設「便箋」、手機也提供切換、記住上次選擇。不升版、不發布。
+
+- 紙張：
+  - `placeNew` 預設 280×220 改為 240×240；已有位置的紙張不變，重置桌面佈局後套用。SPEC-003 紙張模型記錄此核准。
+  - 標題帶加深一階，作為背膠條與拖曳把手（桌面場景與預覽畫布相同）。
+  - 內文開頭若只重複標題（標題行或同文字段落）就不再顯示；checklist 項目只顯示勾選框、不加圓點。
+- 主畫面：
+  - 篩選列右側的分段切換：便箋／清單，桌面主機再加版面地圖，瀏覽器預覽再加桌面畫布。
+  - 便箋：依視窗寬度排列的正方形紙張網格（窄螢幕兩欄），群組色、Markdown 內文、checklist 進度與附件數；
+    點紙張或按 Enter 開啟編輯，標為完成／更多操作在滑鼠移上、鍵盤聚焦或觸控裝置上顯示。
+  - 清單：每列一張，左側同色小紙片、標題、一行純文字摘要、進度，取代原本的白色橫條與原始 Markdown。
+  - 便箋／清單的選擇存在這台裝置版面的選填 `mainView`；設定、備份驗證與契約型別同步更新，舊資料視為便箋。
+    版面地圖與預覽畫布只在本次開啟有效，選擇時回到「待處理」。ADR-018 補 2026-10-17 修訂。
+- Author-run：
+  - JavaScript 310 項：295 pass／15 skip／0 fail，新增正方形預設、`mainView` 設定／重置保留、備份拒絕無效值、checklist 進度。
+  - Windows 上 Python discover 的 4 個 Linux 測試失敗（google／surface／xwayland／labwc），未改動的 HEAD 同樣失敗；其餘通過。
+  - Edge 預覽 browser／group／revision／sync／backup／restore-ui／cloud-restore-ui／local-backup-ui／automatic-backup probe 全部通過；
+    browser probe 新增便箋／清單、正方形、不重複標題、重開保留選擇且不搬動桌面紙張。
+  - Windows UI probe 改用 `.note-title` 等待原生主畫面的便箋。這台 Windows 只有 .NET 8 SDK，
+    App 以 .NET 10 為目標，`Test-WindowsNative.ps1` 在建置步驟停止（NETSDK1045），原生 probe 與 MSIX 未執行。
+- 沒有獨立審閱；Windows／macOS／Linux 桌面場景與手機的實際外觀未在該平台檢查。
+
 ## 2026-10-17 手機 Google OAuth 接通準備與帳號流程修正
 
 使用者建立 iOS／Android／Web clients 並提供公開 IDs，要求先 pull 再開始修改。

@@ -159,6 +159,7 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'local.json', value => { value.cards[0].revision = 'absent'; }),
     files => edit(files, 'local.json', value => { value.groups.pop(); }),
     files => edit(files, 'layout.json', value => { value.grid.slots = ['missing-group']; }),
+    files => edit(files, 'layout.json', value => { value.mainView = 'grid'; }),
     files => edit(files, 'layout.json', value => { value.placements['unknown-card'] = Object.values(value.placements)[0]; }),
     files => edit(files, 'local.json', value => { Object.values(value.membershipRebases)[0].revision = value.groups[0].revision; }),
     files => edit(files, 'drafts/00000000.json', value => { value.baseRevision = parseJson(files.get('local.json')).groups[0].revision; }),

@@ -69,6 +69,8 @@ export interface DeviceLayout {
   shortcuts: Record<string, Id>;
   /** Missing groups are on the desktop layer. */
   groupLayers: Record<Id, ResidentLayer>;
+  /** The main window's view of a group's papers on this device; missing shows the board. */
+  mainView?: 'board' | 'list';
 }
 export interface FormationPlan {
   kind: 'formation';

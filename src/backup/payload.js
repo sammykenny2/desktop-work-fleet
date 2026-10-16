@@ -59,6 +59,7 @@ function validateLayout(layout, snapshot, graph) {
   for (const [id, rect] of Object.entries(layout.placements)) fail(cards.has(id) && geometry(rect)
     && typeof rect.visible === 'boolean' && (rect.readOnlySelect === undefined || typeof rect.readOnlySelect === 'boolean')
     && (rect.residentLayer === undefined || layers.includes(rect.residentLayer)));
+  fail(layout.mainView === undefined || ['board', 'list'].includes(layout.mainView));
   // Older backups kept the layer on each paper instead of in groupLayers.
   fail(layout.groupLayers === undefined || object(layout.groupLayers)
     && Object.entries(layout.groupLayers).every(([id, layer]) => groups.has(id) && layers.includes(layer)));

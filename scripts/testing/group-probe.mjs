@@ -84,8 +84,8 @@ try {
   await page.locator('#stop-operation').click();
 
   // Archived and deleted records still appear in merge previews and keep their states.
-  await page.locator('#view-toggle').click();
-  const row = page.locator('.list-card').filter({ hasText: '研究便箋' });
+  await page.locator('[data-view="list"]').click();
+  const row = page.locator('.note-row').filter({ hasText: '研究便箋' });
   await row.getByRole('button', { name: '更多操作', exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: '封存', exact: true }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);

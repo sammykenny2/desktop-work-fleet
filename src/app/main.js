@@ -3,10 +3,11 @@ import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
+import { mainView } from '../layout/store.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
-import { toggleChecklist } from './checklist.js';
+import { checklistProgress, toggleChecklist } from './checklist.js';
 import { showRevisionDialog } from './conflicts.js';
 import { backupPanel } from './backup.js';
 import { AutomaticBackup } from '../backup/automatic.js';
@@ -30,7 +31,8 @@ const $ = selector => document.querySelector(selector);
 // Group paper, shared with the desktop scenes. Neighbouring entries differ in hue so the first groups stay distinct.
 const colors = ['#ffe98a', '#bfe6cf', '#bcd8f5', '#f9c8b6', '#d9ccf2', '#b5e0dc', '#f5c6da', '#f2ddb0', '#cdd5e3'];
 let workspace; let storage; let controller; let lease;
-let activeGroupId; let filter = 'active'; let listView = matchMedia('(max-width:640px)').matches;
+// The browser preview opens on its desktop canvas when there is room; desktop hosts and phones open on the papers.
+let activeGroupId; let filter = 'active'; let showDesktop = !matchMedia('(max-width:640px)').matches;
 let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resolve(); let editorBusy = false;
 let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
@@ -97,11 +99,11 @@ async function initialize() {
       nativeFiles = new NativeFiles(native.bridge, native.info);
       const stopDownloads = nativeFiles.interceptDownloads(status); addEventListener('pagehide', stopDownloads, { once: true });
     }
-    // Real desktop scenes show the papers, so the main window opens on the list instead of a second canvas.
-    if (native.info.capabilities.desktopPresentation) { desktopInfo = await native.bridge.request('desktop.info'); listView = true; }
+    // Real desktop scenes show the papers, so the main window opens on the board or list instead of a second canvas.
+    if (native.info.capabilities.desktopPresentation) { desktopInfo = await native.bridge.request('desktop.info'); showDesktop = false; }
     // Phones and tablets show no desktop papers, so nothing there arranges them: no canvas, layout tools or settings.
     handheld = ['ios', 'android'].includes(native.info.platform);
-    if (handheld) { listView = true; document.querySelectorAll('[data-arrange]').forEach(node => { node.hidden = true; }); }
+    if (handheld) { showDesktop = false; document.querySelectorAll('[data-arrange]').forEach(node => { node.hidden = true; }); }
     if (native.info.platform === 'macos') $('#settings-button').title = '設定（⌘,）';
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
@@ -725,7 +727,10 @@ function render() {
       element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
     row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
-  $('#workspace-title').textContent = listView ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : desktopInfo ? '版面地圖' : '我的便箋桌面';
+  const query = $('#search').value.trim().toLocaleLowerCase();
+  // Filters and search look through papers the desktop does not show, so they always use the board or the list.
+  const notesShown = !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
+  $('#workspace-title').textContent = notesShown ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : desktopInfo ? '版面地圖' : '我的便箋桌面';
   renderCounts();
   const scope = controller.state.operationScope;
   $('#operate-all').classList.toggle('operating', scope.kind === 'all');
@@ -733,19 +738,17 @@ function render() {
   $('#stop-operation').hidden = scope.kind === 'none';
   $('#mode-label').textContent = scope.kind === 'none' ? '鎖定中' : scope.kind === 'all' ? '正在調整所有群組'
     : `正在調整 ${groups.find(group => group.id === scope.groupId)?.name || '群組'}`;
-  $('#view-toggle').textContent = listView ? desktopInfo ? '版面地圖' : '桌面檢視' : '清單檢視';
-  $('#view-toggle').setAttribute('aria-pressed', String(listView));
-  const asList = listView || filter !== 'active' || Boolean($('#search').value);
-  // With real desktop scenes the main window never mirrors them; its non-list view is the layout map.
-  $('#stage-shell').hidden = asList || Boolean(desktopInfo); $('#layout-map').hidden = asList || !desktopInfo; $('#list').hidden = !asList;
+  $('#desktop-view-label').textContent = desktopInfo ? '版面地圖' : '桌面'; $('[data-view="desktop"]').title = desktopInfo ? '版面地圖' : '桌面';
+  document.querySelectorAll('[data-view]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.view === view)));
+  // With real desktop scenes the main window never mirrors them; its desktop view is the layout map.
+  $('#stage-shell').hidden = notesShown || Boolean(desktopInfo); $('#layout-map').hidden = notesShown || !desktopInfo; $('#list').hidden = !notesShown;
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
-  const query = $('#search').value.trim().toLocaleLowerCase();
   const cards = snapshot.cards.filter(matchesFilter).filter(card => !query || card.content.text.toLocaleLowerCase().includes(query));
   const listCards = cards.filter(card => query || card.groupId === activeGroupId);
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
-  $('#count').textContent = asList ? `${listCards.length} 張便箋` : `${shown} 張桌面便箋`;
-  if (asList) renderList(listCards);
+  $('#count').textContent = notesShown ? `${listCards.length} 張便箋` : `${shown} 張桌面便箋`;
+  if (notesShown) renderNotes(listCards, view, Boolean(query));
   else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
@@ -827,7 +830,7 @@ function renderStage(cards) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
       };
       body.append(input);
-    } else renderMarkdown(body, card.content.text);
+    } else renderMarkdown(body, card.content.text, { title: summaryText(card) });
     paper.append(body);
     if (policy.draggable) {
       paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card));
@@ -845,19 +848,53 @@ function renderLayoutMap() {}
 
 function rectStyle(node, rect) { Object.assign(node.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` }); }
 
-function renderList(cards) {
-  const list = $('#list'); list.replaceChildren();
+const svgNs = 'http://www.w3.org/2000/svg';
+function icon(...paths) {
+  const svg = document.createElementNS(svgNs, 'svg'); svg.setAttribute('class', 'icon'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+  for (const d of paths) { const path = document.createElementNS(svgNs, 'path'); path.setAttribute('d', d); svg.append(path); }
+  return svg;
+}
+function iconButton(label, paths, action) { const node = button('', action, 'note-action'); node.setAttribute('aria-label', label); node.title = label; node.append(icon(...paths)); return node; }
+
+// The board shows each paper as the square it is on the desktop; the list keeps one row per paper. Both open the editor.
+function renderNotes(cards, view, acrossGroups) {
+  const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? '便箋清單' : '便箋牆');
+  if (!cards.length) { list.append(element('p', '這裡還沒有便箋。', 'hint')); return; }
+  const groups = activeGroups(workspace.snapshot); const { myGroupId } = workspace.layout.state;
+  const holder = element('div', undefined, view === 'list' ? 'note-list' : 'board');
   for (const card of cards) {
-    const row = element('article', undefined, 'list-card'); row.style.setProperty('--paper', groupColor(card.groupId));
-    const content = element('div', undefined, 'list-content');
-    content.append(element('h3', summaryText(card)), element('div', card.content.text, 'excerpt'));
-    content.append(element('div', `${activeGroups(workspace.snapshot).find(group => group.id === card.groupId)?.name || '群組待同步'}${card.content.attachments?.length ? ` · ${card.content.attachments.length} 個附件` : ''}`, 'list-meta'));
-    const actions = element('div', undefined, 'list-actions');
+    const title = summaryText(card);
+    const note = element('article', undefined, view === 'list' ? 'note-row' : 'note-paper'); note.dataset.cardId = card.id;
+    note.style.setProperty('--paper', groupColor(card.groupId));
+    note.classList.toggle('completed', card.completed); note.classList.toggle('mine', myGroupId === card.groupId);
+    const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { title });
+    const meta = element('div', undefined, 'note-meta');
+    const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
+    if (total) meta.append(element('span', `${done}/${total} 步驟`));
+    if (files) meta.append(element('span', `${files} 個附件`));
+    if (acrossGroups) meta.append(element('span', groups.find(group => group.id === card.groupId)?.name || '群組待同步'));
+    const actions = element('div', undefined, 'note-actions');
     if (card.deleted) actions.append(button('還原便箋', async () => { await workspace.restoreCard(card.id, card.revision); render(); status('已還原'); }));
-    else actions.append(button('編輯', () => openEditor(card)), button(card.completed ? '回待處理' : '標為完成', () => changeCard(card.id, { completed: !card.completed })), button('更多操作', () => cardDetails(card)));
-    row.append(content, actions); list.append(row);
+    else {
+      actions.append(iconButton(card.completed ? '回待處理' : '標為完成', card.completed ? ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'] : ['m5 12.5 4.5 4.5L19 7'],
+        () => changeCard(card.id, { completed: !card.completed })),
+      iconButton('更多操作', ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card)));
+      note.tabIndex = 0; note.setAttribute('aria-label', title);
+      note.onclick = event => { if (!event.target.closest('a,button,input')) run(() => openEditor(card)); };
+      note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); run(() => openEditor(card)); } };
+    }
+    const heading = element('h3', title, 'note-title');
+    if (view === 'list') {
+      const text = element('div', undefined, 'note-text');
+      text.append(heading, element('div', body.textContent.replace(/\s+/g, ' ').trim(), 'note-excerpt'));
+      note.append(element('span', undefined, 'note-swatch'), text, meta, actions);
+    } else {
+      const foot = element('div', undefined, 'note-foot'); foot.append(meta, actions);
+      note.append(heading, body, foot);
+    }
+    holder.append(note);
   }
-  if (!cards.length) list.append(element('p', '這裡還沒有便箋。', 'hint'));
+  list.append(holder);
 }
 
 async function changeCard(id, patch) {
@@ -1420,7 +1457,14 @@ function bindEvents() {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status('已顯示桌面便箋');
   });
   $('#add-group').onclick = () => groupEditor();
-  $('#search').oninput = render; $('#view-toggle').onclick = () => { listView = !listView; render(); };
+  $('#search').oninput = render;
+  // Board and list are this device's saved choice; the desktop canvas or layout map is only for this session and shows 待處理.
+  document.querySelectorAll('[data-view]').forEach(node => { node.onclick = () => run(async () => {
+    const view = node.dataset.view; showDesktop = view === 'desktop';
+    if (showDesktop) { filter = 'active'; if ($('#search').value) setSearching(false); }
+    else if (view !== mainView(workspace.layout.state)) await workspace.layout.configure({ mainView: view }, workspace.snapshot);
+    render();
+  }); });
   document.querySelectorAll('[data-filter]').forEach(node => { node.onclick = () => { filter = node.dataset.filter; render(); }; });
   $('#operate-group').onclick = () => run(async () => { await controller.activate({ kind: 'group', groupId: activeGroupId }); render(); });
   $('#operate-all').onclick = () => run(async () => { await controller.activate({ kind: 'all' }); render(); });

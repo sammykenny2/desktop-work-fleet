@@ -4,6 +4,10 @@ import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { groupLayerOrder } from './stages.js';
 import { schemas } from '../core/schema.js';
 
+/** How the main window shows a group's papers on this device; a layout without a choice shows the board. */
+export const mainViews = Object.freeze(['board', 'list']);
+export const mainView = layout => layout.mainView === 'list' ? 'list' : 'board';
+
 const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -93,13 +97,14 @@ export class LayoutStore {
 
   async configure(patch, snapshot) {
     patch = copy(patch); snapshot = copy(snapshot);
-    const allowed = ['grid', 'desktopVisible', 'myGroupId', 'shortcuts'];
+    const allowed = ['grid', 'desktopVisible', 'myGroupId', 'shortcuts', 'mainView'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', '未知的版面設定。');
     if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
     requireValue(!('desktopVisible' in patch) || typeof patch.desktopVisible === 'boolean', 'invalid-setting', '顯示設定必須是布林值。');
     requireValue(!('myGroupId' in patch) || patch.myGroupId === null || activeGroups(snapshot).some(group => group.id === patch.myGroupId),
       'invalid-group-setting', '屬於我的群組已不存在。');
     if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, activeGroups(snapshot));
+    requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', '未知的主畫面檢視。');
     return this.#transaction(draft => { Object.assign(draft, copy(patch)); return { groups: groupKey(snapshot) }; });
   }
 
@@ -120,7 +125,8 @@ export class LayoutStore {
     return this.#transaction(draft => { draft.groupLayers = { ...draft.groupLayers, [groupId]: layer }; });
   }
 
-  async placeNew(snapshot, workAreas, paperSize = { width: 280, height: 220 }, checkpoint = null) {
+  // New papers are square, like the familiar 3 × 3 in sticky note; papers already placed keep their size.
+  async placeNew(snapshot, workAreas, paperSize = { width: 240, height: 240 }, checkpoint = null) {
     snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
     requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', '卡片尺寸必須大於零。');
     return this.#transaction(async draft => {

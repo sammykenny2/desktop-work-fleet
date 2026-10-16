@@ -1,7 +1,10 @@
 import DOMPurify from 'dompurify';
 import { markdown } from './checklist.js';
 
-export function renderMarkdown(element, text, { onToggle } = {}) {
+const plain = text => text.replace(/\s+/g, ' ').trim();
+
+// A paper already shows its title in the top band; `title` drops an opening heading or paragraph that only repeats it.
+export function renderMarkdown(element, text, { onToggle, title } = {}) {
   const clean = DOMPurify.sanitize(markdown.parse(text), {
     RETURN_DOM_FRAGMENT: true,
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li',
@@ -9,6 +12,8 @@ export function renderMarkdown(element, text, { onToggle } = {}) {
     ALLOWED_ATTR: ['href', 'title', 'type', 'checked', 'disabled', 'start', 'align'],
     ALLOW_DATA_ATTR: false,
   });
+  const first = clean.firstElementChild;
+  if (title && /^(H[1-6]|P)$/.test(first?.tagName) && plain(first.textContent) === plain(title)) first.remove();
   for (const link of clean.querySelectorAll('a')) {
     const href = link.getAttribute('href') || '';
     if (!/^(https?:|mailto:)/i.test(href)) link.removeAttribute('href');

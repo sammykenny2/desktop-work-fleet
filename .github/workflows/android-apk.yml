@@ -1,0 +1,80 @@
+name: Android device APK
+
+# Manual build only. Reuses the test signer and saves artifacts; creates no tag or release.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
+      WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+      WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID }}
+      WORK_FLEET_GOOGLE_WEB_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WEB_CLIENT_ID }}
+      WORK_FLEET_ANDROID_DEBUG_SHA1: ${{ vars.WORK_FLEET_ANDROID_DEBUG_SHA1 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install Android SDK components
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
+      - run: npm ci --ignore-scripts
+      - run: npm run config:check -- --google --platform android
+      - name: Restore the fixed test keystore
+        env:
+          DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          [ -n "$DEBUG_KEYSTORE" ] || { echo 'Secret ANDROID_DEBUG_KEYSTORE_BASE64 is not set.'; exit 1; }
+          [[ "$WORK_FLEET_ANDROID_DEBUG_SHA1" =~ ^([[:xdigit:]]{2}:){19}[[:xdigit:]]{2}$ ]] || { echo 'Variable WORK_FLEET_ANDROID_DEBUG_SHA1 must be a SHA-1 fingerprint.'; exit 1; }
+          umask 077
+          printf '%s' "$DEBUG_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/android-debug.keystore"
+          echo "WORK_FLEET_ANDROID_DEBUG_KEYSTORE=$RUNNER_TEMP/android-debug.keystore" >> "$GITHUB_ENV"
+          echo "GRADLE_USER_HOME=$RUNNER_TEMP/work-fleet-gradle" >> "$GITHUB_ENV"
+      - name: Run Android regressions
+        run: bash src/native/android/gradlew -p src/native/android --no-daemon --console plain testDebugUnitTest
+      - name: Build the APK at the recorded version
+        run: bash scripts/linux/build-android-app.sh
+      - name: Verify the APK signer and record the build
+        id: package
+        run: |
+          version=$(node scripts/platform-version.mjs --platform android)
+          apk="build/WorkFleet-$version-android-debug.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-signature.txt"
+          actual=$(sed -n 's/^Signer #1 certificate SHA-1 digest: //p' "$RUNNER_TEMP/apk-signature.txt" | tr '[:upper:]' '[:lower:]')
+          expected=$(printf '%s' "$WORK_FLEET_ANDROID_DEBUG_SHA1" | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          [ "$actual" = "$expected" ] || { echo 'APK signer differs from the registered test key; refusing to save it.'; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          printf 'Android %s\nCommit: %s\nRun: %s/%s/actions/runs/%s\nSigner SHA-1: %s\nInstall with adb install -r; Google OAuth must include this package and signer.\n' \
+            "$version" "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_ANDROID_DEBUG_SHA1" > build/android-build.txt
+          cat build/android-build.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Save APK and checksum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: work-fleet-android-${{ steps.package.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk.sha256
+            build/android-build.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Remove the temporary keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/android-debug.keystore"

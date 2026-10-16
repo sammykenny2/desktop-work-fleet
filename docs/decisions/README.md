@@ -4,6 +4,7 @@
 
 | 記錄 | 狀態 | 範圍 |
 |---|---|---|
+| [ADR-055](055-mobile-device-build-workflows.md) | Accepted（手機測試包） | 手動 APK／註冊裝置開發簽章 IPA、固定測試簽章、十四天 artifacts；不升版／發布 |
 | [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted（便箋格式與附件） | 六階標題、程式碼上色、原生附件縮圖與開啟副本；V1 與 checklist 不變 |
 | [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted（測試階段 V1 政策） | 現行 JSON schema 維持 V1；升版、migration 與副本延至規劃上架時再評估 |
 | [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | 名稱、獨立開發、backlog 重心與 bootstrap 範圍 |

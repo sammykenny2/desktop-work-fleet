@@ -40,6 +40,7 @@
 | [ADR-026](decisions/026-native-file-export-and-sharing.md) | Accepted：原生檔案匯出、手機文字與附件分享 |
 | [ADR-027](decisions/027-native-share-inbox-and-extension.md) | Accepted：加密分享收件匣、群組選擇與 iOS Extension |
 | [ADR-028](decisions/028-native-package-and-signing-entry-points.md) | Accepted：Windows MSIX／ZIP、Apple export／PKG／DMG、Android upload signing |
+| [ADR-055](decisions/055-mobile-device-build-workflows.md) | Accepted：手動 APK／指定裝置 IPA、固定簽章與 Actions artifacts；不升版／發布 |
 | [ADR-029](decisions/029-portable-apple-xcode-project.md) | Accepted：可直接開啟的已提交 Xcode 專案、相對路徑與自動資產準備 |
 | [ADR-030](decisions/030-windows-explorer-wallpaper-layer.md) | Accepted：Explorer 圖示／桌布宿主、三層場景與穿透 |
 | [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md) | Accepted：Mac／Linux 第三層、穿透／重畫及參考實測接續 |

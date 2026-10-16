@@ -178,6 +178,39 @@ Developer ID。export destination 固定為本機，沒有自動上傳商店。m
 Developer ID 散布可指定 installer identity 與已存在的 Keychain notary profile，公證後 staple App／PKG。
 可選 DMG 使用 application identity 簽署；公證 DMG 必須提供該 identity。憑證、profiles 與帳號由維護者配置。
 
+### 手機實機測試包
+
+在 GitHub Actions 選 **Android device APK**（`android-apk.yml`）或 **iOS registered-device IPA**（`ios-ipa.yml`），
+選 main 並按 Run workflow。兩者只有手動觸發，需使用者授權執行；不修改版號、不建立 tag／GitHub Release，
+不送 TestFlight／Google Play。成功後從該 run 的 Artifacts 下載安裝檔、SHA-256 與來源 commit 記錄，保存十四天。
+Artifact 名稱帶版號、run ID 與 attempt；同版號不同 commit 的包不會混淆。
+
+兩者共用 repository variables：`WORK_FLEET_APP_ID`、`WORK_FLEET_GOOGLE_PROJECT_ID`。
+Android 另需 `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`、`WORK_FLEET_GOOGLE_WEB_CLIENT_ID`、
+`WORK_FLEET_ANDROID_DEBUG_SHA1`（以冒號分隔的簽章 SHA-1）。
+iOS 另需 `WORK_FLEET_APPLE_TEAM_ID`、`WORK_FLEET_GOOGLE_IOS_CLIENT_ID`，可選
+`WORK_FLEET_APP_GROUP_ID`（預設 `group.<APP_ID>`）。沿用既有 Google Cloud 專案，不需要 Web client secret。
+
+| Repository Secret | 用途 |
+|---|---|
+| `ANDROID_DEBUG_KEYSTORE_BASE64` | 固定測試 debug keystore 的 base64；alias `androiddebugkey`、key/store password 均為 Android 標準測試值 `android` |
+| `IOS_DEVELOPMENT_P12_BASE64` | 本專案 Apple Development identity 的加密 PKCS12（含私鑰）base64 |
+| `IOS_DEVELOPMENT_P12_PASSWORD` | 該 PKCS12 的密碼 |
+| `IOS_APP_PROFILE_BASE64` | 主 App development `.mobileprovision` 的 base64 |
+| `IOS_SHARE_PROFILE_BASE64` | `<APP_ID>.share` development `.mobileprovision` 的 base64 |
+
+先取得維護者對將簽章資料上傳至這個 repository 的 Secrets 的明確授權；不要提交私鑰或把值放進公共 Variables。
+Android 固定 key 要與已安裝版本相同，也要符合 OAuth 登記的 SHA-1；CI 在打包後檢查，不符即失敗。
+這是 debug 測試包，正式 Play App Signing／upload key 另行準備。
+
+iOS 會拒絕過期、錯 Team／bundle ID／App Group／Keychain／憑證，以及裝置集合不同的 profiles。
+主 App／Extension 分別嵌入自己的 profile；先編譯 unsigned Debug，再用指定開發 identity 簽 nested code 與兩個 bundle，
+不依賴 runner 登入 Xcode，也相容既有 Xcode-managed profiles。`codesign --verify --deep --strict` 通過後才保存 IPA。
+僅 profiles 註冊的裝置可安裝，需開啟 Developer Mode，透過 Mac 的 Xcode／Apple Configurator 安裝；
+GitHub 下載連結不提供手機直接安裝或自動更新。新增 iPhone／iPad 後更新兩份 profile Secrets，再重新建置。
+
+原有 `.github/workflows/apple-native-build.yml` 保留為未簽章編譯檢查；兩個手機實機流程的決策見 [ADR-055](decisions/055-mobile-device-build-workflows.md)。
+
 Apple 可在手動 `.github/workflows/apple-native-build.yml` 使用 hosted Mac 編譯原生 unsigned
 Debug ZIP／iOS device IPA，包含 iOS Extension；公開 repo 的 hosted runner 不計費，仍需使用者授權才 dispatch。
 workflow 上限每 target 20 分鐘，產物保存七天。未簽章 IPA 仍需有效 signing／provisioning 才能安裝。

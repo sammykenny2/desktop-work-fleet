@@ -73,6 +73,12 @@ Google 需同一專案的 Android client（package＋簽章 SHA-1）及 Web clie
 設 `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`／`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` 後重新建置。
 不需要 Web client secret，也不建立自家登入 server。
 
+GitHub 的 **Android device APK** workflow 手動從 main 建置，使用固定測試 keystore，並檢查
+`WORK_FLEET_ANDROID_DEBUG_SHA1`；不升版或發布 Release，artifact 保存十四天。
+Secret 設定見 [手機實機測試包](../../../docs/deployment.md#手機實機測試包)。
+`WORK_FLEET_ANDROID_DEBUG_KEYSTORE` 可在本機／CI 指向既有 debug keystore 的絕對路徑，
+alias／密碼沿用 Android 標準 debug 值；未設定時保留 Android Studio 的預設行為。
+
 系統生命週期不保證關閉回呼，因此本文輸入即保存草稿。返回鍵先要求 renderer 保存再關閉。
 Android 強制終止或背景回收只靠最後已提交的 SQLite 交易恢復。
 自動備份依共用 journal 在 App 執行時排程，沒有宣稱任意背景時段一定執行。

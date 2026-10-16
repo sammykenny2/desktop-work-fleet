@@ -45,6 +45,21 @@ git diff --check
 Linux Docker 的桌面層與主機檢查（`test-desktop-layers.sh`、`test-host-shell.sh`），以及 Windows Debug 建置、core probe 與未簽章包檢查。
 不使用 secrets；WebView2 UI probe（`Test-WindowsNative.ps1`）、簽章、Apple 建置與實機驗收仍在本機或手動 workflow。
 
+手機手動 workflows：`android-apk.yml`、`ios-ipa.yml`，設定見 [手機實機測試包](deployment.md#手機實機測試包)。
+兩者應只有 workflow_dispatch、contents: read、明確 artifact 路徑與 always 清除暫時簽章資料，不建立 tag／Release。
+有 actionlint 時執行 `actionlint .github/workflows/android-apk.yml .github/workflows/ios-ipa.yml`。
+本機檢查與建置不等於 hosted workflow 已執行；簽章 Secrets 與 dispatch 需各自有授權。
+
+- `python3 -B -m unittest discover -s tests -p 'test_ios_*.py' -v`：iOS profile 的效期、Team、憑證、App ID／App Group／Keychain、相同裝置集合，
+  以及簽章前 bundle／Extension 身份、版本與 executable 範圍。只使用合成資料，不讀真私鑰。
+- iOS 真簽章：先 `bash scripts/macos/build-native-app.sh --platform ios --unsigned`，再依
+  `python3 scripts/sign_ios_app.py --help` 提供兩份 profiles、公開 DER 憑證與 App 設定。
+  工具簽 nested code／Share Extension／主 App 並驗證；最後 `bash scripts/macos/package-preview-app.sh --platform ios`。
+  真機安裝／啟動／Google 登入各自驗收，不以 codesign 檢查代替。
+- Android 真簽章：設定 `WORK_FLEET_ANDROID_DEBUG_KEYSTORE` 為原有 debug keystore 的絕對路徑，
+  執行 `testDebugUnitTest assembleDebug`，用 SDK 的 `apksigner verify --verbose --print-certs` 檢查 APK。
+  SHA-1 必須與已安裝版及 OAuth 登記值相同；正式 release key 不使用此 debug 設定。
+
 `python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v` 在有 bash 與 dpkg-deb 的環境
 實際封裝隔離 fixture，驗證一般／release DEB 的版號與檔名都取自 bundle `package.json`，缺版號時拒絕，
 release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件或啟動 GUI。

@@ -48,6 +48,15 @@ android {
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/notices").get().asFile)
+    // CI restores the existing debug key so device updates and Google OAuth keep the same signer.
+    providers.environmentVariable("WORK_FLEET_ANDROID_DEBUG_KEYSTORE").orNull?.let { keyPath ->
+        signingConfigs.getByName("debug") {
+            storeFile = File(keyPath).also { require(it.isAbsolute && it.isFile) { "Debug keystore must be an existing absolute file." } }
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     if (hasSigning) {
         signingConfigs.create("release") {
             storeFile = File(signingValues[0]).also {

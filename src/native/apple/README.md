@@ -60,6 +60,12 @@ macOS target 啟用 hardened runtime。命令與平台限制見 [散布文件](.
 `scripts/macos/package-preview-app.sh --platform macos|ios` 保存 ZIP／IPA，macOS 加 `--dmg` 改存 DMG；
 檔名依 App 的版號與實際簽章帶 `-unsigned` 或 `-development`，各平台檔名見 [散布文件](../../../docs/deployment.md#版號與發佈檔名)。
 這是 native compiled preview；protected storage／Google 或 iOS 安裝仍需合適的簽章／profile。
+
+要從 GitHub 取得已簽章、可裝到註冊 iPhone／iPad 的 IPA，使用 **iOS registered-device IPA** workflow
+（`.github/workflows/ios-ipa.yml`）。它先編譯 unsigned Debug，再用 CI 暫時 keychain 的 Apple Development identity
+簽主 App／Share Extension 與 nested code，支援既有 Xcode-managed profiles，不需 CI 登入 Apple 帳號。
+兩份 profiles 必須允許同一批裝置，新增裝置後更新兩份 Secrets。設定與安裝見
+[手機實機測試包](../../../docs/deployment.md#手機實機測試包)。此流程只保存十四天 artifacts，不升版／發布／上 TestFlight。
 `--unsigned` 不允許 Release，也不跳過正式 archive 的配置要求。
 `.github/workflows/apple-native-build.yml` 提供手動 hosted Mac 建置與七天 artifact 保存，
 每 target 上限 20 分鐘，沒有測試／store upload；private repo 的 runner 計費需維護者先同意。

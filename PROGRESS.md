@@ -2,6 +2,24 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 GitHub 手機實機建置流程
+
+使用者要求建立 APK／指定裝置 IPA workflows，沿用現有版號，不發布 preview。
+
+- 新增 `android-apk.yml`、`ios-ipa.yml`：僅手動 main、contents: read，不建立 tag／Release，不送商店。
+  產物、SHA-256 與來源 commit 保存十四天；artifact 名稱帶版號／run ID／attempt。
+- Android 增加既有 debug keystore 路徑設定；CI 固定測試 signer 並核對公開 SHA-1，避免覆蓋更新及 OAuth 不符。
+  `WORK_FLEET_ANDROID_DEBUG_SHA1` repository variable 已設為本機既有測試簽章指紋。
+- iOS 檢查主 App／Extension profiles 的效期、Team／App ID／App Group／Keychain、憑證與相同裝置集合。
+  unsigned Debug 編譯後依序簽 nested code、Extension、App，再驗證與封裝；相容現有 Xcode-managed profiles，CI 不需登入 Apple 帳號。
+  現有兩份 profiles 檢查通過，允許兩台已登記裝置。決策與設定見 [ADR-055](docs/decisions/055-mobile-device-build-workflows.md)、deployment／setup／testing。
+- Author-run：完整 JavaScript 354 項，344 pass／10 skip／0 fail；完整 Python 198 項，147 pass／51 skip／0 fail（含新增 iOS 回歸 10 項）。
+  Android 原生測試 8 項與 APK build 通過，signer 符合既有測試／OAuth SHA-1；iOS unsigned build、實際開發簽章、codesign 驗證及 IPA 封裝通過。
+  actionlint 1.7.12、workflow 觸發／權限／無發布命令與 shell 語法、文件及 diff 檢查通過。
+- Android 仍為 0.2.7（207），Apple 仍為 0.3.0（300）。未 dispatch 手機 workflows、未建立 preview／tag，未安裝或改寫手機資料。
+  簽章 Secrets 尚未上傳，待維護者明確授權將指定 iOS identity／profiles 與 Android 測試 keystore 存入此 repository 的 Secrets；尚不能宣稱 hosted build 通過。
+  本輪沒有獨立審閱。
+
 ## 2026-10-17 便箋內文、選填標題與附件列
 
 使用者指出改版後只有一行的便箋內文整片空白、下半部沒用到。要求：加選填標題並可搜尋；內文在紙張內盡量顯示，放不下以「…」收尾；

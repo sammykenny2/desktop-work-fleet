@@ -292,7 +292,13 @@ tar.gz 與 DEB 同在 `build/`，source/runtime 副本在 `build/linux/`；DEB s
 DEB 適用提供上述系統依賴的發行版。
 版號記在 `src/native/linux/VERSION`；一般與 release 建置都使用此版號，早期版本不另加 `~preview`。
 
-Apple 手動建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
+手機可安裝的 GitHub 建置流程為 **Android device APK**（`.github/workflows/android-apk.yml`）與
+**iOS registered-device IPA**（`.github/workflows/ios-ipa.yml`）。配置公開 Variables 與獲明確授權的簽章 Secrets 後，
+在 Actions 選 main 手動執行，從 Artifacts 下載 APK／IPA、checksum 與來源 commit，保留十四天。
+沿用平台現有版號，不建立 Release／tag，也不送商店；簽章設定與指定裝置安裝方式見
+[手機實機測試包](deployment.md#手機實機測試包)。iOS 新增裝置後須更新主 App 與 Extension 兩份 profiles。
+
+未簽章 Apple 建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
 在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub
 repository variables；不設值時採 preview ID／無 Google 的本機模式。
 公開 repository 的 hosted runner 不計費；手動 workflow 仍需使用者授權才啟動。

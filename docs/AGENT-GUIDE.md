@@ -14,6 +14,9 @@ The executable validation runtime remains ADR-002; PROGRESS.md is execution stat
 For targeted external desktop behavior research, ask the maintainer for the reference
 project location only when required. Do not guess paths or copy its implementation.
 Older Drive/backup drafts require scope reconciliation before freezing contracts.
+Pre-store testing keeps all current note/sync/backup JSON schemas at V1. Change V1
+directly without automatic schema upgrades or migration snapshots; revisit the
+upgrade policy when store-launch planning starts, as required by root AGENTS.
 
 ## Workflows
 

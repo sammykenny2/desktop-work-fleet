@@ -1,6 +1,5 @@
 import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
 import { sha256, validDigest } from '../sources/files.js';
-import { validateMigration } from '../core/schema.js';
 
 /** Browser/WebView adapter. Native hosts may supply the same account-scoped persistence contract. */
 export class IndexedDbStorage {
@@ -9,15 +8,12 @@ export class IndexedDbStorage {
 
   static open(name = 'work-fleet-v1') {
     return new Promise((resolve, reject) => {
-      const request = indexedDB.open(name, 2);
+      const request = indexedDB.open(name, 1);
       let failed = false;
-      request.onupgradeneeded = event => {
+      request.onupgradeneeded = () => {
         const db = request.result;
-        if (event.oldVersion < 1) {
-          db.createObjectStore('workspaces', { keyPath: 'profileId' });
-          db.createObjectStore('attachments', { keyPath: ['profileId', 'id'] });
-        }
-        if (event.oldVersion < 2) db.createObjectStore('migrations', { keyPath: ['profileId', 'fromVersion'] });
+        db.createObjectStore('workspaces', { keyPath: 'profileId' });
+        db.createObjectStore('attachments', { keyPath: ['profileId', 'id'] });
       };
       request.onerror = () => { failed = true; reject(request.error); };
       request.onblocked = () => {
@@ -61,24 +57,13 @@ export class IndexedDbStorage {
     return this.#save(state, expectedRevision, []);
   }
 
-  migrate(state, expectedRevision, fromVersion) { return this.#save(state, expectedRevision, [], false, fromVersion); }
-
-  recovery(profileId, fromVersion) {
-    requireValue(safeKey(profileId) && Number.isSafeInteger(fromVersion) && fromVersion >= 1, 'invalid-migration', '資料升級版本無效。');
-    return this.#transaction(['migrations'], 'readonly', (tx, context) => {
-      const request = tx.objectStore('migrations').get([profileId, fromVersion]);
-      request.onsuccess = () => context.result(request.result?.state ?? null);
-    });
-  }
-
   /** Deletes this profile's workspace and attachments in one transaction. */
   reset(profileId) {
     requireValue(safeKey(profileId), 'invalid-profile', '無效的帳號分區。');
-    return this.#transaction(['workspaces', 'attachments', 'migrations'], 'readwrite', tx => {
+    return this.#transaction(['workspaces', 'attachments'], 'readwrite', tx => {
       tx.objectStore('workspaces').delete(profileId);
       // [profileId] sorts before every [profileId, id] and [profileId, []] after every string id.
       tx.objectStore('attachments').delete(IDBKeyRange.bound([profileId], [profileId, []]));
-      tx.objectStore('migrations').delete(IDBKeyRange.bound([profileId], [profileId, []]));
     });
   }
 
@@ -101,14 +86,11 @@ export class IndexedDbStorage {
     return this.#save(state, expectedRevision, values, replaceAttachments);
   }
 
-  #save(state, expectedRevision, attachments, replaceAttachments = false, migrationFrom) {
+  #save(state, expectedRevision, attachments, replaceAttachments = false) {
     state = copy(state);
     requireValue(safeKey(state.profileId) && Number.isInteger(state.revision) && state.revision >= 0,
       'invalid-workspace', '本機資料身分或版本無效。');
-    const stores = ['workspaces'];
-    if (attachments.length || replaceAttachments) stores.push('attachments');
-    if (migrationFrom !== undefined || replaceAttachments) stores.push('migrations');
-    return this.#transaction(stores, 'readwrite', (tx, context) => {
+    return this.#transaction(attachments.length || replaceAttachments ? ['workspaces', 'attachments'] : ['workspaces'], 'readwrite', (tx, context) => {
       const store = tx.objectStore('workspaces');
       const request = store.get(state.profileId);
       request.onsuccess = () => {
@@ -120,18 +102,8 @@ export class IndexedDbStorage {
         if (state.revision !== (expectedRevision === null ? 0 : expectedRevision + 1)) {
           context.fail(new FleetError('invalid-revision', '本機保存版本不連續。')); return;
         }
-        try {
-          if (migrationFrom !== undefined) {
-            validateMigration(current, state, migrationFrom);
-            requireValue(!attachments.length && !replaceAttachments, 'invalid-migration', '資料升級不可同時取代附件。');
-            tx.objectStore('migrations').add({ profileId: state.profileId, fromVersion: migrationFrom, state: current });
-          } else requireValue(!current || current.schemaVersion === state.schemaVersion, 'migration-required', '資料升級需要安全保存原始副本。');
-          store.put(state);
-          if (replaceAttachments) {
-            tx.objectStore('attachments').delete(IDBKeyRange.bound([state.profileId], [state.profileId, []]));
-            tx.objectStore('migrations').delete(IDBKeyRange.bound([state.profileId], [state.profileId, []]));
-          }
-        } catch (error) { context.fail(error); return; }
+        store.put(state);
+        if (replaceAttachments) tx.objectStore('attachments').delete(IDBKeyRange.bound([state.profileId], [state.profileId, []]));
         if (attachments.length) for (const attachment of attachments) tx.objectStore('attachments').put(attachment);
       };
     });

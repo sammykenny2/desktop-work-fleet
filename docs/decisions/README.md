@@ -4,7 +4,7 @@
 
 | 記錄 | 狀態 | 範圍 |
 |---|---|---|
-| [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted（資料演進） | 各層版本獨立、本機 Workspace v1→v2、原子 recovery／CAS、未知雲端與備份版本拒絕 |
+| [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted（測試階段 V1 政策） | 現行 JSON schema 維持 V1；升版、migration 與副本延至規劃上架時再評估 |
 | [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | 名稱、獨立開發、backlog 重心與 bootstrap 範圍 |
 | [ADR-002](002-validation-runtime.md) | Accepted | 驗證版 AppKit／Web／Python SQLite，保留跨平台封裝目標 |
 | [ADR-003](003-product-architecture-boundaries.md) | Deferred | 保留完整 PM／自架 server 架構，非 1.0 必做 |

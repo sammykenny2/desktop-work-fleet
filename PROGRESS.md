@@ -23,7 +23,25 @@
   - Windows：Pi 上 .NET SDK 10.0.402 加 `EnableWindowsTargeting` 編譯，0 warning／0 error，沒有在 Windows 執行。
 - 沒有獨立審閱。
 
-## 2026-10-17 Schema 演進與原子 migration
+## 2026-10-17 測試階段統一維持 V1
+
+維護者確認目前沒有提供他人測試，要求撤回同日預先開始的 schema 升版工程；
+正式規劃 Windows Store、Apple App Store、Google Play 上架時再評估。政策已同步至 AGENTS、需求、ADR-051、SPEC-007；PLAN-007 撤回。
+
+- Workspace、Layout、revision、Drive metadata、備份／加密封裝與自動備份 journal 的 JSON schema 全部維持 V1。
+  保留中央版本常數與基本格式驗證；欄位直接調整 V1，載入及編輯不做升級交易。
+- 移除逐版 runner、Workspace.open、migration 副本、IndexedDB 額外 store、四平台原生 migration／recovery API 及專用驗收腳本。
+  Storage 與原生 host 回到加入該機制前的保存實作；既有 CAS、加密、草稿、歷史、附件、帳號隔離與備份維持。
+  SQLite 既有內部表版本不重設，沒有操作或刪除使用者資料。
+- 相關 JS 回歸 136/136，最後 V1 guard／載入／編輯／跨來源備份 4/4；Windows core build 零 warning/error，
+  既有 JS→native 儲存／還原／重開測試 12/12；Linux 真 SQLite 還原交易 3/3。
+  文件連結／LF 與 diff 檢查通過。未重做與此修正無關的整套平台驗收或發布流程。
+- 輕量獨立唯讀審閱完成，沒有可操作問題；確認沒有升級機制殘留或新增資料清理副作用。
+- 不變更 App 套件版號、既有 tag 或 release；未封裝、安裝、dispatch 或發布。
+
+## 2026-10-17 Schema 演進與原子 migration（已撤回）
+
+本節為同日先前工作的歷史紀錄；後續維護者已要求目前全部維持 V1，現行政策及修正結果見本檔上方。
 
 使用者要求規劃並實作 schema version 偵測及 migration。契約見
 [ADR-051](docs/decisions/051-schema-evolution-and-atomic-migrations.md)、

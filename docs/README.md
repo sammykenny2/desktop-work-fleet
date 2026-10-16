@@ -2,9 +2,8 @@
 
 更新：2026-10-17。先讀最新規格；研究、工作預設、實作完成與實測通過各自區分。
 
-資料格式演進見 [SPEC-007](specs/007-schema-evolution-and-migrations.md)、
-[ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md) 與 [PLAN-007](plans/007-schema-evolution-and-migrations.md)：
-本機 Workspace v1→v2 的原子 migration／原始副本；同步與備份仍為 v1。
+測試階段便箋、同步與備份 JSON schema 統一維持 V1；欄位直接調整 V1，升版及 migration 延至規劃上架時再評估。
+政策見 [SPEC-007](specs/007-schema-evolution-and-migrations.md) 與 [ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md)。
 
 ## 本次開發接手：優先閱讀
 

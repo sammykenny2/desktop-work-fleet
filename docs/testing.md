@@ -11,19 +11,8 @@
 測試名稱中的 C 編號只標示模擬語意部分；C16／C35／C40–C43／C46–C47 的原生能力仍需實際 host 驗收。
 不能把舊測試綠燈列為新功能通過，也不為文件變更重新啟動舊 Mac probe。
 
-`tests/schema-migrations.test.js` 驗證 SPEC-007：固定舊版 workspace fixture、逐版／跳版、缺步驟、
-原資料不變、啟動提交屏障、重試／重開、未來雲端版本停止 upload 與游標，以及 v1 ZIP 跨本機／Google 還原。
-`tests/test_linux_local_restore.py` 用真 SQLite 注入提交故障，確認原始副本與新資料一起回滾／重試；
-`tests/test_linux_vault.py` 另以真 AES-GCM 驗證副本加密、重開與重設清除。
-Windows core probe 與 opt-in `tests/native-storage.test.js` 驗證 DPAPI、原子副本、重開及 migration commit 回應遺失讀回。
-以下 probe 在隔離的隨機 IndexedDB 建立舊結構，執行真交易 abort／重試、附件／profile 隔離、重開與清理；
-不開啟使用者 workspace。先 build 並啟動上述 loopback 預覽，再把 URL 傳入：
-
-```bash
-node scripts/testing/schema-migration-probe.mjs --url http://127.0.0.1:PORT/app/index.html
-```
-
-Apple／Android 共用 JS 轉換與各自原生交易實作；缺 SDK 的 host 不以來源檢查冒充編譯或實機通過。
+`tests/schema-version.test.js` 驗證 SPEC-007 的測試階段政策：現行 JSON 格式皆為 V1，載入／編輯不觸發升版寫入，
+本機與 Google 共用 V1 ZIP，未支援的格式拒絕且保留資料。沒有逐版 migration 或副本驗收工作。
 文件工作執行 check_docs.py、git diff --check 與範圍／語意一致性檢查即可。
 
 ## 可重現命令

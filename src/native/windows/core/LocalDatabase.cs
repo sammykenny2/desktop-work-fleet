@@ -62,16 +62,6 @@ public sealed class LocalDatabase : IDisposable
       return data is null ? null : UserProtection.Unprotect(data, Scope(kind, "record"));
     }
   }
-  public byte[]? ReadRecovery(string kind, long fromVersion)
-  {
-    Kind(kind); HostError.Require(fromVersion > 0 && fromVersion <= JsonRules.MaxRevision, "invalid-migration", "資料升級版本無效。");
-    lock (gate)
-    {
-      var key = $"migration:{kind}:{fromVersion}";
-      var data = Scalar("SELECT data FROM records WHERE profile=$p AND kind=$k;", null, ("$p", ProfileId), ("$k", key)) as byte[];
-      return data is null ? null : UserProtection.Unprotect(data, Scope(key, "record"));
-    }
-  }
   public byte[]? ReadAttachment(string id)
   {
     CheckDigest(id);
@@ -154,7 +144,7 @@ public sealed class LocalDatabase : IDisposable
       return data is null ? null : UserProtection.Unprotect(data, Scope(kind, id));
     }
   }
-  public void CommitRecord(string kind, string token, long? expectedRevision, IReadOnlyList<string> attachmentTokens, bool replaceAttachments = false, long? migrationFrom = null)
+  public void CommitRecord(string kind, string token, long? expectedRevision, IReadOnlyList<string> attachmentTokens, bool replaceAttachments = false)
   {
     Kind(kind);
     HostError.Require(!replaceAttachments || (kind == "workspace" && !ProfileId.StartsWith("google:", StringComparison.Ordinal)),
@@ -173,34 +163,7 @@ public sealed class LocalDatabase : IDisposable
           kind == "workspace" ? "stale-writer" : "stale-backup-writer", "本機資料已變更；保留草稿，重新載入後再保存。");
         HostError.Require(revision == (expectedRevision is null ? 0 : expectedRevision + 1) && revision <= JsonRules.MaxRevision,
           "invalid-revision", "本機保存版本不連續。");
-        HostError.Require(migrationFrom is null || current is not null, "invalid-migration", "找不到原始資料。");
-        if (current is not null)
-        {
-          var protectedPrevious = Scalar("SELECT data FROM records WHERE profile=$p AND kind=$k;", tx, ("$p", ProfileId), ("$k", kind)) as byte[];
-          HostError.Require(protectedPrevious is not null, "invalid-migration", "找不到原始資料。");
-          var previous = UserProtection.Unprotect(protectedPrevious!, Scope(kind, "record"));
-          try
-          {
-            using var before = JsonRules.Parse(previous!); using var after = JsonRules.Parse(bytes);
-            long? oldSchema = before.RootElement.TryGetProperty("schemaVersion", out _) ? JsonRules.Integer(before.RootElement, "schemaVersion") : null;
-            long? newSchema = after.RootElement.TryGetProperty("schemaVersion", out _) ? JsonRules.Integer(after.RootElement, "schemaVersion") : null;
-            if (migrationFrom is not null)
-            {
-              HostError.Require(migrationFrom > 0 && oldSchema == migrationFrom && newSchema > migrationFrom
-                && !replaceAttachments && attachmentTokens.Count == 0, "invalid-migration", "資料升級版本與原始資料不同。");
-              var key = $"migration:{kind}:{migrationFrom}";
-              Execute("INSERT INTO records VALUES($p,$k,$r,$d);", tx, ("$p", ProfileId), ("$k", key), ("$r", expectedRevision),
-                ("$d", UserProtection.Protect(previous!, Scope(key, "record"))));
-            }
-            else HostError.Require(oldSchema == newSchema, "migration-required", "資料升級需要安全保存原始副本。");
-          }
-          finally { if (previous is not null) CryptographicOperations.ZeroMemory(previous); }
-        }
-        if (replaceAttachments)
-        {
-          Execute("DELETE FROM attachments WHERE profile=$p;", tx, ("$p", ProfileId));
-          Execute("DELETE FROM records WHERE profile=$p AND kind LIKE 'migration:workspace:%';", tx, ("$p", ProfileId));
-        }
+        if (replaceAttachments) Execute("DELETE FROM attachments WHERE profile=$p;", tx, ("$p", ProfileId));
         foreach (var attachment in attachmentTokens) CommitAttachment(attachment, tx);
         var encrypted = UserProtection.Protect(bytes, Scope(kind, "record"));
         Execute("INSERT INTO records VALUES($p,$k,$r,$d) ON CONFLICT(profile,kind) DO UPDATE SET revision=excluded.revision,data=excluded.data;",

@@ -81,6 +81,13 @@
 
 ## Development Workflow
 
+Before the first Windows Store, Apple App Store or Google Play submission is planned,
+all current note, sync and backup JSON schemas stay at V1. Update V1 directly during
+testing; do not introduce schema bumps, automatic upgrade jobs, migration snapshots
+or compatibility maintenance for unreleased test formats. Revisit format freezing
+and migrations when the maintainer starts store-launch planning. This does not
+authorize deleting existing user data or changing published application versions.
+
 The user has authorized direct Conventional Commit and push to origin/main for this
 project. Do not create feature branches or PRs, and never force push. Preserve unrelated
 changes. Plan, implement only the authorized scope, run appropriate checks, and record

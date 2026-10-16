@@ -34,7 +34,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   private object Info() => new { protocol = 1, platform = "windows", profileId = database.ProfileId,
     appVersion = (identity ?? HostIdentity.Default).AppVersion, distribution = (identity ?? HostIdentity.Default).Distribution, storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
-    capabilities = new { nativeStorage = true, schemaMigration = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
+    capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
       backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null,
       hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true } };
 
@@ -126,7 +126,6 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         staged.Clear(); database.Reset(); resetDone = true; return new { profileId = database.ProfileId };
       }
       case "storage.load": return Download(database.ReadRecord(JsonRules.Text(args, "kind")));
-      case "storage.recovery": return Download(database.ReadRecovery(JsonRules.Text(args, "kind"), JsonRules.Integer(args, "fromVersion")));
       case "storage.attachment": return Download(database.ReadAttachment(JsonRules.Text(args, "id")));
       case "transfer.read":
       {
@@ -148,8 +147,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
           }
         }
         var replaceAttachments = args.TryGetProperty("replaceAttachments", out var replace) && replace.GetBoolean();
-        long? migrationFrom = args.TryGetProperty("migrationFrom", out _) ? JsonRules.Integer(args, "migrationFrom") : null;
-        database.CommitRecord(JsonRules.Text(args, "kind"), token, JsonRules.ExpectedRevision(args), tokens, replaceAttachments, migrationFrom);
+        database.CommitRecord(JsonRules.Text(args, "kind"), token, JsonRules.ExpectedRevision(args), tokens, replaceAttachments);
         staged.Remove(token); foreach (var value in tokens) staged.Remove(value); return null;
       }
       case "storage.putAttachment":

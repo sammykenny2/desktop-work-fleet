@@ -3,7 +3,7 @@
 > This directory contains implementation plans that define *how* to build features.
 
 Current interaction plan: [PLAN-003](003-desktop-interaction-implementation.md), based on SPEC-003.
-Schema migration plan: [PLAN-007](007-schema-evolution-and-migrations.md), based on SPEC-007 and ADR-051.
+The schema-upgrade work in [PLAN-007](007-schema-evolution-and-migrations.md) was withdrawn; pre-store testing changes V1 directly.
 The [Google Drive plan](002-google-drive-notes-mvp.md) supplies source/backup integration work,
 with editor and backup scope reconciliation before contract freeze.
 The [macOS validation handoff](001-validation-version-macos-handoff.md) remains a historical prototype handoff.

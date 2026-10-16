@@ -198,25 +198,6 @@ class LinuxVaultTests(unittest.TestCase):
         self.assertEqual(path.read_bytes(), raw)
         self.assertEqual(self.secret.searches, [])
 
-    def test_schema_recovery_is_encrypted_survives_restart_and_reset_removes_it(self):
-        import json
-        db = self.open()
-        def save(value, expected, **options):
-            data = json.dumps(value).encode()
-            token = db.stage("workspace", data, self.protocol.digest(data))
-            db.commit("workspace", token, expected, [], **options)
-            return data
-        old = save({"profileId": "local", "revision": 0, "schemaVersion": 1, "text": "migration-private-marker"}, None)
-        save({"profileId": "local", "revision": 1, "schemaVersion": 2, "text": "updated"}, 0, migration_from=1)
-        self.assertEqual(db.recovery("workspace", 1), old)
-        db.close()
-        for path in self.directory.glob("fleet.sqlite3*"):
-            self.assertNotIn(b"migration-private-marker", path.read_bytes())
-        db = self.open()
-        self.assertEqual(db.recovery("workspace", 1), old)
-        db.reset()
-        self.assertIsNone(db.recovery("workspace", 1))
-
     def test_locked_legacy_key_without_database_does_not_block_new_directory(self):
         self.item("storage-key", "v1", "locked", locked=True)
         self.open()

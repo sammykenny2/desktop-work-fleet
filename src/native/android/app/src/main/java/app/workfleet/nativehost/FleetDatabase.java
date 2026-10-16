@@ -110,17 +110,7 @@ final class FleetDatabase implements AutoCloseable {
     synchronized String putAttachment(String token) throws Exception {
         db.beginTransaction(); try { String id = commitAttachment(token); db.setTransactionSuccessful(); return id; } finally { db.endTransaction(); }
     }
-    synchronized byte[] recovery(String kind, long fromVersion) throws Exception {
-        kind(kind); Protocol.require(fromVersion >= 1 && fromVersion <= Protocol.SAFE_INTEGER, "invalid-migration", "資料升級版本無效。");
-        String key = "migration:" + kind + ":" + fromVersion;
-        try (Cursor cursor = db.query("records", new String[] { "data" }, "profile=? AND kind=?", new String[] { profile, key }, null, null, null)) {
-            return cursor.moveToFirst() ? unprotect(cursor.getBlob(0), scope(key, "record")) : null;
-        }
-    }
     synchronized void commit(String kind, String token, Long expected, JSONArray attachments, boolean replaceAttachments) throws Exception {
-        commit(kind, token, expected, attachments, replaceAttachments, null);
-    }
-    synchronized void commit(String kind, String token, Long expected, JSONArray attachments, boolean replaceAttachments, Long migrationFrom) throws Exception {
         Protocol.require(!replaceAttachments || (kind.equals("workspace") && !profile.startsWith("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。");
         kind(kind); byte[] bytes = staged(token, kind);
         try {
@@ -131,27 +121,8 @@ final class FleetDatabase implements AutoCloseable {
                     boolean present = cursor.moveToFirst(); Protocol.require(expected == null ? !present : present && cursor.getLong(0) == expected, "stale-workspace", "工作空間已由另一個寫入者變更。");
                 }
                 Protocol.require(attachments.length() <= 20000, "invalid-attachment", "附件數量超限。");
-                Protocol.require(migrationFrom == null || expected != null, "invalid-migration", "找不到原始資料。");
-                byte[] previous = record(kind);
-                if (previous != null) {
-                    try {
-                        JSONObject before = Protocol.json(previous), after = Protocol.json(bytes);
-                        Long oldSchema = before.has("schemaVersion") ? Protocol.number(before, "schemaVersion", Protocol.SAFE_INTEGER) : null;
-                        Long newSchema = after.has("schemaVersion") ? Protocol.number(after, "schemaVersion", Protocol.SAFE_INTEGER) : null;
-                        if (migrationFrom != null) {
-                            Protocol.require(migrationFrom >= 1 && migrationFrom.equals(oldSchema) && newSchema != null && newSchema > migrationFrom
-                                && !replaceAttachments && attachments.length() == 0, "invalid-migration", "資料升級版本與原始資料不同。");
-                            String key = "migration:" + kind + ":" + migrationFrom;
-                            ContentValues snapshot = new ContentValues(); snapshot.put("profile", profile); snapshot.put("kind", key); snapshot.put("revision", expected); snapshot.put("data", protect(previous, scope(key, "record")));
-                            db.insertOrThrow("records", null, snapshot);
-                        } else Protocol.require(java.util.Objects.equals(oldSchema, newSchema), "migration-required", "資料升級需要安全保存原始副本。");
-                    } finally { Arrays.fill(previous, (byte) 0); }
-                }
                 java.util.HashSet<String> unique = new java.util.HashSet<>();
-                if (replaceAttachments) {
-                    db.delete("attachments", "profile=?", new String[] { profile });
-                    db.delete("records", "profile=? AND kind LIKE 'migration:workspace:%'", new String[] { profile });
-                }
+                if (replaceAttachments) db.delete("attachments", "profile=?", new String[] { profile });
                 for (int i = 0; i < attachments.length(); i++) { String attachment = attachments.getString(i); Protocol.require(unique.add(attachment), "invalid-attachment", "附件身分重複。"); commitAttachment(attachment); }
                 ContentValues row = new ContentValues(); row.put("profile", profile); row.put("kind", kind); row.put("revision", revision); row.put("data", protect(bytes, scope(kind, "record")));
                 db.insertWithOnConflict("records", null, row, SQLiteDatabase.CONFLICT_REPLACE); discard(token); db.setTransactionSuccessful();

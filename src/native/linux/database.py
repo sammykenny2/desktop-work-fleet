@@ -629,14 +629,6 @@ class Database:
             row = self.connection.execute("SELECT data FROM attachments WHERE profile=? AND id=?", (self.profile, key)).fetchone()
             return None if row is None else self.open("attachment", key, row[0])
 
-    def recovery(self, kind, from_version):
-        p.require(kind in ("workspace", "journal") and type(from_version) is int and 1 <= from_version <= p.SAFE_INTEGER,
-                  "invalid-migration", "資料升級版本無效。")
-        with self.lock:
-            key = f"migration:{kind}:{from_version}"
-            row = self.connection.execute("SELECT data FROM records WHERE profile=? AND kind=?", (self.profile, key)).fetchone()
-            return None if row is None else self.open("record", key, row[0])
-
     def secret(self, kind, key, data=None):
         with self.lock:
             if data is not None:
@@ -681,7 +673,7 @@ class Database:
             self.discard(token)
             return digest
 
-    def commit(self, kind, token, expected, attachments, replace_attachments=False, migration_from=None):
+    def commit(self, kind, token, expected, attachments, replace_attachments=False):
         p.require(kind in ("workspace", "journal") and isinstance(attachments, list) and len(attachments) <= 20000 and len(set(attachments)) == len(attachments), "invalid-record", "提交種類或附件清單無效。")
         p.require(not replace_attachments or (kind == "workspace" and not self.profile.startswith("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。")
         with self.lock:
@@ -693,22 +685,8 @@ class Database:
             try:
                 current = self.connection.execute("SELECT revision FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()
                 p.require((None if current is None else current[0]) == expected, "revision-conflict", "本機資料已更新，請保留目前草稿。")
-                p.require(migration_from is None or current is not None, "invalid-migration", "找不到原始資料。")
-                if current is not None:
-                    previous = self.record(kind)
-                    before = p.decode(previous)
-                    if migration_from is not None:
-                        p.require(type(migration_from) is int and migration_from >= 1 and not replace_attachments and not attachments
-                                  and p.number(before, "schemaVersion") == migration_from
-                                  and p.number(value, "schemaVersion") > migration_from, "invalid-migration", "資料升級版本與原始資料不同。")
-                        key = f"migration:{kind}:{migration_from}"
-                        self.connection.execute("INSERT INTO records VALUES(?,?,?,?)", (self.profile, key, expected, self.seal("record", key, previous)))
-                    else:
-                        old_schema, new_schema = before.get("schemaVersion"), value.get("schemaVersion")
-                        p.require((type(old_schema), old_schema) == (type(new_schema), new_schema), "migration-required", "資料升級需要安全保存原始副本。")
                 if replace_attachments:
                     self.connection.execute("DELETE FROM attachments WHERE profile=?", (self.profile,))
-                    self.connection.execute("DELETE FROM records WHERE profile=? AND kind LIKE 'migration:workspace:%'", (self.profile,))
                 for item in attachments:
                     self.put_attachment(item)
                 self.connection.execute("INSERT OR REPLACE INTO records VALUES(?,?,?,?)", (self.profile, kind, revision, self.seal("record", kind, data)))

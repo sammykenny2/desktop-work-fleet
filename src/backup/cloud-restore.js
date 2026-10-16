@@ -56,10 +56,6 @@ export async function resumeCloudRestore({ state, storage, fileStore, progress =
   state = copy(state);
   requireValue(state.profileId.startsWith('google:') && state.cloudRestore?.sourceId === fileStore.sourceId
     && ['reset', 'upload'].includes(state.cloudRestore.phase), 'restore-profile', '覆蓋工作不屬於目前 Google 帳號。');
-  // A durable job can outlive the app version that staged it. Upgrade before any remote reset or upload.
-  const loaded = await Workspace.open(state, (next, revision) => storage.save(next, revision),
-    typeof storage.migrate === 'function' ? (next, revision, from) => storage.migrate(next, revision, from) : undefined);
-  state = loaded.state;
   if (state.cloudRestore.phase === 'reset') {
     progress('正在清空 Google 的 Work Fleet 資料…');
     await resetSource(fileStore, { ...resetOptions, progress: (done, total) => progress(`正在清空雲端：${done} / ${total}`) });

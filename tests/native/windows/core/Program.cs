@@ -31,39 +31,6 @@ void Query(string sql)
   using var command = conn.CreateCommand(); command.CommandText = sql; command.ExecuteNonQuery();
 }
 string secretId;
-Test("schema migration atomically archives encrypted bytes, rolls back failure and preserves recovery across restart", () =>
-{
-  var folder = Path.Combine(root, "schema-migration");
-  var original = JsonSerializer.SerializeToUtf8Bytes(new { profileId = "local", revision = 0, schemaVersion = 1, text = "migration-private-marker" });
-  var next = JsonSerializer.SerializeToUtf8Bytes(new { profileId = "local", revision = 1, schemaVersion = 2, text = "new data" });
-  using (var db = new LocalDatabase(folder, "local"))
-  {
-    string Stage(byte[] bytes) => db.Stage("workspace", bytes, LocalDatabase.Digest(bytes));
-    db.CommitRecord("workspace", Stage(original), null, []);
-    var token = Stage(next);
-    Fails(() => db.CommitRecord("workspace", token, 0, []), "migration-required");
-    using var conn = new SqliteConnection($"Data Source={Path.Combine(folder, "fleet.sqlite3")};Pooling=False"); conn.Open();
-    using var command = conn.CreateCommand();
-    command.CommandText = "CREATE TRIGGER reject_migration BEFORE UPDATE ON records WHEN OLD.kind='workspace' BEGIN SELECT RAISE(ABORT,'injected failure'); END;"; command.ExecuteNonQuery();
-    Fails(() => db.CommitRecord("workspace", token, 0, [], migrationFrom: 1));
-    Require(db.ReadRecord("workspace")!.SequenceEqual(original) && db.ReadRecovery("workspace", 1) is null);
-    command.CommandText = "DROP TRIGGER reject_migration;"; command.ExecuteNonQuery();
-    Fails(() => db.CommitRecord("workspace", token, 0, [], migrationFrom: 2), "invalid-migration");
-    db.CommitRecord("workspace", token, 0, [], migrationFrom: 1);
-    Require(db.ReadRecord("workspace")!.SequenceEqual(next) && db.ReadRecovery("workspace", 1)!.SequenceEqual(original));
-    Fails(() => db.ReadRecovery("workspace", 0), "invalid-migration");
-    Fails(() => db.ReadRecovery("migration:workspace:1", 1), "invalid-record");
-  }
-  foreach (var file in Directory.GetFiles(folder, "fleet.sqlite3*")) Require(!Encoding.UTF8.GetString(File.ReadAllBytes(file)).Contains("migration-private-marker"));
-  using (var db = new LocalDatabase(folder, "other")) Require(db.ReadRecovery("workspace", 1) is null);
-  using (var db = new LocalDatabase(folder, "local"))
-  {
-    Require(db.ReadRecovery("workspace", 1)!.SequenceEqual(original));
-    var replaced = JsonSerializer.SerializeToUtf8Bytes(new { profileId = "local", revision = 2, schemaVersion = 2 });
-    db.CommitRecord("workspace", db.Stage("workspace", replaced, LocalDatabase.Digest(replaced)), 1, [], replaceAttachments: true);
-    Require(db.ReadRecovery("workspace", 1) is null);
-  }
-});
 var attachment = Encoding.UTF8.GetBytes("test attachment bytes-中文"); var id = LocalDatabase.Digest(attachment);
 string abandoned;
 using (var db = new LocalDatabase(root, "local"))

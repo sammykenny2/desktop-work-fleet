@@ -83,6 +83,10 @@ Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪�
 
 ## 延後而保留的方向
 
+2026-10-17 使用者確認：目前尚未提供他人測試，上架 Windows Store、Apple App Store、Google Play 前，
+現行便箋、同步及備份 JSON schema 一律維持 V1，欄位與結構直接調整 V1。
+逐版 migration、升級副本及舊測試格式的相容維護延至規劃正式上架時再評估；保留基本格式驗證與既有資料保存邊界。
+
 完整 PM、Project/Item/View、自架 server 與多歸屬留作後續研究；
 這不代表未來必須恢復舊 Note 容器模型。簡單 Todo／In Progress／Done 的具體 1.0 UI 尚未定案。
 不引入 Queued/Running/Waiting/Succeeded/Failed/Cancelled 之類的 Agent 執行狀態作預設。

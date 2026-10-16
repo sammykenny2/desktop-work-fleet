@@ -29,7 +29,7 @@ final class FleetBridge implements AutoCloseable {
         switch (method) {
             case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "storage", "sqlite-keystore",
                 "maxChunkBytes", Protocol.CHUNK, "maxMessageBytes", 1024 * 1024, "maxRecordBytes", Protocol.RECORD, "maxAttachmentBytes", Protocol.ATTACHMENT, "maxBackupBytes", Protocol.BACKUP,
-                "capabilities", Protocol.object("nativeStorage", true, "schemaMigration", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable()));
+                "capabilities", Protocol.object("nativeStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable()));
             case "host.ready": ready = true; return null;
             case "host.closeReady": closeReady = true; return null;
             case "host.closeCancel": closeReady = false; return null;
@@ -64,7 +64,6 @@ final class FleetBridge implements AutoCloseable {
                 staged.clear(); database.reset(); return Protocol.object("profileId", database.profile);
             }
             case "storage.load": return download(database.record(Protocol.text(args, "kind", 32)));
-            case "storage.recovery": return download(database.recovery(Protocol.text(args, "kind", 32), Protocol.number(args, "fromVersion", Protocol.SAFE_INTEGER)));
             case "storage.attachment": return download(database.attachment(Protocol.text(args, "id", 64)));
             case "storage.putAttachment": { String token = owned(args); String id = database.putAttachment(token); staged.remove(token); return Protocol.object("id", id); }
             case "storage.commit": {
@@ -73,8 +72,7 @@ final class FleetBridge implements AutoCloseable {
                 Protocol.require(args.has("expectedRevision"), "invalid-request", "缺少版本條件。");
                 Long expected = args.isNull("expectedRevision") ? null : Protocol.number(args, "expectedRevision", Protocol.SAFE_INTEGER);
                 Protocol.require(!args.has("replaceAttachments") || args.get("replaceAttachments") instanceof Boolean, "invalid-request", "布林欄位無效。");
-                Long migrationFrom = args.has("migrationFrom") ? Protocol.number(args, "migrationFrom", Protocol.SAFE_INTEGER) : null;
-                database.commit(Protocol.text(args, "kind", 32), token, expected, attachments, args.optBoolean("replaceAttachments", false), migrationFrom); staged.remove(token);
+                database.commit(Protocol.text(args, "kind", 32), token, expected, attachments, args.optBoolean("replaceAttachments", false)); staged.remove(token);
                 for (int i = 0; i < attachments.length(); i++) staged.remove(attachments.getString(i)); return null;
             }
             default: throw new Protocol.Failure("unsupported-method", "原生主機沒有此操作。");

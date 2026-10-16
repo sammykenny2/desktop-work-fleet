@@ -1,7 +1,9 @@
 import { copy, FleetError, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
-import { decodeRevision, encodeRevision, revisionRecord } from './revisions.js';
+import { encodeRevision, revisionRecord } from './revisions.js';
 import { sha256, validDigest, validFileId, validateFile, verifyFile } from './files.js';
+import { resetFileIds } from './initial-group.js';
+import { currentSourceRevisions, decodeSourceRevision, encodeSourceRevision } from './source-revisions.js';
 
 const cursorValue = value => {
   requireValue(typeof value === 'string' && value.length > 0 && value.length <= 8192, 'invalid-source-page', '來源未提供有效的同步游標。');
@@ -10,6 +12,9 @@ const cursorValue = value => {
 const pageArray = value => requireValue(Array.isArray(value) && value.length <= 1000, 'invalid-source-page', '來源分頁格式或容量無效。');
 const sourceReset = () => new FleetError('source-reset', '這個帳號的雲端資料已在其他裝置重設；這台裝置的副本仍保留，同步已暫停。');
 const retryable = code => ['network', 'rate-limit', 'service-unavailable'].includes(code);
+// Existing V1 snapshots may have a cursor/files/reservations without the optional generation field.
+const sourceGeneration = sync => sync.sourceResetIds ?? (sync.cursor !== null || sync.lastSuccessfulSyncAt
+  || Object.keys(sync.files || {}).length || Object.keys(sync.uploads || {}).length ? resetFileIds(sync.files) : null);
 
 /**
  * Clears an account's source. The reset marker is written first, so a device that still holds the old files reads
@@ -55,12 +60,14 @@ export class FileSync {
   #running = null;
   #now;
   #random;
+  #bootstrapGroup;
   #failures = 0;
   #status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null };
 
-  constructor({ workspace, storage, fileStore, now = () => Date.now(), random = Math.random }) {
+  constructor({ workspace, storage, fileStore, bootstrapGroup = false, now = () => Date.now(), random = Math.random }) {
     requireValue(typeof fileStore.sourceId === 'string' && fileStore.sourceId.length > 0, 'invalid-source', '檔案來源需要穩定的帳號身分。');
     this.#workspace = workspace; this.#storage = storage; this.#store = fileStore; this.#now = now; this.#random = random;
+    this.#bootstrapGroup = bootstrapGroup;
   }
 
   get status() { return copy(this.#status); }
@@ -106,7 +113,9 @@ export class FileSync {
         this.#session = await this.#workspace.beginSync(this.#store.sourceId);
         if (this.#closed) { await this.#workspace.endSync(this.#session); throw new FleetError('stale-session', '此來源工作已結束。'); }
       }
-      this.#check(); await this.#pull(); await this.#push(); await this.#pull();
+      this.#check(); await this.#pull();
+      if (this.#bootstrapGroup) { await this.#workspace.ensureInitialGroup(this.#session); this.#check(); }
+      await this.#push(); await this.#pull();
       this.#check();
       await this.#workspace.completeSync(this.#session, new Date(this.#now()).toISOString());
       this.#check();
@@ -124,29 +133,36 @@ export class FileSync {
     }
   }
 
-  async #receive(files, expectedCursor, cursor) {
-    pageArray(files); files = files.map(validateFile).filter(file => file.kind !== 'reset');
+  async #receive(files, expectedCursor, cursor, deferredRevisions = null) {
+    pageArray(files); files = files.map(validateFile);
     const records = [];
     for (const file of files) {
       const bytes = await verifyFile(file, await this.#request('readFile', { file }));
       this.#check();
-      if (file.kind === 'revision') records.push(decodeRevision(bytes));
-      else await this.#storage.putAttachmentBytes(this.#session.profileId, file.sha256, bytes);
+      if (file.kind === 'revision') {
+        const transfer = decodeSourceRevision(bytes);
+        if (deferredRevisions && transfer.sourceResetIds !== null) deferredRevisions.push(transfer);
+        else records.push(transfer);
+      } else if (file.kind === 'attachment') await this.#storage.putAttachmentBytes(this.#session.profileId, file.sha256, bytes);
     }
     this.#check();
     if (files.length || cursor !== expectedCursor) {
-      await this.#workspace.receiveRevisions(records, { session: this.#session, expectedCursor, cursor, files });
+      const known = { ...this.#workspace.syncState.files, ...Object.fromEntries(files.map(file => [file.id, file])) };
+      const current = currentSourceRevisions(records, known); this.#check();
+      await this.#workspace.receiveRevisions(current, { session: this.#session, expectedCursor, cursor, files });
     }
   }
 
-  async #fullScan() {
+  async #fullScan(generation = sourceGeneration(this.#workspace.syncState)) {
     const baseline = cursorValue(await this.#request('getStartCursor'));
-    let pageToken = null; const tokens = new Set(); const found = new Set(); let marked = false;
+    let pageToken = null; const tokens = new Set(); const found = new Set(); const deferred = []; let marked = false;
     do {
       const page = await this.#request('listFiles', { pageToken }); pageArray(page.files);
       requireValue(!page.incomplete, 'incomplete-source-scan', '來源尚未完成全部檔案列舉，游標未前進。');
+      if (generation && page.files.some(file => file?.kind === 'reset' && !generation.includes(file.id))) throw sourceReset();
       marked ||= page.files.some(file => file?.kind === 'reset');
-      await this.#receive(page.files, null, null);
+      // Markers can be on a later page: hold scoped revisions until their source generation is known.
+      await this.#receive(page.files, null, null, deferred);
       for (const file of page.files) found.add(file.id);
       pageToken = page.nextPageToken ?? null;
       if (pageToken !== null) {
@@ -159,7 +175,8 @@ export class FileSync {
       if (!found.has(file.id) && marked) throw sourceReset();
       requireValue(found.has(file.id), 'source-file-missing', '原有同步檔案已不在來源中；本機內容保留，不能由檔案缺席推論刪除。');
     }
-    this.#check(); await this.#workspace.receiveRevisions([], { session: this.#session, expectedCursor: null, cursor: baseline });
+    const current = currentSourceRevisions(deferred, this.#workspace.syncState.files);
+    this.#check(); await this.#workspace.receiveRevisions(current, { session: this.#session, expectedCursor: null, cursor: baseline });
   }
 
   async #pull() {
@@ -167,13 +184,14 @@ export class FileSync {
     let restarted = false; const tokens = new Set();
     while (true) {
       const cursor = this.#workspace.syncState.cursor;
+      const generation = sourceGeneration(this.#workspace.syncState);
       let page;
       try { page = await this.#request('listChanges', { cursor }); }
       catch (error) {
         if (error.code !== 'cursor-expired' || restarted) throw error;
         this.#check();
         await this.#workspace.receiveRevisions([], { session: this.#session, expectedCursor: cursor, cursor: null });
-        await this.#fullScan(); restarted = true; tokens.clear(); continue;
+        await this.#fullScan(generation); restarted = true; tokens.clear(); continue;
       }
       pageArray(page.changes);
       const known = new Set(Object.values(this.#workspace.syncState.files || {}).map(file => file.id));
@@ -186,7 +204,8 @@ export class FileSync {
         files.push(validateFile(change.file));
       }
       // A reset writes its marker before deleting, so the marker reaches this device ahead of the removals.
-      if (files.some(file => file.kind === 'reset') && known.size) throw sourceReset();
+      if (files.some(file => file.kind === 'reset' && !known.has(file.id))
+        && generation !== null) throw sourceReset();
       requireValue(!removedKnown, 'source-file-missing', '來源檔案已被移除；本機內容保留，請處理同步來源。');
       const next = page.nextCursor ?? null;
       requireValue(next === null || page.cursor == null, 'invalid-source-page', '來源混用了中間及完成游標。');
@@ -234,7 +253,15 @@ export class FileSync {
         requireValue(await sha256(bytes) === attachment.id, 'attachment-integrity', '本機附件內容與身分不符，尚未上傳。');
         await this.#upload('attachment', attachment.id, bytes);
       }
-      await this.#upload('revision', operation.operationId, encodeRevision(revisionRecord(operation.kind, operation.value, operation.parents)));
+      const record = revisionRecord(operation.kind, operation.value, operation.parents);
+      let bytes = encodeSourceRevision(record, resetFileIds(this.#workspace.syncState.files));
+      const reserved = this.#workspace.uploadState(this.#session, `revision:${operation.operationId}`);
+      if (reserved) {
+        // A previously reserved V1 upload keeps its original bytes, including an unscoped file reserved before this field existed.
+        const portable = encodeRevision(record);
+        if (reserved.file.sha256 === await sha256(portable)) bytes = portable;
+      }
+      await this.#upload('revision', operation.operationId, bytes);
     }
   }
 }

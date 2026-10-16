@@ -1,5 +1,5 @@
 import { Workspace } from '../core/workspace.js';
-import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
+import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
@@ -223,7 +223,7 @@ async function initializeGoogle() {
   if (connected || paused) {
     $('#storage-note').textContent = paused ? '便箋可離線使用；系統安全儲存可用後會繼續同步' : '同步到你的 Google 帳號';
     setSync(paused ? 'attention' : 'off', paused ? '同步暫停' : '等待同步', paused ? googleAccount.pauseReason : '');
-    syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId) });
+    syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId), bootstrapGroup: true });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
@@ -291,7 +291,6 @@ async function syncGoogle(force = false) {
       if (!current()) return;
       await sourceSync.sync({ force });
       if (!current()) return;
-      if (!activeGroups(workspace.snapshot).length && !workspace.snapshot.groups.length) await workspace.createGroup('我的便箋');
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       if (googleAccount?.paused) {
@@ -1003,11 +1002,20 @@ function cardDetails(card) {
   dialog.append(actions); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove()); dialog.showModal();
 }
 
+async function ensureCaptureGroup() {
+  const groups = activeGroups(workspace.snapshot);
+  if (groups.length) {
+    if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0].id;
+    return;
+  }
+  // A new or cleared account must receive its existing groups before choosing an initial group.
+  if (profileId.startsWith('google:')) throw new FleetError('initial-sync-required', '請先完成 Google 同步，再新增便箋。');
+  const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render();
+}
+
 async function openEditor(card = null, recovered = null) {
   if (composing) return;
-  if (!card && !recovered && !activeGroups(workspace.snapshot).length) {
-    const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render();
-  }
+  if (!card && !recovered) await ensureCaptureGroup();
   if (controller.state.editingCardId && currentDraft) await controller.endEdit({ keepDraft: recovered?.id === currentDraft.id });
   remoteEditor = null;
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);
@@ -1531,7 +1539,7 @@ function bindEvents() {
   $('#save-copy').onclick = () => run(() => saveEditor(true));
   $('#keep-draft').onclick = () => run(closeEditor); $('#close-editor').onclick = () => run(closeEditor);
   $('#capture-inbox-button').onclick = () => run(async () => {
-    if (!activeGroups(workspace.snapshot).length) { const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render(); }
+    await ensureCaptureGroup();
     fillGroups($('#capture-group'), activeGroupId); $('#capture-result').textContent = ''; $('#capture-inbox-dialog').showModal(); await refreshCaptures();
   });
   $('#close-capture').onclick = () => { if (!captureBusy) $('#capture-inbox-dialog').close(); };

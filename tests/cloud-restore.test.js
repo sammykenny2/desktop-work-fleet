@@ -55,6 +55,24 @@ async function scenario() {
   return { local, remote, store, plan, safetyBackup, safetyDocument, oldIds, card, draft, oldCard, oldDraft, id, bytes };
 }
 
+test('explicit same-account backup overwrite republishes an automatic initial group and its notes in the current source generation', async () => {
+  const store = new MemoryFileStore(); const original = await client('google:account-a');
+  const sync = new FileSync({ workspace: original.workspace, storage: original.storage, fileStore: store, bootstrapGroup: true });
+  await sync.sync(); const group = original.workspace.snapshot.groups[0];
+  const card = await original.workspace.createCard(text('明確還原的便箋'), group.id); await sync.sync(); await sync.stop();
+  const document = await openBackup((await createBackup({ workspace: original.workspace, storage: original.storage })).bytes);
+  const plan = await prepareCloudRestore({ workspace: original.workspace, document, sourceId: store.sourceId, workAreas: [area] });
+  const safetyBackup = await saveSafetyBackup({ workspace: original.workspace, storage: original.storage,
+    save: async () => ({ saved: true, receipt: 'confirmed-file' }) });
+  await stageCloudRestore({ workspace: original.workspace, storage: original.storage, fileStore: store, plan, safetyBackup });
+  await resumeCloudRestore({ state: original.disk(), storage: original.storage, fileStore: store });
+  const fresh = await client('google:account-a');
+  await new FileSync({ workspace: fresh.workspace, storage: fresh.storage, fileStore: store, bootstrapGroup: true }).sync();
+  assert.deepEqual(fresh.workspace.snapshot.groups, [group]); assert.deepEqual(fresh.workspace.snapshot.cards, [card]);
+  assert.deepEqual(fresh.workspace.state.conflicts, []);
+  assert.equal(fresh.workspace.state.revisions.length, 2, 'portable root and note identities are retained by explicit restore');
+});
+
 test('local export replaces all Google history and attachments, and a fresh device receives only backup content', async () => {
   const s = await scenario(); const beforeCalls = s.store.calls.length;
   assert.ok(s.safetyDocument.data.records.some(record => record.entityId === s.oldCard.id));

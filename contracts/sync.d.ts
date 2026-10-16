@@ -9,15 +9,20 @@ export type RevisionRecord = {
   parents: Revision[];
 } & ({ kind: 'card'; value: Card } | { kind: 'group'; value: Group });
 
+/** V1 source file only; stripped before graph ingestion and excluded from portable backup revisions. */
+export type SourceRevisionRecord = RevisionRecord & { sourceResetIds?: string[] };
+
 export interface GraphIngestResult { added: number; pending: Revision[]; missing: Revision[] }
 export interface EntityHeads { kind: 'card' | 'group'; entityId: Id; heads: RevisionRecord[] }
 
-export interface FileDescriptor { id: string; kind: 'revision' | 'attachment'; sha256: string; size: number }
+export interface FileDescriptor { id: string; kind: 'revision' | 'attachment' | 'reset'; sha256: string; size: number }
 export interface UploadReservation { file: FileDescriptor; complete: boolean }
 export interface SyncState {
   sourceId: string | null;
   sessionId: Id | null;
   cursor: string | null;
+  /** The established source generation; an empty array still means the initial scan completed before any reset. */
+  sourceResetIds?: string[];
   /** Persisted only after both pulls and all queued uploads complete; absent means unknown. */
   lastSuccessfulSyncAt?: string;
   files?: Record<string, FileDescriptor>;

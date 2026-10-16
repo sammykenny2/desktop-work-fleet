@@ -15,6 +15,25 @@
   browser probe 前兩次在首次載入 5 秒內停在「正在載入…」而逾時，之後連續 4 次通過，判斷為載入時間偶發，沒有追查。
 - 沒有在原生桌面實測縮小後的新便箋；沒有獨立審閱。
 
+## 2026-10-17 Google 重設後多裝置重複初始群組
+
+使用者回報六台 Windows／macOS／Linux 連同一 Google 帳號，一台「重設所有資料」、其餘清除副本後，出現六組「我的便箋」。
+隔離 fixture 重現每台各有六個不同 group ID；根因是每台完整同步後各自隨機建立預設群組。不升版、不發布。
+
+- FileSync 在完整 pull 後建立初始群組，同帳號／reset marker 集合共用 entity、root revision 與 bytes；主畫面不再自行補建隨機群組。
+- 傳輸 V1 增加 `sourceResetIds`，核心與備份 revision 不變；舊在途 root／改名／退役／便箋不進重設後的新工作區，
+  舊裝置保留副本並停止同步。明確備份還原依目前來源世代重新傳輸，保留 portable IDs 與完整群組／便箋。
+- 來源世代與 cursor 原子保存；空世代已建立但 file ID 配置失敗，或 reset 尚未刪舊檔就遇 cursor 過期，都會先停止，避免重標舊 outbox。
+- 首次來源讀取前的 editor／分享入口不能另建預設組；初始群組已落盤但首次上傳失敗時，仍能選取並離線新增。
+- 既有同名群組與便箋不自動合併／刪除；沿用明確群組合併。舊版沒有來源世代欄位，需要各裝置更新。
+- 契約與驗證方式見 [ADR-053](docs/decisions/053-account-scoped-initial-group.md)、SPEC-004、Google 操作與 testing 文件。
+- Author-run：整合遠端新便箋尺寸調整後，完整 JavaScript 335 項，324 pass／11 平台條件 skip／0 fail；相關同步／還原／Workspace／入口測試 73/73。
+  Python discover 187 項，152 pass／35 平台條件 skip／0 fail。依 lockfile 補齊既有依賴後 web build、文件與 diff 檢查通過。
+  先前 Linux updater 時序測試在並行負載下失敗，單獨及完整重跑均通過，未修改更新器。
+  系統 Chromium 的既有 IndexedDB/FileSync probe 通過：回應遺失重試、附件校驗、帳號隔離及離線分支重開仍保留。
+- 獨立唯讀審閱完成，先前 findings 已修正，沒有尚未解決的重要問題；審閱者另執行相關測試 101/101 與 diff 檢查通過。
+- 未以真 Google 或六台原生 App 實機驗證；本輪不清除使用者雲端資料，不變更 App 版號或 dispatch release。
+
 ## 2026-10-17 桌面便箋改用主畫面群組色
 
 使用者裝上 0.3.0 後，看到桌面上既有便箋的顏色與比例都和主畫面便箋牆不同。比例來自這台裝置已保存的版面

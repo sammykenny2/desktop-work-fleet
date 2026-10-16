@@ -22,6 +22,7 @@
 | [ADR-010](decisions/010-group-retirement-and-device-settings.md) | Accepted：群組合併／草稿基線、區域及快捷鍵設定 |
 | [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md) | Accepted：不可變版本、嚴格 JSON、缺 parent／多分支規則；整合證據見 PROGRESS |
 | [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) | Accepted：可恢復 FileStore、Drive appDataFolder 與續傳；原生授權另驗收 |
+| [ADR-053](decisions/053-account-scoped-initial-group.md) | Accepted：多裝置共用帳號／重設批次的初始群組與根版本，避免同時重連產生重複「我的便箋」 |
 | [SPEC-002](specs/002-portable-backup-and-restore.md)／[ADR-013](decisions/013-complete-portable-backup.md) | Accepted：完整可攜資料、嚴格 ZIP／加密、三種還原與自動備份契約；執行見 PROGRESS |
 | [ADR-014](decisions/014-durable-automatic-backups.md) | Accepted：自動備份 journal／重啟／policy、原生安全檔案能力；瀏覽器不假冒原生能力 |
 | [ADR-015](decisions/015-windows-native-storage-and-editor-host.md) | Accepted：Windows WPF／WebView2 主畫面、加密 SQLite／DPAPI、受限 bridge；桌面呈現另驗收 |

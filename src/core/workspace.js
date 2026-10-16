@@ -2,12 +2,14 @@ import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, 
 import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
 import { canonicalJson, parseJson } from '../sources/json.js';
-import { encodeRevision, revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
+import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { regionShortcuts } from './shortcuts.js';
 import { groupLayersFromPapers } from '../layout/stages.js';
 import { sha256, validDigest, validateFile } from '../sources/files.js';
 import { schemas, requireSchemaVersion } from './schema.js';
+import { initialGroupRecord, resetFileIds } from '../sources/initial-group.js';
+import { encodeSourceRevision } from '../sources/source-revisions.js';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
@@ -272,7 +274,7 @@ export class Workspace {
     if (file.kind === 'revision') {
       const record = this.#graph.get(key);
       requireValue(record, 'missing-revision', '找不到待同步版本。');
-      const bytes = encodeRevision(record);
+      const bytes = encodeSourceRevision(record, resetFileIds(this.#state.sync.files));
       requireValue(file.size === bytes.byteLength && file.sha256 === await sha256(bytes), 'upload-mismatch', '待同步檔案與不可變版本不符。');
     } else requireValue(validDigest(key) && key === file.sha256, 'upload-mismatch', '附件必須以內容校驗值定址。');
     return this.#commit(state => {
@@ -320,6 +322,7 @@ export class Workspace {
       const result = { added: graph.size - this.#graph.size, pending: graph.pending, missing: graph.missing };
       Object.assign(state, projectRevisions(graph, state));
       state.layout = reconcileSourceLayout(layout, state); state.sync.cursor = cursor;
+      if (cursor !== null) state.sync.sourceResetIds = resetFileIds(state.sync.files);
       return { layout: state.layout, value: result };
     }));
   }
@@ -362,6 +365,23 @@ export class Workspace {
     return this.#commit(state => {
       validateNewGroup(state);
       const group = { id: this.#uuid(), revision: this.#uuid(), name: name.trim(), deleted: false };
+      state.groups.push(group); this.#record(state, 'group', group, []);
+      return copy(group);
+    });
+  }
+
+  /** After a complete pull, every device derives the same initial root for this account and reset generation. */
+  async ensureInitialGroup(session) {
+    session = copy(session); this.#session(this.#state, session);
+    if (this.#state.revisions.length || this.#state.groups.length) return null;
+    const resets = canonicalJson(resetFileIds(this.#state.sync.files));
+    const record = await initialGroupRecord(session.sourceId, resetFileIds(this.#state.sync.files));
+    return this.#commit(state => {
+      this.#session(state, session);
+      requireValue(state.sync.cursor !== null && canonicalJson(resetFileIds(state.sync.files)) === resets,
+        'initial-sync-required', '請先完成 Google 同步，再新增便箋。');
+      if (state.revisions.length || state.groups.length) return null;
+      const group = record.value;
       state.groups.push(group); this.#record(state, 'group', group, []);
       return copy(group);
     });

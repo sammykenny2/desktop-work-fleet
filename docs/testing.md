@@ -61,6 +61,14 @@ Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、
 
 `tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
 亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
+`tests/file-sync.test.js` 另強制六台裝置讀到同一空來源後同時上傳，驗證初始群組及根版本收斂、
+連續重設、marker 位於最後頁、晚到的初始上傳／改名／退役／便箋、重開、帳號隔離、既有同名群組保留、pending 歷史不初始化，
+以及保存失敗／成功回應遺失的重試、來源世代欄位驗證與既有未帶世代 reservation 的原 bytes 重送。
+另外涵蓋 file ID 配置失敗尚無 reservation 的副本，以及 reset 已寫 marker 但尚未刪檔時 cursor 過期重掃，均不能重標舊 outbox 上傳。
+`tests/cloud-restore.test.js` 另驗證同帳號的自動初始群組備份，經全量覆蓋後新裝置仍收到完整群組、便箋與原 revision 身分。
+`tests/google-initial-group.test.js` 驗證首次同步前新增便箋／分享入口不另建隨機群組，已有 Google 群組及本機捕捉維持離線可用，
+也驗證初始群組已落盤、首次上傳失敗時仍可選取該群組離線新增。
+上述是隔離 fixture，不代表六台 Windows／macOS／Linux 與真 Google 的實機往返驗收。
 `tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。
 `tests/android-build.test.js` 驗證無既有生成資產時的 Android 公開配置、修改 `.env` 後重新讀取、
 release 必填欄位、隔離輸出路徑中的 renderer／bridge／vendor 及 CSP。執行 `node --test tests/android-build.test.js`。

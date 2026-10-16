@@ -50,6 +50,8 @@
 | [ADR-040](040-gnome-wayland-xwayland-choice.md) | Accepted（GNOME Wayland 顯示方式） | 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用、重新啟動保存草稿 |
 | [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted（GNOME／X11 場景） | X11 場景依工作區定尺寸；GNOME XWayland 只常駐桌布層；調整遮罩起於 GNOME XWayland（現行範圍見 ADR-042）；Pi 的 DMA-BUF renderer 使用共享記憶體 buffer；pcmanfm 桌面不提供桌布層 |
 
+| [ADR-053](053-account-scoped-initial-group.md) | Accepted（同步初始化） | 同帳號／重設批次共用初始群組與根版本，六台同時重連不產生重複群組 |
+
 驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [research](../research/README.md)，不要自動改成 Accepted。
 
 新決策採用 000-template 的結構，以小寫連字號命名，記錄接受範圍與日期。

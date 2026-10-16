@@ -52,7 +52,8 @@
 
 - envelope 只接受上述七個欄位；未知格式／schema 拒絕，不能略過後繼續推進游標。
 - ID 為 1–128 碼 ASCII 英數開頭，後續英數、`.`、`_`、`:`、`-`；
-  拒絕 `__proto__`、`prototype`、`constructor`。正式建立使用隨機 UUID。
+  拒絕 `__proto__`、`prototype`、`constructor`。一般建立使用隨機 UUID；
+  初始群組與其根版本使用 [ADR-053](../decisions/053-account-scoped-initial-group.md) 的帳號／重設批次共用身分。
 - 全圖 revision ID 唯一；value.id／revision 必須與 envelope 相同。
   kind 為 card 或 group；已知 parent 必須指向同 kind／entity。
 - parents 是無重複 ID 集合，正規編碼時排序。零 parent 代表根版本；最多 1,024 個 parent。
@@ -131,7 +132,16 @@ Drive appDataFolder adapter 使用 drive.appdata，upload 使用預產生且已�
 
 具體傳輸採 [ADR-012](../decisions/012-durable-file-store-and-drive-adapter.md)：FileDescriptor 包含
 id／kind／sha256／size；provider file ID 為 1–256 個 ASCII 英數、`_`、`-`，拒絕危險 object key。
-Workspace.sync.files 記錄已確認 descriptor，sync.uploads 按 revision ID／附件 hash 保存 reservation。
+Workspace.sync.files 記錄已確認 descriptor（含 `kind: reset` 的重設標記），sync.uploads 按 revision ID／附件 hash 保存 reservation。
+首次預設群組只在完整 pull 成功且完全沒有群組／版本歷史時建立；同 source 與相同 reset ID 集合必須產生相同 entity、revision 及根 bytes。
+新 reset ID 通知既有裝置停止同步；已知 marker 重播不重複通知，也不當附件保存。
+`sync.sourceResetIds` 在完成來源讀取的 cursor 交易建立；空陣列代表 reset 前初始世代，cursor 過期不清除它。
+增量與全掃描均先擋住已建立世代以外的新 marker，不能等已知檔案消失或 upload reservation 存在才停止。
+新 V1 來源檔案在上述七欄 revision 的傳輸 JSON 加上 `sourceResetIds`（排序且不重複的 marker file IDs）；
+接收端先取出此傳輸欄位，再嚴格驗證原七欄 revision。核心圖、便箋與可攜備份不含該欄，原 revision bytes／ID 不變。
+全掃描延後接收帶世代的傳輸直到所有頁的 marker 已知；只有同世代的傳輸進圖，其他世代 descriptor 留帳冊且不刪雲端檔案。
+明確備份還原以目前來源世代重新傳送原 revision，因此同帳號全量覆蓋與 merge／replace 保留歷史身分且不會失去群組。
+既有沒有此欄的 V1 檔案仍完整接收，既有 reservation 保留原 bytes／file ID。需要各裝置更新，舊版接收未知欄位會暫停並保留資料。
 相同檔案 ID 的 kind／digest／size 不可變，不能在之後的分頁或 upload ack 改寫。
 每頁最多 1,000 descriptors；Drive adapter 實際請求 100，服務回應 JSON 上限 2 MiB。
 

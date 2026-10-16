@@ -5,6 +5,7 @@ import { copy, FleetError } from '../src/core/contracts.js';
 import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { sha256, validateFile, verifyFile } from '../src/sources/files.js';
 import { encodeRevision, revisionRecord } from '../src/sources/revisions.js';
+import { decodeSourceRevision, encodeSourceRevision } from '../src/sources/source-revisions.js';
 import { gate, MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.js';
 
 const area = { x: 0, y: 0, width: 1400, height: 900 };
@@ -12,7 +13,7 @@ const text = value => ({ format: 'markdown', text: value });
 const failCode = code => error => error.code === code;
 const groupRecord = (id = 'g', revision = 'g-root') => revisionRecord('group', { id, revision, name: id, deleted: false });
 
-async function client(fileStore, { bootstrapGroup = false, profileId = 'account-a' } = {}) {
+async function client(fileStore, { bootstrapGroup = false, initializeGroup = false, profileId = 'account-a' } = {}) {
   let disk; let fail = () => false;
   const persist = async (state, revision) => {
     if (fail(state)) throw new Error('disk full');
@@ -20,12 +21,258 @@ async function client(fileStore, { bootstrapGroup = false, profileId = 'account-
   };
   let workspace = await Workspace.create({ profileId, deviceId: crypto.randomUUID(), bootstrapGroup, area, persist });
   const storage = new MemoryAttachmentStorage();
-  let sync = new FileSync({ workspace, storage, fileStore, now: () => 1000, random: () => 0 });
+  const connect = () => new FileSync({ workspace, storage, fileStore, bootstrapGroup: initializeGroup, now: () => 1000, random: () => 0 });
+  let sync = connect();
   return { get workspace() { return workspace; }, get sync() { return sync; }, storage, disk: () => copy(disk),
     fail: callback => { fail = callback; },
-    reopen: () => { workspace = new Workspace(disk, persist); sync = new FileSync({ workspace, storage, fileStore }); },
+    reopen: (saved = disk) => { disk = copy(saved); workspace = new Workspace(disk, persist); sync = connect(); },
   };
 }
+
+// Hold every writer at createFile so all six have already observed the same empty source.
+async function initializeSix(store) {
+  const clients = await Promise.all(Array.from({ length: 6 }, () => client(store, { initializeGroup: true })));
+  const ready = gate(); let writers = 0;
+  store.hooks.createFile = async () => { if (++writers === clients.length) ready.resolve(); await ready.promise; };
+  try { await Promise.all(clients.map(c => c.sync.sync())); }
+  finally { delete store.hooks.createFile; }
+  assert.equal(writers, 6, 'the fixture forces all six devices to initialize concurrently');
+  await Promise.all(clients.map(c => c.sync.sync()));
+  const group = clients[0].workspace.snapshot.groups[0];
+  assert.ok(group, 'an empty account gets its initial group');
+  for (const c of clients) {
+    assert.deepEqual(c.workspace.snapshot.groups, [group]);
+    assert.equal(c.workspace.state.revisions.length, 1);
+    assert.deepEqual(c.workspace.state.conflicts, []);
+    assert.deepEqual(c.workspace.pendingOperations, []);
+  }
+  const roots = [...store.files.values()].filter(entry => entry.file.kind === 'revision').map(entry => decodeSourceRevision(entry.bytes).record);
+  assert.ok(roots.every(record => record.revisionId === group.revision && record.entityId === group.id));
+  return clients;
+}
+
+test('six simultaneous first syncs converge on one initial group and one root revision, including after restart', async () => {
+  const store = new MemoryFileStore(); const clients = await initializeSix(store);
+  const group = clients[0].workspace.snapshot.groups[0];
+  const late = await client(store, { initializeGroup: true }); await late.sync.sync();
+  assert.deepEqual(late.workspace.snapshot.groups, [group]);
+  for (const c of clients) c.reopen();
+  await Promise.all(clients.map(c => c.sync.sync()));
+  for (const c of clients) assert.deepEqual(c.workspace.snapshot.groups, [group]);
+  assert.equal(store.calls.filter(call => call.method === 'createFile').length, 6);
+});
+
+test('six cleared copies converge after each cloud reset, while old copies stop and each reset gets a new initial identity', async () => {
+  const store = new MemoryFileStore(); let clients = await initializeSix(store);
+  for (let reset = 0; reset < 2; reset++) {
+    const before = clients[0].workspace.snapshot;
+    await resetSource(store, { wait: async () => {} });
+    for (const c of clients) {
+      await assert.rejects(c.sync.sync(), failCode('source-reset'));
+      assert.deepEqual(c.workspace.snapshot, before);
+    }
+    clients = await initializeSix(store);
+    const group = clients[0].workspace.snapshot.groups[0];
+    assert.notEqual(group.id, before.groups[0].id); assert.notEqual(group.revision, before.groups[0].revision);
+    assert.equal(clients[0].workspace.snapshot.cards.length, 0);
+    for (const c of clients) c.reopen();
+    await Promise.all(clients.map(c => c.sync.sync()));
+    for (const c of clients) assert.deepEqual(c.workspace.snapshot.groups, [group]);
+  }
+});
+
+test('an initial upload arriving after a completed reset cannot add an old-generation group', async () => {
+  const store = new MemoryFileStore(); const entered = gate(); const resume = gate();
+  const old = await client(store, { initializeGroup: true });
+  store.hooks.createFile = async ({ file }) => {
+    if (file.kind !== 'revision') return;
+    delete store.hooks.createFile; entered.resolve(); await resume.promise;
+  };
+  const running = old.sync.sync(); await entered.promise;
+  await resetSource(store, { wait: async () => {} });
+  const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
+  const initial = fresh.workspace.snapshot.groups[0];
+  const stopped = assert.rejects(running, failCode('source-reset'));
+  resume.resolve(); await stopped; await fresh.sync.sync();
+  store.pageSize = 1; store.files = new Map([...store.files].reverse());
+  const late = await client(store, { initializeGroup: true }); await late.sync.sync();
+  for (const c of [fresh, late]) {
+    assert.deepEqual(c.workspace.snapshot.groups, [initial]);
+    assert.equal(c.workspace.state.revisions.length, 1); assert.deepEqual(c.workspace.state.conflicts, []);
+  }
+});
+
+test('a fresh scan defers a stale automatic root until the reset marker on its last page, then creates the current root', async () => {
+  const store = new MemoryFileStore(); const entered = gate(); const resume = gate();
+  const old = await client(store, { initializeGroup: true });
+  store.hooks.createFile = async ({ file }) => {
+    if (file.kind !== 'revision') return;
+    delete store.hooks.createFile; entered.resolve(); await resume.promise;
+  };
+  const running = old.sync.sync(); await entered.promise;
+  await resetSource(store, { wait: async () => {} });
+  const oldGroup = old.workspace.snapshot.groups[0];
+  const stopped = assert.rejects(running, failCode('source-reset')); resume.resolve(); await stopped;
+  store.pageSize = 1; store.files = new Map([...store.files].reverse());
+  const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
+  assert.equal(fresh.workspace.snapshot.groups.length, 1);
+  assert.notEqual(fresh.workspace.snapshot.groups[0].id, oldGroup.id);
+  assert.equal(fresh.workspace.state.revisions.length, 1); assert.deepEqual(fresh.workspace.state.conflicts, []);
+});
+
+test('late pre-reset edits, retirements and notes stay in the old device copy and cannot alter the new workspace', async () => {
+  for (const action of ['rename', 'retire', 'card']) {
+    const store = new MemoryFileStore(); const old = await client(store, { initializeGroup: true }); await old.sync.sync();
+    const group = old.workspace.snapshot.groups[0];
+    if (action === 'rename') await old.workspace.renameGroup(group.id, '重設前的名稱', group.revision);
+    else if (action === 'card') await old.workspace.createCard(text('重設前的在途便箋'), group.id);
+    else {
+      const target = await old.workspace.createGroup('舊接收組'); await old.sync.sync();
+      await old.workspace.mergeGroup(old.workspace.previewGroupMerge(group.id, target.id));
+    }
+    const revision = old.workspace.pendingOperations[0].operationId;
+    const entered = gate(); const resume = gate();
+    store.hooks.createFile = async ({ file }) => {
+      if (file.kind !== 'revision') return;
+      delete store.hooks.createFile; entered.resolve(); await resume.promise;
+    };
+    const running = old.sync.sync(); await entered.promise;
+    await resetSource(store, { wait: async () => {} });
+    const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
+    const initial = fresh.workspace.snapshot.groups[0];
+    const stopped = assert.rejects(running, failCode('source-reset')); resume.resolve(); await stopped;
+    await fresh.sync.sync();
+    assert.deepEqual(fresh.workspace.snapshot.groups, [initial]); assert.equal(initial.name, '我的便箋');
+    assert.ok(old.workspace.state.revisions.some(record => record.revisionId === revision), 'the old device retains its edits');
+    assert.equal(fresh.workspace.state.revisions.some(record => record.revisionId === revision), false);
+    assert.deepEqual(fresh.workspace.state.conflicts, []);
+    assert.deepEqual(fresh.workspace.snapshot.cards, []);
+  }
+});
+
+test('initial group identity is account scoped and existing same-name groups and their notes stay intact', async () => {
+  const a = new MemoryFileStore(); const b = new MemoryFileStore(); b.sourceId = 'drive:account-b:app-data';
+  const ca = await client(a, { initializeGroup: true }); const cb = await client(b, { initializeGroup: true, profileId: 'account-b' });
+  await Promise.all([ca.sync.sync(), cb.sync.sync()]);
+  assert.notEqual(ca.workspace.snapshot.groups[0].id, cb.workspace.snapshot.groups[0].id);
+  for (let i = 0; i < 5; i++) await ca.workspace.createGroup('我的便箋');
+  for (const group of ca.workspace.snapshot.groups) await ca.workspace.createCard(text(group.id), group.id);
+  await ca.sync.sync();
+  const before = ca.workspace.snapshot;
+  const late = await client(a, { initializeGroup: true }); await late.sync.sync();
+  assert.deepEqual(new Set(late.workspace.snapshot.groups.map(group => JSON.stringify(group))), new Set(before.groups.map(group => JSON.stringify(group))));
+  assert.deepEqual(late.workspace.snapshot.cards, before.cards);
+  assert.deepEqual(late.workspace.state.conflicts, []);
+  assert.equal(late.workspace.snapshot.groups.length, 6); assert.equal(late.workspace.snapshot.cards.length, 6);
+});
+
+test('existing unscoped V1 groups and unknown extension data remain readable after a reset', async () => {
+  for (const mode of ['extension', 'remapped']) {
+    const store = new MemoryFileStore(); const old = await client(store, { initializeGroup: true }); await old.sync.sync();
+    const group = old.workspace.snapshot.groups[0]; await resetSource(store, { wait: async () => {} });
+    if (mode === 'extension') group.annotation = { text: '使用者的額外資料' };
+    else { group.id = crypto.randomUUID(); group.revision = crypto.randomUUID(); }
+    await store.seed(encodeRevision(revisionRecord('group', group)));
+    const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
+    assert.deepEqual(fresh.workspace.snapshot.groups, [group]);
+    assert.equal(fresh.workspace.state.revisions.length, 1);
+  }
+});
+
+test('malformed source generation or envelope extensions preserve the cursor and existing workspace', async () => {
+  for (const patch of [{ sourceResetIds: null }, { sourceResetIds: ['bad/id'] }, { sourceResetIds: ['same', 'same'] }, { unknown: true }]) {
+    const store = new MemoryFileStore(); const c = await client(store); await c.sync.sync();
+    const before = c.workspace.state;
+    const record = JSON.parse(new TextDecoder().decode(encodeSourceRevision(groupRecord(), [])));
+    await store.seed(new TextEncoder().encode(JSON.stringify({ ...record, ...patch })));
+    await assert.rejects(c.sync.sync()); assert.deepEqual(c.workspace.state, before);
+  }
+});
+
+test('a reserved unscoped V1 upload keeps its original bytes and file ID after reopening', async () => {
+  const store = new MemoryFileStore(); const original = await client(store, { bootstrapGroup: true });
+  let disk = original.disk(); const record = disk.revisions[0]; const bytes = encodeRevision(record);
+  const file = await store.seed(bytes, 'revision', 'reserved-v1');
+  disk.sync.sourceId = store.sourceId;
+  disk.sync.uploads = { [`revision:${record.revisionId}`]: { file, complete: false } };
+  const workspace = new Workspace(disk, async (state, revision) => { assert.equal(disk.revision, revision); disk = copy(state); });
+  await new FileSync({ workspace, storage: original.storage, fileStore: store }).sync();
+  assert.equal(store.files.size, 1); assert.deepEqual(workspace.pendingOperations, []);
+  assert.equal(store.calls.filter(call => call.method === 'createFile').at(-1).file.id, file.id);
+  assert.deepEqual(workspace.snapshot.groups, original.workspace.snapshot.groups);
+});
+
+test('incomplete pulls and pending group history never authorize a new initial group', async () => {
+  for (const mode of ['scan', 'changes', 'pending']) {
+    const store = new MemoryFileStore();
+    if (mode === 'scan') store.listFiles = async () => ({ files: [], incomplete: true });
+    if (mode === 'changes') store.listChanges = async () => { throw new FleetError('network', 'offline'); };
+    if (mode === 'pending') {
+      const record = groupRecord(); record.parents = ['missing-parent']; await store.seed(encodeRevision(record));
+    }
+    const c = await client(store, { initializeGroup: true });
+    if (mode === 'pending') await c.sync.sync(); else await assert.rejects(c.sync.sync());
+    assert.deepEqual(c.workspace.snapshot.groups, []);
+    assert.deepEqual(c.workspace.pendingOperations, []);
+    assert.equal(store.calls.some(call => call.method === 'createFile'), false);
+  }
+});
+
+test('initial group persistence failure sends nothing, and a lost upload response retries the same root after restart', async () => {
+  const store = new MemoryFileStore(); const c = await client(store, { initializeGroup: true });
+  c.fail(state => state.revisions.length > 0);
+  await assert.rejects(c.sync.sync(), /disk full/);
+  assert.deepEqual(c.workspace.snapshot.groups, []);
+  assert.equal(store.calls.some(call => call.method === 'createFile'), false);
+  c.fail(() => false); c.reopen();
+  store.hooks.afterCreate = () => { delete store.hooks.afterCreate; throw new FleetError('network', 'response lost'); };
+  await assert.rejects(c.sync.sync(), failCode('network'));
+  const group = c.workspace.snapshot.groups[0]; const reserved = Object.values(c.disk().sync.uploads)[0].file.id;
+  c.reopen(); await c.sync.sync();
+  assert.deepEqual(c.workspace.snapshot.groups, [group]);
+  assert.equal(c.workspace.state.revisions.length, 1); assert.equal(store.files.size, 1);
+  assert.equal(store.calls.filter(call => call.method === 'createFile').at(-1).file.id, reserved);
+  assert.deepEqual(c.workspace.pendingOperations, []);
+});
+
+test('a reset stops an initial root before file allocation or reservation, including after reopening and cursor expiry', async () => {
+  for (const mode of ['incremental', 'rescan', 'unscoped-incremental', 'unscoped-rescan']) {
+    const store = new MemoryFileStore(); const c = await client(store, { initializeGroup: true });
+    store.hooks.allocateFileId = () => { throw new FleetError('network', 'allocation failed'); };
+    await assert.rejects(c.sync.sync(), failCode('network'));
+    assert.deepEqual(c.workspace.syncState.sourceResetIds, []);
+    assert.deepEqual(Object.values(c.workspace.syncState.uploads || {}), []);
+    const before = c.workspace.snapshot; const saved = c.disk();
+    if (mode.startsWith('unscoped')) delete saved.sync.sourceResetIds;
+    c.reopen(saved); delete store.hooks.allocateFileId;
+    await resetSource(store, { wait: async () => {} });
+    if (mode.endsWith('rescan')) store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+    await assert.rejects(c.sync.sync({ force: true }), failCode('source-reset'));
+    assert.deepEqual(c.workspace.snapshot, before);
+    assert.equal(store.calls.some(call => call.method === 'createFile' && call.file.kind === 'revision'), false);
+    const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
+    assert.equal(fresh.workspace.snapshot.groups.length, 1);
+  }
+});
+
+test('a cursor rescan stops at a new reset marker even before any old source file has been deleted', async () => {
+  for (const withGeneration of [true, false]) {
+    const store = new MemoryFileStore(); const c = await client(store, { initializeGroup: true }); await c.sync.sync();
+    if (!withGeneration) { const saved = c.disk(); delete saved.sync.sourceResetIds; c.reopen(saved); }
+    await c.workspace.createGroup('重設前尚未上傳的舊群組'); const before = c.workspace.snapshot;
+    const entered = gate(); const resume = gate();
+    store.hooks.deleteFile = async () => { delete store.hooks.deleteFile; entered.resolve(); await resume.promise; };
+    const resetting = resetSource(store, { wait: async () => {} }); await entered.promise;
+    store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
+    try {
+      await assert.rejects(c.sync.sync(), failCode('source-reset'));
+      assert.deepEqual(c.workspace.snapshot, before);
+      assert.equal(store.calls.filter(call => call.method === 'createFile' && call.file.kind === 'revision').length, 1);
+    } finally { resume.resolve(); await resetting; }
+    const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
+    assert.equal(fresh.workspace.snapshot.groups.length, 1);
+  }
+});
 
 test('two independent devices exchange paged history and keep both offline branches without sharing layout or drafts', async () => {
   const store = new MemoryFileStore(); store.pageSize = 1;
@@ -186,7 +433,8 @@ test('cloud reset: the marker stops devices holding old files, while fresh devic
   assert.deepEqual(b.workspace.snapshot, before, 'the reset never deletes this device copy by itself');
   for (const fresh of [await client(store), await client(store, { profileId: 'account-a' })]) {
     await fresh.sync.sync();
-    assert.equal(fresh.workspace.snapshot.cards.length, 0); assert.equal(Object.keys(fresh.workspace.syncState.files || {}).length, 0, 'the marker is not a synced file');
+    assert.equal(fresh.workspace.snapshot.cards.length, 0);
+    assert.deepEqual(Object.values(fresh.workspace.syncState.files || {}), [result.marker], 'the reset generation survives restart');
   }
   const restarted = await client(store, { bootstrapGroup: true }); await restarted.sync.sync();
   await restarted.workspace.createCard(text('重設後'), restarted.workspace.snapshot.groups[0].id); await restarted.sync.sync();

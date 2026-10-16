@@ -11,7 +11,7 @@ const synchronize = source.slice(source.indexOf('async function syncGoogle('), s
 const changeAccount = source.slice(source.indexOf('async function changeGoogleAccount('), source.indexOf('function resetPlan()'));
 
 async function fixture(profileId, account) {
-  const nodes = new Map(); const timers = []; const syncs = []; let immediate = 0;
+  const nodes = new Map(); const timers = []; const syncs = []; const connections = []; let immediate = 0;
   const context = vm.createContext({
     profileId, googleAccount: null, syncTimer: null, syncService: null,
     native: { info: { profileId }, bridge: { request: async method => { assert.equal(method, 'google.status'); return account; } } },
@@ -21,10 +21,10 @@ async function fixture(profileId, account) {
     renderAccount() {}, setSync: (...args) => syncs.push(args), syncGoogle: async () => { immediate++; },
     changeGoogleAccount() {}, askResumeCloudRestore() {},
     NativeGoogleFileStore: class { constructor(bridge, info, accountId) { assert.equal(info.profileId, `google:${accountId}`); } },
-    FileSync: class {},
+    FileSync: class { constructor(options) { connections.push(options); } },
   });
   await vm.runInContext(`${presenter}\n${initialize}\ninitializeGoogle()`, context);
-  return { nodes, timers, syncs, immediate, context };
+  return { nodes, timers, syncs, immediate, connections, context };
 }
 
 test('locked vault keeps offline Google notes and a retry route without suggesting reauthentication', async () => {
@@ -54,6 +54,7 @@ test('unlock status updates the same account controls without starting OAuth', a
 test('hosts without optional vault pause fields retain connected and signed-out behaviour', async () => {
   const connected = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture', email: 'synthetic@example.test' });
   assert.equal(connected.immediate, 1);
+  assert.equal(connected.connections[0].bootstrapGroup, true, 'the app delegates initial group creation to the sync coordinator');
   const local = await fixture('local', { configured: true, connected: false });
   assert.equal(local.nodes.get('#google-value').textContent, '未登入');
   assert.equal(local.nodes.get('#sync-row').hidden, true);

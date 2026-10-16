@@ -37,7 +37,8 @@ Accepted，2026-10-04。依完整 1.0 與技術細節授權定案；接續 ADR-0
   Google adapter 不收 token；授權與 refresh／OS 安全儲存由原生服務負責。
   `AuthorizedDriveRequest` 是服務內介面，禁止將任意請求 bridge 公開給 WebView renderer。
 - 新帳號分區先以 bootstrapGroup=false 接收來源，避免新裝置自行增加另一個「我的便箋」。
-  原生登入流程再處理全新空帳號的首次建立；不移除使用者既有本機便箋。
+  空帳號的首次建立依 [ADR-053](053-account-scoped-initial-group.md)，由 FileSync 在完整 pull 後使用帳號／重設批次共用的群組與根版本身分；
+  不移除使用者既有本機便箋。
 
 ## Consequences
 

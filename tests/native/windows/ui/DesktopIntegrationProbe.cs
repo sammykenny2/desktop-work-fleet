@@ -91,7 +91,8 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='草稿已存本機' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
       "failed exit resumes editing after composition", main);
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='保存').click()");
-    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-body')?.textContent.includes('桌面關閉前最後文字')")).ValueKind == JsonValueKind.True,
+    // A one-line note shows in the title band only; the body no longer repeats it.
+    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent === '桌面關閉前最後文字' && document.querySelector('.card-body')?.textContent.trim() === ''")).ValueKind == JsonValueKind.True,
       "scene commits through existing owner transaction", main);
     // Restore the fixture's original title, preserving its attachment and the subsequent existing regression assertions.
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");

@@ -41,9 +41,10 @@
   - Windows 上 Python discover 的 4 個 Linux 測試失敗（google／surface／xwayland／labwc），未改動的 HEAD 同樣失敗；其餘通過。
   - Edge 預覽 browser／group／revision／sync／backup／restore-ui／cloud-restore-ui／local-backup-ui／automatic-backup probe 全部通過；
     browser probe 新增便箋／清單、正方形、不重複標題、重開保留選擇且不搬動桌面紙張；scene probe 通過。
-  - Windows UI probe 改用 `.note-title` 等待原生主畫面的便箋。這台 Windows 只有 .NET 8 SDK，
-    App 以 .NET 10 為目標，`Test-WindowsNative.ps1` 在建置步驟停止（NETSDK1045），原生 probe 與 MSIX 未執行。
-- 沒有獨立審閱；Windows／macOS／Linux 桌面場景與手機的實際外觀未在該平台檢查。
+  - Windows UI probe 改用 `.note-title` 等待原生主畫面的便箋；桌面編輯保存的檢查改看標題帶，
+    因為一行便箋的內文不再重複標題。裝上 .NET 10 SDK 10.0.402 後 `Test-WindowsNative.ps1` 全部通過，
+    原生主畫面預設為便箋牆、桌面紙張為 240×240；畫面被視窗遮住的像素檢查依設計 SKIP。
+- 沒有獨立審閱；macOS／Linux 桌面場景與手機的實際外觀未在該平台檢查。
 
 ## 2026-10-17 手機 Google OAuth 接通準備與帳號流程修正
 

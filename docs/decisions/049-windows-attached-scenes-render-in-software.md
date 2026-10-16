@@ -5,6 +5,9 @@
 Accepted，2026-10-15。使用者看過 0.2.5 登入後當掉的 `host.log` 與分析後指示：「先做 1 和 2」。
 1 是把等待的判斷依據寫進 `host.log`（[ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) 修訂），2 是本決策。
 
+2026-10-16 修訂：沒有效果。使用者回報「重開機照樣crash喔」。裝的 0.2.7 含本決策，登入後內建螢幕關掉時同樣當掉，
+經過見 Consequences 的 Negative。改動仍在程式裡；要保留、撤回或換方案，待下一步決定（PROGRESS 2026-10-16 交接）。
+
 ## Context
 
 - 2026-10-15 15:09 開機，0.2.5 登入啟動後當掉，`host.log` 記錄如下：
@@ -45,6 +48,14 @@ Accepted，2026-10-15。使用者看過 0.2.5 登入後當掉的 `host.log` 與�
 
 - 不保證有效，render thread 失敗的原因仍然未知。如果失敗的是浮動層或主視窗的 GPU 繪圖，這次修正幫不上忙。
   下一步可以考慮兩件事：整個程序改用軟體繪圖（要先驗證浮動層），或為 WorkFleet.exe 開啟 LocalDumps（要使用者同意）。
+- 2026-10-16 實測無效。0.2.7 在 20:22:08 由登入啟動：
+  - 兩台螢幕，內建螢幕（`\\.\DISPLAY1`，1920×1080）是主螢幕；`lid open`，0.9 秒後掛上場景。
+  - 37 秒後 `lid closed`，再 1.2 秒只剩外接 4K（`\\.\DISPLAY2`，topology=1）。
+  - 套用後約 0.3 秒 render thread 失敗，堆疊與 0.2.5 相同；8 個 Explorer 子視窗先移出才結束。
+  - 同時段沒有驅動或顯示相關的系統事件。
+  - 還用 GPU 繪圖的只剩兩種：每台螢幕一個的浮動層（分層視窗加 `WebView2CompositionControl`），以及登入時藏在畫面外的主視窗。
+- 整個程序軟體繪圖已實驗過，見 Alternatives 1；交接見 PROGRESS 2026-10-16。
+  LocalDumps 的價值有限：微軟說 render thread 的失敗紀錄要用他們內部的除錯延伸與私有符號才能還原。
 - 軟體繪圖的緩衝放在程序記憶體裡。`--wallpaper` probe 有一個 4K 全螢幕的附著場景，兩個視窗都顯示時：
   - working set 峰值從 150 MB 增加到 215 MB，約等於兩個 3840×2160 的 32 位元緩衝。
   - private bytes 峰值反而從 181 MB 降到 174 MB，大致相同。
@@ -65,6 +76,13 @@ Accepted，2026-10-15。使用者看過 0.2.5 登入後當掉的 `host.log` 與�
 - **Pros**: 涵蓋所有視窗。
 - **Cons**: 浮動層要由 WPF 合成 WebView2 的 GPU 擷取畫面，軟體模式下的效能與顯示都還沒驗證。
 - **Why rejected**: 先處理畫面不會受影響的那一批；如果還是當掉，再評估這個方案。
+- **2026-10-16 實驗**：浮動層在軟體模式下沒有畫面，這個方案不能直接用。
+  - 做法：在 Debug UI probe 啟動時設 `RenderOptions.ProcessRenderMode = SoftwareOnly`，與預設模式對照。實驗改動已還原，沒有 commit。
+  - `--composition`：預設模式通過；軟體模式 10 秒內都沒有便箋像素（`Expected composition pixels did not appear: composition.png`）。
+  - `--wallpaper` 的真螢幕浮動層檢查：預設模式 `PASS on-screen floating at 190,145: rgb(224,80,160)`。
+    軟體模式在同一點命中後面的應用程式視窗而 SKIP。分層視窗在透明處不接受命中，應是那裡沒有畫出便箋。
+  - WebView2 1.0.4258.31 的 WPF 組件裡有 `GraphicsCaptureSession`、`D3D11CreateDevice`、`D3DImage`、`SetBackBuffer` 等字串，
+    推測 `WebView2CompositionControl` 用 GPU 擷取瀏覽器畫面，再交給 `D3DImage`。這只是推測，沒有讀過它的程式。
 
 ### Alternative 2: 加長或加強 ADR-046 的等待
 

@@ -2,6 +2,19 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 macOS 調整模式實機狀態與 Linux 測試文件修正
+
+使用者回報「macos這邊基本上測過, 沒什麼問題」，全螢幕 App 與 Spaces 沒測過，要求更新狀態、修正測試文件錯誤並 commit&push。
+只改文件，不升版、不發布。
+
+- macOS：
+  - 調整模式（此組／全部、工具列、退出）已由使用者在 Mac 實機操作，沒有發現問題。測試的版本與機器沒有記錄。
+  - 主視窗縮回／展開沒有另外回報。全螢幕 App、Spaces 下的最上層仍未驗收。
+  - 更新 `docs/testing.md` 與 ADR-042 中「macOS 仍須實機驗收」的敘述。
+- Linux：`docs/testing.md` 原寫 GNOME Xorg「沒有遮罩」，與 `surface.adjust_overlay` 及
+  `test_gnome_xorg_offers_all_three_layers_with_the_overlay` 不符，改為調整模式同樣是遮罩。
+- 沒有程式變更；沒有獨立審閱。
+
 ## 2026-10-17 正方形便箋與主畫面便箋牆
 
 使用者指出預設便箋長寬比與 Post-it 差太多，主畫面的橫條清單難以對應桌面上的便箋。

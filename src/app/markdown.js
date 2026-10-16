@@ -2,7 +2,6 @@ import DOMPurify from 'dompurify';
 import { markdown } from './checklist.js';
 import hljs from 'highlight.js/lib/common';
 
-const plain = text => text.replace(/\s+/g, ' ').trim();
 const highlighted = new Map();
 export function highlightCode(text, language) {
   const name = language?.toLowerCase();
@@ -15,8 +14,7 @@ export function highlightCode(text, language) {
   return highlighted.get(key);
 }
 
-// A paper already shows its title in the top band; `title` drops an opening heading or paragraph that only repeats it.
-export function renderMarkdown(element, text, { onToggle, title, highlight = true } = {}) {
+export function renderMarkdown(element, text, { onToggle, highlight = true } = {}) {
   const clean = DOMPurify.sanitize(markdown.parse(text), {
     RETURN_DOM_FRAGMENT: true,
     ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 's', 'code', 'pre', 'blockquote', 'ul', 'ol', 'li',
@@ -24,8 +22,6 @@ export function renderMarkdown(element, text, { onToggle, title, highlight = tru
     ALLOWED_ATTR: ['href', 'title', 'type', 'checked', 'disabled', 'start', 'align', 'class'],
     ALLOW_DATA_ATTR: false,
   });
-  const first = clean.firstElementChild;
-  if (title && /^(H[1-6]|P)$/.test(first?.tagName) && plain(first.textContent) === plain(title)) first.remove();
   let colourCharacters = 0, colourBlocks = 0;
   for (const node of clean.querySelectorAll('[class]')) {
     const language = node.matches('pre > code') && /^language-([\w+-]+)$/.exec(node.className)?.[1];

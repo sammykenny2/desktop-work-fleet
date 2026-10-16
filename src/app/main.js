@@ -834,7 +834,7 @@ function renderStage(cards) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
       };
       body.append(input);
-    } else { renderMarkdown(body, card.content.text, { title: summaryText(card) }); appendAttachmentTiles(body, card.content.attachments || [], stageAttachmentCleanup); }
+    } else { renderMarkdown(body, card.content.text); appendAttachmentTiles(body, card.content.attachments || [], stageAttachmentCleanup); }
     paper.append(body);
     if (policy.draggable) {
       paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card));
@@ -872,7 +872,7 @@ function renderNotes(cards, view, acrossGroups) {
     const note = element('article', undefined, view === 'list' ? 'note-row' : 'note-paper'); note.dataset.cardId = card.id;
     note.style.setProperty('--paper', groupColor(card.groupId));
     note.classList.toggle('completed', card.completed); note.classList.toggle('mine', myGroupId === card.groupId);
-    const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { title, highlight: view !== 'list' });
+    const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { highlight: view !== 'list' });
     if (view !== 'list') appendAttachmentTiles(body, card.content.attachments || [], noteAttachmentCleanup);
     const meta = element('div', undefined, 'note-meta');
     const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
@@ -892,7 +892,9 @@ function renderNotes(cards, view, acrossGroups) {
     const heading = element('h3', title, 'note-title');
     if (view === 'list') {
       const text = element('div', undefined, 'note-text');
-      text.append(heading, element('div', body.textContent.replace(/\s+/g, ' ').trim(), 'note-excerpt'));
+      // A paper without its own title shows its first line as the title, so the excerpt starts after it.
+      const plain = body.textContent.replace(/\s+/g, ' ').trim();
+      text.append(heading, element('div', !card.content.title && plain.startsWith(title) ? plain.slice(title.length).trim() : plain, 'note-excerpt'));
       note.append(element('span', undefined, 'note-swatch'), text, meta, actions);
     } else {
       const foot = element('div', undefined, 'note-foot'); foot.append(meta, actions);

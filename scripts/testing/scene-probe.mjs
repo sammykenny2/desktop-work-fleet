@@ -59,7 +59,7 @@ const read = () => page.evaluate(() => ({
   status: document.querySelector('#scene-status').hidden ? null : document.querySelector('#scene-status').textContent,
   summaries: [...document.querySelectorAll('.card-summary')].map(node => node.textContent),
   bodies: [...document.querySelectorAll('.card-body')].map(node => node.textContent.trim()),
-  repeatedTitles: document.querySelectorAll('.card-body h1').length,
+  headings: document.querySelectorAll('.card-body h1').length,
   bulletedSteps: [...document.querySelectorAll('.card-body li')].filter(li => li.querySelector('input') && getComputedStyle(li).listStyleType !== 'none').length,
   steps: [...document.querySelectorAll('.card-body input')].map(input => input.checked),
   square: [...document.querySelectorAll('.card')].every(node => node.offsetWidth === node.offsetHeight),
@@ -70,8 +70,10 @@ try {
   const first = await read();
   assert.equal(first.status, null);
   assert.deepEqual(first.summaries, ['季度報告', '買牛奶、雞蛋、咖啡豆', '牙醫預約']);
-  assert.deepEqual(first.bodies.slice(1), ['', '下週二 14:30，記得帶健保卡。'], 'a body does not repeat the title in the band');
-  assert.equal(first.repeatedTitles, 0); assert.equal(first.bulletedSteps, 0, 'checklist steps show a box, not a bullet');
+  // The body shows the whole text from its first line, even where the band already shows that line.
+  assert.equal(first.bodies[1], '買牛奶、雞蛋、咖啡豆', 'a one-line note fills its body, not only its band');
+  assert.match(first.bodies[2], /^牙醫預約\s+下週二 14:30，記得帶健保卡。$/);
+  assert.equal(first.headings, 2); assert.equal(first.bulletedSteps, 0, 'checklist steps show a box, not a bullet');
   assert.deepEqual(first.steps, [true, false, false]); assert.ok(first.square);
   // A later frame reuses each paper's nodes; the title and the steps must follow without a scene error.
   await page.evaluate(() => window.probeNextFrame());
@@ -79,7 +81,7 @@ try {
   const second = await read();
   assert.equal(second.status, null, 'the second frame renders without a scene error');
   assert.deepEqual(second.summaries, ['季度報告', '買牛奶、雞蛋、咖啡豆', '牙醫改期']);
-  assert.deepEqual(second.steps, [true, false, true]); assert.equal(second.repeatedTitles, 0);
+  assert.deepEqual(second.steps, [true, false, true]); assert.match(second.bodies[2], /^牙醫改期\s/);
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe.png' });
   await page.evaluate(() => { window.probeRich = true; window.probeNextFrame(); });
   await page.waitForFunction(() => window.probeApplied === 3);

@@ -24,6 +24,8 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .card-body:has(textarea) { display: flex; flex-direction: column; padding: 4px; }
 textarea { flex: 1; min-height: 30px; width: 100%; resize: none; border: 0; outline: 1px solid #466b5940; padding: 6px; background: #ffffff50; color: inherit; font: inherit; line-height: 1.5; user-select: text; }
 .card-actions { min-height: 31px; padding: 3px 6px; display: flex; justify-content: flex-end; gap: 5px; }
+/* Papers outside adjust mode have no buttons, so the row gives its height back to the text. */
+.card-actions:empty { display: none; }
 button { font: inherit; font-size: 12px; border: 1px solid #00000020; border-radius: 3px; padding: 3px 8px; color: inherit; background: #ffffff70; cursor: pointer; }
 button:focus-visible { outline: 2px solid #245f50; }
 .draft-state { font-size: 11px; min-height: 20px; padding-top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

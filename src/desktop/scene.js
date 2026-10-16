@@ -84,9 +84,9 @@ function render(next) {
       updateFrozen();
       actions.replaceChildren(button('重試保存', saveDraft), button('完整編輯', () => editAction('editor.full')), button('保存', () => editAction('editor.save')));
     } else {
-      if (item.editorId || item.text !== card.text || item.title !== card.summary) {
+      if (item.editorId || item.text !== card.text) {
         item.disposeAttachments?.(); item.filesKey = null;
-        renderMarkdown(body, card.text, { title: card.summary }); item.text = card.text; item.title = card.summary; item.editorId = null;
+        renderMarkdown(body, card.text); item.text = card.text; item.editorId = null;
       }
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
       const missingChanged = item.attachmentNode?.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;

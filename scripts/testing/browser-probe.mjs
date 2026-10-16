@@ -79,11 +79,12 @@ try {
   await expect(page.locator('#stage-shell')).not.toBeVisible();
   await page.locator('#search').fill('');
   assert.deepEqual(await paper.boundingBox(), moved, 'search must preserve desktop geometry');
-  // The board and the list show the same papers without repeating the title; the choice is kept on this device.
+  // The board and the list show the same papers; the body starts from the first line, the list excerpt after it.
+  // The choice is kept on this device.
   await page.locator('[data-view="board"]').click();
   const tile = page.locator('.note-paper').filter({ hasText: '第一件事' });
   await expect(tile.locator('.note-title')).toHaveText('第一件事');
-  await expect(tile.locator('.note-body')).toContainText('就地編輯保存'); await expect(tile.locator('.note-body h1')).toHaveCount(0);
+  await expect(tile.locator('.note-body')).toContainText('就地編輯保存'); await expect(tile.locator('.note-body h1')).toHaveText('第一件事');
   await expect(tile.locator('.note-meta span')).toHaveText(['1/1 步驟', '1 個附件']);
   assert.ok(await tile.evaluate(node => Math.abs(node.offsetWidth - node.offsetHeight) <= 1), 'board papers are square');
   const tileDownload = page.waitForEvent('download'); await tile.locator('.attachment-tile').dblclick();
@@ -91,11 +92,12 @@ try {
   await expect(page.locator('#editor-dialog')).not.toBeVisible();
   await page.locator('[data-view="list"]').click();
   await expect(page.locator('.note-row .note-title')).toHaveText('第一件事');
+  await expect(page.locator('.note-row .note-excerpt')).toHaveText(/^(?!第一件事)./);
   await expect(page.locator('#list .attachment-tile')).toHaveCount(0);
   await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
   await page.locator('#search').fill('第一件事'); await expect(page.locator('.note-row .note-title')).toHaveText('第一件事');
   await page.locator('[data-view="desktop"]').click(); await expect(page.locator('#search')).toHaveValue('');
-  await expect(page.locator('.card-body h1')).toHaveCount(0);
+  await expect(page.locator('.card-body h1')).toHaveText('第一件事');
   assert.deepEqual(await paper.boundingBox(), moved, 'board and list must not move desktop papers');
   // The reload ended adjust mode; the drags below need it again.
   await page.getByRole('button', { name: '調整全部', exact: true }).click(); await expect(paper).toHaveClass(/operable/);

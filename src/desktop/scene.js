@@ -1,13 +1,14 @@
 import { NativeBridge, nativeTransport } from '../native/bridge.js';
 import { renderMarkdown } from '../app/markdown.js';
 import { renderAttachmentTiles } from '../app/attachments.js';
+import { fitText, fitTiles, paperFitter } from '../app/fit.js';
 import { DesktopClient, DesktopDraft } from './client.js';
 import { download, parse } from './transport.js';
 import { shortcutForEvent } from '../core/shortcuts.js';
 import { createFrameRefresher } from './frame-refresh.js';
 
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
-const nodes = new Map(); const frozen = new Set();
+const nodes = new Map(); const frozen = new Set(); const fitter = paperFitter();
 let bridge, client, info, frame, editor = null, composing = false, gesture = null, lastError, displayPending = false;
 let repaintPending = false;
 const make = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
@@ -52,13 +53,18 @@ function render(next) {
   const overlay = info.adjustOverlay === true && info.layer === 'floating' && next.operationScope.kind !== 'none';
   renderAdjustOverlay(overlay);
   const cards = next.cards.filter(card => card.layer === info.layer); const live = new Set(cards.map(card => card.id));
-  for (const [id, item] of nodes) if (!live.has(id)) { item.disposeAttachments?.(); item.paper.remove(); nodes.delete(id); }
+  for (const [id, item] of nodes) if (!live.has(id)) {
+    item.disposeAttachments?.(); fitter.unobserve(item.body); fitter.unobserve(item.files); item.paper.remove(); nodes.delete(id);
+  }
   cards.forEach((card, index) => {
     let item = nodes.get(card.id);
     if (!item) {
       const paper = make('article'); paper.dataset.cardId = card.id;
       const summary = make('div', '', 'card-summary'); const body = make('div', '', 'card-body markdown'); const actions = make('div', '', 'card-actions');
-      paper.append(summary, body, actions); root.append(paper); item = { paper, summary, body, actions }; nodes.set(card.id, item);
+      // Attachments sit in their own row between the text and the buttons.
+      const files = make('div', undefined, 'paper-files'); files.hidden = true;
+      paper.append(summary, body, files, actions); root.append(paper); item = { paper, summary, body, files, actions }; nodes.set(card.id, item);
+      fitter.observe(body); fitter.observe(files);
     }
     const { paper, summary, body, actions } = item;
     paper.className = `card${card.interactive ? ' interactive' : ''}${card.draggable ? ' operable' : ' selectable'}${card.selected ? ' selected' : ''}${card.mine ? ' mine' : ''}${card.completed ? ' completed' : ''}`;
@@ -67,7 +73,7 @@ function render(next) {
     paper.setAttribute('aria-label', card.summary); summary.textContent = card.summary; rect(paper, card.rect);
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {
-        item.disposeAttachments?.(); item.filesKey = null;
+        item.disposeAttachments?.(); item.disposeAttachments = null; item.filesKey = null; item.files.hidden = true;
         item.editorId = editor.draftId; const input = make('textarea', undefined, 'inline-editor'); input.value = editor.text; input.setAttribute('aria-label', '就地編輯便箋');
         input.oninput = () => { editor.text = input.value; if (!composing) void run(saveDraft); };
         input.addEventListener('compositionstart', () => { composing = true; });
@@ -84,22 +90,20 @@ function render(next) {
       updateFrozen();
       actions.replaceChildren(button('重試保存', saveDraft), button('完整編輯', () => editAction('editor.full')), button('保存', () => editAction('editor.save')));
     } else {
-      if (item.editorId || item.text !== card.text) {
-        item.disposeAttachments?.(); item.filesKey = null;
-        renderMarkdown(body, card.text); item.text = card.text; item.editorId = null;
-      }
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
-      const missingChanged = item.attachmentNode?.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;
-      if (item.filesKey !== filesKey || missingChanged) {
-        item.disposeAttachments?.(); item.attachmentNode?.remove(); item.filesKey = filesKey; item.attachmentRevision = next.workspaceRevision;
-        item.attachmentNode = make('div'); body.append(item.attachmentNode);
+      const missingChanged = item.files.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;
+      if (item.editorId || item.filesKey !== filesKey || missingChanged) {
+        item.disposeAttachments?.(); item.filesKey = filesKey; item.attachmentRevision = next.workspaceRevision;
+        item.files.hidden = !card.attachments?.length;
         const args = file => ({ cardId: card.id, revision: card.revision, attachmentId: file.id });
-        item.disposeAttachments = renderAttachmentTiles(item.attachmentNode, card.attachments || [], {
+        item.disposeAttachments = renderAttachmentTiles(item.files, card.attachments || [], {
           preview: file => client.command('attachment.preview', args(file)),
           open: file => card.interactive ? client.command('attachment.open', args(file)) : Promise.resolve(), report,
         });
-        for (const tile of item.attachmentNode.querySelectorAll('button')) tile.disabled = !card.interactive;
+        for (const tile of item.files.querySelectorAll('button')) tile.disabled = !card.interactive;
+        fitTiles(item.files);
       }
+      if (item.editorId || item.text !== card.text) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; fitText(body); }
       actions.replaceChildren();
       if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
     }

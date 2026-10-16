@@ -18,6 +18,7 @@ import { connectNative } from '../native/bridge.js';
 import { NativeFiles } from '../native/files.js';
 import { NativeAttachments } from '../native/attachments.js';
 import { renderAttachmentTiles } from './attachments.js';
+import { fitText, paperFitter } from './fit.js';
 import { NativeCaptureInbox } from '../native/capture.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
@@ -43,6 +44,7 @@ let automatic; let automaticError; let browserJournal;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let nativeFiles; let attachmentFiles;
 const noteAttachmentCleanup = []; const stageAttachmentCleanup = []; const editorAttachmentCleanup = [];
+const boardFitter = paperFitter(); const stageFitter = paperFitter();
 let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
@@ -797,7 +799,7 @@ function renderCounts() {
 
 function renderStage(cards) {
   for (const close of stageAttachmentCleanup.splice(0)) close();
-  const stage = $('#stage'); stage.replaceChildren(); groupLabels = [];
+  stageFitter.clear(); const stage = $('#stage'); stage.replaceChildren(); groupLabels = [];
   if (desktopInfo) { const area = screenArea(); stage.style.transform = `translate(${-area.x}px, ${-area.y}px)`; }
   const layout = workspace.layout.state; const state = controller.state;
   let regions = [];
@@ -835,8 +837,11 @@ function renderStage(cards) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
       };
       body.append(input);
-    } else { renderMarkdown(body, card.content.text); appendAttachmentTiles(body, card.content.attachments || [], stageAttachmentCleanup); }
-    paper.append(body);
+      paper.append(body);
+    } else {
+      renderMarkdown(body, card.content.text); paper.append(body); stageFitter.observe(body);
+      const strip = attachmentStrip(card.content.attachments || [], stageAttachmentCleanup, stageFitter); if (strip) paper.append(strip);
+    }
     if (policy.draggable) {
       paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card));
       const actions = element('div', undefined, 'card-actions');
@@ -864,7 +869,7 @@ function iconButton(label, paths, action) { const node = button('', action, 'not
 // The board shows each paper as the square it is on the desktop; the list keeps one row per paper. Both open the editor.
 function renderNotes(cards, view, acrossGroups) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
-  const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? '便箋清單' : '便箋牆');
+  boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? '便箋清單' : '便箋牆');
   if (!cards.length) { list.append(element('p', '這裡還沒有便箋。', 'hint')); return; }
   const groups = activeGroups(workspace.snapshot); const { myGroupId } = workspace.layout.state;
   const holder = element('div', undefined, view === 'list' ? 'note-list' : 'board');
@@ -874,7 +879,6 @@ function renderNotes(cards, view, acrossGroups) {
     note.style.setProperty('--paper', groupColor(card.groupId));
     note.classList.toggle('completed', card.completed); note.classList.toggle('mine', myGroupId === card.groupId);
     const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { highlight: view !== 'list' });
-    if (view !== 'list') appendAttachmentTiles(body, card.content.attachments || [], noteAttachmentCleanup);
     const meta = element('div', undefined, 'note-meta');
     const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
     if (total) meta.append(element('span', `${done}/${total} 步驟`));
@@ -899,7 +903,9 @@ function renderNotes(cards, view, acrossGroups) {
       note.append(element('span', undefined, 'note-swatch'), text, meta, actions);
     } else {
       const foot = element('div', undefined, 'note-foot'); foot.append(meta, actions);
-      note.append(heading, body, foot);
+      note.append(heading, body); boardFitter.observe(body);
+      const strip = attachmentStrip(card.content.attachments || [], noteAttachmentCleanup, boardFitter); if (strip) note.append(strip);
+      note.append(foot);
     }
     holder.append(note);
   }
@@ -1064,7 +1070,7 @@ function closeInlineView(cardId) {
   const paper = [...$('#stage').querySelectorAll('.card')].find(node => node.dataset.cardId === cardId);
   const card = currentCard(cardId);
   if (paper && card) {
-    renderMarkdown(paper.querySelector('.card-body'), card.content.text);
+    const body = paper.querySelector('.card-body'); renderMarkdown(body, card.content.text); fitText(body);
     paper.querySelector('.card-actions')?.replaceChildren(button('編輯', () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
   }
   if (currentDraft?.cardId === cardId) currentDraft = null;
@@ -1147,6 +1153,13 @@ function appendAttachmentTiles(body, files, cleanups) {
   if (!files.length) return;
   const tiles = element('div'); body.append(tiles);
   cleanups.push(renderAttachmentTiles(tiles, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true) }));
+}
+// On a paper the attachments are one row of thumbnails along its bottom edge; the fitter hides tiles beyond the row.
+function attachmentStrip(files, cleanups, fitter) {
+  if (!files.length) return null;
+  const strip = element('div', undefined, 'paper-files'); fitter.observe(strip);
+  cleanups.push(renderAttachmentTiles(strip, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true) }));
+  return strip;
 }
 async function renderAttachments() {
   for (const close of editorAttachmentCleanup.splice(0)) close();

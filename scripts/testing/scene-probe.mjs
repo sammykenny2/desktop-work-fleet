@@ -25,7 +25,9 @@ await page.addInitScript(() => {
     selected: false, completed: false, mine: false, color });
   const frame = () => ({ protocol: 1, sessionId: 's1', sequence, topology: 0, workspaceRevision: sequence, layoutRevision: sequence,
     groups: [{ id: 'g1', name: '我的便箋', color: '#fff6cc', region: null }], operationScope: { kind: 'none' }, activeGroupId: 'g1',
-    cards: window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
+    cards: window.probeLong ? [{ ...paper('long', 24, '長便箋', Array.from({ length: 30 }, (_, n) => `第 ${n + 1} 行，寫得夠長讓它在紙上換行。`).join('\n\n'), '#ffe98a'),
+      rect: { x: 24, y: 24, width: 240, height: window.probeTall ? 480 : 240 },
+      attachments: Array.from({ length: 6 }, (_, n) => ({ id: `blob-${n}`, name: `file-${n}.pdf` })) }] : window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
       paper('c1', 24, '季度報告', `# 季度報告\n\n- [x] 收集數字\n- [ ] 畫圖表\n- [${sequence > 1 ? 'x' : ' '}] 寫結論`, '#fff6cc'),
       paper('c2', 292, '買牛奶、雞蛋、咖啡豆', '買牛奶、雞蛋、咖啡豆', '#e7f2e7'),
       paper('c3', 560, sequence > 1 ? '牙醫改期' : '牙醫預約', `# ${sequence > 1 ? '牙醫改期' : '牙醫預約'}\n\n下週二 14:30，記得帶健保卡。`, '#e5edf8'),
@@ -91,7 +93,7 @@ try {
     keyword: getComputedStyle(document.querySelector('.hljs-keyword')).color,
     string: getComputedStyle(document.querySelector('.hljs-string')).color,
     disabled: document.querySelector('.card-body input').disabled,
-    unknown: document.querySelectorAll('.card-body pre')[1].textContent,
+    unknown: document.querySelectorAll('.card-body pre code')[1].textContent,
     unsafe: document.querySelectorAll('.card-body script,.card-body img:not(.attachment-tile img)').length,
   }));
   assert.ok(rich.headings.every((value, index) => index === 0 || value < rich.headings[index - 1]), 'six explicit heading sizes decrease');
@@ -109,6 +111,29 @@ try {
   await page.waitForFunction(() => window.probeApplied === 4 && document.querySelectorAll('.attachment-tile.missing').length === 2);
   await page.evaluate(() => { window.probeMissing = false; window.probeNextFrame(); });
   await page.waitForFunction(() => window.probeApplied === 5 && document.querySelectorAll('.attachment-tile img').length === 2);
+  // A long paper shows what fits, ends with "…" and never scrolls; its attachments are one row below the text, and tiles
+  // past that row are hidden. A taller paper fits again and shows more.
+  const fitted = () => page.evaluate(async () => {
+    await new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)));
+    const body = document.querySelector('.card-body'); const files = document.querySelector('.paper-files');
+    const range = document.createRange(); range.selectNodeContents(body);
+    const textBottom = Math.max(...[...range.getClientRects()].map(rect => rect.bottom));
+    return { overflow: getComputedStyle(body).overflowY, tilesInBody: body.querySelectorAll('.attachment-tile').length,
+      rowBelow: files.getBoundingClientRect().top >= body.getBoundingClientRect().bottom - 0.5,
+      tiles: files.children.length, shownTiles: [...files.children].filter(tile => getComputedStyle(tile).visibility !== 'hidden').length,
+      ends: body.querySelector('.fit-lines, .fit-more') !== null, inside: textBottom <= body.getBoundingClientRect().bottom + 0.5,
+      shown: body.innerText.replace(/\s+/g, '').length };
+  });
+  await page.evaluate(() => { window.probeLong = true; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 6);
+  const square = await fitted();
+  assert.deepEqual({ ...square, shown: undefined }, { overflow: 'hidden', tilesInBody: 0, rowBelow: true, tiles: 6, shownTiles: 4,
+    ends: true, inside: true, shown: undefined });
+  await page.screenshot({ path: 'build/fitted-paper-probe.png' });
+  await page.evaluate(() => { window.probeTall = true; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 7);
+  const tall = await fitted();
+  assert.ok(tall.ends && tall.inside && tall.shown > square.shown * 2, `a taller paper shows more (${square.shown} → ${tall.shown})`);
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');
     const element = document.createElement('div');
@@ -124,7 +149,7 @@ try {
   assert.equal(budgets.blocks, 80); assert.equal(budgets.spans, 0);
   assert.ok(budgets.characters > 160000, 'large documents retain all code as plain text');
   assert.deepEqual(errors, []);
-  console.log('PASS: desktop scene reuse, title band, six heading sizes, code colours/escaping/budgets, read-only checklists, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing');
+  console.log('PASS: desktop scene reuse, title band, text fitted with … and refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, read-only checklists, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe-failure.png' });
   if (errors.length) console.error('Scene page errors:', errors);

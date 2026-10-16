@@ -15,6 +15,17 @@
 本機與 Google 共用 V1 ZIP，未支援的格式拒絕且保留資料。沒有逐版 migration 或副本驗收工作。
 文件工作執行 check_docs.py、git diff --check 與範圍／語意一致性檢查即可。
 
+## 便箋格式與附件驗證
+
+- `node --test tests/rich-content.test.js tests/desktop-authority.test.js tests/desktop-transport.test.js`：上色／escaping、bounded PNG、預覽快取、目前附件歸屬、過期版本、穿透及慢預覽不阻擋保存／關閉。
+- 建置後以 `node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT` 驗證六階實際字級、上色／長內容預算、checklist 維持唯讀、縮圖、同步後重試、雙擊與鍵盤開啟不誤觸拖曳／編輯；只用 synthetic host，不代表 OS 開啟應用程式實測。
+  `browser-probe.mjs` 另驗證主畫面附件 tile 的下載 fallback、不誤開編輯器與清單不建立隱藏 tile。
+- Windows Debug UI probe 新增 `--attachments`：實際呼叫 Shell Image Factory，核對 PNG 上限與檔名／可執行檔政策，不啟動外部程式。
+  core probe 同時驗證當前 profile bytes、缺附件與縮圖離開 storage gate／遲到回覆失效。
+- Linux 使用系統 Python：`python3 -B -m unittest discover -s tests -p 'test_linux_attachments.py' -v`。
+  測試私有副本、開啟 adapter、close race 與有 GdkPixbuf 時的實際圖片縮圖。缺 GI 明確略過實際縮圖；Windows 明確略過 POSIX 測試。
+- macOS 必須用 Xcode 建置並在沙盒 App 驗證 Quick Look、預設程式與切帳號清理；沒有 Mac 的環境不能宣稱這些已通過。
+
 ## 可重現命令
 
 從 checkout 根目錄；Python 使用標準庫，完整 JS 測試需先安裝 lockfile 依賴：

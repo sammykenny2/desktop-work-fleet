@@ -17,6 +17,7 @@
 | [ADR-006](decisions/006-card-group-and-formation-semantics.md) | Accepted：一事一卡、群組、formation、操作語意 |
 | [ADR-007](decisions/007-desktop-scene-and-platform-host.md) | Proposed：renderer／原生 host 分界及可控疊序 |
 | [ADR-008](decisions/008-portable-interaction-core.md) | Accepted：共用語意核心、原子保存與本輪完整 1.0 範圍 |
+| [ADR-052](decisions/052-rich-papers-and-native-attachments.md) | Accepted：六階標題、程式碼上色、原生附件縮圖／開啟副本；不增加 migration 或桌面 checklist 操作 |
 | [ADR-009](decisions/009-local-renderer-and-persistence.md) | Accepted：本機 renderer、IndexedDB／草稿／附件、安全 Markdown |
 | [ADR-010](decisions/010-group-retirement-and-device-settings.md) | Accepted：群組合併／草稿基線、區域及快捷鍵設定 |
 | [SPEC-004](specs/004-revision-graph-and-file-sync.md)／[ADR-011](decisions/011-immutable-revision-graph.md) | Accepted：不可變版本、嚴格 JSON、缺 parent／多分支規則；整合證據見 PROGRESS |

@@ -15,6 +15,8 @@ import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser
 import { startAutomaticBackup } from '../backup/lifecycle.js';
 import { connectNative } from '../native/bridge.js';
 import { NativeFiles } from '../native/files.js';
+import { NativeAttachments } from '../native/attachments.js';
+import { renderAttachmentTiles } from './attachments.js';
 import { NativeCaptureInbox } from '../native/capture.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
@@ -40,7 +42,8 @@ let lastVisibleArea;
 let settingsSlots = []; let settingsPage = null; let dataPanel = null;
 let automatic; let automaticError; let browserJournal;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
-let nativeFiles;
+let nativeFiles; let attachmentFiles;
+const noteAttachmentCleanup = []; const stageAttachmentCleanup = []; const editorAttachmentCleanup = [];
 let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
@@ -95,6 +98,7 @@ async function initialize() {
   if (native) {
     profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
     nativeBackups = nativeBackupAdapters(native.bridge, native.info);
+    if (native.info.capabilities.attachmentFiles) attachmentFiles = new NativeAttachments(native.bridge);
     if (native.info.capabilities.fileExport) {
       nativeFiles = new NativeFiles(native.bridge, native.info);
       const stopDownloads = nativeFiles.interceptDownloads(status); addEventListener('pagehide', stopDownloads, { once: true });
@@ -508,6 +512,7 @@ function initializeDesktop() {
     shortcut: (target, intent) => desktopAction(target, intent),
     details: async (id, intent) => { await leaveAdjustOverlay(); await native.bridge.request('desktop.showMain', { intent }); cardDetails(currentCard(id)); },
     arrange: kind => arrangeDesktop(kind),
+    attachments: (method, file) => method === 'attachment.preview' ? previewAttachment(file) : openAttachment(file),
     editor: {
       current: currentDesktopEditor,
       begin: async (id, viewId) => {
@@ -792,6 +797,7 @@ function renderCounts() {
 }
 
 function renderStage(cards) {
+  for (const close of stageAttachmentCleanup.splice(0)) close();
   const stage = $('#stage'); stage.replaceChildren(); groupLabels = [];
   if (desktopInfo) { const area = screenArea(); stage.style.transform = `translate(${-area.x}px, ${-area.y}px)`; }
   const layout = workspace.layout.state; const state = controller.state;
@@ -830,7 +836,7 @@ function renderStage(cards) {
         if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
       };
       body.append(input);
-    } else renderMarkdown(body, card.content.text, { title: summaryText(card) });
+    } else { renderMarkdown(body, card.content.text, { title: summaryText(card) }); appendAttachmentTiles(body, card.content.attachments || [], stageAttachmentCleanup); }
     paper.append(body);
     if (policy.draggable) {
       paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card));
@@ -858,6 +864,7 @@ function iconButton(label, paths, action) { const node = button('', action, 'not
 
 // The board shows each paper as the square it is on the desktop; the list keeps one row per paper. Both open the editor.
 function renderNotes(cards, view, acrossGroups) {
+  for (const close of noteAttachmentCleanup.splice(0)) close();
   const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? '便箋清單' : '便箋牆');
   if (!cards.length) { list.append(element('p', '這裡還沒有便箋。', 'hint')); return; }
   const groups = activeGroups(workspace.snapshot); const { myGroupId } = workspace.layout.state;
@@ -867,7 +874,8 @@ function renderNotes(cards, view, acrossGroups) {
     const note = element('article', undefined, view === 'list' ? 'note-row' : 'note-paper'); note.dataset.cardId = card.id;
     note.style.setProperty('--paper', groupColor(card.groupId));
     note.classList.toggle('completed', card.completed); note.classList.toggle('mine', myGroupId === card.groupId);
-    const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { title });
+    const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { title, highlight: view !== 'list' });
+    if (view !== 'list') appendAttachmentTiles(body, card.content.attachments || [], noteAttachmentCleanup);
     const meta = element('div', undefined, 'note-meta');
     const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
     if (total) meta.append(element('span', `${done}/${total} 步驟`));
@@ -1113,12 +1121,29 @@ function showEditorTab(preview) {
     queueDraft(); showEditorTab(true);
   }) });
 }
+async function previewAttachment(file) {
+  if (attachmentFiles) return attachmentFiles.preview(file);
+  return { available: Boolean(await storage.getAttachment(profileId, file.id)), png: null };
+}
+async function openAttachment(file) {
+  if (attachmentFiles) return attachmentFiles.open(file);
+  const blob = await storage.getAttachment(profileId, file.id);
+  if (!blob) throw new Error('附件尚未下載，請先完成同步。');
+  if (nativeFiles) return nativeFiles.export(new Uint8Array(await blob.arrayBuffer()), file.name);
+  const url = URL.createObjectURL(blob); const link = element('a'); link.href = url; link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function appendAttachmentTiles(body, files, cleanups) {
+  if (!files.length) return;
+  const tiles = element('div'); body.append(tiles);
+  cleanups.push(renderAttachmentTiles(tiles, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true) }));
+}
 async function renderAttachments() {
+  for (const close of editorAttachmentCleanup.splice(0)) close();
   for (const url of attachmentUrls.values()) URL.revokeObjectURL(url); attachmentUrls.clear();
   const list = $('#attachments'); list.replaceChildren();
   if (!currentDraft) return;
   for (const attachment of currentDraft.content.attachments || []) {
-    const row = element('li'); const blob = await storage.getAttachment(profileId, attachment.id);
+    const row = element('li'); appendAttachmentTiles(row, [attachment], editorAttachmentCleanup); const blob = await storage.getAttachment(profileId, attachment.id);
     if (blob) {
       // Download-only bytes: HTML/SVG attachments must never become same-origin executable documents.
       const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); attachmentUrls.set(attachment.id, url);

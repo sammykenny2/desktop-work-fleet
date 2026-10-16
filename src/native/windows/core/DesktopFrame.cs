@@ -36,7 +36,12 @@ public sealed record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Ca
     var cards = new List<PresentedCard>(); var ids = new HashSet<string>(StringComparer.Ordinal);
     foreach (var card in values.EnumerateArray())
     {
-      Fields(card, "id groupId revision summary text format attachmentCount rect layer interactive draggable editing selected completed mine color");
+      Fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color");
+      if (card.TryGetProperty("attachments", out var attachments))
+      {
+        HostError.Require(attachments.ValueKind == JsonValueKind.Array && attachments.GetArrayLength() <= 20000, "scene-frame", "附件清單格式無效。");
+        foreach (var file in attachments.EnumerateArray()) { Fields(file, "id name"); _ = JsonRules.Text(file, "id", 128); _ = JsonRules.Text(file, "name", LocalDatabase.MaxRecord); }
+      }
       var id = JsonRules.Text(card, "id", 128); var layer = JsonRules.Text(card, "layer");
       HostError.Require(ids.Add(id) && layer is "desktop" or "floating" or "wallpaper", "scene-frame", "桌面卡片身分或層級無效。");
       _ = JsonRules.Text(card, "groupId", 128); Color(card);

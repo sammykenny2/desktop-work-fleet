@@ -20,6 +20,7 @@ actor FleetService {
     /// ADR-043: startup settings and the main window, owned by the macOS app delegate on the main actor.
     private var shell: (@MainActor (String, [String: Any]) throws -> Any)?
     private var updates = false
+    private var attachmentFiles: (@MainActor (Data, String, Bool) async throws -> Any)?
     init(database: FleetDatabase, google: FleetGoogle, platform: String, choose: @escaping @MainActor () async throws -> URL) {
         self.database = database; self.google = google; self.platform = platform
         backups = FleetBackup(database: database, choose: choose); drive = FleetDrive(google: google, profile: database.profile)
@@ -29,6 +30,7 @@ actor FleetService {
     func setCapture(_ handler: @escaping (String, [String: Any]) async throws -> Any) { capture = handler }
     func setShell(_ handler: @escaping @MainActor (String, [String: Any]) throws -> Any) { shell = handler }
     func setUpdates(_ available: Bool) { updates = available }
+    func setAttachmentFiles(_ handler: @escaping @MainActor (Data, String, Bool) async throws -> Any) { attachmentFiles = handler }
     private func add(_ value: Transfer) throws -> String {
         try FleetProtocol.require(!closed && transfers.count < 8 && transfers.values.reduce(value.size, { $0 + $1.size }) <= 256 * 1024 * 1024, "transfer-busy", "原生傳輸忙碌。")
         let id = FleetProtocol.uuid(); transfers[id] = value; return id
@@ -45,6 +47,15 @@ actor FleetService {
         try FleetProtocol.require(!closed, "native-closed", "原生工作階段已結束。")
         for (id, value) in transfers where Date().timeIntervalSince(value.used) > 300 { transfers.removeValue(forKey: id) }
         if method.hasPrefix("desktop."), let desktop { return try await desktop(method, args) }
+        if ["attachment.preview", "attachment.open"].contains(method) {
+            guard let attachmentFiles else { throw FleetFailure("unsupported-method", "此平台尚未提供附件開啟。") }
+            guard let bytes = try database.attachment(FleetProtocol.text(args, "id")) else {
+                try FleetProtocol.require(method != "attachment.open", "missing-attachment", "附件尚未下載，請先完成同步。")
+                return ["available": false, "png": NSNull()] as [String: Any]
+            }
+            let result = try await attachmentFiles(bytes, FleetProtocol.text(args, "name", 240), method == "attachment.open")
+            try FleetProtocol.require(!closed, "stale-session", "原生工作階段已結束。"); return result
+        }
         if method.hasPrefix("capture."), let capture {
             let result = try await capture(method, args); try FleetProtocol.require(!closed, "stale-session", "原生工作階段已結束。")
             if let bytes = result as? Data { return try download(bytes) }; return result
@@ -80,7 +91,7 @@ actor FleetService {
                 "distribution": "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
                 "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
-                                 "hostPreferences": shell != nil, "updates": updates]]
+                                 "hostPreferences": shell != nil, "updates": updates, "attachmentFiles": attachmentFiles != nil]]
         case "host.ready": ready = true; return NSNull()
         case "host.closeReady": closeReady = true; return NSNull()
         case "host.closeCancel": closeReady = false; return NSNull()

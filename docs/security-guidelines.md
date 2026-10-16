@@ -11,6 +11,12 @@
   profile key 與附件 composite key 隔離資料；Web Locks 加 revision CAS 防止獨立 writer 覆寫。
 - Markdown 原始 HTML 顯示為文字，生成 DOM 再經 DOMPurify 允許清單；不載入遠端圖片，
   HTTP／HTTPS／mailto 之外的連結移除，另開連結使用 noopener／noreferrer。
+- [ADR-052](decisions/052-rich-papers-and-native-attachments.md)：程式碼上色只用封裝的 Highlight.js 與明確語言，
+  生成標記仍清理；未指定／不支援與超出上色預算的內容保持純文字。原始 HTML／SVG 不在 App origin 執行。
+  桌面附件只投影 id／name，主工作區核對目前版本、可見性／互動與附件歸屬後呼叫原生主文件。
+  原生依目前 profile 讀取附件，產生私有、受管理的唯讀副本，縮圖只回傳 bounded PNG／blob URL；
+  不接受來源路徑、程式或任意命令。系統縮圖與外部開啟需要明文暫存副本，正常切帳號／重設／結束時盡力清理，
+  異常結束或 OS 檔案鎖可能留下暫存；外部修改不回存。可執行檔／捷徑／部分腳本不直接開啟。
 - 附件依 SHA-256 定址，單檔至多 25 MiB；下載包裝為 application/octet-stream，
   不以 App origin 執行使用者 HTML／SVG。儲存的 bytes 及原始 MIME metadata 不改寫。
 - script 全部本機封裝，importmap 以 build 時 CSP hash 授權；不用遠端 script 或 CDN。

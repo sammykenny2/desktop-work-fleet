@@ -22,6 +22,8 @@ public sealed class FleetWindow : Window
   private readonly CoreWebView2EnvironmentOptions? webViewOptions;
   private readonly Func<string?>? backupDirectoryPicker;
   private BridgeSession? bridge;
+  private AttachmentFiles attachmentFiles = new();
+  private readonly SemaphoreSlim previewSlots = new(2);
   private DesktopCoordinator? desktop;
   private NativeTray? tray;
   private readonly IReadOnlyList<DisplayInfo>? desktopDisplays;
@@ -95,7 +97,7 @@ public sealed class FleetWindow : Window
       // Saved bounds apply before the first paint; a maximized window maximizes as it is shown.
       if (placement is not null && !offscreen) { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
     };
-    Closed += (_, _) => { placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); attachmentFiles.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   /// <summary>A second launch of Work Fleet shows the running instance's main window.</summary>
   public void ShowFromLaunch() { if (!shuttingDown) ShowMain(true); }
@@ -175,6 +177,7 @@ public sealed class FleetWindow : Window
     {
       if (!NavigationPolicy.IsDocument(e.Uri)) { e.Cancel = true; if (e.IsUserInitiated) OpenExternal(e.Uri); return; }
       navigation++; google?.Dispose(); bridge?.Dispose(); desktop?.Dispose();
+      attachmentFiles.Dispose(); attachmentFiles = new AttachmentFiles();
       google = new NativeGoogle(dataDirectory, database.ProfileId);
       var epoch = navigation;
       desktop = new DesktopCoordinator(environment, value =>
@@ -182,7 +185,7 @@ public sealed class FleetWindow : Window
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
       }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
         Log, holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
-      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true });
+      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true }, attachmentFiles.Invoke);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -198,6 +201,7 @@ public sealed class FleetWindow : Window
       // Capture a local foreground intent at admission, never after a slow storage transaction.
       if (TryIntent(json, out var captured)) { core.PostWebMessageAsJson(captured!); return; }
       var session = bridge; var epoch = navigation; queued++;
+      if (IsPreviewRequest(json)) { _ = HandlePreview(session, epoch, json); return; }
       if (IsGoogleRequest(json)) { _ = HandleGoogle(session, epoch, json); return; }
       if (shell is not null && IsShellRequest(json)) { _ = HandleShell(epoch, json); return; }
       messageQueue = HandleMessage(messageQueue, session, epoch, json);
@@ -206,6 +210,7 @@ public sealed class FleetWindow : Window
     {
       // Keep the native store alive. A new document must reopen from committed state.
       navigation++; google?.Dispose(); bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
+      attachmentFiles.Dispose();
       ShowMain(false);
       Content = new TextBlock { Text = "畫面程序已停止。已提交資料仍保留於本機；請重新開啟 Work Fleet。",
         TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
@@ -232,6 +237,22 @@ public sealed class FleetWindow : Window
   {
     try { using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); return JsonRules.Text(value.RootElement, "method").StartsWith("google.", StringComparison.Ordinal); }
     catch { return false; }
+  }
+  private static bool IsPreviewRequest(string json)
+  {
+    try { using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); return JsonRules.Text(value.RootElement, "method") == "attachment.preview"; }
+    catch { return false; }
+  }
+  private async Task HandlePreview(BridgeSession session, long epoch, string json)
+  {
+    await previewSlots.WaitAsync();
+    try
+    {
+      if (epoch != navigation || shuttingDown) return;
+      var reply = await Task.Run(() => session.DispatchPreview(json));
+      if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(web.CoreWebView2.Source)) web.CoreWebView2.PostWebMessageAsJson(reply);
+    }
+    finally { queued--; previewSlots.Release(); }
   }
   private static bool IsShellRequest(string json)
   {
@@ -316,6 +337,7 @@ public sealed class FleetWindow : Window
   }
   private void SwitchProfile(string profile)
   {
+    attachmentFiles.Dispose();
     google?.Dispose(); bridge?.Dispose(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
     try
     {
@@ -412,7 +434,7 @@ public sealed class FleetWindow : Window
     _ = RegisterApplicationRestart(null, 0);
     Hide();
     tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose();
-    Instance?.Dispose(); Instance = null;
+    attachmentFiles.Dispose(); Instance?.Dispose(); Instance = null;
     try
     {
       var manager = new global::Windows.Management.Deployment.PackageManager();

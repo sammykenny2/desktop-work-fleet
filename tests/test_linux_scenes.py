@@ -34,6 +34,14 @@ def projection(layer="wallpaper"):
 
 
 class LinuxSceneTests(unittest.TestCase):
+    def test_attachment_metadata_is_presentation_only(self):
+        value = projection()
+        value["cards"][0]["attachments"] = [{"id": "a" * 64, "name": "proof.pdf"}]
+        self.parse(value)
+        value["cards"][0]["attachments"][0]["bytes"] = "not presentation data"
+        with self.assertRaises(protocol.Failure):
+            self.parse(value)
+
     def parse(self, value):
         return scenes.frame(protocol.encode(value), "layer-probe", -1)
 

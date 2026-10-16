@@ -161,6 +161,38 @@ Test("navigation allows only the packaged main document", () =>
     "https://user@work-fleet.invalid/app/index.html", "https://work-fleet.invalid/app/index.html?profile=other", "file:///app/index.html", "javascript:alert(1)" })
     Require(!NavigationPolicy.IsDocument(uri));
 });
+Test("attachment bridge resolves only this profile and distinguishes missing bytes", () =>
+{
+  using var database = new LocalDatabase(Path.Combine(root, "attachment-protocol"), "local");
+  var token = database.Stage("attachment", attachment, id); database.CommitAttachment(token);
+  var calls = 0;
+  using var session = new BridgeSession(database, attachmentFiles: (bytes, name, open) =>
+  {
+    Require(bytes.SequenceEqual(attachment) && name == "proof.txt"); calls++;
+    return open ? (object)new { opened = true } : new { available = true, png = (string?)null };
+  });
+  JsonElement Request(string method, string key) { using var reply = JsonDocument.Parse(session.Dispatch(JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid().ToString("D"), method, @params = new { id = key, name = "proof.txt", path = "ignored" } }))); return reply.RootElement.Clone(); }
+  Require(Request("attachment.preview", id).GetProperty("result").GetProperty("available").GetBoolean());
+  Require(Request("attachment.open", id).GetProperty("result").GetProperty("opened").GetBoolean());
+  Require(!Request("attachment.preview", new string('0', 64)).GetProperty("result").GetProperty("available").GetBoolean());
+  Require(Request("attachment.open", new string('0', 64)).GetProperty("error").GetProperty("code").GetString() == "missing-attachment");
+  Require(calls == 2);
+});
+Test("slow attachment previews do not hold the storage gate and cannot reply after close", () =>
+{
+  using var database = new LocalDatabase(Path.Combine(root, "attachment-preview-lane"), "local");
+  var token = database.Stage("attachment", attachment, id); database.CommitAttachment(token);
+  using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
+  using var session = new BridgeSession(database, attachmentFiles: (_, _, _) => { entered.Set(); release.Wait(TimeSpan.FromSeconds(5)); return new { available = true, png = (string?)null }; });
+  string Message(string method, object args) => JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid().ToString("D"), method, @params = args });
+  var pending = Task.Run(() => session.DispatchPreview(Message("attachment.preview", new { id, name = "proof.txt" })));
+  Require(entered.Wait(TimeSpan.FromSeconds(2)));
+  using var state = JsonDocument.Parse(session.Dispatch(Message("host.ready", new { })));
+  Require(state.RootElement.GetProperty("ok").GetBoolean());
+  session.Dispose(); release.Set();
+  using var result = JsonDocument.Parse(pending.GetAwaiter().GetResult());
+  Require(!result.RootElement.GetProperty("ok").GetBoolean());
+});
 Console.WriteLine($"{count}/{count} native Windows core checks passed.");
 try
 {

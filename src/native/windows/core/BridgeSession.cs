@@ -6,7 +6,8 @@ namespace WorkFleet.Windows.Core;
 
 /// <summary>Per-document bounded protocol. The UI host authenticates source and navigation before dispatch.</summary>
 public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? backupFiles = null, Func<string?>? chooseBackupDirectory = null,
-  Func<string, JsonElement, object?>? desktop = null, bool googleAvailable = false, HostIdentity? identity = null) : IDisposable
+  Func<string, JsonElement, object?>? desktop = null, bool googleAvailable = false, HostIdentity? identity = null,
+  Func<byte[], string, bool, object?>? attachmentFiles = null) : IDisposable
 {
   public const int ChunkSize = 256 * 1024;
   // Includes a complete manifest of 20,000 UUID attachment tokens plus the fixed envelope.
@@ -36,7 +37,35 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
       backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null,
-      hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true } };
+      hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true, attachmentFiles = attachmentFiles is not null } };
+
+  /// <summary>The host runs this on its preview lane. Shell thumbnail handlers never hold the storage bridge gate.</summary>
+  public string DispatchPreview(string message)
+  {
+    string? id = null;
+    try
+    {
+      byte[]? bytes; string name;
+      lock (gate)
+      {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        HostError.Require(Encoding.UTF8.GetByteCount(message) <= MaxMessage, "message-size", "原生訊息超過容量上限。");
+        using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(message)); var request = document.RootElement;
+        id = JsonRules.Text(request, "id");
+        HostError.Require(Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1
+          && JsonRules.Text(request, "method") == "attachment.preview" && request.GetProperty("params").ValueKind == JsonValueKind.Object && attachmentFiles is not null,
+          "invalid-request", "附件預覽請求無效。");
+        var args = request.GetProperty("params"); name = JsonRules.Text(args, "name", 240); bytes = database.ReadAttachment(JsonRules.Text(args, "id"));
+      }
+      var result = bytes is null ? (object)new { available = false, png = (string?)null } : attachmentFiles!(bytes, name, false);
+      lock (gate) { ObjectDisposedException.ThrowIf(disposed, this); }
+      return JsonSerializer.Serialize(new { v = 1, id, ok = true, result });
+    }
+    catch (Exception error)
+    {
+      return JsonSerializer.Serialize(new { v = 1, id, ok = false, error = new { code = (error as HostError)?.Code ?? "attachment-preview", message = (error as HostError)?.Message ?? "無法產生附件縮圖。" } });
+    }
+  }
 
   public string Dispatch(string message)
   {
@@ -81,6 +110,13 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
     switch (method)
     {
       case "host.info": return Info();
+      case "attachment.preview": case "attachment.open":
+      {
+        HostError.Require(attachmentFiles is not null, "unsupported-method", "此平台尚未提供附件開啟。");
+        var bytes = database.ReadAttachment(JsonRules.Text(args, "id"));
+        if (bytes is null) { HostError.Require(method != "attachment.open", "missing-attachment", "附件尚未下載，請先完成同步。"); return new { available = false, png = (string?)null }; }
+        return attachmentFiles!(bytes, JsonRules.Text(args, "name", 240), method == "attachment.open");
+      }
       case "host.ready": Ready = true; return null;
       case "host.closeReady": CloseReady = true; return null;
       case "host.closeCancel": CloseReady = false; closeCancelled = true; return null;

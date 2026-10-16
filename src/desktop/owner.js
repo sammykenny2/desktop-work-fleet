@@ -63,11 +63,13 @@ export class DesktopOwner {
   async #command(message, command) {
     try {
       if (this.#sealed || this.#closing && command.method !== 'editor.change') throw new FleetError('desktop-closing', 'App 正在保存並關閉，請稍候。');
-      const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null, topology: message.topology ?? 0 }); this.#changed();
+      const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null, topology: message.topology ?? 0 });
+      if (this.#closed) return;
+      if (command.method !== 'attachment.preview') this.#changed();
       // Keep the scene's drag preview until the native mailbox contains the committed or cancelled geometry.
       if (command.method === 'pointer.up' || command.method === 'pointer.cancel') await this.whenPublished();
       await this.#reply(message.ticket, true, result);
-    } catch (error) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); }
+    } catch (error) { if (!this.#closed) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); } }
   }
   publish() {
     if (this.#closed) return;

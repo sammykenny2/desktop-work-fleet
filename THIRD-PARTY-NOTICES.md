@@ -1,6 +1,6 @@
 # Third-party notices
 
-Updated: 2026-10-16.
+Updated: 2026-10-17.
 
 ## Project scaffold template
 
@@ -19,7 +19,7 @@ No product code, images, fonts, dependency lockfiles, platform modules, or user 
 ## 1.0 renderer under development
 
 The repository's package-lock.json pins the following packages. `npm run build`
-copies only the three runtime ESM modules into `build/app/vendor`, retaining their
+copies the runtime ESM modules and bundles the Highlight.js common-language module into `build/app/vendor`, retaining their
 copyright headers and complete upstream LICENSE files. No fonts, images, CDN
 scripts, browser binaries or application assets from another product are bundled.
 
@@ -28,21 +28,23 @@ scripts, browser binaries or application assets from another product are bundled
 | marked | 18.0.14 | Runtime Markdown parsing | MIT; [MarkedJS](https://github.com/markedjs/marked) |
 | dompurify | 3.4.16 | Runtime DOM sanitization | Apache-2.0 option of its Apache-2.0 OR MPL-2.0 license; [Cure53](https://github.com/cure53/DOMPurify) |
 | fflate | 0.8.3 | Runtime ZIP writing / DEFLATE compression | MIT; [101arrowz/fflate](https://github.com/101arrowz/fflate) |
+| highlight.js | 11.12.0 | Runtime code syntax highlighting, common language set | BSD-3-Clause; [Highlight.js](https://github.com/highlightjs/highlight.js) |
 | @types/trusted-types | 2.0.7 | DOMPurify type dependency, not bundled | MIT; [DefinitelyTyped](https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/trusted-types) |
 | @playwright/test, playwright, playwright-core | 1.63.0 | Development browser tests, not bundled | Apache-2.0; [Microsoft Playwright](https://github.com/microsoft/playwright) |
-| esbuild / platform binary | 0.28.2 | Apple script bundling at build time, tool not bundled | MIT; [esbuild](https://github.com/evanw/esbuild/blob/v0.28.2/LICENSE.md) |
+| esbuild / platform binary | 0.28.2 | Vendor and Apple script bundling at build time, tool not bundled | MIT; [esbuild](https://github.com/evanw/esbuild/blob/v0.28.2/LICENSE.md) |
 
 Marked copyright: (c) 2018+, MarkedJS; (c) 2011–2018, Christopher Jeffrey.
 DOMPurify copyright: Cure53 and other contributors. The source ESM files are copied
 without modification. fflate copyright: (c) 2026 Arjun Barrett; its browser ESM is copied
 without modification; application configuration is separate. The build includes
-`marked-LICENSE.txt`, `dompurify-LICENSE.txt`, `fflate-LICENSE.txt` and this notice. Platform packages must
+`marked-LICENSE.txt`, `dompurify-LICENSE.txt`, `fflate-LICENSE.txt`, `highlight.js-LICENSE.txt` and this notice. Platform packages must
 retain those files and the project's LICENSE. Final native SDK and store-package
 inventories remain separate release work.
+Highlight.js copyright: (c) 2006, Ivan Sagalaev; the bundled common module retains the complete BSD-3-Clause license.
 
 Apple packages also combine the renderer and scene modules into classic deferred
 scripts using esbuild. Upstream legal comments remain in those generated scripts;
-the complete three runtime LICENSE files and unmodified vendor modules are retained.
+the complete runtime LICENSE files and the vendor modules are retained.
 Source modules, other platforms and the default web build keep the ESM format.
 
 ## Windows native host under development

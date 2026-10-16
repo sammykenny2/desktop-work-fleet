@@ -18,6 +18,7 @@ class Service:
         self.identity = {"appVersion": "0.0.0", "distribution": "source"}
         self.shell = None
         self.updates = False
+        self.attachment_files = None
         self.secrets = SystemSecrets(database, vault)
         self.backup = Backup(database, choose, self.secrets)
         self.google = Google(Credentials(database, vault, self.secrets), config, database.profile, open_browser)
@@ -85,6 +86,18 @@ class Service:
                       "update.state", "update.check", "update.download", "update.install"):
             p.require(self.shell is not None, "unsupported-method", "原生主機沒有此操作。")
             return self.shell(method, args)
+        if method in ("attachment.preview", "attachment.open"):
+            with self.lock:
+                p.require(not self.closed and self.attachment_files is not None, "native-closed", "原生工作階段已結束。")
+                files = self.attachment_files
+                data = self.database.attachment(p.text(args, "id"))
+                name = p.text(args, "name", 240)
+            if data is None:
+                p.require(method != "attachment.open", "missing-attachment", "附件尚未下載，請先完成同步。")
+                return {"available": False, "png": None}
+            result = files.invoke(data, name, method == "attachment.open")
+            p.require(not self.closed, "stale-session", "原生工作階段已結束。")
+            return result
         with self.lock:
             p.require(not self.closed, "native-closed", "原生工作階段已結束。")
             for token, value in list(self.transfers.items()):
@@ -95,7 +108,7 @@ class Service:
             if method == "host.info":
                 return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": self.desktop_reason, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
                         "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
-                                         "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True}}
+                                         "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True, "attachmentFiles": self.attachment_files is not None}}
             if method == "host.ready":
                 self.ready = True
                 return None
@@ -173,6 +186,8 @@ class Service:
         self.google.close()
         self.secrets.close()
         with self.lock:
+            if self.attachment_files is not None:
+                self.attachment_files.close()
             for token in self.staged:
                 self.database.discard(token)
             self.staged.clear()

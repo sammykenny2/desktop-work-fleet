@@ -118,7 +118,7 @@ class LinuxPackageTests(unittest.TestCase):
     @unittest.skipUnless(
         shutil.which("node") and shutil.which("npm")
         and all((ROOT / "node_modules" / name).is_dir()
-                for name in ("marked", "dompurify", "fflate")),
+                for name in ("marked", "dompurify", "fflate", "highlight.js")),
         "Build integration test requires Node 22+, npm and lockfile dependencies",
     )
     def test_build_entry_point_writes_deb_directly_to_build_root(self):
@@ -130,7 +130,7 @@ class LinuxPackageTests(unittest.TestCase):
             "scripts/generate-linux-package.mjs", "scripts/package-linux.py",
             "scripts/linux/build-native-app.sh", "scripts/linux/package-deb.sh",
             "src/native/bridge.js", "src/native/files.js", "src/native/capture.js",
-            "src/native/shortcuts.js", "src/native/google.js",
+            "src/native/shortcuts.js", "src/native/google.js", "src/native/attachments.js",
         ):
             destination = checkout / relative
             destination.parent.mkdir(parents=True, exist_ok=True)

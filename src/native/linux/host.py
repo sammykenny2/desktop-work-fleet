@@ -34,6 +34,7 @@ from gi.repository import Gdk, Gio, GLib, Gtk, WebKit2
 
 from database import Database, Vault
 from service import Service
+from attachments import AttachmentFiles
 from desktop import Desktop
 from surface import backend
 from tray import Tray
@@ -168,6 +169,7 @@ class FleetApp(Gtk.Application):
         self.tray_menu = False
         self.storage = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-storage")
         self.network = ThreadPoolExecutor(max_workers=1, thread_name_prefix="fleet-google")
+        self.previews = ThreadPoolExecutor(max_workers=2, thread_name_prefix="fleet-preview")
         self.epoch = self.admitted = 0
         self.closing = self.stopped = False
         self.vault = Vault(config.get("appId") or "app.workfleet.preview")
@@ -623,6 +625,7 @@ class FleetApp(Gtk.Application):
             database = Database(self.directory, profile, self.vault)
             try:
                 service = Service(database, self.vault, self.config, self.choose_directory, lambda uri: self.ui(lambda: Gio.AppInfo.launch_default_for_uri(uri, None)))
+                service.attachment_files = AttachmentFiles(ui=self.ui)
                 if persist:
                     with tempfile.NamedTemporaryFile(dir=self.directory, prefix="profile-", delete=False) as stream:
                         filename = stream.name
@@ -692,7 +695,7 @@ class FleetApp(Gtk.Application):
             if method == "host.ready":
                 # Vault work is optional and starts only after the owner can show/edit its workspace.
                 self.network.submit(session.secrets.migrate_pending)
-            worker = self.network if method.startswith("google.") or method in ("backup.key.create", "backup.encrypt") else self.storage
+            worker = self.previews if method == "attachment.preview" else self.network if method.startswith("google.") or method in ("backup.key.create", "backup.encrypt") else self.storage
             deadline = time.monotonic() + Vault.UNLOCK_TIMEOUT if method == "google.unlockVault" else None
             request_cancelled = session.google.request_unlock() if method == "google.unlockVault" else None
             future = worker.submit(session.invoke, method, value["params"], deadline, request_cancelled)
@@ -810,6 +813,7 @@ class FleetApp(Gtk.Application):
         if self.service is not None:
             self.service.google.close()
             self.storage.submit(self.service.close)
+        self.previews.shutdown(wait=False, cancel_futures=True)
         self.network.shutdown(wait=False, cancel_futures=True)
         self.storage.shutdown(wait=False)
 

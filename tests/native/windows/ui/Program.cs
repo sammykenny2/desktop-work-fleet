@@ -15,6 +15,7 @@ internal static class Program
       throw new InvalidOperationException("Run the probe .exe apphost so the shared PerMonitorV2 manifest is active.");
     if (args.Length == 1 && args[0] == "--hit-target") { CompositionProbe.RunHitTarget(); return; }
     if (args.Length == 1 && args[0] == "--shell-topology") { ShellTopologyProbe.Run(); return; }
+    if (args.Length == 1 && args[0] == "--attachments") { AttachmentFilesProbe.Run(); return; }
     if (args.Length == 2 && args[0] == "--app-data") { AppDataProbe.Run(Path.GetFullPath(args[1])); return; }
     // --host-window[-dcomp] stays open as a topmost cross-process host; --host-child HOST DIR VARIANT attaches a scene to
     // it; --host-check DIR starts an Explorer-style host itself and checks a scene attached the way the app does.

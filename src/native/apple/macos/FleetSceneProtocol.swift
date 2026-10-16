@@ -33,7 +33,11 @@ struct FleetSceneFrame {
         }
         var ids = Set<String>(); var output: [Card] = []
         for card in cards {
-            try fields(card, "id groupId revision summary text format attachmentCount rect layer interactive draggable editing selected completed mine color")
+            try fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color")
+            if let raw = card["attachments"] {
+                guard let files = raw as? [[String: Any]], files.count <= 20000 else { throw FleetFailure("scene-frame", "附件清單格式無效。") }
+                for file in files { try fields(file, "id name"); _ = try FleetProtocol.text(file, "id", 128); _ = try FleetProtocol.text(file, "name", FleetProtocol.record) }
+            }
             let id = try FleetProtocol.text(card, "id", 128), layer = try FleetProtocol.text(card, "layer")
             try FleetProtocol.require(ids.insert(id).inserted && ["desktop", "floating", "wallpaper"].contains(layer), "scene-frame", "桌面卡片身分或層級無效。")
             _ = try FleetProtocol.text(card, "groupId", 128); try color(card)

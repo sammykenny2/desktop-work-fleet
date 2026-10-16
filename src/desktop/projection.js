@@ -29,6 +29,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
     if (layer === 'wallpaper') interactive = draggable = editing = false;
     cards.push({ id: card.id, groupId: card.groupId, revision: card.revision, summary: summaryText(card),
       text: card.content.text, format: card.content.format, attachmentCount: card.content.attachments?.length || 0,
+      attachments: (card.content.attachments || []).map(file => ({ id: file.id, name: file.name })),
       rect: { x: placement.x, y: placement.y, width: placement.width, height: placement.height }, layer,
       interactive, draggable, editing,
       selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,

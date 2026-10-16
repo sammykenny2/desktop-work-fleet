@@ -2,6 +2,30 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 便箋格式與附件縮圖／開啟
+
+使用者要求實作附件縮圖、雙擊開啟、H1～H6 CSS 與彩色 code snippets，明確暫不處理桌面 checklist 切換。
+沿用 V1，不升 App 版號、不發布。行為與邊界見 [ADR-052](docs/decisions/052-rich-papers-and-native-attachments.md)。
+
+- 共用呈現：桌面、便箋牆、編輯預覽採六階字級；程式碼依 fenced block 的語言上色、保留縮排並可橫向捲動。
+  Highlight.js 固定本機 common 語言集，未知／未指定語言維持純文字；單區塊、整份內容與每次呈現均有上色預算，文字不截斷。
+- 附件：桌面、便箋牆、編輯器顯示縮圖／檔案圖示與檔名；雙擊或鍵盤交給系統預設程式開啟唯讀副本，外部修改不回存。
+  Windows Shell、macOS Quick Look／NSWorkspace、Linux GdkPixbuf／已安裝 thumbnailer／系統圖示均已接線。
+  瀏覽器與未提供原生能力的平台沿用下載／匯出；缺附件提示先同步，下載完成後重新取得縮圖。
+- 場景只接收 id／name，操作由主工作區核對卡片版本、附件歸屬與互動政策。原生端依目前 profile 讀 bytes，不接收任意路徑。
+  兩條縮圖背景通道與保存／關閉分離；切帳號、重設、結束時清理暫存並拒絕遲到結果。系統縮圖回傳 bounded PNG，桌面只允許 blob 圖片。
+- Author-run：
+  - 完整 JavaScript：314 項（299 pass／15 skip／0 fail）；後續背景通道與上色預算調整後，相關測試 30/30 通過。
+  - WSL 系統 Python discover：187 項（149 pass／38 skip／0 fail），含 Linux 附件副本、封鎖類型、關閉競態與場景 metadata。
+    Linux 打包 fixture 補上新 native 模組；WSL 使用 ignored build 內相同版本的 Linux esbuild binary，避免混用 Windows node_modules binary。
+  - Windows .NET 10 Debug App／core／UI probe 建置零警告零錯誤；core、backup files／coordinator、scene、host settings、update feed、sign-in callback probe 通過。
+    新 `--attachments` 實際產生 Shell PNG 並驗證檔名政策；native storage 12/12 通過。測試未啟動外部應用程式。
+  - Edge browser／scene probe 通過：主畫面附件下載 fallback、不誤開編輯器、六階字級、上色／escaping／長內容預算、
+    checklist 原行為、縮圖、同步後重試、雙擊／鍵盤不誤觸拖曳。合成畫面已檢視；`npm run build`、Apple 資產／專案產生測試與文件檢查通過。
+- 獨立唯讀審閱完成，沒有未修正的重要 findings；另由審閱者執行 rich-content 3 項、附件權限與慢縮圖／關閉各 1 項，均通過。
+- 尚未驗證：macOS Xcode 編譯與沙盒 Quick Look／開啟、Linux 真實桌面 thumbnailer／預設程式，以及三平台外部程式操作。
+  此 WSL 缺 GI，實際 GdkPixbuf 測試明確略過；Windows Shell 縮圖通過不代表以上平台實測完成。
+
 ## 2026-10-17 macOS 調整模式實機狀態與 Linux 測試文件修正
 
 使用者回報「macos這邊基本上測過, 沒什麼問題」，全螢幕 App 與 Spaces 沒測過，要求更新狀態、修正測試文件錯誤並 commit&push。

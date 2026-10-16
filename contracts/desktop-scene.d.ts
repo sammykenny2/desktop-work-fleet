@@ -8,7 +8,7 @@ export interface DesktopFrame {
   groups: { id: string; name: string; color: string; region: (Rect & { groupId: string | null }) | null }[];
   operationScope: Scope; activeGroupId: string | null;
   cards: { id: string; groupId: string; revision: string; summary: string; text: string; format: string;
-    attachmentCount: number; rect: Rect; layer: ResidentLayer; interactive: boolean; draggable: boolean;
+    attachmentCount: number; attachments?: { id: string; name: string }[]; rect: Rect; layer: ResidentLayer; interactive: boolean; draggable: boolean;
     editing: boolean; selected: boolean; completed: boolean; mine: boolean; color: string }[];
   editor: DesktopEditor | null;
   dropTarget: { groupId: string; kind: 'label' | 'region' } | null;
@@ -19,7 +19,7 @@ export interface DesktopCommand {
   method: 'pointer.down' | 'pointer.move' | 'pointer.up' | 'pointer.cancel' | 'card.select' | 'card.edit' | 'card.details' | 'card.transfer'
     | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut'
     /** Adjust overlay controls: end adjust mode, or arrange the adjusted scope with args.kind stack, spread or undo. */
-    | 'interaction.done' | 'layout.arrange';
+    | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open';
   args: Record<string, unknown>;
 }
 export interface DesktopInfo {

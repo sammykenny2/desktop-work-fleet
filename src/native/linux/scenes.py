@@ -39,7 +39,13 @@ def frame(data, session, previous):
             rect(group["region"])
     ids = set()
     for card in cards:
-        p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount rect layer interactive draggable editing selected completed mine color".split()), "scene-frame", "桌面卡片格式無效。")
+        p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color".split()), "scene-frame", "桌面卡片格式無效。")
+        files = card.get("attachments", [])
+        p.require(isinstance(files, list) and len(files) <= 20000, "scene-frame", "附件清單格式無效。")
+        for file in files:
+            p.require(isinstance(file, dict) and set(file) == {"id", "name"}, "scene-frame", "附件清單格式無效。")
+            p.text(file, "id", 128)
+            p.text(file, "name", p.RECORD)
         key = p.text(card, "id", 128)
         p.require(key not in ids and card.get("layer") in ("desktop", "floating", "wallpaper"), "scene-frame", "桌面卡片身分或層級無效。")
         ids.add(key)

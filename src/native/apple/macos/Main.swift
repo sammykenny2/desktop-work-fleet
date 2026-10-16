@@ -9,6 +9,8 @@ import AppKit
     private var mainAside = false
     private var shell: FleetHostShell?
     private var updates: FleetUpdates?
+    private var attachmentFiles = FleetAttachmentFiles()
+    func applicationWillTerminate(_ notification: Notification) { attachmentFiles.close() }
     static func main() {
         // Release packaging exercises the actual dyld loader without opening UI, storage or login items.
         if CommandLine.arguments.contains("--check-runtime") { print("PASS Work Fleet runtime load"); return }
@@ -36,8 +38,12 @@ import AppKit
                 await service.setDesktop { [weak desktop] method, args in guard let desktop else { throw FleetFailure("desktop-closed", "桌面工作階段已結束。") }; return try desktop.invoke(method, args) }
                 await service.setShell { [weak self] method, args in guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }; return try self.shellInvoke(method, args) }
                 await service.setUpdates(self.updates?.capable == true)
+                self.attachmentFiles.close(); let files = FleetAttachmentFiles(); self.attachmentFiles = files
+                await service.setAttachmentFiles { bytes, name, open in
+                    return try await files.invoke(bytes, name: name, open: open)
+                }
             }
-            host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil }
+            host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil; self?.attachmentFiles.close() }
             host.finished = { [weak self] in guard let self else { return }; self.terminating = true; NSApplication.shared.reply(toApplicationShouldTerminate: true) }
             host.cancelled = { NSApplication.shared.reply(toApplicationShouldTerminate: false) }
             // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.

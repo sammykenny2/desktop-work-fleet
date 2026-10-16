@@ -23,7 +23,7 @@ export async function buildWebAssets({
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
   }
   await mkdir(path.join(destination, 'native'), { recursive: true });
-  for (const name of ['bridge.js', 'files.js', 'capture.js', 'shortcuts.js', 'google.js']) await cp(path.join(root, 'src', 'native', name), path.join(destination, 'native', name));
+  for (const name of ['bridge.js', 'files.js', 'capture.js', 'shortcuts.js', 'google.js', 'attachments.js']) await cp(path.join(root, 'src', 'native', name), path.join(destination, 'native', name));
   for (const folder of ['app', 'desktop']) {
     const htmlPath = path.join(destination, folder, 'index.html');
     const html = await readFile(htmlPath, 'utf8');
@@ -49,6 +49,9 @@ export async function buildWebAssets({
     await cp(entry, path.join(destination, 'vendor', target));
     await cp(path.join(root, 'node_modules', name, license), path.join(destination, 'vendor', `${name}-LICENSE.txt`));
   }
+  const { build } = await import('esbuild');
+  await build({ absWorkingDir: root, entryPoints: ['highlight.js/lib/common'], outfile: path.join(destination, 'vendor/highlight.js'), bundle: true, format: 'esm', platform: 'browser', target: 'safari16', minify: true, legalComments: 'inline' });
+  await cp(path.join(root, 'node_modules/highlight.js/LICENSE'), path.join(destination, 'vendor/highlight.js-LICENSE.txt'));
   await cp(path.join(root, 'THIRD-PARTY-NOTICES.md'), path.join(destination, 'THIRD-PARTY-NOTICES.md'));
   await cp(path.join(root, 'LICENSE'), path.join(destination, 'LICENSE'));
   const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));

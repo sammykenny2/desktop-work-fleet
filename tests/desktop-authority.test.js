@@ -9,7 +9,7 @@ const area = { x: 0, y: 0, width: 1200, height: 900 };
 const uuid = () => crypto.randomUUID();
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
-async function fixture() {
+async function fixture(attachments) {
   let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent; const arranged = [];
   const workspace = await Workspace.create({ profileId: 'local', deviceId: uuid(), area,
     persist: async value => { if (fail) throw new Error('disk full'); durable = structuredClone(value); } });
@@ -20,7 +20,7 @@ async function fixture() {
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
-  const authority = new DesktopAuthority({ workspace, controller, sessionId, details: async id => ({ cardId: id }),
+  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, details: async id => ({ cardId: id }),
     arrange: async kind => { arranged.push(kind); return null; },
     shortcut: (target, intent) => { shortcutIntent = intent; return controller.activate(target === '@all' ? { kind: 'all' } : { kind: 'group', groupId: target }); }, editor: {
     current: () => editor && structuredClone(editor),
@@ -280,4 +280,38 @@ test('a delayed view gesture cannot commit or cancel a replacement main-window d
   await rejects(f.command('pointer.up', { ...args, point: { x: 40, y: 40 } }), 'desktop-gesture');
   f.authority.removeView(f.view);
   assert.deepEqual(f.controller.state.dragSession, replacement); assert.equal(f.workspace.layout.state.history.length, 0);
+});
+
+
+test('attachment commands resolve current metadata, reject stale and foreign files, and keep wallpaper passive', async () => {
+  const calls = []; const f = await fixture(async (method, file) => { calls.push({ method, file }); return { available: true, png: null }; });
+  const file = { id: 'a'.repeat(64), name: 'proof.pdf', size: 3, mediaType: 'application/pdf', secret: 'not projected' };
+  const card = await f.workspace.updateCard(f.card.id, { content: { ...f.card.content, attachments: [file] } }, f.card.revision);
+  const args = { cardId: card.id, revision: card.revision, attachmentId: file.id, name: 'forged.exe' };
+  await f.command('attachment.preview', args); await f.command('attachment.open', args);
+  assert.equal(calls.length, 2); assert.equal(calls[1].file.name, 'proof.pdf');
+  assert.deepEqual(f.frame().cards.find(value => value.id === card.id).attachments, [{ id: file.id, name: file.name }]);
+  await rejects(f.command('attachment.open', { ...args, revision: f.card.revision }), 'desktop-expired');
+  await rejects(f.command('attachment.open', { ...args, attachmentId: 'foreign' }), 'missing-attachment');
+  await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);
+  await f.command('attachment.preview', args);
+  await rejects(f.command('attachment.open', args), 'outside-scope');
+  await f.workspace.layout.configure({ desktopVisible: false }, f.workspace.snapshot);
+  await rejects(f.command('attachment.preview', args), 'outside-scope');
+  assert.equal(calls.length, 3);
+});
+
+
+test('a slow thumbnail never holds mutating desktop actions or the close barrier', async () => {
+  const waiting = deferred(); const entered = deferred();
+  const f = await fixture(async () => { entered.resolve(); return waiting.promise; });
+  const file = { id: 'a'.repeat(64), name: 'proof.pdf' };
+  const card = await f.workspace.updateCard(f.card.id, { content: { ...f.card.content, attachments: [file] } }, f.card.revision);
+  const preview = f.command('attachment.preview', { cardId: card.id, revision: card.revision, attachmentId: file.id });
+  await entered.promise;
+  await f.command('interaction.shortcut', { key: 'Ctrl+Shift+1' });
+  assert.equal(f.controller.state.operationScope.groupId, f.a.id);
+  await f.authority.whenIdle();
+  f.authority.close(); waiting.resolve({ available: true, png: null });
+  await rejects(preview, 'desktop-view');
 });

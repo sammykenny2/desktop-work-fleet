@@ -1,5 +1,6 @@
 import { NativeBridge, nativeTransport } from '../native/bridge.js';
 import { renderMarkdown } from '../app/markdown.js';
+import { renderAttachmentTiles } from '../app/attachments.js';
 import { DesktopClient, DesktopDraft } from './client.js';
 import { download, parse } from './transport.js';
 import { shortcutForEvent } from '../core/shortcuts.js';
@@ -51,12 +52,12 @@ function render(next) {
   const overlay = info.adjustOverlay === true && info.layer === 'floating' && next.operationScope.kind !== 'none';
   renderAdjustOverlay(overlay);
   const cards = next.cards.filter(card => card.layer === info.layer); const live = new Set(cards.map(card => card.id));
-  for (const [id, item] of nodes) if (!live.has(id)) { item.paper.remove(); nodes.delete(id); }
+  for (const [id, item] of nodes) if (!live.has(id)) { item.disposeAttachments?.(); item.paper.remove(); nodes.delete(id); }
   cards.forEach((card, index) => {
     let item = nodes.get(card.id);
     if (!item) {
       const paper = make('article'); paper.dataset.cardId = card.id;
-      const summary = make('div', '', 'card-summary'); const body = make('div', '', 'card-body'); const actions = make('div', '', 'card-actions');
+      const summary = make('div', '', 'card-summary'); const body = make('div', '', 'card-body markdown'); const actions = make('div', '', 'card-actions');
       paper.append(summary, body, actions); root.append(paper); item = { paper, summary, body, actions }; nodes.set(card.id, item);
     }
     const { paper, summary, body, actions } = item;
@@ -66,6 +67,7 @@ function render(next) {
     paper.setAttribute('aria-label', card.summary); summary.textContent = card.summary; rect(paper, card.rect);
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {
+        item.disposeAttachments?.(); item.filesKey = null;
         item.editorId = editor.draftId; const input = make('textarea', undefined, 'inline-editor'); input.value = editor.text; input.setAttribute('aria-label', '就地編輯便箋');
         input.oninput = () => { editor.text = input.value; if (!composing) void run(saveDraft); };
         input.addEventListener('compositionstart', () => { composing = true; });
@@ -83,7 +85,20 @@ function render(next) {
       actions.replaceChildren(button('重試保存', saveDraft), button('完整編輯', () => editAction('editor.full')), button('保存', () => editAction('editor.save')));
     } else {
       if (item.editorId || item.text !== card.text || item.title !== card.summary) {
+        item.disposeAttachments?.(); item.filesKey = null;
         renderMarkdown(body, card.text, { title: card.summary }); item.text = card.text; item.title = card.summary; item.editorId = null;
+      }
+      const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
+      const missingChanged = item.attachmentNode?.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;
+      if (item.filesKey !== filesKey || missingChanged) {
+        item.disposeAttachments?.(); item.attachmentNode?.remove(); item.filesKey = filesKey; item.attachmentRevision = next.workspaceRevision;
+        item.attachmentNode = make('div'); body.append(item.attachmentNode);
+        const args = file => ({ cardId: card.id, revision: card.revision, attachmentId: file.id });
+        item.disposeAttachments = renderAttachmentTiles(item.attachmentNode, card.attachments || [], {
+          preview: file => client.command('attachment.preview', args(file)),
+          open: file => card.interactive ? client.command('attachment.open', args(file)) : Promise.resolve(), report,
+        });
+        for (const tile of item.attachmentNode.querySelectorAll('button')) tile.disabled = !card.interactive;
       }
       actions.replaceChildren();
       if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));

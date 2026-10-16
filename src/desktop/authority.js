@@ -7,7 +7,7 @@ import { sha256 } from '../sources/files.js';
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
   'card.details', 'card.transfer', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
-  'interaction.done', 'layout.arrange']);
+  'interaction.done', 'layout.arrange', 'attachment.preview', 'attachment.open']);
 const arrangements = new Set(['stack', 'spread', 'undo']);
 
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
@@ -15,10 +15,13 @@ export class DesktopAuthority {
   #workspace; #controller; #sessionId; #editor; #details; #shortcut; #arrange; #perform; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #closed = false;
   #topology = 0; #displayPending = false;
-  constructor({ workspace, controller, sessionId, editor, details, shortcut, arrange, perform = action => action() }) {
+  #attachments;
+  #previewTails = [Promise.resolve(), Promise.resolve()]; #previewNext = 0; #previewPending = 0;
+  constructor({ workspace, controller, sessionId, editor, details, shortcut, arrange, attachments, perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', '桌面工作階段身分無效。');
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
     this.#editor = editor; this.#details = details; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
+    this.#attachments = attachments;
   }
   get sessionId() { return this.#sessionId; }
   addView(viewId) {
@@ -65,7 +68,8 @@ export class DesktopAuthority {
     const canonical = canonicalJson(message); const key = `${viewId}:${message.id}`;
     const previous = this.#receipts.get(key);
     const draftWrite = message.method === 'editor.change';
-    if (!previous) requireValue(draftWrite ? this.#draftPending < 4 : this.#pending < 24, 'desktop-busy', '桌面操作忙碌，請稍候。');
+    const preview = message.method === 'attachment.preview';
+    if (!previous) requireValue(preview ? this.#previewPending < 64 : draftWrite ? this.#draftPending < 4 : this.#pending < 24, 'desktop-busy', '桌面操作忙碌，請稍候。');
     const digest = sha256(new TextEncoder().encode(canonical));
     if (previous) return (async () => {
       requireValue(await digest === await previous.digest, 'desktop-replay', '同一操作身分不可更改內容。');
@@ -74,13 +78,14 @@ export class DesktopAuthority {
     const view = this.#views.get(viewId);
     requireValue(message.serial > view.lastSerial, 'desktop-expired', '操作回覆已過期，未重新執行舊命令。');
     view.lastSerial = message.serial;
-    if (draftWrite) this.#draftPending++; else this.#pending++;
+    if (preview) this.#previewPending++; else if (draftWrite) this.#draftPending++; else this.#pending++;
     // A scope/edit command can await a view's flush barrier. Its final draft write must not queue behind that command.
     // Lifecycle commands wait only for writes already admitted, never future barrier writes.
     const earlierDrafts = this.#draftTail;
-    const result = (draftWrite ? this.#draftTail : this.#tail).then(async () => {
+    const previewLane = preview ? this.#previewNext++ % this.#previewTails.length : 0;
+    const result = (preview ? this.#previewTails[previewLane] : draftWrite ? this.#draftTail : this.#tail).then(async () => {
       await digest;
-      if (!draftWrite) await earlierDrafts;
+      if (!draftWrite && !preview) await earlierDrafts;
       requireValue(!this.#closed && this.#views.get(viewId) === view, 'desktop-view', '桌面視窗已失效，尚未執行命令。');
       const invoke = () => {
         requireValue(!this.#closed && this.#views.get(viewId) === view, 'desktop-view', '桌面視窗已失效，尚未執行命令。');
@@ -88,17 +93,17 @@ export class DesktopAuthority {
           'desktop-topology', '顯示器正在更新，請稍候再操作；目前文字仍保留。');
         return this.#invoke(viewId, message.method, message.args, intent);
       };
-      return draftWrite ? invoke() : this.#perform(invoke);
+      return draftWrite || preview ? invoke() : this.#perform(invoke);
     });
     const receipt = { digest, result, settled: false }; this.#receipts.set(key, receipt);
     const tail = result.catch(() => {}).finally(() => {
-      if (draftWrite) this.#draftPending--; else this.#pending--; receipt.settled = true;
+      if (preview) this.#previewPending--; else if (draftWrite) this.#draftPending--; else this.#pending--; receipt.settled = true;
       for (const [oldKey, entry] of this.#receipts) {
         if (this.#receipts.size <= 256) break;
         if (entry.settled) this.#receipts.delete(oldKey);
       }
     });
-    if (draftWrite) this.#draftTail = tail; else this.#tail = tail;
+    if (preview) this.#previewTails[previewLane] = tail; else if (draftWrite) this.#draftTail = tail; else this.#tail = tail;
     return result.then(copy);
   }
 
@@ -130,6 +135,17 @@ export class DesktopAuthority {
     const drag = controller.state.dragSession;
     if (this.#gesture && drag?.generation !== this.#gesture.generation) this.#gesture = null;
     switch (method) {
+      case 'attachment.preview': case 'attachment.open': {
+        const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId);
+        requireValue(card && card.revision === args.revision, 'desktop-expired', '便箋已變更，請稍候再開啟附件。');
+        const policy = cardPolicy(card, this.#workspace.layout.state, controller.state);
+        requireValue(policy.visible && (method === 'attachment.preview' || policy.interactive), 'outside-scope', '這張便箋目前不能操作。');
+        const file = card.content.attachments?.find(value => value.id === args.attachmentId);
+        requireValue(file && this.#attachments, 'missing-attachment', '附件不存在或尚未提供開啟功能。');
+        const result = await this.#attachments(method, copy(file));
+        requireValue(!this.#closed && this.#views.has(viewId), 'desktop-view', '桌面視窗已失效。');
+        return result;
+      }
       case 'interaction.shortcut': {
         const layout = this.#workspace.layout.state; const bindings = resolveShortcuts(layout.shortcuts, layout.grid.slots);
         requireValue(typeof args.key === 'string' && Object.hasOwn(bindings, args.key) && this.#shortcut,

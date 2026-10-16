@@ -30,6 +30,7 @@ try {
   assert.ok((await page.locator('#editor-text').inputValue()).includes('- [x] 第一個步驟'));
   await page.locator('#attachment-input').setInputFiles({ name: 'proof.txt', mimeType: 'text/plain', buffer: Buffer.from('retained attachment') });
   await expect(page.locator('#attachments a')).toHaveText('proof.txt');
+  await expect(page.locator('#attachments .attachment-tile')).toHaveText('TXTproof.txt');
   await page.getByRole('button', { name: '保存便箋', exact: true }).click();
   await expect(page.locator('#editor-dialog')).not.toBeVisible();
   await expect(page.locator('.card-summary')).toHaveText('第一件事');
@@ -85,8 +86,12 @@ try {
   await expect(tile.locator('.note-body')).toContainText('就地編輯保存'); await expect(tile.locator('.note-body h1')).toHaveCount(0);
   await expect(tile.locator('.note-meta span')).toHaveText(['1/1 步驟', '1 個附件']);
   assert.ok(await tile.evaluate(node => Math.abs(node.offsetWidth - node.offsetHeight) <= 1), 'board papers are square');
+  const tileDownload = page.waitForEvent('download'); await tile.locator('.attachment-tile').dblclick();
+  assert.equal((await tileDownload).suggestedFilename(), 'proof.txt', 'the browser downloads when no native opener is available');
+  await expect(page.locator('#editor-dialog')).not.toBeVisible();
   await page.locator('[data-view="list"]').click();
   await expect(page.locator('.note-row .note-title')).toHaveText('第一件事');
+  await expect(page.locator('#list .attachment-tile')).toHaveCount(0);
   await page.reload(); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
   await page.locator('#search').fill('第一件事'); await expect(page.locator('.note-row .note-title')).toHaveText('第一件事');
   await page.locator('[data-view="desktop"]').click(); await expect(page.locator('#search')).toHaveValue('');

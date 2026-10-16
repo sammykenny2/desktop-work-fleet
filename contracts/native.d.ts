@@ -16,6 +16,7 @@ export interface NativeHostInfo {
     secureBackup: boolean;
     google: boolean;
     desktopPresentation: boolean;
+    attachmentFiles?: boolean;
   };
 }
 export type NativeRecordKind = 'workspace' | 'journal';
@@ -28,6 +29,8 @@ export type NativeRequest = { v: 1; id: string } & (
   | { method: 'transfer.read'; params: { token: string; offset: number } }
   | { method: 'storage.load'; params: { kind: NativeRecordKind } }
   | { method: 'storage.attachment'; params: { id: string } }
+  /** Only current-profile attachment IDs; no file paths or application commands. */
+  | { method: 'attachment.preview' | 'attachment.open'; params: { id: string; name: string } }
   | { method: 'storage.commit'; params: { kind: NativeRecordKind; token: string; expectedRevision: number | null; attachments: string[] } }
   | { method: 'backup.choose' | 'backup.manual.choose'; params: Record<string, never> }
   | { method: 'backup.authorize'; params: { destinationId: string } }
@@ -42,6 +45,7 @@ export type NativeReply = { v: 1; id: string } & (
   | { ok: false; error: { code: string; message: string } }
 );
 export interface NativeDownload { token: string; size: number; sha256: string; }
+export interface NativeAttachmentPreview { available: boolean; png: string | null; }
 // Sealed transfer tokens belong only to the document session that created them.
 // The commit stores Workspace + restore receipts + attachments atomically using revision CAS.
 // No method grants arbitrary path/SQL/HTTP access or exposes OS-vault plaintext.

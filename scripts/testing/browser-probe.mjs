@@ -159,6 +159,18 @@ try {
   await page.locator('#editor-heading').fill('只打了標題又刪掉'); await page.locator('#editor-heading').fill('');
   await expect(page.locator('#draft-status')).toHaveText('草稿已存本機');
   await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText('已關閉，沒有需要保留的草稿');
+  // On the board a long paper ends its text with "…", and its attachments are one row below the text.
+  await page.locator('#new-card').click();
+  await page.locator('#editor-text').fill(Array.from({ length: 40 }, (_, n) => `第 ${n + 1} 段很長的內文。`).join('\n\n'));
+  await page.locator('#attachment-input').setInputFiles({ name: 'row.txt', mimeType: 'text/plain', buffer: Buffer.from('row') });
+  await expect(page.locator('#attachments a')).toHaveText('row.txt');
+  await page.getByRole('button', { name: '保存便箋', exact: true }).click();
+  await page.locator('[data-view="board"]').click();
+  const long = page.locator('.note-paper').filter({ hasText: '第 1 段很長的內文' });
+  await expect(long.locator('.note-body').locator('.fit-lines, .fit-more').first()).toBeAttached();
+  assert.ok(await long.evaluate(node => node.querySelector('.note-body + .paper-files .attachment-tile') !== null
+    && !node.querySelector('.note-body .attachment-tile')), 'board attachments sit in one row below the text');
+  await page.locator('[data-view="desktop"]').click();
 
   // Never render attachment HTML/SVG in the application origin, including open-in-new-tab.
   await page.locator('#new-card').click();

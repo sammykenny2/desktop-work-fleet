@@ -17,7 +17,8 @@
   - 主畫面便箋牆，視窗 1280 寬時紙張約 229px：有附件 4 行；手機寬度紙張 174px：有附件只剩 1 行。
   - 寬高比沒有改，等使用者看過再決定。
 - Author-run：JavaScript 335 項，320 pass／15 skip／0 fail；`npm run build` 後 Edge browser／group／scene probe 通過。
-  scene probe 新增：長內文以「…」收尾且不捲動、附件列在內文下方、六個附件只顯示四個、紙張變高後重新計算並顯示更多。
+  scene probe 新增：長內文以「…」收尾且不捲動、附件列在內文下方、六個附件只顯示四個、紙張變高後顯示更多、
+  進入調整模式出現按鈕列後重新截斷。browser probe 新增：選填標題與搜尋，以及便箋牆長便箋的「…」與內文下方的附件列。
   browser probe 在第一次修改後的首次執行又停在「正在載入…」逾時，之後重跑都通過，沒有追查。
   `Test-WindowsNative.ps1 -SkipRestore` 通過；owner formation 像素檢查因桌面沒有夠大的空白區域而略過。
 - 截斷只在 Chromium（Edge、WebView2）驗證；Linux WebKitGTK、macOS WKWebView 沒有實測。沒有獨立審閱。

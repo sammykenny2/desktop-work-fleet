@@ -26,7 +26,7 @@ await page.addInitScript(() => {
   const frame = () => ({ protocol: 1, sessionId: 's1', sequence, topology: 0, workspaceRevision: sequence, layoutRevision: sequence,
     groups: [{ id: 'g1', name: '我的便箋', color: '#fff6cc', region: null }], operationScope: { kind: 'none' }, activeGroupId: 'g1',
     cards: window.probeLong ? [{ ...paper('long', 24, '長便箋', Array.from({ length: 30 }, (_, n) => `第 ${n + 1} 行，寫得夠長讓它在紙上換行。`).join('\n\n'), '#ffe98a'),
-      rect: { x: 24, y: 24, width: 240, height: window.probeTall ? 480 : 240 },
+      rect: { x: 24, y: 24, width: 240, height: window.probeTall ? 480 : 240 }, draggable: Boolean(window.probeDrag),
       attachments: Array.from({ length: 6 }, (_, n) => ({ id: `blob-${n}`, name: `file-${n}.pdf` })) }] : window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
       paper('c1', 24, '季度報告', `# 季度報告\n\n- [x] 收集數字\n- [ ] 畫圖表\n- [${sequence > 1 ? 'x' : ' '}] 寫結論`, '#fff6cc'),
       paper('c2', 292, '買牛奶、雞蛋、咖啡豆', '買牛奶、雞蛋、咖啡豆', '#e7f2e7'),
@@ -134,6 +134,11 @@ try {
   await page.waitForFunction(() => window.probeApplied === 7);
   const tall = await fitted();
   assert.ok(tall.ends && tall.inside && tall.shown > square.shown * 2, `a taller paper shows more (${square.shown} → ${tall.shown})`);
+  // Adjust mode adds the button row, which takes height from the text; the text fits again above it.
+  await page.evaluate(() => { window.probeTall = false; window.probeDrag = true; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 8);
+  const adjusting = await fitted();
+  assert.ok(adjusting.ends && adjusting.inside && adjusting.shown < square.shown, `the button row leaves less text (${square.shown} → ${adjusting.shown})`);
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');
     const element = document.createElement('div');

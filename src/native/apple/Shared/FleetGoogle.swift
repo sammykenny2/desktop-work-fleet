@@ -37,10 +37,11 @@ import UIKit
     func signIn() async throws -> [String: Any] {
         try FleetProtocol.require(!closed && available, "google-config", "請設定 Apple Google client ID 並重新建置。")
         guard let presenter = presenting?() else { throw FleetFailure("google-unavailable", "登入畫面目前不可用。") }
-        GIDSignIn.sharedInstance.signOut()
+        // Interactive sign-in already opens the account chooser. Keep the existing SDK session if the user cancels.
+        prepared = nil
         let result: GIDSignInResult = try await withCheckedThrowingContinuation { continuation in
             GIDSignIn.sharedInstance.signIn(withPresenting: presenter, hint: nil, additionalScopes: [Self.scope]) { result, error in
-                if let error { continuation.resume(throwing: error) }
+                if let error { continuation.resume(throwing: Self.failure(error)) }
                 else if let result { continuation.resume(returning: result) }
                 else { continuation.resume(throwing: FleetFailure("google-cancelled", "Google 登入未完成。")) }
             }
@@ -54,7 +55,9 @@ import UIKit
     }
     private func identify(_ token: String) async throws -> [String: Any] {
         var request = URLRequest(url: URL(string: "https://openidconnect.googleapis.com/v1/userinfo")!); request.setValue("Bearer " + token, forHTTPHeaderField: "Authorization")
-        let (bytes, response) = try await BoundedHTTP(maximum: 65536).send(request)
+        let bytes: Data, response: HTTPURLResponse
+        do { (bytes, response) = try await BoundedHTTP(maximum: 65536).send(request) }
+        catch { throw Self.failure(error) }
         try FleetProtocol.require(response.statusCode == 200 && !closed, "unauthorized", "無法確認 Google 帳號。"); return try FleetProtocol.json(bytes)
     }
     func open(_ id: String) throws -> String {
@@ -66,13 +69,13 @@ import UIKit
         if let current = GIDSignIn.sharedInstance.currentUser { restored = current }
         else {
             restored = try await withCheckedThrowingContinuation { continuation in GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
-                if let error { continuation.resume(throwing: error) }
+                if let error { continuation.resume(throwing: Self.failure(error)) }
                 else if let user { continuation.resume(returning: user) }
                 else { continuation.resume(throwing: FleetFailure("unauthorized", "請重新登入 Google。")) }
             } }
         }
         let user: GIDGoogleUser = try await withCheckedThrowingContinuation { continuation in restored.refreshTokensIfNeeded { user, error in
-            if let error { continuation.resume(throwing: error) }
+            if let error { continuation.resume(throwing: Self.failure(error)) }
             else if let user { continuation.resume(returning: user) }
             else { continuation.resume(throwing: FleetFailure("unauthorized", "Google 授權需要更新。")) }
         } }
@@ -84,8 +87,23 @@ import UIKit
     // signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
     func signOut() async throws {
         if let id = account?["accountId"] as? String { try FleetKeychain.remove("google-account:" + id) }; account = nil
+        prepared = nil
         GIDSignIn.sharedInstance.signOut()
     }
-    func close() { closed = true }
+    nonisolated private static func failure(_ error: Error) -> FleetFailure {
+        if let failure = error as? FleetFailure { return failure }
+        let value = error as NSError
+        if value.domain == NSURLErrorDomain { return FleetFailure("network", "無法連接 Google，請確認網路後重試。") }
+        if value.domain == kGIDSignInErrorDomain {
+            switch value.code {
+            case GIDSignInError.Code.canceled.rawValue: return FleetFailure("google-cancelled", "已取消 Google 登入。")
+            case GIDSignInError.Code.keychain.rawValue: return FleetFailure("vault-unavailable", "無法保存 Google 登入，請解鎖裝置後重試。")
+            case GIDSignInError.Code.hasNoAuthInKeychain.rawValue, GIDSignInError.Code.refreshTokenExpired.rawValue: return FleetFailure("unauthorized", "Google 授權已失效，請重新登入。")
+            default: break
+            }
+        }
+        return FleetFailure("google-unavailable", "Google 登入未完成，請稍後重試。")
+    }
+    func close() { closed = true; prepared = nil }
     static func handle(_ url: URL) -> Bool { GIDSignIn.sharedInstance.handle(url) }
 }

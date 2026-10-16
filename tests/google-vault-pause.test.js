@@ -211,3 +211,35 @@ test('cancelled account change or close leaves an immediately usable manual-sync
     assert.equal(f.states.at(-1)[0], 'ok');
   }
 });
+
+test('cancelled Google sign-in preserves the workspace and restores editing, sync and backups', async () => {
+  for (const code of ['google-cancelled', 'google-config']) {
+    const f = syncFixture({ capability: false });
+    f.context.googleAccount = { ...f.context.googleAccount, connected: true, paused: false };
+    const calls = [], notices = [];
+    const oldSync = f.context.syncService;
+    oldSync.stop = async () => calls.push('stop-sync');
+    const workspace = f.context.workspace;
+    Object.assign(f.context, {
+      syncTimer: null, clearInterval() {}, stopAutomatic: () => calls.push('stop-backups'),
+      automatic: { service: { whenIdle: async () => calls.push('backups-idle') } },
+      startAutomaticBackup: () => { calls.push('restart-backups'); return () => {}; },
+      status: (...args) => notices.push(args),
+      initializeGoogle: async () => { calls.push('restore-sync'); f.context.syncService = oldSync; },
+    });
+    f.context.document.body = {};
+    f.context.native.bridge.request = async method => {
+      calls.push(method);
+      throw Object.assign(new Error('登入未完成'), { code });
+    };
+    await vm.runInContext(`${changeAccount}\nchangeGoogleAccount('signIn')`, f.context);
+    assert.deepEqual(calls, ['stop-backups', 'backups-idle', 'stop-sync', 'google.signIn', 'restart-backups', 'restore-sync']);
+    assert.equal(f.context.profileId, 'google:fixture');
+    assert.equal(f.context.workspace, workspace);
+    assert.equal(f.context.document.body.inert, false);
+    assert.equal(f.context.accountBusy, false);
+    assert.equal(notices.at(-1)[1], code !== 'google-cancelled');
+    await f.invoke(true);
+    assert.equal(f.states.at(-1)[0], 'ok');
+  }
+});

@@ -3,7 +3,10 @@
 五平台原生 host 已接登入、帳號工作空間及 Drive appDataFolder 同步程式。
 瀏覽器開發預覽只有本機資料，不提供 Google 登入。
 2026-10-06 已建立 Google Cloud 專案（同意畫面測試中）與 Windows／Linux 共用的 Desktop client；
-Windows 真實登入與 Drive 上傳（含 1.9 MB 附件分段續傳）已驗收。Apple／Android clients 尚未建立，跨裝置下載與其他平台尚未驗收。
+Windows 真實登入與 Drive 上傳（含 1.9 MB 附件分段續傳）已驗收。
+2026-10-17 iOS／Android／Web clients 已建立，與既有 macOS client 一起保存於 GitHub repository variables。
+目前手機 preview 使用 `app.workfleet.preview`；Android client 對應這台 Mac 的 debug 簽章，其他簽章需另行註冊。
+手機原生建置及模擬授權回歸不代表真實登入／跨裝置下載已驗收，實際證據見 PROGRESS。
 
 ## 建立 Google Cloud 設定
 
@@ -20,9 +23,9 @@ Windows 真實登入與 Drive 上傳（含 1.9 MB 附件分段續傳）已驗收
 |---|---|---|
 | Windows | Desktop app；MSIX 裡的程式也是桌面 App，使用系統瀏覽器與 loopback callback | `WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID`、`WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET` |
 | Linux | Desktop app；可與 Windows 共用同一個 Desktop client（ID 與 secret 都填同一組） | `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID`、`WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET` |
-| macOS | iOS 類型 client，bundle ID 使用最終 `WORK_FLEET_APP_ID` | `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID` |
-| iOS | iOS 類型 client，bundle ID 使用最終 `WORK_FLEET_APP_ID` | `WORK_FLEET_GOOGLE_IOS_CLIENT_ID` |
-| Android | Android client，package 使用最終 `WORK_FLEET_APP_ID`，註冊實際簽章憑證 SHA-1 | `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID` |
+| macOS | iOS 類型 client，bundle ID 使用目前建置的 `WORK_FLEET_APP_ID` | `WORK_FLEET_GOOGLE_MACOS_CLIENT_ID` |
+| iOS | iOS 類型 client，bundle ID 使用目前建置的 `WORK_FLEET_APP_ID` | `WORK_FLEET_GOOGLE_IOS_CLIENT_ID` |
+| Android | Android client，package 使用目前建置的 `WORK_FLEET_APP_ID`，註冊實際簽章憑證 SHA-1 | `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID` |
 | Android 登入 audience | 同一專案另建 Web application client；只用公開 ID，沒有自家登入 server | `WORK_FLEET_GOOGLE_WEB_CLIENT_ID` |
 
 Android 本機 debug、upload key 與 Google Play App Signing 的憑證可能不同，
@@ -30,6 +33,13 @@ Android 本機 debug、upload key 與 Google Play App Signing 的憑證可能不
 從 Play 安裝的版本使用 Play Console 的 **app signing certificate**，不能只註冊 upload key。
 尚未指定正式 App ID 時，預覽 package／bundle ID 是 `app.workfleet.preview`。
 Apple callback scheme 由生成腳本從 client ID 產生，不須手寫 Info.plist。
+可先以目前 preview 身分驗證登入，不需等待 Play Console 或商店上架。
+未來更換正式 package／bundle ID 時，在同一 Google Cloud 專案建立對應 clients 並重建；
+OS 會把新識別視為另一個 App，本機資料須另行以備份搬移。
+
+Android 的 Web client 是 Credential Manager 的 `serverClientId`／ID token audience：
+選帳號時使用公開 Web Client ID，接著由 AuthorizationClient 取得 Drive 權限並向 Google userinfo 核對穩定 sub。
+這個流程沒有自家登入後端，Web client 的 JavaScript origins／redirect URIs 可留空，不使用其 Client Secret。
 
 macOS 在 Google Auth Platform＞Clients＞Create client 的欄位：
 
@@ -39,7 +49,7 @@ macOS 在 Google Auth Platform＞Clients＞Create client 的欄位：
 | Name | 例如 `Work Fleet macOS`，僅供管理識別 |
 | Bundle ID | 與 `WORK_FLEET_APP_ID` 相同；目前預覽為 `app.workfleet.preview` |
 | App Store ID | GitHub 預覽版留空；上架後才填 App Store 網址中的數字 ID |
-| Apple Team ID | 選填；已有 Apple team 時可填 `WORK_FLEET_APPLE_TEAM_ID` 的值 |
+| Apple Team ID | 選填；已有 Apple team 時填 `WORK_FLEET_APPLE_TEAM_ID` 的值，iOS／macOS 使用同一團隊時填同一組 |
 | Firebase App Check | 本專案尚未配置該驗證，建立時維持關閉；啟用它會要求 Team ID |
 | Use this client for an AI-powered agent | 維持未勾選；本 client 用於 App 的 Google 登入與 Drive 同步 |
 
@@ -58,7 +68,9 @@ Windows／Linux 使用 PKCE；Apple 使用 Google Sign-In SDK；Android 使用 C
 把 [.env.example](../.env.example) 複製成 `.env`，填寫 `WORK_FLEET_GOOGLE_PROJECT_ID`
 及要建置的平台 client。`.env` 已被 Git 忽略；shell／CI 同名值優先。
 只需 Windows／Linux 登入時不用為其他平台建立 client。
-正式 Apple／Android 註冊前先決定 `WORK_FLEET_APP_ID`，使它與 Cloud 註冊一致。
+Apple／Android 的 `WORK_FLEET_APP_ID` 必須與該次 Cloud 註冊一致；目前先用 preview 身分。
+GitHub Variables 只會傳給有引用它們的 Actions，本機 Xcode／Gradle 不會自動下載；
+本機仍需把公開 client IDs 與 project ID 填入 Git 忽略的 `.env`。Web Client Secret 不放進 `.env`。
 
 ```bash
 # 列出各平台 Google 公開設定缺項，與商店／簽章設定分開。
@@ -149,3 +161,18 @@ Apple 編譯由維護者在 Mac 處理，不需啟動 hosted Actions。
 | 另一台裝置看不到資料 | 確認帳號相同、clients 屬於同一專案，以及兩邊同步成功 |
 
 完整實作及未執行項目以 [PROGRESS](../PROGRESS.md) 為準。
+
+## 手機登入驗收
+
+在裝置上使用與 OAuth 註冊相同 bundle／package、實際簽章的建置，並加入 Google Auth Platform 的測試使用者：
+
+1. 先在本機工作空間留下便箋與草稿，再從「帳號與同步」登入 Google 並允許 App 資料存取。
+   成功後開啟該帳號分區；原本本機便箋保留，不自動搬至 Google。
+2. 在選帳號或授權時取消：回到原工作空間，仍可編輯、同步與重試；取消不顯示為同步故障。
+3. 手動同步、新增便箋及附件，確認另一台同帳號裝置能同步；強制結束再重開後驗證登入恢復。
+4. 切換另一個帳號，確認便箋與待送內容分區；登出只影響這台裝置，其他裝置維持登入。
+5. 關閉網路或拒絕 Drive 權限：顯示可理解的提示並保留原資料；恢復條件後可重新登入／同步。
+
+Android 會清除這台的 Credential Manager 帳號選擇狀態，使下次登入可重新選帳號；不撤銷 Google 雲端授權。
+Apple 開啟選帳號前保留既有 SDK session，取消時仍能使用原帳號。
+來源與模擬測試界線見 [手機授權研究](research/2026-10-17-mobile-google-sign-in.md)。

@@ -62,3 +62,13 @@ renderer 持有 token 或任意 HTTP bridge：拒絕，因為擴大憑證及網�
 - [Desktop PKCE 換 token 仍要求 client secret](https://discuss.google.dev/t/desktop-oauth-pkce-exchange-returns-invalid-request-after-successful-loopback-callback-with-no-client-secret/390526)
 
 *Decision made: 2026-10-05*
+
+## 2026-10-17 修訂：手機帳號選擇與取消
+
+iOS／Android／Web OAuth clients 已建立。沿用 ADR-022／023 的原生授權與分區，不新增自家登入 server。
+Android 在登入／登出時清除 Credential Manager 的本機選擇狀態，不撤銷 Google grant；
+access token 依已確認的 sub 綁定快取，選另一帳號取得的 token 不能用於目前分區的待送內容。
+登入的帳號選擇、Drive 授權與 userinfo 共用 110 秒期限，保留 bridge 回覆的時間；逾時／關閉後不再開啟晚到的授權視窗。
+Apple 互動登入不預先 signOut；使用者取消時保留既有 SDK session 與便箋分區。
+兩者將取消、網路／設定／憑證失敗轉成固定的產品提示，不把 SDK 原始錯誤或 token 回傳 renderer。
+SDK 依據與未驗收界線見 [手機授權研究](../research/2026-10-17-mobile-google-sign-in.md)。

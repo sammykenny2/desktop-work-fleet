@@ -327,7 +327,7 @@ async function changeGoogleAccount(action) {
       await native.bridge.request('google.open', { accountId: result.accountId });
     } else await native.bridge.request(action === 'signOut' ? 'google.signOut' : 'google.local');
   } catch (error) {
-    document.body.inert = false; status(error.message, true); await desktop?.cancelClose();
+    document.body.inert = false; status(error.message, error.code !== 'google-cancelled'); await desktop?.cancelClose();
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
     accountBusy = false; await initializeGoogle();

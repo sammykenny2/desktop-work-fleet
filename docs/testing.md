@@ -168,6 +168,18 @@ Google Python 回歸另確認 unlock_vault 只處理 vault-locked、服務缺失
 登出仍只刪除本機憑證、完全不發網路請求。
 `node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、
 Apple、Android 的原始碼都沒有向 Google 撤銷授權的呼叫（ADR-021 修訂）；Swift 與 Java 不在每個檢查環境編譯，所以用原始碼檢查。
+手機授權另有以下 author-run 回歸，均不使用真實 Google 帳號：
+
+- `node --test tests/google-vault-pause.test.js` 另執行實際帳號切換函式，確認原生登入取消／設定失敗時
+  恢復編輯、自動備份及原帳號同步，且取消不使用錯誤提示樣式。
+- `python3 -B -m unittest discover -s tests -p 'test_macos_google_sign_in.py' -v` 編譯正式 `FleetGoogle.swift`，
+  以假 SDK／AppKit／Keychain／HTTP 驗證取消保留登入、成功開啟一次、Drive 權限不足、關閉後晚回覆、
+  不同 sub 拒絕及 SDK／網路錯誤分類。實際 SDK 介面另由 Xcode iOS／macOS 建置確認，不把假 SDK 當成真登入。
+- Android SDK／JDK 可用時，在 `src/native/android` 執行 `bash ./gradlew testDebugUnitTest assembleDebug`。
+  JUnit 使用正式 `GoogleAccessToken`／`GoogleSignInErrors` 與真 SDK exception 類型，
+  驗證切換帳號不使用另一帳號 token、到期／清除及 Credential Manager／Play Services 錯誤不洩漏原始訊息。
+  Unit tests 不啟動 Activity 或 Google UI，帳號選擇、授權返回及裝置生命週期仍依 [Google 設定](google-setup.md#手機登入驗收) 手動驗收。
+
 `tests/test_linux_python_floor.py` 從 DEB `Depends` 讀 Python 下限（3.10），確認 tar.gz 宣告相同，
 並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。
 `tests/test_linux_gi_versions.py` 以 `ast` 確認固定 Gtk 3.0 的 Linux 模組在 import Gdk 前也固定 Gdk 3.0，

@@ -19,9 +19,12 @@ import androidx.webkit.WebViewFeature;
 import androidx.webkit.JavaScriptReplyProxy;
 import androidx.credentials.CredentialManager;
 import androidx.credentials.CredentialManagerCallback;
+import androidx.credentials.ClearCredentialStateRequest;
+import androidx.credentials.CustomCredential;
 import androidx.credentials.GetCredentialRequest;
 import androidx.credentials.GetCredentialResponse;
 import androidx.credentials.exceptions.GetCredentialException;
+import androidx.credentials.exceptions.ClearCredentialException;
 import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption;
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential;
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
@@ -51,6 +54,7 @@ public final class FleetActivity extends Activity {
     private volatile boolean destroyed;
     private CompletableFuture<Uri> directoryPicker;
     private CompletableFuture<AuthorizationResult> authorization;
+    private volatile CompletableFuture<?> googlePrompt;
     private ValueCallback<Uri[]> attachmentPicker;
     private JavaScriptReplyProxy ownerProxy;
     private int admitted;
@@ -186,36 +190,66 @@ public final class FleetActivity extends Activity {
     boolean googleConfigured() {
         try { JSONObject clients = config.getJSONObject("google").getJSONObject("clients"); return !clients.optString("android").isEmpty() && !clients.optString("web").isEmpty(); } catch (Exception error) { return false; }
     }
-    String selectGoogleEmail() throws Exception {
-        Protocol.require(googleConfigured(), "google-config", "請填寫 .env 的 Android 與 Web Google client ID 後重新建置。");
-        CompletableFuture<String> result = new CompletableFuture<>(); CancellationSignal cancellation = new CancellationSignal();
+    private boolean googlePromptReady(CompletableFuture<?> result) {
+        if (destroyed) result.completeExceptionally(new Protocol.Failure("stale-session", "登入畫面已關閉。"));
+        return !result.isDone();
+    }
+    private <T> T awaitGoogle(CompletableFuture<T> result, long timeoutMillis) throws Exception {
+        try { return result.get(timeoutMillis, TimeUnit.MILLISECONDS); }
+        finally { result.cancel(false); if (googlePrompt == result) googlePrompt = null; }
+    }
+    void clearGoogleCredentialState(long timeoutMillis) throws Exception {
+        CompletableFuture<Void> result = new CompletableFuture<>(); googlePrompt = result; CancellationSignal cancellation = new CancellationSignal();
         runOnUiThread(() -> {
+            if (!googlePromptReady(result)) return;
+            try {
+                CredentialManager.create(this).clearCredentialStateAsync(new ClearCredentialStateRequest(), cancellation, getMainExecutor(), new CredentialManagerCallback<Void, ClearCredentialException>() {
+                    @Override public void onResult(Void unused) { result.complete(null); }
+                    @Override public void onError(ClearCredentialException error) { result.completeExceptionally(error); }
+                });
+            } catch (Exception error) { result.completeExceptionally(error); }
+        });
+        try { awaitGoogle(result, timeoutMillis); } finally { cancellation.cancel(); }
+    }
+    String selectGoogleEmail(long timeoutMillis) throws Exception {
+        Protocol.require(googleConfigured(), "google-config", "請填寫 .env 的 Android 與 Web Google client ID 後重新建置。");
+        CompletableFuture<String> result = new CompletableFuture<>(); googlePrompt = result; CancellationSignal cancellation = new CancellationSignal();
+        runOnUiThread(() -> {
+            if (!googlePromptReady(result)) return;
             try {
                 String client = config.getJSONObject("google").getJSONObject("clients").getString("web");
                 GetSignInWithGoogleOption option = new GetSignInWithGoogleOption.Builder(client).build();
                 GetCredentialRequest request = new GetCredentialRequest.Builder().addCredentialOption(option).build();
                 CredentialManager.create(this).getCredentialAsync(this, request, cancellation, getMainExecutor(), new CredentialManagerCallback<GetCredentialResponse, GetCredentialException>() {
                     @Override public void onResult(GetCredentialResponse response) {
-                        try { GoogleIdTokenCredential credential = GoogleIdTokenCredential.createFrom(response.getCredential().getData()); result.complete(credential.getId()); }
+                        try {
+                            Protocol.require(response.getCredential() instanceof CustomCredential && GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL.equals(response.getCredential().getType()), "google-account", "Google 登入回傳的帳號格式無效，請重試。");
+                            GoogleIdTokenCredential credential = GoogleIdTokenCredential.createFrom(response.getCredential().getData()); result.complete(credential.getId());
+                        }
                         catch (Exception error) { result.completeExceptionally(error); }
                     }
                     @Override public void onError(GetCredentialException error) { result.completeExceptionally(error); }
                 });
             } catch (Exception error) { result.completeExceptionally(error); }
         });
-        try { return result.get(110, TimeUnit.SECONDS); } finally { cancellation.cancel(); }
+        try { return awaitGoogle(result, timeoutMillis); } finally { cancellation.cancel(); }
     }
-    AuthorizationResult authorize(AuthorizationRequest request, boolean interactive) throws Exception {
-        CompletableFuture<AuthorizationResult> result = new CompletableFuture<>();
-        runOnUiThread(() -> Identity.getAuthorizationClient(this).authorize(request).addOnSuccessListener(value -> {
-            if (!value.hasResolution()) result.complete(value);
-            else if (!interactive) result.completeExceptionally(new Protocol.Failure("unauthorized", "Google 授權需要重新確認，請按登入 Google。"));
-            else {
-                try { authorization = result; startIntentSenderForResult(value.getPendingIntent().getIntentSender(), 30, null, 0, 0, 0); }
-                catch (Exception error) { authorization = null; result.completeExceptionally(error); }
-            }
-        }).addOnFailureListener(result::completeExceptionally));
-        try { return result.get(110, TimeUnit.SECONDS); } finally { if (authorization == result) authorization = null; }
+    AuthorizationResult authorize(AuthorizationRequest request, boolean interactive, long timeoutMillis) throws Exception {
+        CompletableFuture<AuthorizationResult> result = new CompletableFuture<>(); googlePrompt = result;
+        runOnUiThread(() -> {
+            if (!googlePromptReady(result)) return;
+            try { Identity.getAuthorizationClient(this).authorize(request).addOnSuccessListener(value -> {
+                if (!googlePromptReady(result)) return;
+                if (!value.hasResolution()) result.complete(value);
+                else if (!interactive) result.completeExceptionally(new Protocol.Failure("unauthorized", "Google 授權需要重新確認，請按登入 Google。"));
+                else {
+                    try { authorization = result; startIntentSenderForResult(value.getPendingIntent().getIntentSender(), 30, null, 0, 0, 0); }
+                    catch (Exception error) { authorization = null; result.completeExceptionally(error); }
+                }
+            }).addOnFailureListener(result::completeExceptionally); }
+            catch (Exception error) { result.completeExceptionally(error); }
+        });
+        try { return awaitGoogle(result, timeoutMillis); } finally { if (authorization == result) authorization = null; }
     }
     Uri chooseDirectory() throws Exception {
         CompletableFuture<Uri> result = new CompletableFuture<>(); runOnUiThread(() -> {
@@ -238,7 +272,10 @@ public final class FleetActivity extends Activity {
             exports.selected(result, data);
         } else if (request == 30 && authorization != null) {
             CompletableFuture<AuthorizationResult> pending = authorization; authorization = null;
-            try { pending.complete(Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data)); } catch (Exception error) { pending.completeExceptionally(error); }
+            try {
+                Protocol.require(result == RESULT_OK && data != null, "google-cancelled", "已取消 Google 登入。");
+                pending.complete(Identity.getAuthorizationClient(this).getAuthorizationResultFromIntent(data));
+            } catch (Exception error) { pending.completeExceptionally(error); }
         }
     }
     private void external(Uri uri) { if ("https".equals(uri.getScheme()) || "http".equals(uri.getScheme())) try { startActivity(new Intent(Intent.ACTION_VIEW, uri)); } catch (Exception ignored) { } }
@@ -252,6 +289,7 @@ public final class FleetActivity extends Activity {
         if (exports != null) exports.close();
         if (directoryPicker != null) directoryPicker.completeExceptionally(new IllegalStateException("Activity closed"));
         if (authorization != null) authorization.completeExceptionally(new IllegalStateException("Activity closed"));
+        if (googlePrompt != null) googlePrompt.completeExceptionally(new Protocol.Failure("stale-session", "登入畫面已關閉。"));
         if (google != null) google.close(); storageWorker.execute(() -> { try { if (bridge != null) bridge.close(); if (database != null) database.close(); } catch (Exception ignored) { } });
         storageWorker.shutdown(); networkWorker.shutdown(); if (web != null) web.destroy(); super.onDestroy();
     }

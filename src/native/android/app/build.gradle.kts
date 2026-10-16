@@ -145,6 +145,7 @@ tasks.matching { it.name.contains("Release") }.configureEach {
     }
 }
 dependencies {
+    testImplementation("junit:junit:4.13.2")
     implementation("androidx.webkit:webkit:1.16.0")
     implementation("com.google.android.gms:play-services-auth:22.0.0")
     implementation("androidx.credentials:credentials:1.5.0")

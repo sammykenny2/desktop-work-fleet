@@ -2,6 +2,33 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 手機 Google OAuth 接通準備與帳號流程修正
+
+使用者建立 iOS／Android／Web clients 並提供公開 IDs，要求先 pull 再開始修改。
+工作目錄開始時乾淨，已 fast-forward 至 `797c2ab`；沿用同一 Google Cloud 專案與 preview App 身分。
+
+- 三組公開 Client ID 已保存並讀回核對 GitHub Variables；本機 ignored `.env` 已填公開設定、既有 App ID／Apple Team ID。
+  不使用或保存 Web Client Secret，公開 IDs 不寫死進產品原始碼。
+- Apple：互動登入前不再 signOut，取消保留既有 SDK session；清除未完成的帳號開啟憑證。
+  SDK／Keychain／網路錯誤轉為固定提示，不把原始錯誤傳到介面。共用 Apple 服務同時供 iOS／macOS 使用。
+- Android：登入／登出清除這台的 Credential Manager 帳號選擇狀態，不撤銷 Google grant。
+  token 快取綁定已核對的 sub，並以單調時鐘判定到期，避免切換中取得的新帳號 token 用於舊工作空間。
+  選帳號、Drive 授權與身分查詢共用登入期限；關閉／逾時後丟棄晚到回覆，不再開啟新的授權視窗。
+  取消、缺帳號、設定、網路及 Play Services 錯誤有固定提示；資料與原分區保留。
+- 共用介面：取消登入仍恢復編輯、同步及自動備份，以普通狀態提示取消。
+  本輪保留既有手機版面，沿用 V1 資料格式與 0.2.7 手機版號。
+- Author-run：
+  - 完整 JavaScript 308 項：298 pass／10 skip／0 fail。
+  - 完整 Python 182 項：132 pass／50 skip／0 fail。初次沙盒禁止測試用 loopback socket，正常本機權限重跑通過。
+  - Apple 正式 FleetGoogle 的假 SDK／HTTP／Keychain probe 涵蓋六種情境；Android JUnit 8/8，使用正式快取／錯誤處理與 SDK exception。
+  - Xcode iOS Simulator App／Share Extension 與 Gradle debug APK 均建置成功；實際包內公開配置核對通過。
+    iOS 的 Client ID／Bundle ID／callback scheme 一致，Android 的 client／Web audience／package 一致；沒有 Google secrets。
+  - `npm run build`、iOS／Android `config:check --google`、JavaScript 語法、文件連結／LF 及 diff 檢查通過。
+- Google 設定、手機手動驗收步驟、測試說明、ADR-021 與 dated SDK 研究已更新。
+  原生編譯與模擬授權不等同真實 Google 帳號、Drive 往返、手機程序回收或跨裝置同步驗收。
+  本機 CoreSimulator 回報服務版本比 Xcode 舊，未啟動 Simulator；iOS 真機簽章／安裝及 Android 實機登入仍待實測。
+  沒有取得獨立程式審閱；上述為作者執行的測試與建置。本輪未升版、安裝 App、dispatch 或發布。
+
 ## 2026-10-17 系統匣等待秒數的單一來源
 
 使用者表示「我不喜歡魔術數字散落各處」，看過選項後選 A：共用設定檔，並指示「做完commit&push」。不升版、不發布。

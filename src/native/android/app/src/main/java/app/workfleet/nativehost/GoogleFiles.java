@@ -2,6 +2,7 @@ package app.workfleet.nativehost;
 
 import android.accounts.Account;
 import android.content.SharedPreferences;
+import android.os.SystemClock;
 import android.util.Base64;
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
 import com.google.android.gms.auth.api.identity.AuthorizationResult;
@@ -22,6 +23,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 final class GoogleFiles implements AutoCloseable {
     private static final String FIELDS = "id,size,spaces,trashed,appProperties,sha256Checksum";
@@ -32,8 +35,10 @@ final class GoogleFiles implements AutoCloseable {
     private final String clientId;
     private final HashMap<String, Upload> uploads = new HashMap<>();
     private JSONObject account;
-    private String preparedAccount, accessToken;
-    private long tokenAt;
+    private String preparedAccount;
+    private final GoogleAccessToken tokens = new GoogleAccessToken();
+    private static final long SIGN_IN_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(110);
+    private long signInDeadline;
     private volatile boolean closed;
     private static final class Upload { final String path, digest; final int size; Upload(String path, String digest, int size) { this.path = path; this.digest = digest; this.size = size; } }
     private static final class Response {
@@ -59,11 +64,15 @@ final class GoogleFiles implements AutoCloseable {
     }
     Object status() throws Exception { return Protocol.object("configured", activity.googleConfigured(), "connected", account != null, "accountId", account == null ? null : account.getString("accountId"), "email", account == null ? null : account.getString("email"), "profileId", database.profile); }
     private static String encode(String value) throws Exception { return URLEncoder.encode(value, "UTF-8"); }
+    private long remainingGoogleMillis() throws TimeoutException {
+        long remaining = signInDeadline == 0 ? SIGN_IN_TIMEOUT_MILLIS : signInDeadline - SystemClock.elapsedRealtime();
+        if (remaining <= 0) throw new TimeoutException(); return remaining;
+    }
     private static String path(String base, String... fields) throws Exception { StringBuilder query = new StringBuilder(base).append('?'); for (int i = 0; i < fields.length; i += 2) { if (i != 0) query.append('&'); query.append(encode(fields[i])).append('=').append(encode(fields[i + 1])); } return query.toString(); }
     private Response http(String uri, String method, String token, byte[] body, Map<String, String> headers, int maximum) throws Exception {
         Protocol.require(!closed, "stale-session", "Google 工作階段已結束。"); URL url = new URL(uri);
         Protocol.require(url.getProtocol().equals("https") && (url.getHost().equals("www.googleapis.com") || url.getHost().equals("openidconnect.googleapis.com")) && url.getUserInfo() == null && url.getRef() == null && (url.getPort() == -1 || url.getPort() == 443), "invalid-source", "Google HTTPS 位置無效。");
-        HttpURLConnection connection = (HttpURLConnection) url.openConnection(); connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(20000); connection.setReadTimeout(90000); connection.setRequestMethod(method);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection(); connection.setInstanceFollowRedirects(false); connection.setConnectTimeout((int) Math.min(20000, remainingGoogleMillis())); connection.setReadTimeout((int) Math.min(90000, remainingGoogleMillis())); connection.setRequestMethod(method);
         connection.setRequestProperty("Authorization", "Bearer " + token);
         for (Map.Entry<String, String> header : headers.entrySet()) connection.setRequestProperty(header.getKey(), header.getValue());
         try {
@@ -75,28 +84,40 @@ final class GoogleFiles implements AutoCloseable {
     }
     private JSONObject authorize(String email, boolean interactive, String expected) throws Exception {
         AuthorizationRequest request = AuthorizationRequest.builder().setAccount(new Account(email, "com.google")).setRequestedScopes(SCOPES).build();
-        AuthorizationResult result = activity.authorize(request, interactive);
+        AuthorizationResult result = activity.authorize(request, interactive, remainingGoogleMillis());
         Protocol.require(result.getAccessToken() != null && !result.getAccessToken().isEmpty(), "unauthorized", "Google 未授權 Drive App 資料。");
         String token = result.getAccessToken(); Response identity = http("https://openidconnect.googleapis.com/v1/userinfo", "GET", token, null, Collections.emptyMap(), 65536);
         Protocol.require(identity.status == 200, "unauthorized", "無法確認 Google 帳號。"); JSONObject info = Protocol.json(identity.bytes); String id = Protocol.text(info, "sub", 255);
         Protocol.require(id.matches("[A-Za-z0-9_-]{1,255}") && (expected == null || expected.equals(id)), "stale-session", "Google 帳號與工作空間不同，未傳送便箋。");
-        accessToken = token; tokenAt = System.currentTimeMillis(); return Protocol.object("accountId", id, "email", email, "clientId", clientId);
+        tokens.save(id, token, SystemClock.elapsedRealtime()); return Protocol.object("accountId", id, "email", email, "clientId", clientId);
     }
     synchronized Object signIn() throws Exception {
-        String email = activity.selectGoogleEmail(); JSONObject value = authorize(email, true, null); save(value); preparedAccount = value.getString("accountId");
-        return Protocol.object("accountId", preparedAccount, "email", email, "profileId", "google:" + preparedAccount);
+        preparedAccount = null; signInDeadline = SystemClock.elapsedRealtime() + SIGN_IN_TIMEOUT_MILLIS;
+        try {
+            activity.clearGoogleCredentialState(remainingGoogleMillis());
+            String email = activity.selectGoogleEmail(remainingGoogleMillis()); JSONObject value = authorize(email, true, null);
+            remainingGoogleMillis(); save(value); preparedAccount = value.getString("accountId");
+            return Protocol.object("accountId", preparedAccount, "email", email, "profileId", "google:" + preparedAccount);
+        } catch (Exception error) { throw GoogleSignInErrors.failure(error); }
+        finally { signInDeadline = 0; }
     }
     synchronized String open(String id) throws Exception { Protocol.require(id.equals(preparedAccount) && load(id) != null, "google-account", "請先完成此 Google 帳號登入。"); preparedAccount = null; return "google:" + id; }
     // Only this device signs out: revoking access removes the project's grant for every client, so every other device
     // signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
     synchronized void signOut() throws Exception {
         if (account == null) return;
-        JSONObject previous = account; account = null; accessToken = null; uploads.clear();
-        Protocol.require(preferences.edit().remove(previous.getString("accountId")).commit(), "native-storage", "登入憑證尚未移除。");
+        try { activity.clearGoogleCredentialState(remainingGoogleMillis()); } catch (Exception error) { throw GoogleSignInErrors.failure(error); }
+        Protocol.require(preferences.edit().remove(account.getString("accountId")).commit(), "native-storage", "登入憑證尚未移除。");
+        account = null; preparedAccount = null; tokens.clear(); uploads.clear();
     }
     private String token() throws Exception {
         Protocol.require(account != null && database.profile.equals("google:" + account.getString("accountId")), "unauthorized", "請先登入 Google。");
-        if (accessToken == null || System.currentTimeMillis() - tokenAt > 45 * 60000L) authorize(account.getString("email"), false, account.getString("accountId")); return accessToken;
+        String id = account.getString("accountId"), cached = tokens.get(id, SystemClock.elapsedRealtime());
+        if (cached == null) {
+            try { authorize(account.getString("email"), false, id); } catch (Exception error) { throw GoogleSignInErrors.failure(error); }
+            cached = tokens.get(id, SystemClock.elapsedRealtime());
+        }
+        return cached;
     }
     private Response request(String path, String method, byte[] body, Map<String, String> headers, int maximum, boolean allow308, String context) throws Exception {
         Response response;
@@ -105,7 +126,7 @@ final class GoogleFiles implements AutoCloseable {
         if (response.status >= 200 && response.status < 300 || allow308 && response.status == 308) return response;
         String reason = "";
         try { reason = Protocol.json(response.bytes).getJSONObject("error").getJSONArray("errors").getJSONObject(0).getString("reason"); } catch (Exception ignored) { }
-        if (response.status == 401) { String expired = accessToken; accessToken = null; if (expired != null) Identity.getAuthorizationClient(activity).clearToken(ClearTokenRequest.builder().setToken(expired).build()); }
+        if (response.status == 401) { String expired = tokens.clear(); if (expired != null) Identity.getAuthorizationClient(activity).clearToken(ClearTokenRequest.builder().setToken(expired).build()); }
         String code = response.status == 401 ? "unauthorized" : response.status == 409 ? "file-exists"
             : response.status == 429 || reason.equals("rateLimitExceeded") || reason.equals("userRateLimitExceeded") ? "rate-limit"
             : response.status >= 500 ? "service-unavailable" : response.status == 410 && context.equals("changes") ? "cursor-expired"
@@ -207,5 +228,5 @@ final class GoogleFiles implements AutoCloseable {
             if (Arrays.asList("file-exists", "unauthorized", "source-permission", "source-error", "upload-session-expired", "storage-quota").contains(error.code)) uploads.remove(id); throw error;
         }
     }
-    @Override public void close() { closed = true; accessToken = null; uploads.clear(); }
+    @Override public void close() { closed = true; preparedAccount = null; tokens.clear(); uploads.clear(); }
 }

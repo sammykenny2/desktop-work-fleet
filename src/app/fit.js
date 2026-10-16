@@ -1,6 +1,6 @@
-// A paper shows as much of its text as its size allows and ends text that is cut off with "…"; nothing on it scrolls.
-// Fitting only hides blocks, wraps the text of the one block that is cut and adds one mark, so it can be undone and
-// run again whenever the paper changes size.
+// A paper that cannot scroll shows as much of its text as its size allows and ends text that is cut off with "…"; a
+// paper whose text scrolls keeps all of it. Fitting only hides blocks, wraps the text of the one block that is cut and
+// adds one mark, so it can be undone and run again whenever the paper changes size or starts or stops scrolling.
 
 const containers = new Set(['UL', 'OL', 'BLOCKQUOTE', 'LI', 'DIV']);
 const blocks = new Set([...containers, 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'PRE', 'TABLE', 'HR']);
@@ -67,7 +67,7 @@ function endBefore(hidden, limit) {
 
 export function fitText(body) {
   unfitText(body);
-  if (body.scrollHeight <= body.clientHeight + 1) return false;
+  if (getComputedStyle(body).overflowY !== 'hidden' || body.scrollHeight <= body.clientHeight + 1) return false;
   const style = getComputedStyle(body);
   const limit = body.getBoundingClientRect().top + body.clientTop + body.clientHeight - parseFloat(style.paddingBottom);
   let parent = body;

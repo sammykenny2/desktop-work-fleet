@@ -103,7 +103,11 @@ function render(next) {
         for (const tile of item.files.querySelectorAll('button')) tile.disabled = !card.interactive;
         fitTiles(item.files);
       }
-      if (item.editorId || item.text !== card.text) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; fitText(body); }
+      const changed = item.editorId || item.text !== card.text;
+      if (changed) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; }
+      // A paper that starts or stops taking the mouse starts or stops scrolling, so its "…" goes or comes.
+      if (changed || item.interactive !== card.interactive) fitText(body);
+      item.interactive = card.interactive;
       actions.replaceChildren();
       if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
     }

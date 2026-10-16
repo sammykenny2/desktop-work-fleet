@@ -17,7 +17,8 @@
   Android 原生測試 8 項與 APK build 通過，signer 符合既有測試／OAuth SHA-1；iOS unsigned build、實際開發簽章、codesign 驗證及 IPA 封裝通過。
   actionlint 1.7.12、workflow 觸發／權限／無發布命令與 shell 語法、文件及 diff 檢查通過。
 - Android 仍為 0.2.7（207），Apple 仍為 0.3.0（300）。未 dispatch 手機 workflows、未建立 preview／tag，未安裝或改寫手機資料。
-  簽章 Secrets 尚未上傳，待維護者明確授權將指定 iOS identity／profiles 與 Android 測試 keystore 存入此 repository 的 Secrets；尚不能宣稱 hosted build 通過。
+  維護者後續明確授權後，五項簽章 Secrets 已存入此 repository，名稱與更新時間已核對；指定 iOS identity 以隨機密碼加密匯出，暫存匯出已清除。
+  workflow 程式提交的既有 CI 已通過；手機 workflows 尚未 dispatch，尚不能宣稱 APK／IPA hosted build 通過。
   本輪沒有獨立審閱。
 
 ## 2026-10-17 便箋內文、選填標題與附件列

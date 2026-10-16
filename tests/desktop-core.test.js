@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeGroups, copy, defaultGrid, FleetError, gridRegions, summaryText, validateGrid } from '../src/core/contracts.js';
+import { activeGroups, containsRect, copy, defaultGrid, FleetError, gridRegions, summaryText, validateGrid } from '../src/core/contracts.js';
 import { Workspace } from '../src/core/workspace.js';
 import { planFormation } from '../src/layout/formation.js';
 import { createLayout, LayoutStore, mainView, reachable } from '../src/layout/store.js';
@@ -135,6 +135,36 @@ test('global overflow uses connected free height beside an earlier shorter paper
     workAreas, summaryBands: { a: 32, b: 32 } });
   assert.ok(preview.changes.b.x >= preview.changes.a.x + preview.changes.a.width);
   assert.ok(preview.changes.b.y + preview.changes.b.height <= 900);
+});
+
+test('stack and spread arrange new square papers beside older 280 × 220 ones, keeping each size', () => {
+  // Papers placed before papers became square keep 280 × 220, so a group can hold both sizes.
+  const band = 36;
+  const covers = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+  // The last scene's 3 × 3 regions are shorter than a square paper; those papers overflow but stay on screen and apart.
+  const scenes = [[1920, 1032, 1, 3], [1920, 1032, 4, 3], [1920, 1032, 9, 2], [1280, 775, 9, 1]];
+  for (const [width, height, groupCount, perGroup] of scenes) for (const mode of ['stack', 'spread']) {
+    const workArea = { x: 0, y: 0, width, height }; const name = `${mode} ${groupCount} groups on ${width} × ${height}`;
+    const groups = Array.from({ length: groupCount }, (_, i) => ({ id: `g${i}` }));
+    const layout = createLayout('device', groups, workArea);
+    const cards = groups.flatMap(group => Array.from({ length: perGroup }, (_, i) => ({ id: `${group.id}-${i}`, groupId: group.id })));
+    cards.forEach((card, order) => {
+      layout.placements[card.id] = { x: 0, y: 0, order, ...(order % 2 ? { width: 240, height: 240 } : { width: 280, height: 220 }) };
+    });
+    const preview = planFormation({ snapshot: { groups, cards }, layout, scope: { kind: 'all' }, mode, workAreas: [workArea],
+      summaryBands: Object.fromEntries(cards.map(card => [card.id, band])) });
+    const placed = cards.map(card => ({ ...preview.changes[card.id], groupId: card.groupId }));
+    cards.forEach((card, index) => {
+      assert.deepEqual([placed[index].width, placed[index].height], [layout.placements[card.id].width, layout.placements[card.id].height], name);
+      assert.ok(containsRect(workArea, placed[index]), name);
+    });
+    for (const a of placed) for (const b of placed) {
+      if (a === b) continue;
+      if (mode === 'spread' || a.groupId !== b.groupId) assert.ok(!covers(a, b), `${name}: papers must not overlap`);
+      // A stacked paper keeps its title band visible under every paper laid over it.
+      else if (b.order > a.order) assert.ok(!covers({ ...a, height: band }, b), `${name}: a title band is covered`);
+    }
+  }
 });
 
 test('C11: consent applies to one preview; undo restores geometry without rewinding text or policy', async () => {

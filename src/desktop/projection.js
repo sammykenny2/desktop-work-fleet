@@ -1,7 +1,6 @@
 import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue } from '../core/contracts.js';
+import { groupColors } from '../core/palette.js';
 import { cardPolicy, sceneOrder } from '../interaction/controller.js';
-
-export const groupColors = Object.freeze(['#fff6cc', '#e7f2e7', '#e5edf8', '#f7e7de', '#eee8f7', '#e2f0ef', '#f6e5ec', '#f1eddb', '#e7eaf1']);
 
 /** Presentation data only. Historical versions, sync cursors, outbox and credentials never enter this projection. */
 export function projectDesktop({ snapshot, layout, interaction, sessionId, sequence, workspaceRevision,

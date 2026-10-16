@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
 import { InteractionController, cardPolicy } from '../src/interaction/controller.js';
 import { projectDesktop } from '../src/desktop/projection.js';
+import { groupColors } from '../src/core/palette.js';
 import { adjustStage, groupLayer, groupLayersFromPapers, nextGroupStage, stepGroup } from '../src/layout/stages.js';
 
 const area = { x: 0, y: 0, width: 1600, height: 900 };
@@ -116,4 +117,13 @@ test('a stage notice travels in the desktop frame only while it is set', async (
   assert.equal(project(null).notice, null);
   const notice = { id: 7, rect: { x: 0, y: 0, width: 800, height: 900 }, title: '我的便箋', text: '最上層', step: 3, steps: 4 };
   assert.deepEqual(project({ ...notice, extra: 'dropped' }).notice, notice);
+});
+
+test('desktop papers and regions take the same group colour as the main window', async () => {
+  const f = await fixture();
+  const frame = projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state, interaction: f.controller.state,
+    sessionId: 'colour-test', sequence: 1, workspaceRevision: f.workspace.state.revision });
+  assert.deepEqual(frame.groups.map(group => group.color), groupColors.slice(0, 2));
+  assert.equal(frame.cards.length, 3);
+  for (const card of frame.cards) assert.equal(card.color, groupColors[card.groupId === f.a.id ? 0 : 1]);
 });

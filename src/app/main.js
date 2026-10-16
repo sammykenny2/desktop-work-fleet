@@ -1,5 +1,6 @@
 import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, gridRegions, summaryText } from '../core/contracts.js';
+import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
@@ -30,8 +31,6 @@ import { FileSync, resetSource } from '../sources/file-sync.js';
 import { prepareCloudRestore, stageCloudRestore, resumeCloudRestore } from '../backup/cloud-restore.js';
 
 const $ = selector => document.querySelector(selector);
-// Group paper, shared with the desktop scenes. Neighbouring entries differ in hue so the first groups stay distinct.
-const colors = ['#ffe98a', '#bfe6cf', '#bcd8f5', '#f9c8b6', '#d9ccf2', '#b5e0dc', '#f5c6da', '#f2ddb0', '#cdd5e3'];
 let workspace; let storage; let controller; let lease;
 // The browser preview opens on its desktop canvas when there is room; desktop hosts and phones open on the papers.
 let activeGroupId; let filter = 'active'; let showDesktop = !matchMedia('(max-width:640px)').matches;
@@ -84,7 +83,7 @@ function screenArea() {
     || { x: 0, y: 0, width: Math.max(320, innerWidth), height: Math.max(280, innerHeight) });
 }
 function workAreas() { return desktopInfo ? desktopInfo.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })) : [screenArea()]; }
-function groupColor(id) { return colors[Math.max(0, activeGroups(workspace.snapshot).findIndex(group => group.id === id)) % colors.length]; }
+function groupColor(id) { return groupColors[Math.max(0, activeGroups(workspace.snapshot).findIndex(group => group.id === id)) % groupColors.length]; }
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
 function fillGroups(select, selected, none = false) {
   select.replaceChildren();

@@ -142,6 +142,24 @@ try {
   await secondPaper.locator('.card-summary').dblclick(); await expect(secondPaper.locator('.inline-editor')).toBeVisible();
   await secondPaper.locator('.inline-editor').press('Escape'); await expect(page.locator('.inline-editor')).toHaveCount(0);
 
+  // An optional title heads the paper and is searchable, while the body still starts from its first line. A cleared title
+  // is left out: the paper falls back to that line, and an editor holding nothing else keeps no draft.
+  await page.locator('#new-card').click();
+  await page.locator('#editor-heading').fill('週報'); await page.locator('#editor-text').fill('整理本週進度\n\n下週一交出');
+  await page.getByRole('button', { name: '保存便箋', exact: true }).click();
+  const titled = page.locator('.card').filter({ hasText: '整理本週進度' });
+  await expect(titled.locator('.card-summary')).toHaveText('週報');
+  await expect(titled.locator('.card-body p')).toHaveText(['整理本週進度', '下週一交出']);
+  await page.locator('#search').fill('週報'); await expect(page.locator('#list .note-title')).toHaveText(['週報']);
+  await page.locator('#list .note-title').click(); await expect(page.locator('#editor-heading')).toHaveValue('週報');
+  await page.locator('#editor-heading').fill(''); await page.getByRole('button', { name: '保存便箋', exact: true }).click();
+  await page.locator('#search').fill('');
+  await expect(titled.locator('.card-summary')).toHaveText('整理本週進度');
+  await page.locator('#new-card').click();
+  await page.locator('#editor-heading').fill('只打了標題又刪掉'); await page.locator('#editor-heading').fill('');
+  await expect(page.locator('#draft-status')).toHaveText('草稿已存本機');
+  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText('已關閉，沒有需要保留的草稿');
+
   // Never render attachment HTML/SVG in the application origin, including open-in-new-tab.
   await page.locator('#new-card').click();
   const attack = '<script>localStorage.setItem("attachment-script-ran","yes")</script>';
@@ -224,7 +242,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture, Markdown/checklist, attachment isolation, reload, inline edit, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture, Markdown/checklist, attachment isolation, reload, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

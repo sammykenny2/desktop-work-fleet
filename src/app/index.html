@@ -71,6 +71,7 @@
     <form id="editor-form">
       <header><div><span class="eyebrow">一張便箋，一件事情</span><h2 id="editor-title">記下想法</h2></div><button type="button" id="close-editor" aria-label="保留草稿並關閉">✕</button></header>
       <label class="field">所屬群組<select id="editor-group"></select></label>
+      <label class="field">標題（選填）<input id="editor-heading" type="text" placeholder="沒填時，便箋以內文第一行當標題" autocomplete="off"></label>
       <div class="editor-tabs"><button type="button" id="edit-tab" aria-pressed="true">編輯</button><button type="button" id="preview-tab" aria-pressed="false">預覽 / checklist</button><button type="button" id="insert-task">＋ Checklist</button><button type="button" id="share-note" hidden>分享文字</button></div>
       <textarea id="editor-text" placeholder="想記住什麼？支援 Markdown 與 - [ ] 待辦步驟。" aria-label="便箋內容" spellcheck="false"></textarea>
       <div id="editor-preview" class="markdown" hidden></div>

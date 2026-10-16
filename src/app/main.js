@@ -746,7 +746,8 @@ function render() {
   // With real desktop scenes the main window never mirrors them; its desktop view is the layout map.
   $('#stage-shell').hidden = notesShown || Boolean(desktopInfo); $('#layout-map').hidden = notesShown || !desktopInfo; $('#list').hidden = !notesShown;
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
-  const cards = snapshot.cards.filter(matchesFilter).filter(card => !query || card.content.text.toLocaleLowerCase().includes(query));
+  const cards = snapshot.cards.filter(matchesFilter)
+    .filter(card => !query || `${card.content.title || ''}\n${card.content.text}`.toLocaleLowerCase().includes(query));
   const listCards = cards.filter(card => query || card.groupId === activeGroupId);
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
@@ -1023,6 +1024,7 @@ async function openEditor(card = null, recovered = null) {
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);
   currentDraft.content.attachments ||= [];
   $('#editor-title').textContent = card || recovered?.baseRevision ? '編輯便箋' : '記下想法';
+  $('#editor-heading').value = currentDraft.content.title || '';
   $('#editor-text').value = currentDraft.content.text; fillGroups($('#editor-group'), currentDraft.groupId);
   $('#editor-group').disabled = Boolean(currentDraft.baseRevision); $('#save-copy').hidden = true;
   $('#editor-dialog').showModal(); showEditorTab(false); await renderAttachments(); queueDraft(); $('#editor-text').focus();
@@ -1089,7 +1091,7 @@ async function flushDraft() {
   await queueDraft();
 }
 function setEditorBusy(value) {
-  editorBusy = value; $('#editor-text').readOnly = value;
+  editorBusy = value; $('#editor-text').readOnly = value; $('#editor-heading').readOnly = value;
   $('#stage').querySelectorAll('.inline-editor').forEach(node => { node.readOnly = value; });
   $('#editor-form').querySelectorAll('button').forEach(node => { node.disabled = value; });
   $('#attachment-input').disabled = value;
@@ -1522,6 +1524,11 @@ function bindEvents() {
     $('#reset-layout-dialog').close(); renderDesktopSettings(); render(); status('桌面佈局已重置');
   });
   $('#editor-text').oninput = () => { if (!currentDraft || editorBusy) return; currentDraft.content.text = $('#editor-text').value; queueDraft(); };
+  // A blank title is left out, so a paper falls back to its first line and an empty draft is still empty.
+  $('#editor-heading').oninput = () => {
+    if (!currentDraft || editorBusy) return; const title = $('#editor-heading').value.trim();
+    if (title) currentDraft.content.title = title; else delete currentDraft.content.title; queueDraft();
+  };
   $('#editor-text').addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
   $('#editor-text').addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
   $('#editor-group').onchange = () => { if (!editorBusy) { currentDraft.groupId = $('#editor-group').value; queueDraft(); } };
@@ -1531,7 +1538,8 @@ function bindEvents() {
     setEditorBusy(true);
     try {
       await flushDraft();
-      const bytes = new TextEncoder().encode(currentDraft.content.text);
+      const { title, text } = currentDraft.content;
+      const bytes = new TextEncoder().encode(title ? `${title}\n\n${text}` : text);
       const result = await nativeFiles.export(bytes, 'work-fleet-note.md', bytes.length <= 128 * 1024 ? 'shareText' : 'share');
       status(result.completed ? '已開啟便箋文字分享' : '已取消分享');
     } finally { setEditorBusy(false); }
@@ -1572,7 +1580,7 @@ function bindEvents() {
   $('#drafts-button').onclick = () => {
     const list = $('#draft-list'); list.replaceChildren();
     for (const draft of Object.values(workspace.state.drafts)) {
-      const row = element('div', undefined, 'draft-row'); row.append(element('p', draft.content.text.slice(0, 110) || '空白草稿'), button('繼續編輯', () => { $('#drafts-dialog').close(); return openEditor(null, draft); })); list.append(row);
+      const row = element('div', undefined, 'draft-row'); row.append(element('p', (draft.content.title || draft.content.text).slice(0, 110) || '空白草稿'), button('繼續編輯', () => { $('#drafts-dialog').close(); return openEditor(null, draft); })); list.append(row);
     }
     if (!list.children.length) list.append(element('p', '沒有未完成草稿。')); $('#drafts-dialog').showModal();
   };

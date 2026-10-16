@@ -43,7 +43,7 @@
 | [ADR-036](decisions/036-windows-self-contained-packaging.md) | Accepted：Windows MSIX／ZIP 預設自帶 Desktop runtime（ADR-050 更新為 .NET 10），接收端仍需 WebView2 |
 | [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)／[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md) | Accepted：MSIX 私有資料與解除安裝政策、可續行的 Google 全量備份覆蓋 |
 | [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) | Accepted：同格式雙向遷移、Google 同步後匯出、本機原子完整還原且舊備份可選 |
-| [SPEC-006](specs/006-desktop-window-startup-and-updates.md)／[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)／[ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md)／[PLAN-006](plans/006-desktop-window-startup-and-updates.md) | Accepted：主視窗位置記憶、啟動行為與三平台 App 內更新；Q 待回答，實作狀態見 PROGRESS |
+| [SPEC-006](specs/006-desktop-window-startup-and-updates.md)／[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)／[ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md)／[PLAN-006](plans/006-desktop-window-startup-and-updates.md) | Accepted：主視窗位置記憶、啟動行為與三平台 App 內更新；2026-10-17 修訂登入時等待系統匣；Q 待回答，實作狀態見 PROGRESS |
 | [ADR-045](decisions/045-windows-fatal-error-leaves-explorer-first.md) | Accepted：Windows 當掉時先讓場景離開 Explorer 再交給 WER、`host.log`、登入啟動 render thread 失敗隱藏重開一次（2026-10-14 起停用） |
 | [ADR-046](decisions/046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted：Windows 登入啟動等螢幕穩定（合蓋筆電的內建螢幕關掉、清單 5 秒沒變）才掛場景，最多 3 分鐘；2026-10-15 起記錄判斷輸入 |
 | [ADR-049](decisions/049-windows-attached-scenes-render-in-software.md) | Accepted：Windows 掛在 Explorer 的場景視窗以軟體繪製 WPF，浮動層與主視窗不變（2026-10-16 實測沒有防止當掉） |

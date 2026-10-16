@@ -233,7 +233,9 @@ docker run --rm --network none \
 
 Xvfb＋openbox（X11）驗證預設大小、移動／最大化／最小化／還原後的 `window-placement.json`、重新開啟回到保存位置、重置、
 第一次啟動寫入 bundle 啟動檔的 autostart 項目、關閉後之後啟動不重新建立，以及 `--launch-at-login` 時主畫面先隱藏、
-沒有系統匣時 5 秒後顯示、再次啟動叫出主畫面。headless labwc 驗證只保存大小與最大化並在重開時套用。
+沒有系統匣時等待後顯示（probe 把 30 秒縮成 3 秒）、再次啟動叫出主畫面。`hidden-tray` 模式用 Ayatana AppIndicator
+（映像與 DEB Recommends 相同）並在 App 之後才登記 StatusNotifierWatcher，驗證晚到的系統匣讓主畫面保持隱藏，
+系統匣消失時才顯示。headless labwc 驗證只保存大小與最大化並在重開時套用。
 `tests/test_linux_hostsettings.py` 以共用 fixture 驗證位置規則、檔案、Exec 引號與只移除自己寫入的 autostart 項目。
 這些不是 GNOME／Pi 實際登入時的 autostart 證據。
 

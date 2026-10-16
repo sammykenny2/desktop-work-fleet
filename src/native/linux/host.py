@@ -137,6 +137,10 @@ class LocalWeb:
 
 
 class FleetApp(Gtk.Application):
+    # A hidden sign-in start waits this long for the tray before showing the main window: the panel that hosts the tray can
+    # start in the same second as Work Fleet, as wf-panel-pi does on Raspberry Pi OS, and register its watcher later (ADR-043).
+    TRAY_WAIT_SECONDS = 30
+
     def __init__(self, assets, config, directory, launched_at_login=False, default_data=None):
         self.assets, self.config, self.directory = assets, config, directory
         self.default_data = default_data or directory
@@ -192,8 +196,8 @@ class FleetApp(Gtk.Application):
                          icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False),
                          update=self.tray_update if self.updater.capable else None)
         if self.hidden_start:
-            # A tray that never connects would leave the hidden window unreachable, so it shows after a short wait.
-            GLib.timeout_add_seconds(5, self.hidden_fallback)
+            # A tray that never connects would leave the hidden window unreachable, so it shows after the wait.
+            GLib.timeout_add_seconds(self.TRAY_WAIT_SECONDS, self.hidden_fallback)
         if self.first_run:
             self.first_preferences()
         marker = self.directory / "profile.txt"

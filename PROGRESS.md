@@ -1,7 +1,40 @@
 # 專案進度
 
-更新：2026-10-16。本檔是本 repo 的執行狀態權威。
+更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+
+## 2026-10-17 登入啟動等待系統匣（Linux／Windows）
+
+使用者回報 Pi 安裝版重開機後「我明明設定是關的, 主畫面還是會打開」，要求確認三個平台；看過分析後指示「fix them both」。
+不升版、不發布。
+
+- 原因（Linux，已重現）：
+  - 這台 Pi 的 `host-preferences.json` 中 `openMainAtLogin` 為 false，autostart 為 `Exec=work-fleet --launch-at-login`。
+    `wf-panel-pi`（StatusNotifierWatcher 的擁有者）與 host 都在 23:45:10 啟動。
+  - libayatana 在 watcher 出現前約 0.05 秒就送出 `connection-changed False`。`tray.py` 把它當成系統匣消失，立即顯示主畫面，
+    5 秒等待輪不到。以真 `Tray` 在私有 D-Bus 實驗：watcher 先在時保持隱藏；watcher 晚 3 秒出現時，0.05 秒就顯示。
+  - 2026-10-14 只修了 Gtk.StatusIcon 路徑；Docker 測試映像沒有 Ayatana，probe 沒走到這條。
+  - 目前執行中的程序沒有 `--launch-at-login`，是 00:01 App 內更新到 0.2.7 後重新啟動，依設計會顯示主畫面，不是登入啟動的證據。
+- Linux：
+  - `tray.py` 只在曾連上的系統匣消失時，才顯示隱藏中的主畫面。
+  - `host.py` 隱藏啟動等系統匣 30 秒（`FleetApp.TRAY_WAIT_SECONDS`），原為 5 秒。
+- Windows（沒有觀察到，同類弱點）：
+  - 原本 `Shell_NotifyIcon` 第一次加入失敗就顯示主畫面，之後圖示補上也不再收起，失敗後只等 `TaskbarCreated`。
+  - `NativeTray` 加入失敗時每 2 秒重試，最多 1 分鐘；`Changed` 只在可用狀態改變時觸發。
+  - 登入啟動在頁面載入後先收起主畫面，30 秒內沒有系統匣才顯示；系統匣本身建立失敗時仍立即顯示。
+- macOS 未改：選單列圖示同步建立。登入啟動判斷（Apple event 的 login item 標記）仍未在 Mac 驗證。
+- ADR-043 加 2026-10-17 修訂；`src/native/linux/README.md` 與 `docs/testing.md` 同步。
+- 測試：
+  - 新增 `tests/test_linux_tray.py` 4 項，換回舊 `tray.py` 時其中 2 項失敗。
+    Python discover 178 tests（skip 34）全部通過；node 302 tests 為 291 pass／11 skip／0 fail。
+  - Linux 測試映像加入 `gir1.2-ayatanaappindicator3-0.1`（與 DEB Recommends 相同），`test-host-shell.sh` 新增 `hidden-tray` 模式。
+    在 Pi（arm64）本機 Docker 全部通過；換回舊 `tray.py` 時，在「a sign-in start stays hidden while the page loads」失敗。
+  - Windows：在 Pi 上以 .NET SDK 10.0.402 加 `EnableWindowsTargeting` 編譯 app（Debug、win-x64），0 warning／0 error。
+    沒有在 Windows 執行，原生 UI probe 未跑。
+- 未驗證：
+  - 安裝含此修正的 Linux 版本後，在 Pi 實際重開機登入。
+  - Windows 實際登入時 `Shell_NotifyIcon` 失敗的情境。
+- 沒有獨立審閱。
 
 ## 2026-10-16 Windows 0.2.8 單獨預覽發布準備
 

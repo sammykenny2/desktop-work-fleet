@@ -1,7 +1,8 @@
 """ADR-043 on the real GTK owner in isolated X11 and labwc sessions: main window bounds, startup settings and a hidden sign-in start.
 
-Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden (X11) or wayland, wayland-restore (labwc). Each mode is its own process so GApplication
-registers afresh; the data, bundle and XDG config folders live under OUTPUT. The workspace store is not opened."""
+Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden, hidden-tray (X11) or wayland, wayland-restore (labwc). Each mode is its own
+process so GApplication registers afresh; the data, bundle and XDG config folders live under OUTPUT. The workspace store is not opened.
+hidden-tray needs the Ayatana AppIndicator typelib and a private session bus: it plays a panel whose StatusNotifierWatcher starts late."""
 import json
 import os
 from pathlib import Path
@@ -15,7 +16,15 @@ os.environ["XDG_CONFIG_HOME"] = str(OUTPUT / "config")
 sys.path.insert(0, str(ROOT / "src/native/linux"))
 import host
 import hostsettings
-from gi.repository import GLib, Gtk
+from gi.repository import Gio, GLib, Gtk
+
+WATCHER = """<node><interface name="org.kde.StatusNotifierWatcher">
+<method name="RegisterStatusNotifierItem"><arg type="s" direction="in"/></method>
+<method name="RegisterStatusNotifierHost"><arg type="s" direction="in"/></method>
+<property name="RegisteredStatusNotifierItems" type="as" access="read"/>
+<property name="IsStatusNotifierHostRegistered" type="b" access="read"/>
+<property name="ProtocolVersion" type="i" access="read"/>
+</interface></node>"""
 
 
 def spin(predicate, seconds=10, message="timed out"):
@@ -43,6 +52,17 @@ def check(condition, message):
     print("PASS", message)
 
 
+def own_watcher():
+    """A minimal panel tray on the session bus; returns the name ownership to release."""
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+    values = {"RegisteredStatusNotifierItems": GLib.Variant("as", []), "IsStatusNotifierHostRegistered": GLib.Variant("b", True),
+              "ProtocolVersion": GLib.Variant("i", 0)}
+    bus.register_object("/StatusNotifierWatcher", Gio.DBusNodeInfo.new_for_xml(WATCHER).interfaces[0],
+                        lambda _bus, _sender, _path, _interface, _method, _args, invocation: invocation.return_value(None),
+                        lambda _bus, _sender, _path, _interface, name: values[name], None)
+    return Gio.bus_own_name_on_connection(bus, "org.kde.StatusNotifierWatcher", Gio.BusNameOwnerFlags.NONE, None, None)
+
+
 # A packaged bundle layout, so the sign-in command and version come from it rather than from this checkout.
 bundle = OUTPUT / "bundle"
 (bundle / "Assets").mkdir(parents=True, exist_ok=True)
@@ -50,7 +70,8 @@ bundle = OUTPUT / "bundle"
 (bundle / "package.json").write_text('{"version": "9.8.7"}', "utf-8")
 data = OUTPUT / "data"
 host.FleetApp.open_store = lambda self, profile, persist=False: None
-app = host.FleetApp(bundle / "Assets", {"appId": "app.workfleet.hostprobe"}, data, launched_at_login=MODE == "hidden", default_data=data)
+host.FleetApp.TRAY_WAIT_SECONDS = 3
+app = host.FleetApp(bundle / "Assets", {"appId": "app.workfleet.hostprobe"}, data, launched_at_login=MODE.startswith("hidden"), default_data=data)
 app.register(None)
 autostart = hostsettings.autostart_path(os.environ)
 
@@ -135,6 +156,21 @@ elif MODE == "hidden":
     app.activate(app)
     spin(lambda: app.window.get_visible(), message="launching again shows the running window")
     check(True, "launching again shows the running window")
+    app.shutdown(app)
+elif MODE == "hidden-tray":
+    app.activate(app)
+    check(app.tray.indicator is not None, "the Ayatana AppIndicator tray is in use")
+    # The panel starts after Work Fleet, as at a real sign-in: the indicator first reports that no watcher is there.
+    settle(1)
+    check(not app.window.get_visible(), "a tray that is not there yet does not show the hidden window")
+    ownership = own_watcher()
+    spin(lambda: app.tray.available, message="the tray connects once the panel's watcher appears")
+    # timeout_add_seconds may fire up to a second late, so this settles past the latest moment the wait can end.
+    settle(host.FleetApp.TRAY_WAIT_SECONDS + 1.5 - 1)
+    check(not app.window.get_visible(), "the tray connected within the wait, so the window stays hidden after it")
+    Gio.bus_unown_name(ownership)
+    spin(lambda: app.window.get_visible(), message="losing the tray shows the hidden window")
+    check(True, "losing the tray shows the hidden window")
     app.shutdown(app)
 else:
     raise SystemExit("unknown mode")

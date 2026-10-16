@@ -42,7 +42,7 @@
 | [ADR-049](049-windows-attached-scenes-render-in-software.md) | Accepted（Windows 場景繪圖） | 掛在 Explorer 的場景視窗以軟體繪製 WPF，不持有 Direct3D 狀態；浮動層與主視窗不變 |
 | [ADR-050](050-windows-wpf-display-loss-runtime.md) | Accepted（Windows runtime） | .NET 10.0.13、WPF 顯示器失效保護、精確 runtime 封裝檢查；三次登入啟動未再當掉，早期移除主螢幕與其他 OS 仍待驗證 |
 | [ADR-044](044-desktop-in-app-updates-from-github-releases.md) | Accepted（App 內更新，2026-10-15 修訂） | 公開 Atom 依平台 tag 篩選、不使用 REST API 配額、manifest／SHA-256、MSIX／Sparkle／DEB 安裝前保存並結束 |
-| [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted（主視窗與啟動） | 主機層級的主視窗位置／大小記憶、登入啟動預設開啟、系統狀態優先、Windows 第二次啟動喚起 |
+| [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted（主視窗與啟動） | 主機層級的主視窗位置／大小記憶、登入啟動預設開啟、系統狀態優先、Windows 第二次啟動喚起；2026-10-17 修訂登入時等待系統匣 |
 | [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted（調整模式） | 所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |
 | [ADR-041](041-labwc-shortcuts-through-rc-xml-keybinds.md) | Accepted（labwc 快捷鍵） | 設定頁把快捷鍵寫進 rc.xml 標記區塊，keybind 經 gapplication 交給 App |
 | [ADR-040](040-gnome-wayland-xwayland-choice.md) | Accepted（GNOME Wayland 顯示方式） | 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用、重新啟動保存草稿 |

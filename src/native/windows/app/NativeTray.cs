@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
+using System.Windows.Threading;
 
 namespace WorkFleet.Windows;
 
@@ -7,14 +8,19 @@ namespace WorkFleet.Windows;
 public sealed class NativeTray : IDisposable
 {
   private const int Callback = 0x8001;
+  private const int Retries = 30;
   private readonly HwndSource receiver;
   private readonly Action<string, ForegroundIntent> invoke;
   private readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
   private readonly IntPtr icon;
   private readonly bool ownsIcon, updates;
+  // At sign-in the notification area can time out or not exist yet, so a failed add is retried every 2 s for a minute (ADR-043).
+  private readonly DispatcherTimer retry = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(2) };
+  private int attempts;
   private string tip = "Work Fleet · 記錄與桌面便箋";
   private bool disposed;
   public bool Available { get; private set; }
+  /// <summary>Raised when the icon appears or goes away; a failed retry of an icon that was never there is not a change.</summary>
   public event Action? Changed;
   public event Action<bool>? MenuActive;
   public NativeTray(Action<string, ForegroundIntent> invoke, bool updates = false)
@@ -27,7 +33,7 @@ public sealed class NativeTray : IDisposable
     // A hidden top-level window receives TaskbarCreated broadcasts; message-only windows do not.
     receiver = new HwndSource(new HwndSourceParameters("Work Fleet notification area") { Width = 0, Height = 0,
       WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080 });
-    receiver.AddHook(Receive); Add();
+    receiver.AddHook(Receive); retry.Tick += (_, _) => Retry(); Add();
   }
   private NotifyData Data() => new() { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = receiver.Handle, Id = 1,
     Flags = 1 | 2 | 4 | 0x80, Message = Callback, Icon = icon,
@@ -40,13 +46,21 @@ public sealed class NativeTray : IDisposable
   }
   private void Add()
   {
-    if (disposed) return; var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = Shell_NotifyIconW(0, ref value);
+    if (disposed) return; var was = Available; var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = Shell_NotifyIconW(0, ref value);
     if (Available && !Shell_NotifyIconW(4, ref value)) { _ = Shell_NotifyIconW(2, ref value); Available = false; }
-    Changed?.Invoke();
+    if (Available) retry.Stop();
+    else if (!retry.IsEnabled) { attempts = 0; retry.Start(); }
+    if (Available != was) Changed?.Invoke();
+  }
+  /// <summary>TaskbarCreated still adds the icon when Explorer starts or restarts after the retries ended.</summary>
+  private void Retry()
+  {
+    if (disposed || Available || ++attempts > Retries) { retry.Stop(); return; }
+    Add();
   }
   private IntPtr Receive(IntPtr window, int message, IntPtr wParam, IntPtr lParam, ref bool handled)
   {
-    if ((uint)message == taskbarCreated) { Available = false; Add(); return IntPtr.Zero; }
+    if ((uint)message == taskbarCreated) { Add(); return IntPtr.Zero; }
     if (disposed || message != Callback || ((lParam.ToInt64() >> 16) & 0xffff) != 1) return IntPtr.Zero;
     handled = true; var code = (int)(lParam.ToInt64() & 0xffff);
     if (code is 0x400 or 0x401) Schedule("show"); // NIN_SELECT / NIN_KEYSELECT
@@ -80,7 +94,7 @@ public sealed class NativeTray : IDisposable
   }
   public void Dispose()
   {
-    if (disposed) return; disposed = true; var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = false;
+    if (disposed) return; disposed = true; retry.Stop(); var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = false;
     receiver.RemoveHook(Receive); receiver.Dispose();
     if (ownsIcon) _ = DestroyIcon(icon);
   }

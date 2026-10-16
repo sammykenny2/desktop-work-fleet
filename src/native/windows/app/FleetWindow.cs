@@ -33,8 +33,11 @@ public sealed class FleetWindow : Window
   private bool installRequested;
   /// <summary>The second-launch channel, closed before an update replaces this process.</summary>
   public SingleInstance? Instance { get; set; }
-  // A sign-in launch first shows the window far off-screen so WPF loads it, then hides it once the tray is ready.
+  // A sign-in launch first shows the window far off-screen so WPF loads it, then hides it once the page is loaded.
   private bool offscreen;
+  // A hidden sign-in start waits this long for the tray before showing the main window: at sign-in the notification area
+  // can be busy or not created yet (ADR-043).
+  private static readonly TimeSpan TrayWait = TimeSpan.FromSeconds(30);
   private Task messageQueue = Task.CompletedTask;
   private int queued;
   private long navigation;
@@ -103,13 +106,19 @@ public sealed class FleetWindow : Window
     if (offscreen)
     {
       offscreen = false; ShowInTaskbar = true;
-      // Without a tray the hidden window could not be reached, so a sign-in launch then shows it.
-      if (tray?.Available == true) { Hide(); placement.Apply(); }
-      else { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
+      // A tray that failed to start never arrives, so the window shows at once; otherwise the tray keeps trying to add its icon.
+      if (tray is null) { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
+      else { Hide(); placement.Apply(); if (!tray.Available) _ = ShowWithoutTray(); }
     }
     placement.Track();
     if (shell is not null) _ = shell.SyncStartup();
     if (updater?.Probe == true) _ = ProbeUpdate();
+  }
+  /// <summary>Without a tray the hidden window could not be reached, so a sign-in launch shows it when none arrived in time.</summary>
+  private async Task ShowWithoutTray()
+  {
+    await Task.Delay(TrayWait);
+    if (!shuttingDown && tray?.Available != true && !IsVisible) ShowMain(false);
   }
   private void ShowMain() => ShowMain(true);
   private void ShowMain(bool activate)

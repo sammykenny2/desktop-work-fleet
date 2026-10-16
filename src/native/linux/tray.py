@@ -7,7 +7,7 @@ class Tray:
     def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None, update=None):
         self.main, self.action, self.menu_active = main, action, menu_active
         self.reveal = reveal
-        self.available = self.closed = False
+        self.available = self.closed = self.ever_connected = False
         self.indicator = self.icon = None
         self.menu = Gtk.Menu()
         for title, target in (("開啟 Work Fleet", "show"), ("快速記錄", "@capture"), ("調整所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")):
@@ -50,13 +50,17 @@ class Tray:
             self.icon.connect("notify::embedded", lambda *_: self.connection(self.icon.is_embedded()))
             self.icon.set_visible(True)
             # Embedding is asynchronous: the start only records it, and a hidden sign-in start waits for it (ADR-043).
-            self.available = self.icon.is_embedded()
+            self.available = self.ever_connected = self.icon.is_embedded()
 
     def connection(self, connected):
         if self.closed:
             return
         self.available = connected
-        if not connected and not self.main.get_visible():
+        # Only a tray that was there and went away strands a hidden window. At sign-in the panel may start after Work Fleet,
+        # and the indicator reports the missing watcher at once; the host's bounded wait covers that (ADR-043).
+        if connected:
+            self.ever_connected = True
+        elif self.ever_connected and not self.main.get_visible():
             if self.reveal is not None:
                 self.reveal()
             else:

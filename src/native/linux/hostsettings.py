@@ -1,6 +1,7 @@
-"""ADR-043 host-level settings: startup behaviour, the main window's bounds and the XDG autostart entry.
+"""ADR-043 host-level settings: startup behaviour, the main window's bounds, the XDG autostart entry and host.log.
 
 Kept beside profile.txt in the data directory, never in a profile, backup or Google. Pure functions, no GTK."""
+from datetime import datetime
 import json
 import os
 from pathlib import Path
@@ -13,6 +14,8 @@ AUTOSTART = "work-fleet.desktop"
 MARKER = "X-Work-Fleet-Managed=true"
 LOGIN_ARGUMENT = "--launch-at-login"
 DEB_ROOT = Path("/usr/lib/work-fleet")
+LOG = "host.log"
+LOG_LIMIT = 256 * 1024
 
 
 def replace(directory, name, data):
@@ -71,6 +74,30 @@ def read_preferences(directory):
 def write_preferences(directory, preferences):
     value = {"version": 1, **{key: bool(preferences[key]) for key in DEFAULTS}, "lastUpdateCheck": preferences.get("lastUpdateCheck")}
     replace(directory, PREFERENCES, (json.dumps(value) + "\n").encode("utf-8"))
+
+
+def append_log(directory, text, now=None):
+    """
+    Appends one line as the Windows host.log does (ADR-045): local time with its offset, never note text. A full log
+    becomes host.log.1, replacing the older one. Logging never raises.
+    """
+    folder = Path(directory)
+    line = (now or datetime.now().astimezone()).isoformat(sep=" ", timespec="milliseconds") + " " + text.rstrip("\n") + "\n"
+    try:
+        folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+        try:
+            if (folder / LOG).stat().st_size >= LOG_LIMIT:
+                os.replace(folder / LOG, folder / (LOG + ".1"))
+        except FileNotFoundError:
+            pass
+        descriptor = os.open(folder / LOG, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_CLOEXEC, 0o600)
+        try:
+            os.write(descriptor, line.encode("utf-8"))
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError:
+        pass
 
 
 def change(preferences, name, value):

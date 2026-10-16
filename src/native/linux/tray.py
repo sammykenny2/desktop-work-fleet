@@ -4,9 +4,9 @@ from gi.repository import Gtk
 
 
 class Tray:
-    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None, update=None):
+    def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None, update=None, changed=None):
         self.main, self.action, self.menu_active = main, action, menu_active
-        self.reveal = reveal
+        self.reveal, self.changed = reveal, changed
         self.available = self.closed = self.ever_connected = False
         self.indicator = self.icon = None
         self.menu = Gtk.Menu()
@@ -31,6 +31,8 @@ class Tray:
                 gi.require_version(namespace, "0.1")
                 module = getattr(__import__("gi.repository", fromlist=[namespace]), namespace)
                 self.indicator = module.Indicator.new(app_id, app_id, module.IndicatorCategory.APPLICATION_STATUS)
+                # Panels such as wf-panel-pi show the title on hover; without one libayatana uses the program name, host.py.
+                self.indicator.set_title("Work Fleet")
                 if icon is not None:
                     # Portable bundles are not in the icon theme; let the indicator find <app_id>.png beside the bundle.
                     self.indicator.set_icon_theme_path(str(icon.parent))
@@ -55,7 +57,9 @@ class Tray:
     def connection(self, connected):
         if self.closed:
             return
-        self.available = connected
+        was, self.available = self.available, connected
+        if connected != was and self.changed is not None:
+            self.changed(connected)
         # Only a tray that was there and went away strands a hidden window. At sign-in the panel may start after Work Fleet,
         # and the indicator reports the missing watcher at once; the host's bounded wait covers that (ADR-043).
         if connected:

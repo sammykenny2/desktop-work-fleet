@@ -72,7 +72,9 @@ public sealed class FleetWindow : Window
     {
       try
       {
-        tray = new NativeTray(TrayAction, updater?.Capable == true); tray.Changed += () => { if (!tray.Available) ShowMain(false); };
+        // How long the tray takes at sign-in is the evidence for TrayWait.
+        tray = new NativeTray(TrayAction, updater?.Capable == true); Log($"tray available={tray.Available} uptime={Uptime()}");
+        tray.Changed += () => { Log($"tray available={tray.Available} uptime={Uptime()}"); if (!tray.Available) ShowMain(false); };
         tray.MenuActive += active => desktop?.MenuActive(active); await Initialize();
       }
       catch
@@ -118,7 +120,14 @@ public sealed class FleetWindow : Window
   private async Task ShowWithoutTray()
   {
     await Task.Delay(TrayWait);
-    if (!shuttingDown && tray?.Available != true && !IsVisible) ShowMain(false);
+    if (shuttingDown || tray?.Available == true || IsVisible) return;
+    Log($"no tray within {TrayWait.TotalSeconds:F0}s; showing the main window"); ShowMain(false);
+  }
+  private void Log(string text) => HostLog.Append(dataDirectory, DateTimeOffset.Now, text);
+  private static string Uptime()
+  {
+    using var process = Process.GetCurrentProcess();
+    return $"{(DateTime.Now - process.StartTime).TotalSeconds:F1}s";
   }
   private void ShowMain() => ShowMain(true);
   private void ShowMain(bool activate)
@@ -174,7 +183,7 @@ public sealed class FleetWindow : Window
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
       }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
-        text => HostLog.Append(dataDirectory, DateTimeOffset.Now, text), holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
+        Log, holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true });
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);

@@ -23,6 +23,7 @@ class Anything:
 class Indicator:
     def __init__(self):
         self.handlers = {}
+        self.title = None
 
     @classmethod
     def new(cls, *_args):
@@ -30,6 +31,9 @@ class Indicator:
 
     def connect(self, name, handler):
         self.handlers[name] = handler
+
+    def set_title(self, title):
+        self.title = title
 
     def __getattr__(self, name):
         if name.startswith("_"):
@@ -79,11 +83,15 @@ class LinuxTrayTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("tray", NATIVE / "tray.py")
         self.module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.module)
-        self.revealed = []
+        self.revealed, self.changes = [], []
 
     def create(self, visible=False):
         self.window = Window(visible)
-        return self.module.Tray("app.workfleet.test", self.window, None, None, None, reveal=lambda: self.revealed.append(True))
+        return self.module.Tray("app.workfleet.test", self.window, None, None, None, reveal=lambda: self.revealed.append(True),
+                                changed=self.changes.append)
+
+    def test_the_indicator_shows_the_product_name_on_hover(self):
+        self.assertEqual(self.create().indicator.title, "Work Fleet")
 
     def test_a_watcher_not_there_yet_leaves_a_hidden_start_to_the_wait(self):
         tray = self.create()
@@ -93,6 +101,9 @@ class LinuxTrayTests(unittest.TestCase):
         self.assertEqual((tray.available, self.revealed), (False, []))
         changed(tray.indicator, True)
         self.assertEqual((tray.available, self.revealed), (True, []))
+        # Only changes reach host.log: the first report of a missing watcher was not one.
+        changed(tray.indicator, True)
+        self.assertEqual(self.changes, [True])
 
     def test_losing_a_connected_tray_shows_the_hidden_window(self):
         tray = self.create()

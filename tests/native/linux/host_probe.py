@@ -165,12 +165,23 @@ elif MODE == "hidden-tray":
     check(not app.window.get_visible(), "a tray that is not there yet does not show the hidden window")
     ownership = own_watcher()
     spin(lambda: app.tray.available, message="the tray connects once the panel's watcher appears")
+    titles = []
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+    bus.call(bus.get_unique_name(), "/org/ayatana/NotificationItem/app_workfleet_hostprobe", "org.freedesktop.DBus.Properties", "Get",
+             GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "Title")), GLib.VariantType("(v)"), Gio.DBusCallFlags.NONE, -1, None,
+             lambda source, result: titles.append(source.call_finish(result).unpack()[0]))
+    spin(lambda: titles, message="the tray item answers for its title")
+    check(titles == ["Work Fleet"], f"the tray shows the product name on hover, not the program name ({titles})")
     # timeout_add_seconds may fire up to a second late, so this settles past the latest moment the wait can end.
     settle(host.FleetApp.TRAY_WAIT_SECONDS + 1.5 - 1)
     check(not app.window.get_visible(), "the tray connected within the wait, so the window stays hidden after it")
     Gio.bus_unown_name(ownership)
     spin(lambda: app.window.get_visible(), message="losing the tray shows the hidden window")
     check(True, "losing the tray shows the hidden window")
+    # The data folder, and so host.log, is shared with the earlier X11 modes; only this run's entries count.
+    log = (data / "host.log").read_text("utf-8").rsplit(" start version=", 1)[-1]
+    check("launchedAtLogin=True hidden=True" in log and " tray available=False uptime=" in log and " tray available=True uptime=" in log,
+          "host.log records the sign-in start and when the tray came and went")
     app.shutdown(app)
 else:
     raise SystemExit("unknown mode")

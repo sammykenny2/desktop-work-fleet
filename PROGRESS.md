@@ -2,6 +2,27 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 系統匣等待紀錄與 Linux 系統匣名稱
+
+使用者問「所以目前有個魔術數字30秒?」，看過說明後回覆「加log OK」，並要求修正 Linux 系統匣滑鼠移上去顯示 `host.py` 的問題。
+不升版、不發布。
+
+- Linux 系統匣：
+  - 這台 Pi 的系統匣項目 `Title` 讀回為 `host.py`，因為沒設定標題時 libayatana 會改用程式名稱。
+  - `tray.py` 改為設定 `Work Fleet`；Gtk.StatusIcon 路徑原本就有。
+- 等待紀錄：
+  - Linux 新增資料目錄的 `host.log`（`hostsettings.append_log`），格式、256 KiB 轉存與權限比照 Windows（ADR-045）。
+  - 記錄 `start ... launchedAtLogin=... hidden=...`、每次系統匣可用狀態改變的 `tray available=... uptime=...s`，
+    以及逾時時的 `no tray within 30s`。`uptime` 從 `host.py` 載入 GTK 之前算起。
+  - Windows 在既有 `host.log` 記錄相同的系統匣行與逾時行，`uptime` 從程序啟動算起；`NativeTray.Changed` 只在狀態改變時觸發。
+- 30 秒仍是估計值。使用者不希望魔術數字散落各處，是否改成跨平台單一來源（例如共用設定檔，或各平台常數加一致性測試）尚待決定。
+- 測試：
+  - `test_linux_tray.py` 加入標題與「只在狀態改變時通知」；`test_linux_hostsettings.py` 加入 `host.log` 的格式、轉存與寫入失敗不拋出。
+    rebase 到 `22b66be` 後 Python discover 182 tests（skip 34）全部通過；node 314 tests 為 302 pass／12 skip／0 fail。
+  - Docker `hidden-tray` 從 D-Bus 讀回 `Title` 為 `Work Fleet`，並檢查 `host.log` 的這次啟動行與系統匣行；Pi（arm64）本機全部通過。
+  - Windows：Pi 上 .NET SDK 10.0.402 加 `EnableWindowsTargeting` 編譯，0 warning／0 error，沒有在 Windows 執行。
+- 沒有獨立審閱。
+
 ## 2026-10-17 Schema 演進與原子 migration
 
 使用者要求規劃並實作 schema version 偵測及 migration。契約見

@@ -12,6 +12,9 @@ import threading
 import time
 from urllib.parse import unquote, urlsplit
 
+# host.log measures sign-in timings from here, before the slow GTK and WebKit imports.
+STARTED = time.monotonic()
+
 import hostsettings
 import renderer
 import updater as updates
@@ -192,9 +195,14 @@ class FleetApp(Gtk.Application):
         self.window.connect("window-state-event", lambda _window, event: self.window_changed(event.new_window_state))
         self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
         self.reveal()
+        self.log(f"start version={hostsettings.version(self.assets, __file__)} distribution={hostsettings.distribution(self.assets)} "
+                 f"pid={os.getpid()} launchedAtLogin={self.launched_at_login} hidden={self.hidden_start}")
+        # How long the tray takes at sign-in is the evidence for TRAY_WAIT_SECONDS.
         self.tray = Tray(self.config.get("appId") or "app.workfleet.preview", self.window, self.tray_action, self.close_requested, self.menu_active,
                          icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False),
-                         update=self.tray_update if self.updater.capable else None)
+                         update=self.tray_update if self.updater.capable else None,
+                         changed=lambda available: self.log(f"tray available={available} uptime={self.uptime()}"))
+        self.log(f"tray available={self.tray.available} uptime={self.uptime()}")
         if self.hidden_start:
             # A tray that never connects would leave the hidden window unreachable, so it shows after the wait.
             GLib.timeout_add_seconds(self.TRAY_WAIT_SECONDS, self.hidden_fallback)
@@ -233,8 +241,16 @@ class FleetApp(Gtk.Application):
 
     def hidden_fallback(self):
         if self.hidden_start and (self.tray is None or not self.tray.available):
+            self.log(f"no tray within {self.TRAY_WAIT_SECONDS}s; showing the main window")
             self.show_main(activate=False)
         return False
+
+    def log(self, text):
+        hostsettings.append_log(self.directory, text)
+
+    @staticmethod
+    def uptime():
+        return f"{time.monotonic() - STARTED:.1f}s"
 
     def show_main(self, timestamp=None, activate=True):
         if self.window is None:

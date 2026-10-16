@@ -111,6 +111,26 @@ class LinuxHostSettingsTests(unittest.TestCase):
             hostsettings.remove_autostart(path)
         self.assertTrue(path.exists())
 
+    def test_host_log_lines_rotation_and_failures(self):
+        from datetime import datetime, timedelta, timezone
+        folder = self.folder() / "WorkFleet"
+        moment = datetime(2026, 10, 17, 1, 2, 3, 250000, tzinfo=timezone(timedelta(hours=8)))
+        hostsettings.append_log(folder, "start version=0.2.8\n", moment)
+        hostsettings.append_log(folder, "tray available=True uptime=4.2s", moment)
+        log = folder / "host.log"
+        # The same line shape as the Windows host.log (ADR-045): local time with its offset, one entry per line.
+        self.assertEqual(log.read_text("utf-8"), "2026-10-17 01:02:03.250+08:00 start version=0.2.8\n"
+                                                 "2026-10-17 01:02:03.250+08:00 tray available=True uptime=4.2s\n")
+        self.assertEqual(stat.S_IMODE(log.stat().st_mode), 0o600)
+        log.write_bytes(b"x" * hostsettings.LOG_LIMIT)
+        hostsettings.append_log(folder, "exit", moment)
+        self.assertEqual(((folder / "host.log.1").stat().st_size, log.read_text("utf-8")),
+                         (hostsettings.LOG_LIMIT, "2026-10-17 01:02:03.250+08:00 exit\n"))
+        blocked = self.folder() / "file"
+        blocked.write_text("not a folder", "utf-8")
+        hostsettings.append_log(blocked, "never raises")
+        self.assertEqual(blocked.read_text("utf-8"), "not a folder")
+
 
 if __name__ == "__main__":
     unittest.main()

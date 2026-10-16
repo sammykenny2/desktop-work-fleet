@@ -186,7 +186,8 @@ jobs:
           cat > notes.md <<EOF
           macOS 預覽版，從 ${COMMIT} 建置，已用 Developer ID 簽章並經 Apple 公證。需要 macOS 13 以上。
 
-          同步期間切換帳號或關閉程式時，避免舊操作更新已切換的畫面。
+          群組區域改為跟著目前主螢幕的工作區：筆電螢幕關閉、只剩較大的外接螢幕時，調整位置的區域虛線框、堆疊與攤開不再停在舊的較小範圍。
+          啟動時與螢幕改變後重新鋪設，便箋不因此移動。
 
           ## 安裝
           開啟 \`WorkFleet-${VERSION}-macos-universal.dmg\`，把 Work Fleet 拖到「應用程式」。

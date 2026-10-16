@@ -100,7 +100,7 @@ jobs:
           WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET }}
           VERSION: ${{ needs.guard.outputs.version }}
         run: |
-          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary '可望降低登入後螢幕切換時程式當掉的機會：桌面層與桌布層改用軟體繪製，每台 4K 螢幕約多用 130 MB 記憶體。host.log 另記錄上蓋狀態與登入等待的判斷依據。'
+          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary '群組區域改為跟著目前主螢幕的工作區：筆電螢幕關閉、只剩較大的外接螢幕時，調整位置的區域虛線框、堆疊與攤開不再停在舊的較小範圍。啟動時與螢幕改變後重新鋪設，便箋不因此移動。'
           if (-not (Test-Path -LiteralPath "build/WorkFleet-$env:VERSION-x64.msix")) { throw "build/WorkFleet-$env:VERSION-x64.msix was not produced." }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -135,8 +135,8 @@ jobs:
           cat > notes.md <<EOF
           Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11（最低 build 22000）。
 
-          可望降低登入後螢幕切換時程式當掉的機會：桌面層與桌布層改用軟體繪製，每台 4K 螢幕約多用 130 MB 記憶體。
-          host.log 另記錄上蓋狀態與登入等待的判斷依據。
+          群組區域改為跟著目前主螢幕的工作區：筆電螢幕關閉、只剩較大的外接螢幕時，調整位置的區域虛線框、堆疊與攤開不再停在舊的較小範圍。
+          啟動時與螢幕改變後重新鋪設，便箋不因此移動。
 
           ## 第一次安裝
           此包已包含 .NET 8 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。

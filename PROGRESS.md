@@ -2,6 +2,29 @@
 
 更新：2026-10-16。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-16 desktop preview 0.2.7 發布前準備（Windows／Linux／macOS）
+
+使用者指示：「發windows/linux/macos的0.2.7」。以下只記錄 dispatch 前已知結果。
+
+- 版號依五平台共用規則，Windows props、Linux VERSION、Apple xcconfig、Android Gradle 都改為 0.2.7，Apple build／Android versionCode 為 207。
+  發 Windows、Linux、macOS；iOS／Android 只同步版號。
+- 發布內容：
+  - Windows 比 `windows-v0.2.6` 只多 9b0329a，也就是下一則的群組區域修正。
+  - Linux／macOS 比 0.2.5 多 02507fb（只改版號）、0a23266（只改 Windows）與 9b0329a，實際改變的也只有群組區域修正。
+- 三平台 release notes 改為群組區域修正，Linux 保留金鑰圈的說明。Windows App 內更新摘要用同一段文字（85 字），Linux／macOS dispatch 的 summary 也用它。
+  文字只描述現象，不寫快捷鍵；執行中螢幕改變的接線沒有自動測試，見下一則。
+- 作者檢查：
+  - resolver 讀到四個版號紀錄都是 0.2.7，Apple build 與 Android versionCode 都是 207。
+  - 版號測試 6 項通過；node 全部 287 項通過（15 項略過）；三個 workflow YAML 可解析；`git diff --check` 通過。
+  - 封裝相關 Python：Windows 上 16 項中 10 項通過、6 項略過；WSL Ubuntu 上 Linux 封裝 5 項中 4 項通過，整合建置因 WSL 沒有 Node 略過，由 release workflow 建置。
+  - 本機 `-LocalTestSign` 打包成功：MSIX identity 為 `app.workfleet.preview 0.2.7.0 x64`，SHA-256 sidecar 相符；
+    更新 manifest 的 tag 是 `windows-v0.2.7`。本機包不作發布產物。
+- 9b0329a 的完整 CI 38792537932 成功，含 Windows、Linux、JavaScript／Python 各工作。
+- 獨立唯讀審查：沒有阻擋問題。依建議把「便箋位置不動」改為「便箋不因此移動」（不可達的便箋仍會照舊移回），並補上漏列的 02507fb；改完重新打包核對，摘要與三平台 notes 一致。
+- GitHub 唯讀檢查：三平台 0.2.7 的 tag 與 release 都不存在，Actions 已啟用，三平台需要的 secret／variable 名稱都在，沒有輸出秘密值。
+- 推送 release commit、確認工作樹乾淨且與 origin/main 同 SHA 後才 dispatch。dispatch 後本次任務不再修改 tracked files、commit 或 push。
+  此紀錄不宣稱已發布成功；第 6 區虛線框是否落在 4K 右下角，待使用者更新後確認。
+
 ## 2026-10-16 群組區域跟著主螢幕工作區（SPEC-003 顯示器改變）
 
 使用者回報 0.2.6：設定 2×3、便箋放在第 6 區，按 `Ctrl+Shift+6` 時虛線框不對，像是還在畫 1920×1080 的右下角。

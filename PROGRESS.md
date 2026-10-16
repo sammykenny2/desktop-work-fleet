@@ -3,6 +3,26 @@
 更新：2026-10-16。本檔是本 repo 的執行狀態權威。
 
 
+## 2026-10-16 Windows 0.2.8 單獨預覽發布準備
+
+使用者明確要求「bump版本單獨發windows 0.2.8」，授權本次版本、Windows preview workflow dispatch 與預覽發布。
+此要求覆蓋本次跨平台同步升版預設；Windows 為 0.2.8，macOS／iOS／Linux／Android 維持 0.2.7。
+
+- 產品程式延續 `863f2ca`：自帶 .NET 10.0.13 的 WPF 顯示器失效處理、首次調整位置工具列；當機後自動重啟一次仍停用。
+  本次只更新 Windows `<Version>`、發布摘要與部署文件，沒有其他平台升版或 dispatch。
+- 發布說明與 App 內更新摘要改為本輪 Windows 修正；保留三次重開機成功觀察的限制，未宣稱所有登入時序或 Windows 11 版本已驗收。
+- 前置檢查：local main 與 origin/main 一致且開始時乾淨；目標 `windows-v0.2.8` tag／release 尚不存在；
+  workflow 所需 Google variables 與 Windows 簽章／Google secret 名稱已存在，未讀出秘密值。
+- 已完成 author-run 檢查：`node --test tests/release-versions.test.js` 6/6；逐平台讀回 Windows 0.2.8、其餘 0.2.7。
+  本機 SDK 10.0.402 執行 locked restore 與 `Build-WindowsPackage.ps1 -LocalTestSign`：Release 0 warning／0 error，
+  重用既有受信任憑證，不新增憑證或改信任；`Test-WindowsPackage.ps1` 的實際 0.2.8 MSIX 通過版號、x64、
+  安裝下限、runtime 10.0.13、完整 notices／來源、update manifest／SHA-256 與信任簽章檢查。
+  `git diff --check` 通過。
+- 基礎 commit `863f2ca` 的完整 CI 已成功，含 JavaScript／Python、Linux headless 圖形桌面、Windows build／core／封裝；
+  Windows 原生 UI 與三次登入重開機的證據見上方歷史紀錄。本輪沒有重跑完整原生 UI 或新增獨立程式審閱。
+- 準備完成，待最後 release commit／push、確認乾淨且 local／remote main 一致後 dispatch。
+  dispatch 後不再修改 tracked files、commit 或 push；workflow 與 GitHub prerelease 的最終結果、連結及產物 hash 只在對話回報。
+
 ## 2026-10-16 三次重開機驗證與整合 main
 
 使用者完成三次重新開機後回報正常，授權檢查、整合 main 並清理本輪 worktree。

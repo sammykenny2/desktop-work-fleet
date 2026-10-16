@@ -1,6 +1,6 @@
 # 平台與散布狀態
 
-更新：2026-10-16；各平台版號紀錄為 0.2.7，完整 1.0 仍是目標。發布前準備以 [PROGRESS](../PROGRESS.md) 為準，發布結果見 GitHub Releases。
+更新：2026-10-16；Windows 版號紀錄為 0.2.8，其他平台維持 0.2.7，完整 1.0 仍是目標。發布前準備以 [PROGRESS](../PROGRESS.md) 為準，發布結果見 GitHub Releases。
 
 | 平台 | 封裝入口 | 產物與前置條件 |
 |---|---|---|
@@ -19,7 +19,9 @@ MSIX 產生器與先前本機 0.1.1 包已驗證 `Windows.Desktop MinVersion=10.
 
 各平台的版號分別記在 repo 的固定檔案，同一平台的所有建置入口只讀該紀錄；任何升版都須先取得使用者對具體版號的明確同意。
 自 0.2.0 起五個平台共用同一版號（使用者 2026-10-14 決定），一起升版；release tag 仍以平台前綴區分（`windows-v`、`linux-v`、`macos-v`），
-因為各平台的 App 內更新只找自己前綴的 release。Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode` 同步提高（0.2.0 為 200，0.2.1 為 201，0.2.2 為 202，0.2.3 為 203，0.2.4 為 204，0.2.5 為 205，0.2.6 為 206，0.2.7 為 207）。
+因為各平台的 App 內更新只找自己前綴的 release。2026-10-16 使用者另明確要求只升版並發布 Windows 0.2.8；
+本次 Windows 單獨升版，macOS／iOS／Linux／Android 維持 0.2.7，不自動追升。
+Apple `CURRENT_PROJECT_VERSION` 與 Android `versionCode` 同步提高（0.2.0 為 200，0.2.1 為 201，0.2.2 為 202，0.2.3 為 203，0.2.4 為 204，0.2.5 為 205，0.2.6 為 206，0.2.7 為 207）。
 檔名不取自建置機器的架構、憑證或環境，同一 commit 在任何開發機都產生相同檔名。
 腳本產生的每個發佈檔旁另有同名 `.sha256`，可用 `sha256sum -c` 或 `shasum -a 256 -c` 檢查。
 
@@ -60,11 +62,11 @@ LocalMachine/TrustedPeople 信任的 CurrentUser/My 憑證，不使用 timestamp
 [Microsoft 本機簽章說明](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)。
 Windows 預設改採 self-contained `win-x64`，MSIX／ZIP 都包含 .NET 10 Desktop runtime，接收端不用另外安裝 .NET。
 目前 self-contained runtime patch 固定為 `10.0.13`（`Directory.Build.props` 的 `WindowsRuntimeVersion`），與保留的 Desktop 授權／notices 對應；更新時一併核對 runtime 來源與授權。
-[ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) 用這個版本驗證 WPF 顯示器失效修正；登入 crash 仍需重開機對照。
+[ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) 採用 WPF 顯示器失效修正；本機三次重開機未再當掉，早期移除主螢幕與其他 OS 版本仍待對照。
 WebView2 仍使用系統 Evergreen Runtime。包會增大，內附 .NET 的更新需要重新建置、測試及發布 App，見 [ADR-036](decisions/036-windows-self-contained-packaging.md)。
 `-SkipRestore` 只適用已完成同設定 package restore、快取中含 win-x64 runtime packs 的機器；首次封裝不要加它。
 一般 `Build-WindowsApp.ps1`／IDE 建置仍為 framework-dependent，不等同上述封裝產物。
-既有 GitHub `windows-v0.1.2` 是變更前發布的 framework-dependent 包，仍需另裝 .NET 10 Desktop；本輪不覆蓋它。
+既有 GitHub `windows-v0.1.2` 是變更前發布的 framework-dependent 包，仍需另裝該包對應的 .NET 8 Desktop；本輪不覆蓋它。
 ZIP 包含 `WorkFleet.exe`、內附 runtime 與依賴；MSIX 與 ZIP 都保留 runtime 的完整授權／notices 與 NuGet package metadata，不包含 runtime 安裝器。
 未簽章 preview MSIX 不視為可直接安裝或商店交付，ZIP 也沒有執行檔簽章。
 沒有既有受信任 preview 憑證時，可用一般 `Build-WindowsPackage.ps1 -SkipRestore` 產生未簽章 MSIX／ZIP，

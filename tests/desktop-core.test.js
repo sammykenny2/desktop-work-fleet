@@ -141,7 +141,8 @@ test('stack and spread arrange new square papers beside older 280 × 220 ones, k
   // Papers placed before papers became square keep 280 × 220, so a group can hold both sizes.
   const band = 36;
   const covers = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
-  // The last scene's 3 × 3 regions are shorter than a square paper; those papers overflow but stay on screen and apart.
+  // The last scene's 3 × 3 regions are shorter than a 240 × 240 paper placed on a taller screen; those papers overflow
+  // but stay on screen and apart.
   const scenes = [[1920, 1032, 1, 3], [1920, 1032, 4, 3], [1920, 1032, 9, 2], [1280, 775, 9, 1]];
   for (const [width, height, groupCount, perGroup] of scenes) for (const mode of ['stack', 'spread']) {
     const workArea = { x: 0, y: 0, width, height }; const name = `${mode} ${groupCount} groups on ${width} × ${height}`;
@@ -163,6 +164,28 @@ test('stack and spread arrange new square papers beside older 280 × 220 ones, k
       if (mode === 'spread' || a.groupId !== b.groupId) assert.ok(!covers(a, b), `${name}: papers must not overlap`);
       // A stacked paper keeps its title band visible under every paper laid over it.
       else if (b.order > a.order) assert.ok(!covers({ ...a, height: band }, b), `${name}: a title band is covered`);
+    }
+  }
+});
+
+test('a new paper stays square but shrinks to fit a short region, never below 160', async () => {
+  const groups = Array.from({ length: 9 }, (_, i) => ({ id: `g${i}` }));
+  const cards = groups.map(group => ({ id: `${group.id}-0`, groupId: group.id }));
+  // [work area width, height, expected side, whether stack and spread then keep every paper in its region]
+  for (const [width, height, side, fits] of [[1920, 1032, 240, true], [1280, 775, 234, true], [1366, 728, 218, true], [900, 540, 160, false]]) {
+    const workArea = { x: 0, y: 0, width, height }; const name = `9 groups on ${width} × ${height}`;
+    const store = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+    await store.placeNew({ groups, cards }, [workArea]);
+    const layout = store.state; const regions = gridRegions(layout.grid, groups);
+    for (const card of cards) {
+      const rect = layout.placements[card.id];
+      assert.deepEqual([rect.width, rect.height], [side, side], name);
+      assert.ok(containsRect(regions.find(region => region.groupId === card.groupId), rect), name);
+    }
+    if (fits) for (const mode of ['stack', 'spread']) {
+      const preview = planFormation({ snapshot: { groups, cards }, layout, scope: { kind: 'all' }, mode, workAreas: [workArea],
+        summaryBands: Object.fromEntries(cards.map(card => [card.id, 36])) });
+      assert.deepEqual(preview.overflow, [], `${mode}, ${name}`);
     }
   }
 });

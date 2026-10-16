@@ -56,6 +56,15 @@ export function rescueRect(rect, workAreas) {
     y: Math.max(area.y, Math.min(rect.y, area.y + Math.max(0, area.height - rect.height))) };
 }
 
+// A new paper keeps its shape but shrinks until it fits its group's region inside the 12px margin that stacking and
+// spreading keep, so a 3 × 3 grid on a short screen still holds one paper per region. It never shrinks below 160px.
+function fitNewPaper(size, region, margin = 12, smallest = 160) {
+  const fit = Math.min(1, (region.width - 2 * margin) / size.width, (region.height - 2 * margin) / size.height);
+  const scale = Math.max(fit, Math.min(1, smallest / Math.min(size.width, size.height)));
+  // The epsilon keeps 240 × (234 / 240) from flooring to 233.
+  return { width: Math.floor(size.width * scale + 1e-9), height: Math.floor(size.height * scale + 1e-9) };
+}
+
 /** Single writer per device; persist must atomically save the full supplied snapshot or reject. */
 export class LayoutStore {
   #state;
@@ -125,7 +134,8 @@ export class LayoutStore {
     return this.#transaction(draft => { draft.groupLayers = { ...draft.groupLayers, [groupId]: layer }; });
   }
 
-  // New papers are square, like the familiar 3 × 3 in sticky note; papers already placed keep their size.
+  // New papers are square, like the familiar 3 × 3 in sticky note, and smaller only where their region is shorter;
+  // papers already placed keep their size.
   async placeNew(snapshot, workAreas, paperSize = { width: 240, height: 240 }, checkpoint = null) {
     snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
     requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', '卡片尺寸必須大於零。');
@@ -149,7 +159,7 @@ export class LayoutStore {
         if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
-        let rect = { x: region.x + 12, y: region.y + 12, ...paperSize, order: order++, visible: true };
+        let rect = { x: region.x + 12, y: region.y + 12, ...fitNewPaper(paperSize, region), order: order++, visible: true };
         for (let step = 0; step < 40; step++) {
           const trial = { ...rect, x: rect.x + step * 18, y: rect.y + step * 28 };
           if (containsRect(region, trial) && !existing.some(other =>

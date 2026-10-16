@@ -9,7 +9,8 @@
 
 - macOS：
   - 調整模式（此組／全部、工具列、退出）已由使用者在 Mac 實機操作，沒有發現問題。測試的版本與機器沒有記錄。
-  - 主視窗縮回／展開沒有另外回報。全螢幕 App、Spaces 下的最上層仍未驗收。
+  - 使用者之後補充「視窗最大化的那個我測過了」：最上層便箋仍在最大化視窗上方可見。
+  - 主視窗縮回／展開沒有另外回報。原生全螢幕 App（獨立 Space）、Spaces 切換下的最上層仍未驗收，使用者表示以後再測。
   - 更新 `docs/testing.md` 與 ADR-042 中「macOS 仍須實機驗收」的敘述。
 - Linux：`docs/testing.md` 原寫 GNOME Xorg「沒有遮罩」，與 `surface.adjust_overlay` 及
   `test_gnome_xorg_offers_all_three_layers_with_the_overlay` 不符，改為調整模式同樣是遮罩。

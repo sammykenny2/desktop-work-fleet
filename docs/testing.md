@@ -197,7 +197,8 @@ input region、即使該螢幕沒有便箋也顯示並只在出現時 present；
 Windows 的 `--adjust-overlay` 以真 WPF／WebView2 檢查首次載入就顯示工具列、全部／此組調整、排列與退出，以及主視窗已最小化時不被叫回；
 macOS 的 layer probe 另檢查初始 overlay capability、空螢幕調整時的全 viewport input panel 與退出時釋放。
 2026-10-17 使用者回報已在 Mac 實機操作 macOS 調整模式（此組／全部、工具列、退出），沒有發現問題；
-主視窗縮回／展開沒有另外回報，全螢幕 App 與 Spaces 下的最上層仍未驗收。
+使用者也確認最上層便箋仍在最大化視窗上方可見。主視窗縮回／展開沒有另外回報；
+原生全螢幕 App（獨立 Space）與 Spaces 切換下的最上層仍未驗收。
 `tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
 桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，
 常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；

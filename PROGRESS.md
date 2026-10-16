@@ -17,12 +17,16 @@
     點紙張或按 Enter 開啟編輯，標為完成／更多操作在滑鼠移上、鍵盤聚焦或觸控裝置上顯示。
   - 清單：每列一張，左側同色小紙片、標題、一行純文字摘要、進度，取代原本的白色橫條與原始 Markdown。
   - 便箋／清單的選擇存在這台裝置版面的選填 `mainView`；設定、備份驗證與契約型別同步更新，舊資料視為便箋。
+    以「取代」還原沒有這個欄位的舊備份時，選擇回到便箋，與 `desktopVisible` 一樣跟隨備份。
     版面地圖與預覽畫布只在本次開啟有效，選擇時回到「待處理」。ADR-018 補 2026-10-17 修訂。
+  - 主畫面紙張沿用 main.js 群組色；桌面場景的 `groupColors` 較淡，兩者同色系但不完全相同，本輪未調整。
+- 修正：第一個提交的桌面場景把標題快取寫進節點欄位 `summary`，覆蓋了標題帶元素，
+  第二個畫面起會丟出例外而停止更新。改用 `title` 欄位；新增 `scene-probe` 以合成主機連送兩個畫面，修正前失敗、修正後通過。
 - Author-run：
   - JavaScript 310 項：295 pass／15 skip／0 fail，新增正方形預設、`mainView` 設定／重置保留、備份拒絕無效值、checklist 進度。
   - Windows 上 Python discover 的 4 個 Linux 測試失敗（google／surface／xwayland／labwc），未改動的 HEAD 同樣失敗；其餘通過。
   - Edge 預覽 browser／group／revision／sync／backup／restore-ui／cloud-restore-ui／local-backup-ui／automatic-backup probe 全部通過；
-    browser probe 新增便箋／清單、正方形、不重複標題、重開保留選擇且不搬動桌面紙張。
+    browser probe 新增便箋／清單、正方形、不重複標題、重開保留選擇且不搬動桌面紙張；scene probe 通過。
   - Windows UI probe 改用 `.note-title` 等待原生主畫面的便箋。這台 Windows 只有 .NET 8 SDK，
     App 以 .NET 10 為目標，`Test-WindowsNative.ps1` 在建置步驟停止（NETSDK1045），原生 probe 與 MSIX 未執行。
 - 沒有獨立審閱；Windows／macOS／Linux 桌面場景與手機的實際外觀未在該平台檢查。

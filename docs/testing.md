@@ -312,7 +312,12 @@ node scripts/testing/restore-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/cloud-restore-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/local-backup-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT
 ```
+
+`scene-probe` 以頁內合成主機（`scene.info`／分段畫面與 SHA-256／`scene.applied`）載入建置後的桌面場景，
+連續送兩個畫面，驗證標題帶不在內文重複、checklist 只顯示勾選框、紙張正方形，以及重用節點時標題與步驟跟著更新；
+不取代 Windows／macOS／Linux 原生場景的實機檢查。截圖在 `build/scene-probe.png`。
 
 `local-backup-ui-probe` 使用合成 Google FileStore、真實 IDB，驗證舊備份可選、確認失效、附件移除／其他分區保留，
 以及 Google 匯出同步、失敗明確選擇與取消；沒有存取使用者便箋或 Google 帳號。

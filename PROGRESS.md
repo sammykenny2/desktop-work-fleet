@@ -2,6 +2,27 @@
 
 更新：2026-10-17。本檔是本 repo 的執行狀態權威。
 
+## 2026-10-17 桌面 0.3.0 preview 發布準備
+
+使用者要求把桌面直接切換 checklist 列入 0.3.x ROADMAP，並核准 Windows／Linux／macOS 統一升至 0.3.0、發布 preview。
+本節只記 dispatch 前已知的準備結果，發布結果以 GitHub Actions／Releases 與對話回報為準。
+
+- ROADMAP：非穿透時直接點 checkbox 保存／同步、不誤觸拖曳或文字編輯；本輪沒有實作該互動。
+- 版號：Windows `<Version>`、Linux VERSION、Apple MARKETING_VERSION 均為 0.3.0；Apple build 提高至 300。
+  Apple 共用設定連帶更新 iOS 版號紀錄，但本輪不發布手機；Android 仍為 0.2.7。資料 schema 維持 V1。
+- 三平台發布說明改為便箋牆／清單、正方形紙張、附件縮圖／開啟副本、H1～H6 與語法上色；Windows 更新摘要同步修正。
+- 已知驗證：
+  - 功能提交 `de6f102` 的 GitHub CI 全部通過（shared tests、Linux desktop、Windows build／core／unsigned package）。
+  - 本輪版本／更新 feed／Apple 專案測試 12 項：10 pass／2 個 macOS 專用測試 skip／0 fail；文件與 diff 檢查通過。
+  - 0.3.0 Windows Release App／core／UI probes 完成 locked restore 與建置，零警告零錯誤。
+  - 0.3.0 Linux runtime bundle／tar.gz 與 DEB 已產生，DEB 版號、SHA-256、更新 manifest 一致。
+    WSL 的 Windows 掛載目錄無法套用 dpkg 所需 Unix 權限，DEB 改於本次私有 Linux 暫存目錄封裝，再複製至 ignored build。
+  - 發布所需 GitHub signing secrets／variables 已核對名稱，沒有讀取秘密值；三個 0.3.0 tag／release 尚不存在。
+- 附件／格式功能上一輪已完成獨立審閱；本輪版號與發布文件沒有新增獨立審閱。macOS archive／簽章／公證待正式 workflow，
+  原生附件在 macOS／Linux 的人工互動與各桌面環境仍需實測。
+- 準備完成，待最後提交、push、乾淨 worktree 與 main SHA 核對後 dispatch 三個 preview workflows。
+  第一次 dispatch 起本輪不再修改 tracked files、commit 或 push；後續結果不補寫本檔。
+
 ## 2026-10-17 便箋格式與附件縮圖／開啟
 
 使用者要求實作附件縮圖、雙擊開啟、H1～H6 CSS 與彩色 code snippets，明確暫不處理桌面 checklist 切換。

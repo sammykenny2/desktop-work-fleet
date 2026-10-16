@@ -100,7 +100,7 @@ jobs:
           WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET }}
           VERSION: ${{ needs.guard.outputs.version }}
         run: |
-          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary 'Windows 改用自帶 .NET 10.0.13，納入 WPF 顯示器失效處理修正；本機三次重開機未再當掉，仍持續觀察。修正首次調整位置時缺少浮動工具列，可直接堆疊、攤開、復原與完成。當機後自動重啟一次維持停用。'
+          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary '主畫面新增便箋牆／清單切換，新便箋預設正方形。新增附件系統縮圖、雙擊以預設程式開啟唯讀副本、H1～H6 字級及程式碼語法上色。桌面直接切換 checklist 保留在 0.3.x ROADMAP；資料格式維持 V1。'
           if (-not (Test-Path -LiteralPath "build/WorkFleet-$env:VERSION-x64.msix")) { throw "build/WorkFleet-$env:VERSION-x64.msix was not produced." }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -135,10 +135,13 @@ jobs:
           cat > notes.md <<EOF
           Windows 預覽版，從 ${COMMIT} 建置。需要 Windows 11（最低 build 22000）。
 
-          Windows 改用自帶 .NET 10.0.13，納入 WPF 顯示器失效處理修正。本機三次重開機未再當掉，仍持續觀察；
-          尚未再次覆蓋啟動後數十秒內移除內建主螢幕的原始條件，其他 Windows 11 版本也仍需驗證。
-          調整位置時立即顯示「堆疊、攤開、復原、完成」浮動工具列，並保留組字、草稿與原本最小化主視窗的保護。
-          當機後自動重啟一次維持停用。本次只發布 Windows 0.2.8，其他平台版號維持 0.2.7。
+          主畫面新增便箋牆／清單切換，新便箋預設 240×240；標題帶與內文不再重複顯示標題。
+          附件顯示系統縮圖／檔案圖示，雙擊交給預設程式開啟唯讀副本；外部修改不回存。
+          Markdown 新增 H1～H6 六階字級與明確語言的程式碼上色，長內容保留完整文字並限制上色工作量。
+          桌面直接切換 checklist 列在 0.3.x ROADMAP，本版維持原行為；便箋、同步與備份格式仍為 V1。
+
+          延續自帶 .NET 10.0.13 與 WPF 顯示器失效處理修正；其他 Windows 11 版本仍需持續驗證。
+          當機後自動重啟一次維持停用。
 
           ## 第一次安裝
           此包已包含 .NET 10 Desktop Runtime，不需另行安裝 .NET；仍使用系統 Evergreen WebView2 Runtime。

@@ -85,6 +85,19 @@ test('Drive rejects unsupported metadata, false integrity claims and ambiguous o
   const s = scripted([response({ incompleteSearch: true })]); assert.equal((await s.store.listFiles()).incomplete, true);
 });
 
+test('both reset enumeration adapters preserve incompleteSearch and identify markers without rejecting unknown file kinds', async () => {
+  for (const incomplete of [false, true, 'invalid']) {
+    const page = { files: [{ id: 'reset', appProperties: { wfKind: 'reset' } }, { id: 'future', appProperties: { wfKind: 'future-format' } }], incompleteSearch: incomplete };
+    const rest = scripted([response(page)]);
+    const native = new NativeGoogleFileStore({ request: async () => page }, { profileId: 'google:verified-subject' }, 'verified-subject');
+    for (const store of [rest.store, native]) {
+      if (typeof incomplete !== 'boolean') await assert.rejects(store.listFileIds(), failCode('invalid-source-page'));
+      else assert.deepEqual(await store.listFileIds(), { ids: ['reset', 'future'], resetIds: ['reset'], incomplete, nextPageToken: null });
+    }
+    assert.match(new URL(rest.calls[0].path, 'https://www.googleapis.com').searchParams.get('fields'), /incompleteSearch/);
+  }
+});
+
 test('media download verifies hash and size, preserves binary data and uses an explicit response limit', async () => {
   const f = await fixture();
   const s = scripted([{ status: 200, headers: {}, body: f.bytes }, { status: 200, headers: {}, body: new Uint8Array([1, 2, 3, 4]) }]);

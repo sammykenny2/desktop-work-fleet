@@ -216,8 +216,8 @@ public sealed class NativeGoogle : IDisposable
   private static (string Id, string Kind, string Digest, int Size) FileInfo(JsonElement file)
   {
     var id = JsonRules.Text(file, "id"); var kind = JsonRules.Text(file, "kind"); var digest = JsonRules.Text(file, "sha256");
-    HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment" or "reset", "invalid-source-file", "同步檔案身分無效。");
-    LocalDatabase.CheckDigest(digest); var size = (int)JsonRules.Integer(file, "size", kind == "revision" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : LocalDatabase.MaxAttachment);
+    HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment" or "reset" or "workspace", "invalid-source-file", "同步檔案身分無效。");
+    LocalDatabase.CheckDigest(digest); var size = (int)JsonRules.Integer(file, "size", kind is "revision" or "workspace" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : LocalDatabase.MaxAttachment);
     return (id, kind, digest, size);
   }
   public async Task<object?> Drive(string method, JsonElement args, BridgeSession bridge)

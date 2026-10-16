@@ -5,8 +5,9 @@ import { copy, FleetError } from '../src/core/contracts.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
 import { saveSafetyBackup } from '../src/backup/restore.js';
 import { prepareCloudRestore, stageCloudRestore, resumeCloudRestore } from '../src/backup/cloud-restore.js';
-import { FileSync } from '../src/sources/file-sync.js';
+import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { sha256 } from '../src/sources/files.js';
+import { revisionRecord } from '../src/sources/revisions.js';
 import { MemoryFileStore, MemoryAttachmentStorage } from './fixtures/file-store.js';
 
 const area = { x: 0, y: 0, width: 1400, height: 900 };
@@ -131,14 +132,38 @@ test('partial reset survives a restart, blocks ordinary sync and resumes from th
 test('upload failure survives a restart and retries without resetting the restored cloud a second time', async () => {
   const s = await scenario();
   await stageCloudRestore({ workspace: s.remote.workspace, storage: s.remote.storage, fileStore: s.store, plan: s.plan, safetyBackup: s.safetyBackup });
-  s.store.hooks.createFile = input => { if (input.file.kind !== 'reset') throw new FleetError('source-permission', 'cannot upload'); };
+  s.store.hooks.createFile = input => { if (['revision', 'attachment'].includes(input.file.kind)) throw new FleetError('source-permission', 'cannot upload'); };
   await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('source-permission'));
   assert.equal(s.remote.disk().cloudRestore.phase, 'upload');
+  const follower = await client('google:account-a');
+  const followerSync = new FileSync({ workspace: follower.workspace, storage: follower.storage, fileStore: s.store, bootstrapGroup: true });
+  assert.equal((await followerSync.sync()).phase, 'waiting-initialization');
+  assert.deepEqual(follower.workspace.snapshot.groups, []); assert.deepEqual(follower.workspace.snapshot.cards, []);
   const deleted = s.store.calls.filter(call => call.method === 'deleteFile').length;
   delete s.store.hooks.createFile;
   await resumeCloudRestore({ state: await s.remote.storage.load(), storage: s.remote.storage, fileStore: s.store });
   assert.equal(s.store.calls.filter(call => call.method === 'deleteFile').length, deleted);
   assert.equal(s.remote.disk().cloudRestore, undefined);
+  const creates = s.store.calls.filter(call => call.method === 'createFile').length;
+  await followerSync.sync(); assert.equal(follower.workspace.snapshot.cards[0].content.text, s.card.content.text);
+  assert.equal(s.store.calls.filter(call => call.method === 'createFile').length, creates, 'restore followers only download');
+});
+
+test('a backup containing unresolved parent history completes initialization without discarding its pending revisions', async () => {
+  const local = await client('local', true); const session = await local.workspace.beginSync('history-fixture');
+  const pending = revisionRecord('group', { id: 'pending-group', revision: 'pending-revision', name: '待補群組', deleted: false }, ['missing-parent']);
+  await local.workspace.receiveRevisions([pending], { session, expectedCursor: null, cursor: 'history' });
+  const document = await openBackup((await createBackup({ workspace: local.workspace, storage: local.storage })).bytes);
+  const remote = await client('google:account-a'); const store = new MemoryFileStore();
+  const plan = await prepareCloudRestore({ workspace: remote.workspace, document, sourceId: store.sourceId, workAreas: [area] });
+  const safetyBackup = await saveSafetyBackup({ workspace: remote.workspace, storage: remote.storage, save: async () => ({ saved: true, receipt: 'safe' }) });
+  await stageCloudRestore({ workspace: remote.workspace, storage: remote.storage, fileStore: store, plan, safetyBackup });
+  await resumeCloudRestore({ state: remote.disk(), storage: remote.storage, fileStore: store });
+  assert.equal(remote.disk().cloudRestore, undefined); assert.ok(remote.disk().sync.initialization.activePlan);
+  const fresh = await client('google:account-a');
+  await new FileSync({ workspace: fresh.workspace, storage: fresh.storage, fileStore: store, bootstrapGroup: true }).sync();
+  assert.ok(fresh.workspace.state.conflicts.some(conflict => conflict.kind === 'pending-revisions' && conflict.revisions.length));
+  assert.equal(fresh.workspace.state.revisions.length, local.workspace.state.revisions.length);
 });
 
 test('an interrupted job cannot resume against a different Google account', async () => {
@@ -147,6 +172,24 @@ test('an interrupted job cannot resume against a different Google account', asyn
   const store = new MemoryFileStore(); store.sourceId = 'other-account';
   await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: store }), fails('restore-profile'));
   assert.equal(store.calls.length, 0);
+});
+
+test('a restore writer cannot follow a later reset or relabel its backup outbox, even before its first source read', async () => {
+  for (const boundary of ['getStartCursor', 'createFile']) {
+    const s = await scenario();
+    await stageCloudRestore({ workspace: s.remote.workspace, storage: s.remote.storage, fileStore: s.store, plan: s.plan, safetyBackup: s.safetyBackup });
+    s.store.hooks[boundary] = input => {
+      if (boundary === 'getStartCursor' || ['revision', 'attachment'].includes(input.file.kind)) throw new FleetError('interrupted', 'stop upload');
+    };
+    await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('interrupted'));
+    delete s.store.hooks[boundary]; await resetSource(s.store);
+    const files = [...s.store.files.keys()]; const count = s.store.calls.length;
+    await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }),
+      error => ['source-reset', 'source-reset-superseded'].includes(error.code));
+    assert.deepEqual([...s.store.files.keys()], files);
+    assert.equal(s.store.calls.slice(count).some(call => ['createFile', 'deleteFile'].includes(call.method)), false);
+    assert.equal(s.remote.disk().cards[0].content.text, s.card.content.text);
+  }
 });
 
 test('a lost staging acknowledgement still leaves a complete durable job before any remote deletion', async () => {
@@ -167,10 +210,10 @@ test('a lost upload response resumes the reserved file without another reset or 
   await stageCloudRestore({ workspace: s.remote.workspace, storage: s.remote.storage, fileStore: s.store, plan: s.plan, safetyBackup: s.safetyBackup });
   let lost = false;
   s.store.hooks.afterCreate = input => {
-    if (!lost && input.file.kind !== 'reset') { lost = true; throw new FleetError('network', 'lost upload response'); }
+    if (!lost && ['revision', 'attachment'].includes(input.file.kind)) { lost = true; throw new FleetError('network', 'lost upload response'); }
   };
   await assert.rejects(resumeCloudRestore({ state: s.remote.disk(), storage: s.remote.storage, fileStore: s.store }), fails('network'));
-  const uploaded = s.store.calls.filter(call => call.method === 'createFile' && call.file.kind !== 'reset').at(-1).file;
+  const uploaded = s.store.calls.filter(call => call.method === 'createFile' && ['revision', 'attachment'].includes(call.file.kind)).at(-1).file;
   const deleted = s.store.calls.filter(call => call.method === 'deleteFile').length;
   await resumeCloudRestore({ state: await s.remote.storage.load(), storage: s.remote.storage, fileStore: s.store });
   assert.equal(s.store.calls.filter(call => call.method === 'deleteFile').length, deleted);

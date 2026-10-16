@@ -3,6 +3,7 @@
 ## Status
 
 Accepted，2026-10-17。修正六台桌面裝置在 Google 重設後各自建立「我的便箋」的競態；沿用 V1。
+初始化的完成條件及發起流程已由 [ADR-054](054-explicit-workspace-initialization.md) 取代；本 ADR 的確定性身分與來源世代隔離繼續適用。
 
 ## Context
 

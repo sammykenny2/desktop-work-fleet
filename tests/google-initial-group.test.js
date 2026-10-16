@@ -39,7 +39,7 @@ test('a persisted initial group stays usable offline when its first upload fails
   const workspace = await Workspace.create({ profileId: 'google:account', deviceId: 'device', bootstrapGroup: false,
     area: { x: 0, y: 0, width: 1400, height: 900 }, persist: async () => {} });
   const store = new MemoryFileStore();
-  store.hooks.createFile = () => { throw new FleetError('network', 'offline'); };
+  store.hooks.createFile = ({ file }) => { if (file.kind === 'revision') throw new FleetError('network', 'offline'); };
   const sync = new FileSync({ workspace, storage: new MemoryAttachmentStorage(), fileStore: store, bootstrapGroup: true });
   await assert.rejects(sync.sync(), error => error.code === 'network');
   const f = fixture('google:account'); f.context.workspace = workspace;

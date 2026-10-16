@@ -214,10 +214,25 @@ async function initializeGoogle() {
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
   $('#google-sync').textContent = workspace.state.cloudRestore ? '繼續覆蓋 Google' : '立即同步';
   $('#google-sync').onclick = () => {
-    if (workspace.state.cloudRestore) askResumeCloudRestore(); else void syncGoogle(true);
+    if (workspace.state.sourceReset?.superseded || workspace.state.cloudRestore?.resetJob?.superseded) { sourceResetAsked = false; askAfterSourceReset(); }
+    else if (workspace.state.sourceReset) void openSettings('data');
+    else if (workspace.state.cloudRestore) askResumeCloudRestore(); else void syncGoogle(true);
   };
+  if (workspace.state.sourceReset) {
+    syncService = null;
+    if (workspace.state.sourceReset.superseded) {
+      $('#google-sync').textContent = '重新取得雲端副本';
+      setSync('attention', '雲端已由其他裝置再次重設', '這份舊重設工作已停止；可先匯出備份，再清除這台副本並重新同步。'); return;
+    }
+    $('#google-sync').textContent = '繼續重設資料';
+    setSync('attention', '資料重設尚未完成', '請在「資料與備份」繼續重設；其他裝置會等待初始化完成。'); return;
+  }
   if (workspace.state.cloudRestore) {
     clearInterval(syncTimer); syncService = null;
+    if (workspace.state.cloudRestore.resetJob?.superseded) {
+      $('#google-sync').textContent = '重新取得雲端副本';
+      setSync('attention', '雲端已由其他裝置再次重設', '這份覆蓋工作已停止；可先匯出備份，再清除這台副本並重新同步。'); return;
+    }
     setSync('attention', 'Google 覆蓋尚未完成', workspace.state.cloudRestore.error || '還原資料已保存在這台裝置；請按「繼續覆蓋 Google」。');
     return;
   }
@@ -291,8 +306,11 @@ async function syncGoogle(force = false) {
       if (!current()) return;
       await flushDraft();
       if (!current()) return;
-      await sourceSync.sync({ force });
+      const result = await sourceSync.sync({ force });
       if (!current()) return;
+      if (result?.phase === 'waiting-initialization') {
+        setSync('attention', '等待工作空間初始化', '其他裝置正在建立或還原資料，完成後會自動接續同步。'); return;
+      }
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       if (googleAccount?.paused) {
@@ -362,7 +380,8 @@ function cloudRestoreOptions() {
   return { target: googleAccount.email || '目前 Google 帳號',
     prepare: async options => {
       requireConnected();
-      await syncService?.sync({ force: true });
+      const result = await syncService?.sync({ force: true });
+      if (result?.phase === 'waiting-initialization') throw new Error('工作空間初始化尚未完成，請稍後再還原。');
       return prepareCloudRestore({ ...options, workspace, sourceId: fileStore.sourceId });
     },
     run: (plan, safety, say) => runCloudRestore(say, { plan, safety, fileStore }) };
@@ -377,7 +396,9 @@ function backupSourceOptions() {
       syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
       try {
         const sync = async () => {
-          await syncService.sync({ force: true }); await controller.reconcile();
+          const result = await syncService.sync({ force: true });
+          if (result?.phase === 'waiting-initialization') throw new Error('工作空間初始化尚未完成，請稍後再匯出。');
+          await controller.reconcile();
           await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
         };
         await (desktop ? desktop.perform(sync) : sync());
@@ -421,6 +442,7 @@ async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
     durable ||= Boolean(saved?.cloudRestore);
     if (durable) {
       if (saved?.cloudRestore) {
+        if (['source-reset-superseded', 'source-reset'].includes(error.code) && saved.cloudRestore.resetJob) saved.cloudRestore.resetJob.superseded = true;
         saved.cloudRestore.error = String(error.message || '覆蓋尚未完成').slice(0, 2048);
         const revision = saved.revision; saved.revision++;
         await storage.save(saved, revision).catch(() => {});
@@ -476,6 +498,7 @@ function askAfterSourceReset() {
 async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } = {}) {
   if (accountBusy || nativeClosing) throw new Error('帳號或關閉作業進行中，請稍後再試。');
   accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
+  let resetAttempted = false;
   try {
     await automatic?.service.whenIdle(); await syncService?.stop(); syncService = null;
     desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
@@ -486,14 +509,27 @@ async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } =
     if (cloud) {
       requireConnected();
       say('正在標記雲端重設…');
+      resetAttempted = true;
       await resetSource(new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId),
-        { progress: (done, total) => say(`正在刪除雲端資料：${done} / ${total}`) });
+        { job: workspace.state.sourceReset, saveJob: job => workspace.saveSourceReset(job),
+          progress: (done, total) => say(`正在刪除雲端資料：${done} / ${total}`) });
     }
     say('正在刪除這台裝置上的資料…');
     await storage.reset(profileId);
     // Native hosts reopen the document on the emptied profile after replying; the browser reloads itself.
     if (!native) { await browserJournal?.reset(profileId); lease.release(); location.reload(); }
   } catch (error) {
+    // A save may have succeeded before its reply was lost. Reopen the journal instead of restarting an old writer.
+    const saved = await storage.load(profileId).catch(() => null);
+    if (saved?.sourceReset) {
+      if (error.code === 'source-reset-superseded') {
+        saved.sourceReset.superseded = true;
+        const revision = saved.revision; saved.revision++;
+        await storage.save(saved, revision).catch(() => {});
+      }
+      location.reload(); return;
+    }
+    if (resetAttempted && !saved) { location.reload(); return; }
     document.body.inert = false; await desktop?.cancelClose();
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);

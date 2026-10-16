@@ -58,16 +58,23 @@ export async function resumeCloudRestore({ state, storage, fileStore, progress =
     && ['reset', 'upload'].includes(state.cloudRestore.phase), 'restore-profile', '覆蓋工作不屬於目前 Google 帳號。');
   if (state.cloudRestore.phase === 'reset') {
     progress('正在清空 Google 的 Work Fleet 資料…');
-    await resetSource(fileStore, { ...resetOptions, progress: (done, total) => progress(`正在清空雲端：${done} / ${total}`) });
+    await resetSource(fileStore, { ...resetOptions, job: state.cloudRestore.resetJob,
+      initialization: { mode: 'restore', records: state.revisions,
+        attachments: state.revisions.flatMap(record => (record.value.content?.attachments || []).map(file => file.id)) },
+      saveJob: async job => {
+        const next = copy(state); next.revision++; next.cloudRestore.resetJob = job;
+        await storage.save(next, state.revision); state = next;
+      }, progress: (done, total) => progress(`正在清空雲端：${done} / ${total}`) });
     const next = copy(state); next.revision++; next.cloudRestore.phase = 'upload';
     await storage.save(next, state.revision); state = next;
   }
   progress('正在將備份還原到 Google…');
   const workspace = new Workspace(state, (next, revision) => storage.save(next, revision));
-  const sync = new FileSync({ workspace, storage, fileStore });
+  const sync = new FileSync({ workspace, storage, fileStore, initializationPlan: state.cloudRestore.resetJob?.planId });
   try {
     await sync.sync({ force: true });
-    requireValue(workspace.pendingOperations.length === 0, 'cloud-restore-pending', '備份仍有資料等待上傳，請繼續覆蓋。');
+    requireValue(workspace.pendingOperations.length === 0 && workspace.syncState.initialization?.activePlan,
+      'cloud-restore-pending', '備份仍有資料等待上傳或驗證，請繼續覆蓋。');
     const next = workspace.state; delete next.cloudRestore; next.revision++;
     await storage.save(next, workspace.state.revision);
     return next;

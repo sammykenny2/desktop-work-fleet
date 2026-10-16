@@ -23,6 +23,30 @@
   `Test-WindowsNative.ps1 -SkipRestore` 通過；owner formation 像素檢查因桌面沒有夠大的空白區域而略過。
 - 截斷只在 Chromium（Edge、WebView2）驗證；Linux WebKitGTK、macOS WKWebView 沒有實測。沒有獨立審閱。
 
+## 2026-10-17 明確工作空間初始化與可續行重設
+
+使用者要求以明確初始化狀態解決多裝置重設／新 Google 帳號的歧義，並核准實作。不升版、不發布。
+
+- V1 增加不可變 workspace prepare／ready，綁來源、reset 世代、精確 revision digest 及附件需求。
+  重設發起端清空後上傳初始資料與完成證明，其他新副本等待並下載；全新帳號任一新版裝置可完成同一確定性計畫。
+  手動同名群組保留獨立 UUID；已初始化空白不再次補建預設組；不同計畫停止並保留資料。
+- 接收端完整列舉控制檔後再讀資料，ready 前暫存 incoming；核對 required bytes／附件後原子啟用圖與版面。
+  receipt／cursor／補掃需求同交易保存，重開仍會補回先前略過的資料；等待不更新成功同步時間。
+- reset journal 在 marker、刪除、upload ID 之前持久保存，回應遺失續用同 ID；initialize／upload 續行不再次清空。
+  incompleteSearch 不可當清完；舊 job 遇後一輪 reset 停止，提供匯出與清除本機副本入口。
+  save ack 遺失重開 durable writer。備份覆蓋需整份歷史與附件完成（保留合法 pending 歷史）才 ready。
+- marker-only follower 可隨 cleanup 移除舊控制檔；已有本輪 plan／receipt、active workspace 或 restore writer 仍嚴格保護缺檔及來源世代，
+  避免把已暫存 bytes 當成遠端仍完整，或將舊備份重新標成後一輪世代。
+- 契約見 [ADR-054](docs/decisions/054-explicit-workspace-initialization.md)、SPEC-008、PLAN-008、contracts/sync.d.ts。
+  Windows／Apple／Linux／Android host 同步接受 workspace descriptor，操作與測試文件已更新。
+- Author-run：完整 JavaScript 354 項，343 pass／11 平台條件 skip／0 fail；相關初始化／FileSync／覆蓋 59/59 通過。
+  完整 Python 188 項，153 pass／35 平台條件 skip／0 fail。
+  web build、文件與 diff 檢查通過；config 檢查仍列出本機未配置的真 Google／簽章欄位。
+  系統 Chromium 的實際 IndexedDB／FileSync probe 通過：回應遺失重試、附件校驗、帳號隔離與重開的離線分支保留。
+- 獨立唯讀審閱完成，發現的初始化中手動群組、中斷補掃、連續 reset 控制檔收斂、restore owner 與 ready 後缺件等邊界已修正；
+  最後相關 105/105 測試及 diff 檢查通過，未發現尚未解決的重要問題。
+- 未以真 Google 或六台原生 App 實機驗證；本輪未操作使用者雲端資料，不變更 App 版號或 dispatch release。
+
 ## 2026-10-17 新便箋依區域縮小
 
 使用者要求實作「桌面便箋改用主畫面群組色」一節提出的選項：新便箋在區域放不下時縮小但維持正方形。不升版、不發布；已放好的便箋不動。

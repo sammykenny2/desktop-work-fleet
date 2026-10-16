@@ -10,16 +10,16 @@ const presenter = source.slice(source.indexOf('function renderGoogleAccess()'), 
 const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('async function changeGoogleAccount('));
 const changeAccount = source.slice(source.indexOf('async function changeGoogleAccount('), source.indexOf('function resetPlan()'));
 
-async function fixture(profileId, account) {
+async function fixture(profileId, account, state = {}) {
   const nodes = new Map(); const timers = []; const syncs = []; const connections = []; let immediate = 0;
   const context = vm.createContext({
     profileId, googleAccount: null, syncTimer: null, syncService: null,
     native: { info: { profileId }, bridge: { request: async method => { assert.equal(method, 'google.status'); return account; } } },
-    workspace: { state: {} }, storage: {},
+    workspace: { state }, storage: {}, sourceResetAsked: true,
     $: id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); },
     clearInterval() {}, setInterval: (callback, delay) => { timers.push({ callback, delay }); return 1; }, addEventListener() {},
     renderAccount() {}, setSync: (...args) => syncs.push(args), syncGoogle: async () => { immediate++; },
-    changeGoogleAccount() {}, askResumeCloudRestore() {},
+    changeGoogleAccount() {}, askResumeCloudRestore() {}, askAfterSourceReset() { connections.push('recover-local-copy'); }, openSettings() {},
     NativeGoogleFileStore: class { constructor(bridge, info, accountId) { assert.equal(info.profileId, `google:${accountId}`); } },
     FileSync: class { constructor(options) { connections.push(options); } },
   });
@@ -40,6 +40,18 @@ test('locked vault keeps offline Google notes and a retry route without suggesti
   assert.equal(f.syncs[0][0], 'attention');
   await f.nodes.get('#google-sync').onclick();
   assert.equal(f.context.googleAccount.accountId, 'fixture');
+});
+
+test('pending reset journals pause automatic sync and superseded reset or restore jobs expose local-copy recovery', async () => {
+  for (const state of [{ sourceReset: {} }, { sourceReset: { superseded: true } }, { cloudRestore: { resetJob: { superseded: true } } }]) {
+    const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, state);
+    assert.equal(f.immediate, 0); assert.equal(f.timers.length, 0); assert.equal(f.connections.length, 0);
+    if (state.sourceReset?.superseded || state.cloudRestore) {
+      assert.equal(f.nodes.get('#google-sync').textContent, '重新取得雲端副本');
+      await f.nodes.get('#google-sync').onclick();
+      assert.deepEqual(f.connections, ['recover-local-copy']);
+    } else assert.equal(f.nodes.get('#google-sync').textContent, '繼續重設資料');
+  }
 });
 
 test('unlock status updates the same account controls without starting OAuth', async () => {

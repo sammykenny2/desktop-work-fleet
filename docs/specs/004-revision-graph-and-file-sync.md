@@ -132,20 +132,25 @@ Drive appDataFolder adapter 使用 drive.appdata，upload 使用預產生且已�
 
 具體傳輸採 [ADR-012](../decisions/012-durable-file-store-and-drive-adapter.md)：FileDescriptor 包含
 id／kind／sha256／size；provider file ID 為 1–256 個 ASCII 英數、`_`、`-`，拒絕危險 object key。
-Workspace.sync.files 記錄已確認 descriptor（含 `kind: reset` 的重設標記），sync.uploads 按 revision ID／附件 hash 保存 reservation。
-首次預設群組只在完整 pull 成功且完全沒有群組／版本歷史時建立；同 source 與相同 reset ID 集合必須產生相同 entity、revision 及根 bytes。
+Workspace.sync.files 記錄已確認 descriptor（含 `kind: reset`／`workspace` 控制檔），sync.uploads 按 revision ID／附件或控制檔 hash 保存 reservation。
+初始化依 [SPEC-008](008-workspace-initialization.md)／[ADR-054](../decisions/054-explicit-workspace-initialization.md) 的 prepare／ready 執行：
+新帳號完整 pull 後決定 starter／existing；重設由發起端清空並初始化，其他副本等待完成。相同 source／reset 集合的 starter entity、revision 與根 bytes 一致。
+已選定 starter 後的手動群組不取消 required root；刻意空白且已 ready 的工作空間不再補建群組。
 新 reset ID 通知既有裝置停止同步；已知 marker 重播不重複通知，也不當附件保存。
 `sync.sourceResetIds` 在完成來源讀取的 cursor 交易建立；空陣列代表 reset 前初始世代，cursor 過期不清除它。
 增量與全掃描均先擋住已建立世代以外的新 marker，不能等已知檔案消失或 upload reservation 存在才停止。
 新 V1 來源檔案在上述七欄 revision 的傳輸 JSON 加上 `sourceResetIds`（排序且不重複的 marker file IDs）；
 接收端先取出此傳輸欄位，再嚴格驗證原七欄 revision。核心圖、便箋與可攜備份不含該欄，原 revision bytes／ID 不變。
-全掃描延後接收帶世代的傳輸直到所有頁的 marker 已知；只有同世代的傳輸進圖，其他世代 descriptor 留帳冊且不刪雲端檔案。
+全掃描先列完所有 descriptors，再依 reset／workspace／資料順序讀取；只有同世代的傳輸進圖，其他世代 descriptor 留帳冊且不刪雲端檔案。
+pending marker／plan 的接收端不發布資料；receipt 到來後補掃，驗證全部 required bytes／附件再原子啟用。
+補掃需求與 receipt／cursor 同交易保存，程序重開仍會取得等待時略過的資料。
 明確備份還原以目前來源世代重新傳送原 revision，因此同帳號全量覆蓋與 merge／replace 保留歷史身分且不會失去群組。
 既有沒有此欄的 V1 檔案仍完整接收，既有 reservation 保留原 bytes／file ID。需要各裝置更新，舊版接收未知欄位會暫停並保留資料。
 相同檔案 ID 的 kind／digest／size 不可變，不能在之後的分頁或 upload ack 改寫。
 每頁最多 1,000 descriptors；Drive adapter 實際請求 100，服務回應 JSON 上限 2 MiB。
 
-全掃描的資料逐頁提交但 cursor 保持 null；全部完成後才提交掃描前起點，再追 changes。
+全掃描先完成 descriptors 列舉；資料帳冊逐批提交但 cursor 保持 null，revision 暫存至完整掃描提交，pending 初始化另存 incoming。
+全部完成後才提交掃描前起點，再追 changes；初始化完成另須 ready 與實際需求驗證。
 本機 ack 失敗仍保留 reservation／outbox；重啟經讀回核對才清除，完整 revision 歷史始終保留。
 已驗證附件可先落盤而 metadata 提交失敗；這只留下未引用 bytes，不構成已成功同步。
 一個 coordinator 的並行 sync 呼叫合併成同一工作；stop abort 及 session 核對拒絕晚到回覆。

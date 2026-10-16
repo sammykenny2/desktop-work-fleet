@@ -37,8 +37,8 @@ actor FleetDrive {
     private func file(_ args: [String: Any]) throws -> [String: Any] {
         guard let value = args["file"] as? [String: Any] else { throw FleetFailure("invalid-source-file", "同步檔案格式無效。") }
         let id = try FleetProtocol.text(value, "id"), kind = try FleetProtocol.text(value, "kind"), digest = try FleetProtocol.text(value, "sha256")
-        try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil && ["revision", "attachment", "reset"].contains(kind) && FleetProtocol.isDigest(digest), "invalid-source-file", "同步檔案身分無效。")
-        let size = try FleetProtocol.number(value, "size", Int64(kind == "revision" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : FleetProtocol.attachment)); return ["id": id, "kind": kind, "sha256": digest, "size": size]
+        try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil && ["revision", "attachment", "reset", "workspace"].contains(kind) && FleetProtocol.isDigest(digest), "invalid-source-file", "同步檔案身分無效。")
+        let size = try FleetProtocol.number(value, "size", Int64(["revision", "workspace"].contains(kind) ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : FleetProtocol.attachment)); return ["id": id, "kind": kind, "sha256": digest, "size": size]
     }
     private func metadata(_ value: [String: Any], _ file: [String: Any]) throws {
         guard let properties = value["appProperties"] as? [String: Any], let spaces = value["spaces"] as? [String] else { throw FleetFailure("upload-mismatch", "Google 檔案 metadata 不完整。") }

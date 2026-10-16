@@ -30,13 +30,16 @@ async function client(fileStore, { bootstrapGroup = false, initializeGroup = fal
 }
 
 // Hold every writer at createFile so all six have already observed the same empty source.
-async function initializeSix(store) {
+async function initializeSix(store, expectedInitializers = 6) {
   const clients = await Promise.all(Array.from({ length: 6 }, () => client(store, { initializeGroup: true })));
   const ready = gate(); let writers = 0;
-  store.hooks.createFile = async () => { if (++writers === clients.length) ready.resolve(); await ready.promise; };
+  store.hooks.createFile = async ({ file, bytes }) => {
+    if (file.kind !== 'workspace' || JSON.parse(new TextDecoder().decode(bytes)).phase !== 'prepare') return;
+    if (++writers === clients.length) ready.resolve(); await ready.promise;
+  };
   try { await Promise.all(clients.map(c => c.sync.sync())); }
   finally { delete store.hooks.createFile; }
-  assert.equal(writers, 6, 'the fixture forces all six devices to initialize concurrently');
+  assert.equal(writers, expectedInitializers, 'new accounts race on one plan; reset followers only download');
   await Promise.all(clients.map(c => c.sync.sync()));
   const group = clients[0].workspace.snapshot.groups[0];
   assert.ok(group, 'an empty account gets its initial group');
@@ -53,13 +56,14 @@ async function initializeSix(store) {
 
 test('six simultaneous first syncs converge on one initial group and one root revision, including after restart', async () => {
   const store = new MemoryFileStore(); const clients = await initializeSix(store);
+  const uploads = store.calls.filter(call => call.method === 'createFile').length;
   const group = clients[0].workspace.snapshot.groups[0];
   const late = await client(store, { initializeGroup: true }); await late.sync.sync();
   assert.deepEqual(late.workspace.snapshot.groups, [group]);
   for (const c of clients) c.reopen();
   await Promise.all(clients.map(c => c.sync.sync()));
   for (const c of clients) assert.deepEqual(c.workspace.snapshot.groups, [group]);
-  assert.equal(store.calls.filter(call => call.method === 'createFile').length, 6);
+  assert.equal(store.calls.filter(call => call.method === 'createFile').length, uploads);
 });
 
 test('six cleared copies converge after each cloud reset, while old copies stop and each reset gets a new initial identity', async () => {
@@ -71,7 +75,7 @@ test('six cleared copies converge after each cloud reset, while old copies stop 
       await assert.rejects(c.sync.sync(), failCode('source-reset'));
       assert.deepEqual(c.workspace.snapshot, before);
     }
-    clients = await initializeSix(store);
+    clients = await initializeSix(store, 0);
     const group = clients[0].workspace.snapshot.groups[0];
     assert.notEqual(group.id, before.groups[0].id); assert.notEqual(group.revision, before.groups[0].revision);
     assert.equal(clients[0].workspace.snapshot.cards.length, 0);
@@ -174,8 +178,8 @@ test('existing unscoped V1 groups and unknown extension data remain readable aft
     else { group.id = crypto.randomUUID(); group.revision = crypto.randomUUID(); }
     await store.seed(encodeRevision(revisionRecord('group', group)));
     const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
-    assert.deepEqual(fresh.workspace.snapshot.groups, [group]);
-    assert.equal(fresh.workspace.state.revisions.length, 1);
+    assert.deepEqual(fresh.workspace.snapshot.groups.find(item => item.id === group.id), group);
+    assert.equal(fresh.workspace.state.revisions.length, 2);
   }
 });
 
@@ -214,7 +218,7 @@ test('incomplete pulls and pending group history never authorize a new initial g
     if (mode === 'pending') await c.sync.sync(); else await assert.rejects(c.sync.sync());
     assert.deepEqual(c.workspace.snapshot.groups, []);
     assert.deepEqual(c.workspace.pendingOperations, []);
-    assert.equal(store.calls.some(call => call.method === 'createFile'), false);
+    assert.equal(store.calls.some(call => call.method === 'createFile' && call.file.kind === 'revision'), false);
   }
 });
 
@@ -223,15 +227,15 @@ test('initial group persistence failure sends nothing, and a lost upload respons
   c.fail(state => state.revisions.length > 0);
   await assert.rejects(c.sync.sync(), /disk full/);
   assert.deepEqual(c.workspace.snapshot.groups, []);
-  assert.equal(store.calls.some(call => call.method === 'createFile'), false);
+  assert.equal(store.calls.some(call => call.method === 'createFile' && call.file.kind === 'revision'), false);
   c.fail(() => false); c.reopen();
-  store.hooks.afterCreate = () => { delete store.hooks.afterCreate; throw new FleetError('network', 'response lost'); };
+  store.hooks.afterCreate = ({ file }) => { if (file.kind !== 'revision') return; delete store.hooks.afterCreate; throw new FleetError('network', 'response lost'); };
   await assert.rejects(c.sync.sync(), failCode('network'));
-  const group = c.workspace.snapshot.groups[0]; const reserved = Object.values(c.disk().sync.uploads)[0].file.id;
+  const group = c.workspace.snapshot.groups[0]; const reserved = Object.values(c.disk().sync.uploads).find(item => item.file.kind === 'revision').file.id;
   c.reopen(); await c.sync.sync();
   assert.deepEqual(c.workspace.snapshot.groups, [group]);
-  assert.equal(c.workspace.state.revisions.length, 1); assert.equal(store.files.size, 1);
-  assert.equal(store.calls.filter(call => call.method === 'createFile').at(-1).file.id, reserved);
+  assert.equal(c.workspace.state.revisions.length, 1); assert.equal([...store.files.values()].filter(item => item.file.kind === 'revision').length, 1);
+  assert.equal(store.calls.filter(call => call.method === 'createFile' && call.file.kind === 'revision').at(-1).file.id, reserved);
   assert.deepEqual(c.workspace.pendingOperations, []);
 });
 
@@ -246,10 +250,11 @@ test('a reset stops an initial root before file allocation or reservation, inclu
     if (mode.startsWith('unscoped')) delete saved.sync.sourceResetIds;
     c.reopen(saved); delete store.hooks.allocateFileId;
     await resetSource(store, { wait: async () => {} });
+    const creates = store.calls.filter(call => call.method === 'createFile').length;
     if (mode.endsWith('rescan')) store.hooks.listChanges = () => { delete store.hooks.listChanges; throw new FleetError('cursor-expired', 'expired'); };
     await assert.rejects(c.sync.sync({ force: true }), failCode('source-reset'));
     assert.deepEqual(c.workspace.snapshot, before);
-    assert.equal(store.calls.some(call => call.method === 'createFile' && call.file.kind === 'revision'), false);
+    assert.equal(store.calls.filter(call => call.method === 'createFile').length, creates);
     const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
     assert.equal(fresh.workspace.snapshot.groups.length, 1);
   }
@@ -372,13 +377,13 @@ test('missing or damaged local attachments keep the referencing revision queued 
   }
 });
 
-test('a full-scan crash keeps the cursor unset and replays persisted pages safely on restart', async () => {
+test('an enumeration crash leaves the graph and cursor untouched until every descriptor is known', async () => {
   const store = new MemoryFileStore(); store.pageSize = 1;
   await store.seed(encodeRevision(groupRecord('first', 'first-root')));
   await store.seed(encodeRevision(groupRecord('second', 'second-root')));
   store.hooks.listFiles = ({ pageToken }) => { if (pageToken === '1') throw new FleetError('network', 'page disconnected'); };
   const c = await client(store); await assert.rejects(c.sync.sync(), failCode('network'));
-  assert.equal(c.disk().sync.cursor, null); assert.equal(c.workspace.state.revisions.length, 1);
+  assert.equal(c.disk().sync.cursor, null); assert.equal(c.workspace.state.revisions.length, 0);
   delete store.hooks.listFiles; c.reopen(); await c.sync.sync();
   assert.equal(c.disk().sync.cursor, '2'); assert.equal(c.workspace.state.revisions.length, 2);
   assert.deepEqual(store.calls.filter(item => item.method === 'listFiles').map(item => item.pageToken), [null, '1', null, '1']);
@@ -427,14 +432,16 @@ test('cloud reset: the marker stops devices holding old files, while fresh devic
   const a = await client(store, { bootstrapGroup: true }); await a.workspace.createCard(text('重設前'), a.workspace.snapshot.groups[0].id);
   await a.sync.sync(); const b = await client(store); await b.sync.sync(); const before = b.workspace.snapshot;
   const progress = []; const result = await resetSource(store, { progress: (done, total) => progress.push([done, total]), wait: async () => {} });
-  assert.deepEqual([...store.files.keys()], [result.marker.id]); assert.equal(result.marker.kind, 'reset');
+  assert.equal(store.files.size, 4); assert.equal(result.marker.kind, 'reset');
+  assert.equal(result.job.phase, 'complete');
   assert.deepEqual(progress.at(-1), [result.deleted, result.deleted]); assert.equal(result.deleted, 2);
   await assert.rejects(b.sync.sync(), failCode('source-reset'));
   assert.deepEqual(b.workspace.snapshot, before, 'the reset never deletes this device copy by itself');
   for (const fresh of [await client(store), await client(store, { profileId: 'account-a' })]) {
     await fresh.sync.sync();
     assert.equal(fresh.workspace.snapshot.cards.length, 0);
-    assert.deepEqual(Object.values(fresh.workspace.syncState.files || {}), [result.marker], 'the reset generation survives restart');
+    assert.deepEqual(fresh.workspace.syncState.files[result.marker.id], result.marker, 'the reset generation survives restart');
+    assert.ok(fresh.workspace.syncState.initialization.activePlan);
   }
   const restarted = await client(store, { bootstrapGroup: true }); await restarted.sync.sync();
   await restarted.workspace.createCard(text('重設後'), restarted.workspace.snapshot.groups[0].id); await restarted.sync.sync();
@@ -461,7 +468,7 @@ test('cloud reset retries rate limits and deletes files uploaded while it ran', 
     if (!uploaded && fixture.calls.some(call => call.method === 'deleteFile')) { uploaded = true; await fixture.seed(encodeRevision(groupRecord('late'))); }
   };
   const result = await resetSource(store, { wait: async ms => { waits.push(ms); } });
-  assert.deepEqual([...store.files.keys()], [result.marker.id]); assert.deepEqual(waits, [1000]);
+  assert.equal(store.files.size, 4); assert.equal(result.job.phase, 'complete'); assert.deepEqual(waits, [1000]);
   store.hooks.deleteFile = () => { throw new FleetError('source-permission', 'denied'); };
   await a.sync.sync().catch(() => {}); await a.workspace.createGroup('另一組'); await a.sync.sync().catch(() => {});
   await assert.rejects(resetSource(store, { wait: async () => {} }), failCode('source-permission'));

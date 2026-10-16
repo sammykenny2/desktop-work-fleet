@@ -125,10 +125,13 @@ export class GoogleDriveFileStore {
 
   // Ids only, so a reset can delete files this version cannot read.
   async listFileIds({ pageToken = null, signal } = {}) {
-    const query = { spaces: 'appDataFolder', q: 'trashed = false', pageSize: '100', fields: 'nextPageToken,files(id)' };
+    const query = { spaces: 'appDataFolder', q: 'trashed = false', pageSize: '100', fields: 'nextPageToken,incompleteSearch,files(id,appProperties)' };
     if (pageToken !== null) query.pageToken = token(pageToken);
     const page = await this.#json({ path: pathFor('/drive/v3/files', query), signal, context: pageToken === null ? undefined : 'listing' });
+    requireValue(page.incompleteSearch === undefined || typeof page.incompleteSearch === 'boolean', 'invalid-source-page', 'Google Drive 列舉狀態無效。');
     return { ids: items(page.files).map(file => { requireValue(validFileId(file?.id), 'invalid-source-page', 'Google Drive 檔案身分無效。'); return file.id; }),
+      incomplete: page.incompleteSearch === true,
+      resetIds: items(page.files).filter(file => file.appProperties?.wfKind === 'reset').map(file => file.id),
       nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
   }
 

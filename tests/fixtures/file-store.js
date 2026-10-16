@@ -46,7 +46,9 @@ export class MemoryFileStore {
   async listFileIds(input) {
     await this.#before('listFileIds', input);
     const offset = Number(input.pageToken ?? 0); const ids = [...this.files.keys()];
-    return { ids: ids.slice(offset, offset + this.pageSize), nextPageToken: offset + this.pageSize < ids.length ? String(offset + this.pageSize) : null };
+    const page = ids.slice(offset, offset + this.pageSize);
+    return { ids: page, resetIds: page.filter(id => this.files.get(id).file.kind === 'reset'),
+      nextPageToken: offset + this.pageSize < ids.length ? String(offset + this.pageSize) : null };
   }
 
   async deleteFile(input) {

@@ -20,6 +20,20 @@ class FakeVault:
         return None
 
 
+class WorkspaceDescriptor(unittest.TestCase):
+    def test_workspace_control_files_use_the_revision_size_limit_and_exact_metadata(self):
+        g = google.Google(FakeVault(), {"google": {"clients": {}}}, "local", None)
+        descriptor = {"id": "init-plan", "kind": "workspace", "sha256": "a" * 64, "size": 8 * 1024 * 1024}
+        self.assertEqual(g.file({"file": descriptor}), descriptor)
+        metadata = {"id": descriptor["id"], "size": str(descriptor["size"]), "spaces": ["appDataFolder"],
+                    "appProperties": {"wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": "workspace", "wfSha256": descriptor["sha256"]}}
+        g.metadata(metadata, descriptor)
+        with self.assertRaises(p.Failure):
+            g.file({"file": {**descriptor, "size": descriptor["size"] + 1}})
+        with self.assertRaises(p.Failure):
+            g.metadata({**metadata, "appProperties": {**metadata["appProperties"], "wfKind": "revision"}}, descriptor)
+
+
 class TokenRequest(unittest.TestCase):
     def capture(self, config):
         sent = []

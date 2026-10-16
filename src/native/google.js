@@ -44,7 +44,10 @@ export class NativeGoogleFileStore {
   // Ids only, so a reset can delete files this version cannot read.
   async listFileIds({ pageToken = null, signal } = {}) {
     const result = await this.#call('google.list', { pageToken: pageToken === null ? null : cursor(pageToken) }, signal);
+    requireValue(result.incompleteSearch === undefined || typeof result.incompleteSearch === 'boolean', 'invalid-source-page', 'Google 列舉狀態無效。');
     return { ids: page(result.files || []).map(file => { requireValue(validFileId(file?.id), 'invalid-source-page', 'Google 檔案身分無效。'); return file.id; }),
+      incomplete: result.incompleteSearch === true,
+      resetIds: (result.files || []).filter(file => file.appProperties?.wfKind === 'reset').map(file => file.id),
       nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };
   }
   async deleteFile({ id, signal }) {

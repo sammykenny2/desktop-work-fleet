@@ -69,6 +69,18 @@ Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、
 `tests/google-initial-group.test.js` 驗證首次同步前新增便箋／分享入口不另建隨機群組，已有 Google 群組及本機捕捉維持離線可用，
 也驗證初始群組已落盤、首次上傳失敗時仍可選取該群組離線新增。
 上述是隔離 fixture，不代表六台 Windows／macOS／Linux 與真 Google 的實機往返驗收。
+`tests/workspace-initialization.test.js` 驗證 marker-only 舊 raw 資料不進圖、reset followers 不上傳、
+新帳號接手同一計畫、prepare 途中手動同名群組、receipt 缺 revision／附件、activation 存檔失敗、
+ready 已落盤但補掃前中斷重開、不同計畫／錯誤 digest、已初始化空白、reset journal 重試不再清空、
+被更新重設取代的舊 job、不完整列舉及跨帳號／無效計畫拒絕。
+另驗證連續重設的 marker-only follower 可隨 cleanup 收斂（含 cursor 過期與重開），
+但已有 plan／ready 時缺 revision／控制檔，即使 activation 曾保存失敗，仍須拒絕啟用。
+還原發起端在首次讀取前或 upload 階段遇到新一輪 reset，不能跟隨新世代上傳舊備份。
+`tests/google-drive.test.js` 另核對 REST／native 的 reset 列舉保留 incompleteSearch；
+`tests/google-vault-pause.test.js` 驗證 pending／superseded reset／restore 的等待與清除本機副本入口，
+`tests/test_linux_google.py` 以真正原生 descriptor validator 驗證 workspace 控制檔容量與 metadata。
+專用 Google 測試帳號的實機驗收：發起端清空途中斷網，其餘清除副本的裝置應等待；
+發起端續行後各台只有一組預設群組、手動同名群組可另建；備份覆蓋傳附件途中不得顯示成功。
 `tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。
 `tests/android-build.test.js` 驗證無既有生成資產時的 Android 公開配置、修改 `.env` 後重新讀取、
 release 必填欄位、隔離輸出路徑中的 renderer／bridge／vendor 及 CSP。執行 `node --test tests/android-build.test.js`。

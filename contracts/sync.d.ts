@@ -15,7 +15,29 @@ export type SourceRevisionRecord = RevisionRecord & { sourceResetIds?: string[] 
 export interface GraphIngestResult { added: number; pending: Revision[]; missing: Revision[] }
 export interface EntityHeads { kind: 'card' | 'group'; entityId: Id; heads: RevisionRecord[] }
 
-export interface FileDescriptor { id: string; kind: 'revision' | 'attachment' | 'reset'; sha256: string; size: number }
+export interface FileDescriptor { id: string; kind: 'revision' | 'attachment' | 'reset' | 'workspace'; sha256: string; size: number }
+export interface InitializationIdentity {
+  format: 'work-fleet-workspace'; schemaVersion: 1; workspaceId: string; sourceResetIds: string[];
+}
+export interface InitializationPlan extends InitializationIdentity {
+  phase: 'prepare'; mode: 'starter' | 'existing' | 'restore'; origin: 'bootstrap' | 'reset';
+  revisions: { id: Revision; sha256: string }[]; attachments: string[];
+}
+export interface InitializationReceipt extends InitializationIdentity { phase: 'ready'; planId: string }
+export interface InitializationState {
+  plans: Record<string, InitializationPlan>; receipts: Record<string, InitializationReceipt>;
+  incoming: Record<Revision, RevisionRecord>; activePlan: string | null; expected?: boolean;
+  /** Committed with a new receipt/cursor; cleared only after a complete rescan and staged data commit. */
+  refreshNeeded?: boolean;
+}
+/** Stored before the marker or any deletion; survives process restart and lost responses. */
+export interface SourceResetJob {
+  sourceId: string; marker: FileDescriptor;
+  markerValue: { format: 'work-fleet-reset'; schema: 1; resetAt: string; initialization: 'workspace-init-v1' };
+  previousResetIds: string[]; plan: InitializationPlan; planId: string;
+  phase: 'reset' | 'initialize' | 'upload' | 'complete'; markerPublished: boolean;
+  uploads: Record<string, FileDescriptor>; deleted: number; superseded?: boolean;
+}
 export interface UploadReservation { file: FileDescriptor; complete: boolean }
 export interface SyncState {
   sourceId: string | null;
@@ -26,7 +48,8 @@ export interface SyncState {
   /** Persisted only after both pulls and all queued uploads complete; absent means unknown. */
   lastSuccessfulSyncAt?: string;
   files?: Record<string, FileDescriptor>;
-  /** Keys are revision:<revisionId> or attachment:<sha256>. Persist before createFile. */
+  initialization?: InitializationState;
+  /** Keys are revision:<revisionId>, attachment:<sha256> or workspace:<sha256>. Persist before createFile. */
   uploads?: Record<string, UploadReservation>;
 }
 export interface SyncSession { profileId: Id; sourceId: string; sessionId: Id; runtimeId: Id }
@@ -35,6 +58,12 @@ export interface ReceiveRevisions {
   expectedCursor: string | null;
   cursor: string | null;
   files?: FileDescriptor[];
+  workspaceRecords?: (InitializationPlan | InitializationReceipt)[];
+  initializationExpected?: boolean; stage?: boolean;
+  initializationScanned?: boolean;
+  /** Only a marker-only reset follower, without a current plan/receipt or restore job, may forget cleanup descriptors. */
+  removedFiles?: string[];
+  activatePlan?: string | null; expectedInitialization?: string | null;
 }
 export interface FileStore {
   /** Immutable account + collection binding, derived from verified native identity. */
@@ -48,12 +77,16 @@ export interface FileStore {
     nextCursor?: string | null; cursor?: string;
   }>;
   allocateFileId(input: { signal: AbortSignal }): Promise<string>;
+  listFileIds(input: { pageToken?: string | null; signal?: AbortSignal }): Promise<{
+    ids: string[]; resetIds: string[]; nextPageToken?: string | null; incomplete?: boolean;
+  }>;
+  deleteFile(input: { id: string; signal?: AbortSignal }): Promise<void>;
   readFile(input: { file: FileDescriptor; signal: AbortSignal }): Promise<Uint8Array>;
   /** Must create only; never replace. Existing ID throws file-exists, not implicit success. */
   createFile(input: { file: FileDescriptor; bytes: Uint8Array; signal: AbortSignal }): Promise<FileDescriptor>;
 }
 export interface SyncStatus {
-  phase: 'idle' | 'syncing' | 'backoff' | 'needs-login' | 'needs-attention' | 'stopped';
+  phase: 'idle' | 'syncing' | 'waiting-initialization' | 'backoff' | 'needs-login' | 'needs-attention' | 'stopped';
   pending: number;
   nextAttemptAt: number;
   error: { code: string; message: string } | null;

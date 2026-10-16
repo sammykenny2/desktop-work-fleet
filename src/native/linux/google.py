@@ -279,8 +279,8 @@ class Google:
 
     def file(self, args):
         value = args.get("file")
-        p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment", "reset") and p.is_digest(value.get("sha256")), "invalid-source-file", "同步檔案身分無效。")
-        size = p.number(value, "size", {"revision": 8 * 1024 * 1024, "reset": 4096}.get(value["kind"], p.ATTACHMENT))
+        p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment", "reset", "workspace") and p.is_digest(value.get("sha256")), "invalid-source-file", "同步檔案身分無效。")
+        size = p.number(value, "size", {"revision": 8 * 1024 * 1024, "workspace": 8 * 1024 * 1024, "reset": 4096}.get(value["kind"], p.ATTACHMENT))
         return {"id": value["id"], "kind": value["kind"], "sha256": value["sha256"], "size": size}
 
     def metadata(self, value, file):

@@ -24,6 +24,9 @@ Workspace 已把版本、投影、衝突、群組版面參照與 cursor 接在�
 `src/app/conflicts.js` 提供比較／採用／歷史恢復與群組修復。
 [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) 的 FileSync 協調分頁、持久 reservation、
 附件、ack 與退避；GoogleDriveFileStore 實作 REST／resumable。原生授權、受保護 HTTP 及 renderer 連接仍需整合。
+[ADR-054](decisions/054-explicit-workspace-initialization.md) 增加 V1 workspace prepare／ready 控制檔：
+reset 發起端以 durable journal 清空後初始化，其他副本等待；新帳號可共同完成同一確定性計畫。
+Workspace 暫存 incoming，核對 required bytes／附件後原子啟用；ready 的補掃需求與 cursor 同交易持久保存。
 
 [ADR-013](decisions/013-complete-portable-backup.md) 的 `src/backup` 捕獲完整本機快照，
 校驗 ZIP／manifest／圖／引用／附件，並提供 WebCrypto 加密容器；驗證不寫目標。

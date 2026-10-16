@@ -10,6 +10,7 @@ import { sha256, validDigest, validateFile } from '../sources/files.js';
 import { schemas, requireSchemaVersion } from './schema.js';
 import { initialGroupRecord, resetFileIds } from '../sources/initial-group.js';
 import { encodeSourceRevision } from '../sources/source-revisions.js';
+import { initializationComplete, initializationId, validateInitialization } from '../sources/workspace-initialization.js';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
@@ -305,15 +306,54 @@ export class Workspace {
     });
   }
 
-  async receiveRevisions(records, { session, expectedCursor, cursor, files = [] }) {
+  async receiveRevisions(records, { session, expectedCursor, cursor, files = [], workspaceRecords = [], initializationExpected = false,
+    stage = false, activatePlan = null, expectedInitialization = null, initializationScanned = false, removedFiles = [] }) {
     records = records.map(validateRevision); session = copy(session);
     files = files.map(validateFile);
+    const controls = await Promise.all(workspaceRecords.map(async value => {
+      const record = await validateInitialization(value, session.sourceId); return { record, id: await initializationId(record) };
+    }));
     requireValue(cursor === null || (typeof cursor === 'string' && cursor.length <= 8192), 'invalid-cursor', '同步游標無效。');
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
       this.#session(state, session);
       requireValue(state.sync.cursor === expectedCursor, 'stale-cursor', '已有更新的同步進度，請重新取得游標。');
       requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試同步。');
+      const pendingReset = state.sync.initialization?.expected && !state.sync.initialization.activePlan && !state.cloudRestore
+        && !Object.keys(state.sync.initialization.plans).length && !Object.keys(state.sync.initialization.receipts).length;
+      requireValue(!removedFiles.length || pendingReset, 'source-file-missing', '原有同步檔案已移除，副本仍保留。');
+      const previousResets = canonicalJson(resetFileIds(state.sync.files));
+      for (const id of removedFiles) delete state.sync.files[id];
       for (const file of files) this.#file(state, file);
+      if (pendingReset && canonicalJson(resetFileIds(state.sync.files)) !== previousResets) {
+        state.sync.initialization = { plans: {}, receipts: {}, incoming: {}, activePlan: null, expected: true };
+      }
+      if (controls.length || initializationExpected) {
+        state.sync.initialization ||= { plans: {}, receipts: {}, incoming: {}, activePlan: null };
+        if (initializationExpected) state.sync.initialization.expected = true;
+        for (const { id, record } of controls) {
+          if (record.phase === 'prepare') state.sync.initialization.plans[id] = record;
+          else {
+            if (!state.sync.initialization.receipts[record.planId]) state.sync.initialization.refreshNeeded = true;
+            state.sync.initialization.receipts[record.planId] = record;
+          }
+        }
+      }
+      const initialization = state.sync.initialization;
+      if (initializationScanned && initialization) initialization.refreshNeeded = false;
+      if (activatePlan) {
+        requireValue(initialization && canonicalJson(initialization) === expectedInitialization
+          && initialization.plans[activatePlan] && initialization.receipts[activatePlan]
+          && Object.keys(initialization.plans).length === 1, 'stale-initialization', '初始化資料已變更，請重新同步。');
+        initialization.activePlan = activatePlan; initialization.incoming = {};
+      } else if (stage && initialization && !initialization.activePlan) {
+        const known = new Map([...state.revisions, ...Object.values(initialization.incoming)].map(record => [record.revisionId, record]));
+        for (const record of records) {
+          requireValue(!known.has(record.revisionId) || canonicalJson(known.get(record.revisionId)) === canonicalJson(record),
+            'revision-collision', '相同版本身分包含不同內容，同步已停止且保留本機資料。');
+          initialization.incoming[record.revisionId] = record; known.set(record.revisionId, record);
+        }
+        records = [];
+      }
       const graph = this.#graph.fork(records);
       const known = new Set(state.revisions.map(item => item.revisionId));
       for (const record of records) if (!known.has(record.revisionId)) {
@@ -325,6 +365,26 @@ export class Workspace {
       if (cursor !== null) state.sync.sourceResetIds = resetFileIds(state.sync.files);
       return { layout: state.layout, value: result };
     }));
+  }
+
+  async activateInitialization(session, planId) {
+    this.#session(this.#state, session);
+    const initialization = this.#state.sync.initialization;
+    if (!initialization?.plans[planId] || !initialization.receipts[planId]) return false;
+    const incoming = Object.values(initialization.incoming);
+    if (!await initializationComplete(initialization.plans[planId], [...this.#state.revisions, ...incoming], this.#state.sync.files)) return false;
+    await this.receiveRevisions(incoming, { session, expectedCursor: this.#state.sync.cursor, cursor: this.#state.sync.cursor,
+      activatePlan: planId, expectedInitialization: canonicalJson(initialization) });
+    return true;
+  }
+
+  async saveSourceReset(job) {
+    job = copy(job);
+    return this.#commit(state => {
+      requireValue(typeof job.sourceId === 'string' && (!state.sync.sourceId || state.sync.sourceId === job.sourceId),
+        'source-mismatch', '重設工作不屬於目前來源。');
+      state.sourceReset = job;
+    });
   }
 
   /** Explicitly adopt one observed branch, optionally editing it; old revisions remain in history. */
@@ -371,16 +431,21 @@ export class Workspace {
   }
 
   /** After a complete pull, every device derives the same initial root for this account and reset generation. */
-  async ensureInitialGroup(session) {
+  async ensureInitialGroup(session, planId = null) {
     session = copy(session); this.#session(this.#state, session);
-    if (this.#state.revisions.length || this.#state.groups.length) return null;
+    if (!planId && (this.#state.revisions.length || this.#state.groups.length)) return null;
     const resets = canonicalJson(resetFileIds(this.#state.sync.files));
     const record = await initialGroupRecord(session.sourceId, resetFileIds(this.#state.sync.files));
     return this.#commit(state => {
       this.#session(state, session);
       requireValue(state.sync.cursor !== null && canonicalJson(resetFileIds(state.sync.files)) === resets,
         'initial-sync-required', '請先完成 Google 同步，再新增便箋。');
-      if (state.revisions.length || state.groups.length) return null;
+      if (planId) {
+        const plan = state.sync.initialization?.plans[planId];
+        requireValue(plan?.mode === 'starter' && plan.revisions[0].id === record.revisionId
+          && canonicalJson(plan.sourceResetIds) === resets, 'stale-initialization', '初始化計畫已變更，請重新同步。');
+        if (state.revisions.some(item => item.revisionId === record.revisionId)) return null;
+      } else if (state.revisions.length || state.groups.length) return null;
       const group = record.value;
       state.groups.push(group); this.#record(state, 'group', group, []);
       return copy(group);

@@ -54,6 +54,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
+| [008-workspace-initialization](008-workspace-initialization.md) | 工作空間初始化與可續行重設 | 核准範圍；執行見 PROGRESS | [SPEC-008](../specs/008-workspace-initialization.md) |
 | [004-windows-11-compatibility](004-windows-11-compatibility.md) | 23H2 native baseline, minimal fixes and Windows 11 package floor | Requirements confirmed; next session implementation, status in PROGRESS | [SPEC-005](../specs/005-windows-11-compatibility.md) |
 | [003-desktop-interaction-implementation](003-desktop-interaction-implementation.md) | Cards, groups, formation, renderer and native hosts | Planned; product implementation not started | [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) |
 | [005-msix-data-and-cloud-overwrite](005-msix-data-and-cloud-overwrite.md) | MSIX 私有資料與安全、可續行的 Google 全量覆蓋 | 使用者要求已確認；狀態在 PROGRESS | [SPEC-002](../specs/002-portable-backup-and-restore.md) |

@@ -139,8 +139,8 @@ final class GoogleFiles implements AutoCloseable {
     private Response request(String path) throws Exception { return request(path, "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, ""); }
     private static JSONObject file(JSONObject value) throws Exception {
         String id = Protocol.text(value, "id", 256), kind = Protocol.text(value, "kind", 16), sha = Protocol.text(value, "sha256", 64); Protocol.digest(sha);
-        Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}") && (kind.equals("revision") || kind.equals("attachment") || kind.equals("reset")), "invalid-source-file", "Google 檔案身分無效。");
-        long size = Protocol.number(value, "size", kind.equals("revision") ? 8 * 1024 * 1024 : kind.equals("reset") ? 4096 : Protocol.ATTACHMENT); return Protocol.object("id", id, "kind", kind, "sha256", sha, "size", size);
+        Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}") && (kind.equals("revision") || kind.equals("attachment") || kind.equals("reset") || kind.equals("workspace")), "invalid-source-file", "Google 檔案身分無效。");
+        long size = Protocol.number(value, "size", (kind.equals("revision") || kind.equals("workspace")) ? 8 * 1024 * 1024 : kind.equals("reset") ? 4096 : Protocol.ATTACHMENT); return Protocol.object("id", id, "kind", kind, "sha256", sha, "size", size);
     }
     private static void metadata(JSONObject metadata, JSONObject file) throws Exception {
         JSONObject properties = metadata.getJSONObject("appProperties"); boolean appdata = false; JSONArray spaces = metadata.getJSONArray("spaces"); for (int i = 0; i < spaces.length(); i++) if (spaces.getString(i).equals("appDataFolder")) appdata = true;

@@ -10,7 +10,8 @@ SPEC-003 and ADR-006 contain the latest card/group/formation/gesture requirement
 Follow confirmed U requirements and delegated D defaults; ask only about Q items
 needed for the current implementation. Do not reopen the confirmed floating-layer
 or gesture choices. ADR-007 is a technical proposal, not an adopted framework.
-The executable validation runtime remains ADR-002; PROGRESS.md is execution status.
+The executable validation runtime remains ADR-002; PROGRESS.md is the current-state
+snapshot, git history the change log, and docs/release-notes.md the per-version record.
 For targeted external desktop behavior research, ask the maintainer for the reference
 project location only when required. Do not guess paths or copy its implementation.
 Older Drive/backup drafts require scope reconciliation before freezing contracts.
@@ -26,7 +27,11 @@ upgrade policy when store-launch planning starts, as required by root AGENTS.
   coverage. A diagnosis-only request does not authorize implementation.
 - Documentation: use `update-docs` if installed. Otherwise map the change to the
   existing document inventory in `docs/README.md`, update targeted sections,
-  check links and examples, and report omissions.
+  check links and examples, and report omissions. Write in English; when a
+  document has a `.zh-TW` edition, update both in the same commit.
+- Status: put the change record in the commit body (what, why, checks, review).
+  Touch PROGRESS.md only when the project-level status it summarizes changes, and
+  rewrite the affected lines instead of adding a dated entry.
 - Tests: use `run-tests` if installed; otherwise read `docs/testing.md` and the
   actual manifest/CI commands. Do not infer pytest solely from a Python filename.
 - Review: use `review-code` if installed and you did not author the code. Review
@@ -34,11 +39,13 @@ upgrade policy when store-launch planning starts, as required by root AGENTS.
 - Scripts: use `docs/SCRIPT-STANDARDS.md` for help and naming examples.
 - Research: record dated primary sources in `docs/research/` when conclusions
   depend on changing external APIs or protocols.
-- Releases: finish all tracked changes and local check records before the final
-  version-bump commit/push. Follow [deployment](deployment.md) and root AGENTS:
-  dispatch closes repository writes for that release task. Afterwards, monitor,
-  verify ignored artifacts and report in the conversation; do not make a status,
-  documentation or handoff commit. New repository work requires a new explicit user task.
+- Releases: land all other tracked changes first. The version-bump commit changes
+  the approved version records and adds the version's entry to
+  [release notes](release-notes.md); the release workflows read that entry. Follow
+  [deployment](deployment.md) and root AGENTS: dispatch closes repository writes
+  for that release task. Afterwards, monitor, verify ignored artifacts and report in
+  the conversation; do not make a status, documentation or handoff commit, and do
+  not offer one. New repository work requires a new explicit user task.
 
 ## Optional Protocol Integrations
 

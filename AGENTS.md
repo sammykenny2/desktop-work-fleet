@@ -38,22 +38,67 @@
 - Agent orchestration and execution status machines are deferred, not default UI.
 - Research lives in docs/research/. Use dated
   lowercase kebab-case filenames and distinguish evidence, proposals and decisions.
-- PROGRESS.md is the execution-status source. Do not create a competing task list.
-  Do not add entries for runs that only rebuild or repackage existing code; report
-  artifact paths, sizes and hashes in the conversation instead.
-  Complete tracked release-preparation records before dispatch. Subsequent release
-  outcomes belong in the GitHub run/release and the final user report, without a
-  follow-up PROGRESS.md commit. The release boundary below overrides routine status updates.
+- Record status as described in "Status, History and Release Notes" below. Do not
+  create a competing task list or status file.
 - Build this product independently. Do not bulk-port another application's code,
   UI, assets or data contracts. Any targeted future reuse needs source/license notes.
 - Validation runtime choices are recorded in ADR-002; broader platform packaging remains open. Generic A2A/MCP bootstrap
   material does not imply those protocols are part of the product.
+
+## Status, History and Release Notes
+
+Write each fact once, in the smallest durable place that owns it, and in the same
+commit as the change it describes. Nothing is recorded after the fact.
+
+- **Git history is the change log.** Every commit uses a Conventional Commit subject
+  and a body that states what changed and why, the checks that ran with their
+  results (or which could not run), and whether an independent review happened.
+  That body replaces any per-session log entry.
+- **PROGRESS.md is a short current-state snapshot**: status by area, verified and
+  unverified boundaries, open items. Edit it only when a change alters that
+  project-level truth, in the same commit, by rewriting the affected lines rather
+  than appending. Never add session narratives, test counts, artifact paths, sizes
+  or hashes, commit SHAs, review notes, or release and publication status.
+  Rebuilds and repackaging do not touch it; report their results in the conversation.
+- **Owning documents**: decisions in ADRs; behaviour and acceptance in SPECs; the
+  Status field and task checkboxes of an approved PLAN, updated with the work;
+  verification procedures and unverified boundaries in `docs/testing.md`; packaging
+  and release procedure in `docs/deployment.md`; platform caveats in the platform
+  README under `src/native/<platform>/`.
+- **`docs/release-notes.md`** gets one entry per version, written only in the
+  version-bump commit, summarizing the commits since the previous version. Feature
+  commits do not add entries and there is no "Unreleased" section. Follow the entry
+  format at the top of that file; the release workflows read the entry, and
+  `tests/release-notes.test.js` fails while a recorded version has no entry.
+  Entries must stay true after publication: no "prepared", "published" or
+  "released" wording, run IDs, hashes, or the bump commit's own SHA.
+- **No follow-up commits.** Once the version-bump commit is pushed, the release task
+  needs no further tracked edit. Dispatch results, release links, artifact hashes and
+  store status belong in the GitHub Release, the workflow run and the final report
+  in the conversation. ROADMAP.md orders future work; it is not a status record.
+
+## Language
+
+- English is the repository language: code, identifiers, comments, log and error
+  messages, scripts, workflows, commit messages, documentation and agent files.
+- Chinese may appear in code only where the code must recognise, store or test
+  Chinese text (locale matching, CJK handling tests, persisted protocol values),
+  with an English comment saying why.
+- User-visible text belongs in locale catalogs, never inline in code. Write the
+  English text first; every key must exist in every supported locale (`en`, `zh-TW`).
+- A document whose name ends in `_ZH` or carries `.zh-TW` before the extension (for
+  example `README.zh-TW.md`) is a Chinese edition. Only user-facing guides keep one.
+  Change the English document and its Chinese edition in the same commit; every
+  other document is English only.
+- Replying to the user in their preferred language does not change the repository
+  language.
 
 ## Task Routing
 
 | Need | Reference |
 |------|-----------|
 | Setup and commands | `docs/setup-guide.md`, `docs/testing.md` |
+| Current status and release history | `PROGRESS.md`, `docs/release-notes.md` |
 | Architecture and decisions | `docs/architecture.md`, `docs/decisions/` |
 | Feature planning | `docs/specs/`, `docs/plans/` |
 | Document inventory | `docs/README.md` |
@@ -100,23 +145,25 @@ GitHub Actions dispatch also requires explicit user authorization. Honor approva
 already given in the current session without asking again. The repository is public
 since 2026-10-14: `ci.yml` runs the documented checks on every push to main and every
 pull request; release workflows still run only when dispatched with authorization.
-For an approved Windows preview release, finish implementation, tests, documentation
-and PROGRESS.md preparation records, and include the approved `<Version>` bump in
-`src/native/windows/Directory.Build.props` in the final release commit. Push it,
-verify a clean worktree and matching local/remote main, then dispatch
-`windows-preview.yml` only with that authorization; it creates the `windows-v<version>`
-tag and prerelease. Never reuse, move or delete a published tag or release. See docs/deployment.md.
+For an approved release, land implementation, tests and documentation in earlier
+commits. The version-bump commit is the last tracked write of the release task: it
+changes the approved version records (for Windows the `<Version>` in
+`src/native/windows/Directory.Build.props`; see docs/deployment.md for the others)
+and adds that version's `docs/release-notes.md` entry, nothing that needs updating
+afterwards. Push it, verify a clean worktree and matching local/remote main, then
+dispatch the platform's release workflow only with that authorization; it creates the
+`<platform>-v<version>` tag and prerelease. Never reuse, move or delete a published
+tag or release.
 
 For every platform, dispatching a release workflow or starting publication closes
 that release task's repository writes. After that point, agents MUST NOT edit
 tracked files, commit or push follow-up release work, including status, handoff,
-release-result, artifact hash or documentation updates. Monitor the run and verify
-artifacts in Git-ignored directories; report the outcome and links in the conversation.
-Record only known preparation results before dispatch; never pre-record publication
-success. A later explicit user task can authorize new repository changes; the
-original release request and standing commit/push permission do not authorize
-post-release bookkeeping. This boundary overrides ordinary documentation and
-handoff update requirements, even when workflows currently have no push trigger.
+release-result, artifact hash or documentation updates, and MUST NOT offer them as
+optional follow-ups. Monitor the run and verify artifacts in Git-ignored directories;
+report the outcome and links in the conversation. A later explicit user task can
+authorize new repository changes; the original release request and standing
+commit/push permission do not authorize post-release bookkeeping. This boundary
+overrides ordinary documentation and handoff update requirements.
 
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,
@@ -140,7 +187,8 @@ An agent MUST NOT review code it wrote itself. Author-run tests and mechanical
 checks are allowed but are not independent review. Important changes SHOULD be
 reviewed by a separate agent or human. Report when independent review is unavailable.
 Do not add agent annotations in code or docs. Shared AGENTS changes require a
-reason in the commit message. Handoffs state completed work, checks and remaining work.
+reason in the commit message. Handoffs state completed work, checks and remaining
+work in the commit body and the conversation, not in a status log.
 
 ## Conventions and Skills
 

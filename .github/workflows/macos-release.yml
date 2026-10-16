@@ -4,14 +4,10 @@ name: macOS preview release
 # tagged macos-v<MARKETING_VERSION> with the DMG, Sparkle update ZIP, appcast.xml and work-fleet-update.json
 # (ADR-044). An existing tag or release is never replaced. Requires the settings in docs/deployment.md,
 # including a Developer ID profile for this app's Keychain entitlement. No Installer certificate is needed.
+# The release text and the in-app update summary come from the version's entry in docs/release-notes.md.
 
 on:
   workflow_dispatch:
-    inputs:
-      summary:
-        description: Plain-text summary shown by the in-app updater (at most 500 characters)
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -28,6 +24,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       commit: ${{ steps.version.outputs.commit }}
+      summary: ${{ steps.notes.outputs.summary }}
+      changes: ${{ steps.notes.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,6 +50,19 @@ jobs:
             echo "$TAG already exists. Bump MARKETING_VERSION in src/native/apple/config/WorkFleet.xcconfig to publish another preview."
             exit 1
           fi
+      - name: Read the release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The version-bump commit writes this entry; a release cannot start without it.
+          node scripts/release-notes.mjs --version "$VERSION" > /dev/null
+          {
+            echo "summary=$(node scripts/release-notes.mjs --version "$VERSION" --summary)"
+            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
+            node scripts/release-notes.mjs --version "$VERSION"
+            echo 'WORK_FLEET_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
       - run: npm ci --ignore-scripts
       - run: npm test
 
@@ -132,7 +143,7 @@ jobs:
       - name: Archive and package
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          SUMMARY: ${{ inputs.summary }}
+          SUMMARY: ${{ needs.guard.outputs.summary }}
         run: |
           [ -n "$SPARKLE_PRIVATE_KEY" ] || { echo 'Secret SPARKLE_PRIVATE_KEY is not set.'; exit 1; }
           umask 077; printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle.key"
@@ -180,23 +191,21 @@ jobs:
           TAG: ${{ needs.guard.outputs.tag }}
           VERSION: ${{ needs.guard.outputs.version }}
           COMMIT: ${{ needs.guard.outputs.commit }}
+          CHANGES: ${{ needs.guard.outputs.changes }}
         run: |
           cd dist
           for file in WorkFleet-"$VERSION"-macos-universal.*.sha256; do shasum -a 256 -c "$file"; done
           cat > notes.md <<EOF
-          macOS 預覽版，從 ${COMMIT} 建置，已用 Developer ID 簽章並經 Apple 公證。需要 macOS 13 以上。
+          macOS preview built from ${COMMIT}, signed with Developer ID and notarized by Apple. Requires macOS 13 or later.
 
-          主畫面新增便箋牆／清單切換，新便箋預設 240×240；標題帶與內文不再重複顯示標題。
-          附件顯示 Quick Look 縮圖／系統檔案圖示，雙擊交給預設程式開啟唯讀副本；外部修改不回存。
-          Markdown 新增 H1～H6 六階字級與明確語言的程式碼上色，長內容保留完整文字並限制上色工作量。
-          桌面直接切換 checklist 列在 0.3.x ROADMAP，本版維持原行為；便箋、同步與備份格式仍為 V1。
+          ${CHANGES}
 
-          ## 安裝
-          開啟 \`WorkFleet-${VERSION}-macos-universal.dmg\`，把 Work Fleet 拖到「應用程式」。
-          之後可在選單列或設定＞桌面「版本與更新」檢查更新，由 Sparkle 下載、驗證並重新開啟。
-          Google 登入目前是測試中，只有加入測試使用者的帳號能登入。
+          ## Installation
+          Open \`WorkFleet-${VERSION}-macos-universal.dmg\` and drag Work Fleet to Applications.
+          Afterwards you can check for updates from the menu bar or Settings > Desktop > Version and updates; Sparkle downloads, verifies and reopens the app.
+          Google sign-in is in testing: only accounts added as test users can sign in.
           EOF
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
-            --title "Work Fleet for macOS $VERSION（預覽）" --notes-file notes.md \
+            --title "Work Fleet for macOS $VERSION (preview)" --notes-file notes.md \
             WorkFleet-"$VERSION"-macos-universal.dmg WorkFleet-"$VERSION"-macos-universal.dmg.sha256 \
             WorkFleet-"$VERSION"-macos-universal.zip WorkFleet-"$VERSION"-macos-universal.zip.sha256 appcast.xml work-fleet-update.json

@@ -32,6 +32,8 @@ Only Gemini should read and maintain this file.
 
 - **MUST** read AGENTS.md at the start of every session
 - **MUST** follow the Development Workflow defined in AGENTS.md
+- **MUST** record status as AGENTS.md "Status, History and Release Notes" describes: the commit body is the per-change record; never append session entries to PROGRESS.md, and never make a status or release-result commit after a version bump
+- **MUST** write code, comments, commit messages and documentation in English (AGENTS.md "Language"), even when replying to the user in another language
 - **MUST NOT** skip testing when code changes are made
 - **MUST NOT** modify other agents' files (CLAUDE.md, CODEX.md)
 - **SHOULD** ask for clarification when requirements are ambiguous

@@ -4,14 +4,10 @@ name: Linux preview release
 # linux-v<version from src/native/linux/VERSION>, with the DEB, its .sha256 and work-fleet-update.json for the in-app
 # updater (ADR-044). An existing tag or release is never replaced: bump the version to publish another preview. The
 # release is created only after the package is built, so a failed run leaves nothing published.
+# The release text and the in-app update summary come from the version's entry in docs/release-notes.md.
 
 on:
   workflow_dispatch:
-    inputs:
-      summary:
-        description: Plain-text summary shown by the in-app updater (at most 500 characters)
-        required: false
-        default: ''
 
 permissions:
   contents: read
@@ -28,6 +24,8 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       commit: ${{ steps.version.outputs.commit }}
+      summary: ${{ steps.notes.outputs.summary }}
+      changes: ${{ steps.notes.outputs.changes }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -52,6 +50,19 @@ jobs:
             echo "$TAG already exists. Bump src/native/linux/VERSION to publish another preview."
             exit 1
           fi
+      - name: Read the release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The version-bump commit writes this entry; a release cannot start without it.
+          node scripts/release-notes.mjs --version "$VERSION" > /dev/null
+          {
+            echo "summary=$(node scripts/release-notes.mjs --version "$VERSION" --summary)"
+            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
+            node scripts/release-notes.mjs --version "$VERSION"
+            echo 'WORK_FLEET_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
       - run: npm ci --ignore-scripts
       - run: npm test
 
@@ -83,7 +94,7 @@ jobs:
           WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
           WORK_FLEET_GOOGLE_LINUX_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_LINUX_CLIENT_ID }}
           WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET }}
-          SUMMARY: ${{ inputs.summary }}
+          SUMMARY: ${{ needs.guard.outputs.summary }}
           VERSION: ${{ needs.guard.outputs.version }}
         run: |
           bash scripts/linux/build-native-app.sh --deb --update-summary "$SUMMARY"
@@ -115,28 +126,20 @@ jobs:
           TAG: ${{ needs.guard.outputs.tag }}
           VERSION: ${{ needs.guard.outputs.version }}
           COMMIT: ${{ needs.guard.outputs.commit }}
+          CHANGES: ${{ needs.guard.outputs.changes }}
         run: |
           cd dist && sha256sum -c "work-fleet_${VERSION}_all.deb.sha256"
           cat > notes.md <<EOF
-          Linux 預覽版 DEB，從 ${COMMIT} 建置。需要 Debian／Ubuntu／Raspberry Pi OS 的系統 GTK 3 與 WebKitGTK 4.1。
+          Linux preview DEB built from ${COMMIT}. Requires the system GTK 3 and WebKitGTK 4.1 of Debian, Ubuntu or Raspberry Pi OS.
 
-          主畫面新增便箋牆／清單切換，新便箋預設 240×240；標題帶與內文不再重複顯示標題。
-          附件顯示系統縮圖／檔案圖示，雙擊交給預設程式開啟唯讀副本；外部修改不回存。
-          Markdown 新增 H1～H6 六階字級與明確語言的程式碼上色，長內容保留完整文字並限制上色工作量。
-          桌面直接切換 checklist 列在 0.3.x ROADMAP，本版維持原行為；便箋、同步與備份格式仍為 V1。
-          系統縮圖與可開啟的檔案類型依桌面環境安裝的 thumbnailer 與預設程式而異。
+          ${CHANGES}
 
-          便箋啟動不主動要求金鑰圈密碼。Google 權杖與保存的自動備份密碼由 Secret Service 保護；
-          金鑰圈鎖住時只暫停同步／加密備份；按「立即同步」會開啟系統解鎖視窗，成功後接續原帳號同步。
-          取消或逾時可再次重試，切換帳號／關閉會取消舊解鎖操作；開機與背景同步不主動要求密碼。
-          舊版資料首次遷移仍需解鎖原金鑰圈。
-
-          ## 安裝
+          ## Installation
           \`sudo apt install ./work-fleet_${VERSION}_all.deb\`
 
-          之後可在系統匣或設定＞桌面「版本與更新」直接檢查並更新，安裝時需要輸入系統密碼。
-          Google 登入目前是測試中，只有加入測試使用者的帳號能登入。
+          Afterwards you can check for and install updates from the tray menu or Settings > Desktop > Version and updates; installing asks for the system password.
+          Google sign-in is in testing: only accounts added as test users can sign in.
           EOF
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
-            --title "Work Fleet for Linux $VERSION（預覽）" --notes-file notes.md \
+            --title "Work Fleet for Linux $VERSION (preview)" --notes-file notes.md \
             "work-fleet_${VERSION}_all.deb" "work-fleet_${VERSION}_all.deb.sha256" work-fleet-update.json

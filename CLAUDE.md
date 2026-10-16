@@ -24,10 +24,10 @@ Check the **Project Roles** table in `AGENTS.md`.
 
 ## Output Formatting Rules
 
-- **MUST** 使用條列式 (bullet list) 而非表格，除非是模擬圖表或表格真正必要
-- **MUST NOT** 濫用表格語法（`|` 和 `-----`）
-- **SHOULD** 用縮排條列取代多欄表格
-- 例外情況：比較多個選項的優缺點、數據對照表、API 參數規格等真正需要表格的場景
+- **MUST** use bullet lists instead of tables, unless the content is a mock-up or a table is genuinely necessary
+- **MUST NOT** overuse table syntax (`|` and `-----`)
+- **SHOULD** replace multi-column tables with indented bullets
+- Exceptions: comparing the pros and cons of several options, data comparisons, API parameter specifications and other cases that really need a table
 
 ## About This File
 
@@ -43,6 +43,8 @@ Only Claude should read and maintain this file.
 
 - **MUST** read AGENTS.md at the start of every session
 - **MUST** follow the Development Workflow defined in AGENTS.md
+- **MUST** record status as AGENTS.md "Status, History and Release Notes" describes: the commit body is the per-change record; never append session entries to PROGRESS.md, and never make a status or release-result commit after a version bump
+- **MUST** write code, comments, commit messages and documentation in English (AGENTS.md "Language"), even when replying to the user in another language
 - **MUST NOT** skip testing when code changes are made
 - **MUST NOT** modify other agents' files (GEMINI.md, CODEX.md)
 - **SHOULD** ask for clarification when requirements are ambiguous

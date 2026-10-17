@@ -66,6 +66,17 @@ DELIVERED=(); FEED=()
 NOTARY_ARGS=(--keychain-profile "$NOTARY")
 [[ -z "${WORK_FLEET_SIGNING_KEYCHAIN:-}" ]] || NOTARY_ARGS+=(--keychain "$WORK_FLEET_SIGNING_KEYCHAIN")
 deliver() { (cd "$OUTPUT"; shasum -a 256 "$1" > "$1.sha256"); DELIVERED+=("$1"); }
+# Stapling and validating ask Apple's ticket service, whose connection from CI runners sometimes drops ("The network
+# connection was lost", error 68) for minutes at a time; a failed call is retried with growing pauses before the export
+# fails. WORK_FLEET_STAPLER_PAUSE sets the first pause in seconds (tests use 0).
+stapler_retry() {
+    local attempt=1 pause="${WORK_FLEET_STAPLER_PAUSE:-60}"
+    until xcrun stapler "$@"; do
+        [[ $attempt -lt 6 ]] || { echo "stapler $1 failed $attempt times; giving up." >&2; return 1; }
+        echo "stapler $1 failed (attempt $attempt); retrying in $((attempt * pause)) seconds." >&2
+        sleep $((attempt * pause)); attempt=$((attempt + 1))
+    done
+}
 exported() {
     local found=("$OUTPUT/products"/*."$1")
     [[ ${#found[@]} == 1 && -f "${found[0]}" ]] || { echo "Expected exactly one exported .$1 file." >&2; return 1; }
@@ -82,8 +93,8 @@ else
     if [[ -n "$NOTARY" ]]; then
         ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/app-for-notary.zip"
         xcrun notarytool submit "$OUTPUT/app-for-notary.zip" "${NOTARY_ARGS[@]}" --wait
-        xcrun stapler staple "$APP"
-        xcrun stapler validate "$APP"
+        stapler_retry staple "$APP"
+        stapler_retry validate "$APP"
         codesign --verify --deep --strict "$APP"
         spctl --assess --type execute "$APP"
         # The stapled app doubles as the Sparkle update archive; Sparkle checks its EdDSA signature and Apple code signature.
@@ -105,8 +116,8 @@ else
         productbuild "${PACKAGE_ARGS[@]}" "$PACKAGE"
         if [[ -n "$NOTARY" ]]; then
             xcrun notarytool submit "$PACKAGE" "${NOTARY_ARGS[@]}" --wait
-            xcrun stapler staple "$PACKAGE"
-            xcrun stapler validate "$PACKAGE"
+            stapler_retry staple "$PACKAGE"
+            stapler_retry validate "$PACKAGE"
         fi
         deliver "$NAME.pkg"
     fi
@@ -117,8 +128,8 @@ else
         if [[ -n "$APPLICATION" ]]; then codesign --sign "$APPLICATION" --timestamp "$IMAGE"; fi
         if [[ -n "$NOTARY" ]]; then
             xcrun notarytool submit "$IMAGE" "${NOTARY_ARGS[@]}" --wait
-            xcrun stapler staple "$IMAGE"
-            xcrun stapler validate "$IMAGE"
+            stapler_retry staple "$IMAGE"
+            stapler_retry validate "$IMAGE"
             codesign --verify --strict "$IMAGE"
             spctl --assess --type open --context context:primary-signature "$IMAGE"
         fi

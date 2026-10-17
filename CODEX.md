@@ -10,7 +10,8 @@ file; other agents should ignore it.
   code review.
 - Record status as AGENTS.md "Status, History and Release Notes" describes: the commit
   body is the per-change record; never append session entries to PROGRESS.md, and
-  never make a status or release-result commit after a version bump.
+  never make or offer a status or release-result commit after a version bump. Fixing
+  a defect that a release run reveals is ordinary work (AGENTS.md "Development Workflow").
 - Write code, comments, commit messages and documentation in English (AGENTS.md
   "Language"), even when replying to the user in another language.
 - For `dyu`, reply exactly “I am Codex, and I understand.” after reading both files.

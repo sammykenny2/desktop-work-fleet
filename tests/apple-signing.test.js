@@ -89,7 +89,9 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
       productbuild: '[[ "${ALLOW_PKG:-}" == 1 ]] || exit 99\nprintf package > "${@: -1}"',
       codesign: ':',
       spctl: ':',
-      xcrun: 'if [[ "$1" == notarytool && "${FAIL_DMG:-}" == 1 && "$3" == *.dmg ]]; then exit 9; fi',
+      // The first staple fails the way Apple's ticket service does when a CI runner's connection drops.
+      xcrun: 'if [[ "$1" == notarytool && "${FAIL_DMG:-}" == 1 && "$3" == *.dmg ]]; then exit 9; fi\n'
+        + 'if [[ "$1" == stapler && "$2" == staple && -n "${STAPLE_FAIL_ONCE:-}" && ! -e "$STAPLE_FAIL_ONCE" ]]; then : > "$STAPLE_FAIL_ONCE"; exit 68; fi',
     };
     for (const [name, body] of Object.entries(scripts)) {
       const file = path.join(tools, name);
@@ -101,7 +103,8 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     await writeFile(signer, '#!/bin/bash\nprintf \'sparkle:edSignature="' + 'A'.repeat(86) + '==" length="%s"\\n\' "$(wc -c < "${@: -1}" | tr -d \' \')"\n');
     await chmod(signer, 0o755);
     const env = { ...process.env, PATH: tools + path.delimiter + process.env.PATH, TOOL_LOG: path.join(directory, 'tools.log'),
-      WORK_FLEET_SIGNING_KEYCHAIN: path.join(directory, 'temporary.keychain-db') };
+      WORK_FLEET_SIGNING_KEYCHAIN: path.join(directory, 'temporary.keychain-db'), WORK_FLEET_STAPLER_PAUSE: '0',
+      STAPLE_FAIL_ONCE: path.join(directory, 'staple-failed-once') };
     const args = [path.join(directory, 'scripts/macos/package-native-app.sh'), '--platform', 'macos', '--method', 'developer-id',
       '--application-identity', manual.applicationIdentity, '--provisioning-profile', manual.provisioningProfile,
       '--notary-profile', 'fixture-notary', '--dmg', '--no-pkg'];
@@ -114,6 +117,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     assert.equal(log.includes('/productbuild '), false);
     assert.ok(log.includes('--keychain ' + env.WORK_FLEET_SIGNING_KEYCHAIN));
     assert.match(log, /stapler validate .*WorkFleetMac\.app/);
+    assert.equal(log.match(/stapler staple .*WorkFleetMac\.app/g)?.length, 2, 'a dropped staple is retried');
     assert.match(log, /spctl --assess --type open/);
     // Notarization is optional for a local signed DMG. macOS Bash 3 must also handle the empty feed array.
     const notaryIndex = args.indexOf('--notary-profile');

@@ -72,10 +72,13 @@ commit as the change it describes. Nothing is recorded after the fact.
   `tests/release-notes.test.js` fails while a recorded version has no entry.
   Entries must stay true after publication: no "prepared", "published" or
   "released" wording, run IDs, hashes, or the bump commit's own SHA.
-- **No follow-up commits.** Once the version-bump commit is pushed, the release task
-  needs no further tracked edit. Dispatch results, release links, artifact hashes and
-  store status belong in the GitHub Release, the workflow run and the final report
-  in the conversation. ROADMAP.md orders future work; it is not a status record.
+- **No bookkeeping after a release.** Once the version-bump commit is pushed, nothing
+  about the release is recorded in tracked files: no "prepared", "published" or
+  "released" status, run links, artifact hashes or store status in PROGRESS.md, plans,
+  docs or release notes. The GitHub Release, the workflow run and the final report in
+  the conversation hold them. Such commits add nothing, and every agent pushing at the
+  same time then has to merge and re-run CI. Fixing a defect is not bookkeeping; see
+  "Development Workflow". ROADMAP.md orders future work; it is not a status record.
 
 ## Language
 
@@ -151,24 +154,28 @@ already given in the current session without asking again. The repository is pub
 since 2026-10-14: `ci.yml` runs the documented checks on every push to main and every
 pull request; release workflows still run only when dispatched with authorization.
 For an approved release, land implementation, tests and documentation in earlier
-commits. The version-bump commit is the last tracked write of the release task: it
-changes the approved version records (for Windows the `<Version>` in
-`src/native/windows/Directory.Build.props`; see docs/deployment.md for the others)
-and adds that version's `docs/release-notes.md` entry, nothing that needs updating
-afterwards. Push it, verify a clean worktree and matching local/remote main, then
-dispatch the platform's release workflow only with that authorization; it creates the
-`<platform>-v<version>` tag and prerelease. Never reuse, move or delete a published
-tag or release.
+commits. The version-bump commit changes the approved version records (for Windows
+the `<Version>` in `src/native/windows/Directory.Build.props`; see docs/deployment.md
+for the others) and adds that version's `docs/release-notes.md` entry, nothing that
+needs updating afterwards. Push it, verify a clean worktree and matching local/remote
+main, then dispatch each platform's release workflow only with that authorization; it
+creates the `<platform>-v<version>` tag and prerelease. Never reuse, move or delete a
+published tag or release.
 
-For every platform, dispatching a release workflow or starting publication closes
-that release task's repository writes. After that point, agents MUST NOT edit
-tracked files, commit or push follow-up release work, including status, handoff,
-release-result, artifact hash or documentation updates, and MUST NOT offer them as
-optional follow-ups. Monitor the run and verify artifacts in Git-ignored directories;
-report the outcome and links in the conversation. A later explicit user task can
-authorize new repository changes; the original release request and standing
-commit/push permission do not authorize post-release bookkeeping. This boundary
-overrides ordinary documentation and handoff update requirements.
+After dispatch, agents MUST NOT make, or offer, commits whose only purpose is to
+record the release: status, handoff, release-result, artifact-hash or "published"
+documentation updates. Monitor the runs, verify artifacts in Git-ignored directories
+and report outcomes and links in the conversation. Standing commit/push permission
+and ordinary documentation-sync rules do not authorize such bookkeeping.
+
+Fixes remain ordinary work. When a release run fails, or reveals a defect in code,
+scripts or workflows, agents MAY fix it in a normal commit with the usual checks and,
+under the same release authorization, dispatch the failed platform again: a platform
+publishes nothing until its workflow succeeds. A transient outside failure (for
+example a dropped connection to Apple's notary service) may simply be re-run.
+Re-dispatching builds the latest main, so first confirm that main holds no unrelated
+commits since the version bump; otherwise ask the maintainer. A fix for a platform
+whose release is already published ships in a new version, which needs approval.
 
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,

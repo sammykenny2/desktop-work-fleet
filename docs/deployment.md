@@ -150,8 +150,8 @@ applies to all platforms, and also to an agent's documentation and handoff wrap-
    is the target the user approved.
 3. Once Actions is authorized: `gh workflow run windows-preview.yml --ref main` (or run Windows preview release from the
    Actions page with main selected).
-   Note the run URL and check that the run's source SHA is the version-bump commit; from dispatch on, this round does
-   only read-only operations on the repository.
+   Note the run URL and check that the run's source SHA is the version-bump commit; from dispatch on, the repository
+   gets no release bookkeeping (see below).
 4. [windows-preview.yml](../.github/workflows/windows-preview.yml) first confirms that neither the `windows-v<version>`
    tag nor the release exists, reads the version's entry with `scripts/release-notes.mjs` (which fails when the entry is
    missing or malformed) and runs `npm test`.
@@ -171,9 +171,14 @@ applies to all platforms, and also to an agent's documentation and handoff wrap-
    GitHub and in the conversation; do not edit tracked files, commit or push to fill them in.
 
 After dispatch, no commit may be made to update `PROGRESS.md`, handoffs, documents, output lists or release results;
-ordinary documentation sync and standing commit/push authorization are not exceptions.
-Only a new change task the user explicitly asks for later may change the repository again; release wrap-up is never
-treated as a new task.
+ordinary documentation sync and standing commit/push authorization are not exceptions, and such commits are not
+offered either. They add nothing and make everyone pushing at the same time merge and re-run CI.
+Fixes are different: when a run fails because of a defect in code, scripts or workflows, fix it in an ordinary commit
+with the usual checks, then dispatch the failed platform again under the same authorization; a transient outside
+failure, such as a dropped connection to Apple's notary or ticket service, is simply re-run. A platform publishes
+nothing until its workflow succeeds. Re-dispatching builds the latest main, so first confirm that main holds no
+unrelated commits since the version bump, or ask the maintainer. A platform that already published needs a new
+version for a fix.
 This boundary does not depend on whether the workflows can currently only be dispatched manually, and a CI-skip
 directive in a commit message does not replace it.
 
@@ -288,7 +293,9 @@ or a workspace.
 A missing framework, load path or native load failure stops packaging: nothing is sent for notarization and no update file
 is delivered. Details are in [testing](testing.md).
 After notarization the app and DMG signatures, Gatekeeper and the staple are checked, and the update ZIP is signed with
-Sparkle EdDSA;
+Sparkle EdDSA. `stapler` calls reach Apple's ticket service, whose connection from CI runners can drop for minutes
+("The network connection was lost", error 68; four runs in a row on 2026-10-17), so each staple and validate is retried
+up to six times with pauses growing from one minute (`WORK_FLEET_STAPLER_PAUSE` sets the first pause in seconds);
 only when everything succeeds are `WorkFleet-<version>-macos-universal.dmg`/`.zip`, their `.sha256` files,
 `appcast.xml` and `work-fleet-update.json` delivered to `build/`.
 Ordinary local packaging still produces a PKG by default; only `--no-pkg` skips it. Notarizing a PKG still needs
@@ -319,7 +326,8 @@ With the **release** input checked, the same run also publishes a GitHub prerele
 `ios-v<MARKETING_VERSION>` ([ADR-055](decisions/055-mobile-device-build-workflows.md)). As for the desktop previews,
 the version-bump commit must already carry the version's `docs/release-notes.md` entry, which becomes the release
 text; the run refuses a version whose tag or release exists, and it publishes only after the package is built, signed
-and verified. Dispatch closes the release task's repository writes. The IPA is still development-signed and installs
+and verified. After dispatch the same rules as for the desktop previews apply: no release bookkeeping, and a fix for a
+failed run is an ordinary commit. The IPA is still development-signed and installs
 only on the registered devices, whose identifiers its embedded profiles list.
 
 Both use the repository variables `WORK_FLEET_APP_ID` and `WORK_FLEET_GOOGLE_PROJECT_ID`.

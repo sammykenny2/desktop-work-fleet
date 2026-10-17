@@ -42,10 +42,11 @@ upgrade policy when store-launch planning starts, as required by root AGENTS.
 - Releases: land all other tracked changes first. The version-bump commit changes
   the approved version records and adds the version's entry to
   [release notes](release-notes.md); the release workflows read that entry. Follow
-  [deployment](deployment.md) and root AGENTS: dispatch closes repository writes
-  for that release task. Afterwards, monitor, verify ignored artifacts and report in
-  the conversation; do not make a status, documentation or handoff commit, and do
-  not offer one. New repository work requires a new explicit user task.
+  [deployment](deployment.md) and root AGENTS. After dispatch, monitor, verify
+  ignored artifacts and report in the conversation; do not make or offer a status,
+  documentation or handoff commit about the release. A failed run is fixed like any
+  defect: an ordinary commit with checks, then dispatch that platform again, provided
+  main holds nothing unrelated since the bump and the platform has not published.
 
 ## Optional Protocol Integrations
 

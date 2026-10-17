@@ -1,189 +1,207 @@
-# PLAN-003: 卡片、群組與跨平台桌面互動的實作交接
+# PLAN-003: Implementation Handoff for Cards, Groups and Cross-Platform Desktop Interaction
 
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | 實作已授權；執行狀態見 PROGRESS |
-| Owner | 專案維護者 |
-| Assigned To | 未指定 |
-| Reviewer | 實作交付時安排獨立審閱；本輪沒有獨立審閱 |
-| 日期 | 2026-10-04 |
+| Status | In Progress; slice status as of 2026-10-17 is in the Progress log |
+| Owner | Project maintainer |
+| Assigned To | Unassigned |
+| Reviewer | An independent review is arranged at implementation delivery; this round had none |
+| Date | 2026-10-04 |
 
 ## Related Spec
 
-[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) 是行為與 C01–C48 驗收權威。
-[ADR-006](../decisions/006-card-group-and-formation-semantics.md) 接受使用者已確認的產品語意；
-[ADR-007](../decisions/007-desktop-scene-and-platform-host.md) 仍是呈現架構提案。
-[ADR-008](../decisions/008-portable-interaction-core.md) 接受共用語意核心；後續對話已核准完整 editor／備份／逐卡設定範圍及五平台原生 App、商店準備。
-執行狀態只寫 [PROGRESS](../../PROGRESS.md)，不在本計畫維護另一份完成清單。
+[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) is the authority for behaviour and the C01–C48 acceptance cases.
+[ADR-006](../decisions/006-card-group-and-formation-semantics.md) accepts the product semantics the user confirmed;
+[ADR-007](../decisions/007-desktop-scene-and-platform-host.md) is still a presentation architecture proposal.
+[ADR-008](../decisions/008-portable-interaction-core.md) accepts the shared semantic core; later conversations approved the full editor / backup / per-card settings scope, native apps on five platforms and store preparation.
+The status of the 1.0 execution slices is kept in this plan's Progress log and updated in the same commit as the work;
+the current project status is in [PROGRESS](../../PROGRESS.md).
 
 ## Overview
 
-2026-10-05 Windows 桌布層追加：依 [ADR-030](../decisions/030-windows-explorer-wallpaper-layer.md)
-分開 Explorer 圖示／桌布宿主並建立三層場景，更新穿透與能力回報，再以共用政策測試、
-實際附著／像素探針與主畫面切層流程驗證後重新打包。執行結果仍只記於 PROGRESS。
+2026-10-05 Windows wallpaper layer addition: following [ADR-030](../decisions/030-windows-explorer-wallpaper-layer.md),
+separate the Explorer icon host and wallpaper host and build three-layer scenes, update pass-through and capability reporting,
+then verify with shared policy tests, real attachment / pixel probes and the main-window layer switching flow before repackaging.
+Verification evidence is in the git history and [testing](../testing.md).
 
-同日依 [ADR-031](../decisions/031-macos-and-linux-wallpaper-scenes.md) 補上 macOS 圖示下方場景與
-Linux BACKGROUND，接續已讀 Pi／labwc 成果，修正 GTK 穿透、size request 與重畫。
-原生測試分別記錄 Windows、隔離 Linux compositor 與尚需 Mac SDK 的範圍，不合併宣稱通過。
+On the same day, [ADR-031](../decisions/031-macos-and-linux-wallpaper-scenes.md) added the macOS below-icons scene and
+the Linux BACKGROUND layer, building on the Pi / labwc results already reviewed, and fixed GTK pass-through, size requests and redraws.
+Native tests are recorded separately for Windows, an isolated Linux compositor and the scope that still needs the Mac SDK, with no combined pass claim.
 
-先完成一事一卡、群組／每機版面、formation 與互動命令，
-再使同一組行為通過各平台 host 與 Google 同步的實際整合。
-不能把計畫簡化成「先做純文字 CRUD，以後才補分組／桌面互動」。
-同樣不能因技術不確定就先實作完整 server／PM 模型或另啟 Mac 探索專案。
+First complete one card per thing, groups / per-machine layout, formation and interaction commands,
+then make the same behaviour pass the real integration with each platform host and Google sync.
+The plan must not be reduced to "do plain-text CRUD first and add groups / desktop interaction later".
+Likewise, technical uncertainty is no reason to implement a full server / PM model first or start another Mac exploration project.
 
-此計畫補足 [PLAN-002](002-google-drive-notes-mvp.md) 的互動、群組和平台工作；
-Google OAuth／衝突／備份仍需要自己的正式契約，舊版範圍裁切不再自動生效。
+This plan adds the interaction, group and platform work to [PLAN-002](002-google-drive-notes-mvp.md);
+Google OAuth / conflicts / backup still need their own formal contracts, and the old scope cuts no longer apply automatically.
 
 ## Implementation phases
 
-### Phase 1：需求交接及契約，先消除會改變資料模型的歧義
+### Phase 1: Requirements handoff and contracts; first remove ambiguities that would change the data model
 
-閱讀接手文件、SPEC-003、ADR-006／007 及平台研究。
-U 與 D 可按文件開發；Q 只在開始依賴它的工作前詢問。
-不重問使用者已接受的最上層與手勢，不把對文件整理的授權變成商店提交或改使用者桌面設定。
+Read the handoff documents, SPEC-003, ADR-006 / 007 and the platform research.
+U and D can be developed as documented; ask about a Q only before starting work that depends on it.
+Do not ask again about the topmost layer and gestures the user already accepted, and do not turn authorization to organize documents into store submission or changes to the user's desktop settings.
 
-交付物：
+Deliverables:
 
-- Card、Group、SourceRef、DeviceLayout、FormationPlan、InteractionState 的 typed 契約。
-- 「一事一卡」與 checklist 子步驟的邊界，不先建多 issue 的 note 容器。
-- MoveCardToGroup、MoveCard、ApplyFormation、UndoLayout、ActivateScope、CycleCard、
-  BeginEdit／EndEdit 的命令與錯誤型別。
-- 共享群組 metadata 的來源／版本／引用策略，並行超過九組的無損處理。
-- 明確區分 content revision、device layout revision、當次 drag/session ID。
-- 正式 runtime／renderer/host 候選比較：商店、授權、可控疊序、input region、可靠本機保存。
+- Typed contracts for Card, Group, SourceRef, DeviceLayout, FormationPlan and InteractionState.
+- The boundary between "one card per thing" and checklist sub-steps; do not build a note container for several issues first.
+- Commands and error types for MoveCardToGroup, MoveCard, ApplyFormation, UndoLayout, ActivateScope, CycleCard and
+  BeginEdit / EndEdit.
+- The source / version / reference strategy for shared group metadata, and lossless handling of more than nine concurrent groups.
+- A clear distinction between content revision, device layout revision and the current drag/session ID.
+- A comparison of formal runtime / renderer/host candidates: store, licenses, controllable stacking order, input region, reliable local saving.
 
-出口：至少可將 SPEC-003 的每條不變量對應到模型或命令，
-不要只用 native window API 組合出一套無法脫離平台測試的邏輯。
-若需輔助外部實作，依接手規則先向維護者取得位置；不自行搜尋整台磁碟。
+Exit: at least every SPEC-003 invariant maps to a model or command;
+do not assemble the logic only from native window APIs that cannot be tested apart from the platform.
+If an external implementation is needed for reference, first ask the maintainer for its location as the handoff rules say; do not search the whole disk.
 
-### Phase 2：本機核心、formation 與可重現的互動模型
+### Phase 2: Local core, formation and a reproducible interaction model
 
-先用 in-memory/fake source 及隔離資料建立共用 fixture，不操作真實 Google 帳號。
+First build shared fixtures with an in-memory/fake source and isolated data; do not touch a real Google account.
 
-交付物：
+Deliverables:
 
-- 穩定群組 ID、單主要群組、九組限制與完整 grid validation。
-- 不改歸屬的普通拖動；Group／All scope 與 active group 分離。
-- 穩定 base order＋暫時 z-order 的 comparator，輪播不改 geometry。
-- FormationPlanner：不變輸入、不直接寫 native window，輸出位置、基本疊序、resize request、overflow。
-- 位置／尺寸同意分開，原子本機 layout transaction 與 undo。
-- 初始卡片只安排自己的位置；遠端內容、群組變更不觸發背景 formation。
-- 輸入狀態清理、雙擊／拖曳門檻、Esc／IME 邊界與草稿安全退出。
+- Stable group IDs, a single primary group, the nine-group limit and full grid validation.
+- Ordinary dragging that does not change membership; Group / All scope separate from the active group.
+- A comparator of stable base order + temporary z-order; cycling does not change geometry.
+- FormationPlanner: immutable input, no direct writes to native windows, output of positions, base stacking order, resize requests, overflow.
+- Separate consent for position and size, atomic local layout transactions and undo.
+- Initial cards only place themselves; remote content and group changes do not trigger background formation.
+- Input state cleanup, double-click / drag thresholds, Esc / IME boundaries and a safe exit for drafts.
 
-出口：C01–C15、C17、C21–C30、C31–C39、C44 的可模擬部分有可重現預期結果。
-這是邏輯測試完成，不是原生分層或穿透完成。
+Exit: the simulatable parts of C01–C15, C17, C21–C30, C31–C39 and C44 have reproducible expected results.
+This completes the logic tests, not native layering or pass-through.
 
-### Phase 3：共同互動場景與可用的 editor 接口
+### Phase 3: Shared interaction scene and a usable editor interface
 
-交付物：
+Deliverables:
 
-- 乾淨的普通畫面／操作畫面；只在操作或拖曳時出現需要的把手、接收標籤與狀態。
-- 群組標籤與 Shift 區域 drop target、顏色加文字的候選提示、取消／完成／復原回饋。
-- 卡片 action 的同一 MoveCardToGroup 命令；一般 App／手機入口不依賴桌面 geometry。
-- 單擊選卡、雙擊編輯與可達的鍵盤／選單入口；文字區與拖曳把手不搶同一事件。
-- 裝置本機突出、群組計數、grid 預覽與容量提示。
-- 草稿寫入失敗、來源唯讀、同步衝突時的可恢復 UI。
+- A clean normal view / operating view; handles, drop labels and states appear only during operation or dragging.
+- Group labels and Shift region drop targets, candidate hints with colour plus text, feedback for cancel / done / undo.
+- The same MoveCardToGroup command for card actions; the normal app / phone entry does not depend on desktop geometry.
+- Single click selects a card, double click edits, plus reachable keyboard / menu entries; the text area and drag handle do not compete for the same event.
+- Device-local highlighting, group counts, grid preview and capacity hints.
+- Recoverable UI for draft write failures, read-only sources and sync conflicts.
 
-出口：用可操作畫面驗證 C06–C13、C18–C30、C33–C34；
-保留 render 截圖／操作記錄，標示一般 App／browser 與真正桌面 host 的差別。
-不要重新做已被拒絕的 accordion，也不從外部專案搬設定頁。
-內容 editor 的新能力依 Q01 確認；不能用完整純文字產品代替未決內容契約。
+Exit: verify C06–C13, C18–C30 and C33–C34 with an operable view;
+keep render screenshots / operation records and mark the difference between the normal app / browser and the real desktop host.
+Do not rebuild the rejected accordion, and do not move settings pages over from external projects.
+New capabilities of the content editor follow the Q01 confirmation; a complete plain-text product does not replace an undecided content contract.
 
-### Phase 4：三個目標桌面 host 的正式垂直切片
+### Phase 4: Formal vertical slices on the three target desktop hosts
 
-Windows、macOS、Linux 各自接相同語意 fixture；可依可用機器分批，但不能刪平台目標。
-Mac 已有公開 API host 經驗，無需先重做舊探索性 probe。
+Windows, macOS and Linux each connect the same semantic fixtures; they may go in batches by available machines, but no platform target is dropped.
+The Mac already has public-API host experience, so the old exploratory probe does not need to be redone first.
 
-| 平台工作 | 交付證據 |
+| Platform work | Delivered evidence |
 |---|---|
-| Windows host | 正常層／指定組浮起／退出恢復、拖放、提示不攔桌面、DPI 與 capture cleanup |
-| macOS host | 公開 API＋Sandbox、一般 App 上方、拖拉轉組／編輯、返回原層與焦點 |
-| labwc／Wayland host | layer-shell 能力、renderer 自管同層疊序、input region／configure／重繪、快捷鍵替代入口 |
-| 各平台共通 | C16、C35、C36、C40–C43、C46–C47 的實際桌面證據 |
+| Windows host | Normal layer / chosen group floats up / restored on exit, drag and drop, hints that do not block the desktop, DPI and capture cleanup |
+| macOS host | Public API + Sandbox, above normal apps, drag to change group / edit, return to the original layer and focus |
+| labwc / Wayland host | layer-shell capability, renderer-managed stacking within one layer, input region / configure / redraw, alternative shortcut entry |
+| Common to all platforms | Real desktop evidence for C16, C35, C36, C40–C43 and C46–C47 |
 
-證據必須記 OS/build、compositor（Linux）、CPU、螢幕數／縮放、backend／封裝、測試方式。
-逐項區分 pass、fail、not-run、unsupported；不以 API 呼叫成功當使用者畫面通過。
-多螢幕需要額外設備時記為未測，先完成單螢幕共用行為，不在缺設備時假裝完成。
-不擅自改 TCC、全域快捷鍵、compositor 設定或重啟使用者桌面工作階段。
+Evidence must record the OS/build, compositor (Linux), CPU, number of displays / scaling, backend / packaging and test method.
+Distinguish pass, fail, not-run and unsupported item by item; a successful API call is not a pass of the user's screen.
+When multiple displays need extra equipment, record them as untested; finish the shared single-display behaviour first and do not pretend completion without the equipment.
+Do not change TCC, global shortcuts, compositor settings or restart the user's desktop session without permission.
 
-出口：正常→群組操作→輪播→轉組→編輯→結束穿透的完整路徑，
-以及取消／保存失敗／焦點離開的行為可在宣稱支援的環境重現。
-不宣稱所有 GNOME／X11／其他 Wayland 都已支援同一原生呈現路徑。
+Exit: the full path normal → group operation → cycling → change group → edit → back to pass-through,
+and the cancel / save failure / focus loss behaviour, can be reproduced in the environments claimed as supported.
+Do not claim that all GNOME / X11 / other Wayland desktops support the same native presentation path.
 
-### Phase 5：Google、多 client 與備份整合
+### Phase 5: Google, multiple clients and backup integration
 
-依 PLAN-002 的來源與同步契約實作，不把原型 Python server 作為 1.0 常駐依賴。
-群組與卡片內容需要同步；每機 layout、interaction scope 不串到別台機器。
+Implement according to PLAN-002's source and sync contracts; do not make the prototype Python server a permanent 1.0 dependency.
+Groups and card content must sync; per-machine layout and interaction scope do not leak to other machines.
 
-交付物：
+Deliverables:
 
-- 兩 client 的相同 cardId、groupId、不同 DeviceLayout；A formation 不移 B 版面。
-- 遠端新增落在本機群組區域，不重排舊卡；已有位置的遠端轉組不自動召回。
-- 轉組與改文／刪除／群組刪除並行時的衝突保存與重試去重。
-- 裝置登出／帳號切換清掉暫時操作，隔離草稿、layout 與背景回應。
-- 備份 schema 修訂納入群組／引用及已確認內容能力；Q02 確認後決定版面及還原模式。
-  不能直接凍結沒有 groupId／群組資料的 SPEC-002 舊草案。
+- The same cardId and groupId on two clients with different DeviceLayouts; formation on A does not move B's layout.
+- Remote additions land in the local group region without rearranging old cards; a remote group change for a card that already has a position does not recall it automatically.
+- Conflict preservation and retry deduplication when a group change runs concurrently with a text edit / deletion / group deletion.
+- Device sign-out / account switching clears temporary operations and isolates drafts, layout and background responses.
+- The backup schema revision includes groups / references and the confirmed content capabilities; after Q02 is confirmed, decide the layout and restore modes.
+  The old SPEC-002 draft without groupId / group data must not be frozen as is.
 
-出口：C29–C39、C44、C48 的真實整合部分有證據；
-mock/fake source 不冒充 Google 跨平台 client ID 存取成功。
+Exit: the real-integration parts of C29–C39, C44 and C48 have evidence;
+a mock/fake source is not passed off as successful Google access with cross-platform client IDs.
 
-### Phase 6：發佈與接手材料
+### Phase 6: Release and handoff material
 
-- 按已確認的版本節奏交付 Windows/macOS/Linux，保留 Apple／Google 自有 App 目標。
-- 本次亦交付 iOS／Android 原生 App 與商店提交準備，沿用共用資料命令，不以桌面操作手勢替代手機 UX。
-- 對實際 package 列授權／轉遞依賴、簽章與商店配置，不從原 repo 的 MIT 推導全部依賴可直接使用。
-- 最終操作文件要與快捷鍵註冊結果、Linux backend、可用層級一致。
-- 保存 C01–C48 的證據映射與已知限制，執行狀態回寫 PROGRESS。
-- 商店核准、真正跨裝置同步及原生桌面行為各自有門檻，不互相代替。
+- Deliver Windows/macOS/Linux at the confirmed version cadence, keeping the Apple / Google first-party app targets.
+- This round also delivers native iOS / Android apps and store submission preparation, reusing the shared data commands; desktop gestures do not replace the phone UX.
+- List licenses / transitive dependencies, signing and store configuration for the actual packages; do not infer from the original repo's MIT that all dependencies can be used directly.
+- The final operating documentation must match the shortcut registration results, the Linux backend and the available layers.
+- Keep the evidence mapping for C01–C48 and the known limits; update the slice status in this plan, and PROGRESS when project-level status changes.
+- Store approval, real cross-device sync and native desktop behaviour each have their own bar and do not substitute for one another.
 
 ## Files to create or modify
 
-以下是邏輯位置建議，實際檔名／語言隨 runtime 決定，沒有宣稱這些模組已存在：
+These are suggested logical locations; actual file names / languages follow the runtime decision, and no claim is made that these modules exist:
 
-| 邏輯範圍 | 交付物 |
+| Logical scope | Deliverables |
 |---|---|
-| contracts/cards、groups、layout、interaction | typed schema、commands、capabilities、fixture |
-| src/core | shared card/group、drafts、conditional transfer、outbox |
-| src/layout | formation planner、device layout store、undo |
-| src/interaction | scope/focus、gesture lifecycle、selection/edit policy |
-| src/renderers | common scene、card/editor presentation、target highlights |
-| src/platforms | Win/macOS/Linux host、keyboard／pointer／monitor adapters |
-| src/sources | Drive/file source、group metadata、future source interface |
-| tests | semantic／fault／renderer／native integration acceptance |
-| docs | 決策、使用者操作、證據、授權與發佈狀態 |
+| contracts/cards, groups, layout, interaction | typed schema, commands, capabilities, fixture |
+| src/core | shared card/group, drafts, conditional transfer, outbox |
+| src/layout | formation planner, device layout store, undo |
+| src/interaction | scope/focus, gesture lifecycle, selection/edit policy |
+| src/renderers | common scene, card/editor presentation, target highlights |
+| src/platforms | Win/macOS/Linux host, keyboard / pointer / monitor adapters |
+| src/sources | Drive/file source, group metadata, future source interface |
+| tests | semantic / fault / renderer / native integration acceptance |
+| docs | Decisions, user operation, evidence, licenses and release status |
 
-不能因目錄示例而先建立大量空 class／bridge 或讓每張卡各自啟動同步。
-既有 prototype 與報告保留，來源遷移需有明確轉換方案，不抹掉其已知 Windows restore 問題。
+The directory examples are no reason to create many empty classes / bridges first or to let each card start its own sync.
+The existing prototype and reports stay; a source migration needs an explicit conversion plan and must not erase its known Windows restore issue.
 
 ## Testing strategy
 
-| 層 | 真正要驗的行為 |
+| Layer | Behaviour that must really be verified |
 |---|---|
-| 模型／命令 | grid 邊界、歸屬不因移位改變、暫時 z 不污染 base、資料與 layout 不串台 |
-| 規劃器 | 所有參與卡保留、尺寸授權、可容納時摘要可見、穩定重算、undo |
-| 故障／並行 | draft fail、取消、捕捉中斷、目標刪除、同卡轉組競爭、轉組回應遺失 |
-| 互動畫面 | click/drag/dblclick、Shift 切換、標籤目標、文字選取與 IME、微亮狀態一致 |
-| 原生 host | 實際分層、桌面穿透、焦點與重新切層、縮放與顯示器回復 |
-| Source | 真實 Google、多帳號隔離、不同 client ID、backup round-trip |
+| Model / commands | Grid boundaries, membership unchanged by moves, temporary z does not pollute base, data and layout do not leak across machines |
+| Planner | All participating cards kept, size authorization, summaries visible when they fit, stable recomputation, undo |
+| Faults / concurrency | Draft failure, cancel, interrupted capture, deleted target, concurrent group changes for the same card, lost response to a group change |
+| Interaction view | click/drag/dblclick, Shift switching, label targets, text selection and IME, consistent highlight state |
+| Native host | Actual layering, desktop pass-through, focus and re-layering, scaling and display recovery |
+| Source | Real Google, multi-account isolation, different client IDs, backup round trip |
 
-不得為文件變更重跑整套產品 probe；本輪只做文件連結、UTF-8/LF、差異與語意一致性檢查。
-正式行為變更時選擇相應的回歸，別用鏡像實作細節的測試代替使用者結果。
+Do not rerun the full product probe suite for a documentation change; this round only checks document links, UTF-8/LF, the diff and semantic consistency.
+For formal behaviour changes, choose the matching regressions; do not replace user outcomes with tests that mirror implementation details.
 
 ## Risks and mitigations
 
-| 風險 | 必須處理 |
+| Risk | Must handle |
 |---|---|
-| Q 被默認縮成舊版 MVP | 實作相關能力前明確決定，不重問已確認 U |
-| Native window z-order 不可攜 | 可控場景／合成表面；不依賴 Wayland 同層未定義排序 |
-| 表面太大攔住桌面 | input region／分表面策略及真實桌面驗收 |
-| 微亮與實際提交不一致 | 同一目標解析器、pointer-up 重驗、穩定 groupId |
-| 轉組覆蓋遠端本文 | 最小命令＋revision guard，保存雙方意圖 |
-| formation 偷偷動別台／別組 | scope 快照與每機 transaction，C07／C08／C37 |
-| 尺寸調整偷用永久同意 | 本次預覽選項與 undo；未允許保持尺寸 |
-| 原參考位置未知 | 詢問維護者，繼續本 repo 契約與測試工作，不做全磁碟搜尋 |
+| A Q is silently narrowed to the old MVP | Decide explicitly before implementing the related capability; do not ask again about confirmed U |
+| Native window z-order is not portable | Controllable scene / composited surface; do not rely on the undefined same-layer order on Wayland |
+| A surface that is too large blocks the desktop | Input region / split-surface strategy and real desktop acceptance |
+| Highlight and actual commit disagree | The same target resolver, revalidation on pointer-up, stable groupId |
+| A group change overwrites the remote body | Minimal command + revision guard, keeping both sides' intent |
+| Formation quietly moves other machines / groups | Scope snapshot and per-machine transactions, C07 / C08 / C37 |
+| Size changes use a permanent consent covertly | Preview option for this run and undo; keep the size when not allowed |
+| Location of the original reference unknown | Ask the maintainer, keep working on this repo's contracts and tests, no whole-disk search |
 
 ## Progress log
 
-2026-10-04 建立詳細接手計畫；完成／失敗／尚待工作只記根目錄 PROGRESS.md。
+2026-10-04: detailed handoff plan created.
+
+1.0 execution slices, status as of 2026-10-17:
+
+| Slice | Scope | Status |
+|---|---|---|
+| 1 | Shared Card/Group, formation, layout/undo, interaction, atomic commands | Done; independent review findings fixed and rechecked |
+| 2 | Formal local storage, shared renderer, Markdown/checklists/attachments, complete/archive, full settings | Shared UI and IndexedDB done; Windows SQLite/DPAPI, macOS Keychain/SQLite and Linux SQLite with the local key are in daily use; Android and iOS storage start on devices, with no full device acceptance |
+| 3 | Drive revision graph, OAuth, outbox, conflicts, account isolation | Done in shared code and all five hosts; Windows real sign-in and Drive upload verified; Windows, macOS and Linux used with one real account; phones not verified |
+| 4 | Manual, automatic and encrypted backups with groups/layout/attachments; import/merge/replace restores | Shared code and Windows native done; Android SAF, Apple bookmark and Linux native folders implemented but not run on real devices |
+| 5 | Windows/macOS/Linux native hosts, layering/pass-through/shortcuts/displays | Implemented, built in CI or release workflows and used on real machines; the full OS matrix (versions, multi-display, IME, sleep) is missing |
+| 6 | iOS/Android native apps, files/OAuth/sharing/life cycle | Android APK runs on a Pixel 9 Pro; iOS development build runs on an iPhone 16 Plus; Google and full operation not verified |
+| 7 | Installers, signing and store submission preparation, license inventory, final 1.0 acceptance | Windows MSIX, Linux DEB and macOS notarized DMG come from manual workflows; phone APK/IPA workflows exist but have not been dispatched; release AAB, App Store archive, screenshots, final SDK license inventory and submissions are missing |
+
+Slices may interleave according to their dependencies; this does not reduce the delivery scope.
+Update this table in the same commit as the work it describes; history and verification evidence are in the git history and
+[testing](../testing.md).

@@ -1,151 +1,206 @@
-# ADR-043: 主視窗位置記憶與啟動行為
+# ADR-043: Main window placement memory and startup behavior
 
 ## Status
 
-Accepted，2026-10-14。使用者要求參考一個 Electron 桌面專案，帶入主視窗位置記憶與「啟動行為」，確認「登入電腦時啟動」預設開啟，
-並在同日指示依此開工；SPEC-006 的 Q 仍待回答。參考與證據見 [研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)。
+Accepted, 2026-10-14. The user asked to follow an Electron desktop project and bring in main window placement memory
+and "Startup behavior", confirmed that "Start Work Fleet at sign-in" is on by default, and on the same day said to
+start the work on that basis; the SPEC-006 questions (Q) are still open. Reference and evidence:
+[research](../research/2026-10-14-desktop-window-startup-and-update-reference.md).
 
-2026-10-17 修訂：使用者回報 Pi 安裝版「我明明設定是關的, 主畫面還是會打開」，並指示「fix them both」（Linux 與 Windows）。
-登入時系統匣「還沒就緒」不再當成「不可用」，見 Decision 的「登入時等待系統匣」。
+Revised 2026-10-17: the user reported that on the installed Pi build "I set it to off, and the main window still
+opens", and said to "fix them both" (Linux and Windows). At sign-in, a tray that is "not ready yet" is no longer treated
+as "unavailable"; see "Waiting for the tray at sign-in" under Decision.
 
 ## Context
 
-Windows、macOS、Linux 的主視窗每次都以固定大小置中開啟，不記得使用者調整過的位置、大小或最大化。
-App 平常收在系統匣，主畫面可能隱藏數天；期間顯示器可能拔除或改變 DPI，只在啟動時驗證位置不夠。
-桌面便箋要在登入後出現，但目前沒有登入啟動；關閉主畫面固定收到系統匣，無法改成結束。
+On Windows, macOS and Linux the main window always opened centered at a fixed size and did not remember the position,
+size or maximized state the user had set. The app usually sits in the tray, and the main window may stay hidden for
+days; in that time a display may be unplugged or change DPI, so checking the position only at startup is not enough.
+Desktop notes should appear after sign-in, but there was no start at sign-in; closing the main window always put it in
+the tray and could not be changed to exit.
 
-卡片位置等裝置設定存在每個 profile 的 `layout`，會進入完整備份並隨帳號切換（SPEC-002／003）。
-主視窗位置屬於這台電腦的視窗外觀，不應因匯入備份或切換 Google 帳號而移動。
-主機層級的偏好已有先例：資料目錄的 `profile.txt` 與 Linux `display-backend.txt`（ADR-040）。
+Device settings such as card positions live in each profile's `layout`, go into complete backups and follow account
+switches (SPEC-002/003). The main window's placement belongs to how this computer's windows look, and should not move
+because a backup is imported or the Google account changes.
+Host-level preferences already have precedents: `profile.txt` in the data directory and Linux `display-backend.txt`
+(ADR-040).
 
-MSIX 的登入啟動以 StartupTask 宣告，使用者可在工作管理員或設定停用，App 不能改回；
-每次啟動重新註冊、只顯示儲存值，會與使用者在系統中的選擇不一致（參考專案的做法）。
+In MSIX, the start at sign-in is declared as a StartupTask. The user can disable it in Task Manager or Settings, and
+the app cannot turn it back on. Re-registering on every start and showing only the stored value (the reference
+project's approach) would disagree with the user's choice in the system.
 
 ## Decision
 
-### 主機偏好檔
+### Host preference files
 
-- 資料目錄新增 `host-preferences.json`（啟動行為與更新的 lastCheckedAt）及 `window-placement.json`。
-  兩者屬於主機層級：不分 profile、不進入備份或 Google，切換帳號不變。
-- 格式含 `version: 1`；無法解析、版本不明或數值無效時視為未設定並使用預設，不阻擋啟動。
-  以暫存檔、flush 與 rename 原子寫入。MSIX 解除安裝時隨套件資料清除（ADR-037）。
-- Renderer 只透過新增的 `host.*` bridge 方法讀寫，host 驗證內容並回傳實際生效的狀態；bridge protocol 仍為 1。
+- The data directory gains `host-preferences.json` (startup behavior and the update lastCheckedAt) and
+  `window-placement.json`. Both are host level: not per profile, not in backups or Google, and unchanged by account
+  switches.
+- The format includes `version: 1`. A file that cannot be parsed, has an unknown version or holds invalid values is
+  treated as unset and the defaults apply; it never blocks startup.
+  Writes are atomic through a temporary file, flush and rename. Uninstalling the MSIX removes them with the package
+  data (ADR-037).
+- The renderer reads and writes them only through the new `host.*` bridge methods; the host validates the content and
+  returns the state that actually took effect. The bridge protocol stays at 1.
 
-### 主視窗位置與大小
+### Main window position and size
 
-- 保存還原狀態（normal）的位置與大小，以及是否最大化；不保存全螢幕、最小化或顯示器識別。
-- 座標：Windows 以 `GetWindowRect`／`SetWindowPos` 的實體螢幕像素保存與套用，避免 WPF DIP 在混合 DPI 下換算錯誤；
-  `WINDOWPLACEMENT` 使用 workspace 座標，不適合拿來對照顯示器工作區。移到不同 DPI 的顯示器會先被縮放一次，所以套用兩次。
-  以 `IsZoomed`／`IsIconic` 判斷實際狀態；
-  macOS 以 points 的視窗 frame；Linux X11 保存位置與大小，Wayland 只保存大小與最大化（合成器決定位置）。
-- 還原：選與保存範圍交集最大的顯示器工作區，必要時縮小並夾回工作區內，再套用最小尺寸；
-  與所有顯示器都不相交時使用預設。最大化在主視窗第一次顯示時才套用，登入隱藏啟動不因此顯示。
-- 每次從系統匣、第二次啟動或快捷鍵顯示主視窗前都重新驗證，不只在程序啟動時檢查。
-- 保存：移動、縮放、最大化變更後 500 ms debounce；收到系統匣、保存並結束、系統登出／關機與更新安裝前補寫一次。
-  內容未變不寫；寫入失敗只記錄，不阻擋關閉。
-- 最小化與 [ADR-042](042-adjust-overlay-on-every-desktop-host.md) 調整遮罩的讓開／恢復不改變保存的位置；
-  恢復仍由主機以自己記住的狀態處理。
-- 預設維持 1180×800 置中於主要工作區；工作區較小時縮小到可容納，最小 380×520 不變。
-- 設定＞桌面提供「重置主視窗大小與位置」：刪除保存檔並立即套用預設。桌面場景與卡片位置不受影響。
+- Saved: the position and size of the restored (normal) state, and whether the window is maximized. Not saved:
+  full screen, minimized, or display identity.
+- Coordinates: Windows saves and applies physical screen pixels through `GetWindowRect`/`SetWindowPos`, avoiding WPF
+  DIP conversion errors under mixed DPI; `WINDOWPLACEMENT` uses workspace coordinates and is unsuitable for comparing
+  with display work areas. Moving to a display with a different DPI scales the window once first, so the placement is
+  applied twice. The actual state is read with `IsZoomed`/`IsIconic`.
+  macOS uses the window frame in points; Linux X11 saves position and size, and Wayland saves only size and maximized
+  state (the compositor decides the position).
+- Restore: pick the display work area with the largest intersection with the saved bounds, shrink and clamp into the
+  work area if needed, then apply the minimum size; if the bounds intersect no display, use the default. Maximizing is
+  applied only when the main window is first shown, so a hidden start at sign-in does not show it for that reason.
+- The placement is re-validated every time the main window is shown from the tray, a second launch or a shortcut, not
+  only at process start.
+- Saving: 500 ms debounce after a move, resize or maximize change; one extra write when going to the tray, on save and
+  exit, at system sign-out/shutdown and before an update installs. Unchanged content is not written; a failed write is
+  only logged and never blocks closing.
+- Minimizing and the step-aside/restore of the [ADR-042](042-adjust-overlay-on-every-desktop-host.md) adjust overlay
+  do not change the saved placement; the host still restores from the state it remembers itself.
+- The default stays 1180×800 centered on the primary work area; a smaller work area shrinks it to fit, and the minimum
+  of 380×520 is unchanged.
+- Settings > Desktop offers "Reset main window size and position": it deletes the saved file and applies the default at
+  once. Desktop scenes and card positions are not affected.
 
-### 啟動行為
+### Startup behavior
 
-設定＞桌面新增「啟動行為」三個選項：
+Settings > Desktop gains a "Startup behavior" section with three options:
 
-1. 「登入電腦時啟動 Work Fleet」，預設開啟。
-2. 「關閉主畫面時保留在系統匣」，預設開啟，即目前行為；關閉時改走既有「保存並結束」流程。
-   系統匣不可用時仍一律結束。
-3. 「登入啟動後開啟主畫面」，預設關閉：登入啟動時主畫面保持隱藏，桌面便箋照常開始，由系統匣或再次啟動開啟。
-   手動開啟一律顯示主畫面；系統匣不可用時也顯示。
+1. "Start Work Fleet at sign-in", on by default.
+2. "Keep running in the tray when the main window closes", on by default, which is the existing behavior; when off,
+   closing takes the existing "save and exit" path. When the tray is unavailable, closing always exits.
+3. "Open the main window after a sign-in start", off by default: after a start at sign-in the main window stays hidden
+   while desktop notes start as usual, and the tray or a second launch opens it.
+   A manual launch always shows the main window, and so does a start when the tray is unavailable.
 
-登入時等待系統匣（2026-10-17 修訂）：
+Waiting for the tray at sign-in (revised 2026-10-17):
 
-- 登入時提供系統匣的面板或工作列可能比 Work Fleet 晚就緒。Raspberry Pi OS 的 `wf-panel-pi` 與 Work Fleet 在同一秒啟動，
-  libayatana 在它登記 StatusNotifierWatcher 前就回報未連線；舊版把這當成系統匣消失，立刻顯示主畫面。
-- 隱藏啟動最多等系統匣 `trayWaitSeconds` 秒，期間內出現就保持隱藏，逾時才顯示主畫面。再次開啟 App 仍立即顯示。
-- `trayWaitSeconds` 只定義在 `config/startup.json`，建置時寫進每個平台都帶的 `Config/public.json` 的 `startup` 區段，
-  Linux 與 Windows 從那裡讀；讀不到有效值時不等待，立即依系統匣狀態決定。它是產品行為，不放 `.env`，建置者不能各自調整。
-- 只有曾經連上、後來消失的系統匣才立即顯示隱藏中的主畫面。
-- Windows 在頁面載入後先收起主畫面；圖示加入失敗時每 2 秒重試，最多 1 分鐘，之後仍由 `TaskbarCreated` 補上。
-  macOS 的選單列圖示同步建立，不需等待。
-- 初始值 30 秒是估計值，沒有實測。Windows 與 Linux 的 `host.log` 都記錄每次系統匣可用狀態改變與啟動後經過秒數（`uptime`），
-  逾時顯示主畫面時也記一筆；之後以實際登入紀錄調整。Linux 的 `host.log` 與 ADR-045 的 Windows 版格式、轉存規則相同。
+- At sign-in, the panel or taskbar that provides the tray may become ready later than Work Fleet. Raspberry Pi OS starts
+  `wf-panel-pi` in the same second as Work Fleet, and libayatana sends `connection-changed False` about 0.05 s before
+  the StatusNotifierWatcher appears; older builds took this as the tray disappearing and showed the main window at once.
+  A Pi reboot with the fixed build is not yet verified (as of 2026-10-17).
+- A hidden start waits up to `trayWaitSeconds` seconds for the tray. If the tray appears in that time the window stays
+  hidden; only on timeout does the main window show. Opening the app again still shows it at once.
+- `trayWaitSeconds` is defined only in `config/startup.json`. The build writes it into the `startup` section of
+  `Config/public.json`, which every platform ships, and Linux and Windows read it from there. Without a valid value
+  there is no wait, and the decision follows the tray state at once. It is product behavior, so it is not in `.env`,
+  and builders cannot tune it individually.
+- Only a tray that was connected and then disappeared shows a hidden main window at once.
+- Windows hides the main window first after the page loads. If adding the icon fails, it retries every 2 seconds for up
+  to 1 minute, after which `TaskbarCreated` still adds it later. A real `Shell_NotifyIcon` failure at sign-in has not
+  been observed or tested (as of 2026-10-17).
+  The macOS menu bar icon is created synchronously and needs no wait.
+- The initial value of 30 seconds is an estimate, not measured. On Windows and Linux, `host.log` records every change
+  in tray availability with the seconds since start (`uptime`), plus one line when a timeout shows the main window;
+  the value will be tuned from real sign-in records. The Linux `host.log` uses the same format and rotation rules as
+  the Windows one from ADR-045.
 
-作業系統註冊：
+Operating system registration:
 
-- Windows MSIX：manifest 加入 `uap5:StartupTask`（`windows.startupTask` extension），由 App 依偏好
-  `RequestEnableAsync` 或 `Disable`。狀態為 `DisabledByUser`／`DisabledByPolicy` 時不嘗試覆蓋，
-  設定頁顯示系統狀態並提供開啟 Windows「啟動應用程式」設定（`ms-settings:startupapps`）。
-  登入啟動以 StartupTask activation 判斷。ZIP／Debug 不支援登入啟動，選項停用並說明只有安裝版支援；不寫 Run 機碼。
-- macOS：`SMAppService.mainApp` 註冊與取消（部署目標 13.0）。`requiresApproval` 時顯示需要在系統設定核准，
-  並提供開啟登入項目設定。無法可靠判斷登入啟動時當作手動開啟，顯示主畫面。
-  尚未註冊過的主 App 可能回傳 `notFound`，視為未啟用且可註冊；不能據此停用設定或推斷 App 不在「應用程式」。
-  第一次啟動的預設註冊接受 `notFound`／`notRegistered`，既有偏好不自動重試，但使用者仍可手動開啟。
-  `enabled`／`requiresApproval` 不重新註冊；取消未見過的服務不呼叫 `unregister`。
-  修正來源與驗證界線見 [登入項目研究](../research/2026-10-15-macos-login-item-first-registration.md)。
-- Linux：寫入或移除 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（未設定時為 `~/.config`），
-  啟動命令加 `--launch-at-login`。讀回時，檔案不存在、`Hidden=true` 或 `X-GNOME-Autostart-enabled=false` 視為關閉。
-  只寫或移除自己的檔案。
-- Windows 每次啟動與切換選項時同步：`RequestEnableAsync` 對套件桌面 App 不顯示詢問，也不會覆蓋使用者停用。
-  macOS 與 Linux 沒有這種保護，只在第一次啟動（尚無 `host-preferences.json`）套用預設，以及使用者切換選項時寫入；
-  之後啟動不重新建立使用者移除的項目。讀回的系統狀態與偏好不同時，以系統狀態為準顯示。
+- Windows MSIX: the manifest adds `uap5:StartupTask` (the `windows.startupTask` extension), and the app calls
+  `RequestEnableAsync` or `Disable` according to the preference. When the state is `DisabledByUser`/`DisabledByPolicy`
+  it does not try to override it; the settings page shows the system state and offers to open the Windows "Startup
+  apps" settings (`ms-settings:startupapps`).
+  A start at sign-in is detected from StartupTask activation. ZIP/Debug builds do not support starting at sign-in: the
+  option is disabled with a note that only the installed build supports it, and no Run key is written.
+- macOS: `SMAppService.mainApp` registers and unregisters (deployment target 13.0). On `requiresApproval` the page says
+  approval is needed in System Settings and offers to open the Login Items settings. When a start at sign-in cannot be
+  detected reliably, it is treated as a manual launch and the main window shows.
+  Detection relies on the login-item flag of the open-application Apple event; whether that flag is reliable under
+  SMAppService is unverified on a Mac (as of 2026-10-17).
+  A main app that has never been registered may return `notFound`; that counts as not enabled and registrable, and must
+  not be used to disable the setting or to infer that the app is not in "Applications".
+  The default registration on first launch accepts `notFound`/`notRegistered`; an existing preference is not retried
+  automatically, but the user can still turn it on by hand.
+  `enabled`/`requiresApproval` are not re-registered; turning off a service that was never seen does not call
+  `unregister`.
+  The source of the fix and its verification limits:
+  [login item research](../research/2026-10-15-macos-login-item-first-registration.md).
+- Linux: writes or removes `$XDG_CONFIG_HOME/autostart/work-fleet.desktop` (`~/.config` when unset), with
+  `--launch-at-login` added to the start command. On read-back, a missing file, `Hidden=true` or
+  `X-GNOME-Autostart-enabled=false` counts as off. It writes or removes only its own file.
+  Raspberry Pi labwc runs XDG autostart: on 2026-10-17 the host started at sign-in with `--launch-at-login` in the same
+  second as `wf-panel-pi`. A process started by an in-app update has no `--launch-at-login` and shows the main window by
+  design; do not read it as evidence of a sign-in start.
+- Windows syncs on every start and whenever the option changes: for a packaged desktop app, `RequestEnableAsync` shows
+  no prompt and does not override a user's disable.
+  macOS and Linux have no such protection, so they apply the default only on first launch (no `host-preferences.json`
+  yet) and write when the user changes the option; later starts do not recreate an entry the user removed. When the
+  system state read back differs from the preference, the page shows the system state.
 
-### 第二次啟動
+### Second launch
 
-Windows 加入每位使用者、每個資料目錄的單一實例通道：第二個程序請既有實例顯示主畫面後正常結束，
-不再顯示「已開啟」錯誤。`owner.lock` 仍是最後保護。macOS 沿用 reopen，Linux 沿用 GtkApplication 喚起。
+Windows adds a single-instance channel per user and per data directory: a second process asks the running instance to
+show the main window and then exits normally, instead of showing an "already open" error. `owner.lock` remains the
+last safeguard. macOS keeps using reopen, and Linux keeps using GtkApplication activation.
 
 ## Consequences
 
 ### Positive
 
-- 主視窗回到使用者習慣的位置與大小，換顯示器後也不會開在畫面外。
-- 登入後桌面便箋自動出現；尊重使用者在作業系統中停用登入啟動的選擇。
-- 隱藏啟動後再次開啟 App 會喚起既有視窗，不再出現錯誤。
+- The main window comes back at the position and size the user is used to, and does not open off screen after a
+  display change.
+- Desktop notes appear automatically after sign-in, and a user's choice to disable the start at sign-in in the
+  operating system is respected.
+- Opening the app again after a hidden start brings up the existing window instead of an error.
 
 ### Negative
 
-- 三個平台各自實作座標、註冊與單一實例；混合 DPI 與多顯示器需真硬體驗收。
-- 預設開啟使第一次啟動就註冊登入項目；macOS 會出現系統通知。
-- Linux DEB 移除時無法清除各使用者的 autostart 檔，需先在設定關閉；留下的檔案指向不存在的命令。
+- Each of the three platforms implements coordinates, registration and single instance separately; mixed DPI and
+  multiple displays need acceptance on real hardware.
+  The Linux Docker probe proves only that a hidden start realizes the main window without showing it and shows it
+  later; it does not prove that the WebKit page loads and starts desktop notes while hidden (2026-10-14). A real
+  sign-in autostart on Debian GNOME and Xorg is unverified.
+- With the default on, the first launch already registers the login item; macOS shows a system notification.
+- Removing the Linux DEB cannot remove each user's autostart file, so it must be turned off in Settings first; a file
+  left behind points to a command that no longer exists.
 
 ### Neutral
 
-- 解除安裝 MSIX 會同時移除位置、偏好與 StartupTask。
+- Uninstalling the MSIX also removes the placement, the preferences and the StartupTask.
 
 ## Alternatives Considered
 
-### Alternative 1: 存在每個 profile 的 `layout`
+### Alternative 1: Store it in each profile's `layout`
 
-- **Pros**：沿用既有設定存取與 bridge。
-- **Cons**：會進入備份、匯入另一台電腦，切換帳號時主視窗移動。
-- **Why rejected**：違反 SPEC-003 共享內容與單機外觀的分界。
+- **Pros**: Reuses the existing settings access and bridge.
+- **Cons**: It would go into backups and be imported on another computer, and the main window would move on account
+  switches.
+- **Why rejected**: It breaks SPEC-003's boundary between shared content and per-device appearance.
 
-### Alternative 2: 依偏好每次重新註冊登入啟動（參考專案的做法）
+### Alternative 2: Re-register the start at sign-in from the preference on every start (the reference project's approach)
 
-- **Pros**：實作簡單。
-- **Cons**：可能覆蓋使用者在系統中的停用，設定頁顯示與實際不一致。
-- **Why rejected**：系統狀態應優先，App 只顯示並引導。
+- **Pros**: Simple to implement.
+- **Cons**: It may override a disable the user set in the system, and the settings page would disagree with reality.
+- **Why rejected**: The system state takes precedence; the app only shows it and guides the user.
 
-### Alternative 3: Windows 使用 HKCU Run 機碼
+### Alternative 3: Use the HKCU Run key on Windows
 
-- **Pros**：ZIP 也能使用。
-- **Cons**：MSIX 解除安裝不會清除，與套件生命週期脫節。
-- **Why rejected**：安裝版使用 StartupTask；ZIP 是測試與攜帶用途，不提供登入啟動。
+- **Pros**: Works for the ZIP too.
+- **Cons**: Uninstalling the MSIX does not remove it, so it is detached from the package lifecycle.
+- **Why rejected**: The installed build uses StartupTask; the ZIP is for testing and portable use and does not offer a
+  start at sign-in.
 
-### Alternative 4: macOS 使用 `setFrameAutosaveName`
+### Alternative 4: Use `setFrameAutosaveName` on macOS
 
-- **Pros**：系統內建，程式最少。
-- **Cons**：格式與驗證規則和其他平台不同，無法共用測試與重置行為。
-- **Why rejected**：三平台使用同一份規則與檔案格式。
+- **Pros**: Built into the system, with the least code.
+- **Cons**: Its format and validation rules differ from the other platforms, so tests and reset behavior cannot be
+  shared.
+- **Why rejected**: All three platforms use the same rules and file format.
 
 ## References
 
-- [SPEC-006](../specs/006-desktop-window-startup-and-updates.md)、[PLAN-006](../plans/006-desktop-window-startup-and-updates.md)、[研究](../research/2026-10-14-desktop-window-startup-and-update-reference.md)
-- [ADR-019](019-windows-shortcuts-and-tray.md)、[ADR-020](020-windows-display-lifecycle.md)、[ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md)、[ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md)、[ADR-040](040-gnome-wayland-xwayland-choice.md)、[ADR-042](042-adjust-overlay-on-every-desktop-host.md)
-- [StartupTask](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.startuptask)、[SMAppService](https://developer.apple.com/documentation/servicemanagement/smappservice)、[XDG Autostart](https://specifications.freedesktop.org/autostart-spec/latest/)
+- [SPEC-006](../specs/006-desktop-window-startup-and-updates.md), [PLAN-006](../plans/006-desktop-window-startup-and-updates.md), [research](../research/2026-10-14-desktop-window-startup-and-update-reference.md)
+- [ADR-019](019-windows-shortcuts-and-tray.md), [ADR-020](020-windows-display-lifecycle.md), [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md), [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md), [ADR-040](040-gnome-wayland-xwayland-choice.md), [ADR-042](042-adjust-overlay-on-every-desktop-host.md)
+- [StartupTask](https://learn.microsoft.com/en-us/uwp/api/windows.applicationmodel.startuptask), [SMAppService](https://developer.apple.com/documentation/servicemanagement/smappservice), [XDG Autostart](https://specifications.freedesktop.org/autostart-spec/latest/)
 
 ---
 
 *Decision made: 2026-10-14*
-*Decision makers: 維護者*
+*Decision makers: Maintainer*

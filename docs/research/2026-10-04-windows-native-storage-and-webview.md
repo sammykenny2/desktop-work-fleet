@@ -1,30 +1,41 @@
-# Windows 原生儲存與 WebView 主畫面查核
+# Windows native storage and WebView main window review
 
-日期：2026-10-04。官方能力、實作選擇與實測證據分開；決策見 [ADR-015](../decisions/015-windows-native-storage-and-editor-host.md)。
+Date: 2026-10-04. Official capabilities, implementation choices and test evidence are kept apart; the decision is in
+[ADR-015](../decisions/015-windows-native-storage-and-editor-host.md).
 
-## 官方能力與設計推論
+## Official capabilities and design inferences
 
-- [Microsoft 的 WebView2 security 指南](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security)
-  要求檢查來源、驗證訊息、避免通用 proxy。本 host 採精確主文件、固定方法和 JSON reply，
-  不把 script／檔案路徑／token 當 renderer 可指定參數。
-- [Local content 文件](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content)
-  記錄 virtual host mapping 與 secure-context DOM API；本地資產用此方式離線載入，不啟動 listener。
-- [SQLite transaction 文件](https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/transactions)
-  說明同一 transaction 的 rollback 與 serializable 行為；本機的 CAS、附件及 receipt 共同提交。
+- [Microsoft's WebView2 security guide](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/security)
+  requires checking the origin, validating messages and avoiding generic proxies. This host uses an exact main
+  document, fixed methods and JSON replies,
+  and never treats scripts/file paths/tokens as parameters the renderer can specify.
+- The [local content documentation](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/working-with-local-content)
+  describes virtual host mapping and secure-context DOM APIs; local assets load offline this way, without starting a
+  listener.
+- The [SQLite transaction documentation](https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/transactions)
+  describes rollback and serializable behavior within one transaction; the local CAS, attachments and receipts are
+  committed together.
 - [CryptProtectData](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)
-  支援使用者保護與 optional entropy。本實作不設 LOCAL_MACHINE；用途／profile 分區進 entropy。
-  推論：可防止直接複製密文後跨 profile 解密，並不構成同一登入帳號內的惡意程式隔離。
-- [WebView2 套件](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31)、
+  supports user protection and optional entropy. This implementation does not set LOCAL_MACHINE; the purpose/profile
+  partition goes into the entropy.
+  Inference: this prevents decrypting copied ciphertext directly under another profile, and does not amount to
+  isolation from malicious programs within the same signed-in account.
+- The [WebView2 package](https://www.nuget.org/packages/Microsoft.Web.WebView2/1.0.4258.31) and
   [Microsoft.Data.Sqlite](https://www.nuget.org/packages/Microsoft.Data.Sqlite/10.0.12)
-  已實際取得，版本及 SHA-512 contentHash 固定於 NuGet lockfile；完整授權隨原生產物保留。
+  were actually fetched; their versions and SHA-512 contentHash are pinned in the NuGet lockfile, and the full
+  licenses are kept with the native output.
 
-## 本次實測與範圍
+## Tests this time and their scope
 
-實際執行結果、修正及獨立審閱只記在 [PROGRESS](../../PROGRESS.md)。
-Core probe 使用真 SQLite／Windows DPAPI；Node probe 使用 stdio 測試程式連真 native bridge，
-不是合成 FileStore。WPF probe 載入實際封裝頁面，透過真 DOM 與 WebMessage 保存及重開。
-UI probe 視窗在螢幕外且不啟用，不注入使用者桌面滑鼠；不能當作穿透／分層／混合 DPI 驗收。
-工具受限環境曾造成 WebView2 browser process crash，換一般 Windows 使用者執行同一探針通過；
-沒有停用 WebView2 sandbox，也沒有把失敗記成成功。
+The actual run results, fixes and the independent review are recorded in the git history; current status is in
+[PROGRESS](../../PROGRESS.md).
+The core probe uses real SQLite/Windows DPAPI; the Node probe uses a stdio test program connected to the real native
+bridge, not a synthetic FileStore. The WPF probe loads the actual packaged page and saves and reopens through the real
+DOM and WebMessage.
+The UI probe window is off-screen and not activated, and injects no mouse input on the user's desktop; it cannot serve
+as acceptance of pass-through/layering/mixed DPI.
+A tool-restricted environment once caused a WebView2 browser process crash; the same probe passed when run as an
+ordinary Windows user.
+The WebView2 sandbox was not disabled, and the failure was not recorded as a success.
 
-沒有引入另一個便箋產品的程式、資產或 schema；以上是平台 API 與套件資料。
+No code, assets or schema of another notes product were brought in; the above is platform API and package data.

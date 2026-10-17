@@ -1,73 +1,73 @@
-# 2026-10-09 Windows 11 相容性接手
+# 2026-10-09 Windows 11 Compatibility Handoff
 
-## 使用者需求與本輪授權
+## User requirements and this round's authorization
 
-2026-10-08 使用者要求 Windows 11 23H2 及之前、24H2 及之後同時支援；
-Windows 10 不重要，但未來 Store 上架後不能被它安裝。
-使用者會以這台 23H2 共同測試，沒有 24H2+ 設備，希望盡量避免新版 regression。
-Partner Center 尚未保留應用，尚未進入 Store 階段。
+On 2026-10-08 the user asked for Windows 11 23H2 and earlier and 24H2 and later to be supported together;
+Windows 10 does not matter, but once the app is in the Store it must not be installable there.
+The user will test together on this 23H2 machine, has no 24H2+ device, and wants to avoid regressions on newer versions as far as possible.
+Partner Center has not reserved the app yet, and the Store stage has not started.
 
-2026-10-09 使用者指出先前 session 選錯專案，真正目標是本專案。
-本輪要求先整理相關 ADR／SPEC／PLAN、直接 commit／push main，之後在本專案開新 session 接續。
-目前移交的是需求與實作路線，不是另一應用的實作或通過結果。
-同日新 session 已獲實作授權並接續原生／封裝工作；目前使用者互動與安裝驗收入口見下方，完成證據只在 PROGRESS。
+On 2026-10-09 the user pointed out that the previous session had picked the wrong project and that this project is the real target.
+This round was asked to organize the related ADR / SPEC / PLAN first, commit / push directly to main, and then continue in a new session in this project.
+What is handed over is the requirement and the implementation route, not another app's implementation or passing results.
+A new session on the same day received implementation authorization and continued the native / packaging work; the entry points for user interaction and install acceptance are below, the phase status is in PLAN-004, and the evidence is in the git history.
 
-## 先讀
+## Read first
 
-1. 根目錄 AGENTS 與自己的 agent 檔、docs/AGENT-GUIDE。
-2. [PROGRESS](../../PROGRESS.md) 的最新 2026-10-09 Windows 11 實作紀錄與原始需求交接。
-3. [ADR-034](../decisions/034-windows-11-compatibility-and-install-floor.md)、[SPEC-005](../specs/005-windows-11-compatibility.md)、[PLAN-004](../plans/004-windows-11-compatibility.md)。
-4. [ADR-030](../decisions/030-windows-explorer-wallpaper-layer.md)、[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)、PROGRESS 的 2026-10-06 顯示／啟動黑塊修正。
-5. [測試](../testing.md)、[封裝](../deployment.md)。不重新探索 WPF 或重問已確認的支援範圍。
+1. The root AGENTS, your own agent file, docs/AGENT-GUIDE.
+2. [PROGRESS](../../PROGRESS.md) for the current Windows status and the phase status in PLAN-004; the 2026-10-09 Windows 11 implementation record and the original requirements handoff are in the git history.
+3. [ADR-034](../decisions/034-windows-11-compatibility-and-install-floor.md), [SPEC-005](../specs/005-windows-11-compatibility.md), [PLAN-004](../plans/004-windows-11-compatibility.md).
+4. [ADR-030](../decisions/030-windows-explorer-wallpaper-layer.md), [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), and the 2026-10-06 fix for black blocks at display / startup in the git history.
+5. [Testing](../testing.md), [packaging](../deployment.md). Do not explore WPF again or ask again about the confirmed support scope.
 
-## 現況
+## Current state
 
-- Windows host 是 .NET 8 WPF／WebView2。附著場景用 windowed WebView2／不透明紙面 region；floating 用 composition。已有現代 Windows manifest／PerMonitorV2。
-- `NativeShellLayers.cs` 已同時找 Progman-child 與 classic sibling，限定 Explorer PID／可見性／圖示下方。
-- `DesktopSurface.cs` 用 GetAncestor 讀真正 parent、檢查 DPI awareness、ScreenToClient 轉座標；Start 保持空 region 的附著視窗可見直到 WebView2 建立，避免黑塊。
-- 已有 TaskbarCreated、顯示器／喚醒與低頻存活檢查，不需要先增加另一套恢復機制。
-- MSIX 產生器最低版本已改為 `10.0.22000.0`，保留 26200 MaxVersionTested；最終未簽章包內容已核對，安裝仍待驗收。
-- 原生歷史證據是 build 26200／25H2、單螢幕 144 DPI；不能視為 26100／24H2 或本次 23H2 的通過證據。
-- 2026-10-09 唯讀盤點：本機 23H2 build 22631.6199、圖示宿主 Progman／DefView 為 144 DPI／PMv2。
-  Progman 下沒有新版 child WorkerW；後續已完成隔離 native probes，真 Explorer 三層像素、座標／附著與切層皆通過，其他手動項目見 PROGRESS。
-- Windows 版號紀錄目前 `0.1.2`；2026-10-10 使用者回報 23H2 目前沒有看到特別問題，明確同意升到 0.1.2 並觸發 GitHub preview release。
-  private repo 本月 Actions 額度接近用完；其他工作仍優先本機檢查，後續升版與 dispatch 各自需要授權。
+- The Windows host is .NET 8 WPF / WebView2. Attached scenes use windowed WebView2 / opaque paper regions; floating uses composition. A modern Windows manifest / PerMonitorV2 is already in place.
+- `NativeShellLayers.cs` already looks for both the Progman child and the classic sibling, restricted by Explorer PID / visibility / below the icons.
+- `DesktopSurface.cs` reads the real parent with GetAncestor, checks DPI awareness and converts coordinates with ScreenToClient; Start keeps the attached window with an empty region visible until WebView2 is created, avoiding black blocks.
+- TaskbarCreated, display / wake and low-frequency liveness checks already exist; no additional recovery mechanism is needed first.
+- The MSIX generator's minimum version is now `10.0.22000.0`, keeping MaxVersionTested 26200; the contents of the final unsigned package were checked, and installation still awaits acceptance.
+- The historical native evidence is build 26200 / 25H2, one display at 144 DPI; it cannot count as passing evidence for 26100 / 24H2 or this round's 23H2.
+- Read-only inventory on 2026-10-09: the local 23H2 is build 22631.6199, and the icon host Progman / DefView is at 144 DPI / PMv2.
+  There is no new-style child WorkerW under Progman; the isolated native probes were completed afterwards, and the real Explorer three-layer pixels, coordinates / attachment and layer switching all passed. The other manual items are in PLAN-004 Phase 3.
+- The recorded Windows version is now `0.1.2`; on 2026-10-10 the user reported no particular problem seen on 23H2 so far and explicitly agreed to bump to 0.1.2 and trigger a GitHub preview release.
+  The private repo's Actions quota for this month is nearly used up; other work still prefers local checks, and later version bumps and dispatches each need their own authorization.
 
-## 接續入口
+## Where to continue
 
-先前原生與未簽章包內容已驗證；使用者後續授權建立本機 preview 憑證及信任，已用既有
-`Build-WindowsPackage.ps1 -LocalTestSign` 產生 0.1.1 MSIX，並自行安裝測試。
-私鑰留在本機 CurrentUser/My，設為不可匯出；不把本機憑證當作 GitHub release 的 CI 憑證。
-使用者先前回報最上層快速拖曳回彈及舊位置白色殘影，已授權修正並本機打包。
-安裝第一輪修正版後，使用者再次確認白塊仍在：調過位置的 note 經堆疊／攤開後舊位置留白，不需拖曳。
-第二輪附著宿主背景與區域生命週期修正見 [ADR-035](../decisions/035-windows-attached-scene-background-lifecycle.md)，
-先前背景修法未測即封裝；恢復測試後發現 23H2 拒絕新增 NOREDIRECTIONBITMAP 樣式，透明 windowed WebView
-也造成實際紙面顏色變暗，已撤回這兩項。不要把第一輪的 hide/invalidation 記為成功解決殘影。
-使用者曾要求停止測試及截圖，後續明確表示「我沒使用電腦了，你可以測試或截圖」，已解除限制。
-目前採隔離資料與自有測試便箋；沒有操作正在執行的安裝版或其資料。
-已補實際 owner 調整位置／堆疊／攤開與舊背景像素檢查；安裝版複本也通過相同隔離案例，
-因此未能在隔離案例重現使用者原始白塊；2026-10-10 使用者實測回報目前沒有看到特別問題，不擴張為所有情境的根因驗證。
-先前本機交付沿用 0.1.1；目前 0.1.2 預覽發布授權與實作／驗證證據見 PROGRESS，發布結果見 GitHub。
-新增原生改動需要回歸時，核對工作區與既有 App，再使用現有隔離入口、保留失敗證據：
+The earlier native verification and the unsigned package contents are verified. The user later authorized creating a local preview certificate and trusting it; the existing
+`Build-WindowsPackage.ps1 -LocalTestSign` produced a 0.1.1 MSIX, which the user installed and tested.
+The private key stays in the local CurrentUser/My store, marked non-exportable; the local certificate is not used as the CI certificate for GitHub releases.
+The user had reported topmost papers snapping back after fast drags and white ghosting at old positions; fixing them and packaging locally was authorized.
+After installing the first round of fixes, the user confirmed again that the white blocks remained: a note whose position was adjusted leaves white at its old position after Stack / Spread, without any dragging.
+The second round of attached-host background and region life cycle fixes is in [ADR-035](../decisions/035-windows-attached-scene-background-lifecycle.md).
+The earlier background fix was packaged without testing; when testing resumed, 23H2 turned out to reject adding the NOREDIRECTIONBITMAP style, and a transparent windowed WebView
+also darkened the actual paper colour, so both were reverted. Do not record the first round's hide/invalidation as a successful fix for the ghosting.
+The user had asked to stop testing and taking screenshots, then later said explicitly "I'm not using the computer now; you can test or take screenshots", which lifted the restriction.
+Testing now uses isolated data and our own test notes; the running installed app and its data were not touched.
+Pixel checks were added for a real owner adjusting positions / Stack / Spread and for the old background; a copy of the installed app also passed the same isolated cases,
+so the user's original white blocks could not be reproduced in isolated cases. On 2026-10-10 the user's own testing reported no particular problem so far; this is not extended to a root-cause verification for all scenarios.
+The earlier local delivery stayed at 0.1.1; the 0.1.2 preview release authorization and the implementation / verification evidence are in the git history, and the release result is on GitHub.
+When new native changes need regression, check the working tree and the existing app, then use the existing isolated entry points and keep failure evidence:
 
 ```powershell
 ./scripts/windows/Get-ShellLayerInventory.ps1
 ./scripts/windows/Test-WindowsNative.ps1
-# 已還原依賴時可改為：
+# When dependencies are already restored, use instead:
 ./scripts/windows/Test-WindowsNative.ps1 -SkipRestore
 ```
 
-不要把這兩個 Test 命令連跑；後者是同一入口的離線選項。
-分析 classic host 建立／選擇、SetParent／DPI 與 WebView2 顯示；只改實際失敗。
-原生成功後才改 MSIX 下限並驗證最終包，補舊新分支與包版本回歸。
+Do not run the two Test commands back to back; the second is the offline option of the same entry point.
+Analyse classic host creation / selection, SetParent / DPI and WebView2 display; change only what actually fails.
+Change the MSIX floor and verify the final package only after native success, and add regressions for the old and new branches and the package version.
 
-2026-10-10 資料政策改由 [ADR-037](../decisions/037-msix-data-lifetime-and-google-backup-overwrite.md) 決定：
-ZIP／未封裝 Debug 使用 `%LOCALAPPDATA%\WorkFleet`，MSIX 固定使用套件私有資料區；解除安裝前先匯出備份。
-不要刪資料、移除安裝或改憑證信任。Win+D 由使用者手動操作；Explorer 重啟／混合 DPI 另安排。
-Store 身份與提交延期；23H2 先完成，缺新版設備與獨立審閱明確記在 PROGRESS。
+On 2026-10-10 the data policy was decided by [ADR-037](../decisions/037-msix-data-lifetime-and-google-backup-overwrite.md):
+ZIP / unpackaged Debug use `%LOCALAPPDATA%\WorkFleet`, and MSIX always uses the package-private data area; export a backup before uninstalling.
+Do not delete data, uninstall or change certificate trust. The user presses Win+D manually; Explorer restart / mixed DPI are arranged separately.
+Store identity and submission are deferred; 23H2 comes first, and the missing newer-version devices and independent review are recorded explicitly in PLAN-004.
 
-## 交付界線
+## Delivery boundary
 
-最初 c53494a 只有文件與唯讀盤點；同日後續實作已接續本 repo 的原生回歸與安裝下限修改，精確完成／未測狀態見 PROGRESS。
-前一輪另一專案的提交保留與否由使用者另決定；本 repo 不依賴它，也不進行其 revert／cherry-pick。
-詳細完成狀態只在 PROGRESS 維護；本文件是接續入口。
+The initial c53494a contained only documents and the read-only inventory; later the same day, implementation continued with this repo's native regressions and the install floor change, and the exact done / untested status is in PLAN-004.
+Whether the previous round's commits in the other project are kept is for the user to decide separately; this repo does not depend on them and does not revert / cherry-pick them.
+Detailed completion status is kept in PLAN-004; this document is the entry point for continuing.

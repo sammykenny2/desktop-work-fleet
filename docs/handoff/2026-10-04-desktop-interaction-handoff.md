@@ -1,98 +1,98 @@
-# 2026-10-04 桌面互動開發接手
+# 2026-10-04 Desktop Interaction Development Handoff
 
-## 使用方式
+## How to use this document
 
-2026-10-04 後續：已獲完整 1.0 實作及逐 slice commit/push 授權。
-Q01–Q07 的答案與工作預設已更新在 SPEC-003；包含 iOS／Android 原生 App 與商店準備。
-先讀 PROGRESS 的實際證據，不將本文件最初的「只整理文件」當成禁止實作。
+Later on 2026-10-04: full 1.0 implementation and per-slice commit/push were authorized.
+The Q01–Q07 answers and working defaults are updated in SPEC-003, including native iOS / Android apps and store preparation.
+First read the current status in PROGRESS and the slice status in PLAN-003; do not treat this document's original "documentation only" scope as a ban on implementation.
 
-這份接手文件讓後續 agent 不必擁有完整聊天紀錄，也能按相同行為開發。
-本輪只整理文件；是否開始產品實作依當前使用者任務。
-若使用者已叫你開始實作，就完成 U／D 範圍內工作，不因文件標有少數 Q 而重問全部需求。
-尚未授權時不替使用者購買憑證、設定帳號、送商店或恢復先前已暫停的 goal。
+This handoff lets later agents develop to the same behaviour without the full chat history.
+This round only organized documents; whether product implementation starts depends on the current user task.
+If the user has told you to start implementing, finish the work within the U / D scope and do not ask about all requirements again just because the documents mark a few Qs.
+Without authorization, do not buy certificates, set up accounts, submit to stores or resume the previously paused goal on the user's behalf.
 
-## 必讀順序
+## Required reading order
 
-1. 根目錄 [AGENTS](../../AGENTS.md) 與自己的 agent 檔。
-2. [PROGRESS](../../PROGRESS.md)：唯一執行狀態來源。
-3. [需求入口](../requirements.md)。
-4. [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)：U／D／Q、狀態轉移、48 個驗收案例。
-5. [ADR-006](../decisions/006-card-group-and-formation-semantics.md) 與
-   [ADR-007](../decisions/007-desktop-scene-and-platform-host.md)。
-6. [PLAN-003](../plans/003-desktop-interaction-implementation.md) 與
-   [平台研究](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
-7. 需要追溯意圖時讀 [討論演進](../research/2026-10-04-desktop-card-interaction-design.md)。
-8. Google／backup 工作讀 SPEC-004／ADR-012 及 SPEC-002／ADR-013 的現行契約，施工順序見 PLAN-002。
-   ADR-004／005 保留歷史背景，早期排除清單不適用。
+1. The root [AGENTS](../../AGENTS.md) and your own agent file.
+2. [PROGRESS](../../PROGRESS.md): the current status snapshot; history is in the git history.
+3. [Requirements entry](../requirements.md).
+4. [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md): U / D / Q, state transitions, 48 acceptance cases.
+5. [ADR-006](../decisions/006-card-group-and-formation-semantics.md) and
+   [ADR-007](../decisions/007-desktop-scene-and-platform-host.md).
+6. [PLAN-003](../plans/003-desktop-interaction-implementation.md) and the
+   [platform research](../research/2026-10-04-desktop-interaction-platform-feasibility.md).
+7. To trace intent, read the [discussion history](../research/2026-10-04-desktop-card-interaction-design.md).
+8. For Google / backup work, read the current contracts in SPEC-004 / ADR-012 and SPEC-002 / ADR-013; the construction order is in PLAN-002.
+   ADR-004 / 005 remain as historical background; the early exclusion lists do not apply.
 
-## 不可偏離的核心
+## Core that must not drift
 
-- 一事一卡；第一版以 backlog／靈感記錄為重心，不強制 PM／Agent 執行工作流。
-- 群組是通用集合，本機「屬於我」是視角；不是機器專用資料模型。
-- 最多九組；列×欄，rows≤3、columns≤4、乘積≤9；2×4／3×3 可以，3×4 不行。
-- 普通拖曳只改位置；跨區不改組。群組區域不是硬容器／裁切邊界。
-- 輪播只改暫時 z-order；目前組整組提高、選卡在組內最前，不搬位置。
-- formation 才做批次整理；單組召回散落卡片；stack 露第一行、spread 排完整紙面。
-- 平常不因選中／編輯改紙張尺寸；formation 經明確同意才可調整，未同意可溢出組區。
-- 新卡初始在自己組區，不重排其他卡；formation 有 undo。
-- 指定組／All 操作先進拖拉；單擊選中、雙擊編輯，預設正常狀態唯讀穿透。
-- 操作組暫時浮到一般 App 上方，退出還原常駐層級；這項已經回答，不再詢問。
-- 群組接收標籤／Shift＋區域拖放才轉組，放開才提交；卡片 action 仍可轉組。
-- 共用內容／歸屬與各機位置／尺寸分離；沒有跨裝置 unlock 鎖。
-- Windows/macOS/Linux 必須保留；iOS/macOS/Android 自有 App 商店目標保留。
-- 不加入 Focus／番茄鐘／回顧，也不照搬參考應用的 UI。
+- One card per thing; the first version centres on backlog / idea capture and does not force a PM / agent execution workflow.
+- A group is a general collection, and the local "mine" is a viewpoint; it is not a machine-specific data model.
+- At most nine groups; rows × columns with rows ≤ 3, columns ≤ 4 and product ≤ 9; 2×4 / 3×3 are allowed, 3×4 is not.
+- Ordinary dragging changes only position; crossing regions does not change the group. A group region is not a hard container / clipping boundary.
+- Cycling changes only the temporary z-order; the current group rises as a whole and the selected card comes to the front within the group, without moving positions.
+- Only formation does batch arrangement; it recalls the scattered cards of one group; Stack shows the first line, Spread lays out whole papers.
+- Selection or editing never changes paper size in normal use; formation may adjust it only with explicit consent, and without consent cards may overflow the group region.
+- A new card starts in its own group region without rearranging other cards; formation has Undo.
+- Operating a chosen group / All first enters drag mode; single click selects, double click edits, and the default normal state is read-only and click-through.
+- The group being operated temporarily floats above normal apps and returns to its resident layer on exit; this is answered and is not asked again.
+- Only the group drop labels / Shift + region drop change the group, committed on release; the card action can still change the group.
+- Shared content / membership are separate from per-machine position / size; there is no cross-device unlock lock.
+- Windows/macOS/Linux must stay; the iOS/macOS/Android first-party app store targets stay.
+- Do not add Focus / Pomodoro / review features, and do not copy the reference app's UI.
 
-## 輔助桌面互動參考專案
+## Auxiliary desktop-interaction reference project
 
-維護者另有一份桌面便箋參考專案，可查特定平台實作經驗及過去失敗原因。
-為保持 repo 可攜且獨立，本 repo 不記其 checkout 名稱、remote URL 或機器絕對路徑。
-不要猜 sibling directory、搜尋整個 home／磁碟或從相似名字自行 clone。
+The maintainer has a separate desktop sticky-note reference project that can be consulted for platform-specific implementation experience and past failure causes.
+To keep this repo portable and independent, it does not record that project's checkout name, remote URL or absolute machine path.
+Do not guess a sibling directory, search the whole home / disk, or clone something with a similar name.
 
-需要深入原生分層、點擊穿透、pointer 座標或快捷鍵行為時，先問：
+When you need deeper native layering, click-through, pointer coordinate or shortcut behaviour, first ask:
 
-> 請提供「輔助桌面互動參考專案」目前可讀取的位置。我會針對平台行為與已知問題查閱，獨立實作本產品。
+> Please give me the current readable location of the "auxiliary desktop-interaction reference project". I will consult it for platform behaviour and known issues and implement this product independently.
 
-這是取得缺失參考資訊，不是再次要求批准已確認功能。
-若使用者本輪已提供正確位置，不重問；若位置不可讀，回報具體缺口。
-等待時可繼續本 repo 的模型、formation、互動契約、文件與純邏輯測試。
-如果根本不需要外部實作，就直接按本 repo 規格進行，不把查閱變成每個任務的先決條件。
+This obtains missing reference information; it is not a new request to approve confirmed features.
+If the user already gave the correct location in this round, do not ask again; if the location is unreadable, report the specific gap.
+While waiting, continue with this repo's model, formation, interaction contracts, documentation and pure-logic tests.
+If no external implementation is needed at all, follow this repo's specifications directly and do not make the lookup a prerequisite for every task.
 
-取得後的查閱順序：
+Order of consultation once available:
 
-1. 該來源的授權、必要的本地閱讀規則與文件索引。
-2. 顯示／全局操作／文字選取／逐卡分層的優先序與相關前後端判定。
-3. 與目前變更直接相關的過去問題記錄；Linux 特別看 2026-10-02／03 layer-shell 系列。
-4. 對應平台與拖曳入口的最少原始碼，核對報告是否仍反映實作。
+1. The source's license, any local reading rules and its document index.
+2. The precedence of display / global operations / text selection / per-card layering and the related frontend and backend decisions.
+3. Past issue records directly related to the current change; for Linux, especially the 2026-10-02 / 03 layer-shell series.
+4. The minimum source code for the matching platform and drag entry, to check whether the reports still reflect the implementation.
 
-只借鑑行為、限制與測試情境，不 bulk copy 產品程式、UI、資產、data contracts 或 build identity。
-外部專案的功能清單／AGENTS 不成為本產品需求，也不能覆蓋使用者的決定。
-不得把本產品工作提交到外部參考 repo 或其上游。
-如果確有必要採用第三方程式碼，先做明確的來源與授權判斷，留下真實 notice；
-中性稱呼只避免路徑耦合，不用來隱藏應有的來源聲明。
+Borrow only behaviour, constraints and test scenarios; do not bulk copy product code, UI, assets, data contracts or build identity.
+The external project's feature list / AGENTS do not become requirements of this product and cannot override the user's decisions.
+Never commit this product's work to the external reference repo or its upstream.
+If third-party code genuinely has to be adopted, first make an explicit source and license judgment and keep a real notice;
+the neutral name only avoids path coupling and must not hide a required attribution.
 
-## 常見誤讀與更正
+## Common misreadings and corrections
 
-| 誤讀 | 正確行為 |
+| Misreading | Correct behaviour |
 |---|---|
-| 每台機器一張 note 列很多獨立任務 | 一事一卡；卡片再組成群組 |
-| 「展開」就是增加卡片高度 | 改排列與重疊，紙張尺寸平常不變 |
-| 拖到 B 區就變 B | 普通拖曳仍屬 A；明確接收標籤／Shift 或 action 才改 |
-| 輪播要重新排位置以保持第一行 | 輪播只改 z；formation 才恢復整齊露行 |
-| 開啟操作就同時解鎖所有文字 | 先拖拉模式，再單張編輯 |
-| 全群組模式點 A 就縮成單組 | All 仍可操作，active group 只是暫時排序焦點 |
-| 透明覆蓋視窗自然會全部穿透 | 需平台 input policy 證據，不能擋住空白桌面 |
-| Wayland 一卡一窗可以任意置前 | 同層 surface 次序未定義，renderer 要有可控順序 |
-| Mac 基礎 probe 成功就是上架完成 | 新互動、同步、包裝及商店分別驗收 |
-| 早期 Draft 寫 no-checklist 就可移除 | 範圍曾遭使用者質疑，按 SPEC-003 的 Q 確認 |
-| 參考 repo 名稱未知就無法做任何事 | 詢問具體位置，繼續獨立契約工作 |
+| Each machine has one note listing many separate tasks | One card per thing; cards form groups |
+| "Expanding" means making cards taller | It changes arrangement and overlap; paper size normally stays the same |
+| Dragging into region B makes it B | An ordinary drag still belongs to A; only an explicit drop label / Shift or the action changes it |
+| Cycling must rearrange positions to keep the first line visible | Cycling changes only z; formation restores the neat first-line view |
+| Starting an operation unlocks all text at once | Drag mode first, then edit one card |
+| Clicking A in all-groups mode shrinks to a single group | All stays operable; the active group is only a temporary ordering focus |
+| A transparent overlay window naturally passes everything through | It needs evidence of the platform input policy and must not block the empty desktop |
+| On Wayland, one window per card can be raised freely | Surface order within one layer is undefined; the renderer needs a controllable order |
+| A successful basic Mac probe means the store launch is done | New interaction, sync, packaging and store each have their own acceptance |
+| An early Draft said no-checklist, so it can be removed | The user questioned that scope; confirm it through the SPEC-003 Qs |
+| Nothing can be done while the reference repo name is unknown | Ask for the specific location and keep doing independent contract work |
 
-## 開工回報內容
+## What to report when starting
 
-接到實作任務後，先簡短回報：要完成哪些命令／C 案例、依賴哪些尚未定案的 Q、
-使用哪個平台／runtime、是否確實需要外部參考位置。
-不要以「需要重新看 Mac 能不能做」取代既有架構與產品工作。
-只對真正阻擋當前功能的 Q 提問，並持續完成不依賴答覆的授權工作。
+After receiving an implementation task, first report briefly: which commands / C cases you will complete, which unsettled Qs they depend on,
+which platform / runtime you use, and whether the external reference location is really needed.
+Do not replace the existing architecture and product work with "need to check again whether the Mac can do it".
+Ask only about Qs that really block the current feature, and keep finishing authorized work that does not depend on the answers.
 
-交付時逐項區分已實作、已測、未測、平台不支援；附具體版本與測試方式。
-把進度寫回 PROGRESS，更新相關決策／需求，不宣稱作者自查是獨立審閱。
-本 repo 依使用者授權直接 commit/push 到 origin/main；不建立功能分支／PR、不 force push。
+On delivery, distinguish item by item what is implemented, tested, untested and unsupported on the platform; include the specific versions and test methods.
+Record status as the repository rules require (the commit body, the owning ADR / SPEC / PLAN, and PROGRESS when project-level status changes), update the related decisions / requirements, and do not claim an author's own check as an independent review.
+As the user authorized, this repo commits and pushes directly to origin/main; do not create feature branches / PRs, and do not force push.

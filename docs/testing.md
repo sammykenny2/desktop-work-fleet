@@ -1,34 +1,51 @@
-# 建置、測試與證據
+# Builds, tests and evidence
 
-更新：2026-10-17。新核心證據見 PROGRESS；既有 0.1.0 證據見 [驗證報告](validation/2026-10-03-validation-report.md)。
+Updated: 2026-10-17. This document holds the verification procedures and the verified and unverified boundaries.
+Current status is in [PROGRESS.md](../PROGRESS.md); the history and the evidence of individual runs are in the git history.
+Evidence for the existing 0.1.0 prototype is in the [validation report](validation/2026-10-03-validation-report.md).
 
-## 新互動驗收路由
+## Acceptance routing for the new interaction
 
-新卡片／群組／formation 的要求見 [SPEC-003 C01–C48](specs/003-desktop-cards-groups-and-formation.md)，
-分層策略見 [PLAN-003](plans/003-desktop-interaction-implementation.md)。
-`tests/desktop-core.test.js` 驗證 grid、formation／容量、undo、操作 scope、手勢模型、
-原子保存失敗、草稿安全退出與 adapter 替換；注入的記憶體 persist 不證明 OS 實際落盤。
-測試名稱中的 C 編號只標示模擬語意部分；C16／C35／C40–C43／C46–C47 的原生能力仍需實際 host 驗收。
-不能把舊測試綠燈列為新功能通過，也不為文件變更重新啟動舊 Mac probe。
+The requirements for the new cards, groups and formation are in [SPEC-003 C01–C48](specs/003-desktop-cards-groups-and-formation.md);
+the layered strategy is in [PLAN-003](plans/003-desktop-interaction-implementation.md).
+`tests/desktop-core.test.js` verifies the grid, formation and capacity, undo, operation scope, the gesture model,
+atomic save failures, safe exit from drafts and adapter replacement; the injected in-memory persist does not prove that the OS writes to disk.
+C numbers in test names mark only the simulated semantic part; the native capabilities of C16, C35, C40–C43 and C46–C47 still need acceptance on a real host.
+A green result from old tests must not be listed as a pass for a new feature, and document changes do not restart the old Mac probes.
 
-`tests/schema-version.test.js` 驗證 SPEC-007 的測試階段政策：現行 JSON 格式皆為 V1，載入／編輯不觸發升版寫入，
-本機與 Google 共用 V1 ZIP，未支援的格式拒絕且保留資料。沒有逐版 migration 或副本驗收工作。
-文件工作執行 check_docs.py、git diff --check 與範圍／語意一致性檢查即可。
+`tests/schema-version.test.js` verifies the SPEC-007 testing-phase policy: every current JSON format is V1, loading and editing trigger no version-bump writes,
+local and Google share the V1 ZIP, and unsupported formats are rejected with the data kept. There is no per-version migration or copy acceptance work.
+For documentation work, check_docs.py, git diff --check and a scope and semantic consistency check are enough.
 
-## 便箋格式與附件驗證
+## Note formatting and attachment checks
 
-- `node --test tests/rich-content.test.js tests/desktop-authority.test.js tests/desktop-transport.test.js`：上色／escaping、bounded PNG、預覽快取、目前附件歸屬、過期版本、穿透及慢預覽不阻擋保存／關閉。
-- 建置後以 `node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT` 驗證六階實際字級、上色／長內容預算、checklist 維持唯讀、縮圖、同步後重試、雙擊與鍵盤開啟不誤觸拖曳／編輯；只用 synthetic host，不代表 OS 開啟應用程式實測。
-  `browser-probe.mjs` 另驗證主畫面附件 tile 的下載 fallback、不誤開編輯器與清單不建立隱藏 tile。
-- Windows Debug UI probe 新增 `--attachments`：實際呼叫 Shell Image Factory，核對 PNG 上限與檔名／可執行檔政策，不啟動外部程式。
-  core probe 同時驗證當前 profile bytes、缺附件與縮圖離開 storage gate／遲到回覆失效。
-- Linux 使用系統 Python：`python3 -B -m unittest discover -s tests -p 'test_linux_attachments.py' -v`。
-  測試私有副本、開啟 adapter、close race 與有 GdkPixbuf 時的實際圖片縮圖。缺 GI 明確略過實際縮圖；Windows 明確略過 POSIX 測試。
-- macOS 必須用 Xcode 建置並在沙盒 App 驗證 Quick Look、預設程式與切帳號清理；沒有 Mac 的環境不能宣稱這些已通過。
+- `node --test tests/rich-content.test.js tests/desktop-authority.test.js tests/desktop-transport.test.js`: code colouring and escaping, bounded PNG, the preview cache, ownership of the current attachments, stale versions, click-through, and slow previews not blocking save or close.
+- After a build, `node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT` verifies the actual font sizes of the six heading levels, colouring and long-content budgets, checklists staying read-only, thumbnails, retry after sync, that double-click and keyboard open do not trigger a drag or edit by mistake, and that a `zh-TW` frame switches the scene's own text to Traditional Chinese and the next English frame switches it back; it uses only a synthetic host and is not a real test of opening files with OS applications.
+  `browser-probe.mjs` also verifies the download fallback of attachment tiles in the main window, that they do not open the editor by mistake, and that the list creates no hidden tiles.
+- The Windows Debug UI probe adds `--attachments`: it calls the Shell Image Factory for real, checks the PNG limit and the file-name and executable policy, and starts no external program.
+  The core probe also verifies the current profile's bytes, missing attachments, thumbnails released from the storage gate, and late replies being invalidated.
+- Linux uses the system Python: `python3 -B -m unittest discover -s tests -p 'test_linux_attachments.py' -v`.
+  It tests private copies, the open adapter, the close race and, with GdkPixbuf, real image thumbnails. Without GI the real thumbnail tests are explicitly skipped; Windows explicitly skips the POSIX tests.
+  WSL Ubuntu has no GObject Introspection by default, so the real GdkPixbuf thumbnail tests are skipped there (2026-10-17).
+- macOS must be built with Xcode, and Quick Look, the default app and cleanup on account switch must be verified in the sandboxed app; an environment without a Mac cannot claim these passed.
+- Text fitting with "…" (`src/app/fit.js`) has been checked only in Chromium (Edge and WebView2). Check it in WebKitGTK and WKWebView before relying on it there (2026-10-17).
 
-## 可重現命令
+## Language and release-notes checks
 
-從 checkout 根目錄；Python 使用標準庫，完整 JS 測試需先安裝 lockfile 依賴：
+Both run in the full JS suite (`node --test tests/*.test.js`); run one alone with `node --test tests/i18n.test.js` or `node --test tests/release-notes.test.js`.
+
+- `tests/i18n.test.js` (see [Internationalization](i18n.md#tests-and-the-cjk-guard)) checks that:
+  - every locale has the same area files, keys and placeholders, with no empty text, and every key starts with its area's prefix;
+  - lookups interpolate, fall back to English and pick plural forms, system languages resolve by the documented rules, and the Display language options are named in the current UI language;
+  - every literal `t('...')` and `plural('...')` key in `src/` and every `data-i18n` key in HTML exists in English;
+  - every error code a native host sends has a `nativeErrors.*` entry, and every native string table has matching English and Traditional Chinese blocks;
+  - no file in the checkout (tracked, or untracked and not ignored) contains Chinese text outside the zh-TW catalogs, Chinese editions of documents (`*.zh-TW.*`, `*_ZH.*`), the zh-TW blocks of the native tables and the short list of exceptions in the test (the CJK guard). Each exception says why it needs Chinese.
+- `tests/release-notes.test.js` checks that every version in the per-platform version records has a `docs/release-notes.md` entry, that entries parse (platforms, a summary of 1–500 characters, change bullets), and that the notes contain no publication-status wording ("published", "prepared") or 40- or 64-digit hex hashes. A version bump without its entry therefore fails before any release starts.
+- Automated UI tests run in English: browser probes open with `locale: 'en-US'`, and native probes store the language preference `en` before the app starts.
+
+## Reproducible commands
+
+From the checkout root. Python uses only the standard library; the full JS suite needs the lockfile dependencies installed first:
 
 ```bash
 npm ci --ignore-scripts
@@ -41,90 +58,98 @@ python3 scripts/testing/check_docs.py
 git diff --check
 ```
 
-`.github/workflows/ci.yml` 在 push 到 main 與 pull request 時，於 GitHub hosted runner 執行上述 JS／Python 測試與 build、
-Linux Docker 的桌面層與主機檢查（`test-desktop-layers.sh`、`test-host-shell.sh`），以及 Windows Debug 建置、core probe 與未簽章包檢查。
-不使用 secrets；WebView2 UI probe（`Test-WindowsNative.ps1`）、簽章、Apple 建置與實機驗收仍在本機或手動 workflow。
+Running the full Python discover on Windows fails a few Linux-only tests (seen: google, surface, xwayland, labwc, pcmanfm, vault), and unchanged HEAD fails the same way;
+the surface `/proc` detection test needs `os.getuid`, which Windows lacks. Run the Linux tests in WSL or on Linux; do not change product code or tests to hide this.
 
-手機手動 workflows：`android-apk.yml`、`ios-ipa.yml`，設定見 [手機實機測試包](deployment.md#手機實機測試包)。
-兩者應只有 workflow_dispatch、contents: read、明確 artifact 路徑與 always 清除暫時簽章資料，不建立 tag／Release。
-有 actionlint 時執行 `actionlint .github/workflows/android-apk.yml .github/workflows/ios-ipa.yml`。
-本機檢查與建置不等於 hosted workflow 已執行；簽章 Secrets 與 dispatch 需各自有授權。
+`.github/workflows/ci.yml` runs on GitHub-hosted runners on every push to main and every pull request: the JS and Python tests and the build above,
+the Linux Docker desktop-layer and host checks (`test-desktop-layers.sh`, `test-host-shell.sh`), and the Windows Debug build, core probe and unsigned-package check.
+It uses no secrets; the WebView2 UI probe (`Test-WindowsNative.ps1`), signing, Apple builds and real-device acceptance stay local or in manual workflows.
+The step that uploads failure evidence runs `sudo chmod -R a+rX` first, because root-owned 0700 folders from the container (such as `config/autostart`) are unreadable to the runner.
+It runs only on failure, so it is unverified while CI is green (as of 2026-10-14).
 
-- `python3 -B -m unittest discover -s tests -p 'test_ios_*.py' -v`：iOS profile 的效期、Team、憑證、App ID／App Group／Keychain、相同裝置集合，
-  以及簽章前 bundle／Extension 身份、版本與 executable 範圍。只使用合成資料，不讀真私鑰。
-- iOS 真簽章：先 `bash scripts/macos/build-native-app.sh --platform ios --unsigned`，再依
-  `python3 scripts/sign_ios_app.py --help` 提供兩份 profiles、公開 DER 憑證與 App 設定。
-  工具簽 nested code／Share Extension／主 App 並驗證；最後 `bash scripts/macos/package-preview-app.sh --platform ios`。
-  真機安裝／啟動／Google 登入各自驗收，不以 codesign 檢查代替。
-- Android 真簽章：設定 `WORK_FLEET_ANDROID_DEBUG_KEYSTORE` 為原有 debug keystore 的絕對路徑，
-  執行 `testDebugUnitTest assembleDebug`，用 SDK 的 `apksigner verify --verbose --print-certs` 檢查 APK。
-  SHA-1 必須與已安裝版及 OAuth 登記值相同；正式 release key 不使用此 debug 設定。
+Manual phone workflows: `android-apk.yml` and `ios-ipa.yml`; their configuration is in the phone test builds section of [deployment](deployment.md).
+Both should have only workflow_dispatch, contents: read, explicit artifact paths and an always-run cleanup of temporary signing data, and create no tag or Release.
+When actionlint is available, run `actionlint .github/workflows/android-apk.yml .github/workflows/ios-ipa.yml`.
+The local checks of both workflows used actionlint 1.7.12 plus trigger, permission and shell-syntax checks (2026-10-17).
+Local checks and builds do not mean the hosted workflow has run; signing Secrets and dispatch each need their own authorization.
 
-`python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v` 在有 bash 與 dpkg-deb 的環境
-實際封裝隔離 fixture，驗證一般／release DEB 的版號與檔名都取自 bundle `package.json`，缺版號時拒絕，
-release 仍拒絕缺少 maintainer email。缺工具時略過，不安裝套件或啟動 GUI。
-另驗證成功／失敗都清除本次 staging，保留既有輸出。有 Node 22+／npm 與 lockfile 依賴時，
-在含空白路徑的隔離 checkout 改寫 `src/native/linux/VERSION` 後執行完整 `--deb` 建置，
-確認 DEB 與 tar.gz 直接輸出到 `build/` 根目錄、檔名跟隨該版號、`.sha256` 與檔案相符，
-`build/` 沒有其他新檔，且重建 bundle 時清除已不存在的來源檔；啟動腳本優先使用 `/usr/bin/python3`，
-`WORK_FLEET_PYTHON` 指定的直譯器會收到 host 路徑與原有參數。
+- `python3 -B -m unittest discover -s tests -p 'test_ios_*.py' -v`: the iOS profiles' validity period, Team, certificate, App ID, App Group and Keychain, the same device set,
+  and, before signing, the bundle and Extension identity, version and executable scope. It uses only synthetic data and never reads a real private key.
+- Real iOS signing: first run `bash scripts/macos/build-native-app.sh --platform ios --unsigned`, then provide the two profiles, the public DER certificate and the app settings as
+  `python3 scripts/sign_ios_app.py --help` describes. The tool signs the nested code, the Share Extension and the main app and verifies them; finish with `bash scripts/macos/package-preview-app.sh --platform ios`.
+  Installing, launching and Google sign-in on a real device are each accepted on their own; a codesign check does not replace them.
+  On the maintainer's Mac, CoreSimulator reported an older service version than Xcode, so the iOS Simulator was not started; the iOS checks there were build-only (2026-10-17).
+- Real Android signing: set `WORK_FLEET_ANDROID_DEBUG_KEYSTORE` to the absolute path of the existing debug keystore,
+  run `testDebugUnitTest assembleDebug`, and check the APK with the SDK's `apksigner verify --verbose --print-certs`.
+  The SHA-1 must match the installed build and the value registered for OAuth; the official release key does not use this debug setting.
 
-`tests/release-versions.test.js` 驗證各平台版號紀錄的讀取與格式、封裝腳本不再寫死版號、
-Windows csproj 不自訂版號、MSIX identity 取自 `Directory.Build.props`、Windows.Desktop 下限 22000／MaxVersionTested 26200、Apple Info.plist 取自 xcconfig
-且拒絕本機覆蓋、Android 檔名設定引用 `versionName`，以及各封裝入口使用固定工作目錄並交付到 `build/`。不需原生 SDK；
-不代表 MakeAppx、Xcode 或 Gradle 實際產物已驗證。
+`python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v`, where bash and dpkg-deb are available,
+really packages an isolated fixture and verifies that the version and file name of both the normal and the release DEB come from the bundle's `package.json`, that a missing version is rejected,
+and that release still rejects a missing maintainer email. Without the tools it skips; it installs no packages and starts no GUI.
+It also verifies that success and failure both remove this run's staging and keep existing output. With Node 22+, npm and the lockfile dependencies,
+it rewrites `src/native/linux/VERSION` in an isolated checkout whose path contains spaces and runs the full `--deb` build,
+confirming that the DEB and tar.gz are written directly to the root of `build/`, that their file names follow that version, that each `.sha256` matches its file,
+that `build/` gets no other new files, and that rebuilding the bundle removes source files that no longer exist; that the launcher prefers `/usr/bin/python3`;
+and that an interpreter named by `WORK_FLEET_PYTHON` receives the host path and the original arguments.
+In WSL, give this fixture a Linux esbuild binary of the same version (kept under the ignored `build/`); do not reuse the Windows `node_modules` esbuild binary (2026-10-17).
+In WSL the integrated `--deb` build test is skipped when WSL has no Node; the release workflow still builds it (2026-10-16).
 
-`tests/revisions.test.js` 驗證 SPEC-004 S01–S07：嚴格 JSON、正規 bytes、缺 parent／pending、
-亂序分支／tombstone／晚到衝突、整批失敗及 12,000 筆反向歷史；不代表真 Google 已接入。
-`tests/file-sync.test.js` 另強制六台裝置讀到同一空來源後同時上傳，驗證初始群組及根版本收斂、
-連續重設、marker 位於最後頁、晚到的初始上傳／改名／退役／便箋、重開、帳號隔離、既有同名群組保留、pending 歷史不初始化，
-以及保存失敗／成功回應遺失的重試、來源世代欄位驗證與既有未帶世代 reservation 的原 bytes 重送。
-另外涵蓋 file ID 配置失敗尚無 reservation 的副本，以及 reset 已寫 marker 但尚未刪檔時 cursor 過期重掃，均不能重標舊 outbox 上傳。
-`tests/cloud-restore.test.js` 另驗證同帳號的自動初始群組備份，經全量覆蓋後新裝置仍收到完整群組、便箋與原 revision 身分。
-`tests/google-initial-group.test.js` 驗證首次同步前新增便箋／分享入口不另建隨機群組，已有 Google 群組及本機捕捉維持離線可用，
-也驗證初始群組已落盤、首次上傳失敗時仍可選取該群組離線新增。
-上述是隔離 fixture，不代表六台 Windows／macOS／Linux 與真 Google 的實機往返驗收。
-`tests/workspace-initialization.test.js` 驗證 marker-only 舊 raw 資料不進圖、reset followers 不上傳、
-新帳號接手同一計畫、prepare 途中手動同名群組、receipt 缺 revision／附件、activation 存檔失敗、
-ready 已落盤但補掃前中斷重開、不同計畫／錯誤 digest、已初始化空白、reset journal 重試不再清空、
-被更新重設取代的舊 job、不完整列舉及跨帳號／無效計畫拒絕。
-另驗證連續重設的 marker-only follower 可隨 cleanup 收斂（含 cursor 過期與重開），
-但已有 plan／ready 時缺 revision／控制檔，即使 activation 曾保存失敗，仍須拒絕啟用。
-還原發起端在首次讀取前或 upload 階段遇到新一輪 reset，不能跟隨新世代上傳舊備份。
-`tests/google-drive.test.js` 另核對 REST／native 的 reset 列舉保留 incompleteSearch；
-`tests/google-vault-pause.test.js` 驗證 pending／superseded reset／restore 的等待與清除本機副本入口，
-`tests/test_linux_google.py` 以真正原生 descriptor validator 驗證 workspace 控制檔容量與 metadata。
-專用 Google 測試帳號的實機驗收：發起端清空途中斷網，其餘清除副本的裝置應等待；
-發起端續行後各台只有一組預設群組、手動同名群組可另建；備份覆蓋傳附件途中不得顯示成功。
-`tests/config.test.js` 驗證 `.env`／環境優先序、公開欄位 allowlist 及缺值／錯誤格式。
-`tests/android-build.test.js` 驗證無既有生成資產時的 Android 公開配置、修改 `.env` 後重新讀取、
-release 必填欄位、隔離輸出路徑中的 renderer／bridge／vendor 及 CSP。執行 `node --test tests/android-build.test.js`。
-Android Studio 開啟 `src/native/android`；Gradle Wrapper 的 `assembleDebug` 會安裝 lockfile 依賴並產生 APK 資產，
-無須先執行外部 web build。命令與前置條件見 [Android README](../src/native/android/README.md)。
-APK 建置、IDE Sync、實機操作與 Google 往返是不同驗證範圍，結果記於 PROGRESS。
-`tests/apple-project.test.js` 驗證 Xcode 專案在不同 checkout 路徑產生一致內容、所有 source 參照可攜、
-主 App／Share Extension 依賴、機器配置不進專案、生成資產／Info.plist、Apple 主畫面／場景 classic bundles、
-CSP 不放寬、release 缺值與唯讀依賴授權檔的重複複製。
-`node --test tests/apple-project.test.js` 不需要 Apple SDK；不代表 Xcode 載入、Swift 編譯或簽章通過。
-`tests/apple-signing.test.js` 驗證 manual Developer ID export 的憑證／profile 設定與不合法簽章參數；
-Mac 上另以真 PlistBuddy 與假的 Xcode／notary／codesign 工具執行 DMG＋更新 ZIP 封裝，確認不需要 Installer、
-不產生 PKG、傳遞暫時 notary keychain、無公證 DMG／automatic export／一般 PKG 在 macOS Bash 3 的空陣列相容性，
-以及 runtime 載入路徑檢查／公證失敗時不覆蓋上次交付的檔案；缺載入路徑時不得送公證。其他 OS 略過該封裝 fixture。
-`tests/test_macos_profile.py` 驗證過期、錯誤 Team／App ID／憑證／Keychain group、development profile 與不合法 UUID 的拒絕。
-這些是流程回歸，不能當成 Apple 公證或真 signed app 通過；實際 archive、export、Gatekeeper 與 Sparkle 更新另需驗證。
-`python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v` 在 Mac 編譯真正的 universal Mach-O fixture，
-驗證搬移／空白路徑、缺 `LC_RPATH`、只有 x86_64 壞掉、framework 缺檔／缺架構／只在建置機器可用，
-以及 Debug dylib 繼承主程式搜尋路徑；其他 OS 略過。
-`macos-release.yml` 的 Mac job 在匯入簽章秘密前執行此回歸。
-原生 macOS build／preview package／Release export 都執行 `scripts/testing/check_macos_runtime.py`，
-逐一檢查 arm64、x86_64 主程式及其 bundle 內動態依賴，不接受建置機器外部 framework。
-Release export 在公證前加 `--launch`，執行 App 的 `--check-runtime`：讓真實 dyld 載入後立即退出，
-不建立 NSApplication、不開啟 workspace、登入項目或 Google。只證明建置機器架構的原生載入，不能當作主畫面或 Google 往返驗收。
-Mac clone 後開啟已提交的 `src/native/apple/WorkFleet.xcodeproj`，無須先產生專案；
-Node 22+／npm 與簽章設定見 [Apple README](../src/native/apple/README.md)。
+`tests/release-versions.test.js` verifies reading and formatting each platform's version record, that packaging scripts no longer hard-code versions,
+that the Windows csproj sets no version of its own, that the MSIX identity comes from `Directory.Build.props`, the Windows.Desktop floor 22000 and MaxVersionTested 26200, that Apple Info.plist values come from xcconfig
+with local overrides rejected, that the Android file-name setting references `versionName`, and that each packaging entry point uses a fixed working directory and delivers to `build/`. It needs no native SDK;
+it does not mean real MakeAppx, Xcode or Gradle output has been verified.
 
-macOS 未簽章 universal preview 的實際編譯命令如下；不變更系統 `xcode-select` 設定。
-Debug preview 不替代正式簽章、Keychain／Google 或產品 runtime 驗收。
+`tests/revisions.test.js` verifies SPEC-004 S01–S07: strict JSON, canonical bytes, missing parent or pending,
+out-of-order branches, tombstones and late conflicts, whole-batch failure and 12,000 entries of reverse history; it does not mean real Google is connected.
+`tests/file-sync.test.js` also forces six devices that read the same empty source to upload at the same time, and verifies convergence of the initial group and root versions,
+repeated resets, a marker on the last page, late initial uploads, renames, retirements and notes, reopening, account isolation, keeping an existing group with the same name, no initialization with pending history,
+and retries after a save failure or a lost success response, validation of the source-generation fields, and resending the original bytes of an existing reservation without a generation.
+It also covers a copy whose file ID allocation failed and that has no reservation yet, and a rescan after an expired cursor when a reset has written its marker but not yet deleted files; neither may relabel old outbox uploads.
+`tests/cloud-restore.test.js` also verifies that after a full overwrite from an automatic initial-group backup of the same account, a new device still receives the complete groups, notes and original revision identities.
+`tests/google-initial-group.test.js` verifies that before the first sync, new notes and the share entry create no extra random group, that existing Google groups and local capture stay usable offline,
+and that once the initial group is on disk it can still be selected for new offline notes when the first upload fails.
+These are isolated fixtures, not real round-trip acceptance on six Windows, macOS and Linux machines with real Google.
+`tests/workspace-initialization.test.js` verifies that marker-only old raw data does not enter the graph, that reset followers do not upload,
+that a new account takes over the same plan, and covers a manual group with the same name created during prepare, receipts missing a revision or attachment, a failed activation save,
+reopening after ready is on disk but before the follow-up scan, a different plan or a wrong digest, an initialized empty workspace, reset journal retries that do not clear again,
+an old job superseded by a newer reset, incomplete listings, and rejection of cross-account or invalid plans.
+It also verifies that marker-only followers of repeated resets converge with cleanup (including an expired cursor and reopening),
+but when a plan or ready exists and a revision or control file is missing, activation must still be refused, even if an activation save failed before.
+A restore initiator that meets a new round of reset before its first read or in the upload stage must not follow the new generation and upload the old backup.
+`tests/google-drive.test.js` also checks that the REST and native reset listings keep incompleteSearch;
+`tests/google-vault-pause.test.js` verifies waiting during pending or superseded resets and restores, and the entry for clearing the local copy;
+`tests/test_linux_google.py` verifies workspace control-file capacity and metadata with the real native descriptor validator.
+Real acceptance with a dedicated Google test account: when the initiator loses the network while clearing, the other devices that cleared their copies should wait;
+after the initiator resumes, each device has only one default group and a manual group with the same name can still be created; a backup overwrite must not show success while attachments are still uploading.
+`tests/config.test.js` verifies `.env` and environment precedence, the public-field allowlist, and missing or malformed values.
+`tests/android-build.test.js` verifies the Android public configuration with no previously generated assets, rereading after `.env` changes,
+required release fields, and the renderer, bridge and vendor files and CSP in an isolated output path. Run `node --test tests/android-build.test.js`.
+Open `src/native/android` in Android Studio; the Gradle Wrapper's `assembleDebug` installs the lockfile dependencies and generates the APK assets,
+with no separate web build first. Commands and prerequisites are in the [Android README](../src/native/android/README.md).
+APK build, IDE Sync, real-device operation and Google round trips are separate verification scopes; each result is recorded in the commit that verifies it.
+`tests/apple-project.test.js` verifies that the Xcode project generates identical content from different checkout paths, that all source references are portable,
+the main app and Share Extension dependencies, that machine configuration stays out of the project, generated assets and Info.plist, the Apple main-window and scene classic bundles,
+that CSP is not loosened, missing release values, and duplicate copies of read-only dependency licence files.
+`node --test tests/apple-project.test.js` needs no Apple SDK; it does not mean Xcode loading, Swift compilation or signing passed.
+`tests/apple-signing.test.js` verifies the certificate and profile settings of the manual Developer ID export and invalid signing arguments;
+on a Mac it also runs DMG plus update-ZIP packaging with the real PlistBuddy and fake Xcode, notary and codesign tools, confirming that no Installer is needed,
+no PKG is produced, a temporary notary keychain is passed, empty-array compatibility in macOS Bash 3 for an un-notarized DMG, automatic export and a plain PKG,
+and that a failed runtime load-path check or notarization does not overwrite the last delivered files; with a missing load path nothing may be sent for notarization. Other OSes skip that packaging fixture.
+`tests/test_macos_profile.py` verifies rejection of expired profiles, a wrong Team, App ID, certificate or Keychain group, development profiles and invalid UUIDs.
+These are process regressions and cannot count as Apple notarization or a real signed app passing; real archive, export, Gatekeeper and Sparkle updates need separate verification.
+`python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v` compiles real universal Mach-O fixtures on a Mac,
+and verifies moved paths and paths with spaces, a missing `LC_RPATH`, only the x86_64 slice broken, frameworks with missing files or architectures or available only on the build machine,
+and Debug dylibs inheriting the main program's search paths; other OSes skip it.
+The Mac job of `macos-release.yml` runs this regression before importing signing secrets.
+The native macOS build, the preview package and the Release export all run `scripts/testing/check_macos_runtime.py`,
+which checks the arm64 and x86_64 main program and its dynamic dependencies inside the bundle one by one, and accepts no framework from outside the bundle on the build machine.
+Before notarization the Release export adds `--launch`, which runs the app's `--check-runtime`: the real dyld loads the app and it exits at once,
+without creating NSApplication or opening the workspace, login items or Google. It proves only native loading on the build machine's architecture and cannot count as main-window or Google round-trip acceptance.
+After cloning on a Mac, open the committed `src/native/apple/WorkFleet.xcodeproj`; no project generation is needed first.
+Node 22+, npm and the signing settings are described in the [Apple README](../src/native/apple/README.md).
+
+The actual compile commands for the unsigned universal macOS preview follow; they do not change the system `xcode-select` setting.
+A Debug preview does not replace official signing, Keychain and Google, or product runtime acceptance.
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild \
@@ -138,58 +163,58 @@ lipo -archs build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app/Conten
 python3 scripts/testing/check_macos_runtime.py build/apple/DerivedData/Build/Products/Debug/WorkFleetMac.app
 ```
 
-`scripts/macos/build-native-app.sh --platform macos --unsigned` 已固定使用上述架構設定；
-`scripts/macos/package-preview-app.sh --platform macos --dmg` 檢查兩種架構後產生 DMG 與 `.sha256`。
-封裝後需以 `hdiutil verify` 及唯讀掛載核對實際 App；Debug 的主程式與隨附 dylib 均須含兩種架構。
-2026-10-05 已完成上述建置／DMG 檢查，新增授權檔回歸後 Apple 專案測試 4／4；產物、hash、限制及紀錄見 PROGRESS。
+`scripts/macos/build-native-app.sh --platform macos --unsigned` already uses the architecture settings above;
+`scripts/macos/package-preview-app.sh --platform macos --dmg` checks both architectures and produces the DMG and its `.sha256`.
+After packaging, check the actual app with `hdiutil verify` and a read-only mount; the Debug main program and the bundled dylibs must each contain both architectures.
+The build and DMG checks above were verified on 2026-10-05, as were the Apple project tests after the licence-file regression was added.
 
-測試原生 Keychain／加密 SQLite／主畫面啟動需要 Apple Development 憑證，以及允許本機裝置與
-`app.workfleet.startupprobe.*` 的既有 provisioning profile。先在 Xcode 的 WorkFleetMac target
-選 Signing & Capabilities，啟用 Automatically manage signing、選 Team 並完成 Register Device。
-簽章 universal 建置使用上述命令，移除 `CODE_SIGNING_ALLOWED=NO`；不需更改系統 Keychain 或刪除 App 資料。
+Testing the native Keychain, encrypted SQLite and main-window startup needs an Apple Development certificate and an existing provisioning profile that allows the local device and
+`app.workfleet.startupprobe.*`. First, in Xcode, open Signing & Capabilities for the WorkFleetMac target,
+enable Automatically manage signing, choose the Team and complete Register Device.
+A signed universal build uses the commands above without `CODE_SIGNING_ALLOWED=NO`; there is no need to change the system Keychain or delete app data.
 
 ```bash
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   python3 scripts/testing/apple_startup_probe.py --team TEAM_ID
 ```
 
-此 probe 在 `build/apple/native-startup-<id>/` 建立來源副本與唯一 bundle ID，使用正式 FleetKeychain、
-FleetDatabase、FleetWebHost／FleetDesktop 和隨包 renderer；原始 Xcode 專案與使用者 workspace 不受改動。
-測試建立／更新／讀取 Keychain、重開加密 SQLite，並等待主畫面完成 native 初始化。
-只清除 probe 自己的 Keychain service 與暫存資料；建置、結果及簽章證據保留於該目錄。
-2026-10-05 簽章 probe 通過 Keychain、SQLite 與主畫面 native 初始化；原樣 ESM 載入失敗的
-證據與封裝修正見 [ADR-033](decisions/033-apple-local-script-bundles.md)。
-它不建立憑證、不登記裝置、不測試 Google 登入或完整桌面手勢，也不代表 Developer ID／公證驗收。
+This probe creates a source copy with a unique bundle ID in `build/apple/native-startup-<id>/` and uses the official FleetKeychain,
+FleetDatabase, FleetWebHost and FleetDesktop with the bundled renderer; the original Xcode project and the user's workspace are not changed.
+The test creates, updates and reads the Keychain, reopens the encrypted SQLite and waits for the main window to finish native initialization.
+It removes only the probe's own Keychain service and temporary data; the build, results and signing evidence stay in that directory.
+A signed probe run on 2026-10-05 verified Keychain, SQLite and main-window native initialization; the evidence of the as-is ESM loading failure
+and the packaging fix are in [ADR-033](decisions/033-apple-local-script-bundles.md).
+It creates no certificates, registers no devices, and tests neither Google sign-in nor full desktop gestures; it is not Developer ID or notarization acceptance either.
 
-macOS 登入項目（ADR-043）：`python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -v`
-編譯正式 `FleetHostShell`／`FleetProtocol`，以注入的登入服務驗證未見過的 `notFound` 可註冊且設定可操作、
-第一次啟動套用預設、既有偏好只允許手動重試、系統核准不被覆蓋、取消與重開保持關閉，以及失敗不假報成功。
-沒有 Swift／AppKit 的平台略過；預設不改系統登入項目。Mac release job 在匯入秘密前執行。
-要在 Mac 額外驗證實際 ServiceManagement，可執行：
+macOS login items (ADR-043): `python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -v`
+compiles the official `FleetHostShell` and `FleetProtocol` and, with an injected login service, verifies that a never-seen `notFound` can register and the setting stays operable,
+that the first launch applies the default, that an existing preference allows only a manual retry, that system approval is not overwritten, that cancel and reopen stay off, and that a failure is never reported as success.
+Platforms without Swift and AppKit skip it; by default it does not change system login items. The Mac release job runs it before importing secrets.
+To also verify the real ServiceManagement on a Mac, run:
 
 ```bash
 WORK_FLEET_TEST_LOGIN_ITEMS=1 python3 -B -m unittest discover -s tests -p 'test_macos_host_shell.py' -k real_sandboxed -v
 ```
 
-這會建立隨機 `app.workfleet.loginprobe.*` 的 ad-hoc 簽章沙盒 App，暫時註冊並取消自己的登入項目，
-不碰已安裝 Work Fleet 或使用者工作區。測試只證明註冊、系統狀態與取消；實際登出再登入仍需手動驗收。
+This creates an ad-hoc signed sandboxed app with a random `app.workfleet.loginprobe.*` ID, temporarily registers and then removes its own login item,
+and does not touch the installed Work Fleet or the user's workspace. The test proves only registration, the system status and removal; a real sign-out and sign-in still need manual acceptance.
 
-三平台桌面分層契約見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
-`python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` 在無 GI／display 的環境也可驗證
-Linux native frame 的三層、桌布 input flags 拒絕、舊 session／sequence 與 geometry；不作 UI 證據。
-`python3 -m unittest discover -s tests -p 'test_linux_vault.py' -v` 以真 AES-GCM／SQLite 與假 libsecret 驗證
-[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md)／[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)：首次啟動／重開便箋不接觸金鑰圈、0600 本機金鑰、
-舊資料跨帳號完整驗證後遷移、鎖定／缺金鑰／錯誤金鑰／損毀／寫入失敗保留原資料、拒絕 symlink／不安全權限，
-以及系統憑證／備份密碼的 profile 隔離、鎖住暫停、session collection 拒絕、重複 collection、reset／登出標記、
-舊副本保存確認後 DB／WAL 清理與寫入失敗重試。慢 vault 下 owner bridge 仍完成 storage commit/load，
-host 將 vault 備份分流至 network worker。不需 GI 或使用者金鑰圈；需 python3-cryptography。
+The desktop-layer contract for the three platforms is in [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md).
+`python3 -m unittest discover -s tests -p 'test_linux_scenes.py' -v` verifies, even without GI or a display,
+the three layers of the Linux native frame, rejection of wallpaper input flags, stale sessions and sequences, and geometry; it is not UI evidence.
+`python3 -m unittest discover -s tests -p 'test_linux_vault.py' -v` verifies with real AES-GCM and SQLite and a fake libsecret
+[ADR-047](decisions/047-linux-local-key-without-keyring-prompts.md) and [ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md): the first start and reopening notes do not touch the keyring, the 0600 local key,
+migration of old data after full cross-account verification, keeping the original data when locked, with a missing key, a wrong key, corruption or a write failure, and rejection of symlinks and unsafe permissions,
+as well as profile isolation of system credentials and backup passwords, pausing when locked, rejecting the session collection, duplicate collections, reset and sign-out markers,
+DB/WAL cleanup after saving the old copy is confirmed, and retry after a write failure. With a slow vault the owner bridge still completes storage commit and load, and
+the host routes vault backups to the network worker. It needs neither GI nor the user's keyring; it needs python3-cryptography.
 
-真 libsecret probe 在私人 D-Bus session 與 `/tmp` 合成金鑰圈驗證遷移，以及鎖住後不跳密碼視窗、
-便箋仍可讀寫、憑證／備份密碼不能讀或新存；precheck 後再鎖住仍不執行 Prompt，
-provider 重啟無須直接重設 production Vault 即可恢復；鎖定／secret cache 不可繞過鎖定，外部換 token 後讀到新值。
-舊本機副本確認移至 vault 後從目前 DB／WAL 清理。
-需要 dbus-run-session、dbus-monitor、gnome-keyring-daemon、libsecret；
-不修改桌面的 keyring，不代替實際登入／重開機驗收：
+The real libsecret probe verifies, in a private D-Bus session with a synthetic keyring under `/tmp`, migration, and that after locking no password window appears,
+notes stay readable and writable, and credentials and backup passwords can be neither read nor newly stored; that locking again after the precheck still runs no Prompt,
+and that a provider restart recovers without directly resetting the production Vault; that the lock and secret cache cannot bypass the lock, and that after an external token change the new value is read.
+Old local copies, once confirmed moved into the vault, are cleaned from the current DB/WAL.
+It needs dbus-run-session, dbus-monitor, gnome-keyring-daemon and libsecret;
+it does not modify the desktop keyring and does not replace real sign-in and reboot acceptance:
 
 ```bash
 task_probe_dir=$(mktemp -d /tmp/work-fleet-storage-probe-XXXXXXXX)
@@ -197,80 +222,82 @@ mkdir -m 700 "$task_probe_dir/data" "$task_probe_dir/runtime"
 XDG_DATA_HOME="$task_probe_dir/data" XDG_RUNTIME_DIR="$task_probe_dir/runtime" \
   timeout 30s dbus-run-session -- python3 -B tests/native/linux/storage_probe.py "$task_probe_dir"
 ```
-`python3 -m unittest discover -s tests -p 'test_linux_google.py' -v` 以假 HTTP 確認 Linux 換 token 時，
-有設定才送 Desktop client secret、格式不對時停用；不連網，也不代表真實登入。
-同一檔也確認建構不讀 vault、鎖住清除快取 token／status 非致命、解鎖恢復不需 OAuth、
-鎖住時不啟動登入瀏覽器，以及 401 強制 refresh 在 vault 重讀與暫時鎖定後仍保留。
-`node --test tests/google-vault-pause.test.js` 執行實際帳號 UI 函式，確認同步暫停仍有重試／登出控制、解鎖恢復同帳號，
-另執行實際 syncGoogle 函式，確認只有手動同步呼叫 google.unlockVault、成功接續同步、取消／逾時可重試、
-同一 Prompt 期間重複點擊不重送，以及切換帳號／本機／登出／關閉後丟棄舊結果，不保存或同步舊來源。
-Windows／macOS 沒有 vaultUnlock capability 時不新增 bridge 呼叫，背景一律不解鎖。
-`python3 -B -m unittest discover -s tests -p 'test_linux_unlock.py' -v` 使用真 libsecret／GLib、私人 D-Bus 與合成 provider，
-確認 Unlock／Prompt 的手動取消、成功重試、已解鎖不提示、90 秒操作期限（測試縮短）、close 取消及背景零 Prompt。
-另確認慢前置查詢／憑證讀回共用期限、排隊已逾期不開 Prompt、owner 在 preflight 關閉不開 Prompt，
-以及 provider 回覆 Dismiss 卻不發 Completed 時仍能返回。
-不讀取使用者金鑰圈或密碼，也不代表實際 GNOME／KWallet 視窗的可見性與輸入已驗收。
-Google Python 回歸另確認 unlock_vault 只處理 vault-locked、服務缺失不要求密碼，成功返回原帳號且不 OAuth。
-登出仍只刪除本機憑證、完全不發網路請求。
-`node --test tests/google-sign-out.test.js` 檢查 Windows、Linux、
-Apple、Android 的原始碼都沒有向 Google 撤銷授權的呼叫（ADR-021 修訂）；Swift 與 Java 不在每個檢查環境編譯，所以用原始碼檢查。
-手機授權另有以下 author-run 回歸，均不使用真實 Google 帳號：
+`python3 -m unittest discover -s tests -p 'test_linux_google.py' -v` confirms with fake HTTP that the Linux token exchange
+sends the Desktop client secret only when it is configured, and disables it when it is malformed; it does not go online and does not represent a real sign-in.
+The same file also confirms that construction does not read the vault, that locking clears the cached token and the status is non-fatal, that unlocking recovers without OAuth,
+that no sign-in browser starts while locked, and that a refresh forced by a 401 is kept across a vault reread and a temporary lock.
+`node --test tests/google-vault-pause.test.js` runs the real account UI functions and confirms that a paused sync still has retry and sign-out controls and that unlocking resumes the same account;
+it also runs the real syncGoogle function and confirms that only a manual sync calls google.unlockVault, that success continues the sync, that cancel and timeout can be retried,
+that repeated clicks during the same Prompt are not resent, and that switching accounts, going local, signing out or closing discards old results without saving or syncing the old source.
+Without the vaultUnlock capability (Windows and macOS) no bridge call is added, and background work never unlocks.
+`python3 -B -m unittest discover -s tests -p 'test_linux_unlock.py' -v` uses real libsecret and GLib, a private D-Bus and a synthetic provider
+to confirm manual cancel of Unlock and Prompt, successful retry, no prompt when already unlocked, the 90-second operation deadline (shortened in the test), cancel on close and zero Prompts in the background.
+It also confirms that a slow pre-query and the credential read-back share the deadline, that a queued request that has already expired opens no Prompt, that an owner closing during preflight opens no Prompt,
+and that the call still returns when the provider replies Dismiss without sending Completed.
+It reads no user keyring or password, and does not mean the visibility and input of real GNOME or KWallet windows have been accepted.
+The Google Python regressions also confirm that unlock_vault handles only vault-locked, that a missing service asks for no password, and that success returns the original account without OAuth.
+Sign-out still deletes only local credentials and sends no network request at all.
+`node --test tests/google-sign-out.test.js` checks that the Windows, Linux,
+Apple and Android sources contain no call that revokes the Google grant (ADR-021 revision); Swift and Java are not compiled in every check environment, so it checks the source.
+Phone authorization also has the following author-run regressions, none of which uses a real Google account:
 
-- `node --test tests/google-vault-pause.test.js` 另執行實際帳號切換函式，確認原生登入取消／設定失敗時
-  恢復編輯、自動備份及原帳號同步，且取消不使用錯誤提示樣式。
-- `python3 -B -m unittest discover -s tests -p 'test_macos_google_sign_in.py' -v` 編譯正式 `FleetGoogle.swift`，
-  以假 SDK／AppKit／Keychain／HTTP 驗證取消保留登入、成功開啟一次、Drive 權限不足、關閉後晚回覆、
-  不同 sub 拒絕及 SDK／網路錯誤分類。實際 SDK 介面另由 Xcode iOS／macOS 建置確認，不把假 SDK 當成真登入。
-- Android SDK／JDK 可用時，在 `src/native/android` 執行 `bash ./gradlew testDebugUnitTest assembleDebug`。
-  JUnit 使用正式 `GoogleAccessToken`／`GoogleSignInErrors` 與真 SDK exception 類型，
-  驗證切換帳號不使用另一帳號 token、到期／清除及 Credential Manager／Play Services 錯誤不洩漏原始訊息。
-  Unit tests 不啟動 Activity 或 Google UI，帳號選擇、授權返回及裝置生命週期仍依 [Google 設定](google-setup.md#手機登入驗收) 手動驗收。
+- `node --test tests/google-vault-pause.test.js` also runs the real account-switch function and confirms that when native sign-in is cancelled or its configuration fails,
+  editing, automatic backups and the original account's sync resume, and that a cancel does not use the error style.
+- `python3 -B -m unittest discover -s tests -p 'test_macos_google_sign_in.py' -v` compiles the official `FleetGoogle.swift`
+  and, with fake SDK, AppKit, Keychain and HTTP, verifies that cancel keeps the existing sign-in, that success opens once, insufficient Drive permission, late replies after close,
+  rejection of a different sub, and classification of SDK and network errors. The real SDK interface is confirmed separately by the Xcode iOS and macOS builds; the fake SDK is not treated as a real sign-in.
+- When the Android SDK and JDK are available, run `bash ./gradlew testDebugUnitTest assembleDebug` in `src/native/android`.
+  JUnit uses the official `GoogleAccessToken` and `GoogleSignInErrors` with real SDK exception types
+  to verify that switching accounts never uses another account's token, expiry and clearing, and that Credential Manager and Play Services errors do not leak raw messages.
+  Unit tests start no Activity or Google UI; account choice, the authorization return and the device lifecycle still need manual acceptance as described in the phone sign-in acceptance section of [Google setup](google-setup.md).
 
-`tests/test_linux_python_floor.py` 從 DEB `Depends` 讀 Python 下限（3.10），確認 tar.gz 宣告相同，
-並以該版本語法解析 Linux host，另檢查 `ast` 放行但 3.12 前不接受的 f-string 寫法；不檢查標準庫 API。
-`tests/test_linux_gi_versions.py` 以 `ast` 確認固定 Gtk 3.0 的 Linux 模組在 import Gdk 前也固定 Gdk 3.0，
-避免已安裝 GTK 4 typelib 時先載入 Gdk 4.0 而啟動失敗；不需 GI 或 display。
-`tests/test_linux_surface.py` 以假 GI／cairo 建立 X11 場景並固定測試用的工作階段環境，確認 X11 以工作區、layer-shell 以整個螢幕為 viewport，
-視窗依 viewport 設 size request、換顯示器時更新，
-GNOME Wayland 經 XWayland 時只常駐桌布層、桌布為 keep below 的 desktop-type 視窗並拒絕桌面層，最上層在調整模式以整個工作區為
-input region、即使該螢幕沒有便箋也顯示並只在出現時 present；GNOME Xorg 提供三層，調整模式同樣是遮罩，桌面層為一般視窗加 keep below，
-最上層有便箋時可取得焦點；layer-shell 常駐三層，調整模式同樣是遮罩，以整個螢幕為 input region 並以 EXCLUSIVE 取得鍵盤、
-結束後回到 ON_DEMAND；同一 Wayland socket 上有 `pcmanfm --desktop` 時 layer-shell 不提供桌布層，偵測以假 `/proc` 排除
-檔案管理員視窗、其他工作階段與沒有 Wayland 顯示的行程；其他 X11 調整時同樣以整個工作區為遮罩，平時只有便箋接收輸入且桌面層為 desktop-type；
-隱藏的主視窗以原位置、大小與最大化狀態恢復，layer-shell 改為最小化並以 activation 叫回、被拒絕時重新顯示，
-原本不在畫面上的主視窗不被叫回；`tests/desktop-overlay.test.js` 確認只有調整開始時有焦點的主視窗讓開並在結束後恢復。
-不代表 GNOME 或 labwc 實機已驗收。Windows 的 `SceneTransfersProbe` 另檢查 `operationScope` 解析出調整狀態並拒絕未知範圍；
-Windows 的 `--adjust-overlay` 以真 WPF／WebView2 檢查首次載入就顯示工具列、全部／此組調整、排列與退出，以及主視窗已最小化時不被叫回；
-macOS 的 layer probe 另檢查初始 overlay capability、空螢幕調整時的全 viewport input panel 與退出時釋放。
-2026-10-17 使用者回報已在 Mac 實機操作 macOS 調整模式（此組／全部、工具列、退出），沒有發現問題；
-使用者也確認最上層便箋仍在最大化視窗上方可見。主視窗縮回／展開沒有另外回報；
-原生全螢幕 App（獨立 Space）與 Spaces 切換下的最上層仍未驗收。
-`tests/stages.test.js` 與 `tests/desktop-authority.test.js` 另驗證沒有桌面層時快捷鍵略過該層、
-桌面便箋回退桌布層且不可互動、保存的偏好不改寫，只有最上層時拒絕投影；最上層只供調整時，
-常駐便箋回退桌布、調整中的便箋仍在最上層，快捷鍵從桌布直接進入調整模式且不改寫常駐層；
-遮罩的排列指令只在調整時接受 stack／spread／undo，完成指令結束調整模式。headless labwc probe 檢查遮罩染色；
-Linux 工具列與主視窗隱藏／恢復仍以實機驗證為準。
-`tests/test_linux_renderer.py` 以假檔案系統確認只有 Raspberry Pi model 或 V3D 驅動才預設 DMA-BUF renderer 的共享記憶體 buffer、
-使用者設定任一 renderer 變數時不覆寫，且 host 在 import WebKit 前決定；不代表 Pi 或其他 GPU 已實機驗收。
-`tests/test_linux_shortcuts.py` 以假 Keybinder 確認 X11 先關閉 cooked 比對再登記，Ctrl+Shift 組合觸發動作、主視窗取得焦點時釋放；
-labwc 模式不詢問 portal，未寫入的組合為 `unwritten`，寫入後即使 Work Fleet 有焦點也是可用；不代表實際按鍵已驗收。
-`tests/test_linux_labwc.py` 以暫存檔驗證 labwc 按鍵語法、只取代標記區塊並保留其他內容與註解、找到或建立 `<keyboard>`、
-拒絕格式錯誤的檔案、合併／非合併模式的新檔、只備份一次、保留權限、狀態判斷與從 labwc cmdline 偵測設定目錄；
-`tests/native-shortcuts.test.js` 另確認寫入等待進行中的設定並回報 rc.xml 狀態。不讀寫使用者的 rc.xml。
-`tests/test_linux_xwayland.py` 驗證 GNOME Wayland 偵測、偏好檔的權限與原子寫入、GTK 前依選擇設定 `GDK_BACKEND`、
-使用者設定優先、重新啟動移除自己設定的值、只詢問一次、資料鎖未釋放時不重新啟動；對話框與實際重新啟動只有實機驗證。
-在真正的 Mac 圖形 session 執行 `bash scripts/macos/test-desktop-layers.sh`，直接編譯 AppKit
-場景／協調器，驗證原生 level、三層能力、位置、穿透、桌布拒絕焦點，以及場景 WKWebView 不畫不透明底色
-（否則整片場景會蓋住桌布），以及調整時即使沒有便箋仍顯示、整個 viewport 接收輸入、退出後釋放鍵盤與 input panel，
-不需要 Google SDK。互動紙面另以 `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
-確認 WindowServer 會把真實點擊交給輸入 panel；直接送進 panel 的合成事件會略過這個判定，無法取代此檢查。
-全域快捷鍵只在 Work Fleet 視窗取得鍵盤時釋放；probe 以 `FleetShortcuts.suspends` 檢查主視窗最小化、關到選單列（App 仍在前景但沒有 key window）
-仍保留註冊。實際按鍵送達需要在實體鍵盤測試；遠端桌面不一定會傳送按鍵組合。
-WindowServer 非同步套用視窗排序與 level，剛顯示的視窗會先回報 layer 0、不在螢幕上；probe 會 flush 並等到視窗上螢幕且 level 相符
-（最多 2 秒）再檢查。
-這個 probe 不會讀取使用者便箋；不替代完整 App build、WKWebView／IME／Spaces 實機驗收。
+`tests/test_linux_python_floor.py` reads the Python floor (3.10) from the DEB `Depends`, confirms that the tar.gz declares the same,
+parses the Linux host with that version's grammar, and also checks f-string forms that `ast` accepts but Python before 3.12 does not; it does not check standard-library APIs.
+`tests/test_linux_gi_versions.py` confirms with `ast` that Linux modules that pin Gtk 3.0 also pin Gdk 3.0 before importing Gdk,
+which avoids a start failure from loading Gdk 4.0 first when a GTK 4 typelib is installed; it needs neither GI nor a display.
+`tests/test_linux_surface.py` builds X11 scenes with fake GI and cairo and a pinned test session environment, and confirms that X11 uses the work area and layer-shell the whole screen as the viewport,
+that windows set their size request from the viewport and update it when the display changes;
+that on GNOME Wayland through XWayland only the wallpaper layer is resident, the wallpaper is a keep-below desktop-type window and the desktop layer is refused, and the top layer in adjust mode uses the whole work area as its
+input region, shows even when that screen has no notes and presents only when it appears; that GNOME Xorg provides three layers, adjust mode is again a mask, the desktop layer is a normal window with keep-below,
+and the top layer can take focus when it has notes; that layer-shell keeps three layers resident, adjust mode is again a mask that uses the whole screen as its input region and takes the keyboard with EXCLUSIVE,
+returning to ON_DEMAND afterwards; that with `pcmanfm --desktop` on the same Wayland socket layer-shell offers no wallpaper layer, with detection that uses a fake `/proc` to exclude
+file-manager windows, other sessions and processes without a Wayland display; that on other X11 desktops adjust mode also masks the whole work area, normally only notes receive input, and the desktop layer is desktop-type;
+that a hidden main window is restored with its original position, size and maximized state, while under layer-shell it is minimized instead and recalled with activation, and shown again if that is refused,
+and that a main window that was not on screen is not recalled; `tests/desktop-overlay.test.js` confirms that only a main window that had focus when adjust mode started moves aside, and that it is restored afterwards.
+This does not mean GNOME or labwc have been accepted on real machines. On Windows, `SceneTransfersProbe` also checks that `operationScope` resolves to the adjust state and rejects unknown scopes;
+Windows `--adjust-overlay` checks with real WPF and WebView2 that the toolbar shows on first load, Adjust all and Adjust this group, Arrange and exit, and that an already minimized main window is not recalled;
+the macOS layer probe also checks the initial overlay capability, the full-viewport input panel during adjust mode on an empty screen, and its release on exit.
+On a real Mac the user has used macOS adjust mode (this group, all, the toolbar, exit) and found no problems (reported 2026-10-17);
+the user also confirmed that top-layer notes stay visible above maximized windows. Collapsing and restoring the main window were not reported separately;
+the top layer with native full-screen apps (separate Spaces) and while switching Spaces is not yet accepted.
+`tests/stages.test.js` and `tests/desktop-authority.test.js` also verify that without a desktop layer the shortcut skips that layer,
+desktop notes fall back to the wallpaper layer and are not interactive, and the saved preference is not rewritten, and that projection is refused when only a top layer exists; when the top layer serves only adjust mode,
+resident notes fall back to the wallpaper while notes being adjusted stay on the top layer, and the shortcut goes from the wallpaper straight into adjust mode without rewriting the resident layer;
+the mask's arrange commands accept stack, spread and undo only during adjust mode, and the Done command ends adjust mode. The headless labwc probe checks the mask tint;
+the Linux toolbar and hiding and restoring the main window are judged by real-machine checks.
+`tests/test_linux_renderer.py` confirms with a fake file system that only a Raspberry Pi model or the V3D driver makes the DMA-BUF renderer default to shared-memory buffers,
+that nothing is overridden when the user sets any renderer variable, and that the host decides before importing WebKit; it does not mean the Pi or other GPUs have been accepted on real hardware.
+`tests/test_linux_shortcuts.py` confirms with a fake Keybinder that X11 turns off cooked matching before registering, that Ctrl+Shift combinations trigger actions, and that they are released while the main window has focus;
+in labwc mode it does not ask the portal, an unwritten combination is `unwritten`, and once written it is available even while Work Fleet has focus; it does not mean real key presses have been accepted.
+Remote desktop clients intercept Ctrl+Shift combinations. On the Raspberry Pi with labwc, send keys with `wtype` and watch `dbus-monitor` for `ActivateAction("shortcut", …)` (2026-10-14).
+The path from `Desktop.shortcut` to `desktop-action` has no automated test.
+`tests/test_linux_labwc.py` verifies with temporary files the labwc key syntax, replacing only the marked block while keeping other content and comments, finding or creating `<keyboard>`,
+rejecting malformed files, new files in merge and non-merge mode, backing up only once, keeping permissions, status detection, and detecting the configuration directory from the labwc cmdline;
+`tests/native-shortcuts.test.js` also confirms that a write waits for a setting in progress and reports the rc.xml status. It neither reads nor writes the user's rc.xml.
+`tests/test_linux_xwayland.py` verifies GNOME Wayland detection, the preference file's permissions and atomic write, setting `GDK_BACKEND` from the choice before GTK starts,
+user settings taking precedence, a restart removing the value it set itself, asking only once, and no restart while the data lock is still held; the dialog and the real restart are verified only on real machines.
+In a real Mac graphical session, run `bash scripts/macos/test-desktop-layers.sh`, which compiles the AppKit
+scenes and coordinator directly and verifies native levels, the three-layer capability, position, click-through, the wallpaper refusing focus, that the scene WKWebView draws no opaque background
+(otherwise the whole scene would cover the wallpaper), and that during adjust mode the scene shows even without notes, the whole viewport receives input, and the keyboard and input panel are released on exit;
+it needs no Google SDK. For interactive papers it also confirms with `NSWindow.windowNumber(at:belowWindowWithWindowNumber:)`
+that WindowServer delivers real clicks to the input panel; synthetic events sent directly into the panel skip this hit test and cannot replace this check.
+Global shortcuts are released only while a Work Fleet window holds the keyboard; the probe checks with `FleetShortcuts.suspends` that a minimized main window and closing to the menu bar (the app still in front but with no key window)
+keep the registration. Real key delivery needs testing on a physical keyboard; remote desktops do not always pass key combinations through.
+WindowServer applies window order and level asynchronously, so a window that was just shown first reports layer 0 and is not on screen; the probe flushes and waits until the window is on screen with the matching level
+(at most 2 seconds) before checking.
+This probe reads no user notes; it does not replace a full app build or real WKWebView, IME and Spaces acceptance.
 
-Linux 原生場景測試使用單獨的 headless labwc／GTK／WebKit，不存取使用者 desktop／DB：
+The Linux native scene tests use a separate headless labwc, GTK and WebKit and do not touch the user's desktop or DB:
 
 ```bash
 npm run build
@@ -284,7 +311,7 @@ docker run --rm --network none \
   bash /workspace/scripts/linux/test-desktop-layers.sh /evidence /evidence/scenarios.json
 ```
 
-同一映像以真 GTK owner 檢查 ADR-043（不開啟 workspace 資料庫，也不需要 Secret Service）：
+The same image checks ADR-043 with a real GTK owner (it opens no workspace database and needs no Secret Service):
 
 ```bash
 mkdir -p build/linux-host-checks
@@ -294,63 +321,63 @@ docker run --rm --network none \
   work-fleet-linux-desktop-tests dbus-run-session -- bash /workspace/scripts/linux/test-host-shell.sh /evidence
 ```
 
-Xvfb＋openbox（X11）驗證預設大小、移動／最大化／最小化／還原後的 `window-placement.json`、重新開啟回到保存位置、重置、
-第一次啟動寫入 bundle 啟動檔的 autostart 項目、關閉後之後啟動不重新建立，以及 `--launch-at-login` 時主畫面先隱藏、
-沒有系統匣時等待後顯示（probe 透過公開設定的 `startup` 改用 3 秒）、再次啟動叫出主畫面。`hidden-tray` 模式用 Ayatana AppIndicator
-（映像與 DEB Recommends 相同）並在 App 之後才登記 StatusNotifierWatcher，驗證晚到的系統匣讓主畫面保持隱藏，
-系統匣消失時才顯示；也從 D-Bus 讀回系統匣的 `Title` 是「Work Fleet」，並確認 `host.log` 記下這次登入啟動與系統匣的來去。
-headless labwc 驗證只保存大小與最大化並在重開時套用。
-`tests/test_linux_hostsettings.py` 以共用 fixture 驗證位置規則、檔案、Exec 引號與只移除自己寫入的 autostart 項目。
-這些不是 GNOME／Pi 實際登入時的 autostart 證據。
+Xvfb with openbox (X11) verifies the default size, `window-placement.json` after move, maximize, minimize and restore, reopening at the saved position, reset,
+the autostart entry for the bundle's launcher written on first launch and not re-created at later launches after it is turned off, and that with `--launch-at-login` the main window starts hidden,
+shows after a wait when there is no tray (the probe uses 3 seconds through the public `startup` setting), and that a second launch brings up the main window. The `hidden-tray` mode uses Ayatana AppIndicator
+(as the image and the DEB Recommends do) and registers the StatusNotifierWatcher only after the app, verifying that a late tray keeps the main window hidden
+and that the window shows only when the tray disappears; it also reads back from D-Bus that the tray's `Title` is "Work Fleet", and confirms that `host.log` records this sign-in start and the tray coming and going.
+Headless labwc verifies that only the size and maximized state are saved and applied on reopen.
+`tests/test_linux_hostsettings.py` verifies with the shared fixture the placement rules, the files, Exec quoting, and removing only an autostart entry it wrote itself.
+None of this is evidence of autostart at a real GNOME or Pi sign-in.
 
-投影來自實際共用 Workspace／InteractionController；native owner 分片發布並由真正 WebKit renderer
-接收、確認、畫出。涵蓋 wallpaper→調整此組 floating→完成後還原、常駐 desktop／floating、
-反覆隱藏／顯示與 topology 重用；調整此組時確認最上層整個畫面接收輸入、鍵盤為 EXCLUSIVE，便箋外的畫面被遮罩染色，
-並對最上層送出合成的指標移入／移動事件後確認便箋與遮罩仍在。場景使用 Pi 預設的 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`；
-停用 DMA-BUF renderer 時這項檢查在 Pi 會失敗，x64 Docker 則仍通過，所以 CI 擋不住這個回歸。
-合成畫面截圖會等到預期像素出現（最多 10 秒）、再截一次才檢查：軟體 GL 下新顯示場景的第一個畫面較晚到達 compositor
-（x64 Docker 的桌布層約 0.4 秒、調整遮罩約 1.6 秒），固定等 0.2 秒會失敗。
-輸出合成畫面 PNG、版本與 Wayland trace；trace 檢查接受新舊 libwayland 的物件編號格式。
-已安裝 labwc、grim 與 GTK／WebKit 繫結的 Linux（如 Raspberry Pi OS）也可不用 Docker，以系統 Python 直接執行：
-`PATH=/usr/bin:$PATH dbus-run-session -- bash scripts/linux/test-desktop-layers.sh OUTPUT OUTPUT/scenarios.json`。
-root Docker probe 的 WebKit sandbox 例外僅存在測試 shell，不套用到產品 launcher。
-這些測試不是 Pi／V3D、pcmanfm-pi、實體拖曳／IME 或多螢幕證據；X11 不假冒三層能力。
-`npm run config:check -- --platform windows` 等指定平台命令在缺公開設定時應非零退出。
-`tests/workspace-sync.test.js` 驗證 graph 與 Workspace／LayoutStore 原子交易、保存失敗、過期 session／cursor、
-runtime 重啟、群組循環／十組恢復、草稿、歷史恢復、轉組意圖與既有 entity 順序。
-`tests/file-sync.test.js` 使用獨立記憶體 FileStore，驗證分頁／重啟／雙裝置分支、回應遺失、
-reservation／ack 故障、附件、來源不可變、撤權／退避、取消與帳號 session。
-`tests/google-drive.test.js` 使用 scripted HTTP 回應，驗證 appDataFolder 路由／metadata、
-resumable 分段及 Range、4xx 重開、同 file ID、讀回校驗與 Location 邊界；不使用 Google 憑證。
-`python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v` 編譯正式 Apple
-`FleetDrive`／`FleetProtocol`，只替換授權與 HTTP，驗證 Google 回傳的原始逗號／`%2C` fields 參數、
-上傳 bytes 與 URL 保留、失敗後查進度續傳，以及 adapter 重建後沿同 file ID 開新 session。
-另驗證缺失／不合法 Location、外部主機、HTTP、錯誤 port／路徑、帳密、fragment、重複參數與過長網址
-在傳送內容前被拒絕。沒有 Swift SDK 的平台略過；Mac release job 在匯入秘密前執行。
-不讀 Keychain、不連真實 Google，也不代表已安裝版本的重開機／帳號往返驗收。
+The projection comes from the real shared Workspace and InteractionController; the native owner publishes it in chunks, and the real WebKit renderer
+receives, acknowledges and draws it. It covers wallpaper → Adjust this group floating → restore after Done, resident desktop and floating,
+repeated hide and show, and topology reuse; during Adjust this group it confirms that the whole top layer receives input, that the keyboard is EXCLUSIVE, that the area outside the notes is tinted by the mask,
+and that the notes and the mask remain after synthetic pointer enter and motion events are sent to the top layer. The scenes use the Pi default `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`;
+with the DMA-BUF renderer disabled this check fails on the Pi but still passes in x64 Docker, so CI cannot catch this regression.
+Composite screenshots wait until the expected pixels appear (at most 10 seconds) and capture once more before checking: under software GL the first frame of a newly shown scene reaches the compositor late
+(about 0.4 seconds for the wallpaper layer and about 1.6 seconds for the adjust mask in x64 Docker), so a fixed 0.2-second wait fails.
+The output is composite PNGs, versions and a Wayland trace; the trace check accepts both the old and the new libwayland object-number formats.
+A Linux system with labwc, grim and the GTK and WebKit bindings installed (such as Raspberry Pi OS) can also run it without Docker, with the system Python:
+`PATH=/usr/bin:$PATH dbus-run-session -- bash scripts/linux/test-desktop-layers.sh OUTPUT OUTPUT/scenarios.json`.
+The WebKit sandbox exception of the root Docker probe exists only in the test shell and does not apply to the product launcher.
+These tests are not evidence for the Pi and V3D, pcmanfm-pi, physical drags and IME, or multiple displays; X11 does not pretend to have the three-layer capability.
+Platform-specific commands such as `npm run config:check -- --platform windows` should exit non-zero when public settings are missing.
+`tests/workspace-sync.test.js` verifies atomic transactions between the graph and Workspace and LayoutStore, save failures, stale sessions and cursors,
+runtime restarts, group cycles and recovery with ten groups, drafts, history restore, transfer intents and existing entity order.
+`tests/file-sync.test.js` uses an independent in-memory FileStore and verifies paging, restarts and two-device branches, lost responses,
+reservation and ack faults, attachments, source immutability, revoked access and backoff, cancellation and account sessions.
+`tests/google-drive.test.js` uses scripted HTTP responses and verifies appDataFolder routing and metadata,
+resumable chunks and Range, reopening after a 4xx, the same file ID, read-back verification and Location boundaries; it uses no Google credentials.
+`python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v` compiles the official Apple
+`FleetDrive` and `FleetProtocol`, replacing only authorization and HTTP, and verifies the `fields` parameter that Google returns with raw commas or `%2C`,
+that the upload bytes and URL are kept, resuming after a failure by querying progress, and opening a new session on the same file ID after the adapter is rebuilt.
+It also verifies that a missing or invalid Location, an external host, HTTP, a wrong port or path, credentials, a fragment, duplicate parameters and an overlong URL
+are rejected before any content is sent. Platforms without the Swift SDK skip it; the Mac release job runs it before importing secrets.
+It reads no Keychain and does not connect to real Google, and it is not acceptance of reboots or account round trips with an installed build.
 
-`tests/backup-archive.test.js` 驗證 ZIP 路徑／目錄／CRC／容量／惡意 DEFLATE／取消及加密，
-並透過固定 Python 標準庫 fixture 獨立讀取 ZIP（Windows 支援 pyenv 的 python.bat）。
-`tests/backup-payload.test.js` 驗證完整歷史／群組／草稿 lineage／附件／版面、hash／引用／計數、
-profile 綁定、並行快照、未知 conflict 拒絕、加密與大量圖取消。沒有把檔案驗證當已還原。
-`tests/backup-capacity.test.js` 完整產生／重開 20,000 entries 並驗證多一個就拒絕；
-它含大量個別 ZIP／SHA 作業，執行時間高於一般小 fixture，不是最低手機裝置 benchmark。
-`tests/backup-restore.test.js` 驗證三種還原、完整 ID／草稿 lineage 映射、缺 parent、過期計畫、
-安全備份綁定、交易失敗、重啟 receipt／明確重複及大量新卡定位取消後佇列仍可使用。
-另驗證本機完整還原不需安全備份、舊 graph／草稿／附件清除、過期／取消／交易回滾，
-以及本機／Google 四方向同格式往返。`tests/backup-export.test.js` 用 MemoryFileStore 驗證同步後匯出新遠端內容、
-明確副本 fallback、取消／切 profile、不完整同步及成功時間；未連真 Google。
-`python -m unittest discover -s tests -p 'test_linux_local_restore.py' -v` 執行真 SQLite 的替換／空附件／回滾／CAS／分區隔離；
-在 Windows 只替換 fcntl import，crypto 使用 identity fixture，不代表 Linux GUI／金鑰圈已測。
-`tests/backup-files.test.js` 驗證 write／close／讀回故障、大小／hash、取消、owned bytes 及保存能力。
-`tests/automatic-backup.test.js` 使用合成原子 FileHost 驗證每日／變更／resume、合併觸發、排隊取消、
-pending／ack／重啟／清理、換位置、最新檔遺失、加密 policy 變更、vault 暫停及 journal 失聯通知。
+`tests/backup-archive.test.js` verifies ZIP paths, directories, CRC, capacity, malicious DEFLATE, cancellation and encryption,
+and reads the ZIP independently through a fixed Python standard-library fixture (on Windows it supports pyenv's python.bat).
+`tests/backup-payload.test.js` verifies complete history, groups, draft lineage, attachments and layout, hashes, references and counts,
+profile binding, concurrent snapshots, rejection of unknown conflicts, encryption and cancellation with many images. File verification is never treated as a completed restore.
+`tests/backup-capacity.test.js` fully generates and reopens 20,000 entries and verifies that one more is rejected;
+it contains many individual ZIP and SHA operations, so it runs longer than ordinary small fixtures; it is not a benchmark for the lowest-end phone.
+`tests/backup-restore.test.js` verifies the three restores, complete ID and draft-lineage mapping, missing parents, stale plans,
+safety-backup binding, transaction failure, restart receipts and explicit duplicates, and that the queue stays usable after placing many new cards is cancelled.
+It also verifies that a local complete restore needs no safety backup, clearing of the old graph, drafts and attachments, stale, cancelled and rolled-back transactions,
+and same-format round trips in all four directions between local and Google. `tests/backup-export.test.js` uses MemoryFileStore to verify exporting new remote content after a sync,
+the explicit copy fallback, cancel and profile switch, incomplete sync and the success time; it does not connect to real Google.
+`python -m unittest discover -s tests -p 'test_linux_local_restore.py' -v` runs replacement, empty attachments, rollback, CAS and partition isolation on real SQLite;
+on Windows it replaces only the fcntl import and uses an identity fixture for crypto, so it does not mean the Linux GUI or keyring has been tested.
+`tests/backup-files.test.js` verifies write, close and read-back faults, size and hash, cancellation, owned bytes and the save capability.
+`tests/automatic-backup.test.js` uses a synthetic atomic FileHost to verify daily, change and resume triggers, merged triggers, cancelling queued work,
+pending, ack, restart and cleanup, changing the location, a missing latest file, encryption policy changes, the vault pause and the notice when the journal is lost.
 
-新的真實瀏覽器回歸使用隔離 profile 與合成資料：
+The new real-browser regressions use isolated profiles and synthetic data:
 
 ```bash
 python scripts/testing/serve_preview.py --port 0
-# 另一終端，把 PORT 換成上面印出的實際 port
+# In another terminal, replace PORT with the actual port printed above
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
@@ -363,40 +390,52 @@ node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT
 ```
 
-`scene-probe` 以頁內合成主機（`scene.info`／分段畫面與 SHA-256／`scene.applied`）載入建置後的桌面場景，
-連續送兩個畫面，驗證標題帶不在內文重複、checklist 只顯示勾選框、紙張正方形，以及重用節點時標題與步驟跟著更新；
-不取代 Windows／macOS／Linux 原生場景的實機檢查。截圖在 `build/scene-probe.png`。
+The browser, group, revision, backup, restore UI, cloud restore UI, local backup UI, automatic backup and scene probes
+open their browser context with `locale: 'en-US'`, so "Auto-detect" resolves to English whatever the machine's
+language. `sync-probe` loads no UI (it opens a stylesheet and imports the modules) and uses the default
+context.
 
-`local-backup-ui-probe` 使用合成 Google FileStore、真實 IDB，驗證舊備份可選、確認失效、附件移除／其他分區保留，
-以及 Google 匯出同步、失敗明確選擇與取消；沒有存取使用者便箋或 Google 帳號。
+`scene-probe` loads the built desktop scene with an in-page synthetic host (`scene.info`, chunked frames with SHA-256, `scene.applied`),
+sends two frames in a row, and verifies that the title band is not repeated in the body, that checklists show only checkboxes, that papers are square, and that titles and steps update when nodes are reused;
+it then sends a frame with `locale: 'zh-TW'` and checks that the scene's `lang`, title, label and Edit button switch to the zh-TW catalog text, and that the next `en` frame switches them back to English;
+it does not replace real checks of the Windows, macOS and Linux native scenes. The screenshot is `build/scene-probe.png`.
 
-Windows 使用已安裝的 Edge；Linux／macOS 使用 Playwright Chromium，首次需
-`npx playwright install chromium`。Playwright 與測試 browser 不放進產品產物。
-probe 驗證新增／重開、Markdown／checklist、附件 bytes 與惡意 HTML 隔離、固定紙面 inline 編輯、
-普通／Shift 拖放、undo、搜尋／filter 不搬卡、便箋／清單檢視（正方形、不重複標題、重開後保留選擇）、
-多步草稿操作、離頁慢寫提示、窄螢幕入口與單 writer。
-另用真實 IDB 驗證並行 CAS、非連續 revision 拒絕、附件及 profile 隔離。
-group probe 驗證群組預覽／取消／合併、封存資料／草稿完整性、區域交換不搬卡、
-自訂與重複快捷鍵、多綁定在合併及再次設定後仍保留。
-revision probe 以合成資料驗證兩版本比較、HTML 文字隔離／附件原始 bytes、delete/edit 決議、
-歷史恢復、草稿／geometry 保留、IME 邊界及 390px 下零活動群組的循環恢復入口。
-它透過核心 fixture 注入版本，沒有連 Google；截圖在 `build/revision-probe.png`。
-sync probe 在真 Edge／IndexedDB 接 FileSync 與合成 FileStore，驗證 reservation 落盤、
-回應遺失後重開同 file ID、附件校驗／分區隔離、雙裝置分支及重開保留；仍不等於真 Google。
-backup probe 使用真 Edge／IndexedDB、2 MiB 附件及草稿／版面，驗證明文／加密往返、
-錯密碼、取消零寫入、還原 transaction abort／附件回滾、commit 後回應遺失／重啟 receipt 及 CAS。
-restore UI probe 經完整畫面執行匯出／預覽／匯入／重複與取代，安全備份先保存才解鎖確認，
-檢查原草稿／歷史及 390px 畫面。它只替換 picker，真實保存／close／SHA 讀回使用 OPFS handle，
-沒有開啟個人檔案選擇器。截圖在 `build/restore-ui-probe.png`，失敗另存同名前綴 failure 圖。
-另在完整主畫面確認本機完整還原不產生舊資料備份、只留下備份 graph／草稿，重啟仍可讀回。
-上述不代表原生 OS picker、外部磁碟斷電耐久或最低手機容量壓測。
-automatic probe 先確認真 App 的自動檔案能力停用，再以真 IDB journal／Workspace 與合成 FileHost
-檢查完整 UI、執行中停用、reservation abort、ack 遺失／重啟、CAS、授權暫停及可讀取的 ZIP bytes。
-它不使用原生 OS 自動檔案或 vault，截圖為 `build/automatic-backup-probe.png`。
-輸出截圖在 `build/browser-probe.png`，失敗時在 `build/browser-probe-failure.png`。
-這不等於真實斷電、Google 來源、iOS／Android 或 OS 分層驗收；這些瀏覽器 probe 不在 GitHub Actions CI 中，需在本機執行。
+`local-backup-ui-probe` uses a synthetic Google FileStore and real IDB, and verifies that old backups can be chosen, that a confirmation is invalidated, and that attachments are removed while other partitions are kept,
+as well as Google export with sync, the explicit choice after a failure, and cancel; it does not touch the user's notes or Google account.
 
-既有 Mac 驗證版另在 macOS 執行：
+Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which needs
+`npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
+The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, inline editing on fixed papers,
+plain and Shift drag-and-drop, undo, search and filters not moving cards, the board and list views (square papers, no repeated titles, the selection kept after reopening),
+multi-step draft operations, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
+It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
+Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
+Keep this wait if the probe is edited.
+The group probe verifies group preview, cancel and merge, archived data and draft integrity, region swaps not moving cards,
+custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again.
+The revision probe verifies with synthetic data a two-version comparison, HTML text isolation and raw attachment bytes, delete/edit resolution,
+history restore, keeping drafts and geometry, the IME boundary, and the group-cycle repair entry at 390 px when no group is active.
+It injects versions through a core fixture and does not connect to Google; the screenshot is `build/revision-probe.png`.
+The sync probe connects FileSync to a synthetic FileStore in real Edge and IndexedDB and verifies that reservations reach disk,
+that reopening after a lost response reuses the same file ID, attachment verification and partition isolation, two-device branches and persistence after reopening; it is still not real Google.
+The backup probe uses real Edge and IndexedDB, a 2 MiB attachment, drafts and layout to verify plaintext and encrypted round trips,
+a wrong password, zero writes on cancel, restore transaction abort and attachment rollback, a lost response after commit, restart receipts and CAS.
+The restore UI probe runs export, preview, import, duplicate and replace through the full window, with the safety backup saved before the confirmation unlocks,
+and checks the original drafts and history and the 390 px layout. It replaces only the picker; the real save, close and SHA read-back use an OPFS handle,
+and it never opens a personal file picker. The screenshot is `build/restore-ui-probe.png`; on failure a failure image with the same prefix is also saved.
+It also confirms in the full main window that a local complete restore creates no backup of the old data, leaves only the backup's graph and drafts, and stays readable after a restart.
+None of this means native OS pickers, power-loss durability of external disks or a minimum-capacity stress test on phones.
+The automatic probe first confirms that the real app's automatic file capability is off, then uses a real IDB journal and Workspace with a synthetic FileHost
+to check the full UI, turning it off while running, reservation abort, a lost ack and restart, CAS, the authorization pause and readable ZIP bytes.
+It does not use native OS automatic files or the vault; the screenshot is `build/automatic-backup-probe.png`.
+`automatic-backup-probe` once failed without a message (2026-10-06) and then passed three times in a row.
+The output screenshot is `build/browser-probe.png`, and on failure `build/browser-probe-failure.png`.
+This is not acceptance of real power loss, a Google source, iOS or Android, or OS layering; these browser probes are not in GitHub Actions CI and must run locally.
+The browser probes (`browser-probe`, `restore-ui-probe`, `automatic-backup-probe` and others) sometimes time out on the first page load, stuck on the loading screen for more than 5 seconds with no page error.
+It happens most when several probes start in parallel or right after a build; sequential reruns pass. It was seen repeatedly from 2026-10-05 to 2026-10-17, and the cause was never investigated.
+Treat a single first-load timeout as flaky and rerun; do not claim that parallel preview loading was tested.
+
+The existing Mac validation build is also run on macOS:
 
 ```bash
 bash scripts/macos/build-app.sh
@@ -405,237 +444,254 @@ python3 scripts/testing/macos_probe.py --mode 0
 python3 scripts/testing/macos_probe.py --mode 2
 ```
 
-Python 測試與 Mac probe 需允許 loopback listener；某些 coding-agent 執行隔離層需額外允許。
-這與被測 App 自身的 App Sandbox 不同：被測 app 一直保留簽署的 Sandbox entitlements。
+The Python tests and the Mac probe need permission for loopback listeners; some coding-agent isolation layers need this allowed explicitly.
+This is different from the tested app's own App Sandbox: the tested app always keeps its signed Sandbox entitlements.
+In a restricted agent sandbox, Python tests that open loopback sockets, Node subprocesses and Java archive locks can be denied;
+rerun with normal local permissions rather than treating the denial as a product failure (2026-10-15 to 2026-10-17).
 
-`macos_probe.py` 只使用 TemporaryDirectory SQLite 與一次性邀請，實際啟動已簽署 App，
-設定／快取使用獨立 `WorkFleet-Probe` 子目錄，網頁使用 nonpersistent WKWebsiteDataStore。
-會短暫顯示／啟用驗證用編輯視窗。probe 逐項斷言，缺少事件或任一不符即失敗。
-不要在其他人正使用鍵盤時執行焦點探針。輸出診斷不含筆記本文或憑證。
+`macos_probe.py` uses only a TemporaryDirectory SQLite and a one-time invite, really launches the signed app,
+keeps settings and caches in a separate `WorkFleet-Probe` subdirectory, and gives the web content a nonpersistent WKWebsiteDataStore.
+It briefly shows and activates the editing window used for verification. The probe asserts each item, and any missing event or mismatch fails it.
+Do not run the focus probe while someone else is using the keyboard. Its diagnostic output contains no note text or credentials.
 
-資料層測試涵蓋真實 HTTP、並行 writer、response-loss 重試、tombstone、backup/restore、
-interrupted restore、restore flush 失敗與重試、配對 race、expiry/reuse、read-only、revoke、輸入限制與 storage failure。
-WebKit 測試透過真實 DOM 與 server，傳輸斷線／回應遺失採可控注入。
-Node 模型測試涵蓋跨分頁草稿／恢復與本機寫入失敗。
+The data-layer tests cover real HTTP, concurrent writers, response-loss retries, tombstones, backup/restore,
+interrupted restore, restore flush failure and retry, pairing races, expiry/reuse, read-only, revoke, input limits and storage failure.
+The WebKit tests go through the real DOM and server; transport disconnects and response loss are injected in a controlled way.
+The Node model tests cover cross-tab drafts and recovery, and local write failures.
 
-## Windows 原生主畫面與保存
+## Windows native main window and storage
 
-`node --test tests/cloud-restore.test.js` 以合成 FileStore 驗證全量清空後只留下備份內容、
-附件、草稿不發布、舊裝置遇重設標記、沒有安全備份／過期／錯帳號／磁碟失敗零遠端刪除，
-以及清空／上傳失敗後重啟續行、上傳重試不再次清空。
-`cloud-restore-ui-probe.mjs` 使用真 Edge／IndexedDB／OPFS 與合成 FileStore，
-驗證安全保存及清空勾選雙門檻、換檔案後確認失效、預覽暫停普通同步與全量還原。
-只掛載備份面板，未模擬原生帳號切換／完整主畫面續行；不等於真 Google 端到端。
+`node --test tests/cloud-restore.test.js` uses a synthetic FileStore to verify that a full clear leaves only the backup content,
+attachments, that drafts are not published, that old devices meet the reset marker, zero remote deletions without a safety backup, when stale, on the wrong account or with a disk failure,
+and resuming after a restart when the clear or the upload fails, with upload retries not clearing again.
+`cloud-restore-ui-probe.mjs` uses real Edge, IndexedDB and OPFS with a synthetic FileStore
+to verify the double gate of the safety save and the clear checkbox, the confirmation being invalidated when the file changes, that the preview pauses ordinary sync, and the full restore.
+It mounts only the backup panel and simulates neither native account switching nor resuming in the full main window; it is not real Google end to end.
 
-未封裝路徑探針 `WorkFleet.Windows.Ui.Tests.exe --app-data OUTPUT_DIRECTORY` 只解析路徑，不寫入正式 ZIP／Debug 資料。
-已有 Release app／UI probe 與 package/content 時，可用
-`scripts/windows/Test-WindowsAppData.ps1 -CertificateThumbprint THUMBPRINT`：
-使用既有受信任本機憑證建立獨立 `app.workfleet.storageprobe.*` identity，
-實際驗證明確私有位置、寫入、解除安裝刪除及外部匯出 fixture 留存，最後只移除自己的測試套件。
-證據留在 `build/storage-probe-*`；沒有新憑證、UAC、真 Work Fleet 安裝／解除安裝或 Google 操作。
-實際產品更新、舊外部 DB 匯出／匯入及不同 Windows 版本仍需各自驗收。
+The unpackaged path probe `WorkFleet.Windows.Ui.Tests.exe --app-data OUTPUT_DIRECTORY` only resolves paths and writes no official ZIP or Debug data.
+With an existing Release app, UI probe and package content, run
+`scripts/windows/Test-WindowsAppData.ps1 -CertificateThumbprint THUMBPRINT`:
+it uses an existing trusted local certificate to create a separate `app.workfleet.storageprobe.*` identity,
+really verifies the explicit private location, writes, deletion on uninstall and that an external export fixture survives, and finally removes only its own test package.
+The evidence stays in `build/storage-probe-*`; there is no new certificate, UAC, real Work Fleet install or uninstall, or Google operation.
+A real product update, export and import of the old external DB, and other Windows versions still need their own acceptance.
 
-本機簽章 preview 的封裝檢查（不安裝 App、不修改憑證信任）：
+Packaging check for a locally signed preview (it does not install the app or change certificate trust):
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1 -LocalTestSign
 .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix
 ```
 
-將 `VERSION` 換成 Windows 版號。檢查四種不合法簽章參數在建置前拒絕，
-並使用 Windows 實際驗證 MSIX 簽章、機器信任、publisher、x64 manifest 與不含私鑰的配套 CER。
-需要與 package publisher 相符的既有 CurrentUser/My 憑證及 LocalMachine/TrustedPeople 信任。
-正式簽章仍使用 `-CertificateThumbprint`／HTTPS `-TimestampUrl`；本機模式不接受 `-Release`。
-最終 MSIX 另核對 x64、目前 Windows 版號、Windows.Desktop 下限 22000 與 MaxVersionTested 26200。
-另要求 .NET 10 Core／Windows Desktop 的 `includedFrameworks`，拒絕 shared `framework`／`frameworks`，
-核對 deps 的 win-x64 target、hostfxr／hostpolicy／coreclr、WPF managed／native files 與完整 runtime 授權／notices。
-這是包內容與簽章驗證，不代替未安裝 .NET 的實機啟動／MSIX 安裝驗收。
-Windows 套件檢查要求 .NET 10 的 Core／Desktop 版本都精確等於 `WindowsRuntimeVersion`，拒絕 WPF 8、混合 patch 與舊 tfm；fixture 不代表 runtime DLL 可執行。
-第一次封裝會還原 win-x64 self-contained runtime packs；完成同設定 package restore 後才可加 `-SkipRestore`。
-沒有既有受信任憑證時，用一般 `Build-WindowsPackage.ps1` 與
-`Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` 檢查未簽章內容；
-這不代表簽章、安裝或 Store 驗收。省略 `-Unsigned` 仍拒絕未簽章包，該選項也拒絕未知／損壞簽章狀態。
-`python -m unittest discover -s tests -p 'test_windows_package.py' -v` 使用 Windows SDK MakeAppx 產生隔離合成容器，
-驗證過高／過低下限、device family／MaxVersionTested、錯誤版號、環境／私鑰檔案、明確未簽章模式，
-以及缺少 runtime／notices、外部 shared .NET 需求與錯誤 deps 架構的拒絕。
-fixture 不執行 App，不改憑證；缺 Windows／SDK 時標為略過。子程序優先用 PowerShell 7，輸出明確以 UTF-8 解碼。
+Replace `VERSION` with the Windows version. The check confirms that four invalid signing-argument combinations are rejected before the build,
+and uses Windows itself to verify the MSIX signature, machine trust, the publisher, the x64 manifest and the companion CER without a private key.
+It needs an existing CurrentUser/My certificate that matches the package publisher and is trusted in LocalMachine/TrustedPeople.
+Official signing still uses `-CertificateThumbprint` and an HTTPS `-TimestampUrl`; local mode does not accept `-Release`.
+The final MSIX is also checked for x64, the current Windows version, the Windows.Desktop floor 22000 and MaxVersionTested 26200.
+It also requires `includedFrameworks` for .NET 10 Core and Windows Desktop, rejects a shared `framework` or `frameworks`,
+and checks the win-x64 target in deps, hostfxr, hostpolicy and coreclr, the WPF managed and native files, and the complete runtime licences and notices.
+This is package-content and signature verification; it does not replace launching on a real machine without .NET installed, or MSIX install acceptance.
+The Windows package check requires the .NET 10 Core and Desktop versions both to equal `WindowsRuntimeVersion` exactly, and rejects WPF 8, mixed patches and old TFMs; the fixture does not prove that the runtime DLLs run.
+The first packaging restores the win-x64 self-contained runtime packs; add `-SkipRestore` only after a package restore with the same settings.
+Without an existing trusted certificate, use the plain `Build-WindowsPackage.ps1` and
+`Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` to check the unsigned content;
+this is not signature, install or Store acceptance. Without `-Unsigned` an unsigned package is still rejected, and the option also rejects unknown or damaged signature states.
+`python -m unittest discover -s tests -p 'test_windows_package.py' -v` uses the Windows SDK MakeAppx to produce isolated synthetic containers
+and verifies a too-high or too-low floor, device family and MaxVersionTested, a wrong version, environment and private-key files, the explicit unsigned mode,
+and rejection of missing runtime or notices, an external shared .NET requirement and a wrong deps architecture.
+The fixture runs no app and changes no certificates; without Windows or the SDK it is marked skipped. Subprocesses prefer PowerShell 7, and their output is decoded explicitly as UTF-8.
 
 ```powershell
 .\scripts\windows\Test-WindowsNative.ps1
-# 已 restore 可離線回歸：
+# Offline regression once restored:
 .\scripts\windows\Test-WindowsNative.ps1 -SkipRestore
 ```
 
-腳本建置 Debug app／probes，執行真 SQLite／DPAPI、JavaScript→native stdio bridge 及實際 WPF／WebView2。
-資料庫、截圖皆寫入 `build/native-checks-*`／`build/native-js-*` 的獨立合成資料目錄；不讀取個人 App 資料。
-WPF probe 使用螢幕外視窗，以 DOM 操作 editor、附件、關閉及重新開啟，截圖為 `ui/native-ui.png`。
-初次顯示不啟用；明確快捷鍵／tray 回歸會要求啟用自有視窗，未注入系統鍵盤／滑鼠。
-另測加密自動備份、手動匯出與原生檔案的還原預覽；只替換互動 picker 結果，
-原生檔案／DPAPI／SQLite／IPC 皆實際執行，沒有自動操作真 OS picker。
-core probe 測 NTFS create-new、寫入／rename 競爭、部分檔保留、換檔不刪、同 handle 校驗／刪除、
-目錄重開及替換拒絕；JS→native 測中文／emoji 密碼、跨程序 key／grant、ack 遺失恢復、
-受管檔修改保留、manual 保存證明與失效／跨 profile key 不降級。
-需要一般 Windows 使用者 session 與 WebView2 Runtime；受限工具環境若造成 WebView2 crash，需在可運行環境重測，
-不能當作通過或停用 WebView2 sandbox。主畫面／保存測試不代表多螢幕、OS 桌面整合或真實斷電證據。
+The script builds the Debug app and probes and runs real SQLite and DPAPI, the JavaScript→native stdio bridge and real WPF and WebView2.
+Databases and screenshots are written to separate synthetic data directories under `build/native-checks-*` and `build/native-js-*`; no personal app data is read.
+The WPF probe uses an off-screen window and drives the editor, attachments, close and reopen through the DOM; the screenshot is `ui/native-ui.png`.
+The first show does not activate; the explicit shortcut and tray regressions ask to activate their own window, and no system keyboard or mouse input is injected.
+It also tests encrypted automatic backups, manual export and the restore preview of native files; only the interactive picker results are replaced,
+while native files, DPAPI, SQLite and IPC all run for real, and no real OS picker is automated.
+The core probe tests NTFS create-new, write and rename races, keeping partial files, not deleting on file change, same-handle verification and deletion,
+reopening directories and rejecting replacement; the JS→native part tests Chinese and emoji passwords, cross-process keys and grants, ack-loss recovery,
+keeping modified managed files, the manual save proof, and that invalidated or cross-profile keys do not downgrade.
+It needs an ordinary Windows user session and the WebView2 Runtime; if a restricted tool environment makes WebView2 crash, retest in an environment where it runs;
+that cannot count as a pass or as a reason to disable the WebView2 sandbox. The main-window and storage tests are not evidence for multiple displays, OS desktop integration or real power loss.
+The WebView2 UI probe can fail on the first window with `0x8876086A` when WebView2 cannot create a D3D9 device in the current session; unchanged HEAD fails the same way (2026-10-14).
+Rerun in an interactive desktop session that can create a D3D9 device.
+The Windows UI probe only checks that the scene DOM contains a card; it cannot tell whether the scene actually painted.
+A missing first paint after showing a scene (fixed on 2026-10-06 with a repaint 300 ms after show) would not be caught.
+The Windows app, core and probe projects compile on Linux (for example the Raspberry Pi) with .NET SDK 10.0.402 and `EnableWindowsTargeting`, with 0 warnings.
+The core probe cannot run there because its early cases use DPAPI; on 2026-10-17 the `StartupConfig` cases were run instead in a temporary console project on the Pi's .NET 10.0.13.
+Compiling on Linux is not a Windows run.
 
-同一腳本執行 `--adjust-overlay OUTPUT_DIRECTORY`：在沒有顯示器更新的首次場景握手後進入調整，
-確認工具列可見、在 viewport 內且可命中，堆疊／攤開／復原經 owner 寫回，完成移除遮罩與操作狀態；
-此組調整沿用同一工具列並可用 Esc 離開。合成 CompositionEvent 阻止完成，完成後可從未完成草稿恢復文字，
-已最小化的主視窗維持最小化，退出再進入保留排列。截圖為 `adjust-overlay/adjust-toolbar.png`。
-這是螢幕外場景與合成 DOM 輸入，不能代替真滑鼠、實際輸入法、多螢幕或 macOS／Linux 圖形 session 驗收。
+The same script runs `--adjust-overlay OUTPUT_DIRECTORY`: after the first scene handshake with no display update it enters adjust mode,
+and confirms that the toolbar is visible, inside the viewport and hittable, that Stack, Spread and Undo write back through the owner, and that Done removes the mask and the operation state;
+Adjust this group reuses the same toolbar and can be left with Esc. A synthetic CompositionEvent blocks Done, and after Done the text can be recovered from Unfinished drafts;
+an already minimized main window stays minimized, and leaving and re-entering keeps the arrangement. The screenshot is `adjust-overlay/adjust-toolbar.png`.
+This is an off-screen scene with synthetic DOM input and cannot replace a real mouse, a real IME, multiple displays or acceptance in a macOS or Linux graphical session.
 
-同一腳本另執行 `--composition` 與 `--platform` 原生基礎探針：
+The same script also runs the native foundation probes `--composition` and `--platform`:
 
-`--shell-topology` 使用原生發現／存活判斷的同一實作與合成視窗查詢，覆蓋 classic sibling、Progman child、
-圖示宿主搬移、錯誤 PID／隱藏／圖示宿主／疊序、缺失／有界建立重試與 Explorer／句柄替換。
-它已接入 Test-WindowsNative，不建立測試 Explorer，也不把模型通過當成新版 OS 實測。
-composition probe 套用 coordinator 既有的 render popup 穿透政策，輸入失敗時回報命中的 HWND／class／PID。
-另以合成 WPF MouseDown／MouseUp 檢查原生 capture、region 移動、意外失去捕獲、hide／topology 解除；
-不注入系統滑鼠，也不能代替使用者快速拖曳驗收。修正前捕獲檢查失敗；2026-10-09 恢復測試後通過。
+`--shell-topology` uses the same implementation of native discovery and liveness checks with synthetic window queries, covering the classic sibling, the Progman child,
+icon-host moves, a wrong PID, hidden windows, the icon host and z-order, missing hosts and bounded creation retries, and Explorer and handle replacement.
+It is wired into Test-WindowsNative, creates no test Explorer, and a model pass is not treated as a real test on a newer OS.
+The composition probe applies the coordinator's existing click-through policy for render popups, and on an input failure reports the HWND, class and PID that were hit.
+It also checks native capture, region moves, unexpected capture loss, and release on hide and topology changes with synthetic WPF MouseDown and MouseUp;
+it injects no system mouse input and cannot replace user acceptance of fast drags. The capture check failed before the fix and has passed since testing resumed on 2026-10-09.
+Known one-off native probe failures that passed on rerun: the composition probe's "Reopened scene lost input policy" (2026-10-14), the composition cross-process hit tests (2026-10-06 and 2026-10-09),
+and `--wallpaper` desktop-layer step 4 not showing the paper on the first run (2026-10-15). Rerun the single probe before investigating.
 
-另執行 `--wallpaper OUTPUT_DIRECTORY`，要求目前 session 有真正的 Explorer 圖示／桌布宿主；
-不可用即失敗，不標成通過。以合成內容確認兩個自有場景 HWND 的 parent／WS_CHILD、
-附著場景兩個視窗的繪圖模式設為軟體、浮動場景維持預設（只檢查設定值，[ADR-049](decisions/049-windows-attached-scenes-render-in-software.md)）、
-實際 WebView 像素、原生空輸入 region、physical bounds、反覆附著／浮動／隱藏與不啟用。
-瀏覽器 preview 核對紙面內容；另捕獲測試便箋所在的桌面裁切區域，才能檢查新紙面之外的舊位置。
-不重啟 Explorer 或注入鍵盤／滑鼠。
-真螢幕像素 FAIL 會讓 probe 失敗；外部遮擋仍回報 SKIP，浮動表面以自有 HWND 判定，不把自有視窗當外部遮擋。
-浮動紙面使用另一個 composition surface，與 coordinator 一樣；不把同一個 windowed child 改成 popup。
-前景檢查以 [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook)
-觀察全程，包含自有 WPF 與該 WebView browser 的瞬間啟用；收到即失敗。外部程式自行切換 foreground 時，
-「完全不變」的小項明確 SKIP，仍執行自有場景不得啟用檢查，不以最後 foreground 回到外部代替全程證據。
-另新增隱藏後原像素還原檢查，仿 Explorer 宿主也檢查收起後背景；原像素檢查受遮擋時明確 SKIP。
-主 WPF probe 新增 `scene.prepare` 已確認後才移除附著便箋 DOM 的檢查。
-使用者後續已明確恢復測試／截圖授權；上述 prepare 流程與隱藏還原回歸已執行。
-2026-10-09 使用者確認上一輪包的白塊仍存在，且只需調過位置後堆疊／攤開、不需要拖曳。
-`--host-check OUTPUT_DIRECTORY` 已改成黑色背景，同時啟動有／無 redirection 的兩種仿宿主：
-檢查移位、堆疊式縮高及攤開式區域變更後，新紙面仍顯示、每個舊位置恢復黑色，最後 hide 與區域外也恢復。
-涵蓋 prepare/hide 與可見區域直接替換，不注入滑鼠。仿宿主以自有 GDI BLACK_BRUSH 背景窗作基準，
-無 redirection 宿主位於黑底上方；不依賴空白 WPF 視窗的繪製或系統主題色，避免背後應用被誤認為背景。
-黑底前置條件仍要求真螢幕像素為零，失敗保存圖與 HWND／style／命中 PID 診斷，不放寬顏色容差。
-這些是表面幾何操作，不能替代實際 formation owner 流程。
-真 Explorer probe 另以整個螢幕尺寸的 scene，反覆移位／縮高／展開；新紙面仍可見時比對舊中心及邊緣。
-新宿主 style 與原生 repaint 順序見 [ADR-035](decisions/035-windows-attached-scene-background-lifecycle.md)；
-23H2 測試已撤回被 OS 拒絕的 NOREDIRECTIONBITMAP 及造成實際紙面變暗的透明 windowed WebView 背景。
-25H2 對照未驗證，也沒有獨立審閱。
-`--formation OUTPUT_DIRECTORY` 已接入同一入口。主畫面用隔離 native SQLite 建立兩張便箋，
-scene 的合成 PointerEvent 經既有 client／bridge／owner 保存調整位置，完成調整後須保留位置；
-主畫面堆疊／攤開按鈕及浮動工具列改變 layout，涵蓋桌面、浮動排列後返回桌面及桌布層。
-scene 仍使用真整個螢幕 viewport；僅注入未遮擋的測試工作區，不更動 OS 工作區或桌布。
-合成 DOM capture 不代表真滑鼠 capture。GDI 一次讀取測試範圍，在新紙面之外逐像素比對原桌面；
-浮動調整模式按共用遮罩的 #1c242c59 染色比對，另排除工具列、實際顯示的群組標籤與六 CSS px 邊框帶（含五 px 圓角），不排除整個群組工作區。
-另檢查紙面可見、被動便箋不自行取得 foreground；明確進入調整時只允許對應浮動輸入 HWND 啟用。
-保存 native 螢幕 PNG；沒足夠未遮擋區域時明確 SKIP。
-formation probe 也確認 `host.log` 記下啟動時的螢幕清單；`--platform` 檢查這行的格式（ADR-045）。
-foreground 判定涵蓋所有便箋成對 HWND 與 browser，排除主畫面及 framework helper；建立便箋時主畫面
-編輯器的焦點不是被動紙面自行啟用。Wallpaper-only probe 不作這項排除。
-目前安裝版複本也通過隔離 formation 案例，使用者原始殘影尚未重現；不能把此通過當作根因已證實。
-主 WPF probe 另測實際逐卡設定→wallpaper→調整此組→floating→完成→wallpaper 的 owner／scene 流程。
-Windows 10、Explorer 實際重啟、Win+D、虛擬桌面及混合 DPI 完整矩陣仍需各自驗收。
-桌布層回退或附著錯誤時，可執行唯讀的 `scripts/windows/Get-ShellLayerInventory.ps1`，
-列出 Progman／WorkerW／SHELLDLL_DefView 宿主及各自的 DPI／PerMonitorV2 狀態；不送 Explorer 訊息，也不改視窗。
+It also runs `--wallpaper OUTPUT_DIRECTORY`, which requires a real Explorer icon and wallpaper host in the current session;
+if none is available it fails and is not marked as passed. With synthetic content it confirms the parent and WS_CHILD of the two own scene HWNDs,
+that both windows of the attached scene are set to software rendering while the floating scene keeps the default (only the setting value is checked, [ADR-049](decisions/049-windows-attached-scenes-render-in-software.md)),
+real WebView pixels, the native empty input region, physical bounds, repeated attach, float and hide, and no activation.
+The browser preview checks the paper content; the desktop crop where the test note sits is also captured, so that the old positions outside the new paper can be checked.
+It does not restart Explorer or inject keyboard or mouse input.
+A real-screen pixel FAIL fails the probe; external occlusion is still reported as SKIP, floating surfaces are judged by own HWNDs, and own windows are not treated as external occlusion.
+Floating papers use a separate composition surface, as the coordinator does; the same windowed child is not turned into a popup.
+The foreground check observes the whole run with [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook),
+including momentary activation of the own WPF window and that WebView's browser; receiving one fails the check. When an external program switches the foreground on its own,
+the "completely unchanged" sub-item is explicitly SKIPped, the check that own scenes must not activate still runs, and the foreground returning to the external program at the end does not stand in for whole-run evidence.
+It also checks that the original pixels return after hiding, and the Explorer-like host also checks the background after collapsing; the original-pixel check is explicitly SKIPped when occluded.
+The main WPF probe also checks that attached note DOM is removed only after `scene.prepare` is confirmed.
+The prepare-flow and hide-restore regressions above have been run since the user explicitly restored testing and screenshot authorization.
+On 2026-10-09 the user confirmed that the white blocks from the previous package were still present, and that they need only a stack or spread after positions were adjusted, with no drag.
+`--host-check OUTPUT_DIRECTORY` now uses a black background and starts two Explorer-like hosts at once, with and without redirection:
+it checks that after a move, a stack-style height reduction and a spread-style region change the new paper still shows and every old position returns to black, and that the final hide and the area outside the region also restore.
+It covers prepare/hide and direct replacement of the visible region, without injected mouse input. The Explorer-like host uses its own GDI BLACK_BRUSH background window as the baseline,
+with the no-redirection host above the black background; it does not depend on how an empty WPF window paints or on the system theme colour, so an app behind it is not mistaken for the background.
+The black-background precondition still requires the real-screen pixels to be zero; a failure saves images and HWND, style and hit-PID diagnostics, and the colour tolerance is not loosened.
+These are surface-geometry operations and cannot replace the real formation owner flow.
+With the screen locked, `--host-check` fails its host background check (the hit test lands on `LockScreenBackstopFrame`) and `--wallpaper` reports its pixel checks as SKIP (2026-10-15).
+Run these probes with the session unlocked.
+The real Explorer probe also uses a full-screen scene and repeatedly moves, shrinks and expands it; while the new paper is visible, it compares the old centre and edges.
+The new host style and the native repaint order are in [ADR-035](decisions/035-windows-attached-scene-background-lifecycle.md);
+the 23H2 tests withdrew NOREDIRECTIONBITMAP, which the OS rejected, and the transparent windowed WebView background that darkened real papers.
+A 25H2 comparison is not verified, and there was no independent review.
+`--formation OUTPUT_DIRECTORY` is wired into the same entry point. The main window creates two notes in an isolated native SQLite,
+the scene's synthetic PointerEvents save the adjusted positions through the existing client, bridge and owner, and the positions must remain after adjust mode ends;
+the main window's Stack and Spread buttons and the floating toolbar change the layout, covering the desktop, returning to the desktop after a floating arrangement, and the wallpaper layer.
+The scene still uses the real full-screen viewport; only an unoccluded test work area is injected, and the OS work area and wallpaper are not changed.
+Synthetic DOM capture does not mean real mouse capture. GDI reads the test area in one pass and compares the original desktop pixel by pixel outside the new papers;
+floating adjust mode compares against the shared mask's #1c242c59 tint, excluding also the toolbar, the group labels actually shown and a 6 CSS px border band (including the 5 px rounded corners), but not the whole group work area.
+It also checks that papers are visible and that passive notes do not take the foreground themselves; on an explicit entry into adjust mode only the matching floating input HWND may activate.
+It saves a native screen PNG; when there is not enough unoccluded area it SKIPs explicitly.
+The formation probe also confirms that `host.log` records the display list at startup; `--platform` checks the format of that line (ADR-045).
+The foreground check covers all paired note HWNDs and the browser, excluding the main window and framework helpers; focus in the main window's editor
+when a note is created is not a passive paper activating itself. The wallpaper-only probe does not make this exclusion.
+A copy of the currently installed build also passes the isolated formation cases; the user's original afterimages have not been reproduced, so this pass cannot be taken as proof of the root cause.
+From 2026-10-14 to 2026-10-16 `--formation` failed at the foreground check ("A non-activating scene received foreground"), also on older commits and with the installed app closed.
+Another app that starts at sign-in (the maintainer's Cats desktop app) was running during every failure and is the first thing to try closing.
+On 2026-10-16 the check was updated to accept the expected activation of the floating input window in adjust mode, and the full `Test-WindowsNative.ps1 -SkipRestore` run passed
+with the formation pixel checks SKIPped because the desktop was covered. As of 2026-10-17 no fully uncovered formation run is recorded.
+The main WPF probe also tests the real owner and scene flow of per-card setting → wallpaper → Adjust this group → floating → Done → wallpaper.
+The full matrix of Windows 10, a real Explorer restart, Win+D, virtual desktops and mixed DPI still needs its own acceptance.
+When the wallpaper layer falls back or attaches wrongly, run the read-only `scripts/windows/Get-ShellLayerInventory.ps1`,
+which lists the Progman, WorkerW and SHELLDLL_DefView hosts with their DPI and PerMonitorV2 state; it sends no messages to Explorer and changes no windows.
 
-- 真 CompositionControl 透明 HTML／live VisualBrush；只載合成資料，沒有 product bridge。
-- 另一個自有程序作 OS `WindowFromPoint` 目標，檢查被動紙面、空白及前方遮擋穿透；
-  native input／visual region 互斥且完整覆蓋，浮動／一般底層切換、成對隱藏／關閉與 20,000 區域。
-- 螢幕 physical bounds／work area／DPI；真實快捷鍵衝突、解除／恢復、保留鍵拒絕與舊事件清理。
-  快捷鍵 callback 只向自有 HWND 發合成 WM_HOTKEY，未注入真鍵盤或滑鼠。
+- Real CompositionControl transparent HTML and a live VisualBrush; it loads only synthetic data, with no product bridge.
+- Another own process acts as the OS `WindowFromPoint` target, checking click-through for passive papers, empty space and occlusion in front;
+  native input and visual regions are mutually exclusive and cover completely; floating and normal underlying switches, paired hide and close, and 20,000 regions.
+- Screen physical bounds, work area and DPI; real shortcut conflicts, release and restore, rejection of reserved keys and cleanup of stale events.
+  The shortcut callback sends synthetic WM_HOTKEY only to own HWNDs; no real keyboard or mouse input is injected.
 
-probe 與 App 共用 PerMonitorV2 manifest 及 `net10.0-windows10.0.19041.0`。
-必須透過 `.exe` apphost 執行，包含跨程序目標；入口驗證 thread DPI awareness 確實為 PerMonitorV2。
-直接 `dotnet ...Ui.Tests.dll` 未套用這份 executable manifest，不能作相同 DPI 設定的證據。
-這不是使用者桌面手勢、WebView capture／IME、多螢幕拔插、Win+D、虛擬桌面或休眠驗收。
-原生基礎見 [ADR-017](decisions/017-windows-composition-surface-and-input.md)，產品連接見 [ADR-018](decisions/018-single-owner-desktop-views.md)。
-WPF 主 probe 現另開真正場景頁：確認 projection、scene 不可呼叫 storage、浮層操作、就地草稿、
-1.2 MiB 中文輸入分片、合成 CompositionEvent 阻止退出、交易保存後回到穿透政策。
-關閉測試故意延後最後 storage.commit，確認編輯保持凍結，重開後最後草稿文字完整。
-顯示器描述只在 probe 注入螢幕外範圍；沒有以合成範圍聲稱真多螢幕通過。
-core 另測 scene lease 跨版本讀取／principal 隔離、半份與壞 hash 不發布、過期 session／frame 拒絕，
-以及十組／長組名仍可讀。`tests/desktop-authority.test.js`／`desktop-transport.test.js` 驗證重播、世代、
-獨立草稿 admission、未知 ack 重試、失聯 flush 解除與關閉命令封鎖。
-`desktop-frame-refresh.test.js` 另涵蓋舊 frame 下載中收到新 frame、拖曳完成等待及下載失敗後重試；
-`desktop-transport.test.js` 新增拖曳完成／取消必須先等最新 geometry 發布才回覆。2026-10-09 恢復測試後通過。
-快捷鍵／系統匣 probe 另核對真 shell icon 身分、設定與實際註冊狀態、原生動作→scope、
-就地 scope 鍵先保存草稿、合成 IME 拒絕、關閉 block 不被設定更新解除、收起／重開同一 owner，
-以及自有 TaskbarCreated 訊息重建 icon；沒有重啟 Explorer。
-正向 foreground intent 需要當下 OS 授權；若 Windows 拒絕，該小項明確 SKIP，仍測 null／失效拒絕。
-WPF IsActive 不代替 GetForegroundWindow 的實際所有權，不能把前置條件失敗算成搶焦點成功。
-`tests/native-shortcuts.test.js` 測設定合併、重試與關閉隔離，`tests/shortcuts.test.js` 測本地鍵的輸入優先序。
+The probes and the app share the PerMonitorV2 manifest and `net10.0-windows10.0.19041.0`.
+They must run through the `.exe` apphost, including the cross-process target; the entry point verifies that the thread DPI awareness really is PerMonitorV2.
+Running `dotnet ...Ui.Tests.dll` directly does not apply this executable manifest and cannot serve as evidence for the same DPI setting.
+This is not acceptance of user desktop gestures, WebView capture and IME, multi-display hot-plug, Win+D, virtual desktops or sleep.
+The native foundation is in [ADR-017](decisions/017-windows-composition-surface-and-input.md), and the product connection in [ADR-018](decisions/018-single-owner-desktop-views.md).
+The main WPF probe now also opens the real scene page: it confirms projection, that the scene cannot call storage, floating-layer operations, in-place drafts,
+chunking of 1.2 MiB of Chinese input, a synthetic CompositionEvent blocking exit, and the return to the click-through policy after a transactional save.
+The close test deliberately delays the last storage.commit, confirms that editing stays frozen, and that after reopening the last draft text is complete.
+Display descriptions are injected as off-screen ranges only in the probe; synthetic ranges are never used to claim a real multi-display pass.
+The core also tests scene-lease reads across versions and principal isolation, that half copies and bad hashes are not published, rejection of stale sessions and frames,
+and that ten groups and long group names stay readable. `tests/desktop-authority.test.js` and `desktop-transport.test.js` verify replay, generations,
+independent draft admission, retry of unknown acks, release of the flush when the connection is lost, and blocking of commands at close.
+`desktop-frame-refresh.test.js` also covers a new frame arriving while an old frame is downloading, waiting for a drag to finish, and retry after a download failure;
+`desktop-transport.test.js` adds that a drag finish or cancel must wait until the latest geometry is published before replying. These have passed since testing resumed on 2026-10-09.
+The shortcut and tray probe also checks the real shell icon identity, the settings and actual registration state, native action → scope,
+that in-place scope keys save the draft first, synthetic IME rejection, that a close block is not released by a settings update, collapsing and reopening the same owner,
+and rebuilding the icon on its own TaskbarCreated message; Explorer is not restarted.
+A positive foreground intent needs OS permission at that moment; if Windows refuses, that sub-item is explicitly SKIPped, and null and stale rejection are still tested.
+WPF IsActive does not stand in for actual ownership through GetForegroundWindow, and a failed precondition cannot count as a successful focus steal.
+`tests/native-shortcuts.test.js` tests settings merge, retries and close isolation; `tests/shortcuts.test.js` tests the input priority of local keys.
 
-`npm test` 會明確 skip 8 個需要已建置 Windows helper 的 native integration tests；
-`WORK_FLEET_NATIVE_TEST=1` 才執行它們，缺少 helper 即失敗，不假報成功。
-若單獨執行，先用 `Build-WindowsApp.ps1 -Configuration Debug -IncludeTests`，再設變數並執行
-`node --test tests/native-storage.test.js`。無 OS 依賴的 bridge 關閉／訊息容量測試每次都跑。
+`npm test` explicitly skips 8 native integration tests that need the built Windows helper;
+they run only with `WORK_FLEET_NATIVE_TEST=1`, and then a missing helper fails instead of reporting success.
+To run them alone, first run `Build-WindowsApp.ps1 -Configuration Debug -IncludeTests`, then set the variable and run
+`node --test tests/native-storage.test.js`. The OS-independent bridge close and message-capacity tests run every time.
 
-同一腳本最後執行 `--diagnostics OUTPUT_DIRECTORY`（[ADR-032](decisions/032-windows-debug-webview-inspection.md)）。
-未設變數不建立 CDP 選項；不合法 port 須在 owner 鎖前以 HostError 拒絕，之後同一目錄仍可開啟。
-以 OS 分配的空閒 port 開 Debug 主畫面，確認 DevTools 已啟用、listener 只綁 loopback，
-`/json/list` 有主文件，並以 CDP WebSocket 實際讀取 DOM 狀態。Release 執行檔不能跑此 probe。
-`Build-WindowsPackage.ps1` 在 publish 後掃描 `WorkFleet.dll`，找到 `remote-debugging` 字串即停止封裝；
-`Test-WindowsNative.ps1` 要求同一掃描命中 Debug `WorkFleet.dll`，避免檢查失效；腳本也會先清除 shell 已設的 port 變數。
+The same script then runs `--diagnostics OUTPUT_DIRECTORY` ([ADR-032](decisions/032-windows-debug-webview-inspection.md)).
+Without the variable no CDP option is created; an invalid port must be rejected with HostError before the owner lock, and the same directory can still be opened afterwards.
+It opens the Debug main window on a free port assigned by the OS and confirms that DevTools is enabled, that the listener binds only to loopback,
+and that `/json/list` has the main document, and it reads DOM state through a real CDP WebSocket. Release executables cannot run this probe.
+`Build-WindowsPackage.ps1` scans `WorkFleet.dll` after publish and stops packaging if it finds the `remote-debugging` string;
+`Test-WindowsNative.ps1` requires the same scan to hit the Debug `WorkFleet.dll`, so the check cannot silently stop working; the script also clears any port variable the shell already set.
 
-接著執行 `--host-shell OUTPUT_DIRECTORY`（[ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)）：
-主視窗會不取得焦點地短暫出現在主要螢幕。檢查設定＞桌面的版本與「啟動行為」（Debug 沒有 StartupTask，登入啟動選項停用並說明原因）、
-「關閉主畫面時保留在系統匣」寫入 `host-preferences.json`、移動／最大化／最小化／還原後的 `window-placement.json`、
-重置後回到預設大小並置中、重新開啟回到保存位置、保存位置所在顯示器不存在時改用預設，以及第二次啟動經每位使用者、
-每個資料目錄的 pipe 喚起既有實例。核心 probe 以 `tests/fixtures/window-placement.json` 驗證與 Linux／macOS 共用的位置規則。
-登入時啟動、隱藏啟動與 StartupTask 只能以安裝後的 MSIX 由使用者登出再登入驗證；混合 DPI 需要真多顯示器。
+Next it runs `--host-shell OUTPUT_DIRECTORY` ([ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)):
+the main window briefly appears on the primary display without taking focus. It checks the version and the "Startup" section in Settings > Desktop (Debug has no StartupTask, so the start-at-sign-in option is disabled with the reason shown),
+that "Keep running in the tray when the main window closes" is written to `host-preferences.json`, `window-placement.json` after move, maximize, minimize and restore,
+that reset returns to the default size, centred, that reopening returns to the saved position, that the default is used when the display of the saved position no longer exists, and that a second launch wakes the existing instance through the per-user,
+per-data-directory pipe. The core probe verifies the placement rules shared with Linux and macOS using `tests/fixtures/window-placement.json`.
+Start at sign-in, hidden start and StartupTask can be verified only with an installed MSIX, by the user signing out and in again; mixed DPI needs real multiple displays.
 
-最後執行 `--crash-guard OUTPUT_DIRECTORY`（[ADR-045](decisions/045-windows-fatal-error-leaves-explorer-first.md)）：
-- 場景以跨程序子視窗掛在 Explorer 式宿主上，再在 dispatcher 丟出 `UCEERR_RENDERTHREADFAILURE`。
-- 檢查四件事：
-  - 兩個場景視窗都變成隱藏的頂層視窗。
-  - `host.log` 先記下 HRESULT 與拆離數量，之後才記錄重開。
-  - `restart.json` 指向本程序。
-  - 之後的例外只記成 nested。
-- 交給 Windows 與重開只記錄、不實際執行。
-- 另外驗證重開政策，以及等待舊程序：結束、逾時強制結束、PID 被重用時不動。
-- 這個 probe 直接開啟重開來驗證機制；App 本身自 2026-10-14 起停用重開（ADR-045 修訂）。
-- 核心 probe 驗證 `host.log` 格式與轉存，以及標記只能取一次、過期與損壞時丟棄。
+Then it runs `--crash-guard OUTPUT_DIRECTORY` ([ADR-045](decisions/045-windows-fatal-error-leaves-explorer-first.md)):
+- The scenes hang as cross-process child windows on an Explorer-like host, then `UCEERR_RENDERTHREADFAILURE` is thrown on the dispatcher.
+- It checks four things:
+  - Both scene windows become hidden top-level windows.
+  - `host.log` records the HRESULT and the number of detached windows first, and the reopen only after that.
+  - `restart.json` points to this process.
+  - Later exceptions are recorded only as nested.
+- Handing over to Windows and the reopen are only recorded, not actually performed.
+- It also verifies the reopen policy and waiting for the old process: when it exits, when it is force-ended after a timeout, and leaving it alone when its PID has been reused.
+- This probe turns the reopen on directly to verify the mechanism; the app itself has had the reopen off since 2026-10-14 (ADR-045 revision).
+- The core probe verifies the `host.log` format and rotation, and that the marker can be taken only once and is discarded when stale or damaged.
 
-接著執行 `--sign-in-hold OUTPUT_DIRECTORY`（[ADR-046](decisions/046-windows-sign-in-scenes-wait-for-settled-displays.md)）：
-- 以登入啟動的身分開啟主畫面（隱藏），注入「上蓋合著、內建螢幕開著、還有其他螢幕」的狀態。
-- 檢查三件事：
-  - 等待期間沒有任何場景視窗，`host.log` 記下 `scenes waiting` 與判斷輸入 `lid=closed builtIn=on other=on changed=none`。
-  - 改成內建螢幕關掉後，所有場景都建立視窗。
-  - `host.log` 記下 `scenes attaching after` 與判斷輸入 `builtIn=off`，而且不是因為到達上限。
-- 核心 probe 以表格驗證判斷規則：合蓋與內建螢幕、沒有上蓋狀態、只有內建螢幕、5 秒靜止、3 分鐘上限；
-  另驗證判斷輸入的記錄格式，包括讀不到螢幕設定與沒有上蓋狀態。
-- `--platform` 讀出這台電腦作用中螢幕的連接方式與上蓋狀態，只檢查讀得到、不檢查值。
-- [ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) 的同版號 runtime 測試包，在啟動行記錄 `runtime=10.0.13`；先確認這一行，避免仍測到舊程序。
-- 真實登入時的螢幕切換只能重開機驗證，看 `host.log` 的 `lid closed|open`、`scenes waiting` 與 `scenes attaching after` 及其判斷輸入。
+Next it runs `--sign-in-hold OUTPUT_DIRECTORY` ([ADR-046](decisions/046-windows-sign-in-scenes-wait-for-settled-displays.md)):
+- It opens the main window (hidden) as a sign-in start and injects the state "lid closed, built-in display on, other displays present".
+- It checks three things:
+  - While it waits there is no scene window at all, and `host.log` records `scenes waiting` with the decision inputs `lid=closed builtIn=on other=on changed=none`.
+  - After the built-in display is switched off, every scene creates its window.
+  - `host.log` records `scenes attaching after` with the decision input `builtIn=off`, and not because the limit was reached.
+- The core probe verifies the decision rules with a table: lid closed with the built-in display, no lid state, only a built-in display, 5 seconds of quiet, the 3-minute limit;
+  it also verifies the record format of the decision inputs, including an unreadable display configuration and no lid state.
+- `--platform` reads the connection types of this computer's active displays and the lid state, and checks only that they can be read, not their values.
+- The same-version runtime test package of [ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) records `runtime=10.0.13` in its startup line; check this line first so that you are not still testing the old process.
+- Display switching at a real sign-in can be verified only by rebooting and reading `lid closed|open`, `scenes waiting` and `scenes attaching after` with their decision inputs in `host.log`.
 
-接著執行 `--grid-area OUTPUT_DIRECTORY`（SPEC-003「顯示器改變」）：
-- 同一份測試資料開兩次主畫面。第一次只給主螢幕工作區的左上四分之一，新增一張便箋；第二次給完整的工作區。
-- 每次都按「調整全部」，讀浮動場景畫出的區域框。只有一個群組，所以區域框應該等於當次的工作區。
-- 修正前，第二次的區域框仍是四分之一大小，與使用者回報的 `Ctrl+Shift+數字` 虛線框相同。
-- 只檢查啟動時的路徑。版面保存的規則由 node 的 C43b 驗證；執行中螢幕變動的接線與 `Ctrl+Shift+數字` 提示沒有自動測試，待實機確認。
+Next it runs `--grid-area OUTPUT_DIRECTORY` (SPEC-003, "Display changes"):
+- The main window opens twice on the same test data. The first time it gets only the top-left quarter of the primary display's work area, and a note is added; the second time it gets the full work area.
+- Each time it presses "Adjust all" and reads the region frame drawn by the floating scene. There is only one group, so the region frame should equal that run's work area.
+- Before the fix, the second region frame was still a quarter of the size, the same as the `Ctrl+Shift+digit` dashed frame the user reported.
+- It checks only the startup path. The layout-saving rule is verified by the node test C43b; the wiring for display changes while running and the `Ctrl+Shift+digit` hint have no automated test and await a real-machine check.
 
-MSIX 端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsRecovery.ps1`。
-- 安裝 `app.workfleet.crashprobe.e2e` 測試身分，讓它以登入啟動的身分在場景進入 Explorer 後丟出同一個錯誤。
-- 檢查四件事：
-  - 場景視窗在 Windows 寫報告前全部離開 Explorer。
-  - 期間 `Progman` 與 `Shell_TrayWnd` 一直有回應，也沒有 Explorer hang 報告。
-  - 沒有重開：沒有新實例、沒有 `restart.json`、`host.log` 沒有重開紀錄。
-  - 測試最後移除測試套件與它的 dump，`host.log` 留在 `build/windows/crash-probe/`。
-- 不碰已安裝的 Work Fleet。
-- 沒有反向驗證「不拆離時 Explorer 會卡住」，因為那會凍結使用者的 Explorer。
-- 真實登入時的 render thread 失敗，只能裝新版後重開機觀察 `host.log`。
+MSIX end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsRecovery.ps1`.
+- It installs the `app.workfleet.crashprobe.e2e` test identity and has it, as a sign-in start, throw the same error after the scenes enter Explorer.
+- It checks four things:
+  - All scene windows leave Explorer before Windows writes its report.
+  - Meanwhile `Progman` and `Shell_TrayWnd` keep responding, and there is no Explorer hang report.
+  - No reopen: no new instance, no `restart.json`, and no reopen record in `host.log`.
+  - At the end the test removes the test package and its dump; `host.log` stays in `build/windows/crash-probe/`.
+- It does not touch the installed Work Fleet.
+- The reverse check, "without detaching, Explorer hangs", is not run, because it would freeze the user's Explorer.
+- A render-thread failure at a real sign-in can be observed only by installing the new version, rebooting and reading `host.log`.
 
-螢幕切換端到端：先 `Build-WindowsPackage.ps1 -LocalTestSign`，再執行 `Test-WindowsDisplaySwitch.ps1`。
-- 需要兩台螢幕；筆電要打開上蓋，因為上蓋合著時 Windows 不讓 DisplaySwitch 延伸到內建螢幕。
-- 先切到「延伸」，安裝並啟動 `app.workfleet.displayprobe.e2e` 測試身分。等場景進入 Explorer 後，
-  交替「只用第二個螢幕」與「延伸」，預設 3 輪。
-- `-SwitchAfter N`：啟動後 N 秒就切換，不等場景穩定。`-Lid`：改由使用者合上上蓋觸發一次切換。
-- 通過條件：
-  - 測試套件沒有致命錯誤。
-  - Explorer 沒有連續 5 秒不回應，也沒有 hang 報告。
-- 會改變目前登入工作階段的螢幕配置，其他視窗會跟著移動；結束時切回 `-Final`，預設是只用第二個螢幕。
-- 有其他 Work Fleet 執行中時拒絕執行，因為同樣的螢幕變更也會影響它。
-- 結束時移除測試套件與它的 dump，`host.log` 留在 `build/windows/display-probe/`。
-- 登入時「上蓋合著、內建螢幕卻仍啟用」的狀態，腳本做不出來，只能靠重開機觀察 `host.log` 的螢幕紀錄。
+Display-switch end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsDisplaySwitch.ps1`.
+- It needs two displays; a laptop must have its lid open, because with the lid closed Windows does not let DisplaySwitch extend to the built-in display.
+- It first switches to "Extend", then installs and starts the `app.workfleet.displayprobe.e2e` test identity. After the scenes enter Explorer,
+  it alternates between "Second screen only" and "Extend", 3 rounds by default.
+- `-SwitchAfter N`: switch N seconds after start, without waiting for the scenes to settle. `-Lid`: the user closes the lid to trigger one switch instead.
+- Pass conditions:
+  - The test package has no fatal error.
+  - Explorer is never unresponsive for 5 seconds in a row and has no hang report.
+- It changes the display configuration of the current sign-in session, and other windows move with it; at the end it switches back to `-Final`, which is second screen only by default.
+- It refuses to run while another Work Fleet is running, because the same display change would affect it.
+- At the end it removes the test package and its dump; `host.log` stays in `build/windows/display-probe/`.
+- The script cannot produce the sign-in state "lid closed but built-in display still active"; that can be observed only by rebooting and reading the display records in `host.log`.
 
-查登入當掉時，可在本機開啟 Windows Error Reporting 的完整 dump（需系統管理員，App 不會自己設定）：
+To investigate sign-in crashes, you can turn on full Windows Error Reporting dumps locally (this needs an administrator; the app never sets it up itself):
 
 ```powershell
 $k = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\WorkFleet.exe'
@@ -645,61 +701,63 @@ New-ItemProperty -Path $k -Name DumpType -PropertyType DWord -Value 2 -Force | O
 New-ItemProperty -Path $k -Name DumpCount -PropertyType DWord -Value 5 -Force | Out-Null
 ```
 
-- dump 寫在 `%LOCALAPPDATA%\CrashDumps\WorkFleet.exe.<PID>.dmp`，每個約 1 GB，最多保留 5 個。
-- 不需要時，刪除 `LocalDumps\WorkFleet.exe` 機碼即可。
-- 安裝版的紀錄在 `%LOCALAPPDATA%\Packages\app.workfleet.preview_<id>\LocalCache\Local\WorkFleet\host.log`。
+- Dumps are written to `%LOCALAPPDATA%\CrashDumps\WorkFleet.exe.<PID>.dmp`, about 1 GB each, and at most 5 are kept.
+- When they are no longer needed, delete the `LocalDumps\WorkFleet.exe` key.
+- The installed build's log is at `%LOCALAPPDATA%\Packages\app.workfleet.preview_<id>\LocalCache\Local\WorkFleet\host.log`.
 
-Google 登入 callback（ADR-021）：core probe 以真 loopback socket 驗證 `LoopbackCallback`。
-- 先開一條不送資料的連線、再送真正的 redirect：要在單條連線的 5 秒期限內收到 code，空連線隨 listener 關閉。
-  這是 0.2.1 的失敗情境；逐條處理的版本會在這裡慢 5 秒而失敗。
-- 錯誤 state、重複 state、別的路徑、POST 都回 400 並繼續等；先斷線的連線只算 dropped。
-- 分三次送達、header 結尾的空行被切開的請求照常解析。
-- 同時 16 條空連線時，第 17 條立刻被關掉；空連線斷開後，callback 照常收到。
-- 帶這次 state 的 `error=access_denied` 交給呼叫端拒絕；取消時 port 與已開的連線都關閉。
-- 真 Google 帳號的瀏覽器登入仍需手動在安裝版確認。
+Google sign-in callback (ADR-021): the core probe verifies `LoopbackCallback` with real loopback sockets.
+- It first opens a connection that sends nothing, then sends the real redirect: the code must arrive within the single connection's 5-second deadline, and the empty connection closes with the listener.
+  This is the 0.2.1 failure; a version that handles connections one at a time would be 5 seconds slow here and fail.
+- A wrong state, a repeated state, another path and POST all get 400 and the wait continues; a connection that disconnects first counts only as dropped.
+- A request delivered in three parts, with the blank line that ends the headers split, is parsed normally.
+- With 16 empty connections open at once, the 17th is closed immediately; after the empty connections disconnect, the callback is received normally.
+- `error=access_denied` carrying this run's state is handed to the caller to reject; on cancel the port and any open connections are closed.
+- Browser sign-in with a real Google account still needs a manual check on an installed build.
 
-App 內更新（ADR-044，2026-10-15 修訂）：core probe 以 `tests/fixtures/update-feed.atom`／`update-feed.json` 驗證公開 Atom 平台篩選、
-數值版本比較、同 repo／tag 的下載位置、未知頻道與未列平台拒絕、DTD／外部實體拒絕、manifest 與 MSIX 身分檢查。
-`Test-WindowsUpdate.ps1` 在 `Build-WindowsPackage.ps1 -LocalTestSign` 之後執行：把 MSIX 改成 `app.workfleet.updateprobe.e2e` 的兩個版本、
-以同一張本機憑證簽章，安裝舊版並給它本機測試來源，確認它自行下載、核對、保存並關閉後由 Windows 換成新版，最後移除測試套件。
-不碰已安裝的 Work Fleet；過程中測試身分的主視窗與空白桌面場景會短暫出現；本機 feed 同樣使用 Atom。
-公開 feed／manifest 可唯讀查詢現有 release 驗證，不需發布或修改 release。
-Linux 更新器由 `tests/test_linux_updater.py` 以同一份 fixture 驗證，並以假 HTTP／指令驗證轉址白名單、容量與 SHA-256、`dpkg-deb` 欄位、
-取消 pkexec 與下載後被改動；另驗證查詢不碰 REST API、一般 403 與 429／帶 Retry-After 的 403 分類、feed 不轉址與檔名不可穿越。
-`test-host-shell.sh` 確認非 DEB 執行時回報不支援。真 pkexec／polkit 安裝需在 Debian／Pi 以 DEB 實測。
-macOS：`tests/update-feed-writer.test.js` 驗證 `write-update-feed.mjs` 產生的 appcast 與 manifest；Swift 程式由手動 Apple 建置 workflow 編譯。
-`python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v` 在 Mac 編譯正式 `FleetReleaseFeed` 與共用 fixture，
-驗證 macOS 選版、較新本機不降版、appcast 位置、空 feed、DTD／錯誤 namespace／未知頻道／不同 repo 與嚴格版號；
-沒有 Swift SDK 的平台略過。Mac release job 在簽章前執行，不連網或使用真實 App／使用者資料。
-Sparkle 的沙盒安裝、`feedURLString` 與 EdDSA 金鑰只能在 Mac 上以 Developer ID 公證的舊版更新到新版驗證。
+In-app updates (ADR-044, revised 2026-10-15): the core probe uses `tests/fixtures/update-feed.atom` and `update-feed.json` to verify platform filtering of the public Atom feed,
+numeric version comparison, download locations in the same repo and tag, rejection of unknown channels and unlisted platforms, rejection of DTDs and external entities, and the manifest and MSIX identity checks.
+`Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `app.workfleet.updateprobe.e2e`,
+signs both with the same local certificate, installs the old version and gives it a local test source, and confirms that it downloads, verifies and saves the update itself and that, after it closes, Windows replaces it with the new version; finally it removes the test package.
+It does not touch the installed Work Fleet; during the run the test identity's main window and an empty desktop scene appear briefly; the local feed also uses Atom.
+The public feed and manifest can be verified read-only against existing releases, with no need to publish or modify a release.
+The Linux updater is verified by `tests/test_linux_updater.py` with the same fixture, and with fake HTTP and commands it verifies the redirect allowlist, size and SHA-256, the `dpkg-deb` fields,
+cancelling pkexec and changes after download; it also verifies that queries do not touch the REST API, the classification of ordinary 403 and of 429 or 403 with Retry-After, that the feed does not redirect, and that file names cannot traverse.
+Its timing test (install callback and worker end) can time out on its 10-second wait when the full JS suite or a build runs at the same time; it passes when run alone or rerun once the load is gone (2026-10-15 to 2026-10-17).
+The updater itself was not changed for this.
+`test-host-shell.sh` confirms that running from outside a DEB reports unsupported. A real pkexec and polkit install needs a real test with the DEB on Debian or the Pi.
+macOS: `tests/update-feed-writer.test.js` verifies the appcast and manifest that `write-update-feed.mjs` produces; the Swift code is compiled by the manual Apple build workflow.
+`python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v` compiles the official `FleetReleaseFeed` with the shared fixture on a Mac,
+and verifies macOS version selection, no downgrade from a newer local version, the appcast location, an empty feed, a DTD, a wrong namespace, an unknown channel, a different repo, and strict version numbers;
+platforms without the Swift SDK skip it. The Mac release job runs it before signing; it does not go online or use the real app or user data.
+Sparkle's sandboxed install, `feedURLString` and EdDSA key can be verified only on a Mac, by updating a Developer ID notarized old version to a new one.
 
-開發時以 CDP 檢查 Debug App（使用正式資料目錄；需先關閉已安裝的 App）：
+Inspecting the Debug app with CDP during development (it uses the official data directory; close the installed app first):
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1 -Configuration Debug
 $env:WORK_FLEET_WEBVIEW_DEBUG_PORT = '9339'
 & .\src\native\windows\app\bin\Debug\net10.0-windows10.0.19041.0\WorkFleet.exe
 Remove-Item Env:WORK_FLEET_WEBVIEW_DEBUG_PORT
-# http://127.0.0.1:9339/json/list 列出主畫面與桌面場景 target
+# http://127.0.0.1:9339/json/list lists the main window and desktop scene targets
 ```
 
-VS Code 的「Windows: Work Fleet (Debug + CDP 9339)」啟動設定等同上述步驟；「windows: native tests」task 執行完整原生回歸。
+The VS Code launch configuration "Windows: Work Fleet (Debug + CDP 9339)" is equivalent to the steps above; the "windows: native tests" task runs the full native regression.
 
-變數只設在目前 shell 的程序環境，不要用 setx 或機碼設定。port 已被占用時 CDP 不會啟動。
+Set the variable only in the current shell's process environment; do not use setx or the registry. CDP does not start when the port is already in use.
 
-## 手勢測試 helper
+## Gesture test helper
 
 ```bash
 xcrun swiftc -module-cache-path build/module-cache scripts/testing/input-probe.swift -o build/input-probe
 build/input-probe
 ```
 
-helper 先查公開 `CGPreflightPostEventAccess()`，無權限即回報並退出，不修改權限。
-有權限時顯示專用測試目標，送出點擊／drag／keyup/down 並回報收到数量；
-單獨跑 helper 只驗證測試目標，**不能證明另一個 App 的滑鼠穿透**。
-真正桌面／Finder 框選與拖放的步驟及未測狀態記在報告。
+The helper first queries the public `CGPreflightPostEventAccess()`; without permission it reports that and exits, without changing permissions.
+With permission it shows a dedicated test target, sends clicks, drags and keyup/down, and reports how many were received;
+running the helper alone verifies only the test target and **cannot prove mouse click-through to another app**.
+The steps and untested states for real desktop and Finder marquee selection and drag-and-drop are recorded in the [validation report](validation/2026-10-03-validation-report.md).
 
-## 產物檢查
+## Artifact checks
 
 ```bash
 codesign --verify --strict 'build/Work Fleet.app'
@@ -707,8 +765,8 @@ codesign -d --entitlements - 'build/Work Fleet.app'
 otool -L 'build/Work Fleet.app/Contents/MacOS/WorkFleet'
 ```
 
-最終 staged export 在乾淨目錄以空 module cache 重建成功；13 個 HTTP/SQLite、8 個 JS 與文件檢查也通過。
-這段歷史 0.1.0 Mac 驗證沒有應用第三方 package tree；系統／外部 runtime 與版本見
-[runtime inventory](validation/runtime-inventory.json)。正式上架前需對實際封裝重做檢查。
+The final staged export rebuilt successfully in a clean directory with an empty module cache; the 13 HTTP/SQLite tests, the 8 JS tests and the document checks also passed.
+This historical 0.1.0 Mac validation applied no third-party package tree; the system and external runtimes and their versions are in the
+[runtime inventory](validation/runtime-inventory.json). Before a store release, these checks must be redone on the actual package.
 
-最初 bootstrap／文件檢查歷史已保留於 Git；不能當成上述產品測試的替代證據。
+The initial bootstrap and document-check history is kept in Git; it cannot substitute for the product tests above.

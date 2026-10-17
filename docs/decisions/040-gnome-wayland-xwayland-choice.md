@@ -1,68 +1,80 @@
-# ADR-040: GNOME Wayland 改用 XWayland 的選擇
+# ADR-040: Choosing XWayland on GNOME Wayland
 
 ## Status
 
-Accepted，2026-10-13。維護者要求設定選項與首次啟動詢問；處理 [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) 延後的決定。
+Accepted, 2026-10-13. The maintainer asked for a setting and a question at first launch; this resolves the decision that
+[ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) deferred.
 
 ## Context
 
-GNOME Wayland 沒有 layer-shell，原生 Wayland 啟動時沒有桌面便箋；ADR-039 的桌布層與調整遮罩只在
-`GDK_BACKEND=x11` 經 XWayland 時可用。從應用程式選單點圖示會以原生 Wayland 啟動，使用者必須記得手動加環境變數。
-改用 XWayland 也會讓主畫面的輸入法與縮放改走 XWayland，所以不應在使用者不知情時自動切換。
-GDK 在載入時讀取 `GDK_BACKEND`，選擇必須在 GTK 啟動前生效，不能只存在網頁端。
+GNOME Wayland has no layer-shell, so a native Wayland start has no desktop notes; the wallpaper layer and the adjust
+overlay of ADR-039 work only with `GDK_BACKEND=x11` through XWayland. Clicking the icon in the application menu starts
+the app on native Wayland, so the user has to remember to add the environment variable by hand. Switching to XWayland
+also moves input methods and scaling in the main window to XWayland, so the app should not switch automatically without
+the user knowing. GDK reads `GDK_BACKEND` when it loads, so the choice must take effect before GTK starts and cannot
+live only in the web page.
 
 ## Decision
 
-- 資料目錄（預設 `$XDG_DATA_HOME/WorkFleet`，或 `--data`）存放 `display-backend.txt`，值為 `x11` 或 `wayland`，
-  以暫存檔、fsync 與 rename 寫入，目錄權限 0700。
-- `host.py` 在載入 GTK 前讀取：GNOME Wayland 工作階段（`XDG_SESSION_TYPE=wayland`、`WAYLAND_DISPLAY` 與 `DISPLAY`
-  皆存在、`XDG_CURRENT_DESKTOP` 含 GNOME）且使用者沒有設定 `GDK_BACKEND` 時，選擇 `x11` 就設定 `GDK_BACKEND=x11`，
-  並以 `WORK_FLEET_GDK_BACKEND` 標記是 Work Fleet 設定的。使用者自己的 `GDK_BACKEND` 一律優先。
-- 尚未選擇、目前是原生 GNOME Wayland 且沒有桌面呈現能力時，在開啟資料前以原生對話框詢問一次。
-  選擇改用 XWayland 會保存後直接重新執行；選擇維持會保存，之後不再詢問；關閉對話框則本次維持、下次再問。
-- 設定的「桌面」頁在 GNOME Wayland 顯示「以 XWayland 顯示桌面便箋」開關；變更後顯示「立即重新啟動」。
-  重新啟動沿用一般關閉流程保存草稿並關閉資料，等資料鎖釋放後 `execve` 同一個 host，並依新選擇加上或移除自己設定的
-  `GDK_BACKEND`。資料鎖仍被占用時不重新執行，改請使用者自行開啟。關閉流程進行中時忽略重新啟動要求。
-- 使用者設定 `GDK_BACKEND` 時，設定列仍顯示但停用並說明由環境變數決定。
-- 其他桌面與工作階段不顯示這個設定，也不詢問。
+- The data directory (by default `$XDG_DATA_HOME/WorkFleet`, or `--data`) holds `display-backend.txt` with the value
+  `x11` or `wayland`, written through a temporary file, fsync and rename; the directory permission is 0700.
+- `host.py` reads it before loading GTK: in a GNOME Wayland session (`XDG_SESSION_TYPE=wayland`, both `WAYLAND_DISPLAY`
+  and `DISPLAY` present, `XDG_CURRENT_DESKTOP` containing GNOME) where the user has not set `GDK_BACKEND`, the choice
+  `x11` sets `GDK_BACKEND=x11` and marks with `WORK_FLEET_GDK_BACKEND` that Work Fleet set it. The user's own
+  `GDK_BACKEND` always takes precedence.
+- When no choice has been made yet, the session is native GNOME Wayland and there is no desktop presentation capability,
+  a native dialog asks once, before any data is opened. Choosing to switch to XWayland saves the choice and restarts
+  right away; choosing to keep the current mode saves it and the question is not asked again; closing the dialog keeps
+  the current mode for this run and asks again next time.
+- On GNOME Wayland, the Desktop page of Settings shows a "Show desktop notes through XWayland" switch; after a change, a
+  "Restart now" button appears. The restart uses the normal close flow to save drafts and close the data, waits until
+  the data lock is released, then `execve`s the same host, adding or removing the `GDK_BACKEND` the app set itself
+  according to the new choice. If the data lock is still held, it does not restart and asks the user to open the app
+  again manually. A restart request is ignored while the close flow is in progress.
+- When the user has set `GDK_BACKEND`, the settings row is still shown but disabled, with an explanation that the
+  environment variable decides.
+- Other desktops and sessions neither show this setting nor ask.
 
 ## Consequences
 
 ### Positive
 
-- 從選單啟動也能在第一次確認後得到桌面便箋，不需記得環境變數。
-- 輸入法與縮放的取捨由使用者明確決定，之後可在設定改回。
+- Starting from the menu also gives desktop notes after the first confirmation, without remembering an environment
+  variable.
+- The user decides the trade-off for input methods and scaling explicitly and can change it back in Settings later.
 
 ### Negative
 
-- 偵測假設 `DISPLAY` 指向可用的 XWayland；GNOME 若停用 XWayland，選擇 XWayland 會讓 App 無法開啟顯示，
-  需刪除偏好檔或設定 `GDK_BACKEND=wayland`。
-- 重新啟動以 `execve` 取代目前行程，WebKit 子行程隨原 IPC 關閉而結束；`--data` 非預設路徑的重新啟動未實測。
+- The detection assumes that `DISPLAY` points to a working XWayland; if GNOME disables XWayland, choosing XWayland
+  leaves the app unable to open a display, and the preference file must be deleted or `GDK_BACKEND=wayland` set.
+- The restart replaces the current process with `execve`, and the WebKit child processes end as the original IPC closes;
+  a restart with a non-default `--data` path is untested.
 
 ### Neutral
 
-- 只套用在 GNOME，因為只在 GNOME 實測；KDE 等支援 layer-shell 的桌面不需要。
+- This applies only to GNOME, because it was tested only on GNOME; KDE and other desktops that support layer-shell do
+  not need it.
 
 ## Alternatives Considered
 
-### Alternative 1: GNOME Wayland 一律自動改用 XWayland
+### Alternative 1: Always switch GNOME Wayland to XWayland automatically
 
-- **Pros**：不需詢問。
-- **Cons**：輸入法與縮放在使用者不知情時改變。
-- **Why rejected**：維護者要求確認。
+- **Pros**: no question is needed.
+- **Cons**: input methods and scaling change without the user knowing.
+- **Why rejected**: the maintainer asked for confirmation.
 
-### Alternative 2: 修改 desktop entry 加入環境變數
+### Alternative 2: Add the environment variable to the desktop entry
 
-- **Pros**：不需程式。
-- **Cons**：DEB 擁有的檔案不應由使用者修改，也無法在 App 內切換。
-- **Why rejected**：維護性差，且不符合要在設定中切換的需求。
+- **Pros**: no code is needed.
+- **Cons**: users should not modify files owned by the DEB, and the choice could not be switched inside the app.
+- **Why rejected**: poor maintainability, and it does not meet the requirement to switch in Settings.
 
 ## References
 
-- [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md)。
-- [GDK_BACKEND](https://docs.gtk.org/gtk3/running.html)。
+- [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md).
+- [GDK_BACKEND](https://docs.gtk.org/gtk3/running.html).
 
 ---
 
 *Decision made: 2026-10-13*
-*Decision makers: 維護者*
+*Decision makers: Maintainer*

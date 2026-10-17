@@ -1,89 +1,110 @@
-# ADR-007: 共用卡片場景與平台 host 邊界
+# ADR-007: Shared card scene and platform host boundaries
 
 ## Status
 
-Proposed，2026-10-04。產品語意以已接受的 [ADR-006](006-card-group-and-formation-semantics.md) 為準。
-本提案提供實作方向；未選 renderer framework、核心語言或原生視窗拓撲。
-協定限制與資料不遺失等必要條件，不因本 ADR 尚在 Proposed 而可被忽略。
+Proposed, 2026-10-04. Product semantics follow the accepted [ADR-006](006-card-group-and-formation-semantics.md).
+This proposal gives the implementation direction; it does not choose a renderer framework, core language or native
+window topology.
+Protocol limits and required conditions such as no data loss cannot be ignored just because this ADR is still
+Proposed.
 
 ## Context
 
-群組操作需要整組提高、選中卡最前面、自由移位、formation 與轉組目標提示。
-來源還需能從 Drive 擴充到 API 來源，renderer 也不只有桌面。
-Wayland layer-shell 不定義同一層內多個獨立 surface 的排序，
-因此不能依賴「每卡一個 native window」作跨平台的任意卡片 z-order 保證。
-詳見 [平台研究](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
+Group operations need the whole group raised, the selected card frontmost, free moves, formation and hints for the
+target of a group change.
+Sources must also be able to extend from Drive to API sources, and renderers are not only on the desktop.
+Wayland layer-shell does not define the order of several independent surfaces within the same layer,
+so "one native window per card" cannot be relied on as a cross-platform guarantee of arbitrary card z-order.
+See the [platform research](../research/2026-10-04-desktop-interaction-platform-feasibility.md).
 
 ## Decision
 
-提議採以下邏輯責任，名稱不是預先指定語言、library 或必須新增的服務：
+Proposed: the following logical responsibilities. The names do not prescribe a language, a library or a service
+that must be added:
 
-| 邊界 | 責任 | 不得承擔 |
+| Boundary | Responsibility | Must not take on |
 |---|---|---|
-| Content / Group core | 卡片身分、內容、歸屬、條件式命令、草稿 | OS 視窗 handle、裝置座標 |
-| Source coordinator | 本機一致狀態、outbox、provider session、衝突保留 | 決定點擊手勢或自動排版 |
-| NoteSource / FileStore | 來源語意與能力；檔案型來源另接傳輸 | 用 Drive 檔案順序決定卡片疊序 |
-| DeviceLayoutStore | 群組區域、位置／尺寸、基本疊序、undo | 全域共同位置或來源 token |
-| FormationPlanner | 固定輸入產生排列計畫、溢出／尺寸同意資訊 | 在計算中直接搬動 native window |
-| InteractionController | scope、focus、選卡、編輯、拖曳、候選轉組 | 保存整張舊 note 覆蓋較新內容 |
-| Scene / Renderer | 繪製卡片、微亮、目標命中、可控卡片排序 | 自行連 Google 或將顯示順序持久化為歸屬 |
-| PlatformHost | OS 層級、顯示器、輸入區域、焦點、快捷鍵、生命週期 | 強迫 cardId = windowId |
+| Content / Group core | Card identity, content, membership, conditional commands, drafts | OS window handles, device coordinates |
+| Source coordinator | Consistent local state, outbox, provider session, kept conflicts | Deciding click gestures or automatic layout |
+| NoteSource / FileStore | Source semantics and capabilities; file sources also attach a transport | Using Drive file order to decide card stacking order |
+| DeviceLayoutStore | Group regions, positions/sizes, basic stacking order, undo | Global shared positions or source tokens |
+| FormationPlanner | A layout plan from fixed input, overflow and size-consent information | Moving native windows directly during the calculation |
+| InteractionController | Scope, focus, card selection, editing, dragging, candidate group change | Saving a whole old note over newer content |
+| Scene / Renderer | Drawing cards, highlights, target hit testing, controllable card order | Connecting to Google itself, or persisting display order as membership |
+| PlatformHost | OS layers, displays, input regions, focus, shortcuts, lifecycle | Forcing cardId = windowId |
 
-### 呈現表面建議
+### Presentation surface proposal
 
-- 尤其 Wayland，優先按「輸出螢幕×有效系統層」建立少量共同繪製表面，
-  同層卡片順序由 renderer 控制。也可評估能明確控制子表面的等效設計。
-- 指定群組操作可將該組的呈現暫時切到浮動表面，其餘卡片仍在原層；
-  轉移呈現不複製卡片資料、不換 cardId、不改本機邏輯位置。
-- 不要求 Windows/macOS 的原生表面數與 Wayland 完全相同；共用的是行為契約。
-- 提示表面只畫視覺，不搶 pointer capture 或鍵盤焦點；實際輸入區域只覆蓋允許操作的位置。
-- 正常觀看時保持滑鼠穿透；不能因使用全螢幕透明視窗，就讓整個桌面無法點擊。
-- Native surface 的 alpha、input region、重繪及部分區域穿透需按 backend 證明；
-  不把某平台的忽略整窗滑鼠 API 當成三平台的逐區域命中能力。
+- Especially on Wayland, prefer a small number of shared drawing surfaces, one per "output display × effective
+  system layer", with card order inside a layer controlled by the renderer.
+  An equivalent design that controls subsurfaces explicitly may also be evaluated.
+- An operation on a specific group may temporarily move that group's presentation to a floating surface while the
+  other cards stay in their original layer; moving the presentation does not copy card data, change the cardId or
+  change the local logical position.
+- Windows/macOS do not have to use the same number of native surfaces as Wayland; what is shared is the behaviour
+  contract.
+- Hint surfaces only draw visuals and do not take pointer capture or keyboard focus; the actual input region
+  covers only positions where operations are allowed.
+- During normal viewing, mouse clicks pass through; using a full-screen transparent window must not make the whole
+  desktop unclickable.
+- Native surface alpha, input regions, redraws and partial pass-through must be proven per backend;
+  one platform's API for ignoring the mouse on a whole window is not treated as per-region hit testing on all
+  three platforms.
 
-### 契約必要資訊
+### Required contract information
 
-平台能力至少區分：desktop-layer、wallpaper-layer、temporary-floating、
-input-regions、keyboard-on-demand、global-shortcut backend、monitor mapping。
-這是 typed capability 報告，不是開發者臆測 OS 名稱就一律回 true。
-未支援能力需有可達替代入口與正確產品說明；不能自動刪掉另一平台或偷偷改成普通視窗。
+Platform capabilities distinguish at least: desktop-layer, wallpaper-layer, temporary-floating, input-regions,
+keyboard-on-demand, global-shortcut backend and monitor mapping.
+This is a typed capability report, not developers guessing from the OS name and always returning true.
+An unsupported capability needs a reachable alternative entry and an accurate product description; another
+platform must not be dropped automatically or quietly turned into an ordinary window.
 
-Group 類型需有穩定 ID；FileNoteSource 除卡片還要定義共享群組 metadata 的版本及引用。
-未來來源若沒有原生群組，需明確設計附屬 metadata 的權威位置，不可在各 renderer 各存一套。
-手機與主畫面可直接送 MoveCardToGroup，不依賴桌面 grid 或 Shift 鍵。
-動態 plugin 是否進 1.0 仍需產品範圍確認，抽象介面本身不代表要執行外部程式。
+The Group type needs a stable ID; besides cards, FileNoteSource must define the version and references of shared
+group metadata.
+If a future source has no native groups, the authoritative location of the attached metadata must be designed
+explicitly, not stored separately by each renderer.
+Phones and the main window can send MoveCardToGroup directly, without depending on the desktop grid or the Shift
+key.
+Whether dynamic plugins go into 1.0 still needs product scope confirmation; the abstract interface itself does not
+mean running external programs.
 
 ## Consequences
 
 ### Positive
 
-卡片排序、formation、轉組可用平台無關情境驗證；本機版面不污染同步資料。
-Linux 協定限制明確進入選型，不在最後發佈才發現無法任意輪播。
+Card ordering, formation and group changes can be validated with platform-independent scenarios; the local layout
+does not pollute sync data.
+Linux protocol limits enter the technology choice explicitly instead of being discovered at release time as an
+inability to cycle freely.
 
 ### Negative
 
-共同表面需要區域輸入控制、螢幕座標映射及重繪策略。
-跨螢幕拖曳與不同系統層之間的視覺交接需整合驗收，不能只測純模型。
+Shared surfaces need regional input control, display coordinate mapping and a redraw strategy.
+Dragging across displays and the visual hand-over between different system layers need integration acceptance;
+testing the pure model is not enough.
 
 ### Neutral
 
-這不指定 Tauri、Swift、WebView 或 canvas library；也不保證共享一套 native window 程式。
-既有 0.1.0 host 可作局部經驗，但其 HTTP／SQLite server 不是 Drive 1.0 的必要依賴。
-採用任何第三方 backend 前，都需確認實際授權、連結方式、散布及商店相容性。
+This does not specify Tauri, Swift, WebView or a canvas library, nor does it guarantee one shared set of native
+window code.
+The existing 0.1.0 host can serve as partial experience, but its HTTP/SQLite server is not a required dependency
+of the Drive 1.0.
+Before adopting any third-party backend, its actual license, linking, distribution and store compatibility must be
+checked.
 
 ## Alternatives Considered
 
-| 方案 | 評估 |
+| Option | Assessment |
 |---|---|
-| 每張卡各一個 native window，完全依賴 OS 排序 | 不可作通用保證；Wayland 同層排序未定義 |
-| 每次輪播重建 native windows 來碰排序 | 易閃爍、失去焦點／capture，不是明確協定保證 |
-| 所有卡始終在單一最上層整屏視窗 | 無法直接滿足非操作組留在桌面與空白處穿透 |
-| 只做一般 App 視窗來避免桌面整合 | 可作測試 renderer／特定環境替代，但不能取消桌面產品目標 |
-| 所有來源強制變成檔案／所有平台強制同一 backend | 把異質性藏到錯誤抽象，不採為前提 |
+| One native window per card, relying entirely on OS ordering | Cannot be a general guarantee; ordering within a Wayland layer is undefined |
+| Rebuilding native windows on every cycle to try for ordering | Prone to flicker and to losing focus/capture; not an explicit protocol guarantee |
+| All cards always in a single topmost full-screen window | Cannot directly keep non-operated groups on the desktop and let blank areas pass clicks through |
+| Only ordinary app windows, to avoid desktop integration | Can serve as a test renderer or a fallback for specific environments, but cannot cancel the desktop product goal |
+| Forcing all sources into files / all platforms onto one backend | Hides the heterogeneity in the wrong abstraction; not adopted as a premise |
 
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
-- [平台能力與證據](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
+- [Platform capabilities and evidence](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
 - [PLAN-003](../plans/003-desktop-interaction-implementation.md)
-- [來源與 renderer 的先前提案](004-google-drive-notes-mvp.md)
+- [Earlier proposal on sources and renderers](004-google-drive-notes-mvp.md)

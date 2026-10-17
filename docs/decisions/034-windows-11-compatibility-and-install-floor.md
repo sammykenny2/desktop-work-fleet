@@ -1,69 +1,87 @@
-# ADR-034: Windows 11 相容範圍與 MSIX 安裝下限
+# ADR-034: Windows 11 compatibility range and MSIX install floor
 
 ## Status
 
-Accepted（支援範圍與實作邊界），2026-10-09。23H2 原生與 MSIX 內容驗證已接續，正常互動、安裝與其他版本實機仍待驗收；執行狀態見 PROGRESS。
-補充 ADR-028／030；取代原本「只支援 24H2 以後」產品範圍。
+Accepted (support range and implementation boundary), 2026-10-09. Native and MSIX content verification on 23H2 followed;
+normal interaction, installation and real machines with other versions still await acceptance; the current status is in
+`PROGRESS.md`.
+Supplements ADR-028/030; replaces the earlier product scope of "24H2 and later only".
 
 ## Context
 
-使用者在 2026-10-08 要求支援 Windows 11 23H2 及更早版本，也保留 24H2 及以後版本；
-Windows 10 不需適配，但未來上架 Microsoft Store 時必須在安裝階段排除。
-使用者提供 23H2 電腦共同測試，目前沒有 24H2+ 電腦可驗證，希望盡量避免 regression。
-尚未保留 Partner Center 應用身份，也尚未進入 Store 上架階段。
+On 2026-10-08 the user asked to support Windows 11 23H2 and earlier versions while keeping 24H2 and later;
+Windows 10 needs no adaptation, but a future Microsoft Store listing must exclude it at install time.
+The user provided a 23H2 computer for joint testing; there is currently no 24H2+ computer to verify on, and the user wants
+regressions avoided as far as possible.
+No Partner Center app identity has been reserved yet, and the Store listing stage has not started.
 
-2026-10-09 使用者確認需求真正屬於本專案，要求先提交 ADR／SPEC／PLAN，交給新 session 接續。
-前一輪誤套到另一個 Tauri 專案的程式與通過紀錄不構成本專案的實作或驗收證據。
+On 2026-10-09 the user confirmed that the requirement really belongs to this project and asked to commit the ADR, SPEC and PLAN
+first and hand the work to a new session.
+Code and pass records from the previous round that were mistakenly applied to another Tauri project are not implementation or
+acceptance evidence for this project.
 
-本專案使用 WPF／WebView2，已有 MSIX／ZIP 封裝與新舊 Explorer 宿主發現路徑。
-最初文件交接時 `scripts/generate-windows-manifest.mjs` 設定 `MinVersion=10.0.26100.0`，排除了 23H2；同日後續實作改為 22000。
-既有原生紀錄在 build 26200；它對應 25H2，不能當作 build 26100／24H2 的實測。
+This project uses WPF/WebView2 and already has MSIX/ZIP packaging and discovery paths for both new and old Explorer hosts.
+At the initial document handoff, `scripts/generate-windows-manifest.mjs` set `MinVersion=10.0.26100.0`, which excluded 23H2;
+a later implementation the same day changed it to 22000.
+The existing native records are on build 26200, which corresponds to 25H2 and cannot be taken as a test on build 26100/24H2.
 
 ## Decision
 
-- Windows 支援目標為 Windows 11 21H2／22H2／23H2 及 24H2+。版本是驗收維度，不以 OS build 硬切 Explorer 私有結構。
-- MSIX 的目標安裝下限為 `Windows.Desktop MinVersion=10.0.22000.0`，涵蓋早期 Windows 11 並排除 Windows 10。
-  先完成 23H2 原生驗證，再改封裝並驗證最終包；不得只改商品說明或讓 Windows 10 安裝後才啟動失敗。
-- 保留現有 `MaxVersionTested=10.0.26200.0` 及其歷史證據；沒有新版本證據時不無故調整相容性行為。
-  `net8.0-windows10.0.19041.0` 是編譯 API 基線，不是產品支援或 Store 安裝下限，無需為本任務直接更換 framework。
-- 延續 ADR-030 的同 Explorer PID、真正圖示／桌布宿主與疊序校驗、必要時的有界宿主建立請求、DPI awareness 檢查與 physical/client 座標轉換。
-  優先驗證已存在的 classic sibling 路徑，按實際失敗做最小修正。
-- 保留已驗證的 windowed WebView2 附著場景、floating composition 場景、空 region 下的啟動順序與紙面圓角。
-  不導入 Tauri 的視窗管理、fallback 或輸入政策，不複製另一產品的程式／資料模型。
-- 群組操作、唯讀選字、穿透、formation、單一 Workspace 與草稿交易繼續遵循 SPEC-003／ADR-018／020／030。
-  系統宿主失效時保留偏好與資料，按既有能力回報與恢復契約處理，不假報附著成功。
-- Store 身份保留、正式簽章、提交與 Windows 10 Store 安裝入口驗收留至上架階段。
-  本任務可驗證 preview MSIX 的版本限制；不能把它當成 Store 上架完成。既有 preview 身份與憑證保持獨立。
+- Windows support targets Windows 11 21H2/22H2/23H2 and 24H2+. The version is an acceptance dimension; handling of Explorer's
+  private structure is not hard-switched by OS build.
+- The target MSIX install floor is `Windows.Desktop MinVersion=10.0.22000.0`, which covers early Windows 11 and excludes
+  Windows 10. Native verification on 23H2 comes first, then the packaging change and verification of the final package; it is
+  not acceptable to change only the product description or to let Windows 10 install the app and then fail at startup.
+- The existing `MaxVersionTested=10.0.26200.0` and its historical evidence are kept; without evidence from newer versions,
+  compatibility behavior is not changed without reason.
+  `net8.0-windows10.0.19041.0` is the compile API baseline, not the product support floor or the Store install floor; this task
+  does not need to change the framework.
+- ADR-030's checks continue: the same Explorer PID, the real icon and wallpaper hosts and z-order validation, a bounded host
+  creation request when needed, the DPI awareness check and the physical/client coordinate conversion.
+  The existing classic sibling path is verified first, and fixes are minimal and based on actual failures.
+- The verified windowed WebView2 attached scenes, the floating composition scenes, the startup order with an empty region and
+  the rounded paper corners are kept. Tauri's window management, fallback and input policies are not brought in, and another
+  product's code or data model is not copied.
+- Group operations, read-only text selection, pass-through, formation, the single Workspace and draft transactions keep
+  following SPEC-003/ADR-018/020/030. When a system host fails, preferences and data are kept and handled under the existing
+  capability reporting and recovery contract, without falsely reporting a successful attachment.
+- Store identity reservation, official signing, submission and acceptance of the Windows 10 Store install entry are left to
+  the listing stage. This task can verify the version restriction of the preview MSIX; that must not be taken as a completed
+  Store listing. The existing preview identity and certificate stay separate.
 
 ## Consequences
 
 ### Positive
 
-- 23H2 可進入支援與測試範圍；未來 Windows 10 安裝限制有明確封裝契約。
-- 復用本專案現有架構與探針，降低對 build 26200 已驗證路徑的改動。
+- 23H2 can enter the support and test scope, and the future Windows 10 install restriction has a clear packaging contract.
+- Reusing this project's existing architecture and probes keeps changes to the paths verified on build 26200 small.
 
 ### Negative
 
-- Explorer 是私有結構；21H2／22H2／24H2+ 缺少本輪設備，跨版本完成聲明受證據限制。
-- 23H2 通過與純邏輯回歸不能保證較新系統沒有 regression；需要後續實機補驗。
+- Explorer is a private structure; this round has no devices with 21H2, 22H2 or 24H2+, so cross-version completion claims are
+  limited by the evidence.
+- A pass on 23H2 and pure logic regression tests cannot guarantee that newer systems have no regression; follow-up checks on
+  real machines are needed.
 
 ### Neutral
 
-- 不改便箋格式、同步、帳號、備份或其他平台；相容性實作沿用現有原生呈現路徑，不自動升版或發布。
+- The note format, sync, accounts, backups and the other platforms do not change; the compatibility work uses the existing
+  native presentation path, with no automatic version bump or release.
 
 ## Alternatives Considered
 
-- 保持最低 26100：會排除使用者指定的 23H2 與早期 Windows 11，拒絕。
-- 僅降低最低版本、跳過原生驗證：只能證明安裝資格，不能證明畫面／輸入可用，拒絕。
-- 複製另一專案的相容層：runtime、renderer、場景與資料權威不同，拒絕。
-- 為測試通過移除 DPI 檢查或回退任意 WorkerW：違反 ADR-030，拒絕。
+- Keeping the 26100 minimum: would exclude 23H2, which the user specified, and early Windows 11; rejected.
+- Only lowering the minimum and skipping native verification: proves only install eligibility, not that display and input
+  work; rejected.
+- Copying another project's compatibility layer: the runtime, renderer, scenes and data authority differ; rejected.
+- Removing the DPI checks or falling back to an arbitrary WorkerW to make tests pass: violates ADR-030; rejected.
 
 ## References
 
-- [SPEC-005](../specs/005-windows-11-compatibility.md)、[PLAN-004](../plans/004-windows-11-compatibility.md)、[接手入口](../handoff/2026-10-09-windows-11-compatibility-handoff.md)
-- [ADR-028](028-native-package-and-signing-entry-points.md)、[ADR-030](030-windows-explorer-wallpaper-layer.md)、[PROGRESS](../../PROGRESS.md)
-- [Windows 11 release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information)：21H2／23H2／24H2／25H2 的 build 基線。
-- [TargetDeviceFamily](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-targetdevicefamily)：MinVersion 部署適用性與 MaxVersionTested 相容性行為。
-- [SetParent](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setparent)：WS_CHILD／WS_POPUP 與跨程序 DPI 風險。
+- [SPEC-005](../specs/005-windows-11-compatibility.md), [PLAN-004](../plans/004-windows-11-compatibility.md), [Handoff entry point](../handoff/2026-10-09-windows-11-compatibility-handoff.md)
+- [ADR-028](028-native-package-and-signing-entry-points.md), [ADR-030](030-windows-explorer-wallpaper-layer.md), [PROGRESS](../../PROGRESS.md)
+- [Windows 11 release information](https://learn.microsoft.com/en-us/windows/release-health/windows11-release-information): build baselines of 21H2/23H2/24H2/25H2.
+- [TargetDeviceFamily](https://learn.microsoft.com/en-us/uwp/schemas/appxpackage/uapmanifestschema/element-f-targetdevicefamily): MinVersion deployment applicability and MaxVersionTested compatibility behavior.
+- [SetParent](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setparent): WS_CHILD/WS_POPUP and cross-process DPI risks.
 
 *Decision made: 2026-10-09*

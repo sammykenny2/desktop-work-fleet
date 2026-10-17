@@ -1,166 +1,199 @@
-# 桌面卡片、群組與 formation：需求演進及交接依據
+# Desktop cards, groups and formation: how the requirements evolved, and the handoff basis
 
-- 整理日期：2026-10-04，Asia/Taipei。
-- 依據：本次產品討論與同日後續明確答覆；使用者意圖不需要外部產品背書。
-- 性質：保存討論演進；開發規範以 [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) 為入口。
-- 決策：[ADR-006](../decisions/006-card-group-and-formation-semantics.md)。
-- 本輪只有文件工作；沒有更改產品程式、建立 Google OAuth 或恢復暫停的 goal。
+- Compiled: 2026-10-04, Asia/Taipei.
+- Basis: this product discussion and the explicit follow-up answers given the same day; the user's intent needs no
+  endorsement from external products.
+- Nature: preserves how the discussion evolved; the development contract starts at
+  [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md).
+- Decision: [ADR-006](../decisions/006-card-group-and-formation-semantics.md).
+- This round was documentation only; no product code was changed, no Google OAuth was created and the paused goal was
+  not resumed.
 
-## 1. 產品重心及原先規劃的修正
+## 1. Product focus and corrections to the earlier plan
 
-使用者以桌面便箋記錄 backlog：現在有哪些事沒處理、靈感出現時在哪裡快速記下。
-多台開發機與 CLI Agent 是背景，不能推導為必須管理 agent job／run 的產品。
-使用者曾以 Trello、Linear 等輕量管理體驗作思考對照，並沒有因此接受完整 PM 模型。
+The user records a backlog with desktop notes: what is still unhandled right now, and where to jot an idea down
+quickly when it appears.
+Several development machines and CLI agents are background context; they do not imply a product that must manage
+agent jobs/runs.
+The user used lightweight management tools such as Trello and Linear as points of comparison, and did not thereby
+accept a full PM model.
 
-Google 帳號、檔案來源、第一版不架 local server 與來源／renderer 抽象的方向仍保留。
-Drive appDataFolder 為研究基線；既有資料格式與備份設計仍是 Proposed／Draft。
-先前對純文字、checklist、附件、plugin、備份／還原模式的裁切沒有充分確認，
-不能因文件寫過就升格為使用者定案。
+The directions of Google accounts, file sources, no local server in the first version and the source/renderer
+abstraction remain.
+Drive appDataFolder is the research baseline; the existing data format and backup design are still Proposed/Draft.
+The earlier cuts around plain text, checklists, attachments, plugins and backup/restore modes were never adequately
+confirmed; having been written in a document does not promote them to user decisions.
 
-參考應用中有想保留的功能經驗，也有明確不想保留的部分：
+The reference app has feature experience worth keeping, and parts the user explicitly does not want:
 
-| 類型 | 本次意圖 |
+| Kind | Intent this time |
 |---|---|
-| 桌面顯示、分層、互動、文字選取、跨平台經驗 | 作能力盤點與針對性研究；不等於照搬 UI 或程式 |
-| Focus／番茄鐘、回顧 | 不加入自己的 1.0 |
-| 雜亂設定頁與過多工具區 | 不作介面模板；自行設計乾淨布局 |
-| 未來 PM 能力 | 保留研究，找適合的模型／工具，不強迫第一版導入 |
+| Desktop display, layering, interaction, text selection, cross-platform experience | Capability inventory and targeted research; not copying its UI or code |
+| Focus/Pomodoro timer, reviews | Not added to our own 1.0 |
+| Cluttered settings pages and too many tool areas | Not an interface template; design a clean layout of our own |
+| Future PM capabilities | Keep researching suitable models/tools; do not force them into the first version |
 
-## 2. 一張卡片是什麼
+## 2. What a card is
 
-最早的想法是一台機器至少一張 note，上面有很多要做的事情。
-後來使用者用實體 post-it 與看板的直覺修正：一張 note 記一件事。
-因此，舊架構裡的 Note=多項任務容器不是目前 1.0 的規範。
+The earliest idea was at least one note per machine, holding many things to do.
+The user then corrected this with the intuition of physical post-its and a board: one note records one thing.
+So the old architecture's Note = container of several tasks is not the current 1.0 contract.
 
-「一事」是使用者的內容組織方式，不要求系統用 NLP 拆卡，
-也不禁止一張卡裡有說明、步驟或 checklist；不可把它誤解成只能一行文字。
-完成／狀態 UI 尚需與 editor 範圍一起確認，不能擅自回到複雜六態執行流程。
+"One thing" is how the user organizes content. It does not require the system to split cards with NLP,
+and it does not forbid a card from holding a description, steps or a checklist; it must not be misread as "a single
+line of text only".
+The completion/status UI still has to be confirmed together with the editor scope; it must not quietly return to a
+complex six-state execution flow.
 
-## 3. 群組與本機視角
+## 3. Groups and the local view
 
-使用者希望按「屬於我」看待卡片。在 A 機器，與 A 相關的集合可突出；
-在 B 機器，突出集合可以不同。群組是通用邏輯集合，並非機器身分本身。
-未來可改成其他群聚條件；不將 repository、Agent、小組或 Project 硬編碼為必要群組類型。
+The user wants to see cards by "what belongs to me". On machine A, the set related to A can stand out;
+on machine B, a different set can stand out. A group is a general logical set, not the machine identity itself.
+It may later change to other grouping criteria; repository, Agent, team or Project are not hardcoded as required group
+types.
 
-一張卡片同時屬於多台機器並未被排除，但不必在第一版做。
-「多台機器共同看見同一張卡」和「同一張卡多重歸屬」不是同一需求。
-工作預設先一個主要群組，不把這個預設變成無法擴充的資料格式。
+A card belonging to several machines at once is not ruled out, but need not be in the first version.
+"Several machines see the same card" and "one card has multiple memberships" are not the same requirement.
+The working default is one primary group first, without turning that default into a data format that cannot be
+extended.
 
-## 4. 從 accordion 示意到實體紙張
+## 4. From the accordion mock-up to physical paper
 
-曾提供逐張展開／整組展開的變高卡片示意。使用者明確指出：
-實體 post-it 紙張大小穩定，差別是誰壓誰、哪些部分露在上方。
-因此以下方案已失效：
+Mock-ups were shown of cards that grow taller when expanded one by one or as a whole group. The user pointed out
+explicitly: a physical post-it keeps a stable size; what differs is which paper covers which and which parts show on
+top.
+The following options are therefore void:
 
-- 逐張展開為較高卡片；
-- 整組 accordion；
-- 輪播時為了顯示內容而改紙張大小；
-- 把示意用的固定像素尺寸當成產品要求。
+- expanding a card into a taller card;
+- a whole-group accordion;
+- changing the paper size during cycling to show content;
+- treating the fixed pixel sizes of the mock-up as a product requirement.
 
-後續又補充尺寸例外：執行 formation 必要時可以詢問／取得同意調整卡片大小，
-若不同意，可以超出群組區域。這不是恢復 accordion；其他一般互動仍不改紙張尺寸。
+A size exception was added later: when necessary, a formation may ask for/obtain consent to resize cards,
+and without consent the cards may extend beyond the group region. This does not bring back the accordion; other
+ordinary interactions still do not change paper size.
 
-## 5. 區域是排列目標，並非容器
+## 5. A region is an arrangement target, not a container
 
-使用者希望卡片整齊，也希望可以自由拖到其他區域。
-兩者透過顯式 formation 共存：
+The user wants cards tidy, and also wants to drag them freely to other regions.
+The two coexist through explicit formation:
 
-| 行為 | 位置／歸屬的效果 |
+| Action | Effect on position/membership |
 |---|---|
-| 普通拖曳 A 卡到 B 區 | 改本機位置，仍屬 A |
-| 整理 A 群組 | 所有參與顯示的 A 卡回到 A 區，包含散落別處的卡 |
-| A 區有 B 卡 | 整理 A 不搬動 B |
-| 全局 formation | 依當次 grid／群組對應一次整理所有參與卡 |
-| formation 後繼續自由拖曳 | 可以，不會被持續自動吸回 |
+| Ordinary drag of an A card into region B | Changes the local position; the card stays in A |
+| Formation of group A | Every participating, displayed A card returns to region A, including cards scattered elsewhere |
+| A B card sits in region A | Formation of A does not move B |
+| Global formation | Arranges every participating card once, by the current grid/group mapping |
+| Free dragging after a formation | Allowed; cards are not continually pulled back |
 
-群組內堆疊露出每張第一行；攤開是完整紙面排開。
-Formation 的按下就是使用者對自動排列位置的授權，不必每移一張再詢問。
-但改尺寸仍需在本次選項中明示，不能把位置授權延伸為無限制縮放。
+A stack within a group shows each card's first line; a spread lays out the full papers.
+Pressing formation is the user's authorization for automatic placement; there is no need to ask again for each card
+moved.
+Resizing must still be stated explicitly in that run's options; the position authorization cannot be stretched into
+unlimited scaling.
 
-## 6. 輪播與 z-order 的最終澄清
+## 6. Final clarification of cycling and z-order
 
-使用者提出：群組 A 操作時，A 全組在其他組上層；輪播到哪張，那張在 A 最前面。
-卡片可以保留手動位置。後續確認以 formation 恢復整齊露行，不要求輪播永遠露出所有摘要。
+The user proposed: while group A is being operated, the whole of A sits above the other groups; whichever card the
+cycling reaches comes to the front of A.
+Cards may keep their manual positions. It was later confirmed that formation restores the tidy first-line view;
+cycling is not required to show every summary at all times.
 
-因此被取代的想法包括：輪播時移動紙張、卡片被拖散就退出群組輪播、
-或固定坐標又任意換前後還承諾所有第一行永遠可見。
+Ideas superseded by this include: moving papers during cycling, leaving group cycling once a card is dragged apart,
+or fixed coordinates combined with arbitrary reordering while still promising that every first line is always visible.
 
-兩種層級必須分開：
+Two kinds of layering must be kept apart:
 
-- 卡片相對排序：目前組高於其他組，選中卡高於同組其他卡。
-- 作業系統層：啟動操作後，指定組暫時浮到一般 App 上方，結束再回常駐層。
+- Relative card order: the current group above other groups, the selected card above the rest of its group.
+- Operating-system layer: once an operation starts, the chosen group temporarily floats above ordinary apps, and
+  returns to its resident layer when it ends.
 
-最後一項曾待確認，使用者已在本輪明確選擇：暫時浮到一般 App 上方，結束還原。
-這不要求蓋過鎖定畫面、系統保護 UI 或所有種類的特殊浮窗。
+The last point was open; in this round the user explicitly chose: float temporarily above ordinary apps, restore at
+the end.
+This does not require covering the lock screen, protected system UI or every kind of special floating window.
 
-## 7. 操作模式與手勢
+## 7. Operating modes and gestures
 
-使用者提醒參考應用的桌面顯示／全局操作／唯讀選字，加上逐卡顯示／分層是不同維度。
-不能以一個全桌面 unlock 開關取代全部能力。
-新方案以指定群組啟動拖拉，再選單張編輯；其餘組維持原狀。
+The user pointed out that the reference app's desktop display/global operation/read-only text selection, plus per-card
+display/layering, are different dimensions.
+A single whole-desktop unlock switch cannot replace all of these capabilities.
+The new approach starts dragging for a chosen group, then selects a single card to edit; the other groups stay as they
+are.
 
-使用者授權自行判斷是否提供全群組入口，考量新手後規劃保留。
-一次只有一個操作 scope，All 模式中的 active group 只是注意焦點，不縮小可操作集合。
-快捷鍵編號穩定指向群組，初次使用一組即可，不強迫理解九組配置。
+The user left it to our judgment whether to offer an all-groups entry; considering new users, the plan keeps one.
+There is only one operating scope at a time; the active group in All mode is only the focus of attention and does not
+narrow the operable set.
+Shortcut numbers point to groups stably; a first-time user can use a single group without being made to understand a
+nine-group layout.
 
-同日明確確認的預設：
+Defaults explicitly confirmed the same day:
 
-- 單擊選中並提高這張卡；雙擊才進入文字編輯。
-- 普通拖曳只移位。
-- 拖到群組接收標籤，或按 Shift 拖入某組區域，放開才轉組。
-- 卡片 action 仍提供「移至群組」。
+- A single click selects and raises the card; only a double click enters text editing.
+- An ordinary drag only moves the card.
+- Dragging onto a group's drop label, or dragging into a group's region with Shift held, changes the group on release.
+- The card actions still offer "Move to group".
 
-拖曳中的微亮必須表示有效轉組目標，並搭配群組名稱／「移至 B」文字。
-不能普通路過也亮成同樣狀態，讓使用者誤以為已改歸屬。
-取消、失去 capture、保存失敗、遠端同時改組等 D 邊界寫在 SPEC-003，不能靠猜測實作。
+The highlight during a drag must mean a valid group-change target, paired with the group name/"Move to B" text.
+Merely passing over a region must not light up in the same state and make the user think the membership has changed.
+D boundaries such as cancel, lost capture, failed saves and concurrent remote group changes are written in SPEC-003
+and must not be implemented by guessing.
 
-## 8. 群組數與排列語法
+## 8. Group count and arrangement syntax
 
-使用者指定最多九組，n×m，n≤3、m≤4，且明確排除 3×4。
-示例 2×4 是上下兩列，每列四塊；3×3 可用。
-使用者對先 row 或 column 無偏好，因此工作預設用列×欄，附圖預覽。
+The user specified at most nine groups, n×m with n≤3 and m≤4, explicitly excluding 3×4.
+The example 2×4 is two rows, one above the other, of four blocks each; 3×3 is allowed.
+The user has no preference between rows first or columns first, so the working default is rows×columns, with a
+pictured preview.
 
-不能只檢查兩個單邊上限而意外允許十二區。
-群組比格子少可留空；群組超出格子容量時不自動合併／刪除。
-一組可有多張卡片，九組不是九張卡的上限。
+Checking only the two single-side limits must not accidentally allow twelve regions.
+Fewer groups than cells may leave cells empty; groups beyond the grid capacity are not merged/deleted automatically.
+A group can hold many cards; nine groups is not a limit of nine cards.
 
-## 9. 授權自行規劃的邊界
+## 9. Boundaries the user delegated to our planning
 
-使用者明確回答了尺寸例外、新卡落在自己區域、formation 可復原，
-並授權其他細節按最佳實踐規劃。因此下列以 D 記錄而不冒稱逐項使用者原話：
+The user explicitly answered the size exception, new cards landing in their own region and formation being undoable,
+and authorized planning the remaining details by best practice. The items below are therefore recorded as D, without
+claiming each one is the user's own words:
 
-- 每機 geometry 分離、focus 暫態；
-- 可靠草稿、Esc 層級處理、轉組 undo 與條件式保存；
-- 新卡不重排舊卡、不搶 editor 焦點；
-- 原有位置的卡遠端轉組後保留位置，下次 formation 才召回；
-- 顯示器失連只救回不可達卡片；
-- 隱藏／刪除內容不因群組快捷鍵被永久釘回桌面；
-- 並行建立超過九組時保留資料而不是丟棄；
-- 本機可靠保存與雲端同步分開回報。
+- per-machine geometry kept separate, focus transient;
+- reliable drafts, layered Esc handling, group-change undo and conditional saves;
+- new cards do not rearrange old cards or take editor focus;
+- a card with an existing position keeps that position after a remote group change, and is recalled only by the next
+  formation;
+- a disconnected display rescues only unreachable cards;
+- hidden/deleted content is not permanently pinned back to the desktop by group shortcuts;
+- creating more than nine groups concurrently keeps the data instead of discarding it;
+- reliable local saving and cloud sync are reported separately.
 
-這些規則用以讓 agent 可開發，不應逐項重問而阻斷已授權工作。
-若有實際平台衝突或需要擴大產品範圍，再帶著具體影響請使用者決定。
+These rules let agents develop; asking about each item again must not block authorized work.
+If a real platform conflict appears or the product scope needs to grow, bring the concrete impact to the user for a
+decision.
 
-## 10. 平台與證據的效力
+## 10. Platforms and the weight of the evidence
 
-本次查證支持 Windows、公開 AppKit、目前記錄的 labwc／Wayland 有實作路線。
-不等於新的轉組／微亮／群組輪播已在三平台測過，也不等於所有 Linux 都支援同樣桌面層。
-同層 surface 次序未定義會影響 renderer 選型，詳見
-[平台研究](2026-10-04-desktop-interaction-platform-feasibility.md)。
+This review supports an implementation path on Windows, public AppKit and the currently recorded labwc/Wayland.
+That does not mean the new group change/highlight/group cycling has been tested on three platforms, nor that every
+Linux supports the same desktop layers.
+The undefined order of surfaces within a layer affects the renderer choice; see the
+[platform research](2026-10-04-desktop-interaction-platform-feasibility.md).
 
-使用者要求優先做好設計，不再以重做 Mac 探索性 probe 取代下一步。
-正式功能實作後的回歸仍必須對實際平台與包裝列證據；既有證據不能冒用為新功能通過。
+The user asked to get the design right first, rather than making a repeat of the exploratory Mac probe the next step.
+Regression after the real feature is implemented must still list evidence on the actual platforms and packaging;
+existing evidence must not be passed off as the new feature passing.
 
-## 11. 輔助參考資料的交接方式
+## 11. How the auxiliary reference material is handed over
 
-本 repo 不寫入該參考 checkout 的名字、遠端 URL 或機器絕對路徑。
-以「輔助桌面互動參考專案」稱呼；需要深入查閱時向維護者詢問當前位置。
-對照目的限於行為、原生平台限制及過去失敗原因，不作 UI／資料格式／架構移植。
-本 repo 的使用者決策優先於外部專案的功能與 AGENTS。
-詳細取得、授權檢查及可繼續工作範圍見 [接手文件](../handoff/2026-10-04-desktop-interaction-handoff.md)。
+This repo does not record the name, remote URL or absolute machine path of that reference checkout.
+It is called the "auxiliary desktop-interaction reference project"; when deeper reading is needed, ask the maintainer
+for its current location.
+Comparisons are limited to behavior, native platform limits and past failure causes; its UI, data format and
+architecture are not ported.
+This repo's user decisions take precedence over the external project's features and AGENTS.
+How to obtain it, the license check and the scope of work that may continue are in the
+[handoff document](../handoff/2026-10-04-desktop-interaction-handoff.md).
 
-## 12. 仍需需求決定
+## 12. Requirements still to decide
 
-Editor 內容能力、完整備份策略、逐卡層級／唯讀選字 UI、平台發佈先後、
-群組刪除與超大容量 UX 仍有 Q；詳見 SPEC-003 的 Open questions。
-它們不能反過來推翻今天已確認的自由擺放、顯式 formation 或轉組手勢。
+Editor content capabilities, the complete backup strategy, per-card layering/read-only text selection UI, the order of
+platform releases, group deletion and very-large-capacity UX still have Qs; see the Open questions in SPEC-003.
+They cannot in turn overturn the free placement, explicit formation or group-change gestures confirmed today.

@@ -1,11 +1,18 @@
-# 建置與操作
+# Build and run
 
-更新：2026-10-04。新介面與既有 0.1.0 分開啟動；實作進度見 [PROGRESS](../PROGRESS.md)。
+Updated: 2026-10-04. The new UI and the existing 0.1.0 start separately; current status is in
+[PROGRESS](../PROGRESS.md).
 
-## 1.0 本機介面開發預覽
+This guide is for developers and maintainers: prerequisites, builds per platform, previews, native setup, Google build
+settings, packaging and signing entry points, and the 0.1.0 validation prototype. How to use the 1.0 app (notes,
+groups, adjust mode, layers, shortcuts, settings, backups, Google sign-in, the tray and updates) is in the
+[user guide](user-guide.md).
 
-需要 Node 22+、Python 3.12+ 及支援 IndexedDB／Web Locks 的瀏覽器。
-本輪實測 Windows、Node 24.21.0、Python 3.13.7 與已安裝的 Edge；其他 browser／原生 host 另驗收。
+## 1.0 local UI development preview
+
+Needs Node 22+, Python 3.12+ and a browser that supports IndexedDB and Web Locks.
+This round was tested on Windows with Node 24.21.0, Python 3.13.7 and the installed Edge; other browsers and native
+hosts are accepted separately.
 
 ```bash
 npm ci --ignore-scripts
@@ -13,136 +20,68 @@ npm run build
 python scripts/testing/serve_preview.py --port 0
 ```
 
-開啟輸出的 `/app/index.html` URL，Ctrl-C 結束開發預覽。
-`--port 0` 使用空 port；要重用原本的瀏覽器資料，指定同一個可用 port，
-因為 IndexedDB 依 origin 隔離。這是開發靜態資產 listener，沒有便箋 API。
+Open the printed `/app/index.html` URL; Ctrl-C ends the development preview.
+`--port 0` uses a free port. To reuse the earlier browser data, pass the same available port, because IndexedDB is
+isolated by origin. This is a development listener for static assets; it has no notes API.
 
-- 「記下想法」開啟 editor，支援 Markdown／checklist；可附加每檔至多 25 MiB 的檔案。
-  標題選填：有填時紙張頂部顯示標題，沒填時顯示內文第一行；內文都從第一行開始顯示。
-  附件僅下載，不直接執行 HTML／SVG。保存完成會移除對應草稿，保留草稿則可稍後繼續。
-- 便箋平時是「鎖定」狀態，無法改文；按「調整此組／調整全部」進入調整模式後單擊選卡、雙擊就地編輯，按「完成」回到鎖定。
-  桌面版的調整模式以半透明遮罩覆蓋螢幕，上方有堆疊、攤開、復原與完成；進入時主視窗有焦點才會先最小化，結束後恢復
-  （[ADR-042](decisions/042-adjust-overlay-on-every-desktop-host.md)）。
-  Ctrl／Command＋Enter 保存；Esc 保留草稿並結束編輯；空白或未修改的內容不保留草稿。完整編輯可管理附件及預覽。
-- 拖曳只移動位置；放在另一組接收標籤或按住 Shift 放到另一組區域才轉組。
-  堆疊／攤開先預覽，調整大小須每次勾選；復原依序還原 geometry／轉組。
-- 清單提供完成、封存、刪除區及還原；搜尋標題與全文；窄螢幕與手機把側欄收進左上角按鈕開啟的抽屜，新增改用右下角「＋」。
-  桌面仍標示已完成卡片，封存／刪除才退出桌面集合。設定（側欄左下角齒輪，Ctrl+,）的變更立即生效，但不會重排既有便箋。
-- 群組旁的「⋯」可重新命名或合併／移除；先選接收群組並預覽所有卡片及草稿。
-  確認後內容與位置保留，來源群組移除；不能以版面復原重建原群組。
-- 設定可交換群組區域，並自訂快速記錄、顯示切換、調整全部群組與調整區域 1–9 的快捷鍵。
-  可用 Ctrl／Alt／Meta 搭配字母、數字或 F1–F24，可加 Shift；多組以逗號分隔，留空取消。
-  預設快速記錄 Ctrl+Shift+N，顯示切換 Ctrl+Shift+D，全部 Ctrl+Shift+0，區域 1–9 為 Ctrl+Shift+1–9。
-  桌面版的區域鍵每按一次，整組便箋換到下一階：桌布層 → 桌面層 → 最上層 → 調整位置，再按回到桌布層。
-  層級屬於群組、每台電腦各自保存，只能用區域鍵切換；不支援桌布層的桌面跳過桌布層。
-  每次切換，該組區域中央會在最上層短暫顯示群組名稱、目前層級與各階的圓點，約 1.5 秒後淡出，不會擋住滑鼠。
-  Ctrl+Shift+0 讓所有群組進入調整位置，再按一次各自回到原本的層級。
-  關閉「鎖定時也顯示便箋」時，或在瀏覽器預覽中，區域鍵只切換該組的調整位置，不換層級。
-  區域由左到右、由上到下編號；數字鍵跟著區域，作用於當下在該區域的群組，空白區域的鍵不向系統註冊。
-  舊版綁在群組上的鍵，開啟時改成該群組所在的區域，沒有鍵的區域補上預設數字。
-  瀏覽器若保留該組合可在設定改鍵；預覽只在目前視窗生效，不宣稱已向 OS 註冊全域鍵。
-- 同 profile 不允許第二個獨立視窗寫入；保存中或失敗時離頁有提示。
-  沒有 Google 同步，清除瀏覽器資料會失去預覽資料；可先用「設定 → 資料與備份」保存 ZIP。
-- 「資料與備份」可匯出明文或密碼加密 ZIP，驗證預覽後選擇匯入／合併／取代。
-  加密輸出至少 12 個字元，手動匯出的密碼不保存且無法找回；還原使用原密碼。
-  匯入預設另建資料，合併依原身分保留分支；取代保留歷史並把額外便箋移至刪除區。
-  取代需先成功保存目前資料的安全備份；只支援下載而無法確認保存的瀏覽器會停用此步驟。
-- 本機工作空間另有「清空本機後，從備份還原」：檢查 ZIP、核對清除數量、勾選永久取代，再確認。
-  不需先重設或強制備份舊內容；同交易替換便箋、歷史、草稿、附件與版面，失敗保留原資料。
-  舊內容不留在刪除區，自動備份設定與其他工作空間保留；仍可選「先備份目前資料」。
-  本機與 Google 備份格式相同；Google 匯出先同步，失敗須明確選擇只備份已知副本。
-  下載 Google ZIP、切換本機後還原即可離線使用；詳細雙向流程見 [Google 設定](google-setup.md)。
-- 目前測試階段便箋與備份的資料格式維持 V1，更新欄位不會啟動 schema 升級或建立額外副本。
-  資料版本政策見 [SPEC-007](specs/007-schema-evolution-and-migrations.md)；平常仍可使用既有 ZIP 備份。
-- 「資料與備份」最下方的「重設所有資料」刪除目前工作空間在這台裝置上的便箋、群組、草稿、附件、歷史、佈局、快捷鍵與自動備份設定，
-  旁邊有「先匯出備份」；需勾選「我了解資料刪除後無法復原」才能執行。已保存的備份 ZIP、分享收件匣與其他工作空間不受影響。
-  Google 工作空間會連 Drive 的資料一起清，所有使用這個帳號的裝置都受影響（見 [Google 設定](google-setup.md)）。
-- 桌面版「設定」最下方的「重置桌面佈局」只把這台電腦的便箋放回各群組區域並恢復預設顯示方式，不動內容、群組與快捷鍵。
-  草稿仍留本機；版面是否套用另行選擇，既有新資料匯入不搬動舊卡。
-  瀏覽器預覽的自動備份入口明示不支援並停用；Windows 原生操作見下方，其他平台進度見 PROGRESS。
-- 「版本與衝突」可比較分支、採用版本、下載其附件、恢復較早內容，並处理群組合併循環。
-  恢復會建立新版本，保留後來的內容；未完成草稿仍可取回。多分支尚未處理時一般保存會保留草稿並提示。
-  群組沒有接收目的或超過九組時，資料保留並提供整理說明。未完成轉組可重試或取消該意圖。
+How to use the app is in the [user guide](user-guide.md). What the browser preview does not do compared with the native
+apps (desktop layering, global shortcuts, Google sync, automatic backups) is listed in its
+[Browser preview](user-guide.md#browser-preview) section.
 
-此預覽不是 OS 桌面浮層。逐卡層級保存偏好，實際分層／穿透／全域快捷鍵由原生 host 完成。
+## Windows native main window
 
-## Windows 原生主畫面
-
-建置需 Windows 10 build 19041+／11、.NET 10 SDK、Evergreen WebView2 Runtime 與 Node 22+；先執行 `npm ci --ignore-scripts`。
-MSIX 最低版本為 22000，涵蓋早期 Windows 11／23H2 與 24H2+，在安裝資格上排除 Windows 10；MaxVersionTested 保留 26200。
-2026-10-09 已在 23H2 build 22631／144 DPI 通過隔離原生探針與三層真螢幕像素檢查，並驗證未簽章 MSIX 內容；正常互動與 MSIX 安裝仍待使用者驗收。
-沒有本輪其他版本設備，既有 26200／25H2 紀錄不等於 26100／24H2 實測。支援與未測範圍見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)、[接手入口](handoff/2026-10-09-windows-11-compatibility-handoff.md) 與 PROGRESS；Store 尚未正式提交。
-直接執行 `Build-WindowsApp.ps1`／IDE 的一般建置產物需 .NET 10 Desktop Runtime；`Build-WindowsPackage.ps1` 的 MSIX／ZIP 預設自帶 runtime。
-兩者仍需 Evergreen WebView2 Runtime。主畫面、加密保存與桌面／浮動場景已接通。
+Building needs Windows 10 build 19041+ or Windows 11, the .NET 10 SDK, the Evergreen WebView2 Runtime and Node 22+;
+run `npm ci --ignore-scripts` first.
+The MSIX minimum version is 22000, which covers early Windows 11, 23H2 and 24H2+ and excludes Windows 10 from
+installing; MaxVersionTested stays at 26200.
+On 2026-10-09 the isolated native probes and the three-layer real-screen pixel checks passed on 23H2 build 22631 at
+144 DPI, and the contents of the unsigned MSIX were verified; normal interaction and MSIX installation still await the
+user's acceptance.
+There was no device with another version this round, and the existing 26200/25H2 records are not a real test on
+26100/24H2. The supported and untested ranges are in
+[ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md) and the
+[handoff entry](handoff/2026-10-09-windows-11-compatibility-handoff.md); current status is in
+[PROGRESS](../PROGRESS.md). The app has not been formally submitted to the Store yet.
+Build output run directly from `Build-WindowsApp.ps1` or the IDE needs the .NET 10 Desktop Runtime; the MSIX and ZIP
+from `Build-WindowsPackage.ps1` bundle the runtime by default.
+Both still need the Evergreen WebView2 Runtime. The main window, encrypted storage and the desktop and floating scenes
+are connected.
 
 ```powershell
 .\scripts\windows\Build-WindowsApp.ps1
 & .\src\native\windows\app\bin\Release\net10.0-windows10.0.19041.0\WorkFleet.exe
 ```
 
-資產與 native libraries／Licenses 隨輸出目錄保留，不單獨移動 exe。
-IDE 使用 `src/native/windows/WorkFleet.sln`；VS Code 開啟根目錄即有 C# Dev Kit 建議與 F5 設定，
-目錄結構與開啟方式見 [Windows README](../src/native/windows/README.md)。
-`-Configuration Debug` 的 App 在右鍵選單提供「檢查」（DevTools）。設定 `WORK_FLEET_WEBVIEW_DEBUG_PORT` 才開 loopback CDP。
-Release 與 MSIX 都不開；用法見 [測試](testing.md)、決策見 [ADR-032](decisions/032-windows-debug-webview-inspection.md)。
-Windows SDK targeting pack 固定為 10.0.19041.56；UI probe 也使用 App 的 PerMonitorV2 manifest。
-這個 TFM 是建置下限，不是支援的最低 OS；混合 DPI 實機驗收另見 PROGRESS。
-沒有 Google ID 也能離線記錄；內容、附件、草稿、版面與備份 journal 儲存於
-ZIP／Debug 的 `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3`，或 MSIX 套件私有資料區的
-`LocalCache\Local\WorkFleet\fleet.sqlite3`，payload 使用目前 Windows 使用者的 DPAPI 保護。
-MSIX 更新保留資料；解除安裝清除套件內全部本機／Google 帳號資料、設定、憑證及 cache。
-重裝前先匯出 ZIP；匯出的檔案與 Google 雲端不受影響。舊獨立目錄需以舊版／ZIP 匯出再於 MSIX 匯入，不自動搬移或刪除。
-登入 Google 後若要全部覆蓋，使用「清空 Google 後，從備份還原」，詳見 [Google 操作](google-setup.md)。
-同一路徑只允許一個 App，另一個視窗會提示使用原視窗。
-關閉先等草稿保存及自動備份收尾；還在對話框或 IME 輸入時先完成該操作。
-保存失败保留視窗及草稿；重新開啟會讀取已提交內容。
+Assets, native libraries and Licenses stay with the output directory; do not move the exe on its own.
+In an IDE use `src/native/windows/WorkFleet.sln`; opening the root folder in VS Code gives the C# Dev Kit
+recommendations and an F5 configuration. The folder layout and how to open it are in the
+[Windows README](../src/native/windows/README.md).
+An app built with `-Configuration Debug` has "Inspect" (DevTools) in its context menu. Only setting
+`WORK_FLEET_WEBVIEW_DEBUG_PORT` opens loopback CDP.
+Release builds and the MSIX open neither; usage is in [Testing](testing.md), the decision in
+[ADR-032](decisions/032-windows-debug-webview-inspection.md).
+The Windows SDK targeting pack is pinned at 10.0.19041.56; the UI probe also uses the app's PerMonitorV2 manifest.
+This TFM is the build floor, not the minimum supported OS; the current status of real-device mixed-DPI acceptance is
+in [PROGRESS](../PROGRESS.md).
+Where the app stores its data, what an MSIX update or uninstall keeps, single-instance and close behaviour, and how to
+use the main window, desktop notes, shortcuts, the tray and backups are in the [user guide](user-guide.md#windows).
 
-主畫面「調整此組／調整全部」讓對應卡片暫時移到最上層，按「完成」後回到該組的層級。
-桌面紙面可就地編輯，Ctrl+Enter 保存、Esc 保留草稿退出編輯（空白或未修改不保留）；完整編輯回到主畫面處理附件等內容。
-每個群組在一個層級上，由後到前為桌布層、桌面層、最上層；新群組在桌面層。按該組的區域鍵（預設 Ctrl+Shift+1–9）依序切換。
-桌面層與最上層的便箋鎖定時也可以選取文字、點連結，不會穿透滑鼠；桌布層固定穿透。
-Windows Explorer 環境的桌布層附著到圖示下方。電腦版在群組旁的「⋯」→「群組設定」選「桌面上的層級」，
-也可以按該組的區域鍵切換；手機與瀏覽器預覽沒有這個選項。便箋詳情只保留「在桌面顯示」。
-設定的「鎖定時也顯示桌面便箋」需開啟，才會在鎖定狀態常駐。
-主畫面不再鏡像桌面版面；拖拉直接在桌面上進行。篩選列右側切換「便箋」（正方形紙張網格）或「清單」，
-選擇記在這台裝置；點一張便箋開啟編輯。第三個「版面地圖」目前只是空白預留畫面。
-桌面上能操作的便箋內文可以捲動；桌布層與主畫面便箋牆的便箋不能捲動，內文放不下時以「…」收尾，看全文請開啟編輯。
-有附件時，紙張底部有一排縮圖由左往右排，排不下的不顯示；雙擊縮圖開啟附件。
-新便箋預設 240×240 正方形，群組區域較矮時縮成放得下的正方形（最小 160×160）；
-已在桌面上的便箋維持原尺寸，重置桌面佈局後才套用。
-宿主不可用時會提示暫以桌面層呈現，原偏好保留；分層決策見 [ADR-030](decisions/030-windows-explorer-wallpaper-layer.md)。
-macOS 同一操作入口使用 AppKit 三層；Linux layer-shell 使用三個原生 band。
-pcmanfm 桌面將桌布和圖示畫在同一 surface，便箋無法放在圖示下方，所以不提供桌布層；它與 X11 的桌布偏好都回退桌面層。
-上述範圍、穿透／重畫及原生驗證見 [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md)。
-調整管理視窗大小不搬動桌面卡片；啟動採當時顯示器工作區。
-Windows 全域快捷鍵依設定啟用；設定內顯示每鍵註冊、衝突或保留狀態，可重試或改鍵。
-Ctrl+Alt 加字母／數字不作全域註冊，以保留 AltGr 產字；可改成 Ctrl+Shift 或 function-key 組合。
-App 取得焦點時釋放全域註冊，由目前視窗處理本地按鍵；組字與對話框優先。
-視窗 X 或系統匣「收起主畫面」後，桌面及本機資料權威繼續執行；系統匣可重新開啟、快速記錄、操作或退出。
-視窗 X 收起到系統匣（macOS 為選單列），結束請用系統匣「保存並結束」；系統匣不可用時 X 才保存並退出。延遲後焦點若已改變，點一下浮動卡片即可繼續。
-目前啟動採當時顯示器拓撲；熱插拔恢復仍待整合。
-此功能連接不等於真滑鼠／IME、混合 DPI、Show Desktop 與虛擬桌面矩陣已全部驗收。
+That these features are connected does not mean that real mouse and IME use, mixed DPI, Show Desktop and the virtual
+desktop matrix have all been accepted. Automatic backups have not been checked by driving the real OS picker
+automatically, and power-loss durability on external disks has not been tested.
+Native test commands are in [Testing](testing.md); the technical boundaries are in
+[ADR-015](decisions/015-windows-native-storage-and-editor-host.md),
+[ADR-016](decisions/016-windows-native-backup-files-and-vault.md), [ADR-018](decisions/018-single-owner-desktop-views.md)
+and [ADR-019](decisions/019-windows-shortcuts-and-tray.md).
 
-不要把原生 DB 當成跨機備份，DPAPI 需原 Windows 帳號金鑰。預覽 IndexedDB 與 native 是不同 profile，
-不自動搬動既有資料。主畫面沿用上述 editor／群組／還原操作，Google 設定與登入見下節；
-手動匯出使用原生資料夾選擇器，每次建立 `work-fleet-backup-UUID.zip` 新檔並讀回校驗。
-自動備份預設關閉，在「資料與備份」選位置、密碼及保留份數後啟用；
-預設保留七份，有變更且距成功滿 24 小時才備份，開啟／恢復時補跑。
-密碼由 DPAPI 保存在目前 Windows 帳號，renderer 只取得金鑰 ID；換裝置還原仍需自行保管原密碼。
-停用或換位置會保留舊檔；未完成、被改過或替換的檔案會保留並顯示問題。
-保存目前只支援本機 NTFS 資料夾，拒絕網路磁碟、FAT／exFAT、symlink／junction。
-讀取可攜備份仍可使用一般檔案選擇器。未自動操作真 OS picker 或測外部磁碟斷電耐久。
-原生測試命令見 [Testing](testing.md)，技術邊界見 [ADR-015](decisions/015-windows-native-storage-and-editor-host.md)
-及 [ADR-016](decisions/016-windows-native-backup-files-and-vault.md)、[ADR-018](decisions/018-single-owner-desktop-views.md)、
-[ADR-019](decisions/019-windows-shortcuts-and-tray.md)。
+## Google and native build settings
 
-## Google 與原生建置設定
-
-把根目錄 [.env.example](../.env.example) 複製為 `.env`，依平台填入公開 client ID、
-Google Cloud project ID、原生 bundle/package ID，Apple 平台另填 team ID。
-尚未建立時保留空值，本機預覽照常建置；`.env` 已被 Git 忽略，shell／CI 同名值優先。
-`ANDROID_HOME`、`JAVA_HOME`、`DEVELOPER_DIR` 是 SDK 工具鏈位置，範例中以註解保留，
-實際原生建置仍需相對應 OS／SDK；設定路徑不代表已有裝置驗收證據。
+Copy the root [.env.example](../.env.example) to `.env` and fill in, per platform, the public client ID, the Google
+Cloud project ID and the native bundle or package ID, plus the team ID for Apple platforms.
+Leave values empty until they exist; the local preview builds as usual. `.env` is ignored by Git, and values of the
+same name in the shell or CI take precedence.
+`ANDROID_HOME`, `JAVA_HOME` and `DEVELOPER_DIR` are SDK toolchain locations, kept as comments in the example.
+Native builds still need the matching OS and SDK; setting a path is no evidence of device acceptance.
 
 ```bash
 npm run config:check
@@ -150,82 +89,106 @@ npm run config:check -- --google --platform windows
 npm run config:check -- --platform windows
 ```
 
-第一個命令列出五平台缺少哪些設定；`--google` 只列 Google 設定，不要求商店／簽章欄位。
-指定平台時，缺少該模式所需公開設定即以非零狀態結束。
-`npm run build` 讀取設定並產生 `build/config/public.json` 供原生封裝使用，僅輸出允許的公開欄位。
-各平台共用的產品行為（例如登入啟動等待系統匣的秒數）不在 `.env`，而是來自 repo 的 `config/startup.json`，一併寫進同一檔。
-Windows 建置腳本改用 `node scripts/build-web.mjs --platform windows`，另把 Windows Desktop client secret 寫進同一檔；
-Linux 封裝也只寫入 Linux 的 secret，其他平台與介面資產都不含 secret。
-Android Gradle 直接讀取目前設定並在其生成資產目錄產生配置，不依賴這份預先生成檔。
-五平台原生 host 已接 Google 登入、受保護 token 及 Drive appDataFolder 同步程式；
-Google Cloud 專案／client 尚未建立，未做真實登入或 Drive 往返。執行狀態見 PROGRESS。
-填 client ID 並重新建置後，從原生主畫面登入；瀏覽器開發預覽仍只有本機資料。
-登入不會自動傳送既有 local／瀏覽器預覽資料；client 建立及搬移方式見
-[Google 設定](google-setup.md)。
+The first command lists which settings each of the five platforms is missing; `--google` lists only Google settings
+and does not require store or signing fields.
+With a platform, it exits with a non-zero status when public settings that mode needs are missing.
+`npm run build` reads the settings and generates `build/config/public.json` for native packaging, writing only the
+allowed public fields.
+Product behaviour shared by all platforms (for example how many seconds a sign-in start waits for the tray) is not in
+`.env`; it comes from the repo's `config/startup.json` and is written into the same file.
+The Windows build script uses `node scripts/build-web.mjs --platform windows` instead, which also writes the Windows
+Desktop client secret into that file. Linux packaging likewise writes only the Linux secret; no other platform and no
+UI asset contains a secret.
+Android Gradle reads the current settings directly and generates the configuration in its generated-assets directory,
+without depending on this pre-generated file.
+The native hosts of all five platforms have Google sign-in, protected tokens and Drive appDataFolder sync code.
+The Google Cloud project and clients have not been created yet, and no real sign-in or Drive round trip has been done.
+Current status is in [PROGRESS](../PROGRESS.md).
+After filling in the client ID and rebuilding, sign in from the native main window; the browser development preview
+still has only local data. How to create the clients and move data is in [Google setup](google-setup.md); how to use
+sign-in is in the [user guide](user-guide.md#google-sign-in-and-sync).
 
-Google 設定步驟：在同一 Cloud project 啟用 Drive API，設定 OAuth consent screen／測試使用者，
-Windows／Linux 建立 Desktop app client；Google Apple SDK 的 macOS／iOS 皆建立符合各自
-bundle ID 的 iOS 類型 client，Android 建立符合 package／
-簽章憑證的 client。五平台必須實測可讀取同一 App 資料空間。
-登入透過系統允許的 OAuth 介面；desktop loopback 回呼不能沿用於 iOS／Android。
-依據 [Google native-app OAuth 文件](https://developers.google.com/identity/protocols/oauth2/native-app)
-及 [loopback 平台限制](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration)。
+Google setup steps: in one Cloud project, enable the Drive API and configure the OAuth consent screen and test users.
+Create a Desktop app client for Windows and Linux. For the Google Apple SDK, macOS and iOS each get an iOS-type client
+that matches their bundle ID; Android gets a client that matches the package and the signing certificate. All five
+platforms must be tested to read the same app data space.
+Sign-in goes through the OAuth interface the system allows; the desktop loopback callback cannot be reused on iOS or
+Android. This follows the [Google native-app OAuth documentation](https://developers.google.com/identity/protocols/oauth2/native-app)
+and the [loopback platform restrictions](https://developers.google.com/identity/protocols/oauth2/resources/loopback-migration).
 
-不要在 `.env` 放 access/refresh token、簽章私鑰或 service-account JSON；登入憑證由原生安全儲存管理，
-CI 簽章秘密由 CI secret／keychain 提供。Client ID 是公開應用識別，不能代替 OAuth 驗證。
+Do not put access or refresh tokens, signing private keys or service-account JSON in `.env`. Sign-in credentials are
+managed by native secure storage, and CI signing secrets come from CI secrets or a keychain. The client ID is a public
+application identifier and cannot replace OAuth verification.
 
-## Android 1.0 建置
+## Android 1.0 build
 
-在 Android Studio 使用 **Open** 選擇 `src/native/android`，完成 Gradle Sync，再選 `app`／`debug` 並 Run 或 Build APK。
-需要 Node 22+／npm 可從 IDE 的 PATH 找到、JDK 17 或相容新版本、Android SDK Platform 36／Build Tools 35.0.0。
-專案附 Gradle 8.13 Wrapper，Gradle 自動安裝 lockfile 依賴並產生介面及公開配置；不需預先 `npm run build`。
-未填 `.env` 時可以使用本機 preview；Google 與正式 release 配置另見 [Android README](../src/native/android/README.md)。
+In Android Studio use **Open** to choose `src/native/android`, finish Gradle Sync, then choose `app` / `debug` and Run
+or Build APK.
+Needs Node 22+ with npm reachable on the IDE's PATH, JDK 17 or a compatible newer version, Android SDK Platform 36 and
+Build Tools 35.0.0.
+The project includes the Gradle 8.13 Wrapper; Gradle installs the lockfile dependencies and generates the UI and the
+public configuration automatically, so `npm run build` is not needed first.
+Without `.env` you can use the local preview; Google and the release configuration are in the
+[Android README](../src/native/android/README.md).
 
 ```powershell
-# 在 src/native/android 目錄
+# In the src/native/android directory
 .\gradlew.bat assembleDebug
 ```
 
-APK 位於 `src/native/android/app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`；
-`Build-AndroidApp.ps1`／`build-android-app.sh` 會再複製到 `build/`；
-版號與各平台檔名見 [散布文件](deployment.md#版號與發佈檔名)。
-修改 `.env` application ID 後重新 Sync；`local.properties` 為 IDE 產生的本機 SDK 路徑，不提交版本控制。
+The APK is at `src/native/android/app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`;
+`Build-AndroidApp.ps1` and `build-android-app.sh` also copy it to `build/`.
+Version numbers and file names per platform are in [Deployment](deployment.md).
+After changing the application ID in `.env`, sync again. `local.properties` is the local SDK path that the IDE
+generates; it is not committed.
 
-## macOS／iOS 1.0 原生建置
+## macOS and iOS 1.0 native build
 
-需要完整 Xcode、Node 22+／npm；macOS 13+／iOS 16+。
-clone 後直接開啟 `src/native/apple/WorkFleet.xcodeproj`，選 WorkFleetIOS＋Simulator 或 WorkFleetMac。
-專案已提交並使用相對路徑；Xcode 自動安裝依賴與產生資產，不需要先執行生成器或 web build。
-Google／商店公開設定放 `.env`；直接 Xcode 的 app ID／App Group／Team 放在忽略的
-`src/native/apple/config/Local.xcconfig`，範例同目錄。簽章憑證／provisioning 於 Xcode 配置，私鑰不放設定檔。
+Needs full Xcode and Node 22+ with npm; macOS 13+ or iOS 16+.
+After cloning, open `src/native/apple/WorkFleet.xcodeproj` directly and choose WorkFleetIOS with a Simulator, or
+WorkFleetMac.
+The project is committed and uses relative paths; Xcode installs dependencies and generates assets automatically, so
+no generator or web build has to run first.
+Google and store public settings go in `.env`. For direct Xcode use, the app ID, App Group and Team go in the ignored
+`src/native/apple/config/Local.xcconfig`, with an example in the same directory. Signing certificates and provisioning
+are configured in Xcode; private keys never go in settings files.
 
 ```bash
 open src/native/apple/WorkFleet.xcodeproj
-# 或使用同一份專案的命令列入口：
+# or the command-line entry point for the same project:
 bash scripts/macos/build-native-app.sh --platform macos
 bash scripts/macos/build-native-app.sh --platform ios --simulator
 bash scripts/macos/build-native-app.sh --platform ios --release
 bash scripts/macos/package-preview-app.sh --platform macos --dmg
 ```
 
-腳本使用已提交的專案；DerivedData／Release xcarchive／export 保留於忽略的 `build/apple/`。
-macOS 命令列建置一律含 arm64／x86_64；預覽封裝依 App 的版號與簽章命名，`--dmg` 產生 DMG，安裝檔放在 `build/`。
-原生主畫面接 SQLite／Keychain、原生資料夾備份、Google 授權／Drive；macOS 另接桌面場景、
-全域鍵、選單列及螢幕生命週期。macOS Debug universal 已在 Xcode 編譯並產生 Apple Development 簽章 DMG，
-獨立 fixture 的 Keychain／SQLite／主畫面初始化通過；iOS、Developer ID／公證與完整操作尚未驗收。
-本機 Mac 必須在 WorkFleetMac target 的 Signing & Capabilities 選 Team、啟用自動簽章並完成 Register Device。
-操作細節及剩餘交付見
-[Apple README](../src/native/apple/README.md) 與 [PROGRESS](../PROGRESS.md)。
+The scripts use the committed project; DerivedData, the Release xcarchive and exports stay in the ignored
+`build/apple/`.
+macOS command-line builds always include arm64 and x86_64. The preview package is named after the app's version and
+signature, `--dmg` produces a DMG, and the installers go into `build/`.
+The native main window connects SQLite and Keychain, native folder backups and Google authorization and Drive; macOS
+also connects the desktop scenes, global keys, the menu bar and the screen lifecycle. A macOS Debug universal build
+has been compiled in Xcode and produced an Apple Development signed DMG, and Keychain, SQLite and main-window
+initialization passed with an isolated fixture; iOS, Developer ID and notarization, and full operation have not been
+accepted yet.
+On a local Mac, choose a Team in the WorkFleetMac target's Signing & Capabilities, enable automatic signing and
+complete Register Device.
+Operating details and the remaining deliverables are in the [Apple README](../src/native/apple/README.md); current
+status is in [PROGRESS](../PROGRESS.md).
 
-iOS 分享接收另嵌入 `<APP_ID>.share` Extension；在同一 Apple team 為 App／Extension 啟用
-App Groups。直接 IDE 使用 Local.xcconfig 的 WORK_FLEET_APP_GROUP_ID；CLI 可用 `.env` 覆蓋，
-預設採 `group.<WORK_FLEET_APP_ID>`。實際 signing profiles 需包含此 group，憑證留 Xcode／Keychain。
+iOS share receiving also embeds the `<APP_ID>.share` Extension; enable App Groups for the app and the Extension in the
+same Apple team. Direct IDE use takes WORK_FLEET_APP_GROUP_ID from Local.xcconfig; the CLI can override it with
+`.env`, and the default is `group.<WORK_FLEET_APP_ID>`. The actual signing profiles must include this group;
+certificates stay in Xcode and the Keychain.
 
-## 原生安裝包與簽章入口
+## Native packages and signing entry points
 
-Windows x64 封裝預設使用 self-contained .NET 10 Desktop，MSIX／ZIP 接收端不用另外安裝 .NET；WebView2 仍是執行前置條件。
-建置端需要 .NET SDK，Windows SDK 提供 MakeAppx／SignTool。首次打包會還原 win-x64 runtime packs，完成後才可使用 `-SkipRestore`。
-公開 identity／publisher 由 `.env.example` 配置；preview 可以暫不設定正式 Google 帳號。
+Windows x64 packaging uses a self-contained .NET 10 Desktop by default, so MSIX and ZIP recipients do not install .NET
+separately; WebView2 is still a runtime prerequisite.
+The build machine needs the .NET SDK, and the Windows SDK provides MakeAppx and SignTool. The first packaging run
+restores the win-x64 runtime packs; only after that can `-SkipRestore` be used.
+The public identity and publisher are configured from `.env.example`; a preview can do without a formal Google
+account for now.
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1
@@ -235,20 +198,29 @@ Windows x64 封裝預設使用 self-contained .NET 10 Desktop，MSIX／ZIP 接�
 .\scripts\windows\Build-LinuxPackage.ps1
 ```
 
-Windows 的 MSIX／ZIP 輸出到 `build/`（工作目錄 `build/windows/package` 每次重建），未提供憑證時 MSIX 未簽章。
-本機試裝使用 `-LocalTestSign`：重用 CurrentUser/My 中與 manifest publisher 完全相符、
-有效且已在 LocalMachine/TrustedPeople 信任的 code-signing 憑證；多張時用 `-CertificateThumbprint` 指定。
-這個模式必須成功簽章及通過本機信任驗證才交付，另輸出不含私鑰的 `WorkFleet-preview.cer`。
-已信任該憑證的電腦可直接開啟 MSIX 安裝，不需 Windows Store 開發者帳號。
-其他測試電腦需先信任該公開 CER；參考 [Microsoft 本機簽章說明](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide)。
-腳本不建立憑證、修改信任或安裝 App；`-LocalTestSign` 不使用 timestamp，不能與 `-Release` 合用。
-Windows 若已有 JDK 17 但缺少 Android SDK，可先執行
-`scripts/windows/Install-AndroidToolchain.ps1 -AcceptSdkLicenses`；須先閱讀並接受
-[SDK 條款](https://developer.android.com/studio#terms-and-conditions)。工具、API 36、Build Tools 35.0.0
-與 paths JSON 放在 `build/toolchain`，不修改機器 PATH。之後 `Build-AndroidApp.ps1` 可直接讀取路徑。
-Android 簽章的四個 process／CI environment inputs 見 [商店準備](release/README.md)，不寫入 `.env`。
+The Windows MSIX and ZIP are written to `build/` (the working directory `build/windows/package` is rebuilt every
+time); without a certificate the MSIX is unsigned.
+For local trial installs use `-LocalTestSign`. It reuses a code-signing certificate in CurrentUser/My that matches the
+manifest publisher exactly, is valid and is trusted in LocalMachine/TrustedPeople; when there are several, choose one
+with `-CertificateThumbprint`.
+This mode delivers only after signing succeeds and local trust verification passes, and it also outputs
+`WorkFleet-preview.cer` without the private key.
+A computer that already trusts that certificate can open the MSIX to install it, with no Windows Store developer
+account.
+Other test computers must trust the public CER first; see the
+[Microsoft guide to signing locally](https://learn.microsoft.com/en-us/windows/msix/package/sign-msix-package-guide).
+The script does not create certificates, change trust or install the app; `-LocalTestSign` uses no timestamp and
+cannot be combined with `-Release`.
+If Windows has JDK 17 but no Android SDK, run
+`scripts/windows/Install-AndroidToolchain.ps1 -AcceptSdkLicenses` first, after reading and accepting the
+[SDK terms](https://developer.android.com/studio#terms-and-conditions). The tools, API 36, Build Tools 35.0.0
+and a paths JSON go into `build/toolchain`, without changing the machine's PATH. `Build-AndroidApp.ps1` then reads the
+paths directly.
+The four process or CI environment inputs for Android signing are in [Store preparation](release/README.md); they are
+not written to `.env`.
 
-Apple 先使用上一節 Release 入口產生 archive，再在有 Xcode 的 Mac 匯出：
+For Apple, first produce an archive with the Release entry point from the previous section, then export it on a Mac
+with Xcode:
 
 ```bash
 bash scripts/macos/package-native-app.sh --platform ios --method app-store-connect
@@ -256,19 +228,21 @@ bash scripts/macos/package-native-app.sh --platform macos --method developer-id 
 bash scripts/linux/build-android-app.sh --signed
 ```
 
-Apple 可使用 `--archive` 指定既有 archive；macOS 正式簽章與公證另提供 installer／application identity
-及 Keychain notary profile，詳見 [散布文件](deployment.md)。這些入口不建立商店帳號或自動送審。
+Apple can use `--archive` to pass an existing archive. Formal macOS signing and notarization also need the installer
+and application identities and a Keychain notary profile; see [Deployment](deployment.md). These entry points do not
+create store accounts or submit for review automatically.
 
-## Linux 1.0 原生建置
+## Linux 1.0 native build
 
-需要 Linux 的 Python 3.10+、GTK 3、WebKitGTK 4.1、PyGObject／cairo
-及 cryptography。新工作空間與完成主金鑰遷移的離線便箋不需要 keyring。
-Google 權杖、保存的自動備份密碼及舊資料首次遷移需要 libsecret／已解鎖的持久 Secret Service；
-鎖住時只暫停相關功能，開機與背景同步不要求密碼（[ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)）。
-自動登入可能讓金鑰圈保持鎖定；按「立即同步」會開啟系統解鎖視窗，成功後接續同步，取消／逾時可再次重試。
-原生主畫面／SQLite／加密／Google／備份與桌面場景已接入。
-X11 全域鍵可使用 Keybinder 3；Wayland 桌面需 GtkLayerShell 支援，快捷鍵需 GlobalShortcuts portal
-backend。系統匣依 Ayatana／AppIndicator 或 Gtk.StatusIcon 可用性啟用；缺能力時主畫面仍可記錄。
+Needs Python 3.10+, GTK 3, WebKitGTK 4.1, PyGObject and cairo, and cryptography on Linux. New workspaces and offline
+notes whose master key migration has finished do not need a keyring.
+Google tokens, saved automatic backup passwords and the first migration of old data need libsecret and an unlocked,
+persistent Secret Service ([ADR-048](decisions/048-linux-offline-workspace-and-system-secrets.md)); how the app
+behaves while it is locked is in the [user guide](user-guide.md#linux).
+The native main window, SQLite, encryption, Google, backups and desktop scenes are connected.
+X11 global keys can use Keybinder 3. Wayland desktops need GtkLayerShell support, and shortcuts there need a
+GlobalShortcuts portal backend. The tray is enabled when Ayatana/AppIndicator or Gtk.StatusIcon is available; without
+these capabilities the main window can still record.
 
 ```bash
 npm ci --ignore-scripts
@@ -278,114 +252,133 @@ bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
-GNOME Wayland（例如 Ubuntu 22.04 預設）沒有 layer-shell，桌面便箋要經 XWayland；首次啟動會詢問是否改用，
-之後可在設定的「桌面」頁切換（[ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)），也可直接以 `GDK_BACKEND=x11 work-fleet` 啟動。
-經 XWayland 時群組只常駐桌布層（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
-Raspberry Pi OS（labwc）等 layer-shell 桌面的常駐層不受遮罩限制（預設 pcmanfm 桌面沒有桌布層），調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
-產生 source/runtime tar.gz；`--deb` 需 Debian 工具，`--release` 另需正式公開設定。隔離 headless Linux compositor
-的原生場景及私人合成金鑰圈檢查見 testing／PROGRESS，不代替使用者重開機或安裝驗收；細節見 [Linux README](../src/native/linux/README.md)。
+GNOME Wayland (for example the Ubuntu 22.04 default) has no layer-shell, so desktop notes go through XWayland. The
+first-start question and the setting are described in the [user guide](user-guide.md#linux); to start under XWayland
+directly, run `GDK_BACKEND=x11 work-fleet` ([ADR-040](decisions/040-gnome-wayland-xwayland-choice.md),
+[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)).
+The build produces source and runtime tar.gz files; `--deb` needs the Debian tools, and `--release` also needs the
+formal public settings. The native-scene checks in an isolated headless Linux compositor and the private synthetic
+keyring checks are in [Testing](testing.md), with current status in [PROGRESS](../PROGRESS.md); they do not replace
+a user's reboot or install acceptance. Details are in the [Linux README](../src/native/linux/README.md).
 
-Windows 可用既有 Docker Linux engine 執行 `Build-LinuxPackage.ps1`，以固定 Ubuntu image 的
-dpkg-deb 產生 preview DEB；不要求本機有 Linux GUI，也不執行 App。`-Release` 要求公開正式設定。
-Linux 與 Windows 建置入口都直接產生 `build/work-fleet_<版號>_all.deb`，不需手動搬檔。
-tar.gz 與 DEB 同在 `build/`，source/runtime 副本在 `build/linux/`；DEB staging 在封裝結束時自動清除。
-DEB 適用提供上述系統依賴的發行版。
-版號記在 `src/native/linux/VERSION`；一般與 release 建置都使用此版號，早期版本不另加 `~preview`。
+Windows can run `Build-LinuxPackage.ps1` with an existing Docker Linux engine; it produces a preview DEB with the
+dpkg-deb of a pinned Ubuntu image. It needs no local Linux GUI and does not run the app. `-Release` requires the
+formal public settings.
+The Linux and Windows build entry points both produce `build/work-fleet_<version>_all.deb` directly, with no manual
+file moves.
+The tar.gz and the DEB are both in `build/`, the source and runtime copies in `build/linux/`; the DEB staging is
+removed automatically when packaging ends.
+The DEB suits distributions that provide the system dependencies above.
+The version number is in `src/native/linux/VERSION`; normal and release builds both use it, and early versions get
+no extra `~preview`.
 
-手機可安裝的 GitHub 建置流程為 **Android device APK**（`.github/workflows/android-apk.yml`）與
-**iOS registered-device IPA**（`.github/workflows/ios-ipa.yml`）。配置公開 Variables 與獲明確授權的簽章 Secrets 後，
-在 Actions 選 main 手動執行，從 Artifacts 下載 APK／IPA、checksum 與來源 commit，保留十四天。
-沿用平台現有版號，不建立 Release／tag，也不送商店；簽章設定與指定裝置安裝方式見
-[手機實機測試包](deployment.md#手機實機測試包)。iOS 新增裝置後須更新主 App 與 Extension 兩份 profiles。
+The GitHub build workflows for phone-installable builds are **Android device APK**
+(`.github/workflows/android-apk.yml`) and **iOS registered-device IPA** (`.github/workflows/ios-ipa.yml`). After the
+public Variables and the explicitly authorized signing Secrets are configured, run them manually from Actions on main,
+and download the APK or IPA, its checksum and the source commit from Artifacts, which are kept for fourteen days.
+They keep each platform's existing version number, create no Release or tag and submit nothing to stores. The signing
+settings and how to install on specific devices are in the phone device test builds section of
+[Deployment](deployment.md). After adding an iOS device, update both profiles, for the main app and the Extension.
 
-未簽章 Apple 建置 workflow 在 `.github/workflows/apple-native-build.yml`；選擇 macOS、iOS 或兩者，
-在 hosted Mac 編譯原生 Debug App，輸出未簽章 ZIP／device IPA。公開設定使用同名 GitHub
-repository variables；不設值時採 preview ID／無 Google 的本機模式。
-公開 repository 的 hosted runner 不計費；手動 workflow 仍需使用者授權才啟動。
-取得 developer account／簽章後仍需前述正式 archive／export；未簽章 device IPA 需要重新簽署才可安裝。
+The unsigned Apple build workflow is `.github/workflows/apple-native-build.yml`. Choose macOS, iOS or both; it
+compiles the native Debug app on a hosted Mac and outputs an unsigned ZIP or device IPA. Public settings use GitHub
+repository variables with the same names; without values it uses the preview IDs and the local mode without Google.
+Hosted runners for a public repository are free; a manual workflow still needs the user's authorization to start.
+After a developer account and signing are in place, the formal archive and export above are still needed; an unsigned
+device IPA has to be re-signed before it can be installed.
 
-## 既有 0.1.0 需求
+## 0.1.0 requirements
 
-- macOS 13+、Command Line Tools（`xcode-select --install`）；已測 macOS 26.7.1 x86_64、Swift 6.3.3。
-- Python 3.12+，含標準庫 sqlite3；已測 Python 3.14.7／SQLite 3.51.0。
-- Node 22+ 只用於 JavaScript 測試；已測 Node 24.21.0。
-- 無 pip/npm runtime 套件、不需 npm install，不需正式簽章憑證。
-- 本機 ad-hoc 簽章適用驗證；跨機散布與商店仍需正式簽章／封裝驗證。
+- macOS 13+ and the Command Line Tools (`xcode-select --install`); tested on macOS 26.7.1 x86_64 with Swift 6.3.3.
+- Python 3.12+ with the standard-library sqlite3; tested with Python 3.14.7 and SQLite 3.51.0.
+- Node 22+ only for the JavaScript tests; tested with Node 24.21.0.
+- No pip or npm runtime packages, no `npm install` and no formal signing certificate are needed.
+- Local ad-hoc signing is enough for validation; distribution to other machines and stores still needs formal signing
+  and package verification.
 
-## macOS 一次啟動
+## 0.1.0 one-step start on macOS
 
-從 checkout 根目錄：
+From the root of the checkout:
 
 ```bash
 bash scripts/macos/start-validation.sh
 ```
 
-指令建置 `build/Work Fleet.app`，啟動 loopback 服務，使用一次性管理員邀請配對 Mac。
-資料預設在 `~/.work-fleet/`，App 設定與離線快取在自己的 Sandbox container。
-終端 Ctrl-C 停止本次啟動的 server；選單列 WF → 結束關閉 App。
-可用 `WORK_FLEET_DATA` 指定 repo 外的資料目錄，以 `--port 9848` 更換 port。
-已占用的 port 會直接失敗，不停止其他服務。
+The command builds `build/Work Fleet.app`, starts the loopback service and pairs the Mac with a one-time admin invite.
+Data is in `~/.work-fleet/` by default; the app's settings and offline cache are in its own Sandbox container.
+Ctrl-C in the terminal stops the server this run started; WF → Quit in the menu bar closes the app.
+`WORK_FLEET_DATA` sets a data directory outside the repo, and `--port 9848` changes the port.
+A port that is already in use fails at once; other services are not stopped.
 
-## 分開啟動與第二個 client
+## 0.1.0 separate start and a second client
 
 ```bash
 bash scripts/macos/build-app.sh
 python3 src/server/work_fleet.py serve
 ```
 
-另一個終端產生管理員邀請（邀請輸出是短效祕密，勿提交／分享永久 token）：
+In another terminal, create an admin invite (the invite output is a short-lived secret; never commit or share a
+permanent token):
 
 ```bash
 python3 src/server/work_fleet.py invite --role admin
 open 'build/Work Fleet.app'
 ```
 
-在選單列 WF → 連線與展示，輸入 `http://127.0.0.1:9847` 與輸出的 `code`。
-Mac 已配對後，可從控制窗產生 editor QR；從 Web 管理頁可選唯讀或可編輯並撤銷裝置。
+In the menu bar choose WF → Connection and display…, and enter `http://127.0.0.1:9847` and the printed `code`.
+Once the Mac is paired, its control window can create an editor QR code; the web admin page can choose read-only or
+editing access and revoke devices.
 
-開啟 `http://127.0.0.1:9847`，使用另一份 editor 邀請配對瀏覽器：
+Open `http://127.0.0.1:9847` and pair the browser with a separate editor invite:
 
 ```bash
 python3 src/server/work_fleet.py invite --role editor
 ```
 
-瀏覽器與 App 使用同一份 server 資料。Safari/WebKit 各自保留本機草稿，不共用儲存空間。
+The browser and the app use the same server data. Safari/WebKit each keep their own local drafts and share no
+storage.
 
-## 操作
+## 0.1.0 operation
 
-- 快速記錄：WF → 快速記錄／解鎖，輸入文字後保存；群組預設 Inbox。
-- 支援 Todo、In Progress、Done；Done 與已刪除分開查看並可還原。
-- 文字中的 `- [ ]` 與 `- [x]` 呈現可勾選待辦。
-- WF → 鎖定後展示唯讀便箋；仍每 2 秒收資料，預設位於桌面圖示上方。
-- 控制窗可切換一般視窗、圖示上方、圖示下方。圖示下方為實驗模式。
-- Web 輪詢每 2.5 秒；離線顯示上次內容，草稿逐次輸入保存。
-- 網路錯誤保留原操作並顯示「重試同一筆傳送」；衝突提供目前內容及另存副本。
-- 「保留的草稿」可取回，取回建立獨立草稿避免分頁互相刪除；原稿須明確捨棄。
-- 連線与裝置 → 匯出本機草稿可下載 JSON；目前無自動匯入或合併功能。
+- Quick capture: WF → Quick capture / Unlock, type the text and save; the group defaults to Inbox.
+- Supports Todo, In Progress and Done; Done and deleted notes are viewed separately and can be restored.
+- `- [ ]` and `- [x]` in the text show as checkable to-dos.
+- WF → Lock shows read-only notes; they still receive data every 2 seconds and sit above the desktop icons by default.
+- The control window switches between Normal window, Above desktop icons and Below desktop icons. Below desktop icons
+  is an experimental mode.
+- The web page polls every 2.5 seconds; offline it shows the last content, and drafts are saved on every input.
+- A network error keeps the original operation and shows "Retry the same send"; a conflict shows the current content
+  and offers "Save draft as a new note".
+- "Kept drafts" can be recovered; recovering creates an independent draft so that tabs do not delete each other's
+  drafts. The original has to be discarded explicitly.
+- Connection and devices → Export local drafts downloads JSON; there is no automatic import or merge yet.
 
-## LAN／手機 QR
+## 0.1.0 LAN and phone QR
 
-loopback QR 僅供同一台 Mac，手機掃描不會因此取得網路路徑。
-LAN 請使用手機信任的 TLS 憑證，設定精確 hostname/origin，例如：
+A loopback QR code is only for the same Mac; scanning it with a phone does not give the phone a network path.
+For the LAN, use a TLS certificate the phone trusts and set the exact hostname and origin, for example:
 
 ```bash
 python3 src/server/work_fleet.py serve --host 0.0.0.0 --port 9847 \
   --origin https://fleet.example.test:9847 --cert /secure/path/cert.pem --key /secure/path/key.pem
 ```
 
-先用該 HTTPS URL 配對 Mac，再產生 QR；手機確認網址與名稱後提交一次性邀請。
-憑證、DNS／主機名解析與 LAN 可達性需自行配置。未加入忽略 TLS 驗證或自動信任憑證的功能。
-外網存取需可信 HTTPS 部署或 VPN；尚未測真實手機／外網／商店封裝。
+First pair the Mac with that HTTPS URL, then create the QR code; the phone confirms the address and the name before it
+submits the one-time invite.
+Certificates, DNS and hostname resolution, and LAN reachability have to be configured by you. There is no option to
+ignore TLS verification or trust certificates automatically.
+Access from the internet needs a trusted HTTPS deployment or a VPN; real phones, the internet and store packages have
+not been tested.
 
-## 備份與恢復
+## 0.1.0 backup and restore
 
-備份可在 server 運作時執行；目的檔不得已存在：
+A backup can run while the server is running; the destination file must not exist:
 
 ```bash
 python3 src/server/work_fleet.py backup /secure/path/fleet-backup.sqlite3
 ```
 
-先停止 server，還原到**新資料路徑**（不覆寫目前 DB）：
+Stop the server first, then restore to a **new data path** (the current DB is not overwritten):
 
 ```bash
 python3 src/server/work_fleet.py --db /secure/path/restored.sqlite3 restore /secure/path/fleet-backup.sqlite3
@@ -393,6 +386,7 @@ python3 src/server/work_fleet.py --db /secure/path/restored.sqlite3 serve
 python3 src/server/work_fleet.py --db /secure/path/restored.sqlite3 invite --role admin
 ```
 
-恢復會換 epoch、撤銷全部裝置並清除邀請／操作重試紀錄。重新配對後讀取 restored snapshot；
-舊草稿仍保留，但不可直接覆蓋新資料世代。原 DB、備份與裝置上的未同步草稿分別保管。
-備份包含私人內容與 token hashes，應放在受保護且必要時加密的儲存位置。
+Restoring changes the epoch, revokes every device and clears invites and operation retry records. After pairing again,
+devices read the restored snapshot. Old drafts are kept but cannot directly overwrite the new data generation. Keep the
+original DB, the backup and the unsynced drafts on devices separately.
+A backup contains private content and token hashes; store it in a protected location, encrypted where needed.

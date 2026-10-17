@@ -1,32 +1,45 @@
-# Windows 桌面通道與邏輯座標
+# Windows desktop channels and logical coordinates
 
-查閱日期：2026-10-04。決策見 [ADR-018](../decisions/018-single-owner-desktop-views.md)，實測結果見 PROGRESS。
+Reviewed: 2026-10-04. The decision is in [ADR-018](../decisions/018-single-owner-desktop-views.md); test results are in
+the git history and verification procedures in [testing](../testing.md), with current status in
+[PROGRESS](../../PROGRESS.md).
 
-## 官方證據
+## Official evidence
 
-Microsoft 說明 DPI-aware 視窗／滑鼠座標需和邏輯绘製單位明確換算；不能把 physical 像素直接當 DIP。
-參見 [DPI and device-independent pixels](https://learn.microsoft.com/en-us/windows/win32/learnwin32/dpi-and-device-independent-pixels)。
-多螢幕 API 取得 monitor bounds 後可用 SetWindowPos 定位；primary work area 不能取代所有顯示器工作區。
-參見 [Positioning objects on multiple display monitors](https://learn.microsoft.com/en-us/windows/win32/gdi/positioning-objects-on-multiple-display-monitors)。
+Microsoft explains that DPI-aware window/mouse coordinates must be converted explicitly to and from logical drawing
+units; physical pixels cannot be used directly as DIPs.
+See [DPI and device-independent pixels](https://learn.microsoft.com/en-us/windows/win32/learnwin32/dpi-and-device-independent-pixels).
+After the multi-display APIs return monitor bounds, SetWindowPos can position windows; the primary work area cannot
+replace the work areas of all displays.
+See [Positioning objects on multiple display monitors](https://learn.microsoft.com/en-us/windows/win32/gdi/positioning-objects-on-multiple-display-monitors).
 
-WPF CompositionControl 的 ZoomFactor 公開轉接 WebView controller 縮放設定。
-參見 [WebView2CompositionControl.ZoomFactor](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.wpf.webview2compositioncontrol.zoomfactor)。
-這證明可用 API 存在，不證明本產品混合 DPI 的文字、拖曳及原生命中已全部正確。
+The ZoomFactor of the WPF CompositionControl publicly forwards the WebView controller's zoom setting.
+See [WebView2CompositionControl.ZoomFactor](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.wpf.webview2compositioncontrol.zoomfactor).
+This proves the API exists; it does not prove that this product's text, dragging and native hit-testing are all
+correct under mixed DPI.
 
-## 本產品推論與採用
+## This product's inferences and adoption
 
-每顯示器／每層一個 renderer 可限制單個表面大小，同層仍由 DOM 控制卡片前後次序。
-使用主顯示器 DPI 作統一 reference scale，將所有原生 bounds／work area 投影到連續座標。
-不同螢幕的 WebView 縮放補償其系統 DPI，避免把同一張跨邊界卡片的兩半畫成不同像素大小。
-代價是不同螢幕 DPI 偏好不能各自改變同一紙面的字號；實機驗收及後續設定需明確處理。
+One renderer per display/per layer limits the size of any single surface, while the DOM still controls the
+front-to-back order of cards within a layer.
+The primary display's DPI is used as one unified reference scale, and all native bounds/work areas are projected into
+continuous coordinates.
+The WebView zoom on each display compensates for its system DPI, so the two halves of one card crossing a display
+edge are not drawn at different pixel sizes.
+The cost is that per-display DPI preferences cannot each change the font size of the same paper; device acceptance and
+later settings must handle this explicitly.
 
-frame／command 只在程序記憶體流轉，已完成的 frame lease 不隨新版本改寫。
-草稿 flush 是非阻塞的事件握手；若 native dispatch 等到草稿保存才回覆，後面的 storage.commit
-便無法通過同一 channel，造成死鎖。最後寫入需獨立 admission／execution lane。
+Frames/commands flow only in process memory, and a completed frame lease is not rewritten by a newer version.
+A draft flush is a non-blocking event handshake; if the native dispatch waited until the draft was saved before
+replying, the following storage.commit could not pass through the same channel, causing a deadlock. The final write
+needs a separate admission/execution lane.
 
-## 驗證界線
+## Verification boundaries
 
-真 WPF probe 使用合成 profile 與螢幕外顯示器描述，保留實際 WebView2／SQLite／DPAPI／IPC。
-DOM CompositionEvent 驗證處理器與退出屏障，不能當成實際 Windows IME candidate window 的通過證據。
-同理，合成命令／PointerEvent 不能證明實際滑鼠 capture、跨 monitor 拖曳、Win+D 或虛擬桌面。
-原生跨程序 region 命中證據仍見 [前一份研究](2026-10-04-windows-composition-and-input.md)。
+The real WPF probe uses a synthetic profile and off-screen display descriptions, while keeping real
+WebView2/SQLite/DPAPI/IPC.
+DOM CompositionEvent verifies the handler and the exit barrier; it cannot count as evidence that a real Windows IME
+candidate window passes.
+Likewise, synthetic commands/PointerEvents cannot prove real mouse capture, dragging across monitors, Win+D or
+virtual desktops.
+Native cross-process region hit-test evidence is still in the [previous research](2026-10-04-windows-composition-and-input.md).

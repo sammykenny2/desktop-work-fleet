@@ -1,78 +1,99 @@
-# ADR-041: labwc 全域快捷鍵以 rc.xml keybind 轉交 App
+# ADR-041: labwc global shortcuts reach the app through rc.xml keybinds
 
 ## Status
 
-Accepted，2026-10-14。維護者在 Raspberry Pi 5 labwc 回報焦點不在主視窗或主視窗最小化時，快捷鍵無法切換層級；
-比較「App 寫入 rc.xml」「只提供設定片段」「暫不處理」後選擇由 App 寫入。
+Accepted, 2026-10-14. On a Raspberry Pi 5 with labwc, the maintainer reported that shortcuts could not switch layers
+when the main window was not focused or was minimized. After comparing "the app writes rc.xml", "provide only a
+configuration snippet" and "do nothing for now", the maintainer chose to have the app write it.
 
 ## Context
 
-Linux X11 以 Keybinder 登記全域快捷鍵，其他環境使用 XDG GlobalShortcuts portal（ADR-039 前後的 Linux README）。
-labwc 不提供 client 註冊全域快捷鍵的協定；這台 Pi 的 `xdg-desktop-portal` 1.20 搭配 `-wlr` 0.7.1 與 `-gtk` 1.15，
-session bus 上的 portal 沒有 `org.freedesktop.portal.GlobalShortcuts`。所以 labwc 上快捷鍵只在 Work Fleet 視窗有焦點時有效。
+On Linux X11, global shortcuts are registered through Keybinder; other environments use the XDG GlobalShortcuts portal
+(the Linux README around ADR-039). labwc has no protocol for clients to register global shortcuts. This Pi runs
+`xdg-desktop-portal` 1.20 with `-wlr` 0.7.1 and `-gtk` 1.15, and the portal on the session bus has no
+`org.freedesktop.portal.GlobalShortcuts`. So on labwc, shortcuts work only while a Work Fleet window has focus.
 
-labwc 自己的 keybind 可以執行指令。headless labwc 0.20.2 以虛擬鍵盤驗證：`C-S-1`、`C-S-d`、`C-S-F5`、`C-A-0` 都會觸發，
-字母以未按 Shift 的 keysym 比對；keybind 執行
-`gapplication action <app id> shortcut "'Ctrl+Shift+1'"` 時，同一個 session bus 上的 GTK Application 收到字串參數 `'Ctrl+Shift+1'`。
-Raspberry Pi OS 以 `labwc -m` 啟動，合併系統 `/etc/xdg/labwc/rc.xml` 與使用者設定；這台沒有使用者 rc.xml。
-沒有 `-m` 時，使用者 rc.xml 會取代系統設定。
+labwc's own keybinds can run commands. Verified with a virtual keyboard on headless labwc 0.20.2: `C-S-1`, `C-S-d`,
+`C-S-F5` and `C-A-0` all fire, and letters match the keysym without Shift. When a keybind runs
+`gapplication action <app id> shortcut "'Ctrl+Shift+1'"`, the GTK Application on the same session bus receives the
+string parameter `'Ctrl+Shift+1'`.
+Raspberry Pi OS starts `labwc -m`, which merges the system `/etc/xdg/labwc/rc.xml` with the user configuration; this
+Pi has no user rc.xml. Without `-m`, the user rc.xml replaces the system configuration.
 
 ## Decision
 
-- Linux host 在 layer-shell 下由 `LABWC_PID` 找到執行中的 labwc，從它的 cmdline 判斷合併模式與 `--config-dir`；
-  預設使用 `$XDG_CONFIG_HOME/labwc/rc.xml`。App ID 須是合法的 D-Bus 名稱才啟用。這時不使用 portal。
-- App 在 D-Bus 匯出 `shortcut` action（字串參數為 Work Fleet 的按鍵，例如 `Ctrl+Shift+1`）。收到時依目前設定找到目標，
-  沿用全域快捷鍵的 `desktop-action` 路徑；設定中正在錄製或原生選單開啟時忽略。labwc 不論焦點都會執行 keybind，
-  所以 Work Fleet 自己有焦點時同樣經這條路徑，並由有焦點的視窗提供 intent。
-- rc.xml 只放按鍵，不放群組；區域快捷鍵改指向其他群組時不用重寫。
-- 設定的「快捷鍵」頁在 labwc 上顯示 rc.xml 狀態（未寫入、需要更新、已是目前組合）與寫入按鈕；只在使用者按下時寫入。
-  寫入只取代 `Work Fleet shortcuts: begin` 與 `end` 註解之間的區塊，沒有區塊時放在 `<keyboard>` 開頭，必要時建立 `<keyboard>`。
-  原檔與結果都必須是 well-formed XML，否則不修改；原檔不是 UTF-8 也不修改。第一次修改既有檔案前複製為
-  `rc.xml.work-fleet-backup`，之後不覆蓋備份。以同目錄暫存檔、fsync 與原子替換寫入並保留權限，完成後執行 `labwc --reconfigure`。
-- 新建 rc.xml 時，合併模式只放區塊；非合併模式先複製第一個 `XDG_CONFIG_DIRS` 中的 `labwc/rc.xml`，避免失去系統 keybind。
-- 寫進 labwc 的組合是可登記的按鍵（Keybinder 同樣規則）；保留給文字編輯、`Ctrl+Alt` 字母等組合不寫入。
-  未寫入的組合顯示「尚未寫入 labwc 設定」，不再顯示 portal 的重新註冊按鈕。DEB 推薦 `libglib2.0-bin`（`gapplication`）。
+- Under layer-shell, the Linux host finds the running labwc from `LABWC_PID` and reads its cmdline for the merge mode
+  and `--config-dir`; the default is `$XDG_CONFIG_HOME/labwc/rc.xml`. It is enabled only when the App ID is a valid
+  D-Bus name. The portal is not used in this case.
+- The app exports a `shortcut` action on D-Bus (the string parameter is a Work Fleet key, for example
+  `Ctrl+Shift+1`). On receipt it finds the target from the current settings and follows the global shortcut's
+  `desktop-action` path; it ignores the action while Settings is recording a shortcut or a native menu is open.
+  labwc runs the keybind whatever has focus, so when Work Fleet itself has focus the shortcut takes the same path,
+  and the focused window supplies the intent.
+- rc.xml holds only keys, not groups; pointing a region shortcut at another group needs no rewrite.
+- On labwc, the Shortcuts page in Settings shows the rc.xml state (not written, needs updating, matches the current
+  keys) and a write button; it writes only when the user presses it.
+  Writing replaces only the block between the `Work Fleet shortcuts: begin` and `end` comments; when there is no block,
+  it goes at the start of `<keyboard>`, creating `<keyboard>` if needed.
+  Both the original file and the result must be well-formed XML, or nothing changes; a file that is not UTF-8 is not
+  changed either. Before the first change to an existing file it is copied to `rc.xml.work-fleet-backup`, and that
+  backup is never overwritten afterwards. The write uses a temporary file in the same directory, fsync and an atomic
+  replace that keeps the permissions, then runs `labwc --reconfigure`.
+- When creating a new rc.xml: in merge mode it contains only the block; in non-merge mode it first copies
+  `labwc/rc.xml` from the first `XDG_CONFIG_DIRS` entry, so the system keybinds are not lost.
+- The keys written to labwc are the ones that can be registered (the same rules as Keybinder); keys reserved for text
+  editing, `Ctrl+Alt` letters and the like are not written.
+  A key that is not written shows "Not written to the labwc configuration", and the portal's re-register button no
+  longer appears. The DEB recommends `libglib2.0-bin` (`gapplication`).
 
 ## Consequences
 
 ### Positive
 
-- labwc 上快捷鍵在任何程式中都能切換層級、調整群組或顯示桌面便箋，不需要 portal 支援。
-- 使用者原本的 rc.xml 內容、註解與 keybind 不變；格式錯誤時不會被覆寫，備份保留第一次修改前的版本。
+- On labwc, shortcuts switch layers, adjust groups or show desktop notes from any program, without portal support.
+- The user's existing rc.xml content, comments and keybinds stay unchanged; a malformed file is never overwritten, and
+  the backup keeps the version from before the first change.
 
 ### Negative
 
-- 變更快捷鍵組合後要再按一次寫入；App 移除後區塊仍留在 rc.xml，按鍵會執行找不到 App 的 `gapplication`。
-- labwc 在任何焦點下都攔截這些組合，其他程式收不到；文字輸入中按到也會觸發。設定頁錄製新組合時，已寫入的組合會被 labwc 攔截。
-- 同一使用者的其他程式可經 session bus 觸發 `shortcut` action；只接受目前設定中的按鍵，效果與按下快捷鍵相同。
-- labwc 執行指令時不一定附 activation token，需要把主畫面帶到前景的動作（例如快速記錄）在其他程式有焦點時可能無法取得焦點。
+- After changing a key, the user must press write again. After the app is removed, the block stays in rc.xml and the
+  keys run a `gapplication` that cannot find the app.
+- labwc intercepts these keys whatever has focus, so other programs never receive them; pressing one while typing also
+  triggers it. While Settings records a new key, keys already written are intercepted by labwc.
+- Other programs of the same user can trigger the `shortcut` action over the session bus; only keys in the current
+  settings are accepted, with the same effect as pressing the shortcut.
+- labwc does not always attach an activation token when it runs a command, so actions that bring the main window to
+  the front (for example Quick capture) may fail to take focus while another program has focus.
 
 ### Neutral
 
-- 只在一台 Pi 5 labwc 0.20.2 實測；`--config-dir`、非合併模式與 `openbox_config` 根元素只有單元測試。
-- 其他 wlroots compositor（sway、Hyprland、wayfire）仍沒有全域快捷鍵。
+- Tested on a real device only on one Pi 5 with labwc 0.20.2; `--config-dir`, non-merge mode and the `openbox_config`
+  root element have only unit tests.
+- Other wlroots compositors (sway, Hyprland, wayfire) still have no global shortcuts.
 
 ## Alternatives Considered
 
-### Alternative 1: 只提供設定片段
+### Alternative 1: Provide only a configuration snippet
 
-- **Pros**：App 不修改使用者的 compositor 設定。
-- **Cons**：使用者要自己編輯 XML、轉換按鍵語法，並在每次變更組合時手動同步。
-- **Why rejected**：維護者選擇由 App 寫入。
+- **Pros**: The app does not modify the user's compositor configuration.
+- **Cons**: The user must edit XML, convert the key syntax, and resynchronize by hand after every key change.
+- **Why rejected**: The maintainer chose to have the app write it.
 
-### Alternative 2: 暫不處理
+### Alternative 2: Do nothing for now
 
-- **Pros**：沒有修改使用者設定的風險。
-- **Cons**：labwc 上快捷鍵只在 Work Fleet 視窗有焦點時有效，主視窗最小化後無法切換層級。
-- **Why rejected**：Pi 是原定主要目標，這正是維護者回報的問題。
+- **Pros**: No risk of modifying user configuration.
+- **Cons**: On labwc, shortcuts work only while a Work Fleet window has focus, and layers cannot be switched once the
+  main window is minimized.
+- **Why rejected**: The Pi is the original primary target, and this is exactly the problem the maintainer reported.
 
-### Alternative 3: 等待 portal 或自行實作輸入監聽
+### Alternative 3: Wait for the portal or listen to input ourselves
 
-- **Pros**：與其他桌面一致，或不依賴 labwc。
-- **Cons**：wlroots portal 沒有 GlobalShortcuts；讀取輸入裝置需要額外權限，違反不做鍵盤 hook 的原則。
-- **Why rejected**：前者沒有時程，後者不可接受。
+- **Pros**: Consistent with other desktops, or independent of labwc.
+- **Cons**: The wlroots portal has no GlobalShortcuts; reading input devices needs extra permissions and breaks the
+  no-keyboard-hook principle.
+- **Why rejected**: The first has no timeline; the second is unacceptable.
 
 ## References
 
-- [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md)、[ADR-040](040-gnome-wayland-xwayland-choice.md)、
-  [Linux README](../../src/native/linux/README.md)。
+- [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md), [ADR-040](040-gnome-wayland-xwayland-choice.md),
+  [Linux README](../../src/native/linux/README.md).

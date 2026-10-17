@@ -1,132 +1,173 @@
-# ADR-028: 原生封裝與簽章入口
+# ADR-028: Native packaging and signing entry points
 
 ## Status
 
-Accepted，2026-10-05；2026-10-06 補充各平台版號紀錄與發佈檔名。
-2026-10-10 Windows 的 framework-dependent 封裝選擇由 [ADR-036](036-windows-self-contained-packaging.md) supersede；下列保留當時決策，其他平台與簽章契約不變。
+Accepted, 2026-10-05; on 2026-10-06 per-platform version records and release file names were added.
+On 2026-10-10 the Windows framework-dependent packaging choice was superseded by [ADR-036](036-windows-self-contained-packaging.md); the text below keeps the decision as it was then, and the other platforms and the signing contract are unchanged.
 
 ## Context
 
-完整 1.0 含五平台及商店提交準備；目前沒有維護者 Google／Apple／商店帳號與簽章私鑰。
-公開設定應能從 `.env.example` 配置，缺憑證不能以 placeholder 宣稱正式散布已完成。
+The full 1.0 covers five platforms and preparation for store submission; there are currently no maintainer Google, Apple or
+store accounts and no signing private keys.
+Public settings should be configurable from `.env.example`; missing credentials must not let a placeholder claim that official
+distribution is complete.
 
 ## Decision
 
-Windows 以 Windows SDK MakeAppx 產生 x64 MSIX，另產生 portable ZIP；framework-dependent
-執行需 .NET 8 Desktop 與 WebView2。MSIX 使用公開 package identity／publisher，可選既有
-CurrentUser/My certificate 與 HTTPS timestamp 簽署；不自行安裝憑證或修改信任。
-本機 preview 使用 `-LocalTestSign` 重用已在 LocalMachine/TrustedPeople 信任、有效且與 publisher
-相符的既有憑證，無 timestamp；與 `-Release` 互斥。要求簽章驗證成功，另輸出僅有公鑰的 CER。
-此入口不建立新憑證，不改信任，避免後續試用建置遺漏已有的本機簽章。
-原本每次封裝使用新的 workspace build 目錄；2026-10-06 改為固定工作目錄，見下方發佈位置。
+Windows uses Windows SDK MakeAppx to produce an x64 MSIX and also a portable ZIP; framework-dependent
+execution needs .NET 8 Desktop and WebView2. The MSIX uses the public package identity and publisher and can optionally be
+signed with an existing CurrentUser/My certificate and an HTTPS timestamp; the entry point does not install certificates or
+change trust on its own.
+Local preview uses `-LocalTestSign` to reuse an existing certificate that is already trusted in LocalMachine/TrustedPeople,
+valid and matching the publisher, without a timestamp; it is mutually exclusive with `-Release`. Signature verification must
+succeed, and a CER with only the public key is also output.
+This entry point creates no new certificate and does not change trust, so later trial builds do not miss the existing local
+signing.
+Originally every packaging run used a new workspace build directory; on 2026-10-06 this changed to a fixed work directory,
+see the release location below.
 
-Apple 由 [ADR-029](029-portable-apple-xcode-project.md) 已提交的可攜 Xcode project 建立 archive，
-再以本機 export options 匯出；生成資產與 archive／export 仍保留在 Git 忽略的目錄。
-macOS 啟用 hardened runtime；Developer ID 可用已有 identities 產生 signed PKG／DMG，
-可選 Keychain notary profile 公證並 staple。iOS 匯出包含已嵌入的 Share Extension；
-signing profiles 仍需維護者配置同一 team／App Group。腳本不登入或上傳商店。
+Apple builds an archive from the committed portable Xcode project of [ADR-029](029-portable-apple-xcode-project.md),
+then exports it with local export options; generated assets and the archive/export stay in Git-ignored directories.
+macOS enables the hardened runtime; with existing identities, Developer ID can produce a signed PKG/DMG, which can optionally
+be notarized with a Keychain notary profile and stapled. The iOS export includes the embedded Share Extension;
+the signing profiles still need the maintainer to configure the same team and App Group. The scripts do not sign in to or
+upload to a store.
 
-Android upload signing 僅讀取 process／CI environment 的 keystore、alias、store／key passwords；
-四項必須同時配置。`-Signed`／`--signed` 強制簽章 release AAB，未配置 inputs 的一般 release
-可輸出未簽章 AAB 交給外部 pipeline。秘密不進公共設定、命令列參數或 repo。
-Linux 保留系統 runtime tar.gz 與 DEB 建置入口，不假設 Windows 可完成 Linux GUI 散布驗收。
+Android upload signing reads the keystore, alias, and store and key passwords only from the process or CI environment;
+all four must be configured together. `-Signed`/`--signed` forces a signed release AAB; a normal release without configured
+inputs can output an unsigned AAB for an external pipeline. Secrets go neither into public settings, nor into command-line
+arguments, nor into the repo.
+Linux keeps the system-runtime tar.gz and DEB build entry points and does not assume that Windows can complete Linux GUI
+distribution acceptance.
 
-Windows 可選 workspace Android toolchain installer，使用官方固定 SDK tools／Gradle download
-及 SHA-256，接受所需 SDK 條款後安裝 API 36／Build Tools 35.0.0。工具、SDK、快取與路徑 JSON
-位於忽略的 `build/`；不修改系統 PATH。公開 SDK 路徑可由 `.env`／process environment 覆蓋。
+On Windows, an optional workspace Android toolchain installer uses the official pinned SDK tools and Gradle downloads
+with SHA-256 and, after the required SDK terms are accepted, installs API 36 and Build Tools 35.0.0. Tools, SDK, caches and the
+path JSON are in the ignored `build/`; the system PATH is not changed. The public SDK path can be overridden by `.env` or the
+process environment.
 
-Linux DEB 委派給獨立 dpkg-deb script；Windows 可使用既有 Docker Linux engine，在固定 Ubuntu
-image 中執行。容器只掛載忽略的 `build/` 產物目錄與封裝 script，執行時 network none，
-不安装 App 或 GUI runtime。2026-10-05 依維護者指示，DEB 統一使用產品版號 `0.1.0`，
-不附加 `~preview`；release 仍需正式公開配置與 maintainer email。版號後續記在 `src/native/linux/VERSION`。
-Linux 與 Windows 入口直接將 DEB 與 tar.gz 輸出到 `build/` 根目錄；bundle 保留於 `build/linux/`。
-每次建立新的 staging 目錄並於腳本結束時自動移除，保留產物；
-安裝 launcher 與 license documents，使用 root archive ownership。
+The Linux DEB is delegated to a separate dpkg-deb script; Windows can use an existing Docker Linux engine and run it in a
+pinned Ubuntu image. The container mounts only the ignored `build/` artifact directory and the packaging script, runs with
+network none, and installs neither the app nor a GUI runtime. On 2026-10-05, at the maintainer's instruction, the DEB uses the
+product version `0.1.0` with no `~preview` suffix; a release still needs the official public configuration and maintainer
+email. The version is later recorded in `src/native/linux/VERSION`.
+The Linux and Windows entry points write the DEB and tar.gz directly to the root of `build/`; the bundle stays in `build/linux/`.
+Each run creates a new staging directory and removes it automatically when the script ends, keeping the artifacts;
+the package installs the launcher and license documents and uses root archive ownership.
 
-2026-10-06 依維護者指示，發佈檔名必須只由 repo 內容決定：同一 commit 在任何開發機以同一指令
-產生相同檔名，同一平台的不同建置入口也不得各自寫死版號。各平台分別記錄版號，不共用一份：
-Windows 為 `src/native/windows/Directory.Build.props`，Apple 為 `src/native/apple/config/WorkFleet.xcconfig`
-的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`，Android 為 `build.gradle.kts` 的 `versionName`，
-Linux 為 `src/native/linux/VERSION`。封裝腳本經 `scripts/platform-version.mjs` 或產物本身的 metadata 取得版號。
-Apple 資源準備拒絕 Local.xcconfig／命令列覆蓋；macOS 命令列建置固定 arm64＋x86_64，封裝前檢查。
-預覽簽章後綴取自 App 的實際簽章而非建置機器的 identities。檔名格式：Windows
-`WorkFleet-<版號>-x64.msix|zip`；macOS `WorkFleet-<版號>-macos-universal[-unsigned|-development]`；
-iOS 預覽 `WorkFleet-<版號>-ios-<unsigned|development|simulator>`；Android `WorkFleet-<版號>-android-<variant>`；
-Linux 沿用 Debian `work-fleet_<版號>_all.deb` 與 `work-fleet-<版號>.tar.gz`。每個發佈檔旁輸出同名 `.sha256`。
+On 2026-10-06, at the maintainer's instruction, release file names must be determined only by repository content: the same
+commit, built with the same command on any development machine, produces the same file name, and different build entry points
+of the same platform must not hard-code their own version. Each platform records its version separately, not in one shared file:
+Windows in `src/native/windows/Directory.Build.props`, Apple in `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` of
+`src/native/apple/config/WorkFleet.xcconfig`, Android in `versionName` of `build.gradle.kts`, and Linux in
+`src/native/linux/VERSION`. Packaging scripts get the version through `scripts/platform-version.mjs` or the artifact's own metadata.
+Apple resource preparation rejects Local.xcconfig and command-line overrides; macOS command-line builds are fixed to
+arm64 + x86_64, which is checked before packaging.
+The preview signing suffix comes from the app's actual signature, not from the identities on the build machine. File name
+formats: Windows `WorkFleet-<version>-x64.msix|zip`; macOS `WorkFleet-<version>-macos-universal[-unsigned|-development]`;
+iOS preview `WorkFleet-<version>-ios-<unsigned|development|simulator>`; Android `WorkFleet-<version>-android-<variant>`;
+Linux keeps the Debian `work-fleet_<version>_all.deb` and `work-fleet-<version>.tar.gz`. Every release file gets a `.sha256`
+with the same name next to it.
 
-同日維護者要求所有平台的安裝檔放在同一層、不得散落在隨機目錄。發佈位置因此統一為 `build/` 根目錄：
-Windows、Apple、Android、Linux 的發佈檔與 `.sha256` 都直接放在 `build/`，同名覆蓋。
-中間產物改用固定、每次清空的工作目錄（`build/windows/package`、`build/apple/preview-<平台>`、
-`build/apple/export-<平台>`、`build/linux/work-fleet-<版號>`），取代先前每次新建的隨機目錄。
-Windows 與 Apple 在建置、簽章與公證全部成功後才移入 `build/`。Apple 正式匯出的 IPA 與 Mac App Store PKG
-依 `--method` 命名；Android 入口在 Gradle 完成後依 `versionName` 找到預期檔名並複製，找不到即失敗。
+The same day, the maintainer required the installers of all platforms to sit in one directory level and not be scattered over
+random directories. The release location is therefore the root of `build/`: the release files and `.sha256` files of Windows,
+Apple, Android and Linux go directly into `build/` and overwrite files with the same name.
+Intermediate artifacts use fixed work directories that are emptied on every run (`build/windows/package`,
+`build/apple/preview-<platform>`, `build/apple/export-<platform>`, `build/linux/work-fleet-<version>`), replacing the random
+directories created on every run before.
+Windows and Apple move files into `build/` only after build, signing and notarization have all succeeded. Apple's official
+exported IPA and Mac App Store PKG are named by `--method`; after Gradle completes, the Android entry point finds the expected
+file name from `versionName` and copies it, and fails if it is not found.
 
-Apple 加入手動 GitHub workflow，固定官方 actions commit，使用 GitHub macOS runner 編譯
-未簽章 Debug 的 macOS App 與 iOS device App／Extension，保留 ZIP／IPA 與 builder version。
-工作上限每 target 20 分鐘，僅手動觸發，不在 push 執行測試。Private repository 的 hosted runner
-可能使用計費額度，實際啟動需維護者同意；沒有 developer account／簽章時僅為 native preview。
+Apple adds a manual GitHub workflow, with official actions pinned to commits, that uses GitHub macOS runners to compile
+an unsigned Debug macOS app and the iOS device app and extension, keeping the ZIP/IPA and the builder version.
+Jobs are limited to 20 minutes per target and are triggered only manually; no tests run on push. Hosted runners for a private
+repository may use billed minutes, so actually starting them needs the maintainer's consent; without a developer account and
+signing, the result is only a native preview.
 
-Android 依 variant 的 resolved runtime graph 打包 dependency inventory／artifact SHA-256、上游
-Maven POM 與 AAR／JAR 內的 notices，保留 Apache-2.0 全文。Generated assets 使用每輪新的
-專用目錄，避免混入舊 variant 的輸出；缺少 POM／license declaration 以 status 記錄，不推定授權。
-輸出不含 SDK cache 的本機路径或憑證；最終 release 的 Google SDK 條款仍依該包 inventory 確認。
+Android packages, from each variant's resolved runtime graph, a dependency inventory with artifact SHA-256 values, the upstream
+Maven POMs and the notices inside AARs and JARs, keeping the full Apache-2.0 text. Generated assets use a new
+dedicated directory on every run, so outputs of an old variant are not mixed in; a missing POM or license declaration is
+recorded as a status, and no license is assumed.
+The output contains no local paths of the SDK cache and no credentials; for the final release, the Google SDK terms are still
+confirmed against that package's inventory.
 
 ## Consequences
 
 ### Positive
 
-- 各平台有可配置的封裝與簽章入口，公開 app／Google／publisher 設定與 secrets 分離。
-- 有 SDK 的環境可先產出 preview，保留正式憑證及商店帳號由維護者控制。
+- Every platform has configurable packaging and signing entry points; public app, Google and publisher settings are kept
+  apart from secrets.
+- Environments with the SDK can produce previews first, while the official certificates and store accounts stay under the
+  maintainer's control.
 
 ### Negative
 
-- Windows runtime 不內嵌，接收端須有 .NET 8 Desktop／WebView2。
-- 有腳本不等於平台 binary、簽章、Google 往返或商店表單已完成；依最終產物補授權与截圖。
+- The Windows runtime is not embedded; the receiving machine needs .NET 8 Desktop and WebView2.
+- Having scripts does not mean that platform binaries, signing, Google round trips or store forms are complete; licenses and
+  screenshots are completed from the final artifacts.
 
-## 2026-10-06 修訂：Windows 預覽版由 CI 發布到 GitHub Release
+## 2026-10-06 revision: CI publishes the Windows preview to a GitHub Release
 
-使用者要在另一台 Windows 直接下載安裝，因此新增手動觸發的 `windows-preview.yml`：建置、簽章成功後才建立 `windows-v<版號>` tag 與 prerelease，
-已存在的 tag 不覆蓋，再發布要先升 `Directory.Build.props` 的版號。
-- 簽章沿用本機 preview 憑證，私鑰以 PFX 存在 repository secret。本機包與 CI 包同 publisher、同憑證，可互相升級，安裝端只需信任一張 CER。
-- runner 在該 job 內把憑證加入自己的 TrustedPeople，讓 `-LocalTestSign` 的既有驗證照常運作；這只改變暫時的 runner，不改變使用者電腦。
-- 預覽版仍不加 timestamp；憑證到期後簽章失效，要換憑證並重新信任。
-- 正式商店或 Developer 簽章仍走 `-CertificateThumbprint`／`-TimestampUrl` 與 Partner Center，不受此修訂影響。
+The user wants to download and install directly on another Windows machine, so a manually triggered `windows-preview.yml` is
+added: only after build and signing succeed does it create the `windows-v<version>` tag and prerelease. An existing tag is not
+overwritten; publishing again requires bumping the version in `Directory.Build.props` first.
+- Signing reuses the local preview certificate, whose private key is stored as a PFX in a repository secret. Local and CI
+  packages have the same publisher and certificate and can upgrade each other; the installing machine only needs to trust one CER.
+- In that job, the runner adds the certificate to its own TrustedPeople so that the existing `-LocalTestSign` verification works
+  as before; this changes only the temporary runner, not the user's computer.
+- The preview still has no timestamp; when the certificate expires, the signature becomes invalid, and the certificate must be
+  replaced and trusted again.
+- Official store or Developer signing still goes through `-CertificateThumbprint`/`-TimestampUrl` and Partner Center and is not
+  affected by this revision.
 
-## 2026-10-14 修訂：macOS GitHub 預覽採 DMG 與更新 ZIP
+## 2026-10-14 revision: macOS GitHub preview uses a DMG and an update ZIP
 
-維護者選擇沿用 Developer ID Application 憑證，只發布 DMG＋Sparkle 更新 ZIP，
-不要求額外的 Developer ID Installer 憑證。封裝入口新增 `--no-pkg`；一般本機／商店封裝保留原有 PKG 路徑。
-CI 匯入本專案 Developer ID provisioning profile，驗證其 Team、App ID、Keychain entitlement、效期與簽章憑證，
-archive／export 都使用該 identity 與 profile 的 manual signing，不依賴 runner 登入 Xcode 或持有 development 憑證。
-archive 透過 WorkFleet 專用 build settings，只在 macOS Release App target 映射簽章與 profile；
-不把 `PROVISIONING_PROFILE_SPECIFIER` 作為所有 target 的命令列 override，避免 SPM 資源 bundle 被要求使用 profile。
-公證使用本專案獨立的 Team API key；Sparkle 使用獨立更新金鑰，秘密僅存 OS keychain／repo 外備份／GitHub secrets。
-App Sandbox 與 Keychain 資料契約保留；簽章、公證、staple 與 Gatekeeper 檢查全數成功才交付。
-配置完成、流程測試、真實 signed app 驗證與 GitHub release dispatch 分開記錄，不以其中一項代替其他驗收。
+The maintainer chose to keep using the Developer ID Application certificate and to publish only a DMG + Sparkle update ZIP,
+without requiring an extra Developer ID Installer certificate. The packaging entry point adds `--no-pkg`; normal local and store
+packaging keep the existing PKG path.
+CI imports this project's Developer ID provisioning profile and verifies its Team, App ID, Keychain entitlement, validity and
+signing certificate; archive and export both use manual signing with that identity and profile, without relying on the runner
+being signed in to Xcode or holding a development certificate.
+The archive maps the signing and profile only onto the macOS Release app target, through WorkFleet-specific build settings;
+`PROVISIONING_PROFILE_SPECIFIER` is not passed as a command-line override for all targets, which would require the SPM resource
+bundles to use the profile.
+Notarization uses this project's own Team API key, and Sparkle uses its own update key; the secrets exist only in the OS
+keychain, in backups outside the repo and in GitHub secrets.
+The App Sandbox and the Keychain data contract are kept; delivery happens only after signing, notarization, stapling and the
+Gatekeeper checks have all succeeded.
+Completed configuration, flow tests, verification of a real signed app and the GitHub release dispatch are recorded separately;
+none of them stands in for the acceptance of another.
 
-同日修正 0.2.2 啟動時找不到 Sparkle 的錯誤：可攜專案生成器為 macOS Debug／Release App target
-明確設定 `@executable_path/../Frameworks` 的 runpath。build 與封裝檢查兩種架構的 Mach-O 依賴；
-direct distribution export 在公證前執行 `--check-runtime`，由 App 在 main 入口直接回報並退出，
-不建立 UI、storage 或登入項目。簽章／公證檢查不代替此載入檢查，也不把它當作 Google 或主畫面驗收。
+The same day, the error where 0.2.2 could not find Sparkle at startup was fixed: the portable project generator explicitly
+sets the `@executable_path/../Frameworks` runpath for the macOS Debug and Release app targets. Build and packaging check the
+Mach-O dependencies of both architectures; the direct distribution export runs `--check-runtime` before notarization, where
+the app reports from its main entry point and exits without creating UI, storage or a login item. Signing and notarization
+checks do not replace this load check, and it is not treated as acceptance of Google or the main window.
 
 ## Alternatives Considered
 
-將簽章密碼放入 `.env` 或公共 JSON：拒絕，公共設定會封裝進 App。
-自行建立及安裝受信任憑證：拒絕，會改變使用者環境且不能替代正式簽章 identity。
-將 framework-dependent preview 視為五平台正式發行：拒絕，缺少原生環境及外部帳號證據。
-所有平台共用一份版號檔：拒絕，各平台需能獨立升版。
-依建置機器架構或已安裝憑證決定檔名：拒絕，同一 commit 會在不同開發機產生不同檔名。
-Linux DEB 改用 `WorkFleet-<版號>` 格式：拒絕，Debian 工具與套件庫預期 `套件_版號_架構.deb`。
-每次封裝使用新的隨機目錄：2026-10-06 撤回，安裝檔散落在不同深度、路徑無法預期。
-發佈檔放在 `build/<平台>/`：未採用；DEB 先前已決定放在 `build/` 根目錄，統一放根目錄不需再搬。
+Putting signing passwords in `.env` or public JSON: rejected, because public settings are packaged into the app.
+Creating and installing trusted certificates ourselves: rejected, because it changes the user's environment and cannot replace
+an official signing identity.
+Treating the framework-dependent preview as an official five-platform release: rejected, because native environments and
+evidence from external accounts are missing.
+One shared version file for all platforms: rejected, because each platform must be able to bump its version independently.
+Choosing file names by the build machine's architecture or installed certificates: rejected, because the same commit would
+produce different file names on different development machines.
+Changing the Linux DEB to the `WorkFleet-<version>` format: rejected, because Debian tools and repositories expect
+`package_version_arch.deb`.
+A new random directory for every packaging run: withdrawn on 2026-10-06, because installers were scattered at different depths
+and their paths were unpredictable.
+Release files in `build/<platform>/`: not adopted; the DEB had already been placed in the `build/` root, and putting everything
+in the root avoids moving it again.
 
 ## References
 
-- [封裝與散布](../deployment.md)、[商店資料](../release/README.md)、[執行狀態](../../PROGRESS.md)。
-- [Microsoft MakeAppx](https://learn.microsoft.com/en-us/windows/msix/package/create-app-package-with-makeappx-tool)。
-- [Microsoft packaged desktop manifest](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-manual-conversion)。
-- [Apple notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow)。
-- [Sparkle framework 與 runpath 設定](https://sparkle-project.org/documentation/)。
-- [Debian binary package format](https://manpages.debian.org/bookworm/dpkg-dev/deb.5.en.html)。
-- [Debian control fields](https://www.debian.org/doc/debian-policy/ch-controlfields.html)。
-- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。
+- [Packaging and distribution](../deployment.md), [Store materials](../release/README.md), [Current status](../../PROGRESS.md).
+- [Microsoft MakeAppx](https://learn.microsoft.com/en-us/windows/msix/package/create-app-package-with-makeappx-tool).
+- [Microsoft packaged desktop manifest](https://learn.microsoft.com/en-us/windows/msix/desktop/desktop-to-uwp-manual-conversion).
+- [Apple notarization workflow](https://developer.apple.com/documentation/security/customizing-the-notarization-workflow).
+- [Sparkle framework and runpath settings](https://sparkle-project.org/documentation/).
+- [Debian binary package format](https://manpages.debian.org/bookworm/dpkg-dev/deb.5.en.html).
+- [Debian control fields](https://www.debian.org/doc/debian-policy/ch-controlfields.html).
+- [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).

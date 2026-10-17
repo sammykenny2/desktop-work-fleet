@@ -1,100 +1,152 @@
-# ADR-018: 單一工作區權威與 Windows 桌面表面整合
+# ADR-018: Single workspace authority and Windows desktop surface integration
 
 ## Status
 
-2026-10-17：使用者認為橫條清單難以對應到桌面上的便箋，選定主畫面預設改為「便箋」：
-以正方形紙張的網格呈現目前群組，紙色、標題帶與桌面紙面相同；「清單」改為每列一張的精簡列。
-兩者在篩選列右側切換，選擇存在這台裝置版面的 `mainView`（未設定即為便箋），手機也提供兩者。
-桌面主機的第三個選項仍是版面地圖 stub，瀏覽器預覽則是原畫布；這兩者只在本次開啟有效，選擇時回到「待處理」。
-便箋網格依視窗寬度重新排列，不代表桌面座標，主畫面仍不鏡像桌面。
+2026-10-17: the user found the horizontal list hard to match to the notes on the desktop, and chose to make the
+board the main window's default:
+a grid of square papers shows the current group, with the same paper colour and title band as the desktop papers;
+the list becomes compact rows, one note per row.
+The two are switched at the right of the filter bar; the choice is stored as `mainView` in this device's layout
+(unset means the board), and phones offer both.
+The third option on desktop hosts is still the layout map stub, and in the browser preview the original canvas;
+these two last only for the current session, and choosing them returns to To do.
+The board grid reflows with the window width and does not represent desktop coordinates; the main window still
+does not mirror the desktop.
 
-2026-10-06：使用者決定接上原生桌面場景時，主畫面不再以 1:1 裁切方式重畫主螢幕左上角的便箋；
-預設清單，另一檢視是全部螢幕縮小的版面地圖（目前只留 stub 與空白畫布），移動便箋改在實際桌面上進行。
-瀏覽器預覽沒有桌面場景，原畫布仍是唯一桌面。「待處理」篩選不再隨檢視改名為「桌面」。
+2026-10-06: the user decided that once native desktop scenes are connected, the main window no longer redraws the
+notes in the top-left of the primary display as a 1:1 crop;
+the default is the list, and the other view is a scaled-down layout map of all displays (for now only a stub and
+a blank canvas); notes are moved on the real desktop.
+The browser preview has no desktop scenes, so the original canvas remains the only desktop. The To do filter is no
+longer renamed "Desktop" with the view.
 
-2026-10-05：[ADR-030](030-windows-explorer-wallpaper-layer.md) 加入第三個 wallpaper 場景及 Explorer 附著，
-取代下方兩層與 Windows 不提供桌布層的原始限制；單一權威與傳輸政策保留。
+2026-10-05: [ADR-030](030-windows-explorer-wallpaper-layer.md) added a third wallpaper scene and Explorer
+attachment,
+replacing the two layers below and the original limit that Windows offers no wallpaper layer; the single authority
+and the transport policy stay.
 
-Accepted，2026-10-04。採用共用命令／草稿協調及 Windows 呈現接線。
-不代表全域快捷鍵、顯示器熱插拔、其他平台或完整桌面驗收已完成；實際狀態見 PROGRESS。
+Accepted, 2026-10-04. Adopts shared command and draft coordination and the Windows presentation wiring.
+It does not mean global shortcuts, display hot-plugging, other platforms or full desktop acceptance are done;
+current status is in [PROGRESS.md](../../PROGRESS.md).
 
 ## Context
 
-主畫面已擁有 Workspace、版面與 SQLite adapter；桌面表面需要顯示相同卡片、送出手勢及文字。
-若每個 WebView 重開一個 Workspace，即使 native CAS 擋住競爭，仍會產生過期草稿與不同步操作狀態。
-卡片本文可大於單次 IPC，因此不能把桌面編輯限縮成小字串，也不能暴露任意儲存方法。
+The main window already owns the Workspace, the layout and the SQLite adapter; desktop surfaces need to show the
+same cards and send gestures and text.
+If every WebView opened its own Workspace, stale drafts and diverging operation state would appear even though the
+native CAS blocks races.
+Card text can be larger than one IPC message, so desktop editing cannot be limited to short strings, and arbitrary
+storage methods cannot be exposed.
 
 ## Decision
 
-- 主畫面保持唯一 Workspace／InteractionController。`src/desktop` 的 authority 將固定命令送入既有控制器；
-  場景只接收投影，不取得歷史、outbox、同步游標、原始附件或憑證。
-- Windows 每顯示器使用桌面及浮動兩個場景，各沿用 ADR-017 的互補原生視窗。
-  `DesktopCoordinator` 管理僅存在記憶體的 frame／command mailbox，場景不能調主畫面的 storage／backup bridge。
-  載入固定 `/desktop/index.html`，阻擋其他文件、子 frame、遠端資源及下载。
-- 畫面上限 128 MiB，文字命令 16 MiB；IPC 沿用 256 KiB 分片與 SHA-256。
-  唯讀 lease 固定指向同一份已完成 bytes，發布新畫面不使讀取中的舊畫面變質。
-  frame buffer 上限 320 MiB，command buffer 上限 64 MiB，合計 384 MiB；這不是整個瀏覽器程序的記憶體上限。
-  超額明確回報，不截斷內容；主資料仍可從管理入口存取。
-- session／view UUID、每 view 單調 serial、最近 256 個結果 receipt 防止舊視窗及重複命令寫入。
-  過期結果不重新執行。拖曳另外綁定控制器產生的唯一 generation；pointerId 重用不取得先前手勢權限。
-- 普通命令與主畫面動作共用執行序；草稿寫入使用獨立序列及名額。
-  普通命令先等呼叫前已接收的草稿，再檢查編輯世代；不把 flush 的最後寫入排在等待它的退出命令後面。
-- 就地文字每次保存必須收到 native durable ack 才前進 sequence。回覆不明時保留當時字串，先重試同 sequence，
-  再送後續輸入。換視窗先凍結並保存原視窗，接手最後文字；同卡重複編輯沿用草稿。
-- 關閉先拒絕普通場景命令，完成最後草稿後封住新命令、等待已接收工作，保持編輯凍結至 native 銷毀。
-  若關閉失敗才恢復輸入。場景失聯先解除 flush 等待，再等已接受 draft lane 落盤，主畫面才接手最新草稿。
-- Windows 座標使用啟動時主顯示器 DPI 的統一邏輯單位：physical 坐標除以 referenceDpi/96。
-  每個顯示器以 SetWindowPos 明確覆蓋其 physical bounds；WebView ZoomFactor 為 referenceDpi/monitorDpi，
-  input rect 先換為 WPF 邏輯座標再由 ADR-017 換成 native pixels。工作區採 work area，管理視窗 resize 不改版面。
-  此選擇維持跨顯示器連續座標與一致像素紙面；不同 DPI 螢幕的感知字體大小仍需實機驗證。
-- Windows 不提供桌布層時明確提示改以桌面層呈現，保留原偏好。來源合併帶來十組或長名稱仍顯示內容；
-  九組限制只約束新建／formation，不作 native 整幀拒收條件。
+- The main window stays the only Workspace / InteractionController. The authority in `src/desktop` sends fixed
+  commands into the existing controller;
+  scenes only receive the projection and never get history, the outbox, sync cursors, raw attachments or
+  credentials.
+- On Windows each display uses two scenes, desktop and floating, each reusing ADR-017's complementary native
+  windows.
+  `DesktopCoordinator` manages in-memory frame and command mailboxes, and scenes cannot call the main window's
+  storage or backup bridge.
+  They load the fixed `/desktop/index.html` and block other documents, child frames, remote resources and
+  downloads.
+- A frame is limited to 128 MiB and a text command to 16 MiB; IPC reuses 256 KiB chunks and SHA-256.
+  A read-only lease points to the same finished bytes, so publishing a new frame never changes an old frame that is
+  still being read.
+  The frame buffer is limited to 320 MiB and the command buffer to 64 MiB, 384 MiB in total; this is not a memory
+  limit for the whole browser process.
+  Exceeding a limit is clearly reported and content is not truncated; the main data can still be reached from the
+  management entry.
+- Session and view UUIDs, a monotonic serial per view and receipts for the last 256 results stop old windows and
+  duplicate commands from writing.
+  Expired results are not executed again. A drag is also bound to a unique generation that the controller creates;
+  a reused pointerId does not gain the rights of an earlier gesture.
+- Ordinary commands and main window actions share one execution sequence; draft writes use a separate sequence and
+  quota.
+  An ordinary command first waits for drafts received before it was called and then checks the edit generation; the
+  last write of a flush is never queued behind the exit command that waits for it.
+- Each save of in-place text must receive a native durable ack before the sequence advances. When the reply is
+  unclear, the string at that moment is kept, the same sequence is retried first,
+  and later input is sent afterwards. Switching windows first freezes and saves the original window, then takes
+  over the last text; editing the same card again reuses its draft.
+- Closing first rejects ordinary scene commands, finishes the last draft, then seals new commands, waits for work
+  already accepted, and keeps editing frozen until native destruction.
+  Input is restored only if closing fails. When a scene is lost, flush waits are released first, then the accepted
+  draft lane is awaited until written to disk, and only then does the main window take over the latest draft.
+- Windows coordinates use one logical unit based on the primary display's DPI at startup: physical coordinates
+  divided by referenceDpi/96.
+  Each display is covered explicitly with SetWindowPos over its physical bounds; the WebView ZoomFactor is
+  referenceDpi/monitorDpi,
+  and input rects are first converted to WPF logical coordinates and then by ADR-017 into native pixels. The work
+  area is used, and resizing the management window does not change the layout.
+  This choice keeps coordinates continuous across displays and papers pixel-consistent; the perceived font size on
+  displays with different DPI still needs verification on real hardware.
+- When Windows offers no wallpaper layer, a clear hint says the desktop layer is used instead, and the original
+  preference is kept. Ten groups or long names brought in by a source merge still show their content;
+  the nine-group limit only applies to creation and formation and is not a reason for the native side to reject a
+  whole frame.
 
 ## Consequences
 
 ### Positive
 
-多表面共用一份交易與草稿權威；重試、接手、失聯及關閉的資料保存界線可直接測試。
-現有附件、備份及完整編輯仍由主入口提供，場景無須擁有 OS 保存能力。
+Several surfaces share one transaction and draft authority; the data-saving boundaries of retries, hand-over, lost
+scenes and closing can be tested directly.
+Existing attachments, backups and full editing are still provided by the main entry, and scenes do not need OS
+storage capabilities.
 
 ### Negative
 
-目前傳輸完整投影，大量 Markdown 卡片的持續拖曳效能尚未壓測；多顯示器會增加 WebView 數量。
-主畫面程序失敗會結束桌面工作階段；未收到 durable ack 的文字不宣稱已保存。
-目前顯示器拓撲在啟動時建立，拔插／DPI 變更及原生快捷鍵整合仍另切片處理。
+The full projection is transferred for now; continuous dragging with many Markdown cards has not been load-tested,
+and multiple displays add WebViews.
+A failure of the main window process ends the desktop session; text without a durable ack is not claimed as
+saved.
+The display topology is currently built at startup; plugging and unplugging, DPI changes and native shortcut
+integration are handled in separate slices.
 
 ### Neutral
 
-瀏覽器預覽繼續使用原本單畫面 IndexedDB 模式；此切片未新增 listener、runtime 套件或外部來源程式。
+The browser preview keeps its original single-view IndexedDB mode; this slice adds no listener, runtime package or
+external source code.
 
 ## Alternatives Considered
 
-### 每表面各自開 Workspace
+### Each surface opens its own Workspace
 
-可重用完整主畫面初始化，但草稿與互動狀態會分歧、頻繁 CAS 拒絕；因此拒絕。
+This would reuse the full main window initialization, but drafts and interaction state would diverge and CAS
+rejections would be frequent; rejected.
 
-### 場景直接取得原生儲存 bridge
+### Scenes get the native storage bridge directly
 
-少一道轉送，但讓所有呈現文件擁有主工作區／vault 能力，且無法建立唯一控制器序列；因此拒絕。
+One less forwarding step, but every presentation document would gain main workspace / vault capabilities, and no
+single controller sequence could be built; rejected.
 
-## 2026-10-09 修訂：拖曳完成與附著畫面更新順序
+## 2026-10-09 revision: drag completion and the update order of attached frames
 
-`pointer.up`／`pointer.cancel` 的回覆先等主畫面發布目前 geometry。
-場景的 refresh 呼叫共用同一個進行中的下載與後續更新，放開後仍保留預覽，
-直到最新畫面下載及 native applied 完成，避免舊投影短暫把卡片拉回原位。
+The reply to `pointer.up` / `pointer.cancel` first waits for the main window to publish the current geometry.
+A scene's refresh call shares the same in-flight download and the following update, and the preview is kept after
+release
+until the latest frame has downloaded and native has applied it, so an old projection never pulls the card back to
+its original position for a moment.
 
-Windows 的 `scene.info` 回報選填 `prepareFrames`；場景下載後先呼叫 `scene.prepare`，
-native 驗證 sequence／topology，若 Explorer 附著表面的紙面 geometry 改變，先隱藏舊表面，
-再允許 renderer 移除／搬動便箋，之後沿原有 `scene.applied` 顯示新區域。
-這避免在舊的 opaque region 先畫出空白 WebView 背景；隱藏／釋放後另請原 Explorer parent 重繪。
-其他平台未回報此能力時不呼叫新方法；不變更桌布設定、便箋內容、geometry 保存規則或 IPC 容量。
-白色殘影的根因仍需新包實機確認，這個修正後流程及新增回歸尚未執行。
+On Windows, `scene.info` reports an optional `prepareFrames`; after downloading, the scene first calls
+`scene.prepare`,
+and native validates the sequence and topology. If the paper geometry of an Explorer-attached surface changes, the
+old surface is hidden first,
+then the renderer is allowed to remove or move notes, and afterwards the new region is shown through the existing
+`scene.applied`.
+This avoids drawing a blank WebView background in the old opaque region first; after hiding or releasing, the
+original Explorer parent is asked to redraw.
+Other platforms that do not report this capability never call the new method; the wallpaper settings, note
+content, geometry saving rules and IPC limits do not change.
+The root cause of the white ghosting still needs confirmation with a new package on real hardware; the flow after
+this fix and the added regression tests have not been run.
 
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
 - [ADR-017](017-windows-composition-surface-and-input.md)
-- [Windows 場景傳輸與座標研究](../research/2026-10-04-windows-desktop-coordination.md)
-- [桌面通道契約](../../contracts/desktop-scene.d.ts)
+- [Windows scene transport and coordinate research](../research/2026-10-04-windows-desktop-coordination.md)
+- [Desktop channel contract](../../contracts/desktop-scene.d.ts)
 
 Decision made: 2026-10-04.

@@ -1,88 +1,107 @@
-# SPEC-002: 1.0 可攜備份與安全還原
+# SPEC-002: Portable backup and safe restore for 1.0
 
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | Accepted 技術契約；實作及驗收狀態只記 PROGRESS |
-| Owner | 專案維護者 |
-| 日期 | 2026-10-04；2026-10-10 雲端覆蓋；2026-10-12 本機完整還原及雙向遷移 |
-| 範圍依據 | SPEC-003 Q01–Q07：完整內容、群組／版面、自動／加密備份、三種還原、五平台 |
+| Status | Accepted technical contract. Current implementation and acceptance status is in [PROGRESS](../../PROGRESS.md); history and verification evidence are in the git history and [testing](../testing.md) |
+| Owner | Project maintainer |
+| Date | 2026-10-04; 2026-10-10 cloud overwrite; 2026-10-12 full local restore and two-way migration |
+| Scope basis | SPEC-003 Q01–Q07: complete content, groups and layout, automatic and encrypted backups, three restores, five platforms |
 
 ## Summary
 
-備份是使用者持有的檔案，不依賴原 Google 帳號、Drive file ID 或雲端仍有原檔。
-共用核心保存一次已提交的本機快照，含全部已知版本、草稿、群組、每機版面及附件。
-還原前驗證整份檔案、預覽目標分區與影響，確認後原子提交；不把備份當可執行內容。
-[ADR-013](../decisions/013-complete-portable-backup.md) 取代 ADR-005 的候選設計。
-手動、自動、加密及三種還原都屬 1.0；2026-10-10 另確認全量 Google 覆蓋與 MSIX 解除安裝政策，見 [ADR-037](../decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)。
-容器模組完成不代表全部功能已完成。
+A backup is a file the user owns. It does not depend on the original Google account, on Drive file IDs or on the
+original files still being in the cloud.
+The shared core saves one committed local snapshot with all known revisions, drafts, groups, per-device layouts and
+attachments.
+Before a restore the whole file is validated and the target partition and the impact are previewed; after confirmation
+the restore commits atomically. A backup is never treated as executable content.
+[ADR-013](../decisions/013-complete-portable-backup.md) replaces the candidate design of ADR-005.
+Manual, automatic and encrypted backups and the three restores all belong to 1.0. On 2026-10-10 a full Google
+overwrite and the MSIX uninstall policy were also confirmed; see
+[ADR-037](../decisions/037-msix-data-lifetime-and-google-backup-overwrite.md).
+A finished container module does not mean that every feature is finished.
 
 ## Goals
 
-- 換裝置、重裝或換帳號仍能取回完整已知資料，保留未完成工作與未保存草稿。
-- Markdown/checklist、附件、完成／封存／刪除狀態及未知 JSON value 擴充無損往返。
-- 提供新增式匯入、按身分合併及取代可見狀態，這三種模式保留歷史及並行版本。
-  另提供明確的全量 Google 覆蓋，只保留備份中的歷史，舊資料須先保存安全備份。
-  本機完整還原不強制先備份舊資料，確認後一次取代便箋、草稿、歷史、版面與附件。
-- 區分已產生 bytes、OS 已保存、本機已還原與遠端已同步。
+- Changing devices, reinstalling or switching accounts still recovers all known data, keeping unfinished work and
+  unsaved drafts.
+- Markdown/checklists, attachments, completed/archived/deleted states and unknown JSON value extensions round-trip
+  without loss.
+- Provide additive import, merge by identity and replacing the visible state; these three modes keep history and
+  concurrent versions.
+  There is also an explicit full Google overwrite that keeps only the history in the backup; the old data must first be
+  saved in a safety backup.
+  A full local restore does not force a backup of the old data first; after confirmation it replaces notes, drafts,
+  history, layout and attachments in one step.
+- Distinguish bytes produced, saved by the OS, restored locally and synced remotely.
 
 ## Non-Goals
 
-不備份 OAuth／OS 憑證，不增加 Drive 權限；不承諾收到其他裝置尚未上傳的內容。
-0.1.0 SQLite 備份不是此格式。不執行封存中的 URL、HTML、script 或外部路徑。
-不承諾跨裝置的主動重複匯入只產生一份，或 Drive 多檔案原子交易。
+OAuth and OS credentials are not backed up, and no Drive permission is added; content that other devices have not
+uploaded yet is not promised.
+The 0.1.0 SQLite backup is not this format. URLs, HTML, scripts or external paths inside the archive are never executed.
+It is not promised that deliberate repeated imports across devices produce only one copy, nor that Drive offers
+multi-file atomic transactions.
 
 ## Requirements
 
-| ID | 需求 |
+| ID | Requirement |
 |---|---|
-| B01 | 設定的「資料與備份」提供匯出、驗證／預覽、還原及自動備份；桌面不加常駐工具列 |
-| B02 | 匯出單一 ZIP；可選完整 payload 加密，使用 OS 儲存／分享介面 |
-| B03 | 顯示快照時間、最後成功同步時間（未知就是未知）、待同步／草稿／衝突／pending 數量 |
-| B04 | 匯出始終綁定捕獲的 profile，不能在切換後改用另一分區附件 |
-| B05 | 完整驗證之前不寫目標；預覽顯示目標帳號／本機分區、模式及所有受影響數量 |
-| B06 | 三種模式都有明確確認；取代另需已保存的還原前安全備份 |
-| B07 | 工作、備份指紋、ID 對照、內容／附件／草稿／版面及新 outbox 同一本機原子交易 |
-| B08 | 重啟／重試同一工作不重複新增；完成後再匯入一份必須明確建立新工作 |
-| B09 | 損壞、錯密碼、不支援、容量超限、取消或保存失敗不得留下半套成功 |
-| B10 | 不丟失未知 value／衝突／草稿，不自動挑選並行版本勝者 |
-| B11 | 自動備份有位置授權、保留份數、上次成功／失敗與補跑；只管理自己建立的檔案 |
-| B12 | MSIX 更新保留套件資料；解除安裝清除全部套件內本機資料，使用者匯出的 ZIP 與 Google 雲端不受影響 |
-| B13 | 全量 Google 覆蓋需已驗證備份、同帳號／revision 的已保存安全備份及永久清空確認；先持久保存完整還原資料，再清空雲端 |
-| B14 | 雲端清空與上傳分持久階段；失敗／重啟可續行，上傳重試不得再次清空，舊裝置遇標記停止同步 |
-| B15 | 本機與 Google 備份同格式、可雙向遷移；手動 Google 匯出先同步，失敗只在明確同意後保存已知副本 |
-| B16 | 本機完整還原需完整驗證、過期保護及永久取代確認；舊資料備份可選，工作空間與附件集合原子取代且不影響其他分區 |
+| B01 | "Data and backup" in Settings offers export, validate/preview, restore and automatic backups; no permanent toolbar is added to the desktop |
+| B02 | Export one ZIP, with optional encryption of the whole payload, through the OS save/share UI |
+| B03 | Show the snapshot time, the last successful sync time (unknown stays unknown) and the counts of pending sync, drafts, conflicts and pending items |
+| B04 | An export is always bound to the captured profile and cannot use another partition's attachments after a switch |
+| B05 | Nothing is written to the target before full validation; the preview shows the target account or local partition, the mode and all affected counts |
+| B06 | All three modes need explicit confirmation; replace also needs a saved pre-restore safety backup |
+| B07 | The job, the backup fingerprint, the ID map, content/attachments/drafts/layout and the new outbox are one local atomic transaction |
+| B08 | Restarting or retrying the same job adds no duplicates; importing the same file again after completion must explicitly create a new job |
+| B09 | Corruption, a wrong password, unsupported content, exceeded capacity, cancellation or a failed save must not leave a half success |
+| B10 | No loss of unknown values, conflicts or drafts; no automatic choice of a winner among concurrent versions |
+| B11 | Automatic backups have a location grant, a retention count, last success/failure and catch-up runs; they manage only the files they created |
+| B12 | MSIX updates keep the package data; uninstalling clears all local data inside the package, while ZIPs the user exported and the Google cloud are not affected |
+| B13 | A full Google overwrite needs a validated backup, a saved safety backup of the same account and revision, and confirmation of permanent clearing; the complete restore data is persisted first, then the cloud is cleared |
+| B14 | Clearing the cloud and uploading are separate persisted stages; after a failure or restart they resume, an upload retry must not clear again, and old devices that meet the marker stop syncing |
+| B15 | Local and Google backups share one format and can migrate in both directions; a manual Google export syncs first and, on failure, saves the known copy only with explicit consent |
+| B16 | A full local restore needs full validation, staleness protection and confirmation of permanent replacement; a backup of the old data is optional; the workspace and its attachment set are replaced atomically without affecting other partitions |
 
 ## Design Overview
 
-### 一致快照及資料邊界
+### Consistent snapshot and data boundary
 
-匯出前 UI 必須 flush 所有 editor 草稿並等候提交；失敗保留輸入並中止。
-手動 Google 匯出先同步；失敗／尚有待同步內容時不默默匯出，明確選擇後才備份本機已知資料。
-完整 pull／push／pull 且無待同步操作才持久記錄成功時間；失敗保留舊時間。自動／安全備份仍是本機快照。
-Workspace.state 一次複製取得一致快照，
-之後只從這個 profile 讀取不可變 SHA-256 附件並驗證 bytes。後續編輯留待下一份備份。
+Before an export the UI must flush every editor draft and wait for the commit; on failure the input is kept and the
+export stops.
+A manual Google export syncs first. If that fails or content is still waiting to sync, it does not export silently; it
+backs up the known local data only after an explicit choice.
+The success time is persisted only after a complete pull/push/pull with no pending operations; on failure the old time
+stays. Automatic and safety backups remain local snapshots.
+One copy of Workspace.state gives a consistent snapshot;
+afterwards immutable SHA-256 attachments are read only from this profile and their bytes are verified. Later edits wait
+for the next backup.
 
-| 內容 | 保存方式 |
+| Content | How it is saved |
 |---|---|
-| 卡片／群組 | 全部 immutable revisions，包括完整 ancestors、並行 heads、retired redirects 及全部狀態 |
-| 尚缺 parent | 原樣保留 pending 記錄及缺失 ID，不杜撰 parent；manifest 計數並明示已知本機範圍 |
-| 草稿 | 全部 draft、未提交卡片、recoveredFrom 基線及其附件；還原後仍是本機草稿 |
-| 本機閱讀偏好 | 當前完整 head 選擇及 entity 順序、純 membership rebase 證明、未完成轉組意圖 |
-| 每機版面 | deviceId、grid／區域、placement／尺寸／order、顯示／層級／選字、快捷鍵、myGroup、undo |
-| 附件 | 所有歷史、草稿及其基線引用的 bytes；缺檔、尺寸不符或 hash 錯即拒絕完整匯出 |
-| 排除 | profile／帳號、token、client secret、Drive file ID、source/session、cursor、upload URL、outbox 封包及 restore receipt |
+| Cards / groups | All immutable revisions, including complete ancestors, concurrent heads, retired redirects and all states |
+| Missing parent | Pending records and missing IDs are kept as they are, without inventing parents; the manifest counts them and states the known local scope |
+| Drafts | All drafts, uncommitted cards, recoveredFrom baselines and their attachments; after a restore they are still local drafts |
+| Local reading preferences | The current complete head selection and entity order, proofs of pure membership rebases, unfinished transfer intents |
+| Per-device layout | deviceId, grid/regions, placement/size/order, display/layer/selection, shortcuts, myGroup, undo |
+| Attachments | The bytes referenced by all history, drafts and their baselines; a missing file, a size mismatch or a wrong hash rejects the complete export |
+| Excluded | Profile/account, tokens, client secret, Drive file IDs, source/session, cursor, upload URLs, outbox packets and restore receipts |
 
-未知 content format 及 value/draft/layout 的 JSON 擴充可保存；固定 envelope、manifest、local
-欄位不可任意增添。未支援的非投影 conflict 不可默默省略。備份不清空 outbox 或草稿。
-scope 固定 known-local-data；未收到的遠端資料不可能包含。pending 不等於備份損壞。
-草稿 lineage 以嚴格解析後的 canonical JSON 值比對，不依賴序列化 key 順序。
+Unknown content formats and JSON extensions of value/draft/layout can be kept; the fixed envelope, manifest and local
+fields cannot be extended at will. Unsupported non-projected conflicts must not be silently omitted. A backup does not
+clear the outbox or drafts.
+The scope is always known-local-data; remote data that was not received cannot be included. Pending does not mean that
+the backup is damaged.
+Draft lineage is compared on canonical JSON values after strict parsing, not on the serialized key order.
 
-### 公開容器 v1
+### Public container v1
 
-建議檔名 `work-fleet-backup-YYYY-MM-DD-HHMMSS-<short-id>.zip`。
-明文 ZIP 使用 store（0）或 deflate（8）；UTF-8 JSON、ASCII 固定路徑，序號與實際資料 ID 無關：
+Suggested file name: `work-fleet-backup-YYYY-MM-DD-HHMMSS-<short-id>.zip`.
+A plain ZIP uses store (0) or deflate (8), with UTF-8 JSON and fixed ASCII paths; the ordinals are unrelated to the
+actual data IDs:
 
 ```text
 manifest.json
@@ -93,183 +112,246 @@ drafts/00000000.json
 attachments/<64 lowercase SHA-256 hex>.bin
 ```
 
-不存在的項目不建立空目錄 entry。Ordinal 不要求連續，不得重複路徑或 revision ID。
-reader 不解壓到檔案系統；只接受單卷、非 ZIP64、普通檔案。拒絕連結、目錄、路徑穿越、
-其他加密 ZIP、SFX 前綴、尾隨垃圾、local/central 差異及重疊／不連續範圍。
-data descriptor 可帶或不帶 signature，CRC 等於 signature 仍以邊界辨識。
-僅接受時間戳／NTFS 時間／UID/GID extra fields。先驗證目錄及上限，
-再以原生 DecompressionStream('deflate-raw') 串流解壓，按實際 bytes、CRC、完整結尾及 SHA-256 核對。
-缺能力的 runtime 明確拒絕，不回退寬鬆 parser。
+Items that do not exist get no empty directory entry. Ordinals need not be contiguous; paths and revision IDs must not
+repeat.
+The reader never extracts to the file system; it accepts only single-volume, non-ZIP64 regular files. It rejects links,
+directories, path traversal, other encrypted ZIPs, SFX prefixes, trailing garbage, local/central differences and
+overlapping or non-contiguous ranges.
+A data descriptor may come with or without a signature; a CRC equal to the signature is still told apart by its
+boundary.
+Only timestamp, NTFS time and UID/GID extra fields are accepted. The directory and the limits are validated first;
+then the native DecompressionStream('deflate-raw') decompresses as a stream, checked against the actual bytes, the CRC,
+a complete end and the SHA-256.
+A runtime that lacks the capability refuses explicitly and does not fall back to a lenient parser.
 
-manifest 僅以下欄位，未知 schema 拒絕：
+The manifest has only the following fields; an unknown schema is rejected:
 
-| 欄位 | v1 定義 |
+| Field | v1 definition |
 |---|---|
 | format / schemaVersion | work-fleet-backup / 1 |
-| backupId | SPEC-004 的 valid ID，建立一次備份時產生 |
-| createdAt | 真實 UTC ISO 日期，固定毫秒 YYYY-MM-DDTHH:mm:ss.sssZ |
-| appVersion | 1–64 UTF-16 code units 的版本說明 |
+| backupId | A valid ID per SPEC-004, generated once when the backup is created |
+| createdAt | A real UTC ISO date with fixed milliseconds, YYYY-MM-DDTHH:mm:ss.sssZ |
+| appVersion | A version description of 1–64 UTF-16 code units |
 | scope | known-local-data |
-| pendingOperations | 非負安全整數，捕獲時 outbox 數量；不攜帶封包 |
-| lastSuccessfulSyncAt | 同 createdAt 日期格式或 null；沒有紀錄不能冒充剛同步 |
-| counts | cards、groups、revisions、drafts、attachments、conflicts、pendingRevisions，均非負安全整數 |
-| files | 除 manifest 自身每個 entry 且僅一次：{name,size,sha256}；size 是解壓後 bytes |
+| pendingOperations | A non-negative safe integer, the outbox count at capture; the packets are not carried |
+| lastSuccessfulSyncAt | The same date format as createdAt, or null; a missing record must not pretend to have just synced |
+| counts | cards, groups, revisions, drafts, attachments, conflicts, pendingRevisions, all non-negative safe integers |
+| files | Every entry except the manifest itself, exactly once: {name,size,sha256}; size is the decompressed byte count |
 
-cards/groups 包含刪除及退役；pending-only entity 無完整 head，不算可投影卡片，
-但記錄包含在 revisions/pendingRevisions。conflicts 由 graph、group refs、overflow 和轉組意圖重建。
-fingerprint 為 canonical manifest 的 SHA-256；所有 payload hashes 都在 manifest 內。
-SHA 偵測完整性，不證明作者可信；驗證通過的使用者內容仍視為外部資料。
+cards/groups include deleted and retired entities. A pending-only entity has no complete head and does not count as a
+projectable card, but its records are included in revisions/pendingRevisions. conflicts are rebuilt from the graph,
+group refs, overflow and transfer intents.
+The fingerprint is the SHA-256 of the canonical manifest; all payload hashes are inside the manifest.
+SHA detects integrity and does not prove that the author is trustworthy; user content that passes validation is still
+treated as external data.
 
-local.json 固定 cards、groups、membershipRebases、transferIntents。
-cards/groups 是 {id,revision} 陣列，覆蓋全部可投影 entity 並選有效完整 head。
-membershipRebases 是 old revision → {cardId,revision}；須為同卡片直接 parent 邊，
-去除 groupId/revision 後其餘 value 相同。transfer intent 固定 kind/cardId/groupId/expectedRevision。
-layout.json 保存 schema 1 LayoutStore；card/group/undo 引用需合法。
-group cycle、retired target 及 >9 群組仍保留並明示待修復，不為備份刪資料。
-revisions 採 [SPEC-004](004-revision-graph-and-file-sync.md)；draft 保存 Workspace 格式，
-含可空 baseRevision 與線性 recoveredFrom，baseline 不得再嵌 recoveredFrom。
-已知 draft base 須為同卡片版本；未知 base 保留為未完成意圖。
+local.json always holds cards, groups, membershipRebases and transferIntents.
+cards/groups are {id,revision} arrays that cover every projectable entity and select a valid complete head.
+membershipRebases map an old revision → {cardId,revision}; each must be a direct parent edge of the same card, and the
+rest of the value must be identical once groupId/revision are removed. A transfer intent always has
+kind/cardId/groupId/expectedRevision.
+layout.json holds a schema 1 LayoutStore; its card/group/undo references must be valid.
+Group cycles, retired targets and more than 9 groups are kept and clearly marked as needing repair; no data is deleted
+for a backup.
+revisions follow [SPEC-004](004-revision-graph-and-file-sync.md); drafts keep the Workspace format, with a nullable
+baseRevision and a linear recoveredFrom, and a baseline must not embed another recoveredFrom.
+A known draft base must be a revision of the same card; an unknown base is kept as an unfinished intent.
 
-可執行 validator 是 src/backup/payload.js、archive.js 及 src/sources/revisions.js。
-欄位形狀以外必須核對 graph、引用、hash 及計數，不能只通過 JSON 解析就匯入。
+The executable validators are src/backup/payload.js, archive.js and src/sources/revisions.js.
+Beyond field shapes, the graph, references, hashes and counts must be checked; passing JSON parsing alone is not enough
+to import.
 
-### 加密 envelope v1
+### Encryption envelope v1
 
-外層 ZIP 只有 encryption.json 與 payload.bin；payload 為整個明文 ZIP 的 AES-256-GCM
-ciphertext 及 128-bit tag，內部檔名／manifest／內容均加密。一般解壓工具只能取出外層兩個 entry；
-此格式不是傳統 ZIP 密碼或 WinZip AES。
+The outer ZIP holds only encryption.json and payload.bin. The payload is the AES-256-GCM ciphertext and 128-bit tag
+of the whole plain ZIP, so inner file names, the manifest and the content are all encrypted. Ordinary unzip tools can
+extract only the two outer entries;
+this format is not a traditional ZIP password or WinZip AES.
 
-header 僅 format=work-fleet-encrypted-backup、schemaVersion=1、cipher=AES-256-GCM、
-kdf=PBKDF2-HMAC-SHA256、iterations=600000、16-byte salt、12-byte nonce（小寫 hex）、tagBits=128。
-每次 salt/nonce 隨機產生，canonical header 作 additional authenticated data。
-密碼 UTF-8、不做 Unicode normalization；匯出至少 12 Unicode code points、最多 1024 UTF-16 units。
-不能恢復密碼，不寫入 manifest、設定 JSON、log 或 .env。
-KDF 值固定白名單；tag 成功後才解析內層，不接受嵌套加密。
-清除能控制的暫時 byte buffers，不承諾 JavaScript 字串／GC 記憶體可確定清除。
+The header has only format=work-fleet-encrypted-backup, schemaVersion=1, cipher=AES-256-GCM,
+kdf=PBKDF2-HMAC-SHA256, iterations=600000, a 16-byte salt, a 12-byte nonce (lowercase hex) and tagBits=128.
+Salt and nonce are generated randomly every time, and the canonical header is the additional authenticated data.
+The password is UTF-8 without Unicode normalization; on export it has at least 12 Unicode code points and at most 1024
+UTF-16 units.
+The password cannot be recovered and is never written to the manifest, settings JSON, logs or .env.
+The KDF values are a fixed allow-list; the inner layer is parsed only after the tag check succeeds, and nested
+encryption is not accepted.
+Temporary byte buffers under the app's control are cleared; there is no promise that JavaScript strings or GC memory
+can be cleared deterministically.
 
-### 容量及取消
+### Capacity and cancellation
 
-| 邊界 | v1 上限 |
+| Limit | v1 maximum |
 |---|---|
-| ZIP entries（包括 manifest） | 20,000 |
-| 明文解壓總量 | 128 MiB |
-| 明文 ZIP | 136 MiB |
-| 加密 ZIP | 136 MiB + 4096 bytes |
-| 單一 JSON | 8 MiB，深度 64／200,000 nodes，依 SPEC-004 strict JSON |
-| 單一附件 | 25 MiB |
-| 加密 header | 4096 bytes |
+| ZIP entries (including the manifest) | 20,000 |
+| Total decompressed plain data | 128 MiB |
+| Plain ZIP | 136 MiB |
+| Encrypted ZIP | 136 MiB + 4096 bytes |
+| Single JSON | 8 MiB, depth 64 / 200,000 nodes, strict JSON per SPEC-004 |
+| Single attachment | 25 MiB |
+| Encryption header | 4096 bytes |
 
-匯出／匯入同上限，不截斷內容。大型 stored entry 以 64 KiB 複製／CRC 並讓出事件迴圈，
-解壓串流核對實際輸出；取消後不回傳成功或寫目標。原生 KDF/AEAD 開始後須等完成再拒絕。
-這是工程限制，最低五平台裝置壓測須另列證據；記憶體不足明確失敗，不省略資料。
+Export and import share these limits; content is never truncated. Large stored entries are copied and CRC-checked in
+64 KiB pieces, yielding to the event loop, and the decompression stream checks the actual output; after cancellation
+nothing returns success or writes the target. Once native KDF/AEAD has started, it must finish before the operation is
+refused.
+These are engineering limits; stress tests on minimum devices of the five platforms need their own evidence. Running
+out of memory fails explicitly and never omits data.
 
-### 匯出及三種還原
+### Export and the three restores
 
-ZIP 產生後用相同 reader 重開檢驗，再交 OS 儲存。host 確認完整保存才顯示成功；
-瀏覽器下載只能回報已交給瀏覽器，不能宣稱磁碟完成。未確認保存不得回報成功。
-具 File System Access 的瀏覽器先在點擊事件取得使用者選定的 handle，再壓縮／加密；
-寫入、close 及完整大小／SHA-256 讀回皆成功才發保存 receipt。只有下載能力時仍可匯出，
-不能據此解鎖取代。取代前安全備份的 receipt 綁定捕獲的 profile／revision，資料變更後失效。
-close 前切入不可取消的檔案提交／校驗階段；UI 停用取消，晚到 abort 不把已寫入的檔案
-誤報為取消。close／讀回失敗須明示目的檔可能已改變且保存未確認，不能承諾回滾已發布檔案。
-還原先在記憶體／隔離暫存區完整驗證，顯示數量、pending／衝突、目標與模式：
+After the ZIP is produced, it is reopened and checked with the same reader before it goes to the OS for saving.
+Success is shown only after the host confirms a complete save; a browser download can only report that the file was
+handed to the browser and cannot claim that it is on disk. An unconfirmed save must not report success.
+A browser with File System Access first obtains the user-chosen handle in the click event, then compresses and
+encrypts; a save receipt is issued only after the write, the close and a read-back of the full size and SHA-256 all
+succeed. With only download capability an export is still possible,
+but it cannot unlock replace. The receipt of the pre-replace safety backup is bound to the captured profile/revision
+and becomes invalid when the data changes.
+Before close, the save enters a non-cancellable file commit/verification stage; the UI disables cancel, and a late
+abort does not misreport an already written file as cancelled.
+A close or read-back failure must state that the destination file may have changed and that the save is unconfirmed;
+there is no promise to roll back a published file.
+A restore is first fully validated in memory or in an isolated staging area, and shows the counts, pending items and
+conflicts, the target and the mode:
 
-| 模式 | 身分／內容 | 本機版面 |
+| Mode | Identity / content | Local layout |
 |---|---|---|
-| 匯入為新資料 | 映射全部 entity、revision、draft 及尚缺引用 ID；保留圖／分支，附件按 hash 去重 | 既有卡不移；新卡可選備份 geometry，否則給初始位置 |
-| 合併 | 同 immutable ID／內容去重；同 ID 異內容整批拒絕；保留新分支／歷史，不以時間選勝者 | 預設保留目前版面，明確選擇才套用備份配置 |
-| 取代可見狀態 | 先保存安全備份；以追加版本恢復備份 heads，額外卡片進刪除區；不刪歷史或 Drive 檔 | 明確套用備份版面，使用目標 deviceId；不可達位置只救回標題 |
+| Import as new data | Maps every entity, revision, draft and missing referenced ID; keeps graphs and branches; attachments are deduplicated by hash | Existing cards do not move; new cards can optionally take the backup geometry, otherwise they get an initial position |
+| Merge | Deduplicates identical immutable IDs/content; the same ID with different content rejects the whole batch; keeps new branches and history; no winner chosen by time | Keeps the current layout by default; applies the backup layout only on explicit choice |
+| Replace visible state | Saves a safety backup first; restores the backup heads as appended revisions, and extra cards go to Deleted; deletes no history or Drive files | Explicitly applies the backup layout with the target deviceId; for unreachable positions only the title is rescued |
 
-取代新版本包含預覽觀測的全部相關 heads 作 parents；備份多分支仍維持多分支。
-單次取代某 entity 的 parents 上限 1,024；超過即要求先處理衝突，不能截斷 heads。
-額外群組退休與草稿去向納入預覽；原草稿及還原草稿都保留，不自動發布。
-同 draft ID／不同內容另配 ID，連帶映射 lineage／baseline；相同 draft 去重。
-同一 membership 基線指向不同後繼時保留歷史、暫停該自動延續邊並在預覽明示。
-取代的備份沒有活動群組時新增「還原後保留」供額外群組退休及後續記錄。
-無活動群組、循環或超過九組不能丟資料解決，需明示恢復／合併方法。
-暫時 scope/focus/拖曳不還原；geometry 不作共享內容送其他裝置。
+A replacing revision takes all related heads observed in the preview as parents; multiple branches in the backup stay
+multiple branches.
+One replace allows at most 1,024 parents per entity; beyond that the user must resolve conflicts first, and heads are
+never truncated.
+Retiring extra groups and where drafts go are part of the preview; both the original drafts and the restored drafts are
+kept and not published automatically.
+The same draft ID with different content gets a new ID, and its lineage/baseline are mapped along with it; identical
+drafts are deduplicated.
+When the same membership baseline points to different successors, history is kept, that automatic continuation edge is
+paused, and the preview says so.
+When the backup being restored by replace has no active group, a "Kept after restore" group is added to receive the
+retired extra groups and later records.
+No active group, cycles or more than nine groups cannot be solved by dropping data; the recovery or merge method must
+be stated.
+Temporary scope, focus and drag state are not restored; geometry is not sent to other devices as shared content.
 
-計畫綁 profile、workspace revision、fingerprint、restoreJobId；提交前資料變更需重做預覽。
-附件、映射、新 revision/outbox、草稿、layout、receipt 同一本機原子交易。
-傳輸重用持久 operation/file ID，回應遺失不重複新增；未觀測的新遠端分支仍能形成衝突。
-取消未提交計畫是零寫入；提交後取消只停傳輸，不以刪除補償已發布資料。
-新卡定位也分批讓出取消，不因大量 placement 而凍結預覽。IndexedDB adapter 以同一
-嚴格 durability transaction 寫 workspace／receipt／所有附件；讀回既有 job receipt 可處理
-commit 已完成但回應遺失的重試。已進入原子提交時 UI 停用取消，等待確定結果。
+The plan is bound to the profile, workspace revision, fingerprint and restoreJobId; if data changes before the commit,
+the preview must be redone.
+Attachments, the ID map, new revisions/outbox, drafts, layout and the receipt are one local atomic transaction.
+Transfers reuse persisted operation/file IDs, so a lost response adds no duplicates; new remote branches that were not
+observed can still form conflicts.
+Cancelling an uncommitted plan writes nothing; cancelling after the commit only stops the transfer and does not
+compensate by deleting published data.
+Placing new cards also runs in batches that yield to cancellation, so a large number of placements does not freeze the
+preview. The IndexedDB adapter writes the workspace, the receipt and all attachments in one strict-durability
+transaction; reading back an existing job receipt handles a retry whose commit finished but whose response was lost.
+Once the atomic commit has started, the UI disables cancel and waits for the definite result.
 
-### 全量 Google 覆蓋與解除安裝
+### Full Google overwrite and uninstall
 
-「清空 Google 後，從備份還原」是另一個明確模式，不改「取代目前的便箋」的歷史保留語意。
-僅在已登入且可連線的 Google 工作空間提供；先同步目前資料並完整驗證輸入，預覽綁定目前帳號與 revision。
-使用者保存目前資料安全備份並勾選清空確認後，把備份合併到空白的同帳號 Workspace，
-完整狀態、附件及工作標記同一本機交易落盤。被覆蓋的舊草稿只留在安全 ZIP，備份草稿仍是本機草稿。
+"Clear Google, then restore from backup" is a separate explicit mode and does not change the history-keeping semantics
+of "Replace current notes".
+It is offered only in a signed-in Google workspace that can connect. It first syncs the current data and fully
+validates the input, and the preview is bound to the current account and revision.
+After the user saves a safety backup of the current data and ticks the clearing confirmation, the backup is merged into
+a blank Workspace of the same account, and the complete state, attachments and job marker are written to disk in one
+local transaction. Overwritten old drafts remain only in the safety ZIP; drafts from the backup are still local drafts.
 
-普通同步在 `reset` 階段暫停；先寫重設標記並清空目前專案的 Work Fleet appDataFolder，
-保留控制標記，再持久保存 `upload` 階段，才上傳備份全部已知版本及附件。
-不是 Drive 多檔案原子交易；中斷可能留下空白或部分雲端，重啟提供「繼續覆蓋 Google」。
-上傳重試沿用既有持久 file IDs，不再次清空。其他裝置須先停止同步；持有舊資料的裝置遇標記會停止同步並詢問副本處理。
-一般 Drive 檔案不受影響，未同步／未收到的其他裝置內容不在安全備份內。
+Normal sync pauses in the `reset` stage. The reset marker is written first and the current project's Work Fleet
+appDataFolder is cleared, keeping the control markers; then the `upload` stage is persisted, and only then are all
+known revisions and attachments of the backup uploaded.
+This is not a Drive multi-file atomic transaction; an interruption can leave the cloud blank or partial, and after a
+restart "Continue overwriting Google" is offered.
+Upload retries reuse the existing persisted file IDs and do not clear again. Other devices must stop syncing first; a
+device holding old data stops syncing when it meets the marker and asks what to do with its copy.
+Ordinary Drive files are not affected; content on other devices that was not synced or not received is not in the
+safety backup.
 
-MSIX 所有本機／Google 分區、設定、草稿、附件、憑證及 cache 存放在套件私有資料區；
-解除安裝清除，更新保留。使用者匯出的 ZIP 與雲端不屬於套件資料。
-舊 ZIP／Debug 的獨立目錄不自動搬移或刪除，需先以舊版匯出、再於新 MSIX 匯入。
+In the MSIX, all local and Google partitions, settings, drafts, attachments, credentials and caches live in the
+package's private data area; uninstalling clears them and updates keep them. ZIPs the user exported and the cloud are
+not package data.
+The separate directories of the old ZIP and Debug builds are not moved or deleted automatically; export with the old
+build first, then import into the new MSIX.
 
-### 本機完整還原及雙向遷移
+### Full local restore and two-way migration
 
-「清空本機後，從備份還原」只在本機工作空間提供，格式與其他模式相同。
-先驗證、顯示目標與清除數量，再勾選永久取代確認；不要求保存舊資料或先重設工作空間。
-以空白工作空間建立綁原 profile／revision 的計畫，保留備份身分、全部歷史、草稿、附件與版面；
-目標 deviceId 不變、不可達 geometry 救回。工作空間／graph／layout／receipt 與整個附件集合
-同一 CAS 交易取代，舊內容不留在刪除區；空附件備份也清除舊 bytes。
-取消、過期／錯 profile、磁碟滿及交易中止保留原資料；原生回應遺失須確認完整持久內容後才完成。
-自動備份先等待閒置，完成後恢復，設定／已保存 ZIP／其他工作空間及 Google 雲端不受影響。
-Google→離線本機：手動匯出 ZIP → 切換本機便箋 → 匯入或本機完整還原；之後不向 Google 回寫。
-Google→Google 或本機→Google 則在目標 Google 工作空間選匯入、合併、原取代或全量覆蓋。
-相關決策見 [ADR-038](../decisions/038-portable-local-and-cloud-backup-flows.md)。
+"Clear local data, then restore from backup" is offered only in a local workspace and uses the same format as the
+other modes.
+It validates first and shows the target and how much will be cleared, then asks for the permanent-replacement
+confirmation; it does not require saving the old data or resetting the workspace first.
+A plan bound to the original profile/revision is built on a blank workspace and keeps the backup's identities, full
+history, drafts, attachments and layout; the target deviceId stays the same and unreachable geometry is rescued. The
+workspace, graph, layout and receipt and the whole attachment set
+are replaced in one CAS transaction; old content is not left in Deleted, and a backup without attachments also clears
+the old bytes.
+Cancellation, a stale or wrong profile, a full disk and an aborted transaction keep the original data; when a native
+response is lost, the restore completes only after the complete persisted content is confirmed.
+Automatic backups first wait until idle and resume afterwards; settings, saved ZIPs, other workspaces and the Google
+cloud are not affected.
+Google → offline local: export a ZIP manually → switch to Local notes → import, or run a full local restore; nothing is
+written back to Google afterwards.
+Google → Google or local → Google: in the target Google workspace choose import, merge, the original replace or the
+full overwrite.
+The related decision is [ADR-038](../decisions/038-portable-local-and-cloud-backup-flows.md).
 
-### 自動備份
+### Automatic backups
 
-預設關閉；啟用時選 OS 授權位置、加密及保留份數（預設 7，1–90）。
-有資料變化且距成功備份滿 24 小時才執行；合併重複觸發，失敗退避。
-App 啟動／resume 逾期補跑一次，不宣稱 App 關閉或手機暫停時一定準時。
-加密排程需 OS 安全儲存的密碼或 key handle；能力／授權不可用時暫停，不回退明文。
-新檔寫入並驗證成功後才依 durable inventory 修剪此排程自身的舊檔；
-不能按檔名掃目錄刪其他備份、跨 profile 或跨授權位置，失敗保留既有成功檔。
-實作細節見 [ADR-014](../decisions/014-durable-automatic-backups.md)：獨立 profile CAS journal，
-檔案寫入前保存 pending，重啟按期望 bytes 核對；設定改動產生新 policyId，避免沿用舊加密政策的成功紀錄。
-原生 host 必須提供安全 create-only 及身分綁定清理；有 create 能力但無清理能力時保留全部並明示。
-瀏覽器預覽目前兩項能力皆 unavailable，仍可手動匯出。這是實作界線，不移除五平台的 1.0 要求。
-清理前再核對最新成功檔，缺失時先保留舊份並重建。journal 自身故障也必須顯示暫停／錯誤。
+Off by default. When it is enabled, the user chooses an OS-granted location, encryption and the retention count
+(default 7, range 1–90).
+A backup runs only when data has changed and 24 hours have passed since the last successful backup; repeated triggers
+are merged, and failures back off.
+An overdue backup catches up once at app start or resume; there is no claim of punctuality while the app is closed or
+the phone is suspended.
+An encrypted schedule needs a password or key handle in the OS secure storage; when the capability or the grant is
+unavailable, it pauses and does not fall back to plain text.
+Only after the new file is written and verified are this schedule's own old files pruned according to the durable
+inventory. It must not scan a directory by file name to delete other backups, or cross profiles or granted locations;
+on failure the existing successful files stay.
+Implementation details are in [ADR-014](../decisions/014-durable-automatic-backups.md): a separate per-profile CAS
+journal; pending is saved before the file is written, and a restart checks against the expected bytes; a settings
+change produces a new policyId, so that success records of an old encryption policy are not reused.
+Native hosts must offer safe create-only writes and identity-bound cleanup; a host with create capability but no
+cleanup capability keeps everything and says so.
+The browser preview currently has both capabilities unavailable and can still export manually. This is an
+implementation boundary and does not remove the 1.0 requirement for the five platforms.
+Before cleanup the latest successful file is checked again; if it is missing, the old copies are kept first and the
+backup is rebuilt. A failure of the journal itself must also show as paused or as an error.
 
 ## Acceptance Cases
 
-| ID | 情境與預期 |
+| ID | Scenario and expectation |
 |---|---|
-| T01 | 中文／emoji／Markdown／checklist／未知格式／附件 bytes 及全部狀態完整往返 |
-| T02 | 全歷史、edit/edit、delete/edit、缺 parent 與群組循環保留，不杜撰或選勝者 |
-| T03 | 草稿、多代 lineage、附件及 membership 基線保留，還原不自動提交 |
-| T04 | 跨分區／裝置及原 Drive 消失仍可讀取；不攜帶憑證與 provider 資訊 |
-| T05 | 新匯入完整映射；合併核對同 ID；取代保留新舊歷史及草稿 |
-| T06 | transaction abort／quota／response-loss／重啟不造成半套或重複還原 |
-| T07 | 本機／同步修改後拒絕過期預覽；未觀測遠端修改仍可形成新衝突 |
-| T08 | 離線／缺 parent／首次同步未完成明示已知本機範圍 |
-| T09 | 路徑／ZIP bomb／壞 DEFLATE／重複 key／hash／引用／版本錯均零目標寫入 |
-| T10 | 取消、切帳號、撤權及磁碟滿保留原資料，不誤報成功 |
-| T11 | 同工作續行或顯示已完成；只有明確再匯入才新增第二份 |
-| T12 | 不需 Google；標準 ZIP 工具讀明文，加密與獨立 crypto 互通 |
-| T13 | salt/nonce 獨立；錯密碼／tag／header 拒絕，內部 metadata 加密 |
-| T14 | 跨螢幕只救不可達位置，不搬未選擇套用版面的既有卡 |
-| T15 | 自動補跑、失敗不刪舊檔、只修剪自身 inventory、加密不回退明文 |
-| T16 | 全量 Google 覆蓋只留下備份歷史／附件，草稿只在執行裝置；舊裝置遇標記停止同步 |
-| T17 | 無安全備份、錯帳號、過期預覽及本機保存失敗均不得開始雲端清空；清空／上傳中斷可重啟續行 |
-| T18 | MSIX 私有路徑不受外部舊 DB 影響；更新保留，解除安裝刪除套件資料而保留匯出 ZIP |
-| T19 | 四種本機／Google 遷移方向沿用同 ZIP，保留完整歷史、草稿、附件與目標 profile |
-| T20 | 本機完整還原不需安全備份；舊 graph／草稿／附件清除，其他分區不變，交易失敗及過期／取消保持原資料 |
-| T21 | Google 匯出先同步新遠端資料；同步失敗預設不保存、明確選擇才備份副本；取消不保存、成功時間只在完整同步後更新 |
+| T01 | Chinese, emoji, Markdown, checklists, unknown formats, attachment bytes and all states round-trip completely |
+| T02 | Full history, edit/edit, delete/edit, missing parents and group cycles are kept, without inventing data or choosing a winner |
+| T03 | Drafts, multi-generation lineage, attachments and membership baselines are kept; a restore does not commit them automatically |
+| T04 | Readable across partitions and devices and after the original Drive data is gone; no credentials or provider information are carried |
+| T05 | Import as new maps everything; merge checks identical IDs; replace keeps old and new history and drafts |
+| T06 | Transaction abort, quota, a lost response or a restart cause no half or duplicate restore |
+| T07 | Stale previews are rejected after local or sync changes; unobserved remote changes can still form new conflicts |
+| T08 | Offline, missing parents or an unfinished first sync clearly state the known local scope |
+| T09 | Path, ZIP bomb, bad DEFLATE, duplicate key, hash, reference or version errors all write nothing to the target |
+| T10 | Cancellation, an account switch, revoked access and a full disk keep the original data and do not misreport success |
+| T11 | The same job resumes or shows as completed; only an explicit re-import adds a second copy |
+| T12 | No Google needed; standard ZIP tools read the plain format, and the encryption interoperates with independent crypto |
+| T13 | Independent salt/nonce; a wrong password, tag or header is rejected; inner metadata is encrypted |
+| T14 | Across displays only unreachable positions are rescued; existing cards are not moved when the backup layout was not chosen |
+| T15 | Automatic catch-up; failures delete no old files; only its own inventory is pruned; encryption does not fall back to plain text |
+| T16 | A full Google overwrite leaves only the backup's history and attachments, with drafts only on the device that ran it; old devices stop syncing when they meet the marker |
+| T17 | No safety backup, a wrong account, a stale preview or a failed local save must all prevent cloud clearing from starting; an interrupted clear or upload resumes after a restart |
+| T18 | The MSIX private path is not affected by an external old DB; updates keep the package data and uninstalling deletes it, while exported ZIPs stay |
+| T19 | All four local/Google migration directions use the same ZIP and keep full history, drafts, attachments and the target profile |
+| T20 | A full local restore needs no safety backup; the old graph, drafts and attachments are cleared, other partitions are unchanged, and a transaction failure, staleness or cancellation keeps the original data |
+| T21 | A Google export syncs new remote data first; on sync failure it saves nothing by default and backs up a copy only on explicit choice; cancel saves nothing; the success time updates only after a complete sync |
 
 ## Dependencies and References
 
-- [PLAN-002](../plans/002-google-drive-notes-mvp.md)、[SPEC-003](003-desktop-cards-groups-and-formation.md)、[SPEC-004](004-revision-graph-and-file-sync.md)。
-- [ADR-013](../decisions/013-complete-portable-backup.md)、[容器與加密研究](../research/2026-10-04-backup-container-and-encryption.md)。
-- 一致 Workspace、完整附件、原子 persistence、原生檔案授權／安全儲存／生命週期。
-- 原生環境、最低裝置容量及 OS 保存確認逐平台驗收；狀態見 [PROGRESS](../../PROGRESS.md)。
+- [PLAN-002](../plans/002-google-drive-notes-mvp.md), [SPEC-003](003-desktop-cards-groups-and-formation.md),
+  [SPEC-004](004-revision-graph-and-file-sync.md).
+- [ADR-013](../decisions/013-complete-portable-backup.md),
+  [container and encryption research](../research/2026-10-04-backup-container-and-encryption.md).
+- A consistent Workspace, complete attachments, atomic persistence, and native file grants, secure storage and life
+  cycle.
+- Native environments, minimum device capacity and OS save confirmation are accepted platform by platform. Current
+  status is in [PROGRESS](../../PROGRESS.md); verification evidence is in the git history and [testing](../testing.md).

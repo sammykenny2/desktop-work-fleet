@@ -1,109 +1,156 @@
-# ADR-017: Windows 透明場景、輸入區域與平台基礎
+# ADR-017: Windows transparent scenes, input regions and platform foundation
 
 ## Status
 
-2026-10-05：常駐層級由 [ADR-030](030-windows-explorer-wallpaper-layer.md) 更新為 Explorer 附著。
-下方不使用 WorkerW、一般底部視窗等內容為原始切片的歷史限制；其餘 composition／輸入責任保留。
-2026-10-09：附著場景的白底／backing bitmap 與撤下順序由 [ADR-035](035-windows-attached-scene-background-lifecycle.md)
-更新；下方 2026-10-06 的不透明宿主描述保留為歷史，不代表已修復 23H2 殘影。
+2026-10-05: [ADR-030](030-windows-explorer-wallpaper-layer.md) changed the resident layer to Explorer attachment.
+The statements below about not using WorkerW, ordinary bottom windows and so on are historical limits of the
+original slice; the remaining composition and input responsibilities stay.
+2026-10-09: [ADR-035](035-windows-attached-scene-background-lifecycle.md) updated the white background / backing
+bitmap and the teardown order of attached scenes; the 2026-10-06 description of the opaque host below is kept as
+history and does not mean the 23H2 ghosting is fixed.
 
-Accepted，2026-10-04，限 Windows 場景表面、原生輸入區域、快捷鍵註冊與顯示器盤點。
-主畫面與共用控制器的桌面協調仍須整合；本子切片不啟用 `desktopPresentation` capability。
-不以這些 primitive 的測試宣稱 C16／C35／C40–C43／C46–C47 完整通過。
+Accepted, 2026-10-04, limited to Windows scene surfaces, native input regions, shortcut registration and the
+display inventory.
+Desktop coordination between the main window and the shared controller still has to be integrated; this sub-slice
+does not enable the `desktopPresentation` capability.
+Tests of these primitives are not used to claim that C16 / C35 / C40-C43 / C46-C47 fully pass.
 
 ## Context
 
-同一系統層內須由 renderer 控制卡片順序，並支援可操作與穿透紙面相互遮擋。
-一般 WPF WebView2 為 HWND host，透明整窗不能直接證明跨程序的逐卡命中。
-需先驗證實際 WebView2 像素、OS 命中與表面生命週期，才能接入資料權威。
+Within one system layer, the renderer must control card order and support interactive and pass-through papers
+covering each other.
+An ordinary WPF WebView2 is an HWND host, and a transparent whole window cannot directly prove per-card hit
+testing across processes.
+Real WebView2 pixels, OS hit testing and the surface lifecycle must be validated first, before connecting the data
+authority.
 
 ## Decision
 
-- 採 `WebView2CompositionControl`；每個場景只有一個瀏覽器及兩個 WPF layered windows。
-  一個包含真正的 WebView 及互動區域，一個以 `VisualBrush` 呈現同一份視覺。
-  被動表面使用 `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`。
-  自身 WebView 視覺的 composition 不捕獲桌面或其他 App 畫面。
-- 依 renderer 的由後到前紙面清單，建立 native region：可互動紙面加入，前方穿透紙面扣除。
-  平衡分組合成 `(covered, input)`，避免逐張 union 大型 region 的平方成本。
-  上限 20,000 紙面；非法幾何不改現有政策，原生區域配置失敗隱藏兩面。
-- 視覺面 region 是整個場景扣掉 input region，兩者完整覆蓋且互斥。
-  紙面半透明像素只畫一次；圓角／透明像素仍受 layered window alpha 命中規則約束。
-  初建及退出互動時 input region 為空，不能出現全螢幕攔截的初始化間隔。
-- 浮動採 `HWND_TOPMOST`；常駐採非 topmost 的底部一般視窗。
-  所有排序／顯示操作使用不啟用視窗政策，不取得 foreground 權限。
-  這不是 Wallpaper backend，也不保證 Win+D、虛擬桌面、獨占全螢幕的結果。
-  不使用 WorkerW 私有訊息、跨程序 parent 或 `HTTRANSPARENT` 冒充跨程序穿透。
-- 兩個 window 共同隱藏與釋放。直接關閉任一面延後且合併發出 `CloseRequested`，讓協調器保存草稿；
-  通知發生在 WPF Closing 返回後，handler 可同步 `Dispose`，不重入關閉程序。
-  無 handler 時隱藏兩面並保留瀏覽器，直到 `Dispose`。native handle 不是卡片身分。
-- `NativeShortcuts` 擁有獨立 message-only HWND，使用 `RegisterHotKey`／`MOD_NOREPEAT`。
-  逐鍵回報可用、衝突、暫停、保留鍵或無效；不安裝鍵盤 hook。
-  F12、Win 組合、Alt+F4 與通用文字編輯鍵不註冊。
-  重設先解除並清掉該 HWND 已排隊的舊熱鍵，暫停／釋放實際解除註冊。
-  controller 整合須在本 App 編輯／IME 擁有輸入時暫停，不能只忽略已被 OS 吃掉的快捷鍵。
-- `NativeDisplays` 用 `EnumDisplayMonitors`／`GetMonitorInfo` 取得 physical bounds／work area，
-  每個螢幕以未顯示的自有 HWND＋`GetDpiForWindow` 查 DPI。
-  輸出明確標示 physical，不直接冒充 LayoutStore 的 logical 座標；映射與拔插恢復另接協調器。
-- App 與 UI probe 統一 `net8.0-windows10.0.19041.0` 及 PerMonitorV2 manifest，
-  固定 `WindowsSdkPackageVersion=10.0.19041.56`；SQLite core 的 TFM 不變。
-  SDK projection 與 WinRT runtime 按官方 redistributable list 原樣封裝，保留授權及來源。
+- Use `WebView2CompositionControl`; each scene has only one browser and two WPF layered windows.
+  One contains the real WebView and the interactive regions; the other shows the same visuals through a
+  `VisualBrush`.
+  The passive surface uses `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`.
+  Composition of its own WebView visuals does not capture the desktop or other apps' screens.
+- From the renderer's back-to-front list of papers, build a native region: interactive papers are added, and
+  pass-through papers in front are subtracted.
+  Balanced grouping combines `(covered, input)`, avoiding the quadratic cost of unioning large regions one paper at
+  a time.
+  The limit is 20,000 papers; invalid geometry does not change the current policy, and a failed native region
+  allocation hides both surfaces.
+- The visual surface's region is the whole scene minus the input region; together they cover everything and do
+  not overlap.
+  Semi-transparent paper pixels are drawn only once; rounded corners and transparent pixels are still subject to
+  the layered window alpha hit-testing rules.
+  At creation and on leaving interaction the input region is empty, so there is never an initialization gap that
+  intercepts the whole screen.
+- Floating uses `HWND_TOPMOST`; resident uses a non-topmost ordinary bottom window.
+  All ordering and showing use a no-activate window policy and never obtain foreground rights.
+  This is not a Wallpaper backend, and the results with Win+D, virtual desktops and exclusive full screen are not
+  guaranteed.
+  WorkerW private messages, cross-process parents and `HTTRANSPARENT` are not used to fake cross-process
+  pass-through.
+- The two windows are hidden and released together. Closing either surface directly emits a deferred, coalesced
+  `CloseRequested` so the coordinator can save drafts;
+  the notification happens after WPF Closing returns, so the handler can call `Dispose` synchronously without
+  re-entering the close sequence.
+  Without a handler, both surfaces are hidden and the browser is kept until `Dispose`. A native handle is not a
+  card identity.
+- `NativeShortcuts` owns a separate message-only HWND and uses `RegisterHotKey` / `MOD_NOREPEAT`.
+  It reports per key whether it is available, conflicting, paused, reserved or invalid; no keyboard hook is
+  installed.
+  F12, Win combinations, Alt+F4 and common text editing keys are not registered.
+  A reset first unregisters and clears old hotkeys already queued on that HWND; pause and release actually
+  unregister.
+  The controller integration must pause while this app's editor or IME owns input; ignoring shortcuts the OS has
+  already consumed is not enough.
+- `NativeDisplays` uses `EnumDisplayMonitors` / `GetMonitorInfo` to get the physical bounds and work area,
+  and gets each display's DPI from a hidden owned HWND + `GetDpiForWindow`.
+  The output is explicitly marked physical and does not pose as LayoutStore's logical coordinates; mapping and
+  recovery after plugging and unplugging are connected to the coordinator separately.
+- The app and the UI probe both use `net8.0-windows10.0.19041.0` and a PerMonitorV2 manifest,
+  pinning `WindowsSdkPackageVersion=10.0.19041.56`; the SQLite core's TFM does not change.
+  The SDK projection and WinRT runtime are packaged unchanged per the official redistributable list, keeping
+  licenses and sources.
 
 ## Consequences
 
 ### Positive
 
-卡片疊序由共同 renderer 決定；混合穿透政策可對其他程序驗證，沒有每卡一瀏覽器的成本。
-同一 WebView 在 input region 為空時仍能更新被動紙面，避免兩份 renderer 狀態分叉。
+Card stacking order is decided by the shared renderer; mixed pass-through policies can be validated against other
+processes, without the cost of one browser per card.
+The same WebView can still update passive papers while the input region is empty, so two renderer states never
+diverge.
 
 ### Negative
 
-兩個 OS 視窗的 region 分別更新，不能宣稱是 compositor 的原子交易。
-CompositionControl 有額外拷貝成本；大量 region 仍需量測，不能將一次計算速度視為拖曳幀率。
-共同 renderer 與主畫面間的草稿、capture、焦點和權威協調仍有整合工作。
+The regions of the two OS windows are updated separately and cannot be claimed as an atomic compositor
+transaction.
+CompositionControl has an extra copy cost; large numbers of regions still need measuring, and the speed of one
+calculation is not a drag frame rate.
+Coordination of drafts, capture, focus and authority between the shared renderer and the main window still needs
+integration work.
 
 ### Neutral
 
-單螢幕 144 DPI 的像素與命中測試不代表混合 DPI、真指標捕獲、IME、顯示器拔插或休眠已驗收。
-最低 TFM 不是最低 OS 實機驗收證據；Mac／Linux／iOS／Android 不由本 ADR 決定 backend。
+Pixel and hit tests on a single 144 DPI display do not mean mixed DPI, real pointer capture, IME, display
+plugging and unplugging or sleep are accepted.
+The minimum TFM is not evidence of acceptance on the minimum OS on real hardware; this ADR does not decide the
+backend for Mac/Linux/iOS/Android.
 
 ## Alternatives Considered
 
-### 透明整屏 HWND WebView
+### A transparent full-screen HWND WebView
 
-無法直接滿足不同紙面的穿透政策；共用 UI 仍使用原有 WebView2，桌面改用 composition。
+Cannot directly meet different pass-through policies for different papers; the shared UI still uses the existing
+WebView2, and the desktop uses composition instead.
 
-### 按游標位置切換整窗穿透
+### Switching whole-window pass-through by cursor position
 
-輪詢存在輸入競爭，且不能可靠表達前方穿透卡遮住後方互動卡，不採用。
+Polling has input races and cannot reliably express a pass-through card in front covering an interactive card
+behind it; not adopted.
 
-### 每張卡一個 native window
+### One native window per card
 
-Windows 可另行評估，但不能成為跨平台可控疊序的共同保證，且放大 native 資源成本。
+Windows could evaluate it separately, but it cannot be the shared guarantee of controllable cross-platform
+stacking order, and it multiplies native resource cost.
 
-## 2026-10-06 修訂：掛在 Explorer 底下的場景改用視窗式 WebView2
+## 2026-10-06 revision: scenes attached under Explorer use windowed WebView2
 
-真實螢幕量測發現，桌面層與桌布層從未出現在螢幕上：Explorer 的 Progman 沒有 redirection surface
-（`WS_EX_NOREDIRECTIONBITMAP`），透過 WPF 繪圖的子視窗內容沒有地方合成——逐像素透明的看不見，不透明的只剩黑色。
-以同樣樣式建立的宿主視窗可在本機重現（`--host-window-dcomp` 與 `--host-child`）。
-- 最上層（頂層視窗）維持本記錄的 composition WebView、輸入視窗加鏡像顯示視窗。
-- 桌面層與桌布層改用視窗式 WebView2：瀏覽器以 DirectComposition 畫進自己的子視窗。
-  它無法鏡像到第二個視窗，所以同一個不透明視窗負責顯示與輸入，region 只留便箋；
-  桌布層在圖示下方收不到點擊，桌面層的便箋本來就可點選，因此不會多擋到桌面圖示。
-- 視窗式 WebView2 若在場景視窗隱藏時建立，之後顯示仍是黑的；附著場景在 WebView2 建立完成前保持顯示（region 為空，不顯示也不接輸入），
-  建立後才隱藏（`DesktopSurface.Start`）。`--host-check` 以仿 Progman 的宿主自動驗證這個順序。
-- 原本只在螢幕外比對 WPF 像素的探針不足以驗證；桌布層探針改為讀取真實螢幕（被視窗蓋住時略過，`--wait-desktop` 可等待）。
+Measurements on a real screen found that the desktop layer and the wallpaper layer never appeared on screen:
+Explorer's Progman has no redirection surface (`WS_EX_NOREDIRECTIONBITMAP`), so the content of child windows drawn
+through WPF has nowhere to be composited: per-pixel transparent content is invisible, and opaque content is only
+black.
+A host window created with the same styles reproduces this locally (`--host-window-dcomp` and `--host-child`).
+- The top layer (a top-level window) keeps this record's composition WebView, input window and mirrored display
+  window.
+- The desktop layer and the wallpaper layer use windowed WebView2 instead: the browser draws into its own child
+  window with DirectComposition.
+  It cannot be mirrored into a second window, so the same opaque window handles both display and input, and its
+  region keeps only the notes;
+  the wallpaper layer receives no clicks beneath the icons, and notes on the desktop layer are clickable anyway, so
+  no extra desktop icons are blocked.
+- A windowed WebView2 created while the scene window is hidden stays black when shown later; an attached scene
+  stays shown until WebView2 creation completes (region empty, so it neither displays nor takes input),
+  and is hidden only after creation (`DesktopSurface.Start`). `--host-check` verifies this order automatically with
+  a host that imitates Progman.
+- The probe that only compared WPF pixels off-screen was not enough to verify this; the wallpaper layer probe now
+  reads the real screen (skipped when covered by a window; `--wait-desktop` can wait).
 
-## 2026-10-09 修訂：浮動拖曳的原生捕獲
+## 2026-10-09 revision: native capture for floating drags
 
-使用者在 23H2 實測快速拖曳不順及位置回彈。浮動 WebView 原本只有 DOM pointer capture，
-沒有 WPF mouse capture；修正前新增的原生探針確實在捕獲檢查失敗。
-最上層收到左鍵按下時捕獲到自有 WebView，放開、收起、topology 暫停及釋放時解除。
-意外失去原生捕獲通知場景取消手勢，不擴大常態輸入 region，不注入全域輸入。
-修正後的捕獲／區域移動／解除回歸尚未執行，因使用者要求停止測試及截圖。
+In real use on 23H2 the user found fast drags not smooth and positions snapping back. The floating WebView only had
+DOM pointer capture
+and no WPF mouse capture; a native probe added before the fix did fail at the capture check.
+When the top layer receives a left button press it captures to its own WebView, and releases on button up, on
+collapse, on topology pause and on release.
+An unexpected loss of native capture tells the scene to cancel the gesture; it does not widen the normal input
+region or inject global input.
+The capture / region move / release regression after the fix has not been run, because the user asked to stop
+testing and screenshots.
 
 ## References
 
-- [Windows 場景研究](../research/2026-10-04-windows-composition-and-input.md)
-- [ADR-007](007-desktop-scene-and-platform-host.md)、[ADR-015](015-windows-native-storage-and-editor-host.md)
-- [測試命令](../testing.md)、[執行證據](../../PROGRESS.md)
+- [Windows scene research](../research/2026-10-04-windows-composition-and-input.md)
+- [ADR-007](007-desktop-scene-and-platform-host.md), [ADR-015](015-windows-native-storage-and-editor-host.md)
+- [Test commands](../testing.md), [Current status](../../PROGRESS.md)
 - [WPF Mouse.Capture](https://learn.microsoft.com/en-us/dotnet/api/system.windows.input.mouse.capture?view=windowsdesktop-8.0)

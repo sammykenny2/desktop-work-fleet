@@ -53,17 +53,19 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
-| [008-workspace-initialization](008-workspace-initialization.md) | 工作空間初始化與重設完成證明 | Approved；執行見 PROGRESS | [PLAN-008](../plans/008-workspace-initialization.md) |
-| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | 主視窗位置、啟動行為與 App 內更新 | Approved; Q pending; execution in PROGRESS | [PLAN-006](../plans/006-desktop-window-startup-and-updates.md) |
-| [005-windows-11-compatibility](005-windows-11-compatibility.md) | Windows 11 new/classic shell and install eligibility | Approved requirements; implementation and evidence in PROGRESS | [PLAN-004](../plans/004-windows-11-compatibility.md) |
-| [004-revision-graph-and-file-sync](004-revision-graph-and-file-sync.md) | Immutable revisions and file sync | Accepted technical contract; execution in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
-| [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / answered Q; execution in PROGRESS | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
-| [002-portable-backup-and-restore](002-portable-backup-and-restore.md) | Complete portable backup and restore | Accepted technical contract; execution in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
+| [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and proof of reset completion | Approved; status in PROGRESS | [PLAN-008](../plans/008-workspace-initialization.md) |
+| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | Main window placement, startup behaviour and in-app updates | Approved; Q pending; status in PROGRESS | [PLAN-006](../plans/006-desktop-window-startup-and-updates.md) |
+| [005-windows-11-compatibility](005-windows-11-compatibility.md) | Windows 11 new/classic shell and install eligibility | Approved requirements; status in PROGRESS, evidence in the git history | [PLAN-004](../plans/004-windows-11-compatibility.md) |
+| [004-revision-graph-and-file-sync](004-revision-graph-and-file-sync.md) | Immutable revisions and file sync | Accepted technical contract; status in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
+| [003-desktop-cards-groups-and-formation](003-desktop-cards-groups-and-formation.md) | Cards, groups, formation and desktop interaction | Confirmed U / delegated D / answered Q; status in PROGRESS | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
+| [002-portable-backup-and-restore](002-portable-backup-and-restore.md) | Complete portable backup and restore | Accepted technical contract; status in PROGRESS | [PLAN-002](../plans/002-google-drive-notes-mvp.md) |
 | [000-template](./000-template.md) | Template | - | - |
-| [001-validation-version](001-validation-version.md) | Backlog 驗證版 | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |
+| [001-validation-version](001-validation-version.md) | Backlog validation version | Implemented with validation limits | [macOS handoff](../plans/001-validation-version-macos-handoff.md) |
 
-完整備份契約：[SPEC-002 可攜備份與安全還原](002-portable-backup-and-restore.md)；
-相關 [PLAN-002](../plans/002-google-drive-notes-mvp.md)，執行狀態見根目錄 PROGRESS.md。
+Complete backup contract: [SPEC-002 Portable backup and safe restore](002-portable-backup-and-restore.md);
+related [PLAN-002](../plans/002-google-drive-notes-mvp.md).
+Current status of all specs is in the root [PROGRESS.md](../../PROGRESS.md); history and verification evidence are in
+the git history and [testing](../testing.md).
 
 ## For AI Agents
 

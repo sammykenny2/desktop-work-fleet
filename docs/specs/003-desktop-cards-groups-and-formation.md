@@ -1,497 +1,618 @@
-# SPEC-003: 桌面卡片、群組、formation 與操作契約
+# SPEC-003: Desktop cards, groups, formation and interaction contract
 
-> 2026-10-06 介面用語：本文的「日常」狀態在介面上稱為「鎖定」，「操作範圍／操作此組」稱為「調整模式／調整此組」，
-> 離開按鈕為「完成」。改文字仍稱「編輯」。常駐層級由後到前稱「桌布層／桌面層／最上層」（內部 `wallpaper`／`desktop`／`floating`）。
-> 程式內部名稱（`operationScope` 等）不變。
+> UI terms (2026-10-06): the "everyday" state in this document is called "Locked" in the UI, and "operation scope /
+> operate this group" is called "adjust mode / Adjust this group"; the exit button is "Done". Changing text is still
+> called "Edit". The resident layers, from back to front, are "Wallpaper layer / Desktop layer / Top layer" (internally
+> `wallpaper` / `desktop` / `floating`). Internal code names (`operationScope` and others) are unchanged.
 
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | 已確認需求＋授權工作預設；已進入分段實作，證據見 PROGRESS |
-| Owner | 專案維護者 |
-| Reviewer | 尚無獨立審閱；本文件不是產品驗收證據 |
-| 日期 | 2026-10-04，Asia/Taipei |
+| Status | Confirmed requirements plus authorized working defaults; implementation is under way in slices. Current status is in [PROGRESS](../../PROGRESS.md); history and verification evidence are in the git history and [testing](../testing.md) |
+| Owner | Project maintainer |
+| Reviewer | No independent review yet; this document is not product acceptance evidence |
+| Date | 2026-10-04, Asia/Taipei |
 | Related Plan | [PLAN-003](../plans/003-desktop-interaction-implementation.md) |
 | Decision | [ADR-006](../decisions/006-card-group-and-formation-semantics.md) |
 
 ## Summary
 
-產品以快速記錄靈感及看見尚未處理的事情為中心。一張便箋是一件事情，以群組整理；
-使用者可自由擺放，只有明確執行 formation 才授權批次整理位置。
-平常桌面便箋唯讀且滑鼠穿透；啟動指定群組或所有群組後暫時浮到一般 App 上方，
-先進入拖拉模式，再明確進入單張編輯。群組歸屬、卡片位置、暫時疊序是不同資料。
+The product centres on quickly capturing ideas and seeing what is still unhandled. One note is one thing, organized
+in groups. Users place notes freely; only an explicit formation authorizes rearranging positions in bulk.
+Normally desktop notes are read-only and click-through. Activating a given group or all groups floats them above
+ordinary apps for a while: first in drag mode, then, explicitly, into editing a single card. Group membership, card
+position and temporary stacking order are separate data.
 
-本文件是本次互動的規範入口。2026-10-03 的純文字限制、Note 作為多個獨立 Item 容器、
-省略群組與 formation 的 MVP 假設，不可覆蓋本文件。
-最初交付只整理規格；2026-10-04 後續已獲完整 1.0 實作授權。
-已完成的模型測試不等於 renderer／原生 host／同步均已驗收；實際狀態見 PROGRESS。
+This document is the normative entry point for this interaction work. The 2026-10-03 MVP assumptions (plain text only,
+a Note as a container of several independent Items, no groups and no formation) cannot override it.
+The first delivery only organized the specification; on 2026-10-04 full 1.0 implementation was authorized.
+Passing model tests do not mean that the renderer, the native hosts and sync are all accepted. Current status is in
+[PROGRESS](../../PROGRESS.md); history and verification evidence are in the git history and [testing](../testing.md).
 
 ## Authority and reading rules
 
-- **U（User confirmed）**：使用者已明確確認；實作必須遵守，不重問已回答的問題。
-- **D（Delegated default）**：使用者授權其餘細節依最佳實踐規劃後訂出的可實作預設；
-  不宣稱是使用者逐字指定。若平台證據迫使它改變，先說明影響並更新文件。
-- **Q（Question）**：仍需需求決定；只暫停依賴該問題的功能，其他已授權工作可以進行。
-- **E（Evidence）**：已有實作或外部協定的事實；與「新功能已測過」分開。
+- **U (User confirmed)**: the user has explicitly confirmed it. Implementation must follow it, and answered questions
+  are not asked again.
+- **D (Delegated default)**: an implementable default set after the user authorized planning the remaining details by
+  best practice. It does not claim to be the user's verbatim choice. If platform evidence forces a change, explain the
+  impact first and update the document.
+- **Q (Question)**: still needs a requirements decision. Only features that depend on it pause; other authorized work
+  can proceed.
+- **E (Evidence)**: facts from an existing implementation or external protocol, kept separate from "the new feature
+  has been tested".
 
-本輪後續文字答覆已確認：群組操作時蓋過 IDE／瀏覽器等一般 App；
-採用單擊選中、雙擊編輯、標籤拖放／Shift 拖放轉組，並保留卡片選單。
-不能再把這兩項記為待確認。若維護者之後變更要求，以最新明確指示更新本文件。
+Later written answers in this round confirmed: while a group is being operated, it covers ordinary apps such as an IDE
+or a browser; single click selects, double click edits, dropping on a label or a Shift-drag moves a card to another
+group, and the card menu stays. These two items can no longer be recorded as pending. If the maintainer later changes
+the requirement, update this document from the latest explicit instruction.
 
 ## Goals and scope
 
-### 使用者邊界（U）
+### User boundaries (U)
 
-| ID | 邊界 |
+| ID | Boundary |
 |---|---|
-| U01 | 一張 card/note/post-it 記錄一件事情，不是一張機器清單承載多個獨立 issue |
-| U02 | 快速記錄與 backlog 優先；1.0 不強制 Project、Scrum、Agent 執行狀態或複雜工作流程 |
-| U03 | 群組是通用概念；本機可突出「屬於我」的群組，不能把群組硬編碼成機器 |
-| U04 | Windows、macOS、Linux 是必要桌面目標；Linux 實際支援按桌面環境列證據 |
-| U05 | 保留自有 iOS／macOS／Android 商店目標；不能把手機編輯改成只有 Drive 網頁 |
-| U06 | 第一版 Google 帳號＋檔案來源，不架自家便箋 local server；來源／renderer 邊界先設計 |
-| U07 | 日常便箋唯讀且滑鼠穿透，仍可接收其他裝置更新 |
-| U08 | 卡片可跨群組區域自由拖放；跨越區域本身不代表改群組 |
-| U09 | formation 可整理全部或單一群組；群組 formation 會召回被拖散的該組卡片 |
-| U10 | 堆疊／攤開改位置與遮蓋關係；不採 accordion 或逐張展開內容高度 |
-| U11 | 堆疊 formation 應露出各卡片的第一行摘要；攤開使用完整紙面排列 |
-| U12 | 輪播只暫時調整疊序；目前群組在其他組上方，選中卡在該組最前面 |
-| U13 | 卡片尺寸平常穩定；formation 必要時可在使用者同意後調整，不同意可超出群組區域 |
-| U14 | 新卡初始位置預設在自己的群組區域，不因新增或同步重排既有卡片 |
-| U15 | 提供 formation 復原 |
-| U16 | 群組最多 9 組；grid 最多 3 列、4 欄，且總區塊最多 9，禁止 3 列 × 4 欄 |
-| U17 | 可用快捷鍵啟動單一群組拖拉模式，再進入單張編輯 |
-| U18 | 操作中的群組暫時浮到一般 App 視窗上方，結束後恢復原層級 |
-| U19 | 單擊選中、雙擊編輯；普通拖曳只移位；群組標籤或 Shift＋區域拖放才轉組 |
-| U20 | 卡片 action 保留「移至群組」入口 |
-| U21 | 從零獨立設計；不搬用輔助參考應用的 UI、資產、資料契約或大量程式碼 |
-| U22 | Focus／番茄鐘與回顧功能不整入 1.0；既有 PM 與架構研究仍保留供後續使用 |
-| U23 | 編輯結束時（關閉、保留草稿、Esc、完成、改選其他卡、formation、卡片離開範圍等），空白草稿（沒有文字、附件或其他內容欄位）及與便箋目前版本相同的未修改草稿不保留；有變更的草稿照常保留（2026-10-06） |
+| U01 | One card/note/post-it records one thing; it is not a machine list carrying several independent issues |
+| U02 | Quick capture and the backlog come first; 1.0 does not force Projects, Scrum, agent execution states or complex workflows |
+| U03 | Groups are a general concept; a device may highlight the groups that are "mine", but groups must not be hard-coded as machines |
+| U04 | Windows, macOS and Linux are required desktop targets; actual Linux support lists evidence per desktop environment |
+| U05 | The own iOS/macOS/Android store targets stay; phone editing must not be reduced to the Drive web page only |
+| U06 | The first version uses a Google account plus a file source, with no own local note server; the source/renderer boundary is designed first |
+| U07 | Everyday notes are read-only and click-through, and still receive updates from other devices |
+| U08 | Cards can be dragged freely across group regions; crossing a region by itself does not mean changing group |
+| U09 | Formation can arrange all groups or a single group; a group formation recalls that group's cards that were dragged away |
+| U10 | Stack/spread change positions and overlap; no accordion and no expanding content height card by card |
+| U11 | A stack formation should expose each card's first-line summary; spread arranges whole, uncovered papers |
+| U12 | Cycling only adjusts the stacking order temporarily; the current group is above the other groups, and the selected card is frontmost in its group |
+| U13 | Card size is normally stable; formation may adjust it with the user's consent, and without consent cards may extend beyond the group region |
+| U14 | A new card's initial position defaults to its own group region; adding or syncing does not rearrange existing cards |
+| U15 | Formation can be undone |
+| U16 | At most 9 groups; the grid has at most 3 rows and 4 columns and at most 9 blocks in total, so 3 rows × 4 columns is forbidden |
+| U17 | A shortcut can activate drag mode for a single group, then enter editing of a single card |
+| U18 | The group being operated floats above ordinary app windows for the time being and returns to its original layer afterwards |
+| U19 | Single click selects, double click edits; an ordinary drag only moves; only a group label or a Shift + region drop moves a card to another group |
+| U20 | The card actions keep a "Move to group" entry |
+| U21 | Designed independently from scratch; no reuse of the auxiliary reference application's UI, assets, data contracts or large amounts of code |
+| U22 | Focus/Pomodoro and review features are not part of 1.0; the existing PM and architecture research is kept for later use |
+| U23 | When editing ends (close, keep draft, Esc, Done, selecting another card, formation, the card leaving the scope, and so on), blank drafts (no text, attachments or other content fields) and unmodified drafts identical to the note's current version are not kept; changed drafts are kept as usual (2026-10-06) |
 
-### 工作預設（D）
+### Working defaults (D)
 
-- 提供「操作所有便箋」；初次使用一個預設群組即可工作，不強迫先學群組。
-- 採「列（row）× 欄（column）」及由左至右、由上至下的初始群組配置。
-- 每張卡在 v1 有一個主要群組；共享身分與未來擴充點不禁止多歸屬。
-- 一台裝置一次只有一個操作範圍（某組／全部），以及最多一張桌面就地編輯卡。
-  其他主畫面或手機 editor 的草稿可並存，不以桌面模式取得跨裝置排他鎖。
-- 共用內容及歸屬同步；各裝置的座標、尺寸、區域配置獨立；操作焦點不持久化。
-- 詳細 D 規則見後續章節；未列在 Q 的 D 可在正式實作授權後照此開發。
+- Provide "operate on all notes". On first use a single default group is enough to work; users are not forced to learn
+  groups first.
+- Use "rows × columns" and a left-to-right, top-to-bottom initial group layout.
+- In v1 each card has one primary group; shared identity and future extension points do not forbid multiple membership.
+- A device has only one operation scope at a time (one group or all), and at most one card edited in place on the
+  desktop. Drafts in other main-window or phone editors can coexist; desktop mode does not take a cross-device
+  exclusive lock.
+- Shared content and membership sync; each device's coordinates, sizes and region layout are independent; operation
+  focus is not persisted.
+- Detailed D rules are in the following sections. D items not listed under Q can be built as written once
+  implementation is formally authorized.
 
-### 未被排除的功能
+### Features not excluded
 
-一事一卡不等於禁止說明段落、Markdown 或同一事情的 checklist 步驟。
-本文沒有決定純文字限定，也沒有排除附件、擴充能力、版面備份、自動備份或其他還原方式。
-其具體 1.0 範圍見 Q 表，不可因舊草案有排除清單而直接刪去。
-跨機器多歸屬並非 1.0 必做，但也不是永遠禁止。
+One card per thing does not forbid explanatory paragraphs, Markdown or checklist steps for the same thing.
+This document does not decide on plain text only, and does not exclude attachments, extensions, layout backups,
+automatic backups or other restore methods. Their concrete 1.0 scope is in the Q table; they must not be dropped
+because an old draft had an exclusion list. Multiple membership across machines is not required for 1.0, but it is
+not forbidden forever either.
 
 ## Terms and data ownership
 
-| 概念 | 語意及生命週期 |
+| Concept | Meaning and life cycle |
 |---|---|
-| Card / Note / Post-it | 同一種產品物件；穩定 ID、內容與主要群組歸屬，不以視窗 ID 代替 |
-| Group | 多張卡片的邏輯集合；名稱／穩定 ID 與目前在哪台機器觀看無關 |
-| My group | 裝置視角的本機突出設定；同一份群組資料在 A、B 機器可有不同突出方式 |
-| Region | 目前裝置 formation 給某組的整理目標區，不是硬容器／裁切區／權限範圍 |
-| Formation | 使用者發出的單次排列命令，可選 scope 與 stack/spread；不是背景自動排版 |
-| Base order | 裝置版面的穩定疊序，與暫時選中卡分離 |
-| Active group | 目前注意／操作的群組；全群組模式也可以有一個 active group |
-| Operation scope | None、Group(id) 或 All；決定哪些卡片當下可操作 |
-| Selected card | 目前組內最前面的卡；選中不等於文字編輯 |
-| Editing card | 明確進入文字編輯的單張卡；草稿有自己的可靠保存流程 |
-| Locked / click-through | 本機防誤操作狀態；不是權限、來源唯讀或其他裝置的寫入鎖 |
+| Card / Note / Post-it | The same product object: stable ID, content and primary group membership; a window ID does not stand in for it |
+| Group | A logical collection of cards; its name and stable ID do not depend on which machine is viewing it |
+| My group | A device-side local highlight setting; the same group data can be highlighted differently on machines A and B |
+| Region | The target area the current device's formation gives a group; not a hard container, clipping area or permission scope |
+| Formation | A one-off arrangement command issued by the user, with a chosen scope and stack/spread; not automatic background layout |
+| Base order | The stable stacking order of the device layout, separate from the temporarily selected card |
+| Active group | The group currently in attention or being operated; all-groups mode can also have an active group |
+| Operation scope | None, Group(id) or All; decides which cards can be operated at the moment |
+| Selected card | The frontmost card in the current group; selecting is not text editing |
+| Editing card | The single card explicitly in text editing; drafts have their own reliable save flow |
+| Locked / click-through | A local guard against accidental input; not a permission, a read-only source or a write lock for other devices |
 
-### 同步與裝置狀態的分界（D）
+### Boundary between synced and device state (D)
 
-| 共用資料 | 每裝置持久化 | 當次操作暫態 |
+| Shared data | Persisted per device | Transient for the current operation |
 |---|---|---|
-| 卡片 ID／內容／主要群組 ID | 卡片位置、尺寸、基本疊序 | 操作 scope、active group、selected card |
-| 群組 ID／名稱／語意性 metadata | grid、群組對應區域、本機突出 | 拖曳起點、候選接收區、微亮 |
-| 正式定義的刪除／衝突資料 | 顯示集合、常駐系統層級偏好 | pointer capture、keyboard focus |
-| 共用外觀欄位（若採用） | formation 與拖曳的本機復原紀錄 | 編輯器 UI 狀態（文字草稿另持久化） |
+| Card ID / content / primary group ID | Card position, size, base stacking order | Operation scope, active group, selected card |
+| Group ID / name / semantic metadata | Grid, group-to-region mapping, local highlight | Drag start, candidate drop target, highlight |
+| Formally defined deletion/conflict data | Display set, resident system layer preference | Pointer capture, keyboard focus |
+| Shared appearance fields (if adopted) | Local undo records for formation and dragging | Editor UI state (text drafts are persisted separately) |
 
-不得把 active group、原生視窗 handle、OS layer 數字、Google token 寫入共享卡片。
-若將來同步每機版面備份，仍按裝置分區，不能讓 A 的 formation 改變 B 的桌面。
-單一卡片被多台機器看到不代表它同時有多個群組；一組也不等於一台機器。
-本機突出優先採裝置端裝飾，不能因 A 是「我」而同步覆蓋所有裝置的卡片顏色。
+The active group, native window handles, OS layer numbers and Google tokens must not be written into shared cards.
+If per-device layout backups are synced in future, they stay partitioned by device; A's formation must not change B's
+desktop. A card seen by several machines does not have several groups at once, and a group is not a machine.
+Local highlighting prefers device-side decoration; card colours on all devices must not be overwritten through sync
+because A is "me".
 
 ## Group and grid contract
 
-### 群組識別與新手入口（D）
+### Group identity and first use (D)
 
-- 初次使用可建立一個預設群組，算在 9 組內；不另設免費的第 10 個「未分組」群組。
-- 快速新增不強迫填機器、專案、負責人或執行狀態；有明確目標就使用該組，
-  無目標時使用可見的預設群組。裝置突出哪組不自動改變其他裝置的新卡預設。
-- 修改群組名稱／grid 位置，不改穩定 ID，也不改已指定的快捷鍵對象。
-- 快捷鍵綁定是本機設定；Ctrl+Shift+1～9 為候選預設組合，0 對應全部，均可改。
-  未成功註冊不得顯示為可用；組合衝突不應阻止 App 啟動。
-- 所有快捷動作都有主畫面／可達選單入口。手機用相同語意命令，不模擬全域桌面鍵。
+- On first use one default group can be created. It counts toward the 9 groups; there is no free tenth "Ungrouped"
+  group.
+- Quick add does not force a machine, project, owner or execution state. With a clear target it uses that group;
+  without one it uses the visible default group. Which group a device highlights does not change other devices'
+  default for new cards.
+- Renaming a group or changing its grid position changes neither its stable ID nor the group a shortcut is already
+  assigned to.
+- Shortcut bindings are a local setting. Ctrl+Shift+1 to Ctrl+Shift+9 are the candidate default combinations and 0
+  maps to all; all of them can be changed. A shortcut that failed to register must not be shown as available; a
+  combination conflict should not stop the app from starting.
+- Every shortcut action has an entry in the main window or a reachable menu. Phones use the same semantic commands and
+  do not simulate global desktop keys.
 
-### 合法格局（U16＋D）
+### Valid layouts (U16 + D)
 
-令 rows = 列數、columns = 欄數，必須同時滿足：
+Let rows be the number of rows and columns the number of columns. All of the following must hold:
 
 ```text
 1 <= rows <= 3
 1 <= columns <= 4
 rows * columns <= 9
-本次要排列的群組數 <= rows * columns
+groups to arrange this time <= rows * columns
 ```
 
-| 列數 | 可用欄數 | 區塊數 |
+| Rows | Allowed columns | Blocks |
 |---|---|---|
-| 1 | 1、2、3、4 | 1、2、3、4 |
-| 2 | 1、2、3、4 | 2、4、6、8 |
-| 3 | 1、2、3 | 3、6、9 |
+| 1 | 1, 2, 3, 4 | 1, 2, 3, 4 |
+| 2 | 1, 2, 3, 4 | 2, 4, 6, 8 |
+| 3 | 1, 2, 3 | 3, 6, 9 |
 
-2 列 × 4 欄就是上下兩列、每列四塊；3 列 × 3 欄合法；3 列 × 4 欄不合法。
-介面顯示列／欄文字及小格子預覽，不只寫容易混淆的 2×4。
-七組可使用八區並保留空區；九組不能套用八區。選錯時保留現有配置，不刪組／合併組。
-空區沒有目標群組，拖入空區不會轉組或自動建組。
+2 rows × 4 columns means two rows, one above the other, with four blocks each; 3 rows × 3 columns is valid; 3 rows × 4
+columns is not. The UI shows rows/columns text and a small grid preview, not just an easily confused "2×4".
+Seven groups can use eight regions and keep an empty one; nine groups cannot use eight regions. An invalid choice keeps
+the current layout and does not delete or merge groups. An empty region has no target group; dragging into it neither
+moves a card to another group nor creates a group.
 
-九組是產品限制，不是把持久化 ID 寫成 0～8 的理由。
-若兩裝置離線新建後同步導致超過九組，必須保留所有已知資料、提示需整理，
-並暫停無法容納的 formation；不可丟棄第十組、任意合併或隱藏掉其內容。
+Nine groups is a product limit, not a reason to persist IDs as 0 to 8.
+If two devices create groups offline and syncing then produces more than nine, all known data must be kept, the user
+is told to tidy up, and formations that cannot fit are paused. The tenth group must not be dropped, merged arbitrarily
+or have its content hidden.
 
 ## Card geometry and preview text
 
-### 紙張模型（U10、U11、U13）
+### Paper model (U10, U11, U13)
 
-- 選中、輪播、單擊、雙擊或開始編輯，都不改卡片紙張尺寸。
-- 堆疊／攤開是排列固定紙張，不能做成 accordion、只把一張拉高或摘要切全文高度。
-- 尺寸可在 formation 中依明確同意調整；這是使用者後續補充的例外。
-- 沒有核准固定 140×140 或其他像素尺寸；先前示意尺寸不是產品規格。
-- 2026-10-17 使用者核准：新放上桌面的紙張預設 240×240，比照常見的 3×3 吋正方形便利貼；
-  已有位置的紙張保留原尺寸，重置桌面佈局後才使用新預設。這是預設值，不禁止 formation 經同意調整。
-- 2026-10-17 使用者核准：群組區域扣掉四周 12px 邊距後放不下 240 時，新紙張縮成剛好放得下的正方形，最小 160×160；
-  例如 1280×775 工作區的 3×3 九組為 234×234，堆疊／攤開時每組第一張仍在自己的區域內。
-- 紙張頂部的標題帶是拖曳把手。內文一律從第一行開始顯示，即使標題帶顯示的就是這一行；
-  2026-10-17 使用者指出，先前「內文不重複標題」讓只有一行的便箋內文整片空白，已取消。
-- 2026-10-17 使用者指示：內文在紙張大小內盡量顯示。能捲動的紙面照 Q07 捲動，不加「…」：桌面層、最上層、調整中的紙張，
-  以及主畫面桌面上可操作的紙張。不能捲動的紙面放不下時以「…」收尾：主畫面便箋牆（點擊開啟編輯）與桌布層。
-  有附件時紙張底部留一排縮圖（62px 高），由左往右排；排不下的縮圖不顯示，不做左右捲動、按鈕或滑過才浮出；
-  開啟仍是雙擊。主畫面便箋牆、主畫面桌面與原生桌面紙面相同。
-- 紙張底色依群組順序取自同一組九色（`src/core/palette.js`），主畫面與桌面相同；顏色不寫入資料。
-- 卡片內太長的內容以穩定尺寸內的閱讀／編輯呈現處理，不自動拉高整張紙。
+- Selecting, cycling, a single click, a double click or starting to edit never change a card's paper size.
+- Stack and spread arrange fixed papers. They must not become an accordion, stretch one card taller, or switch a
+  summary to full-text height.
+- Size may be adjusted in a formation with explicit consent; this is an exception the user added later.
+- No fixed 140×140 or other pixel size is approved; earlier illustrative sizes are not product specifications.
+- Approved by the user on 2026-10-17: papers newly placed on the desktop default to 240×240, like the common 3×3 inch
+  square sticky note. Papers that already have a position keep their size and use the new default only after "Reset
+  desktop layout". This is a default; it does not forbid a formation from adjusting sizes with consent.
+- Approved by the user on 2026-10-17: when a group region, minus a 12px margin on each side, cannot fit 240, new papers
+  shrink to the square that just fits, at least 160×160. For example, nine groups in a 3×3 grid on a 1280×775 work area
+  get 234×234, and in stack and spread the first paper of each group stays inside its own region.
+- Measured on 2026-10-17 with the same long text: a 240×240 desktop paper at 14 px shows 8 lines without attachments
+  and 5 with them; the 160×160 minimum shows 2 lines with attachments. On the main window board a 1280-wide window
+  gives papers of about 229 px, 4 lines with attachments; at phone width papers are about 174 px, 1 line with
+  attachments. The aspect ratio stays as it is until the user decides between square and portrait.
+- Mixed paper sizes, measured on 2026-10-17 with 280×220 and 240×240 papers in one group: square papers fit the same
+  number or more per group when the work area is wide (1536×816, 2 groups: 9 square against 6 in spread) and slightly
+  fewer when it is short (1366×728, 1 group: 10 square against 12 in spread).
+- The title band at the top of a paper is the drag handle. The body always starts from the first line, even when the
+  title band shows that same line. On 2026-10-17 the user pointed out that the earlier "the body does not repeat the
+  title" rule left the body of a one-line note completely blank; that rule was dropped.
+- User instruction on 2026-10-17: the body shows as much as fits in the paper. Papers that can scroll do so as in Q07
+  and get no "…": the Desktop layer, the Top layer, papers in adjust mode, and operable papers in the main window's
+  desktop view. Papers that cannot scroll end with "…" when the text does not fit: the main window board (a click opens
+  the editor) and the Wallpaper layer. With attachments, the bottom of the paper keeps one row of thumbnails (62px
+  high), left to right. Thumbnails that do not fit are not shown, with no horizontal scrolling, buttons or hover
+  reveal; opening is still a double click. The main window board, the main window's desktop view and native desktop
+  papers behave the same. Hidden attachments in the strip cannot be reached with Tab (2026-10-17).
+- Paper background colours come from one shared nine-colour palette (`src/core/palette.js`) in group order, the same in
+  the main window and on the desktop; colours are not written to data. As of 2026-10-17 the shared palette, and new
+  papers that shrink to fit a short region, have been checked only in browser and scene probes, not on a native
+  desktop.
+- Content too long for a card is handled by reading and editing within the stable size, not by automatically stretching
+  the whole paper.
 
-### 第一行摘要（D）
+### First-line summary (D)
 
-摘要取內容第一個可供閱讀的非空文字段落，排成一行；不能強迫使用者先填另一個 title。
-若資料另有使用者明確設定的標題，可作摘要，但不得產生兩份需同時編輯的相同內容。
-2026-10-17 使用者核准：editor 加選填標題，存在內容的 `title`；有填時摘要用標題，留空時不寫入，摘要回到內文第一行。
-搜尋同時比對標題與內文。
-換行壓成空格，過長使用省略號；空白草稿顯示穩定占位。
-Checklist 等格式的摘要保留可理解文字；不在這裡決定整個 editor 格式。
-摘要位於卡片上緣的固定位置，不能被置中版面推到紙張中間。
-堆疊露出的條帶能看到摘要，但被蓋住的卡片本文依物理遮蓋自然不可見。
+The summary is the first readable, non-empty text paragraph of the content, laid out on one line; users must not be
+forced to fill in a separate title first.
+If the data also has a title the user set explicitly, it can serve as the summary, but this must not create two
+identical copies that have to be edited together.
+Approved by the user on 2026-10-17: the editor gets an optional title, stored as `title` in the content. When it is
+filled in, the summary uses the title; when it is left empty, it is not written and the summary falls back to the
+first line of the body. Search matches both the title and the body.
+Line breaks collapse to spaces and overlong text ends with an ellipsis; a blank draft shows a stable placeholder.
+Summaries of checklists and other formats keep understandable text; the whole editor format is not decided here.
+The summary sits at a fixed position at the top edge of the card and must not be pushed to the middle of the paper by
+a centred layout. The strip a stack exposes shows the summary, while the body of a covered card is naturally hidden by
+physical overlap.
 
 ## Formation command contract
 
-### 命令與範圍
+### Commands and scope
 
-| 命令 | 允許修改 | 不修改 |
+| Command | May change | Does not change |
 |---|---|---|
-| Group stack | 該組顯示卡片的位置、基本疊序；經允許才改尺寸 | 群組歸屬、其他組卡片、文字 |
-| Group spread | 召回該組顯示卡片並攤開；尺寸同上 | 其他組的手動擺放、內容 |
-| Global formation | 依所選 grid 與群組配置整理所有參與卡片 | 卡片歸屬、其他裝置位置 |
-| Restore formation | 還原這次 layout transaction 的位置／尺寸／基本疊序 | 文字、遠端修改、已刪除卡片 |
+| Group stack | Position and base stacking order of the group's displayed cards; size only with permission | Group membership, other groups' cards, text |
+| Group spread | Recalls the group's displayed cards and spreads them; size as above | Other groups' manual placement, content |
+| Global formation | Arranges all participating cards by the chosen grid and group layout | Card membership, other devices' positions |
+| Restore formation | Restores position, size and base stacking order from this layout transaction | Text, remote changes, deleted cards |
 
-參與集合由顯示政策決定（見下節）；「召回全部」包含被拖到其他區域的該組卡片，
-不代表讓封存／刪除／明確不顯示的內容全部重新出現在桌面。
-群組 formation 對邏輯歸屬取集合，不按卡片當時的物理位置取集合。
-群組區域內若有其他組的卡片，不可因整理本組而把那些卡片一起搬走。
+The participating set is decided by the display policy (see below). "Recall all" includes the group's cards that were
+dragged into other regions; it does not make archived, deleted or explicitly hidden content reappear on the desktop.
+A group formation takes its set by logical membership, not by where the cards physically are at the time.
+Cards of other groups inside the group region must not be moved along when this group is arranged.
 
-### 一次性排列（U09）
+### One-off arrangement (U09)
 
-1. 取得本次 scope、參與卡片與裝置 geometry 版本，建立預覽／排列計畫。
-2. 先計算位置、基本疊序和是否需要改尺寸；計算階段不移動卡片。
-3. 點選 formation 是重排位置的授權；尺寸另受下節選項控制。
-4. 成功執行時作為一個本機 layout transaction 保存，並建立一次可復原操作。
-5. 群組 formation 讓該組成為目前關注的組，清除會破壞整齊堆疊的單張暫時置頂。
-   不因整理就自動開放文字編輯；若沒有啟動桌面操作，保持唯讀穿透與常駐系統層級。
-6. 全局 formation 重建所有參與卡片的基本疊序，清除舊的暫時選卡／輪播覆蓋。
-   若仍在群組操作中，只保留該 scope 的浮動權限，不保留破壞新排列的選卡覆蓋。
-7. 完成後沒有背景排版守衛；使用者可再次自由拖曳、輪播或轉組。
+1. Take this run's scope, the participating cards and the device geometry version, and build a preview/arrangement
+   plan.
+2. Compute positions, base stacking order and whether sizes must change first; cards do not move during this step.
+3. Choosing a formation authorizes repositioning; size is controlled separately by the option in the next section.
+4. A successful run is saved as one local layout transaction and creates one undoable operation.
+5. A group formation makes that group the current group of attention and clears single-card temporary raises that
+   would break a neat stack. Arranging does not open text editing by itself; if desktop operation was not activated,
+   cards stay read-only and click-through on their resident system layer.
+6. A global formation rebuilds the base stacking order of all participating cards and clears old temporary selection
+   and cycling overrides. If a group operation is still in progress, only that scope's floating permission is kept,
+   not selection overrides that break the new arrangement.
+7. Afterwards there is no background layout guard; users can again drag, cycle or move cards to other groups freely.
 
-單組 formation 的暫時群組提高，只改便箋相對順序；
-「浮到一般 App 上方」仍由是否啟動操作範圍決定，不能把兩種提高混成一個開關。
-目前正在編輯時先可靠保存草稿並離開編輯，再提交 formation；保存失敗時不丟稿、不重排。
+The temporary group raise of a single-group formation only changes the relative order of notes. "Floating above
+ordinary apps" is still decided by whether an operation scope is active; the two kinds of raise must not be merged
+into one switch. If a card is being edited, its draft is reliably saved and editing ends before the formation is
+committed; if saving fails, no draft is lost and nothing is rearranged.
 
-### 堆疊／攤開與容量（U11、U13＋D）
+### Stack, spread and capacity (U11, U13 + D)
 
-- Stack：按穩定順序錯開紙張，前面的摘要帶不被後續紙張覆蓋。
-  例如每張沿 y 增加摘要帶高度，較下方紙張依次有較高的基本疊序。
-  若卡片高度為 h、摘要帶高度為 p，單疊 N 張的高度至少是 h + (N-1)×p。
-  實作須使用實際尺寸及字體量測，不能把此等尺寸示例當所有卡片等大的前提。
-- Spread：以原尺寸排出紙張，參與卡片在可容納時不互相覆蓋。
-- D：先嘗試不改尺寸的整齊排列，必要時分成多疊／多列；既有穩定順序及 ID 決定 tie-break。
-  不用亂數或裝置時鐘讓相同輸入反覆跳位。
-- 若需要縮放，formation 預覽明示「允許調整卡片大小」，預設未允許。
-  本次勾選只授權這次計畫；不默認記住成為永久同意，也不每移一張就詢問一次。
-- 未允許調整時，保持尺寸並允許超出本組區域；區域不是裁切容器。
-- 經允許調整也需保留可讀文字與可操作尺寸；不能藉此縮小字體到看不見摘要。
-- 若超出區域會遮住別組，預覽指出溢出範圍；不偷偷重排別組。
-- 「每張第一行可見」是可容納的堆疊 formation 完成條件，不是自由拖曳／輪播期間的不變量。
-- 整個可見桌面都放不下時，不可宣稱已滿足全卡可讀；不丟卡、不默默分頁／裁切，
-  也不將卡片送到不可達螢幕外。保持原版面並提出容量問題，具體超大容量 UX 見 Q07。
+- Stack: offsets papers in a stable order so that each paper's summary strip is not covered by the papers after it.
+  For example, each card moves down by the summary strip height along y, and lower papers get successively higher base
+  stacking order. With card height h and summary strip height p, a single stack of N cards is at least h + (N-1)×p
+  tall. Implementations must use actual sizes and font measurements; these example sizes do not assume that all cards
+  are the same size.
+- Spread: lays papers out at their original size; participating cards do not overlap when they fit.
+- D: first try a neat arrangement without resizing, splitting into several stacks or rows if needed; the existing stable
+  order and IDs break ties. No randomness or device clock that makes the same input jump around.
+- If scaling is needed, the formation preview explicitly shows "Allow resizing cards", off by default.
+  Ticking it authorizes this plan only; it is not remembered as permanent consent, and the user is not asked once per
+  moved card.
+- Without permission to resize, sizes stay and cards may extend beyond their group region; the region is not a
+  clipping container.
+- Even with permission, resizing must keep readable text and operable sizes; it must not shrink fonts until the summary
+  cannot be seen.
+- If overflowing the region would cover another group, the preview points out the overflow; other groups are not
+  rearranged behind the user's back.
+- "Every card's first line is visible" is the completion condition for a stack formation that fits, not an invariant
+  during free dragging or cycling.
+- When even the whole visible desktop cannot fit the cards, the app must not claim that all cards are readable. It drops
+  no cards, does not silently paginate or clip, and does not send cards to unreachable off-screen positions. It keeps
+  the existing layout and raises the capacity problem; the concrete UX for very large capacity is in Q07.
 
-### 復原（U15＋D）
+### Undo (U15 + D)
 
-每次 formation 為單一 undo 單位，保存參與卡 ID、原位置、原尺寸、基本疊序及必要 grid mapping。
-可復原尺寸調整。復原不回退文字、共享歸屬或其他裝置的操作，不復活已刪除卡片。
-後來新增的卡片不刪掉；不在快照內的卡片維持原樣。
-同一裝置若 formation 後又拖動卡片，依本機操作順序復原，
-不能直接跳過中間動作而無聲覆蓋新的手動位置。
-顯示器環境已變時，先使還原結果可達，再回報與舊座標的差異。
-formation 預覽後若卡片集合／geometry 已變，重新計算預覽，不提交過期計畫。
+Each formation is one undo unit and saves the participating card IDs, original positions, original sizes, base
+stacking order and any needed grid mapping.
+Size changes can be undone. Undo does not roll back text, shared membership or other devices' operations, and does not
+revive deleted cards. Cards added later are not deleted; cards not in the snapshot stay as they are.
+If cards on the same device were dragged after the formation, undo follows the local operation order; it must not
+skip the intermediate actions and silently overwrite newer manual positions.
+If the display environment has changed, the restored result is made reachable first, and the differences from the old
+coordinates are reported afterwards.
+If the card set or geometry changed after the formation preview, the preview is recomputed; a stale plan is not
+committed.
 
 ## Visibility, system layer and input policy
 
-### 獨立維度
+### Independent dimensions
 
-| 維度 | 語意 |
+| Dimension | Meaning |
 |---|---|
-| 桌面總顯示 | 是否常駐呈現桌面便箋，不刪除內容 |
-| 逐卡顯示集合 | 哪些卡片參與這台裝置的桌面呈現 |
-| 常駐系統層級 | Desktop／Wallpaper／常駐浮動等候選能力；實際支援需按平台回報 |
-| 操作 scope | 哪組／全部暫時可拖拉並浮到一般 App 上方 |
-| 唯讀文字選取 | 如果提供，接受滑鼠選字但不改文；不能與完全滑鼠穿透同時啟用 |
-| 單張編輯 | 明確文字修改狀態，有本機草稿及來源權限檢查 |
+| Desktop display (master) | Whether desktop notes are shown at all; turning it off does not delete content |
+| Per-card display set | Which cards take part in this device's desktop presentation |
+| Resident system layer | Candidate capabilities such as Desktop, Wallpaper and resident floating; actual support must be reported per platform |
+| Operation scope | Which group, or all, can be dragged temporarily and floats above ordinary apps |
+| Read-only text selection | If offered, accepts mouse text selection without changing text; cannot be enabled together with full click-through |
+| Single-card editing | Explicit text-editing state, with a local draft and source permission checks |
 
-這些維度不是要求把六個 toggle 常駐放在同一個面板。
-先保存正確責任與狀態，再設計乾淨的設定頁。
-逐卡多種常駐層級／唯讀選字的完整 1.0 UI 尚未逐項確認，見 Q03；不能假定全刪除或照搬。
+These dimensions do not require six toggles to sit permanently in one panel.
+Keep the right responsibilities and state first, then design a clean settings page.
+The full 1.0 UI for several per-card resident layers and read-only selection has not been confirmed item by item (see
+Q03); do not assume that it is all removed or copied as is.
 
-### 有效行為預設（D）
+### Effective behaviour defaults (D)
 
-- Deleted／archived／明確不顯示的卡片不因群組快捷鍵重新釘上桌面。
-- 桌面總顯示關閉時，明確叫出某組可作暫時操作召喚；只顯示該組原本有桌面資格的卡片，
-  結束後恢復隱藏，不把總開關永久打開。若集合為空，提供可達的管理入口，不靜默無反應。
-- Scope=None：預設唯讀、不可拖曳、不接受點擊／框選／文字選取；背景同步不搶焦點。
-- Scope=Group(A)：A 的參與卡片暫時浮到一般 App 上方並可拖；B 等其他組的有效政策不變。
-- Scope=All：所有參與卡片可拖且暫時浮起；聚焦 A 只改疊序，不把 scope 偷偷縮成 A。
-- Editing(A1)：只有 A1 的文字區域進入編輯；組內其餘卡片不因此可改文字。
-- 暫時浮起不得永久改寫逐卡常駐層級。退出後以目前持久化設定重新推導；
-  若操作期間設定有變，不用舊 snapshot 蓋掉新設定。
-- 設定為常駐浮動的候選卡片，其層級與文字可否修改仍須分開；不能沿用「置頂就可編輯」。
-- OS 系統保護畫面、鎖定畫面與所有其他 App 的特殊浮窗不在「一般 App 上方」保證內。
-  正常 App、全螢幕、Spaces 等能力分別驗收，不能默默以一種模式代替全部。
+- Deleted, archived or explicitly hidden cards are not pinned back onto the desktop by a group shortcut.
+- With desktop display off, explicitly calling up a group works as a temporary operation summon: only that group's
+  cards that were eligible for the desktop are shown, and they are hidden again afterwards; the master switch is not
+  turned on permanently. If the set is empty, a reachable management entry is offered instead of silently doing nothing.
+- Scope=None: read-only by default, not draggable, no clicks, marquee selection or text selection; background sync does
+  not steal focus.
+- Scope=Group(A): A's participating cards temporarily float above ordinary apps and can be dragged; the effective
+  policy of B and the other groups is unchanged.
+- Scope=All: all participating cards can be dragged and float temporarily; focusing A only changes the stacking order
+  and does not quietly narrow the scope to A.
+- Editing(A1): only A1's text area enters editing; the other cards of the group do not become text-editable because of
+  it.
+- Temporary floating must not permanently rewrite per-card resident layers. On exit, behaviour is derived again from
+  the current persisted settings; if the settings changed during the operation, an old snapshot does not overwrite
+  them.
+- For candidate cards set to resident floating, the layer and whether the text can be changed still stay separate;
+  "on top means editable" does not apply.
+- OS protected screens, the lock screen and other apps' special floating windows are outside the "above ordinary apps"
+  guarantee. Normal apps, full screen, Spaces and similar capabilities are accepted separately; one mode must not
+  silently stand in for all of them.
 
 ## Interaction state and transitions
 
-最小狀態是 operationScope、activeGroupId、selectedCardId、editingCardId、dragSession。
-各自有不同作用，不用一個 globalUnlocked 布林值同時決定顯示／編輯／疊序。
-activeGroupId 可以由唯讀輪播設定；它本身不代表取得拖拉或編輯權限。
+The minimal state is operationScope, activeGroupId, selectedCardId, editingCardId and dragSession.
+Each has a different role; a single globalUnlocked boolean does not decide display, editing and stacking order
+together. activeGroupId can be set by read-only cycling; by itself it does not grant drag or edit permission.
 
-| 事件 | 前提 | 結果 |
+| Event | Precondition | Result |
 |---|---|---|
-| ActivateGroup(A) | A 存在且有可呈現內容 | scope=A、activeGroup=A；清除不屬於 A 的選卡；A 暫時浮起，不移動／縮放 |
-| ActivateAll | 有可呈現內容 | scope=All；各組可操作；不執行 formation |
-| 重按同範圍快捷鍵 | 非 IME／子對話框處理中 | 安全結束編輯與操作，恢復常駐政策 |
-| 啟動另一範圍 | 可保存目前草稿 | 結束舊 scope 再啟動新 scope，不累積多個開關 |
-| 單擊卡片 | 卡在 scope 內、無拖曳 | 選中該卡及群組，暫時提高；不進入編輯 |
-| 雙擊卡片 | 可編輯、無拖曳／子控制項手勢 | 單張編輯；尺寸不變 |
-| 編輯按鈕／鍵盤入口 | 同上 | 與雙擊同一命令，不能另有不同保存語意 |
-| Esc（編輯中） | IME／選單未先消耗 | 本機可靠保留有變更的草稿（依 U23），退出編輯，留在該 scope |
-| Esc（拖曳中） | 有 dragSession | 取消本次拖曳與轉組，還原起始 geometry，不退出整個 scope |
-| Esc（只有 scope） | 無更內層操作 | 結束 scope，保留使用者已完成的移動與編輯 |
-| Cycle next/previous | 已明確指定組 | 全邏輯組參與卡依穩定順序輪播；只改暫時疊序 |
-| App 重啟／登出 | — | 不恢復操作 scope、選卡、微亮；持久化草稿與版面仍保留 |
+| ActivateGroup(A) | A exists and has presentable content | scope=A, activeGroup=A; selections outside A are cleared; A floats temporarily, without moving or resizing |
+| ActivateAll | There is presentable content | scope=All; every group can be operated; no formation runs |
+| Pressing the same scope shortcut again | No IME or child dialog is handling it | Safely ends editing and the operation, and restores the resident policy |
+| Activating another scope | The current draft can be saved | Ends the old scope, then starts the new one; switches do not accumulate |
+| Single click on a card | The card is in scope, no drag | Selects the card and its group and raises them temporarily; does not enter editing |
+| Double click on a card | Editable, no drag or child-control gesture | Single-card editing; size unchanged |
+| Edit button / keyboard entry | Same as above | The same command as a double click, with no different save semantics |
+| Esc (while editing) | Not consumed first by the IME or a menu | Reliably keeps a changed draft locally (per U23), leaves editing, stays in that scope |
+| Esc (while dragging) | A dragSession exists | Cancels this drag and group transfer and restores the starting geometry; does not leave the whole scope |
+| Esc (scope only) | No inner operation | Ends the scope, keeping the moves and edits the user completed |
+| Cycle next/previous | A group was explicitly chosen | All participating cards of the logical group cycle in stable order; only the temporary stacking order changes |
+| App restart / sign-out | — | Operation scope, selection and highlight are not restored; persisted drafts and layout remain |
 
-Esc 不代表丟棄有變更的草稿；只有依 U23 沒有需要保留內容的草稿，在編輯結束時移除。
-編輯交給另一個 editor 接續（桌面 editor 與主畫面互換、開啟完整編輯）不算結束，草稿延續。中文輸入法候選確認、組字中 Esc／Enter、選單／對話框先依控制項處理，
-不能被桌面輪播或退出處理器搶走。
-普通編輯快捷鍵／方向鍵在文字編輯時優先歸 editor，不能用全域左右鍵搶走文字游標。
-儲存失敗時保留 editor 與草稿，讓使用者可重試；成功存本機即可退出，
-不要求等 Google 同步，但不得把待同步或衝突說成已同步。
-只有影響版面完整性的變更需要先結束拖曳／編輯；不是每次背景文字更新都搶走操作。
+Esc does not discard a changed draft; only drafts with nothing to keep under U23 are removed when editing ends.
+Handing editing to another editor (switching between the desktop editor and the main window, or opening the full
+editor) is not an end; the draft continues. Chinese IME candidate confirmation, Esc/Enter during composition, and menus
+and dialogs are handled by their controls first and must not be taken over by the desktop cycling or exit handlers.
+Ordinary editing shortcuts and arrow keys go to the editor first while text is being edited; global left/right keys
+must not take the text cursor away.
+When saving fails, the editor and the draft stay so that the user can retry. Once the save succeeds locally, editing
+can end without waiting for Google sync, but pending sync or conflicts must not be described as synced.
+Only changes that affect layout integrity need dragging or editing to end first; not every background text update
+takes over the operation.
 
-### 相對疊序規則
+Known draft edge cases from the 2026-10-06 review, not fixed: if the card changes while it is being edited (marked
+complete, archived, moved or synced), an unchanged copy of the draft is kept as an old version; ending an edit through
+`#afterTransfer` skips the draft-release hook; with the drafts list open, "Continue editing" fails with "draft not
+found" when the desktop has removed that draft. On phones, whether a WebView double tap fires `dblclick` is unconfirmed
+(2026-10-06).
 
-在同一有效系統層中，由後到前：其他組依基本疊序 → active group 的其他卡 → selected card。
-實作可用排序 tuple 表達，不能反覆加大整數 z-index 直到溢出，也不能把選中寫入共用資料。
-Active group 換組時撤掉舊組暫時提高；結束操作／輪播時可恢復基本順序。
-正在拖曳的卡維持可見至手勢結束，不能在按住時因轉組預覽先降層。
-群組輪播包含被拖到其他區域的該組卡，不因物理位置將它逐出輪播。
-被高亮的候選接收區不會因此成為 active group、可編輯或搶走 keyboard focus。
-若卡片固定常駐系統層不同，active 操作組由暫時浮動呈現確保其組內排序；
-跨系統層的完整優先規則屬於 Q03，不能假稱每個 OS 都提供相同的 window z-order。
+### Relative stacking order rules
+
+Within one effective system layer, from back to front: other groups in base stacking order → the active group's other
+cards → the selected card.
+Implementations can express this as a sort tuple; they must not keep increasing an integer z-index until it overflows,
+and must not write the selection into shared data.
+When the active group changes, the old group's temporary raise is removed; ending the operation or cycling can restore
+the base order. A card being dragged stays visible until the gesture ends; it must not drop a layer while held because
+of a group-transfer preview. Group cycling includes the group's cards that were dragged into other regions; their
+physical position does not drop them from the cycle.
+A highlighted candidate drop target does not thereby become the active group, become editable or take keyboard focus.
+If cards have different fixed resident system layers, temporary floating presentation ensures the order inside the
+active operated group. The full priority rules across system layers belong to Q03; it must not be claimed that every
+OS offers the same window z-order.
 
 ## Dragging and group transfer
 
-### 手勢分類（U19＋D）
+### Gesture classification (U19 + D)
 
-| 行為 | 結果 |
+| Action | Result |
 |---|---|
-| 普通拖曳到任何可達桌面位置 | 只改本機位置，主要群組不變 |
-| 拖到有群組 ID 的接收標籤 | 標示候選群組；放開才轉組 |
-| 按住 Shift 拖到有群組的區域 | 整個該區成為接收目標；放開才轉組 |
-| 拖過空區／群組一般區域，未按 Shift | 仍是普通移位，不猜測使用者要轉組 |
-| 卡片 action「移至群組」 | 同一轉組命令；不需進入桌面手勢，不自動搬位置 |
+| Ordinary drag to any reachable desktop position | Changes only the local position; the primary group is unchanged |
+| Drag onto a drop label that has a group ID | Marks the candidate group; the transfer happens only on release |
+| Shift-drag onto a region that has a group | The whole region becomes the drop target; the transfer happens only on release |
+| Drag across an empty region or a group's ordinary area without Shift | Still an ordinary move; no guessing that the user wants a transfer |
+| Card action "Move to group" | The same transfer command; needs no desktop gesture and does not move the card |
 
-拖曳開始顯示可辨識、可達的群組接收標籤；不是只有很小的無字圖示。
-只有有效轉組目標才出現區域微亮及「移至 B」文字；顏色不是唯一訊號。
-微亮表示放開將改歸屬，不能拿同樣的效果表示單純路過。
-群組數字槽、名稱、區域位置可能改變，候選目標必須保存穩定 groupId。
+When a drag starts, recognizable and reachable group drop labels appear, not just tiny icons without text.
+Only a valid transfer target shows the region highlight and the "Move to B" text; colour is not the only signal.
+The highlight means that releasing will change membership; the same effect must not be used for merely passing over.
+Group number slots, names and region positions can change, so the candidate target must hold the stable groupId.
 
-### 操作生命週期
+### Operation life cycle
 
-1. Pointer down 記錄 cardId、原 groupId／revision、原 geometry、grab offset、pointerId。
-2. 未超出合理拖曳門檻仍是點擊；門檻按平台／縮放轉換，不能硬拷貝舊應用像素值。
-3. 真正拖曳後取得 pointer tracking/capture；更新視覺位置與候選目標，不提交群組變更。
-4. 目標只按目前裝置的 formation 區域／接收標籤判定，不以其他卡片的散落位置判定。
-5. Shift 在拖曳途中按下／放開會切換目標判定；每次更新都同步變更提示。
-6. Pointer up 重新檢查最後有效目標、群組存在、來源可寫與預期 revision。
-7. 普通移位提交本機 geometry；有效轉組提交主要群組變更與目前裝置放下的位置，
-   保留內容及卡片身分，建立復原資訊；相同群組目標只需要位置操作。
-8. 只在本機安全保存成功後顯示「已移至 B・復原」；遠端同步狀態另行呈現。
-9. 釋放 pointer tracking，清除微亮，依新歸屬及當前 scope 推導可操作性／層級。
+1. Pointer down records the cardId, the original groupId/revision, the original geometry, the grab offset and the
+   pointerId.
+2. Below a reasonable drag threshold it is still a click. The threshold is converted per platform and scale, not copied
+   as a pixel value from an old application.
+3. Once really dragging, take pointer tracking/capture; update the visual position and the candidate target without
+   committing a group change.
+4. The target is decided only by the current device's formation regions and drop labels, not by where other cards are
+   scattered.
+5. Pressing or releasing Shift during the drag switches target detection; every update refreshes the change hint at
+   the same time.
+6. Pointer up rechecks the last valid target, that the group exists, that the source is writable, and the expected
+   revision.
+7. An ordinary move commits local geometry. A valid transfer commits the primary group change and the drop position on
+   the current device, keeps the content and the card identity, and records undo information; a target in the same
+   group needs only a position operation.
+8. "Moved to B · Undo" appears only after the local save succeeded safely; remote sync status is shown separately.
+9. Release pointer tracking, clear the highlight, and derive operability and layer from the new membership and the
+   current scope.
 
-不得透過 HTML 原生跨 App 檔案拖放推論群組；這是本產品內的命令。
-提示層不得搶走拖曳來源的事件；空白區域不因透明覆蓋層而一直攔截桌面滑鼠。
-移動達到拖曳門檻後的 mouseup／click／dblclick 不可再觸發選字或編輯。
+Groups must not be inferred through HTML native cross-app file drag and drop; this is a command inside the product.
+The hint layer must not take events from the drag source; empty areas must not keep intercepting the desktop mouse
+because of a transparent overlay.
+After the movement has passed the drag threshold, mouseup/click/dblclick must not trigger text selection or editing.
 
-### 取消、失敗及中途改變（D）
+### Cancellation, failure and changes mid-drag (D)
 
-- Esc／pointer cancel／失去 capture：取消未提交手勢，恢復起始位置與歸屬，清除提示。
-- Shift 仍按住但放開時沒有有效接收區：取消這次轉組拖曳，還原起始位置；
-  若要保留普通移位，先放開 Shift，使 UI 清楚回到普通移位模式。
-- 標籤預覽後移離標籤、未按 Shift：重新成為普通移位，微亮立即消失。
-- 放下前目標群組被刪除／重映射：不得把卡片送到同一格的新群組，取消並說明。
-- 同張卡被別的裝置轉組：依資料衝突契約保留雙方意圖，不用時鐘選贏家，
-  不以拖曳時舊卡片 snapshot 覆蓋新文字。
-- 本機保存失敗：不顯示成功、不丟失內容；取消變更或留可重試狀態，卡片保持可達。
-- 只有 A 可操作時，卡從 A 轉到 B，完成提示後該卡退出 A 的操作範圍並回到常駐政策；
-  A 的其他卡仍維持操作模式，不自動召喚 B。
-- All 模式下 A→B 後仍可操作；將放下卡設為 selected、B 為 active group，不改 scope。
-- 轉組復原是新的條件式資料操作；若之後已有遠端歸屬修改，不能盲目改回 A。
+- Esc, pointer cancel or lost capture: cancel the uncommitted gesture, restore the starting position and membership,
+  and clear the hints.
+- Releasing while Shift is still held but with no valid drop region: cancel this transfer drag and restore the
+  starting position. To keep an ordinary move, release Shift first so that the UI clearly returns to ordinary move mode.
+- Moving off a label after its preview, without Shift: becomes an ordinary move again, and the highlight disappears at
+  once.
+- The target group is deleted or remapped before the drop: the card must not go to a new group in the same slot; cancel
+  and explain.
+- The same card is moved to another group by another device: keep both intents per the data conflict contract, do not
+  pick a winner by clock, and do not overwrite newer text with the card snapshot taken during the drag.
+- The local save fails: show no success and lose no content; cancel the change or leave a retryable state, and the card
+  stays reachable.
+- When only A can be operated and a card moves from A to B, after the completion hint the card leaves A's operation
+  scope and returns to the resident policy; A's other cards stay in operation mode, and B is not summoned
+  automatically.
+- In All mode the card can still be operated after A→B; the dropped card becomes the selected card and B the active
+  group, and the scope does not change.
+- Undoing a transfer is a new conditional data operation; if a remote membership change happened since, it must not
+  blindly change the card back to A.
 
 ## Editing, updates and initial placement
 
-### 編輯與拖拉（D）
+### Editing and dragging (D)
 
-拖拉模式的卡片表面負責移動；文字編輯模式的本文區負責游標、選字與輸入。
-編輯時要移動可使用明確把手，不能拖曳選字卻把整張卡搬走。
-連結、按鈕、checkbox、文字選取等子控制項不把同一手勢冒泡成拖曳或雙擊編輯。
-Checklist 快捷勾選的完整策略待 Q01；不得藉例外讓唯讀卡片改文。
-退出編輯、切組、formation、隱藏或換帳號前保留草稿；本機落盤失敗必須可見。
-鎖定桌面不阻止手機更新；來源唯讀權限則不得因本機解鎖而被繞過。
+In drag mode the card surface handles moving; in text-editing mode the body area handles the cursor, selection and
+input. While editing, moving uses an explicit handle; dragging to select text must not carry the whole card away.
+Child controls such as links, buttons, checkboxes and text selection do not bubble the same gesture up into a drag or a
+double-click edit. The full policy for quick checklist ticking awaits Q01; exceptions must not let read-only cards
+change text. The draft is kept before leaving editing, switching groups, formation, hiding or switching accounts; a
+failed local write to disk must be visible.
+A locked desktop does not block updates from phones; a source's read-only permission must not be bypassed by
+unlocking locally.
 
-### 新卡與同步（U14＋D）
+### New cards and sync (U14 + D)
 
-- 在 A 群組新增的卡，在目前裝置的 A 區域取得初始位置；不落到任意桌面中央。
-- 手機／其他裝置新增亦同；只為本機尚無 placement 的卡分配位置，不重排舊卡。
-- 初始位置以群組區域內可用位置為先；沒有空位時允許重疊並顯示有新卡，
-  不縮小舊卡、不把卡送出可達範圍、不讓新卡搶走 selected／editing card。
-- 同步只更新共用資料；不能因內容變長、改色、卡片轉組或重新登入而觸發 formation。
-- 已有本機位置的卡從 A 改為 B，位置保留；下次 B formation 才召回 B 區域。
-- 正在輪播時的新卡加入集合不搶選擇；依穩定順序於之後導航可到達。
-- 被選卡被刪除時，以穩定鄰近項接續；有未保存草稿時先保留為可恢復草稿。
-- 未知群組／尚未下載的依賴先保留資料並明示待同步，不因檔案缺席自行改組或刪除。
+- A card added in group A gets its initial position in A's region on the current device, not somewhere in the middle of
+  the desktop.
+- The same applies to cards added on phones or other devices; positions are assigned only to cards that have no local
+  placement yet, and old cards are not rearranged.
+- The initial position prefers free space in the group region. Without free space, overlap is allowed and the new card
+  is indicated, without shrinking old cards, sending cards out of reach, or letting the new card take over the selected
+  or editing card.
+- Sync updates only shared data; longer content, a colour change, a card moving to another group or signing in again
+  must not trigger a formation.
+- A card that already has a local position keeps it when it moves from A to B; the next B formation recalls it into
+  B's region.
+- New cards that join the set during cycling do not take the selection; they are reachable later by navigating in
+  stable order.
+- When the selected card is deleted, its stable neighbour takes over; if it has an unsaved draft, the draft is kept as a
+  recoverable draft first.
+- Unknown groups or dependencies not yet downloaded keep their data and are clearly marked as waiting for sync; a
+  missing file does not make the app change groups or delete anything on its own.
 
-### 顯示器改變（D）
+### Display changes (D)
 
-使用邏輯座標與裝置顯示器提示，不把不同平台的 physical pixel、point、DIP 混用。
-拔螢幕或工作區縮小，只救回不可達卡片，保留仍可達的手動位置；不順便執行全局 formation。
-群組區域一律鋪在目前主顯示器的工作區，與設定套用 grid 時相同：啟動與每次顯示器改變都跟著更新，工作區變大也一樣；卡片不因此移動。
-瀏覽器預覽以畫布當工作區，大小穩定後才更新。
-（2026-10-16：之前只在舊區域完全超出新工作區時才重設，登入時內建螢幕暫時當主螢幕留下的小區域，換回較大的螢幕後一直沒有放大。）
-記錄恢復理由；跨螢幕拖放、混合 DPI、拔插需獨立驗收，不能用單螢幕結果宣稱完成。
+Use logical coordinates and device display hints; do not mix the physical pixels, points and DIPs of different
+platforms. Unplugging a display or shrinking the work area rescues only unreachable cards and keeps manual positions
+that are still reachable; no global formation runs along with it.
+Group regions always cover the work area of the current primary display, as when the grid is applied in Settings: they
+update at start and on every display change, also when the work area grows; cards do not move because of this.
+The browser preview uses its canvas as the work area and updates only after the size settles.
+(2026-10-16: regions used to be reset only when the old regions lay completely outside the new work area, so the small
+regions left behind when the built-in screen was briefly the primary display at sign-in never grew after the larger
+display came back.)
+Known issue (2026-10-16): restoring a backup's layout keeps the backup's grid area until the next start or display
+change, and the restore uses `workAreas[0]`, which is not always the primary display.
+Record the recovery reason. Cross-display drag and drop, mixed DPI and hot-plugging need separate acceptance; a
+single-display result cannot be claimed as done.
 
 ## Architecture dependencies
 
-共用核心須承載卡片與群組命令、可靠草稿、條件式歸屬變更及同步；
-每裝置 LayoutStore／InteractionController 承載 geometry、formation、undo 與操作狀態。
-Renderer 接收共同語意模型，平台 host 回報桌面層、浮動層、輸入區域及快捷鍵能力。
-不可把 NoteSource 或編輯資料綁到 OS 視窗數量，也不能讓每張卡自行連 Google。
-具體 module boundary、候選合成表面與協定限制見
-[ADR-007](../decisions/007-desktop-scene-and-platform-host.md) 與
-[平台研究](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
+The shared core must carry card and group commands, reliable drafts, conditional membership changes and sync; the
+per-device LayoutStore/InteractionController carries geometry, formation, undo and operation state.
+The renderer receives the common semantic model; platform hosts report their desktop layer, floating layer, input
+region and shortcut capabilities. NoteSource and editing data must not be tied to the number of OS windows, and cards
+must not each connect to Google on their own.
+Concrete module boundaries, candidate composition surfaces and protocol limits are in
+[ADR-007](../decisions/007-desktop-scene-and-platform-host.md) and the
+[platform research](../research/2026-10-04-desktop-interaction-platform-feasibility.md).
 
 ## Acceptance cases
 
-下表是待實作的驗收契約，不是已通過的測試；執行狀態只記 [PROGRESS](../../PROGRESS.md)。
+The table below is the acceptance contract to implement, not a list of passed tests. Current status is in
+[PROGRESS](../../PROGRESS.md); history and verification evidence are in the git history and [testing](../testing.md).
 
-| ID | Given / When | 必須觀察到的結果 |
+| ID | Given / When | Required observable result |
 |---|---|---|
-| C01 | 首次使用只建立一張想法 | 不需 Project／機器／執行狀態，落在預設組 |
-| C02 | 設定 2 列 × 4 欄 | 上下兩列每列四區，八區 |
-| C03 | 選 3 列 × 4 欄／九組套八區 | 明確拒絕無效配置，原群組與版面不變 |
-| C04 | 七組套八區 | 空區保留，不創建第八組 |
-| C05 | 改群組名稱及 formation 位置 | 原快捷鍵仍指向同一穩定群組 |
-| C06 | 普通拖曳 A1 至 B 區 | 位置改變，歸屬仍為 A |
-| C07 | A1 在 B 區，執行 A stack | A1 被召回 A；B 卡片不動 |
-| C08 | A 區有 B1，執行 A spread | B1 不被一起移動 |
-| C09 | Stack 與 spread 切換 | 紙張尺寸不變，除非當次另行允許調整 |
-| C10 | 卡片很多，不允許改尺寸 | 不縮小；可超組區，容量失敗不得藏卡 |
-| C11 | 允許本次 formation 改尺寸後 undo | 原位置、尺寸、基本疊序回復，文字不倒退 |
-| C12 | Stack 完成且可容納 | 每張第一行可見，不因文字垂直置中被遮住 |
-| C13 | Stack 後輪播後方卡 | 卡片位置／尺寸完全不變，允許部分摘要被遮住 |
-| C14 | 操作 A 並選 A2 | 所有 A 卡在其他組上方，A2 在 A 組最前面 |
-| C15 | A 卡被拖到很遠的另一區後輪播 A | 仍能輪播到它，不自動召回 |
-| C16 | 啟動單組操作 | 只讓指定組可拖並浮到一般 App 上，未執行 formation |
-| C17 | 啟動 All 後點選 A | 全組仍可操作，A 組相對提高 |
-| C18 | 單擊／雙擊卡片 | 前者選中、後者編輯；不改紙張尺寸 |
-| C19 | 微小 pointer 抖動／真正拖動後放開 | 前者可算點擊；後者不接著開 editor |
-| C20 | 編輯中拖選文字／使用拖曳把手 | 文字選取不移卡，把手可移卡 |
-| C21 | 拖到 B 標籤後移離 | 移入時顯示「移至 B」；移離後取消候選，不預先寫入 |
-| C22 | Shift＋拖入 B 區並放開 | 同一張卡改為 B，保留放下位置，沒有其他卡重排 |
-| C23 | 拖入空區、沒按 Shift | 普通移位，不改組／建組 |
-| C24 | Shift＋放在無目標區／Esc | 轉組取消，起始群組與位置恢復 |
-| C25 | 單組 A 模式把 A1 轉到 B | 提示完成，A1 回常駐政策；A 其他卡仍可操作，不召喚 B |
-| C26 | All 模式把 A1 轉到 B | 仍可操作，scope 保持 All |
-| C27 | action 選單轉組 | 同一資料命令，保留座標，不要求滑鼠拖放 |
-| C28 | 預覽目標 B 後 B 被刪除／位置被別組占用 | 不轉到錯誤群組，安全取消 |
-| C29 | 轉組同時遠端改文／改組 | 不覆蓋文字或靜默丟掉其中一個歸屬意圖 |
-| C30 | 復原轉組時已有較新修改 | 條件式處理，不盲目覆寫新修改 |
-| C31 | 手機在 A 新增卡片 | 新卡在 A 區域，舊卡不動，editor 不失去焦點 |
-| C32 | 遠端把已有位置的卡轉到 B | 本機位置保持，B formation 才召回 |
-| C33 | 編輯中退出／切組，磁碟保存失敗 | 文字與草稿保留，失敗可見，不假報保存成功 |
-| C34 | 中文輸入法組字／候選處理 Esc | 不意外退出整個操作模式 |
-| C35 | 結束浮動操作／App 重啟 | 恢復常駐層級／穿透，不恢復暫時 focus 或微亮 |
-| C36 | 背景同步與其他 App 持續打字 | 無自動浮起、改焦點、重排 |
-| C37 | A 執行 formation，B 裝置在線 | B 的本機 geometry 不變 |
-| C38 | 改善群組堆疊，B 卡遮住目標區 | 只整理 A；相對提高 A，B 座標不被偷偷改 |
-| C39 | 復原 formation 前後遠端有文字更新／刪除 | 更新仍在，刪除卡不復活 |
-| C40 | 只操作 A，其他組與空白桌面 | 不被整面透明視窗攔截而無法操作 |
-| C41 | 快捷鍵衝突或 Wayland backend 不支援 | App 可用、有狀態與替代入口，不假報註冊成功 |
-| C42 | labwc 同層多卡任意輪播 | 使用 renderer 可控疊序，不依賴未定義的原生 surface 次序 |
-| C43 | 拔掉外接螢幕 | 只救回不可達卡，沒有全局自動 formation |
-| C43b | 主螢幕的工作區變大（如合蓋筆電的內建螢幕關掉後只剩外接螢幕） | 群組區域鋪滿新的主螢幕工作區，卡片不動 |
-| C44 | 並行新建產生超過九組 | 資料完整保留，提示整理，不刪掉超出組 |
-| C45 | 本機刪除區／不顯示卡遇到群組召喚 | 不被永久改成桌面顯示 |
-| C46 | 修改 scope 內卡的常駐層級後退出 | 套用新持久化設定，不回寫舊 snapshot |
-| C47 | 微亮與拖曳卡重疊／跨 renderer | 提示不搶 capture，放下只執行一次命令 |
-| C48 | 檔案來源或 renderer 換成 fake adapter | 群組、位置及互動語意維持，沒有 Google／視窗 handle 耦合 |
+| C01 | First use creates only one idea | No Project, machine or execution state is needed; it lands in the default group |
+| C02 | Set 2 rows × 4 columns | Two rows, one above the other, with four regions each: eight regions |
+| C03 | Choose 3 rows × 4 columns / nine groups on eight regions | The invalid layout is explicitly rejected; groups and layout stay unchanged |
+| C04 | Seven groups on eight regions | The empty region stays; no eighth group is created |
+| C05 | Rename a group and change its formation position | The existing shortcut still points to the same stable group |
+| C06 | Ordinary drag of A1 into B's region | The position changes; membership stays A |
+| C07 | A1 is in B's region; run A stack | A1 is recalled to A; B's cards do not move |
+| C08 | A's region contains B1; run A spread | B1 is not moved along |
+| C09 | Switch between stack and spread | Paper sizes are unchanged unless resizing was allowed for that run |
+| C10 | Many cards, resizing not allowed | No shrinking; cards may extend past the group region; a capacity failure must not hide cards |
+| C11 | Undo after allowing this formation to resize | Original positions, sizes and base stacking order return; text does not roll back |
+| C12 | A stack completes and fits | Every card's first line is visible, not hidden by vertically centred text |
+| C13 | Cycle to a card at the back after a stack | Card positions and sizes are completely unchanged; parts of some summaries may be covered |
+| C14 | Operate A and select A2 | All A cards are above the other groups; A2 is frontmost in A |
+| C15 | An A card was dragged far into another region; cycle A | It is still reached by cycling and is not recalled automatically |
+| C16 | Activate single-group operation | Only the given group can be dragged and floats above ordinary apps; no formation ran |
+| C17 | Activate All, then click A | All groups can still be operated; group A is raised relatively |
+| C18 | Single click / double click on a card | The first selects, the second edits; paper size is unchanged |
+| C19 | Tiny pointer jitter / release after a real drag | The first can count as a click; the second does not open the editor afterwards |
+| C20 | Drag-select text / use the drag handle while editing | Text selection does not move the card; the handle does |
+| C21 | Drag onto B's label, then off it | On entering, "Move to B" shows; leaving cancels the candidate, and nothing is written in advance |
+| C22 | Shift + drag into B's region and release | That same card changes to B and keeps its drop position; no other card is rearranged |
+| C23 | Drag into an empty region without Shift | Ordinary move; no group change and no new group |
+| C24 | Shift + drop on an area with no target / Esc | The transfer is cancelled; the starting group and position are restored |
+| C25 | Move A1 to B in single-group A mode | Completion hint; A1 returns to the resident policy; A's other cards remain operable; B is not summoned |
+| C26 | Move A1 to B in All mode | Still operable; the scope stays All |
+| C27 | Transfer from the action menu | The same data command; coordinates are kept; no mouse drag required |
+| C28 | After target B was previewed, B is deleted / its position is taken by another group | No transfer to the wrong group; safe cancellation |
+| C29 | Remote text edit / group change during a transfer | Text is not overwritten, and neither membership intent is silently dropped |
+| C30 | Undoing a transfer when a newer change exists | Handled conditionally; the newer change is not blindly overwritten |
+| C31 | A phone adds a card in A | The new card is in A's region, old cards do not move, the editor does not lose focus |
+| C32 | A remote device moves a card that has a position to B | The local position stays; only a B formation recalls it |
+| C33 | Leaving editing / switching groups while editing, and the disk save fails | Text and draft are kept, the failure is visible, no false report of a successful save |
+| C34 | Esc handled during Chinese IME composition or candidate selection | Does not unexpectedly leave the whole operation mode |
+| C35 | Ending the floating operation / app restart | Resident layer and click-through return; temporary focus and highlight are not restored |
+| C36 | Background sync while typing continuously in another app | No automatic floating, focus change or rearrangement |
+| C37 | Device A runs a formation while device B is online | B's local geometry is unchanged |
+| C38 | Restack a group while B's cards cover the target region | Only A is arranged; A is raised relatively; B's coordinates are not changed behind the user's back |
+| C39 | Remote text updates or deletions before and after undoing a formation | The updates remain; deleted cards are not revived |
+| C40 | Operating only A, with other groups and the empty desktop | Not blocked by a full-screen transparent window intercepting input |
+| C41 | Shortcut conflict or an unsupported Wayland backend | The app works, with status and an alternative entry; no false claim of successful registration |
+| C42 | Arbitrary cycling of several cards in the same layer on labwc | Uses renderer-controlled stacking order; does not rely on an undefined native surface order |
+| C43 | Unplug the external display | Only unreachable cards are rescued; no automatic global formation |
+| C43b | The primary display's work area grows (for example only the external display remains after a closed laptop's built-in screen turns off) | Group regions cover the new primary display's work area; cards do not move |
+| C44 | Concurrent creation produces more than nine groups | Data is kept in full, the user is told to tidy up, the extra groups are not deleted |
+| C45 | Cards in local Deleted / hidden cards meet a group summon | They are not permanently switched to desktop display |
+| C46 | Change the resident layer of cards in the scope, then exit | The new persisted setting applies; the old snapshot is not written back |
+| C47 | The highlight overlaps the dragged card / across renderers | The hint does not take capture; the drop runs the command only once |
+| C48 | The file source or the renderer is replaced by a fake adapter | Group, position and interaction semantics hold; no coupling to Google or window handles |
 
 ## Open questions
 
-2026-10-04 後續實作對話已定案以下範圍，取代原本 Q 的未回答邊界。
-維護者明確核准完整功能清單，其他細節授權依最佳實踐定案；不需重問 U01～U22。
-具體本機實作決策见 [ADR-008](../decisions/008-portable-interaction-core.md)。
+The follow-up implementation conversation on 2026-10-04 settled the scope below, replacing the original unanswered Q
+boundaries. The maintainer explicitly approved the full feature list and authorized settling the other details by best
+practice; U01 to U22 need not be asked again.
+Concrete local implementation decisions are in [ADR-008](../decisions/008-portable-interaction-core.md).
 
-| ID | 原問題 | 本輪決定與必要邊界 |
+| ID | Original question | Decision in this round and required boundaries |
 |---|---|---|
-| Q01 | Editor 內容能力 | 納入 Markdown、checklist、附件、完成／封存；一事一卡不改成多 issue 容器 |
-| Q02 | Backup／restore 範圍 | 納入群組／每機版面、自動及加密備份、匯入／合併／取代還原；修訂 SPEC-002 格式及安全預覽 |
-| Q03 | 顯示／層級／選字 | 納入逐卡顯示與常駐層級、唯讀選字設定；能力須依實際平台回報，日常預設仍穿透 |
-| Q04 | 平台及發佈 | 本次含 Windows/macOS/Linux 與 iOS/Android 原生 App、商店提交準備；最低版本／backend 依實作證據定案 |
-| Q05 | 正式 runtime／同步 | 授權技術選型；先採 ADR-008 共同核心，host／協定仍須記錄與實作；不發布 prototype server 為 1.0 |
-| Q06 | 群組刪除／合併 | 明確選擇目的群組並預覽受影響卡片；不隱含刪卡，並行衝突不製造孤兒 |
-| Q07 | 容量與長內容 | 紙面內閱讀／編輯可捲動，主畫面可搜尋完整內容；桌面容量不足保留原版面並提示調整排列／管理顯示集合，不暗藏卡片 |
+| Q01 | Editor content capabilities | Includes Markdown, checklists, attachments, complete/archive; one card per thing does not become a multi-issue container |
+| Q02 | Backup/restore scope | Includes groups and per-device layout, automatic and encrypted backups, and import/merge/replace restores; revise the SPEC-002 format and safe preview |
+| Q03 | Display, layers and text selection | Includes per-card display and resident layers and a read-only selection setting; capabilities must be reported per actual platform, and the everyday default stays click-through |
+| Q04 | Platforms and distribution | This round includes Windows/macOS/Linux and native iOS/Android apps plus store submission preparation; minimum versions and backends are settled by implementation evidence |
+| Q05 | Production runtime and sync | Technology choice is authorized; first adopt the ADR-008 shared core, while hosts and protocols must still be recorded and implemented; the prototype server is not released as 1.0 |
+| Q06 | Group deletion and merging | Explicitly choose the destination group and preview the affected cards; no implicit card deletion, and concurrent conflicts create no orphans |
+| Q07 | Capacity and long content | Reading and editing inside the paper can scroll, and the main window can search the full content; when desktop capacity is short, keep the existing layout and prompt the user to adjust the arrangement or manage the display set, without hiding cards |
 
-## 2026-10-17 便箋格式與附件補充
+## 2026-10-17 addendum: note formatting and attachments
 
-使用者核准六階標題 CSS、程式碼上色、附件縮圖與雙擊預設程式開啟；明確排除桌面直接切換 checklist。
-桌面／浮動層的附件可操作，桌布層維持穿透；附件操作不觸發便箋拖曳／文字編輯。
-只有主工作區能根據目前附件引用要求原生處理；開啟的是唯讀副本，外部修改不自動回存。
-系統預覽失敗顯示檔案圖示，未下載時保留提示；不載入遠端圖片。內容／同步／備份仍為 V1。
-具體平台、快取及上色預算見 [ADR-052](../decisions/052-rich-papers-and-native-attachments.md)，實際驗證見 PROGRESS。
+The user approved six heading levels in CSS, code colouring, attachment thumbnails and opening attachments in the
+default app on double click, and explicitly excluded toggling checklist items directly on the desktop.
+Attachments on the Desktop and Top layers can be operated, while the Wallpaper layer stays click-through; attachment
+actions do not trigger note dragging or text editing.
+Only the main workspace can ask the native side to handle an attachment, based on the current attachment references;
+what opens is a read-only copy, and external changes are not saved back automatically.
+When the system preview fails, a file icon shows; an attachment not yet downloaded keeps a hint; remote images are not
+loaded. Content, sync and backup stay at V1.
+Concrete platforms, caching and the colouring budget are in [ADR-052](../decisions/052-rich-papers-and-native-attachments.md).
+Current status is in [PROGRESS](../../PROGRESS.md); verification evidence is in the git history and
+[testing](../testing.md).
 
 ## References
 
-- [今天討論與決策來源](../research/2026-10-04-desktop-card-interaction-design.md)
-- [平台證據及未驗證範圍](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
-- [實作順序](../plans/003-desktop-interaction-implementation.md)
-- [接手入口與輔助參考取得規則](../handoff/2026-10-04-desktop-interaction-handoff.md)
+- [Source of the 2026-10-04 discussion and decisions](../research/2026-10-04-desktop-card-interaction-design.md)
+- [Platform evidence and unverified scope](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
+- [Implementation order](../plans/003-desktop-interaction-implementation.md)
+- [Handoff entry point and rules for obtaining the auxiliary reference](../handoff/2026-10-04-desktop-interaction-handoff.md)

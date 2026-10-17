@@ -1,4 +1,4 @@
-# ADR-022: Android 原生 App host
+# ADR-022: Android native app host
 
 ## Status
 
@@ -6,40 +6,52 @@ Accepted
 
 ## Context
 
-完整 1.0 已包含 Android 原生 App 及商店提交準備，需重用卡片語意並保留原生儲存與授權邊界。
+The full 1.0 includes a native Android app and preparation for store submission. It must reuse the card semantics and keep
+the native storage and authorization boundaries.
 
 ## Decision
 
-採 Android SDK Activity、Java 17、AndroidX WebKit 及共用本機 ES modules。
-minSdk 28、compile／target SDK 36；AGP 8.13.2、Gradle 8.13。
-WebKit、Credential Manager、Google ID 及 Play Services Auth 固定版本記錄於 Gradle manifest。
+Use an Android SDK Activity, Java 17, AndroidX WebKit and the shared local ES modules.
+minSdk 28, compile/target SDK 36; AGP 8.13.2, Gradle 8.13.
+The fixed versions of WebKit, Credential Manager, Google ID and Play Services Auth are recorded in the Gradle manifest.
 
-WebViewAssetLoader 只映射封裝資產，WebMessageListener 只接受固定 HTTPS origin 的主文件。
-拒絕其他網路資源、frame bridge、任意 URL／SQL／路徑命令；外部連結交给系統。
-同一位置以 native file lock 限制一個 SQLite owner；profile、record revision 及附件在一筆交易保存。
-Android Keystore 的不可匯出 AES 金鑰保護本文、草稿、附件、備份密碼與原生授權。
-金鑰失效不回退明文；停用 Android 系統資料備份，避免內容與不可搬移金鑰失配。
+WebViewAssetLoader maps only packaged assets; WebMessageListener accepts only the main document of a fixed HTTPS origin.
+Other network resources, frame bridges and arbitrary URL/SQL/path commands are rejected; external links go to the system.
+A native file lock limits each location to one SQLite owner; the profile, record revisions and attachments are saved in one
+transaction.
+A non-exportable AES key in Android Keystore protects bodies, drafts, attachments, the backup password and native
+authorization.
+An invalidated key does not fall back to plaintext; Android system data backup is disabled so that content cannot get out of
+step with the non-transferable key.
 
-手機使用 Credential Manager 帳號選擇與 AuthorizationClient 個別 Drive 授權。
-Web client ID 是 Credential Manager audience；Android client 以 package／簽章在 Google 專案註冊。
-原生服務透過 HTTPS userinfo 核對 sub，再綁定帳號分區。token 與續傳 URL 不回傳 renderer。
-HTTP、metadata、SHA-256、固定檔案 ID 與續傳沿用 ADR-012 的契約。
+The phone uses Credential Manager for account selection and AuthorizationClient for a separate Drive authorization.
+The Web client ID is the Credential Manager audience; the Android client is registered in the Google project by package and
+signature.
+The native service checks the sub through HTTPS userinfo, then binds the account partition. Tokens and resumable upload URLs
+are not returned to the renderer.
+HTTP, metadata, SHA-256, fixed file IDs and resumable uploads follow the ADR-012 contract.
 
-手動與自動備份使用 SAF tree grant，原生端保留 URI 建立紀錄，renderer 只收到 opaque ID。
-每次建立新檔；保存後 fsync 及讀回校驗。缺 ownership、檔案變更或最新備份未確認時保留舊檔。
-加密備份使用 SPEC-002 的 UTF-8 PBKDF2／AES-GCM ZIP 格式，沒有明文降級。
-自動備份 scheduler 在前景執行；系統回收依已提交草稿／journal 恢復。
+Manual and automatic backups use a SAF tree grant; the native side keeps a record of the URIs it created, and the renderer
+only receives opaque IDs.
+Every backup creates a new file; after saving, fsync and read-back verification follow. Old files are kept when ownership is
+missing, a file has changed or the latest backup is not confirmed.
+Encrypted backups use the UTF-8 PBKDF2/AES-GCM ZIP format of SPEC-002, with no plaintext downgrade.
+The automatic backup scheduler runs in the foreground; after the system reclaims the process, recovery follows the committed
+drafts and journal.
 
 ## Consequences
 
-- 手機具原生 Activity、儲存、授權、檔案挑選及 build manifest，無 overlay 權限或便箋 server。
-- SDK／真裝置／Google 專案／簽章仍需對應環境，原始碼交付不等同商店通過。
-- SAF 提供者能力不同，不能確認保存時停止清理並保留新檔。
+- The phone has a native Activity, storage, authorization, file picking and a build manifest, with no overlay permission and
+  no note server.
+- The SDK, real devices, the Google project and signing still need their matching environments; delivering source code is
+  not the same as passing store review.
+- SAF providers differ in what they can do; when a save cannot be confirmed, cleanup stops and the new file is kept.
 
 ## Alternatives Considered
 
-renderer IndexedDB 作正式原生儲存：拒絕，無既定安全儲存及檔案授權。
-手機採桌面 loopback OAuth：拒絕，Google 手機 client 不支援該流程。
+Renderer IndexedDB as the official native storage: rejected, because it has no established secure storage or file
+authorization.
+Desktop loopback OAuth on the phone: rejected, because Google's mobile clients do not support that flow.
 
 ## References
 
@@ -47,6 +59,6 @@ renderer IndexedDB 作正式原生儲存：拒絕，無既定安全儲存及檔�
 - [Credential Manager](https://developer.android.com/identity/sign-in/credential-manager-siwg-implementation)
 - [Android WebKit](https://developer.android.com/jetpack/androidx/releases/webkit)
 - [AGP 8.13](https://developer.android.com/build/releases/agp-8-13-0-release-notes)
-- [建置說明](../../src/native/android/README.md)
+- [Build instructions](../../src/native/android/README.md)
 
 *Decision made: 2026-10-05*

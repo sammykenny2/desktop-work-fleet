@@ -1,51 +1,62 @@
-# ADR-029: 可攜且可直接開啟的 Apple Xcode 專案
+# ADR-029: Portable Apple Xcode project that opens directly
 
 ## Status
 
-Accepted，2026-10-05。使用者要求 Mac clone 後可直接用 Xcode 開啟。
+Accepted, 2026-10-05. The user asked that a clone on a Mac can be opened directly in Xcode.
 
 ## Context
 
-原有生成器將 Xcode 專案寫入 Git 忽略的 build/apple，並使用生成機器的絕對 source 路徑。
-這讓 Mac clone 後沒有可直接開啟的專案，也不能搬用 Windows 的生成檔。
-Android 已有提交的 IDE 專案；兩者應有一致的 checkout 交付方式。
+The original generator wrote the Xcode project into the Git-ignored build/apple and used the generating machine's absolute
+source paths.
+As a result, a clone on a Mac had no project that could be opened directly, and files generated on Windows could not be moved
+over.
+Android already has a committed IDE project; both should be delivered the same way in a checkout.
 
 ## Decision
 
-- `src/native/apple/WorkFleet.xcodeproj`、workspace、iOS／macOS shared schemes、圖示與預設 xcconfig 納入 Git。
-  source、資源與 entitlements 使用 SOURCE_ROOT／SRCROOT 的相對路徑，專案不包含機器路徑或 `.env` 值。
-- Xcode 開啟不需 Node 先生成專案；Run／Build 的 Prepare local resources phase 自動執行 npm lockfile
-  安裝及 web assets／公開配置／Info.plist 生成。各 target 的輸出位於忽略的 `.generated/<target>/`，
-  phase 宣告輸出，讓資源複製與 Info.plist 處理依賴其生成；每次準備以納入 `.env`／來源變更。
-- Share Extension 只產生其 Info.plist，不安裝 npm、不打包主 App 的配置／Google 識別或工作區資料。
-  主 App 仍嵌入 Extension，原生資料／分享契約沿用 ADR-023／ADR-027。
-- IDE 的 app ID／App Group／Team 由預設 xcconfig 與忽略的 Local.xcconfig 控制；
-  公開 Google／商店欄位讀取 `.env`。生成配置採用有效 Xcode identity，避免與簽章不一致。
-  CLI wrapper 使用同一份專案，可由 `.env` 的非空 identity 覆蓋；不重寫使用者的 IDE 專案。
-- Xcode user-script sandboxing 關閉，供 Node/npm bootstrap、讀取本機配置與外部工具路徑使用。
-  此設定只涉及建置工具，App Sandbox／Keychain／entitlements 保留。
-- 結構生成器僅供維護已提交的專案；DerivedData、archives、exports 與 npm cache 保留於 build/apple。
+- `src/native/apple/WorkFleet.xcodeproj`, the workspace, the iOS/macOS shared schemes, the icons and the default xcconfig are in Git.
+  Sources, resources and entitlements use paths relative to SOURCE_ROOT/SRCROOT; the project contains no machine paths and no
+  `.env` values.
+- Opening the project in Xcode does not need Node to generate it first; the Prepare local resources phase of Run/Build
+  automatically runs the npm lockfile install and generates the web assets, public configuration and Info.plist. Each
+  target's output is in the ignored `.generated/<target>/`; the phase declares its outputs so that resource copying and
+  Info.plist processing depend on their generation, and every preparation picks up `.env` and source changes.
+- The Share Extension only generates its Info.plist; it does not install npm or package the main app's configuration, Google
+  identity or workspace data. The main app still embeds the Extension; the native data and sharing contracts follow
+  ADR-023/ADR-027.
+- The IDE's app ID, App Group and Team are controlled by the default xcconfig and the ignored Local.xcconfig;
+  public Google and store fields are read from `.env`. The generated configuration uses the effective Xcode identity, so it
+  cannot disagree with signing. The CLI wrapper uses the same project, and a non-empty identity in `.env` can override it; the
+  wrapper does not rewrite the user's IDE project.
+- Xcode user-script sandboxing is off, for the Node/npm bootstrap, reading local configuration and external tool paths.
+  This setting concerns only the build tools; App Sandbox, Keychain and entitlements are kept.
+- The structure generator only maintains the committed project; DerivedData, archives, exports and the npm cache stay in
+  build/apple.
 
 ## Consequences
 
 ### Positive
 
-Mac clone 後可直接開啟專案；checkout 搬移無須修補 source 路徑，簽章與本機配置不進 Git。
+A clone on a Mac can open the project directly; moving the checkout needs no source path fixes, and signing and local
+configuration stay out of Git.
 
 ### Negative
 
-建置需 Node 22+／npm，首次需下載 npm／SPM 依賴；新增 Swift source 時需維護專案參照。
-本機沒有 Apple SDK，可攜性與資產檢查不代表 Xcode 編譯、裝置或簽章驗收。
+Builds need Node 22+ and npm, and the first build downloads npm and SPM dependencies; adding a Swift source requires
+maintaining the project references.
+This machine has no Apple SDK, so portability and asset checks do not stand for Xcode compilation, device or signing
+acceptance.
 
 ## Alternatives Considered
 
-沿用忽略的生成專案：不符合 clone 後直接開啟的明確要求。
-提交 Windows 生成的絕對路徑專案：不能在另一台 Mac 使用，且會帶入機器配置。
+Keeping the ignored generated project: does not meet the explicit requirement that a clone opens directly.
+Committing the project generated on Windows with absolute paths: it cannot be used on another Mac and would carry machine
+configuration.
 
 ## References
 
-- [Apple 專案說明](../../src/native/apple/README.md)、[執行狀態](../../PROGRESS.md)。
-- [Apple Run Script phases 與輸入／輸出依賴](https://developer.apple.com/documentation/xcode/running-custom-scripts-during-a-build)。
-- [Apple build settings reference](https://developer.apple.com/documentation/xcode/build-settings-reference)。
+- [Apple project notes](../../src/native/apple/README.md), [Current status](../../PROGRESS.md).
+- [Apple Run Script phases and input/output dependencies](https://developer.apple.com/documentation/xcode/running-custom-scripts-during-a-build).
+- [Apple build settings reference](https://developer.apple.com/documentation/xcode/build-settings-reference).
 
 *Decision made: 2026-10-05*

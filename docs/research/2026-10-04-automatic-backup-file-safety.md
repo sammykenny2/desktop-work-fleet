@@ -1,30 +1,37 @@
-# 自動備份檔案能力與替換競爭
+# Automatic backup file capabilities and replacement races
 
-查閱：2026-10-04。決策見 [ADR-014](../decisions/014-durable-automatic-backups.md)。
+Reviewed: 2026-10-04. The decision is in [ADR-014](../decisions/014-durable-automatic-backups.md).
 
-## 外部證據
+## External evidence
 
-[WHATWG File System Standard](https://fs.spec.whatwg.org/#locator) 將 handle 連結至包含 root／path
-的 locator，並明列檔案可由規格之外的應用修改；如何反映外部變化取決於實作。
-這不能被當成永久 inode／檔案身分或條件式覆寫／刪除的承諾。
+The [WHATWG File System Standard](https://fs.spec.whatwg.org/#locator) links a handle to a locator that contains a
+root/path, and states explicitly that files can be modified by applications outside the specification; how external
+changes are reflected depends on the implementation.
+This cannot be taken as a promise of a permanent inode/file identity or of conditional overwrite/delete.
 
-[Chromium remove() 出貨討論](https://groups.google.com/a/chromium.org/g/blink-dev/c/tESXuOfqQMQ)
-說明直接以 handle 刪除及排他鎖；它沒有提供本產品所需的「期望 bytes／原實體」compare-and-delete
-契約，因此不因方法名稱是 handle.remove 就推定替換競爭已解決。
+The [Chromium remove() shipping discussion](https://groups.google.com/a/chromium.org/g/blink-dev/c/tESXuOfqQMQ)
+describes deleting directly through a handle and an exclusive lock. It does not provide the "expected bytes/original
+entity" compare-and-delete contract this product needs, so the method name handle.remove is no reason to assume the
+replacement race is solved.
 
-## 本機實驗與推論
+## Local experiments and inferences
 
-獨立 Edge／OPFS 合成探針在空檔檢查與 durable ownership 保存之間換成同名外來內容，
-舊 handle 的 isSameEntry 仍可為 true，後續 writable 保存覆蓋替換檔。
-另一探針在 hash 核對與 removeEntry 之間換檔，按名稱刪除仍命中替換檔。
-這是受控合成檔案，未操作使用者私人資料。
+An independent Edge/OPFS synthetic probe swapped in foreign content under the same name between the empty-file check
+and saving durable ownership. isSameEntry on the old handle could still be true, and the following writable save
+overwrote the replacement file.
+Another probe swapped the file between the hash check and removeEntry; deleting by name still hit the replacement file.
+These were controlled synthetic files; no private user data was touched.
 
-因此移除瀏覽器自動建立／清理的實作，capability 明確 unavailable；手動選定目的檔保存仍保留。
-這項結論只關於本產品自動檔案契約，不能推論所有 FSA 用途不安全。
+The browser implementation of automatic creation/cleanup was therefore removed, and the capability is explicitly
+unavailable; saving to a manually chosen destination file remains.
+This conclusion is only about this product's automatic file contract; it does not imply that every FSA use is unsafe.
 
-## 驗證界線
+## Verification boundaries
 
-自動 scheduler probe 用真 IndexedDB journal、共用 Workspace／ZIP 與合成原子 FileHost，
-可驗證 reservation／ack／重啟／設定／UI／取消；不能證明 OS 檔案、vault 或五平台原生能力。
-原生 host 必須另提供 create-only 與身分綁定清理的故障證據，不能用 pathname 前置檢查替代。
-正式進度僅記 [PROGRESS](../../PROGRESS.md)。
+The automatic scheduler probe uses a real IndexedDB journal, the shared Workspace/ZIP code and a synthetic atomic
+FileHost. It can verify reservation/ack/restart/settings/UI/cancel; it cannot prove OS files, the vault or native
+capabilities on the five platforms.
+Native hosts must separately provide failure evidence for create-only and identity-bound cleanup; a pathname
+pre-check cannot replace it.
+Current status is in [PROGRESS](../../PROGRESS.md); history and verification evidence are in the git history and
+[testing](../testing.md).

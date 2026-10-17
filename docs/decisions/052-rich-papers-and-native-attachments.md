@@ -1,61 +1,81 @@
-# ADR-052: 便箋格式與原生附件縮圖／開啟
+# ADR-052: Note formatting and native attachment thumbnails and opening
 
 ## Status
 
-Accepted，2026-10-17。使用者要求實作附件縮圖、雙擊開啟、H1～H6 CSS 與程式碼上色；
-明確排除桌面直接切換 checklist，不升版、不發布。
+Accepted, 2026-10-17. The user asked for attachment thumbnails, double-click to open, H1–H6 CSS and code coloring;
+ticking checklists directly on the desktop was explicitly excluded, with no version bump and no release.
 
 ## Context
 
-桌面便箋已解析 GFM，但只有 H1／H2 的簡易字級，程式碼沒有上色。
-附件保存於帳號分區資料庫並參與既有同步／備份，桌面投影原先只有附件數量，不能直接操作附件。
-ADR-009 的不執行原始 HTML／SVG 與 ADR-018 的單一權威邊界須保留。
+Desktop notes already parsed GFM, but had only simple H1/H2 font sizes and no code coloring.
+Attachments are stored in the account-partitioned database and take part in the existing sync and backup; the desktop
+projection used to carry only the attachment count, so attachments could not be used directly.
+ADR-009's rule of never running raw HTML/SVG and ADR-018's single-authority boundary must be kept.
 
 ## Decision
 
-- 桌面、主畫面與編輯器預覽使用共用 CSS，六階標題依序縮小，程式碼保留縮排並在區塊內橫向捲動。
-- 鎖定 Highlight.js 11.12.0／BSD-3-Clause，只封裝 common 語言集，不載入 CDN。
-  只上色明確指定且支援的語言；未知、未指定或超過 20,000 字元的單一區塊保留純文字。
-  便箋超過 100,000 字元時不上色；每次呈現最多上色 12 個區塊、合計 40,000 字元；主清單摘要不上色。
-  產生的 span 再經 DOMPurify 清理，最多快取 64 個結果；原始 Markdown 不變。
-- 附件以縮圖／系統檔案圖示與檔名呈現；雙擊或鍵盤啟用交由系統預設程式開啟。
-  預覽失敗保留檔名與類型圖示，缺少本機 bytes 顯示尚未下載，開啟時回報需先同步。
-- 桌面投影只增加附件 id／name，不傳原始附件。場景命令送到主工作區，核對目前卡片版本、可見性與附件歸屬；
-  開啟另核對可互動狀態。場景沒有儲存、任意路徑或任意程式能力；重試沿用既有 receipt。
-  縮圖使用獨立、有界的兩條背景通道，不排在普通桌面操作、草稿保存或 native storage queue 後面，
-  也不因預覽完成重繪整份工作區。切換 profile／重設／結束時清理該工作階段，遲到結果不重新填入快取。
-- 原生主文件新增 `attachment.preview`／`attachment.open`，只依目前 profile 的附件 id 讀取及驗證 bytes。
-  原生介面自行產生私有暫存位置、清理檔名，不接受來源路徑／程式／命令列。
-  預覽只回傳至多 256 KiB 的 PNG，前端轉為 blob URL；桌面 CSP 只放行 blob 圖片，仍不載入遠端圖片。
-- Windows 使用 Shell Image Factory；macOS 使用 Quick Look 與 NSWorkspace 圖示；Linux 先用 GdkPixbuf，
-  再嘗試已安裝、宣告相符 MIME 的桌面 thumbnailer，最後使用系統檔案圖示。
-  Linux thumbnailer 的 Exec 解析為 argv，不經 shell；可預覽的類型依系統安裝狀態而異。
-- 開啟的是唯讀附件副本，原資料不變；外部修改不會自動回存或同步。
-  可執行檔、捷徑與部分腳本類型不提供直接開啟。受管理副本正常結束時盡力清除，
-  OS／外部程式鎖住檔案或程序異常結束可能留在暫存目錄。
-- 既有 V1 附件、同步與備份格式不變，不新增 migration；checklist 保持原行為。
+- The desktop, the main window and the editor preview share one CSS: the six heading levels shrink in order, and code
+  keeps its indentation and scrolls horizontally inside its block.
+- Highlight.js is pinned at 11.12.0/BSD-3-Clause, only the common language set is bundled, and no CDN is loaded.
+  Only explicitly named, supported languages are colored; unknown or unnamed languages, and any single block over
+  20,000 characters, stay plain text.
+  A note over 100,000 characters is not colored; each render colors at most 12 blocks and 40,000 characters in total;
+  summaries in the main list are not colored.
+  The generated spans are cleaned again by DOMPurify, and at most 64 results are cached; the original Markdown is
+  unchanged.
+- Attachments show as a thumbnail or system file icon with the file name; double-click or keyboard activation opens
+  them in the system default app.
+  A failed preview keeps the file name and type icon; when the local bytes are missing it shows that the attachment is
+  not downloaded yet, and opening reports that a sync is needed first.
+- The desktop projection adds only attachment id/name and never carries raw attachments. Scene commands go to the main
+  workspace, which checks the current card revision, visibility and attachment ownership; opening also checks the
+  interactive state. Scenes have no storage, arbitrary path or arbitrary program capability; retries reuse the existing
+  receipt.
+  Thumbnails use two separate, bounded background lanes that never queue behind ordinary desktop operations, draft
+  saves or the native storage queue, and a finished preview does not redraw the whole workspace. Switching profile,
+  resetting or exiting cleans up that session, and late results never refill the cache.
+- The native main document gains `attachment.preview`/`attachment.open`, which read and verify bytes only by an
+  attachment id of the current profile.
+  The native side creates its own private temporary location and cleans the file name; it never accepts a source path,
+  program or command line.
+  A preview returns only a PNG of at most 256 KiB, which the front end turns into a blob URL; the desktop CSP allows
+  only blob images and still loads no remote images.
+- Windows uses the Shell Image Factory; macOS uses Quick Look and NSWorkspace icons; Linux tries GdkPixbuf first, then
+  installed desktop thumbnailers that declare a matching MIME type, and finally the system file icon.
+  The Exec of a Linux thumbnailer is parsed into argv, never through a shell; which types can be previewed depends on
+  what the system has installed.
+- What opens is a read-only copy of the attachment, and the original data is unchanged; external edits are not saved
+  back or synced automatically.
+  Executables, shortcuts and some script types cannot be opened directly. Managed copies are removed on a best-effort
+  basis at normal exit; a file locked by the OS or an external program, or an abnormal process exit, may leave copies in
+  the temporary directory.
+- The existing V1 attachment, sync and backup formats are unchanged, no migration is added, and checklists keep their
+  behavior.
 
 ## Consequences
 
 ### Positive
 
-- 同一份內容在桌面與主畫面有一致格式；可直接查看或開啟附件。
-- 不需要在 App WebView 執行附件文件或加入 Office／PDF 編輯器。
+- The same content has the same formatting on the desktop and in the main window, and attachments can be viewed or
+  opened directly.
+- No attachment documents run in the app WebView, and no Office/PDF editor is added.
 
 ### Negative
 
-- 系統縮圖與預設程式因機器而異；開啟不包含外部編輯回存。
-- OS 產生縮圖及開啟附件時需要明文暫存副本；不能宣稱資料永遠不離開加密資料庫。
-- macOS 簽章／沙盒及各 Linux 桌面環境仍需實機驗收，不能由共用瀏覽器測試替代。
+- System thumbnails and default apps vary from machine to machine; opening does not include saving external edits back.
+- The OS needs a plaintext temporary copy to make thumbnails and open attachments, so it cannot be claimed that data
+  never leaves the encrypted database.
+- macOS signing/sandbox and each Linux desktop environment still need real-device acceptance, which shared browser
+  tests cannot replace.
 
 ### Neutral
 
-- 本次不改 App 版號、發布流程、資料 schema 或 checklist 操作。
+- This change does not alter the app version, the release workflow, the data schema or checklist operations.
 
 ## References
 
-- [ADR-009](009-local-renderer-and-persistence.md)、[ADR-018](018-single-owner-desktop-views.md)、[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
-- [Highlight.js](https://github.com/highlightjs/highlight.js)、[Marked 擴充](https://marked.js.org/using_pro)
+- [ADR-009](009-local-renderer-and-persistence.md), [ADR-018](018-single-owner-desktop-views.md), [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
+- [Highlight.js](https://github.com/highlightjs/highlight.js), [Marked extensions](https://marked.js.org/using_pro)
 - [Windows Shell Image Factory](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ishellitemimagefactory)
 - [Apple Quick Look](https://developer.apple.com/documentation/quicklookthumbnailing)
-- [freedesktop 縮圖標準](https://specifications.freedesktop.org/thumbnail/latest/)、[GIO 預設程式](https://docs.gtk.org/gio/type_func.AppInfo.launch_default_for_uri.html)
+- [freedesktop thumbnail standard](https://specifications.freedesktop.org/thumbnail/latest/), [GIO default apps](https://docs.gtk.org/gio/type_func.AppInfo.launch_default_for_uri.html)

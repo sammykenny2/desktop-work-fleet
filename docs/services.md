@@ -1,46 +1,56 @@
-# 服務與連接埠
+# Services and Ports
 
-更新：2026-10-05。
+Updated: 2026-10-05.
 
-驗證服務預設 `127.0.0.1:9847`，以 `--host`／`--port` 配置。編輯頁與 API 同 origin。
-啟動時若 port 衝突直接失敗，不會停止其他服務。測試使用 OS 分配的隨機 port。
-已讀取可取得的專案骨架範本 port registry；未修改外部 registry。
+The validation service defaults to `127.0.0.1:9847`, configurable with `--host` / `--port`. The editor page and the API
+share one origin. If the port is taken at startup, the service fails at once and does not stop other services. Tests use
+a random port assigned by the OS. The available port registry of the project skeleton template was read; the external
+registry was not modified.
 
-macOS App 只有 network.client entitlement，沒有 listener。
-LAN 必須使用 `--cert`、`--key`、`--origin https://主機:port`，手機需信任憑證且可達該主機。
-QR 本身不提供 NAT 穿透；外網需自行部署可信 HTTPS 或 VPN。沒有啟用 Bonjour 或 UDP discovery。
+The macOS app has only the network.client entitlement and no listener.
+On a LAN you must use `--cert`, `--key` and `--origin https://host:port`; the phone needs to trust the certificate and
+be able to reach that host. The QR code itself provides no NAT traversal; access from outside needs your own trusted
+HTTPS deployment or a VPN. Bonjour and UDP discovery are not enabled.
 
-## 1.0 介面開發預覽
+## 1.0 UI development preview
 
-`npm run build` 後可執行 `python scripts/testing/serve_preview.py --port 0`。
-它只在 loopback 提供 `build/app` 靜態資產；預設由 OS 選擇空 port，終端顯示實際 URL。
-`--port` 可指定測試 port，衝突則啟動失敗，不停止其他 listener。
-這不是便箋 API／權威資料 server；介面透過 IndexedDB 本機交易保存資料。
-正式原生 App 需封裝這些本機資產，不依賴此開發 listener。
+After `npm run build`, you can run `python scripts/testing/serve_preview.py --port 0`.
+It serves the static `build/app` assets on loopback only; by default the OS picks a free port, and the terminal shows
+the actual URL. `--port` sets a test port; if it is taken, startup fails without stopping other listeners.
+This is not a note API or an authoritative data server; the UI saves data through local IndexedDB transactions.
+The native apps package these local assets and do not depend on this development listener.
 
-Windows 1.0 主畫面以 WebView2 virtual host mapping 載入 `https://work-fleet.invalid/app/index.html`。
-該名稱只在 WebView2 內解析為封裝 Assets；沒有 DNS、TCP／HTTP listener 或新的 port。
-原生 SQLite／DPAPI 經 WebMessage bridge 存取；沒有 local note server。
+The Windows 1.0 main window loads `https://work-fleet.invalid/app/index.html` through WebView2 virtual host mapping.
+That name resolves to the packaged Assets only inside WebView2; there is no DNS, no TCP/HTTP listener and no new port.
+Native SQLite / DPAPI is reached through the WebMessage bridge; there is no local note server.
 
-## Windows Debug WebView 檢查
+## Windows Debug WebView inspection
 
-只有 Debug 組態且啟動程序帶有 `WORK_FLEET_WEBVIEW_DEBUG_PORT` 時，WebView2 才在 loopback 開 CDP port，
-port 由開發者指定（1024–65535），沒有固定預設值；Release／MSIX 不編入這條路徑。
-port 衝突時 WebView2 不提供 CDP，不停止其他 listener。測試 probe 使用 OS 分配的空閒 port。
-loopback 不分 Windows 使用者，本機任何程序都能經此 port 讀取解密後的便箋並呼叫原生 bridge；只在檢查期間開啟，詳見 [ADR-032](decisions/032-windows-debug-webview-inspection.md)。
+Only in the Debug configuration, and only when the launching process has `WORK_FLEET_WEBVIEW_DEBUG_PORT`, does WebView2
+open a CDP port on loopback. The developer chooses the port (1024–65535); there is no fixed default. Release and MSIX
+builds do not compile this path.
+If the port is taken, WebView2 provides no CDP and does not stop other listeners. Test probes use a free port assigned
+by the OS.
+Loopback does not separate Windows users: any process on the machine can use this port to read the decrypted notes and
+call the native bridge. Open it only while inspecting; see [ADR-032](decisions/032-windows-debug-webview-inspection.md).
 
-## Windows Google 登入 callback
+## Windows Google sign-in callback
 
-登入期間以 TcpListener 綁定 `127.0.0.1:0`，由 OS 分配空閒 port，路徑 `/oauth2/callback`。
-只接受符合該次隨機 state 的 code；PKCE verifier 留在原生服務。完成、取消或 110 秒逾時即關閉。
-每條連線各自處理，最多同時 16 條，每條 5 秒內要送完請求。
-瀏覽器可能先開一條空的預備連線（Chrome 留著抓 favicon），它逾時或斷線只關掉自己，不會結束登入。
-`host.log` 記下每次登入的結果、port、收到 callback 的時間與連線數，不記 code、token 或帳號。
-此 listener 不提供便箋 API，不綁定 LAN、不使用固定 port，也不變更外部 port registry。
-Google HTTPS token、userinfo 及 Drive 請求皆由原生端送出，renderer 不持有憑證或任意 HTTP 能力。
+During sign-in a TcpListener binds `127.0.0.1:0`, with a free port assigned by the OS, on the path `/oauth2/callback`.
+Only a code that matches the random state of that sign-in is accepted; the PKCE verifier stays in the native service.
+The listener closes on completion, cancellation or a 110-second timeout.
+Each connection is handled on its own, at most 16 at once, and each must send its request within 5 seconds.
+The browser may first open an empty preliminary connection (Chrome keeps one to fetch the favicon); when it times out
+or disconnects, it closes only itself and does not end the sign-in.
+`host.log` records each sign-in's result, port, the time the callback arrived and the number of connections, but not the
+code, token or account.
+This listener serves no note API, binds no LAN address, uses no fixed port and does not change the external port
+registry. Google HTTPS token, userinfo and Drive requests are all sent by the native side; the renderer holds no
+credentials and no arbitrary HTTP capability.
 
-## Linux 原生與 Google callback
+## Linux native host and Google callback
 
-Linux GTK／WebKitGTK 以 secure custom scheme `workfleet://app` 提供封裝資產，沒有常駐 HTTP listener。
-只有 Google 登入期間使用 `127.0.0.1:0`、固定 `/oauth2/callback`；PKCE／state 留 native，
-完成、取消或 110 秒逾時後關閉。沒有新增固定 port、LAN listener 或外部 registry 修改。
+Linux GTK / WebKitGTK serves the packaged assets through the secure custom scheme `workfleet://app`; there is no resident
+HTTP listener. Only during Google sign-in is `127.0.0.1:0` used, with the fixed path `/oauth2/callback`; PKCE and state
+stay native, and the listener closes after completion, cancellation or a 110-second timeout. No fixed port, LAN listener
+or change to an external registry is added.

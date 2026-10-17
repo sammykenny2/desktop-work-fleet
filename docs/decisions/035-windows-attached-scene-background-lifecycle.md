@@ -1,82 +1,106 @@
-# ADR-035: Windows 附著場景的背景與區域生命週期
+# ADR-035: Background and region life cycle of Windows attached scenes
 
 ## Status
 
-Accepted，2026-10-09；同日恢復測試後修訂。隔離回歸已驗證，使用者原始殘影尚未重現。
-補充 [ADR-017](017-windows-composition-surface-and-input.md) 與 [ADR-030](030-windows-explorer-wallpaper-layer.md)。
+Accepted, 2026-10-09; revised the same day after testing resumed. The isolated regression tests pass; the user's original
+ghosting has not been reproduced yet.
+Supplements [ADR-017](017-windows-composition-surface-and-input.md) and [ADR-030](030-windows-explorer-wallpaper-layer.md).
 
 ## Context
 
-使用者在 Windows 11 23H2 安裝修正版後，仍能重現白色殘影：調過位置的便箋經堆疊／攤開移動，
-原位置在黑色桌布上留下白塊，不需要拖曳。上一輪提前 hide 與非同步 Explorer invalidation 未解決。
-先前仿宿主的背景是白色，hide 後回到白色不能區分原背景與殘留的 WebView 白底。
-使用者回憶先前 1.0.1 在 25H2 沒有問題；尚未核對該歷史包或建立同條件對照，不能據此確定根因。
+After installing the fixed build on Windows 11 23H2, the user could still reproduce white ghosting: a note whose position had
+been adjusted, when moved by stack or spread, left a white block at its old position on a black wallpaper, with no dragging
+needed. The previous round's early hide and asynchronous Explorer invalidation did not fix it.
+The earlier mock host had a white background, so returning to white after hide could not tell the original background apart
+from the leftover white WebView background.
+The user recalls that the earlier 1.0.1 had no problem on 25H2; that historical package has not been checked and no
+same-condition comparison has been built, so the root cause cannot be determined from it.
 
-修正前附著場景由 windowed WebView2 的子視窗提供畫面，WPF 宿主與 WebView 預設底色為白色。
-`SetWindowRgn` 會發出位置變更訊息；未停用 valid client bits 保存。原 hide 先清空 region 才隱藏，
-撤下視窗時已無舊紙面區域，而非同步背景重畫可能等到新紙面出現才處理。
-這些是原始碼與 API 可核對的路徑；23H2 持續殘影的具體 compositor 根因仍未證實。
+Before the fix, attached scenes got their image from the windowed WebView2 child window, and the default background color of
+the WPF host and the WebView was white.
+`SetWindowRgn` sends position change messages, and saving valid client bits was not disabled. The original hide cleared the
+region before hiding, so the old paper region was already gone when the window was taken down, and the asynchronous background
+repaint could wait until the new paper appeared.
+These paths can be checked against the source code and the APIs; the specific compositor root cause of the persistent ghosting
+on 23H2 is still unproven.
 
 ## Decision
 
-- 附著場景仍用 windowed WebView2 子視窗的 DirectComposition 提供畫面；WPF 背景透明，
-  windowed WebView 恢復原白色 DefaultBackgroundColor，紙面底色仍由頁面繪製。
-  不設定透明色鍵或把背景填成黑色，不能以黑桌布掩蓋一般桌布錯誤。
-- 撤回先前新增的 `WS_EX_NOREDIRECTIONBITMAP`：23H2 在 WPF SourceInitialized 以 SetWindowLongPtr
-  設為 `0x200080` 回報 Win32 error 87，視窗無法建立。錯誤診斷保留原／目標／實際 style，沒有吞掉錯誤。
-  透明 windowed WebView 也撤回：browser preview 雖正常，真螢幕粉紅像素從 `(224,80,160)`
-  變成 `(206,73,147)`／`(196,70,140)`；恢復白色背景後實際顏色正確。
-- 自有宿主採 `WS_CLIPCHILDREN | WS_CLIPSIBLINGS`；附著 input HWND 的 `WM_WINDOWPOSCHANGING`
-  加入 `SWP_NOCOPYBITS`，涵蓋 `SetWindowRgn` 隱含位置更新，不複製上一區域的 client pixels。
-  原本 layered 浮動場景仍保留 WPF composition 與原生捕獲。
-- Hide 先保留舊 region 隱藏兩面，再要求原 parent invalidation，最後才設空 region。
-  隱藏時設 region 不要求 redraw，Dispose 也先走 hide。背景 repaint 仍是非同步請求，
-  不把它當作白塊已清除的屏障；本輪重點是停用宿主白底與舊像素保存。
-- 只改自有 HWND；沒有修改 Explorer styles、registry、桌布檔案、桌布設定或重啟 Explorer。
-  保留上一輪 `scene.prepare`：geometry 改變時先撤下附著場景，再修改 DOM。
-- 仿宿主回歸改為黑色背景，同時涵蓋有／無 redirection 的宿主、無 pointer input 的移位／縮高／攤開式
-  區域更新、prepare/hide 與直接可見區域替換；逐次確認新紙面與舊位置恢復背景，而非只檢查最後 hide。
-  無 redirection 宿主用自有黑色 backdrop 作基準，避免把背後應用當背景。
-- 新增實際 owner formation probe：隔離資料建立兩張便箋，scene 合成事件經既有 client／bridge 保存
-  調整位置；實際主畫面堆疊／攤開、返回桌面及桌布層，逐像素比對新紙面之外的原螢幕並捕獲測試範圍。
-  合成 DOM 事件不代表實體滑鼠驗收。安裝版複本也通過隔離案例，尚未證實使用者白塊的觸發條件。
-- 使用者已明確恢復測試／截圖授權；沿用 0.1.1、既有本機憑證與封裝 SOP。實際證據見 PROGRESS。
+- Attached scenes still get their image through DirectComposition from the windowed WebView2 child window; the WPF background
+  is transparent, the windowed WebView goes back to the original white DefaultBackgroundColor, and the paper background is
+  still painted by the page.
+  No transparent color key is set and the background is not filled with black; a black wallpaper must not be used to mask an
+  error that affects any wallpaper.
+- The previously added `WS_EX_NOREDIRECTIONBITMAP` is withdrawn: on 23H2, setting the style to `0x200080` with SetWindowLongPtr
+  in WPF SourceInitialized reported Win32 error 87, and the window could not be created. The error diagnostics keep the
+  original, target and actual style; the error was not swallowed.
+  The transparent windowed WebView is withdrawn too: although the browser preview looked right, pink pixels on the real screen
+  changed from `(224,80,160)` to `(206,73,147)`/`(196,70,140)`; with the white background restored, the actual colors are correct.
+- The app's own hosts use `WS_CLIPCHILDREN | WS_CLIPSIBLINGS`; `WM_WINDOWPOSCHANGING` of the attached input HWND
+  adds `SWP_NOCOPYBITS`, which also covers the position updates implied by `SetWindowRgn`, so client pixels of the previous
+  region are not copied. The original layered floating scene keeps WPF composition and native capture.
+- Hide first hides both surfaces while keeping the old region, then asks the original parent to invalidate, and only then sets
+  the empty region. Setting the region while hidden does not request a redraw, and Dispose also goes through hide first.
+  The background repaint is still an asynchronous request and is not treated as a barrier that guarantees the white block is
+  gone; this round focuses on disabling the host's white background and the preservation of old pixels.
+- Only the app's own HWNDs change; Explorer styles, the registry, wallpaper files and wallpaper settings are not modified, and
+  Explorer is not restarted. The previous round's `scene.prepare` is kept: when geometry changes, the attached scene is taken
+  down first, and the DOM is changed after that.
+- The mock host regression now uses a black background and covers hosts with and without redirection, region updates that
+  shift, shorten or spread papers without pointer input, prepare/hide, and direct replacement of the visible region; every
+  step checks the new paper and that the old position shows the background again, instead of checking only the last hide.
+  The host without redirection uses its own black backdrop as the baseline, so that an app behind it is not taken for the
+  background.
+- A new probe runs a real owner formation: isolated data creates two notes, synthetic scene events save adjusted positions
+  through the existing client and bridge, and the real main window stacks and spreads, returns to the desktop layer and the
+  wallpaper layer; the original screen outside the new papers is compared pixel by pixel and the test area is captured.
+  Synthetic DOM events do not stand for physical mouse acceptance. An installed copy also passed the isolated cases; the
+  trigger of the user's white block is still unconfirmed.
+- The user explicitly restored permission for testing and screenshots; the work continues with 0.1.1, the existing local
+  certificate and the packaging SOP. The actual evidence is in the git history and `docs/testing.md`.
 
 ## Consequences
 
 ### Positive
 
-移除會阻止場景建立的 style，保留正確 windowed WebView 色彩；撤下與區域替換明確處理舊像素生命週期。
-黑色背景與原桌面像素比對能區分白塊與背景，並檢查新紙面顯示時的舊位置。
+The style that prevented scene creation is removed and the correct windowed WebView colors are kept; taking scenes down and
+replacing regions now handle the life cycle of old pixels explicitly.
+A black background and comparison with the original desktop pixels can tell white blocks from the background and check the old
+position while the new paper is shown.
 
 ### Negative
 
-使用者原始殘影尚未在隔離案例重現，通過不代表根因已解；新版 Explorer 尚缺設備對照。
-背景 repaint 仍受 Explorer／compositor 排程影響，實體快速拖曳與實際工作空間仍需驗收。
+The user's original ghosting has not been reproduced in the isolated cases, so passing does not mean the root cause is fixed,
+and there is no device comparison for newer Explorer versions.
+The background repaint still depends on Explorer and compositor scheduling; physical fast drags and the real workspace still
+need acceptance.
 
 ### Neutral
 
-不改 formation／geometry 保存契約，不新增瀏覽器、依賴、listener 或版本。
-目前沒有獨立審閱；作者測試不視為獨立審閱。
+The formation and geometry save contracts do not change, and no browser, dependency, listener or version is added.
+There has been no independent review so far; the author's tests are not an independent review.
 
 ## Alternatives Considered
 
-### 維持非同步整個 parent 重畫
+### Keep the asynchronous redraw of the whole parent
 
-已由使用者證實不足，不能重複交付同一做法或把 API 成功當作殘影已消失。
+The user has shown that it is not enough; the same approach must not be delivered again, and API success must not be taken to
+mean that the ghosting is gone.
 
-### 在每次 formation 重新套用桌布
+### Reapply the wallpaper on every formation
 
-早先人工恢復曾清掉殘影，但改使用者桌面全域狀態不適合作為產品更新路徑，也違反 ADR-030 的邊界。
+An earlier manual recovery did clear the ghosting, but changing the user's global desktop state is not a suitable product
+update path and violates the boundary of ADR-030.
 
-### 單純把白底換成黑底
+### Simply replace the white background with black
 
-只能掩蓋黑色桌布的症狀，其他桌布仍會留下錯誤區塊。
+That only masks the symptom on black wallpapers; other wallpapers would still show wrong blocks.
 
-### 以同步 WM_PAINT 等待 Explorer
+### Wait for Explorer with a synchronous WM_PAINT
 
-跨程序 SetParent 的視窗可能共用 input queue，`SendMessageTimeout` 在同 queue 不保證 timeout。
-不在 WPF dispatcher 加入這種同步 paint 等待，避免形成沒有界限的阻塞。
+Windows reparented across processes with SetParent may share an input queue, and `SendMessageTimeout` does not guarantee a
+timeout within the same queue.
+No such synchronous paint wait is added to the WPF dispatcher, to avoid unbounded blocking.
 
 ## References
 
@@ -86,6 +110,6 @@ Accepted，2026-10-09；同日恢復測試後修訂。隔離回歸已驗證，�
 - [Extended Window Styles / WS_EX_NOREDIRECTIONBITMAP](https://learn.microsoft.com/en-us/windows/win32/winmsg/extended-window-styles)
 - [RedrawWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-redrawwindow)
 - [SendMessageTimeout](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-sendmessagetimeoutw)
-- [Testing](../testing.md)、[PROGRESS](../../PROGRESS.md)
+- [Testing](../testing.md), [PROGRESS](../../PROGRESS.md)
 
 *Decision made: 2026-10-09*

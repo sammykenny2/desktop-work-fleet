@@ -1,76 +1,102 @@
-# ADR-015: Windows 原生主畫面與加密儲存
+# ADR-015: Windows native main window and encrypted storage
 
 ## Status
 
-2026-10-05：DevTools 停用改由 [ADR-032](032-windows-debug-webview-inspection.md) 限定為 Release／MSIX；
-Debug 組態可開 DevTools 及 opt-in loopback CDP。其餘 bridge 邊界保留。
+2026-10-05: [ADR-032](032-windows-debug-webview-inspection.md) now limits disabling DevTools to Release/MSIX;
+the Debug configuration can open DevTools and an opt-in loopback CDP. The rest of the bridge boundary stays.
 
-Accepted，2026-10-04，限 Windows 管理／編輯主畫面、原生保存及受限 bridge。
-桌面呈現仍依 ADR-007／SPEC-003 各項能力施工；本決策未把五平台縮成一般視窗。
+Accepted, 2026-10-04, limited to the Windows management/editing main window, native storage and the restricted
+bridge.
+Desktop presentation is still built capability by capability under ADR-007 / SPEC-003; this decision does not
+reduce the five platforms to ordinary windows.
 
 ## Context
 
-共用 renderer／Workspace／完整備份已有可執行核心，原生主機須去掉預覽 listener，
-讓原子交易、附件及自動 journal 落在主機掌握的儲存位置；OS 秘密不能透過通用 proxy 外洩。
-目前可用 Windows／.NET 8 SDK，Google 專案及其他原生建置環境尚未建立。
+The shared renderer, Workspace and complete backup already have a working core. The native host must drop the
+preview listener,
+so that atomic transactions, attachments and the automatic journal live in storage the host controls; OS secrets
+must not leak through a general proxy.
+Windows and the .NET 8 SDK are available now; the Google project and other native build environments are not set
+up yet.
 
 ## Decision
 
-- Windows 管理／編輯視窗採 .NET WPF + WebView2 1.0.4258.31，載入封裝 ES modules。
-  `https://work-fleet.invalid` 僅為 WebView2 virtual host mapping，沒有 DNS／HTTP listener。
-  runtime 使用系統 Evergreen WebView2；目前依賴 .NET 8 Desktop Runtime，不包入 SDK。
-- SQLite 使用 Microsoft.Data.Sqlite 10.0.12／SQLitePCLRaw 2.1.12，版本與内容 hash 進 lockfile。
-  單一原生 owner 鎖、WAL + FULL synchronous；workspace 與 journal 各自 CAS revision。
-  還原將 Workspace／receipt／附件同交易提交；未完成傳輸只進隔離 staging。
-- DPAPI CurrentUser 加密 record、附件、staging 與 vault payload，entropy 綁 profile／用途／身分。
-  解密失敗就停止該操作，不另建空白資料或改用明文；SQL 表名、profile／revision／hash 等索引不加密。
-  vault 僅供 native caller，目前沒有 renderer 讀取密碼／token 方法，尚未接 OAuth 或自動備份加密。
-- IPC 僅接受固定方法及資料，host 固定目前 profile；沒有路徑、任意 HTTP、SQL 或程式碼介面。
-  精確主文件驗證、禁止 frame／其他頁面、deny cross-origin mapping，停用 host objects／DevTools。
-  外部 HTTP(S)／mailto 只由使用者啟動的導航送系統 handler，不載入有權限的 WebView。
-- 256 KiB chunk、完整 SHA／offset，1 MiB 訊息可容納 20,000 UUID 附件清單。
-  單份 record 128 MiB、每附件 25 MiB，8 個活動 transfer／總聲明 256 MiB，
-  加密 staging 最多 512 MiB／20,008 筆；超限明確拒絕，不截斷資料。
-- 成功僅在 SQLite commit 後回報；回應遺失以完整 bytes 讀回核對。
-  document 換代令舊回覆失效；新程序清理其獨占鎖所證明已無 owner 的 staging。
-  關閉前等 UI 命令及草稿保存；未完成對話框／IME 提示先完成，保存失敗保留視窗。
-- `.env.example` 繼續只提供公開建置設定；原生主畫面可在沒有 Google ID 的情況離線工作。
-  舊瀏覽器 preview 與 native profile 是分開資料；不做隱含遷移或覆寫。
+- The Windows management/editing window uses .NET WPF + WebView2 1.0.4258.31 and loads the packaged ES modules.
+  `https://work-fleet.invalid` is only a WebView2 virtual host mapping; there is no DNS or HTTP listener.
+  The runtime uses the system Evergreen WebView2; it currently depends on the .NET 8 Desktop Runtime, and the SDK
+  is not bundled.
+- SQLite uses Microsoft.Data.Sqlite 10.0.12 / SQLitePCLRaw 2.1.12, with versions and content hashes in the lockfile.
+  A single native owner lock, WAL + FULL synchronous; the workspace and the journal each have their own CAS
+  revision.
+  Restore commits Workspace, receipt and attachments in the same transaction; unfinished transfers go only into an
+  isolated staging area.
+- DPAPI CurrentUser encrypts records, attachments, staging and vault payloads, with entropy bound to the
+  profile, purpose and identity.
+  A decryption failure stops that operation, without creating blank data or falling back to plaintext; SQL table
+  names and indexes such as profile, revision and hash are not encrypted.
+  The vault is only for native callers; there is currently no renderer method to read passwords or tokens, and it
+  is not yet connected to OAuth or automatic backup encryption.
+- IPC accepts only fixed methods and data, and the host pins the current profile; there is no path, arbitrary HTTP,
+  SQL or code interface.
+  Exact main document validation, no frames or other pages, cross-origin mapping denied, host objects and DevTools
+  disabled.
+  External HTTP(S)/mailto links are sent to the system handler only for user-initiated navigation, never loaded in
+  a privileged WebView.
+- 256 KiB chunks with full SHA/offset; a 1 MiB message can hold a list of 20,000 UUID attachments.
+  128 MiB per record, 25 MiB per attachment, 8 active transfers / 256 MiB declared in total,
+  encrypted staging at most 512 MiB / 20,008 entries; anything beyond is clearly rejected, never truncated.
+- Success is reported only after the SQLite commit; a lost response is checked by reading back the full bytes.
+  A document change invalidates old replies; a new process cleans up staging that its exclusive lock proves has no
+  owner anymore.
+  Before closing, it waits for UI commands and draft saves; open dialogs and IME prompts finish first, and a failed
+  save keeps the window open.
+- `.env.example` still only provides public build settings; the native main window can work offline without a
+  Google ID.
+  The old browser preview and the native profile are separate data; there is no implicit migration or overwrite.
 
 ## Consequences
 
 ### Positive
 
-共用語意及完整資料結構可原封接入 native CAS，真 Windows 能測提交／回滾／重啟。
-內容不以明文進 SQLite／WAL，privileged bridge 不提供讀取作業系統秘密的通用入口。
+The shared semantics and the complete data structures plug into the native CAS unchanged, and real Windows can test
+commit, rollback and restart.
+Content never enters SQLite or the WAL as plaintext, and the privileged bridge offers no general entry for reading
+operating system secrets.
 
 ### Negative
 
-DPAPI 資料需要原 Windows 使用者金鑰；跨機／換帳號使用可攜備份，不能直接搬 DB 當作還原。
-整份 record 寫入、DPAPI 與跨語言複製有記憶體成本；容量限制需在後續最低硬體驗收量測。
+DPAPI data needs the original Windows user's key; moving across machines or accounts uses a portable backup, and
+copying the DB directly is not a restore.
+Whole-record writes, DPAPI and copies across languages have a memory cost; capacity limits need measuring in the
+later minimum-hardware acceptance.
 
 ### Neutral
 
-不宣稱同帳號惡意程式、RAM、pagefile、crash dump 或硬體斷電都受到這個加密邊界保護。
-Windows 桌面層／穿透、全域快捷鍵、monitor mapping、原生檔案 picker／自動檔案、OAuth、
-簽章及商店另行實作；其 capability 目前 false。macOS／Linux／iOS／Android 不由本 ADR 選定 SDK。
+This encryption boundary is not claimed to protect against malware running as the same account, RAM, the pagefile,
+crash dumps or hardware power loss.
+Windows desktop layer/pass-through, global shortcuts, monitor mapping, the native file picker / automatic files,
+OAuth, signing and the store are implemented separately; their capabilities are currently false. This ADR does not
+choose SDKs for macOS/Linux/iOS/Android.
 
 ## Alternatives Considered
 
-### 所有內容留在 WebView IndexedDB
+### Keep all content in WebView IndexedDB
 
-已有 preview 實測，但不足以建立 host 的 OS 安全儲存／跨表面權威邊界，保留為 browser adapter。
+The preview has real tests, but that is not enough to build the host's OS secure storage and the cross-surface
+authority boundary; it stays as the browser adapter.
 
-### 把 Python prototype API 包成 local server
+### Wrap the Python prototype API as a local server
 
-不符合 1.0 無自家便箋 server 的方向，因此 native 直接處理交易與訊息。
+This does not match the 1.0 direction of no note server of our own, so the native host handles transactions and
+messages directly.
 
-### 以通用 filesystem／eval proxy 快速連接 renderer
+### Connect the renderer quickly through a general filesystem/eval proxy
 
-會把資料輸入轉為 OS 權限；採明確、限制容量與分區的 method contract。
+This would turn data input into OS permissions; an explicit method contract with size limits and partitions is
+used instead.
 
 ## References
 
-- [Windows 主機研究](../research/2026-10-04-windows-native-storage-and-webview.md)
-- [原生契約](../../contracts/native.d.ts)、[ADR-009](009-local-renderer-and-persistence.md)、[ADR-014](014-durable-automatic-backups.md)
-- [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)、[PROGRESS](../../PROGRESS.md)
+- [Windows host research](../research/2026-10-04-windows-native-storage-and-webview.md)
+- [Native contract](../../contracts/native.d.ts), [ADR-009](009-local-renderer-and-persistence.md), [ADR-014](014-durable-automatic-backups.md)
+- [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), [PROGRESS](../../PROGRESS.md)

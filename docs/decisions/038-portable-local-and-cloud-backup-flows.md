@@ -1,72 +1,98 @@
-# ADR-038: 本機與 Google 的可攜備份與完整還原流程
+# ADR-038: Portable backup and complete restore flows for local notes and Google
 
 ## Status
 
-Accepted，2026-10-12。維護者要求本機／Google 備份格式相容、可雙向遷移，並授權按最佳實踐處理。
-本決策補充 ADR-013／037；原三種還原及全量 Google 覆蓋的安全備份要求不變。
+Accepted, 2026-10-12. The maintainer asked for compatible local and Google backup formats that can migrate in both directions,
+and authorized handling it according to best practice.
+This decision supplements ADR-013/037; the original three restore modes and the safety backup requirement of the full Google
+overwrite are unchanged.
 
 ## Context
 
-本機與 Google 已共用 `work-fleet-backup` v1 ZIP，但手動 Google 匯出只保存本機已知副本，沒有先同步。
-本機原「取代」保留舊歷史與草稿；先重設再匯入則分兩次操作，匯入失敗可能留下空白工作空間。
-使用者要直接洗掉舊本機內容時，匯出舊資料不應成為強制步驟。
+Local notes and Google already share the `work-fleet-backup` v1 ZIP, but a manual Google export saved only the copy known
+locally, without syncing first.
+The original local "replace" kept the old history and drafts; resetting first and importing afterwards took two operations,
+and a failed import could leave an empty workspace.
+When the user wants to wipe the old local content directly, exporting the old data should not be a mandatory step.
 
 ## Decision
 
-- 繼續使用同一公開 v1 格式及可選加密 envelope，不加入帳號／provider／憑證。
-  本機→本機、Google→Google、本機→Google、Google→本機皆使用同一驗證／還原核心。
-- 手動 Google 匯出先 flush 草稿並同步；完整 pull／push／pull 後且 outbox 為空才記錄最後成功同步時間。
-  同步失敗／登入不可用／仍有待同步內容時，預設不保存；使用者可明確選擇「只備份這台已知資料」。
-  取消不保存，失敗不更新成功時間；格式仍標示 `known-local-data`，不宣稱其他裝置未上傳內容已收到。
-- 備份頁與還原預覽顯示來源／目標工作空間、備份時間、最後成功同步時間、待同步／草稿／衝突／待補版本數量。
-  手動安全備份與自動備份仍以一致本機快照為範圍，沒有偷偷增加網路依賴。
-- 新增僅供本機工作空間的「清空本機後，從備份還原」。先驗證 ZIP、預覽清除數量，再勾選永久取代確認。
-  備份舊內容可選；不要求先重設，不要求成功保存安全備份，也能在僅支援下載的環境使用。
-- 以空白同 profile／目標 deviceId 準備計畫，保留備份的完整身分、歷史、狀態、草稿與附件，
-  套用備份版面並救回不可達位置。計畫綁目前 revision；同一 CAS 交易替換工作空間、receipt 與附件集合。
-  舊便箋、歷史、草稿與未引用附件一併移除，不留在刪除區；空附件備份也須清除舊附件。
-- Workspace 的 graph 與 LayoutStore 僅在持久交易成功後替換；取消、過期預覽、錯 profile 或交易失敗保留原資料。
-  原生回應遺失以完整持久 bytes 讀回確認；同 receipt 重試不再還原。Google 分區與 journal 禁止附件全量替換。
-- 本機完整還原前停止自動備份並等待閒置，完成或失敗後恢復排程。
-  自動備份設定／歷來已匯出 ZIP、Google 雲端／其他帳號分區、登入狀態與分享收件匣不屬於此操作。
-  Google→本機使用「切換到本機便箋」後還原；後續本機編輯保持離線，不回寫來源 Google。
+- Keep using the same public v1 format and the optional encryption envelope, without adding account, provider or credential data.
+  Local to local, Google to Google, local to Google and Google to local all use the same validation and restore core.
+- A manual Google export first flushes drafts and syncs; the last successful sync time is recorded only after a complete
+  pull/push/pull with an empty outbox.
+  When sync fails, sign-in is unavailable or content is still waiting to sync, nothing is saved by default; the user can
+  explicitly choose "Back up only what this device knows".
+  Cancelling saves nothing, and a failure does not update the success time; the format still marks `known-local-data` and does
+  not claim that content other devices have not uploaded was received.
+- The backup page and the restore preview show the source and target workspace, the backup time, the last successful sync time,
+  and the numbers of changes waiting to sync, drafts, conflicts and versions still arriving.
+  Manual safety backups and automatic backups still cover a consistent local snapshot and do not quietly add a network
+  dependency.
+- A new mode, "Clear this device, then restore from the backup", is offered only for the local workspace. It first validates
+  the ZIP, previews how much will be cleared, and then asks for the permanent replacement confirmation to be ticked.
+  Backing up the old content is optional; the mode needs no prior reset and no successfully saved safety backup, and it also
+  works in environments that support only downloads.
+- The plan is prepared on an empty workspace with the same profile and the target deviceId; it keeps the backup's complete
+  identity, history, state, drafts and attachments, applies the backup's layout and rescues unreachable positions.
+  The plan is bound to the current revision; one CAS transaction replaces the workspace, the receipt and the attachment set.
+  Old notes, history, drafts and unreferenced attachments are all removed and do not stay in Deleted; a backup without
+  attachments must also clear the old attachments.
+- The Workspace graph and the LayoutStore are replaced only after the persistent transaction succeeds; cancellation, an expired
+  preview, a wrong profile or a failed transaction keeps the original data.
+  A lost native response is confirmed by reading back the complete persisted bytes; a retry with the same receipt does not
+  restore again. Google partitions and the journal forbid full attachment replacement.
+- Before a complete local restore, automatic backups stop and the app waits until they are idle; the schedule resumes after
+  completion or failure.
+  Automatic backup settings and previously exported ZIPs, the data in Google and other account partitions, the sign-in state and
+  the share inbox are not part of this operation.
+  Restoring from Google to local notes uses "Switch to Local notes" before the restore; later local edits stay offline and are
+  not written back to the source Google account.
 
 ## Consequences
 
 ### Positive
 
-- 同一 ZIP 可下載、離線持有及跨來源還原；本機洗掉舊資料是完整、可失敗回復的一步。
-- 雲端匯出不默默把未同步副本標成最新雲端備份；使用者仍可在離線時救出已知資料。
+- The same ZIP can be downloaded, kept offline and restored across sources; wiping the old local data is one complete step that
+  can fail without losing anything.
+- A cloud export does not silently label an unsynced copy as the latest cloud backup, and the user can still rescue the known
+  data while offline.
 
 ### Negative
 
-- 未保存舊備份就確認本機完整還原後，舊內容無法從 App 復原。
-- Google 不是跨多檔案原子快照；其他裝置未上傳的修改與草稿仍無法包含。
-- 手動 Google 匯出需要等同步；安全備份／自動備份仍可能只含目前已知副本。
+- After a complete local restore is confirmed without an old backup, the old content cannot be recovered from the app.
+- Google is not an atomic snapshot across many files; changes and drafts that other devices have not uploaded still cannot be
+  included.
+- A manual Google export has to wait for sync; safety backups and automatic backups may still contain only the currently known
+  copy.
 
 ### Neutral
 
-- 不改 MSIX 更新／解除安裝政策，不改已發布 0.1.2 產物，也不升版或 dispatch Actions。
-- 共用格式／流程可合成驗證；Apple／Android 原生編譯及真 Google 往返須另列實機證據。
+- The MSIX update and uninstall policy and the published 0.1.2 artifacts do not change, and there is no version bump or
+  Actions dispatch.
+- The shared format and flows can be verified synthetically; Apple and Android native compilation and real Google round trips
+  need separately listed real-device evidence.
 
 ## Alternatives Considered
 
-### 先重設再匯入
+### Reset first, then import
 
-步驟少但清除與還原分開，失敗時舊資料已不在，故改用同一交易。
+Fewer steps, but clearing and restoring are separate, so after a failure the old data is already gone; one transaction is used
+instead.
 
-### 所有清空都強制先備份
+### Require a backup before every clear
 
-可多一道回復手段，但本機原子取代可在失敗時保留原資料，且維護者明確不需要保留舊資料，故本機改為可選。
-Google 全量覆蓋涉及多裝置與非原子遠端刪除，維持原安全備份規則。
+It would add one more way to recover, but the local atomic replace keeps the original data on failure, and the maintainer
+explicitly does not need to keep the old data, so the backup is optional for local notes.
+The full Google overwrite involves several devices and non-atomic remote deletion, so it keeps the original safety backup rule.
 
 ## References
 
-- [SPEC-002](../specs/002-portable-backup-and-restore.md)、[PLAN-005](../plans/005-msix-data-and-cloud-overwrite.md)
-- [ADR-013](013-complete-portable-backup.md)、[ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md)
-- [Google 使用流程](../google-setup.md)、[測試界線](../testing.md)
+- [SPEC-002](../specs/002-portable-backup-and-restore.md), [PLAN-005](../plans/005-msix-data-and-cloud-overwrite.md)
+- [ADR-013](013-complete-portable-backup.md), [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md)
+- [Google usage flow](../google-setup.md), [Testing boundaries](../testing.md)
 
 ---
 
 *Decision made: 2026-10-12*
-*Decision makers: 專案維護者*
+*Decision makers: Project maintainer*

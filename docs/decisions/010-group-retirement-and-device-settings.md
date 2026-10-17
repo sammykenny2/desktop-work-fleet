@@ -1,84 +1,127 @@
-# ADR-010: 群組合併與穩定裝置設定
+# ADR-010: Group merge and stable device settings
 
 ## Status
 
-Accepted（本機合併命令與設定），2026-10-04。
-2026-10-06 修訂：數字快捷鍵改綁桌面區域，並改成逐階切換群組層級，見 Decision 的快捷鍵一項。
-遠端 revision graph 的合併循環及依賴處理仍屬同步切片，不由本記錄宣稱已完成。
+Accepted (local merge command and settings), 2026-10-04.
+Revised 2026-10-06: number shortcuts are now bound to desktop regions and step through the group's layers; see
+the shortcut items under Decision.
+Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
+claim they are done.
 
 ## Context
 
-SPEC-003 Q06 已核准群組刪除／合併必須選擇目的群組並預覽，不能隱含刪卡。
-變更群組後，既有草稿、已刪除卡片、快捷鍵及每機格局仍需有有效對象。
-單改 group.deleted 會使資料失去可達入口；無條件重設草稿版本則可能覆蓋其他修改。
+SPEC-003 Q06 approved that deleting or merging a group must choose a target group and show a preview, and must
+never imply deleting cards.
+After a group changes, existing drafts, deleted cards, shortcuts and each machine's grid still need valid targets.
+Changing only group.deleted leaves data without a reachable entry; unconditionally resetting draft versions can
+overwrite other changes.
 
 ## Decision
 
-- 同一「合併／移除群組」流程處理空組與有資料的群組；目的必須是另一個仍存在的群組。
-  最後一組不能移除。預覽包含活動、完成、封存、刪除區卡片與草稿數量。
-- 預覽 fingerprint 固定來源與目標群組版本、所有受影響卡片版本及草稿；
-  進入 Workspace 原子提交點時重新驗證，變動則要求重新預覽，不自動接受新範圍。
-- 所有卡片只改主要群組及 revision；内容、附件、完成／封存／刪除狀態完整保留。
-  舊群組留下 tombstone 與 redirectGroupId，晚到的本機快速記錄沿有效目的群組處理。
-  找不到依賴或存在 redirect cycle 時明確報錯，不能猜一個群組或刪資料。
-- 草稿的 groupId 與已知純歸屬變更的 baseRevision 同步更新，包括恢復 lineage。
-  本機 membershipRebases 只記錄合併產生的純歸屬 revision 邊；晚到 autosave 在
-  序列化保存點沿這些邊前進，遇到正文更新即停，保留原本的版本衝突。
-  此對照是本機協調資料，不是可攜內容或跨帳號同步授權。
-- 群組、卡片、草稿、outbox、版面設定於同一交易提交。保存失敗時三者皆保持原值；
-  即使群組尚未取得區域、geometry 沒有變動，也必須執行共享資料交易。
-- 所有卡片 geometry 保留；來源群組的區域留空，「屬於我」與舊版綁群組的快捷鍵轉至目的群組；綁區域的快捷鍵留在原區域。
-  舊的相關轉組 undo 失效並移除；其他 geometry undo 保留。
-  合併不是 layout undo，不用「復原排列」重新建立群組，確認介面會先說明。
-- 群組區域可交換，群組 ID 保持穩定；數字快捷鍵跟著區域。排隊的舊設定／新卡配置在原子保存點
-  重新核對 group set，防止將已退役群組重新寫回 grid 或本機偏好。
-- 快捷鍵指向明確動作：全部群組、快速記錄、顯示切換，或區域 1–9（由左到右、由上到下），允許多個綁定指向同一動作。
-  按下區域鍵時作用於當下在該區域的群組；空白區域的鍵不送去原生 host 註冊，原生 host 收到的仍是群組 ID。
-  舊版綁群組 ID 的設定仍可讀取；開啟工作空間或還原時改成該群組所在區域，並補上沒有鍵的區域預設數字，只做一次。
-  canonical key 重複、無效 modifier、消失的群組會被拒絕。
-- 層級屬於群組：每台電腦的版面以 `groupLayers` 記錄各組在桌布層、桌面層或最上層，沒有記錄的群組在桌面層。
-  電腦版的群組設定可以檢視與修改層級；手機與瀏覽器預覽沒有桌面層級，不顯示這個選項。
-  便箋詳情不再有單張的常駐層級與「鎖定時可選取文字」。
-  桌面層與最上層的便箋鎖定時可選取文字、點連結（不穿透滑鼠），桌布層固定穿透。
-  舊版存在每張便箋上的層級，在開啟工作空間或還原時改成各組顯示中便箋的最低層級，並移除單張欄位；舊備份仍可還原。
-- 桌面版的區域鍵逐階切換群組層級：桌布層 → 桌面層 → 最上層 → 調整模式，再按回桌布層；主機沒有桌布層時從桌面層開始。
-  前三階寫入群組層級；調整模式是互動範圍，不寫入。
-- 每次區域鍵或全部鍵生效後，畫面資料帶一個 `notice`（群組名稱、目前階段、階段數與該組區域），
-  由最上層場景在區域中央顯示約 1.5 秒；原生 host 只據此讓最上層場景在沒有便箋時也保持顯示，從不把它加入輸入區域。
-  先寫層級再切換調整模式，離開調整模式時便箋直接落到新層級。
-  全部鍵維持原意：所有群組進入調整模式，再按回到各自的層級，不改任何群組的層級。
-  鎖定時不顯示便箋，或沒有原生桌面（瀏覽器預覽）時，區域鍵只切換該組調整模式。
-  預覽僅在目前 browser 視窗接收快捷鍵；原生 host 必須另回報全域註冊成敗。
-- 範圍快捷鍵可在 inline 編輯中先保存草稿再切換／退出；CompositionEvent 生命周期、
-  子對話框與 Ctrl／Meta 的全選、複製、剪下、貼上、復原／重做優先歸 editor。
-  成功選卡或切組後，側欄目前群組與輪播／群組 formation 使用同一目標。
+- The same "merge or remove group" flow handles empty groups and groups with data; the target must be another
+  group that still exists.
+  The last group cannot be removed. The preview counts active, completed, archived and Deleted cards and drafts.
+- The preview fingerprint pins the versions of the source and target groups, every affected card version and the
+  drafts; it is checked again at the Workspace's atomic commit point, and if anything changed a new preview is
+  required instead of accepting the new scope automatically.
+- Every card only changes its primary group and revision; content, attachments and the completed / archived /
+  deleted state are kept in full.
+  The old group leaves a tombstone with redirectGroupId, and a late local quick capture follows to the valid
+  target group.
+  A missing dependency or a redirect cycle reports a clear error; it never guesses a group or deletes data.
+- A draft's groupId and the baseRevision of a known membership-only change are updated together, including the
+  recovery lineage.
+  The local membershipRebases only records the membership-only revision edges that a merge produced; a late
+  autosave follows these edges at the serialized save point and stops at a body update, keeping the original
+  version conflict.
+  This map is local coordination data, not portable content or an authorization for sync across accounts.
+- Groups, cards, drafts, the outbox and layout settings are committed in the same transaction. If saving fails,
+  all three keep their original values;
+  the shared data transaction must run even when the group has no region yet and no geometry changed.
+- All card geometry is kept; the source group's region becomes empty; the device's "mine" group (`myGroupId`) and
+  shortcuts from older versions bound to the group move to the target group; shortcuts bound to a region stay with
+  that region.
+  Old related group-change undo entries become invalid and are removed; other geometry undo entries are kept.
+  A merge is not a layout undo, and the layout Undo does not recreate the group; the confirmation explains this
+  first.
+- Group regions can be swapped while group IDs stay stable; number shortcuts follow the region. Queued old
+  settings and new-card placements check the group set again at the atomic save point, so a retired group is
+  never written back into the grid or local preferences.
+- Shortcuts point to explicit actions: all groups, Quick capture, the display toggle, or regions 1-9 (left to
+  right, top to bottom); several bindings may point to the same action.
+  A region key acts on the group currently in that region; keys for empty regions are not sent to the native host
+  for registration, and the native host still receives group IDs.
+  Settings from older versions bound to group IDs can still be read; when the workspace opens or a restore runs,
+  they are changed to the region where that group sits, and regions without a key get their default number, once.
+  Duplicate canonical keys, invalid modifiers and vanished groups are rejected.
+- The layer belongs to the group: each computer's layout records in `groupLayers` whether each group is on the
+  wallpaper layer, the desktop layer or the top layer; a group with no record is on the desktop layer.
+  The desktop app's group settings can show and change the layer; phones and the browser preview have no desktop
+  layers and do not show this option.
+  Note details no longer have a per-note resident layer or "Select text while locked".
+  Notes on the desktop layer and the top layer allow selecting text and clicking links while locked (mouse clicks
+  do not pass through); the wallpaper layer always passes clicks through.
+  A layer stored on each note by older versions is changed, when the workspace opens or a restore runs, to the
+  lowest layer among each group's shown notes, and the per-note field is removed; old backups can still be
+  restored.
+- On the desktop app, a region key steps the group through its layers: wallpaper layer → desktop layer → top
+  layer → Adjust mode, and one more press goes back to the wallpaper layer; a host without a wallpaper layer
+  starts from the desktop layer.
+  The first three steps write the group's layer; Adjust mode is an interaction scope and is not written.
+- After each region key or all-groups key takes effect, the frame data carries a `notice` (group name, current
+  step, number of steps and the group's region), which the top-layer scene shows in the centre of the region for
+  about 1.5 seconds; the native host only uses it to keep the top-layer scene shown even when it has no notes, and
+  never adds it to the input region.
+  The layer is written before switching to Adjust mode, so on leaving Adjust mode the notes land directly on the
+  new layer.
+  The all-groups key keeps its original meaning: all groups enter Adjust mode, and pressing again returns each to
+  its own layer, without changing any group's layer.
+  When notes are hidden while locked, or there is no native desktop (browser preview), a region key only toggles
+  Adjust mode for that group.
+  The preview receives shortcuts only in the current browser window; the native host must report separately
+  whether global registration succeeded.
+- A scope shortcut during inline editing can save the draft first and then switch or exit; the
+  CompositionEvent lifecycle, child dialogs and Ctrl/Meta select all, copy, cut, paste, undo and redo go to the
+  editor first.
+  After a card is selected or the group is switched successfully, the sidebar's current group and cycling / group
+  formation use the same target.
 
 ## Consequences
 
 ### Positive
 
-- 合併保留所有內容與桌面擺放，未完成草稿仍可安全提交。
-- 數字鍵對應桌面上看得到的區域，新增的群組不必另外設定；設定失敗不留下部分變更。
+- A merge keeps all content and desktop placement, and unfinished drafts can still be committed safely.
+- Number keys match the regions visible on the desktop, so a new group needs no extra setup; a failed setting
+  leaves no partial change.
 
 ### Negative
 
-- Tombstone 與 membership revision 對照增加儲存量，目前不做自動 GC。
-- 合併後不能用 layout undo 重建原群組；可建立新群組再明確移動卡片。
-- 其他裝置並行合併可能产生循環；同步切片必須保留衝突與依賴，不能略過此驗收。
-- 交換區域後數字鍵跟著區域走；區域配置每台電腦各自保存，同一數字鍵在不同電腦可能對到不同群組。
-- 同一組的便箋不能分放不同層級；需要分開時請拆成不同群組。
-- 桌面層便箋不再穿透滑鼠，會擋住底下的桌面圖示；要穿透請把該組換到桌布層。
+- Tombstones and the membership revision map add storage; there is no automatic GC for now.
+- After a merge the original group cannot be rebuilt with layout undo; create a new group and move the cards
+  explicitly.
+- Concurrent merges on other devices can create cycles; the sync slice must keep conflicts and dependencies and
+  cannot skip this acceptance.
+- After regions are swapped, number keys follow the region; the region arrangement is stored per computer, so the
+  same number key can map to different groups on different computers.
+- Notes in the same group cannot be placed on different layers; to separate them, split them into different
+  groups.
+- Notes on the desktop layer no longer pass mouse clicks through and block the desktop icons beneath them; to pass
+  clicks through, move the group to the wallpaper layer.
 
 ### Neutral
 
-- 完成狀態不自動移除桌面顯示；桌面會標示完成樣式，清單的待處理 filter 排除完成卡片。
-  封存／刪除／明確隱藏才退出桌面集合。
+- The completed state does not remove a card from the desktop automatically; the desktop marks it with the
+  completed style, and the list's To do filter excludes completed cards.
+  Only archiving, deleting or explicitly hiding takes a card out of the desktop set.
 
 ## Alternatives Considered
 
-- 直接刪除群組與全部卡片：違反已批准的不隱含刪卡要求，因此不採用。
-- 預覽後按當下全量資料無條件合併：使用者未看過的新資料會被改動，因此不採用。
-- 草稿一律換成最新 revision：可能覆蓋正文衝突，因此只沿可證明的純 membership 邊前進。
+- Deleting the group and all its cards directly: violates the approved requirement never to imply deleting cards,
+  so it was not adopted.
+- Merging unconditionally with the full current data after the preview: new data the user has not seen would be
+  changed, so it was not adopted.
+- Always moving drafts to the latest revision: could overwrite body conflicts, so drafts only follow provable
+  membership-only edges.
 
 ## References
 

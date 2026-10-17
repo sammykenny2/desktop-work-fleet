@@ -1,64 +1,92 @@
-# ADR-014: 自動備份工作紀錄與原生檔案能力
+# ADR-014: Automatic backup job records and native file capabilities
 
 ## Status
 
-Accepted，2026-10-04。細化 SPEC-002／ADR-013，不縮減五平台自動／加密備份要求。
-原生 host／安全儲存仍需實作及驗收，執行狀態只記 PROGRESS。
+Accepted, 2026-10-04. It refines SPEC-002 / ADR-013 and does not reduce the automatic/encrypted backup
+requirement on the five platforms.
+Native hosts and secure storage still need implementation and acceptance; current status is in
+[PROGRESS.md](../../PROGRESS.md), and verification evidence is in the git history and
+[docs/testing.md](../testing.md).
 
 ## Context
 
-App 可能在備份寫入、成功回報或清理舊檔之間結束。單純 timer 或按檔名掃描無法辨識
-已保存但尚未收到回應的工作，也可能刪除使用者改過或替換的檔案。
-備份狀態若寫回 Workspace，會把自己當成內容變化而再次觸發備份。
+The app may exit between writing a backup, reporting success and cleaning up old files. A simple timer or a scan
+by file name cannot recognize a job that was saved but whose response never arrived, and may delete files the
+user changed or replaced.
+If backup state were written back into the Workspace, it would count itself as a content change and trigger
+another backup.
 
 ## Decision
 
-- 每個 profile 的單 writer lease 下設獨立 CAS journal，保存設定、pending、inventory、成功／失敗。
-  不放進 Workspace、同步或可攜 ZIP；密碼只經 account-bound OS vault，journal 僅記 opaque key ID。
-- 預設關閉；啟用後有變化且距成功滿 24 小時才執行，啟動／可見／resume 補跑一次。
-  觸發合併，取消 controller 在排隊時即建立。錯誤一分鐘起退避至一小時；授權／key 失效暫停。
-- 位置對應 scheduleId；每次設定保存產生 policyId，確保加密／key 改變後即使內容不變仍需新備份。
-  vault key 參照不可原地換密碼而沿用相同身分。停用及換位置保留原檔。
-- 先產生並驗證完整 ZIP，持久保存工作 ID、指定位置、固定 UUID 檔名、SHA／size，再要求 host 建檔。
-  成功後更新 inventory／lastSuccess；ack 遺失可完整讀回 journal，或重啟比對 pending 的檔案 bytes。
-  不完整檔記為 unconfirmed 並保留，再建另一個工作；不覆寫或清理未確認檔。
-- 只有可信 host 宣告 create-new 能力才能啟用。建立／清理必須處理檔案替換競爭，
-  不把「先查不存在／先驗 hash，稍後按 pathname 操作」當原子保證。
-  瀏覽器 File System Access 沒有採用所需保證，因此預覽的自動檔案能力為 unavailable，保留手動匯出。
-- 具原子身分刪除能力時，僅清理同 profile／schedule／位置的 verified inventory，預設七份、1–90。
-  先確認最新成功檔仍完整；失蹤或被改則先保留舊檔、另建新份。刪除 ack 遺失可重試已不存在的原檔。
-  清理能力缺失時保留全部並明示，不能默默用不安全的 pathname 刪除。
-- journal 本身失效時不覆寫壞紀錄，仍要在 UI 發佈 transient paused／error；重新讀取成功才可恢復。
-  inventory 上限 10,000 筆，不藉超限刪除其他位置或未知檔案。
+- Under each profile's single-writer lease there is a separate CAS journal that keeps settings, pending, inventory
+  and success/failure.
+  It is not in the Workspace, sync or the portable ZIP; passwords go only through the account-bound OS vault, and
+  the journal records only an opaque key ID.
+- Off by default; once enabled it runs only when there are changes and at least 24 hours have passed since the
+  last success, and it catches up once on start, on becoming visible or on resume.
+  Triggers are coalesced, and the cancel controller is created while the job is still queued. Errors back off from
+  one minute up to one hour; invalid authorization or key pauses it.
+- A location maps to a scheduleId; every settings save creates a policyId, so a change of encryption or key needs
+  a new backup even if the content did not change.
+  A vault key reference cannot change its password in place and keep the same identity. Disabling and changing the
+  location keep the existing files.
+- The complete ZIP is produced and verified first; the job ID, the chosen location, a fixed UUID file name and the
+  SHA/size are persisted, and only then is the host asked to create the file.
+  After success, the inventory and lastSuccess are updated; if the ack is lost, the full journal can be read back,
+  or after a restart the bytes of the pending file are compared.
+  An incomplete file is recorded as unconfirmed and kept, and another job is created; unconfirmed files are never
+  overwritten or cleaned up.
+- It can be enabled only when a trusted host declares the create-new capability. Creation and cleanup must handle
+  races where files are replaced;
+  "check that it does not exist / check the hash first, then act on the pathname later" is not treated as an
+  atomic guarantee.
+  Browser File System Access lacks the guarantees this needs, so the preview's automatic file capability is
+  unavailable and manual export stays.
+- With an atomic delete-by-identity capability, cleanup only touches the verified inventory of the same
+  profile/schedule/location, seven copies by default, 1-90.
+  It first confirms that the latest successful file is still complete; if it is missing or changed, old files are
+  kept and a new copy is created. If a delete ack is lost, deleting the original file that no longer exists can be
+  retried.
+  Without the cleanup capability, everything is kept and this is stated; unsafe pathname deletion is never used
+  silently.
+- When the journal itself is invalid, the broken record is not overwritten, and the UI still publishes a transient
+  paused/error state; it resumes only after a successful reread.
+  The inventory is limited to 10,000 entries, and exceeding it never deletes other locations or unknown files.
 
 ## Consequences
 
 ### Positive
 
-排程不會因自身紀錄反覆觸發；程序結束／回應遺失後能核對已完成工作。
-加密設定、實際檔案能力與保存結果分開，失敗不降級明文或刪除舊檔。
+The schedule is not triggered over and over by its own records; after a process exit or a lost response, finished
+jobs can be checked.
+Encryption settings, actual file capabilities and save results are separate, and a failure never falls back to
+plaintext or deletes old files.
 
 ### Negative
 
-可靠檔案與 vault adapter 需逐平台實作；瀏覽器預覽不能替代原生自動備份交付。
-換位置／未確認檔會增加保留空間；自動清理不以犧牲檔案身分保證換取整齊目錄。
+Reliable file and vault adapters must be implemented per platform; the browser preview cannot stand in for
+delivering native automatic backup.
+Changed locations and unconfirmed files take more space; automatic cleanup does not trade the file identity
+guarantee for a tidy folder.
 
 ### Neutral
 
-App 關閉或 OS 暫停期間不保證準時，resume 檢查補跑。公開設定 `.env.example` 不保存這些
-執行中工作、檔案授權或備份密碼。
+While the app is closed or the OS is suspended, timing is not guaranteed; the resume check catches up. The public
+settings in `.env.example` do not store these running jobs, file grants or backup passwords.
 
 ## Alternatives Considered
 
-- 每日 timer 直接寫相同檔名：覆寫競爭、崩潰狀態不明，拒絕。
-- 掃資料夾按日期／prefix 清理：無法證明所有權，拒絕。
-- FSA handle + size/hash + removeEntry：真 OPFS 可重現中途換檔後仍覆寫／刪除新檔，拒絕。
-- 瀏覽器持久保存密碼：缺少要求的 OS 安全儲存，不採用明文或一般 IndexedDB 替代。
+- A daily timer writing the same file name directly: overwrite races and unclear crash state; rejected.
+- Scanning a folder and cleaning up by date/prefix: cannot prove ownership; rejected.
+- FSA handle + size/hash + removeEntry: on real OPFS, swapping the file midway still overwrote or deleted the new
+  file, reproducibly; rejected.
+- Keeping the password persistently in the browser: lacks the required OS secure storage; plaintext or ordinary
+  IndexedDB are not used as substitutes.
 
 ## References
 
-- [SPEC-002](../specs/002-portable-backup-and-restore.md)、[ADR-013](013-complete-portable-backup.md)
-- [檔案能力研究](../research/2026-10-04-automatic-backup-file-safety.md)
-- [契約](../../contracts/backup.d.ts)、[PROGRESS](../../PROGRESS.md)
+- [SPEC-002](../specs/002-portable-backup-and-restore.md), [ADR-013](013-complete-portable-backup.md)
+- [File capability research](../research/2026-10-04-automatic-backup-file-safety.md)
+- [Contract](../../contracts/backup.d.ts), [PROGRESS](../../PROGRESS.md)
 
 Decision made: 2026-10-04.

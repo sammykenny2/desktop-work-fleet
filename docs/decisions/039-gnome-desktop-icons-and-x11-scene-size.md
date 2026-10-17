@@ -1,191 +1,270 @@
-# ADR-039: GNOME 桌面圖示下的層級對應與 X11 場景尺寸
+# ADR-039: Layer mapping under GNOME desktop icons and X11 scene size
 
 ## Status
 
-Accepted，2026-10-13。維護者在 Ubuntu 22.04 GNOME 實機回報後選擇此方案；更新 ADR-031 的 Linux X11 兩層描述。
-同日另更新 ADR-031 的 DMA-BUF 預設：只在 Raspberry Pi／V3D 停用。
-同日修訂：最上層在 GNOME 會鎖住其他視窗，維護者選擇群組只常駐桌布層，調整模式改為覆蓋工作區的遮罩並隱藏主視窗。
-同日再修訂：GNOME Xorg 實測沒有這些限制，改用三層；只常駐桌布層與遮罩只用於 GNOME Wayland 工作階段（XWayland）。
-2026-10-14 修訂：維護者在 Raspberry Pi OS labwc 選擇所有 layer-shell 桌面也以遮罩調整，常駐層維持三層，主視窗同樣隱藏。
-同日再修訂：Pi 停用 DMA-BUF renderer 時，滑鼠移過場景就整片消失；Pi 改為保留 DMA-BUF renderer 並使用共享記憶體 buffer。
-同日三修訂：維護者確認 pcmanfm 桌面上桌布層蓋住捷徑後，選擇在該環境不提供桌布層，不把便箋畫進桌布圖片。
-同日四修訂：layer-shell 上主視窗恢復後位置改變，改為最小化而非隱藏；快捷鍵見 [ADR-041](041-labwc-shortcuts-through-rc-xml-keybinds.md)。
-維護者再要求進入調整模式前已最小化的主視窗結束後維持最小化，所有遮罩環境改為只移開調整開始時有焦點的主視窗。
-遮罩隨後擴及所有桌面主機（包括 GNOME Xorg、其他 X11、Windows 與 macOS），見 [ADR-042](042-adjust-overlay-on-every-desktop-host.md)；
-以下 GNOME Xorg「沒有遮罩」的描述由它取代。
+Accepted, 2026-10-13. The maintainer chose this approach after reports from a real Ubuntu 22.04 GNOME machine; it updates the
+Linux X11 two-layer description of ADR-031.
+The same day, the DMA-BUF default of ADR-031 was also updated: the renderer is disabled only on Raspberry Pi/V3D.
+Revised the same day: the top layer locks other windows on GNOME, so the maintainer chose that groups stay resident only on
+the wallpaper layer, and adjust mode became an overlay that covers the work area while the main window is hidden.
+Revised again the same day: tests on GNOME Xorg showed none of these limits, so it uses three layers there; wallpaper-only
+residency and the overlay apply only to GNOME Wayland sessions (XWayland).
+Revised 2026-10-14: on Raspberry Pi OS with labwc, the maintainer chose that all layer-shell desktops also adjust through the
+overlay; the resident layers stay at three, and the main window is hidden in the same way.
+Revised again the same day: with the DMA-BUF renderer disabled on the Pi, the whole scene vanished as soon as the mouse moved
+over it; the Pi now keeps the DMA-BUF renderer and uses shared-memory buffers.
+Third revision the same day: after the maintainer confirmed that wallpaper-layer notes cover the shortcuts on the pcmanfm
+desktop, the maintainer chose not to offer the wallpaper layer in that environment and not to draw notes into the wallpaper
+image.
+Fourth revision the same day: on layer-shell the main window changed position after it was restored, so it is minimized
+instead of hidden; shortcuts are in [ADR-041](041-labwc-shortcuts-through-rc-xml-keybinds.md).
+The maintainer then asked that a main window that was already minimized before adjust mode started stays minimized after it
+ends; all overlay environments now move only a main window that had focus when adjusting started.
+The overlay was later extended to every desktop host (including GNOME Xorg, other X11 desktops, Windows and macOS), see
+[ADR-042](042-adjust-overlay-on-every-desktop-host.md); it supersedes the GNOME Xorg "no overlay" description below.
 
 ## Context
 
-Ubuntu 22.04 預設 GNOME Shell 42（Mutter）Wayland 不提供 wlr-layer-shell，`GtkLayerShell.is_supported()` 為 false，
-Linux host 回報 `desktop-unsupported`；群組層級設定因沒有桌面呈現能力而不顯示。
-維護者以 `GDK_BACKEND=x11` 經 XWayland 啟動後回報兩個問題：
+Ubuntu 22.04's default GNOME Shell 42 (Mutter) on Wayland does not provide wlr-layer-shell,
+`GtkLayerShell.is_supported()` is false, and the Linux host reports `desktop-unsupported`; the group layer settings are
+not shown because there is no desktop presentation capability. The maintainer started the app through XWayland with
+`GDK_BACKEND=x11` and reported two problems:
 
-- 場景視窗只有 200×200。`xwininfo` 顯示螢幕 1024×768、工作區起點 +70+27，最上層視窗位於 +70+27
-  但維持 200×200，擷取的視窗內容只剩便箋左上角。場景視窗設為不可調整大小，GTK 3 以 size request
-  決定其尺寸並忽略 `resize()`；ADR-031 只在 layer-shell 分支設定 viewport size request。
-  補上 size request 後，以整個螢幕為範圍的最上層視窗變成 `1024x768+0+27`：Mutter 把一般視窗的上緣推到頂部工作列下方，
-  便箋因此比應有位置低 27 像素。先前 200×200 視窗出現在 +70+27 也是同一個工作區限制，不是程式要求的位置。
-- 桌面層看得到便箋但無法選字，行為像桌布層。Ubuntu 的桌面圖示由 DING 擴充以全螢幕透明的一般視窗呈現，
-  每次被提升就呼叫 `lower()`（`emulateX11WindowType.js`），整個桌面範圍都接收輸入。
-  X11 desktop-type 視窗在 Mutter 的 DESKTOP 層，低於一般視窗層，因此位在 DING 下方：
-  DING 透明處可見便箋，點擊則由 DING 接收。這是依 Mutter 層級規則與 DING 原始碼推得，
-  X11 工具看不到 Wayland 視窗，沒有直接觀察到 DING 的堆疊位置。
+- The scene windows were only 200×200. `xwininfo` showed a 1024×768 screen with the work area starting at +70+27; the
+  top-layer window was at +70+27 but stayed 200×200, and the captured window content showed only the top-left corner of
+  the notes. The scene window is set as not resizable, so GTK 3 sizes it by its size request and ignores `resize()`;
+  ADR-031 set the viewport size request only in the layer-shell branch. With the size request added, the top-layer
+  window that spans the whole screen became `1024x768+0+27`: Mutter pushes the top edge of a normal window below the top
+  bar, so the notes sat 27 pixels lower than they should. The earlier 200×200 window at +70+27 was the same work-area
+  restriction, not a position the code asked for.
+- On the desktop layer the notes were visible but text could not be selected; it behaved like the wallpaper layer.
+  Ubuntu's desktop icons are drawn by the DING extension as a full-screen transparent normal window, which calls
+  `lower()` whenever it is raised (`emulateX11WindowType.js`), and the whole desktop area receives input. X11
+  desktop-type windows are in Mutter's DESKTOP layer, below the normal window layer, so they sit below DING: the notes
+  are visible through DING's transparent areas, but DING receives the clicks. This was inferred from Mutter's layer
+  rules and DING's source code; X11 tools cannot see Wayland windows, and DING's stacking position was not observed
+  directly.
 
-`keep_below` 只會進入 BOTTOM 層，仍低於 DING；一般 X11 client 也無法相對 Wayland 視窗重排。
-要在 GNOME 提供可互動的桌面層，只能由 GNOME Shell 擴充等 Shell 內部機制安排堆疊。
+`keep_below` only reaches the BOTTOM layer, which is still below DING; an ordinary X11 client also cannot restack itself
+relative to Wayland windows. An interactive desktop layer on GNOME can only be arranged by mechanisms inside the Shell,
+such as a GNOME Shell extension.
 
-拖曳或堆疊、攤開、復原移動便箋後，原處留下殘影；擷取場景視窗本身可見殘影，強制整窗重畫後消失。
-獨立的透明 WebKit 視窗移動一張便箋即可重現：`WEBKIT_DISABLE_DMABUF_RENDERER=1`（ADR-031 的 Linux 預設）時舊位置留下殘影，
-在視窗或 WebView 的 draw 先清成透明也無效；不設定或設為 `0` 改用 DMA-BUF renderer 時沒有殘影。
-維護者以 `WEBKIT_DISABLE_DMABUF_RENDERER=0` 啟動 App 後確認殘影消失。這台 x86 VM 沒有 Pi 的 device-tree model 或 V3D 驅動。
+After dragging, or after stack, spread or undo moved notes, ghosting stayed at the old place; the ghost was visible when
+the scene window itself was captured and disappeared after a forced full-window redraw. A standalone transparent WebKit
+window reproduces it by moving one note: with `WEBKIT_DISABLE_DMABUF_RENDERER=1` (the Linux default of ADR-031) the old
+position keeps a ghost, and clearing to transparent first in the draw handler of the window or the WebView does not
+help; when the variable is unset or set to `0`, so the DMA-BUF renderer is used, there is no ghost. The maintainer
+started the app with `WEBKIT_DISABLE_DMABUF_RENDERER=0` and confirmed that the ghosting was gone. This x86 VM has
+neither the Pi's device-tree model nor the V3D driver.
 
-Pi 5 labwc 改用調整遮罩後，維護者回報遮罩出現後只要移動滑鼠，工具列、校準線與便箋就整片消失，但滑鼠仍被擋住、Esc 仍有效。
-headless labwc 以合成的 GTK 指標事件重現：只有移入不會消失，移動才會；GTK 重畫救不回，強制 WebKit 整頁重畫可恢復。
-鍵盤改回 ON_DEMAND 同樣消失，沒有遮罩時滑過常駐最上層便箋也會消失，所以是停用 DMA-BUF renderer 時 WebKit 原有的問題；
-常駐合成圖層、固定游標與停用硬體加速都無效。保留 DMA-BUF renderer 並設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` 時，
-headless 移動滑鼠後畫面完整、移走的便箋沒有殘影；維護者在 Pi 5 實機確認調整模式恢復正常，未回報黑塊、花屏或殘影。
+After the Pi 5 with labwc switched to the adjust overlay, the maintainer reported that once the overlay appeared, merely
+moving the mouse made the toolbar, the alignment guides and the notes vanish entirely, while the mouse was still blocked
+and Esc still worked. Headless labwc reproduced it with synthetic GTK pointer events: entering alone did not make it
+vanish, moving did; a GTK redraw could not bring it back, and a forced full-page WebKit redraw could. With the keyboard
+switched back to ON_DEMAND it vanished the same way, and without the overlay, moving over resident top-layer notes also
+made them vanish, so this is an existing WebKit problem when the DMA-BUF renderer is disabled; a resident compositing
+layer, a fixed cursor and disabling hardware acceleration all had no effect. With the DMA-BUF renderer kept and
+`WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` set, the headless image stayed complete after mouse movement and moved notes left
+no ghost; the maintainer confirmed on a real Pi 5 that adjust mode works normally again and reported no black blocks,
+garbled display or ghosting.
 
-維護者另確認 Pi 5 labwc 的桌布層便箋蓋住桌面捷徑。Raspberry Pi OS 的 `pcmanfm-pi` 在預設設定執行 `pcmanfm --desktop`，
-把桌布圖片與捷徑畫在同一個背景 surface（ADR-031 已記錄）；設定 `use_swaybg=1` 時改由 swaybg 只畫桌布、沒有捷徑。
-桌布層場景只能整個在該 surface 上方（蓋住捷徑）或下方（被不透明的桌布擋住），與桌面層位置相同卻不可互動，沒有用處。
-把便箋畫進桌布圖片再交給 pcmanfm 會改寫使用者的桌布設定、需處理當機與重開機後的還原、各種桌布模式與多螢幕，
-並把便箋內容以明文寫成圖片，維護者選擇不做。
+The maintainer also confirmed that on the Pi 5 with labwc, wallpaper-layer notes cover the desktop shortcuts. Raspberry
+Pi OS's `pcmanfm-pi` runs `pcmanfm --desktop` in the default setup, which draws the wallpaper image and the shortcuts on
+the same background surface (already recorded in ADR-031); with `use_swaybg=1`, swaybg draws only the wallpaper and no
+shortcuts. A wallpaper-layer scene can only sit entirely above that surface (covering the shortcuts) or below it (hidden
+by the opaque wallpaper); the first is the same position as the desktop layer but without interaction, so it is useless.
+Drawing the notes into the wallpaper image and handing it to pcmanfm would rewrite the user's wallpaper settings,
+require restoring after crashes and reboots, handle every wallpaper mode and multiple displays, and write the note
+content into an image as plaintext; the maintainer chose not to do it.
 
-最上層同樣受限。群組設為最上層或進入調整模式後，使用者無法點選其他程式，也無法拖曳或縮放主視窗；
-最上層視窗隱藏或 App 結束後恢復，期間鍵盤仍可輸入其他程式。持續記錄顯示 input shape 只有便箋範圍，沒有 X 獨占或 XDND。
-以獨立的 keep-above XWayland 視窗（只有中央方框接收輸入）對照：
+The top layer is limited too. After a group is set to the top layer or adjust mode starts, the user cannot click other
+programs and cannot drag or resize the main window; this recovers when the top-layer window is hidden or the app quits,
+and in the meantime the keyboard can still type into other programs. Continuous logging showed that the input shape
+covered only the notes, with no X grab and no XDND. A standalone keep-above XWayland window (with only a central box
+receiving input) was used for comparison:
 
-- 不接受焦點時正常，點住、拖曳方框或讓主視窗持有焦點後也正常。
-- 取得焦點後鎖住；只留方框的 bounding shape、NORMAL 類型都一樣，改把焦點交給主視窗也不能解除。
-- App 把最上層改為永不接受焦點後，進入調整模式（主視窗持有焦點、尚未拖曳）仍會鎖住；改用 DMA-BUF 也一樣。
-  與獨立視窗的差異只剩同一 client 與 WebKit 內容，原因未判定。
+- It works while it does not accept focus, and also after the box is pressed or dragged or while the main window holds
+  focus.
+- It locks after it takes focus; a bounding shape of only the box and the NORMAL type behave the same, and handing focus
+  to the main window does not release it.
+- After the app changed the top layer to never accept focus, entering adjust mode (main window holding focus, no drag
+  yet) still locks; using DMA-BUF does too. The only remaining differences from the standalone window are the shared
+  client and the WebKit content; the cause is undetermined.
 
-維護者定義的桌面層與最上層都包含焦點，以便用鍵盤快速複製文字，所以不提供沒有焦點的常駐最上層。
-調整模式既然會讓其他視窗無法點選，就改成明確的模式：遮罩覆蓋工作區、主視窗隱藏、遮罩上提供操作按鈕。
+The maintainer's definitions of the desktop layer and the top layer both include focus, so that text can be copied
+quickly with the keyboard; therefore no resident top layer without focus is offered. Since adjust mode makes other
+windows unclickable anyway, it becomes an explicit mode: an overlay covers the work area, the main window is hidden, and
+the overlay carries the action buttons.
 
-之後在同一台 VM 以 xrdp 的 GNOME Xorg 工作階段（`XDG_SESSION_TYPE=x11`、沒有 `WAYLAND_DISPLAY`）以獨立視窗對照：
+Later, a GNOME Xorg session over xrdp on the same VM (`XDG_SESSION_TYPE=x11`, no `WAYLAND_DISPLAY`) was compared with
+standalone windows:
 
-- keep-above 視窗取得焦點後，終端機與主視窗仍可點選、拖曳；XWayland 的鎖住不會發生。
-- DING 在 Xorg 是 X11 desktop-type 視窗。desktop-type 測試視窗一開始在 DING 上方可點，但使用者點過桌面後
-  DING 升到它上方，之後點擊都由 DING 接收。
-- 一般視窗加 keep below 位於 Mutter 的 BOTTOM 層，始終在所有 desktop-type 視窗（含 DING）上方、一般視窗下方；
-  點過桌面後仍可點，方框外的桌面圖示照常可用。
-- 對 desktop-type 視窗呼叫 lower 被 Mutter 忽略，啟動時仍在 DING 上方，要等 DING 被點而升起後才在圖示下方。
+- After a keep-above window takes focus, the terminal and the main window can still be clicked and dragged; the XWayland
+  lock does not happen.
+- On Xorg, DING is an X11 desktop-type window. A desktop-type test window started above DING and was clickable, but once
+  the user clicked the desktop, DING rose above it, and every click afterwards went to DING.
+- A normal window with keep below sits in Mutter's BOTTOM layer, always above all desktop-type windows (including DING)
+  and below normal windows; it was still clickable after the desktop was clicked, and the desktop icons outside the box
+  worked as usual.
+- Mutter ignores lower on a desktop-type window; at startup it is still above DING and goes below the icons only after
+  DING is clicked and rises.
 
 ## Decision
 
-- 所有 X11 場景視窗與 layer-shell 一樣設定 viewport 的 size request，X11 另保留 `move()`／`resize()`。
-- X11 場景的 viewport 改用螢幕工作區（GDK 讀取 `_NET_WORKAREA`），layer-shell 仍涵蓋整個螢幕，
-  讓視窗落在要求的位置，不被視窗管理員移開。
-- `XDG_CURRENT_DESKTOP` 以 `:` 分隔後含 `GNOME`（不分大小寫），且是 GNOME Wayland 工作階段（`XDG_SESSION_TYPE=wayland`
-  或有 `WAYLAND_DISPLAY`）經 X11 backend 時，Linux host 建立 `wallpaper` 與 `floating` 場景，但 `residentLayers` 只有 `wallpaper`。桌布層使用 X11 desktop-type、keep below，
-  沿用桌布的空 input region 與拒絕輸入，在 DING 圖示下方且滑鼠穿透。`wallpaperPlacement` 回報 `desktop-window`，
-  不冒稱 layer-shell 背景 band。
-- 同一環境回報 `adjustOverlay`。調整模式時每個螢幕的最上層場景都顯示並以整個工作區為 input region，
-  畫上約 35% 不透明的深灰遮罩，調整中的便箋在遮罩上方可拖曳；出現時 present 取得焦點，鍵盤可用。
-  遮罩上方提供「堆疊、攤開、復原、完成」：堆疊與攤開直接套用到調整中的範圍並保持尺寸，復原同主畫面，完成結束調整模式。
-- layer-shell 桌面同樣回報 `adjustOverlay`，但這是維護者選擇的操作方式而非限制，`residentLayers` 維持桌布、桌面、最上層三層。
-  遮罩涵蓋整個螢幕，包括面板。on-demand 的 layer surface 要被點過才取得鍵盤，`present()` 對它無效，所以調整期間最上層
-  改用 EXCLUSIVE 鍵盤模式讓 Esc 立即可用，結束後回到 ON_DEMAND。不在調整範圍的最上層常駐便箋畫在遮罩下方，與其他層一致。
-- GNOME Xorg 工作階段提供桌布、桌面、最上層三層且都可常駐，沒有遮罩，調整模式與其他 X11 相同。
-  桌面層使用一般視窗加 keep below，穩定位於 DING 上方且可選字、取得焦點；桌布層仍是 desktop-type 視窗並滑鼠穿透，
-  啟動後到使用者點過桌面前可能顯示在圖示上方；最上層 keep above 並可取得焦點。其他 X11 桌面維持 desktop-type 桌面層。
-- 調整模式開始後隱藏主視窗，任何方式結束後恢復；隱藏等遮罩畫面發布、恢復等去掉遮罩的畫面發布。
-  視窗管理員會重新安排再次顯示的視窗，所以隱藏前記下位置、大小與最大化狀態並在顯示前還原。
-  只有調整模式開始時（遮罩出現並取得焦點前）主畫面文件有焦點，主視窗才讓開並在結束後恢復；已最小化、在系統匣或位於其他程式後方的主視窗
-  維持原狀，結束後也不叫回。Wayland 不告訴 App 視窗已被最小化，所以以焦點判斷。
-- Wayland 不讓 App 指定視窗位置，再次顯示的視窗由 compositor 重新放置（headless labwc 會置中），所以 layer-shell 改為最小化，
-  compositor 保留位置與大小；結束時以 `present()` 經 xdg-activation 叫回。labwc 只接受帶有近期輸入序號的 activation，
-  600 ms 後主視窗仍未取得焦點時改為隱藏再顯示，主視窗一定回來，但該次位置可能改變。
-  詳細資料、完整編輯器與快速記錄需要主視窗，先結束調整模式。
-- 共用投影區分場景層 `layers` 與常駐層 `residentLayers`（預設相同）。常駐便箋要求的層不能常駐時，
-  改放桌面層或桌布層並列入 `fallbacks`；調整中的便箋可用任何場景。落在桌布層的便箋一律不可互動、拖曳或編輯。
-  保存的群組偏好不改寫，回到支援的環境即恢復。
-- 只有 `/proc/device-tree/model` 含 Raspberry Pi 或存在 `/sys/module/v3d` 時，使用者沒有設定 `WEBKIT_DISABLE_DMABUF_RENDERER`
-  或 `WEBKIT_DMABUF_RENDERER_FORCE_SHM` 才預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`：保留 DMA-BUF renderer，不使用 V3D 的
-  DMA-BUF buffer；其他機器沿用 WebKit 預設，使用者的明確設定仍優先。
-- 群組快捷鍵略過不能常駐的層級，進入調整模式時不改寫常駐層；群組設定停用不能常駐的層級（目前所在層除外），
-  設定頁依實際回退方向說明，快捷鍵說明列出本機實際的循環順序。不能常駐的層級選項直接寫明目前不支援及會顯示在哪一層。
-- layer-shell 啟動時若同一使用者的 `pcmanfm --desktop` 連到同一個 Wayland socket（`XDG_RUNTIME_DIR` 與 `WAYLAND_DISPLAY`），
-  只建立桌面層與最上層，`wallpaperPlacement` 回報 `unavailable`；桌布偏好依共用投影回退桌面層，原偏好保存。
-  只在啟動時偵測，改用 swaybg 或恢復 pcmanfm 桌面後要重新開啟 App。不提供設定開關，因為這個環境的桌布層沒有可取捨的好處。
+- All X11 scene windows set the viewport size request as layer-shell does; X11 also keeps `move()`/`resize()`.
+- The viewport of X11 scenes uses the screen's work area (GDK reads `_NET_WORKAREA`), while layer-shell still covers the
+  whole screen, so the window lands at the requested position and is not moved away by the window manager.
+- When `XDG_CURRENT_DESKTOP`, split on `:`, contains `GNOME` (case-insensitive) and the session is a GNOME Wayland
+  session (`XDG_SESSION_TYPE=wayland` or `WAYLAND_DISPLAY` present) running through the X11 backend, the Linux host
+  creates `wallpaper` and `floating` scenes, but `residentLayers` contains only `wallpaper`. The wallpaper layer uses an
+  X11 desktop-type window with keep below, keeps the wallpaper's empty input region and input refusal, sits below the
+  DING icons and passes the mouse through. `wallpaperPlacement` reports `desktop-window` and does not pretend to be the
+  layer-shell background band.
+- The same environment reports `adjustOverlay`. In adjust mode the top-layer scene on every display is shown with the
+  whole work area as its input region and draws a dark gray overlay that is about 35% opaque; the notes being adjusted
+  sit above the overlay and can be dragged. When it appears, it calls present to take focus, so the keyboard works. The
+  overlay carries "Stack", "Spread", "Undo" and "Done": Stack and Spread apply directly to the range being adjusted and
+  keep the sizes, Undo works as in the main window, and Done ends adjust mode.
+- layer-shell desktops also report `adjustOverlay`, but there it is an interaction the maintainer chose rather than a
+  limit; `residentLayers` stays at the three layers wallpaper, desktop and top. The overlay covers the whole screen,
+  including panels. An on-demand layer surface gets the keyboard only after it is clicked, and `present()` has no effect
+  on it, so during adjustment the top layer uses the EXCLUSIVE keyboard mode so that Esc works immediately, and returns
+  to ON_DEMAND afterwards. Resident top-layer notes outside the adjusted range are drawn below the overlay, consistent
+  with the other layers.
+- GNOME Xorg sessions provide the three layers wallpaper, desktop and top, all of which can be resident; there is no
+  overlay, and adjust mode is the same as on other X11 desktops. The desktop layer uses a normal window with keep below,
+  stays reliably above DING, and allows text selection and focus; the wallpaper layer is still a desktop-type window
+  that passes the mouse through, and from startup until the user clicks the desktop it may show above the icons; the top
+  layer uses keep above and can take focus. Other X11 desktops keep the desktop-type desktop layer.
+- When adjust mode starts, the main window is hidden, and it is restored however adjust mode ends; hiding waits until
+  the overlay frame is published, and restoring waits until the frame without the overlay is published. The window
+  manager rearranges a window that is shown again, so its position, size and maximized state are recorded before hiding
+  and restored before showing. Only when the main window document had focus as adjust mode started (before the overlay
+  appeared and took focus) does the main window get out of the way and come back afterwards; a main window that is
+  minimized, in the tray or behind other programs stays as it is and is not brought back afterwards. Wayland does not
+  tell the app that a window was minimized, so focus decides.
+- Wayland does not let an app choose window positions, and a window shown again is placed by the compositor (headless
+  labwc centers it), so layer-shell minimizes instead, and the compositor keeps the position and size; on exit,
+  `present()` brings it back through xdg-activation. labwc accepts only activations that carry a recent input serial; if
+  the main window still has no focus after 600 ms, it is hidden and shown again, so the main window always comes back,
+  though its position may change that time. Details, the full editor and Quick capture need the main window, so adjust
+  mode ends first.
+- The shared projection distinguishes the scene layers `layers` from the resident layers `residentLayers` (the same by
+  default). When the layer a resident note asks for cannot be resident, the note goes to the desktop layer or the
+  wallpaper layer and is listed in `fallbacks`; notes being adjusted can use any scene. Notes that land on the wallpaper
+  layer are never interactive, draggable or editable. Saved group preferences are not rewritten and take effect again in
+  a supported environment.
+- Only when `/proc/device-tree/model` contains Raspberry Pi or `/sys/module/v3d` exists, and the user has set neither
+  `WEBKIT_DISABLE_DMABUF_RENDERER` nor `WEBKIT_DMABUF_RENDERER_FORCE_SHM`, does the host default to
+  `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`: the DMA-BUF renderer stays, without V3D's DMA-BUF buffers. Other machines keep
+  WebKit's default, and the user's explicit setting still wins.
+- Group shortcuts skip layers that cannot be resident, and entering adjust mode does not rewrite the resident layer;
+  group settings disable layers that cannot be resident (except the current one), the settings page explains the actual
+  fallback direction, and the shortcut description lists this machine's actual cycle order. Options for layers that
+  cannot be resident state directly that they are not supported right now and which layer the notes will show on.
+- When layer-shell starts and the same user's `pcmanfm --desktop` is connected to the same Wayland socket
+  (`XDG_RUNTIME_DIR` and `WAYLAND_DISPLAY`), only the desktop layer and the top layer are created, and
+  `wallpaperPlacement` reports `unavailable`; the wallpaper preference falls back to the desktop layer through the
+  shared projection, and the original preference is kept. Detection happens only at startup; after switching to swaybg
+  or restoring the pcmanfm desktop, the app must be reopened. No settings switch is offered, because the wallpaper layer
+  has no benefit to weigh in this environment.
 
 ## Consequences
 
 ### Positive
 
-- X11 便箋不再被裁成 200×200，也不再因工作列被推離原位；所有 X11 桌面都受益。
-- GNOME 上的層級名稱與實際行為一致，不再出現看得到卻無法點的「桌面層」。
-- GNOME 的調整模式看得出來、可完整操作，不會在一般使用時意外鎖住其他視窗。
-- Windows、macOS 與 layer-shell 的層級組合不變；layer-shell 的調整模式和 GNOME 一樣明確，主視窗不會遮住調整中的便箋。
+- X11 notes are no longer cropped to 200×200 and are no longer pushed out of place by the taskbar; every X11 desktop
+  benefits.
+- The layer names on GNOME match the actual behavior; there is no longer a "Desktop layer" that is visible but cannot be
+  clicked.
+- Adjust mode on GNOME is visible and fully operable, and it does not lock other windows by surprise in normal use.
+- The layer combinations of Windows, macOS and layer-shell do not change; adjust mode on layer-shell is as explicit as
+  on GNOME, and the main window does not cover the notes being adjusted.
 
 ### Negative
 
-- GNOME 沒有常駐的桌面層與最上層；選字、複製與編輯在調整模式或主畫面進行。
-- 主視窗顯示中但沒有焦點（例如在其他程式後方）時以全域快捷鍵進入調整模式，主視窗留在原位被遮罩染暗；調整中的便箋仍在它上方。
-- pcmanfm 桌面沒有桌布層，便箋無法放在捷徑下方；其他把桌面圖示畫在背景層的 layer-shell 桌面（例如 KDE Plasma）未實測、未偵測。
-- 調整模式中其他程式依設計無法點選；若場景卡住，滑鼠會一直被擋到 App 結束，鍵盤仍可操作其他程式。
-  layer-shell 調整期間面板也無法點選，鍵盤由遮罩獨占；場景卡住時滑鼠與鍵盤都要等 App 結束才恢復。
-- 遮罩上的堆疊與攤開不提供調整尺寸選項；需要時從主畫面的對話框操作。
-- X11 便箋超出工作區（工作列、Dock 下方）的部分會被裁掉；工作區改變（例如 Dock 自動隱藏）時，
-  既有的顯示器變更流程會一併調整場景視窗大小。
-- GNOME Wayland 要經 XWayland 才有桌面便箋；改用 XWayland 會連帶影響主畫面的輸入法與縮放，
-  由使用者在首次啟動或設定中選擇，見 [ADR-040](040-gnome-wayland-xwayland-choice.md)。
-- GNOME 42 Wayland 沒有 GlobalShortcuts portal，XWayland 的 X11 全域快捷鍵也可能收不到按鍵，
-  切換層級主要透過群組設定。
+- GNOME has no resident desktop layer or top layer; selecting, copying and editing text happen in adjust mode or the
+  main window.
+- When the main window is visible but not focused (for example behind other programs) and adjust mode is entered with
+  the global shortcut, the main window stays in place, dimmed by the overlay; the notes being adjusted are still above
+  it.
+- The pcmanfm desktop has no wallpaper layer, so notes cannot sit below the shortcuts; other layer-shell desktops that
+  draw desktop icons in the background layer (for example KDE Plasma) are neither tested nor detected.
+- In adjust mode other programs cannot be clicked, by design; if a scene gets stuck, the mouse stays blocked until the
+  app quits, while the keyboard can still operate other programs. During adjustment on layer-shell the panels cannot be
+  clicked either, and the overlay holds the keyboard exclusively; if a scene gets stuck, both the mouse and the keyboard
+  recover only when the app quits.
+- Stack and Spread on the overlay offer no resize option; when it is needed, use the dialog in the main window.
+- Parts of X11 notes outside the work area (under the taskbar or Dock) are clipped; when the work area changes (for
+  example when the Dock hides automatically), the existing display change flow also resizes the scene windows.
+- GNOME Wayland gets desktop notes only through XWayland; switching to XWayland also affects input methods and scaling
+  in the main window, so the user chooses it at first launch or in Settings, see
+  [ADR-040](040-gnome-wayland-xwayland-choice.md).
+- GNOME 42 on Wayland has no GlobalShortcuts portal, and X11 global shortcuts under XWayland may not receive the keys
+  either, so layers are switched mainly through the group settings.
 
 ### Neutral
 
-- GNOME Xorg 只在 xrdp 遠端工作階段驗證；本機 Xorg 登入、GNOME Flashback 等同樣宣告 `GNOME` 的工作階段未實測。
-- 其他 X11 桌面的檔案管理員也以 desktop-type 視窗畫圖示，桌面層可能同樣在點過桌面後被蓋住；未實測，暫不改變。
-- GNOME 上最上層鎖住其他視窗的根本原因仍未判定，遮罩是以此行為為前提的設計。
-- 殘影來自共享記憶體 renderer，改用 DMA-BUF 後消失。
-- layer-shell 遮罩只在 Raspberry Pi 5 的 labwc 實機確認；wayfire、sway、KDE Plasma Wayland 等其他 compositor 未實測。
-- 非 Pi 的 Linux 改用 DMA-BUF renderer，GPU／驅動相容性只在這台 x86 VM 確認；Pi 以外有相同錯亂的機器可自行設定環境變數。
-- Pi 的共享記憶體 buffer 只在一台 Pi 5（WebKitGTK 2.54）短時間使用確認；Pi 4、wayfire 與長時間使用未實測。
-  原本停用 DMA-BUF 所依據的 V3D 錯亂來自參考專案的回報，這次沒有以完整 DMA-BUF 重新驗證。
+- GNOME Xorg was verified only in an xrdp remote session; a local Xorg login, GNOME Flashback and other sessions that
+  also declare `GNOME` are untested.
+- File managers on other X11 desktops also draw icons with desktop-type windows, so their desktop layer may likewise be
+  covered after the desktop is clicked; this is untested and left unchanged for now.
+- The root cause of the top layer locking other windows on GNOME is still undetermined; the overlay is a design that
+  takes this behavior as given.
+- The ghosting comes from the shared-memory renderer and disappears with the DMA-BUF renderer.
+- The layer-shell overlay was confirmed only on a real Raspberry Pi 5 with labwc; wayfire, sway, KDE Plasma Wayland and
+  other compositors are untested.
+- Linux machines other than the Pi use the DMA-BUF renderer, and GPU and driver compatibility was confirmed only on this
+  x86 VM; other machines with the same garbling can set the environment variable themselves.
+- The Pi's shared-memory buffers were confirmed only in short use on one Pi 5 (WebKitGTK 2.54); the Pi 4, wayfire and
+  long use are untested. The V3D garbling that originally justified disabling DMA-BUF came from the reference project's
+  reports and was not re-verified with full DMA-BUF this time.
 
 ## Alternatives Considered
 
-### Alternative 1: GNOME Shell 擴充
+### Alternative 1: GNOME Shell extension
 
-- **Pros**：可把便箋視窗排在 DING 與一般視窗之間，提供真正的桌面層。
-- **Cons**：需另行開發、簽署與隨 GNOME 版本維護，安裝流程也不同於 DEB 依賴。
-- **Why rejected**：超出本次修正範圍；需要時另立 ADR。
+- **Pros**: it could stack note windows between DING and normal windows and provide a real desktop layer.
+- **Cons**: it needs separate development, signing and maintenance for each GNOME version, and its installation differs
+  from the DEB dependencies.
+- **Why rejected**: beyond the scope of this fix; it needs its own ADR if it is ever wanted.
 
-### Alternative 2: 維持桌面層名稱
+### Alternative 2: Keep the desktop layer name
 
-- **Pros**：不需修改共用投影。
-- **Cons**：便箋可見卻不可互動，與「在圖示上方，可選取文字」的說明相反。
-- **Why rejected**：誤報能力，正是維護者回報的問題。
+- **Pros**: no change to the shared projection.
+- **Cons**: notes are visible but not interactive, the opposite of the description "above the icons, text can be
+  selected".
+- **Why rejected**: it misreports a capability, which is exactly the problem the maintainer reported.
 
-### Alternative 3: 改用 keep below 的一般視窗
+### Alternative 3: Use a normal window with keep below
 
-- **Pros**：不使用 desktop-type。
-- **Cons**：仍位於 Mutter BOTTOM 層，低於 DING；DING 也會在被提升時自行降到最底。
-- **Why rejected**：無法改善輸入。
+- **Pros**: no desktop-type window.
+- **Cons**: it is still in Mutter's BOTTOM layer, below DING; DING also lowers itself to the bottom whenever it is
+  raised.
+- **Why rejected**: it cannot improve input.
 
-### Alternative 4: 不取得焦點的常駐最上層或調整模式
+### Alternative 4: A resident top layer or adjust mode that does not take focus
 
-- **Pros**：保留在所有視窗上方的便箋或桌面拖曳，不必遮住整個桌面。
-- **Cons**：沒有焦點就不能用鍵盤複製；實測不取得焦點的調整模式仍會鎖住其他視窗。
-- **Why rejected**：不符合維護者對最上層的定義，也無法避免鎖住。
+- **Pros**: keeps notes above all windows, or dragging on the desktop, without covering the whole desktop.
+- **Cons**: without focus the keyboard cannot copy; tests showed that adjust mode without focus still locks other
+  windows.
+- **Why rejected**: it does not fit the maintainer's definition of the top layer and does not avoid the lock.
 
-### Alternative 5: GNOME 只留桌布層，以主畫面堆疊、攤開、復原
+### Alternative 5: GNOME keeps only the wallpaper layer, with stack, spread and undo in the main window
 
-- **Pros**：完全不使用最上層，不會鎖住任何視窗。
-- **Cons**：無法在桌面上拖曳單張便箋，也看不出正在整理。
-- **Why rejected**：維護者實測後希望保留調整模式，改以遮罩明示。
+- **Pros**: no top layer at all, so no window is ever locked.
+- **Cons**: single notes cannot be dragged on the desktop, and nothing shows that arranging is in progress.
+- **Why rejected**: after testing, the maintainer wanted to keep adjust mode and make it explicit with the overlay.
 
 ## References
 
-- [ADR-031](031-macos-and-linux-wallpaper-scenes.md)、[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
-- [平台可行性研究 5.5](../research/2026-10-04-desktop-interaction-platform-feasibility.md)。
-- [gtk-layer-shell 支援的桌面](https://github.com/wmww/gtk-layer-shell#supported-desktops)。
-- [Desktop Icons NG](https://gitlab.com/rastersoft/desktop-icons-ng)。
-- [GtkWindow resizable](https://docs.gtk.org/gtk3/method.Window.set_resizable.html)。
+- [ADR-031](031-macos-and-linux-wallpaper-scenes.md), [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md).
+- [Platform feasibility research 5.5](../research/2026-10-04-desktop-interaction-platform-feasibility.md).
+- [Desktops supported by gtk-layer-shell](https://github.com/wmww/gtk-layer-shell#supported-desktops).
+- [Desktop Icons NG](https://gitlab.com/rastersoft/desktop-icons-ng).
+- [GtkWindow resizable](https://docs.gtk.org/gtk3/method.Window.set_resizable.html).
 
 ---
 
 *Decision made: 2026-10-13*
-*Decision makers: 維護者*
+*Decision makers: Maintainer*

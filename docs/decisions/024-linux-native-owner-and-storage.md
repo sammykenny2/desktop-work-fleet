@@ -1,61 +1,77 @@
-# ADR-024: Linux 原生主畫面、資料與 Google
+# ADR-024: Linux native main window, data and Google
 
 ## Status
 
-Accepted，2026-10-05；金鑰與憑證保存政策於 2026-10-15 由 [ADR-047](047-linux-local-key-without-keyring-prompts.md)／
-[ADR-048](048-linux-offline-workspace-and-system-secrets.md) 取代。加入程式及封裝入口時 Linux runtime 未執行，後續驗證見 PROGRESS。
-2026-10-06 Python 下限改為 3.10。
+Accepted, 2026-10-05; the key and credential storage policy was superseded on 2026-10-15 by
+[ADR-047](047-linux-local-key-without-keyring-prompts.md)/[ADR-048](048-linux-offline-workspace-and-system-secrets.md).
+When the code and packaging entry points were added, the Linux runtime had not been run; later verification is in the git
+history and `docs/testing.md`, and the current status is in `PROGRESS.md`.
+On 2026-10-06 the Python minimum changed to 3.10.
 
 ## Context
 
-1.0 要求 Linux 原生主畫面、受保護內容／授權、完整備份與檔案來源，不使用歷史便箋 server。
-桌面呈現需按 compositor 能力回報；Windows 工作環境沒有 Linux GTK／Secret Service／顯示 session。
-使用者要求先實作、不再投入驗證；此切片不把主畫面當作完整 Linux 桌面交付。
+1.0 requires a native Linux main window, protected content and authorization, complete backups and file sources, without the
+historical note server.
+Desktop presentation must be reported according to the compositor's capabilities; the Windows work environment has no Linux
+GTK, Secret Service or display session.
+The user asked to implement first and not to invest further in verification; this slice does not treat the main window as a
+complete Linux desktop delivery.
 
 ## Decision
 
-- Python 3.10+／GTK 3／WebKitGTK 4.1（2.40+）／PyGObject；使用 distribution 提供的框架，
-  不複製 OS runtime 二進位。secure custom scheme 只提供封裝資產，無常駐 HTTP listener。
-  原定 3.12+；2026-10-06 依維護者指示降為 3.10，讓 Ubuntu 22.04 LTS 可安裝。當時檢查程式碼沒有用到
-  3.11 以後的語法或標準庫 API（vermin 判定最低 3.6），所以只改相依宣告；之後由測試擋下 3.11+ 語法。
-  22.04 的 WebKitGTK 需由 jammy-security 更新到 2.40+，發行時的 2.36 沒有 `evaluate_javascript`。
-- 主 frame 注入封閉 nonce 的 transport；接收端確認 nonce 與固定 document URL。
-  其他 navigation／frame、網路 subresources、WebKit permissions 不取得 native bridge 能力。
-- 主畫面唯一 Workspace；SQLite WAL／FULL、revision CAS／附件同交易、flock owner。
-  AES-GCM payload 綁定 profile／kind／id；32-byte key 由 libsecret Secret Service 保存。
-  沒有金鑰圈／原 key 即停止，不使用明文 fallback。
-- Google 系統瀏覽器 PKCE／state，110 秒限定 `127.0.0.1:0` callback。userinfo sub 核對帳號，
-  refresh credential 留系統金鑰圈；Drive 固定 appDataFolder 操作、串流容量、metadata／SHA-256
-  校驗及 1 MiB resumable chunks，renderer 無任意 HTTP／URL／credential 能力。
-- 原生 chooser 給備份目錄權限，保存 device／inode 身分；新檔 O_EXCL／NOFOLLOW、fsync／讀回。
-  journal／原生建立身分／最新有效備份／保留份數控制清理；可攜加密保持 SPEC-002 格式。
-- source/runtime tar.gz 與 Debian package 建置入口；desktop file、自有 icon、依賴與 notices 隨封裝保存。
-  不放 `.env`、token、金鑰、帳號資料或主機 SDK 路徑。
-- Linux X11／Wayland desktop surfaces、global shortcuts／tray 在接續切片整合，保持完整 1.0 範圍。
+- Python 3.10+/GTK 3/WebKitGTK 4.1 (2.40+)/PyGObject; the frameworks come from the distribution,
+  and no OS runtime binaries are copied. A secure custom scheme serves only packaged assets; there is no resident HTTP listener.
+  The original minimum was 3.12+; on 2026-10-06 it was lowered to 3.10 at the maintainer's instruction so that Ubuntu 22.04
+  LTS can install the app. A check of the code then found no syntax or standard-library API from 3.11 or later (vermin
+  reported a minimum of 3.6), so only the dependency declaration changed; since then tests block 3.11+ syntax.
+  WebKitGTK on 22.04 must be updated from jammy-security to 2.40+; the 2.36 shipped with the release has no
+  `evaluate_javascript`.
+- The main frame injects a transport that encloses a nonce; the receiver checks the nonce and the fixed document URL.
+  Other navigations and frames, network subresources and WebKit permissions get no native bridge capability.
+- One Workspace for the main window; SQLite WAL/FULL, revision CAS with attachments in the same transaction, a flock owner.
+  AES-GCM payloads are bound to profile/kind/id; the 32-byte key is stored by the libsecret Secret Service.
+  Without a keyring or the original key, the app stops; there is no plaintext fallback.
+- Google: system browser with PKCE and state, and a `127.0.0.1:0` callback limited to 110 seconds. The userinfo sub checks
+  the account, and the refresh credential stays in the system keyring. Drive uses fixed appDataFolder operations, stream size
+  limits, metadata and SHA-256 verification and 1 MiB resumable chunks; the renderer has no arbitrary HTTP, URL or credential
+  capability.
+- The native chooser grants the backup directory permission, and the device/inode identity is kept; new files use
+  O_EXCL/NOFOLLOW, then fsync and read-back. The journal, the native creation identity, the latest valid backup and the
+  retained count control cleanup; portable encryption keeps the SPEC-002 format.
+- Build entry points for a source/runtime tar.gz and a Debian package; the desktop file, the app's own icon, dependencies and
+  notices are kept with the package. No `.env`, tokens, keys, account data or host SDK paths are included.
+- Linux X11/Wayland desktop surfaces, global shortcuts and the tray are integrated in later slices, keeping the full 1.0
+  scope.
 
 ## Consequences
 
-Google 狀態與其他平台統一為 configured／connected／profileId／accountId／email。
-client ID 或 scope 變更時停用舊授權並提示重新登入，保留該帳號便箋；Drive 401 讓下一次請求先更新 token。
+Google state is unified with the other platforms as configured/connected/profileId/accountId/email.
+When the client ID or scope changes, the old authorization is disabled and the user is asked to sign in again, keeping that
+account's notes; a Drive 401 makes the next request refresh the token first.
 
-Linux 主畫面沿用完整 editor、版本圖、FileSync、備份還原與 native storage 契約。
-GTK／libsecret、Google、檔案系統與 compositor 的實際環境結果仍缺；source archive 不能當成原生操作驗收。
-系統 runtime 授權留 distribution；最終 package 的版本／授權盤點仍需實際 Linux 散布產物。
-不宣稱已安裝 Debian package、取得商店或完成 Linux 桌面交付。
+The Linux main window uses the complete editor, version graph, FileSync, backup and restore, and the native storage contract.
+Real-environment results for GTK/libsecret, Google, the file system and compositors are still missing; a source archive is
+not acceptance of native operation.
+System runtime licenses stay with the distribution; the final package version and license inventory still need real Linux
+distribution artifacts.
+This does not claim that the Debian package was installed, that a store listing was obtained, or that the Linux desktop
+delivery is complete.
 
 ## Alternatives Considered
 
-原有 HTTP note server 不符合 1.0 來源邊界；金鑰寫回設定或 SQLite 明文違反本機保護需求。
-重用 Windows／Apple 平台 API 不能提供 Linux 系統 chooser、金鑰圈及真正的原生窗口。
-維持 Python 3.12+：2026-10-06 放棄，因為程式碼沒有用到 3.12 功能，卻會排除 Ubuntu 22.04 LTS；
-在 22.04 另裝 deadsnakes Python 也不可行，系統的 python3-gi／cryptography 只支援內建的 3.10。
+The existing HTTP note server does not meet the 1.0 source boundary; writing the key back to settings or storing it as
+plaintext in SQLite violates the local protection requirement.
+Reusing Windows or Apple platform APIs cannot provide the Linux system chooser, keyring and real native windows.
+Keeping Python 3.12+: dropped on 2026-10-06, because the code uses no 3.12 features but the requirement would exclude Ubuntu
+22.04 LTS. Installing deadsnakes Python on 22.04 is not viable either, because the system python3-gi and cryptography support
+only the built-in 3.10.
 
 ## References
 
-- [Linux 原生入口](../../src/native/linux/README.md)、[ADR-012](012-durable-file-store-and-drive-adapter.md)。
-- [WebKitGTK 4.1](https://webkitgtk.org/reference/webkit2gtk/stable/index.html)。
-- [libsecret](https://gnome.pages.gitlab.gnome.org/libsecret/)。
-- [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)。
-- [GTK layer shell](https://wmww.github.io/gtk-layer-shell/)。
+- [Linux native entry point](../../src/native/linux/README.md), [ADR-012](012-durable-file-store-and-drive-adapter.md).
+- [WebKitGTK 4.1](https://webkitgtk.org/reference/webkit2gtk/stable/index.html).
+- [libsecret](https://gnome.pages.gitlab.gnome.org/libsecret/).
+- [Google native OAuth](https://developers.google.com/identity/protocols/oauth2/native-app).
+- [GTK layer shell](https://wmww.github.io/gtk-layer-shell/).
 
 *Decision made: 2026-10-05*

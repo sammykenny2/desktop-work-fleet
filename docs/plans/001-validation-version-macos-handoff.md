@@ -1,131 +1,131 @@
-# 驗證版 macOS 接手計畫
+# Validation Version macOS Handoff Plan
 
-更新：2026-10-03。
-狀態：已接續實作驗證版；下方「接手時」內容保留為歷史基線。最新結果見 [驗證報告](../validation/2026-10-03-validation-report.md) 與 PROGRESS.md。
-目標：交付可以驗證先前擔心項目的版本。
+Updated: 2026-10-03.
+Status: the validation version was implemented after this handoff; the "at handoff" content below is kept as the historical baseline. Results are in the [validation report](../validation/2026-10-03-validation-report.md); the current project status is in PROGRESS.md.
+Goal: deliver a version that can verify the concerns raised earlier.
 
-本文件安排同一個目標在 macOS 上繼續工作的順序，不把文件交接當作產品交付完成。
+This document sets the order in which the same goal continues on macOS. A document handoff does not count as product delivery.
 
-## 1. 接手時的權威現況
+## 1. Authoritative state at handoff
 
-- Repository：sammykenny2/desktop-work-fleet，GitHub private repo，預設分支 main。
-- 已完成：minimal bootstrap、六份研究、需求演進、初始決策、來源及授權聲明。
-- 原始基線：12acae6；本文件及索引更新會有後續提交，以實際 HEAD 為準。
-- 尚無產品 App、server、dependency lockfile、正式技術選型或平台探針。
-- Windows 端確認可用 Node 24.21.0、pnpm 12.4.2、Rust 1.99.0。這些是當時環境資料，不是對 Mac 的版本要求。
-- Windows 端讀取了 upgrade-project 技能與 vite-react flavor，尚未執行 updater，也未安裝依賴。
-- 未修改 bootstrap 來源、未複製其他 sticky-note 應用內容。
-- 使用者已同意切到 Mac 繼續，要求提供可直接使用的 goal 描述。
-- 使用者已明確授權目前工作直接 commit/push main；不要另建 PR 或 feature branch。
-- 執行進度以根目錄 PROGRESS.md 為準。
+- Repository: sammykenny2/desktop-work-fleet, a private GitHub repo, default branch main.
+- Done: minimal bootstrap, six research documents, requirements history, initial decisions, source and license notices.
+- Original baseline: 12acae6; this document and the index updates add later commits, so the actual HEAD is authoritative.
+- No product app, server, dependency lockfile, formal technology choice or platform probe exists yet.
+- On Windows, Node 24.21.0, pnpm 12.4.2 and Rust 1.99.0 were confirmed available. These describe that environment and are not version requirements for the Mac.
+- On Windows, the upgrade-project skill and the vite-react flavor were read; the updater was not run and no dependencies were installed.
+- The bootstrap source was not modified, and no content from other sticky-note apps was copied.
+- The user agreed to continue on the Mac and asked for a goal description that can be used directly.
+- The user explicitly authorized committing and pushing the current work directly to main; do not create a PR or feature branch.
+- The current status is in the root PROGRESS.md; history is in the git history.
 
-## 2. 開始前讀取
+## 2. Read before starting
 
-1. AGENTS.md、目前 Agent 自己的指引檔、docs/AGENT-GUIDE.md。
-2. docs/README.md、PROGRESS.md、docs/decisions/001-independent-backlog-first-foundation.md。
-3. docs/research/2026-10-03-backlog-first-product-requirements.md。
-4. docs/research/2026-10-03-source-of-truth-sync-and-conflict-analysis.md。
-5. docs/research/2026-10-03-macos-public-api-desktop-feasibility.md。
-6. docs/research/2026-10-03-store-distribution-and-license-analysis.md。
-7. 其他研究與架構候選依當前工作再讀。
+1. AGENTS.md, your own agent file, docs/AGENT-GUIDE.md.
+2. docs/README.md, PROGRESS.md, docs/decisions/001-independent-backlog-first-foundation.md.
+3. docs/research/2026-10-03-backlog-first-product-requirements.md.
+4. docs/research/2026-10-03-source-of-truth-sync-and-conflict-analysis.md.
+5. docs/research/2026-10-03-macos-public-api-desktop-feasibility.md.
+6. docs/research/2026-10-03-store-distribution-and-license-analysis.md.
+7. Read the other research and architecture candidates as the current work requires.
 
-先確認本機與遠端 HEAD、工作目錄變更、Xcode／Command Line Tools、可用 SDK 與簽章方式。保留使用者已有工作，不假設可以覆寫。
+First confirm the local and remote HEAD, working-tree changes, Xcode / Command Line Tools, available SDKs and the signing method. Keep the user's existing work; do not assume it can be overwritten.
 
-不需要再次詢問是否可以開始實作；目前目標已要求交付驗證版。
+There is no need to ask again whether implementation may start; the current goal already requires delivering the validation version.
 
-## 3. 產品重心
+## 3. Product focus
 
-使用者把便箋當 backlog，主要看未完成事項，並希望有靈感時快速記錄。預設操作保持簡單：文字、待辦與 Todo／In Progress／Done。不要把 Agent 執行狀態、分派、排程、估點或負責人變成必填流程。
+The user treats notes as a backlog, mainly looks at unfinished items, and wants to capture ideas quickly when they come. Keep the default operations simple: text, to-dos and Todo / In Progress / Done. Do not turn agent execution status, assignment, scheduling, estimates or owners into a required workflow.
 
-每台機器可顯示共同的多張便箋，突出本機相關內容。桌面平常唯讀且滑鼠穿透，必要時能主動解鎖、就地編輯與重新鎖定。Web／手機另有編輯入口。
+Each machine can show the same set of shared notes and highlight what is relevant to that machine. The desktop is normally read-only and passes the mouse through; when needed, the user can unlock it, edit in place and lock it again. Web and phones have their own editing entry.
 
-機器與 Agent 是使用情境，不應支配第一版資訊架構。
+Machines and agents are usage contexts; they should not dominate the first version's information architecture.
 
-## 4. 建議實作順序
+## 4. Suggested implementation order
 
-### A. 先排除 macOS 平台風險
+### A. Rule out macOS platform risk first
 
-在新 repo 建立小型獨立 AppKit 探針，先使用實色卡片，只使用公開 API，啟用 App Sandbox。
+Create a small, independent AppKit probe in the new repo. Start with solid-colour cards, use only public APIs and enable App Sandbox.
 
-需要有：
-- 一個始終可達的控制／解鎖入口。
-- 桌面附近的展示視窗，忽略滑鼠且鎖定時不成為 key window。
-- 普通視窗、圖示上方、圖示下方的可比較展示模式。
-- 可更新的資料，不只是一張固定文字圖片。
-- Unlock／edit／lock 後恢復輸入與焦點政策。
-- 可記錄設定與結果的診斷輸出，不洩漏 token 或私人筆記。
+It needs:
+- A control / unlock entry that is always reachable.
+- A presentation window near the desktop that ignores the mouse and does not become the key window while locked.
+- Comparable presentation modes: normal window, above the icons, below the icons.
+- Data that can be updated, not just a fixed image of text.
+- Restored input and focus policy after unlock / edit / lock.
+- Diagnostic output that records settings and results without leaking tokens or private notes.
 
-先建置、實際啟動、驗證至少「收資料、唯讀呈現、滑鼠穿透、不搶焦點」。再測完整的 Spaces／Show Desktop／多螢幕／休眠矩陣。
+First build, actually launch and verify at least "receive data, read-only presentation, mouse pass-through, no focus stealing". Then test the full Spaces / Show Desktop / multi-display / sleep matrix.
 
-桌布層若失敗，記錄具體失敗與可行的桌面層；不要為求成功而加入 private API。單獨 AppKit 成功不等於 Tauri 整合成功。
+If the wallpaper layer fails, record the specific failure and the desktop layer that does work; do not add private APIs to make it succeed. AppKit success on its own does not mean Tauri integration succeeds.
 
-### B. 交付可保存與同步的 backlog
+### B. Deliver a backlog that can be saved and synced
 
-採最小可運作設計，支援便箋、文字／待辦、快速新增、編輯、簡單狀態、完成／還原及共同資料呈現。
+Use the smallest working design: notes, text / to-dos, quick add, edit, simple status, complete / restore, and presentation of shared data.
 
-先前提出的實作首選為 React＋TypeScript、Rust＋Axum、server 本機 SQLite；Tauri 2 是共用 App 外殼的候選。這些還沒有寫成 Accepted 技術決策。可基於現場證據採用，並把理由、版本與授權記進 ADR。
+The implementation previously proposed as first choice is React + TypeScript, Rust + Axum and local SQLite on the server; Tauri 2 is the candidate shared app shell. None of these is recorded as an Accepted technology decision yet. They may be adopted on the evidence found, with the reasons, versions and licenses recorded in an ADR.
 
-使用一份權威資料來源。實作跨裝置條件式更新、持久化、重試去重、刪除語意、可靠草稿、離線閱讀與可重現的備份／恢復。不能只做瀏覽器 localStorage 的互不相通 demo。
+Use one authoritative data source. Implement cross-device conditional updates, persistence, retry deduplication, delete semantics, reliable drafts, offline reading and reproducible backup / restore. A demo where each browser keeps its own isolated localStorage is not enough.
 
-若使用 local server，加入可撤銷的裝置存取與短效一次性 QR 配對；QR 不能包含永久管理員密鑰。區域網路與外網可達性分別說明。
+If a local server is used, add revocable device access and short-lived, one-time QR pairing; the QR code must not contain a permanent admin secret. Describe LAN and internet reachability separately.
 
-### C. 串成真的垂直流程
+### C. Connect a real vertical flow
 
-手機或第二個瀏覽器記錄 → server 保存 → macOS 卡片更新 → 解鎖編輯 → 其他 client 更新。
+Phone or second browser captures → server saves → macOS card updates → unlock and edit → other clients update.
 
-桌面收到資料不能搶走正在使用的 App 的焦點；lock 是防誤觸模式，不是跨裝置資料鎖。
+Receiving data on the desktop must not steal focus from the app in use; lock is a mode that prevents accidental touches, not a cross-device data lock.
 
-### D. 補足其餘疑慮的驗證途徑
+### D. Provide verification paths for the remaining concerns
 
-Windows、Linux、iOS、Android 的原始平台目標仍保留。提供對應的建置／封裝檢查、測試步驟與結果欄位；依能取得的環境執行，不能把 Mac 的結果推廣到其他 OS。
+The original platform targets Windows, Linux, iOS and Android remain. Provide the matching build / packaging checks, test steps and result fields; run them in whatever environments are available, and do not extend Mac results to other operating systems.
 
-Windows 優先評估 Store MSIX，使用者未計畫購買商業簽章憑證。Linux 明列 distro／CPU／桌面或 compositor，不宣稱全面相容。Apple／Google 商店目標保留；試驗版與正式送審分開。
+On Windows, evaluate Store MSIX first; the user does not plan to buy a commercial signing certificate. For Linux, list the distro / CPU / desktop or compositor explicitly and do not claim full compatibility. The Apple / Google store targets remain; trial builds and formal store review are separate.
 
-## 5. 完成審查需要的證據
+## 5. Evidence needed for completion review
 
-| 疑慮 | 要取得的證據 |
+| Concern | Evidence to obtain |
 |---|---|
-| 快速記錄會不會變繁瑣 | 可操作的新增、整理與回顧流程；沒有多餘必填欄位 |
-| 是否只是假展示 | 真實資料來源更新到展示端的完整操作結果 |
-| 兩台同改會不會覆蓋 | 可重現的競爭寫入測試，敗方草稿可取回 |
-| 回應遺失後重試是否重複建立 | 相同操作重試後只存在一筆資料 |
-| 刪除／離線裝置重連是否復活 | Tombstone／衝突或等效設計的行為測試 |
-| 持久化與恢復是否可靠 | 重啟保留內容，備份還原後不讓舊 client 靜默蓋回 |
-| 權限與配對是否有效 | 短效／一次性邀請、唯讀限制、撤銷後拒絕存取 |
-| macOS 是否真的滑鼠穿透 | 真實桌面上的點擊、框選、拖拉與焦點觀察 |
-| 更新是否搶焦點 | 在其他 App 輸入時更新卡片的測試 |
-| 是否不用 private API | 原始碼、依賴 feature、發佈設定與建置產物的檢查 |
-| Sandbox 是否有效 | 實際 entitlements、sandbox 啟動與網路測試 |
-| 平台差異是否被掩蓋 | OS／版本／硬體／桌面環境與每項結果明列 |
-| 授權是否可交付 | 固定依賴版本、完整授權盤點、必要 notices 與來源 |
-| 其他人能否重現 | 乾淨 checkout 的命令、可啟動產物、測試步驟與結果記錄 |
+| Does quick capture become tedious? | An operable add, organize and review flow; no extra required fields |
+| Is it only a fake demo? | The full result of a real data source update reaching the presentation side |
+| Do two simultaneous edits overwrite each other? | A reproducible concurrent-write test; the losing side's draft can be recovered |
+| Does a retry after a lost response create duplicates? | After retrying the same operation, only one record exists |
+| Do deletes / reconnecting offline devices resurrect data? | Behaviour tests for tombstones / conflicts or an equivalent design |
+| Are persistence and recovery reliable? | Content survives a restart; after a backup restore, old clients do not silently overwrite it |
+| Do permissions and pairing work? | Short-lived / one-time invitations, read-only restrictions, access denied after revocation |
+| Does macOS really pass the mouse through? | Observation of clicks, rubber-band selection, dragging and focus on a real desktop |
+| Do updates steal focus? | A test that updates cards while typing in another app |
+| Are private APIs avoided? | A check of the source, dependency features, release settings and build artifacts |
+| Is the sandbox effective? | Actual entitlements, sandboxed launch and network tests |
+| Are platform differences hidden? | OS / version / hardware / desktop environment and each result listed |
+| Can the licenses be shipped? | Pinned dependency versions, a complete license inventory, required notices and sources |
+| Can others reproduce it? | Commands from a clean checkout, a launchable artifact, test steps and recorded results |
 
-「尚未測」「失敗」「不支援」都要明列，不得自動改成 pass。建置成功不能證明桌面層、手勢穿透或商店核准。
+"Not yet tested", "failed" and "unsupported" must all be listed and never turned into a pass automatically. A successful build does not prove the desktop layer, gesture pass-through or store approval.
 
-目標是交付能驗證疑慮的版本，不是承諾所有實驗結果必定成功。必要能力若做不到，要交付可重現證據與可行替代，不能以刪除驗收項目宣稱完成。
+The goal is to deliver a version that can verify the concerns, not to promise that every experiment succeeds. If a required capability cannot be achieved, deliver reproducible evidence and a workable alternative; do not claim completion by deleting acceptance items.
 
-## 6. 授權與工作邊界
+## 6. License and work boundaries
 
-- 不大量複製其他應用的程式碼、UI 或資產；沿用一般技術概念不等於沿用實作。
-- 新增依賴先確認 license，並檢查最終實際依賴樹，不只 root LICENSE。
-- 不使用 macOS private API 來避開平台驗證失敗。
-- 不自動購買憑證、建立商店帳號或提交正式商店審查。
-- App 的本機資料與簽章祕密放 repo 外；不要讀寫其他應用的真實資料。
-- 適當測試與獨立 review 後，依已授權流程直接 commit/push main。
-- 不把文件交接、單一綠燈或無法涵蓋需求的測試當作整個目標完成。
+- Do not copy large amounts of code, UI or assets from other apps; reusing general technical concepts is not reusing an implementation.
+- Check the license before adding a dependency, and check the final actual dependency tree, not only the root LICENSE.
+- Do not use macOS private APIs to work around failed platform validation.
+- Do not buy certificates, create store accounts or submit for formal store review automatically.
+- Keep the app's local data and signing secrets outside the repo; do not read or write other apps' real data.
+- After appropriate tests and independent review, commit and push directly to main as authorized.
+- Do not treat a document handoff, a single green check or tests that cannot cover the requirements as completion of the whole goal.
 
-## 7. 可直接貼上的 goal 描述
+## 7. Goal description ready to paste
 
-> 在 private repo sammykenny2/desktop-work-fleet 中，延續目標「交付可以驗證先前擔心項目的版本」。先讀 AGENTS.md、docs/README.md、PROGRESS.md 與 docs/plans/001-validation-version-macos-handoff.md，依當前 Git 狀態開始實作，不停留在規劃。
+> In the private repo sammykenny2/desktop-work-fleet, continue the goal "deliver a version that can verify the concerns raised earlier". First read AGENTS.md, docs/README.md, PROGRESS.md and docs/plans/001-validation-version-macos-handoff.md, then start implementing from the current Git state instead of staying in planning.
 >
-> 產品以便箋式 backlog 與快速記錄為核心，保持 Todo／In Progress／Done 的簡單體驗。先在這台 Mac 建置並實際執行只用公開 API、啟用 App Sandbox 的桌面展示探針，驗證接收資料、唯讀、滑鼠穿透、不搶焦點與解鎖編輯；再串接可保存的便箋編輯介面及真實同步來源，驗證多裝置同改、斷線／重試、草稿保留、刪除、備份恢復與裝置權限／QR 配對。
+> The product centres on a sticky-note backlog and quick capture, and keeps the simple Todo / In Progress / Done experience. First build and actually run, on this Mac, a desktop presentation probe that uses only public APIs and enables App Sandbox, and verify receiving data, read-only display, mouse pass-through, no focus stealing and unlock-to-edit. Then connect a note editing interface that saves and a real sync source, and verify simultaneous edits on several devices, disconnection / retry, draft preservation, deletion, backup restore and device permissions / QR pairing.
 >
-> 保留 Windows／Linux 桌面與 Apple／Google 自有 App 上架方向，逐項提供可執行的驗證方式與平台結果；不可把單一平台的建置成功當成全部功能通過。依賴須先確認授權，不搬入舊應用大量程式碼或資產，不使用 private API，不引入 Agent 排程或複雜狀態作為預設 UI。
+> Keep the direction of Windows / Linux desktops and Apple / Google first-party apps in stores, and provide an executable verification method and platform result for each item; never treat a successful build on one platform as all features passing. Check the license of every dependency first, do not bring in large amounts of code or assets from the old app, do not use private APIs, and do not introduce agent scheduling or complex status as the default UI.
 >
-> 持續做到可重現建置、可操作驗證、具備測試與結果報告的版本，將已驗證、失敗、尚未測與剩餘工作分開記錄。直接 commit/push 到 main，不建立 feature branch 或 PR。尚未有實際證據支持的項目，不得宣稱目標完成。
+> Keep going until the version has reproducible builds, operable verification, tests and a result report, recording verified, failed, not yet tested and remaining work separately. Commit and push directly to main without creating a feature branch or PR. Do not claim the goal is complete for any item without actual evidence.
 
 ## References
 
-- [研究索引](../research/README.md)
-- [最新需求](../research/2026-10-03-backlog-first-product-requirements.md)
-- [專案進度](../../PROGRESS.md)
+- [Research index](../research/README.md)
+- [Latest requirements](../research/2026-10-03-backlog-first-product-requirements.md)
+- [Project status](../../PROGRESS.md)

@@ -1,58 +1,61 @@
-# 決策索引
+# Decision index
 
-更新：2026-10-17。
+Updated: 2026-10-17.
 
-| 記錄 | 狀態 | 範圍 |
+| Record | Status | Scope |
 |---|---|---|
-| [ADR-055](055-mobile-device-build-workflows.md) | Accepted（手機測試包） | 手動 APK／註冊裝置開發簽章 IPA、固定測試簽章、十四天 artifacts；不升版／發布 |
-| [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted（便箋格式與附件） | 六階標題、程式碼上色、原生附件縮圖與開啟副本；V1 與 checklist 不變 |
-| [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted（測試階段 V1 政策） | 現行 JSON schema 維持 V1；升版、migration 與副本延至規劃上架時再評估 |
-| [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | 名稱、獨立開發、backlog 重心與 bootstrap 範圍 |
-| [ADR-002](002-validation-runtime.md) | Accepted | 驗證版 AppKit／Web／Python SQLite，保留跨平台封裝目標 |
-| [ADR-003](003-product-architecture-boundaries.md) | Deferred | 保留完整 PM／自架 server 架構，非 1.0 必做 |
-| [ADR-004](004-google-drive-notes-mvp.md) | 部分由 ADR-012 取代 | Google Drive 初始提案；歷史範圍候選 |
-| [ADR-005](005-portable-backup-and-restore.md) | Superseded by ADR-013 | 歷史備份格式／還原候選 |
-| [ADR-006](006-card-group-and-formation-semantics.md) | Accepted（產品語意） | 一事一卡、群組／formation／操作與轉組手勢 |
-| [ADR-007](007-desktop-scene-and-platform-host.md) | Proposed | 場景 renderer／平台 host、可控疊序與输入責任 |
-| [ADR-008](008-portable-interaction-core.md) | Accepted（共用核心） | ES modules 語意、原子本機命令、完整五平台 1.0 範圍 |
-| [ADR-009](009-local-renderer-and-persistence.md) | Accepted（本機介面） | 封裝 renderer、IndexedDB 交易／草稿／附件、Markdown 清理 |
-| [ADR-010](010-group-retirement-and-device-settings.md) | Accepted（本機命令） | 預覽合併群組、草稿 membership 基線與穩定裝置設定 |
-| [ADR-011](011-immutable-revision-graph.md) | Accepted（同步格式） | 不可變 revision、嚴格 JSON、pending 與多 head；Google 整合另驗收 |
-| [ADR-012](012-durable-file-store-and-drive-adapter.md) | Accepted（檔案傳輸） | 持久 reservation、分頁／重試、Drive appDataFolder／resumable；原生授權另驗收 |
-| [ADR-013](013-complete-portable-backup.md) | Accepted（完整備份） | 全部已知版本／草稿／附件／版面、嚴格 ZIP、加密、三種還原及自動備份契約 |
-| [ADR-014](014-durable-automatic-backups.md) | Accepted（自動備份） | profile journal／policy generation／重啟恢復／原生檔案能力與安全清理 |
-| [ADR-015](015-windows-native-storage-and-editor-host.md) | Accepted（Windows 主画面／保存） | WPF／WebView2、SQLite／DPAPI、分塊 IPC、原子 CAS 與關閉草稿 |
-| [ADR-016](016-windows-native-backup-files-and-vault.md) | Accepted（Windows 備份） | NTFS 目錄／檔案身分、create-only／同 handle 清理、原生 vault 加密與可攜封裝 |
-| [ADR-017](017-windows-composition-surface-and-input.md) | Accepted（Windows 場景基礎） | CompositionControl、互補 region、層級／成對生命週期、快捷鍵及 physical display inventory |
-| [ADR-018](018-single-owner-desktop-views.md) | Accepted（Windows 場景整合） | 單一 Workspace、受限投影／命令、分片、草稿 flush／接手／失聯／關閉 |
-| [ADR-019](019-windows-shortcuts-and-tray.md) | Accepted（Windows 桌面入口） | 全域／本地鍵、焦點所有權、短效 activation intent、系統匣與保留 owner 的收起 |
-| [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted（封裝入口） | Windows MSIX／ZIP、Apple export／PKG／DMG、Android upload signing；正式帳號／原生產物另交付 |
-| [ADR-029](029-portable-apple-xcode-project.md) | Accepted（Apple 專案交付） | 已提交的可攜 Xcode 專案、clone 直接開啟、本機配置與建置資產 |
-| [ADR-030](030-windows-explorer-wallpaper-layer.md) | Accepted（Windows 桌布層） | Explorer 圖示／桌布宿主、三層場景、穿透與退出恢復 |
-| [ADR-031](031-macos-and-linux-wallpaper-scenes.md) | Accepted（Mac／Linux 桌布層） | Mac 圖示下方、Linux BACKGROUND、穿透與重畫、參考實測接續 |
-| [ADR-032](032-windows-debug-webview-inspection.md) | Accepted（Windows Debug 檢查） | 僅 Debug 開 DevTools、opt-in loopback CDP 與 Release 封裝防護；資料共用要求由 ADR-037 取代 |
-| [ADR-033](033-apple-local-script-bundles.md) | Accepted（Apple 封裝） | 本機 classic script bundles、保留 CSP／bridge 與獨立開發簽章啟動測試 |
-| [ADR-034](034-windows-11-compatibility-and-install-floor.md) | Accepted（Windows 支援範圍） | 早期 Windows 11／23H2／24H2+、MSIX 目標下限 22000、23H2 實測與 Store 延期；實作見 PROGRESS |
-| [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted（附著場景修正方向） | 移位／堆疊／攤開白塊回報、宿主無 backing bitmap、舊區域撤下／不複製像素；效果未測 |
-| [ADR-036](036-windows-self-contained-packaging.md) | Accepted（Windows 封裝 runtime） | 預設自帶 Desktop／win-x64，版本由 ADR-050 更新、runtime notices 與包檢查；WebView2 仍依賴系統 |
-| [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted（資料生命週期與覆蓋） | MSIX 解除安裝清除本機資料；完整備份、安全備份與可續行的 Google 全量覆蓋 |
-| [ADR-047](047-linux-local-key-without-keyring-prompts.md) | Accepted（本機便箋金鑰） | 0600 本機金鑰、驗證舊資料後遷移；憑證與備份密碼政策由 ADR-048 取代 |
-| [ADR-048](048-linux-offline-workspace-and-system-secrets.md) | Accepted（Linux 系統秘密） | 權杖／保存備份密碼用持久 vault；鎖住時只暫停同步與加密備份，離線便箋免提示 |
-| [000-template](000-template.md) | Template | 後續決策格式 |
-| [ADR-038](038-portable-local-and-cloud-backup-flows.md) | Accepted（雙向備份遷移） | 同格式 ZIP、本機原子完整還原與 Google 同步後匯出；失敗副本需明確選擇 |
-| [ADR-045](045-windows-fatal-error-leaves-explorer-first.md) | Accepted（Windows 致命錯誤） | 當掉時先把場景視窗移出 Explorer 再交給 WER；`host.log` 紀錄；登入啟動 render thread 失敗時隱藏重開一次（2026-10-14 起停用） |
-| [ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted（Windows 登入啟動） | 合蓋筆電的內建螢幕仍開著、或螢幕剛變過時，場景先不掛進 Explorer；最多等 3 分鐘；2026-10-15 起 `host.log` 記錄上蓋回報與判斷輸入 |
-| [ADR-049](049-windows-attached-scenes-render-in-software.md) | Accepted（Windows 場景繪圖） | 掛在 Explorer 的場景視窗以軟體繪製 WPF，不持有 Direct3D 狀態；浮動層與主視窗不變 |
-| [ADR-050](050-windows-wpf-display-loss-runtime.md) | Accepted（Windows runtime） | .NET 10.0.13、WPF 顯示器失效保護、精確 runtime 封裝檢查；三次登入啟動未再當掉，早期移除主螢幕與其他 OS 仍待驗證 |
-| [ADR-044](044-desktop-in-app-updates-from-github-releases.md) | Accepted（App 內更新，2026-10-15 修訂） | 公開 Atom 依平台 tag 篩選、不使用 REST API 配額、manifest／SHA-256、MSIX／Sparkle／DEB 安裝前保存並結束 |
-| [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted（主視窗與啟動） | 主機層級的主視窗位置／大小記憶、登入啟動預設開啟、系統狀態優先、Windows 第二次啟動喚起；2026-10-17 修訂登入時等待系統匣 |
-| [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted（調整模式） | 所有桌面主機以遮罩調整，主視窗只在調整開始時有焦點才讓開並恢復 |
-| [ADR-041](041-labwc-shortcuts-through-rc-xml-keybinds.md) | Accepted（labwc 快捷鍵） | 設定頁把快捷鍵寫進 rc.xml 標記區塊，keybind 經 gapplication 交給 App |
-| [ADR-040](040-gnome-wayland-xwayland-choice.md) | Accepted（GNOME Wayland 顯示方式） | 首次啟動詢問並可在設定切換 XWayland，GTK 啟動前套用、重新啟動保存草稿 |
-| [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted（GNOME／X11 場景） | X11 場景依工作區定尺寸；GNOME XWayland 只常駐桌布層；調整遮罩起於 GNOME XWayland（現行範圍見 ADR-042）；Pi 的 DMA-BUF renderer 使用共享記憶體 buffer；pcmanfm 桌面不提供桌布層 |
+| [ADR-056](056-english-first-ui-and-locale-catalogs.md) | Accepted (UI language, 2026-10-17) | English-first UI with en and zh-TW locale catalogs and a Display language setting |
+| [ADR-055](055-mobile-device-build-workflows.md) | Accepted (phone test builds) | Manual APK / development-signed IPA for registered devices, fixed test signing, fourteen-day artifacts; no version bump or release |
+| [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted (note formatting and attachments) | Six heading levels, code coloring, native attachment thumbnails and opening a copy; V1 and checklists unchanged |
+| [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted (testing-phase V1 policy) | Current JSON schemas stay at V1; version bumps, migrations and copies are evaluated when store launch is planned |
+| [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | Name, independent development, backlog focus and bootstrap scope |
+| [ADR-002](002-validation-runtime.md) | Accepted | Validation build on AppKit/Web/Python SQLite, keeping the cross-platform packaging goal |
+| [ADR-003](003-product-architecture-boundaries.md) | Deferred | Keeps the full PM / self-hosted server architecture; not required for 1.0 |
+| [ADR-004](004-google-drive-notes-mvp.md) | Partly superseded by ADR-012 | Initial Google Drive proposal; historical scope candidate |
+| [ADR-005](005-portable-backup-and-restore.md) | Superseded by ADR-013 | Historical backup format / restore candidate |
+| [ADR-006](006-card-group-and-formation-semantics.md) | Accepted (product semantics) | One card per thing, groups/formation/operations and the gestures for moving between groups |
+| [ADR-007](007-desktop-scene-and-platform-host.md) | Proposed | Scene renderer / platform host, controllable stacking order and input responsibility |
+| [ADR-008](008-portable-interaction-core.md) | Accepted (shared core) | ES module semantics, atomic local commands, full five-platform 1.0 scope |
+| [ADR-009](009-local-renderer-and-persistence.md) | Accepted (local UI) | Packaged renderer, IndexedDB transactions/drafts/attachments, Markdown sanitizing |
+| [ADR-010](010-group-retirement-and-device-settings.md) | Accepted (local commands) | Previewed group merge, draft membership baseline and stable device settings |
+| [ADR-011](011-immutable-revision-graph.md) | Accepted (sync format) | Immutable revisions, strict JSON, pending and multiple heads; Google integration accepted separately |
+| [ADR-012](012-durable-file-store-and-drive-adapter.md) | Accepted (file transfer) | Durable reservations, paging/retries, Drive appDataFolder/resumable; native authorization accepted separately |
+| [ADR-013](013-complete-portable-backup.md) | Accepted (complete backup) | All known revisions/drafts/attachments/layout, strict ZIP, encryption, three restore modes and the automatic backup contract |
+| [ADR-014](014-durable-automatic-backups.md) | Accepted (automatic backups) | Profile journal / policy generation / restart recovery / native file capabilities and safe cleanup |
+| [ADR-015](015-windows-native-storage-and-editor-host.md) | Accepted (Windows main window/storage) | WPF/WebView2, SQLite/DPAPI, chunked IPC, atomic CAS and drafts on close |
+| [ADR-016](016-windows-native-backup-files-and-vault.md) | Accepted (Windows backup) | NTFS directory/file identity, create-only / same-handle cleanup, native vault encryption and portable envelopes |
+| [ADR-017](017-windows-composition-surface-and-input.md) | Accepted (Windows scene foundation) | CompositionControl, complementary regions, layers / paired lifecycle, shortcuts and physical display inventory |
+| [ADR-018](018-single-owner-desktop-views.md) | Accepted (Windows scene integration) | Single Workspace, restricted projections/commands, sharding, draft flush/takeover/disconnect/close |
+| [ADR-019](019-windows-shortcuts-and-tray.md) | Accepted (Windows desktop entry points) | Global/local keys, focus ownership, short-lived activation intents, tray and hiding that keeps the owner |
+| [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted (packaging entry points) | Windows MSIX/ZIP, Apple export/PKG/DMG, Android upload signing; production accounts / native artifacts delivered separately |
+| [ADR-029](029-portable-apple-xcode-project.md) | Accepted (Apple project delivery) | Committed portable Xcode project that opens straight after clone, local configuration and build assets |
+| [ADR-030](030-windows-explorer-wallpaper-layer.md) | Accepted (Windows wallpaper layer) | Explorer icon/wallpaper host, three-layer scenes, click-through and restore on exit |
+| [ADR-031](031-macos-and-linux-wallpaper-scenes.md) | Accepted (Mac/Linux wallpaper layer) | Mac below the icons, Linux BACKGROUND, click-through and redraw, follow-up measurements against the reference |
+| [ADR-032](032-windows-debug-webview-inspection.md) | Accepted (Windows Debug inspection) | DevTools only in Debug, opt-in loopback CDP and Release packaging guards; the data-sharing requirement is superseded by ADR-037 |
+| [ADR-033](033-apple-local-script-bundles.md) | Accepted (Apple packaging) | Local classic script bundles, keeping CSP/bridge, and a separate development-signed launch test |
+| [ADR-034](034-windows-11-compatibility-and-install-floor.md) | Accepted (Windows support range) | Early Windows 11 / 23H2 / 24H2+, MSIX target floor 22000, 23H2 tested on a real device and Store deferred; current status in PROGRESS.md |
+| [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted (attached scene fix direction) | Reports of white blocks on move/stack/spread; clipped hosts, no pixel copying and withdrawn old regions (the no-backing-bitmap style was withdrawn); effect untested |
+| [ADR-036](036-windows-self-contained-packaging.md) | Accepted (Windows packaged runtime) | Self-contained Desktop/win-x64 by default, version updated by ADR-050, runtime notices and package checks; WebView2 still depends on the system |
+| [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted (data lifetime and overwrite) | MSIX uninstall removes local data; complete backups, safety backups and a resumable full Google overwrite |
+| [ADR-047](047-linux-local-key-without-keyring-prompts.md) | Accepted (local note key) | 0600 local key, migrated after verifying old data; the credential and backup password policy is superseded by ADR-048 |
+| [ADR-048](048-linux-offline-workspace-and-system-secrets.md) | Accepted (Linux system secrets) | Tokens / saved backup passwords in a persistent vault; when it is locked only sync and encrypted backups pause, and offline notes need no prompt |
+| [000-template](000-template.md) | Template | Format for later decisions |
+| [ADR-038](038-portable-local-and-cloud-backup-flows.md) | Accepted (backup migration in both directions) | Same-format ZIP, atomic complete local restore and export after a Google sync; failure copies need an explicit choice |
+| [ADR-045](045-windows-fatal-error-leaves-explorer-first.md) | Accepted (Windows fatal errors) | On a crash, move the scene windows out of Explorer before handing over to WER; `host.log` logging; one hidden reopen when a sign-in start's render thread fails (disabled since 2026-10-14) |
+| [ADR-046](046-windows-sign-in-scenes-wait-for-settled-displays.md) | Accepted (Windows sign-in start) | While a closed laptop's built-in display is still on, or right after a display change, scenes wait before attaching to Explorer; at most 3 minutes; since 2026-10-15 `host.log` records lid reports and decision inputs |
+| [ADR-049](049-windows-attached-scenes-render-in-software.md) | Accepted (Windows scene rendering) | Scene windows attached to Explorer render WPF in software and hold no Direct3D state; the floating layer and main window are unchanged |
+| [ADR-050](050-windows-wpf-display-loss-runtime.md) | Accepted (Windows runtime) | .NET 10.0.13, WPF display-loss protection, exact runtime package check; three sign-in starts without another crash, early primary-display removal and other OS versions still to be verified |
+| [ADR-044](044-desktop-in-app-updates-from-github-releases.md) | Accepted (in-app updates, revised 2026-10-15) | Public Atom feed filtered by platform tag, no REST API quota, manifest/SHA-256, MSIX/Sparkle/DEB save and exit before installing |
+| [ADR-043](043-desktop-window-placement-and-startup-behavior.md) | Accepted (main window and startup) | Host-level memory of the main window position/size, start at sign-in on by default, system state first, a second launch on Windows brings up the app; revised 2026-10-17 to wait for the tray at sign-in |
+| [ADR-042](042-adjust-overlay-on-every-desktop-host.md) | Accepted (adjust mode) | Every desktop host adjusts in an overlay; the main window steps aside and comes back only if it had focus when adjustment started |
+| [ADR-041](041-labwc-shortcuts-through-rc-xml-keybinds.md) | Accepted (labwc shortcuts) | Settings writes the shortcuts into a marked block of rc.xml, and keybinds reach the app through gapplication |
+| [ADR-040](040-gnome-wayland-xwayland-choice.md) | Accepted (GNOME Wayland display mode) | Asks on first launch and can switch XWayland in Settings, applied before GTK starts; the restart saves drafts |
+| [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted (GNOME/X11 scenes) | X11 scenes are sized to the work area; GNOME XWayland keeps only the wallpaper layer always on; the adjust overlay started on GNOME XWayland (current scope in ADR-042); the Pi's DMA-BUF renderer uses shared-memory buffers; the pcmanfm desktop has no wallpaper layer |
+| [ADR-053](053-account-scoped-initial-group.md) | Accepted (sync initialization) | The same account / reset batch shares the initial group and root revision, so six devices reconnecting at once create no duplicate groups |
 
-| [ADR-053](053-account-scoped-initial-group.md) | Accepted（同步初始化） | 同帳號／重設批次共用初始群組與根版本，六台同時重連不產生重複群組 |
+The validation build's runtime was decided in ADR-002; for the 1.0 platform and packaging decisions see the main
+documentation index and ADR-028; production store configuration still needs the maintainer's accounts. Research
+recommendations stay in [research](../research/README.md) and are never turned into Accepted automatically.
 
-驗證版 runtime 已由 ADR-002 決定；1.0 平台與封裝決策見文件總索引及 ADR-028，正式商店配置仍需維護者帳號。研究建議留在 [research](../research/README.md)，不要自動改成 Accepted。
-
-新決策採用 000-template 的結構，以小寫連字號命名，記錄接受範圍與日期。
+New decisions use the 000-template structure, are named in lowercase with hyphens, and record the accepted scope and
+date.

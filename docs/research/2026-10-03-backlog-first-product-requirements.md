@@ -1,113 +1,113 @@
-# Backlog 優先的產品需求與討論演進
+# Backlog-first product requirements and how the discussion evolved
 
-> 2026-10-04 效力更新：本文保留歷史研究，不是最新 1.0 互動規範。
-> 使用者已改為一事一卡、通用群組、顯式 formation 與暫時 z-order；
-> 舊 Note 容器、逐項任務模型或其他候選 UX 不得覆蓋
-> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
-> 演進原因見 [今日整理](2026-10-04-desktop-card-interaction-design.md)。
+> 2026-10-04 validity update: this document is kept as historical research; it is not the current 1.0 interaction contract.
+> The user has since moved to one card per thing, general-purpose groups, explicit formation and temporary z-order;
+> the old Note container, per-item task model or other candidate UX must not override
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md).
+> The reasons for the change are in [the same-day summary](2026-10-04-desktop-card-interaction-design.md).
 
-- 日期：2026-10-03
-- 專案：desktop-work-fleet
-- 性質：需求研究與交接；不是已完成的產品規格。
-- 依據：本次使用者需求與後續澄清。本文不需要第三方產品來證明使用者意圖。
+- Date: 2026-10-03
+- Project: desktop-work-fleet
+- Nature: requirements research and handoff; not a finished product specification.
+- Basis: this session's user requirements and later clarifications. This document needs no third-party product to prove the user's intent.
 
-## 1. 最新需求優先
+## 1. Latest requirements first
 
-主要使用者把 notes 當作 backlog：看見哪些事情尚未處理，在有靈感時找到適當位置快速記錄。多台開發機與多個 CLI Agent 是使用背景；Agent 排程、執行監控與複雜狀態不是目前的產品中心。
+The primary user treats notes as a backlog: seeing what is still unhandled, and quickly recording an idea in the right place when it comes. Several development machines and several CLI agents are the context of use; agent scheduling, execution monitoring and complex states are not the current product centre.
 
-產品工作描述：
+Product job statement:
 
-> 跨裝置同步的工作便箋，讓使用者快速記錄想法、整理待辦，並持續看見尚未完成的事情。預設操作保持簡單，未來可依需要切換不同檢視。
+> Work notes synced across devices, so the user can quickly record ideas, organize to-dos and keep seeing what is still unfinished. Default operations stay simple; different views can be switched on later as needed.
 
-這個描述整理使用者意圖；便箋編輯器、資料模型與資訊架構仍須用原型驗證。
+This statement organizes the user's intent; the note editor, data model and information architecture still need to be validated with prototypes.
 
-## 2. 已由使用者明確表達的需求
+## 2. Requirements the user has stated explicitly
 
-| 編號 | 需求 | 限定與解釋 |
+| ID | Requirement | Qualification and interpretation |
 |---|---|---|
-| U-01 | 快速記錄想到的事情 | 需要一個正確、容易找回的位置，不希望記錄前先填繁瑣欄位 |
-| U-02 | 主要看尚未處理事項 | Notes 是日常 backlog，不以 Agent 執行歷程為首頁 |
-| U-03 | 基本專案管理能力 | 最初提出 Todo、In Progress、Done；未要求更多狀態 |
-| U-04 | 多台個人開發機共享內容 | 每台機器最初至少對應一張 note，各機器可展示全部 notes |
-| U-05 | 辨識目前機器的內容 | 可以用顏色突出本機相關 note；顏色不是唯一可能方案 |
-| U-06 | 桌面預設唯讀且滑鼠穿透 | 點擊、拖拉、桌面框選與鍵盤操作不應誤操作 note |
-| U-07 | 偶爾就地編輯 | 主動 unlock、編輯、lock 回去；仍需驗證入口與失敗處理 |
-| U-08 | 其他地方也能編輯 | Desktop App、Web App 或手機都可作為編輯入口 |
-| U-09 | 跨裝置同步與衝突處理 | 可接受 server 或 file based，但不能靜默遺失資料 |
-| U-10 | Local server 的手機配對便利性 | 若採此架構，希望有 QR code 配對 |
-| U-11 | 自有 iOS、macOS、Android App 上架 | 瀏覽器可用於研究與原型，不取消 Apple／Google 上架目標 |
-| U-12 | Windows 尚不購買簽章憑證 | 評估 Microsoft Store；具體包裝與桌面功能需驗證 |
-| U-13 | Linux 能力須符合可測範圍 | GitHub Releases 是發佈候選，尚未選定完整支援矩陣 |
-| U-14 | 從新 repo 重新設計 | 避免搬入既有應用的架構、UI、資產及大量程式碼 |
-| U-15 | 保留不同使用者的檢視彈性 | 簡單預設與日後擴充皆重要，不代表立即建置大型 PM 系統 |
-| U-16 | Repo 名稱 | desktop-work-fleet，使用小寫與連字號 |
+| U-01 | Quickly record things that come to mind | Needs a correct place that is easy to find again; no tedious fields to fill before recording |
+| U-02 | Mainly see unhandled items | Notes are a daily backlog; the home screen is not agent execution history |
+| U-03 | Basic project management | Originally Todo, In Progress, Done; no further states requested |
+| U-04 | Share content across several personal development machines | Initially each machine maps to at least one note, and every machine can show all notes |
+| U-05 | Recognize the current machine's content | Colour can highlight notes related to this machine; colour is not the only possible approach |
+| U-06 | Desktop is read-only and click-through by default | Clicks, drags, desktop marquee selection and keyboard input must not operate a note by mistake |
+| U-07 | Occasional in-place editing | Deliberately unlock, edit, lock again; the entry point and failure handling still need validation |
+| U-08 | Editable elsewhere too | A desktop app, web app or phone can all serve as editing entry points |
+| U-09 | Cross-device sync and conflict handling | Server or file based is acceptable, but data must never be lost silently |
+| U-10 | Convenient phone pairing for a local server | If that architecture is chosen, QR code pairing is wanted |
+| U-11 | Own iOS, macOS and Android apps in the stores | The browser can be used for research and prototypes; it does not cancel the Apple/Google store goal |
+| U-12 | No Windows signing certificate purchase yet | Evaluate the Microsoft Store; the specific packaging and desktop features need validation |
+| U-13 | Linux capabilities must match what can be tested | GitHub Releases is a distribution candidate; no full support matrix is chosen yet |
+| U-14 | Redesign from a new repo | Avoid bringing in an existing application's architecture, UI, assets and large amounts of code |
+| U-15 | Keep view flexibility for different users | A simple default and later extension both matter; this does not mean building a large PM system now |
+| U-16 | Repo name | desktop-work-fleet, lowercase with hyphens |
 
-使用者接受新專案可採適當開源元件；不代表任何外部依賴都已獲授權盤點或選型批准。
+The user accepts that the new project may use suitable open-source components; this does not mean any external dependency has had a license inventory or selection approval.
 
-## 3. 討論演進與目前效力
+## 3. How the discussion evolved and what still applies
 
-| 階段 | 討論內容 | 目前效力 |
+| Stage | What was discussed | Current validity |
 |---|---|---|
-| 桌面便利貼 | 每台機器一張或多張 note，全部機器共同展示 | 保留作為主要使用情境 |
-| 分離資料與 renderer | 任務資料可在多種客戶端編輯，桌面只是一個入口 | 合理候選架構，尚未選框架或資料服務 |
-| 主流 PM 對照 | Project、Issue、Environment、Agent、Run 等模型 | 研究材料；不能整套當作已批准需求 |
-| Agent 執行工作台 | 排隊、執行、等待輸入、成功、失敗等狀態 | 使用者指出過於複雜，不列入第一版預設 |
-| Backlog 優先 | 看未完成事項、快速記靈感、保留檢視彈性 | 最新產品重心 |
-| 獨立 bootstrap | 新目錄與獨立研究文件 | 已授權本次執行；沒有授權順帶實作產品 |
+| Desktop sticky notes | One or more notes per machine, all machines shown together | Kept as the main usage scenario |
+| Separate data and renderer | Task data editable in several clients; the desktop is only one entry point | Reasonable candidate architecture; no framework or data service chosen |
+| Mainstream PM comparison | Models such as Project, Issue, Environment, Agent, Run | Research material; cannot be taken wholesale as approved requirements |
+| Agent execution workbench | States such as queued, running, waiting for input, succeeded, failed | The user said this is too complex; not in the first version's default |
+| Backlog first | See unfinished items, quickly record ideas, keep view flexibility | The latest product centre |
+| Independent bootstrap | New directory and independent research documents | Authorized for this session; product implementation was not authorized along with it |
 
-早期曾建議以「需要我處理」為首頁，或優先採用 GitHub Projects。這些沒有成為定案；選型應重新以快速記錄與 backlog 回顧的負擔衡量。
+Earlier suggestions to make "Needs me" the home screen, or to adopt GitHub Projects first, did not become decisions; any selection should be re-weighed by the burden it places on quick capture and backlog review.
 
-## 4. 候選日常體驗
+## 4. Candidate daily experience
 
-以下是研究建議，需以低成本原型確認：
+The following are research suggestions, to be confirmed with low-cost prototypes:
 
-1. 打開後看見熟悉的便箋，每張便箋有清楚名稱。
-2. 在既有便箋末尾直接記下一句話。
-3. 無法立即分類時放入收件匣，稍後移動。
-4. 想法可以先是文字；需要追蹤時再成為待辦。
-5. 預設看未完成項目，完成後勾掉並收起，必要時可還原。
-6. 「進行中」作為簡單標記，不強迫每項工作經過所有階段。
-7. 便箋牆、清單與看板可呈現同一份工作資料。
-8. 手機記錄後，桌面稍後顯示新內容，不搶走正在使用的應用焦點。
+1. On opening, see familiar notes, each with a clear name.
+2. Write a sentence directly at the end of an existing note.
+3. When something cannot be classified right away, put it in an inbox and move it later.
+4. An idea can start as text and become a to-do when it needs tracking.
+5. By default see unfinished items; tick an item off when done and it collapses, and it can be restored if needed.
+6. "In progress" is a simple marker; not every piece of work is forced through every stage.
+7. A board, a list and a kanban board can present the same work data.
+8. After recording on the phone, the desktop shows the new content later without stealing focus from the app in use.
 
-收件匣、完成後收合、文字轉待辦都是候選 UX，並非使用者逐項確認的規格。
+The inbox, collapsing after completion and turning text into a to-do are candidate UX, not a specification the user confirmed item by item.
 
-## 5. 簡單預設與彈性的邊界
+## 5. Where simple defaults end and flexibility begins
 
-第一版避免把下列資訊變成必填：負責人、Agent、機器、repository、worktree、日期、優先度、估點及驗收條件。
+The first version avoids making any of these required: owner, agent, machine, repository, worktree, date, priority, estimate and acceptance criteria.
 
-底層可以保留獨立項目 ID、完成狀態與檢視設定。這些資訊不需要暴露為建立任務的表單負擔。未來擴充標籤或看板，也不應要求使用者重新建立原有資料。
+Underneath, independent item IDs, completion state and view settings can be kept. They need not appear as a form burden when creating a task. A later extension with tags or a kanban board should not require users to re-create their existing data.
 
-一張便箋可以有自己的固定內容；另一種便箋可能是已儲存的篩選結果。兩者如何共存是待驗證問題，不能直接把所有便箋限定為資料庫 query。
+One note can have its own fixed content; another kind of note might be a saved filter result. How the two coexist is an open question to validate; all notes cannot simply be restricted to database queries.
 
-## 6. 展示模式的語意
+## 6. Meaning of the display mode
 
-「鎖定」先定義為防止誤操作的客戶端模式，與權限控管或跨裝置寫入鎖分開。
+"Locked" is first defined as a client mode that prevents accidental operation, separate from permission control or a cross-device write lock.
 
-- 被鎖定的桌面依然接收其他裝置的內容更新。
-- 手機不需要先遠端解鎖桌面，才能編輯同一份資料。
-- 點不到的便箋，需要由選單列、系統匣或編輯視窗提供可達的解鎖入口。
-- 解鎖後若儲存失敗，保留草稿並清楚告知，不可用重新鎖定掩蓋失敗。
-- 手機與瀏覽器不必模仿桌面的滑鼠穿透模式。
+- A locked desktop still receives content updates from other devices.
+- The phone does not need to unlock the desktop remotely before editing the same data.
+- For notes that cannot be clicked, a reachable unlock entry point is needed in the menu bar, tray or editing window.
+- If saving fails after unlocking, keep the draft and say so clearly; locking again must not hide the failure.
+- Phones and browsers do not need to imitate the desktop's click-through mode.
 
-## 7. 尚待確認，不阻擋本次文件 bootstrap
+## 7. Still to be confirmed (not blocking this documentation bootstrap)
 
-- 便箋是自由排版、區塊清單，還是兩者混合？
-- 工作是否必須歸屬專案？沒有專案的靈感如何收納？
-- 同一項目顯示於多張便箋時，如何讓使用者理解它是同一筆資料？
-- 離線時是否必須能編輯，或第一版先支援離線閱讀與草稿保存？
-- 全部 notes 很多時，如何保存「一眼看懂」的密度？
-- 後端部署偏好：自架、代管服務或純檔案？
-- 手機離開區域網路後的存取方式？
+- Is a note free-form layout, a list of blocks, or a mix of both?
+- Must work belong to a project? Where do ideas without a project go?
+- When the same item appears in several notes, how does the user understand it is the same record?
+- Must editing work offline, or does the first version support offline reading and draft saving first?
+- With many notes, how is "understandable at a glance" density kept?
+- Backend deployment preference: self-hosted, a managed service, or files only?
+- How does the phone reach the data once it leaves the local network?
 
-## 8. 候選驗收情境
+## 8. Candidate acceptance scenarios
 
-- 在有歸屬的情況下新增一句想法，不被其他欄位打斷。
-- 沒有歸屬的想法也能先保存，稍後找到並整理。
-- 回到工作環境時能快速看出未完成事項。
-- 勾選完成後，其他裝置的同一項目一致更新。
-- 兩台裝置編輯同一內容，使用者的草稿不會消失。
-- 桌面展示不干擾原有點擊、拖拉、框選與鍵盤輸入。
-- 單純記錄 backlog 的人不會看到 Agent 執行狀態機。
+- When the destination is known, add an idea in one sentence without being interrupted by other fields.
+- An idea without a destination can still be saved first, then found and organized later.
+- Returning to the work environment, the user can quickly see unfinished items.
+- After ticking an item done, the same item updates consistently on other devices.
+- When two devices edit the same content, the user's draft does not disappear.
+- The desktop display does not interfere with existing clicks, drags, marquee selection and keyboard input.
+- A person who only records a backlog never sees an agent execution state machine.
 
-相關研究：[主流體驗與模型](2026-10-03-lightweight-project-management-and-view-model.md)、[資料來源與同步](2026-10-03-source-of-truth-sync-and-conflict-analysis.md)。
+Related research: [mainstream experience and models](2026-10-03-lightweight-project-management-and-view-model.md), [data source and sync](2026-10-03-source-of-truth-sync-and-conflict-analysis.md).

@@ -1,4 +1,4 @@
-# SPEC-001: Backlog 驗證版
+# SPEC-001: Backlog validation version
 
 ## Metadata
 
@@ -10,43 +10,48 @@
 
 ## Summary
 
-以快速文字記錄、Todo／In Progress／Done 驗證持久化與共同資料，
-並以真實 macOS Sandbox App 驗證公開 API 桌面展示。
+Validate persistence and shared data with quick text capture and Todo/In Progress/Done,
+and validate desktop presentation through public APIs with a real sandboxed macOS app.
 
 ## Goals
 
-- 只輸入文字即可保存；預設 Inbox，支援待辦勾選、完成／還原與刪除／還原。
-- 手機或第二個瀏覽器與原生 Mac 使用同一 SQLite 權威服務。
-- revision、operation、epoch 保護競爭、重試與恢復；無靜默自動覆蓋。
-- 草稿先本機保存，再傳送；409／網路失敗可取回或另存。
-- 桌面展示鎖定時不接受輸入，仍持續更新；選單列入口隨時解鎖／重鎖。
-- 短效一次性配對、唯讀權限、裝置撤銷、可重現備份／恢復。
+- Text alone is enough to save; Inbox by default, with to-do checkboxes, complete/restore and delete/restore.
+- A phone or a second browser and the native Mac use the same authoritative SQLite service.
+- revision, operation and epoch protect against races, retries and recovery; no silent automatic overwrite.
+- Drafts are saved locally first, then sent; after a 409 or a network failure they can be recovered or saved as a copy.
+- While desktop presentation is locked, it accepts no input but keeps updating; the menu bar entry unlocks and relocks
+  it at any time.
+- Short-lived one-time pairing, read-only permission, device revocation, reproducible backup and restore.
 
 ## Non-Goals
 
-本次不引入 Agent 排程、估點與分派，不宣稱跨平台桌面或商店核准。
+This round introduces no agent scheduling, estimation or assignment, and claims no cross-platform desktop or store
+approval.
 
 ## Requirements
 
-接手計畫的每項疑慮都須在驗證報告保留結果列，標明通過、失敗／阻礙或尚未測。
-資料與簽章祕密在 repo 外；不以真實私人筆記做測試。
+Every concern in the handoff plan must keep a result row in the validation report, marked passed, failed/blocked or not
+yet tested.
+Data and signing secrets stay outside the repo; real private notes are not used for testing.
 
 ## Design Overview
 
-原生 AppKit 展示 + WebKit 編輯，HTML/ES modules 共用 editor，Python/SQLite 權威 API。
+Native AppKit presentation + WebKit editing, a shared editor in HTML/ES modules, and an authoritative Python/SQLite API.
 
 ## Dependencies
 
-系統 AppKit/Foundation/WebKit/CoreImage、Python 標準庫 SQLite；無新增第三方 runtime 套件。
+System AppKit/Foundation/WebKit/CoreImage and SQLite from the Python standard library; no new third-party runtime
+packages.
 
 ## Open Questions
 
-- 真實手機與 LAN TLS 的 UX、可達性及 iOS local network 行為。
-- Spaces／Show Desktop／多螢幕與手勢穿透的人工觀察。
-- 每機內容突出、多個獨立桌面便箋視窗及更大資料量的呈現。
+- UX, reachability and iOS local network behaviour of real phones and LAN TLS.
+- Manual observation of Spaces, Show Desktop, multiple displays and gesture click-through.
+- Per-device highlighting of content, several independent desktop note windows, and presentation with larger data
+  volumes.
 
 ## References
 
 - [Plan](../plans/001-validation-version-macos-handoff.md)
 - [ADR-002](../decisions/002-validation-runtime.md)
-- [驗證報告](../validation/2026-10-03-validation-report.md)
+- [Validation report](../validation/2026-10-03-validation-report.md)

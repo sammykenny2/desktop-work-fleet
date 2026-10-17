@@ -1,48 +1,77 @@
-# Linux Secret Service 不主動提示的行為研究
+# Linux Secret Service behavior without unrequested prompts
 
-研究日期：2026-10-15。結論用於 [ADR-048](../decisions/048-linux-offline-workspace-and-system-secrets.md)；測試使用私人 D-Bus 與合成資料。
+Research date: 2026-10-15. The conclusions are used in
+[ADR-048](../decisions/048-linux-offline-workspace-and-system-secrets.md); the tests use a private D-Bus and
+synthetic data.
 
-## 官方證據
+## Official evidence
 
-- [Prompts and Prompting](https://specifications.freedesktop.org/secret-service/latest/prompts.html)：需互動的操作回傳 prompt object，
-  client 再呼叫 Prompt；因此不執行 Prompt 可以將需解鎖的工作暫停。這是 client 的行為契約，不是所有 provider 的 UI 保證。
-- [Collection CreateItem](https://specifications.freedesktop.org/secret-service/latest/org.freedesktop.Secret.Collection.html)：
-  CreateItem 回傳 item 與 prompt paths；replace 只替換該 collection 中匹配 attributes 的項目。
-- [Aliases](https://specifications.freedesktop.org/secret-service/latest/aliases.html)：default／session 是 alias，須解析到 collection object path。
-  本機 GI 的 `Secret.COLLECTION_SESSION` 值為字串 `session`，不能直接與 object path 比較。
-- [libsecret password_store_sync](https://gnome.pages.gitlab.gnome.org/libsecret/func.password_store_sync.html)：session collection 不跨登入工作階段保存。
-- [libsecret Service.open_sync](https://gnome.pages.gitlab.gnome.org/libsecret/type_func.Service.open_sync.html)：可以指定 D-Bus service name，
-  建立新的 proxy。同步方法可能等待，不應放在 UI thread。
-- [libsecret Collection.search_sync](https://gnome.pages.gitlab.gnome.org/libsecret/method.Collection.search_sync.html)：
-  可以限定 collection 搜尋，`UNLOCK` 才要求解鎖。本實作只搜尋即時 Locked=false 的 collection，不用 `LOAD_SECRETS`。
-- [KeePassXC Service.cpp](https://raw.githubusercontent.com/keepassxreboot/keepassxc/develop/src/fdosecrets/objects/Service.cpp)：
-  `unlockBeforeSearch` 設定下，全域 SearchItems 可以自行打開解鎖對話框，並不經 Prompt.Prompt；
-  因此單憑 Prompt monitor 沒有呼叫，不能推論任意 provider 都沒有 UI。此實作避開全域搜尋。
+- [Prompts and Prompting](https://specifications.freedesktop.org/secret-service/latest/prompts.html): an operation that
+  needs interaction returns a prompt object, and the client then calls Prompt; so not running Prompt lets work that
+  needs unlocking be paused. This is a behavior contract for clients, not a UI guarantee for every provider.
+- [Collection CreateItem](https://specifications.freedesktop.org/secret-service/latest/org.freedesktop.Secret.Collection.html):
+  CreateItem returns the item and prompt paths; replace only replaces the item in that collection with matching
+  attributes.
+- [Aliases](https://specifications.freedesktop.org/secret-service/latest/aliases.html): default/session are aliases
+  and must be resolved to a collection object path.
+  In the local GI, the value of `Secret.COLLECTION_SESSION` is the string `session`, which cannot be compared
+  directly with an object path.
+- [libsecret password_store_sync](https://gnome.pages.gitlab.gnome.org/libsecret/func.password_store_sync.html): the
+  session collection is not kept across login sessions.
+- [libsecret Service.open_sync](https://gnome.pages.gitlab.gnome.org/libsecret/type_func.Service.open_sync.html): a
+  D-Bus service name can be specified, creating a new proxy. Synchronous methods may wait and should not run on the
+  UI thread.
+- [libsecret Collection.search_sync](https://gnome.pages.gitlab.gnome.org/libsecret/method.Collection.search_sync.html):
+  the search can be limited to one collection, and only `UNLOCK` requests unlocking. This implementation searches only
+  collections that are Locked=false at that moment, and does not use `LOAD_SECRETS`.
+- [KeePassXC Service.cpp](https://raw.githubusercontent.com/keepassxreboot/keepassxc/develop/src/fdosecrets/objects/Service.cpp):
+  with the `unlockBeforeSearch` setting, a global SearchItems can open an unlock dialog by itself, without going
+  through Prompt.Prompt;
+  so a Prompt monitor seeing no call alone does not imply that an arbitrary provider shows no UI. This implementation
+  avoids global searches.
 
-## 實測與推論
+## Tests and inferences
 
-- 私人 gnome-keyring 中，已解鎖 collection 可透過 libsecret session encoding 與直接 CreateItem 保存及讀回。
-  precheck 後鎖住 collection 的競爭情況會回報失敗，獨立 dbus-monitor 沒有觀察到 `Prompt.Prompt`。
-- provider 重啟後舊 session 不應重用。以 GetNameOwner 偵測新 owner，重新 open proxy，合成秘密可再次讀取與保存；
-  probe 不直接重設 production Vault，使用者資料與桌面 bus 不參與測試。
-- libsecret 舊 service 的 collection callbacks 尚未完成時釋放 proxy 曾出現 GLib critical；保留舊 proxy 至 Vault 結束後，
-  相同 restart probe 無警告。這是此次 Pi runtime 的證據，不代表所有 libsecret 版本皆存在同一問題。
-- 多個 collection 可同時有同 attributes 秘密。canonical 讀取使用持久 default 的 collection 搜尋；
-  不能假設全域 search 的第一筆正確，也不能依靠 item object path 一定巢狀在 collection 下。
-- 真 probe 改用 collection 搜尋後，proxy 的舊 Locked／secret 快取曾允許讀取鎖定前的 token。
-  即時 Properties.Get Locked 與新 GetSecret／session decode 後，相同未手動刷新快取的鎖定測試通過。
-  外部更新合成 token 後也可立即讀到新值，不依賴主迴圈處理 cache 通知。
+- In a private gnome-keyring, an unlocked collection can save and read back through libsecret session encoding and a
+  direct CreateItem.
+  When the collection is locked after the precheck (a race), a failure is reported, and an independent dbus-monitor
+  observed no `Prompt.Prompt`.
+- After a provider restart, the old session should not be reused. GetNameOwner detects the new owner, the proxy is
+  opened again, and synthetic secrets can be read and saved again;
+  the probe does not reset the production Vault directly, and user data and the desktop bus take no part in the test.
+- Releasing the proxy while the old libsecret service's collection callbacks had not finished once produced a GLib
+  critical; after keeping the old proxy until the Vault ends,
+  the same restart probe shows no warning. This is evidence from this Pi runtime, and does not mean every libsecret
+  version has the same problem.
+- Several collections can hold secrets with the same attributes at once. The canonical read uses a collection search
+  of the persistent default;
+  the first result of a global search cannot be assumed correct, and the item object path cannot be relied on to be
+  nested under the collection.
+- After the real probe switched to collection searches, the proxy's old Locked/secret cache once allowed reading the
+  token from before locking.
+  With a live Properties.Get Locked and a fresh GetSecret/session decode, the same lock test without a manual cache
+  refresh passed.
+  After the synthetic token is updated externally, the new value can also be read at once, without relying on the
+  main loop to process cache notifications.
 
-## 驗證界線
+## Verification boundaries
 
-同日手動操作補充：[libsecret unlock_sync](https://gnome.pages.gitlab.gnome.org/libsecret/method.Service.unlock_sync.html)
-可能無限等待；[SecretPrompt 原始碼](https://raw.githubusercontent.com/GNOME/libsecret/master/libsecret/secret-prompt.c)
-顯示取消後會呼叫 Dismiss，但其成功回覆仍不足以完成等待，尚需 Completed。由此推論只加 cancellable timer
-不能保證錯誤 provider 下的有限返回。本專案因此在明確手動同步時直接使用 Secret Service 的 Unlock／Prompt，
-先訂閱固定 owner／path 的 Completed，再顯示系統視窗；自身等待有期限，逾時以非阻塞 Dismiss 收尾。
-90 秒 deadline 從 host admission 起算，前後查詢共用 cancellable；取消或換帳號後不接受舊來源結果。
-私人合成 provider 的真 GI probe 驗證 cancel／accept／timeout／close、慢 preflight／讀回、排隊逾時不開 Prompt，
-以及 Dismiss 成功卻不發 Completed 時仍能返回。不使用真密碼或圖形視窗，不等於已驗收 provider 的實際 UI。
+Same-day addition about the manual operation:
+[libsecret unlock_sync](https://gnome.pages.gitlab.gnome.org/libsecret/method.Service.unlock_sync.html)
+may wait forever; the [SecretPrompt source](https://raw.githubusercontent.com/GNOME/libsecret/master/libsecret/secret-prompt.c)
+shows that cancelling calls Dismiss, but its successful reply is still not enough to end the wait, which also needs
+Completed. From this we infer that adding a cancellable timer alone cannot guarantee a bounded return with a faulty
+provider. This project therefore uses the Secret Service Unlock/Prompt directly for an explicit manual sync:
+it first subscribes to Completed on the fixed owner/path, then shows the system window; its own wait has a deadline,
+and on timeout it finishes with a non-blocking Dismiss.
+The 90-second deadline starts at host admission, and the queries before and after share one cancellable; after a
+cancel or an account switch, results from the old source are not accepted.
+A real GI probe with a private synthetic provider verifies cancel/accept/timeout/close, slow preflight/read-back, no
+Prompt opened when a request times out in the queue,
+and still returning when Dismiss succeeds but Completed is never emitted. It uses no real password or graphical
+window, and does not amount to acceptance of a provider's real UI.
 
-已驗證合成 gnome-keyring；沒有完整驗收 KWallet／其他 Secret Service provider、使用者重開機或正式 Google OAuth。
-Secret Service 規格是 draft；此實作使用既有 CreateItem／Delete／alias／session 介面，沒有聲稱完整規格相容性。
+Verified with a synthetic gnome-keyring; KWallet/other Secret Service providers, a user reboot and real Google OAuth
+are not fully accepted.
+The Secret Service specification is a draft; this implementation uses the established CreateItem/Delete/alias/session
+interfaces and does not claim full specification compatibility.

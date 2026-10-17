@@ -5,10 +5,13 @@
 Current interaction plan: [PLAN-003](003-desktop-interaction-implementation.md), based on SPEC-003.
 The schema-upgrade work in [PLAN-007](007-schema-evolution-and-migrations.md) was withdrawn; pre-store testing changes V1 directly.
 The [Google Drive plan](002-google-drive-notes-mvp.md) supplies source/backup integration work,
-with editor and backup scope reconciliation before contract freeze.
+with editor and backup scope reconciliation before contract freeze; it is not an accepted framework decision.
 The [macOS validation handoff](001-validation-version-macos-handoff.md) remains a historical prototype handoff.
-The new plan is a Draft, not an implemented feature or accepted framework decision.
-Execution status remains in [PROGRESS.md](../../PROGRESS.md).
+
+A plan's Status field and its task checkboxes (or phase status lines) are updated in the same commit as the work they
+describe. The Progress Log section holds only dated plan-level milestones; per-change history is the git history,
+verification procedures and unverified boundaries are in [testing](../testing.md), and the current project snapshot is
+in [PROGRESS.md](../../PROGRESS.md).
 
 ## Purpose
 
@@ -31,7 +34,7 @@ Create a plan when:
 ```
 1. Spec approved → Create plan
 2. Break into phases → Define tasks
-3. Implement → Update progress
+3. Implement → Update Status and tasks in the same commit
 4. Complete → Mark as done
 ```
 
@@ -54,21 +57,22 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
-| [008-workspace-initialization](008-workspace-initialization.md) | 工作空間初始化與可續行重設 | 核准範圍；執行見 PROGRESS | [SPEC-008](../specs/008-workspace-initialization.md) |
-| [004-windows-11-compatibility](004-windows-11-compatibility.md) | 23H2 native baseline, minimal fixes and Windows 11 package floor | Requirements confirmed; next session implementation, status in PROGRESS | [SPEC-005](../specs/005-windows-11-compatibility.md) |
-| [003-desktop-interaction-implementation](003-desktop-interaction-implementation.md) | Cards, groups, formation, renderer and native hosts | Planned; product implementation not started | [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) |
-| [005-msix-data-and-cloud-overwrite](005-msix-data-and-cloud-overwrite.md) | MSIX 私有資料與安全、可續行的 Google 全量覆蓋 | 使用者要求已確認；狀態在 PROGRESS | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
+| [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and resumable reset | Completed, 2026-10-17; real Google and native apps not verified | [SPEC-008](../specs/008-workspace-initialization.md) |
+| [004-windows-11-compatibility](004-windows-11-compatibility.md) | 23H2 native baseline, minimal fixes and Windows 11 package floor | In Progress: Phases 1–2 done, Phase 3 partly done, Phase 4 not started | [SPEC-005](../specs/005-windows-11-compatibility.md) |
+| [003-desktop-interaction-implementation](003-desktop-interaction-implementation.md) | Cards, groups, formation, renderer and native hosts | In Progress; slice status in the plan | [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) |
+| [005-msix-data-and-cloud-overwrite](005-msix-data-and-cloud-overwrite.md) | MSIX private data and a safe, resumable full Google overwrite | Completed, 2026-10-12; real-environment verification open | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
 | [000-template](./000-template.md) | Template | - | - |
 | [001-validation-version-macos-handoff](001-validation-version-macos-handoff.md) | macOS validation handoff | Validation version implemented; platform matrix incomplete | [SPEC-001](../specs/001-validation-version.md) |
-| [002-google-drive-notes-mvp](002-google-drive-notes-mvp.md) | Google Drive notes with portable backup | Draft | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
-| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | 主視窗位置、啟動行為與三平台 App 內更新 | In Progress；狀態在 PROGRESS | [SPEC-006](../specs/006-desktop-window-startup-and-updates.md) |
+| [002-google-drive-notes-mvp](002-google-drive-notes-mvp.md) | Google Drive notes with portable backup | In Progress under the full 1.0 authorization | [SPEC-002](../specs/002-portable-backup-and-restore.md) |
+| [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | Main window placement, startup behaviour and in-app updates on three platforms | In Progress: Phases 0–6 implemented, Phase 7 not recorded | [SPEC-006](../specs/006-desktop-window-startup-and-updates.md) |
+| [007-schema-evolution-and-migrations](007-schema-evolution-and-migrations.md) | Schema upgrade plan withdrawn | Cancelled, 2026-10-17 | [SPEC-007](../specs/007-schema-evolution-and-migrations.md) |
 <!-- Add new plans above this line -->
 
 ## For AI Agents
 
 1. **Link to spec**: Always reference the related SPEC document
-2. **Update progress**: Mark tasks complete as you work
-3. **Log updates**: Add entries to the Progress Log section
+2. **Update status**: Tick tasks and update the Status field in the same commit as the work
+3. **Log milestones**: Add dated plan-level milestones to the Progress Log section; do not copy per-commit history there
 
 ---
 

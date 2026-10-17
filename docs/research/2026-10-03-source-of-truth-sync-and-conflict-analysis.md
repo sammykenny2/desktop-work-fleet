@@ -1,127 +1,127 @@
-# 資料來源、同步與衝突處理研究
+# Data source, sync and conflict handling research
 
-- 日期：2026-10-03
-- 狀態：候選方案比較；尚未選定後端、資料庫、同步協定或離線模式。
-- 優先依據：[Backlog 需求](2026-10-03-backlog-first-product-requirements.md)。
-- 本文的協定與資料建議是待驗證設計，不是目前已存在的功能。
+- Date: 2026-10-03
+- Status: comparison of candidate approaches; no backend, database, sync protocol or offline mode has been chosen.
+- Primary basis: [backlog requirements](2026-10-03-backlog-first-product-requirements.md).
+- The protocol and data suggestions in this document are designs to be validated, not features that exist today.
 
-## 1. Source of truth 要回答什麼
+## 1. What the source of truth must answer
 
-使用者允許 server 或 file based，但要求跨機器與手機一致、可編輯且不丟失內容。
+The user allows server or file based, but requires consistency across machines and the phone, editability, and no lost content.
 
-需要先決定每種資料的權威來源：
+First decide the authoritative source for each kind of data:
 
-| 資料 | 應具備的性質 |
+| Data | Properties it should have |
 |---|---|
-| 便箋內容、待辦與完成狀態 | 所有客戶端共同參照的權威記錄 |
-| 未同步草稿 | 原裝置可靠保存，不能假裝已同步 |
-| 顯示位置、尺寸、本機突出方式 | 可以是裝置個別設定 |
-| 共享檢視的篩選與分組 | 與實際工作項目分開 |
-| 配對與存取權 | 可撤銷，不以本機 UI 的 lock 取代 |
+| Note content, to-dos and completion state | An authoritative record that every client refers to |
+| Unsynced drafts | Stored reliably on the originating device; must not pretend to be synced |
+| Display position, size, local highlighting | Can be per-device settings |
+| Filters and grouping of shared views | Kept separate from the actual work items |
+| Pairing and access rights | Revocable; not replaced by the local UI lock |
 
-一份資料有權威來源，不代表整個系統只能有一個檔案。若採第三方任務服務，需明確哪些欄位由第三方管理，哪些只屬於本產品，避免兩邊各自保存可修改的同名欄位。
+Having an authoritative source for a piece of data does not mean the whole system can have only one file. If a third-party task service is used, it must be clear which fields the third party manages and which belong only to this product, so that the two sides do not each keep a modifiable field of the same name.
 
-## 2. 候選方案
+## 2. Candidate approaches
 
-| 方案 | 優點 | 成本與主要驗證點 | 目前定位 |
+| Approach | Advantages | Costs and main validation points | Current position |
 |---|---|---|---|
-| 自有輕量服務＋資料庫 | 能直接配合便箋、快速捕捉與衝突 UX | 身分驗證、同步、備份、部署與離線處理需自己負責 | 候選 |
-| 自架現成任務服務 | 可重用已有資料 API 與管理介面 | API 語意是否符合自由文字便箋；授權與升級邊界 | 候選 |
-| GitHub Issues／Projects | 可與開發工作連結，有現成檢視與 API | 靈感捕捉步驟、repository 歸屬、自由筆記與手機體驗 | 流程驗證候選，不是已選後端 |
-| Markdown／JSON 檔案＋同步 | 可攜、容易備份與使用外部工具 | 多寫入者、穩定 ID、刪除、排序與衝突解析 | 可接受，但須做同步設計 |
-| Obsidian 作為個人筆記入口 | 使用者可利用既有筆記體驗 | 不等於可重包裝的開源 App；資料整合仍要另設計 | 個人工具／互通候選 |
+| Own lightweight service + database | Can fit notes, quick capture and conflict UX directly | Authentication, sync, backup, deployment and offline handling are all on us | Candidate |
+| Self-hosted off-the-shelf task service | Reuses existing data APIs and admin interface | Whether the API semantics fit free-text notes; license and upgrade boundaries | Candidate |
+| GitHub Issues/Projects | Links to development work; ready-made views and API | Idea-capture steps, repository ownership, free notes and the phone experience | Workflow validation candidate, not a chosen backend |
+| Markdown/JSON files + sync | Portable, easy to back up and use with external tools | Multiple writers, stable IDs, deletion, ordering and conflict resolution | Acceptable, but needs a sync design |
+| Obsidian as a personal notes entry point | The user can use an existing notes experience | Not an open-source app that can be repackaged; data integration still needs its own design | Personal tool / interoperability candidate |
 
-GitHub Projects 的多檢視與自訂欄位能力由官方文件支持；是否比自有便箋更適合本使用者，是待實測的產品判斷。[GitHub Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects)
+GitHub Projects' multiple views and custom fields are supported by the official documentation; whether it suits this user better than our own notes is a product judgement to be tested. [GitHub Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects)
 
-## 3. Obsidian 與 Vikunja 的研究界線
+## 3. Research boundaries for Obsidian and Vikunja
 
-Obsidian 的軟體使用條款並非允許任意 fork 與重新上架的 MIT 授權。使用自己的 Markdown 資料、與個人工具互通，以及複製／改作 Obsidian 本體，是不同的整合方式。對軟體或服務的整合須檢查具體條款，不能假設「資料是 Markdown」就涵蓋所有使用權。[Obsidian 條款](https://obsidian.md/terms)
+Obsidian's software terms of use are not an MIT license that permits arbitrary forks and re-publishing. Using your own Markdown data, interoperating with a personal tool, and copying/adapting Obsidian itself are different kinds of integration. Integration with the software or service requires checking the specific terms; "the data is Markdown" cannot be assumed to cover every right of use. [Obsidian terms](https://obsidian.md/terms)
 
-Obsidian Sync 的版本歷史能協助找回資料，但這不能證明自行建立的 task ID、狀態與跨檔案關聯會自動維持一致。[Obsidian 版本歷史](https://help.obsidian.md/Obsidian%2BSync/Version%2Bhistory)
+Obsidian Sync's version history can help recover data, but this does not prove that self-made task IDs, states and cross-file relationships stay consistent automatically. [Obsidian version history](https://help.obsidian.md/Obsidian%2BSync/Version%2Bhistory)
 
-Vikunja 可以作為任務服務候選；其主要 repo 明列多數內容為 AGPL-3.0-or-later，desktop 內容為 GPL-3.0-or-later。API 串接、修改 server、複製 frontend 和重新散布 desktop 是不同的採用方式，需個別評估。[Vikunja 授權說明](https://github.com/go-vikunja/vikunja#license)
+Vikunja can be a task service candidate; its main repo lists most content as AGPL-3.0-or-later and the desktop content as GPL-3.0-or-later. Integrating with the API, modifying the server, copying the frontend and redistributing the desktop app are different modes of adoption and need separate evaluation. [Vikunja license notes](https://github.com/go-vikunja/vikunja#license)
 
-本次沒有安裝、fork、部署或對這些服務建立帳號，也沒有取得全產品的商用或再散布授權結論。
+This session did not install, fork or deploy these services or create accounts on them, and reached no conclusion on commercial use or redistribution licensing for the whole product.
 
-## 4. 建議最低資料能力
+## 4. Proposed minimum data capabilities
 
-候選資料契約應能表達：
+A candidate data contract should be able to express:
 
-- 穩定 ID：改標題、換機器、移動便箋後仍是同一項目。
-- 修訂版本：更新請求能指出它根據哪一版資料。
-- 刪除／還原語意：離線裝置不能無意讓已刪資料復活。
-- 建立操作識別碼：網路重試不會新增兩份相同工作。
-- 完成狀態與內容可分別更新，避免以整份快照覆蓋其他人的變更。
-- Schema 版本及匯入／匯出方式。
+- Stable IDs: still the same item after renaming, changing machines or moving notes.
+- Revisions: an update request can state which version of the data it is based on.
+- Delete/restore semantics: an offline device must not accidentally bring deleted data back to life.
+- Create operation identifiers: a network retry does not create two copies of the same work.
+- Completion state and content can be updated separately, so a whole snapshot does not overwrite other people's changes.
+- Schema version and an import/export method.
 
-這些是資料可靠性的候選底線，不代表必須立即採用 event sourcing 或 CRDT。
+These are a candidate baseline for data reliability; they do not mean event sourcing or CRDTs must be adopted right away.
 
-## 5. Server 方案的更新設計
+## 5. Update design for the server approach
 
-可以用 revision 或 HTTP ETag／If-Match 做條件式更新。HTTP 的 If-Match 可用來避免在資料已改變時套用過時寫入；實際欄位衝突判斷仍由服務設計負責。[RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#name-if-match)
+Conditional updates can use a revision or HTTP ETag/If-Match. HTTP If-Match can prevent applying a stale write when the data has already changed; the actual field-conflict judgement is still the service design's responsibility. [RFC 9110 §13.1.1](https://www.rfc-editor.org/rfc/rfc9110.html#name-if-match)
 
-建議行為：
+Proposed behaviour:
 
-1. 客戶端讀到第 12 版。
-2. 提交編輯時附上第 12 版條件。
-3. 若 server 已是第 13 版，回報衝突及目前內容。
-4. 保留使用者草稿，讓使用者比較、另存或重新套用。
-5. 未成功前不把內容標為已同步。
+1. The client reads version 12.
+2. It submits the edit with a version-12 condition.
+3. If the server is already at version 13, it reports a conflict and the current content.
+4. Keep the user's draft and let the user compare, save as a copy or re-apply.
+5. Do not mark the content as synced until it succeeds.
 
-不同項目可各自寫入；同一項目的不同欄位是否可自動合併，應有明確規則與測試。不要直接用裝置時間判斷「最後寫入者勝出」來掩蓋衝突。
+Different items can be written independently; whether different fields of the same item can merge automatically needs explicit rules and tests. Do not hide conflicts by judging "last writer wins" from device time.
 
-即時通知只代表有新版本可讀，不等於持久化成功。重連後應能補回遺漏資料，而不只依賴一次性事件。
+A real-time notification only means a new version is available to read; it does not mean persistence succeeded. After reconnecting, missed data must be recoverable, not dependent on a one-off event.
 
-## 6. File based 方案的額外工作
+## 6. Extra work for the file-based approach
 
-需要分開處理：
+These need separate handling:
 
-- 本機寫檔途中斷電：同目錄暫存、flush／sync、原子替換與備份。
-- 同機多個 writer：適當的序列化或鎖定。
-- 多裝置各改一份：同步層的版本比較與衝突保留。
-- 外部編輯器介入：識別格式錯誤、舊版資料與未知欄位。
-- 多檔案操作：移動、重命名、索引更新與刪除不能只靠一個檔案鎖。
+- Power loss during a local file write: a temporary file in the same directory, flush/sync, atomic replace and backup.
+- Several writers on the same machine: suitable serialization or locking.
+- Each device changing its own copy: version comparison and conflict retention in the sync layer.
+- An external editor stepping in: recognize format errors, old data and unknown fields.
+- Multi-file operations: moving, renaming, index updates and deletion cannot rely on a single file lock.
 
-原子替換只保護單次檔案替換，不會自動解決多機競爭。Git 合併成功也不代表任務語意正確，例如兩個不同格式的完成標記可能都被保留。
+Atomic replace protects only a single file replacement; it does not resolve multi-machine races by itself. A successful Git merge does not mean the task semantics are correct either; for example, two completion markers in different formats might both be kept.
 
-一項目一檔能減小文字衝突範圍，但會增加清單排序、索引與關聯管理成本。整個 backlog 存一個檔案比較直觀，卻使無關項目也可能互相衝突。
+One file per item narrows the text-conflict scope but raises the cost of managing list ordering, indexes and relationships. Storing the whole backlog in one file is more intuitive, but lets unrelated items conflict with each other.
 
-不建議把正在使用中的 SQLite 檔案直接當多機共享／同步資料庫。SQLite 官方說明了網路檔案系統在鎖定與可靠性上的問題；本案若用 SQLite，較容易驗證的候選是每個服務或客戶端本機持有自己的資料庫，再透過應用協定同步。[SQLite 網路使用限制](https://www.sqlite.org/useovernet.html)
+Using a live SQLite file directly as a database shared/synced across machines is not recommended. SQLite's official documentation describes the locking and reliability problems of network file systems; if this project uses SQLite, the candidate that is easier to validate is that each service or client holds its own local database and syncs through an application protocol. [SQLite over a network](https://www.sqlite.org/useovernet.html)
 
-## 7. 離線體驗尚未定案
+## 7. The offline experience is not decided
 
-可比較兩種最小方案：
+Two minimum approaches can be compared:
 
-- 離線閱讀＋可靠草稿：恢復連線後讓使用者提交。
-- 離線可編輯＋待同步操作佇列：提供更完整體驗，但要處理重試、排序、相依操作與衝突。
+- Offline reading + reliable drafts: the user submits after the connection returns.
+- Offline editing + a pending operation queue: a fuller experience, but retries, ordering, dependent operations and conflicts must be handled.
 
-兩者都應保留上次成功內容、最後同步時間及未同步提示。使用者的「不能出問題」應轉成可驗證的失敗行為，不能承諾永遠沒有衝突。
+Both should keep the last successful content, the last sync time and an unsynced indicator. The user's "nothing may go wrong" should be turned into verifiable failure behaviour; never having a conflict cannot be promised.
 
-## 8. Local server 與 QR 配對
+## 8. Local server and QR pairing
 
-若選 local server，QR 配對是使用者偏好。候選流程：
+If a local server is chosen, QR pairing is the user's preference. Candidate flow:
 
-1. 已登入的管理入口產生短效、一次性配對邀請。
-2. QR 帶 server 識別／位置與邀請資料，不放永久管理員密鑰。
-3. 手機確認連線目標，完成交換後取得可撤銷的裝置憑證。
-4. 設定頁能列出與撤銷裝置。
-5. 邀請逾期或已使用時給出可重新操作的提示。
+1. A signed-in admin entry point generates a short-lived, single-use pairing invitation.
+2. The QR code carries the server identity/location and the invitation data, never a permanent admin key.
+3. The phone confirms the connection target and, after the exchange, receives a revocable device credential.
+4. A settings page can list and revoke devices.
+5. An expired or already-used invitation gives a prompt that lets the user try again.
 
-QR 不會建立區域網路之外的可達路徑。需另選 VPN、受控公開端點或其他連線方案；LAN 發現、TLS 信任與 iOS local network privacy 也需在平台原型驗證。它們是待設計議題，不是假設手機掃碼後一定連得到。
+A QR code does not create a reachable path outside the local network. A VPN, a controlled public endpoint or another connection approach must be chosen separately; LAN discovery, TLS trust and iOS local network privacy also need validation in platform prototypes. These are open design issues, not an assumption that scanning the code always connects.
 
-即使都是自己的裝置，仍需區分閱讀與寫入權限；單純桌面展示可使用較小權限。這應與「unlock」的防誤觸模式分開。
+Even when all devices are your own, read and write permissions should still be distinguished; a desktop that only displays can use narrower permissions. This should be kept separate from the accident-prevention "unlock" mode.
 
-## 9. 選型前必測案例
+## 9. Cases that must be tested before selection
 
-| 情境 | 可接受結果 |
+| Scenario | Acceptable result |
 |---|---|
-| A 與 B 同改一個項目 | 不靜默覆蓋；草稿與衝突內容可取回 |
-| 建立請求成功，但回應遺失後重試 | 不重複建立 |
-| 刪除後，舊裝置重新上線 | 不無意復活 |
-| 同時移動與修改內容 | 歸屬和文字都可追蹤，不變成孤兒 |
-| 本機儲存失敗 | 明確失敗，保留既有資料與草稿 |
-| Server 暫停、機器休眠或時間不同步 | 不以假成功或裝置時鐘決定資料正確性 |
-| 從備份還原 | 能解釋 revision、裝置快取與重新同步的行為 |
-| 配對憑證被撤銷 | 後續讀寫確實被拒絕 |
+| A and B edit the same item at the same time | No silent overwrite; the draft and conflicting content can be retrieved |
+| A create request succeeds, but the response is lost and the request is retried | No duplicate is created |
+| After a deletion, an old device comes back online | Nothing is accidentally brought back to life |
+| Moving and editing content at the same time | Both the home and the text stay traceable; nothing becomes an orphan |
+| A local save fails | A clear failure; existing data and drafts are kept |
+| Server paused, machine asleep or clocks out of sync | No fake success, and the device clock never decides which data is correct |
+| Restoring from a backup | The behaviour of revisions, device caches and re-sync can be explained |
+| A pairing credential is revoked | Later reads and writes are actually refused |
 
-目前未執行上述案例。依這些案例做小型 spike，再決定服務式或檔案式來源。
+None of the cases above has been run. Build a small spike from these cases before choosing a service-based or file-based source.

@@ -1,5 +1,7 @@
 # Work Fleet 隱私與資料說明
 
+English: [privacy.md](privacy.md)
+
 維護者：sammykenny2。聯絡方式：[sammykenny2@gmail.com](mailto:sammykenny2@gmail.com)。生效日期：2026-10-14。
 本文件是 GitHub 預覽版的公開隱私說明；商店提交仍需依實際 SDK 與散布產物核對各商店表單。
 

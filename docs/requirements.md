@@ -1,99 +1,136 @@
-# 需求與版本範圍
+# Requirements and Version Scope
 
-更新：2026-10-12。互動規範以 [SPEC-003](specs/003-desktop-cards-groups-and-formation.md) 為準。
-該規格明列 U（已確認）、D（授權工作預設）、Q（待決），不能把研究候選當成已批准功能。
+Updated: 2026-10-12. The interaction contract is [SPEC-003](specs/003-desktop-cards-groups-and-formation.md).
+That specification lists U (confirmed), D (authorized working defaults) and Q (open) items; research candidates must not
+be treated as approved features.
 
-## 已確認產品方向
+## Confirmed product direction
 
-- Backlog／靈感快速記錄優先，一張 card/note/post-it 記錄一件事。
-- Group 是通用邏輯集合；本機可突出「屬於我」，不要求每張卡屬於 Project 或 Agent 工作。
-- Windows、macOS、Linux 是必要桌面平台；保留自有 iOS/macOS/Android 商店目標。
-- 第一版 Google 帳號＋file based，沒有自家便箋 local server；異質來源／renderer 的邊界現在設計。
-- 日常唯讀且滑鼠穿透。某組／全部可暫時浮到一般 App 上方進入拖拉，再進入單張文字編輯。
-- 單擊選卡、雙擊編輯；普通拖曳只改位置，接收標籤／Shift 拖入群組區域或 action 才改歸屬。
-- 顯式 formation 可全局或單組召回整理；堆疊露第一行、攤開排完整紙面。區域不是硬容器。
-- 輪播只暫時改疊序；操作組高於其他組，選卡在組內最前，不搬動卡片。
-- 平常紙張尺寸穩定；formation 必要時取得同意才調整，未同意可溢出群組區域。
-- 群組最多九組；grid 列≤3、欄≤4，且乘積≤9。2列×4欄及3列×3欄合法，3列×4欄不合法。
-- 新卡初始在自己的群組區域，不重排舊卡；formation 提供復原。
-- 不加入 Focus／番茄鐘／回顧；不照搬外部產品 UI、架構或大量原始碼。
+- Backlog and quick capture of ideas come first; one card/note/post-it records one thing.
+- A group is a general logical collection; the local device can highlight "mine", and no card is required to belong to
+  a Project or to Agent work.
+- Windows, macOS and Linux are required desktop platforms; the store targets for our own iOS/macOS/Android apps are kept.
+- The first version uses a Google account and file-based storage, with no local note server of our own; the boundary for
+  heterogeneous sources and renderers is designed now.
+- Read-only and click-through day to day. One group or all groups can temporarily float above ordinary apps for
+  dragging, and from there a single card can enter text editing.
+- Single click selects a card, double click edits; an ordinary drag only changes position, and only the receiving
+  label, a Shift drag into a group region or an action changes a card's group.
+- An explicit formation can recall and arrange cards globally or per group; a stack shows each card's first line, a spread
+  lays out whole papers. Regions are not hard containers.
+- Cycling only changes the stacking order temporarily; the group being operated is above the other groups and the
+  selected card is frontmost within its group, without moving any card.
+- Paper size normally stays stable; when needed, formation resizes papers only with consent, and without consent they
+  may overflow the group region.
+- At most nine groups; the grid has rows ≤3 and columns ≤4, with a product ≤9. 2 rows × 4 columns and 3 rows × 3
+  columns are valid; 3 rows × 4 columns is not.
+- A new card starts in its own group region without rearranging older cards; formation offers undo.
+- No Focus, Pomodoro or review features; the UI, architecture or large amounts of source code of external products are
+  not copied.
 
-[ADR-006](decisions/006-card-group-and-formation-semantics.md) 接受上述語意；
-[討論演進](research/2026-10-04-desktop-card-interaction-design.md) 保存修正原因。
-「浮到一般 App 上方」及轉組手勢已在整理期間獲明確確認，後續 agent 不必重問。
+[ADR-006](decisions/006-card-group-and-formation-semantics.md) accepts the semantics above;
+the [discussion history](research/2026-10-04-desktop-card-interaction-design.md) keeps the reasons for the corrections.
+"Float above ordinary apps" and the group-transfer gestures were explicitly confirmed during that consolidation; later
+agents need not ask again.
 
-## 可直接採用的工作預設
+## Working defaults that can be adopted directly
 
-使用者授權其他細節按最佳實踐規劃。SPEC-003 的 D 包含：
-新手預設一組與全組操作入口、列×欄／row-major 配置、單主要群組、
-共享內容與每機 geometry 分離、可靠草稿、顯式轉組命令、取消／undo、
-群組轉移不觸發 formation，以及顯示器失連只救回不可達卡片。
-它們不是使用者逐字指定的 UI，但可在後續實作授權下依規格執行。
+The user authorized planning the other details by best practice. The D items of SPEC-003 include:
+one group plus an entry for all-group operations by default for new users, rows × columns with row-major placement, a
+single primary group, shared content kept apart from per-device geometry, reliable drafts, explicit group-transfer
+commands, cancel and undo, group transfers that do not trigger a formation, and rescuing only unreachable cards when a
+display disconnects.
+They are not UI the user specified word for word, but they can be carried out according to the specification under
+later implementation authorization.
 
-## 2026-10-04 實作範圍補充
+## 2026-10-04 implementation scope addition
 
-維護者已要求逐 slice 實作、驗證並直接推送 main，直到完整 1.0 完成，並明確核准：
+The maintainer asked for slice-by-slice implementation and verification, pushed directly to main, until the complete
+1.0 is done, and explicitly approved:
 
-- Markdown、checklist、附件、完成／封存。
-- 逐卡顯示與層級、唯讀選字。
-- 含群組／每機版面的自動及加密備份、匯入／合併／取代還原。
-- Windows、macOS、Linux，以及 iOS／Android 原生 App 與商店提交準備。
-- 其他技術、容量與操作細節依最佳實踐定案；保留全部 U 要求，不照搬參考應用。
+- Markdown, checklists, attachments, complete and archive.
+- Per-card display and layer, read-only text selection.
+- Automatic and encrypted backups that include groups and per-device layout, and import / merge / replace restores.
+- Windows, macOS and Linux, plus native iOS and Android apps and store submission preparation.
+- Other technical, capacity and operation details are settled by best practice; every U requirement is kept, and the
+  reference application is not copied.
 
-SPEC-003 的 Q01–Q07 表已記錄這些答案與工作預設。
-[ADR-008](decisions/008-portable-interaction-core.md) 記錄共用語意核心與交易邊界。
-商店準備不等同商店已核准；外部 OAuth、正式簽章及真實裝置驗收需保留各自證據。
+The Q01–Q07 table in SPEC-003 records these answers and working defaults.
+[ADR-008](decisions/008-portable-interaction-core.md) records the shared semantic core and transaction boundaries.
+Store preparation does not equal store approval; external OAuth, formal signing and real-device acceptance each need
+their own evidence.
 
-## Google 與備份的現況
+## Status of Google and backup
 
-[Drive 研究](research/2026-10-03-google-drive-notes-mvp-feasibility.md) 建議 Drive 而非 Keep，
-appDataFolder provider 已由 ADR-012 採納，協定見 SPEC-004；原生 OAuth／真 Google 整合仍待驗收。
-[SPEC-002](specs/002-portable-backup-and-restore.md) 與 [ADR-013](decisions/013-complete-portable-backup.md)
-定義完整 ZIP／JSON、群組／版面／附件、自動／加密備份及三種還原；取代 ADR-005 早期候選。
-執行證據見 PROGRESS，不能把無損往返只測本文，也不能把格式模組當完整備份流程已交付。
+The [Drive research](research/2026-10-03-google-drive-notes-mvp-feasibility.md) recommends Drive rather than Keep;
+the appDataFolder provider was adopted by ADR-012, and the protocol is in SPEC-004. Native OAuth and real Google
+integration still await acceptance.
+[SPEC-002](specs/002-portable-backup-and-restore.md) and [ADR-013](decisions/013-complete-portable-backup.md)
+define complete ZIP / JSON, groups / layout / attachments, automatic and encrypted backups and three restores, replacing
+the early candidates of ADR-005.
+The current status is in PROGRESS and verification procedures are in [testing](testing.md). A lossless round trip must
+not be tested on the text alone, and the format modules must not be taken as a delivered complete backup flow.
 
-## 2026-10-09 Windows 支援範圍補充
+## 2026-10-09 Windows support scope addition
 
-使用者確認原先 Windows 相容性討論的真正目標是本專案，並要求先提交文件交接。
-Windows 11 21H2／22H2／23H2 與 24H2+ 均為支援目標，先用目前 23H2 電腦實測；
-沒有本輪新版設備，保留既有新版顯示路徑並補回歸，不宣稱零 regression。
-Windows 10 不需產品適配，但未來 Store 必須在安裝階段排除；MSIX 目標 MinVersion 為 22000。
-產生器已改為 22000、保留 MaxVersionTested 26200，最終未簽章 MSIX 已核對；23H2 隔離原生探針通過。
-正常使用者互動、23H2 MSIX 安裝及其他 Windows 版本實機仍待驗收，細項見 PROGRESS。
-Partner Center 尚未保留應用，Store 身份／正式提交延後；本輪不升版或發布。
-詳細要求、驗收與施工順序見 [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)、
-[SPEC-005](specs/005-windows-11-compatibility.md)、[PLAN-004](plans/004-windows-11-compatibility.md)。
-這些需求不套用到另一應用；其實作與通過紀錄不能作為本專案證據。
+The user confirmed that the real target of the earlier Windows compatibility discussion is this project, and asked for
+the documentation handoff to be committed first.
+Windows 11 21H2, 22H2, 23H2 and 24H2+ are all supported targets, tested first on the current 23H2 computer.
+With no newer-version device in this round, the existing display path for newer versions is kept and regression tests
+are added, without claiming zero regressions.
+Windows 10 needs no product adaptation, but a future Store listing must exclude it at install time; the MSIX target
+MinVersion is 22000.
+The generator was changed to 22000 while keeping MaxVersionTested 26200, the final unsigned MSIX was checked, and the
+isolated native probes passed on 23H2.
+Normal user interaction, 23H2 MSIX installation and other Windows versions on real machines still await acceptance;
+the current list is in PROGRESS.
+Partner Center has no reserved app yet; the Store identity and formal submission are deferred, and this round does not
+bump the version or publish.
+Detailed requirements, acceptance and the order of work are in
+[ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md),
+[SPEC-005](specs/005-windows-11-compatibility.md) and [PLAN-004](plans/004-windows-11-compatibility.md).
+These requirements do not apply to another application, and its implementation and pass records are not evidence for
+this project.
 
-## 2026-10-10 解除安裝與 Google 覆蓋政策
+## 2026-10-10 uninstall and Google overwrite policy
 
-使用者確認 MSIX 解除安裝應清除全部本機資料；先匯出備份，再登入 Google，
-可明確選擇「先清空 Google 的所有 Work Fleet 資料，再還原備份」。
-更新保留資料；匯出 ZIP 與 Google 雲端不由解除安裝刪除。ZIP／Debug 的舊獨立目錄不自動搬移或刪除。
-新增全量覆蓋，不改原有匯入／合併／取代歷史保留語意；需已保存安全備份及明確清空確認，草稿不自動發布。
-契約、生命週期與失敗續行見 [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md)、
-[SPEC-002](specs/002-portable-backup-and-restore.md)、[PLAN-005](plans/005-msix-data-and-cloud-overwrite.md)。
+The user confirmed that uninstalling the MSIX should clear all local data. Export a backup first, then sign in to
+Google, and you can explicitly choose to clear all Work Fleet data in Google first and then restore the backup.
+Updates keep the data; exported ZIPs and the Google cloud are not deleted by uninstalling. The old standalone folders of
+ZIP and Debug builds are not moved or deleted automatically.
+The new full overwrite does not change the history-preserving semantics of the existing import / merge / replace; it
+requires a saved safety backup and an explicit confirmation of the clearing, and drafts are not published automatically.
+The contract, lifecycle and resumption after failure are in
+[ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md),
+[SPEC-002](specs/002-portable-backup-and-restore.md) and [PLAN-005](plans/005-msix-data-and-cloud-overwrite.md).
 
-## 2026-10-12 本機／Google 備份雙向遷移
+## 2026-10-12 two-way migration between local and Google backups
 
-使用者確認兩種工作空間都需備份與還原，格式相同或相容，能將本機搬至 Google，或將 Google 搬至本機後專門離線使用。
-本機完整還原不強制先備份舊資料：先驗證、預覽及明確確認，再在同交易取代全部便箋、歷史、草稿、版面與附件。
-手動 Google 匯出先同步；失敗預設不保存，可明確選擇匯出已知副本。原取代及 Google 全量覆蓋仍維持安全備份要求。
-決策及實作契約見 [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) 與 [SPEC-002](specs/002-portable-backup-and-restore.md)。
+The user confirmed that both kinds of workspace need backup and restore in the same or a compatible format, so that a
+local workspace can move to Google, or a Google workspace can move to local for offline-only use.
+A complete local restore does not force a backup of the old data first: it validates, previews and asks for explicit
+confirmation, then replaces all notes, history, drafts, layout and attachments in the same transaction.
+A manual Google export syncs first; on failure it saves nothing by default, and the user can explicitly choose to export
+the known copy. The existing replace and the full Google overwrite keep their safety-backup requirement.
+The decision and implementation contract are in [ADR-038](decisions/038-portable-local-and-cloud-backup-flows.md) and
+[SPEC-002](specs/002-portable-backup-and-restore.md).
 
-## 延後而保留的方向
+## Deferred but kept directions
 
-2026-10-17 使用者確認：目前尚未提供他人測試，上架 Windows Store、Apple App Store、Google Play 前，
-現行便箋、同步及備份 JSON schema 一律維持 V1，欄位與結構直接調整 V1。
-逐版 migration、升級副本及舊測試格式的相容維護延至規劃正式上架時再評估；保留基本格式驗證與既有資料保存邊界。
+The user confirmed on 2026-10-17: the app is not yet offered to others for testing, and before listing on the Windows
+Store, Apple App Store and Google Play, the current note, sync and backup JSON schemas all stay at V1, with fields and
+structure changed in V1 directly.
+Per-version migrations, upgrade copies and compatibility maintenance for old test formats are deferred until formal
+store launch is planned; basic format validation and the existing data preservation boundaries are kept.
 
-完整 PM、Project/Item/View、自架 server 與多歸屬留作後續研究；
-這不代表未來必須恢復舊 Note 容器模型。簡單 Todo／In Progress／Done 的具體 1.0 UI 尚未定案。
-不引入 Queued/Running/Waiting/Succeeded/Failed/Cancelled 之類的 Agent 執行狀態作預設。
+Full PM, Project/Item/View, a self-hosted server and multiple membership remain for later research;
+this does not mean the old Note container model must come back. The concrete 1.0 UI for a simple Todo / In Progress /
+Done is not decided. Agent execution states such as Queued/Running/Waiting/Succeeded/Failed/Cancelled are not introduced
+as a default.
 
-## 證據及接手
+## Evidence and handoff
 
-API 可行、原生基礎實測、新功能驗收與商店核准分開紀錄。
-參見 [平台研究](research/2026-10-04-desktop-interaction-platform-feasibility.md)、
-[0.1.0 驗證報告](validation/2026-10-03-validation-report.md) 及
-[接手規則](handoff/2026-10-04-desktop-interaction-handoff.md)。
+API feasibility, native foundation tests, acceptance of new features and store approval are recorded separately.
+See the [platform research](research/2026-10-04-desktop-interaction-platform-feasibility.md),
+the [0.1.0 validation report](validation/2026-10-03-validation-report.md) and the
+[handoff rules](handoff/2026-10-04-desktop-interaction-handoff.md).

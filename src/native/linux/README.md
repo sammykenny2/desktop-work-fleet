@@ -1,141 +1,261 @@
-# Linux 原生 host
+# Linux native host
 
-Python 3.10+、GTK 3、WebKitGTK 4.1（WebKit 2.40+）、PyGObject／cairo 與 cryptography，由 Linux distribution 提供。不是 Python 便箋 server；
-原生 GTK 主畫面載入封裝的 `workfleet://app/app/index.html`，没有常駐 HTTP listener。
-Python 3.10 是為了 Ubuntu 22.04；22.04 發行時的 WebKitGTK 2.36 不夠，需安裝 jammy-security 的更新版
-（2026-10 amd64 為 2.50.4）。程式碼不可使用 3.11 以後的語法，由 `tests/test_linux_python_floor.py` 檢查。
+Python 3.10+, GTK 3, WebKitGTK 4.1 (WebKit 2.40+), PyGObject/cairo and cryptography, provided by the Linux
+distribution. This is not the Python note server;
+the native GTK main window loads the packaged `workfleet://app/app/index.html`, and there is no resident HTTP listener.
+Python 3.10 is for Ubuntu 22.04; the WebKitGTK 2.36 that 22.04 shipped with is not enough, and the newer version from
+jammy-security must be installed (2.50.4 on amd64 in 2026-10). The code must not use syntax from 3.11 or later, which
+`tests/test_linux_python_floor.py` checks.
 
 ```bash
 npm ci --ignore-scripts
 bash scripts/linux/build-native-app.sh
 bash "build/linux/work-fleet-$(cat src/native/linux/VERSION)/run-work-fleet.sh"
-# 在提供 Debian 工具的環境建立安裝包：
+# Build the installation package where Debian tools are available:
 bash scripts/linux/build-native-app.sh --deb
 bash scripts/linux/build-native-app.sh --release --deb
 ```
 
-啟動腳本優先使用 `/usr/bin/python3`，避免 PATH 上的 pyenv／virtualenv `python3` 缺少發行版的 GI 繫結；
-需要其他直譯器時以 `WORK_FLEET_PYTHON` 指定，沒有 `/usr/bin/python3` 的環境才使用 PATH 上的 `python3`。
+The launch script prefers `/usr/bin/python3`, so that a pyenv/virtualenv `python3` on the PATH without the
+distribution's GI bindings is not used;
+set `WORK_FLEET_PYTHON` for another interpreter, and only an environment without `/usr/bin/python3` uses the `python3`
+on the PATH.
 
-`.env.example` 的 Linux client ID 使用 Google Desktop app 類型。Google 尚未設定時可離線
-記錄；登入以系統瀏覽器 PKCE／state 及臨時 loopback callback，完成或 110 秒逾時即關閉。
-登入後以 HTTPS userinfo sub 建立帳號分區；系統 Secret Service 保存 access／refresh credential，renderer 不讀憑證。
-Drive 僅固定 appDataFolder FileStore 操作，SHA-256／metadata 校驗與 1 MiB resumable chunks。
+The Linux client ID in `.env.example` is a Google Desktop app type. Without Google configured, notes can still be
+taken offline; sign-in uses the system browser with PKCE/state and a temporary loopback callback, which closes on
+completion or after a 110-second timeout.
+After sign-in the account workspace is created from the HTTPS userinfo sub; the system Secret Service stores the access
+and refresh credentials, and the renderer never reads credentials.
+Drive uses only fixed appDataFolder FileStore operations, with SHA-256/metadata checks and 1 MiB resumable chunks.
 
-資料預設在 `$XDG_DATA_HOME/WorkFleet`（通常 `~/.local/share/WorkFleet`）；可用 `--data PATH`
-指定同樣受保護的新目錄。[ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md)／
-[ADR-048](../../../docs/decisions/048-linux-offline-workspace-and-system-secrets.md)：
-AES-GCM 加密 SQLite payload 與原生 backup metadata；32-byte 主金鑰保存於同目錄的 `storage-key`（0600），
-目錄必須屬於目前使用者且為 0700。本機與 Google 工作空間啟動都不要求 keyring 密碼。
-Google 權杖與保存的自動備份密碼存在已解鎖的持久 default keyring；SQLite 只保存 reference／撤銷狀態，
-vault 不可用時不退回本機保存。帳號切換與清空工作空間保留 Google 憑證；清空只撤銷該 profile 的備份密碼，登出先保存撤銷標記。
-本機便箋是 OS 帳號／檔案權限保護；能讀取整個資料目錄的人仍能解密便箋，遺失 `storage-key` 也會失去資料。
-SQLite revision 與新附件同交易，flock 保持唯一 owner；跨機備份使用 App 可攜 ZIP。
+Data is in `$XDG_DATA_HOME/WorkFleet` by default (usually `~/.local/share/WorkFleet`); `--data PATH` selects a new
+directory with the same protection. [ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md) and
+[ADR-048](../../../docs/decisions/048-linux-offline-workspace-and-system-secrets.md):
+SQLite payloads and native backup metadata are encrypted with AES-GCM; the 32-byte master key is stored in
+`storage-key` (0600) in the same directory,
+which must belong to the current user and be 0700. Starting a local or a Google workspace never asks for a keyring
+password.
+Google tokens and saved automatic-backup passwords are stored in the unlocked persistent default keyring; SQLite keeps
+only references and the revocation state,
+and when the vault is unavailable there is no fallback to local storage. Switching accounts and clearing a workspace keep
+the Google credentials; clearing revokes only that profile's backup password, and sign-out saves a revocation marker
+first.
+Local notes are protected by the OS account and file permissions; anyone who can read the whole data directory can still
+decrypt the notes, and losing `storage-key` loses the data.
+SQLite revisions and new attachments share one transaction, and flock keeps a single owner; backups across machines use
+the app's portable ZIP.
 
-舊版首次開啟需遷移原 keyring 金鑰：libsecret 僅讀取已解鎖項目，驗證所有帳號的既有加密 payload 後，
-才原子保存本機金鑰；不改寫或刪除原 keyring 項目。原 keyring 仍鎖定時不跳密碼視窗，
-顯示一次性遷移說明並保留資料；需在系統金鑰圈管理員解鎖後重新開啟，或由可攜備份還原。
-新資料目錄與完成主金鑰遷移的離線便箋不需要 Secret Service；Google 與保存備份密碼需要 libsecret 及已解鎖的持久 vault。
-開機與背景同步不主動要求金鑰圈密碼。鎖住時顯示同步暫停；按「立即同步」會開啟系統解鎖視窗，
-解鎖成功後接續原帳號同步，不需重新登入。取消／逾時仍可重試，已解鎖時不再提示。
-App 不接收金鑰圈密碼；互動解鎖不占用筆記儲存 worker。缺 Secret Service 等其他問題不會要求無關密碼。
-加密備份只暫停需讀取密碼的工作，保留上次成功備份與待辦，不改存明文。
-舊本機憑證／備份密碼在頁面 ready 後或使用時遷移，確認 vault 保存與讀回後清理目前 DB／WAL 副本；
-失敗時保留副本但不繞過 vault。完成遷移前仍有舊版的較弱保護，不保證清除舊快照／備份。
-資料 schema 升至 2；舊 schema 1 程式降版將拒絕開啟，避免重新把秘密複製到本機。
+The first start after an older version migrates the original keyring key: libsecret reads only unlocked items, and
+the local key is saved atomically only after the existing encrypted payloads of all accounts are verified; the original
+keyring items are never rewritten or deleted. If the original keyring is still locked, no password dialog appears;
+a one-time migration message is shown and the data is kept. Unlock it in the system keyring manager and reopen the app,
+or restore from a portable backup.
+A new data directory and offline notes whose master-key migration is complete need no Secret Service; Google and saved
+backup passwords need libsecret and an unlocked persistent vault.
+Start-up and background sync never ask for the keyring password. When it is locked, sync shows as paused ("Sync
+paused"); "Sync now" opens the system unlock dialog,
+and after a successful unlock the original account's sync continues without signing in again. Cancelling or a timeout
+can be retried, and no prompt appears when the keyring is already unlocked.
+The app never receives the keyring password; the interactive unlock does not occupy the note storage worker. Other
+problems, such as a missing Secret Service, never ask for an unrelated password.
+Encrypted backups pause only the jobs that need to read the password, keep the last successful backup and the pending
+work, and never fall back to plaintext.
+Old local credentials and backup passwords migrate after the page is ready or when used; once the vault save and
+read-back are confirmed, the current DB/WAL copies are cleaned up.
+On failure the copies are kept, but the vault is never bypassed. Until the migration completes, the older version's
+weaker protection still applies, and old snapshots or backups are not guaranteed to be cleared.
+The data schema is raised to 2; downgrading to a schema 1 program refuses to open, so secrets are never copied back to
+local storage.
 
-原生資料夾 chooser 保存授權位置與 device/inode 身分；新備份使用 O_EXCL／NOFOLLOW、
-fsync／讀回確認。自動工作核對 journal、原生建立紀錄、最新已確認備份及保留份數，
-只清理自己建立且仍符合原身分的檔案。檔案系統不支援確認操作時保留檔案並回報失敗。
-可攜密碼備份與 Windows／Apple／Android 共用 PBKDF2-600000／AES-GCM ZIP 格式。
+The native folder chooser saves the authorized location and the device/inode identity; new backups use
+O_EXCL/NOFOLLOW and fsync/read-back confirmation. Automatic jobs check the journal, the native creation record, the
+latest confirmed backup and the number to keep,
+and clean up only files they created that still match the original identity. When the file system cannot support the
+confirmation steps, the file is kept and a failure is reported.
+Portable password-protected backups share the PBKDF2-600000/AES-GCM ZIP format with Windows, Apple and Android.
 
-建置入口產生 source/runtime tar.gz，Debian variant 宣告 system runtime dependencies；
-不攜帶私鑰、token、使用者資料或 Python／GTK 的複製二進位。簽章／repository 發布仍待實際環境。
-Linux 版號記在同目錄的 `VERSION`，DEB、tar.gz 與 bundle 名稱都由它產生；早期版號不另加 `~preview`；
-release 仍需正式公開 app 設定與支援 email 作 maintainer contact。
-共同 `scripts/linux/package-deb.sh` 每次使用新的 staging，安裝 launcher／desktop entry／圖示與 notices。
-Linux 與 Windows 建置入口直接產生 `build/work-fleet_<版號>_all.deb` 與同名 `.sha256`，不需手動搬檔；
-staging 在封裝腳本結束時自動移除；tar.gz 與 DEB 同在 `build/`，source/runtime 副本在 `build/linux/`，每次建置重新產生。
-Windows 可執行 `scripts/windows/Build-LinuxPackage.ps1`，以既有 Docker Linux engine 的固定 Ubuntu
-image 使用 dpkg-deb 封裝；容器只掛載生成的 bundle／output 與 script，不執行 GTK 或安装 App。
-layer-shell 每螢幕共用桌面 BOTTOM、浮層 TOP、桌布 BACKGROUND 三個 WebKit 場景；
-主畫面保有唯一 Workspace，場景只送命令、草稿與 frame。
-操作此組暫時轉浮層，結束按目前常駐偏好還原，不改位置。桌布層始終滑鼠穿透、沒有鍵盤焦點。
-layer-shell 的調整模式是遮罩：最上層場景覆蓋整個螢幕（含面板），調整期間以 EXCLUSIVE 鍵盤模式讓 Esc 立即可用，
-不在調整範圍的最上層便箋畫在遮罩下方；調整開始時有焦點的主視窗最小化，結束後經 xdg-activation 叫回原位，被拒絕時改為重新顯示
-（位置由 compositor 決定）；已最小化或沒有焦點的主視窗不動，結束後也不叫回。X11 同樣使用遮罩（工作區範圍），
-與 Windows、macOS 一致（[ADR-042](../../../docs/decisions/042-adjust-overlay-on-every-desktop-host.md)）。
-`pcmanfm --desktop` 把桌布與圖示畫在同一 surface，背景便箋只能蓋住圖示，所以偵測到它連在同一個 Wayland 顯示時
-不建立桌布層，桌布偏好回退桌面層；只在啟動時偵測，改用 swaybg（`use_swaybg=1`，沒有桌面圖示）後重新開啟 App 才有桌布層。
-X11 保留兩層，要求桌布時明示回退 desktop，原偏好仍保存；群組設定寫明不支援的層級與實際顯示的層。
-GNOME Wayland 經 XWayland 時，桌面圖示（DING）以透明 Wayland 視窗蓋住 X11 desktop-type 視窗並接收點擊，
-最上層也會鎖住其他視窗，所以只讓群組常駐桌布層，桌面／最上層偏好明示回退桌布層；調整模式以遮罩覆蓋工作區、
-主視窗隱藏並在結束後回到原位，遮罩上提供堆疊、攤開、復原與完成。GNOME Xorg 沒有這些限制，提供三層：
-桌面層用一般視窗加 keep below 穩定位於 DING 上方，桌布層在使用者點過桌面前可能顯示在圖示上方；
-見 [ADR-039](../../../docs/decisions/039-gnome-desktop-icons-and-x11-scene-size.md)。
-GNOME Wayland 沒有 layer-shell，桌面便箋要經 XWayland：首次啟動會詢問，之後可在設定的「桌面」頁切換並重新啟動；
-偏好存在資料目錄的 `display-backend.txt`，使用者自己設定的 `GDK_BACKEND` 優先並讓設定停用（[ADR-040](../../../docs/decisions/040-gnome-wayland-xwayland-choice.md)）。
-正規 Xorg 工作階段未實測。
-X11 使用原生窗口層級與輸入區域，場景涵蓋螢幕工作區（視窗管理員會把一般視窗推離工作列），
-視窗不可調整大小，以 viewport size request 決定尺寸；
-Wayland 使用 GtkLayerShell 支援的 compositor。
-不支援 layer-shell 時回報原因，仍可在主畫面記錄。卡片外與不可互動的紙面不攔截桌面輸入。
-輸入區域設於 GTK widget 並 queue draw，避免重新配置後失去穿透；明確設 viewport size request。
-map／configure／frame 後合併完整重畫，避免透明 WebKit 的局部殘留。只有 Raspberry Pi（device-tree model）或
-載入 V3D 驅動時，使用者未指定才預設 `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1`，避開 Pi／V3D 已知的 DMA-BUF 錯亂；
-不改用停用 DMA-BUF renderer，因為那樣滑鼠移過場景就會整片消失，在其他機器也會在移走的便箋原處留下殘影。
-顯示器／工作區／休眠變更先停止場景輸入，保存草稿後由主畫面套用新版面，保留原 WebView。
-X11 快捷鍵使用 Keybinder 3 的 raw 比對（預設的 cooked 比對會讓 Ctrl+Shift 加字母／數字只被攔截而不觸發）；
-labwc 沒有讓程式註冊全域快捷鍵的方式，設定頁按下寫入後，把目前組合寫進 rc.xml 中由 Work Fleet 管理的區塊（先備份、`labwc --reconfigure`），
-keybind 執行 `gapplication action <app id> shortcut` 交給 App（[ADR-041](../../../docs/decisions/041-labwc-shortcuts-through-rc-xml-keybinds.md)）；
-否則使用 XDG GlobalShortcuts portal，需桌面提供相應 backend。
-系統可改配按鍵，設定顯示實際 trigger description。App 焦點／對話框期間釋放全域註冊；
-portal session 重建可能再次出現系統授權介面，實際流程仍待原生環境確認。
-Ayatana／AppIndicator 或 Gtk.StatusIcon 提供系統匣，滑鼠移上去顯示「Work Fleet」；只在確認系統匣可用後隱藏主畫面。
-系統匣退出沿用草稿保存流程；曾連上的系統匣斷線時恢復主畫面，帳號切換則關閉舊桌面工作階段。
-主視窗大小、X11 位置與最大化存在資料目錄的 `window-placement.json`，啟動行為存在 `host-preferences.json`（ADR-043）。
-登入啟動寫入 `$XDG_CONFIG_HOME/autostart/work-fleet.desktop`（DEB 用 `work-fleet`，tar.gz 用 bundle 的啟動檔，原始碼執行不支援），
-只在第一次啟動套用預設與使用者切換時改寫；`--launch-at-login` 啟動時主畫面留在系統匣；登入時面板可能比 App 晚就緒，系統匣在 `config/startup.json` 的 `trayWaitSeconds` 秒內沒有連上才顯示。
-資料目錄的 `host.log` 記錄每次啟動、系統匣可用狀態改變與啟動後秒數，格式與轉存同 Windows（ADR-045），不含便箋內容。
-`updater.py`（ADR-044）只在 DEB 安裝時啟用：查詢 `linux-v<版號>` release、下載並核對後以 pkexec 安裝，成功後保存並重新啟動。
-可用隔離 headless labwc 執行本產品原生場景回歸，命令見 [testing](../../../docs/testing.md)。
-實際結果見 [PROGRESS](../../../PROGRESS.md)；沒有把 headless x64 測試當成 Pi／V3D、
-pcmanfm-pi、libsecret、真 Google 或 Debian 安裝驗收。
+The build entry point produces a source/runtime tar.gz, and the Debian variant declares the system runtime dependencies;
+it carries no private keys, tokens, user data or copied Python/GTK binaries. Signing and repository publication still
+wait for a real environment.
+The Linux version is recorded in `VERSION` in the same directory, and the DEB, tar.gz and bundle names all come from it;
+early versions get no extra `~preview`;
+a release still needs the final public app settings and a support email as the maintainer contact.
+The shared `scripts/linux/package-deb.sh` uses a new staging directory each time and installs the launcher, desktop
+entry, icons and notices.
+The desktop entry passes validation but has both Office and Utility as main categories, so some menus may list it twice
+(2026-10-05).
+The Linux and Windows build entry points produce `build/work-fleet_<version>_all.deb` and a `.sha256` of the same name
+directly, with no manual file moves;
+staging is removed automatically when the packaging script ends; the tar.gz is in `build/` next to the DEB, the
+source/runtime copy is in `build/linux/`, and both are regenerated on every build.
+On Windows, `scripts/windows/Build-LinuxPackage.ps1` packages with dpkg-deb in a pinned Ubuntu image on the existing
+Docker Linux engine; the container mounts only the generated bundle/output and the script, and never runs GTK or
+installs the app.
+With layer-shell each display has three WebKit scenes: the Desktop layer on BOTTOM, the Top layer on TOP and the
+Wallpaper layer on BACKGROUND;
+the main window holds the only workspace, and scenes only send commands, drafts and frames.
+Adjust this group temporarily moves the group to the Top layer, and ending it restores the current persistent
+preference without changing positions. The Wallpaper layer is always click-through and never has keyboard focus.
+On layer-shell, adjust mode is an overlay: a Top layer scene covers the whole display (including panels), and during
+adjustment the EXCLUSIVE keyboard mode makes Esc work immediately.
+Top layer notes outside the adjusted scope are drawn below the overlay. A main window that has focus when adjustment
+starts is minimized and brought back with xdg-activation afterwards; if that is refused, it is shown again
+(the compositor chooses the position). A main window that is already minimized or has no focus is left alone and is not
+brought back afterwards. X11 also uses an overlay (covering the work area),
+consistent with Windows and macOS ([ADR-042](../../../docs/decisions/042-adjust-overlay-on-every-desktop-host.md)).
+`pcmanfm --desktop` draws the wallpaper and the icons on the same surface, so background notes could only cover the
+icons. When it is detected on the same Wayland display,
+no Wallpaper layer is created and the wallpaper preference falls back to the Desktop layer. Detection runs only at
+start-up; after switching to swaybg (`use_swaybg=1`, without desktop icons), reopen the app to get the Wallpaper layer.
+X11 keeps two layers: a wallpaper request explicitly falls back to the desktop, the original preference is still saved,
+and "Group settings" states the unsupported layer and the layer actually shown.
+Under GNOME Wayland through XWayland, the desktop icons (DING) cover X11 desktop-type windows with a transparent Wayland
+window and receive the clicks,
+and the top level also blocks other windows, so groups can stay only on the Wallpaper layer, and Desktop and Top layer
+preferences explicitly fall back to the Wallpaper layer. Adjust mode covers the work area with an overlay,
+the main window is hidden and returns to its place afterwards, and the overlay offers Stack, Spread, Undo and Done.
+GNOME Xorg has none of these limits and offers three layers:
+the Desktop layer uses an ordinary window with keep below to stay above DING reliably, and the Wallpaper layer may show
+above the icons until the user has clicked the desktop;
+see [ADR-039](../../../docs/decisions/039-gnome-desktop-icons-and-x11-scene-size.md).
+GNOME Wayland has no layer-shell, so desktop notes go through XWayland: the first start asks "Use XWayland to show desktop
+notes?", and later "Show desktop notes through XWayland" on the Desktop page of the settings switches it, followed by a
+restart ("Restart now");
+the preference is stored in `display-backend.txt` in the data directory, and a `GDK_BACKEND` set by the user takes
+precedence and disables the setting ([ADR-040](../../../docs/decisions/040-gnome-wayland-xwayland-choice.md)).
+The dialog, the restart and the settings row of the XWayland switch have no automated tests; a non-default `--data` path,
+cancelling the restart with an unsaved draft, and GNOME with XWayland disabled are untested (2026-10-13).
+A regular Xorg session has not been tested on a real machine.
+X11 uses native window levels and input regions, and the scenes cover the display's work area (the window manager pushes
+ordinary windows away from the taskbar);
+the windows cannot be resized, and their size comes from the viewport size request;
+Wayland uses compositors that GtkLayerShell supports.
+Without layer-shell support the reason is reported, and notes can still be taken in the main window. Areas outside cards
+and papers that cannot be operated do not intercept desktop input.
+Input regions are set on the GTK widget with a queued draw, so click-through is not lost after reallocation; the
+viewport size request is set explicitly.
+After map, configure and frame events a full redraw is merged in, avoiding partial leftovers in transparent WebKit. Only
+on a Raspberry Pi (device-tree model) or
+with the V3D driver loaded, and only if the user has not set it, `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` is the default, which
+avoids the known Pi/V3D DMA-BUF corruption.
+The DMA-BUF renderer is not disabled instead, because then a scene disappears entirely when the mouse moves over it, and
+on other machines ghost images stay where a note was moved away.
+Display, workspace and sleep changes stop scene input first; after drafts are saved, the main window applies the new
+layout and keeps the original WebView.
+X11 shortcuts use Keybinder 3 raw matching (the default cooked matching makes Ctrl+Shift with a letter or digit be
+intercepted without triggering);
+labwc offers no way for a program to register global shortcuts, so pressing "Write the labwc settings" ("Write the
+labwc settings again" after a change) on the Shortcuts page of the settings writes the current combination into a block of rc.xml that Work Fleet manages (after a backup, with `labwc --reconfigure`),
+and the keybind runs `gapplication action <app id> shortcut` to hand it to the app
+([ADR-041](../../../docs/decisions/041-labwc-shortcuts-through-rc-xml-keybinds.md));
+otherwise the XDG GlobalShortcuts portal is used, which needs a matching backend from the desktop.
+The system can reassign keys, and the settings show the actual trigger description. Global registrations are released
+while the app has focus or a dialog is open;
+rebuilding the portal session may show the system authorization UI again, and the real flow still awaits confirmation in
+a native environment.
+Ayatana/AppIndicator or Gtk.StatusIcon provides the tray, whose tooltip reads "Work Fleet"; the main window is hidden only
+after the tray is confirmed available.
+Quitting from the tray uses the draft save flow; if a tray that was connected disconnects, the main window is restored,
+and an account switch closes the old desktop session.
+The main window size, X11 position and maximized state are stored in `window-placement.json` in the data directory, and
+the start-up behaviour in `host-preferences.json` (ADR-043).
+Launch at login writes `$XDG_CONFIG_HOME/autostart/work-fleet.desktop` (`work-fleet` for the DEB, the bundle's launcher
+for the tar.gz; running from source is not supported),
+rewritten only when the default is applied at the first start and when the user changes it. With `--launch-at-login` the
+main window stays in the tray; because the panel can become ready later than the app at login, the main window is shown
+only if the tray has not connected within `trayWaitSeconds` seconds from `config/startup.json`.
+`host.log` in the data directory records each start, each change in tray availability and the seconds since start, with
+the same format and rotation as Windows (ADR-045), and no note content.
+`updater.py` (ADR-044) is enabled only for DEB installs: it checks the `linux-v<version>` releases, downloads and verifies
+the package, installs it with pkexec, then saves and restarts on success.
+Native scene regressions for this product can run in an isolated headless labwc; the commands are in
+[testing](../../../docs/testing.md).
+Current status is in [PROGRESS](../../../PROGRESS.md), and verification evidence is in [testing](../../../docs/testing.md)
+and the git history; headless x64 tests are never taken as acceptance of the Pi/V3D,
+pcmanfm-pi, libsecret, real Google or a Debian installation.
 
-## 桌面環境支援現況
+## Localization
 
-更新：2026-10-15。實機驗證過 Ubuntu 22.04 GNOME Wayland（經 XWayland）完整操作，以及同一台 x86 VM 以 xrdp 登入的
-GNOME Xorg 的視窗分層與全域快捷鍵（各層互動尚未測）；都是單螢幕。另有隔離 headless labwc 自動測試，不是實際桌面驗收。
-以下依程式行為整理，未實測者不代表已支援。
+- The Settings > General > Display language choice (`auto`, `en` or `zh-TW`) is the `language` field of
+  `host-preferences.json` in the data directory, next to the start-up settings; it is never part of a profile, a backup
+  or Google data. The host resolves it before any window opens, so the tray of a sign-in start is already in that
+  language; `auto` reads the session languages from `LANGUAGE`, then `LC_ALL`, `LC_MESSAGES` and `LANG`.
+- The host's own text (tray, pickers, dialogs and the reasons it returns for the page) is in `text.py`, with an
+  `i18n:en` and an `i18n:zh-TW` block.
+- `host.language.set` saves the preference, re-resolves the locale, relabels the tray menu in place and replies with
+  `{ preference, system }`; reasons and update text follow when they are next read.
+- The autostart entry carries an English `Comment=` and a localized `Comment[zh_TW]=`, so the system's startup list
+  shows the description in its own language. The rules are in [Internationalization](../../../docs/i18n.md).
 
-所有桌面共同前提：
+## Desktop environment support
 
-- 新工作空間與完成主金鑰遷移的離線便箋不需要金鑰圈，本機金鑰以 0600／0700 權限保存。
-  Google 權杖／保存備份密碼及舊資料首次遷移需要 libsecret／已解鎖 Secret Service；鎖住只暫停相關功能。
-- 只提供 DEB（Debian／Ubuntu 系）。Fedora、Arch、openSUSE 需用 tar.gz 並自行安裝 Python 3.10+、GTK 3、
-  WebKitGTK 4.1、PyGObject 與 cryptography；沒有 WebKitGTK 4.1 的發行版（如 Ubuntu 20.04、Debian 11）無法執行。
-- 系統匣需要 AppIndicator／StatusNotifier 或舊式系統匣；沒有時關閉主視窗即結束 App。Ubuntu 預設提供，原生 GNOME 沒有。
-- 全域快捷鍵：X11 工作階段使用 Keybinder，XWayland 下收不到；labwc 由設定頁把快捷鍵寫進 rc.xml 的 keybind（ADR-041）；
-  其他 Wayland 需要 GlobalShortcuts portal，GNOME 42 與 wlroots portal（sway、wayfire）沒有。
+Updated: 2026-10-17. Verified on real machines: full use of Ubuntu 22.04 GNOME Wayland (through XWayland), and on the
+same x86 VM, window layering and global shortcuts of GNOME Xorg signed in over xrdp (interaction with each layer not yet
+tested); both with a single display. A Raspberry Pi 5 with labwc was also checked on the device (see below). There are
+also isolated headless labwc automated tests, which are not a real desktop acceptance.
+The following describes the program's behaviour; anything not tested on a real machine is not thereby supported.
 
-各桌面：
+Common to all desktops:
 
-- GNOME Wayland：原生 Wayland 沒有桌面便箋，首次啟動或設定中選擇 XWayland 後才有。
-  經 XWayland 時沒有常駐桌面層與最上層，便箋只在桌布層顯示且不可互動；調整模式是遮罩，期間其他程式無法點選。目前唯一完整實測的環境。
-- GNOME Xorg：桌布、桌面、最上層三層，桌面層在桌面圖示上方可選字，最上層可取得焦點，調整模式是遮罩（未在 Xorg 實測）；
-  桌布層在使用者點過桌面前可能顯示在圖示上方。只在 xrdp 遠端工作階段驗證視窗分層，以及主視窗在系統匣時全域快捷鍵實際觸發；各層互動與本機 Xorg 登入未實測。
-- KDE Plasma Wayland：KWin 支援 layer-shell，走三層路徑；Plasma 桌面也在 layer-shell 背景層，
-  桌布層便箋可能被桌面蓋住或順序不定。未實測。
-- X11 桌面（KDE X11、Xfce、Cinnamon、MATE、LXQt、LXDE）：只有桌面層與最上層，桌布偏好回退桌面層。
-  檔案管理員以 desktop-type 視窗畫圖示，桌面層便箋可能被蓋住而無法點選，與 GNOME 的 DING 類似。未實測。
-- Raspberry Pi OS（labwc、wayfire）：原定主要目標。預設的 pcmanfm 桌面把桌布與圖示畫在同一 surface，
-  只有桌面層與最上層，桌布偏好顯示在桌面層；改用 swaybg（沒有桌面圖示）時三層。
-  調整模式是遮罩，期間面板與其他程式無法點選，所有 layer-shell 桌面相同。
-  Pi 5 labwc 實機確認調整遮罩移動滑鼠後仍完整；wayfire 與多螢幕尚未驗收。
-- sway、Hyprland 等其他 layer-shell compositor：三層可用但通常沒有桌面圖示；sway 沒有全域快捷鍵 portal，
-  系統匣依面板而定。未實測。
-- 不支援 layer-shell 的其他 Wayland 桌面：沒有桌面便箋；XWayland 選項只在 GNOME 提供，其他桌面需自行設定 `GDK_BACKEND=x11`。
+- New workspaces and offline notes whose master-key migration is complete need no keyring; the local key is stored with
+  0600/0700 permissions.
+  Google tokens, saved backup passwords and the first migration of old data need libsecret and an unlocked Secret
+  Service; a locked one pauses only the related features.
+- Only a DEB is provided (Debian/Ubuntu family). Fedora, Arch and openSUSE need the tar.gz and their own installation of
+  Python 3.10+, GTK 3,
+  WebKitGTK 4.1, PyGObject and cryptography; distributions without WebKitGTK 4.1 (such as Ubuntu 20.04 and Debian 11)
+  cannot run it.
+- The tray needs AppIndicator/StatusNotifier or a legacy system tray; without one, closing the main window quits the app.
+  Ubuntu provides one by default; plain GNOME does not. The GNOME AppIndicator extension logged `unable to update icon`
+  once on Ubuntu 22.04 (2026-10-13).
+- Global shortcuts: X11 sessions use Keybinder, which receives nothing under XWayland; on labwc the settings page writes
+  the shortcuts into rc.xml keybinds (ADR-041);
+  other Wayland desktops need the GlobalShortcuts portal, which GNOME 42 and the wlroots portal (sway, wayfire) lack.
+- Attachment thumbnails from installed thumbnailers and opening with the default app have not been checked on a real
+  Linux desktop, and text fitting with "…" has not been checked in WebKitGTK (as of 2026-10-17).
 
-所有 Linux 桌面都尚未驗證：多螢幕、HiDPI／分數縮放（XWayland 下會較模糊）、WebKitGTK 中的中文輸入法，
-以及真實 Google 登入與 Drive 同步（Google client 尚未建立）。
+Per desktop:
 
+- GNOME Wayland: native Wayland has no desktop notes; they appear only after choosing XWayland at the first start or in
+  the settings.
+  Through XWayland there is no persistent Desktop layer or Top layer, so notes show only on the Wallpaper layer and cannot
+  be operated; adjust mode is an overlay, during which other programs cannot be clicked. This is currently the only
+  environment fully tested on a real machine.
+- GNOME Xorg: three layers, Wallpaper, Desktop and Top; the Desktop layer is above the desktop icons and allows text
+  selection, the Top layer can take focus, and adjust mode is an overlay (not tested on Xorg);
+  the Wallpaper layer may show above the icons until the user has clicked the desktop. Only window layering, and global
+  shortcuts actually triggering while the main window is in the tray, were verified, in an xrdp remote session;
+  interaction with each layer and a local Xorg sign-in are not tested.
+  Over xrdp, WebKit logs `libEGL warning: DRI2: failed to authenticate` at start (2026-10-13).
+- KDE Plasma Wayland: KWin supports layer-shell, so the three-layer path applies; the Plasma desktop is also on the
+  layer-shell background layer,
+  so Wallpaper layer notes may be covered by the desktop or have an undefined order. Not tested.
+- X11 desktops (KDE X11, Xfce, Cinnamon, MATE, LXQt, LXDE): only the Desktop layer and the Top layer; the wallpaper
+  preference falls back to the Desktop layer.
+  The file manager draws the icons with a desktop-type window, so Desktop layer notes may be covered and not clickable,
+  similar to GNOME's DING. Not tested; the adjust overlay has not been checked on a real machine either (as of
+  2026-10-14).
+- Raspberry Pi OS (labwc, wayfire): the originally intended main target. The default pcmanfm desktop draws the wallpaper
+  and the icons on the same surface,
+  so there are only the Desktop layer and the Top layer, and the wallpaper preference shows on the Desktop layer; with
+  swaybg (no desktop icons) there are three layers.
+  Papers that prefer the Wallpaper layer show on the Desktop layer and sit above the desktop shortcuts, as designed; the
+  group-settings text for unsupported layers was not checked in a screenshot on the device (2026-10-14).
+  Adjust mode is an overlay, during which panels and other programs cannot be clicked, as on all layer-shell desktops.
+  A Pi 5 with labwc confirmed on the device that the adjust overlay stays complete after moving the mouse; wayfire and
+  multiple displays are not yet accepted.
+  `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` is confirmed on the device; full DMA-BUF was not re-checked there (2026-10-14).
+  XDG autostart works under labwc, and the in-app DEB update to 0.2.7 worked through pkexec (observed 2026-10-17).
+  The real Secret Service unlock dialog, password entry and a reboot with the manual-sync unlock are not yet verified (as
+  of 2026-10-17).
+- sway, Hyprland and other layer-shell compositors: the three layers work, but there are usually no desktop icons; sway
+  has no global shortcuts portal,
+  and the tray depends on the panel. Not tested.
+- Other Wayland desktops without layer-shell support: no desktop notes; the XWayland option is offered only on GNOME,
+  and other desktops must set `GDK_BACKEND=x11` themselves.
+
+Not yet verified on any Linux desktop: multiple displays, HiDPI/fractional scaling (blurrier under XWayland), and Chinese
+input methods in WebKitGTK.
+Real Google sign-in and Drive sync: the Desktop client shared with Windows has existed since 2026-10-06, and user reports
+from 2026-10-15 to 2026-10-17 show real sign-in and sync in use on the Pi and other Linux installs. No structured
+cross-device acceptance is recorded.

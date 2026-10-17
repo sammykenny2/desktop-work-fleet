@@ -1,170 +1,203 @@
-# 群組浮動、拖曳轉組與區域提示：平台能力查核
+# Group floating, drag to change group and region hints: platform capability review
 
-- 日期／外部文件查閱日：2026-10-04。
-- 範圍：Windows、macOS，以及已有報告的 Raspberry Pi OS＋labwc／Wayland。
-- 性質：公開能力＋來源程式／既有報告查核；本輪未執行新桌面互動或安裝任何依賴。
-- 需求入口：[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
-- 呈現提案：[ADR-007](../decisions/007-desktop-scene-and-platform-host.md)。
+- Date/external documents reviewed: 2026-10-04.
+- Scope: Windows, macOS, and Raspberry Pi OS + labwc/Wayland, for which reports already exist.
+- Nature: review of public capabilities + source code/existing reports; this round ran no new desktop interaction and
+  installed no dependencies.
+- Requirements entry point: [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md).
+- Presentation proposal: [ADR-007](../decisions/007-desktop-scene-and-platform-host.md).
 
-## 1. 結論及證據等級
+## 1. Conclusions and evidence levels
 
-拖曳卡片、判定群組區域、畫出微亮、放下後更新歸屬，可以作為上述三個目標環境的共同語意。
-這是有 API／協定與既有實作支撐的可行性判斷，不是新功能已通過三平台驗收。
-Linux 需按 compositor 與功能能力說明支援，不以「有 Wayland」作充分條件。
+Dragging a card, determining the group region, drawing the highlight and updating membership on drop can be shared
+semantics for the three target environments above.
+This is a feasibility judgment backed by APIs/protocols and existing implementations, not acceptance of the new
+feature on three platforms.
+Linux support must be stated per compositor and feature capability; "has Wayland" is not a sufficient condition.
 
-| 等級 | 本文用法 |
+| Level | Use in this document |
 |---|---|
-| 公開能力 | 官方文件／協定提供的介面或限制 |
-| 既有程式 | 目前 checkout 可讀到的實作，不代表每個分支已測 |
-| 外部報告 | 輔助參考專案已有的實測記錄；本 repo 未親自重跑，不移作本產品通過 |
-| 設計推論 | 依能力提出的 renderer／host 方案，需在實作與封裝後驗收 |
+| Public capability | Interfaces or limits provided by official documentation/protocols |
+| Existing code | Implementations readable in the current checkout; does not mean every branch was tested |
+| External report | Test records already in the auxiliary reference project; this repo did not rerun them and does not count them as this product passing |
+| Design inference | A renderer/host approach proposed from the capabilities; needs acceptance after implementation and packaging |
 
-## 2. 平台矩陣
+## 2. Platform matrix
 
-| 功能 | Windows | macOS | 已記錄的 labwc／Wayland |
+| Feature | Windows | macOS | Recorded labwc/Wayland |
 |---|---|---|---|
-| App 自己追蹤拖曳 | Win32 capture／事件 | AppKit mouseDown/Dragged/Up | surface-local pointer；既有報告有拖曳實測 |
-| 自繪目標微亮 | App 繪圖 | App 繪圖 | App buffer／renderer 繪圖 |
-| 暫時浮到一般 App 上方 | 原生浮動層可用；最終產品需驗收 | 公開 window level 路徑；新群組浮動仍需驗收 | 報告的 Top layer 在普通視窗之上 |
-| 正常狀態滑鼠穿透 | 需 host 正確處理窗口輸入 | 公開 ignoresMouseEvents 可用 | input region；報告已有切層後修正 |
-| 任意卡片相對疊序 | 可原生或 renderer 處理 | 可原生或 renderer 處理 | 同層獨立 surface 排序未定義，優先由 renderer 控制 |
-| 全域群組快捷鍵 | 可配置／檢查註冊結果 | 需公開快捷鍵方案與封裝驗證 | compositor 綁定／支援的 portal；不能照用 X11 抓鍵 |
-| 完整新轉組手勢 | 未實作／未驗收 | 未實作／未驗收 | 未實作／未驗收 |
-| 跨螢幕與混合縮放 | 需獨立測試 | 需獨立測試 | 外部報告未做雙螢幕 Pi 驗證 |
+| App tracks its own drags | Win32 capture/events | AppKit mouseDown/Dragged/Up | surface-local pointer; existing report has drag tests |
+| Self-drawn target highlight | App drawing | App drawing | App buffer/renderer drawing |
+| Temporarily float above ordinary apps | Native floating layer available; final product needs acceptance | Public window level path; new group floating still needs acceptance | Reported Top layer is above ordinary windows |
+| Mouse pass-through in the normal state | Host must handle window input correctly | Public ignoresMouseEvents available | input region; report has a fix after layer switching |
+| Arbitrary relative card stacking | Native or renderer can handle | Native or renderer can handle | Order of independent surfaces in one layer is undefined; prefer renderer control |
+| Global group shortcuts | Configurable/registration result can be checked | Needs a public shortcut approach and packaging verification | Compositor bindings/supported portal; X11 key grabs cannot be reused |
+| Complete new group-change gesture | Not implemented/not accepted | Not implemented/not accepted | Not implemented/not accepted |
+| Across displays and mixed scaling | Needs separate tests | Needs separate tests | External report did not verify a dual-display Pi |
 
-微亮是色塊／框線與文字，不需要原生磨砂或背景截圖。
-參考應用的既有拖曳不等於已具備九群組、formation、Shift 轉組及 transactional undo。
+The highlight is color blocks/outlines and text; it needs no native frosted effect or background capture.
+The reference app's existing drag does not mean nine groups, formation, Shift group changes and transactional undo
+already exist.
 
 ## 3. Windows
 
-Microsoft 記錄了 mouse capture：按下後持續追蹤，超出視窗仍可收到拖曳事件，放開釋放。
-Capture 有前景視窗與單一捕捉者的限制，不能假設背景穿透視窗可同時任意接收全部事件。
-群組操作要先進入合法互動狀態；capture 遺失也必須有取消路徑。
-來源：[Mouse movement](https://learn.microsoft.com/en-us/windows/win32/learnwin32/mouse-movement)、
-[SetCapture](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setcapture)。
+Microsoft documents mouse capture: after a press, tracking continues, drag events still arrive outside the window,
+and release ends it.
+Capture is limited to the foreground window and a single capturer; a background pass-through window cannot be assumed
+to receive every event at will.
+A group operation must first enter a valid interaction state; lost capture must also have a cancel path.
+Sources: [Mouse movement](https://learn.microsoft.com/en-us/windows/win32/learnwin32/mouse-movement),
+[SetCapture](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setcapture).
 
-SetWindowPos 可調整原生視窗順序／topmost；它是暫時浮動的能力之一，
-不是桌面嵌入、圖示上下層及封裝的全部保證。
-來源：[SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos)。
+SetWindowPos can change native window order/topmost; it is one of the capabilities for temporary floating,
+not a full guarantee of desktop embedding, ordering relative to icons, or packaging.
+Source: [SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos).
 
-設計推論：drag controller 可以把事件轉成裝置邏輯座標，用自己的區域表判定目標，
-並讓 renderer 顯示提示。全域快捷鍵與拖曳中的 Shift 是不同事件路徑，不能混用。
-Windows 桌面附著、style 被 framework 重寫、DPI 與焦點等舊經驗只作查核方向；
-不能因 Win32 有 SetWindowPos 就宣稱所有桌面層或 Store 封裝已完成。
+Design inference: a drag controller can convert events to device logical coordinates, decide the target from its own
+region table, and let the renderer show the hint. Global shortcuts and Shift during a drag are different event paths
+and must not be mixed.
+Older experience with Windows desktop attachment, styles rewritten by the framework, DPI and focus only gives
+directions to check; Win32 having SetWindowPos is no ground to claim every desktop layer or Store packaging is done.
 
 ## 4. macOS
 
-AppKit 公開的 mouseDown、mouseDragged、mouseUp 與座標轉換可處理 App 自己的拖曳；
-也可在事件中判斷是否進入某區域並要求重畫。
-來源：[Handling Mouse Events](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingMouseEvents/HandlingMouseEvents.html)。
+AppKit's public mouseDown, mouseDragged, mouseUp and coordinate conversion can handle the app's own drags;
+the events can also tell whether a region was entered and request a redraw.
+Source: [Handling Mouse Events](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/EventOverview/HandlingMouseEvents/HandlingMouseEvents.html).
 
-NSWindow.ignoresMouseEvents 是公開的整窗滑鼠穿透屬性。
-這不等於已證明任意整屏透明視窗的部分區域能穿透；局部命中策略需由所選 host 驗證。
-來源：[ignoresMouseEvents](https://developer.apple.com/documentation/appkit/nswindow/ignoresmouseevents)。
+NSWindow.ignoresMouseEvents is a public whole-window mouse pass-through property.
+That does not prove that parts of an arbitrary full-screen transparent window can pass clicks through; the partial
+hit-testing strategy must be verified by the chosen host.
+Source: [ignoresMouseEvents](https://developer.apple.com/documentation/appkit/nswindow/ignoresmouseevents).
 
-本 repo 的 [0.1.0 報告](../validation/2026-10-03-validation-report.md) 有公開 AppKit、Sandbox、
-實際資料更新與鎖定／解鎖旗標的證據；報告同時明列真實桌面手勢與顯示器等未測範圍。
-不能因某個歷史 probe 通過就推導新互動、Google OAuth 或 App Store 核准也通過。
+This repo's [0.1.0 report](../validation/2026-10-03-validation-report.md) has evidence for public AppKit, Sandbox,
+real data updates and the locked/unlocked flag; the report also lists untested scope such as real desktop gestures and
+displays.
+A historical probe passing does not imply that new interactions, Google OAuth or App Store approval pass too.
 
-設計推論：此次轉組＋微亮不需新增 private API、螢幕錄製或監看其他 App 的內容。
-正式 keyboard shortcut／焦點／視窗層策略仍需對所選公開 API、Sandbox 與包裝逐一確認。
-不得為取得快捷鍵方便而自行增添 Accessibility 等廣泛權限。
+Design inference: this group change + highlight needs no new private API, screen recording or watching other apps'
+content.
+The real keyboard shortcut/focus/window layer strategy must still be confirmed item by item against the chosen public
+APIs, Sandbox and packaging.
+Broad permissions such as Accessibility must not be added just to make shortcuts convenient.
 
-## 5. labwc／Wayland：具體經驗與限制
+## 5. labwc/Wayland: concrete experience and limits
 
-### 5.1 既有報告的環境
+### 5.1 Environment of the existing reports
 
-外部報告所載為 Raspberry Pi 5、Raspberry Pi OS（Debian 13 trixie、arm64）、
-labwc 0.20.2／wlroots 0.20、pcmanfm-pi、WebKitGTK 2.54、gtk-layer-shell 0.9.0。
-資料來自本輪已讀的輔助參考 checkout；其位置不寫死在本 repo，取得方式見第 8 節。
+The external reports describe a Raspberry Pi 5, Raspberry Pi OS (Debian 13 trixie, arm64),
+labwc 0.20.2/wlroots 0.20, pcmanfm-pi, WebKitGTK 2.54 and gtk-layer-shell 0.9.0.
+The data comes from the auxiliary reference checkout read in this round; its location is not hardcoded in this repo,
+and how to obtain it is in section 8.
 
-報告記錄：
+The reports record:
 
-- Bottom layer 在圖示上、一般視窗下；關閉操作後可點穿到桌面。
-- Top layer 可在終端上方拖曳、進入編輯並保存。
-- 邏輯位置需自行記錄；不能以 ordinary toplevel 的 outer_position 取得真實座標。
-- WebKit 的 screenX/screenY 在該環境為 surface-relative，拖曳需固定抓取點與處理 configure 時序。
-- 輸入區域直接設在較低層窗口時，可能被 GTK 重新配置覆蓋；需要可維持的 widget/input-region 路徑及重畫。
-- 存在透明重繪／GPU buffer 問題，修正後記錄有快慢拖曳結果；新 renderer 仍需自己的證據。
-- 壁紙和圖示在同一 surface 時，無法插到圖示下方；Wallpaper 能力不能冒報。
-- 多顯示器未在雙屏 Pi 實測。
+- The Bottom layer is above the icons and below ordinary windows; after ending an operation, clicks pass through to
+  the desktop.
+- On the Top layer, dragging above a terminal, entering editing and saving work.
+- The logical position must be tracked by the app; the real coordinates cannot be obtained from an ordinary
+  toplevel's outer_position.
+- In that environment WebKit's screenX/screenY are surface-relative; dragging needs a fixed grab point and handling of
+  configure timing.
+- An input region set directly on a lower-level window can be overwritten when GTK reconfigures; a durable
+  widget/input-region path and redraws are needed.
+- There are transparent redraw/GPU buffer problems; after the fixes, fast and slow drag results are recorded; a new
+  renderer still needs its own evidence.
+- When the wallpaper and icons are on the same surface, nothing can be inserted below the icons; a Wallpaper
+  capability must not be falsely reported.
+- Multiple displays were not tested on a dual-display Pi.
 
-這些是外部基礎行為證據，不複製程式碼，也不把其成功歸入本 repo 的驗收。
+This is external evidence of basic behavior; no code is copied, and its successes do not count as this repo's
+acceptance.
 
-### 5.2 同層 surface 次序沒有保證
+### 5.2 Surface order within a layer is not guaranteed
 
-wlr-layer-shell 提供 background、bottom、top、overlay 等層，
-但同一層內多個 surface 的相對順序明列為未定義。
-因此獨立 native window 的建立順序、hide/show 或重新 map 都不能作穩定輪播契約。
-來源：[協定原文](https://github.com/swaywm/sway/blob/master/protocols/wlr-layer-shell-unstable-v1.xml)。
+wlr-layer-shell provides layers such as background, bottom, top and overlay,
+but the relative order of several surfaces within one layer is explicitly undefined.
+So the creation order of independent native windows, hide/show or re-mapping cannot serve as a stable cycling
+contract.
+Source: [protocol text](https://github.com/swaywm/sway/blob/master/protocols/wlr-layer-shell-unstable-v1.xml).
 
-設計推論：尤其在 Wayland，同一輸出、同一系統層的卡片應由共同繪製表面或可明確排序的
-等效子表面組織控制；卡片 z-order 成為 app 的資料與繪製順序，而非猜 OS 的 surface 次序。
-活動組可轉到浮動呈現層，其餘組留原層；呈現移動不改卡片身份與邏輯 geometry。
+Design inference: especially on Wayland, the cards on one output and one system layer should be controlled by a shared
+drawing surface or equivalent subsurfaces with an explicit order; card z-order becomes the app's data and drawing
+order instead of a guess at the OS surface order.
+The active group can move to a floating presentation layer while the other groups stay on their layer; moving the
+presentation does not change card identity or logical geometry.
 
-### 5.3 命中與輸入
+### 5.3 Hit-testing and input
 
-Wayland 的 surface-local 座標與 input region 足以支持自己的目標判定。
-Input region 外的事件會交給下一個 surface；這支持不讓透明提示層擋住整個桌面的設計。
-應將高亮繪製與可互動命中範圍分開，不能把所有可見色塊都設成截取事件。
-來源：[Wayland protocol：set_input_region](https://wayland.freedesktop.org/docs/html/apa.html)。
+Wayland's surface-local coordinates and input regions are enough for our own target detection.
+Events outside the input region go to the next surface; this supports a design in which a transparent hint layer does
+not block the whole desktop.
+Highlight drawing should be kept apart from the interactive hit area; not every visible color block may be set to
+capture events.
+Source: [Wayland protocol: set_input_region](https://wayland.freedesktop.org/docs/html/apa.html).
 
-同時，GTK layer-shell 提供鍵盤互動設定；只在適當操作／編輯時取得需要的鍵盤能力，
-不能在背景常駐時以 exclusive keyboard 搶走其他 App 的輸入。
-來源：[GTK Layer Shell API](https://wmww.github.io/gtk-layer-shell/)。
+GTK layer-shell also provides keyboard interactivity settings; take the needed keyboard capability only during
+suitable operations/editing, and never take other apps' input with an exclusive keyboard while resident in the
+background.
+Source: [GTK Layer Shell API](https://wmww.github.io/gtk-layer-shell/).
 
-### 5.4 全域快捷鍵不是「註冊成功即可」
+### 5.4 Global shortcuts are not "registered, so done"
 
-外部報告的 X11 grab 在 Wayland App 聚焦時收不到按鍵，即使註冊呼叫成功。
-該環境採 labwc 設定綁定程式命令的方式；可作新產品的可達替代入口，命令名稱需獨立設計。
-若 runtime／桌面提供 GlobalShortcuts portal，可用 session/actions 與 user configuration。
-不宣稱每個 compositor 都有相同 portal backend，也不擅自改使用者桌面設定。
-來源：[Global Shortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html)。
+In the external report, an X11 grab received no keys while a Wayland app had focus, even though the registration call
+succeeded.
+That environment binds program commands in the labwc configuration; this can be a reachable alternative entry for the
+new product, with command names designed independently.
+If the runtime/desktop provides the GlobalShortcuts portal, its session/actions and user configuration can be used.
+We do not claim every compositor has the same portal backend, and we do not change the user's desktop settings on our
+own.
+Source: [Global Shortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html).
 
-### 5.5 Linux 支援範圍
+### 5.5 Linux support scope
 
-GTK layer-shell 官方列出支援的 Wayland compositor 類型，並明列 GNOME-on-Wayland 與 X11
-不使用這條 library 路徑。其他環境需自己的 backend 或清楚的普通視窗替代，
-不能把 labwc 的結果標為「所有 Linux 原生桌面便箋皆支援」。
-來源：[官方支援範圍](https://github.com/wmww/gtk-layer-shell#supported-desktops)。
+GTK layer-shell officially lists the kinds of Wayland compositors it supports, and states that GNOME-on-Wayland and
+X11 do not use this library path. Other environments need their own backend or a clear ordinary-window alternative;
+the labwc results must not be labeled "native desktop notes supported on all Linux".
+Source: [official support scope](https://github.com/wmww/gtk-layer-shell#supported-desktops).
 
-同一來源列出的 library 為 LGPL-3.0-or-later；這只是候選 Linux 元件的授權資訊，
-不是整個專案必須改成該授權，也不是已完成採用審核。
-採用前需確認版本、實際連結／散布方式、notice 與 source obligations；
-不能因參考應用或本 repo 標 MIT 就略過轉遞依賴盤點。
+The same source lists the library as LGPL-3.0-or-later; this is only license information for a candidate Linux
+component, not a requirement that the whole project change to that license, and not a completed adoption review.
+Before adoption, confirm the version, the actual linking/distribution method, notices and source obligations;
+the reference app or this repo being labeled MIT is no reason to skip the inventory of transitive dependencies.
 
-## 6. 平台 host 的最低責任
+## 6. Minimum responsibilities of a platform host
 
-| 責任 | 可驗收結果 |
+| Responsibility | Acceptable result |
 |---|---|
-| Coordinates | 轉換到統一邏輯座標，清楚區分 screen／surface／client／pixel／point |
-| Drag tracking | 正常結束、cancel、capture lost 都可清理；一次放下最多一個命令 |
-| Layer policy | 群組操作暫時浮起；退出依持久化層級恢復，不持久化暫時 topmost |
-| Input regions | 不操作卡與空白桌面仍可點穿；提示不攔住拖曳事件 |
-| Focus | 開始編輯可輸入；背景同步不拿焦點；退出不留下幽靈 keyboard grab |
-| Shortcuts | 對實際 backend 回報可用、衝突、不支援；有替代入口 |
-| Displays | 輸出選擇、縮放、斷線恢復有記錄；未測就明示未測 |
-| Capability report | 具體 backend／版本／功能，不以 OS 名稱填滿 true |
+| Coordinates | Converts to unified logical coordinates, clearly distinguishing screen/surface/client/pixel/point |
+| Drag tracking | Normal end, cancel and capture lost all clean up; at most one command per drop |
+| Layer policy | Group operations float temporarily; on exit, restore by the persisted layer; never persist the temporary topmost |
+| Input regions | Cards not being operated and the empty desktop still pass clicks through; hints do not intercept drag events |
+| Focus | Starting to edit accepts input; background sync takes no focus; exit leaves no ghost keyboard grab |
+| Shortcuts | Reports available, conflicting or unsupported for the actual backend; has an alternative entry |
+| Displays | Output choice, scaling and recovery from disconnection are recorded; untested is stated as untested |
+| Capability report | Concrete backend/version/features; never fills in true from the OS name |
 
-## 7. 接下來的驗收不是重做舊 probe
+## 7. The next acceptance is not a rerun of old probes
 
-先凍結共用語意與候選 renderer/host 契約，再做相同卡片 fixture 的正式垂直切片。
-三平台逐項證明：浮起指定組 → 選卡／輪播 → 拖曳 → 微亮 → 轉組 → 編輯 → 退出穿透。
-其中矩陣、期待結果與故障情境已在 SPEC-003 的 C01–C48 定義。
-普通 browser demo 可以證明手勢與排序模型，不證明 native 桌面分層／穿透或商店合規。
-用現有 Mac 公開 API 經驗，避免另外重啟先前暫停的探索 goal。
+First freeze the shared semantics and the candidate renderer/host contract, then build a real vertical slice with the
+same card fixture.
+Prove on the three platforms, step by step: float the chosen group → select a card/cycle → drag → highlight → change
+group → edit → exit to pass-through.
+The matrix, expected results and failure scenarios for this are already defined in SPEC-003's C01–C48.
+An ordinary browser demo can prove the gesture and ordering model; it does not prove native desktop
+layering/pass-through or store compliance.
+Use the existing experience with public Mac APIs, and avoid restarting the previously paused exploratory goal.
 
-## 8. 輔助來源取得與記錄
+## 8. Obtaining and recording the auxiliary source
 
-本文件不寫死外部參考 repo 名稱、remote URL 或 checkout 路徑。
-需要原始實作時，請詢問維護者「輔助桌面互動參考專案目前在哪裡」。
-取得後先讀其授權及索引，再針對以下主題查核：
+This document does not hardcode the external reference repo's name, remote URL or checkout path.
+When the original implementation is needed, ask the maintainer "where is the auxiliary desktop-interaction reference
+project now?"
+After obtaining it, read its license and index first, then review these topics:
 
-- 2026-10-02／03 的 Linux layer-shell、指標座標、重畫、input region 與快捷鍵記錄；
-- 顯示／全局操作／唯讀選字／逐卡分層的覆蓋優先序；
-- Windows 原生附著、樣式重設與 DPI 問題；
-- Mac 層級／焦點時序與既有 private API 依賴邊界。
+- the 2026-10-02/03 Linux records on layer-shell, pointer coordinates, redraws, input regions and shortcuts;
+- the override precedence of display/global operation/read-only text selection/per-card layering;
+- Windows native attachment, style resets and DPI problems;
+- Mac layer/focus timing and the boundaries of the existing private API dependencies.
 
-只記錄本產品需要的結論與可重現情境；不導入其 source tree、UI、資料格式或測試為自己的實作。
-若有任何實際第三方程式碼採用，另行記錄真實 provenance／license，
-中性參考名稱不能用來省略應保留的法律聲明。
+Record only the conclusions and reproducible scenarios this product needs; do not import its source tree, UI, data
+format or tests as our implementation.
+If any actual third-party code is adopted, record its real provenance/license separately;
+a neutral reference name cannot be used to omit legal notices that must be kept.

@@ -1,47 +1,54 @@
-# 驗證版 API
+# Validation Version API
 
-更新：2026-10-03。實作：`src/server/work_fleet.py`，schema 1；所有寫入以 SQLite transaction 提交。
+Updated: 2026-10-03. Implementation: `src/server/work_fleet.py`, schema 1; every write is committed in an SQLite
+transaction.
 
-同一 origin 提供 HTML 與 JSON。JSON API 使用 `Authorization: Bearer <device-token>`；
-只有 `POST /api/pair` 不需 token。每次請求重新檢查裝置角色與撤銷狀態。
-回應及靜態頁面 `Cache-Control: no-store`；service worker 只保存無憑證的 editor shell。
+The same origin serves HTML and JSON. The JSON API uses `Authorization: Bearer <device-token>`;
+only `POST /api/pair` needs no token. Every request checks the device role and revocation status again.
+Responses and static pages use `Cache-Control: no-store`; the service worker caches only the credential-free editor
+shell.
 
-| Method/path | 行為 |
+| Method/path | Behaviour |
 |---|---|
-| GET /api/snapshot | epoch、role、device、全部 notes（含 tombstone） |
-| POST /api/operations | create／update／delete／restore；editor/admin |
-| POST /api/pair | `{code,name}` 交換一次性邀請，回傳裝置 token |
-| POST /api/invites | admin 產生 viewer/editor 邀請；有效 300 秒 |
-| GET /api/devices | admin 列出 id/name/role/revoked，不回 token |
-| POST /api/revoke | admin 撤銷 `{device}`；不可撤銷自己 |
+| GET /api/snapshot | epoch, role, device, all notes (including tombstones) |
+| POST /api/operations | create / update / delete / restore; editor/admin |
+| POST /api/pair | `{code,name}` exchanges a one-time invite and returns a device token |
+| POST /api/invites | admin creates a viewer/editor invite; valid for 300 seconds |
+| GET /api/devices | admin lists id/name/role/revoked; tokens are not returned |
+| POST /api/revoke | admin revokes `{device}`; a device cannot revoke itself |
 
-建立便箋的 body：
+Body for creating a note:
 
 ```json
 {
-  "epoch": "由 snapshot 取得的世代 UUID",
-  "operation": "每筆操作固定的 UUID",
+  "epoch": "generation UUID taken from the snapshot",
+  "operation": "fixed UUID for each operation",
   "action": "create",
-  "id": "新便箋 UUID",
-  "text": "想法\n- [ ] 待辦",
+  "id": "new note UUID",
+  "text": "Idea\n- [ ] To do",
   "board": "Inbox",
   "status": "todo"
 }
 ```
 
-`status` 僅有 `todo`、`in_progress`、`done`。文字 1–12000 字、群組 1–80 字。
-群組是便箋的簡單標籤，不引入專案／Agent 必填欄位。待辦以 `- [ ]`／`- [x]` 表示。
+`status` is only `todo`, `in_progress` or `done`. Text is 1–12000 characters, the group 1–80 characters.
+A group is a simple label on a note; no required project or agent fields are introduced. To-dos are written as
+`- [ ]` / `- [x]`.
 
-更新使用 `action:update`、`revision` 與 `patch:{text?,board?,status?}`。
-刪除／還原使用 `action:delete|restore` 與 `revision`；只允許明確 restore 讓 tombstone 復原。
+Updates use `action:update`, `revision` and `patch:{text?,board?,status?}`.
+Delete and restore use `action:delete|restore` and `revision`; only an explicit restore brings a tombstone back.
 
-競爭寫入回 409 及 `current`；epoch 不符回 `epoch_changed`。
-已提交的同裝置／同 operation／相同 body 重試，回原本結果而不重複寫入。
-operation 被改用於不同 body 回 409。已撤銷裝置重試舊 operation 仍回 401。
+A competing write returns 409 with `current`; an epoch mismatch returns `epoch_changed`.
+A retry of an already committed request from the same device, with the same operation and the same body, returns the
+original result without writing again. Reusing an operation for a different body returns 409. A revoked device that
+retries an old operation still gets 401.
 
-收到網路錯誤或 503 不能推論 server 未寫入；client 保存原 body 與 operation 後重送。
-草稿不因 poll、409 或 401 被覆蓋。UI 允許另存副本，並保留原草稿供比較。
-備份恢復後全部裝置需重新配對，舊 epoch 的草稿必須明確另存。
+A network error or 503 does not mean the server did not write; the client keeps the original body and operation and
+sends them again. Drafts are never overwritten by a poll, a 409 or a 401. The UI allows saving a copy and keeps the
+original draft for comparison.
+After a backup restore, every device needs to pair again, and drafts from the old epoch must be saved as copies
+explicitly.
 
-請求 body 上限 64 KiB；寫入必須 application/json。驗證 Host 與 Origin，無跨 origin CORS。
-HTTPS origin 由服務設定，不信任轉送的 Host。沒有 JSONP、任意檔案服務或遠端程式碼入口。
+The request body limit is 64 KiB; writes must be application/json. Host and Origin are validated, and there is no
+cross-origin CORS. The HTTPS origin is set by the service configuration; a forwarded Host is not trusted. There is no
+JSONP, no arbitrary file serving and no remote code entry point.

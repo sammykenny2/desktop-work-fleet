@@ -1,54 +1,68 @@
-# ADR-031: macOS 與 Linux 桌布場景及切層回復
+# ADR-031: macOS and Linux wallpaper scenes and layer restore
 
 ## Status
 
-Accepted，2026-10-05。更新 ADR-023／025 的兩層限制；實測結果記於 PROGRESS。
-Linux X11 場景尺寸、GNOME 的層級對應、DMA-BUF 預設與 pcmanfm 桌面的桌布層由 [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) 更新。
+Accepted, 2026-10-05. Updates the two-layer limit of ADR-023/025; test results are in the git history and `docs/testing.md`.
+The Linux X11 scene size, the GNOME layer mapping, the DMA-BUF default and the wallpaper layer on the pcmanfm desktop are
+updated by [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md).
 
 ## Context
 
-Windows 已提供三層；macOS 與 Linux 仍只建立 desktop／floating，桌布偏好回退。
-維護者要求三平台补齊，並要求接續輔助參考專案已有的原生實測成果。
-Pi／labwc 的紀錄已確認三層切換、拖曳、保存、重畫及 input shape 的問題，不能重新把環境當未知。
+Windows already provides three layers; macOS and Linux still created only desktop/floating, and the wallpaper preference fell
+back.
+The maintainer asked for all three platforms to catch up and to continue from the native test results the reference project
+already had.
+The Pi/labwc records already confirmed the problems with three-layer switching, dragging, saving, redrawing and input shape;
+the environment must not be treated as unknown again.
 
 ## Decision
 
-- macOS 每螢幕增加 wallpaper visual panel，使用公開 `desktopWindow + 1`，位於桌布上、
-  `desktopIconWindow` 下。desktop 維持 `desktopIconWindow + 1`，floating 維持 `.floating`。
-  三層共享同一 owner 投影，最多 16 螢幕／48 場景；topology 重用時納入第三層。
-- Linux layer-shell 增加 BACKGROUND；desktop 使用 BOTTOM，floating 使用 TOP。
-  `wallpaperPlacement: background` 明示這是背景 band。pcmanfm 將桌布與圖示畫在同一 surface 時，
-  BACKGROUND 便箋仍可能位於圖示上方；不宣稱協定提供可插入該 surface 內的能力。
-  X11 保留 desktop／floating，桌布偏好明示回退，不新增假的第三層。
-- 桌布 frame 禁止 interactive／draggable／editing；兩個 native surface 另拒絕輸入及 focus，
-  共用 controller 在操作指定組／All 時暫轉 floating，退出按當下常駐偏好還原，geometry 不變。
-- GTK input shape 存在 widget 上，避免 allocation 覆蓋；每次更新 queue draw，並在暫停時清空
-  region 與鍵盤需求。layer-shell 明確使用 viewport 的 size request，不靠 ordinary window resize。
-- Linux 在使用者未指定時停用 DMA-BUF renderer。map／configure／frame 套用後合併發出重畫事件，
-  renderer 暫變 root opacity 並在兩個 animation frames 後復原，處理透明 WebKit 殘留畫面。
-- 新增使用實際來源的 Mac 原生 probe 與隔離 Linux／labwc probe；合成投影由共用 Workspace／
-  InteractionController 產生，沒有複製參考產品的 UI、程式、資產或資料格式。
+- macOS adds a wallpaper visual panel per display at the public `desktopWindow + 1`, above the wallpaper and below
+  `desktopIconWindow`. desktop stays at `desktopIconWindow + 1` and floating at `.floating`.
+  The three layers share the same owner projection, with at most 16 displays and 48 scenes; topology reuse includes the third
+  layer.
+- Linux layer-shell adds BACKGROUND; desktop uses BOTTOM and floating uses TOP.
+  `wallpaperPlacement: background` states that this is the background band. When pcmanfm draws the wallpaper and the icons on
+  the same surface, BACKGROUND notes may still sit above the icons; the app does not claim that the protocol can insert anything
+  into that surface.
+  X11 keeps desktop/floating, the wallpaper preference explicitly falls back, and no fake third layer is added.
+- Wallpaper frames forbid interactive, draggable and editing; both native surfaces also refuse input and focus.
+  While a chosen group or All is being operated, the shared controller moves it to floating temporarily; on exit it restores the
+  current resident preference, and the geometry does not change.
+- The GTK input shape is kept on the widget so that allocation cannot overwrite it; every update queues a draw, and a pause
+  clears the region and the keyboard request. layer-shell explicitly uses the viewport's size request and does not rely on
+  an ordinary window resize.
+- On Linux the DMA-BUF renderer is disabled unless the user sets otherwise. After map, configure and frame application, one
+  merged redraw event is sent; the renderer changes the root opacity briefly and restores it after two animation frames, which
+  clears leftover images in transparent WebKit.
+- A new Mac native probe that uses the actual sources and an isolated Linux/labwc probe are added; the synthetic projection
+  comes from the shared Workspace and InteractionController. No UI, code, assets or data formats of the reference product were
+  copied.
 
 ## Consequences
 
-Windows、macOS、Linux layer-shell 均有原生三層的程式連接；Linux 的背景 band 不等同所有桌面
-都有圖示下方能力。維持參考實測的範圍與已知限制，不改使用者桌布檔案或桌面設定。
-Mac source probe 可在圖形 session 用 Xcode command-line tools 編譯，無須 Google SDK；
-本機 Windows 無 Apple SDK，不能把未執行的 Swift／WindowServer 測試記為通過。
-Linux headless compositor 測試不取代 Pi／V3D、pcmanfm-pi、實體中文輸入法或多顯示器驗收。
+Windows, macOS and Linux layer-shell all have code wiring for three native layers; the Linux background band does not mean
+that every desktop can place notes below the icons.
+The scope and known limits of the reference tests are kept, and the user's wallpaper files and desktop settings are not changed.
+The Mac source probe can be compiled in a graphical session with the Xcode command-line tools, without the Google SDK;
+the local Windows machine has no Apple SDK, so Swift and WindowServer tests that were not run cannot be recorded as passed.
+Linux headless compositor tests do not replace acceptance on the Pi/V3D, pcmanfm-pi, a physical Chinese input method or
+multiple displays.
 
 ## Alternatives Considered
 
-繼續兩層回退不符合功能補齊要求。只把 layer-shell BACKGROUND 稱為「圖示下方」會誤報。
-將便箋合成到使用者桌布檔案會引入不同的保存與桌布還原流程，超出本次依既有原生成果接續的範圍。
-不採用一張卡一個資料 owner 或改用參考產品的 Tauri／Rust 架構。
+Keeping the two-layer fallback does not meet the feature parity requirement. Calling layer-shell BACKGROUND alone "below the
+icons" would misreport.
+Compositing notes into the user's wallpaper file would introduce a different save and wallpaper-restore flow, beyond the scope
+of continuing from the existing native results.
+A data owner per card and a switch to the reference product's Tauri/Rust architecture are not adopted.
 
 ## References
 
-- [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)、[ADR-030](030-windows-explorer-wallpaper-layer.md)。
-- [本次參考核對](../research/2026-10-05-desktop-layer-reference-follow-through.md)。
-- [CGWindowLevelKey](https://developer.apple.com/documentation/coregraphics/cgwindowlevelkey)。
-- [wlr-layer-shell 原始協定](https://github.com/swaywm/wlr-protocols/blob/master/unstable/wlr-layer-shell-unstable-v1.xml)。
-- [GtkLayerShell](https://wmww.github.io/gtk-layer-shell/)、[Gtk widget input shape](https://docs.gtk.org/gtk3/method.Widget.input_shape_combine_region.html)。
+- [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), [ADR-030](030-windows-explorer-wallpaper-layer.md).
+- [Reference check for this decision](../research/2026-10-05-desktop-layer-reference-follow-through.md).
+- [CGWindowLevelKey](https://developer.apple.com/documentation/coregraphics/cgwindowlevelkey).
+- [wlr-layer-shell original protocol](https://github.com/swaywm/wlr-protocols/blob/master/unstable/wlr-layer-shell-unstable-v1.xml).
+- [GtkLayerShell](https://wmww.github.io/gtk-layer-shell/), [Gtk widget input shape](https://docs.gtk.org/gtk3/method.Widget.input_shape_combine_region.html).
 
 *Decision made: 2026-10-05*

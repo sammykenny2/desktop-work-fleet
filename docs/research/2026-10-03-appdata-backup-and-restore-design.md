@@ -1,79 +1,80 @@
-# Drive appDataFolder 檔案備份與還原設計
+# Drive appDataFolder file backup and restore design
 
-> 2026-10-04：官方能力研究保留；新增式還原是候選而非已核准的唯一模式。
-> 實際 backup／附件／版面／自動備份範圍須對齊
-> [SPEC-003 Q01／Q02](../specs/003-desktop-cards-groups-and-formation.md)，並補上群組語意。
+> 2026-10-04: The official-capability research stands; additive restore is a candidate, not the only approved mode.
+> The actual backup/attachment/layout/automatic-backup scope must align with
+> [SPEC-003 Q01/Q02](../specs/003-desktop-cards-groups-and-formation.md), and group semantics still need to be added.
 
-- 日期／官方文件查閱日：2026-10-03。
-- 使用者要求：確認 drive.appdata 能否讓使用者以檔案形式備份／還原，並要求規劃。
-- 性質：官方能力查證＋1.0 設計提案；尚未執行 Google 帳號／Drive 操作。
-- 詳細規格：[SPEC-002](../specs/002-portable-backup-and-restore.md)；
-  開發順序：[PLAN-002](../plans/002-google-drive-notes-mvp.md)。
+- Date / official documents consulted: 2026-10-03.
+- User request: confirm whether drive.appdata lets users back up and restore as files, and plan it.
+- Nature: verification of official capabilities + a 1.0 design proposal; no Google account or Drive operation has been performed.
+- Detailed specification: [SPEC-002](../specs/002-portable-backup-and-restore.md);
+  development order: [PLAN-002](../plans/002-google-drive-notes-mvp.md).
 
-## 官方能力
+## Official capabilities
 
-appDataFolder 是 App 專屬隱藏空間，使用者不能在一般 Drive 檔案介面中開啟。
-它和 Drive 顯示的裝置備份資料夾不同。
-App 可以列出自己的檔案，以 files.get + alt=media 讀取內容，並用 files.create
-在 appDataFolder 建立檔案。因此「由 App 匯出至使用者檔案，再由 App 讀檔還原」
-有官方 API 基礎；不是 Google 自動替本產品提供備份 UI。
-[Google appDataFolder 文件](https://developers.google.com/workspace/drive/api/guides/appdata)
+appDataFolder is a hidden, app-specific space that users cannot open in the normal Drive file interface.
+It is not the same as the device backups folder that Drive shows.
+An app can list its own files, read their content with files.get + alt=media, and create files
+in appDataFolder with files.create. So "the app exports to a user file, and the app reads that file back to restore"
+has a basis in the official API; it is not Google automatically providing a backup UI for this product.
+[Google appDataFolder documentation](https://developers.google.com/workspace/drive/api/guides/appdata)
 
-appDataFolder 內的檔案不能跨 storage space 移動、分享或放進 Drive trash。
-若要在一般 Drive 留一份可見備份，需讀出內容後另行寫出，
-不能直接把隱藏檔案移出。App 內的刪除區仍需自行維護。
-[官方限制](https://developers.google.com/workspace/drive/api/guides/appdata#constraints_on_the_application_data_folder)
+Files in appDataFolder cannot be moved across storage spaces, shared or put in the Drive trash.
+To keep a visible backup in regular Drive, the content must be read out and written separately;
+the hidden file cannot simply be moved out. The in-app Deleted area must still be maintained by the app itself.
+[Official constraints](https://developers.google.com/workspace/drive/api/guides/appdata#constraints_on_the_application_data_folder)
 
-Drive files.generateIds 的 space 支援 appDataFolder。
-預產生檔案 ID 可用於後續建立請求，讓重試重用同一 ID；成功後再建立會返回 409。
-這是單檔建立重試的能力，不代表多檔匯入具備原子交易。
-[generateIds](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/generateIds)、
+The space parameter of Drive files.generateIds supports appDataFolder.
+A pre-generated file ID can be used in a later create request, so a retry reuses the same ID; creating again after a success returns 409.
+This is a capability for retrying a single-file create; it does not mean a multi-file import has atomic transactions.
+[generateIds](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/generateIds),
 [Upload file data](https://developers.google.com/workspace/drive/api/guides/manage-uploads)
 
-## 本案推論與建議
+## Inferences and recommendations for this project
 
-- 以 drive.appdata 讀取來源後，App 可在本機自行組成 ZIP，再使用 OS 檔案儲存入口；
-  此步驟不需要因備份而擴大 Google Drive scope。
-- 使用者日後可以把自己保存的 ZIP 放到任何位置。
-  如果要讓本 App 直接管理一般 Drive 中的可見備份，才另行評估 drive.file。
-- 首版提供明確的手動匯出／匯入，不預設使用者已配置自動備份。
-- 備份格式屬於共用資料核心，Drive adapter 處理傳輸；
-  未來 API 型 NoteSource 不必假裝成檔案來源也能使用相同備份格式。
+- After reading the source through drive.appdata, the app can assemble a ZIP locally and then use the OS file-save entry point;
+  this step does not require widening the Google Drive scope for backups.
+- Users can later put the ZIP they saved anywhere they like.
+  drive.file would be evaluated separately only if this app is to manage visible backups in regular Drive directly.
+- The first version provides explicit manual export/import and does not assume the user has configured automatic backups.
+- The backup format belongs to the shared data core, and the Drive adapter handles transport;
+  a future API-based NoteSource can use the same backup format without pretending to be a file source.
 
-以上是應用架構推論，不是 Google 提供的 turnkey backup 功能，
-也不是已完成 Sandbox／商店檔案選取整合的證據。
+The above are application-architecture inferences, not a turnkey backup feature provided by Google,
+and not evidence that Sandbox/store file-picker integration is done.
 
-## 為什麼首版採新增式還原
+## Why the first version uses additive restore
 
-假設 A 匯入上週的備份，同時 B 正在編輯今天的便箋。
-若 A 直接覆寫共享檔案，可能撤銷 B 的修改或造成難以解釋的並行版本。
-將備份匯入為新身份，能保留目前內容並恢復舊內容，使用者再自行整理。
+Suppose A imports last week's backup while B is editing today's notes.
+If A overwrote the shared files directly, B's changes could be undone, or hard-to-explain concurrent versions could appear.
+Importing the backup under new identities keeps the current content and brings back the old content; the user then tidies up.
 
-此語意也適用原帳號遺失或更換來源：備份只需內容與可解析的內部引用，
-不需要原 Drive file ID／token。代價是沒有全帳號時間點回滾、舊 identity 或完整歷史。
-因此 UI 應稱「從備份匯入」，文件中清楚界定它提供的還原範圍。
+The same semantics apply when the original account is lost or the source changes: a backup needs only the content and
+resolvable internal references, not the original Drive file IDs or tokens. The cost is no whole-account point-in-time rollback,
+no old identities and no full history.
+So the UI should say "Import from backup", and the documentation should clearly define the restore scope it provides.
 
-## 必須保留的資料與一致性
+## Data and consistency that must be preserved
 
-只備份目前畫面會漏掉未開啟便箋、刪除區、衝突分支及未同步草稿。
-建議先保存所有 editor 草稿，再以本機交易快照輸出；
-保存同步時間與資料範圍，避免將離線快取包裝成全球一致快照。
+Backing up only what is on screen misses unopened notes, the Deleted area, conflict branches and unsynced drafts.
+Recommendation: save all editor drafts first, then export from a local transactional snapshot;
+record the sync time and data scope, so an offline cache is not packaged as a globally consistent snapshot.
 
-多檔 Drive 下載本身沒有提供全體便箋同一時間點的交易快照。
-即使同步剛完成，其他裝置可能尚未送出新內容；
-備份承諾限於「該 client 在 snapshotAt 已知並持久化的內容」。
-遇到不支援的 schema、缺失依賴或損壞資料，不能悄悄丟掉後宣稱完整備份。
+Multi-file Drive downloads do not by themselves provide a transactional snapshot of all notes at one point in time.
+Even right after a sync, other devices may not have sent their new content yet;
+the backup promise is limited to "the content that client knew and had persisted at snapshotAt".
+Unsupported schemas, missing dependencies or corrupt data must not be silently dropped while claiming a complete backup.
 
-還原的原子性以本機提交為界；其後逐檔同步可能部分成功。
-持久化 restore job 與穩定操作 ID 是應用需要實作的責任，不能只仰賴 Drive 的 409。
-未保存草稿還原到本機待確認區，避免使用者未決定公開的文字自動上傳。
+Restore atomicity is bounded by the local commit; the per-file sync that follows may partly succeed.
+A persisted restore job and stable operation IDs are the application's responsibility to implement; it cannot rely on Drive's 409 alone.
+Unsaved drafts are restored into a local pending-confirmation area, so text the user has not decided to publish is not uploaded automatically.
 
-## 尚待實作驗證
+## Still to be verified in implementation
 
-- 選定 runtime 的 ZIP parser／writer、交易式 local store 與其授權。
-- 各平台檔案選取／儲存、取消／磁碟滿／暫存資料生命週期。
-- 同一工作崩潰續傳、Google 回應遺失及帳號切換。
-- 另一個乾淨 profile／帳號在原來源不可用時仍能還原。
-- 記憶體與解壓限制、Unicode／換行往返、衝突與草稿完整性。
+- A ZIP parser/writer for the chosen runtime, a transactional local store, and their licenses.
+- File picking/saving on each platform, cancel/disk full, and the lifetime of temporary data.
+- Resuming the same job after a crash, lost Google responses, and account switching.
+- Restoring in another clean profile/account while the original source is unavailable.
+- Memory and decompression limits, Unicode/line-ending round trips, conflict and draft integrity.
 
-原有完整產品／PM 研究與 ADR-003 繼續保留，並不因這份小範圍規格被刪除。
+The earlier full product/PM research and ADR-003 remain and are not deleted because of this narrow specification.

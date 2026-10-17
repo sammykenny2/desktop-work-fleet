@@ -1,74 +1,122 @@
-# ADR-012: 可恢復 FileStore 與 Drive appDataFolder adapter
+# ADR-012: Recoverable FileStore and a Drive appDataFolder adapter
 
 ## Status
 
-Accepted，2026-10-04。依完整 1.0 與技術細節授權定案；接續 ADR-011，
-採納並取代 ADR-004 尚待決的 provider／資料空間選擇。原生授權與五平台實測仍各自驗收。
+Accepted, 2026-10-04, under the authorization for the complete 1.0 and its technical details; it follows ADR-011,
+and adopts and supersedes ADR-004's still-open choice of provider and data space. Native authorization and real
+tests on the five platforms are each accepted separately.
 
 ## Context
 
-來源可能已收到檔案，但成功回應未抵達；若重試另建 ID，會產生重複檔案。
-全掃描期間也可能收到其他裝置的修改。圖、游標、待送操作和附件需能分別恢復，
-不能把同步失敗當成內容刪除。Google 專案與平台 OAuth client IDs 尚未建立。
+A source may already have received a file while the success response never arrived; if a retry creates a new ID,
+duplicate files appear.
+Changes from other devices can also arrive during a full scan. The graph, cursor, pending operations and
+attachments must be recoverable separately, and a sync failure must never be treated as deleting content.
+The Google project and the platforms' OAuth client IDs are not set up yet.
 
 ## Decision
 
-- 首個 provider 採 Google Drive appDataFolder，唯一 Drive scope 為 drive.appdata；
-  不增加使用者 Drive 可見資料夾、分享或自家便箋 server。五平台公開 ID 由 `.env.example` 設定。
-- FileSync 與 FileStore 分離。前者持有 Workspace session、outbox、掃描及重試政策；
-  後者綁定已驗證帳號，只允許建立不可變檔案、列舉與讀取。介面見 `contracts/sync.d.ts`。
-- Google 預產生 file ID，先同本機操作保存 reservation 才上傳。重試固定 ID、kind、SHA-256、size。
-  成功後再同交易記錄已確認檔案並移除對應 outbox；歷史不刪除。
-  409 必須讀回並核對 bytes，不能單靠 HTTP status 承認成功。
-- 全掃描先保存記憶體中的 changes 起點；逐頁資料可落盤，但完成 cursor 保持 null。
-  列完並確認既有檔案未消失後，提交起點並補 changes。中斷重新全掃描，重播安全。
-  增量每頁將資料／檔案帳冊／cursor 原子保存；已完成前頁不因後頁失敗回滾。
-- 附件以 SHA-256 定址，先完成傳輸再送引用版本。下載校驗後以 octet-stream 保存 bytes；
-  分區固定為 session.profileId。失敗交易可能留下未引用附件 bytes，不會提前更新版本或 cursor。
-- 遠端移除、檔案內容或 metadata 改變、未知格式、校驗失敗、列舉不完整均保留本機資料並停下回報。
-  不把檔案缺席當成 card tombstone，不自動清除歷史，也不自動修補來源資料。
-- Drive 檔案使用 wfFormat／wfSchema／wfKind／wfSha256 私有 metadata，正文不放檔名。
-  單筆 revision 上限 8 MiB，附件 25 MiB；Google server checksum 若缺少，成功上傳仍需讀回核對。
-- 非空檔採 1 MiB resumable chunks，依服務端 Range 判定已收 bytes。暫時錯誤退避後查進度；
-  任何 resumable 4xx 清除 session，下次沿相同 file ID 建新 session。空附件用 multipart。
-  上傳 URL 只留在 account-bound adapter 記憶體，不進 Workspace、backup、renderer 或 log。
-  程序重啟可從原 file ID 重送；尚未承諾跨程序保存 byte offset。
-- 受保護 HTTP transport 固定 Google HTTPS host、拒絕 redirect、串流限制回應容量並支援 abort。
-  Google adapter 不收 token；授權與 refresh／OS 安全儲存由原生服務負責。
-  `AuthorizedDriveRequest` 是服務內介面，禁止將任意請求 bridge 公開給 WebView renderer。
-- 新帳號分區先以 bootstrapGroup=false 接收來源，避免新裝置自行增加另一個「我的便箋」。
-  空帳號的首次建立依 [ADR-053](053-account-scoped-initial-group.md)，由 FileSync 在完整 pull 後使用帳號／重設批次共用的群組與根版本身分；
-  不移除使用者既有本機便箋。
+- The first provider is Google Drive appDataFolder, and the only Drive scope is drive.appdata;
+  no user-visible Drive folder, sharing or note server of our own is added. The five platforms' public IDs are
+  configured through `.env.example`.
+- FileSync is separate from FileStore. The former holds the Workspace session, outbox, scanning and retry policy;
+  the latter is bound to a verified account and only allows creating immutable files, listing and reading. The
+  interface is in `contracts/sync.d.ts`.
+- Google pre-generates the file ID; the reservation is saved together with the local operation before the upload.
+  A retry pins the ID, kind, SHA-256 and size.
+  After success, the confirmed file is recorded and the matching outbox entry removed in the same transaction;
+  history is not deleted.
+  A 409 must be read back and its bytes compared; the HTTP status alone is never taken as success.
+- A full scan first keeps the changes start point in memory; data may be written to disk page by page, but the
+  completion cursor stays null.
+  After the listing is complete and existing files are confirmed not to have vanished, the start point is
+  committed and the changes are caught up. An interruption restarts the full scan, and replay is safe.
+  Each incremental page saves the data, the file ledger and the cursor atomically; completed earlier pages are not
+  rolled back when a later page fails.
+- Attachments are addressed by SHA-256; the transfer completes before the revision that references it is sent.
+  Downloads are verified and the bytes saved as octet-stream;
+  the partition is fixed to session.profileId. A failed transaction may leave unreferenced attachment bytes, but
+  never updates the revision or cursor early.
+- Remote removal, changed file content or metadata, unknown formats, failed checksums and incomplete listings all
+  keep the local data and stop with a report.
+  A missing file is never treated as a card tombstone; history is not cleaned up automatically and source data is
+  not repaired automatically.
+  The Drive changes feed includes the automatically created "App Data" folder itself, with only id, spaces and
+  trashed; all five implementations request `mimeType` and skip folders, while other files with missing fields
+  still stop the sync (2026-10-06).
+  The changes feed also lists `removed` entries for reserved file IDs whose upload never finished; FileSync skips
+  them.
+- Drive files use the private metadata wfFormat/wfSchema/wfKind/wfSha256, and the body never carries the file
+  name.
+  A single revision is limited to 8 MiB and an attachment to 25 MiB; if the Google server checksum is missing, a
+  successful upload is still read back and compared.
+- Non-empty files use 1 MiB resumable chunks, and the server's Range decides which bytes were received. Temporary
+  errors back off and then query progress;
+  any resumable 4xx clears the session, and the next attempt creates a new session with the same file ID. Empty
+  attachments use multipart.
+  The upload URL stays only in the memory of the account-bound adapter, never in the Workspace, backups, the
+  renderer or logs.
+  After a process restart the upload can be resent from the original file ID; keeping the byte offset across
+  processes is not promised yet.
+  The resumable-upload `Location` that Google really returns (checked 2026-10-06) carries `uploadType` and
+  `upload_id`, echoes the request's `fields` parameter and adds Google's own `session_crd`. Validation therefore
+  accepts any non-duplicate query parameters with safe values, as long as `uploadType=resumable` and a non-empty
+  `upload_id` are present.
+  Google may return the `fields` value with literal commas instead of `%2C`; Apple's `URLComponents` keeps them,
+  so the Apple transport accepts both forms (2026-10-15).
+- The protected HTTP transport pins the Google HTTPS host, rejects redirects, streams responses with a size limit
+  and supports abort.
+  The Google adapter does not receive tokens; authorization, refresh and OS secure storage are the native
+  service's job.
+  `AuthorizedDriveRequest` is an interface inside the service; exposing a bridge for arbitrary requests to the
+  WebView renderer is forbidden.
+- A new account partition first receives the source with bootstrapGroup=false, so that a new device does not add
+  another "My notes" by itself.
+  First creation for an empty account follows [ADR-053](053-account-scoped-initial-group.md): after a complete
+  pull, FileSync uses the group and root revision identities shared by the account / reset batch;
+  the user's existing local notes are not removed.
 
 ## Consequences
 
 ### Positive
 
-回應遺失、重啟、分頁中斷及離線分支皆可重播；來源不具有默默覆寫正文的路徑。
-Google 傳輸細節不進版本圖，其他 FileStore 可使用同一組故障測試。
+Lost responses, restarts, interrupted pages and offline branches can all be replayed; the source has no path to
+silently overwrite the text.
+Google transport details stay out of the revision graph, and other FileStores can use the same set of failure
+tests.
+The first real Drive round trip (2026-10-06, Windows) uploaded three revisions and a 1,975,966-byte attachment in
+resumable chunks; names, appProperties and Drive's `sha256Checksum` matched, and every file downloaded with the
+recorded SHA-256.
 
 ### Negative
 
-不可變歷史及每個操作的 reservation 增加儲存與 API 次數；容量需量測，不能以单檔上限當總量保證。
-resumable URI 未跨程序保存，因此程序重啟可能重送未完成附件的前段 bytes。
-各平台 client ID 的同帳號可見性、正式 OAuth 與 native transport 還須真 Google 驗收。
+Immutable history and a reservation per operation add storage and API calls; capacity must be measured, and the
+single-file limit is not a total capacity guarantee.
+The resumable URI is not kept across processes, so a process restart may resend the first bytes of an unfinished
+attachment.
+Whether each platform's client ID sees the same account data, production OAuth and the native transports still
+need real Google acceptance.
 
 ### Neutral
 
-不新增套件或 listener；本機 renderer 仍不連 Google。fixture 與真 IndexedDB 探針分開記錄。
-Drive 檔案不等於完整備份，SPEC-003 核准的自動／加密／匯入／合併／取代備份範圍保留。
+No package or listener is added; the local renderer still does not connect to Google. Fixtures and real IndexedDB
+probes are recorded separately.
+Drive files are not a complete backup; the automatic / encrypted / import / merge / replace backup scope approved
+in SPEC-003 stays.
 
 ## Alternatives Considered
 
-- 重試新 file ID：容易留下多份相同操作，拒絕。
-- 409 一律成功：可能承認碰撞或不同內容，拒絕。
-- 每次覆写共享大 JSON：擴大競爭範圍且破壞不可變分支，拒絕。
-- 將 token／upload URL 寫入一般 Workspace：增加 renderer、backup 與 log 的機密暴露，拒絕。
+- Retrying with a new file ID: easily leaves several copies of the same operation; rejected.
+- Treating every 409 as success: may accept a collision or different content; rejected.
+- Overwriting a shared large JSON each time: widens contention and breaks immutable branches; rejected.
+- Writing tokens or upload URLs into the ordinary Workspace: increases secret exposure through the renderer,
+  backups and logs; rejected.
 
 ## References
 
 - [SPEC-004](../specs/004-revision-graph-and-file-sync.md)
-- [Drive 傳輸研究](../research/2026-10-04-drive-file-transport.md)
-- [ADR-004](004-google-drive-notes-mvp.md)、[ADR-011](011-immutable-revision-graph.md)
+- [Drive transport research](../research/2026-10-04-drive-file-transport.md)
+- [ADR-004](004-google-drive-notes-mvp.md), [ADR-011](011-immutable-revision-graph.md)
 
-決策日期：2026-10-04；執行與實測結果只記在 [PROGRESS](../../PROGRESS.md)。
+Decision made: 2026-10-04. Current status is in [PROGRESS.md](../../PROGRESS.md); execution and test history are
+in the git history and [docs/testing.md](../testing.md).

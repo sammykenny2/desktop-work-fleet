@@ -1,48 +1,62 @@
-# 開發方向
+# Roadmap
 
-更新：2026-10-17。此文件只定順序，執行狀態以 PROGRESS.md 為準，不承諾發佈日期。
+Updated: 2026-10-17. This document only sets the order of work and does not commit to release dates. It is not a status
+record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of each version in
+[docs/release-notes.md](docs/release-notes.md).
 
-1. **最新需求與契約**：依 SPEC-003 的 U／D 凍結卡片、群組、每機版面、命令與來源邊界；
-   只對開始依賴的 Q 提問。選型先面對三平台疊序／輸入能力與授權。
-2. **本機核心與互動模型**：一事一卡、九組 grid、顯式 formation、尺寸同意、undo、
-   普通拖曳與轉組分開、穩定輪播及可靠草稿；用隔離 fixture 驗證。
-3. **可用呈現與平台 host**：乾淨 UI、群組／全組操作、提示與 editor，
-   在 Windows、macOS、目前可測 Linux backend 接同一套驗收案例。
-4. **Google 與跨裝置整合**：登入、帳號隔離、共享卡片／群組及可靠同步，
-   每機 geometry 不串台；不新增自家便箋 server。
-5. **備份範圍與完整往返**：按使用者確認的內容／版面／還原需求修訂 SPEC-002，
-   群組與引用不可漏；舊草案不能直接作為排除功能的依據。
-6. **平台發佈**：最低版本、安裝包、簽章／商店、授權、真實同步與桌面功能回歸各自列證據。
-7. **後續擴充**：其他 source／renderer、PM／檢視與多歸屬；保留既有研究，不強迫首版導入。
+1. **Latest requirements and contracts**: following the U and D items of SPEC-003, freeze cards, groups, per-device
+   layout, commands and the source boundary; ask only about the Q items that work starts to depend on. Technology
+   choices first face the stacking-order and input capabilities of the three platforms, and licensing.
+2. **Local core and interaction model**: one card per thing, a nine-group grid, explicit formation, size consent, undo,
+   ordinary drags kept apart from group transfer, stable cycling and reliable drafts; verified with isolated fixtures.
+3. **Usable presentation and platform hosts**: a clean UI, per-group and all-group operations, hints and the editor,
+   connected to the same acceptance cases on Windows, macOS and the Linux backends that can be tested now.
+4. **Google and cross-device integration**: sign-in, account isolation, shared cards and groups, and reliable sync,
+   without per-device geometry leaking between devices; no note server of our own is added.
+5. **Backup scope and complete round trips**: revise SPEC-002 according to the content, layout and restore needs the
+   user confirmed; groups and references must not be missed, and old drafts cannot directly serve as grounds for
+   excluding features.
+6. **Platform release**: minimum versions, installers, signing and stores, licensing, real sync and desktop feature
+   regressions each record their own evidence.
+7. **Later extensions**: other sources and renderers, PM and views, and multiple membership; keep the existing research
+   without forcing it into the first version.
 
-詳細實作交接見 [PLAN-003](docs/plans/003-desktop-interaction-implementation.md)，
-來源／Google 工作續接 [PLAN-002](docs/plans/002-google-drive-notes-mvp.md)。
-[ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) 是已接受語意，
-[ADR-007](docs/decisions/007-desktop-scene-and-platform-host.md) 是技術提案。
+The detailed implementation handoff is in [PLAN-003](docs/plans/003-desktop-interaction-implementation.md);
+source and Google work continues in [PLAN-002](docs/plans/002-google-drive-notes-mvp.md).
+[ADR-006](docs/decisions/006-card-group-and-formation-semantics.md) holds the accepted semantics;
+[ADR-007](docs/decisions/007-desktop-scene-and-platform-host.md) is a technical proposal.
 
-本次 1.0 包含 Windows/macOS/Linux 與 iOS/Android 原生 App、商店提交準備；範圍見 SPEC-003 已答 Q。
-某一 host 先整合不代表取消其他平台。使用既有 Mac 經驗，不重啟已暫停的探索 goal。
+This 1.0 includes the Windows, macOS and Linux and the iOS and Android native apps, plus store submission preparation;
+the scope is in the answered Q items of SPEC-003. Integrating one host first does not cancel the other platforms. Use the
+existing Mac experience; do not restart the paused exploration goal.
 
 ## 0.3.x
 
-排入 0.3.x 不等於設計已核准；這些是行為構想，各自獨立實作。
+Being scheduled for 0.3.x does not mean a design is approved; these are behaviour ideas, each implemented independently.
 
-成本低、價值明確：
+Low cost, clear value:
 
-- **快速記錄存檔後收回主畫面**：主畫面原本隱藏、因快捷鍵才叫出時，存檔或按 Esc 後自動收回。
-  目前 `saveEditor` 只關閉編輯框，主畫面留在原地。
-- **貼上或拖入圖片成為附件**：編輯時可直接貼上或拖入圖片；目前附件只能經檔案選擇器加入。
-- **主畫面隱藏時的同步實測**：三平台確認主畫面收到系統匣／選單列後，WebView 是否節流
-  20 秒一次的 Google 同步與桌面更新；確認有問題才修。
-- **搜尋排序**：第一行命中優先，其次是前幾行，再其他；目前是不排序的子字串過濾。
-- **桌面直接勾選 checklist**：便箋非穿透時，點擊 checkbox 切換完成狀態並保存、同步；
-  不需進入文字編輯，也不誤觸拖曳或雙擊編輯。穿透時維持不接收點擊，本輪先列入規劃。
+- **Quick capture hides the main window again after saving**: when the main window was hidden and only shown by the
+  shortcut, saving or pressing Esc hides it again. Today `saveEditor` only closes the editor, and the main window stays
+  where it is.
+- **Pasted or dropped images become attachments**: while editing, images can be pasted or dragged in directly; today
+  attachments can only be added through the file picker.
+- **Real-world sync check with the main window hidden**: on all three platforms, check whether the WebView throttles the
+  20-second Google sync and desktop updates after the main window goes to the tray or menu bar; fix it only if a
+  problem is confirmed.
+- **Search ranking**: matches in the first line first, then in the first few lines, then the rest; today it is an
+  unsorted substring filter.
+- **Ticking checklists directly on the desktop**: when a paper is not click-through, clicking a checkbox toggles its
+  completion and saves and syncs it, without entering text editing and without triggering a drag or a double-click edit
+  by mistake. While click-through, papers still ignore clicks. For now this is listed for planning only.
 
-需要先做產品決定：
+Needs a product decision first:
 
-- **多語系**：介面與系統匣選單目前寫死繁體中文；先決定上架要支援的語言，以及是否跟隨系統語言。
-- **群組透明度**：桌面便箋依群組調整透明度；先決定設定的範圍，以及是否跨裝置同步。
-- **資料無法開啟時的引導**：本機資料庫開不了時，指出資料位置與自動備份並提供還原入口，
-  不只顯示一般錯誤就結束（目前只確認過 Windows）；先決定各平台的入口與可做的動作。
-- **其他 Wayland 合成器的快捷鍵**：sway、wayfire、Hyprland 等沒有快捷鍵 portal 的桌面，
-  手動綁定 `gapplication action` 的方式；先決定只補文件，或另加顯示主畫面、結束等 action。
+- **Group transparency**: desktop papers take a per-group transparency; first decide the scope of the setting and
+  whether it syncs across devices.
+- **Guidance when data cannot be opened**: when the local database cannot be opened, point to the data location and the
+  automatic backups and offer a way to restore, instead of only showing a generic error and stopping (so far confirmed
+  only on Windows); first decide each platform's entry point and the actions it can offer.
+- **Shortcuts on other Wayland compositors**: on desktops without a shortcut portal, such as sway, wayfire and Hyprland,
+  binding `gapplication action` manually; first decide whether to only document it or also add actions such as showing
+  the main window and quitting.

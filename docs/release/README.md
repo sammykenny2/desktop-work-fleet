@@ -1,34 +1,54 @@
-# 商店提交準備
+# Store Submission Preparation
 
-本目錄提供提交文案與資料清單；執行／建置／簽章／商店狀態只記在根目錄 PROGRESS。
+This folder holds the submission copy and data lists. The project-level state of accounts, signing and store
+preparation is in the root [PROGRESS.md](../../PROGRESS.md); packaging and release procedure is in
+[deployment](../deployment.md); build and dispatch results are in the GitHub Releases and workflow runs, not here.
 
-- [繁中文案](store-listing.zh-TW.json)、[英文文案](store-listing.en-US.json)：名稱、簡述、完整說明。
-- [隱私說明](privacy.zh-TW.md)：依實際維護者資料發布，公開 URL 設於 `.env`。
-- [提交資料清單](submission-data.json)：資料用途、外部設定及截圖場景。
+- [Traditional Chinese listing](store-listing.zh-TW.json), [English listing](store-listing.en-US.json): name, short
+  description and full description.
+- Privacy policy, [English](privacy.md) and [Traditional Chinese](privacy.zh-TW.md): published with the maintainer's
+  actual details; the public URL is set in `.env`.
+- [Submission data list](submission-data.json): data uses, external settings and screenshot scenes.
 
-`.env.example` 的 app ID、Google clients、Apple team、隱私／支援網址與聯絡 email 是公開設定。
-簽章 keystore、憑證、商店 API key、OAuth token 與密碼不放在 repo 或公共設定檔。
-`node scripts/check-config.mjs --platform <platform>` 可列出缺少的公開配置。
+Store listings and the privacy policy keep an English and a Traditional Chinese edition. GitHub release text is English
+only: the version's entry in [release notes](../release-notes.md) plus the installation steps that the release
+workflows add, as described in [deployment](../deployment.md#windows-preview-releases).
 
-Android 的 `bundleRelease` 在未提供 signing inputs 時產生未簽章 AAB；
-`Build-AndroidApp.ps1 -Signed` 或 `build-android-app.sh --signed` 要求以下 process／CI 環境變數，
-使用 upload key 簽署 release AAB，供 Play App Signing 接收：
+The app ID, Google clients, Apple team, privacy and support URLs and contact email in `.env.example` are public
+settings. Signing keystores, certificates, store API keys, OAuth tokens and passwords never go into the repo or a public
+configuration file.
+`node scripts/check-config.mjs --platform <platform>` prints `<platform>: missing A, B` with the missing public settings
+and exits with status 1; when nothing is missing it prints
+`<platform>: public settings complete; a real sign-in, signing and platform acceptance still needed`.
 
-- `WORK_FLEET_ANDROID_KEYSTORE`：既有 keystore 的絕對路徑。
-- `WORK_FLEET_ANDROID_KEY_ALIAS`：upload key alias。
-- `WORK_FLEET_ANDROID_STORE_PASSWORD`、`WORK_FLEET_ANDROID_KEY_PASSWORD`：CI secret environment 提供。
+Without signing inputs, the Android `bundleRelease` produces an unsigned AAB.
+`Build-AndroidApp.ps1 -Signed` or `build-android-app.sh --signed` requires the following process or CI environment
+variables and signs the release AAB with the upload key, for Play App Signing to receive:
 
-四項須同時提供；不得寫入 `.env`、公共 JSON 或命令列參數。脚本不建立金鑰、登入商店或上傳。
-Google Android OAuth client 的 SHA-1 必須對應實際散布簽章；debug 與 Play 簽章分別配置。
-Google Web client 用於 Credential Manager audience，屬同一 Google Cloud 專案。
-正式提交使用實際原生套件截图，不以瀏覽器或設計稿充當原生證據。
+- `WORK_FLEET_ANDROID_KEYSTORE`: absolute path of the existing keystore.
+- `WORK_FLEET_ANDROID_KEY_ALIAS`: upload key alias.
+- `WORK_FLEET_ANDROID_STORE_PASSWORD`, `WORK_FLEET_ANDROID_KEY_PASSWORD`: provided by the CI secret environment.
 
-Windows 封裝 identity／publisher 設於 `.env.example`，簽章使用既有 CurrentUser/My certificate。
-Apple export／PKG／DMG 與 Keychain profile 公證入口見 [散布文件](../deployment.md)。
-各平台帳號、證書與真正原生截圖並未因腳本存在而完成，狀態見 [PROGRESS](../../PROGRESS.md)。
+All four must be provided together; they must not be written into `.env`, public JSON or command-line arguments. The
+script does not create keys, sign in to a store or upload anything.
+The SHA-1 of the Google Android OAuth client must match the actual distribution signature; debug and Play signing are
+configured separately. The Google Web client is used as the Credential Manager audience and belongs to the same Google
+Cloud project.
+Formal submissions use screenshots of the actual native packages; browser screenshots or design drafts do not stand in
+as native evidence.
 
-Android 每 variant 的實際 resolved runtime 版本／hash／POM 與 SDK notices，會隨 package 保存在
-`assets/licenses/native/inventory.json` 及同目錄文件。缺少聲明的項目保留 metadata status，
-不自動推定 license。正式 release AAB 使用其自己的 inventory，debug inventory 僅描述 debug 產物。
+The Windows package identity and publisher are set in `.env.example`; signing uses an existing CurrentUser/My
+certificate. The Apple export / PKG / DMG and Keychain-profile notarization entry points are in the
+[distribution document](../deployment.md).
+Accounts, certificates and real native screenshots for each platform are not done just because the scripts exist; their
+current state is in [PROGRESS](../../PROGRESS.md). As of 2026-10-17, no store developer accounts are set up, the privacy
+page is not published, there are no native screenshots, Partner Center has no reserved app and nothing has been
+submitted; the store listings and privacy text are drafts.
 
-請依最終原生套件及 SDK 資料清單填寫商店表單；本目錄不宣稱表單已送出或通過。
+For each Android variant, the actual resolved runtime versions, hashes and POMs and the SDK notices are saved with the
+package in `assets/licenses/native/inventory.json` and the files in the same folder. An item without a notice keeps its
+metadata status; no licence is inferred automatically. The formal release AAB uses its own inventory; the debug
+inventory describes only debug artifacts.
+
+Fill in the store forms from the final native packages and the SDK data list; this folder does not claim that any form
+was submitted or approved.

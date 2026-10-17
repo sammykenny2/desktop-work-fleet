@@ -1,200 +1,200 @@
-# 1.0.0 Google Drive 便箋 MVP：可行性與擴充邊界
+# 1.0.0 Google Drive notes MVP: feasibility and extension boundaries
 
-> 2026-10-04 更新：Google／Drive 能力研究保留；最新產品互動與未決內容範圍見
-> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
-> 舊小範圍提案不是省略群組／formation、裁掉 checklist／附件或限制備份的授權。
+> 2026-10-04 update: the Google/Drive capability research stands; for the latest product interaction and the open content scope, see
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md).
+> The old narrow-scope proposal does not authorize leaving out groups/formation, cutting checklists/attachments or restricting backups.
 
-- 日期／官方文件查閱日：2026-10-03。
-- 狀態：使用者已要求收斂為 Google 帳號＋file based 便箋，第一版不架 local server。
-  本文對 Drive、資料空間及同步協定的具體選擇仍是 Proposed。
-- 保留 [完整產品架構草案](2026-10-03-product-architecture-blueprint.md) 與 ADR-003，
-  列為後續研究，不把 Project／Item／自架 server 當成 1.0 必做。
-- 尚未確定 1.0 同時發佈哪些平台；既有 Windows/macOS/Linux 與 Apple/Google 目標仍保留。
+- Date / official documents consulted: 2026-10-03.
+- Status: the user has asked to narrow down to a Google account + file-based notes, with no local server in the first version.
+  The concrete choices in this document for Drive, the data space and the sync protocol are still Proposed.
+- The [full product architecture draft](2026-10-03-product-architecture-blueprint.md) and ADR-003 are kept
+  as later research; Project/Item/self-hosted server are not treated as required for 1.0.
+- Which platforms ship together in 1.0 is not yet decided; the existing Windows/macOS/Linux and Apple/Google goals remain.
 
-## 1. 可行性結論
+## 1. Feasibility conclusion
 
-建議採 Google Drive API 儲存本 App 的便箋檔案。一般使用者透過 Google OAuth
-登入並同意必要權限，由 App 管理資料位置；不用自行建立 Cloud project、API key、
-service account 或 local server。
+Recommendation: store this app's note files with the Google Drive API. A regular user signs in with Google OAuth
+and consents to the needed permissions, and the app manages the data location; the user does not create a Cloud project, API key,
+service account or local server.
 
-開發者仍需配置 Google Cloud/OAuth、正式簽章與公開產品／隱私頁面。
-此處「不架 server」是無自家便箋資料服務或 token broker；
-靜態產品網站不保存使用者便箋，也不等於新增同步後端。
+The developer still has to configure Google Cloud/OAuth, production signing and public product/privacy pages.
+"No server" here means no in-house note data service or token broker;
+a static product website stores no user notes and does not amount to adding a sync backend.
 
-Google Keep 的官方介面不符合本版的普通帳號雙向編輯情境。
-Drive 中的本 App 資料也不會自動變成 Keep 便箋。
+Google Keep's official interface does not fit this version's scenario of two-way editing with a regular account.
+This app's data in Drive also does not turn into Keep notes automatically.
 
-## 2. Keep 與 Drive 的關鍵差異
+## 2. Key differences between Keep and Drive
 
-| 來源 | 官方能力與限制 | 對 1.0 的判斷 |
+| Source | Official capabilities and limits | Judgement for 1.0 |
 |---|---|---|
-| Keep API | 面向企業管理，授權以 domain-wide delegation 描述 | 不能承諾一般個人 Google 帳號登入即用 |
-| Keep notes resource | 列出的操作是 create/get/list/delete；無 update/patch 內容介面 | 不符合就地雙向編輯 |
-| Drive API | 可管理 App 的檔案，有較窄授權範圍 | 適合作為第一個 provider |
-| Keep 非官方介面／網頁抓取 | 不在官方支援契約內 | 不作本版基礎 |
+| Keep API | Aimed at enterprise administration; authorization is described as domain-wide delegation | Cannot promise that a regular personal Google account works on sign-in |
+| Keep notes resource | Listed operations are create/get/list/delete; no update/patch content interface | Does not fit in-place two-way editing |
+| Drive API | Can manage the app's files, with narrower authorization scopes | Suitable as the first provider |
+| Unofficial Keep interfaces / web scraping | Outside the officially supported contract | Not a basis for this version |
 
-以上是依目前公開 API 的選型結論，不推廣成「Keep 永遠沒有任何整合方式」。
-來源：[Keep 概述](https://developers.google.com/workspace/keep/api/guides)、
-[Keep notes 方法](https://developers.google.com/workspace/keep/api/reference/rest/v1/notes)。
+This is a selection conclusion based on the current public APIs; it is not generalized to "Keep will never have any way to integrate".
+Sources: [Keep overview](https://developers.google.com/workspace/keep/api/guides),
+[Keep notes methods](https://developers.google.com/workspace/keep/api/reference/rest/v1/notes).
 
-## 3. Drive 儲存位置
+## 3. Drive storage location
 
-| 模式 | 使用者體驗 | 取捨 |
+| Mode | User experience | Trade-off |
 |---|---|---|
-| appDataFolder + drive.appdata | 登入授權後自動使用 App 專屬空間 | 看不到普通 Drive 資料夾、不能分享給其他 App／帳號，也不能使用 Drive trash |
-| 普通資料夾 + drive.file | 使用 App 建立或使用者選取的資料位置 | 檔案可見，需處理使用者移動／刪除、外部格式修改與初始化競爭 |
+| appDataFolder + drive.appdata | After authorizing at sign-in, the app-specific space is used automatically | Not visible as a regular Drive folder, cannot be shared with other apps/accounts, and cannot use the Drive trash |
+| Regular folder + drive.file | Uses a data location the app created or the user picked | Files are visible; must handle the user moving/deleting them, external format edits and initialization races |
 
-兩個 scope 都列為 non-sensitive；不因此略過正式 OAuth 品牌／設定工作。
+Both scopes are listed as non-sensitive; this is no reason to skip the formal OAuth branding/configuration work.
 [Drive scopes](https://developers.google.com/workspace/drive/api/guides/api-specific-auth)
 
-**本案初步推薦 appDataFolder**，適合「同一人的 N 台機器，登入即可使用」。
-提供匯出，並說明解除 App／清除應用資料可能刪除遠端內容。
-如果第一版必須让使用者在 Drive 中直接看見／整理檔案，就改選 drive.file；
-兩者要在實作前選定，不默默同時建立兩份權威資料。
-[appDataFolder 限制](https://developers.google.com/workspace/drive/api/guides/appdata)
+**This project's initial recommendation is appDataFolder**, which suits "the same person's N machines, ready to use after sign-in".
+Provide export, and explain that removing the app or clearing app data may delete the remote content.
+If the first version must let users see/organize the files directly in Drive, choose drive.file instead;
+the choice must be made before implementation, without quietly creating two authoritative copies of the data.
+[appDataFolder constraints](https://developers.google.com/workspace/drive/api/guides/appdata)
 
-AppDataFolder 的內容需由本 App 編輯；Google Drive／Keep 不會提供我們的便箋 UI。
-若「手機必須直接用既有 Keep／Docs App 編輯」是必要條件，這個方案並未滿足，
-需另選可操作該文件格式的來源。可見的 JSON 檔也不等於手機已有便箋編輯體驗。
+AppDataFolder content must be edited by this app; Google Drive/Keep will not provide our notes UI.
+If "the phone must edit directly in the existing Keep/Docs app" is a requirement, this approach does not meet it,
+and another source that can operate on that document format is needed. A visible JSON file is not a note-editing experience on the phone either.
 
-各平台 OAuth client ID 應有一致的產品／Cloud project 管理。
-同一 Google 帳號在不同 client ID 間看見同一資料空間需作為整合驗收，
-不能用同一 token 的兩個視窗當成跨裝置證明。
+OAuth client IDs for each platform should be managed consistently under one product/Cloud project.
+That the same Google account sees the same data space across different client IDs must be an integration acceptance check;
+two windows sharing one token do not prove cross-device behaviour.
 
-## 4. 1.0 的小範圍產品
+## 4. The narrow 1.0 product
 
-建議交付：
+Recommended deliverables:
 
-- Google 登入／授權、重連、登出與帳號切換；初版一次啟用一個資料來源。
-- 一事一卡的新增、編輯、刪除／還原與最新群組互動；本文／checklist／附件範圍另行確認，不預設純文字限定。
-- 多便箋桌面展示、每機位置／尺寸／突出設定、鎖定穿透與主動解鎖編輯。
-- 多裝置同步、本機快取與可靠草稿、可辨識的 pending／衝突提示。
-- 資料匯出／從備份匯入，以及 Google 授權撤銷、配額／網路錯誤時的可恢復行為。
-  詳見 [備份還原規格](../specs/002-portable-backup-and-restore.md)；本輪規劃基線採 appDataFolder。
+- Google sign-in/authorization, reconnect, sign-out and account switching; initially one data source is active at a time.
+- Creating, editing, deleting/restoring one card per thing and the latest group interaction; the body/checklist/attachment scope is confirmed separately, with no default plain-text-only restriction.
+- Multi-note desktop display, per-machine position/size/highlight settings, locked click-through and deliberate unlock for editing.
+- Multi-device sync, local cache and reliable drafts, recognizable pending/conflict indicators.
+- Data export / import from backup, and recoverable behaviour when Google authorization is revoked or on quota/network errors.
+  See the [backup and restore specification](../specs/002-portable-backup-and-restore.md); this round's planning baseline uses appDataFolder.
 
-不將自架 server、QR 配對、團隊權限、多來源同時聚合、PM 看板或 Agent 狀態納入 1.0。
-未來多 provider 與多 renderer 保留接口；第一版只實作已選定的一個 provider 與發佈平台。
-手機編輯若需要納入 1.0，必須交付相應的本 App 客戶端／明確編輯入口，不能只寫「資料在 Drive」。
+A self-hosted server, QR pairing, team permissions, aggregating several sources at once, a PM kanban board or agent states are not part of 1.0.
+Interfaces for future multiple providers and multiple renderers are kept; the first version implements only the one chosen provider and release platforms.
+If phone editing is to be part of 1.0, a matching client of this app / an explicit editing entry point must ship; "the data is in Drive" is not enough.
 
-## 5. 異質來源與 renderer：現在保留什麼
+## 5. Heterogeneous sources and renderers: what is kept now
 
 ```mermaid
 flowchart LR
-  Drive[Google Drive 檔案] <--> Storage[Drive FileStore adapter]
+  Drive[Google Drive files] <--> Storage[Drive FileStore adapter]
   Storage <--> Source[FileNoteSource]
-  Future[未來 API 型來源] -.-> Contract[NoteSource 契約]
+  Future[Future API-based source] -.-> Contract[NoteSource contract]
   Source <--> Contract
-  Contract <--> Core[便箋用例、本機資料與同步協調]
-  Core --> Desktop[桌面 renderer]
-  Core --> Editor[編輯 renderer]
-  Core --> Mobile[未來手機／Web renderer]
+  Contract <--> Core[Note use cases, local data and sync coordination]
+  Core --> Desktop[Desktop renderer]
+  Core --> Editor[Editing renderer]
+  Core --> Mobile[Future mobile/web renderer]
 ```
 
-分成三個責任，而不是把所有外部服務當成相同檔案系統：
+Split into three responsibilities, rather than treating every external service as the same file system:
 
-1. **NoteSource**：用便箋語意提供讀取、提交、刪除、衝突與來源能力。
-   對外使用不透明 revision／cursor／source reference。API 型來源可以直接實作它。
-2. **FileStore adapter**：只有檔案型來源使用；處理 Drive 的登入、列檔、讀寫、分頁與錯誤。
-   FileNoteSource 負責本 App 檔案格式和衝突規則，不讓 renderer 解析 Drive JSON。
-3. **Renderer／平台 host**：取得相同 NoteViewModel，送出 edit intent。
-   視窗層級、點擊穿透與尺寸由平台 host 管理；renderer 不拿 OAuth token 或直接寫檔。
+1. **NoteSource**: provides reading, committing, deleting, conflicts and source capabilities in note semantics.
+   It exposes opaque revision/cursor/source references. An API-based source can implement it directly.
+2. **FileStore adapter**: used only by file-based sources; handles Drive sign-in, listing, reading/writing, paging and errors.
+   FileNoteSource owns this app's file format and conflict rules, so the renderer never parses Drive JSON.
+3. **Renderer / platform host**: gets the same NoteViewModel and sends edit intents.
+   Window level, click-through and size are managed by the platform host; the renderer never holds OAuth tokens or writes files directly.
 
-最小資料邊界：
+Minimum data boundaries:
 
-- NoteDocument：schemaVersion、noteId、title、body（具體格式待定，不預設純文字限制）、選用外觀資訊。
-- SourceRef：providerId、accountId、collection identity、opaque external identifier。
-- Sync envelope：operationId、revision／parents、刪除標記及來源特有 metadata；與可見內容分離。
-- Local state：草稿、outbox、遠端快取、同步游標、每機版面；依來源／帳號分區。
-- Credential store：原生安全儲存；不放便箋、Drive 檔案、diagnostics 或 renderer。
-- 未知 schema／content kind 保留原始資料並限制編輯，不能降級儲存時丟欄位。
-- 來源切換保留原稿；跨來源搬移未來以可核對的匯出／匯入處理，不暗中雙向同步。
+- NoteDocument: schemaVersion, noteId, title, body (exact format to be decided, no default plain-text restriction), optional appearance information.
+- SourceRef: providerId, accountId, collection identity, opaque external identifier.
+- Sync envelope: operationId, revision/parents, deletion marker and source-specific metadata; kept separate from visible content.
+- Local state: drafts, outbox, remote cache, sync cursor, per-machine layout; partitioned by source/account.
+- Credential store: native secure storage; never in notes, Drive files, diagnostics or the renderer.
+- Unknown schemas/content kinds keep their raw data and restrict editing; fields must not be dropped by a downgrade save.
+- Switching sources keeps the original data; moving across sources is handled in future by a verifiable export/import, never by hidden two-way sync.
 
-能力契約例：canEdit、canDelete、canRestore、supportsChecklist、conflictMode、
-changeFeed。來源不支援的能力在 UI 明列，不以空成功回覆掩蓋。
-FileStore 的 conditionalWrite 只能在 adapter 證實支援時宣告；
-不能要求所有來源都實作我們自架 server 的 SQL transaction 或 epoch 協定。
+Example capability contract: canEdit, canDelete, canRestore, supportsChecklist, conflictMode,
+changeFeed. Capabilities a source does not support are listed in the UI, not masked by an empty success reply.
+FileStore's conditionalWrite may only be declared when the adapter has proven support;
+not every source can be required to implement our self-hosted server's SQL transaction or epoch protocol.
 
-這些介面先是同一個 App 內的模組，不建立動態外掛平台、獨立服務或跨語言 ABI。
+These interfaces start as modules within one app; no dynamic plug-in platform, separate service or cross-language ABI is built.
 
-## 6. File based 仍須設計同步一致性
+## 6. File-based storage still needs a sync consistency design
 
-一個 notes.json 容納全部資料會放大覆蓋範圍；一張 note 一個 mutable 檔案也不會自動消除 race。
-先讀 version 再寫是兩次操作，不能當成 compare-and-swap。
-Drive 的版本歷史或 modifiedTime 也不是 App 的衝突解決協定。
+One notes.json holding all data widens the overwrite scope; one mutable file per note does not automatically remove races either.
+Reading the version and then writing is two operations and cannot be treated as compare-and-swap.
+Drive's version history or modifiedTime is not the app's conflict resolution protocol either.
 
-本次查閱 files.update 與 uploads 文件，沒有取得足以承諾特定 v3 media upload
-原子 If-Match 行為的證據；此項保持未驗證，不宣称一定支援或一定不支援。
+In this review of the files.update and uploads documentation, no evidence was found that would let us promise atomic If-Match behaviour
+for a particular v3 media upload; this stays unverified, with no claim that it is or is not supported.
 [files.update](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/update)
 
-**建議優先設計追加版本檔的保守路徑**：
+**Recommendation: design the conservative path of appending version files first**:
 
-- 每次確認保存新增一個不可變便箋版本，含 noteId、operationId、parent revision IDs 與完整本文；
-  輸入過程先保存在本機，適當合併尚未傳送的草稿，避免每個按鍵都產生 Drive 檔。
-- 同一父版出現兩個子版時保留兩份，呈現衝突；明確選擇／合併後建立引用兩邊的新版本。
-- 不依裝置時鐘選贏家；單純遠端保存成功與「尚無並行版本」是不同的狀態。
-- 刪除也是版本記錄，與並行編輯形成可見衝突；還原是明確操作。
-- 不用單一可覆寫 manifest 當唯一真相；索引可由版本集合重建。
-  漏頁、尚未下載的 parents、撤銷權限不能直接解讀成使用者刪除。
-- 初版不自動回收舊版本；資料量／quota、匯出與未來安全壓縮必須列入設計成本。
-- 這是待定同步方案，不是假設增加版本檔就已證明可靠；應與有證據支持的
-  條件式更新方案比較後，凍結實作契約。
+- Each confirmed save adds one immutable note version, with noteId, operationId, parent revision IDs and the full body;
+  typing is saved locally first, and unsent drafts are merged as appropriate, so not every keystroke creates a Drive file.
+- When one parent version gets two children, keep both and show a conflict; an explicit choice/merge then creates a new version that references both sides.
+- Never pick a winner by device clock; "the remote save succeeded" and "there is no concurrent version yet" are different states.
+- A deletion is also a version record and forms a visible conflict with a concurrent edit; restoring is an explicit operation.
+- Do not use a single overwritable manifest as the only truth; the index can be rebuilt from the set of versions.
+  Missing pages, parents not yet downloaded and revoked permissions must not be read as user deletions.
+- The first version does not garbage-collect old versions automatically; data volume/quota, export and future safe compaction must be counted in the design cost.
+- This is a sync proposal still to be decided, not an assumption that adding version files has already proven reliable; it should be compared with a
+  conditional-update approach backed by evidence before the implementation contract is frozen.
 
-Drive 支援預先產生 file ID，包含 appDataFolder；可把該 ID 隨本機待送操作保存。
-同一建立成功後重試會回 409；client 還需讀回確認內容與自己的操作匹配，
-不能看到任意 409 就當成功。
-[generateIds](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/generateIds)、
-[重試建立檔案](https://developers.google.com/workspace/drive/api/guides/manage-uploads)
+Drive supports pre-generating file IDs, including for appDataFolder; the ID can be stored with the local pending operation.
+A retry after the same create succeeded returns 409; the client must also read back and confirm the content matches its own operation,
+and must not treat any 409 as success.
+[generateIds](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/generateIds),
+[Retrying file creation](https://developers.google.com/workspace/drive/api/guides/manage-uploads)
 
-初始掃描與 changes cursor 要處理期間的新變更、分頁及重複項目，並把本機資料與游標一起保存。
-Changes API 支援 appDataFolder。
+The initial scan and the changes cursor must handle new changes during the scan, paging and duplicates, and save local data together with the cursor.
+The Changes API supports appDataFolder.
 [changes.list](https://developers.google.com/workspace/drive/api/reference/rest/v3/changes/list)
 
-無自家 backend 的第一版採適度輪詢、回到前景重整與手動刷新，不承諾常駐秒級推播。
-Drive webhook 需要 HTTPS 接收端；本版不為此追加服務。
+Without an in-house backend, the first version uses moderate polling, refresh on returning to the foreground and manual refresh, and does not promise always-on push within seconds.
+Drive webhooks need an HTTPS receiver; this version adds no service for that.
 [Drive push](https://developers.google.com/workspace/drive/api/guides/push)
 
-## 7. Google 登入與 Mac 上架的實際距離
+## 7. How far Google sign-in and the Mac store really are
 
-現有 0.1.0 證據支持公開 AppKit API、Sandbox、真實資料更新與焦點政策。
-它尚未涵蓋 Google 登入／Drive，同時只有 ad-hoc 簽章；
-實際桌面手勢、完整 OS 行為及商店核准仍未完成。
-因此可以縮小 1.0 範圍，但不能從「Mac 探針成功」估算成只差換資料來源就能上架。
-[現有驗證報告](../validation/2026-10-03-validation-report.md)
+The existing 0.1.0 evidence supports the public AppKit API, Sandbox, real data updates and the focus policy.
+It does not yet cover Google sign-in/Drive, and has only ad-hoc signing;
+actual desktop gestures, full OS behaviour and store approval are still not done.
+So the 1.0 scope can be narrowed, but "the Mac probe succeeded" does not support estimating that only the data source needs swapping before store release.
+[Existing validation report](../validation/2026-10-03-validation-report.md)
 
-Google 的 installed-app OAuth 與 iOS/macOS SDK 提供直接登入路徑。
-授權 UI 不能放進可由本 App 注入 script 的 WKWebView。
-macOS 使用 Google Sign-In SDK 時另有 Apple 憑證簽章與 Keychain access group 要求；
-目前只靠 ad-hoc 的驗證產物不能當作這條路徑已就緒。
-Desktop loopback 與 Apple SDK URL scheme 是不同 client 類型的選項；
-登入若有短暫 callback listener，也與便箋資料 local server 不同，需個別評估 entitlement。
-[Installed app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app)、
-[Google Sign-In Apple 平台設定](https://developers.google.com/identity/sign-in/ios/start-integrating)
+Google's installed-app OAuth and the iOS/macOS SDK provide a direct sign-in path.
+The authorization UI must not be placed in a WKWebView into which this app can inject script.
+Using the Google Sign-In SDK on macOS adds Apple certificate signing and Keychain access group requirements;
+validation artifacts that rely only on ad-hoc signing cannot count as this path being ready.
+Desktop loopback and the Apple SDK URL scheme are options for different client types;
+if sign-in has a brief callback listener, that is also different from a local server for note data, and its entitlement must be evaluated separately.
+[Installed app OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
+[Google Sign-In Apple platform setup](https://developers.google.com/identity/sign-in/ios/start-integrating)
 
-開發者準備正式 OAuth 品牌設定、必要 scope、產品官網與隱私說明。
-一般使用者只完成登入／同意，不替開發者設定 API。
-[Google OAuth policy](https://developers.google.com/identity/protocols/oauth2/policies)、
-[品牌驗證](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
+The developer prepares the formal OAuth branding configuration, the required scopes, the product website and the privacy statement.
+Regular users only complete sign-in/consent; they do not configure APIs for the developer.
+[Google OAuth policy](https://developers.google.com/identity/protocols/oauth2/policies),
+[Brand verification](https://developers.google.com/identity/protocols/oauth2/production-readiness/brand-verification)
 
-Apple 4.8 對第三方登入有規範，也列出「特定第三方服務 client、為存取其內容而登入」的例外。
-把登入設計成連接使用者自己的 Drive、不另建本產品帳號有合理的架構依據；
-是否符合例外仍須依最終產品與審查確認，不能預先保證只提供 Google 一定獲准。
-正式 bundle、隱私揭露及審查可操作性仍須完成。
+Apple 4.8 has rules on third-party login, and also lists an exception for a client of a specific third-party service where the user signs in to access their content there.
+Designing sign-in as connecting the user's own Drive, without creating a separate account for this product, has a reasonable architectural basis;
+whether it qualifies for the exception must still be confirmed against the final product and review, and offering only Google cannot be guaranteed approval in advance.
+The production bundle, privacy disclosures and reviewability still have to be completed.
 [Apple Review Guidelines 4.8](https://developer.apple.com/app-store/review/guidelines/#login-services)
 
-## 8. 授權判斷
+## 8. License assessment
 
-現有原創碼維持 MIT。使用 Drive API 的服務條款／使用者資料政策與 SDK 程式碼授權分開。
-GoogleSignIn-iOS 官方 repo 使用 Apache-2.0；它是候選元件，尚未加入本 repo，
-也尚未鎖版本或盤點所有轉遞依賴。採用時保留必要 notices 並檢查實際散布產物。
-目前沒有發現必須放棄 Drive 路線的直接授權阻礙，但不宣稱整個 1.0 已完成合規審查。
-[SDK LICENSE](https://github.com/google/GoogleSignIn-iOS/blob/main/LICENSE)、
+Existing original code stays MIT. The Drive API terms of service / user data policy are separate from SDK code licenses.
+The official GoogleSignIn-iOS repo uses Apache-2.0; it is a candidate component, not yet added to this repo,
+with no version pinned and no inventory of all transitive dependencies yet. If adopted, keep the required notices and check the actual distributed artifacts.
+No direct license obstacle has been found that would force abandoning the Drive route, but there is no claim that the whole of 1.0 has passed compliance review.
+[SDK LICENSE](https://github.com/google/GoogleSignIn-iOS/blob/main/LICENSE),
 [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy)
 
-## 9. 保留與延後的設計
+## 9. Designs kept and deferred
 
-- ADR-001：獨立開發／backlog 重心保留。
-- ADR-002：保留 0.1.0 實際技術與證據，不改写歷史。
-- ADR-003 與完整產品草案：Deferred，保留未來 PM、自架 server、Item/View 的研究。
-- 新 1.0 提案只採用來源／renderer 分界、資料可攜性與衝突保護等必要部分。
-- 本次只查公開文件與更新設計；沒有建立 Cloud project、登入 Google、
-  讀寫任何 Drive 資料、加入 SDK 或提交商店審查。
+- ADR-001: the independent-development/backlog focus stays.
+- ADR-002: keeps the actual 0.1.0 technology and evidence, without rewriting history.
+- ADR-003 and the full product draft: Deferred, kept as research for future PM, self-hosted server and Item/View.
+- The new 1.0 proposal adopts only the necessary parts: the source/renderer boundary, data portability and conflict protection.
+- This session only reviewed public documentation and updated the design; no Cloud project was created, no Google sign-in was done,
+  no Drive data was read or written, no SDK was added and nothing was submitted for store review.

@@ -1,73 +1,103 @@
-# ADR-019: Windows 快捷鍵、焦點與系統匣入口
+# ADR-019: Windows shortcuts, focus and tray entry
 
 ## Status
 
-Accepted，2026-10-04。Windows 桌面入口整合；OS 組字、實體輸入及完整平台矩陣依 PROGRESS 記錄。
+Accepted, 2026-10-04. Integrates the Windows desktop entry points; the verification status of OS IME
+composition, physical input and the full platform matrix is in [PROGRESS.md](../../PROGRESS.md) and
+[docs/testing.md](../testing.md).
 
 ## Context
 
-桌面場景已有單一 Workspace，但操作入口仍依賴主畫面。需接全域快捷鍵與常駐入口，
-同時避免全域註冊吃掉本 App 的組字／文字按鍵，或保存延遲後取得已不再屬於本操作的焦點。
+The desktop scenes already have a single Workspace, but the entry points still depend on the main window. Global
+shortcuts and a resident entry need to be connected,
+while avoiding global registration swallowing this app's IME composition or text keys, and avoiding a delayed
+save taking focus that no longer belongs to the operation.
 
 ## Decision
 
-- 快捷鍵保存於本機 LayoutStore，群組目標保持穩定 ID；最多 32 組。
-  主畫面合併相同／連續設定更新，原生依實際 RegisterHotKey 結果回報逐鍵狀態。
-  衝突、保留鍵及不可用仍保留設定；可改鍵或重試，不宣稱已成功全域註冊。
-  Ctrl+Alt（含 Shift）加字母／數字標示為 typing 並不註冊，以保留 AltGr 產字；
-  新工作區 capture／toggle 預設 Ctrl+Shift+N／D，既有設定不改寫。本地 AltGraph 事件優先放行。
-- 本 App 原生視窗 Activated 同步解除全部 OS 註冊；Deactivated 延後核對 foreground process，
-  tray 選單開啟前同步 block，另以低頻 dispatcher timer 核對 foreground。失去 App 焦點才重新註冊並顯示新的衝突結果。
-  初始化及關閉 block 獨立於設定更新，不能因重新套用 bindings 提前解除。
-- 焦點所在主畫面／scene 處理本地快捷鍵；普通文字編輯鍵、IME、repeat、已消耗事件與 modal 優先。
-  就地編輯允許群組 scope 快捷鍵，先可靠保存最後文字再轉換。其他輸入欄位不執行工作區快捷鍵。
-  scene 只傳按鍵，owner 以當時設定解出 target，過期或移除的 binding 不執行。
-- 原生快捷鍵與 tray 命令共用既有操作序列，不另開 Workspace。
-  需要焦點時等待對應完整 projection 已發布且 scene 已套用輸入區域，再啟用有可操作卡片的浮動表面。
-  native intent 有效期五秒，必須仍是原 foreground HWND 及最後輸入時間；晚到的動作不能搶走後續使用者焦點。
-  主畫面本地快捷鍵在排隊前即請求 intent，host 在 message admission 擷取；scene 在第一個保存 await 前請求，
-  token 綁 view、一次性，經 native 驗證後才放入 owner metadata。缺少有效 intent 不 Activate。
-  tray 在排入 dispatcher 前擷取相同 intent，不能在延遲 callback 執行時重新授權。
-  Windows 拒絕 activation 時保留可點擊紙面，不模擬按鍵、不改系統 foreground-lock 設定。
-- 系統匣使用公開 Shell_NotifyIcon／version 4、自有隱藏 top-level HWND 與原生選單，
-  支援鍵盤選取、主畫面、快速記錄、全部操作、結束 scope、桌面顯示切換、收起及保存退出。
-  TaskbarCreated 僅重建自有 icon；移除／退出釋放自有資源，不修改 Explorer 或其他應用設定。
-- 「收起主畫面」先保存草稿再 Hide，保留 WebView／Workspace／SQLite／桌面表面。
-  缺少有效 tray icon 時不收起；重建失敗會重新顯示主畫面但不主動啟用。
-  2026-10-06 使用者改決定：tray 可用時，視窗 X、Alt+F4 與工作列關閉（SC_CLOSE）直接收起到系統匣，
-  頁面及其草稿留在執行中的 WebView；tray 不可用時 X 仍保存並退出。
-  系統匣「保存並結束」、程式內 Close 與 WM_CLOSE 沿用既有 durable close 協定。
+- Shortcuts are stored in the local LayoutStore, and group targets keep stable IDs; at most 32 bindings.
+  The main window coalesces identical and consecutive settings updates, and native reports per-key state from the
+  actual RegisterHotKey results.
+  Conflicting, reserved and unavailable keys keep their settings; they can be changed or retried, and global
+  registration is never claimed as successful.
+  Ctrl+Alt (with or without Shift) plus a letter or digit is marked typing and not registered, to keep AltGr
+  character input;
+  new workspaces default capture/toggle to Ctrl+Shift+N / D, and existing settings are not rewritten. Local
+  AltGraph events are let through first.
+- When one of this app's native windows is Activated, all OS registrations are removed synchronously; Deactivated
+  checks the foreground process after a delay,
+  the tray menu blocks synchronously before it opens, and a low-frequency dispatcher timer also checks the
+  foreground. Only after the app loses focus does it register again and show new conflict results.
+  The initialization and closing blocks are independent of settings updates and cannot be released early by
+  reapplying bindings.
+- The focused main window or scene handles local shortcuts; ordinary text editing keys, IME, repeats, consumed
+  events and modals come first.
+  In-place editing allows group scope shortcuts, which first save the last text reliably and then switch. Other
+  input fields do not run workspace shortcuts.
+  A scene only passes the key; the owner resolves the target from the settings at that moment, and an expired or
+  removed binding does not run.
+- Native shortcuts and tray commands share the existing operation sequence and do not open another Workspace.
+  When focus is needed, they wait until the matching full projection is published and the scene has applied its
+  input region, and only then activate a floating surface that has operable cards.
+  A native intent is valid for five seconds and must still have the original foreground HWND and last input time;
+  a late action cannot steal the user's later focus.
+  A local shortcut in the main window requests the intent before queuing, and the host captures it at message
+  admission; a scene requests it before its first save await,
+  and the token is bound to the view, single-use, and put into the owner metadata only after native validation.
+  Without a valid intent there is no Activate.
+  The tray captures the same intent before queuing onto the dispatcher, and cannot authorize again when the delayed
+  callback runs.
+  When Windows refuses activation, clickable papers are kept; no keystrokes are simulated and the system
+  foreground-lock setting is not changed.
+- The tray uses the public Shell_NotifyIcon / version 4, an owned hidden top-level HWND and a native menu,
+  supporting keyboard selection, the main window, Quick capture, Adjust all, ending the scope, the desktop display
+  toggle, hiding, and save and exit.
+  TaskbarCreated only rebuilds its own icon; removal and exit release its own resources, without changing Explorer
+  or other apps' settings.
+- Hiding the main window first saves drafts and then calls Hide, keeping the WebView, Workspace, SQLite and the
+  desktop surfaces.
+  Without a valid tray icon it does not hide; if rebuilding fails, the main window is shown again but not
+  activated.
+  2026-10-06, a later decision by the user: when the tray is available, the window's X, Alt+F4 and the taskbar
+  close (SC_CLOSE) hide it to the tray directly,
+  and the page and its drafts stay in the running WebView; when the tray is not available, X still saves and exits.
+  The tray's save-and-exit item, in-app Close and WM_CLOSE keep the existing durable close protocol.
 
 ## Consequences
 
 ### Positive
 
-主畫面可收起且有可達入口；全域與本地按鍵由焦點所有權分工，保存及退出仍只有既有交易路徑。
+The main window can be hidden and still has a reachable entry; global and local keys are divided by focus
+ownership, and saving and exiting still have only the existing transaction path.
 
 ### Negative
 
-IME 組合、實體键盤配置及 Windows shell 行為仍需實機驗收；保守焦點條件可能要求使用者點一下已呈現卡片。
-目前系統匣使用 Windows 系統應用 icon，品牌圖示隨正式封裝整合。
+IME composition, physical keyboard layouts and Windows shell behaviour still need acceptance on real hardware; the
+conservative focus conditions may require the user to click a card that is already shown.
+The tray currently uses a Windows system app icon; the brand icon comes with the production packaging.
 
 ### Neutral
 
-未新增 runtime 套件、listener、常驻鍵盤 hook 或系統設定變更。瀏覽器預覽仍只有本地快捷鍵。
+No runtime package, listener, resident keyboard hook or system setting change is added. The browser preview still
+has only local shortcuts.
 
 ## Alternatives Considered
 
-### 全域鍵保持註冊，只在 callback 忽略組字
+### Keep global keys registered and only ignore composition in the callback
 
-按鍵已被 OS 註冊攔截，忽略 callback 無法還給 editor，因此拒絕。
+The key has already been intercepted by the OS registration, and ignoring the callback cannot give it back to the
+editor; rejected.
 
-### 等待保存後無條件 Activate
+### Activate unconditionally after saving
 
-使用者可能已轉到另一個視窗或繼續輸入，因此改用短效 native intent 與畫面套用條件。
+The user may already have moved to another window or kept typing, so a short-lived native intent and the frame
+applied condition are used instead.
 
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)
-- [ADR-017](017-windows-composition-surface-and-input.md)、[ADR-018](018-single-owner-desktop-views.md)
-- [Windows 快捷鍵與 shell 研究](../research/2026-10-04-windows-shortcuts-and-tray.md)
-- [桌面 IPC 契約](../../contracts/desktop-scene.d.ts)
+- [ADR-017](017-windows-composition-surface-and-input.md), [ADR-018](018-single-owner-desktop-views.md)
+- [Windows shortcut and shell research](../research/2026-10-04-windows-shortcuts-and-tray.md)
+- [Desktop IPC contract](../../contracts/desktop-scene.d.ts)
 
 Decision made: 2026-10-04.

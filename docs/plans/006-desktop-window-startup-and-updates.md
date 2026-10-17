@@ -1,146 +1,173 @@
-# PLAN-006: 主視窗位置、啟動行為與 App 內更新
+# PLAN-006: Main Window Placement, Startup Behaviour and In-App Updates
 
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | In Progress（2026-10-14 開工；執行狀態只記 PROGRESS） |
-| Owner | 專案維護者 |
-| Assigned To | 實作責任：Windows、macOS、Linux host、共用介面與發布腳本 |
-| Reviewer | 獨立審閱尚不可用 |
+| Status | In Progress (started 2026-10-14): Phases 0–6 implemented; Phase 7 completion not recorded; real-machine verification open, see Progress Log |
+| Owner | Project maintainer |
+| Assigned To | Implementation responsibility: Windows, macOS and Linux hosts, shared UI and release scripts |
+| Reviewer | Independent review not yet available |
 
 ## Related Spec
 
-[SPEC-006](../specs/006-desktop-window-startup-and-updates.md)、[ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md)、
-[ADR-044](../decisions/044-desktop-in-app-updates-from-github-releases.md)。
+[SPEC-006](../specs/006-desktop-window-startup-and-updates.md), [ADR-043](../decisions/043-desktop-window-placement-and-startup-behavior.md),
+[ADR-044](../decisions/044-desktop-in-app-updates-from-github-releases.md).
 
 ## Overview
 
-先做三平台都不需要外部帳號的部分：版本顯示、主機偏好、主視窗位置與啟動行為。
-更新器先完成 Windows MSIX，再接 Linux DEB；macOS 等 Developer ID、公證與 Sparkle 金鑰就緒後進行。
-每個階段可獨立提交；升版、發布與 Actions dispatch 依 AGENTS.md 另行授權。
+First do the parts that need no external account on any of the three platforms: version display, host preferences, main window placement and startup behaviour.
+The updater does Windows MSIX first, then Linux DEB; macOS follows once Developer ID, notarization and the Sparkle keys are ready.
+Each phase can be committed on its own; version bumps, releases and Actions dispatches need separate authorization under AGENTS.md.
 
 ## Implementation Phases
 
-### Phase 0: 前置條件（維護者）
+### Phase 0: Prerequisites (maintainer)
 
-- [ ] 0.1 公開前確認 git 歷史與 workflow 沒有秘密或私人資料，再把 repo 改為 public。
-- [ ] 0.2 公開後更新 AGENTS.md 與 `docs/deployment.md` 的私有 repo 與 Actions 額度描述（commit 需說明理由）。
-- [ ] 0.3 回答 SPEC-006 的 Q02（macOS 安裝方式）；其他 Q 不阻擋 Phase 1–4。
-- [ ] 0.4 macOS 更新前準備 Developer ID、公證憑證與 Sparkle EdDSA 金鑰，存在 CI secrets。
+- [x] 0.1 Before going public, confirm that the git history and workflows contain no secrets or private data, then make the repo public.
+- [x] 0.2 After going public, update the private-repo and Actions quota descriptions in AGENTS.md and `docs/deployment.md` (the commit must state the reason).
+- [x] 0.3 Answer SPEC-006 Q02 (macOS installation method); the other Qs do not block Phases 1–4.
+- [x] 0.4 Before macOS updates, prepare Developer ID, notarization credentials and the Sparkle EdDSA key, stored in CI secrets.
 
-### Phase 1: 版本與主機偏好基礎
+**Status**: done. The repo went public on 2026-10-14; Q02 was answered with Sparkle; the Developer ID and Sparkle keys are in Secrets.
 
-- [ ] 1.1 三平台 `host.info` 增加 App 版本與發行形式（MSIX／ZIP／Debug、Developer ID／未簽章、DEB／tar.gz／原始碼）。
-- [ ] 1.2 主機偏好檔讀寫：`host-preferences.json`、`window-placement.json` 的版本化格式、預設值、原子寫入與損壞處理。
-- [ ] 1.3 新增 `host.preferences.get`／`host.preferences.set` 與 `host.window.resetPlacement` bridge 方法；protocol 仍為 1。
-- [ ] 1.4 設定＞桌面新增「啟動行為」與「App 更新」區塊骨架，顯示版本；瀏覽器開發模式不顯示原生選項。
-- [ ] 1.5 備份 `appVersion` 改用 `host.info` 版本（SPEC-006 D09）。
+### Phase 1: Version and host preference foundation
 
-**Deliverables**：三平台顯示正確版本；偏好檔可讀寫並有單元測試。
+- [x] 1.1 `host.info` on all three platforms adds the app version and distribution form (MSIX / ZIP / Debug, Developer ID / unsigned, DEB / tar.gz / source).
+- [x] 1.2 Host preference file reads and writes: a versioned format for `host-preferences.json` and `window-placement.json`, defaults, atomic writes and corruption handling.
+- [x] 1.3 Add the bridge methods `host.preferences.get` / `host.preferences.set` and `host.window.resetPlacement`; the protocol stays at 1.
+- [x] 1.4 Settings > Desktop gets skeleton "Startup behaviour" and "Version and updates" sections that show the version; browser development mode does not show the native options.
+- [x] 1.5 The backup `appVersion` uses the `host.info` version (SPEC-006 D09).
 
-### Phase 2: 主視窗位置
+**Deliverables**: the correct version shows on all three platforms; the preference files can be read and written and have unit tests.
 
-- [ ] 2.1 共用規則（交集最大工作區、縮小與夾回、最小尺寸、預設）寫成可測的純函式，三平台以相同 fixture 測試。
-- [ ] 2.2 Windows：Win32 window placement 保存與套用；顯示前驗證；收到系統匣、結束、登出關機時補寫。
-- [ ] 2.3 macOS：視窗 frame 與最大化保存；`NSScreen.visibleFrame` 驗證；隱藏與結束時補寫。
-- [ ] 2.4 Linux：X11 位置與大小、Wayland 大小與最大化；與 ADR-042 調整遮罩的讓開／恢復協調（三平台）。
-- [ ] 2.5 設定頁「重置主視窗大小與位置」。
+**Status**: implemented on Windows, Linux and macOS, 2026-10-14.
 
-**Deliverables**：C01–C04 在可用硬體上通過；混合 DPI 與多顯示器缺設備時明列未測。
+### Phase 2: Main window placement
 
-### Phase 3: 啟動行為與第二次啟動
+- [x] 2.1 The shared rules (largest intersecting work area, shrink and clamp, minimum size, default) are written as testable pure functions, tested with the same fixtures on all three platforms.
+- [x] 2.2 Windows: save and apply the Win32 window placement; validate before showing; write it again on hiding to the tray, exit, sign-out and shutdown.
+- [x] 2.3 macOS: save the window frame and maximized state; validate against `NSScreen.visibleFrame`; write it again on hide and exit.
+- [x] 2.4 Linux: X11 position and size, Wayland size and maximized state; coordinate getting out of the way / restoring with the ADR-042 adjust overlay (all three platforms).
+- [x] 2.5 Settings page "Reset main window size and position".
 
-- [ ] 3.1 Windows：`generate-windows-manifest.mjs` 加入 `uap5` namespace 與 `windows.startupTask`；
-  StartupTask 狀態讀取、啟用與停用；以 activation 判斷登入啟動；ZIP／Debug 停用選項。
-- [ ] 3.2 Windows：每位使用者、每個資料目錄的單一實例通道，第二次啟動喚起既有主畫面。
-- [ ] 3.3 macOS：`SMAppService.mainApp` 註冊、狀態讀取與開啟登入項目設定。
-- [ ] 3.4 Linux：autostart 檔寫入、移除與讀回，遵守 `XDG_CONFIG_HOME`；`--launch-at-login` 參數。
-- [ ] 3.5 三平台：登入隱藏啟動、關閉保留在系統匣的開關、系統匣不可用時顯示主畫面。
+**Deliverables**: C01–C04 pass on the available hardware; mixed DPI and multiple displays are listed as untested when equipment is missing.
 
-**Deliverables**：C05–C08；Windows 登入啟動在 23H2 與 26200 實機驗證。
+**Status**: implemented on Windows, Linux and macOS, 2026-10-14. Not verified as of 2026-10-17: mixed DPI and multi-display
+placement; the macOS placement round trip.
 
-### Phase 4: 更新器共用規則與 Windows MSIX
+### Phase 3: Startup behaviour and second launch
 
-- [ ] 4.1 共用 fixture：release 列表篩選、版本比較、manifest 驗證、錯誤代碼對應。
-- [ ] 4.2 `Config/public.json` 的 update 區段由封裝腳本產生；公開設定新增更新來源 repo。
-- [ ] 4.3 Windows 更新器：公開 Atom 查詢／平台選版、限定轉址與大小的下載、SHA-256、MSIX identity 核對（2026-10-15 修訂，移除 REST API）。
-- [ ] 4.4 Windows 安裝：既有保存並結束流程後以 `PackageManager` 安裝、`RegisterApplicationRestart` 重新開啟；失敗恢復。
-- [ ] 4.5 Windows 系統匣「檢查更新…」與原生對話框；下載進度提示文字。
-- [ ] 4.6 `windows-preview.yml` 與本機封裝產生 `work-fleet-update.json` 並上傳。
+- [x] 3.1 Windows: `generate-windows-manifest.mjs` adds the `uap5` namespace and `windows.startupTask`;
+  read, enable and disable the StartupTask state; detect a sign-in start from the activation; disable the option for ZIP / Debug.
+- [x] 3.2 Windows: a single-instance channel per user and per data directory; a second launch brings up the existing main window.
+- [x] 3.3 macOS: `SMAppService.mainApp` registration, state reading and opening the login item settings.
+- [x] 3.4 Linux: write, remove and read back the autostart file, honouring `XDG_CONFIG_HOME`; the `--launch-at-login` argument.
+- [x] 3.5 All three platforms: hidden start at sign-in, a switch to keep running in the tray when the main window closes, and showing the main window when the tray is unavailable.
 
-**Deliverables**：C09–C11、C14（Windows）；以本機測試 feed 完成舊版到新版的實際更新。
+**Deliverables**: C05–C08; Windows sign-in start verified on real 23H2 and 26200 machines.
 
-### Phase 5: Linux DEB 更新
+**Status**: implemented on Windows, Linux and macOS, 2026-10-14. Verified: Windows sign-in starts appear in `host.log` on
+build 26200; Linux autostart on the Pi; macOS login-item registration with the real SMAppService in an ad-hoc probe.
+Not verified as of 2026-10-17: a Windows sign-in start on 23H2; macOS login-launch detection.
 
-- [ ] 5.1 Linux 更新器（Python）：同一規則與 fixture；`dpkg-deb` 核對。
-- [ ] 5.2 `pkexec` 安裝與 `host.restart` 重新執行；取消與失敗處理。
-- [ ] 5.3 Linux 系統匣項目與 GTK 對話框；DEB release 流程與 manifest（x64／arm64 依實際套件架構）。
+### Phase 4: Shared updater rules and Windows MSIX
 
-**Deliverables**：C13、C14（Linux）。
+- [x] 4.1 Shared fixtures: release list filtering, version comparison, manifest validation, error code mapping.
+- [x] 4.2 The update section of `Config/public.json` is generated by the packaging script; the public configuration adds the update source repo.
+- [x] 4.3 Windows updater: public Atom query / per-platform selection, downloads with restricted redirects and size, SHA-256, MSIX identity check (revised 2026-10-15 to remove the REST API).
+- [x] 4.4 Windows install: after the existing save-and-exit flow, install with `PackageManager` and reopen with `RegisterApplicationRestart`; recovery on failure.
+- [x] 4.5 Windows tray "Check for updates…" and a native dialog; download progress text.
+- [x] 4.6 `windows-preview.yml` and local packaging generate and upload `work-fleet-update.json`.
 
-### Phase 6: macOS 更新
+**Deliverables**: C09–C11 and C14 (Windows); a real update from an old to a new version with a local test feed.
 
-- [ ] 6.1 依 Q02 加入 Sparkle 2（Swift Package）與自訂 user driver；更新 `generate-apple-project.mjs` 與 THIRD-PARTY-NOTICES。
-- [ ] 6.2 macOS 更新器、狀態列項目與 NSAlert；Developer ID 公證的發布流程與 manifest。
+**Status**: implemented; moved to the public Atom feed on 2026-10-15. Not verified as of 2026-10-17: a Windows update between
+two real releases.
 
-**Deliverables**：C12、C14（macOS）。
+### Phase 5: Linux DEB updates
 
-### Phase 7: 文件與驗收
+- [x] 5.1 Linux updater (Python): the same rules and fixtures; `dpkg-deb` check.
+- [x] 5.2 Install with `pkexec` and relaunch with `host.restart`; cancel and failure handling.
+- [x] 5.3 Linux tray items and GTK dialogs; the DEB release flow and manifest (x64 / arm64 according to the actual package architecture).
 
-- [ ] 7.1 更新 `docs/release/privacy.zh-TW.md`、`docs/release/submission-data.json`、`docs/security-guidelines.md`。
-- [ ] 7.2 更新 `docs/deployment.md`（更新流程、manifest、資產）、`docs/testing.md`、`docs/setup-guide.md`。
-- [ ] 7.3 PROGRESS 記錄實際結果與未測範圍。
+**Deliverables**: C13 and C14 (Linux).
+
+**Status**: implemented, through pkexec; moved to the public Atom feed on 2026-10-15. Verified: the Linux DEB in-app update on
+the Pi.
+
+### Phase 6: macOS updates
+
+- [x] 6.1 Following Q02, add Sparkle 2 (Swift Package) and a custom user driver; update `generate-apple-project.mjs` and THIRD-PARTY-NOTICES.
+- [x] 6.2 macOS updater, status bar item and NSAlert; the Developer ID notarized release flow and manifest.
+
+**Deliverables**: C12 and C14 (macOS).
+
+**Status**: implemented with Sparkle 2.10.0; moved to the public Atom feed on 2026-10-15. Not verified as of 2026-10-17: a
+macOS update between two real releases.
+
+### Phase 7: Documentation and acceptance
+
+- [ ] 7.1 Update `docs/release/privacy.zh-TW.md`, `docs/release/submission-data.json` and `docs/security-guidelines.md`.
+- [ ] 7.2 Update `docs/deployment.md` (update flow, manifest, assets), `docs/testing.md` and `docs/setup-guide.md`.
+- [ ] 7.3 Record the actual results in the commit bodies and the untested scope in `docs/testing.md`; update PROGRESS.md where project-level status changes.
 
 ## Files to Create/Modify
 
 | File | Action | Description |
 |---|---|---|
-| `src/native/windows/app/FleetWindow.cs`、`Program.cs`、`NativeTray.cs` | Modify | 位置保存、啟動行為、單一實例、系統匣更新項目 |
-| `src/native/windows/app/` 新檔 | Create | 主機偏好、視窗位置、StartupTask、更新器與安裝 |
-| `src/native/windows/core/BridgeSession.cs` | Modify | `host.info` 版本與新增方法 |
-| `src/native/apple/macos/Main.swift`、`FleetDesktop.swift`、`src/native/apple/Shared/` | Modify/Create | 位置、SMAppService、更新器、狀態列 |
-| `src/native/linux/host.py`、`tray.py`、`service.py` 及新模組 | Modify/Create | 位置、autostart、更新器、系統匣 |
-| `src/app/index.html`、`src/app/main.js`、`src/native/bridge.js` | Modify | 設定＞桌面兩個區塊、版本與更新狀態 |
-| `src/backup/payload.js` 與呼叫端 | Modify | 備份 `appVersion` |
-| `scripts/generate-windows-manifest.mjs`、`scripts/windows/Build-WindowsPackage.ps1` | Modify | StartupTask、`Config/public.json` update 來源、manifest 產生 |
-| `scripts/config.mjs`、`.env.example` | Modify | 更新來源 repo 的公開設定 |
-| `scripts/generate-linux-package.mjs`、`scripts/linux/` | Modify | autostart 啟動參數、DEB 更新 manifest |
-| `scripts/generate-apple-project.mjs` | Modify | Sparkle 依賴（Phase 6） |
-| `.github/workflows/windows-preview.yml` 及新 workflow | Modify/Create | 上傳 manifest；macOS／Linux 發布 |
-| `tests/` 與 `tests/native/` | Create/Modify | 位置規則、偏好檔、feed／manifest fixture、原生探針 |
-| 文件（Phase 7） | Modify | 隱私、安全、部署、測試、設定說明 |
+| `src/native/windows/app/FleetWindow.cs`, `Program.cs`, `NativeTray.cs` | Modify | Placement saving, startup behaviour, single instance, tray update item |
+| New files in `src/native/windows/app/` | Create | Host preferences, window placement, StartupTask, updater and install |
+| `src/native/windows/core/BridgeSession.cs` | Modify | `host.info` version and new methods |
+| `src/native/apple/macos/Main.swift`, `FleetDesktop.swift`, `src/native/apple/Shared/` | Modify/Create | Placement, SMAppService, updater, status bar |
+| `src/native/linux/host.py`, `tray.py`, `service.py` and new modules | Modify/Create | Placement, autostart, updater, tray |
+| `src/app/index.html`, `src/app/main.js`, `src/native/bridge.js` | Modify | The two Settings > Desktop sections, version and update status |
+| `src/backup/payload.js` and callers | Modify | Backup `appVersion` |
+| `scripts/generate-windows-manifest.mjs`, `scripts/windows/Build-WindowsPackage.ps1` | Modify | StartupTask, `Config/public.json` update source, manifest generation |
+| `scripts/config.mjs`, `.env.example` | Modify | Public setting for the update source repo |
+| `scripts/generate-linux-package.mjs`, `scripts/linux/` | Modify | Autostart launch argument, DEB update manifest |
+| `scripts/generate-apple-project.mjs` | Modify | Sparkle dependency (Phase 6) |
+| `.github/workflows/windows-preview.yml` and new workflows | Modify/Create | Upload the manifest; macOS / Linux releases |
+| `tests/` and `tests/native/` | Create/Modify | Placement rules, preference files, feed / manifest fixtures, native probes |
+| Documentation (Phase 7) | Modify | Privacy, security, deployment, testing, setup guide |
 
 ## Technical Decisions
 
-詳見 ADR-043／044。主機層級檔案不分 profile；系統狀態優先於偏好；更新只在使用者動作時連線；
-安裝前一律走既有保存並結束流程；Windows 不使用 App Installer 或 Run 機碼。
+See ADR-043 / 044. Host-level files are not per profile; system state takes precedence over preferences; updates connect only on a user action;
+installation always goes through the existing save-and-exit flow first; Windows does not use App Installer or the Run registry key.
 
 ## Testing Strategy
 
-- **Unit Tests**：位置規則的 fixture（多顯示器、負座標、斷線、太小工作區）；偏好檔損壞與預設；
-  feed 篩選、版本比較、manifest 驗證、錯誤代碼；三平台以同一份 fixture 執行。
-- **Integration Tests**：Debug 專用測試 feed 提供合成 release 與安裝檔；Windows 獨立測試 identity 的 MSIX 實際更新；
-  Linux 測試 VM 的 DEB 更新；Release 包確認不含測試 feed 設定。
-- **Manual Testing**：登出／登入的登入啟動、工作管理員停用、顯示器拔除與 DPI 變更、第二次啟動、
-  真 GitHub prerelease 的檢查（不得以使用者正式資料測試清除或覆蓋）。
+- **Unit Tests**: fixtures for the placement rules (multiple displays, negative coordinates, disconnection, too small a work area); preference file corruption and defaults;
+  feed filtering, version comparison, manifest validation, error codes; the same fixtures run on all three platforms.
+- **Integration Tests**: a Debug-only test feed provides synthetic releases and installers; an actual MSIX update with an independent Windows test identity;
+  a DEB update in a Linux test VM; Release packages are checked to contain no test feed setting.
+- **Manual Testing**: sign-in start after signing out / in, disabling in Task Manager, unplugging displays and changing DPI, second launch,
+  checks against a real GitHub prerelease (never test clearing or overwriting with the user's real data).
 
 ## Risks & Mitigations
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| MSIX 自我更新後未重新開啟或登入啟動判斷不如預期 | Medium | Phase 4 先以測試 identity 實測；不可行時改為安裝後提示手動開啟 |
-| 登入時 Explorer 尚未就緒，場景附著失敗 | Medium | 沿用 ADR-020／030 的重建恢復；C05 實機驗證 |
-| 公司 NAT 共用 GitHub 未驗證 API 配額 | High | 三平台改讀公開 Atom，不使用或回退 REST API；一般 403 與帶 Retry-After 的限流分開 |
-| Atom 未列平台或無 prerelease 欄位 | Medium | 預覽頻道只篩 tag；未列平台與不支援頻道時拒絕；正式頻道／長期平台索引後續決策 |
-| GitHub 轉址主機變更 | Medium | 主機清單集中設定；失敗顯示錯誤並提供 Releases 頁面連結 |
-| macOS 簽章與公證條件未就緒 | High | 更新能力保持關閉，只顯示版本；不阻擋其他階段 |
-| Linux 安裝中檔案被替換 | Medium | 安裝成功後立即保存並重新執行；失敗時不重新啟動 |
-| 預設開啟登入啟動被視為未經同意 | Low | 設定頁清楚呈現並可一鍵關閉；系統停用優先 |
+| MSIX does not reopen after a self-update, or sign-in start detection does not behave as expected | Medium | Test with a test identity in Phase 4 first; if not workable, prompt to open manually after installing |
+| Explorer not ready at sign-in, so scene attachment fails | Medium | Reuse the rebuild recovery of ADR-020 / 030; verify C05 on a real machine |
+| A company NAT shares the unauthenticated GitHub API quota | High | All three platforms read the public Atom feed and never use or fall back to the REST API; separate an ordinary 403 from rate limiting with Retry-After |
+| The Atom feed lists no platform or has no prerelease field | Medium | The preview channel filters by tag only; refuse unlisted platforms and unsupported channels; a stable channel / long-term platform index is a later decision |
+| The GitHub redirect host changes | Medium | The host list is configured in one place; on failure show an error and a link to the Releases page |
+| macOS signing and notarization conditions not ready | High | Keep the update capability off and show only the version; do not block the other phases |
+| Files replaced during a Linux install | Medium | Save and relaunch right after a successful install; do not relaunch on failure |
+| Sign-in start on by default seen as lacking consent | Low | The settings page shows it clearly and turns it off in one click; a system-level disable takes precedence |
 
 ## Progress Log
 
-執行結果與剩餘驗收只記 [PROGRESS](../../PROGRESS.md)。
+- 2026-10-14: work started; Phase 0 done (repo public); Phases 1–3 implemented on Windows, Linux and macOS.
+- Phases 4–6 implemented: Windows MSIX updater, Linux DEB updater through pkexec, macOS Sparkle 2.10.0. On 2026-10-15 all
+  three moved to the public Atom feed.
+- The macOS placement and startup code was written on Windows and first compiled by the hosted Xcode workflow; apart from the
+  login-item fixes, it has never been run and checked on a Mac (as of 2026-10-17).
+
+The Status field, task checkboxes and phase status lines are updated in the same commit as the work; history and verification
+evidence are in the git history and [testing](../testing.md).
 
 ---
 

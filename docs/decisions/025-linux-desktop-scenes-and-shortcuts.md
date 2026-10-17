@@ -1,49 +1,58 @@
-# ADR-025: Linux 桌面場景、快捷鍵與系統匣
+# ADR-025: Linux desktop scenes, shortcuts and tray
 
 ## Status
 
-Accepted，2026-10-05；程式已接入。後續原生場景實測見 PROGRESS，完整 host／portal／系統匣仍未實機驗收。
+Accepted, 2026-10-05; the code is wired in. Later native scene tests are in the git history and `docs/testing.md` (current
+status in `PROGRESS.md`); the full host, portal and tray have not yet passed acceptance on real machines.
 
-BACKGROUND 第三層、widget input shape、完整重畫與原生場景回歸入口由
-[ADR-031](031-macos-and-linux-wallpaper-scenes.md) 更新；實際結果記於 PROGRESS。
+The BACKGROUND third layer, the widget input shape, full redraws and the native scene regression entry points are updated by
+[ADR-031](031-macos-and-linux-wallpaper-scenes.md); the actual results are in the git history and `docs/testing.md`.
 
 ## Context
 
-SPEC-003 要求桌面層級、空白穿透、指定群組／All、快捷鍵與顯示器生命週期。
-ADR-024 的 GTK owner 保有唯一 Workspace；場景沿用共用 renderer，不新增另一份卡片權威。
+SPEC-003 requires desktop layers, pass-through on empty areas, a chosen group or All, shortcuts and the display life cycle.
+The GTK owner of ADR-024 holds the only Workspace; scenes use the shared renderer and do not add a second card authority.
 
 ## Decision
 
-- 每螢幕 desktop／floating 各一個透明 GTK／WebKit 視窗；X11 使用窗口層級提示，
-  Wayland 使用 GtkLayerShell 的 BOTTOM／TOP。缺少可用 backend 時回報原因並保留主畫面。
-- 固定場景 document 與 owner mailbox；場景只取得投影、草稿命令與短效輸入意圖，
-  沒有資料庫、Google 或備份能力。傳輸綁定來源、容量與 SHA-256，舊場景／帳號操作失效。
-- 原生 input region 依紙面順序裁切，非互動紙面遮蓋下層互動範圍；空白不攔截桌面事件。
-  frame 確認後才套用輸入；顯示器變更先撤銷輸入並通知 owner 保存草稿、套用 topology。
-- 保留 editor 所在 WebView，工作區／monitor／休眠喚醒均走相同 topology 流程。
-  焦點要求需近期原生輸入／shortcut intent；Wayland 使用 portal 提供的 activation token。
-- X11 優先 Keybinder 3；其他情況使用 GlobalShortcuts portal。實際 trigger description 顯示於設定。
-  App 焦點、組字／editor blocking 與原生對話框釋放全域註冊；恢復時重新建立註冊。
-- 系統匣使用 Ayatana／AppIndicator 或 Gtk.StatusIcon，確認可達性後才隱藏主畫面。
-  斷線恢復主畫面；退出沿用共用保存流程。2026-10-06 起視窗關閉鈕在系統匣可用時只收起主畫面。原生 menu／file chooser 阻擋全域快捷鍵。
+- Per display, one transparent GTK/WebKit window each for desktop and floating; X11 uses window layer hints,
+  Wayland uses GtkLayerShell BOTTOM/TOP. When no usable backend exists, the reason is reported and the main window stays.
+- A fixed scene document and an owner mailbox; scenes only get the projection, draft commands and short-lived input intents,
+  with no database, Google or backup capability. Transfers are bound to source, size and SHA-256; operations from old scenes
+  or accounts become invalid.
+- The native input region is clipped in paper order: non-interactive papers cover the interactive area beneath them, and
+  empty areas do not intercept desktop events. Input is applied only after the frame is confirmed; on a display change, input
+  is revoked first and the owner is told to save drafts and apply the topology.
+- The WebView that holds the editor is kept; workspace, monitor and sleep/wake changes all use the same topology flow.
+  Focus requests need recent native input or a shortcut intent; Wayland uses the activation token provided by the portal.
+- X11 prefers Keybinder 3; other cases use the GlobalShortcuts portal. The actual trigger description is shown in Settings.
+  App focus, composition or editor blocking, and native dialogs release the global registrations; they are registered again
+  on resume.
+- The tray uses Ayatana/AppIndicator or Gtk.StatusIcon; the main window is hidden only after the tray is confirmed reachable.
+  When the tray disconnects, the main window comes back; quitting uses the shared save flow. Since 2026-10-06 the window
+  close button only hides the main window when the tray is available. Native menus and file choosers block global shortcuts.
 
 ## Consequences
 
-Linux host 已接上共用桌面協定；distribution 提供相關 GI runtime 與 portal backend。
-compositor 可以拒絕層級／焦點，缺 backend 時不宣稱已支援桌面功能。
-portal session 重建可能再次顯示系統授權對話框；此行為與 X11／Wayland 真實輸入尚未執行。
-source tar.gz 不代表原生操作、Debian 安裝或完整五平台發布已完成。
+The Linux host is connected to the shared desktop protocol; the distribution provides the related GI runtimes and portal
+backends.
+The compositor can refuse layers or focus; without a backend, desktop features are not claimed as supported.
+Re-creating the portal session may show the system authorization dialog again; this behavior and real X11/Wayland input
+have not been run.
+The source tar.gz does not mean that native operation, Debian installation or a full five-platform release is complete.
 
 ## Alternatives Considered
 
-一卡一窗口會改變共用疊序與編輯生命週期。常駐攔截整個桌面違反空白穿透。
-繼續註冊全域快捷鍵而只忽略 callback 無法釋放文字輸入按鍵，因此採用真實解除註冊。
+One window per card would change the shared stacking order and the editing life cycle. Permanently intercepting the whole
+desktop violates pass-through on empty areas.
+Keeping global shortcuts registered and only ignoring the callback cannot release the keys for text input, so real
+unregistration is used.
 
 ## References
 
-- [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)、[ADR-024](024-linux-native-owner-and-storage.md)。
-- [Linux host](../../src/native/linux/README.md)。
-- [GtkLayerShell](https://wmww.github.io/gtk-layer-shell/)。
-- [GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html)。
+- [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), [ADR-024](024-linux-native-owner-and-storage.md).
+- [Linux host](../../src/native/linux/README.md).
+- [GtkLayerShell](https://wmww.github.io/gtk-layer-shell/).
+- [GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html).
 
 *Decision made: 2026-10-05*

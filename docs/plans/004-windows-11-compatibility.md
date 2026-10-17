@@ -1,96 +1,115 @@
-# PLAN-004: Windows 11 相容性實作與驗收交接
+# PLAN-004: Windows 11 Compatibility Implementation and Acceptance Handoff
 
 ## Metadata
 
 | Field | Value |
 |---|---|
-| Status | 需求已確認；施工與驗收狀態見 PROGRESS |
-| Owner | 專案維護者 |
-| Assigned To | Windows 相容性實作 session |
-| Reviewer | 重要原生改動另安排獨立審閱；目前沒有 |
-| 日期 | 2026-10-09 |
+| Status | In Progress: Phases 1–2 done 2026-10-09; Phase 3 partly done; Phase 4 not started |
+| Owner | Project maintainer |
+| Assigned To | Windows compatibility implementation session |
+| Reviewer | Significant native changes get a separate independent review; none so far |
+| Date | 2026-10-09 |
 
 ## Related Spec
 
-[SPEC-005](../specs/005-windows-11-compatibility.md)、[ADR-034](../decisions/034-windows-11-compatibility-and-install-floor.md)。
-產品互動仍按 SPEC-003；本計畫只描述施工順序，完成狀態以 [PROGRESS](../../PROGRESS.md) 為準。
+[SPEC-005](../specs/005-windows-11-compatibility.md), [ADR-034](../decisions/034-windows-11-compatibility-and-install-floor.md).
+Product interaction still follows SPEC-003. This plan describes the construction order; each phase's status is recorded in
+the phase below and updated in the same commit as the work.
 
 ## Overview
 
-本專案已有 WPF／WebView2 三層場景、classic／modern Explorer 發現與 MSIX。
-先取得 23H2 的實際失敗及新版既有基線，再小幅修正相容性，之後調整安裝下限與驗證包。
-不把另一個 Tauri 專案的修改 cherry-pick 過來，不借其測試結果作本專案證據。
+The project already has WPF / WebView2 three-layer scenes, classic / modern Explorer discovery and MSIX.
+First obtain the actual 23H2 failures and the existing baseline on the newer version, then make small compatibility fixes, and only then adjust the install floor and verify the package.
+Do not cherry-pick changes from another Tauri project, and do not borrow its test results as evidence for this project.
 
 ## Implementation Phases
 
-### Phase 1: 23H2 原生基線與故障定位
+### Phase 1: 23H2 native baseline and fault isolation
 
-- 核對本機 build、WebView2、DPI、既有實例與工作區；先看 PROGRESS 的黑塊／初始化順序及穿透修正。
-- 用 `Get-ShellLayerInventory.ps1` 唯讀盤點。現有盤點是 22631.6199／144 DPI，Progman 下有 DefView、沒有新版 child WorkerW；它不證明 host 建立／附著成功。
-- 用現有隔離資料探針測 core、UI、composition、platform、wallpaper 與 host-check；先保留每項 PASS／FAIL／SKIP 與輸出。
-- 比對 `NativeShellLayers.Discover` 的有界 0x052C 请求、classic sibling 疊序與 DPI／SetParent；不以直接降低 MSIX 門檻當作原生成功。
+- Check the local build, WebView2, DPI, existing instances and working tree; first review the earlier fixes for black blocks / initialization order and pass-through in the git history.
+- Take a read-only inventory with `Get-ShellLayerInventory.ps1`. The existing inventory is 22631.6199 / 144 DPI, with DefView under Progman and no new-style child WorkerW; it does not prove that the host was created / attached successfully.
+- Test core, UI, composition, platform, wallpaper and host-check with the existing isolated-data probes; keep each PASS / FAIL / SKIP and its output first.
+- Compare the bounded 0x052C request in `NativeShellLayers.Discover`, the classic sibling stacking order and DPI / SetParent; lowering the MSIX floor directly does not count as native success.
 
-交付：本專案的 23H2 基線、具體失敗與最小修改位置；不是新一輪框架重建。
+Delivered: this project's 23H2 baseline, the specific failures and the minimal places to change; not another round of framework rebuilding.
 
-### Phase 2: 最小修正與舊新結構回歸
+**Status**: done 2026-10-09 on 23H2 build 22631.6199, one display at 144 DPI, WebView2 154.0.4258.62. The full isolated native
+baseline passed with no renderer, SetParent or DPI rewrite needed.
 
-- 優先修正有證據的失敗；保留同 Explorer PID、真正 parent、DPI awareness 與座標檢查。
-- 適當抽出可測的宿主選擇／存活判斷，覆蓋 classic sibling、Progman child、錯誤 PID／圖示宿主／缺失、重建與句柄失效。
-- 不無故更改 windowed attached／composition floating 的選擇、Start 建立順序、紙面 region／輸入、焦點与草稿交易。
-- 驗證 W11-C02–C07；已有 Explorer／display watchdog 先修補，不另加每秒重新附著的平行機制。
+### Phase 2: Minimal fixes and regressions for old and new structures
 
-交付：必要原生修正、對應回歸與證據；未能驗證的較新 OS 保持未測。
+- Fix failures with evidence first; keep the same Explorer PID, the real parent, DPI awareness and coordinate checks.
+- Extract testable host selection / liveness decisions where appropriate, covering classic sibling, Progman child, wrong PID / icon host / missing, recreation and invalid handles.
+- Do not change without reason the choice of windowed attached / composition floating, the Start creation order, paper regions / input, focus and draft transactions.
+- Verify W11-C02–C07; patch the existing Explorer / display watchdogs first instead of adding a parallel mechanism that reattaches every second.
 
-### Phase 3: MSIX 安裝下限與正常應用驗收
+Delivered: the necessary native fixes, matching regressions and evidence; newer OS versions that could not be verified stay untested.
 
-- 將產生器的 MinVersion 由 26100 改為 22000；保留 26200 MaxVersionTested 与編譯 framework 基線。
-- 在產生 manifest／最終 package 的測試核對 Windows.Desktop、最低版本、版號及 preview 身份；避免測試只檢查 identity version。
-- 使用既有 Build-WindowsPackage／Test-WindowsPackage，不建立另一套封裝；不修改憑證信任。
-- 正常 Debug 與安裝版共用資料；先備份既有資料並關閉舊實例，再與使用者測第一次啟動、層級、群組／All、文字、拖動、圖示、Win+D。
-- 安裝或發布新版本必須明確區分。沒有 Windows preview release 指令就不升版、不 dispatch CI、不建立 tag／GitHub Release。
+**Status**: done 2026-10-09. Host discovery was extracted behind a test seam with classic/modern and failure regressions;
+only probe fixes were needed.
 
-交付：W11-C01、C03–C06 的 23H2 證據及包內容；較新版本／Windows 10 部署矩陣如缺設備留待補驗。
+### Phase 3: MSIX install floor and acceptance of the normal app
 
-### Phase 4: 後續 Store 上架門禁
+- Change the generator's MinVersion from 26100 to 22000; keep MaxVersionTested 26200 and the compile framework baseline.
+- In the tests that generate the manifest / final package, check Windows.Desktop, the minimum version, the version number and the preview identity; avoid tests that check only the identity version.
+- Use the existing Build-WindowsPackage / Test-WindowsPackage and do not create another packaging path; do not change certificate trust.
+- Normal Debug and the installed version share data; back up the existing data and close old instances first, then test with the user the first launch, layers, Group / All, text, dragging, icons and Win+D.
+- Keep installing and publishing a new version clearly apart. Without a Windows preview release instruction, do not bump the version, dispatch CI or create a tag / GitHub Release.
 
-Partner Center 保留身份後再配置正式 package identity／publisher、簽章及支援文案。
-確認 Windows 10 在 Store 取得／安裝階段被拒，以及支援的 Windows 11 可正常取得。
-目前沒有上架指令，本階段不啟動，不能以 preview MSIX 驗證取代 Store 驗收。
+Delivered: 23H2 evidence for W11-C01 and C03–C06 and the package contents; the newer-version / Windows 10 deployment matrix waits for later verification if devices are missing.
+
+**Status**: partly done. The MSIX floor is 22000 with MaxVersionTested 26200. On 2026-10-10 the user reported that 23H2
+"seems fine, nothing special seen" and approved 0.1.2; this is one user's machine, not the full manual matrix.
+The user acceptance list from 2026-10-09 is still open: first display and black blocks, rounded corners, Group/All floating
+and exit, drag, edit and read-only selection, icon and blank/wallpaper click-through, close and reopen, Win+D.
+The white blocks at old positions after stacking or spreading (reported 2026-10-09) were not reproduced in isolated cases,
+including with the installed assembly; the root cause is not proven and no later report is recorded.
+
+### Phase 4: Later Store submission gate
+
+After Partner Center reserves the identity, configure the formal package identity / publisher, signing and support text.
+Confirm that Windows 10 is rejected at the Store acquisition / install stage and that supported Windows 11 versions can acquire it normally.
+There is currently no instruction to submit, so this phase does not start, and preview MSIX verification does not replace Store acceptance.
+
+**Status**: not started; Partner Center has no reserved app.
+
+Still open as of 2026-10-17: 21H2, 22H2, 24H2 and 25H2+ after the install-floor change; Windows 10 install rejection;
+mixed DPI; a real Explorer restart; sleep/wake; virtual desktops; Win+D with the user; .NET 10 on 23H2.
 
 ## Files to Inspect or Modify
 
-| 位置 | 用途 |
+| Location | Purpose |
 |---|---|
-| `src/native/windows/app/NativeShellLayers.cs` | 新舊宿主發現、PID／可見性／疊序与存活；必要才修改 |
-| `src/native/windows/app/DesktopSurface.cs` | 附著、實際 parent、DPI、座標、顯示／region；保留已測顯示路徑 |
-| `src/native/windows/app/DesktopCoordinator.cs`、`NativeDisplayWatcher.cs` | 現有宿主／display 恢復及草稿屏障 |
-| `tests/native/windows/ui/WallpaperProbe.cs`、`HostChildProbe.cs` | 真 Explorer 與仿宿主顯示／輸入／座標驗證 |
-| `scripts/generate-windows-manifest.mjs`、`tests/release-versions.test.js` | 封裝最低版本與產生 manifest 回歸 |
-| `scripts/windows/Test-WindowsPackage.ps1`、`Test-WindowsNative.ps1` | 最終包與原生門禁；必要才擴充 |
-| `docs/setup-guide.md`、`docs/deployment.md`、`docs/testing.md`、`PROGRESS.md` | 實作後同步當前限制与實測狀態 |
+| `src/native/windows/app/NativeShellLayers.cs` | Old and new host discovery, PID / visibility / stacking order and liveness; change only if needed |
+| `src/native/windows/app/DesktopSurface.cs` | Attachment, real parent, DPI, coordinates, display / region; keep the tested display path |
+| `src/native/windows/app/DesktopCoordinator.cs`, `NativeDisplayWatcher.cs` | Existing host / display recovery and draft barrier |
+| `tests/native/windows/ui/WallpaperProbe.cs`, `HostChildProbe.cs` | Display / input / coordinate verification on the real Explorer and a simulated host |
+| `scripts/generate-windows-manifest.mjs`, `tests/release-versions.test.js` | Package minimum version and generated manifest regressions |
+| `scripts/windows/Test-WindowsPackage.ps1`, `Test-WindowsNative.ps1` | Final package and native gates; extend only if needed |
+| `docs/setup-guide.md`, `docs/deployment.md`, `docs/testing.md`, `PROGRESS.md` | Update the current limits and tested status after implementation |
 
 ## Testing Strategy
 
-先執行唯讀盤點，再執行 `scripts/windows/Test-WindowsNative.ps1`（已 restore 時可加 `-SkipRestore`）。
-共用 JS／Python 與建置命令按 [testing.md](../testing.md)。
-`--wallpaper` 的 WebView capture 只能證明頁面繪製；真螢幕檢查若因其他視窗遮住而 SKIP，不得當作呈現通過。
-必要時由使用者手動 Win+D 露出測試點；不自動注入 Windows 系統快捷鍵或重啟 Explorer。
-保留已有 build 26200 的歷史證據，追加本次 23H2 紀錄；新舊設備結果分開寫。
+Run the read-only inventory first, then `scripts/windows/Test-WindowsNative.ps1` (add `-SkipRestore` when already restored).
+Shared JS / Python and build commands follow [testing.md](../testing.md).
+The `--wallpaper` WebView capture only proves that the page drew; if the real-screen check SKIPs because another window covers it, it does not count as a presentation pass.
+When needed, the user presses Win+D manually to expose the test points; do not inject Windows system shortcuts or restart Explorer automatically.
+Keep the existing historical evidence for build 26200 and record this round's 23H2 results separately; write results for old and new devices separately.
 
 ## Risks and Mitigations
 
-| 風險 | 處理 |
+| Risk | Handling |
 |---|---|
-| 放寬安裝資格後才發現原生失敗 | 先跑原生探針，再調整包与驗收安裝 |
-| 新版無本輪設備 | 減少改動、保留已有 renderer／host 路徑、補分支回歸並揭露未測 |
-| 跨 DPI SetParent／黑塊 regression | 保留 awareness guard、physical bounds 與空 region 的可見初始化；真像素驗證 |
-| 測試讀寫正常資料 | 先用合成 probe；正常應用先備份，保持原子保存与草稿屏障 |
-| 把另一專案的需求／證據混入 | 只移交本需求；本 repo 的 PROGRESS 才是執行證據 |
+| Native failures found only after widening install eligibility | Run the native probes first, then adjust the package and do install acceptance |
+| No device with the newer version this round | Minimize changes, keep the existing renderer / host paths, add branch regressions and disclose what is untested |
+| Cross-DPI SetParent / black block regression | Keep the awareness guard, physical bounds and the visible initialization with an empty region; verify with real pixels |
+| Tests read or write normal data | Use synthetic probes first; back up before testing the normal app, keep atomic saves and the draft barrier |
+| Mixing in another project's requirements / evidence | Hand over only this requirement; only this repo's records (git history, [testing](../testing.md)) count as execution evidence |
 
 ## Handoff
 
-最初文件移交由使用者要求直接 commit／push main；當時 MinVersion 為 26100、沒有本次原生 PASS。
-同日後續已接續 23H2 原生與最終未簽章包驗證，MinVersion 為 22000；完整證據與未測範圍只在 PROGRESS。
-接續 Phase 3 的使用者正常互動與可用簽章下的安裝驗收，其他 Windows 版本實機另安排；沒有新 preview release 或 Store 提交。
+The initial document handoff was committed and pushed directly to main at the user's request; at that time MinVersion was 26100 and there was no native PASS from this round.
+Later the same day, 23H2 native verification and verification of the final unsigned package followed, with MinVersion 22000; the phase status is recorded above, the evidence is in the git history, and the untested scope is listed above.
+Next: Phase 3's normal user interaction and install acceptance with a usable signature; real machines with other Windows versions are arranged separately. At the time of this handoff there was no new preview release or Store submission.
 
 *Created: 2026-10-09*

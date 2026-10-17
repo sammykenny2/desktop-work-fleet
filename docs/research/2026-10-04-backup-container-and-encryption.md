@@ -1,42 +1,59 @@
-# 備份容器與加密依據
+# Backup container and encryption basis
 
-查閱：2026-10-04。外部證據、設計選擇及實測範圍分開；採用決策見 ADR-013。
+Reviewed: 2026-10-04. External evidence, design choices and test scope are kept apart; the adopted decision is in
+ADR-013.
 
-## 外部證據
+## External evidence
 
-- [PKWARE ZIP APPNOTE](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT) 定義 local／central header、
-  CRC、size、data descriptor 及 UTF-8 路徑。descriptor signature 可省略；本 reader 按實際邊界辨識，
-  避免 CRC 恰等 signature 的歧義。ASCII 路徑白名單、extra field 限制及拒絕 ZIP64 是產品選擇。
-- [fflate 官方專案](https://github.com/101arrowz/fflate) 提供 browser ES module 及 ZIP 串流 writer，MIT 授權。
-  本次固定 0.8.3 並封裝 LICENSE；沒有複製其他產品程式或資料契約。
-- [WHATWG Compression Streams](https://compression.spec.whatwg.org/) 規定 deflate-raw 遵循 RFC1951，
-  非法 block、未完整結束及 final block 後多餘 bytes 應失敗。本 reader 使用原生串流並限制輸出 bytes。
-- [Node Web Streams](https://nodejs.org/api/webstreams.html#class-decompressionstream) 記錄 deflate-raw
-  自 21.2.0／20.12.0 支援，因此 Node >=22 下限不需調高；實測版本見 PROGRESS。
-- [Safari 16.4 WebKit 公告](https://webkit.org/blog/13966/webkit-features-in-safari-16-4/) 宣告 Compression Streams。
-  這不單獨證明所有目標 WKWebView 的 deflate-raw 行為；仍需 capability check 及實機 probe。
-- [Web Cryptography 規格](https://www.w3.org/TR/webcrypto/) 定義 PBKDF2、AES-GCM 與 nonextractable CryptoKey。
-  容器使用標準運算及 authenticated additional data，沒有自有 cipher。
-- [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
-  列 PBKDF2-HMAC-SHA256 600,000 工作因子；該頁一般優先 Argon2id。
-  本產品因 WebCrypto 可攜性選 PBKDF2，不把引用當 OWASP 格式認證或 FIPS 合規宣稱。
-- [Chrome File System Access 指南](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)
-  說明 secure context、使用者手勢、save picker、createWritable／write／close 與 getFile。
-  先做壓縮可能失去 transient activation，因此產品先要求選檔，再生成 bytes；保存後讀回 hash
-  是本產品額外完整性決策。下載 fallback 不具相同保存確認能力。
+- [PKWARE ZIP APPNOTE](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT) defines local/central headers,
+  CRC, size, data descriptors and UTF-8 paths. The descriptor signature is optional; this reader recognizes it by the
+  actual boundaries, which avoids the ambiguity when a CRC happens to equal the signature. The ASCII path allowlist,
+  the extra-field limits and rejecting ZIP64 are product choices.
+- The [official fflate project](https://github.com/101arrowz/fflate) provides a browser ES module and a streaming ZIP
+  writer under the MIT license. This work pins 0.8.3 and packages its LICENSE; no other product's code or data
+  contract was copied.
+- [WHATWG Compression Streams](https://compression.spec.whatwg.org/) requires deflate-raw to follow RFC1951:
+  invalid blocks, an unfinished stream and extra bytes after the final block must fail. This reader uses the native
+  stream and limits output bytes.
+- [Node Web Streams](https://nodejs.org/api/webstreams.html#class-decompressionstream) records deflate-raw support
+  since 21.2.0/20.12.0, so the Node >=22 floor does not need raising; the versions actually tested are in the git
+  history.
+- The [Safari 16.4 WebKit announcement](https://webkit.org/blog/13966/webkit-features-in-safari-16-4/) announces
+  Compression Streams. That alone does not prove deflate-raw behavior in every target WKWebView; a capability check
+  and device probes are still needed.
+- The [Web Cryptography specification](https://www.w3.org/TR/webcrypto/) defines PBKDF2, AES-GCM and nonextractable
+  CryptoKeys. The container uses standard operations and authenticated additional data, with no custom cipher.
+- The [OWASP Password Storage Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html)
+  lists a work factor of 600,000 for PBKDF2-HMAC-SHA256; that page generally prefers Argon2id.
+  This product chooses PBKDF2 for WebCrypto portability and does not present the citation as OWASP certification of
+  the format or as a FIPS compliance claim.
+- The [Chrome File System Access guide](https://developer.chrome.com/docs/capabilities/web-apis/file-system-access)
+  describes the secure context, user gesture, save picker, createWritable/write/close and getFile.
+  Compressing first can lose transient activation, so the product asks for the file first and generates the bytes
+  afterwards; reading back the hash after saving is this product's own additional integrity decision. The download
+  fallback cannot confirm the save in the same way.
 
-## 實驗的意義
+## What the experiments mean
 
-惡意 ZIP 包含錯 NLEN、未結束 DEFLATE、compressed 尾垃圾、BOM 名稱、CRC/signature 碰撞。
-寬容解壓器接受的錯誤改由原生 DecompressionStream 拒絕；stored 大檔分塊 CRC 並讓出取消事件。
-Python 標準庫 zipfile 另讀輸出；獨立 OpenSSL／WebCrypto 雙向測試檢查 KDF、AAD 及 GCM tag。
-這些是容器互通／錯誤處理證據，不是 Google、原生檔案持久性或完整五平台驗收。
-新增 Edge UI probe 只替換 picker，實際 writes／close／getFile 使用隔離 profile 的 OPFS handle；
-可驗證 API 保存／讀回與 UI 閘門，不能據此宣稱 OS picker、外部磁碟或斷電耐久已通過。
+The malicious ZIPs include a wrong NLEN, unfinished DEFLATE, trailing garbage after compressed data, BOM names and a
+CRC/signature collision.
+Errors that a lenient decompressor accepted are now rejected by the native DecompressionStream; large stored files get
+a chunked CRC and yield to cancel events.
+Python's standard-library zipfile also reads the output; independent two-way OpenSSL/WebCrypto tests check the KDF,
+AAD and GCM tag.
+This is container interoperability and error-handling evidence, not acceptance of Google, native file durability or
+all five platforms.
+A new Edge UI probe replaces only the picker; the actual writes/close/getFile use OPFS handles in an isolated profile.
+It can verify API save/read-back and the UI gates; it does not support a claim that OS pickers, external disks or
+power-loss durability have passed.
 
-## 決策及尚待驗證
+## Decisions and what remains to verify
 
-[SPEC-002](../specs/002-portable-backup-and-restore.md) 定義完整格式、三種還原及自動備份。
-128 MiB expanded 等限制是防止無界分配的工程選擇，最低手機／五平台容量仍須實測。
-密碼安全儲存、自動排程／OS 暫停、原子檔案保存及還原交易各自需故障驗收。
-狀態只記 [PROGRESS](../../PROGRESS.md)，不由研究推定已實作。
+[SPEC-002](../specs/002-portable-backup-and-restore.md) defines the complete format, the three restore modes and
+automatic backups.
+Limits such as 128 MiB expanded are engineering choices that prevent unbounded allocation; the capacity of the lowest
+phones and of all five platforms still has to be measured.
+Secure password storage, automatic scheduling/OS suspension, atomic file saving and restore transactions each need
+their own failure acceptance.
+Current status is in [PROGRESS](../../PROGRESS.md), with history and verification evidence in the git history and
+[testing](../testing.md); this research does not imply that anything is implemented.

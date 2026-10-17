@@ -1,40 +1,50 @@
-# Apple 原生 App
+# Apple native App
 
-macOS 13+／iOS 16+，需要完整 Xcode（Swift 5.10+）、Node 22+。此目錄為 1.0 原生 host，
-不使用歷史 Python server。主畫面與手機 editor 共用封裝資產；macOS 另接桌面／浮動場景。
+macOS 13+/iOS 16+; needs a full Xcode (Swift 5.10+) and Node 22+. This directory is the 1.0 native host and does not
+use the historical Python server. The main window and the phone editor share the packaged assets; macOS also connects the
+desktop and floating scenes.
 
-## 在 Mac clone 後直接開啟
+## Open directly after cloning on a Mac
 
-`WorkFleet.xcodeproj`、workspace、兩個 shared schemes、預設 xcconfig 與圖示均已納入 Git。
-所有 source／entitlements 參照使用相對路徑；不需先產生專案，也不依賴另一台電腦的 `build/`。
-在完整 repository checkout 的根目錄執行：
+`WorkFleet.xcodeproj`, the workspace, two shared schemes, the default xcconfig and the icons are all in Git.
+All source and entitlements references use relative paths; there is no need to generate the project first, and nothing
+depends on another computer's `build/`.
+In the root of a full repository checkout, run:
 
 ```bash
 open src/native/apple/WorkFleet.xcodeproj
 ```
 
-選擇 `WorkFleetIOS` 與 iPhone／iPad Simulator，再按 Run；macOS 使用 `WorkFleetMac`。
-需安裝 Node 22+（含 npm）。Xcode 的 Prepare local resources phase 自動安裝 lockfile 依賴、
-產生共用介面、公開配置及 Info.plist，第一次需要下載 npm／SPM 依賴；不需預先 `npm run build`。
-資產位於此目錄的 `.generated/<target>/`，已由 Git 忽略。
+Choose `WorkFleetIOS` and an iPhone/iPad Simulator, then press Run; for macOS use `WorkFleetMac`.
+Node 22+ (with npm) must be installed. Xcode's Prepare local resources phase installs the lockfile dependencies and
+generates the shared UI, the public configuration and Info.plist automatically; the first run needs to download the
+npm/SPM dependencies, and there is no need to run `npm run build` first.
+The assets are in this directory's `.generated/<target>/`, which Git ignores.
 
-Debug 預設 app ID 是 `app.workfleet.preview`，未填 Google 設定也可建置本機 preview。
-實機／正式身份可把 `config/Local.xcconfig.example` 複製為 Git 忽略的 `config/Local.xcconfig`，
-填寫 WORK_FLEET_APP_ID、WORK_FLEET_APP_GROUP_ID、DEVELOPMENT_TEAM；主 App 與 Extension 使用同一份設定。
-也可在 Xcode 設定 Signing Team。Google clients／商店公開資料仍從 repository 根目錄 `.env` 讀取。
-直接 Xcode 建置的 app ID／App Group 以 Xcode build settings 為準，避免簽章、entitlements 與隨包配置不一致。
+The default Debug app ID is `app.workfleet.preview`, and a local preview builds without Google settings.
+For devices or the final identity, copy `config/Local.xcconfig.example` to the Git-ignored `config/Local.xcconfig`
+and fill in WORK_FLEET_APP_ID, WORK_FLEET_APP_GROUP_ID and DEVELOPMENT_TEAM; the main app and the extension use the same
+settings.
+The Signing Team can also be set in Xcode. Google clients and public store data are still read from `.env` at the
+repository root.
+For direct Xcode builds the app ID and App Group follow the Xcode build settings, so that signing, entitlements and the
+bundled configuration stay consistent.
 
-macOS 本機試用也需要有效簽章才能使用 Data Protection Keychain。在 WorkFleetMac target 的
-Signing & Capabilities 啟用 Automatically manage signing、選擇 Team，並完成 Register Device。
-Xcode Accounts／Manage Certificates 可建立 Apple Development 憑證；不要停用 entitlements 或重設 Keychain。
-Apple Development 只供 profile 允許的裝置使用，跨機正式散布仍使用 Developer ID／公證。
+Local macOS trials also need a valid signature to use the Data Protection Keychain. In the WorkFleetMac target's
+Signing & Capabilities, turn on Automatically manage signing, choose a Team, and complete Register Device.
+Xcode Accounts/Manage Certificates can create an Apple Development certificate; do not disable entitlements or reset the
+Keychain.
+Apple Development is only for devices the profile allows; distribution to other machines still uses Developer ID and
+notarization.
 
-Prepare phase 會將 `/opt/homebrew/bin`／`/usr/local/bin` 加入工具搜尋路徑；
-自訂 Node/npm 路徑可在 Local.xcconfig 設定 WORK_FLEET_NODE／WORK_FLEET_NPM。
-此 phase 需要讀取本機配置並下載／安裝工具依賴，因此 Xcode user-script sandboxing 關閉；
-App 的 Sandbox／Keychain／entitlements 設定維持原有契約。
+The Prepare phase adds `/opt/homebrew/bin` and `/usr/local/bin` to the tool search path;
+custom Node/npm paths can be set as WORK_FLEET_NODE/WORK_FLEET_NPM in Local.xcconfig.
+This phase needs to read the local configuration and download and install tool dependencies, so Xcode user-script
+sandboxing is off;
+the app's Sandbox, Keychain and entitlements settings keep their existing contract.
+The AppIntents metadata extraction warning in Xcode builds is expected and harmless (2026-10-05).
 
-## 命令列建置
+## Command-line builds
 
 ```bash
 bash scripts/macos/build-native-app.sh --platform macos
@@ -42,78 +52,153 @@ bash scripts/macos/build-native-app.sh --platform ios --simulator
 bash scripts/macos/build-native-app.sh --platform ios --release
 ```
 
-腳本使用同一份已提交的 `src/native/apple/WorkFleet.xcodeproj`，不重新產生或覆寫 IDE 專案。
-`.env` 中非空的 app ID／team 會作為命令列 build settings；未填時採用 xcconfig 設定。
-DerivedData／archive 與匯出中間產物在忽略的 `build/apple/`；封裝出的 PKG／DMG／ZIP／IPA 直接放在 `build/`。Xcode 建置需在 Mac 執行。
-SDK 固定 GoogleSignIn 9.2.0；SPM checkout 根目錄授權文本於簽章前複製到 bundle Licenses。
-Apple 主畫面與桌面場景的 ES modules 在建置時由固定版本 esbuild 合併成 classic deferred scripts，
-供 WKWebView 從本機封裝檔案執行；來源仍共用，CSP、native bridge 與 Sandbox 保留。見 [ADR-033](../../../docs/decisions/033-apple-local-script-bundles.md)。
-Release 的資產準備檢查有效公開設定，再 archive；簽章／provisioning 在 Xcode／Keychain 配置。
-`scripts/macos/package-native-app.sh` 匯出既有 archive；iOS 可產生 IPA，macOS 可產生 PKG／可選 DMG。
-Apple 版號記在 `config/WorkFleet.xcconfig` 的 `MARKETING_VERSION`／`CURRENT_PROJECT_VERSION`，不可在 Local.xcconfig 覆蓋；
-macOS 命令列建置一律含 arm64／x86_64，PKG／DMG 檔名為 `WorkFleet-<版號>-macos-universal`。
-`--method app-store-connect` 保持本機 export，不自動上傳；Developer ID 可使用既有 installer identity
-與 Keychain notary profile 公證並 staple。DMG 公證另要求 application identity；腳本不含私鑰。
-macOS target 啟用 hardened runtime。命令與平台限制見 [散布文件](../../../docs/deployment.md)。
+The scripts use the same committed `src/native/apple/WorkFleet.xcodeproj` and never regenerate or overwrite the IDE
+project.
+A non-empty app ID or team in `.env` becomes a command-line build setting; otherwise the xcconfig settings apply.
+DerivedData, archives and export intermediates are in the ignored `build/apple/`; the packaged PKG/DMG/ZIP/IPA files go
+directly to `build/`. Xcode builds must run on a Mac.
+The SDK is pinned to GoogleSignIn 9.2.0; the licence texts at the SPM checkout roots are copied into the bundle's
+Licenses before signing.
+The ES modules of the Apple main window and desktop scenes are bundled at build time by a pinned esbuild into classic
+deferred scripts,
+so WKWebView can run them from local packaged files; the sources stay shared, and the CSP, native bridge and Sandbox
+are kept. See [ADR-033](../../../docs/decisions/033-apple-local-script-bundles.md).
+Release asset preparation checks for valid public settings before archiving; signing and provisioning are configured in
+Xcode and the Keychain.
+`scripts/macos/package-native-app.sh` exports an existing archive; iOS can produce an IPA, and macOS a PKG and an
+optional DMG.
+The Apple version is recorded as `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `config/WorkFleet.xcconfig` and cannot
+be overridden in Local.xcconfig;
+macOS command-line builds always include arm64/x86_64, and the PKG/DMG file names are
+`WorkFleet-<version>-macos-universal`.
+`--method app-store-connect` keeps the export local, with no automatic upload; Developer ID can notarize and staple with
+an existing installer identity
+and a Keychain notary profile. Notarizing a DMG also requires the application identity; the scripts contain no private
+keys.
+The macOS target enables the hardened runtime. Commands and platform limits are in the
+[distribution document](../../../docs/deployment.md).
 
-沒有 signing identity 時，Debug 可使用 `--unsigned` 編譯原生 macOS／iOS device App；
-`scripts/macos/package-preview-app.sh --platform macos|ios` 保存 ZIP／IPA，macOS 加 `--dmg` 改存 DMG；
-檔名依 App 的版號與實際簽章帶 `-unsigned` 或 `-development`，各平台檔名見 [散布文件](../../../docs/deployment.md#版號與發佈檔名)。
-這是 native compiled preview；protected storage／Google 或 iOS 安裝仍需合適的簽章／profile。
+Without a signing identity, Debug can use `--unsigned` to compile the native macOS/iOS device app;
+`scripts/macos/package-preview-app.sh --platform macos|ios` saves a ZIP/IPA, or a DMG on macOS with `--dmg`;
+the file name carries `-unsigned` or `-development` according to the app's version and actual signature. The file names
+per platform are in the [distribution document](../../../docs/deployment.md#versions-and-release-file-names).
+This is a natively compiled preview; protected storage, Google and iOS installation still need a suitable signature and
+profile.
 
-要從 GitHub 取得已簽章、可裝到註冊 iPhone／iPad 的 IPA，使用 **iOS registered-device IPA** workflow
-（`.github/workflows/ios-ipa.yml`）。它先編譯 unsigned Debug，再用 CI 暫時 keychain 的 Apple Development identity
-簽主 App／Share Extension 與 nested code，支援既有 Xcode-managed profiles，不需 CI 登入 Apple 帳號。
-兩份 profiles 必須允許同一批裝置，新增裝置後更新兩份 Secrets。設定與安裝見
-[手機實機測試包](../../../docs/deployment.md#手機實機測試包)。此流程只保存十四天 artifacts，不升版／發布／上 TestFlight。
-`--unsigned` 不允許 Release，也不跳過正式 archive 的配置要求。
-`.github/workflows/apple-native-build.yml` 提供手動 hosted Mac 建置與七天 artifact 保存，
-每 target 上限 20 分鐘，沒有測試／store upload；private repo 的 runner 計費需維護者先同意。
+To get a signed IPA from GitHub that installs on a registered iPhone/iPad, use the **iOS registered-device IPA** workflow
+(`.github/workflows/ios-ipa.yml`). It first compiles an unsigned Debug build, then uses the Apple Development identity in
+a temporary CI keychain to sign the main app, the Share Extension and the nested code; it supports existing
+Xcode-managed profiles and needs no Apple account sign-in in CI.
+Both profiles must allow the same set of devices; after adding a device, update both Secrets. Setup and installation are
+in [phone test builds](../../../docs/deployment.md#phone-test-builds). This workflow keeps artifacts for only fourteen
+days and does not bump the version, publish a release or upload to TestFlight.
+`--unsigned` does not allow Release and does not skip the configuration requirements of a release archive.
+`.github/workflows/apple-native-build.yml` provides a manual hosted Mac build with seven-day artifact retention,
+a limit of 20 minutes per target, and no tests or store upload; runner billing for a private repository needs the
+maintainer's consent first.
 
-GoogleSignIn Apple SDK 的 macOS、iOS client 都使用 **iOS 類型 OAuth client**，各自符合
-實際 bundle ID，分別填 `.env` 的 MACOS／IOS client ID。產生器加入 reversed client URL scheme。
-Apple 簽章憑證與 Keychain access group 是登入及安全保存的必要條件；未簽章 simulator 不代表真登入可用。
+GoogleSignIn's Apple SDK uses an **iOS-type OAuth client** for both macOS and iOS, each matching
+the actual bundle ID, entered as the MACOS and IOS client IDs in `.env`. The generator adds the reversed client URL
+scheme.
+Apple signing certificates and the Keychain access group are required for sign-in and secure storage; an unsigned
+simulator build does not show that real sign-in works.
 
-SQLite 位於 App Sandbox 的 Application Support/WorkFleet，內容、附件與原生 metadata 用
-Keychain AES-256-GCM 加密。DB 同 revision CAS 與附件寫入為單一交易，flock 保持單一 owner。
-WKWebView 僅主 frame 的封裝 document 可呼叫 bridge；桌面視窗沒有 DB／檔案／憑證能力。
-資料夾選擇保留 bookmark 與檔案系統身分；自動備份 journal 及密碼受原生保護，密碼不回傳 renderer。
-可攜備份保持 SPEC-002 PBKDF2／AES-GCM ZIP，換裝置還原須自行保存原密碼。
+SQLite is in the App Sandbox's Application Support/WorkFleet; content, attachments and native metadata are encrypted
+with a Keychain AES-256-GCM key. The database's same-revision CAS and the attachment writes are one transaction, and
+flock keeps a single owner.
+In WKWebView only the packaged document in the main frame can call the bridge; desktop windows have no database, file or
+credential capabilities.
+Folder selection keeps a bookmark and the file system identity; the automatic backup journal and password are natively
+protected, and the password is never returned to the renderer.
+Portable backups stay in the SPEC-002 PBKDF2/AES-GCM ZIP format; restoring on another device needs the original
+password, which the user must keep.
 
-macOS 桌面 visual panel 始終 ignoresMouseEvents；只有可操作或已開啟唯讀選字的紙面建立
-透明輸入區域，遮蓋部分依 renderer 疊序裁切。就地 editor 留在相同 WKWebView；主畫面是唯一內容 owner。
-桌面層用公開 `desktopIconWindow + 1`，浮動層用 floating；桌布層用 `desktopWindow + 1`，
-位於桌布上、圖示下，固定滑鼠穿透。操作此組暫時轉浮動層，結束還原當下常駐設定與原位置。
-每螢幕三個場景，顯示器重接／Space／休眠仍保留編輯 WebView。
-Mac 原生三層檢查可執行 `bash scripts/macos/test-desktop-layers.sh`；需要圖形 session 與 Xcode CLI tools。
-快捷鍵以 Carbon RegisterEventHotKey 註冊，App 或 editor 使用中釋放全域鍵；衝突在設定顯示。
-選單列支援重新開啟、快速記錄、操作、顯示與保存退出。螢幕／Space／休眠通知會暫停輸入，
-保留 editor surface，待 owner 保存救援位置後套用新 topology；背景更新不主動取得鍵盤焦點。
+The macOS desktop visual panel always has ignoresMouseEvents; only papers that can be operated, or that have read-only
+text selection open, get a transparent input region, clipped by the renderer's stacking order where covered. The
+in-place editor stays in the same WKWebView; the main window is the only content owner.
+The Desktop layer uses the public `desktopIconWindow + 1`, the Top layer uses floating; the Wallpaper layer uses
+`desktopWindow + 1`,
+above the wallpaper and below the icons, with fixed mouse click-through. Adjust this group temporarily moves the group to
+the floating level, and ending it restores the current persistent setting and the original position.
+There are three scenes per display; display reconnection, Space changes and sleep keep the editing WebView.
+The native three-layer check on a Mac is `bash scripts/macos/test-desktop-layers.sh`; it needs a graphical session and
+the Xcode CLI tools.
+Shortcuts are registered with Carbon RegisterEventHotKey, and the global keys are released while the app or the editor
+is in use; conflicts are shown in settings.
+The menu bar has "Open Work Fleet", "Quick capture", "Adjust all groups", "Show or hide desktop notes", "Check for
+updates…" (only when in-app updates are available) and "Save and quit"; the application menu has "Save and quit Work
+Fleet". Display, Space and sleep
+notifications pause input,
+keep the editor surface, and apply the new topology after the owner saves the rescue position; background updates never
+take keyboard focus.
 
-2026-10-05 已在 Apple Silicon Mac 使用 Xcode 27.0 編譯 macOS Debug universal（arm64／x86_64），
-並產生 0.1.0 Apple Development 簽章 DMG；簽章及掛載檢查證據見 [PROGRESS](../../../PROGRESS.md)。
-獨立簽章 fixture 的 Keychain 建立／更新／讀取、加密 SQLite 重開與主畫面 native 初始化通過，
-重現命令見 [Testing](../../../docs/testing.md)。測試不讀取使用者 workspace；不是完整產品操作驗收。
-尚未產生 Developer ID／公證、正式 archive／export；全螢幕／Spaces、透明輸入轉送、
-IME、多螢幕、Intel 實機與正式 Google 登入的結果仍缺。
+On 2026-10-05 a macOS Debug universal build (arm64/x86_64) was compiled with Xcode 27.0 on an Apple Silicon Mac,
+and a 0.1.0 Apple Development signed DMG was produced; the signing and mount checks are recorded in the git history and
+[Testing](../../../docs/testing.md).
+Keychain create/update/read with an isolated signing fixture, reopening the encrypted SQLite and the main window's
+native initialization passed;
+the commands to reproduce them are in [Testing](../../../docs/testing.md). The tests do not read the user's workspace and
+are not a full product acceptance.
+At that time no Developer ID/notarized build or release archive/export had been produced, and results were missing for
+full screen/Spaces, transparent input forwarding,
+IME, multiple displays, Intel hardware and a real Google sign-in.
+As of 2026-10-17 these are not verified on macOS: Quick Look thumbnails and default-app opening inside the sandboxed app,
+main-window placement, Intel Macs and IME. The macOS layer-probe additions from 2026-10-16 and the
+`config/startup.json` fixture updates to `apple-signing.test.js` and `apple_startup_probe.py` (2026-10-17) have not been
+run on a Mac.
 
-iOS 27 SDK 會終止未採用 UIScene 生命週期的 App，因此 iOS 主 App 以 `FleetSceneDelegate`
-建立視窗、處理 Google 回呼及前背景事件，產生的 Info.plist 含單一場景 `UIApplicationSceneManifest`。
-2026-10-06 以 Xcode 27.0 建置 Debug 開發簽章版，安裝至 iOS 27.0.1 iPhone 後主畫面可正常顯示；
-尚未做完整操作、iPad、Share Extension 或 Google 驗收。
+The iOS 27 SDK terminates apps that do not adopt the UIScene life cycle, so the iOS main app uses `FleetSceneDelegate`
+to create the window and handle the Google callback and foreground/background events; the generated Info.plist contains a
+single-scene `UIApplicationSceneManifest`.
+On 2026-10-06 a development-signed Debug build made with Xcode 27.0 was installed on an iPhone with iOS 27.0.1, and the
+main window showed correctly;
+full operation, iPad, Share Extension and Google acceptance were not done.
+Device used for iOS checks: an iPhone 16 Plus on iOS 27.0.1 (2026-10-06), built with Xcode 27.0 (27A266a) and
+Node 24.21.0 on an Apple Silicon Mac running macOS 27.0.1.
+As of 2026-10-17 these are not verified on iOS: full editing, attachments and backups, iPad, real sharing through the
+Share Extension, background save, scene reconnection and Google sign-in.
+Low-severity iOS issues from the 2026-10-06 review, not fixed: if the WebContent process is killed while the scene is
+also disconnected, the reconnected scene reuses a stopped host and stays blank without an error until the app restarts;
+if the scene is torn down while the folder picker is open, `directoryContinuation` never times out and later folder
+picks fail with `backup-permission` ("The backup location can't be used right now. …") until the app restarts.
 
-附件／草稿下載走原生匯出：macOS NSSavePanel、iOS UIDocumentPicker，保留取消結果。
-iOS 編輯器提供 Markdown 文字與單附件分享，使用 UIActivityViewController／iPad popover。
-傳輸沿用有容量與 SHA-256 核對的 owner staging；分享暫存使用完整檔案保護，完成／取消後清除。
-原生對話框逾時或帳號切換終止待處理的 iOS 匯出。分享至其他 App 不表示已送達收件人。
-已提交的 Xcode 專案另建立並嵌入 WorkFleetShare.appex；Share Extension 接收文字、網址與檔案。
-App 與 Extension 的 App Group 由 `WORK_FLEET_APP_GROUP_ID` 設定，預設採 `group.<APP_ID>`；
-須在同一 Apple team 登記 App Group，並加入主 App 與 `<APP_ID>.share` 的 signing profile。
-收件匣以 App Group 共享 container 與 Keychain key 做 AES-GCM 保護、flock 排他與完整檔案保護。
-Extension 只保存接收項目，不讀取主 App 的 Workspace／Google 憑證，不強制開啟主 App。
-主 App 前景／重啟更新收件匣，使用者選群組保存草稿後才移除原項目；失敗與重試保留 receipt。
-一次最多 256 KiB 文字、16 個檔案、25 MiB 檔案總量；收件匣最多 64 份／512 MiB。
-App Groups 未配置時主 App 仍可編輯便箋，但收件匣不可用；原生 Extension／檔案提供者仍未執行。
+Attachment and draft downloads use native export: NSSavePanel on macOS and UIDocumentPicker on iOS, keeping the
+cancelled result.
+The iOS editor shares Markdown text and a single attachment through UIActivityViewController/an iPad popover.
+The transfer reuses the owner staging with capacity and SHA-256 checks; share staging uses complete file protection and
+is removed after completion or cancellation.
+A native dialog timeout or an account switch ends a pending iOS export. Sharing to another app does not mean the
+recipient received it.
+The committed Xcode project also builds and embeds WorkFleetShare.appex; the Share Extension receives text, URLs and
+files.
+The App Group of the app and the extension is set by `WORK_FLEET_APP_GROUP_ID`, by default `group.<APP_ID>`;
+the App Group must be registered in the same Apple team and added to the signing profiles of the main app and
+`<APP_ID>.share`.
+The Share inbox uses the App Group shared container and a Keychain key for AES-GCM protection, flock exclusion and
+complete file protection.
+The extension only saves received items; it never reads the main app's workspace or Google credentials and never forces
+the main app to open.
+The main app refreshes the Share inbox when it comes to the foreground or restarts, and removes the original item only
+after the user chooses a group and the draft is saved; failures and retries keep the receipt.
+At most 256 KiB of text, 16 files and 25 MiB of files in total per share; the Share inbox holds at most 64 items/512 MiB.
+Without configured App Groups the main app can still edit notes, but the Share inbox is unavailable; the native extension
+and file providers have not yet been run.
 
-`scripts/generate-apple-project.mjs` 僅供維護專案結構／新增 Swift 檔案後使用；會重寫已提交的專案與圖示。
-一般開啟或建置不需執行它。可攜專案決策見 [ADR-029](../../../docs/decisions/029-portable-apple-xcode-project.md)。
+`scripts/generate-apple-project.mjs` is only for maintaining the project structure or after adding Swift files; it
+rewrites the committed project and icons.
+Ordinary opening or building does not need it. The portable project decision is in
+[ADR-029](../../../docs/decisions/029-portable-apple-xcode-project.md).
+
+## Localization
+
+- The host's own text (menu bar and application menus, alerts, the Share Extension sheet and the reasons it returns for
+  the page) is in `Shared/FleetText.swift`, with an `i18n:en` and an `i18n:zh-TW` block.
+- macOS keeps the Settings > General > Display language choice (`auto`, `en` or `zh-TW`) in the `language` field of
+  `host-preferences.json` in the app's data directory, with the startup settings; the host applies it before it builds
+  the menus. `host.language.set` saves it first (a failed write keeps the previous language), then re-resolves the
+  locale and rebuilds the menu bar and application menus.
+- iOS keeps it in the app's user defaults (key `language`) and copies it into the App Group's defaults, which the Share
+  Extension reads so that its sheet uses the same language; without an App Group the extension follows the system
+  languages. `host.language.set` stores it in both places and re-resolves the locale.
+- The preference is never part of a profile, a backup or Google data; `auto` follows the system's preferred languages.
+  The rules are in [Internationalization](../../../docs/i18n.md).

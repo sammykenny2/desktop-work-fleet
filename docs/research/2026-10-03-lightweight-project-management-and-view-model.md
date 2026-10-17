@@ -1,113 +1,113 @@
-# 輕量專案管理體驗與檢視模型研究
+# Lightweight project management experience and view model research
 
-> 2026-10-04 效力更新：本文保留歷史研究，不是最新 1.0 互動規範。
-> 使用者已改為一事一卡、通用群組、顯式 formation 與暫時 z-order；
-> 舊 Note 容器、逐項任務模型或其他候選 UX 不得覆蓋
-> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)。
-> 演進原因見 [今日整理](2026-10-04-desktop-card-interaction-design.md)。
+> 2026-10-04 validity update: this document is kept as historical research; it is not the current 1.0 interaction contract.
+> The user has since moved to one card per thing, general-purpose groups, explicit formation and temporary z-order;
+> the old Note container, per-item task model or other candidate UX must not override
+> [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md).
+> The reasons for the change are in [the same-day summary](2026-10-04-desktop-card-interaction-design.md).
 
-- 日期：2026-10-03
-- 狀態：研究與候選設計，尚未選定 PM 服務或資料 schema。
-- 前提：以 [Backlog 優先需求](2026-10-03-backlog-first-product-requirements.md) 為準。
+- Date: 2026-10-03
+- Status: research and candidate design; no PM service or data schema has been chosen.
+- Premise: [backlog-first requirements](2026-10-03-backlog-first-product-requirements.md) take precedence.
 
-## 1. 研究問題
+## 1. Research question
 
-如何在便箋式快速記錄的體驗下，保留主流專案管理工具的整理能力？使用者列舉 Trello、Linear、Plane、Monday、ClickUp、Wrike、Jira、Asana 作為參考；這不代表需要逐一複製功能或整合全部服務。
+How can the organizing power of mainstream project management tools be kept within a note-style quick-capture experience? The user named Trello, Linear, Plane, Monday, ClickUp, Wrike, Jira and Asana as references; this does not mean copying their features one by one or integrating all of these services.
 
-本次挑選少數官方資料確認可借用的概念，沒有完成上述所有產品的功能、價格、授權或 API 比較。
+This session picked a small number of official sources to confirm concepts worth borrowing; it did not complete a feature, pricing, license or API comparison of all the products above.
 
-## 2. 外部產品提供的參考
+## 2. What the external products offer as reference
 
-| 參考 | 官方可確認的概念 | 對本專案的啟發 |
+| Reference | Concept confirmable from official sources | Lesson for this project |
 |---|---|---|
-| Trello | Board、List、Card 組織工作 | 可見的卡片與簡單整理操作 |
-| Plane | Work item 作為工作單位，依不同檢視組織 | 工作資料與畫面呈現可以分開 |
-| GitHub Projects | Issues／PR 可依欄位、篩選與分組顯示於不同檢視 | 同一資料不必為每個畫面複製一次 |
-| Linear | 人類負責人與 Agent delegate 可以分開 | Agent 資訊可擴充，不必取代使用者的任務所有權 |
+| Trello | Boards, lists and cards organize work | Visible cards and simple organizing operations |
+| Plane | A work item is the unit of work, organized through different views | Work data and on-screen presentation can be separated |
+| GitHub Projects | Issues/PRs can be shown in different views by fields, filters and grouping | The same data need not be copied for each screen |
+| Linear | A human assignee and an agent delegate can be separate | Agent information can be added without replacing the user's ownership of the task |
 
-來源：[Trello 使用說明](https://support.atlassian.com/trello/docs/using-trello/)、[Plane work items](https://docs.plane.so/work-items/overview)、[GitHub Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects)、[Linear assignment](https://linear.app/docs/assigning-issues)。
+Sources: [Trello help](https://support.atlassian.com/trello/docs/using-trello/), [Plane work items](https://docs.plane.so/work-items/overview), [GitHub Projects](https://docs.github.com/en/issues/planning-and-tracking-with-projects/learning-about-projects/about-projects), [Linear assignment](https://linear.app/docs/assigning-issues).
 
-這些產品的 Project、Team、Board 並非一一對應。本文借用概念，不主張它們採用同一種資料階層。
+These products' Project, Team and Board do not map one to one. This document borrows concepts; it does not claim they use the same data hierarchy.
 
-## 3. 適合預設採用的部分
+## 3. What suits the default
 
-- 快速新增與直接編輯。
-- 簡單的未完成／完成操作，以及可選的進行中標記。
-- 同一份工作資料可用便箋、清單或狀態看板查看。
-- 可保存自己習慣的篩選、排序與分組。
-- 自由文字與工作內容有容易理解的關聯。
-- 能找回完成項目及誤刪內容。
+- Quick add and direct editing.
+- Simple unfinished/done operations, and an optional in-progress marker.
+- The same work data can be viewed as notes, a list or a status kanban board.
+- Your own preferred filters, sorting and grouping can be saved.
+- Free text and work content have an easy-to-understand relationship.
+- Completed items and accidentally deleted content can be found again.
 
-不宜只因其他 PM 工具有某個功能，就加入第一版：sprint、估點、容量管理、工時、甘特圖、複雜審批及多層工作流程，均需獨立的使用理由。
+Something should not enter the first version just because other PM tools have it: sprints, estimates, capacity management, time tracking, Gantt charts, complex approvals and multi-level workflows each need an independent reason to exist.
 
-## 4. 候選概念邊界
+## 4. Candidate concept boundaries
 
-| 概念 | 用途 | 預設是否要求使用者設定 |
+| Concept | Purpose | Does the default require the user to set it up |
 |---|---|---|
-| Note／便箋 | 收納一個工作脈絡、說明與待辦 | 只需簡單名稱或直接記錄 |
-| Item／項目 | 可獨立完成、移動與引用的工作 | 不暴露內部 ID |
-| Project／專案 | 聚合某個目標或產品的工作 | 可選；不阻擋捕捉靈感 |
-| Environment／環境 | 機器或平台相關的脈絡 | 有需要才指定 |
-| View／檢視 | 保存顯示範圍、分組與排序 | 提供預設，進階使用者再調整 |
-| Device layout／版面 | 每台裝置的便箋位置、大小與突出方式 | 與共用工作內容分開 |
+| Note | Holds one work context, its description and to-dos | Only a simple name, or just start writing |
+| Item | Work that can be completed, moved and referenced on its own | Internal IDs are not exposed |
+| Project | Gathers work for one goal or product | Optional; never blocks capturing an idea |
+| Environment | Machine- or platform-related context | Assigned only when needed |
+| View | Saves display scope, grouping and sorting | A default is provided; advanced users adjust it later |
+| Device layout | Each device's note positions, sizes and highlighting | Kept separate from the shared work content |
 
-這是一組設計語彙，不是要求立即建立六張資料表。實作時應採能支援已驗證體驗的最小模型。
+This is a design vocabulary, not a requirement to create six data tables right away. Implementation should use the smallest model that supports the validated experience.
 
-## 5. 便箋內容與查詢結果的差異
+## 5. Difference between note content and query results
 
-例一：「本週想法」是一張可直接書寫的便箋，含一段描述與幾個待辦。
+Example 1: "Ideas this week" is a note you write in directly, with a short description and a few to-dos.
 
-例二：「這台 Mac 的未完成事項」可能是來自多個專案的篩選結果。
+Example 2: "Unfinished items on this Mac" might be a filter result drawn from several projects.
 
-兩種畫面都可能長得像便箋。若允許它們共存，應明確定義：
+Both screens might look like a note. If they are allowed to coexist, the following must be defined clearly:
 
-- 新增項目時，會放到哪個實際收納位置？
-- 在篩選結果中移除項目，是改變歸屬、取消標籤還是刪除？
-- 同一項目出現在多處時，完成狀態如何保持一致？
-- 自由文字是否跟著檢視，還是屬於原始便箋？
-- 裝置的隱藏操作是否只影響本機？
+- When adding an item, which actual place does it go into?
+- Removing an item from a filter result: does that change its home, remove a tag or delete it?
+- When the same item appears in several places, how does its completion state stay consistent?
+- Does free text follow the view, or belong to the original note?
+- Does hiding something on a device affect only that device?
 
-避免用「每個畫面各存一份文字」實現同步；那會使同一件事逐漸產生不同版本。
+Avoid implementing sync by "each screen stores its own copy of the text"; that makes the same thing gradually drift into different versions.
 
-## 6. 機器、小組與 Agent
+## 6. Machines, teams and agents
 
-使用者的開發機可以容納多個 CLI Agent，共編或使用 worktree，也能透過 GitHub 進行跨機器協作。這是有效的產品背景。
+The user's development machines can host several CLI agents, co-editing or using worktrees, and can collaborate across machines through GitHub. This is a valid product context.
 
-不宜把 machine = team = project 固定成同一概念。一台機器可做多個專案，同一專案也可跨機器。第一版可以只是環境標籤或便箋歸屬，不需要完整 Team 管理。
+machine = team = project should not be fixed as one concept. One machine can work on several projects, and one project can span machines. The first version can make it just an environment tag or a note's home, with no full team management.
 
-如果未來有執行整合，可再補「哪個 Agent 在哪個環境處理這個項目」的附加資訊。Linear 的 Agent Session 提供一個任務之外追蹤執行生命週期的參考；官方目前把相關 API 標為 Developer Preview，不能視為固定協定。[Linear Agent 文件](https://linear.app/developers/agents)
+If execution integration comes later, extra information on "which agent handles this item in which environment" can be added. Linear's Agent Session offers a reference for tracking an execution lifecycle outside the task itself; the related API is currently marked Developer Preview officially and cannot be treated as a fixed protocol. [Linear Agent documentation](https://linear.app/developers/agents)
 
-## 7. 被延後的提案
+## 7. Deferred proposals
 
-先前研究提出 Queued、Running、Waiting for input、Succeeded、Failed、Cancelled 等執行狀態。使用者已指出這會干擾主要用途。
+Earlier research proposed execution states such as Queued, Running, Waiting for input, Succeeded, Failed and Cancelled. The user pointed out that this would get in the way of the main use.
 
-因此：
+Therefore:
 
-- 這些狀態不出現在預設 backlog。
-- 不列為第一版必做項目，也不要求所有任務有執行 session。
-- 未來即使有自動化，也應獨立研究資訊密度與顯示入口。
-- Agent 完成一次執行，與使用者認定工作完成，仍可保留不同語意。
+- These states do not appear in the default backlog.
+- They are not required for the first version, and not every task needs an execution session.
+- Even if automation comes later, information density and the display entry point should be researched separately.
+- An agent finishing one run and the user considering the work done can keep different meanings.
 
-「需要我處理」可成為未來的選用檢視，沒有被確認為預設首頁。
+"Needs me" could become an optional view in future; it has not been confirmed as the default home screen.
 
-## 8. Git 協作的界線
+## 8. Limits of Git collaboration
 
-Git worktree 可讓同一 repository 有多個工作目錄，部分 Git 資料仍共享。[Git worktree 文件](https://git-scm.com/docs/git-worktree)
+Git worktree lets one repository have several working directories, with part of the Git data still shared. [Git worktree documentation](https://git-scm.com/docs/git-worktree)
 
-設計上的推論：版本控制、任務記錄與即時共編是不同問題。GitHub 不能替本產品決定兩台手機同時改待辦文字時誰覆蓋誰，也不會自動協調多個 Agent 對同一工作目錄的寫入。
+Design inference: version control, task records and real-time co-editing are different problems. GitHub cannot decide for this product who overwrites whom when two phones change a to-do's text at the same time, nor does it automatically coordinate several agents writing to the same working directory.
 
-這項界線應寫進未來整合設計，但不應轉化成 backlog 使用者要操作的鎖定流程。
+This limit should be written into future integration designs, but should not turn into a locking procedure that backlog users have to operate.
 
-## 9. 候選原型與比較方式
+## 9. Candidate prototypes and how to compare them
 
-用同一組真實工作內容測試：
+Test with the same set of real work content:
 
-1. 便箋牆：每個脈絡一張，可直接新增。
-2. 扁平清單：未完成事項集中顯示，可依脈絡分組。
-3. 三欄看板：Todo／In Progress／Done。
+1. Board: one note per context, with direct adding.
+2. Flat list: unfinished items shown together, optionally grouped by context.
+3. Three-column kanban board: Todo/In Progress/Done.
 
-比較記錄時的步驟、隔天找回內容的難度、資訊密度及在手機上的可用性。先確定主要預設，再決定是否需要自訂檢視語法或多種後端。
+Compare the steps to record something, how hard it is to find content again the next day, information density and usability on a phone. Settle the main default first, then decide whether a custom view syntax or several backends are needed.
 
-## 10. 本次結論
+## 10. Conclusion of this session
 
-保留主流 PM 的獨立工作項目與多種檢視概念；產品預設以快速記錄、持續提醒及簡單完成操作為中心。現成 PM 系統是否適合作為後端，需要用同一套體驗情境實測，尚未定案。
+Keep mainstream PM's concepts of independent work items and multiple views; the product default centres on quick capture, constant reminders and simple completion. Whether an existing PM system suits as the backend needs real testing against the same experience scenarios and is not yet decided.

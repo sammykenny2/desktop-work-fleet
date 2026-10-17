@@ -7,6 +7,21 @@ that record is the GitHub Releases `windows-v<version>`, `linux-v<version>`, `ma
 `Platforms` lists the platforms whose version files carry the number and that were meant for distribution.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.1
+
+Platforms: Windows, Linux, macOS, iOS, Android.
+
+Summary: Work Fleet is now designed in English and also comes in Traditional Chinese: pick a language in Settings > General > Display language or let it follow the device. Notes gain an optional title, fixed papers end long text with "…", and attachments sit in a row under the text.
+
+- English is the main UI language, with a complete Traditional Chinese translation. Settings > General > Display language offers Auto-detect (the default, which follows the device's language), English and Traditional Chinese. The window switches at once, and the tray, menu bar and the app's own dialogs follow the same choice.
+- Notes can have an optional title, which search, the drafts list and shared text include. A note shows its text from the first line again.
+- Papers that cannot scroll (the board, the wallpaper layer and papers you are not adjusting) end text that does not fit with "…"; papers that scroll keep their full text.
+- Attachments appear as a row of thumbnails under the text; those that do not fit are hidden. Double-click still opens a read-only copy.
+- Desktop notes use the main window's group colours, and a new square note shrinks to fit a short group region.
+- Google sync: after a reset or on a new account, workspace initialization is explicit and resumable. Several devices joining at once no longer create duplicate default groups, and the other devices wait until the device that reset finishes.
+- Android and iOS: the first previews on GitHub, including the 0.3.0 board and list views, square notes, attachment thumbnails, H1–H6 headings and code colouring. The APK is signed with the project's test key; the IPA installs only on the devices registered for development. Note, sync and backup formats stay at V1.
+- The release text on GitHub and in the in-app update prompt is now in English.
+
 ## 0.3.0
 
 Platforms: Windows, Linux, macOS.

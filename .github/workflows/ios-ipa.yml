@@ -1,8 +1,16 @@
 name: iOS registered-device IPA
 
-# Manual development build for registered devices. No TestFlight, tag, release or version bump.
+# Manual development build for registered devices; no TestFlight and no version bump. With "release" it also publishes
+# the IPA as a GitHub prerelease tagged ios-v<MARKETING_VERSION>, with the text of that version's entry in
+# docs/release-notes.md. An existing tag or release is never replaced, and the release is created only after the app is
+# signed and verified, so a failed run leaves nothing published.
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Also publish the IPA as the ios-v<version> GitHub prerelease
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +24,10 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: macos-15
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      changes: ${{ steps.notes.outputs.changes }}
+      devices: ${{ steps.package.outputs.devices }}
     env:
       WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
       WORK_FLEET_APP_GROUP_ID: ${{ vars.WORK_FLEET_APP_GROUP_ID }}
@@ -30,6 +42,25 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Refuse a published version and read the release notes
+        id: notes
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node scripts/platform-version.mjs --platform apple)
+          tag="ios-v$version"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1 || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag already exists. Bump MARKETING_VERSION in src/native/apple/config/WorkFleet.xcconfig to publish another preview."
+            exit 1
+          fi
+          # The version-bump commit writes this entry; a release cannot start without it.
+          node scripts/release-notes.mjs --version "$version" > /dev/null
+          {
+            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
+            node scripts/release-notes.mjs --version "$version"
+            echo 'WORK_FLEET_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
       - run: npm ci --ignore-scripts
       - run: npm run config:check -- --google --platform ios
       - name: Import the development identity and registered-device profiles
@@ -82,6 +113,7 @@ jobs:
           bash scripts/macos/package-preview-app.sh --platform ios
           version=$(node scripts/platform-version.mjs --platform apple)
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "devices=$WORK_FLEET_IOS_DEVICE_COUNT" >> "$GITHUB_OUTPUT"
           printf 'iOS %s\nCommit: %s\nRun: %s/%s/actions/runs/%s\nRegistered devices: %s\nInstall via Xcode/Apple Configurator on a profile-authorized device with Developer Mode enabled.\n' \
             "$version" "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_IOS_DEVICE_COUNT" > build/ios-build.txt
           cat build/ios-build.txt >> "$GITHUB_STEP_SUMMARY"
@@ -102,3 +134,37 @@ jobs:
           rm -f "$RUNNER_TEMP/ios-identity.p12" "$RUNNER_TEMP/ios-certificate.pem" "$RUNNER_TEMP/ios-certificate.cer" \
             "$RUNNER_TEMP/ios-app.mobileprovision" "$RUNNER_TEMP/ios-share.mobileprovision" \
             "$RUNNER_TEMP/ios-app.plist" "$RUNNER_TEMP/ios-share.plist" "$RUNNER_TEMP/ios-signing.json"
+
+  publish:
+    name: Publish the prerelease
+    needs: build
+    if: inputs.release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-fleet-ios-${{ needs.build.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          CHANGES: ${{ needs.build.outputs.changes }}
+          DEVICES: ${{ needs.build.outputs.devices }}
+        run: |
+          cd dist && sha256sum -c "WorkFleet-$VERSION-ios-development.ipa.sha256"
+          cat > notes.md <<EOF
+          iOS preview IPA built from ${GITHUB_SHA}. Requires iOS 16 or later.
+
+          ${CHANGES}
+
+          ## Installation
+          This is a development-signed build for the ${DEVICES} device(s) registered in the project's provisioning profile; other devices cannot install it, and there is no TestFlight or App Store build yet.
+          On a registered device with Developer Mode turned on, install \`WorkFleet-${VERSION}-ios-development.ipa\` with Apple Configurator or Xcode (Window > Devices and Simulators).
+          Google sign-in is in testing: only accounts added as test users can sign in.
+          EOF
+          gh release create "ios-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Work Fleet for iOS $VERSION (preview)" --notes-file notes.md \
+            "WorkFleet-$VERSION-ios-development.ipa" "WorkFleet-$VERSION-ios-development.ipa.sha256"

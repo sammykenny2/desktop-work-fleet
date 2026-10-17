@@ -73,7 +73,7 @@ bash scripts/macos/start-validation.sh
 選單列 WF → Quick capture / Unlock 開啟 editor，WF → Lock 恢復展示（0.1.0 驗證版的介面只有英文）。
 這是驗證版流程，尚未包含上述群組操作與 Google 登入。
 建置／配對／備份方式見 [操作文件](docs/setup-guide.md)，檢查見 [testing](docs/testing.md)。
-本版本不需安裝 pip/npm runtime 套件；正式 1.0 runtime 尚未選定。
+本版本不需安裝 pip/npm runtime 套件；1.0 App 改用 `src/native/` 下的原生主機。
 
 ## 專案結構
 

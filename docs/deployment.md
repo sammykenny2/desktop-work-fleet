@@ -310,13 +310,17 @@ accounts are configured by the maintainer.
 
 In GitHub Actions, choose **Android device APK** (`android-apk.yml`) or **iOS registered-device IPA** (`ios-ipa.yml`),
 select main and press Run workflow. Both are manual only and need the user's authorization to run; they change no
-version, create no tag or GitHub Release,
-and send nothing to TestFlight or Google Play. After a successful run, download the installer, its SHA-256 and the
-source-commit record from the run's Artifacts, which are kept for fourteen days.
+version and send nothing to TestFlight or Google Play. After a successful run, download the installer, its SHA-256
+and the source-commit record from the run's Artifacts, which are kept for fourteen days.
 Artifact names carry the version, the run ID and the attempt, so packages of the same version from different commits
 cannot be confused.
-As of 2026-10-17 neither workflow has been dispatched, so a hosted APK or IPA build is unproven; the CI run for the
-commit that added them passed.
+
+With the **release** input checked, the same run also publishes a GitHub prerelease tagged `android-v<versionName>` or
+`ios-v<MARKETING_VERSION>` ([ADR-055](decisions/055-mobile-device-build-workflows.md)). As for the desktop previews,
+the version-bump commit must already carry the version's `docs/release-notes.md` entry, which becomes the release
+text; the run refuses a version whose tag or release exists, and it publishes only after the package is built, signed
+and verified. Dispatch closes the release task's repository writes. The IPA is still development-signed and installs
+only on the registered devices, whose identifiers its embedded profiles list.
 
 Both use the repository variables `WORK_FLEET_APP_ID` and `WORK_FLEET_GOOGLE_PROJECT_ID`.
 Android also needs `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`, `WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and

@@ -92,7 +92,7 @@ In the menu bar, WF > Quick capture / Unlock opens the editor, and WF > Lock ret
 prototype's interface is English only).
 This is the validation version's flow; it does not include the group operations above or Google sign-in.
 Build, pairing and backup steps are in the [setup guide](docs/setup-guide.md); checks are in
-[testing](docs/testing.md). This version needs no pip or npm runtime packages; the formal 1.0 runtime is not yet chosen.
+[testing](docs/testing.md). This version needs no pip or npm runtime packages; the 1.0 apps use the native hosts in `src/native/` instead.
 
 ## Project structure
 

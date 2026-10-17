@@ -102,8 +102,8 @@ UI asset contains a secret.
 Android Gradle reads the current settings directly and generates the configuration in its generated-assets directory,
 without depending on this pre-generated file.
 The native hosts of all five platforms have Google sign-in, protected tokens and Drive appDataFolder sync code.
-The Google Cloud project and clients have not been created yet, and no real sign-in or Drive round trip has been done.
-Current status is in [PROGRESS](../PROGRESS.md).
+Which clients exist and which platforms have signed in to a real account is in [Google setup](google-setup.md) and
+[PROGRESS](../PROGRESS.md).
 After filling in the client ID and rebuilding, sign in from the native main window; the browser development preview
 still has only local data. How to create the clients and move data is in [Google setup](google-setup.md); how to use
 sign-in is in the [user guide](user-guide.md#google-sign-in-and-sync).

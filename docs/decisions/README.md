@@ -5,7 +5,7 @@ Updated: 2026-10-17.
 | Record | Status | Scope |
 |---|---|---|
 | [ADR-056](056-english-first-ui-and-locale-catalogs.md) | Accepted (UI language, 2026-10-17) | English-first UI with en and zh-TW locale catalogs and a Display language setting |
-| [ADR-055](055-mobile-device-build-workflows.md) | Accepted (phone test builds) | Manual APK / development-signed IPA for registered devices, fixed test signing, fourteen-day artifacts; no version bump or release |
+| [ADR-055](055-mobile-device-build-workflows.md) | Accepted (phone test builds) | Manual APK / development-signed IPA for registered devices, fixed test signing, fourteen-day artifacts; optional `android-v`/`ios-v` prereleases (2026-10-17 revision) |
 | [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted (note formatting and attachments) | Six heading levels, code coloring, native attachment thumbnails and opening a copy; V1 and checklists unchanged |
 | [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted (testing-phase V1 policy) | Current JSON schemas stay at V1; version bumps, migrations and copies are evaluated when store launch is planned |
 | [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | Name, independent development, backlog focus and bootstrap scope |
@@ -27,6 +27,14 @@ Updated: 2026-10-17.
 | [ADR-017](017-windows-composition-surface-and-input.md) | Accepted (Windows scene foundation) | CompositionControl, complementary regions, layers / paired lifecycle, shortcuts and physical display inventory |
 | [ADR-018](018-single-owner-desktop-views.md) | Accepted (Windows scene integration) | Single Workspace, restricted projections/commands, sharding, draft flush/takeover/disconnect/close |
 | [ADR-019](019-windows-shortcuts-and-tray.md) | Accepted (Windows desktop entry points) | Global/local keys, focus ownership, short-lived activation intents, tray and hiding that keeps the owner |
+| [ADR-020](020-windows-display-lifecycle.md) | Accepted (Windows displays) | Display, DPI and sleep notifications, rescue after save and scene reuse; ADR-030 later raised the scene pool |
+| [ADR-021](021-windows-google-account-and-sync.md) | Accepted (Windows Google) | Native Google OAuth, account partitions and the sync entry point; sign-out no longer revokes the grant (2026-10-15) |
+| [ADR-022](022-android-native-host.md) | Accepted (Android host) | Android host, Keystore, SAF and Google authorization |
+| [ADR-023](023-apple-native-host-and-scenes.md) | Accepted (Apple host) | Apple host, Keychain, Google and the macOS scenes |
+| [ADR-024](024-linux-native-owner-and-storage.md) | Accepted (Linux host); key policy superseded by ADR-047/048 | GTK owner, data and Google on Linux |
+| [ADR-025](025-linux-desktop-scenes-and-shortcuts.md) | Accepted (Linux desktop) | Layered scenes, input regions, shortcuts and the tray on Linux |
+| [ADR-026](026-native-file-export-and-sharing.md) | Accepted (native export) | Native file export and phone text/attachment sharing |
+| [ADR-027](027-native-share-inbox-and-extension.md) | Accepted (share inbox) | Encrypted share inbox, group choice and the iOS Share Extension |
 | [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted (packaging entry points) | Windows MSIX/ZIP, Apple export/PKG/DMG, Android upload signing; production accounts / native artifacts delivered separately |
 | [ADR-029](029-portable-apple-xcode-project.md) | Accepted (Apple project delivery) | Committed portable Xcode project that opens straight after clone, local configuration and build assets |
 | [ADR-030](030-windows-explorer-wallpaper-layer.md) | Accepted (Windows wallpaper layer) | Explorer icon/wallpaper host, three-layer scenes, click-through and restore on exit |
@@ -52,6 +60,7 @@ Updated: 2026-10-17.
 | [ADR-040](040-gnome-wayland-xwayland-choice.md) | Accepted (GNOME Wayland display mode) | Asks on first launch and can switch XWayland in Settings, applied before GTK starts; the restart saves drafts |
 | [ADR-039](039-gnome-desktop-icons-and-x11-scene-size.md) | Accepted (GNOME/X11 scenes) | X11 scenes are sized to the work area; GNOME XWayland keeps only the wallpaper layer always on; the adjust overlay started on GNOME XWayland (current scope in ADR-042); the Pi's DMA-BUF renderer uses shared-memory buffers; the pcmanfm desktop has no wallpaper layer |
 | [ADR-053](053-account-scoped-initial-group.md) | Accepted (sync initialization) | The same account / reset batch shares the initial group and root revision, so six devices reconnecting at once create no duplicate groups |
+| [ADR-054](054-explicit-workspace-initialization.md) | Accepted (workspace initialization) | Explicit prepare/ready workspace initialization, initializing reset device, waiting followers, durable reset journal |
 
 The validation build's runtime was decided in ADR-002; for the 1.0 platform and packaging decisions see the main
 documentation index and ADR-028; production store configuration still needs the maintainer's accounts. Research

@@ -1,8 +1,16 @@
 name: Android device APK
 
-# Manual build only. Reuses the test signer and saves artifacts; creates no tag or release.
+# Manual build only. Reuses the test signer and saves artifacts. With "release" it also publishes the APK as a GitHub
+# prerelease tagged android-v<versionName from build.gradle.kts>, with the text of that version's entry in
+# docs/release-notes.md. An existing tag or release is never replaced, and the release is created only after the APK is
+# built and its signer verified, so a failed run leaves nothing published.
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: Also publish the APK as the android-v<version> GitHub prerelease
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +24,9 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.package.outputs.version }}
+      changes: ${{ steps.notes.outputs.changes }}
     env:
       WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
       WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
@@ -30,6 +41,25 @@ jobs:
         with:
           node-version: '24'
           cache: npm
+      - name: Refuse a published version and read the release notes
+        id: notes
+        if: inputs.release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node scripts/platform-version.mjs --platform android)
+          tag="android-v$version"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1 || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$tag already exists. Bump versionName in src/native/android/app/build.gradle.kts to publish another preview."
+            exit 1
+          fi
+          # The version-bump commit writes this entry; a release cannot start without it.
+          node scripts/release-notes.mjs --version "$version" > /dev/null
+          {
+            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
+            node scripts/release-notes.mjs --version "$version"
+            echo 'WORK_FLEET_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
@@ -78,3 +108,36 @@ jobs:
       - name: Remove the temporary keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/android-debug.keystore"
+
+  publish:
+    name: Publish the prerelease
+    needs: build
+    if: inputs.release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: work-fleet-android-${{ needs.build.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+          CHANGES: ${{ needs.build.outputs.changes }}
+        run: |
+          cd dist && sha256sum -c "WorkFleet-$VERSION-android-debug.apk.sha256"
+          cat > notes.md <<EOF
+          Android preview APK built from ${GITHUB_SHA}. Requires Android 9 (API 28) or later.
+
+          ${CHANGES}
+
+          ## Installation
+          Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\`.
+          The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and keeps your data; a build signed with another key cannot.
+          Google sign-in is in testing: only accounts added as test users can sign in.
+          EOF
+          gh release create "android-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Work Fleet for Android $VERSION (preview)" --notes-file notes.md \
+            "WorkFleet-$VERSION-android-debug.apk" "WorkFleet-$VERSION-android-debug.apk.sha256"

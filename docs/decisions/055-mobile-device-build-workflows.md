@@ -37,6 +37,20 @@ OAuth signature.
   Configurator, with Developer Mode enabled on the device.
   After adding a device, update the profiles of both the main app and the Extension, then build again.
 
+## 2026-10-17 revision: optional GitHub prereleases
+
+The maintainer asked for Android and iOS previews to be published on GitHub like the desktop previews.
+
+- Both workflows gain a `release` input, off by default. Off, they behave as above. On, they first refuse a version
+  whose tag or release already exists (`android-v<versionName>`, `ios-v<MARKETING_VERSION>`) and read that version's
+  entry in [release notes](../release-notes.md); after the package is built, signed and verified, a separate job with
+  contents: write creates the prerelease with the installer and its SHA-256. A failed run publishes nothing.
+- Publication follows the same rules as the desktop previews (AGENTS.md, [deployment](../deployment.md)): the version
+  bump and its release-notes entry come first, dispatch needs the maintainer's authorization, and a published tag or
+  release is never moved or replaced.
+- The Android APK stays signed with the fixed test key and the IPA stays development-signed for the registered
+  devices; neither is a store build.
+
 ## Consequences
 
 ### Positive
@@ -52,6 +66,12 @@ OAuth signature.
   download site.
 - Having the GitHub workflows written does not mean they have run in the cloud or that a phone has accepted the
   build; missing Secrets fail explicitly.
+- A published IPA embeds its development profiles, which list the registered devices' identifiers (UDIDs); a
+  public prerelease makes them public.
+- Phone prereleases share the repository's release feed with the desktop updaters (ADR-044). Each updater only reads
+  its own tag prefix, but the Atom feed lists only the most recent releases, so many phone-only releases in a row
+  could push the newest desktop release out of it; the per-platform update index ADR-044 leaves open would remove
+  that limit.
 
 ## Alternatives Considered
 

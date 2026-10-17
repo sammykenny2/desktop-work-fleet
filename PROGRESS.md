@@ -132,7 +132,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - `windows-preview.yml`, `linux-release.yml` and `macos-release.yml` run only on manual dispatch and refuse an existing tag;
   `apple-native-build.yml` is an unsigned compile check. Platforms share one version number by default; the exceptions and
   version files are in [deployment](docs/deployment.md).
-- The phone workflows `android-apk.yml` and `ios-ipa.yml` exist and their signing Secrets are stored
+- The phone workflows `android-apk.yml` and `ios-ipa.yml` build a test-signed APK and a development-signed IPA from
+  stored signing Secrets and, with their `release` input, publish `android-v`/`ios-v` prereleases
   ([ADR-055](docs/decisions/055-mobile-device-build-workflows.md)). Neither has been dispatched, so hosted APK and IPA builds are unproven.
 - Store listings and privacy text are drafted in [docs/release](docs/release/README.md). Developer accounts, a Partner Center
   reservation, native screenshots, store signing and the final SDK licence inventory are missing.

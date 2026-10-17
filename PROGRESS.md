@@ -34,8 +34,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   draws its tray, menus and dialogs in it; host errors arrive in English and are shown through the catalogs
   ([ADR-056](docs/decisions/056-english-first-ui-and-locale-catalogs.md), [i18n guide](docs/i18n.md)).
   Verified with model tests, Edge probes, the Windows core and WebView2 UI probes, the Linux Docker host-shell checks
-  (including a zh-TW tray) and Android JUnit tests. Not verified: the macOS and iOS hosts and Share Extension were not
-  compiled after the change; no switch was tried on a real Mac, Linux desktop, phone or installed Windows package.
+  (including a zh-TW tray) and Android JUnit tests; the macOS, iOS and Share Extension sources compile in
+  `apple-native-build.yml`. Not verified: no switch was tried on a real Mac, Linux desktop, phone or installed Windows package.
 - Not verified: text fitting only in Chromium (Edge, WebView2), not in WebKitGTK or WKWebView; the shared palette and shrunk
   new papers on a native desktop. Display changes while running and the Ctrl+Shift+digit hint have no automated test.
 
@@ -134,7 +134,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   version files are in [deployment](docs/deployment.md).
 - The phone workflows `android-apk.yml` and `ios-ipa.yml` build a test-signed APK and a development-signed IPA from
   stored signing Secrets and, with their `release` input, publish `android-v`/`ios-v` prereleases
-  ([ADR-055](docs/decisions/055-mobile-device-build-workflows.md)). Neither has been dispatched, so hosted APK and IPA builds are unproven.
+  ([ADR-055](docs/decisions/055-mobile-device-build-workflows.md)). Hosted APK and IPA builds passed on 2026-10-17; neither
+  package has been installed from a hosted build yet.
 - Store listings and privacy text are drafted in [docs/release](docs/release/README.md). Developer accounts, a Partner Center
   reservation, native screenshots, store signing and the final SDK licence inventory are missing.
 
@@ -154,9 +155,9 @@ Pending verification on real devices:
 - Windows: a sign-in start where the built-in primary display is removed within the first minute.
 - Linux: a Pi reboot with a hidden start and the tray wait; the keyring unlock dialog from "Sync now".
 - macOS: full-screen Spaces, Spaces switching and login-launch detection.
-- macOS and iOS: a compile (`apple-native-build.yml`) and a Display language switch after the localization change.
+- macOS and iOS: a Display language switch after the localization change.
 - Google: a multi-device reset and initialization with a test account (steps in [testing](docs/testing.md)).
-- Phones: Google sign-in on an iPhone and an Android device; the first dispatch of the phone workflows.
+- Phones: Google sign-in on an iPhone and an Android device; installing a hosted APK and IPA.
 
 Known issues not yet fixed:
 

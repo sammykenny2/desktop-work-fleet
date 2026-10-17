@@ -17,6 +17,8 @@ public static class Program
     try
     {
       var directory = AppDataDirectory.Resolve();
+      // The host text follows the stored display language before any dialog, tray or window appears (docs/i18n.md).
+      HostText.Apply(HostPreferences.Read(directory).Language);
       // ADR-045: a sign-in launch that lost its renderer reopened itself once. It stays hidden and waits for the old process.
       var restart = RestartMarker.Take(directory, DateTimeOffset.UtcNow);
       var previous = restart is null ? null : CrashGuard.AwaitPrevious(restart, TimeSpan.FromSeconds(60));
@@ -32,8 +34,7 @@ public static class Program
       if (instance is null) { guard.Note("handed to the running instance"); return; }
       if (directory != AppDataDirectory.Unpackaged && !File.Exists(Path.Combine(directory, "fleet.sqlite3"))
         && File.Exists(Path.Combine(AppDataDirectory.Unpackaged, "fleet.sqlite3")))
-        MessageBox.Show("找到舊版或 ZIP／Debug 版的獨立本機資料。本次 MSIX 使用自己的資料區；請先以舊版或 ZIP 版匯出備份，再於此版本匯入。原資料不會被刪除。",
-          "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(HostText.Get("dialog.separateData"), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Information);
       var window = new FleetWindow(directory, shell: new HostShell(directory, signIn, HostShell.Distribution()));
       instance.Listen(() => window.Dispatcher.BeginInvoke(new Action(window.ShowFromLaunch)));
       window.Instance = instance;
@@ -43,9 +44,17 @@ public static class Program
     catch (Exception error)
     {
       guard?.Note("startup failed " + HostLog.Describe(error));
-      MessageBox.Show(error is Core.HostError ? error.Message : "Work Fleet 無法開啟本機工作空間。請確認 WebView2 Runtime 已安裝，並保留原資料後重試。",
-        "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Error);
+      MessageBox.Show(Describe(error), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Error);
     }
     finally { guard?.Note("exit"); instance?.Dispose(); }
   }
+  /// <summary>Startup refusals are English HostErrors; the dialog shows the ones a user can act on in the host language.</summary>
+  private static string Describe(Exception error) => error switch
+  {
+    HostError { Code: "native-already-open" } => HostText.Get("dialog.alreadyOpen"),
+    HostError { Code: "storage-version" } => HostText.Get("dialog.newerDatabase"),
+    HostError { Code: "storage-identity" } => HostText.Get("dialog.packageDataUnknown"),
+    HostError host => host.Message,
+    _ => HostText.Get("dialog.startFailed")
+  };
 }

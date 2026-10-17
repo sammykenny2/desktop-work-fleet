@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify';
 import { markdown } from './checklist.js';
 import hljs from 'highlight.js/lib/common';
+import { t } from '../i18n/index.js';
 
 const highlighted = new Map();
 export function highlightCode(text, language) {
@@ -43,7 +44,7 @@ export function renderMarkdown(element, text, { onToggle, highlight = true } = {
     if (input.type !== 'checkbox') { input.remove(); continue; }
     const taskIndex = index++;
     input.disabled = !onToggle;
-    input.setAttribute('aria-label', `步驟 ${taskIndex + 1}`);
+    input.setAttribute('aria-label', t('notes.checklist.step', { number: taskIndex + 1 }));
     if (onToggle) input.addEventListener('change', () => onToggle(taskIndex));
   }
   element.replaceChildren(clean);

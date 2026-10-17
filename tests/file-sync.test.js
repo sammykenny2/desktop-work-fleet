@@ -6,6 +6,7 @@ import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { sha256, validateFile, verifyFile } from '../src/sources/files.js';
 import { encodeRevision, revisionRecord } from '../src/sources/revisions.js';
 import { decodeSourceRevision, encodeSourceRevision } from '../src/sources/source-revisions.js';
+import { INITIAL_GROUP_NAME } from '../src/sources/initial-group.js';
 import { gate, MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.js';
 
 const area = { x: 0, y: 0, width: 1400, height: 900 };
@@ -128,10 +129,10 @@ test('late pre-reset edits, retirements and notes stay in the old device copy an
   for (const action of ['rename', 'retire', 'card']) {
     const store = new MemoryFileStore(); const old = await client(store, { initializeGroup: true }); await old.sync.sync();
     const group = old.workspace.snapshot.groups[0];
-    if (action === 'rename') await old.workspace.renameGroup(group.id, '重設前的名稱', group.revision);
-    else if (action === 'card') await old.workspace.createCard(text('重設前的在途便箋'), group.id);
+    if (action === 'rename') await old.workspace.renameGroup(group.id, 'Name before the reset', group.revision);
+    else if (action === 'card') await old.workspace.createCard(text('Note in flight before the reset'), group.id);
     else {
-      const target = await old.workspace.createGroup('舊接收組'); await old.sync.sync();
+      const target = await old.workspace.createGroup('Old receiving group'); await old.sync.sync();
       await old.workspace.mergeGroup(old.workspace.previewGroupMerge(group.id, target.id));
     }
     const revision = old.workspace.pendingOperations[0].operationId;
@@ -146,7 +147,8 @@ test('late pre-reset edits, retirements and notes stay in the old device copy an
     const initial = fresh.workspace.snapshot.groups[0];
     const stopped = assert.rejects(running, failCode('source-reset')); resume.resolve(); await stopped;
     await fresh.sync.sync();
-    assert.deepEqual(fresh.workspace.snapshot.groups, [initial]); assert.equal(initial.name, '我的便箋');
+    // The initial group keeps its persisted V1 name in every UI language.
+    assert.deepEqual(fresh.workspace.snapshot.groups, [initial]); assert.equal(initial.name, INITIAL_GROUP_NAME);
     assert.ok(old.workspace.state.revisions.some(record => record.revisionId === revision), 'the old device retains its edits');
     assert.equal(fresh.workspace.state.revisions.some(record => record.revisionId === revision), false);
     assert.deepEqual(fresh.workspace.state.conflicts, []);
@@ -159,7 +161,7 @@ test('initial group identity is account scoped and existing same-name groups and
   const ca = await client(a, { initializeGroup: true }); const cb = await client(b, { initializeGroup: true, profileId: 'account-b' });
   await Promise.all([ca.sync.sync(), cb.sync.sync()]);
   assert.notEqual(ca.workspace.snapshot.groups[0].id, cb.workspace.snapshot.groups[0].id);
-  for (let i = 0; i < 5; i++) await ca.workspace.createGroup('我的便箋');
+  for (let i = 0; i < 5; i++) await ca.workspace.createGroup(INITIAL_GROUP_NAME);
   for (const group of ca.workspace.snapshot.groups) await ca.workspace.createCard(text(group.id), group.id);
   await ca.sync.sync();
   const before = ca.workspace.snapshot;
@@ -174,7 +176,7 @@ test('existing unscoped V1 groups and unknown extension data remain readable aft
   for (const mode of ['extension', 'remapped']) {
     const store = new MemoryFileStore(); const old = await client(store, { initializeGroup: true }); await old.sync.sync();
     const group = old.workspace.snapshot.groups[0]; await resetSource(store, { wait: async () => {} });
-    if (mode === 'extension') group.annotation = { text: '使用者的額外資料' };
+    if (mode === 'extension') group.annotation = { text: "The user's extra data" };
     else { group.id = crypto.randomUUID(); group.revision = crypto.randomUUID(); }
     await store.seed(encodeRevision(revisionRecord('group', group)));
     const fresh = await client(store, { initializeGroup: true }); await fresh.sync.sync();
@@ -264,7 +266,7 @@ test('a cursor rescan stops at a new reset marker even before any old source fil
   for (const withGeneration of [true, false]) {
     const store = new MemoryFileStore(); const c = await client(store, { initializeGroup: true }); await c.sync.sync();
     if (!withGeneration) { const saved = c.disk(); delete saved.sync.sourceResetIds; c.reopen(saved); }
-    await c.workspace.createGroup('重設前尚未上傳的舊群組'); const before = c.workspace.snapshot;
+    await c.workspace.createGroup('Old group not uploaded before the reset'); const before = c.workspace.snapshot;
     const entered = gate(); const resume = gate();
     store.hooks.deleteFile = async () => { delete store.hooks.deleteFile; entered.resolve(); await resume.promise; };
     const resetting = resetSource(store, { wait: async () => {} }); await entered.promise;
@@ -429,7 +431,7 @@ test('invalid JSON, future schemas and changed immutable metadata preserve the l
 
 test('cloud reset: the marker stops devices holding old files, while fresh devices start from the cleared source', async () => {
   const store = new MemoryFileStore();
-  const a = await client(store, { bootstrapGroup: true }); await a.workspace.createCard(text('重設前'), a.workspace.snapshot.groups[0].id);
+  const a = await client(store, { bootstrapGroup: true }); await a.workspace.createCard(text('Before the reset'), a.workspace.snapshot.groups[0].id);
   await a.sync.sync(); const b = await client(store); await b.sync.sync(); const before = b.workspace.snapshot;
   const progress = []; const result = await resetSource(store, { progress: (done, total) => progress.push([done, total]), wait: async () => {} });
   assert.equal(store.files.size, 4); assert.equal(result.marker.kind, 'reset');
@@ -444,9 +446,9 @@ test('cloud reset: the marker stops devices holding old files, while fresh devic
     assert.ok(fresh.workspace.syncState.initialization.activePlan);
   }
   const restarted = await client(store, { bootstrapGroup: true }); await restarted.sync.sync();
-  await restarted.workspace.createCard(text('重設後'), restarted.workspace.snapshot.groups[0].id); await restarted.sync.sync();
+  await restarted.workspace.createCard(text('After the reset'), restarted.workspace.snapshot.groups[0].id); await restarted.sync.sync();
   const later = await client(store); await later.sync.sync();
-  assert.deepEqual(later.workspace.snapshot.cards.map(card => card.content.text), ['重設後']);
+  assert.deepEqual(later.workspace.snapshot.cards.map(card => card.content.text), ['After the reset']);
   await later.sync.sync();
 });
 
@@ -470,7 +472,7 @@ test('cloud reset retries rate limits and deletes files uploaded while it ran', 
   const result = await resetSource(store, { wait: async ms => { waits.push(ms); } });
   assert.equal(store.files.size, 4); assert.equal(result.job.phase, 'complete'); assert.deepEqual(waits, [1000]);
   store.hooks.deleteFile = () => { throw new FleetError('source-permission', 'denied'); };
-  await a.sync.sync().catch(() => {}); await a.workspace.createGroup('另一組'); await a.sync.sync().catch(() => {});
+  await a.sync.sync().catch(() => {}); await a.workspace.createGroup('Another group'); await a.sync.sync().catch(() => {});
   await assert.rejects(resetSource(store, { wait: async () => {} }), failCode('source-permission'));
 });
 

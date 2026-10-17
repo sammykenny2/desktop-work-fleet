@@ -13,9 +13,9 @@ async function fixture() {
   let counter = 0;
   const workspace = await Workspace.create({ profileId: 'account-a', deviceId: 'device-a', area, persist: async () => {},
     uuid: () => `id-${String(++counter).padStart(4, '0')}` });
-  const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('別組');
-  const a1 = await workspace.createCard(text('第一件事'), a.id); const a2 = await workspace.createCard(text('第二件事'), a.id);
-  const b1 = await workspace.createCard(text('第三件事'), b.id);
+  const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('Other group');
+  const a1 = await workspace.createCard(text('First task'), a.id); const a2 = await workspace.createCard(text('Second task'), a.id);
+  const b1 = await workspace.createCard(text('Third task'), b.id);
   await workspace.layout.placeNew(workspace.snapshot, [area]);
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => {} });
@@ -80,7 +80,7 @@ test('desktop and topmost papers take clicks while locked, wallpaper papers neve
 test('a group key ends adjust mode for all groups, and an empty group is refused before anything changes', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'all' });
   assert.equal(await f.press(), 2); assert.equal(f.controller.state.operationScope.kind, 'none');
-  const empty = await f.workspace.createGroup('空組'); const before = f.workspace.layout.state;
+  const empty = await f.workspace.createGroup('Empty group'); const before = f.workspace.layout.state;
   await assert.rejects(f.press(empty.id), error => error.code === 'empty-scope'); assert.deepEqual(f.workspace.layout.state, before);
 });
 
@@ -115,7 +115,7 @@ test('a stage notice travels in the desktop frame only while it is set', async (
   const project = notice => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state, interaction: f.controller.state,
     sessionId: 'notice-test', sequence: 1, workspaceRevision: f.workspace.state.revision, notice });
   assert.equal(project(null).notice, null);
-  const notice = { id: 7, rect: { x: 0, y: 0, width: 800, height: 900 }, title: '我的便箋', text: '最上層', step: 3, steps: 4 };
+  const notice = { id: 7, rect: { x: 0, y: 0, width: 800, height: 900 }, title: 'My notes', text: 'Top layer', step: 3, steps: 4 };
   assert.deepEqual(project({ ...notice, extra: 'dropped' }).notice, notice);
 });
 

@@ -6,13 +6,14 @@ import { resetFileIds } from './initial-group.js';
 import { currentSourceRevisions, decodeSourceRevision, encodeSourceRevision } from './source-revisions.js';
 import { decodeInitialization, encodeInitialization, initializationComplete, initializationId, initializationProtocol,
   initializationReceipt, prepareInitialization } from './workspace-initialization.js';
+import { t } from '../i18n/index.js';
 
 const cursorValue = value => {
-  requireValue(typeof value === 'string' && value.length > 0 && value.length <= 8192, 'invalid-source-page', '來源未提供有效的同步游標。');
+  requireValue(typeof value === 'string' && value.length > 0 && value.length <= 8192, 'invalid-source-page', t('errors.sources.cursorMissing'));
   return value;
 };
-const pageArray = value => requireValue(Array.isArray(value) && value.length <= 1000, 'invalid-source-page', '來源分頁格式或容量無效。');
-const sourceReset = () => new FleetError('source-reset', '這個帳號的雲端資料已在其他裝置重設；這台裝置的副本仍保留，同步已暫停。');
+const pageArray = value => requireValue(Array.isArray(value) && value.length <= 1000, 'invalid-source-page', t('errors.sources.pageInvalid'));
+const sourceReset = () => new FleetError('source-reset', t('errors.sources.resetElsewhere'));
 // Existing V1 snapshots may have a cursor/files/reservations without the optional generation field.
 const sourceGeneration = sync => sync.sourceResetIds ?? (sync.cursor !== null || sync.lastSuccessfulSyncAt
   || Object.keys(sync.files || {}).length || Object.keys(sync.uploads || {}).length ? resetFileIds(sync.files) : null);
@@ -38,7 +39,7 @@ export class FileSync {
   #status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null };
 
   constructor({ workspace, storage, fileStore, bootstrapGroup = false, initializationPlan = null, now = () => Date.now(), random = Math.random }) {
-    requireValue(typeof fileStore.sourceId === 'string' && fileStore.sourceId.length > 0, 'invalid-source', '檔案來源需要穩定的帳號身分。');
+    requireValue(typeof fileStore.sourceId === 'string' && fileStore.sourceId.length > 0, 'invalid-source', t('errors.sources.sourceIdRequired'));
     this.#workspace = workspace; this.#storage = storage; this.#store = fileStore; this.#now = now; this.#random = random;
     this.#bootstrapGroup = bootstrapGroup;
     this.#initializationPlan = initializationPlan;
@@ -47,7 +48,7 @@ export class FileSync {
   get status() { return copy(this.#status); }
 
   #check() {
-    requireValue(!this.#closed && this.#session?.sourceId === this.#store.sourceId, 'stale-session', '此來源工作已結束，舊回應未套用。');
+    requireValue(!this.#closed && this.#session?.sourceId === this.#store.sourceId, 'stale-session', t('errors.sources.sessionEndedResponse'));
     this.#workspace.assertSyncSession(this.#session);
   }
 
@@ -59,9 +60,9 @@ export class FileSync {
 
   sync({ force = false } = {}) {
     if (this.#running) return this.#running;
-    if (this.#closed) return Promise.reject(new FleetError('stale-session', '此來源工作已結束。'));
+    if (this.#closed) return Promise.reject(new FleetError('stale-session', t('errors.sources.sessionEnded')));
     if (!force && this.#now() < this.#status.nextAttemptAt) {
-      return Promise.reject(new FleetError('sync-backoff', '正在等待來源重試時間。', { retryAt: this.#status.nextAttemptAt }));
+      return Promise.reject(new FleetError('sync-backoff', t('errors.sources.backoff'), { retryAt: this.#status.nextAttemptAt }));
     }
     this.#running = this.#run().finally(() => { this.#running = null; });
     return this.#running;
@@ -82,11 +83,11 @@ export class FileSync {
     this.#status = { phase: 'syncing', pending: this.#workspace.pendingOperations.length, nextAttemptAt: 0, error: null };
     try {
       requireValue(this.#workspace.state.cloudRestore?.phase !== 'reset', 'cloud-restore-pending',
-        'Google 覆蓋尚未完成清空，普通同步已暫停，請繼續覆蓋。');
-      requireValue(!this.#workspace.state.sourceReset, 'source-reset-pending', '資料重設尚未完成，請繼續重設。');
+        t('errors.sources.overwriteClearing'));
+      requireValue(!this.#workspace.state.sourceReset, 'source-reset-pending', t('errors.sources.resetPending'));
       if (!this.#session) {
         this.#session = await this.#workspace.beginSync(this.#store.sourceId);
-        if (this.#closed) { await this.#workspace.endSync(this.#session); throw new FleetError('stale-session', '此來源工作已結束。'); }
+        if (this.#closed) { await this.#workspace.endSync(this.#session); throw new FleetError('stale-session', t('errors.sources.sessionEnded')); }
       }
       this.#check(); await this.#pull();
       if (!await this.#initialize()) return this.#waiting();
@@ -127,7 +128,7 @@ export class FileSync {
     let state = this.#workspace.syncState; let initialization = state.initialization;
     const resetPlan = this.#workspace.state.cloudRestore?.resetJob?.plan;
     requireValue(!resetPlan || canonicalJson(resetPlan.sourceResetIds) === canonicalJson(resetFileIds(state.files)),
-      'source-reset-superseded', '雲端已有更新一輪重設，舊覆蓋工作已停止，還原資料仍保留在這台裝置。');
+      'source-reset-superseded', t('errors.sources.overwriteSuperseded'));
     if (!initialization) {
       if (!this.#bootstrapGroup) return true;
       const mode = this.#workspace.state.revisions.length ? 'existing' : 'starter';
@@ -136,12 +137,12 @@ export class FileSync {
       state = this.#workspace.syncState; initialization = state.initialization;
     }
     const plans = Object.entries(initialization.plans);
-    requireValue(plans.length <= 1, 'initialization-conflict', '這個工作空間出現不同初始化計畫，同步已暫停並保留資料。');
+    requireValue(plans.length <= 1, 'initialization-conflict', t('errors.sources.initializationConflict'));
     if (!plans.length) return false;
     const [id, plan] = plans[0];
-    requireValue(!this.#initializationPlan || this.#initializationPlan === id, 'source-reset-superseded', '雲端初始化計畫已變更，舊覆蓋工作已停止。');
+    requireValue(!this.#initializationPlan || this.#initializationPlan === id, 'source-reset-superseded', t('errors.sources.initializationPlanChanged'));
     if (initialization.activePlan) {
-      requireValue(initialization.activePlan === id, 'initialization-conflict', '工作空間初始化身分不一致。'); return true;
+      requireValue(initialization.activePlan === id, 'initialization-conflict', t('errors.sources.initializationMismatch')); return true;
     }
     if (await this.#workspace.activateInitialization(this.#session, id)) return true;
     const owns = this.#initializationPlan === id;
@@ -178,7 +179,7 @@ export class FileSync {
         (deferred ? deferred.controls : controls).push(record);
       } else if (file.kind === 'reset') {
         const marker = parseJson(bytes);
-        requireValue(marker?.format === 'work-fleet-reset' && marker.schema === 1, 'invalid-initialization', '雲端重設紀錄無效。');
+        requireValue(marker?.format === 'work-fleet-reset' && marker.schema === 1, 'invalid-initialization', t('errors.sources.resetMarkerInvalid'));
         if (marker.initialization === initializationProtocol) {
           if (deferred) deferred.expected = true; else initializationExpected = true;
         }
@@ -204,7 +205,7 @@ export class FileSync {
     const deferred = { records: [], controls: [], expected: false }; const descriptors = []; let marked = false;
     do {
       const page = await this.#request('listFiles', { pageToken }); pageArray(page.files);
-      requireValue(!page.incomplete, 'incomplete-source-scan', '來源尚未完成全部檔案列舉，游標未前進。');
+      requireValue(!page.incomplete, 'incomplete-source-scan', t('errors.sources.scanIncomplete'));
       if (generation && !this.#followsReset()
         && page.files.some(file => file?.kind === 'reset' && !generation.includes(file.id))) throw sourceReset();
       marked ||= page.files.some(file => file?.kind === 'reset');
@@ -213,7 +214,7 @@ export class FileSync {
       pageToken = page.nextPageToken ?? null;
       if (pageToken !== null) {
         cursorValue(pageToken);
-        requireValue(!tokens.has(pageToken), 'source-page-loop', '來源重複回傳相同分頁，已停止同步。'); tokens.add(pageToken);
+        requireValue(!tokens.has(pageToken), 'source-page-loop', t('errors.sources.pageLoop')); tokens.add(pageToken);
       }
     } while (pageToken !== null);
     const missing = Object.keys(this.#workspace.syncState.files || {}).filter(id => !found.has(id));
@@ -233,7 +234,7 @@ export class FileSync {
     for (const file of Object.values(this.#workspace.syncState.files || {})) {
       // Known files gone next to a reset marker were cleared on purpose; without one their absence stays an error.
       if (!found.has(file.id) && marked) throw sourceReset();
-      requireValue(found.has(file.id), 'source-file-missing', '原有同步檔案已不在來源中；本機內容保留，不能由檔案缺席推論刪除。');
+      requireValue(found.has(file.id), 'source-file-missing', t('errors.sources.fileMissing'));
     }
     const current = currentSourceRevisions(deferred.records, this.#workspace.syncState.files);
     const resets = canonicalJson(resetFileIds(this.#workspace.syncState.files));
@@ -262,21 +263,21 @@ export class FileSync {
       const known = new Set(Object.values(this.#workspace.syncState.files || {}).map(file => file.id));
       const files = []; const removedKnown = [];
       for (const change of page.changes) {
-        requireValue(change && validFileId(change.id) && typeof change.removed === 'boolean', 'invalid-source-page', '來源變更記錄無效。');
+        requireValue(change && validFileId(change.id) && typeof change.removed === 'boolean', 'invalid-source-page', t('errors.sources.changeInvalid'));
         // A file this device never received leaves nothing behind when it goes; a known one going needs the user.
         if (change.removed) { if (known.has(change.id)) removedKnown.push(change.id); continue; }
-        requireValue(change.file?.id === change.id, 'invalid-source-page', '來源變更與檔案身分不符。');
+        requireValue(change.file?.id === change.id, 'invalid-source-page', t('errors.sources.changeFileMismatch'));
         files.push(validateFile(change.file));
       }
       // A reset writes its marker before deleting, so the marker reaches this device ahead of the removals.
       if (files.some(file => file.kind === 'reset' && !known.has(file.id))
         && generation !== null && !this.#followsReset()) throw sourceReset();
-      requireValue(!removedKnown.length || this.#followsReset(), 'source-file-missing', '來源檔案已被移除；本機內容保留，請處理同步來源。');
+      requireValue(!removedKnown.length || this.#followsReset(), 'source-file-missing', t('errors.sources.fileRemoved'));
       const next = page.nextCursor ?? null;
-      requireValue(next === null || page.cursor == null, 'invalid-source-page', '來源混用了中間及完成游標。');
+      requireValue(next === null || page.cursor == null, 'invalid-source-page', t('errors.sources.cursorMixed'));
       const target = cursorValue(next ?? page.cursor);
       if (next !== null) {
-        requireValue(target !== cursor && !tokens.has(target), 'source-page-loop', '來源重複回傳相同分頁，已停止同步。'); tokens.add(target);
+        requireValue(target !== cursor && !tokens.has(target), 'source-page-loop', t('errors.sources.pageLoop')); tokens.add(target);
       }
       await this.#receive(files, cursor, target, null, removedKnown);
       if (next === null) {
@@ -298,16 +299,16 @@ export class FileSync {
       const id = await this.#request('allocateFileId');
       upload = await this.#workspace.reserveUpload(this.#session, key, { id, kind, sha256: digest, size: bytes.byteLength });
     }
-    requireValue(upload.file.sha256 === digest && upload.file.size === bytes.byteLength, 'upload-mismatch', '重試的檔案與已保存操作不符。');
+    requireValue(upload.file.sha256 === digest && upload.file.size === bytes.byteLength, 'upload-mismatch', t('errors.sources.retryMismatch'));
     this.#check();
     try {
       const result = validateFile(await this.#request('createFile', { file: upload.file, bytes }));
-      requireValue(canonicalJson(result) === canonicalJson(upload.file), 'upload-mismatch', '上傳回應與已保存的檔案身分不符。');
+      requireValue(canonicalJson(result) === canonicalJson(upload.file), 'upload-mismatch', t('errors.sources.uploadResponseMismatch'));
     } catch (error) {
       if (error.code !== 'file-exists') throw error;
       const remote = await verifyFile(upload.file, await this.#request('readFile', { file: upload.file }));
       requireValue(remote.length === bytes.length && remote.every((byte, index) => byte === bytes[index]),
-        'upload-mismatch', '已存在的來源檔案內容不同，待送資料仍保留。');
+        'upload-mismatch', t('errors.sources.existingFileDiffers'));
     }
     this.#check(); await this.#workspace.completeUpload(this.#session, operation, upload.file.id);
   }
@@ -316,12 +317,12 @@ export class FileSync {
     for (const operation of this.#workspace.pendingOperations) {
       this.#check();
       for (const attachment of operation.value.content?.attachments || []) {
-        requireValue(validDigest(attachment.id), 'attachment-address', '此附件需要有效的 SHA-256 内容身分才能同步。');
+        requireValue(validDigest(attachment.id), 'attachment-address', t('errors.sources.attachmentAddress'));
         if (this.#workspace.uploadState(this.#session, `attachment:${attachment.id}`)?.complete) continue;
         const blob = await this.#storage.getAttachment(this.#session.profileId, attachment.id); this.#check();
-        requireValue(blob instanceof Blob, 'missing-attachment', '附件尚未收到，引用它的版本仍保留在待送清單。');
+        requireValue(blob instanceof Blob, 'missing-attachment', t('errors.sources.attachmentMissing'));
         const bytes = new Uint8Array(await blob.arrayBuffer());
-        requireValue(await sha256(bytes) === attachment.id, 'attachment-integrity', '本機附件內容與身分不符，尚未上傳。');
+        requireValue(await sha256(bytes) === attachment.id, 'attachment-integrity', t('errors.sources.attachmentIntegrity'));
         await this.#upload('attachment', attachment.id, bytes);
       }
       const record = revisionRecord(operation.kind, operation.value, operation.parents);

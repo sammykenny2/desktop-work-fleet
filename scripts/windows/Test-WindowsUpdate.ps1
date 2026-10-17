@@ -87,7 +87,7 @@ try {
     $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\WorkFleet"
     New-Item -ItemType Directory -Path $Data -Force | Out-Null
     # No sign-in task for the probe; the feed file makes this identity download and install the next version once ready.
-    [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false}')
+    [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false,"language":"en"}')
     [IO.File]::WriteAllText((Join-Path $Data 'update-probe.txt'), $Feed)
     Start-Process "shell:AppsFolder\$($Installed.PackageFamilyName)!WorkFleet"
     $Deadline = (Get-Date).AddMinutes(4); $Result = Join-Path $Data 'update-probe-result.txt'

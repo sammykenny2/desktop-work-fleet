@@ -1,5 +1,6 @@
 import { copy, FleetError, requireValue } from '../core/contracts.js';
 import { encode, upload, MAX_COMMAND } from './transport.js';
+import { t } from '../i18n/index.js';
 
 export class DesktopClient {
   #bridge; #info; #serial = 0; #sending = Promise.resolve(); #pending = new Map(); #unsubscribe;
@@ -9,18 +10,18 @@ export class DesktopClient {
       const pending = this.#pending.get(message.commandId); if (!pending) return;
       clearTimeout(pending.timer); this.#pending.delete(message.commandId);
       if (message.ok) pending.resolve(message.result);
-      else pending.reject(new FleetError(message.error?.code || 'desktop-command', message.error?.message || '桌面操作未完成。'));
+      else pending.reject(new FleetError(message.error?.code || 'desktop-command', message.error?.message || t('errors.desktop.commandFailed')));
     });
   }
   command(method, args = {}, intent = null) {
     args = copy(args);
     const topology = this.#info.topology ?? 0;
     const draft = method === 'editor.change';
-    requireValue([...this.#pending.values()].filter(p => p.draft === draft).length < (draft ? 4 : 24), 'desktop-busy', '桌面操作仍在處理，請稍候重試。');
+    requireValue([...this.#pending.values()].filter(p => p.draft === draft).length < (draft ? 4 : 24), 'desktop-busy', t('errors.desktop.busyRetry'));
     return new Promise((resolve, reject) => {
       const id = crypto.randomUUID();
       const timer = setTimeout(() => {
-        this.#pending.delete(id); reject(new FleetError('desktop-unknown', '主畫面尚未確認保存，請保留文字後重試。'));
+        this.#pending.delete(id); reject(new FleetError('desktop-unknown', t('errors.desktop.saveUnconfirmed')));
       }, 120_000);
       this.#pending.set(id, { resolve, reject, timer, draft });
       this.#sending = this.#sending.then(async () => {
@@ -43,7 +44,7 @@ export class DesktopClient {
   }
   close() {
     this.#unsubscribe();
-    for (const pending of this.#pending.values()) { clearTimeout(pending.timer); pending.reject(new FleetError('desktop-closed', '桌面視窗已關閉。')); }
+    for (const pending of this.#pending.values()) { clearTimeout(pending.timer); pending.reject(new FleetError('desktop-closed', t('errors.desktop.viewClosed'))); }
     this.#pending.clear();
   }
 }
@@ -62,7 +63,7 @@ export class DesktopDraft {
       while (this.dirty) {
         this.#flight ||= { draftId: this.draftId, sequence: this.sequence + 1, text: this.text };
         const result = await this.#client.command('editor.change', { ...this.#flight });
-        if (result.sequence !== this.#flight.sequence) throw new FleetError('desktop-edit-order', '草稿保存回覆順序不符，文字仍保留。');
+        if (result.sequence !== this.#flight.sequence) throw new FleetError('desktop-edit-order', t('errors.desktop.draftReplyOrder'));
         this.sequence = result.sequence; this.saved = this.#flight.text; this.#flight = null;
       }
     })().finally(() => { this.#pending = null; });

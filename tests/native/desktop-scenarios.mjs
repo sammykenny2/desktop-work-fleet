@@ -31,5 +31,5 @@ await workspace.layout.setCardPolicy(card.id, { visible: false });
 await workspace.layout.setCardPolicy(second.id, { visible: false }); capture('hidden');
 await workspace.layout.setCardPolicy(card.id, { visible: true }); capture('shown-again');
 // With no topmost paper, a stage notice alone keeps the topmost scene up, and it never takes the mouse.
-capture('notice', { id: 1, rect: { x: 700, y: 400, width: 400, height: 200 }, title: 'Synthetic layer probe', text: '最上層', step: 3, steps: 4 });
+capture('notice', { id: 1, rect: { x: 700, y: 400, width: 400, height: 200 }, title: 'Synthetic layer probe', text: 'Top layer', step: 3, steps: 4 });
 await writeFile(process.argv[2], JSON.stringify(scenarios) + '\n');

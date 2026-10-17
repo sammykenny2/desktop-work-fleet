@@ -7,13 +7,14 @@ import { copy, FleetError } from '../src/core/contracts.js';
 import { FileSync, resetSource } from '../src/sources/file-sync.js';
 import { encodeRevision, revisionRecord } from '../src/sources/revisions.js';
 import { encodeSourceRevision } from '../src/sources/source-revisions.js';
-import { initialGroupRecord } from '../src/sources/initial-group.js';
+import { INITIAL_GROUP_NAME, initialGroupRecord } from '../src/sources/initial-group.js';
 import { encodeInitialization, initializationId, initializationReceipt, prepareInitialization } from '../src/sources/workspace-initialization.js';
 import { sha256 } from '../src/sources/files.js';
 import { gate, MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.js';
+import { t } from '../src/i18n/index.js';
 
 const code = expected => error => error.code === expected;
-const group = (id = 'g') => revisionRecord('group', { id, revision: `${id}-root`, name: '我的便箋', deleted: false });
+const group = (id = 'g') => revisionRecord('group', { id, revision: `${id}-root`, name: INITIAL_GROUP_NAME, deleted: false });
 async function client(store) {
   let disk; let failure = () => false;
   const persist = async (next, previous) => {
@@ -76,7 +77,7 @@ test('a manual same-name group created while prepare is uploading survives and c
   const store = new MemoryFileStore(); const c = await client(store); const entered = gate(); const resume = gate();
   store.hooks.createFile = async ({ file }) => { if (file.kind === 'workspace') { delete store.hooks.createFile; entered.resolve(); await resume.promise; } };
   const running = c.sync.sync(); await entered.promise;
-  const manual = await c.workspace.createGroup('我的便箋'); resume.resolve(); await running;
+  const manual = await c.workspace.createGroup(INITIAL_GROUP_NAME); resume.resolve(); await running;
   await c.sync.sync(); assert.equal(c.sync.status.phase, 'idle');
   assert.equal(c.workspace.snapshot.groups.length, 2); assert.ok(c.workspace.snapshot.groups.some(g => g.id === manual.id));
   const fresh = await client(store); await fresh.sync.sync(); assert.deepEqual(fresh.workspace.snapshot.groups, c.workspace.snapshot.groups);
@@ -211,7 +212,7 @@ test('a reset save acknowledgement loss reloads the durable journal, and superse
       stopAutomatic: null, automatic: null, syncService: null, desktop: null, activeActions: [], draftPending: null,
       currentDraft: null, unsavedDrafts: new Set(), document: { body: {} }, profileId: 'google:fixture',
       native: { bridge: {}, info: {} }, googleAccount: { accountId: 'fixture' }, workspace: { state: {}, saveSourceReset() {} },
-      requireConnected() {}, NativeGoogleFileStore: class {},
+      requireConnected() {}, NativeGoogleFileStore: class {}, t,
       resetSource: async () => { throw Object.assign(new Error(errorCode), { code: errorCode }); },
       storage: { load: async () => copy(loaded), save: async value => { loaded = value; } },
       location: { reload: () => { reloads++; } }, initializeGoogle: () => assert.fail('must not restart the old writer'),

@@ -22,7 +22,9 @@ public sealed class NativeUpdater : IDisposable
   private readonly HttpClient http = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false, PooledConnectionLifetime = TimeSpan.FromMinutes(5) })
   { Timeout = Timeout.InfiniteTimeSpan };
   private readonly CancellationTokenSource lifetime = new();
-  private readonly string folder, repository, channel, currentText, reason;
+  private readonly string folder, repository, channel, currentText;
+  // A HostText key, so the reason follows the display language.
+  private readonly string reason;
   private readonly Version current;
   private readonly (string Name, string Publisher, Version Version)? identity;
   private readonly string? testFeed;
@@ -60,7 +62,7 @@ public sealed class NativeUpdater : IDisposable
         && File.ReadAllText(probe).Trim() is { Length: > 0 } feed && Directory.Exists(feed)) testFeed = Path.GetFullPath(feed);
     }
     Capable = identity is not null && repository.Length > 0;
-    reason = identity is null ? "只有安裝版（MSIX）支援 App 內更新。" : repository.Length == 0 ? "這個版本沒有設定更新來源。" : "";
+    reason = identity is null ? "reason.updatesNeedMsix" : repository.Length == 0 ? "reason.updatesNoSource" : "";
     if (!Capable) status = "unavailable";
   }
   private static (string Repository, string Channel) ReadSource()
@@ -89,7 +91,7 @@ public sealed class NativeUpdater : IDisposable
     };
     return new
     {
-      available = Capable, reason = Capable ? null : reason, currentVersion = currentText, channel, status, nextAction = next,
+      available = Capable, reason = Capable ? null : HostText.Get(reason), currentVersion = currentText, channel, status, nextAction = next,
       version = pending?.Version, summary = pending?.Summary, pageUrl = pending?.PageUrl, lastCheckedAt = lastChecked,
       progress = status == "downloading" ? new { received, total } : null,
       error = errorCode is null ? null : new { code = errorCode, message = errorMessage }
@@ -122,10 +124,10 @@ public sealed class NativeUpdater : IDisposable
       (errorCode, errorMessage) = error switch
       {
         HostError host => (host.Code, host.Message),
-        TaskCanceledException or OperationCanceledException or TimeoutException => ("timeout", "連線逾時，請稍後再試。"),
-        HttpRequestException => ("offline", "無法連線到 GitHub，請確認網路後再試。"),
-        IOException or UnauthorizedAccessException => ("install_failed", "無法保存下載的更新，請確認磁碟空間後再試。"),
-        _ => ("unknown", "更新沒有完成，請稍後再試。")
+        TaskCanceledException or OperationCanceledException or TimeoutException => ("timeout", HostText.Get("update.timeout")),
+        HttpRequestException => ("offline", HostText.Get("update.offline")),
+        IOException or UnauthorizedAccessException => ("install_failed", HostText.Get("update.saveFailed")),
+        _ => ("unknown", HostText.Get("update.failed"))
       };
       Set("failed");
     }
@@ -148,7 +150,7 @@ public sealed class NativeUpdater : IDisposable
     Clean(downloaded);
     Set(downloaded is null ? "update_available" : "downloaded");
   }
-  private static Uri Download(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : throw new HostError("metadata_invalid", "更新資訊的下載位置無效。");
+  private static Uri Download(string url) => Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri : throw new HostError("metadata_invalid", HostText.Get("update.invalidDownloadUrl"));
   private async Task DownloadCore(UpdatePackage package, CancellationToken token)
   {
     Directory.CreateDirectory(folder);
@@ -167,12 +169,12 @@ public sealed class NativeUpdater : IDisposable
         else
         {
           using var response = await Send(Download(package.Url), DownloadHosts, "application/octet-stream", token);
-          if (response.Content.Headers.ContentLength is { } length && length != package.Size) throw new HostError("checksum_mismatch", "下載的檔案大小不符，已刪除。");
+          if (response.Content.Headers.ContentLength is { } length && length != package.Size) throw new HostError("checksum_mismatch", HostText.Get("update.sizeMismatch"));
           await using var input = await response.Content.ReadAsStreamAsync(token);
           await Copy(input, output, hash, package.Size, token);
         }
         if (received != package.Size || Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant() != package.Sha256)
-          throw new HostError("checksum_mismatch", "下載的檔案與更新資訊不符，已刪除。");
+          throw new HostError("checksum_mismatch", HostText.Get("update.checksumMismatch"));
         await output.FlushAsync(token);
       }
       CheckPackage(partial);
@@ -189,7 +191,7 @@ public sealed class NativeUpdater : IDisposable
       var read = await input.ReadAsync(buffer, idle.Token);
       if (read == 0) return;
       received += read;
-      if (received > size) throw new HostError("checksum_mismatch", "下載的檔案大小不符，已刪除。");
+      if (received > size) throw new HostError("checksum_mismatch", HostText.Get("update.sizeMismatch"));
       hash.AppendData(buffer, 0, read); await output.WriteAsync(buffer.AsMemory(0, read), token);
       if (DateTime.UtcNow - lastProgress > TimeSpan.FromMilliseconds(250)) { lastProgress = DateTime.UtcNow; publish(Snapshot()); }
     }
@@ -200,19 +202,19 @@ public sealed class NativeUpdater : IDisposable
     try
     {
       using var archive = ZipFile.OpenRead(file);
-      var entry = archive.GetEntry("AppxManifest.xml") ?? throw new HostError("identity_mismatch", "下載的安裝檔缺少套件身分，未安裝。");
-      if (entry.Length > 1024 * 1024) throw new HostError("identity_mismatch", "下載的安裝檔套件身分無效，未安裝。");
+      var entry = archive.GetEntry("AppxManifest.xml") ?? throw new HostError("identity_mismatch", HostText.Get("update.identityMissing"));
+      if (entry.Length > 1024 * 1024) throw new HostError("identity_mismatch", HostText.Get("update.identityInvalid"));
       using var stream = entry.Open();
       UpdateFeed.CheckIdentity(stream, identity!.Value.Name, identity.Value.Publisher, Architecture, identity.Value.Version);
     }
-    catch (InvalidDataException) { throw new HostError("identity_mismatch", "下載的檔案不是有效的安裝檔，未安裝。"); }
+    catch (InvalidDataException) { throw new HostError("identity_mismatch", HostText.Get("update.notInstaller")); }
   }
   /// <summary>The verified installer, checked again right before installing.</summary>
   public async Task<string> Ready()
   {
-    if (status != "downloaded" || downloaded is null || pending is null) throw new HostError("update-not-ready", "還沒有下載好的更新。");
+    if (status != "downloaded" || downloaded is null || pending is null) throw new HostError("update-not-ready", "No update has been downloaded yet.");
     if (!File.Exists(downloaded) || await Digest(downloaded, lifetime.Token) != pending.Sha256)
-    { downloaded = null; Set("update_available"); throw new HostError("checksum_mismatch", "下載的更新已變更，請重新下載。"); }
+    { downloaded = null; Set("update_available"); throw new HostError("checksum_mismatch", HostText.Get("update.changed")); }
     CheckPackage(downloaded);
     return downloaded;
   }
@@ -222,13 +224,13 @@ public sealed class NativeUpdater : IDisposable
   private async Task<byte[]> Fetch(Uri uri, long limit, string[] hosts, CancellationToken token)
   {
     using var response = await Send(uri, hosts, hosts == FeedHosts ? "application/atom+xml" : "application/octet-stream", token);
-    if (response.Content.Headers.ContentLength > limit) throw new HostError("metadata_invalid", "更新資訊超過容量上限。");
+    if (response.Content.Headers.ContentLength > limit) throw new HostError("metadata_invalid", HostText.Get("update.metadataTooLarge"));
     await using var stream = await response.Content.ReadAsStreamAsync(token);
     using var buffer = new MemoryStream(); var chunk = new byte[16384];
     while (true)
     {
       var read = await stream.ReadAsync(chunk, token); if (read == 0) break;
-      if (buffer.Length + read > limit) throw new HostError("metadata_invalid", "更新資訊超過容量上限。");
+      if (buffer.Length + read > limit) throw new HostError("metadata_invalid", HostText.Get("update.metadataTooLarge"));
       buffer.Write(chunk, 0, read);
     }
     return buffer.ToArray();
@@ -239,14 +241,14 @@ public sealed class NativeUpdater : IDisposable
     for (var hop = 0; hop <= 3; hop++)
     {
       if (uri.Scheme != Uri.UriSchemeHttps || !uri.IsDefaultPort || uri.UserInfo.Length > 0 || !hosts.Contains(uri.IdnHost, StringComparer.OrdinalIgnoreCase))
-        throw new HostError("provider_rejected", "更新來源指向未允許的位置，已停止。");
+        throw new HostError("provider_rejected", HostText.Get("update.locationRejected"));
       using var request = new HttpRequestMessage(HttpMethod.Get, uri);
       request.Headers.UserAgent.ParseAdd($"WorkFleet/{currentText}"); request.Headers.Accept.ParseAdd(accept);
       var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
       if ((int)response.StatusCode is 301 or 302 or 303 or 307 or 308 && response.Headers.Location is { } location)
       {
         response.Dispose();
-        if (hosts == FeedHosts) throw new HostError("provider_rejected", "更新來源轉址，已停止。");
+        if (hosts == FeedHosts) throw new HostError("provider_rejected", HostText.Get("update.redirected"));
         uri = location.IsAbsoluteUri ? location : new Uri(uri, location);
         hosts = DownloadHosts; continue;
       }
@@ -255,10 +257,10 @@ public sealed class NativeUpdater : IDisposable
       var limited = code == HttpStatusCode.TooManyRequests || code == HttpStatusCode.Forbidden && response.Headers.RetryAfter is not null;
       response.Dispose();
       throw limited
-        ? new HostError("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。")
-        : new HostError("provider_rejected", $"GitHub 回應錯誤（{(int)code}），請稍後再試。");
+        ? new HostError("rate_limited", HostText.Get("update.rateLimited"))
+        : new HostError("provider_rejected", HostText.Get("update.providerError", ("status", (int)code)));
     }
-    throw new HostError("provider_rejected", "更新來源轉址次數過多，已停止。");
+    throw new HostError("provider_rejected", HostText.Get("update.tooManyRedirects"));
   }
   private static async Task<string> Digest(string file, CancellationToken token)
   {

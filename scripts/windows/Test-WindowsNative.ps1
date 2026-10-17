@@ -7,6 +7,8 @@
     probes show synthetic papers in owned windows on an uncovered desktop area. Shortcut/tray cases
     request activation only for owned windows and never inject global input.
     Synthetic databases/screenshots stay in a new build/native-checks-* directory.
+    Each probe data folder stores the display language "en" before a window opens,
+    so the English assertions hold whatever the Windows display language is.
     A restricted agent execution environment can prevent WebView2 startup; this is
     a failure, not a passing or automatically skipped test. A positive foreground
     grant is explicitly skipped when Windows declines it; rejection checks still run.

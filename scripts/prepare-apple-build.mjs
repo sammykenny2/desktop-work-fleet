@@ -14,7 +14,10 @@ const execute = promisify(execFile);
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 export function appleInfoPlist(platform, config, { version, build }) {
-  const shared = '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string>' +
+  // English first with Traditional Chinese (docs/i18n.md). The app ships no .lproj folders; declaring both localizations
+  // lets alert buttons, share sheets and context menus that the system draws follow the user's language for these two.
+  const localizations = '<key>CFBundleDevelopmentRegion</key><string>en</string><key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string></array>';
+  const shared = localizations + '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string>' +
     `<key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${build}</string>`;
   const group = `<key>FleetCaptureAppGroup</key><string>${escape(config.appleAppGroupId)}</string>`;
   let content;

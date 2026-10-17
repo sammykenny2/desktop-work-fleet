@@ -45,6 +45,18 @@ class LinuxSceneTests(unittest.TestCase):
     def parse(self, value):
         return scenes.frame(protocol.encode(value), "layer-probe", -1)
 
+    def test_the_owner_locale_reaches_the_scenes(self):
+        # src/desktop/projection.js sends the main window's UI locale with every frame (docs/i18n.md).
+        for locale in ("en", "zh-TW"):
+            with self.subTest(locale=locale):
+                value = {**projection(), "locale": locale}
+                self.assertEqual(self.parse(value)["locale"], locale)
+        self.assertNotIn("locale", self.parse(projection()))
+        for locale in ("", None, 1, ["en"], "x" * 17):
+            with self.subTest(locale=locale):
+                with self.assertRaises(protocol.Failure):
+                    self.parse({**projection(), "locale": locale})
+
     def test_three_layers_keep_physical_geometry(self):
         for layer in ("wallpaper", "desktop", "floating"):
             with self.subTest(layer=layer):

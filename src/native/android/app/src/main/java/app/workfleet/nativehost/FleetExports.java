@@ -26,17 +26,17 @@ final class FleetExports implements AutoCloseable {
     }
     Object export(JSONObject args, FleetBridge bridge) throws Exception {
         String name = filename(Protocol.text(args, "name", 240)), action = Protocol.text(args, "action", 16);
-        Protocol.require(!closed && (action.equals("save") || action.equals("share") || action.equals("shareText")), "file-export", "檔案匯出操作無效。");
+        Protocol.require(!closed && (action.equals("save") || action.equals("share") || action.equals("shareText")), "file-export", "The file export action is invalid.");
         byte[] bytes = bridge.upload(args, "backup");
         try {
             if (action.equals("shareText")) {
-                Protocol.require(bytes.length <= 128 * 1024, "file-capacity", "文字分享容量超限，請改用檔案分享。");
+                Protocol.require(bytes.length <= 128 * 1024, "file-capacity", "The text is too large to share as text. Share it as a file instead.");
                 String text = StandardCharsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(bytes)).toString();
                 CompletableFuture<Void> launched = new CompletableFuture<>();
                 activity.runOnUiThread(() -> {
                     try {
-                        Protocol.require(!closed, "native-closed", "原生工作階段已結束。");
-                        activity.startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "分享文字"));
+                        Protocol.require(!closed, "native-closed", "The native session has ended.");
+                        activity.startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), HostText.get("share.textChooser")));
                         launched.complete(null);
                     } catch (Exception error) { launched.completeExceptionally(error); }
                 });
@@ -44,7 +44,7 @@ final class FleetExports implements AutoCloseable {
             }
             if (action.equals("share")) {
                 File root = new File(activity.getCacheDir(), "exports");
-                Protocol.require(root.isDirectory() || root.mkdir(), "file-export", "無法建立分享暫存。");
+                Protocol.require(root.isDirectory() || root.mkdir(), "file-export", "Couldn't create temporary storage for sharing.");
                 long total = 0; int count = 0;
                 File[] folders = root.listFiles();
                 if (folders != null) for (File folder : folders) {
@@ -59,19 +59,19 @@ final class FleetExports implements AutoCloseable {
                     if (expired && folder.delete()) continue;
                     count++;
                 }
-                Protocol.require(count < 32 && total + bytes.length <= 256L * 1024 * 1024, "file-capacity", "分享暫存已滿，請稍後再試或改用匯出檔案。");
-                File folder = new File(root, Protocol.uuid()); Protocol.require(folder.mkdir(), "file-export", "無法建立分享暫存。");
+                Protocol.require(count < 32 && total + bytes.length <= 256L * 1024 * 1024, "file-capacity", "Temporary storage for sharing is full. Try again later, or export the file instead.");
+                File folder = new File(root, Protocol.uuid()); Protocol.require(folder.mkdir(), "file-export", "Couldn't create temporary storage for sharing.");
                 File file = new File(folder, name);
                 try (FileOutputStream stream = new FileOutputStream(file)) { stream.write(bytes); stream.flush(); stream.getFD().sync(); }
                 Uri uri = FileProvider.getUriForFile(activity, activity.getPackageName() + ".exports", file);
                 CompletableFuture<Void> launched = new CompletableFuture<>();
                 activity.runOnUiThread(() -> {
                     try {
-                        Protocol.require(!closed, "native-closed", "原生工作階段已結束。");
+                        Protocol.require(!closed, "native-closed", "The native session has ended.");
                         Intent share = new Intent(Intent.ACTION_SEND).setType("application/octet-stream").putExtra(Intent.EXTRA_STREAM, uri)
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                         share.setClipData(ClipData.newRawUri(name, uri));
-                        activity.startActivity(Intent.createChooser(share, "分享檔案")); launched.complete(null);
+                        activity.startActivity(Intent.createChooser(share, HostText.get("share.fileChooser"))); launched.complete(null);
                     } catch (Exception error) { launched.completeExceptionally(error); }
                 });
                 launched.get(110, TimeUnit.SECONDS); return Protocol.object("completed", true, "shared", true);
@@ -79,7 +79,7 @@ final class FleetExports implements AutoCloseable {
             CompletableFuture<Uri> result = new CompletableFuture<>();
             activity.runOnUiThread(() -> {
                 try {
-                    Protocol.require(!closed && picker == null, "file-busy", "選檔器目前使用中。"); picker = result;
+                    Protocol.require(!closed && picker == null, "file-busy", "The file picker is already open."); picker = result;
                     activity.startActivityForResult(new Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                         .setType("application/octet-stream").putExtra(Intent.EXTRA_TITLE, name), 40);
                 } catch (Exception error) { result.completeExceptionally(error); }
@@ -89,7 +89,7 @@ final class FleetExports implements AutoCloseable {
             finally { if (picker == result) picker = null; }
             if (destination == null) return Protocol.object("completed", false);
             ParcelFileDescriptor descriptor = activity.getContentResolver().openFileDescriptor(destination, "w");
-            Protocol.require(descriptor != null, "file-export", "無法寫入選擇的檔案。");
+            Protocol.require(descriptor != null, "file-export", "Couldn't write the chosen file.");
             try (ParcelFileDescriptor.AutoCloseOutputStream stream = new ParcelFileDescriptor.AutoCloseOutputStream(descriptor)) { stream.write(bytes); stream.flush(); }
             return Protocol.object("completed", true, "shared", false);
         } finally { Arrays.fill(bytes, (byte) 0); }

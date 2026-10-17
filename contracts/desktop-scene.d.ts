@@ -5,6 +5,10 @@ export interface DesktopEditor {
 }
 export interface DesktopFrame {
   protocol: 1; sessionId: string; sequence: number; workspaceRevision: number; layoutRevision: number;
+  /** The display topology the frame was laid out for. */
+  topology: number;
+  /** The main window's UI locale; the scene draws its own text in it (docs/i18n.md). */
+  locale: 'en' | 'zh-TW';
   groups: { id: string; name: string; color: string; region: (Rect & { groupId: string | null }) | null }[];
   operationScope: Scope; activeGroupId: string | null;
   cards: { id: string; groupId: string; revision: string; summary: string; text: string; format: string;
@@ -13,6 +17,8 @@ export interface DesktopFrame {
   editor: DesktopEditor | null;
   dropTarget: { groupId: string; kind: 'label' | 'region' } | null;
   fallbacks: { cardId: string; requested: ResidentLayer; effective: ResidentLayer }[];
+  /** A short on-screen notice after a group or all-groups key, drawn by the topmost scene. */
+  notice: { id: string; rect: Rect; title: string; text: string; step: number; steps: number } | null;
 }
 export interface DesktopCommand {
   sessionId: string; id: string; serial: number;

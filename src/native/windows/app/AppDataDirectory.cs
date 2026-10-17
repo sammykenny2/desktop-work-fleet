@@ -15,7 +15,7 @@ internal static class AppDataDirectory
     uint length = 0;
     var result = GetCurrentPackageFullName(ref length, IntPtr.Zero);
     if (result == 15700) return Unpackaged;
-    HostError.Require(result == 122 && length > 0, "storage-identity", "無法確認 Windows 套件資料位置，請保留原資料後重試。");
+    HostError.Require(result == 122 && length > 0, "storage-identity", "Windows did not report where this app keeps its data. Keep your data as it is and try again.");
     // Keep the existing MSIX redirected location, including SQLite/WAL, vaults, profile and WebView2 data.
     // An existing ZIP/Debug directory must not change the package's storage or uninstall lifecycle.
     return Path.Combine(global::Windows.Storage.ApplicationData.Current.LocalCacheFolder.Path, "Local", "WorkFleet");

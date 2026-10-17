@@ -18,7 +18,7 @@ internal sealed class AttachmentFiles : IDisposable
   private bool disposed;
   internal static string Filename(string name)
   {
-    HostError.Require(!string.IsNullOrWhiteSpace(name) && name.Length <= 240, "invalid-attachment", "附件檔名無效。");
+    HostError.Require(!string.IsNullOrWhiteSpace(name) && name.Length <= 240, "invalid-attachment", "The attachment file name is invalid.");
     var clean = new string(name.Select(character => Path.GetInvalidFileNameChars().Contains(character) || char.IsControl(character) ? '_' : character).ToArray()).Trim().TrimEnd(' ', '.');
     var stem = Path.GetFileNameWithoutExtension(clean);
     if (new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" }.Contains(stem.ToUpperInvariant())) clean = "_" + clean;
@@ -33,20 +33,20 @@ internal sealed class AttachmentFiles : IDisposable
   public object Invoke(byte[] bytes, string name, bool open)
   {
     name = Filename(name);
-    HostError.Require(bytes.Length <= LocalDatabase.MaxAttachment, "attachment-capacity", "附件超過容量上限。");
+    HostError.Require(bytes.Length <= LocalDatabase.MaxAttachment, "attachment-capacity", "The attachment is too large.");
     var key = LocalDatabase.Digest(bytes) + ":" + name; string path, directory;
     lock (gate)
     {
       ObjectDisposedException.ThrowIf(disposed, this);
       if (!open && previews.TryGetValue(key, out var cached)) return cached;
-      HostError.Require(!open || CanOpen(name), "attachment-not-document", "此類檔案請先匯出，再自行選擇開啟方式。");
+      HostError.Require(!open || CanOpen(name), "attachment-not-document", "Export this kind of file first, then open it with an app of your choice.");
       directory = Path.Combine(root, Guid.NewGuid().ToString("N")); Directory.CreateDirectory(directory);
       path = Path.Combine(directory, name); File.WriteAllBytes(path, bytes); files.Add(path);
       if (open)
       {
         File.SetAttributes(path, FileAttributes.ReadOnly);
         try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); return new { opened = true }; }
-        catch { throw new HostError("attachment-open", "無法開啟附件，請確認已安裝對應的應用程式。"); }
+        catch { throw new HostError("attachment-open", "Couldn't open the attachment. Make sure an app that opens it is installed."); }
       }
     }
     string? png = null;

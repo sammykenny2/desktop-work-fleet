@@ -13,14 +13,14 @@ internal static class SignInHoldProbe
   private static string directoryForErrors = "";
   internal static async Task Run(string directory)
   {
-    Directory.CreateDirectory(directory); directoryForErrors = directory;
+    Program.English(directory); directoryForErrors = directory;
     var state = new BuiltInDisplays(true, true, true);
     var window = new FleetWindow(directory, desktopDisplays: [NativeDisplays.Read().First(d => d.Primary)],
       shell: new HostShell(directory, true, "debug"), desktopBuiltIn: () => state) { ShowActivated = false };
     window.Show();
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "sign-in launch initialization");
+      await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "sign-in launch initialization");
       await Until(() => Log(directory).Contains($"scenes waiting: {SignInDisplays.LidClosedReason}; lid=closed builtIn=on other=on changed=none\n"),
         "scenes wait while the closed lid's panel is on");
       await Task.Delay(2500);

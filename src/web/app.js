@@ -19,7 +19,7 @@ function store(action, protectsDraft = true) {
   try { return action(); }
   catch (error) {
     if (protectsDraft) storageFailed = true;
-    status('本機保存失敗，請複製文字或匯出草稿；尚未送出。' + error.message, true, 'draft-state');
+    status('Not sent: saving on this device failed. Copy the text or export your drafts. ' + error.message, true, 'draft-state');
     throw error;
   }
 }
@@ -38,9 +38,9 @@ function updateDraftList() {
   for (const item of list) {
     const row = document.createElement('div');
     const label = document.createElement('span');
-    label.textContent = (item.text || '空白草稿').slice(0, 55) + (item.pending ? ' · 待確認傳送' : '');
-    row.append(label, button('取回', () => { if (!sending) { preserveCurrent(); loadDraft(store(() => drafts.recover(item))); } }), button('捨棄', () => {
-      if (sending || !confirm('捨棄這份本機草稿？')) return;
+    label.textContent = (item.text || 'Empty draft').slice(0, 55) + (item.pending ? ' · Send not confirmed' : '');
+    row.append(label, button('Recover', () => { if (!sending) { preserveCurrent(); loadDraft(store(() => drafts.recover(item))); } }), button('Discard', () => {
+      if (sending || !confirm('Discard this local draft?')) return;
       store(() => drafts.remove(item));
       if (draft?.key === item.key) { draft = null; showDraft(); }
       updateDraftList();
@@ -52,15 +52,15 @@ function showDraft() {
   $('note-text').value = draft?.text || '';
   $('note-board').value = draft?.board || 'Inbox';
   $('note-status').value = draft?.status || 'todo';
-  $('editor-title').textContent = draft?.revision ? '編輯便箋' : '隨手記一件事';
+  $('editor-title').textContent = draft?.revision ? 'Edit note' : 'Capture a thought';
   for (const id of ['note-text', 'note-board', 'note-status']) $(id).disabled = !canWrite() || !!draft?.pending || sending;
   $('save').disabled = !canWrite() || sending;
-  $('save').textContent = draft?.pending ? '重試同一筆傳送' : '保存';
+  $('save').textContent = draft?.pending ? 'Retry the same send' : 'Save';
   $('new-draft').disabled = sending;
   $('conflict').hidden = true;
   if (draft?.pending) {
     $('conflict').hidden = false;
-    $('conflict-message').textContent = '上次傳送尚未確認。重試會使用同一操作編號；也可以保留原稿後另存副本。';
+    $('conflict-message').textContent = 'The last send was not confirmed. Retrying reuses the same operation ID; you can also keep the original and save a copy.';
     $('current-note').textContent = '';
   }
 }
@@ -78,7 +78,7 @@ function capture() {
   // Keep the in-memory text even if durable storage fails.
   draft = { ...draft, ...patch };
   store(() => drafts.write(draft)); storageFailed = false;
-  status('草稿已保留在此裝置。', false, 'draft-state'); updateDraftList();
+  status('Draft kept on this device.', false, 'draft-state'); updateDraftList();
 }
 function button(title, action) {
   const node = document.createElement('button'); node.textContent = title; node.type = 'button';
@@ -112,21 +112,21 @@ function renderNotes() {
     });
     if (canWrite()) {
       const actions = document.createElement('div'); actions.className = 'row';
-      if (!note.deleted) actions.append(button('編輯', () => { if (!sending) loadDraft(store(() => drafts.create(snapshot, note))); }),
-        button(note.status === 'done' ? '還原為 Todo' : '完成', async () => {
+      if (!note.deleted) actions.append(button('Edit', () => { if (!sending) loadDraft(store(() => drafts.create(snapshot, note))); }),
+        button(note.status === 'done' ? 'Back to Todo' : 'Mark done', async () => {
           if (sending) return;
           const item = store(() => drafts.create(snapshot, note));
           loadDraft(store(() => drafts.edit(item, { status: note.status === 'done' ? 'todo' : 'done' }))); await send();
         }));
-      actions.append(button(note.deleted ? '還原便箋' : '刪除', async () => {
-        if (sending || (!note.deleted && !confirm('移到已刪除？之後可以還原。'))) return;
+      actions.append(button(note.deleted ? 'Restore note' : 'Delete', async () => {
+        if (sending || (!note.deleted && !confirm('Move to Deleted? You can restore it later.'))) return;
         loadDraft(store(() => drafts.action(snapshot, note, note.deleted ? 'restore' : 'delete'))); await send();
       }));
       article.append(actions);
     }
     $('notes').append(article);
   }
-  if (!notes.length) { const p = document.createElement('p'); p.textContent = view === 'active' ? '暫時沒有未完成事項。想到什麼，就先記下來。' : '這個檢視目前沒有便箋。'; $('notes').append(p); }
+  if (!notes.length) { const p = document.createElement('p'); p.textContent = view === 'active' ? 'Nothing open right now. Write down whatever comes to mind.' : 'No notes in this view.'; $('notes').append(p); }
   $('admin').hidden = snapshot.role !== 'admin';
 }
 async function sync() {
@@ -138,16 +138,16 @@ async function sync() {
     if (currentGeneration !== generation) return;
     snapshot = next;
     store(() => localStorage.setItem(cacheKey, JSON.stringify(snapshot)), false);
-    status('已同步 · ' + new Date().toLocaleTimeString());
+    status('Synced · ' + new Date().toLocaleTimeString());
     renderNotes();
     for (const id of ['note-text', 'note-board', 'note-status']) $(id).disabled = !canWrite() || !!draft?.pending || sending;
     $('save').disabled = !canWrite() || sending;
     if (draft && draft.epoch !== snapshot.epoch) {
       $('conflict').hidden = false;
-      $('conflict-message').textContent = '資料已還原或來源已改變。舊草稿仍保留，請比對後另存新便箋。';
+      $('conflict-message').textContent = 'The data was restored or its source changed. Your old draft is kept; compare them, then save it as a new note.';
     }
   } catch (error) {
-    status(error.status === 401 ? '存取已撤銷或到期。請重新配對；草稿仍保留。' : '離線或服務不可用 · 顯示上次內容；草稿仍保留。', true);
+    status(error.status === 401 ? 'Access was revoked or has expired. Pair again; your drafts are kept.' : 'Offline or service unavailable · Showing the last content; your drafts are kept.', true);
   } finally { syncing = false; }
 }
 async function send() {
@@ -160,20 +160,20 @@ async function send() {
     await api('/api/operations', submitted.pending);
     store(() => drafts.remove(submitted));
     draft = null;
-    status('已保存到 server。', false, 'draft-state');
+    status('Saved to the server.', false, 'draft-state');
     await sync();
   } catch (error) {
     $('conflict').hidden = false;
     $('conflict-message').textContent = error.status === 409
-      ? '其他裝置已更新、刪除或還原資料。你的草稿仍在；請比對內容或另存新便箋。'
-      : '傳送未確認，草稿與操作編號已保留。恢復連線後按「重試同一筆傳送」。';
+      ? 'Another device updated, deleted or restored the data. Your draft is still here; compare the text or save it as a new note.'
+      : 'The send was not confirmed; the draft and its operation ID are kept. When you are back online, choose "Retry the same send".';
     $('current-note').textContent = error.detail?.current?.text || '';
-    status('尚未確認同步。草稿已保留。', true, 'draft-state');
+    status('Sync not confirmed yet. Draft kept.', true, 'draft-state');
   } finally {
     sending = false;
     if (!draft) showDraft();
     $('save').disabled = !canWrite(); $('new-draft').disabled = false;
-    $('save').textContent = draft?.pending ? '重試同一筆傳送' : '保存';
+    $('save').textContent = draft?.pending ? 'Retry the same send' : 'Save';
     updateDraftList(); renderNotes();
   }
 }
@@ -194,10 +194,10 @@ $('settings-toggle').onclick = async () => {
       const { devices } = await api('/api/devices'); $('devices').replaceChildren();
       for (const device of devices) {
         const row = document.createElement('div'); const label = document.createElement('span');
-        label.textContent = `${device.name} · ${device.role}${device.revoked ? ' · 已撤銷' : ''}`;
+        label.textContent = `${device.name} · ${device.role}${device.revoked ? ' · Revoked' : ''}`;
         row.append(label);
-        if (!device.revoked && device.id !== snapshot.device) row.append(button('撤銷', async () => {
-          await api('/api/revoke', { device: device.id }); label.textContent += ' · 已撤銷';
+        if (!device.revoked && device.id !== snapshot.device) row.append(button('Revoke', async () => {
+          await api('/api/revoke', { device: device.id }); label.textContent += ' · Revoked';
         }));
         $('devices').append(row);
       }
@@ -215,13 +215,13 @@ $('pair-form').onsubmit = async event => {
     localStorage.removeItem(cacheKey);
     $('pair-code').value = ''; $('pairing').hidden = true;
     await sync(); showDraft();
-  } catch (error) { status('配對失敗：' + error.message + '。請取得新邀請。', true); }
+  } catch (error) { status('Pairing failed: ' + error.message + '. Get a new invite.', true); }
 };
 $('make-invite').onclick = async () => {
   try {
     const result = await api('/api/invites', { role: $('invite-role').value });
-    $('invite-result').textContent = `5 分鐘有效，一次性邀請：${result.url}`;
-    setTimeout(() => { $('invite-result').textContent = '邀請已到期，請重新產生。'; }, 300000);
+    $('invite-result').textContent = `One-time invite, valid for 5 minutes: ${result.url}`;
+    setTimeout(() => { $('invite-result').textContent = 'The invite has expired. Create a new one.'; }, 300000);
   } catch (error) { status(error.message, true); }
 };
 $('export-drafts').onclick = () => {

@@ -14,7 +14,8 @@ internal static class SceneTransfersProbe
       throw new Exception($"Expected scene rejection: {code}");
     }
     void Test(string name, Action action) { action(); count++; Console.WriteLine($"PASS {name}"); }
-    using var pipe = new SceneTransfers(); var bytes = Encoding.UTF8.GetBytes(new string('中', 150000));
+    // Three-byte UTF-8 characters, so one frame spans several chunks.
+    using var pipe = new SceneTransfers(); var bytes = Encoding.UTF8.GetBytes(new string((char)0x4E2D, 150000));
     string Upload(string owner, byte[] data)
     {
       var token = pipe.Begin(owner, data.Length, LocalDatabase.Digest(data), SceneTransfers.MaxFrame);
@@ -56,16 +57,22 @@ internal static class SceneTransfersProbe
       frame["operationScope"] = new { kind = "none" };
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 5), "scene-order");
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), "other", 0), "scene-session");
-      frame["groups"] = Enumerable.Range(0, 10).Select(i => new { id = $"group-{i}", name = new string('組', 81), color = "#fff6cc", region = (object?)null }).ToArray();
+      frame["groups"] = Enumerable.Range(0, 10).Select(i => new { id = $"group-{i}", name = new string((char)0x7D44, 81), color = "#fff6cc", region = (object?)null }).ToArray();
       Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Sequence == 5);
       // A stage notice is presentation only: its rectangle is carried for scene visibility, anything else is refused.
-      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 300, height = 200 }, title = "研究", text = "最上層", step = 3, steps = 4 };
+      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 300, height = 200 }, title = "Research", text = "Top layer", step = 3, steps = 4 };
       Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Notice == new LogicalRect(10, 20, 300, 200));
-      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 300, height = 200 }, title = "研究", text = "最上層", step = 3, steps = 4, cards = 1 };
+      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 300, height = 200 }, title = "Research", text = "Top layer", step = 3, steps = 4, cards = 1 };
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
-      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 0, height = 200 }, title = "研究", text = "最上層", step = 3, steps = 4 };
+      frame["notice"] = new { id = 1, rect = new { x = 10, y = 20, width = 0, height = 200 }, title = "Research", text = "Top layer", step = 3, steps = 4 };
       Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
       frame["notice"] = null; Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Notice is null);
+      // Frames carry the main window's UI locale for the scene; only a short language tag is accepted.
+      foreach (var locale in new[] { "en", "zh-TW", "zh-Hant-TW" })
+      { frame["locale"] = locale; Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Sequence == 5); }
+      foreach (var locale in new object?[] { 1, null, "", "e", "en_US", "en-US;x", "en-toolongtag", new string('a', 64) })
+      { frame["locale"] = locale; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame"); }
+      frame.Remove("locale");
       frame["outbox"] = new[] { "private" }; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
       using var rect = JsonDocument.Parse("{\"x\":0,\"y\":0,\"width\":-1,\"height\":1}"); Reject(() => DesktopFrame.Rect(rect.RootElement), "scene-frame");
       using var overflow = JsonDocument.Parse("{\"x\":-1500000,\"y\":0,\"width\":2000000,\"height\":50000}");

@@ -42,14 +42,14 @@ class Vault:
 
     def check_interaction(self):
         interaction = getattr(self.request_local, "interaction", None)
-        p.require(not self.closed.is_set(), "stale-session", "安全儲存工作階段已結束。")
+        p.require(not self.closed.is_set(), "stale-session", "The secure storage session has ended.")
         if interaction is not None:
             cancellable, deadline, owner_closed, action_closed, request_cancelled = interaction
             p.require(not any(event is not None and event.is_set() for event in (owner_closed, action_closed)),
-                      "stale-session", "安全儲存工作階段已結束。")
-            p.require(time.monotonic() < deadline, "vault-unlock-timeout", "系統解鎖已逾時；同步維持暫停，請按「立即同步」重試。")
+                      "stale-session", "The secure storage session has ended.")
+            p.require(time.monotonic() < deadline, "vault-unlock-timeout", "The system unlock timed out; sync stays paused. Choose Sync now to try again.")
             p.require(not cancellable.is_cancelled() and not (request_cancelled is not None and request_cancelled.is_set()),
-                      "vault-unlock-cancelled", "已取消或未完成解鎖；同步維持暫停，便箋仍可使用。")
+                      "vault-unlock-cancelled", "The unlock was cancelled or didn't finish; sync stays paused, and your notes still work.")
 
     @contextmanager
     def interaction(self, owner_closed=None, action_closed=None, deadline=None, request_cancelled=None):
@@ -143,37 +143,37 @@ class Vault:
             values = [self.read_item(item) for item in items if not self.is_locked(item, "org.freedesktop.Secret.Item")]
             if values:
                 return values
-            p.require(not items and not locked, "vault-locked", "系統金鑰圈已鎖定；便箋仍可使用，相關同步或加密備份已暫停。解鎖金鑰圈後重試即可。")
+            p.require(not items and not locked, "vault-locked", "The system keyring is locked. Your notes still work; related sync and encrypted backups are paused. Unlock the keyring and try again.")
             return []
         except p.Failure:
             raise
         except Exception as error:
-            raise p.Failure("vault-unavailable", "系統安全儲存目前無法使用；便箋仍可使用，相關同步或加密備份已暫停。") from error
+            raise p.Failure("vault-unavailable", "The system's secure storage isn't available right now. Your notes still work; related sync and encrypted backups are paused.") from error
 
     def collection(self):
         try:
             Secret = self.connect()
             collection = Secret.Collection.for_alias_sync(self.service, "default", Secret.CollectionFlags.NONE, self.cancellable)
-            p.require(collection is not None, "vault-unavailable", "系統尚未設定可保存秘密的金鑰圈；便箋仍可使用。")
+            p.require(collection is not None, "vault-unavailable", "The system has no keyring set up that can keep secrets. Your notes still work.")
             session = Secret.Collection.for_alias_sync(self.service, Secret.COLLECTION_SESSION, Secret.CollectionFlags.NONE, self.cancellable)
             path = collection.get_object_path()
             p.require(path != "/org/freedesktop/secrets/collection/session" and (session is None or path != session.get_object_path()),
-                      "vault-unavailable", "預設金鑰圈只保存本次工作階段，無法持久保存登入或備份密碼。")
+                      "vault-unavailable", "The default keyring keeps secrets only for this session, so it can't keep sign-ins or backup passwords.")
             return Secret, collection
         except p.Failure:
             raise
         except Exception as error:
-            raise p.Failure("vault-unavailable", "系統安全儲存目前無法保存秘密；便箋仍可使用。") from error
+            raise p.Failure("vault-unavailable", "The system's secure storage can't save secrets right now. Your notes still work.") from error
 
     def writable(self):
         try:
             Secret, collection = self.collection()
-            p.require(not self.is_locked(collection), "vault-locked", "系統金鑰圈已鎖定；便箋仍可使用，相關同步或加密備份已暫停。")
+            p.require(not self.is_locked(collection), "vault-locked", "The system keyring is locked. Your notes still work; related sync and encrypted backups are paused.")
             return Secret, collection
         except p.Failure:
             raise
         except Exception as error:
-            raise p.Failure("vault-unavailable", "系統安全儲存目前無法使用；便箋仍可使用。") from error
+            raise p.Failure("vault-unavailable", "The system's secure storage isn't available right now. Your notes still work.") from error
 
     def unlock(self, owner_closed=None, action_closed=None):
         """Explicit UI action only. Password entry belongs to the system's prompt, never to this app."""
@@ -191,9 +191,9 @@ class Vault:
                 raise
             except Exception as error:
                 self.check_interaction()
-                raise p.Failure("vault-unavailable", "系統解鎖視窗未能啟動；同步維持暫停，請稍後重試。") from error
+                raise p.Failure("vault-unavailable", "The system unlock prompt didn't start; sync stays paused. Try again later.") from error
             if prompt == "/":
-                p.require(not self.is_locked(collection), "vault-unlock-cancelled", "系統未完成解鎖；同步維持暫停。")
+                p.require(not self.is_locked(collection), "vault-unlock-cancelled", "The system didn't finish unlocking; sync stays paused.")
                 return
             connection, owner = self.service.get_connection(), self.service.get_name_owner()
             completed, result = threading.Event(), []
@@ -211,12 +211,12 @@ class Vault:
                     self.check_interaction()
                 self.check_interaction()
                 p.require(not result[0] and not self.is_locked(collection), "vault-unlock-cancelled",
-                          "已取消或未完成解鎖；同步維持暫停，便箋仍可使用。")
+                          "The unlock was cancelled or didn't finish; sync stays paused, and your notes still work.")
             except p.Failure:
                 raise
             except Exception as error:
                 self.check_interaction()
-                raise p.Failure("vault-unavailable", "系統解鎖視窗未能完成；同步維持暫停，請稍後重試。") from error
+                raise p.Failure("vault-unavailable", "The system unlock prompt didn't finish; sync stays paused. Try again later.") from error
             finally:
                 connection.signal_unsubscribe(subscription)
                 if not completed.is_set():
@@ -238,11 +238,11 @@ class Vault:
                 Secret, collection = self.writable()
                 secret = Secret.Value.new(value, -1, "text/plain")
                 self.store(collection, kind, key, secret)
-                p.require(self.read(kind, key) == value, "vault-unavailable", "系統金鑰圈讀回不符；未確認保存，沒有改存本機檔案。")
+                p.require(self.read(kind, key) == value, "vault-unavailable", "The system keyring read back a different value, so saving wasn't confirmed. Nothing was saved to a local file instead.")
             except p.Failure:
                 raise
             except Exception as error:
-                raise p.Failure("vault-unavailable", "系統安全儲存未確認保存；沒有改存本機檔案。") from error
+                raise p.Failure("vault-unavailable", "The system's secure storage didn't confirm saving. Nothing was saved to a local file instead.") from error
 
     def store(self, collection, kind, key, secret):
         from gi.repository import GLib
@@ -254,13 +254,13 @@ class Vault:
         reply = self.call(collection.get_object_path(), "org.freedesktop.Secret.Collection", "CreateItem",
                           GLib.Variant("(a{sv}(oayays)b)", (properties, encoded.unpack(), True)), "(oo)")
         item, prompt = reply.unpack()
-        p.require(prompt == "/" and item != "/", "vault-locked", "系統金鑰圈未完成保存；相關工作已暫停，沒有改存本機檔案。")
+        p.require(prompt == "/" and item != "/", "vault-locked", "The system keyring didn't finish saving; related work is paused. Nothing was saved to a local file instead.")
 
     def call(self, path, interface, method, parameters, result):
         from gi.repository import Gio, GLib
         self.check_interaction()
         owner = self.service.get_name_owner()
-        p.require(owner is not None, "vault-unavailable", "系統安全儲存服務已停止。")
+        p.require(owner is not None, "vault-unavailable", "The system's secure storage service has stopped.")
         return self.service.get_connection().call_sync(owner, path, interface, method, parameters,
                                                        GLib.VariantType.new(result), Gio.DBusCallFlags.NONE, 5000, self.cancellable)
 
@@ -277,9 +277,9 @@ class Vault:
                           GLib.Variant("(o)", (self.service.get_session_dbus_path(),)), "((oayays))")
         # Always fetch and decode a new value: never reuse libsecret's pre-lock or pre-refresh secret cache.
         secret = self.service.decode_dbus_secret(reply.get_child_value(0))
-        p.require(secret is not None, "vault-unavailable", "系統安全儲存未能讀取秘密，相關工作已暫停。")
+        p.require(secret is not None, "vault-unavailable", "The system's secure storage couldn't read the secret; related work is paused.")
         raw = secret.get()
-        p.require(raw is not None and len(raw) <= 65536, "vault-unavailable", "系統安全儲存秘密格式或容量無效，相關工作已暫停。")
+        p.require(raw is not None and len(raw) <= 65536, "vault-unavailable", "A secret in the system's secure storage has an invalid format or size; related work is paused.")
         return bytes(raw).decode("utf-8")
 
     def remove(self, kind, key):
@@ -294,11 +294,11 @@ class Vault:
                 for item in items:
                     if not self.is_locked(item, "org.freedesktop.Secret.Item"):
                         reply = self.call(item.get_object_path(), "org.freedesktop.Secret.Item", "Delete", None, "(o)")
-                        p.require(reply.unpack()[0] == "/", "vault-locked", "金鑰圈已鎖定；這台裝置的登出狀態仍會保留。")
+                        p.require(reply.unpack()[0] == "/", "vault-locked", "The keyring is locked. This device stays signed out.")
             except p.Failure:
                 raise
             except Exception as error:
-                raise p.Failure("vault-unavailable", "系統安全儲存尚未完成移除；這台裝置的登出狀態仍會保留。") from error
+                raise p.Failure("vault-unavailable", "The system's secure storage hasn't finished removing the secret. This device stays signed out.") from error
 
     def close(self):
         self.closed.set()
@@ -315,7 +315,7 @@ class SystemSecrets:
         self.closed = threading.Event()
 
     def check(self):
-        p.require(not self.closed.is_set() and self.database.connection is not None, "stale-session", "安全儲存工作階段已結束。")
+        p.require(not self.closed.is_set() and self.database.connection is not None, "stale-session", "The secure storage session has ended.")
 
     def close(self):
         self.closed.set()
@@ -323,12 +323,12 @@ class SystemSecrets:
     @staticmethod
     def identity(scope, kind, key):
         p.require(kind in ("google-account", "backup-key") and isinstance(key, str) and 0 < len(key) <= 256,
-                  "invalid-credential", "安全儲存身分無效。")
+                  "invalid-credential", "The secure storage identity isn't valid.")
         if kind == "google-account":
-            p.require(scope == "account" and p.is_account(key), "invalid-credential", "Google 憑證身分無效。")
+            p.require(scope == "account" and p.is_account(key), "invalid-credential", "The Google credential identity isn't valid.")
             return key
         p.require(scope == "local" or scope.startswith("google:") and p.is_account(scope[7:]),
-                  "invalid-profile", "備份金鑰分區無效。")
+                  "invalid-profile", "The backup key's profile isn't valid.")
         return f"{len(scope.encode('utf-8'))}:{scope}|{key}"
 
     def reference(self, scope, kind, key):
@@ -368,10 +368,10 @@ class SystemSecrets:
             return
         # The old ciphertext is decryptable with the local key: remove it from free pages and active WAL too.
         result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-        p.require(result[0] == 0, "storage-cleanup", "秘密已移至系統安全儲存；舊副本清理尚未完成，請稍後重試。")
+        p.require(result[0] == 0, "storage-cleanup", "Secrets moved to the system's secure storage, but removing the old copies hasn't finished. Try again later.")
         connection.execute("VACUUM")
         result = connection.execute("PRAGMA wal_checkpoint(TRUNCATE)").fetchone()
-        p.require(result[0] == 0, "storage-cleanup", "秘密已移至系統安全儲存；舊副本清理尚未完成，請稍後重試。")
+        p.require(result[0] == 0, "storage-cleanup", "Secrets moved to the system's secure storage, but removing the old copies hasn't finished. Try again later.")
         connection.execute("UPDATE secret_refs SET cleanup=0 WHERE cleanup=1")
 
     def read(self, scope, kind, key):
@@ -386,7 +386,7 @@ class SystemSecrets:
                 try:
                     old = self.legacy(scope, kind, key)
                 except Exception as error:
-                    raise p.Failure("storage-integrity", "舊版秘密無法驗證；保留原資料，相關同步或加密備份已暫停。") from error
+                    raise p.Failure("storage-integrity", "Secrets from an older version can't be verified. The original data is kept; related sync and encrypted backups are paused.") from error
                 if kind == "google-account" and old == "":
                     self.record(scope, kind, key, "revoked")
                     return None
@@ -409,7 +409,7 @@ class SystemSecrets:
                 with self.database.lock:
                     self.check()
                     if self.legacy(scope, kind, key) != old or (self.reference(scope, kind, key) or [None])[0] == "revoked":
-                        raise p.Failure("stale-session", "舊版秘密遷移期間資料已變更；未重新啟用秘密。")
+                        raise p.Failure("stale-session", "The data changed while older secrets were being moved, so the secret wasn't turned back on.")
                     self.record(scope, kind, key, "active")
             value = self.vault.read(kind, identity)
             with self.database.lock:
@@ -418,7 +418,7 @@ class SystemSecrets:
 
     def save(self, scope, kind, key, value):
         identity = self.identity(scope, kind, key)
-        p.require(isinstance(value, str) and len(value.encode("utf-8")) <= 65536, "invalid-credential", "安全儲存容量無效。")
+        p.require(isinstance(value, str) and len(value.encode("utf-8")) <= 65536, "invalid-credential", "The secret is too large for secure storage.")
         with self.lock:
             with self.database.lock:
                 self.check()
@@ -496,7 +496,7 @@ def validate_legacy_key(filename, raw):
     # Read-only validation covers every profile before publishing a key or changing SQLite/staging.
     with closing(sqlite3.connect(filename.absolute().as_uri() + "?mode=ro", uri=True)) as connection:
         p.require(connection.execute("PRAGMA user_version").fetchone()[0] in (1, 2),
-                  "native-version", "舊資料版本不支援遷移；請保留原資料並使用對應版本匯出備份。")
+                  "native-version", "This older data version can't be migrated. Keep the original data and export a backup with the matching version.")
         for table, kind, key in (("records", "'record'", "kind"), ("attachments", "'attachment'", "id"),
                                  ("staging", "'stage:' || kind", "token"), ("secrets", "'secret:' || kind", "id")):
             for profile, purpose, identity, data in connection.execute(f"SELECT profile,{kind},{key},data FROM {table}"):
@@ -514,18 +514,18 @@ def storage_key(directory, filename, legacy):
     except FileNotFoundError:
         descriptor = None
     except OSError as error:
-        raise p.Failure("native-storage", "無法讀取本機金鑰；請保留 App 資料後檢查檔案權限。") from error
+        raise p.Failure("native-storage", "The local key can't be read. Keep the app data and check the file permissions.") from error
     if descriptor is not None:
         with os.fdopen(descriptor, "rb") as stream:
             info = os.fstat(stream.fileno())
             p.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0,
-                      "native-storage", "本機金鑰檔案身分或權限無效。")
+                      "native-storage", "The local key file's owner or permissions aren't valid.")
             raw = stream.read(33)
-            p.require(len(raw) == 32, "native-storage", "本機金鑰格式無效；原資料未變更。")
+            p.require(len(raw) == 32, "native-storage", "The local key's format isn't valid; the original data wasn't changed.")
             return raw
     if filename.exists():
         values = legacy.values("storage-key", "v1")
-        p.require(bool(values), "vault-unavailable", "現有資料缺少原金鑰；請保留 App 資料並恢復原金鑰圈或可攜備份。")
+        p.require(bool(values), "vault-unavailable", "The existing data's original key is missing. Keep the app data and restore the original keyring or a portable backup.")
         raw = None
         for value in values:
             try:
@@ -539,7 +539,7 @@ def storage_key(directory, filename, legacy):
                 raise
             except Exception:
                 continue
-        p.require(raw is not None, "storage-integrity", "原金鑰無法驗證舊資料；未遷移或更換金鑰，請保留 App 資料與原金鑰圈。")
+        p.require(raw is not None, "storage-integrity", "The original key can't verify the existing data, so nothing was migrated and the key wasn't replaced. Keep the app data and the original keyring.")
     else:
         raw = os.urandom(32)
     descriptor, temporary = tempfile.mkstemp(dir=directory, prefix="storage-key-")
@@ -563,24 +563,24 @@ def storage_key(directory, filename, legacy):
 class Database:
     def __init__(self, directory, profile, vault):
         self.directory, self.profile = Path(directory), profile
-        p.require(profile == "local" or profile.startswith("google:") and p.is_account(profile[7:]), "invalid-profile", "帳號分區無效。")
+        p.require(profile == "local" or profile.startswith("google:") and p.is_account(profile[7:]), "invalid-profile", "The account profile isn't valid.")
         self.lock = threading.RLock()
         self.owner = None
         self.connection = None
         self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         info = self.directory.lstat()
-        p.require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0, "native-storage", "App 資料目錄身分或權限無效。")
+        p.require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0, "native-storage", "The app data folder's owner or permissions aren't valid.")
         try:
             self.owner = os.open(self.directory / "owner.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
             try:
                 fcntl.flock(self.owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
-                raise p.Failure("workspace-owned", "請使用已開啟的 Work Fleet 視窗。") from error
+                raise p.Failure("workspace-owned", "Work Fleet is already open with this data; use that window.") from error
             filename = self.directory / "fleet.sqlite3"
             existing = filename.exists()
             if existing:
                 info = filename.lstat()
-                p.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), "native-storage", "App 資料檔案身分無效。")
+                p.require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid(), "native-storage", "The app data file's owner isn't valid.")
             raw = storage_key(self.directory, filename, vault)
             self.cipher = AESGCM(raw)
             self.connection = sqlite3.connect(filename, timeout=5, isolation_level=None, check_same_thread=False)
@@ -589,7 +589,7 @@ class Database:
             self.connection.execute("PRAGMA synchronous=FULL")
             self.connection.execute("PRAGMA secure_delete=ON")
             version = self.connection.execute("PRAGMA user_version").fetchone()[0]
-            p.require(version in (0, 1, 2), "native-version", "本機資料版本較新，請更新 App。")
+            p.require(version in (0, 1, 2), "native-version", "The local data comes from a newer version. Update the app.")
             self.connection.executescript("""
                 CREATE TABLE IF NOT EXISTS records(profile TEXT,kind TEXT,revision INTEGER,data BLOB,PRIMARY KEY(profile,kind));
                 CREATE TABLE IF NOT EXISTS attachments(profile TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,id));
@@ -615,16 +615,16 @@ class Database:
         try:
             return self.cipher.decrypt(data[:12], data[12:], self.aad(kind, key))
         except Exception as error:
-            raise p.Failure("storage-integrity", "資料驗證失敗；請保留 App 資料與本機金鑰後重試。") from error
+            raise p.Failure("storage-integrity", "The data failed verification. Keep the app data and the local key, then try again.") from error
 
     def record(self, kind):
-        p.require(kind in ("workspace", "journal"), "invalid-record", "儲存種類無效。")
+        p.require(kind in ("workspace", "journal"), "invalid-record", "The storage kind isn't valid.")
         with self.lock:
             row = self.connection.execute("SELECT data FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()
             return None if row is None else self.open("record", kind, row[0])
 
     def attachment(self, key):
-        p.require(p.is_digest(key), "invalid-attachment", "附件身分無效。")
+        p.require(p.is_digest(key), "invalid-attachment", "The attachment ID isn't valid.")
         with self.lock:
             row = self.connection.execute("SELECT data FROM attachments WHERE profile=? AND id=?", (self.profile, key)).fetchone()
             return None if row is None else self.open("attachment", key, row[0])
@@ -632,7 +632,7 @@ class Database:
     def secret(self, kind, key, data=None):
         with self.lock:
             if data is not None:
-                p.require(len(data) <= 65536, "native-capacity", "原生 metadata 容量超限。")
+                p.require(len(data) <= 65536, "native-capacity", "The native metadata is too large.")
                 self.connection.execute("INSERT OR REPLACE INTO secrets VALUES(?,?,?,?)", (self.profile, kind, key, self.seal("secret:" + kind, key, data)))
                 return None
             row = self.connection.execute("SELECT data FROM secrets WHERE profile=? AND kind=? AND id=?", (self.profile, kind, key)).fetchone()
@@ -644,22 +644,22 @@ class Database:
 
     def stage(self, kind, data, digest):
         maximum = {"workspace": p.RECORD, "journal": p.RECORD, "attachment": p.ATTACHMENT, "backup": p.BACKUP}.get(kind)
-        p.require(maximum is not None and len(data) <= maximum and p.digest(data) == digest, "transfer-integrity", "傳輸種類、容量或校驗值不符。")
+        p.require(maximum is not None and len(data) <= maximum and p.digest(data) == digest, "transfer-integrity", "The transfer kind, size or checksum doesn't match.")
         if kind in ("workspace", "journal"):
             value = p.decode(data)
-            p.require(p.text(value, "profileId") == self.profile, "invalid-profile", "儲存帳號已切換。")
+            p.require(p.text(value, "profileId") == self.profile, "invalid-profile", "The storage account has changed.")
             p.number(value, "revision")
         token = p.identifier()
         with self.lock:
             count, total = self.connection.execute("SELECT COUNT(*),COALESCE(SUM(size),0) FROM staging WHERE profile=?", (self.profile,)).fetchone()
-            p.require(count < 20008 and total + len(data) <= 512 * 1024 * 1024, "transfer-busy", "原生傳輸暫存容量已滿。")
+            p.require(count < 20008 and total + len(data) <= 512 * 1024 * 1024, "transfer-busy", "The native transfer staging area is full.")
             self.connection.execute("INSERT INTO staging VALUES(?,?,?,?,?,?)", (self.profile, token, kind, digest, len(data), self.seal("stage:" + kind, token, data)))
         return token
 
     def staged(self, token, kind):
         with self.lock:
             row = self.connection.execute("SELECT digest,data FROM staging WHERE profile=? AND token=? AND kind=?", (self.profile, token, kind)).fetchone()
-            p.require(row is not None, "transfer-missing", "原生傳輸已失效。")
+            p.require(row is not None, "transfer-missing", "The native transfer has expired.")
             return row[0], self.open("stage:" + kind, token, row[1])
 
     def discard(self, token):
@@ -674,17 +674,17 @@ class Database:
             return digest
 
     def commit(self, kind, token, expected, attachments, replace_attachments=False):
-        p.require(kind in ("workspace", "journal") and isinstance(attachments, list) and len(attachments) <= 20000 and len(set(attachments)) == len(attachments), "invalid-record", "提交種類或附件清單無效。")
-        p.require(not replace_attachments or (kind == "workspace" and not self.profile.startswith("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。")
+        p.require(kind in ("workspace", "journal") and isinstance(attachments, list) and len(attachments) <= 20000 and len(set(attachments)) == len(attachments), "invalid-record", "The commit kind or attachment list isn't valid.")
+        p.require(not replace_attachments or (kind == "workspace" and not self.profile.startswith("google:")), "invalid-request", "Only the local workspace can clear its attachments when restoring.")
         with self.lock:
             _, data = self.staged(token, kind)
             value = p.decode(data)
             revision = p.number(value, "revision")
-            p.require(revision == (0 if expected is None else expected + 1), "revision-conflict", "本機版本競爭，請保留草稿並重新開啟。")
+            p.require(revision == (0 if expected is None else expected + 1), "revision-conflict", "Another change took this local version. Keep your draft and reopen Work Fleet.")
             self.connection.execute("BEGIN IMMEDIATE")
             try:
                 current = self.connection.execute("SELECT revision FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()
-                p.require((None if current is None else current[0]) == expected, "revision-conflict", "本機資料已更新，請保留目前草稿。")
+                p.require((None if current is None else current[0]) == expected, "revision-conflict", "The local data has been updated. Keep your current draft.")
                 if replace_attachments:
                     self.connection.execute("DELETE FROM attachments WHERE profile=?", (self.profile,))
                 for item in attachments:

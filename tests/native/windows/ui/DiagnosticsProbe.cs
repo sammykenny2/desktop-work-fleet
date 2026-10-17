@@ -35,7 +35,7 @@ internal static class DiagnosticsProbe
       var window = Program.Open(directory);
       try
       {
-        await Program.Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "native app initialization");
+        await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native app initialization");
         if (!window.WebView.CoreWebView2.Settings.AreDevToolsEnabled) throw new Exception("Debug DevTools disabled");
         var listeners = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Where(e => e.Port == port).ToList();
         if (listeners.Count == 0 || listeners.Any(e => !IPAddress.IsLoopback(e.Address)))
@@ -46,7 +46,7 @@ internal static class DiagnosticsProbe
           t.GetProperty("url").GetString()?.StartsWith("https://work-fleet.invalid/app/index.html", StringComparison.Ordinal) == true);
         if (main.ValueKind != JsonValueKind.Object) throw new Exception($"Main document missing from CDP targets: {targets.RootElement}");
         var status = await Evaluate(main.GetProperty("webSocketDebuggerUrl").GetString()!, "document.querySelector('#status').textContent");
-        if (status != "已開啟本機資料") throw new Exception($"CDP evaluated unexpected status: {status}");
+        if (status != "Local data opened") throw new Exception($"CDP evaluated unexpected status: {status}");
         Console.WriteLine($"PASS Debug WebView2 CDP on 127.0.0.1:{port}: {targets.RootElement.GetArrayLength()} target(s), main document evaluated");
       }
       finally { await Program.Close(window); }

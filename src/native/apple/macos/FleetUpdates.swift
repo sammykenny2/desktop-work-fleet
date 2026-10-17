@@ -12,8 +12,10 @@ import Sparkle
     private let repository: String, channel: String
     private let current: [Int]
     let currentText: String
-    let reason: String
-    var capable: Bool { reason.isEmpty }
+    /// The table key of why in-app updates are unavailable, empty when they work; the text follows the current language.
+    private let reasonKey: String
+    var reason: String { reasonKey.isEmpty ? "" : FleetText.text(reasonKey) }
+    var capable: Bool { reasonKey.isEmpty }
     private(set) var status: String
     private(set) var lastChecked: String?
     private(set) var error: FleetFailure?
@@ -28,13 +30,13 @@ import Sparkle
         currentText = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
         current = Self.version(currentText) ?? [0, 0, 0]
         let key = Bundle.main.infoDictionary?["SUPublicEDKey"] as? String ?? ""
-        reason = self.repository.isEmpty ? "這個版本沒有設定更新來源。"
-            : key.isEmpty ? "這個版本沒有更新簽章公鑰，無法使用 App 內更新。"
-            : Self.teamIdentifier() == nil ? "只有以 Developer ID 簽章的版本支援 App 內更新。" : ""
-        status = reason.isEmpty ? "idle" : "unavailable"
+        reasonKey = self.repository.isEmpty ? "reason.updateNoSource"
+            : key.isEmpty ? "reason.updateNoKey"
+            : Self.teamIdentifier() == nil ? "reason.updateNeedsDeveloperId" : ""
+        status = reasonKey.isEmpty ? "idle" : "unavailable"
         self.lastChecked = lastChecked
         super.init()
-        if reason.isEmpty { controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: nil) }
+        if reasonKey.isEmpty { controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: nil) }
     }
     /// The signing team of the running app; an ad-hoc or unsigned build has none and cannot update itself.
     nonisolated private static func teamIdentifier() -> String? {
@@ -72,9 +74,9 @@ import Sparkle
             request.setValue("WorkFleet/\(currentText)", forHTTPHeaderField: "User-Agent")
             let (data, response) = try await BoundedHTTP(maximum: 2 * 1024 * 1024).send(request)
             if response.statusCode == 429 || (response.statusCode == 403 && response.value(forHTTPHeaderField: "Retry-After") != nil) {
-                throw FleetFailure("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。")
+                throw FleetFailure("rate_limited", FleetText.text("update.rateLimited"))
             }
-            guard (200..<300).contains(response.statusCode) else { throw FleetFailure("provider_rejected", "GitHub 回應錯誤（\(response.statusCode)），請稍後再試。") }
+            guard (200..<300).contains(response.statusCode) else { throw FleetFailure("provider_rejected", FleetText.text("update.providerRejected", ["status": String(response.statusCode)])) }
             let release = try FleetReleaseFeed.latest(data, repository: repository, channel: channel, current: current)
             let now = ISO8601DateFormatter().string(from: Date()); lastChecked = now; recordCheck?(now)
             guard let release else { set("up_to_date"); return }
@@ -82,7 +84,7 @@ import Sparkle
             set("update_available")
             controller.checkForUpdates(nil)
         } catch let failure as FleetFailure { error = failure; set("failed") }
-        catch { self.error = FleetFailure("offline", "無法連線到 GitHub，請確認網路後再試。"); set("failed") }
+        catch { self.error = FleetFailure("offline", FleetText.text("update.offline")); set("failed") }
     }
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? { feed }
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) { Task { @MainActor in self.set("up_to_date") } }
@@ -91,6 +93,6 @@ import Sparkle
         // Sparkle also reports "no update" this way; only real failures show as errors.
         guard nsError.domain != SUSparkleErrorDomain || nsError.code != Int(SUError.noUpdateError.rawValue) else { return }
         let message = nsError.localizedDescription
-        Task { @MainActor in self.error = FleetFailure("install_failed", "更新沒有完成：\(message)"); self.set("failed") }
+        Task { @MainActor in self.error = FleetFailure("install_failed", FleetText.text("update.installFailed", ["detail": message])); self.set("failed") }
     }
 }

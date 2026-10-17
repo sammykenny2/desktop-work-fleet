@@ -1,0 +1,85 @@
+// The Google account, sync status and the cloud reset and overwrite flows of the main window.
+export default {
+  // Where the notes live: the account chip and the identity on the Account and sync page
+  'sync.account.localNotes': 'Local notes',
+  'sync.account.google': 'Google account',
+  'sync.account.current': 'the current Google account',
+  'sync.account.this': 'this Google account',
+  'sync.storage.device': 'Encrypted on this device',
+  'sync.storage.browser': 'Saved in this browser',
+  'sync.storage.google': 'Synced to your Google account',
+  'sync.storage.paused': "Notes work offline. Sync continues once the system's secure storage is available.",
+  'sync.storage.signInAgain': 'Sync continues after you sign in again',
+
+  // Sync status, shown in the account chip and the Sync row
+  'sync.status.opening': 'Opening local data…',
+  'sync.status.deviceOnly': 'Only on this device',
+  'sync.status.browserOnly': 'Only in this browser',
+  'sync.status.notConnected': 'Not connected to Google',
+  'sync.status.waiting': 'Waiting to sync',
+  'sync.status.preparing': 'Preparing to sync…',
+  'sync.status.syncing': 'Syncing…',
+  'sync.status.synced': 'Synced',
+  'sync.status.syncedAt': 'Synced {time}',
+  'sync.status.pending.one': '{count} change waiting to sync',
+  'sync.status.pending.other': '{count} changes waiting to sync',
+  'sync.status.paused': 'Sync paused',
+  'sync.status.failed': 'Sync failed',
+  'sync.status.signInAgain': 'Sign in to Google again',
+  'sync.status.waitingInitialization': 'Waiting for the workspace to initialize',
+  'sync.status.cloudReset': 'The cloud was reset',
+  'sync.status.resetAgain': 'Another device reset the cloud again',
+  'sync.status.resetUnfinished': "The data reset isn't finished",
+  'sync.status.overwriteUnfinished': "The Google overwrite isn't finished",
+  'sync.detail.signInSwitches': "Signing in switches to that account's notes. The local notes here stay on this device.",
+  'sync.detail.notesKept': "The notes on this device and the changes that haven't synced are all still here.",
+  'sync.detail.unlockKeyring': 'If the keyring is locked, unlock it in the system window. Sync continues afterwards.',
+  'sync.detail.waitingInitialization': 'Another device is creating or restoring the data. Sync continues on its own when that finishes.',
+  'sync.detail.resetStopped': 'This earlier reset has stopped. You can export a backup first, then clear this copy and sync again.',
+  'sync.detail.overwriteStopped': 'This overwrite has stopped. You can export a backup first, then clear this copy and sync again.',
+  'sync.detail.resetUnfinished': 'Continue the reset in Data and backup. Other devices wait until initialization finishes.',
+  'sync.detail.overwriteSaved': 'The restore data is saved on this device. Select "Continue overwriting Google".',
+
+  // Rows on the Account and sync page
+  'sync.row.label': 'Sync',
+  'sync.actions.syncNow': 'Sync now',
+  'sync.actions.resumeOverwrite': 'Continue overwriting Google',
+  'sync.actions.resumeReset': 'Continue the data reset',
+  'sync.actions.refetch': 'Get the cloud copy again',
+  'sync.google.signedOut': 'Not signed in',
+  'sync.google.unavailable': "This version can't sign in yet",
+  'sync.google.signIn': 'Sign in',
+  'sync.google.signInAgain': 'Sign in again',
+  'sync.google.signInGoogleAgain': 'Sign in to Google again',
+  'sync.google.switchAccount': 'Switch account',
+  'sync.google.signOut': 'Sign out',
+  'sync.google.signingIn': 'Finish the Google sign-in and allow sync…',
+  'sync.local.detail': 'Only on this device, never synced',
+  'sync.local.switch': 'Switch',
+
+  // Continuing a Google overwrite
+  'sync.cloudRestore.title': 'Finish the Google overwrite',
+  'sync.cloudRestore.resumeReset': 'This continues clearing the Work Fleet cloud data of {account}, then uploads the saved restore data. Stop syncing on other devices first.',
+  'sync.cloudRestore.resumeUpload': "This continues uploading the saved restore data. The cloud isn't cleared again.",
+  'sync.cloudRestore.incomplete': "The overwrite isn't finished",
+
+  // Another device reset the cloud
+  'sync.sourceReset.title': 'The cloud data was reset',
+  'sync.sourceReset.body': 'The Work Fleet cloud data of {account} was reset on another device. The copy on this device is still here, but it has stopped syncing.',
+  'sync.sourceReset.clearHint': "Clearing the copy syncs again from the current cloud. Changes on this device that haven't synced are deleted too, so export a backup first if you need them.",
+  'sync.sourceReset.exportFirst': 'Export a backup first',
+  'sync.sourceReset.clear': "Clear this device's copy",
+
+  // Resetting the workspace
+  'sync.reset.marking': 'Marking the cloud reset…',
+  'sync.reset.deletingCloud': 'Deleting cloud data: {done} / {total}',
+  'sync.reset.deletingDevice': 'Deleting the data on this device…',
+
+  // Errors
+  'sync.errors.signInFirst': 'Sign in to Google again from the account menu first, so the cloud data can be cleared too.',
+  'sync.errors.accountBusy': 'An account change or close is in progress. Try again in a moment.',
+  'sync.errors.cannotSync': "Can't sync with Google right now. Check the sign-in, the network and any unfinished overwrite.",
+  'sync.errors.initializingRestore': "The workspace hasn't finished initializing. Try restoring again later.",
+  'sync.errors.initializingExport': "The workspace hasn't finished initializing. Try exporting again later.",
+  'sync.errors.initialSyncRequired': 'Finish syncing with Google before adding notes.',
+};

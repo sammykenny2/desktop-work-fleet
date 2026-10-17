@@ -31,7 +31,7 @@ import UIKit
     #endif
     init(directory: URL) throws {
         self.directory = directory
-        guard let resources = Bundle.main.resourceURL else { throw FleetFailure("native-assets", "封裝資產不存在。") }
+        guard let resources = Bundle.main.resourceURL else { throw FleetFailure("native-assets", "The packaged assets are missing.") }
         assets = resources.appendingPathComponent("Assets", isDirectory: true); document = assets.appendingPathComponent("app/index.html")
         config = try FleetProtocol.json(Data(contentsOf: resources.appendingPathComponent("Config/public.json")))
         let configuration = WKWebViewConfiguration(); configuration.websiteDataStore = .nonPersistent()
@@ -55,14 +55,14 @@ import UIKit
             google.presenting = { [weak self] in self?.presenter }
             #endif
             service = FleetService(database: database, google: google, platform: platform, choose: { [weak self] in
-                guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }; return try await self.chooseDirectory()
+                guard let self else { throw FleetFailure("native-closed", "The native session has ended.") }; return try await self.chooseDirectory()
             })
             if let service { try await configure?(service) }
             #if os(iOS)
             if let inbox = try? FleetCaptureInbox() { await service?.setCapture { method, args in try await inbox.invoke(method, args) } }
             #endif
             await service?.setExports { [weak self] bytes, name, action in
-                guard let self else { throw FleetFailure("native-closed", "原生工作階段已結束。") }
+                guard let self else { throw FleetFailure("native-closed", "The native session has ended.") }
                 #if os(macOS)
                 return try await self.exports.export(bytes, name: name, action: action, window: self.web.window)
                 #else
@@ -74,7 +74,7 @@ import UIKit
                 WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "work-fleet-local-assets-v1", encodedContentRuleList: rules) { rules, error in
                     if let error { continuation.resume(throwing: error) }
                     else if let rules { continuation.resume(returning: rules) }
-                    else { continuation.resume(throwing: FleetFailure("native-assets", "無法設定本機資產保護。")) }
+                    else { continuation.resume(throwing: FleetFailure("native-assets", "Couldn't set up protection for local assets.")) }
                 }
             }
             web.configuration.userContentController.add(blocker); web.loadFileURL(document, allowingReadAccessTo: assets)
@@ -90,7 +90,7 @@ import UIKit
         guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.standardizedFileURL == document.standardizedFileURL,
             web.url?.standardizedFileURL == document.standardizedFileURL, let request = message.body as? [String: Any], let service, admitted < 32 else { return }
         do {
-            let bytes = try FleetProtocol.encode(request); try FleetProtocol.require(bytes.count <= 1024 * 1024 && FleetProtocol.number(request, "v", 1) == 1, "invalid-request", "原生協定或容量無效。")
+            let bytes = try FleetProtocol.encode(request); try FleetProtocol.require(bytes.count <= 1024 * 1024 && FleetProtocol.number(request, "v", 1) == 1, "invalid-request", "The native protocol or message size isn't valid.")
             let id = try FleetProtocol.text(request, "id"), method = try FleetProtocol.text(request, "method")
             guard FleetProtocol.isUUID(id), let args = request["params"] as? [String: Any] else { return }; admitted += 1; let current = epoch
             Task {
@@ -100,7 +100,7 @@ import UIKit
                     // A reset reopens the same, now empty, profile the same way an account switch opens another one.
                     if ["google.open", "google.signOut", "google.local", "storage.reset"].contains(method) { next = (result as? [String: Any])?["profileId"] as? String }
                 } catch {
-                    let failure = error as? FleetFailure ?? FleetFailure("native-unavailable", "原生操作未完成，請保留草稿後重試。")
+                    let failure = error as? FleetFailure ?? FleetFailure("native-unavailable", "The native operation didn't finish. Keep your draft and try again.")
                     response = ["v": 1, "id": id, "ok": false, "error": ["code": failure.code, "message": failure.message]]
                 }
                 admitted -= 1; guard current == epoch else { return }; reply(response)
@@ -133,11 +133,11 @@ import UIKit
         await service?.close(); service = nil; google = nil; web.configuration.userContentController.removeScriptMessageHandler(forName: "workFleet")
     }
     private func showFailure(_ error: Error) {
-        let text = (error as? FleetFailure)?.message ?? "無法開啟安全工作空間。請保留 App 資料並重試。"
+        let text = FleetText.dialog(error, fallback: "dialog.openFailedRetry")
         #if os(macOS)
-        let alert = NSAlert(); alert.messageText = "Work Fleet"; alert.informativeText = text; alert.runModal()
+        let alert = NSAlert(); alert.messageText = "Work Fleet"; alert.informativeText = text; alert.addButton(withTitle: FleetText.text("dialog.ok")); alert.runModal()
         #else
-        let alert = UIAlertController(title: "Work Fleet", message: text, preferredStyle: .alert); alert.addAction(UIAlertAction(title: "關閉", style: .default)); presenter?.present(alert, animated: true)
+        let alert = UIAlertController(title: "Work Fleet", message: text, preferredStyle: .alert); alert.addAction(UIAlertAction(title: FleetText.text("dialog.close"), style: .default)); presenter?.present(alert, animated: true)
         #endif
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
@@ -152,14 +152,14 @@ import UIKit
         }
         decisionHandler(.cancel)
     }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { Task { await stop(); showFailure(FleetFailure("native-view", "畫面程序已停止；最後已保存的資料仍保留，請重新開啟。")) } }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { Task { await stop(); showFailure(FleetFailure("native-view", "The window's content stopped. The last saved data is kept; reopen Work Fleet.")) } }
     private func chooseDirectory() async throws -> URL {
         #if os(macOS)
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false
         let response: NSApplication.ModalResponse = await withCheckedContinuation { continuation in panel.begin { continuation.resume(returning: $0) } }
-        guard response == .OK, let url = panel.url else { throw FleetFailure("backup-cancelled", "已取消選擇。") }; return url
+        guard response == .OK, let url = panel.url else { throw FleetFailure("backup-cancelled", "The selection was cancelled.") }; return url
         #else
-        guard let presenter, directoryContinuation == nil else { throw FleetFailure("backup-permission", "資料夾選擇器目前不可用。") }
+        guard let presenter, directoryContinuation == nil else { throw FleetFailure("backup-permission", "The folder picker isn't available right now.") }
         return try await withCheckedThrowingContinuation { continuation in
             directoryContinuation = continuation; let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder], asCopy: false); picker.delegate = self; picker.allowsMultipleSelection = false; presenter.present(picker, animated: true)
         }
@@ -177,8 +177,8 @@ import UniformTypeIdentifiers
 extension FleetWebHost: UIDocumentPickerDelegate {
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         let continuation = directoryContinuation; directoryContinuation = nil
-        if let url = urls.first { continuation?.resume(returning: url) } else { continuation?.resume(throwing: FleetFailure("backup-cancelled", "已取消選擇。")) }
+        if let url = urls.first { continuation?.resume(returning: url) } else { continuation?.resume(throwing: FleetFailure("backup-cancelled", "The selection was cancelled.")) }
     }
-    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { directoryContinuation?.resume(throwing: FleetFailure("backup-cancelled", "已取消選擇。")); directoryContinuation = nil }
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) { directoryContinuation?.resume(throwing: FleetFailure("backup-cancelled", "The selection was cancelled.")); directoryContinuation = nil }
 }
 #endif

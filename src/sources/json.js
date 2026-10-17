@@ -1,9 +1,10 @@
 import { requireValue, safeKey } from '../core/contracts.js';
+import { t } from '../i18n/index.js';
 
 export const JSON_LIMITS = Object.freeze({ bytes: 8 * 1024 * 1024, depth: 64, nodes: 200000 });
 const encoder = new TextEncoder();
 const scalarString = value => !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value);
-const invalid = condition => requireValue(condition, 'invalid-json', '資料必須是有效且無重複欄位的 JSON。');
+const invalid = condition => requireValue(condition, 'invalid-json', t('errors.sources.jsonInvalid'));
 
 /** Protocol canonical form: sorted UTF-16 keys, JSON string escapes and ECMAScript finite numbers. */
 export function canonicalJson(value) {
@@ -12,12 +13,12 @@ export function canonicalJson(value) {
   const ancestors = new Set();
   const reserve = count => {
     bytes += count;
-    requireValue(bytes <= JSON_LIMITS.bytes, 'json-limit', '單筆資料上限為 8 MiB。');
+    requireValue(bytes <= JSON_LIMITS.bytes, 'json-limit', t('errors.sources.jsonTooLarge'));
   };
   const literal = text => { reserve(text.length); chunks.push(text); };
   const string = text => {
     // Count escaped UTF-8 before allocating JSON.stringify's output, including repeated references.
-    requireValue(text.length <= JSON_LIMITS.bytes - bytes, 'json-limit', '單筆資料上限為 8 MiB。');
+    requireValue(text.length <= JSON_LIMITS.bytes - bytes, 'json-limit', t('errors.sources.jsonTooLarge'));
     reserve(2);
     for (let index = 0; index < text.length; index++) {
       const code = text.charCodeAt(index);
@@ -33,7 +34,7 @@ export function canonicalJson(value) {
   };
   const visit = (item, depth) => {
     requireValue(depth <= JSON_LIMITS.depth && ++nodes <= JSON_LIMITS.nodes,
-      'json-limit', '資料結構超過可處理的深度或項目數。');
+      'json-limit', t('errors.sources.jsonTooDeep'));
     if (item === null || typeof item === 'boolean') { literal(JSON.stringify(item)); return; }
     if (typeof item === 'number') {
       invalid(Number.isFinite(item) && (!Number.isInteger(item) || Number.isSafeInteger(item)));
@@ -44,7 +45,7 @@ export function canonicalJson(value) {
     invalid(Object.getOwnPropertySymbols(item).length === 0);
     ancestors.add(item);
     if (Array.isArray(item)) {
-      requireValue(item.length <= JSON_LIMITS.nodes - nodes, 'json-limit', '資料結構超過可處理的項目數。');
+      requireValue(item.length <= JSON_LIMITS.nodes - nodes, 'json-limit', t('errors.sources.jsonTooManyItems'));
       invalid(Object.getOwnPropertyNames(item).length === item.length + 1);
       literal('[');
       for (let index = 0; index < item.length; index++) {
@@ -77,12 +78,12 @@ export function parseJson(input) {
   if (typeof input === 'string') source = input;
   else {
     invalid(input instanceof Uint8Array);
-    requireValue(input.byteLength <= JSON_LIMITS.bytes, 'json-limit', '單筆資料上限為 8 MiB。');
+    requireValue(input.byteLength <= JSON_LIMITS.bytes, 'json-limit', t('errors.sources.jsonTooLarge'));
     try { source = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(input); }
     catch { invalid(false); }
   }
   requireValue(source.length <= JSON_LIMITS.bytes && encoder.encode(source).byteLength <= JSON_LIMITS.bytes,
-    'json-limit', '單筆資料上限為 8 MiB。');
+    'json-limit', t('errors.sources.jsonTooLarge'));
   let offset = 0; let nodes = 0;
   const whitespace = () => { while (/[\t\n\r ]/.test(source[offset] || 'x')) offset++; };
   const string = () => {
@@ -100,7 +101,7 @@ export function parseJson(input) {
   };
   const read = depth => {
     requireValue(depth <= JSON_LIMITS.depth && ++nodes <= JSON_LIMITS.nodes,
-      'json-limit', '資料結構超過可處理的深度或項目數。');
+      'json-limit', t('errors.sources.jsonTooDeep'));
     whitespace(); const char = source[offset];
     if (char === '"') return string();
     if (char === '[' || char === '{') {

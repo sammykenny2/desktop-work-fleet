@@ -30,6 +30,9 @@ import { NativeShortcutSettings } from '../native/shortcuts.js';
 import { NativeGoogleFileStore } from '../native/google.js';
 import { FileSync, resetSource } from '../sources/file-sync.js';
 import { prepareCloudRestore, stageCloudRestore, resumeCloudRestore } from '../backup/cloud-restore.js';
+import { formatDate, localizeDocument, onLocaleChange, plural, t } from '../i18n/index.js';
+import { groupName } from '../core/group-name.js';
+import { adoptHostLanguage, changeLanguage, languageOptions, languagePreference, startLanguage } from './language.js';
 
 const $ = selector => document.querySelector(selector);
 let workspace; let storage; let controller; let lease;
@@ -67,6 +70,10 @@ function button(text, action, className) {
   node.addEventListener('click', event => { event.stopPropagation(); run(action); }); return node;
 }
 function status(text, error = false) { $('#status').textContent = text; $('#status').classList.toggle('error', error); }
+const textOf = text => typeof text === 'function' ? text() : text ?? '';
+// Text set outside the render functions keeps how it was built, so relocalize() can build it again in a new language.
+const shownText = new Map();
+function setText(selector, text) { shownText.set(selector, text); $(selector).textContent = textOf(text); }
 async function run(action) {
   if (nativeClosing) return;
   const pending = desktop ? desktop.perform(action) : Promise.resolve().then(action); activeActions.add(pending);
@@ -89,13 +96,20 @@ function groupColor(id) { return groupColors[Math.max(0, activeGroups(workspace.
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
 function fillGroups(select, selected, none = false) {
   select.replaceChildren();
-  if (none) select.append(new Option('不指定', ''));
-  for (const group of activeGroups(workspace.snapshot)) select.append(new Option(group.name, group.id));
+  if (none) select.append(new Option(t('app.groups.none'), ''));
+  for (const group of activeGroups(workspace.snapshot)) select.append(new Option(groupName(group), group.id));
   select.value = selected || '';
 }
 
 async function initialize() {
+  startLanguage();
+  // What the page shows while it loads.
+  status(t('app.status.loading')); setSync('off', () => t('sync.status.opening'));
+  setText('#storage-note', () => t('sync.status.opening')); renderAccount();
   native = await connectNative();
+  adoptHostLanguage(native);
+  // A host's stored language can differ from the browser's, so the loading texts are shown again in it.
+  if (native) { status(t('app.status.loading')); setSync('off', () => t('sync.status.opening')); renderAccount(); }
   if (native) {
     profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
     nativeBackups = nativeBackupAdapters(native.bridge, native.info);
@@ -109,10 +123,13 @@ async function initialize() {
     // Phones and tablets show no desktop papers, so nothing there arranges them: no canvas, layout tools or settings.
     handheld = ['ios', 'android'].includes(native.info.platform);
     if (handheld) { showDesktop = false; document.querySelectorAll('[data-arrange]').forEach(node => { node.hidden = true; }); }
-    if (native.info.platform === 'macos') $('#settings-button').title = '設定（⌘,）';
+    if (native.info.platform === 'macos') {
+      const gear = $('#settings-button'); gear.dataset.i18nAttr = 'aria-label:settings.title;title:app.sidebar.settingsTitleMac';
+      gear.title = t('app.sidebar.settingsTitleMac');
+    }
     lease = { acquired: true, release() {} };
   } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
-  if (!lease.acquired) throw new Error('這個工作空間已在另一個視窗開啟。請使用原視窗，或關閉它後重新載入。');
+  if (!lease.acquired) throw new Error(t('app.errors.openElsewhere'));
   addEventListener('pagehide', () => { lease.release(); storage.close(); });
   addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
   addEventListener('beforeunload', event => {
@@ -130,14 +147,14 @@ async function initialize() {
       // Clear first so a background flush cannot write the draft back while it is being discarded.
       const draft = currentDraft; currentDraft = null;
       // Dropping is housekeeping: a failure only leaves an extra draft, so report it without failing the action.
-      try { await workspace.discardUnneededDraft(draft.id); } catch (error) { status(`草稿整理失敗：${error.message}`, true); }
+      try { await workspace.discardUnneededDraft(draft.id); } catch (error) { status(t('app.status.draftCleanupFailed', { error: error.message }), true); }
     } });
   // The regions move to today's primary display before new papers take a place in them.
   if (desktopInfo) await workspace.layout.recoverDisplays(workAreas(), screenArea());
   await workspace.layout.placeNew(workspace.snapshot, workAreas());
   if (desktopInfo) initializeDesktop();
-  $('#storage-note').textContent = native ? '加密保存在這台裝置' : '保存在這個瀏覽器';
-  renderAccount(); setSync('off', native ? '只存在這台裝置' : '只存在這個瀏覽器');
+  setText('#storage-note', () => native ? t('sync.storage.device') : t('sync.storage.browser'));
+  renderAccount(); setSync('off', () => native ? t('sync.status.deviceOnly') : t('sync.status.browserOnly'));
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); if (!native) browserJournal = journal;
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
@@ -145,7 +162,7 @@ async function initialize() {
       flush: () => desktop ? desktop.perform(flushDraft) : flushDraft() }); await service.load();
     automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
-  } catch (error) { automaticError = `自動備份尚未開啟：${error.message}`; }
+  } catch (error) { automaticError = error; }
   if (native) {
     native.bridge.onCloseRequested(() => { void prepareNativeClose(); });
     native.bridge.onEvent('update-state', message => { updateState = message.state; if ($('#settings-dialog').open) renderUpdate(); });
@@ -168,13 +185,14 @@ async function initialize() {
       try { await desktopAction(message.target, message.intent); }
       catch (error) { await native.bridge.request('desktop.showMain', { intent: message.intent }).catch(() => {}); throw error; }
     }); });
-    $('#shortcut-note').textContent = '在任何程式中都能使用。一個動作可以設多組，用逗號分開。';
+    const note = $('#shortcut-note'); note.dataset.i18n = 'settings.shortcuts.noteGlobal'; note.textContent = t('settings.shortcuts.noteGlobal');
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
   displayBackend = native?.info.displayBackend ?? null;
   // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
-  const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed ? ' 可在設定的「桌面」頁改用 XWayland。' : '';
-  bindEvents(); render(); status(native?.info.desktopReason ? native.info.desktopReason + displayHint : '已開啟本機資料');
+  const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed; const reason = native?.info.desktopReason;
+  onLocaleChange(relocalize);
+  bindEvents(); render(); status(reason ? displayHint ? t('app.status.desktopReasonXwayland', { reason }) : reason : t('app.status.opened'));
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
   if (native?.info.capabilities.shareInbox) {
@@ -197,7 +215,7 @@ async function initialize() {
       run(async () => {
         controller.cancelDrag();
         const result = await workspace.layout.recoverDisplays([area], area);
-        render(); if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
+        render(); if (result.rescued.length) status(plural('app.status.rescued', result.rescued.length));
       });
     }, 250);
   }).observe($('#stage-shell'));
@@ -212,7 +230,7 @@ async function initializeGoogle() {
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
-  $('#google-sync').textContent = workspace.state.cloudRestore ? '繼續覆蓋 Google' : '立即同步';
+  setText('#google-sync', workspace.state.cloudRestore ? () => t('sync.actions.resumeOverwrite') : () => t('sync.actions.syncNow'));
   $('#google-sync').onclick = () => {
     if (workspace.state.sourceReset?.superseded || workspace.state.cloudRestore?.resetJob?.superseded) { sourceResetAsked = false; askAfterSourceReset(); }
     else if (workspace.state.sourceReset) void openSettings('data');
@@ -221,85 +239,90 @@ async function initializeGoogle() {
   if (workspace.state.sourceReset) {
     syncService = null;
     if (workspace.state.sourceReset.superseded) {
-      $('#google-sync').textContent = '重新取得雲端副本';
-      setSync('attention', '雲端已由其他裝置再次重設', '這份舊重設工作已停止；可先匯出備份，再清除這台副本並重新同步。'); return;
+      setText('#google-sync', () => t('sync.actions.refetch'));
+      setSync('attention', () => t('sync.status.resetAgain'), () => t('sync.detail.resetStopped')); return;
     }
-    $('#google-sync').textContent = '繼續重設資料';
-    setSync('attention', '資料重設尚未完成', '請在「資料與備份」繼續重設；其他裝置會等待初始化完成。'); return;
+    setText('#google-sync', () => t('sync.actions.resumeReset'));
+    setSync('attention', () => t('sync.status.resetUnfinished'), () => t('sync.detail.resetUnfinished')); return;
   }
   if (workspace.state.cloudRestore) {
     clearInterval(syncTimer); syncService = null;
     if (workspace.state.cloudRestore.resetJob?.superseded) {
-      $('#google-sync').textContent = '重新取得雲端副本';
-      setSync('attention', '雲端已由其他裝置再次重設', '這份覆蓋工作已停止；可先匯出備份，再清除這台副本並重新同步。'); return;
+      setText('#google-sync', () => t('sync.actions.refetch'));
+      setSync('attention', () => t('sync.status.resetAgain'), () => t('sync.detail.overwriteStopped')); return;
     }
-    setSync('attention', 'Google 覆蓋尚未完成', workspace.state.cloudRestore.error || '還原資料已保存在這台裝置；請按「繼續覆蓋 Google」。');
+    setSync('attention', () => t('sync.status.overwriteUnfinished'), workspace.state.cloudRestore.error || (() => t('sync.detail.overwriteSaved')));
     return;
   }
   renderAccount();
   if (connected || paused) {
-    $('#storage-note').textContent = paused ? '便箋可離線使用；系統安全儲存可用後會繼續同步' : '同步到你的 Google 帳號';
-    setSync(paused ? 'attention' : 'off', paused ? '同步暫停' : '等待同步', paused ? googleAccount.pauseReason : '');
+    setText('#storage-note', paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
+    setSync(paused ? 'attention' : 'off', paused ? () => t('sync.status.paused') : () => t('sync.status.waiting'), paused ? googleAccount.pauseReason : '');
     syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId), bootstrapGroup: true });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
     if (!paused) void syncGoogle();
   } else if (google) {
-    $('#storage-note').textContent = '重新登入後才會繼續同步';
-    setSync('attention', '請重新登入 Google', '這台裝置上的便箋和還沒同步的修改都還在。');
+    setText('#storage-note', () => t('sync.storage.signInAgain'));
+    setSync('attention', () => t('sync.status.signInAgain'), () => t('sync.detail.notesKept'));
   } else {
-    setSync('off', googleAccount.configured ? '尚未連接 Google' : '只存在這台裝置',
-      googleAccount.configured ? '登入後會改用該帳號的便箋；這裡的本機便箋會留在這台裝置。' : '');
+    setSync('off', googleAccount.configured ? () => t('sync.status.notConnected') : () => t('sync.status.deviceOnly'),
+      googleAccount.configured ? () => t('sync.detail.signInSwitches') : '');
   }
 }
 function renderGoogleAccess() {
   const google = profileId.startsWith('google:');
   const connected = Boolean(googleAccount?.connected);
   const paused = google && googleAccount?.paused === true;
+  const { email, configured } = googleAccount;
   $('#google-row').hidden = false; $('#local-row').hidden = !google; $('#sync-row').hidden = !(connected || paused);
-  $('#google-value').textContent = paused ? '同步暫停' : connected ? googleAccount.email || 'Google 帳號' : googleAccount.configured ? '未登入' : '這個版本還不能登入';
-  $('#google-sign-in').hidden = !googleAccount.configured;
-  $('#google-sign-in').textContent = connected || paused ? '切換帳號' : google ? '重新登入' : '登入';
+  setText('#google-value', paused ? () => t('sync.status.paused') : connected ? email || (() => t('sync.account.google'))
+    : configured ? () => t('sync.google.signedOut') : () => t('sync.google.unavailable'));
+  $('#google-sign-in').hidden = !configured;
+  setText('#google-sign-in', connected || paused ? () => t('sync.google.switchAccount') : google ? () => t('sync.google.signInAgain') : () => t('sync.google.signIn'));
   $('#google-sign-out').hidden = !(connected || paused);
 }
 // The account chip and the settings identity say where the papers live and how syncing goes.
 function renderAccount() {
   const connected = Boolean(googleAccount?.connected);
-  const name = connected ? googleAccount.email || 'Google 帳號' : profileId.startsWith('google:') ? 'Google 帳號' : '本機便箋';
+  const name = connected ? googleAccount.email || t('sync.account.google') : profileId.startsWith('google:') ? t('sync.account.google') : t('sync.account.localNotes');
   for (const [avatar, initial, label] of [['#account-avatar', '#account-initial', '#account-name'], ['#identity-avatar', '#identity-initial', '#identity-name']]) {
     $(label).textContent = name;
     $(initial).textContent = connected ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !connected;
     $(`${avatar} svg`).toggleAttribute('hidden', connected); $(avatar).classList.toggle('signed-in', connected);
   }
 }
+// Text and detail are host or error text, or a function that builds catalog text; relocalize() shows the last state again.
+let shownSync = null;
 function setSync(state, text, detail = '') {
+  shownSync = [state, text, detail]; const shownDetail = textOf(detail);
   syncState = state; $('#account').dataset.sync = state; $('#settings-dialog').dataset.sync = state;
-  $('#sync-status').textContent = text; $('#sync-detail').textContent = text;
-  $('#account-detail').textContent = detail; $('#account-detail').hidden = !detail; updateAttention();
+  $('#sync-status').textContent = textOf(text); $('#sync-detail').textContent = textOf(text);
+  $('#account-detail').textContent = shownDetail; $('#account-detail').hidden = !shownDetail; updateAttention();
 }
 // The drawer hides the account chip and the sidebar links on phones, so their warnings show on the drawer button.
 function updateAttention() {
   $('#attention-dot').hidden = !(workspace?.state.conflicts.length || captureCount || ['error', 'attention'].includes(syncState));
 }
 async function syncGoogle(force = false) {
-  // Settings edits nothing a sync could overwrite and holds 立即同步, so it does not hold syncing; a running backup or
+  // Settings edits nothing a sync could overwrite and holds Sync now, so it does not hold syncing; a running backup or
   // restore on its data page does.
   const settings = $('#settings-dialog');
   if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync()
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
   const sourceSync = syncService; const sourceProfile = profileId;
   const current = () => !nativeClosing && !accountBusy && syncService === sourceSync && profileId === sourceProfile;
-  syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
+  syncBusy = true; $('#google-sync').disabled = true; setSync('busy', () => t('sync.status.syncing'));
   try {
     if (force && native?.info.capabilities?.vaultUnlock) {
-      setSync('busy', '正在準備同步…', '金鑰圈若已鎖定，請在系統視窗中解鎖；完成後會接續同步。');
+      setSync('busy', () => t('sync.status.preparing'), () => t('sync.detail.unlockKeyring'));
       const unlockedAccount = await native.bridge.request('google.unlockVault');
       if (!current()) return;
       googleAccount = unlockedAccount;
       renderGoogleAccess(); renderAccount();
-      $('#storage-note').textContent = googleAccount.connected ? '同步到你的 Google 帳號' : '重新登入後才會繼續同步';
-      setSync('busy', '正在同步…');
+      setText('#storage-note', googleAccount.connected ? () => t('sync.storage.google') : () => t('sync.storage.signInAgain'));
+      setSync('busy', () => t('sync.status.syncing'));
     }
     await (desktop ? desktop.perform(sync) : sync());
     async function sync() {
@@ -309,7 +332,7 @@ async function syncGoogle(force = false) {
       const result = await sourceSync.sync({ force });
       if (!current()) return;
       if (result?.phase === 'waiting-initialization') {
-        setSync('attention', '等待工作空間初始化', '其他裝置正在建立或還原資料，完成後會自動接續同步。'); return;
+        setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
       }
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
@@ -317,23 +340,23 @@ async function syncGoogle(force = false) {
         const account = await native.bridge.request('google.status');
         if (!current()) return;
         googleAccount = account; renderGoogleAccess(); renderAccount();
-        $('#storage-note').textContent = googleAccount.paused ? '便箋可離線使用；系統安全儲存可用後會繼續同步' : '同步到你的 Google 帳號';
-        if (googleAccount.paused) { setSync('attention', '同步暫停', googleAccount.pauseReason); return; }
+        setText('#storage-note', googleAccount.paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
+        if (googleAccount.paused) { setSync('attention', () => t('sync.status.paused'), googleAccount.pauseReason); return; }
       }
-      const pending = workspace.pendingOperations.length;
-      if (pending) setSync('pending', `${pending} 筆等待同步`);
-      else setSync('ok', `已同步 ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`);
+      const pending = workspace.pendingOperations.length; const at = new Date();
+      if (pending) setSync('pending', () => plural('sync.status.pending', pending));
+      else setSync('ok', () => t('sync.status.syncedAt', { time: formatDate(at, { hour: '2-digit', minute: '2-digit' }) }));
     }
   } catch (error) {
     if (!current()) return;
-    if (error.code === 'source-reset') { setSync('attention', '雲端已重設', error.message); askAfterSourceReset(); return; }
+    if (error.code === 'source-reset') { setSync('attention', () => t('sync.status.cloudReset'), error.message); askAfterSourceReset(); return; }
     const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup', 'vault-unlock-cancelled', 'vault-unlock-timeout'].includes(error.code);
     if (vaultPaused) {
       googleAccount = { ...googleAccount, connected: false, paused: true, pauseReason: error.message };
       renderGoogleAccess(); renderAccount();
     }
-    setSync(vaultPaused ? 'attention' : 'error', vaultPaused ? '同步暫停' : '同步失敗', error.message);
-    if (error.code === 'unauthorized' || error.code === 'source-permission') $('#google-sign-in').textContent = '重新登入 Google';
+    setSync(vaultPaused ? 'attention' : 'error', vaultPaused ? () => t('sync.status.paused') : () => t('sync.status.failed'), error.message);
+    if (error.code === 'unauthorized' || error.code === 'source-permission') setText('#google-sign-in', () => t('sync.google.signInGoogleAgain'));
   }
   finally { syncBusy = false; $('#google-sync').disabled = false; }
 }
@@ -346,7 +369,7 @@ async function changeGoogleAccount(action) {
     await (desktop ? desktop.perform(flushDraft) : flushDraft()); await desktop?.whenIdle(); desktop?.sealClose();
     document.body.inert = true;
     if (action === 'signIn') {
-      status('請完成原生 Google 登入與同步授權…');
+      status(t('sync.google.signingIn'));
       const result = await native.bridge.request('google.signIn');
       await native.bridge.request('google.open', { accountId: result.accountId });
     } else await native.bridge.request(action === 'signOut' ? 'google.signOut' : 'google.local');
@@ -361,27 +384,28 @@ async function changeGoogleAccount(action) {
 // The workspace a data reset deletes, and what it leaves on this device.
 function resetPlan() {
   const google = profileId.startsWith('google:');
-  const keeps = ['已保存的備份 ZIP 檔'];
-  if (captureInbox) keeps.push('分享收件匣中尚未接收的分享');
-  if (google) keeps.push('Google 登入狀態', '這台裝置上的本機便箋');
-  else if (googleAccount?.configured) keeps.push('這台裝置上的 Google 帳號工作空間');
+  const keeps = [t('settings.data.keeps.backups')];
+  if (captureInbox) keeps.push(t('settings.data.keeps.shares'));
+  if (google) keeps.push(t('settings.data.keeps.googleSignIn'), t('settings.data.keeps.localNotes'));
+  else if (googleAccount?.configured) keeps.push(t('settings.data.keeps.googleWorkspace'));
   return { cloud: google, keeps, run: resetWorkspace,
     // Clearing a Google workspace needs its Drive data, so it waits for a working sign-in.
-    blocked: google && !googleAccount?.connected ? '請先在帳號選單重新登入 Google，才能一併清除雲端資料。' : null,
-    target: google ? `${googleAccount?.email || 'Google 帳號'} 的 Google 工作空間（所有裝置）` : native ? '本機便箋（這台裝置）' : '本機便箋（這個瀏覽器）' };
+    blocked: google && !googleAccount?.connected ? t('sync.errors.signInFirst') : null,
+    target: google ? t('settings.data.target.googleAllDevices', { account: googleAccount?.email || t('sync.account.google') })
+      : native ? t('settings.data.target.device') : t('settings.data.target.browser') };
 }
 function requireConnected() {
-  if (!googleAccount?.connected) throw new Error('請先在帳號選單重新登入 Google，才能一併清除雲端資料。');
+  if (!googleAccount?.connected) throw new Error(t('sync.errors.signInFirst'));
 }
 
 function cloudRestoreOptions() {
   if (!native || !googleAccount?.connected || !profileId.startsWith('google:') || workspace.state.cloudRestore) return null;
   const fileStore = new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId);
-  return { target: googleAccount.email || '目前 Google 帳號',
+  return { target: googleAccount.email || t('sync.account.current'),
     prepare: async options => {
       requireConnected();
       const result = await syncService?.sync({ force: true });
-      if (result?.phase === 'waiting-initialization') throw new Error('工作空間初始化尚未完成，請稍後再還原。');
+      if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingRestore'));
       return prepareCloudRestore({ ...options, workspace, sourceId: fileStore.sourceId });
     },
     run: (plan, safety, say) => runCloudRestore(say, { plan, safety, fileStore }) };
@@ -389,21 +413,22 @@ function cloudRestoreOptions() {
 
 function backupSourceOptions() {
   const google = profileId.startsWith('google:');
-  return { target: google ? `${googleAccount?.email || '目前 Google 帳號'} 的 Google 工作空間` : native ? '本機便箋（這台裝置）' : '本機便箋（這個瀏覽器）',
+  return { target: google ? t('settings.data.target.google', { account: googleAccount?.email || t('sync.account.current') })
+    : native ? t('settings.data.target.device') : t('settings.data.target.browser'),
     sync: async () => {
       if (!googleAccount?.connected || !syncService || workspace.state.cloudRestore || nativeClosing || accountBusy)
-        throw new Error('目前無法同步 Google；請確認登入、網路與尚未完成的覆蓋作業。');
-      syncBusy = true; $('#google-sync').disabled = true; setSync('busy', '正在同步…');
+        throw new Error(t('sync.errors.cannotSync'));
+      syncBusy = true; $('#google-sync').disabled = true; setSync('busy', () => t('sync.status.syncing'));
       try {
         const sync = async () => {
           const result = await syncService.sync({ force: true });
-          if (result?.phase === 'waiting-initialization') throw new Error('工作空間初始化尚未完成，請稍後再匯出。');
+          if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingExport'));
           await controller.reconcile();
           await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
         };
         await (desktop ? desktop.perform(sync) : sync());
-        setSync('ok', '已同步');
-      } catch (error) { setSync('error', '同步失敗', error.message); throw error; }
+        setSync('ok', () => t('sync.status.synced'));
+      } catch (error) { setSync('error', () => t('sync.status.failed'), error.message); throw error; }
       finally { syncBusy = false; $('#google-sync').disabled = false; }
     } };
 }
@@ -419,7 +444,7 @@ async function applyLocalRestore(plan, signal) {
 }
 
 async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
-  if (accountBusy || nativeClosing) throw new Error('帳號或關閉作業進行中，請稍後再試。');
+  if (accountBusy || nativeClosing) throw new Error(t('sync.errors.accountBusy'));
   requireConnected(); accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
   let durable = false;
   try {
@@ -443,7 +468,7 @@ async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
     if (durable) {
       if (saved?.cloudRestore) {
         if (['source-reset-superseded', 'source-reset'].includes(error.code) && saved.cloudRestore.resetJob) saved.cloudRestore.resetJob.superseded = true;
-        saved.cloudRestore.error = String(error.message || '覆蓋尚未完成').slice(0, 2048);
+        saved.cloudRestore.error = String(error.message || t('sync.cloudRestore.incomplete')).slice(0, 2048);
         const revision = saved.revision; saved.revision++;
         await storage.save(saved, revision).catch(() => {});
       }
@@ -460,17 +485,17 @@ async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
 function askResumeCloudRestore() {
   if ([...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
   const dialog = element('dialog'); const state = element('p', '', 'backup-message');
-  const resume = element('button', '繼續覆蓋 Google', 'danger'); resume.type = 'button';
-  const cancel = element('button', '稍後'); cancel.type = 'button'; cancel.onclick = () => dialog.close();
+  const resume = element('button', t('sync.actions.resumeOverwrite'), 'danger'); resume.type = 'button';
+  const cancel = element('button', t('common.later')); cancel.type = 'button'; cancel.onclick = () => dialog.close();
   resume.onclick = async () => {
     resume.disabled = true; cancel.disabled = true;
     try { await runCloudRestore(text => { state.textContent = text; }); }
     catch (error) { state.textContent = error.message; resume.disabled = false; cancel.disabled = false; }
   };
-  dialog.append(element('h2', '完成 Google 覆蓋'),
+  dialog.append(element('h2', t('sync.cloudRestore.title')),
     element('p', workspace.state.cloudRestore.phase === 'reset'
-      ? `將繼續清空 ${googleAccount.email || '目前 Google 帳號'} 的 Work Fleet 雲端資料，再上傳已保存的還原資料。其他裝置請先停止同步。`
-      : '將繼續上傳已保存的還原資料，不會再次清空雲端。'), state, cancel, resume);
+      ? t('sync.cloudRestore.resumeReset', { account: googleAccount.email || t('sync.account.current') })
+      : t('sync.cloudRestore.resumeUpload')), state, cancel, resume);
   dialog.oncancel = event => { if (resume.disabled) event.preventDefault(); };
   dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
 }
@@ -480,23 +505,23 @@ function askAfterSourceReset() {
   const dialog = element('dialog'); dialog.id = 'source-reset-dialog';
   const state = element('p', '', 'backup-message'); state.setAttribute('role', 'status');
   // Not through run(): the reset waits for the desktop owner's queue to empty, so it cannot run inside it.
-  const clear = element('button', '清除這台裝置的副本', 'danger'); clear.type = 'button';
+  const clear = element('button', t('sync.sourceReset.clear'), 'danger'); clear.type = 'button';
   clear.onclick = async () => {
     for (const control of dialog.querySelectorAll('button')) control.disabled = true;
     try { await resetWorkspace(text => { state.textContent = text; }, { cloud: false }); }
     catch (error) { state.textContent = error.message; for (const control of dialog.querySelectorAll('button')) control.disabled = false; }
   };
-  dialog.append(element('h2', '雲端資料已重設'),
-    element('p', `${googleAccount?.email || '這個 Google 帳號'} 的 Work Fleet 雲端資料已在其他裝置重設。這台裝置上的副本還在，但已停止同步。`),
-    element('p', '清除副本後會從目前的雲端重新同步；這台裝置尚未同步的修改也會一起刪除，需要的話請先匯出備份。'), state);
+  dialog.append(element('h2', t('sync.sourceReset.title')),
+    element('p', t('sync.sourceReset.body', { account: googleAccount?.email || t('sync.account.this') })),
+    element('p', t('sync.sourceReset.clearHint')), state);
   const actions = element('div', undefined, 'dialog-actions');
-  actions.append(button('先匯出備份', () => { dialog.close(); return openSettings('data'); }), button('稍後', () => dialog.close()), clear);
+  actions.append(button(t('sync.sourceReset.exportFirst'), () => { dialog.close(); return openSettings('data'); }), button(t('common.later'), () => dialog.close()), clear);
   dialog.append(actions); dialog.oncancel = event => { if ([...dialog.querySelectorAll('button')].some(control => control.disabled)) event.preventDefault(); };
   dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
 }
 // Deletes the current workspace on this device and reopens it empty, stopping everything that could write it back.
 async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } = {}) {
-  if (accountBusy || nativeClosing) throw new Error('帳號或關閉作業進行中，請稍後再試。');
+  if (accountBusy || nativeClosing) throw new Error(t('sync.errors.accountBusy'));
   accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
   let resetAttempted = false;
   try {
@@ -508,13 +533,13 @@ async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } =
     currentDraft = null; unsavedDrafts.clear(); document.body.inert = true;
     if (cloud) {
       requireConnected();
-      say('正在標記雲端重設…');
+      say(t('sync.reset.marking'));
       resetAttempted = true;
       await resetSource(new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId),
         { job: workspace.state.sourceReset, saveJob: job => workspace.saveSourceReset(job),
-          progress: (done, total) => say(`正在刪除雲端資料：${done} / ${total}`) });
+          progress: (done, total) => say(t('sync.reset.deletingCloud', { done, total })) });
     }
-    say('正在刪除這台裝置上的資料…');
+    say(t('sync.reset.deletingDevice'));
     await storage.reset(profileId);
     // Native hosts reopen the document on the emptied profile after replying; the browser reloads itself.
     if (!native) { await browserJournal?.reset(profileId); lease.release(); location.reload(); }
@@ -542,7 +567,6 @@ function currentDesktopEditor() {
   return remoteEditor && currentDraft?.id === remoteEditor.draftId && controller.state.editingCardId === remoteEditor.cardId ? copy(remoteEditor) : null;
 }
 function initializeDesktop() {
-  $('#stage-hint').textContent = `每按一次換到下一階：${desktopStages().map(stage => stageNames[stage]).join(' → ')}。數字對應「桌面」頁的區域，由左到右、由上到下。`;
   const authority = new DesktopAuthority({ workspace, controller, sessionId: desktopInfo.sessionId,
     perform: action => desktop.perform(action),
     shortcut: (target, intent) => desktopAction(target, intent),
@@ -552,12 +576,12 @@ function initializeDesktop() {
     editor: {
       current: currentDesktopEditor,
       begin: async (id, viewId) => {
-        if (editorBusy || composing || document.querySelector('dialog[open]')) throw new Error('請先完成主畫面的目前編輯。');
+        if (editorBusy || composing || document.querySelector('dialog[open]')) throw new Error(t('app.errors.finishMainEdit'));
         const previous = currentDesktopEditor();
         if (previous?.cardId === id && previous.viewId === viewId) return { draftId: previous.draftId, sequence: previous.sequence };
         const reuseId = currentDraft?.cardId === id ? currentDraft.id : null;
         if (currentDraft) {
-          if (controller.state.editingCardId) { if (!await controller.endEdit({ keepDraft: Boolean(reuseId) })) throw new Error('请先完成目前輸入。'); }
+          if (controller.state.editingCardId) { if (!await controller.endEdit({ keepDraft: Boolean(reuseId) })) throw new Error(t('app.errors.finishInput')); }
           else await flushDraft();
         }
         const card = currentCard(id); if (!await controller.beginEdit(id, { gesture: true })) return null;
@@ -569,14 +593,14 @@ function initializeDesktop() {
         const draft = copy(currentDraft); draft.content.text = value.text;
         await workspace.saveDraft(draft);
         // The authority's separate draft lane may finish while a lifecycle action is waiting for its flush barrier.
-        if (currentDraft?.id !== value.draftId || remoteEditor?.viewId !== value.viewId) throw new Error('編輯入口已變更；草稿已保留。');
+        if (currentDraft?.id !== value.draftId || remoteEditor?.viewId !== value.viewId) throw new Error(t('app.errors.editorMoved'));
         currentDraft = draft; remoteEditor = copy(value);
       },
       save: () => saveEditor(),
       end: () => closeEditor(),
       full: async intent => {
         await flushDraft(); const draft = copy(currentDraft); const card = currentCard(draft.cardId);
-        if (!await controller.endEdit({ keepDraft: true })) throw new Error('請先完成目前輸入。'); remoteEditor = null;
+        if (!await controller.endEdit({ keepDraft: true })) throw new Error(t('app.errors.finishInput')); remoteEditor = null;
         await leaveAdjustOverlay(); await native.bridge.request('desktop.showMain', { intent }); await openEditor(card, draft); render();
       },
     } });
@@ -586,9 +610,10 @@ function initializeDesktop() {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
         sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, residentLayers: residentLayers(), editor: currentDesktopEditor(), notice: desktopNotice });
       // Settings only speaks up when a paper cannot sit on the layer it asks for.
-      const [fallback] = frame.fallbacks; const layerName = layer => stageNames[groupLayerOrder.indexOf(layer)];
+      const [fallback] = frame.fallbacks; const layerName = layer => stageNames()[groupLayerOrder.indexOf(layer)];
       $('#desktop-note').hidden = !fallback;
-      $('#desktop-note').textContent = fallback ? `${frame.fallbacks.length} 張便箋設在${layerName(fallback.requested)}，但這台電腦目前不支援，先放在${layerName(fallback.effective)}。` : '';
+      $('#desktop-note').textContent = fallback ? plural('settings.desktop.layerFallback', frame.fallbacks.length,
+        { requested: layerName(fallback.requested), effective: layerName(fallback.effective) }) : '';
       return frame;
     },
     changed: () => render(), error: error => status(error.message, true),
@@ -601,7 +626,7 @@ function initializeDesktop() {
         const info = await native.bridge.request('desktop.displays.apply', { topology: proposal.topology,
           editorViewId: editor?.viewId ?? null, editorRect: editor ? workspace.layout.state.placements[editor.cardId] : null });
         desktopInfo = info; authority.configureDisplays(info.topology, info.views); render();
-        if (result.rescued.length) status(`已將 ${result.rescued.length} 張不可達便箋移回可見範圍`);
+        if (result.rescued.length) status(plural('app.status.rescued', result.rescued.length));
       } catch (error) {
         if (!nativeClosing) setTimeout(() => { if (!nativeClosing) void native.bridge.request('desktop.displays.retry').catch(() => {}); }, 3000);
         throw error;
@@ -627,14 +652,17 @@ async function refreshCaptures(force = false) {
   if (!$('#capture-inbox-dialog').open || captureBusy && !force) return;
   const list = $('#capture-list'); list.replaceChildren(); selectedCapture = null;
   $('#capture-preview').hidden = true; $('#capture-files').replaceChildren(); $('#accept-capture').disabled = true; $('#discard-capture').disabled = true;
-  if (!items.length) list.append(element('p', '目前沒有待接收的分享。'));
-  for (const item of items) list.append(button(`${item.preview || '分享檔案'}${item.fileCount ? ` · ${item.fileCount} 個附件` : ''}`, async () => {
-    if (captureBusy) return;
-    selectedCapture = item.damaged ? item : await captureInbox.item(item.id);
-    $('#capture-preview').textContent = selectedCapture.text || selectedCapture.preview || '只有附件'; $('#capture-preview').hidden = false;
-    $('#capture-files').replaceChildren(...(selectedCapture.attachments || []).map(file => element('li', `${file.name} · ${Math.ceil(file.size / 1024)} KiB`)));
-    $('#accept-capture').disabled = Boolean(item.damaged); $('#discard-capture').disabled = false;
-  }));
+  if (!items.length) list.append(element('p', t('app.shareInbox.empty')));
+  for (const item of items) {
+    const preview = item.preview || t('app.shareInbox.file');
+    list.append(button(item.fileCount ? plural('app.shareInbox.itemFiles', item.fileCount, { preview }) : preview, async () => {
+      if (captureBusy) return;
+      selectedCapture = item.damaged ? item : await captureInbox.item(item.id);
+      $('#capture-preview').textContent = selectedCapture.text || selectedCapture.preview || t('app.shareInbox.attachmentsOnly'); $('#capture-preview').hidden = false;
+      $('#capture-files').replaceChildren(...(selectedCapture.attachments || []).map(file => element('li', `${file.name} · ${Math.ceil(file.size / 1024)} KiB`)));
+      $('#accept-capture').disabled = Boolean(item.damaged); $('#discard-capture').disabled = false;
+    }));
+  }
 }
 
 // Region keys act on the group now in that region; keys for empty regions are not taken from other apps.
@@ -642,27 +670,31 @@ function liveShortcuts() { const layout = workspace.layout.state; return resolve
 // Each shortcut row shows only what keeps a key from working; working keys stay quiet. Hosts report registrations
 // against the resolved group, so rows match them by key.
 function renderShortcutStatus() {
-  const labels = { conflict: '已被其他程式使用', unavailable: '無法使用', reserved: '系統保留', editing: '保留給文字輸入', typing: '請改用 Ctrl+Shift 組合', invalid: '不支援這個組合', unwritten: '尚未寫入 labwc 設定' };
+  const labels = { conflict: t('settings.shortcuts.status.conflict'), unavailable: t('settings.shortcuts.status.unavailable'),
+    reserved: t('settings.shortcuts.status.reserved'), editing: t('settings.shortcuts.status.editing'), typing: t('settings.shortcuts.status.typing'),
+    invalid: t('settings.shortcuts.status.invalid'), unwritten: t('settings.shortcuts.status.unwritten') };
   const layout = workspace.layout.state; const bound = regionShortcuts(layout.shortcuts, layout.grid.slots);
   for (const node of document.querySelectorAll('[data-shortcut-status]')) {
     const items = shortcutStatus.filter(item => bound[item.key] === node.dataset.shortcutStatus);
     const problems = items.filter(item => labels[item.status]);
-    node.textContent = problems.map(item => `${item.key} ${labels[item.status]}`).join('；');
+    node.textContent = problems.map(item => t('settings.shortcuts.keyStatus', { key: item.key, status: labels[item.status] }))
+      .join(t('settings.shortcuts.statusSeparator'));
     node.dataset.state = items.map(item => item.status).join(' '); node.classList.toggle('error', problems.length > 0);
   }
   $('#retry-shortcuts').hidden = Boolean(labwcShortcuts) || !shortcutStatus.some(item => ['conflict', 'unavailable'].includes(item.status));
   // labwc has no way for an app to register keys, so its own keybinds run them; the user writes them on purpose.
   $('#labwc-shortcuts').hidden = !labwcShortcuts;
   if (labwcShortcuts) {
-    const notes = { absent: `labwc 不提供程式註冊全域快捷鍵的方式。寫入後，目前的快捷鍵會加進 ${labwcShortcuts.path} 中由 Work Fleet 管理的區塊（原檔先備份），並重新載入 labwc 設定。`,
-      outdated: `快捷鍵已變更，${labwcShortcuts.path} 中的組合需要重新寫入。`, current: `${labwcShortcuts.path} 已包含目前的快捷鍵；之後變更組合時需再寫入一次。` };
+    const { path } = labwcShortcuts;
+    const notes = { absent: t('settings.shortcuts.labwc.absent', { path }), outdated: t('settings.shortcuts.labwc.outdated', { path }),
+      current: t('settings.shortcuts.labwc.current', { path }) };
     $('#labwc-shortcuts-note').textContent = notes[labwcShortcuts.state] || notes.absent;
-    $('#labwc-write').textContent = labwcShortcuts.state === 'current' ? '重新寫入 labwc 設定' : '寫入 labwc 設定';
+    $('#labwc-write').textContent = labwcShortcuts.state === 'current' ? t('settings.shortcuts.labwc.rewrite') : t('settings.shortcuts.labwc.write');
   }
 }
 
 async function desktopAction(target, intent) {
-  if (composing || editorBusy || document.querySelector('dialog[open]')) throw new Error('請先完成目前輸入或對話框。');
+  if (composing || editorBusy || document.querySelector('dialog[open]')) throw new Error(t('app.errors.finishInputOrDialog'));
   if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
   if (target === shortcutActions.capture) {
     await leaveAdjustOverlay();
@@ -679,13 +711,16 @@ async function desktopAction(target, intent) {
     const layers = residentLayers();
     const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper: layers.includes('wallpaper'), desktop: layers.includes('desktop'), floating: layers.includes('floating') });
     activeGroupId = target; const stages = desktopStages();
-    announce(target, stageNames[stage], stages.indexOf(stage) + 1, stages.length);
+    announce(target, stageNames()[stage], stages.indexOf(stage) + 1, stages.length);
   }
   else {
     const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
     if (changed && target !== shortcutActions.all && target !== '@stop') activeGroupId = target;
     const adjusting = controller.state.operationScope.kind !== 'none';
-    if (changed && desktop && target !== '@stop') announce(target === shortcutActions.all ? null : target, adjusting ? '調整位置' : target === shortcutActions.all ? '回到原本層級' : '結束調整');
+    if (changed && desktop && target !== '@stop') {
+      announce(target === shortcutActions.all ? null : target, adjusting ? t('app.stages.adjust')
+        : target === shortcutActions.all ? t('app.desktop.backToLayers') : t('app.desktop.adjustDone'));
+    }
   }
   render();
   if (intent && desktop && target !== shortcutActions.toggle && controller.state.operationScope.kind !== 'none') {
@@ -695,7 +730,7 @@ async function desktopAction(target, intent) {
 
 // After a group or all-groups key the topmost scene shows, for about a second and a half, which group moved and where
 // it is now, with one dot per stage of the cycle. A newer notice replaces an older one, which then is not cleared early.
-const stageNames = ['桌布層', '桌面層', '最上層', '調整位置'];
+const stageNames = () => [t('app.stages.wallpaper'), t('app.stages.desktop'), t('app.stages.floating'), t('app.stages.adjust')];
 // Layers a group can rest on; on GNOME Xwayland the topmost scene only carries the adjust overlay.
 const residentLayers = () => desktopInfo?.residentLayers || desktopInfo?.layers || [];
 const desktopStages = () => [0, 1, 2].filter(stage => residentLayers().includes(groupLayerOrder[stage])).concat(adjustStage);
@@ -706,7 +741,7 @@ function announce(groupId, text, step = 0, steps = 0) {
   try { rect = groupId && gridRegions(layout.grid, groups).find(region => region.groupId === groupId) || rect; } catch { /* Overflowing groups use the whole area. */ }
   const id = ++noticeSerial;
   desktopNotice = { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-    title: groupId ? groups.find(group => group.id === groupId)?.name || '群組' : '所有群組', text, step, steps };
+    title: groupId ? groupName(groups.find(group => group.id === groupId)) || t('app.groups.fallback') : t('app.groups.all'), text, step, steps };
   setTimeout(() => { if (desktopNotice?.id === id) { desktopNotice = null; desktop?.publish(); } }, 1600);
 }
 
@@ -724,7 +759,7 @@ async function prepareNativeClose() {
   if (native.info.platform === 'android' && dismissTopLayer()) { await native.bridge.request('host.closeCancel').catch(() => {}); return; }
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
     await native.bridge.request('host.closeCancel').catch(() => {});
-    status(composing ? '請先完成目前輸入，再關閉 App。' : '請先完成或關閉目前對話框，再關閉 App。', true); return;
+    status(composing ? t('app.close.finishInput') : t('app.close.finishDialog'), true); return;
   }
   nativeClosing = true; document.body.inert = true; desktop?.beginClose();
   try {
@@ -733,14 +768,14 @@ async function prepareNativeClose() {
     stopAutomatic?.(); await automatic?.service.whenIdle();
     if (desktop) { await desktop.whenIdle(); await desktop.perform(flushDraft); } else await flushDraft();
     if (desktop) { desktop.sealClose(); await desktop.whenIdle(); }
-    if (unsavedDrafts.size) throw new Error('仍有未保存草稿；請先保存或匯出，再關閉 App。');
+    if (unsavedDrafts.size) throw new Error(t('app.close.unsavedDrafts'));
     await native.bridge.request('host.closeReady');
   } catch (error) {
     await desktop?.cancelClose();
     await native.bridge.request('host.closeCancel').catch(() => {});
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
-    status(`尚未關閉：${error.message}`, true);
+    status(t('app.close.failed', { error: error.message }), true);
   }
   finally { nativeClosing = false; document.body.inert = false; }
 }
@@ -764,22 +799,24 @@ function render() {
     row.dataset.groupId = group.id;
     const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
     const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
-    choose.append(dot, element('span', group.name, 'group-name'),
+    choose.append(dot, element('span', groupName(group), 'group-name'),
       element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
     row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
   const query = $('#search').value.trim().toLocaleLowerCase();
   // Filters and search look through papers the desktop does not show, so they always use the board or the list.
   const notesShown = !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
-  $('#workspace-title').textContent = notesShown ? groups.find(group => group.id === activeGroupId)?.name || '我的便箋' : desktopInfo ? '版面地圖' : '我的便箋桌面';
+  $('#workspace-title').textContent = notesShown ? groupName(groups.find(group => group.id === activeGroupId)) || t('app.groups.defaultName')
+    : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
   renderCounts();
   const scope = controller.state.operationScope;
   $('#operate-all').classList.toggle('operating', scope.kind === 'all');
   $('#operate-group').classList.toggle('operating', scope.kind === 'group');
   $('#stop-operation').hidden = scope.kind === 'none';
-  $('#mode-label').textContent = scope.kind === 'none' ? '鎖定中' : scope.kind === 'all' ? '正在調整所有群組'
-    : `正在調整 ${groups.find(group => group.id === scope.groupId)?.name || '群組'}`;
-  $('#desktop-view-label').textContent = desktopInfo ? '版面地圖' : '桌面'; $('[data-view="desktop"]').title = desktopInfo ? '版面地圖' : '桌面';
+  $('#mode-label').textContent = scope.kind === 'none' ? t('app.mode.locked') : scope.kind === 'all' ? t('app.mode.adjustingAll')
+    : t('app.mode.adjustingGroup', { group: groupName(groups.find(group => group.id === scope.groupId)) || t('app.groups.fallback') });
+  const desktopLabel = desktopInfo ? t('app.views.layoutMap') : t('app.views.desktop');
+  $('#desktop-view-label').textContent = desktopLabel; $('[data-view="desktop"]').title = desktopLabel;
   document.querySelectorAll('[data-view]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.view === view)));
   // With real desktop scenes the main window never mirrors them; its desktop view is the layout map.
   $('#stage-shell').hidden = notesShown || Boolean(desktopInfo); $('#layout-map').hidden = notesShown || !desktopInfo; $('#list').hidden = !notesShown;
@@ -789,13 +826,13 @@ function render() {
   const listCards = cards.filter(card => query || card.groupId === activeGroupId);
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
-  $('#count').textContent = notesShown ? `${listCards.length} 張便箋` : `${shown} 張桌面便箋`;
+  $('#count').textContent = notesShown ? plural('app.count.notes', listCards.length) : plural('app.count.desktopNotes', shown);
   if (notesShown) renderNotes(listCards, view, Boolean(query));
   else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
   $('#desktop-hidden').hidden = handheld || !hidden || filter !== 'active' || Boolean(query);
-  $('#desktop-hidden-text').textContent = `${hidden} 張便箋目前不顯示在桌面上；顯示後會回到原本的位置。`;
+  $('#desktop-hidden-text').textContent = plural('app.desktopHidden.text', hidden);
   desktop?.publish(); syncAdjustOverlay();
 }
 
@@ -818,12 +855,12 @@ async function leaveAdjustOverlay() {
   if (!desktopInfo?.adjustOverlay || controller.state.operationScope.kind === 'none') return;
   await controller.activate({ kind: 'none' }); render(); await adjustSync;
 }
-// The overlay's 堆疊／攤開 apply to the adjusted scope at once, keeping sizes; 復原 undoes like the main window.
+// The overlay's Stack and Spread apply to the adjusted scope at once, keeping sizes; Undo undoes like the main window.
 async function arrangeDesktop(kind) {
-  if (kind === 'undo') { await workspace.undo(workAreas()); await controller.reconcile(); render(); status('已復原'); return null; }
+  if (kind === 'undo') { await workspace.undo(workAreas()); await controller.reconcile(); render(); status(t('app.status.undone')); return null; }
   const scope = controller.state.operationScope;
   const plan = formationPlan(kind, scope.kind === 'all' ? { kind: 'all' } : { kind: 'group', groupId: scope.groupId }, false);
-  await controller.applyFormation(plan); render(); status('排列已完成，可按復原還原'); return null;
+  await controller.applyFormation(plan); render(); status(t('app.status.arranged')); return null;
 }
 
 // Drafts and the share inbox appear only when they hold something; version history stays reachable.
@@ -844,7 +881,7 @@ function renderStage(cards) {
     const group = activeGroups(workspace.snapshot).find(group => group.id === region.groupId);
     const boundary = element('div', undefined, 'region'); boundary.dataset.groupId = group.id;
     rectStyle(boundary, region); stage.append(boundary);
-    const label = element('div', group.name, 'region-label'); label.dataset.groupId = group.id;
+    const label = element('div', groupName(group), 'region-label'); label.dataset.groupId = group.id;
     label.style.left = `${region.x + 8}px`; label.style.top = `${region.y + 5}px`; stage.append(label);
     groupLabels.push({ groupId: group.id, x: region.x + 8, y: region.y + 5, width: Math.max(84, label.offsetWidth), height: 30 });
   }
@@ -861,7 +898,7 @@ function renderStage(cards) {
     const body = element('div', undefined, 'card-body markdown');
     if (policy.editing && currentDraft?.cardId === card.id && !remoteEditor && !$('#editor-dialog').open) {
       const input = element('textarea', undefined, 'inline-editor'); input.value = currentDraft.content.text;
-      input.setAttribute('aria-label', '就地編輯便箋');
+      input.setAttribute('aria-label', t('desktop.editor.label'));
       input.oninput = () => { if (!editorBusy && currentDraft) { currentDraft.content.text = input.value; queueDraft(); } };
       input.addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
       input.addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
@@ -881,8 +918,8 @@ function renderStage(cards) {
     if (policy.draggable) {
       paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card));
       const actions = element('div', undefined, 'card-actions');
-      if (policy.editing) actions.append(button('完整編輯', () => openEditor(card, currentDraft)), button('保存', () => saveEditor()));
-      else actions.append(button('編輯', () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
+      if (policy.editing) actions.append(button(t('desktop.editor.full'), () => openEditor(card, currentDraft)), button(t('common.save'), () => saveEditor()));
+      else actions.append(button(t('desktop.card.edit'), () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
       paper.append(actions);
     }
     stage.append(paper);
@@ -905,8 +942,8 @@ function iconButton(label, paths, action) { const node = button('', action, 'not
 // The board shows each paper as the square it is on the desktop; the list keeps one row per paper. Both open the editor.
 function renderNotes(cards, view, acrossGroups) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
-  boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? '便箋清單' : '便箋牆');
-  if (!cards.length) { list.append(element('p', '這裡還沒有便箋。', 'hint')); return; }
+  boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? t('app.views.listLabel') : t('app.views.boardLabel'));
+  if (!cards.length) { list.append(element('p', t('app.notes.empty'), 'hint')); return; }
   const groups = activeGroups(workspace.snapshot); const { myGroupId } = workspace.layout.state;
   const holder = element('div', undefined, view === 'list' ? 'note-list' : 'board');
   for (const card of cards) {
@@ -917,15 +954,15 @@ function renderNotes(cards, view, acrossGroups) {
     const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { highlight: view !== 'list' });
     const meta = element('div', undefined, 'note-meta');
     const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
-    if (total) meta.append(element('span', `${done}/${total} 步驟`));
-    if (files) meta.append(element('span', `${files} 個附件`));
-    if (acrossGroups) meta.append(element('span', groups.find(group => group.id === card.groupId)?.name || '群組待同步'));
+    if (total) meta.append(element('span', plural('app.count.steps', total, { done })));
+    if (files) meta.append(element('span', plural('app.count.attachments', files)));
+    if (acrossGroups) meta.append(element('span', groupName(groups.find(group => group.id === card.groupId)) || t('app.groups.pendingSync')));
     const actions = element('div', undefined, 'note-actions');
-    if (card.deleted) actions.append(button('還原便箋', async () => { await workspace.restoreCard(card.id, card.revision); render(); status('已還原'); }));
+    if (card.deleted) actions.append(button(t('app.notes.restore'), async () => { await workspace.restoreCard(card.id, card.revision); render(); status(t('app.status.restored')); }));
     else {
-      actions.append(iconButton(card.completed ? '回待處理' : '標為完成', card.completed ? ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'] : ['m5 12.5 4.5 4.5L19 7'],
+      actions.append(iconButton(card.completed ? t('app.notes.markToDo') : t('app.notes.markCompleted'), card.completed ? ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'] : ['m5 12.5 4.5 4.5L19 7'],
         () => changeCard(card.id, { completed: !card.completed })),
-      iconButton('更多操作', ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card)));
+      iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card)));
       note.tabIndex = 0; note.setAttribute('aria-label', title);
       note.onclick = event => { if (!event.target.closest('a,button,input')) run(() => openEditor(card)); };
       note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); run(() => openEditor(card)); } };
@@ -950,99 +987,105 @@ function renderNotes(cards, view, acrossGroups) {
 
 async function changeCard(id, patch) {
   const card = currentCard(id); await workspace.updateCard(id, patch, card.revision);
-  await controller.reconcile(); render(); status('已存本機');
+  await controller.reconcile(); render(); status(t('app.status.savedLocally'));
 }
 
 function groupEditor(group) {
   const dialog = element('dialog'); const form = element('form');
-  const title = element('h2', group ? '群組設定' : '新增群組');
-  const label = element('label', '名稱', 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = group?.name || ''; label.append(input);
+  const title = element('h2', group ? t('app.groupEditor.editTitle') : t('app.groupEditor.newTitle'));
+  const label = element('label', t('app.groupEditor.name'), 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = groupName(group); label.append(input);
   // Which desktop layer the group sits on belongs to this computer; phones and the browser preview have no desktop layers.
-  const layerField = desktop ? element('label', '桌面上的層級', 'field') : null; const layers = element('select');
+  const layerField = desktop ? element('label', t('app.groupEditor.layer'), 'field') : null; const layers = element('select');
   const currentLayer = group ? groupLayer(workspace.layout.state, group.id) : 'desktop';
   if (layerField) {
     // A layer this desktop cannot rest papers on says so and names where they show instead, as the desktop note does.
-    const fallback = stageNames[groupLayerOrder.indexOf(residentLayers().includes('desktop') ? 'desktop' : 'wallpaper')];
-    for (const [value, name] of [['wallpaper', '桌布層：在圖示下方，滑鼠穿透'], ['desktop', '桌面層：在圖示上方，可選取文字'], ['floating', '最上層：在所有視窗上方']]) {
+    const fallback = stageNames()[groupLayerOrder.indexOf(residentLayers().includes('desktop') ? 'desktop' : 'wallpaper')];
+    for (const [value, name] of [['wallpaper', t('app.groupEditor.layerWallpaper')], ['desktop', t('app.groupEditor.layerDesktop')], ['floating', t('app.groupEditor.layerFloating')]]) {
       const supported = residentLayers().includes(value);
-      const option = new Option(supported ? name : `${name.split('：')[0]}：這台電腦目前不支援，會顯示在${fallback}`, value);
+      const option = new Option(supported ? name : t('app.groupEditor.layerUnsupported', { layer: stageNames()[groupLayerOrder.indexOf(value)], fallback }), value);
       option.disabled = !supported && currentLayer !== value; layers.append(option);
     }
     layers.value = currentLayer; layerField.append(layers);
   }
   const actions = element('div', undefined, 'dialog-actions');
-  const save = element('button', '保存', 'primary'); save.type = 'submit';
+  const save = element('button', t('common.save'), 'primary'); save.type = 'submit';
   if (group) {
-    const merge = button('合併／移除群組', () => { dialog.close(); return openGroupMerge(group); });
+    const merge = button(t('app.groupEditor.merge'), () => { dialog.close(); return openGroupMerge(group); });
     merge.disabled = activeGroups(workspace.snapshot).length < 2; actions.append(merge);
   }
-  actions.append(button('取消', () => dialog.close()), save);
-  form.append(title, label, ...layerField ? [layerField, element('p', '也可以按這組的快捷鍵依序切換。', 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
+  actions.append(button(t('common.cancel'), () => dialog.close()), save);
+  form.append(title, label, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
     let groupId = group?.id;
-    if (group) await workspace.renameGroup(group.id, input.value, group.revision);
+    // A name left as shown keeps the stored one, so a default name keeps following the UI language.
+    if (group) await workspace.renameGroup(group.id, input.value.trim() === groupName(group) ? group.name : input.value, group.revision);
     else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; }
     if (layerField && layers.value !== currentLayer) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
-    await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status('群組已保存');
+    await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status(t('app.status.groupSaved'));
   }); });
   dialog.showModal(); input.focus();
 }
 
 async function openGroupMerge(group) {
-  if (!await controller.endEdit()) throw new Error('請先完成目前的文字輸入。');
+  if (!await controller.endEdit()) throw new Error(t('app.errors.finishTextInput'));
   currentDraft = null; render();
-  const dialog = element('dialog'); dialog.id = 'merge-dialog'; dialog.append(element('h2', `合併「${group.name}」`));
-  const field = element('label', '接收群組', 'field'); const select = element('select'); select.id = 'merge-target';
-  select.append(new Option('請選擇接收群組', ''));
-  for (const target of activeGroups(workspace.snapshot).filter(item => item.id !== group.id)) select.append(new Option(target.name, target.id));
+  const dialog = element('dialog'); dialog.id = 'merge-dialog'; dialog.append(element('h2', t('app.merge.title', { group: groupName(group) })));
+  const field = element('label', t('app.groups.receiving'), 'field'); const select = element('select'); select.id = 'merge-target';
+  select.append(new Option(t('app.merge.choose'), ''));
+  for (const target of activeGroups(workspace.snapshot).filter(item => item.id !== group.id)) select.append(new Option(groupName(target), target.id));
   field.append(select);
   const message = element('p'); message.id = 'merge-message'; message.setAttribute('role', 'status');
   const items = element('ul', undefined, 'merge-preview'); const actions = element('div', undefined, 'dialog-actions');
   let preview; let busy = false;
-  const apply = button('確認合併並移除原群組', async () => {
+  const apply = button(t('app.merge.confirm'), async () => {
     if (!preview || busy) return;
     busy = true; apply.disabled = true; select.disabled = true; cancel.disabled = true;
     try {
       await workspace.mergeGroup(preview); await controller.reconcile();
       if (activeGroupId === group.id) activeGroupId = preview.targetId;
-      dialog.close(); render(); status('群組已合併，便箋內容與桌面位置已保留');
+      dialog.close(); render(); status(t('app.status.groupMerged'));
     } catch (error) { message.textContent = error.message; preview = null; }
     finally { busy = false; select.disabled = false; cancel.disabled = false; }
   }, 'primary'); apply.disabled = true;
-  const cancel = button('取消', () => { if (!busy) dialog.close(); });
+  const cancel = button(t('common.cancel'), () => { if (!busy) dialog.close(); });
   const refresh = () => {
     if (busy) return;
     items.replaceChildren(); preview = null; apply.disabled = true;
-    if (!select.value) { message.textContent = '選擇目的群組後，會先列出受影響的便箋。'; return; }
+    if (!select.value) { message.textContent = t('app.merge.chooseHint'); return; }
     try {
       preview = workspace.previewGroupMerge(group.id, select.value);
-      message.textContent = `${preview.cards.length} 張便箋、${preview.draftCount} 份草稿移至「${preview.targetName}」。原群組移除，所有內容與桌面位置保留。`;
-      for (const card of preview.cards) items.append(element('li', `${card.summary}${card.deleted ? '（刪除區）' : card.archived ? '（封存）' : card.completed ? '（已完成）' : ''}`));
+      message.textContent = t('app.merge.summary', { notes: plural('app.count.notes', preview.cards.length),
+        drafts: plural('app.count.drafts', preview.draftCount), group: groupName({ name: preview.targetName }) });
+      for (const card of preview.cards) {
+        const note = card.summary;
+        items.append(element('li', card.deleted ? t('app.merge.itemDeleted', { note }) : card.archived ? t('app.merge.itemArchived', { note })
+          : card.completed ? t('app.merge.itemCompleted', { note }) : note));
+      }
       apply.disabled = false;
     } catch (error) { message.textContent = error.message; }
   };
   select.onchange = refresh;
-  actions.append(cancel, button('重新預覽', refresh), apply);
-  dialog.append(field, message, items, element('p', '合併不會排列便箋；「版面復原」不能重新建立已合併群組。', 'hint'), actions);
+  actions.append(cancel, button(t('app.merge.refresh'), refresh), apply);
+  dialog.append(field, message, items, element('p', t('app.merge.undoHint'), 'hint'), actions);
   dialog.oncancel = event => { if (busy) event.preventDefault(); };
   dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); refresh(); dialog.showModal();
 }
 
 function cardDetails(card) {
   const dialog = element('dialog'); dialog.append(element('h2', summaryText(card)));
-  const groupLabel = element('label', '移至群組', 'field'); const select = element('select'); fillGroups(select, card.groupId); groupLabel.append(select);
-  const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode('在桌面顯示'));
+  const groupLabel = element('label', t('app.card.moveToGroup'), 'field'); const select = element('select'); fillGroups(select, card.groupId); groupLabel.append(select);
+  const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode(t('app.card.showOnDesktop')));
   // Which layer a paper sits on belongs to its group and changes only with the group's shortcut on the desktop.
   // Phones show no desktop papers, so the display option they cannot show stays unchanged.
   dialog.append(groupLabel, ...handheld ? [] : [visibility]);
   const actions = element('div', undefined, 'dialog-actions');
-  actions.append(button(card.archived ? '取消封存' : '封存', async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
-    button('移至刪除區', async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),
-    button('取消', () => dialog.close()), button('套用', async () => {
+  actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
+    button(t('app.card.delete'), async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),
+    button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
       if (select.value !== card.groupId) await controller.moveToGroup(card.id, select.value);
       if (!handheld) await workspace.layout.setCardPolicy(card.id, { visible: check.checked });
-      await controller.reconcile(); dialog.close(); render(); status('已存本機');
+      await controller.reconcile(); dialog.close(); render(); status(t('app.status.savedLocally'));
     }, 'primary'));
   dialog.append(actions); document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove()); dialog.showModal();
 }
@@ -1054,8 +1097,8 @@ async function ensureCaptureGroup() {
     return;
   }
   // A new or cleared account must receive its existing groups before choosing an initial group.
-  if (profileId.startsWith('google:')) throw new FleetError('initial-sync-required', '請先完成 Google 同步，再新增便箋。');
-  const group = await workspace.createGroup('我的便箋'); activeGroupId = group.id; render();
+  if (profileId.startsWith('google:')) throw new FleetError('initial-sync-required', t('sync.errors.initialSyncRequired'));
+  const group = await workspace.createGroup(t('app.groups.defaultName')); activeGroupId = group.id; render();
 }
 
 async function openEditor(card = null, recovered = null) {
@@ -1065,7 +1108,7 @@ async function openEditor(card = null, recovered = null) {
   remoteEditor = null;
   currentDraft = recovered ? workspace.recoverDraft(recovered.id) : workspace.blankDraft(activeGroupId, card);
   currentDraft.content.attachments ||= [];
-  $('#editor-title').textContent = card || recovered?.baseRevision ? '編輯便箋' : '記下想法';
+  setText('#editor-title', card || recovered?.baseRevision ? () => t('app.editor.editTitle') : () => t('app.actions.capture'));
   $('#editor-heading').value = currentDraft.content.title || '';
   $('#editor-text').value = currentDraft.content.text; fillGroups($('#editor-group'), currentDraft.groupId);
   $('#editor-group').disabled = Boolean(currentDraft.baseRevision); $('#save-copy').hidden = true;
@@ -1107,7 +1150,7 @@ function closeInlineView(cardId) {
   const card = currentCard(cardId);
   if (paper && card) {
     const body = paper.querySelector('.card-body'); renderMarkdown(body, card.content.text); fitText(body);
-    paper.querySelector('.card-actions')?.replaceChildren(button('編輯', () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
+    paper.querySelector('.card-actions')?.replaceChildren(button(t('desktop.card.edit'), () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
   }
   if (currentDraft?.cardId === cardId) currentDraft = null;
 }
@@ -1116,19 +1159,23 @@ function queueDraft() {
   if (!currentDraft) return Promise.resolve();
   const sequence = ++draftSequence; const id = currentDraft.id;
   unsavedDrafts.set(id, sequence);
-  $('#draft-status').textContent = '正在保存草稿…';
+  $('#draft-status').textContent = t('desktop.draft.saving');
   draftPending = workspace.saveDraft(copy(currentDraft));
   draftPending.then(() => {
     if (unsavedDrafts.get(id) === sequence) unsavedDrafts.delete(id);
-    if (sequence === draftSequence && currentDraft?.id === id) $('#draft-status').textContent = '草稿已存本機';
-  }).catch(error => { if (currentDraft?.id === id) { $('#draft-status').textContent = `保存失敗：${error.message}`; status(`草稿保存失敗：${error.message}`, true); } });
+    if (sequence === draftSequence && currentDraft?.id === id) $('#draft-status').textContent = t('desktop.draft.saved');
+  }).catch(error => {
+    if (currentDraft?.id !== id) return;
+    $('#draft-status').textContent = t('app.editor.draftSaveFailed', { error: error.message });
+    status(t('app.status.draftSaveFailed', { error: error.message }), true);
+  });
   return draftPending;
 }
 async function flushDraft() {
   const editor = currentDesktopEditor();
   if (editor) {
     const sequence = await desktop.flush(editor);
-    if (currentDesktopEditor()?.sequence !== sequence) throw new Error('桌面草稿保存順序不符，尚未結束編輯。');
+    if (currentDesktopEditor()?.sequence !== sequence) throw new Error(t('app.errors.desktopDraftOrder'));
   }
   await queueDraft();
 }
@@ -1140,7 +1187,7 @@ function setEditorBusy(value) {
   $('#editor-group').disabled = value || Boolean(currentDraft?.baseRevision);
 }
 // Ending an edit drops a draft with nothing to keep: blank content or an unchanged copy of its card.
-const closedStatus = draft => draft && !workspace.state.drafts[draft.id] ? '已關閉，沒有需要保留的草稿' : '草稿已保留';
+const closedStatus = draft => draft && !workspace.state.drafts[draft.id] ? t('app.status.closedNoDraft') : t('app.status.draftKept');
 async function closeEditor() {
   if (editorBusy || composing) return;
   setEditorBusy(true);
@@ -1161,7 +1208,7 @@ async function saveEditor(asCopy = false) {
     await flushDraft();
     await workspace.commitDraft(currentDraft.id, { asCopy });
     currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit();
-    await workspace.layout.placeNew(workspace.snapshot, workAreas()); render(); status('便箋已存本機');
+    await workspace.layout.placeNew(workspace.snapshot, workAreas()); render(); status(t('app.status.noteSaved'));
   } catch (error) { if (error.code === 'conflict') $('#save-copy').hidden = false; throw error; }
   finally { setEditorBusy(false); }
 }
@@ -1181,7 +1228,7 @@ async function previewAttachment(file) {
 async function openAttachment(file) {
   if (attachmentFiles) return attachmentFiles.open(file);
   const blob = await storage.getAttachment(profileId, file.id);
-  if (!blob) throw new Error('附件尚未下載，請先完成同步。');
+  if (!blob) throw new Error(t('app.errors.attachmentMissing'));
   if (nativeFiles) return nativeFiles.export(new Uint8Array(await blob.arrayBuffer()), file.name);
   const url = URL.createObjectURL(blob); const link = element('a'); link.href = url; link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -1208,14 +1255,16 @@ async function renderAttachments() {
       // Download-only bytes: HTML/SVG attachments must never become same-origin executable documents.
       const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); attachmentUrls.set(attachment.id, url);
       const link = element('a', attachment.name); link.href = url; link.download = attachment.name; row.append(link);
-      if (native?.info.capabilities.fileShare) row.append(button('分享', async () => {
+      if (native?.info.capabilities.fileShare) row.append(button(t('app.editor.shareAttachment'), async () => {
         if (editorBusy) return;
         setEditorBusy(true);
-        try { const result = await nativeFiles.export(new Uint8Array(blob), attachment.name, 'share'); status(result.completed ? '已開啟附件分享' : '已取消分享'); }
-        finally { setEditorBusy(false); }
+        try {
+          const result = await nativeFiles.export(new Uint8Array(blob), attachment.name, 'share');
+          status(result.completed ? t('app.status.attachmentShared') : t('app.status.shareCancelled'));
+        } finally { setEditorBusy(false); }
       }));
-    } else row.append(element('span', `${attachment.name}（尚未下載）`));
-    row.append(element('span', `${Math.ceil(attachment.size / 1024)} KiB`), button('移除', async () => {
+    } else row.append(element('span', t('app.editor.notDownloaded', { name: attachment.name })));
+    row.append(element('span', `${Math.ceil(attachment.size / 1024)} KiB`), button(t('app.editor.removeAttachment'), async () => {
       if (editorBusy) return;
       currentDraft.content.attachments = currentDraft.content.attachments.filter(item => item.id !== attachment.id);
       await queueDraft(); await renderAttachments();
@@ -1224,14 +1273,14 @@ async function renderAttachments() {
 }
 
 function openFormation(mode) {
-  formationMode = mode; $('#formation-title').textContent = mode === 'stack' ? '堆疊便箋' : '攤開便箋';
+  formationMode = mode; setText('#formation-title', mode === 'stack' ? () => t('app.formation.stackTitle') : () => t('app.formation.spreadTitle'));
   $('#allow-resize').checked = false;
   $('#formation-scope').value = controller.state.operationScope.kind === 'all' ? 'all' : 'group';
   $('#formation-dialog').showModal(); updateFormation();
 }
 function formationPlan(mode, scope, allowResize) {
   const snapshot = workspace.snapshot;
-  const measure = element('div', '量測摘要', 'card-summary'); measure.style.position = 'absolute'; measure.style.visibility = 'hidden'; document.body.append(measure);
+  const measure = element('div', t('app.formation.measure'), 'card-summary'); measure.style.position = 'absolute'; measure.style.visibility = 'hidden'; document.body.append(measure);
   const measuredBand = measure.getBoundingClientRect().height; measure.remove();
   const summaryBands = Object.fromEntries(snapshot.cards.map(card => [card.id, measuredBand]));
   for (const paper of $('#stage').querySelectorAll('.card')) summaryBands[paper.dataset.cardId] = paper.querySelector('.card-summary').getBoundingClientRect().height;
@@ -1241,17 +1290,44 @@ function updateFormation() {
   try {
     formationPreview = formationPlan(formationMode, $('#formation-scope').value === 'all' ? { kind: 'all' } : { kind: 'group', groupId: activeGroupId },
       $('#allow-resize').checked);
-    $('#formation-description').textContent = `排列 ${Object.keys(formationPreview.changes).length} 張便箋。${formationPreview.resized.length ? ` ${formationPreview.resized.length} 張會調整大小。` : ' 保持原尺寸。'}${formationPreview.overflow.length ? ` ${formationPreview.overflow.length} 張會超出群組區域。` : ''} 可透過復原還原這次排列。`;
+    const { changes, resized, overflow } = formationPreview;
+    const sentences = [plural('app.formation.arranges', Object.keys(changes).length),
+      resized.length ? plural('app.formation.resized', resized.length) : t('app.formation.keepSize')];
+    if (overflow.length) sentences.push(plural('app.formation.overflow', overflow.length));
+    $('#formation-description').textContent = [...sentences, t('app.formation.undoHint')].join(' ');
     $('#apply-formation').disabled = false;
   } catch (error) { formationPreview = null; $('#formation-description').textContent = error.message; $('#apply-formation').disabled = true; }
 }
 
 // Settings is one window with a page per area. Wide screens show the page list beside the page; phones show the
 // list first and slide into a page. Changes apply as soon as they are valid, so there is nothing to save.
-const settingsTitles = { account: '帳號與同步', data: '資料與備份', desktop: '桌面', shortcuts: '快捷鍵' };
+const settingsTitle = page => page ? t(`settings.${page}.title`) : t('settings.title');
+function renderLanguageSetting() {
+  const select = $('#language');
+  select.replaceChildren(...languageOptions().map(({ value, label }) => new Option(label, value)));
+  select.value = languagePreference();
+}
+/** A language change redraws everything built from the catalogs; status lines refresh on their next update. */
+function relocalize() {
+  localizeDocument();
+  for (const [selector, text] of shownText) $(selector).textContent = textOf(text);
+  if (shownSync) setSync(...shownSync);
+  render(); renderAccount();
+  if ($('#editor-dialog').open && currentDraft) {
+    fillGroups($('#editor-group'), currentDraft.groupId); void run(renderAttachments);
+    if (!$('#editor-preview').hidden) showEditorTab(true);
+  }
+  if ($('#formation-dialog').open) updateFormation();
+  if ($('#settings-dialog').open) {
+    renderLanguageSetting(); renderDesktopSettings(); renderShortcutSettings();
+    $('#settings-page-title').textContent = settingsTitle(settingsPage);
+    // The data page is the backup panel's own markup, so an idle one is built again.
+    if (settingsPage === 'data' && dataPanel && !dataPanel.busy()) { dataPanel.dispose(); dataPanel = null; void run(mountDataPanel); }
+  }
+}
 function openSettings(page = null) {
   const dialog = $('#settings-dialog');
-  if (!dialog.open) { renderDesktopSettings(); renderShortcutSettings(); renderAccount(); dialog.showModal(); }
+  if (!dialog.open) { renderLanguageSetting(); renderDesktopSettings(); renderShortcutSettings(); renderAccount(); dialog.showModal(); }
   return showSettingsPage(page);
 }
 async function showSettingsPage(page) {
@@ -1265,22 +1341,24 @@ async function showSettingsPage(page) {
   for (const item of dialog.querySelectorAll('[data-page]')) {
     if (item.dataset.page === page) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
   }
-  $('#settings-page-title').textContent = settingsTitles[page] || '設定';
+  $('#settings-page-title').textContent = settingsTitle(page);
+  if (page === 'general') renderLanguageSetting();
   $('.settings-body').scrollTop = 0;
-  // Region rows name the group in each region, which the 桌面 page may just have changed.
+  // Region rows name the group in each region, which the Desktop page may just have changed.
   if (page === 'shortcuts') renderShortcutSettings();
   if (page === 'data' && !dataPanel) await mountDataPanel();
 }
 async function mountDataPanel() {
   const host = $('#data-host');
   // Restore rewrites the workspace, so any edit in progress is saved and closed first.
-  if (editorBusy || composing) { host.replaceChildren(element('p', '請先完成目前的輸入。', 'hint')); return; }
+  if (editorBusy || composing) { host.replaceChildren(element('p', t('settings.data.finishInput'), 'hint')); return; }
   if (currentDraft) await flushDraft();
-  if (!await controller.endEdit()) { host.replaceChildren(element('p', '請先完成目前的輸入。', 'hint')); return; }
+  if (!await controller.endEdit()) { host.replaceChildren(element('p', t('settings.data.finishInput'), 'hint')); return; }
   currentDraft = null; controller.cancelDrag(); render();
-  dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic, automaticError,
+  dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic,
+    automaticError: automaticError && t('settings.data.automaticOff', { error: automaticError.message }),
     files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
-    appVersion: native?.info.appVersion, uninstallNotice: native?.info.platform === 'windows' ? '使用 MSIX 時，解除安裝會清除這台裝置的便箋、草稿、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。' : null,
+    appVersion: native?.info.appVersion, uninstallNotice: native?.info.platform === 'windows' ? t('settings.data.uninstallNotice') : null,
     onChanged: async () => {
       if (!activeGroups(workspace.snapshot).some(group => group.id === activeGroupId)) activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
       await controller.reconcile(); render();
@@ -1295,21 +1373,23 @@ function renderDisplaySetting() {
   const fixed = displayBackend.fixed === true;
   const chosen = fixed ? displayBackend.current : displayBackend.preference ?? displayBackend.current; const pending = chosen !== displayBackend.current;
   $('#display-xwayland').checked = chosen === 'x11'; $('#display-xwayland').disabled = fixed; $('#display-restart').hidden = !pending;
-  $('#display-detail').textContent = fixed ? '目前由環境變數 GDK_BACKEND 決定顯示方式，這個設定不會生效。'
-    : pending ? '重新啟動後生效；未保存的文字會先保存。'
-    : 'GNOME Wayland 的桌面便箋需要 XWayland；主畫面的輸入法與縮放也會一起改走 XWayland。';
+  $('#display-detail').textContent = fixed ? t('settings.desktop.display.fixed')
+    : pending ? t('settings.desktop.display.pending') : t('settings.desktop.display.hint');
 }
 // ADR-043: startup behaviour and the main window belong to this computer's host, not to the workspace or its backups.
 // The switches show what the system actually does; a sign-in item the user turned off there stays off.
 let hostPreferences = null;
-const distributionNames = { msix: '安裝版（MSIX）', zip: '免安裝版（ZIP）', debug: '開發版', deb: '安裝版（DEB）', bundle: '免安裝版', source: '原始碼執行', app: 'macOS App' };
-const trayName = () => native?.info.platform === 'macos' ? '選單列' : '系統匣';
+const distributionName = value => ({ msix: t('settings.desktop.distribution.msix'), zip: t('settings.desktop.distribution.zip'),
+  debug: t('settings.desktop.distribution.debug'), deb: t('settings.desktop.distribution.deb'), bundle: t('settings.desktop.distribution.bundle'),
+  source: t('settings.desktop.distribution.source'), app: t('settings.desktop.distribution.app') })[value] || '';
+// macOS keeps Work Fleet in the menu bar; Windows and Linux in the tray.
+const menuBar = () => native?.info.platform === 'macos';
 function renderHostSettings() {
   const available = native?.info.capabilities.hostPreferences === true; $('#host-settings').hidden = !available;
   if (!available) return;
-  $('#app-version').textContent = `Work Fleet ${native.info.appVersion}（預覽）`;
-  $('#app-distribution').textContent = distributionNames[native.info.distribution] || '';
-  $('#close-tray-label').textContent = `關閉主畫面時保留在${trayName()}`;
+  $('#app-version').textContent = t('settings.desktop.version', { version: native.info.appVersion });
+  $('#app-distribution').textContent = distributionName(native.info.distribution);
+  $('#close-tray-label').textContent = menuBar() ? t('settings.desktop.closeToMenuBar') : t('settings.desktop.closeToTray');
   renderHostPreferences(); renderUpdate();
   if (native.info.capabilities.updates) void native.bridge.request('update.state').then(value => { updateState = value; renderUpdate(); }, error => status(error.message, true));
   void native.bridge.request('host.preferences.get').then(value => { hostPreferences = value; renderHostPreferences(); }, error => status(error.message, true));
@@ -1319,58 +1399,65 @@ function renderHostPreferences() {
   for (const id of ['#start-login', '#close-tray', '#open-main']) $(id).disabled = value === null;
   if (value === null) return;
   const start = value.startAtLogin; const fixed = ['disabled-by-user', 'disabled-by-policy', 'enabled-by-policy'].includes(start.state);
-  const system = native.info.platform === 'windows' ? ' Windows 的「啟動應用程式」' : native.info.platform === 'macos' ? '系統設定的「登入項目」' : '系統設定';
+  // Each platform names the system page where the user changes the sign-in item.
+  const windows = native.info.platform === 'windows'; const macos = native.info.platform === 'macos';
+  const offByUser = windows ? t('settings.desktop.startLogin.offByUserWindows')
+    : macos ? t('settings.desktop.startLogin.offByUserMacos') : t('settings.desktop.startLogin.offByUser');
+  const approval = windows ? t('settings.desktop.startLogin.approvalWindows')
+    : macos ? t('settings.desktop.startLogin.approvalMacos') : t('settings.desktop.startLogin.approval');
   $('#start-login').checked = start.enabled || start.state === 'requires-approval'; $('#start-login').disabled = !start.available || fixed;
-  $('#start-login-detail').textContent = !start.available ? start.reason || '這台電腦目前不支援登入時啟動。'
-    : start.state === 'disabled-by-user' ? `已在${system}關閉，請到那裡重新開啟。`
-    : start.state === 'disabled-by-policy' ? '已由系統管理原則關閉。'
-    : start.state === 'enabled-by-policy' ? '已由系統管理原則開啟。'
-    : start.state === 'requires-approval' ? `需要在${system}允許後才會生效。`
-    : '登入後桌面便箋就會出現。';
+  $('#start-login-detail').textContent = !start.available ? start.reason || t('settings.desktop.startLogin.unsupported')
+    : start.state === 'disabled-by-user' ? offByUser
+    : start.state === 'disabled-by-policy' ? t('settings.desktop.startLogin.offByPolicy')
+    : start.state === 'enabled-by-policy' ? t('settings.desktop.startLogin.onByPolicy')
+    : start.state === 'requires-approval' ? approval
+    : t('settings.desktop.startLogin.on');
   $('#start-login-system').hidden = !(start.systemSettings && ['disabled-by-user', 'requires-approval'].includes(start.state));
   $('#close-tray').checked = value.closeToTray.enabled; $('#close-tray').disabled = !value.closeToTray.available;
-  $('#close-tray-detail').textContent = value.closeToTray.available ? '關閉時，關閉主畫面會保存並結束 Work Fleet。' : `目前沒有${trayName()}，關閉主畫面一律保存並結束。`;
+  $('#close-tray-detail').textContent = value.closeToTray.available ? t('settings.desktop.closeToTrayOff')
+    : menuBar() ? t('settings.desktop.noMenuBar') : t('settings.desktop.noTray');
   $('#open-main').checked = value.openMainAtLogin.enabled; $('#open-main').disabled = !value.openMainAtLogin.available;
 }
 // ADR-044: the host owns the update state; the page shows it and offers the one next step.
 let updateState = null;
-const updateActions = { check: ['檢查更新', 'update.check'], download: ['下載更新', 'update.download'], install: ['重新啟動並安裝', 'update.install'] };
+const updateActions = { check: 'update.check', download: 'update.download', install: 'update.install' };
 function renderUpdate() {
-  const when = value => value ? new Date(value).toLocaleString('zh-TW', { dateStyle: 'medium', timeStyle: 'short' }) : '';
+  const when = value => value ? formatDate(value, { dateStyle: 'medium', timeStyle: 'short' }) : '';
   const state = updateState; const button = $('#update-action');
   if (!native?.info.capabilities.updates || !state) {
-    $('#update-status').textContent = 'App 內更新';
-    $('#update-detail').textContent = native?.info.platform === 'windows' ? '只有安裝版（MSIX）支援 App 內更新。' : '這個平台的 App 內更新尚未提供。';
+    $('#update-status').textContent = t('settings.update.title');
+    $('#update-detail').textContent = native?.info.platform === 'windows' ? t('settings.update.msixOnly') : t('settings.update.notOffered');
     button.hidden = true; return;
   }
-  const checked = state.lastCheckedAt ? `上次檢查：${when(state.lastCheckedAt)}` : '尚未檢查';
+  const checked = state.lastCheckedAt ? t('settings.update.lastChecked', { time: when(state.lastCheckedAt) }) : t('settings.update.neverChecked');
   const percent = state.progress?.total ? Math.floor(state.progress.received * 100 / state.progress.total) : 0;
+  const { version } = state;
   const [label, detail] = {
-    unavailable: ['無法使用 App 內更新', state.reason || ''],
-    idle: ['檢查更新', checked],
-    checking: ['正在檢查更新…', ''],
-    up_to_date: ['已是最新版本', checked],
-    update_available: [`有新版本 ${state.version}`, state.summary || ''],
-    downloading: [`正在下載 ${state.version}…`, `${percent}%`],
-    downloaded: [`${state.version} 已下載`, '重新啟動後安裝；未保存的文字會先保存。'],
-    installing: ['正在保存並安裝…', 'Work Fleet 會關閉，安裝完成後重新開啟。'],
-    failed: ['更新沒有完成', ''],
-  }[state.status] || ['App 內更新', ''];
+    unavailable: [t('settings.update.unavailable'), state.reason || ''],
+    idle: [t('settings.update.check'), checked],
+    checking: [t('settings.update.checking'), ''],
+    up_to_date: [t('settings.update.upToDate'), checked],
+    update_available: [t('settings.update.available', { version }), state.summary || ''],
+    downloading: [t('settings.update.downloading', { version }), `${percent}%`],
+    downloaded: [t('settings.update.downloaded', { version }), t('settings.update.installOnRestart')],
+    installing: [t('settings.update.installing'), t('settings.update.reopens')],
+    failed: [t('settings.update.failed'), ''],
+  }[state.status] || [t('settings.update.title'), ''];
   $('#update-status').textContent = label;
   $('#update-detail').textContent = state.error?.message || detail;
   $('#update-detail').classList.toggle('error', Boolean(state.error));
-  const action = updateActions[state.nextAction];
-  button.hidden = !action; if (action) button.textContent = action[0];
+  const action = { check: t('settings.update.check'), download: t('settings.update.download'), install: t('settings.update.install') }[state.nextAction];
+  button.hidden = !action; if (action) button.textContent = action;
 }
 function runUpdateAction() {
   const action = updateActions[updateState?.nextAction]; if (!action) return;
   return run(async () => {
     // Installing closes Work Fleet through the usual close, which waits for open dialogs, so settings closes first.
-    if (action[1] === 'update.install') {
-      if (dataPanel?.busy()) throw new Error('備份或還原進行中，完成後再安裝更新。');
+    if (action === 'update.install') {
+      if (dataPanel?.busy()) throw new Error(t('settings.errors.backupBusyInstall'));
       $('#settings-dialog').close();
     }
-    updateState = await native.bridge.request(action[1]); renderUpdate();
+    updateState = await native.bridge.request(action); renderUpdate();
   });
 }
 function setHostPreference(name, input) {
@@ -1394,23 +1481,28 @@ function applyLayout(patch) {
 function renderShortcutSettings() {
   const layout = workspace.layout.state; const bound = regionShortcuts(layout.shortcuts, layout.grid.slots);
   const groups = activeGroups(workspace.snapshot);
+  // Desktop hosts step through the layers they offer; the browser preview names every stage.
+  const stages = desktopInfo ? desktopStages() : [0, 1, 2, adjustStage];
+  $('#stage-hint').textContent = t('settings.shortcuts.stageHint', { stages: stages.map(stage => stageNames()[stage]).join(' → ') });
   const row = (target, name, { tile = null, label = name, empty = false, note = '' } = {}) => {
     const item = element('label', undefined, 'settings-row'); const text = element('span', undefined, 'row-text');
     const state = element('span', '', 'row-value'); state.dataset.shortcutStatus = target;
     text.append(element('span', name, empty ? 'row-label empty' : 'row-label'), element('span', note, 'row-value'), state);
-    const input = element('input'); input.dataset.shortcutTarget = target; input.placeholder = '未設定'; input.setAttribute('aria-label', `${label}的快捷鍵`);
+    const input = element('input'); input.dataset.shortcutTarget = target; input.placeholder = t('settings.shortcuts.unset');
+    input.setAttribute('aria-label', t('settings.shortcuts.inputLabel', { action: label }));
     input.value = Object.entries(bound).filter(([, value]) => value === target).map(([key]) => key).join(', ');
     input.oninput = checkShortcuts; input.onchange = applyShortcuts;
     if (tile) item.append(tile); item.append(text, input); return item;
   };
-  $('#shortcut-actions').replaceChildren(row(shortcutActions.capture, '快速記錄'), row(shortcutActions.toggle, '顯示或隱藏桌面便箋'));
-  const regions = [row(shortcutActions.all, '所有群組', { tile: $('#all-tile').content.firstElementChild.cloneNode(true),
-    note: '全部進入調整位置，再按一次回到各自的層級' })];
+  $('#shortcut-actions').replaceChildren(row(shortcutActions.capture, t('settings.shortcuts.capture')), row(shortcutActions.toggle, t('settings.shortcuts.toggle')));
+  const regions = [row(shortcutActions.all, t('app.groups.all'), { tile: $('#all-tile').content.firstElementChild.cloneNode(true),
+    note: t('settings.shortcuts.allNote') })];
   for (let number = 1; number <= 9; number++) {
     const group = groups.find(item => item.id === layout.grid.slots[number - 1]);
     const tile = element('span', String(number), group ? 'region-tile' : 'region-tile empty'); tile.setAttribute('aria-hidden', 'true');
     if (group) tile.style.setProperty('--paper', groupColor(group.id));
-    regions.push(row(regionTarget(number), group?.name || '空白', { tile, label: `區域 ${number}（${group?.name || '空白'}）`, empty: !group }));
+    const name = groupName(group) || t('settings.desktop.emptyRegion');
+    regions.push(row(regionTarget(number), name, { tile, label: t('settings.shortcuts.regionLabel', { number, group: name }), empty: !group }));
   }
   $('#shortcut-regions').replaceChildren(...regions);
   renderShortcutStatus(); checkShortcuts();
@@ -1421,11 +1513,11 @@ function readShortcuts() {
     if (!input.value.trim()) continue;
     for (const value of input.value.split(',')) {
       const key = normalizeShortcut(value);
-      if (Object.hasOwn(result, key)) throw new Error('同一快捷鍵只能指定一個動作。');
+      if (Object.hasOwn(result, key)) throw new Error(t('settings.errors.duplicateShortcut'));
       result[key] = input.dataset.shortcutTarget;
     }
   }
-  if (nativeShortcuts && Object.keys(result).length > 32) throw new Error('最多可以設定 32 組快捷鍵。');
+  if (nativeShortcuts && Object.keys(result).length > 32) throw new Error(t('settings.errors.tooManyShortcuts'));
   return validateShortcuts(result, activeGroups(workspace.snapshot));
 }
 function checkShortcuts() {
@@ -1446,8 +1538,8 @@ function previewGrid(reshape = false, apply = false) {
   const preview = $('#grid-preview'); preview.replaceChildren(); preview.style.gridTemplateColumns = `repeat(${columns},1fr)`;
   for (let i = 0; i < rows * columns; i++) {
     const cell = element('label'); const select = element('select');
-    select.setAttribute('aria-label', `區域 ${i + 1} 的群組`); select.append(new Option('空白', ''));
-    for (const group of groups) select.append(new Option(group.name, group.id));
+    select.setAttribute('aria-label', t('settings.desktop.regionGroup', { number: i + 1 })); select.append(new Option(t('settings.desktop.emptyRegion'), ''));
+    for (const group of groups) select.append(new Option(groupName(group), group.id));
     select.value = settingsSlots[i] || '';
     cell.classList.toggle('empty', !settingsSlots[i]); if (settingsSlots[i]) cell.style.setProperty('--paper', groupColor(settingsSlots[i]));
     select.onchange = () => {
@@ -1472,7 +1564,8 @@ function dragPaint(drag) {
   $('#stage').querySelectorAll('.region-label').forEach(node => {
     const target = node.dataset.groupId === drag.target?.groupId;
     node.classList.toggle('receiving', target); node.style.zIndex = drag.dragging ? '101' : '1';
-    node.textContent = `${target ? '移至 ' : ''}${activeGroups(workspace.snapshot).find(group => group.id === node.dataset.groupId)?.name || ''}`;
+    const name = groupName(activeGroups(workspace.snapshot).find(group => group.id === node.dataset.groupId));
+    node.textContent = target ? t('app.stage.moveTo', { group: name }) : name;
   });
   desktop?.publish();
 }
@@ -1491,7 +1584,9 @@ function setDrawer(open) {
 // Phones fold the search field into an app bar button.
 function setSearching(on) {
   $('.topbar').classList.toggle('searching', on);
-  $('#search-toggle').setAttribute('aria-label', on ? '結束搜尋' : '搜尋');
+  // The label follows the state, and localizeDocument() puts the same one back after a language change.
+  const toggle = $('#search-toggle'); toggle.dataset.i18nAttr = on ? 'aria-label:app.search.close' : 'aria-label:app.search.open';
+  toggle.setAttribute('aria-label', on ? t('app.search.close') : t('app.search.open'));
   if (on) $('#search').focus();
   else if ($('#search').value) { $('#search').value = ''; render(); }
 }
@@ -1511,6 +1606,11 @@ function bindEvents() {
   $('#settings-button').onclick = () => { setDrawer(false); run(() => openSettings(null)); };
   for (const item of settings.querySelectorAll('[data-page]')) item.onclick = () => run(() => showSettingsPage(item.dataset.page));
   $('#settings-back').onclick = () => run(() => showSettingsPage(null));
+  $('#language').onchange = () => run(async () => {
+    $('#language-message').hidden = true;
+    try { await changeLanguage($('#language').value); }
+    catch (error) { renderLanguageSetting(); $('#language-message').textContent = error.message; $('#language-message').hidden = false; }
+  });
   for (const id of ['#close-settings', '#close-settings-list']) $(id).onclick = () => { if (!dataPanel?.busy()) settings.close(); };
   settings.addEventListener('cancel', event => {
     if (dataPanel?.busy()) { event.preventDefault(); dataPanel.abort(); return; }
@@ -1524,7 +1624,7 @@ function bindEvents() {
   });
   // The close behind a restart refuses while any dialog is open, so settings closes first, as its own close button would.
   $('#display-restart').onclick = () => run(async () => {
-    if (dataPanel?.busy()) throw new Error('備份或還原進行中，完成後再重新啟動。');
+    if (dataPanel?.busy()) throw new Error(t('settings.errors.backupBusyRestart'));
     $('#settings-dialog').close(); await native.bridge.request('host.restart');
   });
   $('#start-login').onchange = () => setHostPreference('startAtLogin', $('#start-login'));
@@ -1532,18 +1632,18 @@ function bindEvents() {
   $('#open-main').onchange = () => setHostPreference('openMainAtLogin', $('#open-main'));
   $('#start-login-system').onclick = () => run(() => native.bridge.request('host.preferences.openSystem'));
   $('#update-action').onclick = () => runUpdateAction();
-  $('#reset-window').onclick = () => run(async () => { await native.bridge.request('host.window.resetPlacement'); status('主視窗已回到預設大小與位置'); });
+  $('#reset-window').onclick = () => run(async () => { await native.bridge.request('host.window.resetPlacement'); status(t('app.status.windowReset')); });
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
-  $('#labwc-write').onclick = () => run(async () => { await nativeShortcuts?.writeLabwc(); status('已寫入 labwc 快捷鍵設定'); });
+  $('#labwc-write').onclick = () => run(async () => { await nativeShortcuts?.writeLabwc(); status(t('app.status.labwcWritten')); });
   for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {
-    await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status('已顯示桌面便箋');
+    await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
   $('#add-group').onclick = () => groupEditor();
   $('#search').oninput = render;
-  // Board and list are this device's saved choice; the desktop canvas or layout map is only for this session and shows 待處理.
+  // Board and list are this device's saved choice; the desktop canvas or layout map is only for this session and shows To do.
   document.querySelectorAll('[data-view]').forEach(node => { node.onclick = () => run(async () => {
     const view = node.dataset.view; showDesktop = view === 'desktop';
     if (showDesktop) { filter = 'active'; if ($('#search').value) setSearching(false); }
@@ -1557,10 +1657,10 @@ function bindEvents() {
   $('#cycle-prev').onclick = () => run(() => { controller.cycle(activeGroupId, -1); render(); });
   $('#cycle-next').onclick = () => run(() => { controller.cycle(activeGroupId, 1); render(); });
   $('#stack').onclick = () => openFormation('stack'); $('#spread').onclick = () => openFormation('spread');
-  $('#undo').onclick = () => run(async () => { await workspace.undo(workAreas()); await controller.reconcile(); render(); status('已復原'); });
+  $('#undo').onclick = () => run(async () => { await workspace.undo(workAreas()); await controller.reconcile(); render(); status(t('app.status.undone')); });
   $('#formation-scope').onchange = updateFormation; $('#allow-resize').onchange = updateFormation;
   $('#cancel-formation').onclick = () => $('#formation-dialog').close();
-  $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status('排列已完成，可按復原還原'); });
+  $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status(t('app.status.arranged')); });
   $('#reset-layout').onclick = () => $('#reset-layout-dialog').showModal();
   $('#cancel-reset-layout').onclick = () => $('#reset-layout-dialog').close();
   $('#confirm-reset-layout').onclick = () => run(async () => {
@@ -1570,7 +1670,7 @@ function bindEvents() {
     currentDraft = null; controller.cancelDrag(); await controller.activate({ kind: 'none' });
     await workspace.layout.reset(workspace.snapshot, screenArea());
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); await controller.reconcile();
-    $('#reset-layout-dialog').close(); renderDesktopSettings(); render(); status('桌面佈局已重置');
+    $('#reset-layout-dialog').close(); renderDesktopSettings(); render(); status(t('app.status.layoutReset'));
   });
   $('#editor-text').oninput = () => { if (!currentDraft || editorBusy) return; currentDraft.content.text = $('#editor-text').value; queueDraft(); };
   // A blank title is left out, so a paper falls back to its first line and an empty draft is still empty.
@@ -1590,7 +1690,7 @@ function bindEvents() {
       const { title, text } = currentDraft.content;
       const bytes = new TextEncoder().encode(title ? `${title}\n\n${text}` : text);
       const result = await nativeFiles.export(bytes, 'work-fleet-note.md', bytes.length <= 128 * 1024 ? 'shareText' : 'share');
-      status(result.completed ? '已開啟便箋文字分享' : '已取消分享');
+      status(result.completed ? t('app.status.noteShared') : t('app.status.shareCancelled'));
     } finally { setEditorBusy(false); }
   });
   $('#insert-task').onclick = () => { if (editorBusy) return; const text = $('#editor-text'); showEditorTab(false); text.setRangeText('- [ ] ', text.selectionStart, text.selectionEnd, 'end'); currentDraft.content.text = text.value; queueDraft(); text.focus(); };
@@ -1604,12 +1704,12 @@ function bindEvents() {
   $('#close-capture').onclick = () => { if (!captureBusy) $('#capture-inbox-dialog').close(); };
   $('#capture-inbox-dialog').addEventListener('cancel', event => { if (captureBusy) event.preventDefault(); });
   $('#accept-capture').onclick = () => run(async () => {
-    if (captureBusy || !selectedCapture) return; captureBusy = true; $('#accept-capture').disabled = true; $('#discard-capture').disabled = true; $('#capture-group').disabled = true; $('#capture-result').textContent = '正在保存分享草稿…';
+    if (captureBusy || !selectedCapture) return; captureBusy = true; $('#accept-capture').disabled = true; $('#discard-capture').disabled = true; $('#capture-group').disabled = true; $('#capture-result').textContent = t('app.shareInbox.saving');
     try {
       const result = await captureInbox.accept(selectedCapture, $('#capture-group').value); selectedCapture = null;
       render(); await refreshCaptures(true); $('#capture-inbox-dialog').close();
       if (result.draftId) await openEditor(null, workspace.state.drafts[result.draftId]);
-      else status('此分享已接收為便箋。');
+      else status(t('app.shareInbox.accepted'));
     } catch (error) { render(); $('#capture-result').textContent = error.message; throw error; }
     finally { captureBusy = false; $('#capture-group').disabled = false; $('#accept-capture').disabled = !selectedCapture || Boolean(selectedCapture.damaged); $('#discard-capture').disabled = !selectedCapture; }
   });
@@ -1629,9 +1729,9 @@ function bindEvents() {
   $('#drafts-button').onclick = () => {
     const list = $('#draft-list'); list.replaceChildren();
     for (const draft of Object.values(workspace.state.drafts)) {
-      const row = element('div', undefined, 'draft-row'); row.append(element('p', (draft.content.title || draft.content.text).slice(0, 110) || '空白草稿'), button('繼續編輯', () => { $('#drafts-dialog').close(); return openEditor(null, draft); })); list.append(row);
+      const row = element('div', undefined, 'draft-row'); row.append(element('p', (draft.content.title || draft.content.text).slice(0, 110) || t('app.drafts.blank')), button(t('app.drafts.resume'), () => { $('#drafts-dialog').close(); return openEditor(null, draft); })); list.append(row);
     }
-    if (!list.children.length) list.append(element('p', '沒有未完成草稿。')); $('#drafts-dialog').showModal();
+    if (!list.children.length) list.append(element('p', t('app.drafts.none'))); $('#drafts-dialog').showModal();
   };
   $('#close-drafts').onclick = () => $('#drafts-dialog').close();
   $('#conflicts-button').onclick = () => run(async () => {
@@ -1670,7 +1770,7 @@ function bindEvents() {
       renderSelection();
     }
     else if (result.kind !== 'ignored') { if (controller.state.activeGroupId) activeGroupId = controller.state.activeGroupId; render(); }
-    if (result.kind === 'transferred') status('已移至新群組，可按復原');
+    if (result.kind === 'transferred') status(t('app.status.movedToGroup'));
   });
   stage.onpointercancel = () => { controller.cancelDrag(); render(); };
   stage.addEventListener('lostpointercapture', () => { if (controller.cancelDrag()) render(); });

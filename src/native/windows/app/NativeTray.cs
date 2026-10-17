@@ -1,10 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using WorkFleet.Windows.Core;
 
 namespace WorkFleet.Windows;
 
-/// <summary>Owned shell notification icon and native keyboard-accessible menu. No external process manipulation.</summary>
+/// <summary>
+/// Owned shell notification icon and native keyboard-accessible menu. No external process manipulation. Labels and the
+/// tooltip come from HostText, so the menu follows the display language each time it opens.
+/// </summary>
 public sealed class NativeTray : IDisposable
 {
   private const int Callback = 0x8001;
@@ -17,7 +21,7 @@ public sealed class NativeTray : IDisposable
   // At sign-in the notification area can time out or not exist yet, so a failed add is retried every 2 s for a minute (ADR-043).
   private readonly DispatcherTimer retry = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(2) };
   private int attempts;
-  private string tip = "Work Fleet · 記錄與桌面便箋";
+  private string tip = HostText.Get("tray.tip");
   private bool disposed;
   public bool Available { get; private set; }
   /// <summary>Raised when the icon appears or goes away; a failed retry of an icon that was never there is not a change.</summary>
@@ -38,10 +42,10 @@ public sealed class NativeTray : IDisposable
   private NotifyData Data() => new() { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = receiver.Handle, Id = 1,
     Flags = 1 | 2 | 4 | 0x80, Message = Callback, Icon = icon,
     Tip = tip, Info = "", Title = "", Version = 4 };
-  /// <summary>An open menu does not repaint, so update progress shows in the tooltip instead.</summary>
+  /// <summary>An open menu does not repaint, so update progress shows in the tooltip instead; null shows the usual tooltip.</summary>
   public void SetTip(string? text)
   {
-    tip = string.IsNullOrEmpty(text) ? "Work Fleet · 記錄與桌面便箋" : text.Length > 120 ? text[..120] : text;
+    tip = string.IsNullOrEmpty(text) ? HostText.Get("tray.tip") : text.Length > 120 ? text[..120] : text;
     if (disposed || !Available) return; var value = Data(); _ = Shell_NotifyIconW(1, ref value);
   }
   private void Add()
@@ -78,9 +82,9 @@ public sealed class NativeTray : IDisposable
     try
     {
       MenuActive?.Invoke(true);
-      var choices = new[] { ("show", "開啟主畫面"), ("@capture", "快速記錄"), ("@all", "調整所有便箋"),
-        ("@stop", "完成調整"), ("@toggle", "顯示／隱藏桌面便箋"), ("@hide", "收起主畫面") }
-        .Concat(updates ? [("update", "檢查更新…")] : Array.Empty<(string, string)>()).Append(("exit", "保存並結束 Work Fleet")).ToArray();
+      var choices = new[] { ("show", HostText.Get("tray.openMain")), ("@capture", HostText.Get("tray.quickCapture")), ("@all", HostText.Get("tray.adjustAll")),
+        ("@stop", HostText.Get("tray.finishAdjusting")), ("@toggle", HostText.Get("tray.toggleDesktop")), ("@hide", HostText.Get("tray.hideMain")) }
+        .Concat(updates ? [("update", HostText.Get("tray.checkUpdates"))] : Array.Empty<(string, string)>()).Append(("exit", HostText.Get("tray.quit"))).ToArray();
       for (var i = 0; i < choices.Length; i++) if (!AppendMenuW(menu, 0, (UIntPtr)(i + 1), choices[i].Item2)) return;
       var packed = coordinates.ToInt64(); var x = (int)(short)(packed & 0xffff); var y = (int)(short)((packed >> 16) & 0xffff);
       if (x == -1 && y == -1) { _ = GetCursorPos(out var point); x = point.X; y = point.Y; }

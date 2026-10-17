@@ -79,7 +79,7 @@ public sealed class HostShell(string directory, bool launchedAtLogin, string dis
       startAtLogin = new
       {
         available, enabled = state is "enabled" or "enabled-by-policy", preference = Preferences.StartAtLogin, state,
-        reason = available ? null : StartupSupported ? "Windows 目前無法讀取登入啟動設定。" : "只有安裝版（MSIX）支援登入時啟動。",
+        reason = available ? null : HostText.Get(StartupSupported ? "reason.startupUnreadable" : "reason.startupNeedsMsix"),
         systemSettings = available
       },
       closeToTray = new { available = trayAvailable, enabled = Preferences.CloseToTray },
@@ -91,12 +91,20 @@ public sealed class HostShell(string directory, bool launchedAtLogin, string dis
   {
     var next = Preferences.With(name, value);
     try { next.Write(Directory); }
-    catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new HostError("preferences-write", "無法保存啟動行為設定，請稍後重試。"); }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new HostError("preferences-write", "Couldn't save the startup setting. Try again later."); }
     Preferences = next;
     if (name == "startAtLogin") await SyncStartup();
     return await Describe(trayAvailable);
   }
-  /// <summary>Remembers the last update check; losing it only changes the 上次檢查 time shown.</summary>
+  /// <summary>Stores the display language with the other preferences; HostText applies it.</summary>
+  public void SetLanguage(string preference)
+  {
+    var next = Preferences.WithLanguage(preference);
+    try { next.Write(Directory); }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new HostError("preferences-write", "Couldn't save the display language. Try again later."); }
+    Preferences = next;
+  }
+  /// <summary>Remembers the last update check; losing it only changes the "Last checked" time shown.</summary>
   public void RecordUpdateCheck(string time)
   {
     var next = Preferences with { LastUpdateCheck = time };
@@ -104,8 +112,8 @@ public sealed class HostShell(string directory, bool launchedAtLogin, string dis
   }
   public static void OpenSystemSettings()
   {
-    HostError.Require(StartupSupported, "startup-unavailable", "只有安裝版（MSIX）支援登入時啟動。");
+    HostError.Require(StartupSupported, "startup-unavailable", "Only the installed version (MSIX) can start at sign-in.");
     try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("ms-settings:startupapps") { UseShellExecute = true }); }
-    catch { throw new HostError("startup-settings", "無法開啟 Windows 的啟動應用程式設定。"); }
+    catch { throw new HostError("startup-settings", "Couldn't open the Windows startup apps settings."); }
   }
 }

@@ -1,41 +1,41 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f4f0e6">
-  <title>Work Fleet · 我的 Backlog</title>
+  <title>Work Fleet · My Backlog</title>
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-  <header><div><small>WORK FLEET</small><h1>我的 Backlog</h1></div><button id="settings-toggle">連線與裝置</button></header>
-  <p id="connection-state" role="status">正在連線…</p>
+  <header><div><small>WORK FLEET</small><h1>My Backlog</h1></div><button id="settings-toggle">Connection and devices</button></header>
+  <p id="connection-state" role="status">Connecting…</p>
   <section id="pairing" hidden>
-    <h2>連接你的便箋</h2><p>輸入邀請碼，或掃描已配對 Mac 的 QR。此頁只連接目前網址的 server。</p>
-    <form id="pair-form"><label>裝置名稱<input id="device-name" value="Browser" maxlength="80" required></label>
-      <label>一次性配對碼<input id="pair-code" autocomplete="off" required></label><button>配對</button></form>
+    <h2>Connect your notes</h2><p>Enter an invite code, or scan the QR code on a paired Mac. This page connects only to the server at this address.</p>
+    <form id="pair-form"><label>Device name<input id="device-name" value="Browser" maxlength="80" required></label>
+      <label>One-time pairing code<input id="pair-code" autocomplete="off" required></label><button>Pair</button></form>
   </section>
   <section id="composer">
-    <h2 id="editor-title">隨手記一件事</h2>
+    <h2 id="editor-title">Capture a thought</h2>
     <form id="note-form">
-      <label class="sr-only" for="note-text">便箋內容</label>
-      <textarea id="note-text" placeholder="想到什麼，先記下來…\n可用 - [ ] 待辦、- [x] 已完成" maxlength="12000" required></textarea>
-      <div class="row"><label>便箋群組<input id="note-board" value="Inbox" maxlength="80" required></label>
-        <label>狀態<select id="note-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="done">Done</option></select></label>
-        <button id="save">保存</button><button type="button" id="new-draft">新記錄</button></div>
+      <label class="sr-only" for="note-text">Note text</label>
+      <textarea id="note-text" placeholder="Write it down before it slips away…\nUse - [ ] for to do and - [x] for done" maxlength="12000" required></textarea>
+      <div class="row"><label>Group<input id="note-board" value="Inbox" maxlength="80" required></label>
+        <label>Status<select id="note-status"><option value="todo">Todo</option><option value="in_progress">In Progress</option><option value="done">Done</option></select></label>
+        <button id="save">Save</button><button type="button" id="new-draft">New note</button></div>
     </form>
-    <p id="draft-state" role="status">草稿只保留在這個裝置，保存後才同步。</p>
+    <p id="draft-state" role="status">Drafts stay on this device and sync only after you save.</p>
     <div id="conflict" hidden><p id="conflict-message"></p><pre id="current-note"></pre>
-      <button id="copy-draft">將草稿另存為新便箋</button></div>
+      <button id="copy-draft">Save draft as a new note</button></div>
   </section>
-  <details id="drafts-panel"><summary>保留的草稿 <span id="draft-count"></span></summary><div id="drafts"></div></details>
-  <nav aria-label="檢視"><button data-view="active" aria-pressed="true">未完成</button><button data-view="done">Done</button><button data-view="trash">已刪除</button><button id="refresh">重新同步</button></nav>
-  <main id="notes" aria-label="便箋"></main>
-  <section id="settings" hidden><h2>連線與裝置</h2><p id="server-address"></p>
-    <button id="export-drafts">匯出本機草稿</button><button id="re-pair">重新配對</button>
-    <div id="admin" hidden><h3>裝置配對</h3><label>新裝置權限<select id="invite-role"><option value="editor">可編輯</option><option value="viewer">唯讀</option></select></label>
-      <button id="make-invite">產生 5 分鐘邀請</button><p id="invite-result"></p><div id="devices"></div></div>
+  <details id="drafts-panel"><summary>Kept drafts <span id="draft-count"></span></summary><div id="drafts"></div></details>
+  <nav aria-label="Views"><button data-view="active" aria-pressed="true">Open</button><button data-view="done">Done</button><button data-view="trash">Deleted</button><button id="refresh">Sync again</button></nav>
+  <main id="notes" aria-label="Notes"></main>
+  <section id="settings" hidden><h2>Connection and devices</h2><p id="server-address"></p>
+    <button id="export-drafts">Export local drafts</button><button id="re-pair">Pair again</button>
+    <div id="admin" hidden><h3>Device pairing</h3><label>New device access<select id="invite-role"><option value="editor">Can edit</option><option value="viewer">Read only</option></select></label>
+      <button id="make-invite">Create a 5-minute invite</button><p id="invite-result"></p><div id="devices"></div></div>
   </section>
-  <footer>桌面鎖定只防止誤觸。其他裝置仍可同步與編輯。</footer>
+  <footer>Locking the desktop note only prevents accidental clicks. Other devices can still sync and edit.</footer>
 </body>
 </html>

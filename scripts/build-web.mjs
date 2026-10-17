@@ -19,7 +19,7 @@ export async function buildWebAssets({
   await mkdir(path.dirname(configDestination), { recursive: true });
   await writeFile(configDestination, JSON.stringify(config, null, 2) + '\n');
   await mkdir(destination, { recursive: true });
-  for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources', 'backup', 'desktop']) {
+  for (const folder of ['app', 'core', 'layout', 'interaction', 'storage', 'sources', 'backup', 'desktop', 'i18n']) {
     await cp(path.join(root, 'src', folder), path.join(destination, folder), { recursive: true });
   }
   await mkdir(path.join(destination, 'native'), { recursive: true });

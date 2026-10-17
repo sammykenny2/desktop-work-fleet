@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -12,105 +12,112 @@
   <script type="module" src="main.js"></script>
 </head>
 <body>
-  <aside class="sidebar" id="sidebar" aria-label="側欄">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">w.</span><div>Work Fleet<small>留住想法，開始下一步。</small></div></div>
-    <button id="new-card" class="primary">＋ 記下想法</button>
-    <div class="section-label">我的群組 <button id="add-group" aria-label="新增群組">＋</button></div>
-    <nav id="groups" aria-label="群組"></nav>
-    <nav class="sidebar-links" aria-label="草稿與版本">
-      <button id="drafts-button" hidden>未完成草稿 <span id="draft-count">0</span></button>
-      <button id="capture-inbox-button" hidden>分享收件匣 <span id="capture-count">0</span></button>
-      <button id="conflicts-button">版本與衝突 <span id="conflict-count" hidden>0</span></button>
+  <aside class="sidebar" id="sidebar" data-i18n-attr="aria-label:app.sidebar.label">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">w.</span><div>Work Fleet<small data-i18n="app.sidebar.tagline"></small></div></div>
+    <button id="new-card" class="primary" data-i18n="app.sidebar.capture"></button>
+    <div class="section-label"><span data-i18n="app.sidebar.groups"></span> <button id="add-group" data-i18n-attr="aria-label:app.sidebar.addGroup">&#xFF0B;</button></div>
+    <nav id="groups" data-i18n-attr="aria-label:app.sidebar.groupsLabel"></nav>
+    <nav class="sidebar-links" data-i18n-attr="aria-label:app.sidebar.linksLabel">
+      <button id="drafts-button" hidden><bdi data-i18n="app.drafts.title"></bdi> <span id="draft-count">0</span></button>
+      <button id="capture-inbox-button" hidden><bdi data-i18n="app.shareInbox.title"></bdi> <span id="capture-count">0</span></button>
+      <button id="conflicts-button"><bdi data-i18n="app.sidebar.conflicts"></bdi> <span id="conflict-count" hidden>0</span></button>
     </nav>
     <div id="account" class="account" data-sync="off">
-      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span></span><span class="account-text"><span id="account-name">本機便箋</span><span id="sync-status">正在開啟本機資料…</span></span></button>
-      <button id="settings-button" class="icon-button" aria-label="設定" title="設定（Ctrl+,）"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
+      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span></span><span class="account-text"><span id="account-name"></span><span id="sync-status"></span></span></button>
+      <button id="settings-button" class="icon-button" data-i18n-attr="aria-label:settings.title;title:app.sidebar.settingsTitle"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
     </div>
   </aside>
   <div id="scrim" hidden></div>
   <main>
     <header class="topbar">
-      <button id="drawer-toggle" class="icon-button" aria-label="開啟側欄" aria-controls="sidebar" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg><span id="attention-dot" hidden></span></button>
-      <h1 id="workspace-title">我的便箋</h1>
-      <div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜尋內容…" aria-label="搜尋便箋"></label>
-      <button id="search-toggle" class="icon-button" aria-label="搜尋"><svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><svg class="icon close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <button id="drawer-toggle" class="icon-button" data-i18n-attr="aria-label:app.topbar.openSidebar" aria-controls="sidebar" aria-expanded="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg><span id="attention-dot" hidden></span></button>
+      <h1 id="workspace-title"></h1>
+      <div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" data-i18n-attr="placeholder:app.search.placeholder;aria-label:app.search.label"></label>
+      <button id="search-toggle" class="icon-button" data-i18n-attr="aria-label:app.search.open"><svg class="icon search-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><svg class="icon close-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
     </header>
-    <div class="toolbar" data-arrange aria-label="便箋操作">
-      <div><button id="operate-group">調整此組</button><button id="operate-all">調整全部</button><button id="stop-operation" hidden>完成</button></div>
-      <div><button id="cycle-prev" title="上一張">←</button><button id="cycle-next" title="下一張">→</button><span class="divider"></span><button id="stack">堆疊</button><button id="spread">攤開</button><button id="undo">復原</button></div>
+    <div class="toolbar" data-arrange data-i18n-attr="aria-label:app.toolbar.label">
+      <div><button id="operate-group" data-i18n="app.toolbar.adjustGroup"></button><button id="operate-all" data-i18n="app.toolbar.adjustAll"></button><button id="stop-operation" hidden data-i18n="common.done"></button></div>
+      <div><button id="cycle-prev" data-i18n-attr="title:app.toolbar.previous">←</button><button id="cycle-next" data-i18n-attr="title:app.toolbar.next">→</button><span class="divider"></span><button id="stack" data-i18n="app.toolbar.stack"></button><button id="spread" data-i18n="app.toolbar.spread"></button><button id="undo" data-i18n="app.toolbar.undo"></button></div>
     </div>
     <div class="view-bar">
-      <div class="view-filters"><button data-filter="active" class="active">待處理</button><button data-filter="completed">已完成</button><button data-filter="archived">封存</button><button data-filter="deleted">刪除區</button></div>
+      <div class="view-filters"><button data-filter="active" class="active" data-i18n="app.filters.active"></button><button data-filter="completed" data-i18n="app.filters.completed"></button><button data-filter="archived" data-i18n="app.filters.archived"></button><button data-filter="deleted" data-i18n="app.filters.deleted"></button></div>
       <span id="count"></span>
-      <div class="view-switch" role="group" aria-label="檢視方式">
-        <button type="button" data-view="board" aria-pressed="true" title="便箋"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span>便箋</span></button>
-        <button type="button" data-view="list" aria-pressed="false" title="清單"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="4" height="4" rx=".8"/><rect x="4" y="15" width="4" height="4" rx=".8"/><path d="M11 7h9M11 17h9"/></svg><span>清單</span></button>
-        <button type="button" data-view="desktop" data-arrange aria-pressed="false" title="桌面"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg><span id="desktop-view-label">桌面</span></button>
+      <div class="view-switch" role="group" data-i18n-attr="aria-label:app.views.label">
+        <button type="button" data-view="board" aria-pressed="true" data-i18n-attr="title:app.views.board"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span data-i18n="app.views.board"></span></button>
+        <button type="button" data-view="list" aria-pressed="false" data-i18n-attr="title:app.views.list"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="4" height="4" rx=".8"/><rect x="4" y="15" width="4" height="4" rx=".8"/><path d="M11 7h9M11 17h9"/></svg><span data-i18n="app.views.list"></span></button>
+        <button type="button" data-view="desktop" data-arrange aria-pressed="false"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg><span id="desktop-view-label"></span></button>
       </div>
     </div>
-    <div id="desktop-hidden" hidden><div><strong>桌面便箋已隱藏</strong><p id="desktop-hidden-text"></p></div><button id="show-desktop" class="primary">顯示桌面便箋</button></div>
-    <div id="stage-shell"><div id="stage" aria-label="便箋桌面"></div><div id="empty" hidden><div class="empty-paper">＋</div><h2>先記下一件事。</h2><p>一個想法、一個待辦，都可以從這裡開始。</p><button id="empty-add" class="primary">新增第一張便箋</button></div></div>
-    <section id="layout-map" aria-label="版面地圖" hidden><h2>版面地圖尚未提供</h2><p>之後會在這裡縮小顯示所有螢幕、群組區域與便箋位置。</p><p>要移動便箋，請按「調整此組」或「調整全部」，直接在桌面上拖拉。</p></section>
-    <section id="list" aria-label="便箋" hidden></section>
-    <footer><span id="mode-label" data-arrange>鎖定中</span><span id="status" role="status" aria-live="polite">正在載入…</span></footer>
-    <button id="compose" class="primary" aria-label="記下想法"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <div id="desktop-hidden" hidden><div><strong data-i18n="app.desktopHidden.title"></strong><p id="desktop-hidden-text"></p></div><button id="show-desktop" class="primary" data-i18n="app.desktopHidden.show"></button></div>
+    <div id="stage-shell"><div id="stage" data-i18n-attr="aria-label:app.stage.label"></div><div id="empty" hidden><div class="empty-paper">&#xFF0B;</div><h2 data-i18n="app.empty.title"></h2><p data-i18n="app.empty.text"></p><button id="empty-add" class="primary" data-i18n="app.empty.add"></button></div></div>
+    <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p></section>
+    <section id="list" hidden></section>
+    <footer><span id="mode-label" data-arrange></span><span id="status" role="status" aria-live="polite"></span></footer>
+    <button id="compose" class="primary" data-i18n-attr="aria-label:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>
   <dialog id="capture-inbox-dialog">
-    <h2>分享收件匣</h2><p>選擇群組後，內容將保留為目前工作空間的草稿。</p>
+    <h2 data-i18n="app.shareInbox.title"></h2><p data-i18n="app.shareInbox.hint"></p>
     <div id="capture-list"></div>
     <pre id="capture-preview" hidden></pre><ul id="capture-files"></ul>
-    <label class="field">接收群組<select id="capture-group"></select></label>
+    <label class="field"><span data-i18n="app.groups.receiving"></span><select id="capture-group"></select></label>
     <p id="capture-result" role="status"></p>
-    <div class="dialog-actions"><button id="close-capture">關閉</button><button id="discard-capture" disabled>捨棄此分享</button><button id="accept-capture" class="primary" disabled>接收為草稿</button></div>
+    <div class="dialog-actions"><button id="close-capture" data-i18n="common.close"></button><button id="discard-capture" disabled data-i18n="app.shareInbox.discard"></button><button id="accept-capture" class="primary" disabled data-i18n="app.shareInbox.accept"></button></div>
   </dialog>
   <dialog id="discard-capture-dialog">
-    <h2>捨棄此分享？</h2><p>這會移除收件匣中的這份分享。</p>
-    <div class="dialog-actions"><button id="cancel-discard-capture">取消</button><button id="confirm-discard-capture">確認捨棄</button></div>
+    <h2 data-i18n="app.shareInbox.discardTitle"></h2><p data-i18n="app.shareInbox.discardText"></p>
+    <div class="dialog-actions"><button id="cancel-discard-capture" data-i18n="common.cancel"></button><button id="confirm-discard-capture" data-i18n="app.shareInbox.confirmDiscard"></button></div>
   </dialog>
   <dialog id="editor-dialog">
     <form id="editor-form">
-      <header><div><span class="eyebrow">一張便箋，一件事情</span><h2 id="editor-title">記下想法</h2></div><button type="button" id="close-editor" aria-label="保留草稿並關閉">✕</button></header>
-      <label class="field">所屬群組<select id="editor-group"></select></label>
-      <label class="field">標題（選填）<input id="editor-heading" type="text" placeholder="沒填時，便箋以內文第一行當標題" autocomplete="off"></label>
-      <div class="editor-tabs"><button type="button" id="edit-tab" aria-pressed="true">編輯</button><button type="button" id="preview-tab" aria-pressed="false">預覽 / checklist</button><button type="button" id="insert-task">＋ Checklist</button><button type="button" id="share-note" hidden>分享文字</button></div>
-      <textarea id="editor-text" placeholder="想記住什麼？支援 Markdown 與 - [ ] 待辦步驟。" aria-label="便箋內容" spellcheck="false"></textarea>
+      <header><div><span class="eyebrow" data-i18n="app.editor.eyebrow"></span><h2 id="editor-title"></h2></div><button type="button" id="close-editor" data-i18n-attr="aria-label:app.editor.closeKeep">✕</button></header>
+      <label class="field"><span data-i18n="app.editor.group"></span><select id="editor-group"></select></label>
+      <label class="field"><span data-i18n="app.editor.heading"></span><input id="editor-heading" type="text" data-i18n-attr="placeholder:app.editor.headingPlaceholder" autocomplete="off"></label>
+      <div class="editor-tabs"><button type="button" id="edit-tab" aria-pressed="true" data-i18n="app.editor.editTab"></button><button type="button" id="preview-tab" aria-pressed="false" data-i18n="app.editor.previewTab"></button><button type="button" id="insert-task" data-i18n="app.editor.insertTask"></button><button type="button" id="share-note" hidden data-i18n="app.editor.shareText"></button></div>
+      <textarea id="editor-text" data-i18n-attr="placeholder:app.editor.textPlaceholder;aria-label:app.editor.textLabel" spellcheck="false"></textarea>
       <div id="editor-preview" class="markdown" hidden></div>
       <ul id="attachments"></ul>
-      <div class="editor-bottom"><label class="file-button">＋ 附件<input id="attachment-input" type="file" multiple hidden></label><span id="draft-status" role="status"></span></div>
-      <div class="dialog-actions"><button type="button" id="save-copy" hidden>另存副本</button><button type="button" id="keep-draft">保留草稿</button><button type="submit" class="primary">保存便箋</button></div>
+      <div class="editor-bottom"><label class="file-button"><span data-i18n="app.editor.attach"></span><input id="attachment-input" type="file" multiple hidden></label><span id="draft-status" role="status"></span></div>
+      <div class="dialog-actions"><button type="button" id="save-copy" hidden data-i18n="app.editor.saveCopy"></button><button type="button" id="keep-draft" data-i18n="app.editor.keepDraft"></button><button type="submit" class="primary" data-i18n="app.editor.save"></button></div>
     </form>
   </dialog>
   <dialog id="formation-dialog">
-    <h2 id="formation-title">排列便箋</h2><p>這次排列會召回指定範圍的便箋；其他群組保持原位。</p>
-    <label class="field">範圍<select id="formation-scope"><option value="group">目前群組</option><option value="all">所有群組</option></select></label>
-    <label class="check"><input id="allow-resize" type="checkbox">允許這次調整卡片大小</label>
+    <h2 id="formation-title"></h2><p data-i18n="app.formation.hint"></p>
+    <label class="field"><span data-i18n="app.formation.scope"></span><select id="formation-scope"><option value="group" data-i18n="app.formation.scopeGroup"></option><option value="all" data-i18n="app.groups.all"></option></select></label>
+    <label class="check"><input id="allow-resize" type="checkbox"><span data-i18n="app.formation.allowResize"></span></label>
     <p id="formation-description" role="status"></p>
-    <div class="dialog-actions"><button id="cancel-formation">取消</button><button id="apply-formation" class="primary">套用排列</button></div>
+    <div class="dialog-actions"><button id="cancel-formation" data-i18n="common.cancel"></button><button id="apply-formation" class="primary" data-i18n="app.formation.apply"></button></div>
   </dialog>
   <dialog id="settings-dialog" class="settings" aria-labelledby="settings-title">
     <div class="settings-shell">
-      <nav class="settings-nav" aria-label="設定分頁">
-        <div class="nav-head"><h2 id="settings-title">設定</h2><button type="button" id="close-settings-list" class="icon-button" aria-label="關閉設定"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+      <nav class="settings-nav" data-i18n-attr="aria-label:settings.nav.label">
+        <div class="nav-head"><h2 id="settings-title" data-i18n="settings.title"></h2><button type="button" id="close-settings-list" class="icon-button" data-i18n-attr="aria-label:settings.nav.close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
         <div class="nav-list">
-        <button type="button" data-page="account"><span class="tile tile-account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.2-3.6 4-5.3 7-5.3s5.8 1.7 7 5.3"/></svg></span><span class="nav-label">帳號與同步</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" data-page="data"><span class="tile tile-data"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="5" rx="1.2"/><path d="M5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4"/></svg></span><span class="nav-label">資料與備份</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" data-page="desktop" data-arrange><span class="tile tile-desktop"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg></span><span class="nav-label">桌面</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" data-page="shortcuts" data-arrange><span class="tile tile-shortcuts"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M7.5 14h9"/></svg></span><span class="nav-label">快捷鍵</span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="general"><span class="tile tile-general"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/></svg></span><span class="nav-label" data-i18n="settings.general.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="account"><span class="tile tile-account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.2-3.6 4-5.3 7-5.3s5.8 1.7 7 5.3"/></svg></span><span class="nav-label" data-i18n="settings.account.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="data"><span class="tile tile-data"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="5" rx="1.2"/><path d="M5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4"/></svg></span><span class="nav-label" data-i18n="settings.data.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="desktop" data-arrange><span class="tile tile-desktop"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg></span><span class="nav-label" data-i18n="settings.desktop.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="shortcuts" data-arrange><span class="tile tile-shortcuts"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M7.5 14h9"/></svg></span><span class="nav-label" data-i18n="settings.shortcuts.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         </div>
       </nav>
       <div class="settings-main">
         <header class="settings-head">
-          <button type="button" id="settings-back" class="icon-button" aria-label="返回設定"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
-          <h3 id="settings-page-title">帳號與同步</h3>
-          <button type="button" id="close-settings" class="icon-button" aria-label="關閉設定"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+          <button type="button" id="settings-back" class="icon-button" data-i18n-attr="aria-label:settings.nav.back"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
+          <h3 id="settings-page-title"></h3>
+          <button type="button" id="close-settings" class="icon-button" data-i18n-attr="aria-label:settings.nav.close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         </header>
         <div class="settings-body">
-          <section class="settings-page" data-panel="account">
-            <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span></span><div><strong id="identity-name">本機便箋</strong><p id="storage-note">正在開啟本機資料…</p></div></div>
+          <section class="settings-page" data-panel="general" hidden>
             <div class="settings-list">
-              <div class="settings-row" id="sync-row" hidden><span class="row-text"><span class="row-label">同步</span><span class="row-value" id="sync-detail"></span></span><button type="button" id="google-sync">立即同步</button></div>
-              <div class="settings-row" id="google-row" hidden><span class="row-text"><span class="row-label">Google 帳號</span><span class="row-value" id="google-value">未登入</span></span><span class="row-actions"><button type="button" id="google-sign-in" hidden>登入</button><button type="button" id="google-sign-out" hidden>登出</button></span></div>
-              <div class="settings-row" id="local-row" hidden><span class="row-text"><span class="row-label">本機便箋</span><span class="row-value">只存在這台裝置、不會同步</span></span><button type="button" id="google-local">切換</button></div>
+              <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.general.language"></span><span class="row-value" data-i18n="settings.general.languageHint"></span></span><select id="language" data-i18n-attr="aria-label:settings.general.language"></select></label>
+            </div>
+            <p id="language-message" class="settings-note error" role="status" hidden></p>
+          </section>
+          <section class="settings-page" data-panel="account">
+            <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span></span><div><strong id="identity-name"></strong><p id="storage-note"></p></div></div>
+            <div class="settings-list">
+              <div class="settings-row" id="sync-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.row.label"></span><span class="row-value" id="sync-detail"></span></span><button type="button" id="google-sync"></button></div>
+              <div class="settings-row" id="google-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.account.google"></span><span class="row-value" id="google-value"></span></span><span class="row-actions"><button type="button" id="google-sign-in" hidden></button><button type="button" id="google-sign-out" hidden data-i18n="sync.google.signOut"></button></span></div>
+              <div class="settings-row" id="local-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.account.localNotes"></span><span class="row-value" data-i18n="sync.local.detail"></span></span><button type="button" id="google-local" data-i18n="sync.local.switch"></button></div>
             </div>
             <p class="settings-note" id="account-detail" hidden></p>
           </section>
@@ -118,54 +125,54 @@
           <section class="settings-page" data-panel="desktop" hidden>
             <p class="settings-note warn" id="desktop-note" hidden></p>
             <div class="settings-list">
-              <div class="settings-row" id="display-row" hidden><span class="row-text"><span class="row-label">以 XWayland 顯示桌面便箋</span><span class="row-value" id="display-detail"></span></span><span class="row-actions"><button type="button" id="display-restart" hidden>立即重新啟動</button><input id="display-xwayland" class="switch" type="checkbox" aria-label="以 XWayland 顯示桌面便箋"></span></div>
-              <label class="settings-row"><span class="row-text"><span class="row-label">鎖定時也顯示便箋</span><span class="row-value">關閉後，便箋只在調整時出現在桌面上。</span></span><input id="desktop-visible" class="switch" type="checkbox"></label>
-              <label class="settings-row"><span class="row-text"><span class="row-label">我的群組</span><span class="row-value">這一組的便箋會加上強調色邊。</span></span><select id="my-group"></select></label>
+              <div class="settings-row" id="display-row" hidden><span class="row-text"><span class="row-label" data-i18n="settings.desktop.display.label"></span><span class="row-value" id="display-detail"></span></span><span class="row-actions"><button type="button" id="display-restart" hidden data-i18n="settings.desktop.display.restart"></button><input id="display-xwayland" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.display.label"></span></div>
+              <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.visible"></span><span class="row-value" data-i18n="settings.desktop.visibleHint"></span></span><input id="desktop-visible" class="switch" type="checkbox"></label>
+              <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.myGroup"></span><span class="row-value" data-i18n="settings.desktop.myGroupHint"></span></span><select id="my-group"></select></label>
             </div>
-            <h4 class="settings-heading">群組區域</h4>
-            <p class="hint">整理便箋時，每個群組會排進自己的區域。</p>
-            <div class="grid-size"><label>列<select id="grid-rows" aria-label="列數"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label>欄<select id="grid-columns" aria-label="欄數"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
-            <div id="grid-preview" aria-label="區域配置"></div>
+            <h4 class="settings-heading" data-i18n="settings.desktop.regions"></h4>
+            <p class="hint" data-i18n="settings.desktop.regionsHint"></p>
+            <div class="grid-size"><label><span data-i18n="settings.desktop.rows"></span><select id="grid-rows" data-i18n-attr="aria-label:settings.desktop.rowCount"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label><span data-i18n="settings.desktop.columns"></span><select id="grid-columns" data-i18n-attr="aria-label:settings.desktop.columnCount"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
+            <div id="grid-preview" data-i18n-attr="aria-label:settings.desktop.regionLayout"></div>
             <p id="grid-message" class="settings-note error" role="status" hidden></p>
             <div id="host-settings" hidden>
-              <h4 class="settings-heading">啟動行為</h4>
+              <h4 class="settings-heading" data-i18n="settings.desktop.startup"></h4>
               <div class="settings-list">
-                <div class="settings-row"><span class="row-text"><span class="row-label">登入電腦時啟動 Work Fleet</span><span class="row-value" id="start-login-detail"></span></span><span class="row-actions"><button type="button" id="start-login-system" hidden>開啟系統設定</button><input id="start-login" class="switch" type="checkbox" aria-label="登入電腦時啟動 Work Fleet"></span></div>
-                <label class="settings-row"><span class="row-text"><span class="row-label" id="close-tray-label">關閉主畫面時保留在系統匣</span><span class="row-value" id="close-tray-detail"></span></span><input id="close-tray" class="switch" type="checkbox"></label>
-                <label class="settings-row"><span class="row-text"><span class="row-label">登入啟動後開啟主畫面</span><span class="row-value" id="open-main-detail">關閉時，登入後只在背景顯示桌面便箋；自己開啟 Work Fleet 時一律顯示主畫面。</span></span><input id="open-main" class="switch" type="checkbox"></label>
+                <div class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.startLogin.label"></span><span class="row-value" id="start-login-detail"></span></span><span class="row-actions"><button type="button" id="start-login-system" hidden data-i18n="settings.desktop.startLogin.openSystem"></button><input id="start-login" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.startLogin.label"></span></div>
+                <label class="settings-row"><span class="row-text"><span class="row-label" id="close-tray-label"></span><span class="row-value" id="close-tray-detail"></span></span><input id="close-tray" class="switch" type="checkbox"></label>
+                <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.openMain"></span><span class="row-value" id="open-main-detail" data-i18n="settings.desktop.openMainHint"></span></span><input id="open-main" class="switch" type="checkbox"></label>
               </div>
-              <h4 class="settings-heading">版本與更新</h4>
+              <h4 class="settings-heading" data-i18n="settings.update.heading"></h4>
               <div class="settings-list">
-                <div class="settings-row"><span class="row-text"><span class="row-label" id="app-version">Work Fleet</span><span class="row-value" id="app-distribution"></span></span></div>
+                <div class="settings-row"><span class="row-text"><span class="row-label" id="app-version"></span><span class="row-value" id="app-distribution"></span></span></div>
                 <div class="settings-row" id="update-row"><span class="row-text"><span class="row-label" id="update-status"></span><span class="row-value" id="update-detail"></span></span><button type="button" id="update-action" hidden></button></div>
               </div>
-              <section class="reset-section"><h4 class="settings-heading">重置主視窗</h4><p class="hint">主視窗回到預設大小，並置中於主要螢幕。桌面便箋不受影響。</p><button id="reset-window" type="button">重置主視窗大小與位置</button></section>
+              <section class="reset-section"><h4 class="settings-heading" data-i18n="settings.desktop.resetWindow.title"></h4><p class="hint" data-i18n="settings.desktop.resetWindow.hint"></p><button id="reset-window" type="button" data-i18n="settings.desktop.resetWindow.action"></button></section>
             </div>
-            <section class="reset-section"><h4 class="settings-heading">重置桌面佈局</h4><p class="hint">把便箋放回各自的群組區域，並恢復預設大小與顯示方式。</p><button id="reset-layout" type="button">重置桌面佈局…</button></section>
+            <section class="reset-section"><h4 class="settings-heading" data-i18n="settings.desktop.resetLayout.title"></h4><p class="hint" data-i18n="settings.desktop.resetLayout.hint"></p><button id="reset-layout" type="button" data-i18n="settings.desktop.resetLayout.action"></button></section>
           </section>
           <section class="settings-page" data-panel="shortcuts" hidden>
-            <p class="hint" id="shortcut-note">只在這個視窗有效。一個動作可以設多組，用逗號分開。</p>
+            <p class="hint" id="shortcut-note" data-i18n="settings.shortcuts.noteWindow"></p>
             <div id="shortcut-fields">
               <div class="settings-list" id="shortcut-actions"></div>
-              <h4 class="settings-heading">便箋層級與位置</h4>
-              <p class="hint" id="stage-hint">每按一次換到下一階：桌布層 → 桌面層 → 最上層 → 調整位置。數字對應「桌面」頁的區域，由左到右、由上到下。</p>
+              <h4 class="settings-heading" data-i18n="settings.shortcuts.layers"></h4>
+              <p class="hint" id="stage-hint"></p>
               <div class="settings-list" id="shortcut-regions"></div>
               <template id="all-tile"><span class="region-tile all" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span></template>
             </div>
             <p id="shortcut-message" class="settings-note error" role="status" hidden></p>
-            <button type="button" id="retry-shortcuts" hidden>重新註冊快捷鍵</button>
-            <div id="labwc-shortcuts" hidden><p class="hint" id="labwc-shortcuts-note"></p><button type="button" id="labwc-write">寫入 labwc 設定</button></div>
+            <button type="button" id="retry-shortcuts" hidden data-i18n="settings.shortcuts.retry"></button>
+            <div id="labwc-shortcuts" hidden><p class="hint" id="labwc-shortcuts-note"></p><button type="button" id="labwc-write"></button></div>
           </section>
         </div>
       </div>
     </div>
   </dialog>
   <dialog id="reset-layout-dialog">
-    <h2>重置桌面佈局？</h2>
-    <p>這台電腦上的便箋會回到各自的群組區域，位置、大小與顯示方式恢復預設。便箋內容、群組和快捷鍵不會改變。</p>
-    <p>重置後無法復原。</p>
-    <div class="dialog-actions"><button id="cancel-reset-layout">取消</button><button id="confirm-reset-layout" class="danger">重置</button></div>
+    <h2 data-i18n="settings.desktop.resetLayout.confirmTitle"></h2>
+    <p data-i18n="settings.desktop.resetLayout.confirmText"></p>
+    <p data-i18n="settings.desktop.resetLayout.irreversible"></p>
+    <div class="dialog-actions"><button id="cancel-reset-layout" data-i18n="common.cancel"></button><button id="confirm-reset-layout" class="danger" data-i18n="settings.desktop.resetLayout.confirm"></button></div>
   </dialog>
-  <dialog id="drafts-dialog"><h2>未完成草稿</h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts">關閉</button></div></dialog>
+  <dialog id="drafts-dialog"><h2 data-i18n="app.drafts.title"></h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts" data-i18n="common.close"></button></div></dialog>
 </body>
 </html>

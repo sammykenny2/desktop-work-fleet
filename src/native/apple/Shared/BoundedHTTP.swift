@@ -24,18 +24,18 @@ final class BoundedHTTP: NSObject, URLSessionDataDelegate, URLSessionTaskDelegat
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) { completionHandler(nil) }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse, completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
         guard let http = response as? HTTPURLResponse, response.expectedContentLength < 0 || response.expectedContentLength <= maximum else {
-            failure = FleetFailure("response-size", "Google 回應容量超限。"); completionHandler(.cancel); return
+            failure = FleetFailure("response-size", "Google's response is over the size limit."); completionHandler(.cancel); return
         }
         self.response = http; completionHandler(.allow)
     }
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        if bytes.count + data.count > maximum { failure = FleetFailure("response-size", "Google 回應容量超限。"); dataTask.cancel() }
+        if bytes.count + data.count > maximum { failure = FleetFailure("response-size", "Google's response is over the size limit."); dataTask.cancel() }
         else { bytes.append(data) }
     }
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         defer { session.finishTasksAndInvalidate(); self.session = nil; self.task = nil; continuation = nil }
         if let failure = failure ?? error { continuation?.resume(throwing: failure) }
         else if let response { continuation?.resume(returning: (bytes, response)) }
-        else { continuation?.resume(throwing: FleetFailure("network", "Google 沒有回傳完整回應。")) }
+        else { continuation?.resume(throwing: FleetFailure("network", "Google didn't return a complete response.")) }
     }
 }

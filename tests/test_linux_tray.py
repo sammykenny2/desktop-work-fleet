@@ -7,6 +7,9 @@ import unittest
 from unittest import mock
 
 NATIVE = Path(__file__).resolve().parents[1] / "src/native/linux"
+# tray.py imports the host's string table, text.py, which needs no GI.
+sys.path.insert(0, str(NATIVE))
+import text  # noqa: E402
 
 
 class Anything:
@@ -53,6 +56,22 @@ class StatusIcon(Indicator):
         return self.embedded
 
 
+class MenuItem:
+    """Records its label, as the indicator exports it."""
+    def __init__(self, label):
+        self.label = label
+
+    @classmethod
+    def new_with_label(cls, label):
+        return cls(label)
+
+    def set_label(self, label):
+        self.label = label
+
+    def connect(self, *_args):
+        pass
+
+
 class Window:
     def __init__(self, visible=False):
         self.visible = visible
@@ -73,6 +92,7 @@ class LinuxTrayTests(unittest.TestCase):
         repository = types.ModuleType("gi.repository")
         repository.Gtk = Anything()
         repository.Gtk.StatusIcon = StatusIcon
+        repository.Gtk.MenuItem = MenuItem
         repository.AyatanaAppIndicator3 = types.SimpleNamespace(
             Indicator=Indicator, IndicatorCategory=types.SimpleNamespace(APPLICATION_STATUS=0),
             IndicatorStatus=types.SimpleNamespace(ACTIVE=1, PASSIVE=0))
@@ -89,6 +109,25 @@ class LinuxTrayTests(unittest.TestCase):
         self.window = Window(visible)
         return self.module.Tray("app.workfleet.test", self.window, None, None, None, reveal=lambda: self.revealed.append(True),
                                 changed=self.changes.append)
+
+    def labels(self, tray):
+        return [item.label for item, _key in tray.items]
+
+    def test_the_menu_follows_the_display_language(self):
+        self.addCleanup(text.set_locale, "en")
+        tray = self.module.Tray("app.workfleet.test", Window(), None, None, None, update=lambda: None)
+        self.assertEqual(self.labels(tray), ["Open Work Fleet", "Quick capture", "Adjust all groups", "Show or hide desktop notes",
+                                             "Check for updates…", "Save and quit"])
+        text.set_locale("zh-TW")
+        tray.relabel()
+        self.assertEqual(self.labels(tray), [text.ZH_TW[key] for key in ("tray.open", "tray.quickCapture", "tray.adjustAll",
+                                                                          "tray.toggleDesktop", "tray.checkUpdates", "tray.saveAndQuit")])
+        # A tray started in Traditional Chinese, as at a sign-in start, draws it from the first frame.
+        self.assertEqual(self.labels(self.module.Tray("app.workfleet.test", Window(), None, None, None))[0], text.ZH_TW["tray.open"])
+        text.set_locale("en")
+        tray.close()
+        tray.relabel()
+        self.assertEqual(self.labels(tray)[0], text.ZH_TW["tray.open"], "a closed tray is left alone")
 
     def test_the_indicator_shows_the_product_name_on_hover(self):
         self.assertEqual(self.create().indicator.title, "Work Fleet")

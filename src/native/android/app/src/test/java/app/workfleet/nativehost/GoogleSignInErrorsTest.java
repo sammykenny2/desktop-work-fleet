@@ -19,7 +19,7 @@ public final class GoogleSignInErrorsTest {
         assertFalse(failure.getMessage().contains("private-provider-detail"));
     }
     @Test public void nativeDenialAndStorageFailuresKeepTheirMeaning() {
-        Protocol.Failure denied = new Protocol.Failure("source-permission", "請授權 App 資料。");
+        Protocol.Failure denied = new Protocol.Failure("source-permission", "Grant access to app data.");
         assertSame(denied, GoogleSignInErrors.failure(new ExecutionException(denied)));
     }
     @Test public void missingAccountsAndConfigurationAreActionable() {
@@ -42,6 +42,16 @@ public final class GoogleSignInErrorsTest {
             Protocol.Failure failure = GoogleSignInErrors.failure(new ExecutionException(new ApiException(new Status(statuses[i], "private-provider-detail"))));
             assertEquals(codes[i], failure.code);
             assertFalse(failure.getMessage().contains("private-provider-detail"));
+            assertEnglish(failure);
         }
+    }
+    @Test public void messagesForThePageAreEnglishSentences() {
+        Exception[] errors = {new GetCredentialCancellationException("detail"), new TimeoutException("detail"), new NoCredentialException("detail"),
+            new GetCredentialProviderConfigurationException("detail"), new IOException("detail"), new Exception("detail")};
+        for (Exception error : errors) assertEnglish(GoogleSignInErrors.failure(error));
+    }
+    // The page shows catalog text for known codes; the host's own message stays English and readable as a fallback.
+    private static void assertEnglish(Protocol.Failure failure) {
+        assertTrue(failure.getMessage(), failure.getMessage().matches("[A-Z][\\x20-\\x7E]*\\."));
     }
 }

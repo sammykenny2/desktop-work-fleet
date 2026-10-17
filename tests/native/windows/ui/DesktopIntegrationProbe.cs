@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.IO;
 using WorkFleet.Windows;
+using WorkFleet.Windows.Core;
 
 internal static class DesktopIntegrationProbe
 {
@@ -66,41 +67,43 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(resident, "window.preparedPaperRemoval === true")).ValueKind == JsonValueKind.True,
       "native frame preparation acknowledged before removing the resident paper", main);
     Console.WriteLine("PASS attached paper removal waits for native frame preparation before erasing its DOM");
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");
+    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
     await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True,
       "scene inline editor", main);
-    await Eval(floating, "document.querySelector('textarea').value='桌面草稿 中文測試';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='草稿已存本機'")).ValueKind == JsonValueKind.True,
+    // The draft carries escaped CJK characters: a repeated edit must keep non-ASCII text exactly.
+    await Eval(floating, "document.querySelector('textarea').value='Desktop draft \u4E2D\u6587 text';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
       "scene draft acknowledged by native owner", main);
     using (var preview = File.Create(Path.Combine(directory, "native-desktop.png")))
       await floating.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, preview);
     // Repeating edit on the same card must preserve its in-progress content and draft identity.
     await Eval(floating, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
     await Task.Delay(150);
-    if ((await Eval(floating, "document.querySelector('textarea').value")).GetString() != "桌面草稿 中文測試") throw new Exception("Repeated edit replaced draft text.");
-    // Larger than the 1 MiB message ceiling: exercises chunked view -> owner command and owner -> view projection.
-    await Eval(floating, "document.querySelector('textarea').value='長'.repeat(400000);document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='草稿已存本機'")).ValueKind == JsonValueKind.True,
+    if ((await Eval(floating, "document.querySelector('textarea').value")).GetString() != "Desktop draft \u4E2D\u6587 text") throw new Exception("Repeated edit replaced draft text.");
+    // Larger than the 1 MiB message ceiling (an escaped three-byte CJK character): exercises chunked view -> owner command
+    // and owner -> view projection.
+    await Eval(floating, "document.querySelector('textarea').value='\u9577'.repeat(400000);document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
       "large scene draft chunk transport", main);
-    await Eval(floating, "document.querySelector('textarea').value='桌面關閉前最後文字';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))");
+    await Eval(floating, "document.querySelector('textarea').value='Last desktop text before closing';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))");
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
-    await Wait(async () => (await Eval(main.WebView.CoreWebView2, "document.querySelector('#status').textContent.includes('請先完成')")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(main.WebView.CoreWebView2, "document.querySelector('#status').textContent.startsWith('Finish ')")).ValueKind == JsonValueKind.True,
       "IME prevents scope exit through the owner flush barrier", main);
     if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind != JsonValueKind.True) throw new Exception("IME editor was destroyed.");
     await Eval(floating, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='草稿已存本機' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
       "failed exit resumes editing after composition", main);
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='保存').click()");
+    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
     // A one-line note shows in the title band and again in the body, which always starts from the first line.
-    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent === '桌面關閉前最後文字' && document.querySelector('.card-body p')?.textContent === '桌面關閉前最後文字'")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent === 'Last desktop text before closing' && document.querySelector('.card-body p')?.textContent === 'Last desktop text before closing'")).ValueKind == JsonValueKind.True,
       "scene commits through existing owner transaction", main);
     // Restore the fixture's original title, preserving its attachment and the subsequent existing regression assertions.
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");
+    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
     await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True, "reopen desktop editor", main);
-    await Eval(floating, "document.querySelector('textarea').value='# 原生便箋\\n\\n- [ ] 跨程序保存';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='草稿已存本機'")).ValueKind == JsonValueKind.True, "restore fixture text", main);
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='保存').click()");
-    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent==='原生便箋'")).ValueKind == JsonValueKind.True,
+    await Eval(floating, "document.querySelector('textarea').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True, "restore fixture text", main);
+    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
+    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent==='Native note'")).ValueKind == JsonValueKind.True,
       "fixture restored", main);
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
     await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
@@ -113,7 +116,7 @@ internal static class DesktopIntegrationProbe
       {
         // The layer belongs to the group and is set in the group's settings dialog.
         await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
-        await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click()}})()");
+        await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()}})()");
         await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save group layer", main);
       }
       await Layer("wallpaper");
@@ -137,7 +140,7 @@ internal static class DesktopIntegrationProbe
     {
       GetWindowThreadProcessId(window, out var process); if (process != browser) return true;
       text.Clear(); GetClassNameW(window, text, text.Capacity); if (text.ToString() != "Chrome_WidgetWin_1") return true;
-      text.Clear(); GetWindowTextW(window, text, text.Capacity); if (text.ToString() != "Work Fleet 桌面") return true;
+      text.Clear(); GetWindowTextW(window, text, text.Capacity); if (text.ToString() != HostText.Get("desktop.windowTitle")) return true;
       var style = GetWindowLongPtrW(window, -20).ToInt64();
       if ((style & 0x08080000L) != 0x08080000L || !IsWindowVisible(window)) return true;
       visible++; if ((style & 0x20) == 0) blocking++;
@@ -160,14 +163,14 @@ internal static class DesktopIntegrationProbe
       && (await Eval(main.Desktop.Surfaces[1].WebView.CoreWebView2, "Boolean(document.querySelector('.card.operable'))")).ValueKind == JsonValueKind.True,
       "desktop ready for close probe", main);
     var scene = main.Desktop!.Surfaces[1].WebView.CoreWebView2;
-    await Eval(scene, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");
+    await Eval(scene, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
     await Wait(async () => (await Eval(scene, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True, "close probe editor", main);
     await Task.Delay(200);
     var released = false;
     scene.WebMessageReceived += (_, e) => { if (e.WebMessageAsJson.Contains("probe-unfreeze")) released = true; };
     await Eval(scene, "chrome.webview.addEventListener('message',e=>{if(e.data.event==='desktop-unfreeze')chrome.webview.postMessage({v:1,id:crypto.randomUUID(),method:'probe-unfreeze',params:{}})})");
     await Eval(main.WebView.CoreWebView2, "window.realNativePost=chrome.webview.postMessage.bind(chrome.webview);chrome.webview.postMessage=m=>{if(m.method==='storage.commit')setTimeout(()=>window.realNativePost(m),150);else window.realNativePost(m)}");
-    await Eval(scene, "document.querySelector('textarea').value='桌面關閉瞬間仍須落盤';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Eval(scene, "document.querySelector('textarea').value='Desktop draft that must reach the disk at close';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
     var closed = new TaskCompletionSource(); main.Closed += (_, _) => closed.TrySetResult(); main.Close();
     await closed.Task.WaitAsync(TimeSpan.FromSeconds(45));
     if (released) throw new Exception("Close released the scene editor before destroying the view.");

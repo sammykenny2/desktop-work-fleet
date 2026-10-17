@@ -22,7 +22,7 @@ import Foundation
       do {
         _ = try FleetReleaseFeed.latest(Data(damaged.utf8), repository: repository, channel: "preview", current: [0, 1, 0])
         preconditionFailure("damaged feed accepted")
-      } catch let failure as FleetFailure { require(failure.code == "metadata_invalid") }
+      } catch let failure as FleetFailure { require(failure.code == "metadata_invalid" && failure.message == FleetText.text("update.invalidFeed")) }
     }
     for (repo, channel) in [(repository, "stable"), ("another/repo", "preview")] {
       do {

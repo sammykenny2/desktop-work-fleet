@@ -2,7 +2,10 @@ using System.Text;
 using System.Text.Json;
 using WorkFleet.Windows.Core;
 
-/// <summary>ADR-043 host-level files: the shared placement rule fixture, file round trips and damaged-file fallbacks.</summary>
+/// <summary>
+/// ADR-043 host-level files: the shared placement rule fixture, file round trips and damaged-file fallbacks, plus the
+/// display language and the host string table (docs/i18n.md).
+/// </summary>
 internal static class HostSettingsProbe
 {
   public static int Run(string root)
@@ -55,6 +58,71 @@ internal static class HostSettingsProbe
     Require(HostIdentity.BuildVersion() is { Length: > 0 } version && !version.Contains('+'), "build version without commit suffix");
     count += Recovery(Path.Combine(root, "host-recovery"));
     count += SignInHold();
+    count += Language(Path.Combine(root, "host-language"));
+    return count;
+  }
+  /// <summary>docs/i18n.md: the display-language preference, the locale rules shared with src/i18n/index.js and the string table.</summary>
+  private static int Language(string directory)
+  {
+    var count = 0;
+    void Require(bool value, string message) { if (!value) throw new Exception(message); count++; }
+    // The same cases as tests/i18n.test.js "system languages resolve with the documented rules".
+    foreach (var (tag, expected) in new (string?, string?)[] { ("en", "en"), ("en-US", "en"), ("EN_gb", "en"), ("zh", "zh-TW"), ("zh-TW", "zh-TW"),
+      ("zh_TW.UTF-8", "zh-TW"), ("zh-Hant", "zh-TW"), ("zh-Hant-TW", "zh-TW"), ("zh-HK", "zh-TW"), ("zh-MO", "zh-TW"),
+      ("zh-CN", null), ("zh-Hans-CN", null), ("zh-SG", null), ("ja-JP", null), ("C", null), ("C.UTF-8", null), ("", null), (null, null) })
+      Require(HostText.Match(tag) == expected, $"match {tag ?? "null"}: {HostText.Match(tag) ?? "null"}");
+    Require(HostText.Resolve("auto", ["ja-JP", "zh-CN", "zh-TW", "en-US"]) == "zh-TW", "auto takes the first supported system language");
+    Require(HostText.Resolve("auto", ["fr-FR"]) == "en" && HostText.Resolve("auto", []) == "en", "nothing matching means English");
+    Require(HostText.Resolve("en", ["zh-TW"]) == "en" && HostText.Resolve("zh-TW", ["en-US"]) == "zh-TW", "a pinned locale wins");
+    Require(HostText.Resolve("fr", ["zh-TW"]) == "zh-TW", "an unknown preference behaves like auto");
+
+    Directory.CreateDirectory(directory);
+    Require(HostPreferences.Read(directory).Language == "auto" && new HostPreferences().Language == "auto", "a new device starts at auto");
+    var chosen = new HostPreferences().With("closeToTray", false).WithLanguage("zh-TW");
+    chosen.Write(directory); Require(HostPreferences.Read(directory) == chosen, "the language round-trips with the other preferences");
+    Require(File.ReadAllText(Path.Combine(directory, HostPreferences.FileName)).Contains("\"language\":\"zh-TW\""), "the file stores the language field");
+    Require(HostPreferences.Parse("{\"version\":1,\"language\":\"en\"}"u8).Language == "en", "a stored en preference");
+    foreach (var damaged in new[] { "\"fr\"", "\"EN\"", "\"zh-tw\"", "1", "null", "true", "\"\"" })
+    {
+      var parsed = HostPreferences.Parse(Encoding.UTF8.GetBytes($"{{\"version\":1,\"closeToTray\":false,\"language\":{damaged}}}"));
+      Require(parsed.Language == "auto" && !parsed.CloseToTray, $"an invalid language falls back to auto and keeps the other settings: {damaged}");
+    }
+    foreach (var invalid in new[] { "fr", "EN", "", "zh-Hant" })
+    {
+      try { new HostPreferences().WithLanguage(invalid); throw new Exception($"language accepted: {invalid}"); }
+      catch (HostError error) { Require(error.Code == "invalid-request", $"invalid language code: {invalid}"); }
+    }
+
+    // Both tables have the same keys and {name} placeholders, with no empty text.
+    static string[] Placeholders(string text) => System.Text.RegularExpressions.Regex.Matches(text, @"\{([A-Za-z0-9_]+)\}").Select(match => match.Groups[1].Value).Order().ToArray();
+    var english = HostText.Table("en"); var chinese = HostText.Table("zh-TW");
+    Require(english.Count > 0 && english.Keys.Order().SequenceEqual(chinese.Keys.Order()), "both tables have the same keys");
+    foreach (var (key, text) in english)
+      Require(text.Trim().Length > 0 && chinese[key].Trim().Length > 0 && Placeholders(text).SequenceEqual(Placeholders(chinese[key])), $"{key} text and placeholders");
+    Require(HostText.Format("en", "tray.tipDownloading", ("percent", 42)) == "Work Fleet · Downloading update 42%", "placeholders are filled");
+    Require(HostText.Format("en", "dialog.updateAvailable", ("version", "0.4.0")).Contains("{current}"), "a missing value leaves its placeholder");
+    Require(HostText.Format("zh-TW", "missing.key") == "missing.key" && HostText.Format("fr", "tray.quit") == "Save and quit Work Fleet", "missing keys and locales");
+
+    // Apply re-resolves the host locale and notifies once per locale change.
+    var changes = 0; void Changed() => changes++;
+    HostText.Changed += Changed;
+    try
+    {
+      HostText.Apply("en", ["zh-TW"]); var before = changes;
+      HostText.Apply("zh-TW", ["en-US"]);
+      Require(HostText.Locale == "zh-TW" && HostText.Preference == "zh-TW" && changes == before + 1, "a pinned zh-TW switches the host locale");
+      Require(HostText.Get("tray.quit") == chinese["tray.quit"], "lookups follow the host locale");
+      HostText.Apply("auto", ["ja-JP", "zh-Hant-TW"]);
+      Require(HostText.Locale == "zh-TW" && changes == before + 1, "auto resolving to the same locale is not a change");
+      HostText.Apply("bogus", ["fr-FR"]);
+      Require(HostText.Preference == "auto" && HostText.Locale == "en" && changes == before + 2, "an unknown preference applies as auto");
+      var described = JsonSerializer.SerializeToElement(HostText.Describe());
+      Require(described.GetProperty("preference").GetString() == "auto" && described.GetProperty("system")[0].GetString() == "fr-FR", "host.info language shape");
+      var system = HostText.SystemLanguages();
+      Require(system.Count > 0 && system.All(tag => tag.Length > 0 && !tag.Contains('\0')), $"Windows display languages: {string.Join(",", system)}");
+      HostText.Apply("auto"); Require(HostText.System.SequenceEqual(system), "Apply reads the system languages itself");
+    }
+    finally { HostText.Changed -= Changed; HostText.Apply("en"); }
     return count;
   }
   /// <summary>ADR-046: when a sign-in launch keeps its scenes out of Explorer.</summary>

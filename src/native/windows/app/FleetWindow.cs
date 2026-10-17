@@ -55,6 +55,8 @@ public sealed class FleetWindow : Window
     var selected = Path.Combine(this.dataDirectory, "profile.txt");
     var profile = File.Exists(selected) ? File.ReadAllText(selected).Trim() : "local";
     if (profile != "local" && !System.Text.RegularExpressions.Regex.IsMatch(profile, "^google:[A-Za-z0-9_-]{1,255}$")) profile = "local";
+    // The display language belongs to this data directory; probes without a shell store it there too (docs/i18n.md).
+    HostText.Apply((shell?.Preferences ?? HostPreferences.Read(this.dataDirectory)).Language);
     database = new LocalDatabase(this.dataDirectory, profile);
     backupFiles = new NativeBackupFiles(database);
     Title = "Work Fleet"; Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
@@ -78,7 +80,7 @@ public sealed class FleetWindow : Window
       }
       catch
       {
-        Content = new TextBlock { Text = "無法開啟原生工作空間。請確認 WebView2 Runtime 已安裝，並保留原資料後重試。",
+        Content = new TextBlock { Text = HostText.Get("window.openFailed"),
           TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
       }
       finally { FinishStart(); }
@@ -97,7 +99,8 @@ public sealed class FleetWindow : Window
       // Saved bounds apply before the first paint; a maximized window maximizes as it is shown.
       if (placement is not null && !offscreen) { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
     };
-    Closed += (_, _) => { placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); attachmentFiles.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    HostText.Changed += LanguageChanged;
+    Closed += (_, _) => { HostText.Changed -= LanguageChanged; placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); attachmentFiles.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   /// <summary>A second launch of Work Fleet shows the running instance's main window.</summary>
   public void ShowFromLaunch() { if (!shuttingDown) ShowMain(true); }
@@ -147,7 +150,7 @@ public sealed class FleetWindow : Window
   {
     // X, Alt+F4 and the taskbar close command (WM_SYSCOMMAND/SC_CLOSE) keep Work Fleet in the tray.
     // A programmatic Close(), WM_CLOSE and the tray's exit item still save and quit.
-    // With 關閉主畫面時保留在系統匣 turned off, the close command saves and quits instead.
+    // With "Keep running in the tray when the main window closes" turned off, the close command saves and quits instead.
     if (message == 0x0112 && (wParam.ToInt64() & 0xfff0) == 0xF060 && tray?.Available == true && !shuttingDown && shell?.Preferences.CloseToTray != false)
     { handled = true; placement?.Flush(); Hide(); }
     return IntPtr.Zero;
@@ -164,7 +167,10 @@ public sealed class FleetWindow : Window
   {
     var assets = Path.Combine(AppContext.BaseDirectory, "Assets");
     if (!File.Exists(Path.Combine(assets, "app", "index.html"))) throw new IOException("Missing packaged assets.");
-    var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "webview"), webViewOptions);
+    // WebView2's own menus and navigator.languages follow the host locale, so the first text the page and the desktop
+    // scenes draw already matches the stored display language. WebView2's menus pick up a later change at the next start.
+    var options = webViewOptions ?? new CoreWebView2EnvironmentOptions(); options.Language = HostText.Locale;
+    var environment = await CoreWebView2Environment.CreateAsync(null, Path.Combine(dataDirectory, "webview"), options);
     await web.EnsureCoreWebView2Async(environment); var core = web.CoreWebView2;
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, assets, CoreWebView2HostResourceAccessKind.Deny);
     core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = WebViewDiagnostics.DevToolsEnabled;
@@ -185,7 +191,8 @@ public sealed class FleetWindow : Window
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
       }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
         Log, holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
-      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true }, attachmentFiles.Invoke);
+      bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true }, attachmentFiles.Invoke,
+        languagePreference: true);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -203,7 +210,7 @@ public sealed class FleetWindow : Window
       var session = bridge; var epoch = navigation; queued++;
       if (IsPreviewRequest(json)) { _ = HandlePreview(session, epoch, json); return; }
       if (IsGoogleRequest(json)) { _ = HandleGoogle(session, epoch, json); return; }
-      if (shell is not null && IsShellRequest(json)) { _ = HandleShell(epoch, json); return; }
+      if (ShellMethod(json) is { } shellMethod && (shell is not null || shellMethod == "host.language.set")) { _ = HandleShell(epoch, json); return; }
       messageQueue = HandleMessage(messageQueue, session, epoch, json);
     };
     core.ProcessFailed += (_, _) =>
@@ -212,7 +219,7 @@ public sealed class FleetWindow : Window
       navigation++; google?.Dispose(); bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
       attachmentFiles.Dispose();
       ShowMain(false);
-      Content = new TextBlock { Text = "畫面程序已停止。已提交資料仍保留於本機；請重新開啟 Work Fleet。",
+      Content = new TextBlock { Text = HostText.Get("window.rendererStopped"),
         TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
     };
     core.DownloadStarting += (_, e) => { e.Handled = false; };
@@ -254,17 +261,21 @@ public sealed class FleetWindow : Window
     }
     finally { queued--; previewSlots.Release(); }
   }
-  private static bool IsShellRequest(string json)
+  /// <summary>Main-window methods for the UI thread; only host.language.set exists without a shell.</summary>
+  private static string? ShellMethod(string json)
   {
     try
     {
-      using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json));
-      return JsonRules.Text(value.RootElement, "method") is "host.preferences.get" or "host.preferences.set" or "host.preferences.openSystem" or "host.window.resetPlacement"
-        or "update.state" or "update.check" or "update.download" or "update.install";
+      using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var method = JsonRules.Text(value.RootElement, "method");
+      return method is "host.preferences.get" or "host.preferences.set" or "host.preferences.openSystem" or "host.window.resetPlacement"
+        or "host.language.set" or "update.state" or "update.check" or "update.download" or "update.install" ? method : null;
     }
-    catch { return false; }
+    catch { return null; }
   }
-  /// <summary>Startup preferences and the main window run on the UI thread: StartupTask requests and window moves belong there.</summary>
+  /// <summary>
+  /// Startup preferences, the display language and the main window run on the UI thread: StartupTask requests, window moves
+  /// and redrawing the tray belong there.
+  /// </summary>
   private async Task HandleShell(long epoch, string json)
   {
     string? id = null; string reply;
@@ -273,16 +284,17 @@ public sealed class FleetWindow : Window
       using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var request = document.RootElement;
       id = JsonRules.Text(request, "id"); var method = JsonRules.Text(request, "method"); var args = request.GetProperty("params");
       HostError.Require(Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1 && args.ValueKind == JsonValueKind.Object && epoch == navigation && !shuttingDown,
-        "stale-session", "工作階段已結束。");
+        "stale-session", "The session has ended.");
       object? result = null;
       switch (method)
       {
         case "host.preferences.get": result = await shell!.Describe(tray?.Available == true); break;
         case "host.preferences.set":
-          HostError.Require(args.TryGetProperty("value", out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False, "invalid-request", "設定值無效。");
+          HostError.Require(args.TryGetProperty("value", out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False, "invalid-request", "The setting value is invalid.");
           result = await shell!.Set(JsonRules.Text(args, "name", 32), value.GetBoolean(), tray?.Available == true); break;
         case "host.preferences.openSystem": HostShell.OpenSystemSettings(); break;
         case "host.window.resetPlacement": placement!.Reset(); break;
+        case "host.language.set": result = SetLanguage(JsonRules.Text(args, "preference", 16)); break;
         case "update.state": result = updater!.Snapshot(); break;
         case "update.check": _ = updater!.Check(); result = updater.Snapshot(); break;
         case "update.download": _ = updater!.Download(); result = updater.Snapshot(); break;
@@ -293,7 +305,7 @@ public sealed class FleetWindow : Window
     catch (Exception error)
     {
       reply = JsonSerializer.Serialize(new { v = 1, id, ok = false, error = new { code = (error as HostError)?.Code ?? "host-preferences",
-        message = (error as HostError)?.Message ?? "無法完成這項設定，請稍後重試。" } });
+        message = (error as HostError)?.Message ?? "Couldn't apply this setting. Try again later." } });
     }
     finally { queued--; }
     if (epoch != navigation || shuttingDown || !NavigationPolicy.IsDocument(web.CoreWebView2.Source)) return;
@@ -307,7 +319,7 @@ public sealed class FleetWindow : Window
       using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var request = document.RootElement;
       id = JsonRules.Text(request, "id"); var method = JsonRules.Text(request, "method"); var args = request.GetProperty("params");
       HostError.Require(Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1 && args.ValueKind == JsonValueKind.Object && epoch == navigation && !shuttingDown && google is not null,
-        "stale-session", "Google 工作階段已結束。");
+        "stale-session", "The Google session has ended.");
       var service = google!; object? result;
       switch (method)
       {
@@ -323,7 +335,7 @@ public sealed class FleetWindow : Window
     catch (Exception error)
     {
       reply = JsonSerializer.Serialize(new { v = 1, id, ok = false, error = new { code = (error as HostError)?.Code ?? "google-unavailable",
-        message = (error as HostError)?.Message ?? "Google 連線暫時無法完成，本機資料仍保留。" } });
+        message = (error as HostError)?.Message ?? "Couldn't reach Google right now. Local data is kept." } });
       switchTo = null;
     }
     finally { queued--; }
@@ -349,13 +361,13 @@ public sealed class FleetWindow : Window
     }
     catch
     {
-      Content = new TextBlock { Text = "帳號切換未完成。已保存資料仍保留，請重新開啟 Work Fleet。", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
+      Content = new TextBlock { Text = HostText.Get("window.switchFailed"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
     }
   }
   private string? ChooseBackupDirectory() => Dispatcher.Invoke(() =>
   {
     if (backupDirectoryPicker is not null) return backupDirectoryPicker();
-    var picker = new Microsoft.Win32.OpenFolderDialog { Title = "選擇備份資料夾（本機 NTFS；每次建立新檔）", Multiselect = false };
+    var picker = new Microsoft.Win32.OpenFolderDialog { Title = HostText.Get("dialog.backupFolderTitle"), Multiselect = false };
     return picker.ShowDialog(this) == true ? picker.FolderName : null;
   });
   private async Task HandleMessage(Task previous, BridgeSession session, long epoch, string json)
@@ -371,7 +383,7 @@ public sealed class FleetWindow : Window
       if (session.TakeCloseCancelled() && installRequested)
       {
         // The document kept a dialog or an edit open, so nothing closed and the update waits.
-        installRequested = false; updater?.InstallFailed("請先完成或關閉目前的對話框與編輯，再安裝更新。");
+        installRequested = false; updater?.InstallFailed(HostText.Get("update.closeDialogsFirst"));
       }
       if (session.TakeResetDone() && epoch == navigation && !shuttingDown)
       {
@@ -410,16 +422,38 @@ public sealed class FleetWindow : Window
     }
     finally { closing = false; }
   }
+  /// <summary>
+  /// Stores the display language for this data directory, re-resolves the host locale and replies with the new
+  /// { preference, system }. The tray and update text redraw through HostText.Changed.
+  /// </summary>
+  private object SetLanguage(string preference)
+  {
+    var next = (shell?.Preferences ?? HostPreferences.Read(dataDirectory)).WithLanguage(preference);
+    if (shell is not null) shell.SetLanguage(preference);
+    else
+    {
+      try { next.Write(dataDirectory); }
+      catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+      { throw new HostError("preferences-write", "Couldn't save the display language. Try again later."); }
+    }
+    HostText.Apply(preference); return HostText.Describe();
+  }
+  /// <summary>Redraws what the host shows itself; the tray menu reads its labels each time it opens.</summary>
+  private void LanguageChanged() => Dispatcher.BeginInvoke(new Action(() =>
+  {
+    if (shuttingDown) return;
+    if (updater is not null) PublishUpdate(updater.Snapshot()); else tray?.SetTip(null);
+  }));
   private void PublishUpdate(object state) => Dispatcher.BeginInvoke(new Action(() =>
   {
-    tray?.SetTip(updater?.Percent is { } percent ? $"Work Fleet · 下載更新 {percent}%" : null);
+    tray?.SetTip(updater?.Percent is { } percent ? HostText.Get("tray.tipDownloading", ("percent", percent)) : null);
     if (shuttingDown || web.CoreWebView2 is null || !NavigationPolicy.IsDocument(web.CoreWebView2.Source)) return;
     web.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { v = 1, @event = "update-state", state }));
   }));
   /// <summary>Verifies the downloaded installer, then saves drafts and closes through the usual close request.</summary>
   private async Task BeginInstall()
   {
-    HostError.Require(updater is not null && !shuttingDown && !installRequested, "update-busy", "目前不能安裝更新。");
+    HostError.Require(updater is not null && !shuttingDown && !installRequested, "update-busy", "The update can't be installed right now.");
     installPath = await updater!.Ready();
     installRequested = true; updater.Installing();
     await PrepareClose();
@@ -444,7 +478,7 @@ public sealed class FleetWindow : Window
     catch (Exception error)
     {
       if (updater?.Probe == true) { ProbeResult("install_failed: " + error.Message); Application.Current?.Shutdown(); return; }
-      MessageBox.Show("更新沒有完成，Work Fleet 會重新開啟；已保存的資料不受影響。\n\n" + error.Message, "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Warning);
+      MessageBox.Show(HostText.Get("dialog.installFailed", ("detail", error.Message)), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Warning);
       try
       {
         var family = global::Windows.ApplicationModel.Package.Current.Id.FamilyName;
@@ -473,21 +507,29 @@ public sealed class FleetWindow : Window
     await updater.Check();
     if (updater.Status is "update_available" or "downloaded")
     {
-      var text = $"有新版本 {updater.PendingVersion}（目前 {HostIdentity.BuildVersion()}）。"
-        + (string.IsNullOrWhiteSpace(updater.PendingSummary) ? "" : "\n\n" + updater.PendingSummary) + "\n\n要現在更新並重新啟動 Work Fleet 嗎？未保存的文字會先保存。";
-      if (MessageBox.Show(text, "Work Fleet 更新", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
+      var text = string.IsNullOrWhiteSpace(updater.PendingSummary)
+        ? HostText.Get("dialog.updateAvailable", ("version", updater.PendingVersion), ("current", HostIdentity.BuildVersion()))
+        : HostText.Get("dialog.updateAvailableSummary", ("version", updater.PendingVersion), ("current", HostIdentity.BuildVersion()), ("summary", updater.PendingSummary));
+      if (MessageBox.Show(text, HostText.Get("dialog.updateTitle"), MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
       if (updater.Status != "downloaded") await updater.Download();
       if (updater.Status == "downloaded")
       {
         try { await BeginInstall(); }
-        catch (HostError error) { MessageBox.Show(error.Message, "Work Fleet 更新", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        catch (HostError error) { MessageBox.Show(Describe(error), HostText.Get("dialog.updateTitle"), MessageBoxButton.OK, MessageBoxImage.Warning); }
         return;
       }
     }
     var upToDate = updater.Status == "up_to_date";
-    MessageBox.Show(upToDate ? $"Work Fleet {HostIdentity.BuildVersion()} 已是最新版本。" : updater.ErrorMessage ?? "更新沒有完成，請稍後再試。",
-      "Work Fleet 更新", MessageBoxButton.OK, upToDate ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    MessageBox.Show(upToDate ? HostText.Get("dialog.upToDate", ("version", HostIdentity.BuildVersion())) : updater.ErrorMessage ?? HostText.Get("update.failed"),
+      HostText.Get("dialog.updateTitle"), MessageBoxButton.OK, upToDate ? MessageBoxImage.Information : MessageBoxImage.Warning);
   }
+  /// <summary>Install refusals are English bridge errors for the page; a dialog shows them in the host language.</summary>
+  private static string Describe(HostError error) => error.Code switch
+  {
+    "update-busy" => HostText.Get("update.busy"),
+    "update-not-ready" => HostText.Get("update.notReady"),
+    _ => error.Message
+  };
   private static void OpenExternal(string uri)
   {
     if (!NavigationPolicy.IsExternal(uri)) return;

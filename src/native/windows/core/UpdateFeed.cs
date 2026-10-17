@@ -26,13 +26,14 @@ public static partial class UpdateFeed
     var match = text is null ? null : VersionPattern().Match(text);
     return match is { Success: true } ? new Version(int.Parse(match.Groups[1].Value), int.Parse(match.Groups[2].Value), int.Parse(match.Groups[3].Value)) : null;
   }
-  private static HostError Invalid(string detail) => new("metadata_invalid", "更新資訊格式不符，未下載任何檔案。" + detail);
+  /// <summary>The message is update-state text the page shows as is, so it comes from HostText in the host language.</summary>
+  private static HostError Invalid(string key = "update.invalidMetadata") => new("metadata_invalid", HostText.Get(key));
 
   /// <summary>The newest release for this platform and channel that is newer than the running version, if any.</summary>
   public static UpdateRelease? Latest(ReadOnlySpan<byte> releases, string repository, string platform, string channel, Version current)
   {
     // Atom includes published prereleases but has no reliable prerelease flag. Only the approved preview channel is supported.
-    if (channel != "preview") throw Invalid("不支援這個更新頻道。");
+    if (channel != "preview") throw Invalid("update.invalidChannel");
     UpdateRelease? best = null;
     try
     {
@@ -41,7 +42,7 @@ public static partial class UpdateFeed
         { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null, MaxCharactersInDocument = 2 * 1024 * 1024 });
       var document = XDocument.Load(reader);
       XNamespace atom = "http://www.w3.org/2005/Atom";
-      if (document.Root?.Name != atom + "feed") throw Invalid("");
+      if (document.Root?.Name != atom + "feed") throw Invalid();
       var pagePrefix = $"https://github.com/{repository}/releases/tag/";
       var prefix = platform + "-v";
       var entries = document.Root.Elements(atom + "entry").ToArray();
@@ -60,16 +61,16 @@ public static partial class UpdateFeed
         }
       }
       // A recent-release feed is bounded: do not claim "up to date" when another platform has displaced this one's entries.
-      if (entries.Length > 0 && !foundPlatform) throw Invalid("來源未列出這個平台的版本，請至 Releases 頁面確認。");
+      if (entries.Length > 0 && !foundPlatform) throw Invalid("update.platformMissing");
     }
-    catch (XmlException) { throw Invalid(""); }
+    catch (XmlException) { throw Invalid(); }
     return best;
   }
   private static string? Text(JsonElement value, string key) => value.TryGetProperty(key, out var field) && field.ValueKind == JsonValueKind.String ? field.GetString() : null;
 
   public static string AssetUrl(UpdateRelease release, string name)
   {
-    if (!Regex.IsMatch(name, @"^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\z")) throw Invalid("下載檔名無效。");
+    if (!Regex.IsMatch(name, @"^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\z")) throw Invalid("update.invalidFileName");
     return $"https://github.com/{release.Repository}/releases/download/{release.Tag}/{name}";
   }
 
@@ -79,19 +80,19 @@ public static partial class UpdateFeed
     try
     {
       using var document = JsonRules.Parse(manifest.ToArray()); var value = document.RootElement;
-      if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty("schemaVersion", out var schema) || !schema.TryGetInt32(out var number) || number != 1) throw Invalid("");
+      if (value.ValueKind != JsonValueKind.Object || !value.TryGetProperty("schemaVersion", out var schema) || !schema.TryGetInt32(out var number) || number != 1) throw Invalid();
       var version = Text(value, "version"); var summary = Text(value, "summary") ?? "";
-      if (Text(value, "platform") != platform || Text(value, "tag") != release.Tag || ParseVersion(version) != release.Version || summary.Length > 2000) throw Invalid("");
-      if (!value.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array) throw Invalid("");
+      if (Text(value, "platform") != platform || Text(value, "tag") != release.Tag || ParseVersion(version) != release.Version || summary.Length > 2000) throw Invalid();
+      if (!value.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array) throw Invalid();
       var matches = assets.EnumerateArray().Where(asset => asset.ValueKind == JsonValueKind.Object && Text(asset, "arch") == arch).ToArray();
-      if (matches.Length != 1) throw Invalid("沒有這個架構的安裝檔。");
+      if (matches.Length != 1) throw Invalid("update.architectureMissing");
       var chosen = matches[0];
       var name = Text(chosen, "name"); var sha256 = Text(chosen, "sha256");
       if (name is null || sha256 is null || !DigestPattern().IsMatch(sha256) || !chosen.TryGetProperty("size", out var size) || !size.TryGetInt64(out var bytes)
-        || bytes <= 0 || bytes > MaxPackageBytes) throw Invalid("");
+        || bytes <= 0 || bytes > MaxPackageBytes) throw Invalid();
       return new(version!, release.Tag, summary.Length > 500 ? summary[..500] : summary, name, bytes, sha256, AssetUrl(release, name), release.PageUrl);
     }
-    catch (JsonException) { throw Invalid(""); }
+    catch (JsonException) { throw Invalid(); }
   }
 
   /// <summary>
@@ -109,13 +110,13 @@ public static partial class UpdateFeed
         if (reader.NodeType != XmlNodeType.Element || reader.LocalName != "Identity" || reader.Depth != 1) continue;
         var version = Version.TryParse(reader.GetAttribute("Version"), out var parsed) ? parsed : null;
         if (reader.GetAttribute("Name") != name || reader.GetAttribute("Publisher") != publisher)
-          throw new HostError("identity_mismatch", "下載的安裝檔不是這個 App，未安裝。");
+          throw new HostError("identity_mismatch", HostText.Get("update.otherApp"));
         if (!string.Equals(reader.GetAttribute("ProcessorArchitecture"), architecture, StringComparison.OrdinalIgnoreCase) || version is null || version <= current)
-          throw new HostError("identity_mismatch", "下載的安裝檔版本或架構不符，未安裝。");
+          throw new HostError("identity_mismatch", HostText.Get("update.versionMismatch"));
         return;
       }
     }
     catch (XmlException) { }
-    throw new HostError("identity_mismatch", "下載的安裝檔缺少套件身分，未安裝。");
+    throw new HostError("identity_mismatch", HostText.Get("update.identityMissing"));
   }
 }

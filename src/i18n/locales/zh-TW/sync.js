@@ -1,0 +1,85 @@
+// The Google account, sync status and the cloud reset and overwrite flows of the main window.
+export default {
+  // Where the notes live: the account chip and the identity on the Account and sync page
+  'sync.account.localNotes': '本機便箋',
+  'sync.account.google': 'Google 帳號',
+  'sync.account.current': '目前 Google 帳號',
+  'sync.account.this': '這個 Google 帳號',
+  'sync.storage.device': '加密保存在這台裝置',
+  'sync.storage.browser': '保存在這個瀏覽器',
+  'sync.storage.google': '同步到你的 Google 帳號',
+  'sync.storage.paused': '便箋可離線使用；系統安全儲存可用後會繼續同步',
+  'sync.storage.signInAgain': '重新登入後才會繼續同步',
+
+  // Sync status, shown in the account chip and the Sync row
+  'sync.status.opening': '正在開啟本機資料…',
+  'sync.status.deviceOnly': '只存在這台裝置',
+  'sync.status.browserOnly': '只存在這個瀏覽器',
+  'sync.status.notConnected': '尚未連接 Google',
+  'sync.status.waiting': '等待同步',
+  'sync.status.preparing': '正在準備同步…',
+  'sync.status.syncing': '正在同步…',
+  'sync.status.synced': '已同步',
+  'sync.status.syncedAt': '已同步 {time}',
+  'sync.status.pending.one': '{count} 筆等待同步',
+  'sync.status.pending.other': '{count} 筆等待同步',
+  'sync.status.paused': '同步暫停',
+  'sync.status.failed': '同步失敗',
+  'sync.status.signInAgain': '請重新登入 Google',
+  'sync.status.waitingInitialization': '等待工作空間初始化',
+  'sync.status.cloudReset': '雲端已重設',
+  'sync.status.resetAgain': '雲端已由其他裝置再次重設',
+  'sync.status.resetUnfinished': '資料重設尚未完成',
+  'sync.status.overwriteUnfinished': 'Google 覆蓋尚未完成',
+  'sync.detail.signInSwitches': '登入後會改用該帳號的便箋；這裡的本機便箋會留在這台裝置。',
+  'sync.detail.notesKept': '這台裝置上的便箋和還沒同步的修改都還在。',
+  'sync.detail.unlockKeyring': '金鑰圈若已鎖定，請在系統視窗中解鎖；完成後會接續同步。',
+  'sync.detail.waitingInitialization': '其他裝置正在建立或還原資料，完成後會自動接續同步。',
+  'sync.detail.resetStopped': '這份舊重設工作已停止；可先匯出備份，再清除這台副本並重新同步。',
+  'sync.detail.overwriteStopped': '這份覆蓋工作已停止；可先匯出備份，再清除這台副本並重新同步。',
+  'sync.detail.resetUnfinished': '請在「資料與備份」繼續重設；其他裝置會等待初始化完成。',
+  'sync.detail.overwriteSaved': '還原資料已保存在這台裝置；請按「繼續覆蓋 Google」。',
+
+  // Rows on the Account and sync page
+  'sync.row.label': '同步',
+  'sync.actions.syncNow': '立即同步',
+  'sync.actions.resumeOverwrite': '繼續覆蓋 Google',
+  'sync.actions.resumeReset': '繼續重設資料',
+  'sync.actions.refetch': '重新取得雲端副本',
+  'sync.google.signedOut': '未登入',
+  'sync.google.unavailable': '這個版本還不能登入',
+  'sync.google.signIn': '登入',
+  'sync.google.signInAgain': '重新登入',
+  'sync.google.signInGoogleAgain': '重新登入 Google',
+  'sync.google.switchAccount': '切換帳號',
+  'sync.google.signOut': '登出',
+  'sync.google.signingIn': '請完成原生 Google 登入與同步授權…',
+  'sync.local.detail': '只存在這台裝置、不會同步',
+  'sync.local.switch': '切換',
+
+  // Continuing a Google overwrite
+  'sync.cloudRestore.title': '完成 Google 覆蓋',
+  'sync.cloudRestore.resumeReset': '將繼續清空 {account} 的 Work Fleet 雲端資料，再上傳已保存的還原資料。其他裝置請先停止同步。',
+  'sync.cloudRestore.resumeUpload': '將繼續上傳已保存的還原資料，不會再次清空雲端。',
+  'sync.cloudRestore.incomplete': '覆蓋尚未完成',
+
+  // Another device reset the cloud
+  'sync.sourceReset.title': '雲端資料已重設',
+  'sync.sourceReset.body': '{account} 的 Work Fleet 雲端資料已在其他裝置重設。這台裝置上的副本還在，但已停止同步。',
+  'sync.sourceReset.clearHint': '清除副本後會從目前的雲端重新同步；這台裝置尚未同步的修改也會一起刪除，需要的話請先匯出備份。',
+  'sync.sourceReset.exportFirst': '先匯出備份',
+  'sync.sourceReset.clear': '清除這台裝置的副本',
+
+  // Resetting the workspace
+  'sync.reset.marking': '正在標記雲端重設…',
+  'sync.reset.deletingCloud': '正在刪除雲端資料：{done} / {total}',
+  'sync.reset.deletingDevice': '正在刪除這台裝置上的資料…',
+
+  // Errors
+  'sync.errors.signInFirst': '請先在帳號選單重新登入 Google，才能一併清除雲端資料。',
+  'sync.errors.accountBusy': '帳號或關閉作業進行中，請稍後再試。',
+  'sync.errors.cannotSync': '目前無法同步 Google；請確認登入、網路與尚未完成的覆蓋作業。',
+  'sync.errors.initializingRestore': '工作空間初始化尚未完成，請稍後再還原。',
+  'sync.errors.initializingExport': '工作空間初始化尚未完成，請稍後再匯出。',
+  'sync.errors.initialSyncRequired': '請先完成 Google 同步，再新增便箋。',
+};

@@ -3,10 +3,11 @@ import { canonicalJson, parseJson } from './json.js';
 import { validateRevision } from './revisions.js';
 import { validFileId } from './files.js';
 import { resetFileIds } from './initial-group.js';
+import { t } from '../i18n/index.js';
 
 function resetIds(value) {
   requireValue(Array.isArray(value) && value.every(validFileId) && new Set(value).size === value.length,
-    'invalid-source-generation', '同步版本的重設身分無效。');
+    'invalid-source-generation', t('errors.sources.generationInvalid'));
   return [...value].sort();
 }
 

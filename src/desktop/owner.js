@@ -1,5 +1,6 @@
 import { FleetError } from '../core/contracts.js';
 import { download, encode, parse, upload, MAX_FRAME, MAX_COMMAND } from './transport.js';
+import { onLocaleChange, t } from '../i18n/index.js';
 
 /** The owner publishes projections and dispatches commands; it does not add another durable store. */
 export class DesktopOwner {
@@ -23,12 +24,12 @@ export class DesktopOwner {
       if (!pending || pending.viewId !== message.viewId || pending.draftId !== message.draftId) return;
       this.#flushes.delete(message.id); clearTimeout(pending.timer);
       if (message.ok) pending.resolve(message.sequence);
-      else pending.reject(new FleetError('desktop-flush', '請先完成桌面輸入或修復草稿保存，再切換調整範圍。'));
+      else pending.reject(new FleetError('desktop-flush', t('errors.desktop.flushFailed')));
     }));
     this.#unsub.push(bridge.onEvent('desktop-view-lost', message => {
       authority.removeView(message.viewId);
       for (const [id, pending] of this.#flushes) if (pending.viewId === message.viewId) {
-        clearTimeout(pending.timer); this.#flushes.delete(id); pending.reject(new FleetError('desktop-view', '編輯視窗已中斷，最後確認草稿保留於主畫面。'));
+        clearTimeout(pending.timer); this.#flushes.delete(id); pending.reject(new FleetError('desktop-view', t('errors.desktop.editorLost')));
       }
       void Promise.resolve(this.#lost(message.viewId)).then(this.#changed).catch(this.#error);
       this.#error(new FleetError('desktop-view', message.message));
@@ -43,6 +44,8 @@ export class DesktopOwner {
         await displays(message);
       }).catch(this.#error);
     }));
+    // Scenes take their language from each frame, so a language change sends every scene a fresh one.
+    this.#unsub.push(onLocaleChange(() => this.publish()));
   }
   perform(action) {
     const next = this.#actions.then(async () => {
@@ -62,7 +65,7 @@ export class DesktopOwner {
   }
   async #command(message, command) {
     try {
-      if (this.#sealed || this.#closing && command.method !== 'editor.change') throw new FleetError('desktop-closing', 'App 正在保存並關閉，請稍候。');
+      if (this.#sealed || this.#closing && command.method !== 'editor.change') throw new FleetError('desktop-closing', t('errors.desktop.closing'));
       const result = await this.#authority.request(message.viewId, command, { intent: message.intent ?? null, topology: message.topology ?? 0 });
       if (this.#closed) return;
       if (command.method !== 'attachment.preview') this.#changed();
@@ -100,7 +103,7 @@ export class DesktopOwner {
     const id = crypto.randomUUID(); this.#frozen.add(id);
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
-        this.#flushes.delete(id); reject(new FleetError('desktop-flush', '桌面編輯仍未確認保存，已保留目前操作。'));
+        this.#flushes.delete(id); reject(new FleetError('desktop-flush', t('errors.desktop.flushTimeout')));
         void this.#bridge.request('desktop.flush.cancel', { id }).catch(() => {});
       }, 30_000);
       this.#flushes.set(id, { viewId: editor.viewId, draftId: editor.draftId, resolve, reject, timer });
@@ -115,7 +118,7 @@ export class DesktopOwner {
   async cancelClose() { this.#closing = false; this.#sealed = false; await this.#release(); }
   close() {
     this.#closed = true; for (const unsubscribe of this.#unsub) unsubscribe(); this.#authority.close();
-    for (const pending of this.#flushes.values()) { clearTimeout(pending.timer); pending.reject(new FleetError('desktop-closed', '桌面工作階段已關閉。')); }
+    for (const pending of this.#flushes.values()) { clearTimeout(pending.timer); pending.reject(new FleetError('desktop-closed', t('errors.desktop.sessionClosed'))); }
     this.#flushes.clear();
   }
 }

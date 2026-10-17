@@ -1,15 +1,16 @@
 import { compareId, copy, requireValue, summaryText } from './contracts.js';
+import { t } from '../i18n/index.js';
 
 /** A retired group retains its explicit destination; missing dependencies and cycles are never guessed. */
 export function resolveGroupId(state, groupId) {
   const seen = new Set();
   while (true) {
-    requireValue(!seen.has(groupId), 'group-cycle', '群組合併產生循環，請先處理群組衝突。');
+    requireValue(!seen.has(groupId), 'group-cycle', t('errors.core.groupCycle'));
     seen.add(groupId);
     const group = state.groups.find(item => item.id === groupId);
-    requireValue(group, 'missing-group', '群組不存在或尚待同步。');
+    requireValue(group, 'missing-group', t('errors.common.groupMissingOrPending'));
     if (!group.deleted) return group.id;
-    requireValue(group.redirectGroupId, 'missing-group', '群組已刪除且沒有接收群組。');
+    requireValue(group.redirectGroupId, 'missing-group', t('errors.core.groupDeletedNoRecipient'));
     groupId = group.redirectGroupId;
   }
 }
@@ -21,10 +22,10 @@ export function groupResolver(groups) {
     const seen = new Set(); let id = initial; let result;
     try {
       while (!results.has(id)) {
-        requireValue(!seen.has(id), 'group-cycle', '群組合併產生循環，請先處理群組衝突。'); seen.add(id);
-        const group = byId.get(id); requireValue(group, 'missing-group', '群組不存在或尚待同步。');
+        requireValue(!seen.has(id), 'group-cycle', t('errors.core.groupCycle')); seen.add(id);
+        const group = byId.get(id); requireValue(group, 'missing-group', t('errors.common.groupMissingOrPending'));
         if (!group.deleted) { result = { id }; break; }
-        requireValue(group.redirectGroupId, 'missing-group', '群組已刪除且沒有接收群組。'); id = group.redirectGroupId;
+        requireValue(group.redirectGroupId, 'missing-group', t('errors.core.groupDeletedNoRecipient')); id = group.redirectGroupId;
       }
       result ||= results.get(id);
     } catch (error) { result = { error }; }
@@ -34,10 +35,10 @@ export function groupResolver(groups) {
 }
 
 export function planGroupMerge(state, sourceId, targetId) {
-  requireValue(sourceId !== targetId, 'same-group', '請選擇另一個接收群組。');
+  requireValue(sourceId !== targetId, 'same-group', t('errors.core.mergeSameGroup'));
   const source = state.groups.find(group => group.id === sourceId && !group.deleted);
   const target = state.groups.find(group => group.id === targetId && !group.deleted);
-  requireValue(source && target, 'missing-group', '請選擇仍存在的來源與接收群組。');
+  requireValue(source && target, 'missing-group', t('errors.core.mergeGroupsMissing'));
   const cards = state.cards.filter(card => card.groupId === sourceId).sort((a, b) => compareId(a.id, b.id));
   const cardIds = new Set(cards.map(card => card.id));
   const drafts = Object.values(state.drafts || {}).filter(draft => draft.groupId === sourceId || cardIds.has(draft.cardId))
@@ -54,6 +55,6 @@ export function planGroupMerge(state, sourceId, targetId) {
 export function validateGroupMerge(state, plan) {
   const current = planGroupMerge(state, plan.sourceId, plan.targetId);
   requireValue(plan.kind === 'group-merge' && plan.fingerprint === current.fingerprint,
-    'stale-group-plan', '預覽後群組、便箋或草稿已變更，請重新預覽再合併。');
+    'stale-group-plan', t('errors.core.mergePlanStale'));
   return copy(current);
 }

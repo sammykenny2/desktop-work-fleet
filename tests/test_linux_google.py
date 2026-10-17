@@ -13,6 +13,7 @@ from urllib.parse import parse_qs
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src/native/linux"))
 import google  # noqa: E402
 import protocol as p  # noqa: E402
+import text  # noqa: E402
 
 
 class FakeVault:
@@ -137,7 +138,7 @@ class VaultPause(unittest.TestCase):
                 if self.unavailable:
                     raise p.Failure("vault-unavailable", "service unavailable")
                 if self.locked:
-                    raise p.Failure("vault-locked", "同步暫停，便箋仍可使用")
+                    raise p.Failure("vault-locked", "Sync is paused; notes still work")
                 return json.dumps({"accountId": account, "email": "synthetic@example.test", "clientId": "client", "scope": google.SCOPE,
                                    "accessToken": "synthetic-access", "refreshToken": "synthetic-refresh", "expiresAt": int(time.time()) + 3600})
             def writable(self):
@@ -148,7 +149,7 @@ class VaultPause(unittest.TestCase):
             def unlock(self, _closed=None):
                 self.unlocks += 1
                 if self.cancelled:
-                    raise p.Failure("vault-unlock-cancelled", "已取消解鎖")
+                    raise p.Failure("vault-unlock-cancelled", "Unlock cancelled")
                 self.locked = False
         vault = Vault()
         g = google.Google(vault, {"google": {"clients": {"linux": "client"}}}, "google:fixture", lambda _: self.fail("browser should not launch"))
@@ -162,8 +163,17 @@ class VaultPause(unittest.TestCase):
         self.assertFalse(status["connected"])
         self.assertTrue(status["paused"])
         self.assertEqual(status["accountId"], "fixture")
-        self.assertIn("暫停", status["pauseReason"])
-        self.assertIn("立即同步", status["pauseReason"])
+        # The pause reason is host text in the display language (English in tests), not the vault's error message.
+        self.assertEqual(status["pauseReason"], text.t("sync.keyringLocked"))
+        self.assertIn("paused", status["pauseReason"])
+        self.assertIn("Sync now", status["pauseReason"])
+        text.set_locale("zh-TW")
+        try:
+            self.assertEqual(g.status()["pauseReason"], text.ZH_TW["sync.keyringLocked"])
+        finally:
+            text.set_locale("en")
+        vault.locked, vault.unavailable = False, True
+        self.assertEqual(g.status()["pauseReason"], text.t("sync.keyringUnavailable"))
         self.assertEqual(vault.unlocks, 0)
 
     def test_manual_unlock_resumes_same_account_without_oauth(self):

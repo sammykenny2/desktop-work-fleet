@@ -61,8 +61,18 @@ internal static class Program
   }
   [DllImport("user32.dll")] private static extern IntPtr GetThreadDpiAwarenessContext();
   [DllImport("user32.dll")] private static extern bool AreDpiAwarenessContextsEqual(IntPtr first, IntPtr second);
+  /// <summary>
+  /// UI probes run in English whatever the Windows display language (docs/i18n.md): the isolated data folder stores the
+  /// display language "en" before a window opens, as the Settings select would.
+  /// </summary>
+  internal static string English(string directory)
+  {
+    Directory.CreateDirectory(directory);
+    HostPreferences.Read(directory).WithLanguage("en").Write(directory); return directory;
+  }
   internal static FleetWindow Open(string directory)
   {
+    English(directory);
     var backups = Path.Combine(directory, "backups"); Directory.CreateDirectory(backups);
     // Replace only the interactive picker in this offscreen probe. Bridge, encryption, SQLite and file I/O are real.
     var window = new FleetWindow(directory, () => backups,
@@ -99,24 +109,25 @@ internal static class Program
   private static async Task Probe(string directory)
   {
     Directory.CreateDirectory(directory); var window = Open(directory);
-    await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "native app initialization");
-    await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('加密保存在這台裝置')", "native adapter selection");
+    await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native app initialization");
+    await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('Encrypted on this device')", "native adapter selection");
     Console.WriteLine($"WebView2 {window.WebView.CoreWebView2.Environment.BrowserVersionString}");
     await Eval(window, "document.querySelector('#new-card').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "open editor");
-    await Eval(window, "document.querySelector('#editor-text').value='# 原生便箋\\n\\n- [ ] 跨程序保存';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(window, "document.querySelector('#draft-status').textContent === '草稿已存本機'", "durable draft");
-    await Eval(window, "const files=new DataTransfer();files.items.add(new File(['native attachment 中文'],'proof.txt',{type:'text/plain'}));document.querySelector('#attachment-input').files=files.files;document.querySelector('#attachment-input').dispatchEvent(new Event('change',{bubbles:true}))");
+    await Eval(window, "document.querySelector('#editor-text').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Wait(window, "document.querySelector('#draft-status').textContent === 'Draft saved locally'", "durable draft");
+    // The attachment text carries escaped CJK characters, so the native attachment path keeps multi-byte UTF-8 exactly.
+    await Eval(window, "const files=new DataTransfer();files.items.add(new File(['native attachment \u4E2D\u6587'],'proof.txt',{type:'text/plain'}));document.querySelector('#attachment-input').files=files.files;document.querySelector('#attachment-input').dispatchEvent(new Event('change',{bubbles:true}))");
     await Wait(window, "document.querySelector('#attachments a')?.textContent === 'proof.txt'", "native attachment");
     await Eval(window, "document.querySelector('#editor-form').requestSubmit()");
-    await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.note-title')?.textContent === '原生便箋'", "save native card");
+    await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.note-title')?.textContent === 'Native note'", "save native card");
     // Turning daily display off must explain the hidden papers above the list, and its action must restore them.
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('#settings-dialog').open", "settings before hiding desktop notes");
     await Eval(window, "const visible=document.querySelector('#desktop-visible');visible.checked=false;visible.dispatchEvent(new Event('change'));document.querySelector('#close-settings').click()");
-    await Wait(window, "!document.querySelector('#settings-dialog').open && !document.querySelector('#desktop-hidden').hidden && document.querySelector('#desktop-hidden-text').textContent.startsWith('1 張便箋')", "hidden desktop notes explained");
+    await Wait(window, "!document.querySelector('#settings-dialog').open && !document.querySelector('#desktop-hidden').hidden && document.querySelector('#desktop-hidden-text').textContent.startsWith('1 note ')", "hidden desktop notes explained");
     await Eval(window, "document.querySelector('#show-desktop').click()");
-    await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('#status').textContent === '已顯示桌面便箋'", "hidden desktop notes shown again");
+    await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('#status').textContent === 'Desktop notes are showing'", "hidden desktop notes shown again");
     await DesktopIntegrationProbe.Run(window, directory);
     await ShortcutIntegrationProbe.Run(window);
     // The main host refuses navigations away from the exact packaged document and prevents frames.
@@ -128,24 +139,24 @@ internal static class Program
     await Eval(window, "document.querySelector('iframe').remove();document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('dialog[open]') !== null", "settings dialog");
     window.Close(); await Task.Delay(200);
-    await Wait(window, "document.querySelector('#status').textContent.includes('請先完成或關閉')", "close refuses open work dialog");
+    await Wait(window, "document.querySelector('#status').textContent.includes('Finish or close the current dialog')", "close refuses open work dialog");
     await Eval(window, "document.querySelector('dialog[open]').close()");
     await BackupProbe(window, directory);
     using (var screenshot = File.Create(Path.Combine(directory, "native-ui.png")))
       await window.WebView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
     await Eval(window, "document.querySelector('#new-card').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "second draft");
-    await Eval(window, "document.querySelector('#editor-text').value='關閉瞬間的未提交草稿';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Eval(window, "document.querySelector('#editor-text').value='Draft still unsaved at the moment of closing';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
     await Close(window); window = Open(directory);
-    await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "native restart");
-    await Wait(window, "document.querySelector('.note-title')?.textContent === '原生便箋' && Number(document.querySelector('#draft-count').textContent) >= 1", "card and draft retained after native reopen");
+    await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native restart");
+    await Wait(window, "document.querySelector('.note-title')?.textContent === 'Native note' && Number(document.querySelector('#draft-count').textContent) >= 1", "card and draft retained after native reopen");
     await Eval(window, "document.querySelector('#drafts-button').click()");
-    await Wait(window, "document.querySelector('dialog[open]')?.textContent.includes('關閉瞬間的未提交草稿')", "exact saved draft text");
+    await Wait(window, "document.querySelector('dialog[open]')?.textContent.includes('Draft still unsaved at the moment of closing')", "exact saved draft text");
     await Eval(window, "document.querySelector('dialog[open]').close()");
     await DesktopIntegrationProbe.CloseWithDraft(window); window = Open(directory);
-    await Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "reopen after scene close");
+    await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "reopen after scene close");
     await Eval(window, "document.querySelector('#drafts-button').click()");
-    await Wait(window, "document.querySelector('#draft-list').textContent.includes('桌面關閉瞬間仍須落盤')", "exact desktop final draft survived close");
+    await Wait(window, "document.querySelector('#draft-list').textContent.includes('Desktop draft that must reach the disk at close')", "exact desktop final draft survived close");
     await Eval(window, "document.querySelector('dialog[open]').close()");
     // Hold the real host.ready request on the next document. Resizing must not install
     // a live group menu or card action before the native close handshake is ready.
@@ -159,7 +170,7 @@ internal static class Program
     window.WebView.CoreWebView2.Reload();
     await Wait(window, "window.nativeReadyHeld === true", "hold native readiness");
     window.Width = 980; await Task.Delay(300);
-    await Wait(window, "document.querySelectorAll('.card,.group-menu').length === 0 && document.querySelector('#status').textContent === '正在載入…'", "resize cannot bypass native readiness");
+    await Wait(window, "document.querySelectorAll('.card,.group-menu').length === 0 && document.querySelector('#status').textContent === 'Loading…'", "resize cannot bypass native readiness");
     await Eval(window, "document.querySelector('#new-card').click()");
     await Wait(window, "!document.querySelector('#editor-dialog').open", "editor remains unavailable before readiness");
     await Close(window);
@@ -176,11 +187,11 @@ internal static class Program
     await Wait(window, "document.querySelector('#backup-panel') !== null", "native backup page");
     await Eval(window, "document.querySelector('#auto-backup-location').click()");
     await Wait(window, "document.querySelector('#auto-backup-destination').textContent.includes('backups')", "native directory grant");
-    await Eval(window, "document.querySelector('#auto-backup-password').value='原生畫面備份密碼-abcdefghijkl';document.querySelector('#auto-backup-enable').click()");
-    await Wait(window, "document.querySelector('#auto-backup-message').textContent === '已備份，檔案檢查無誤。'", "native automatic encrypted file");
+    await Eval(window, "document.querySelector('#auto-backup-password').value='native-window-backup-password-abcdefghijkl';document.querySelector('#auto-backup-enable').click()");
+    await Wait(window, "document.querySelector('#auto-backup-message').textContent === 'Backed up and verified.'", "native automatic encrypted file");
     if (Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-auto-*.zip").Length != 1) throw new Exception("Missing automatic file");
-    await Eval(window, "document.querySelector('#backup-password').value='手動畫面備份密碼-abcdefghijkl';document.querySelector('#export-backup').click()");
-    await Wait(window, "document.querySelector('#backup-status').textContent.startsWith('備份已保存，檔案檢查無誤。')", "native manual verified file");
+    await Eval(window, "document.querySelector('#backup-password').value='manual-window-backup-password-abcdefghijkl';document.querySelector('#export-backup').click()");
+    await Wait(window, "document.querySelector('#backup-status').textContent.startsWith('Backup saved and verified.')", "native manual verified file");
     var file = Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-backup-*.zip").Single();
     var base64 = Convert.ToBase64String(File.ReadAllBytes(file));
     await Eval(window, """
@@ -188,11 +199,11 @@ internal static class Program
       const restoreInput = new DataTransfer(); restoreInput.items.add(new File([restoreBytes], 'native.zip', {type:'application/zip'}));
       document.querySelector('#restore-file').files=restoreInput.files;
       document.querySelector('#restore-file').dispatchEvent(new Event('change',{bubbles:true}));
-      document.querySelector('#restore-password').value='手動畫面備份密碼-abcdefghijkl';
+      document.querySelector('#restore-password').value='manual-window-backup-password-abcdefghijkl';
       document.querySelector('#preview-restore').click();
       """.Replace("BASE64", JsonSerializer.Serialize(base64)));
-    await Wait(window, "document.querySelector('#backup-status').textContent === '檔案可以還原，確認內容後按「確認還原」。'", "native file portable restore preview");
-    await Wait(window, "document.querySelector('#restore-preview').textContent.includes('1 個附件')", "backup retains attachment");
+    await Wait(window, "document.querySelector('#backup-status').textContent === 'The file can be restored. Check the details, then select Confirm restore.'", "native file portable restore preview");
+    await Wait(window, "document.querySelector('#restore-preview').textContent.includes('1 attachment')", "backup retains attachment");
     await Eval(window, "document.querySelector('#close-settings').click()");
   }
 }

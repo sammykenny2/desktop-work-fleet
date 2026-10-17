@@ -83,9 +83,12 @@ commit as the change it describes. Nothing is recorded after the fact.
   messages, scripts, workflows, commit messages, documentation and agent files.
 - Chinese may appear in code only where the code must recognise, store or test
   Chinese text (locale matching, CJK handling tests, persisted protocol values),
-  with an English comment saying why.
-- User-visible text belongs in locale catalogs, never inline in code. Write the
-  English text first; every key must exist in every supported locale (`en`, `zh-TW`).
+  with an English comment saying why. `tests/i18n.test.js` lists those places and
+  fails on Chinese anywhere else outside the zh-TW catalogs and Chinese editions.
+- User-visible text comes only from the locale catalogs in `src/i18n/locales/` and
+  the small native string tables described in `docs/i18n.md`, never inline in code.
+  Write the English text first; every key must exist in every supported locale
+  (`en`, `zh-TW`). Native hosts send English error messages with stable codes.
 - A document whose name ends in `_ZH` or carries `.zh-TW` before the extension (for
   example `README.zh-TW.md`) is a Chinese edition. Only user-facing guides keep one.
   Change the English document and its Chinese edition in the same commit; every
@@ -98,6 +101,8 @@ commit as the change it describes. Nothing is recorded after the fact.
 | Need | Reference |
 |------|-----------|
 | Setup and commands | `docs/setup-guide.md`, `docs/testing.md` |
+| Using the app | `docs/user-guide.md` (Chinese edition `docs/user-guide.zh-TW.md`) |
+| UI text, locales and the CJK guard | `docs/i18n.md` |
 | Current status and release history | `PROGRESS.md`, `docs/release-notes.md` |
 | Architecture and decisions | `docs/architecture.md`, `docs/decisions/` |
 | Feature planning | `docs/specs/`, `docs/plans/` |

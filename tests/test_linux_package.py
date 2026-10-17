@@ -137,7 +137,7 @@ class LinuxPackageTests(unittest.TestCase):
             shutil.copy2(ROOT / relative, destination)
         for relative in (
             "src/app", "src/core", "src/layout", "src/interaction", "src/storage",
-            "src/sources", "src/backup", "src/desktop", "src/native/linux",
+            "src/sources", "src/backup", "src/desktop", "src/i18n", "src/native/linux",
         ):
             shutil.copytree(
                 ROOT / relative, checkout / relative,
@@ -178,6 +178,8 @@ class LinuxPackageTests(unittest.TestCase):
         # The launcher prefers the distribution's interpreter over a PATH python3 such as a pyenv shim.
         launcher = build / "linux/work-fleet-9.8.7/run-work-fleet.sh"
         self.assertIn("PYTHON=/usr/bin/python3", launcher.read_text(encoding="utf-8"))
+        # The host's string table ships beside host.py, which imports it.
+        self.assertTrue((launcher.parent / "Native/text.py").is_file())
         record = checkout / "interpreter-args.txt"
         fake = checkout / "fake-python"
         fake.write_text(f'#!/bin/bash\nprintf "%s\\n" "$@" > "{record}"\n', encoding="utf-8")

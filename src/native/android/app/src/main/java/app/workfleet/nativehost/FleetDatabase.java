@@ -29,9 +29,9 @@ final class FleetDatabase implements AutoCloseable {
     final String profile;
     FleetDatabase(Context context, String profile) throws Exception {
         this.profile = profile;
-        Protocol.require(profile.equals("local") || profile.matches("google:[A-Za-z0-9_-]{1,255}"), "invalid-profile", "工作空間身分無效。");
+        Protocol.require(profile.equals("local") || profile.matches("google:[A-Za-z0-9_-]{1,255}"), "invalid-profile", "The workspace ID is invalid.");
         owner = new RandomAccessFile(new File(context.getFilesDir(), "owner.lock"), "rw"); lock = owner.getChannel().tryLock();
-        Protocol.require(lock != null, "native-already-open", "工作空間已在另一個視窗開啟。");
+        Protocol.require(lock != null, "native-already-open", "The workspace is already open in another window.");
         KeyStore vault = KeyStore.getInstance("AndroidKeyStore"); vault.load(null); String alias = "work-fleet-storage-v1";
         if (!vault.containsAlias(alias)) {
             KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
@@ -58,7 +58,7 @@ final class FleetDatabase implements AutoCloseable {
         byte[] sealed = cipher.doFinal(bytes); byte[] result = new byte[12 + sealed.length]; System.arraycopy(cipher.getIV(), 0, result, 0, 12); System.arraycopy(sealed, 0, result, 12, sealed.length); return result;
     }
     byte[] unprotect(byte[] bytes, String scope) throws Exception {
-        Protocol.require(bytes.length >= 28, "vault-unavailable", "安全儲存內容已損壞。");
+        Protocol.require(bytes.length >= 28, "vault-unavailable", "The secure storage contents are damaged.");
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, bytes, 0, 12)); cipher.updateAAD(scope.getBytes(StandardCharsets.UTF_8));
         return cipher.doFinal(bytes, 12, bytes.length - 12);
     }
@@ -70,33 +70,33 @@ final class FleetDatabase implements AutoCloseable {
         }
     }
     synchronized byte[] record(String kind) throws Exception { kind(kind); return read("records", "kind", null, kind); }
-    synchronized byte[] attachment(String id) throws Exception { Protocol.digest(id); byte[] bytes = read("attachments", "id", null, id); if (bytes != null) Protocol.require(Protocol.digest(bytes).equals(id), "attachment-integrity", "附件校驗失敗。"); return bytes; }
+    synchronized byte[] attachment(String id) throws Exception { Protocol.digest(id); byte[] bytes = read("attachments", "id", null, id); if (bytes != null) Protocol.require(Protocol.digest(bytes).equals(id), "attachment-integrity", "The attachment failed verification."); return bytes; }
     synchronized byte[] secret(String kind, String id) throws Exception { return read("secrets", "id", kind, id); }
     synchronized void secret(String kind, String id, byte[] bytes) throws Exception {
-        Protocol.require(bytes.length <= 65536, "invalid-secret", "安全儲存內容過大。");
+        Protocol.require(bytes.length <= 65536, "invalid-secret", "The secure storage item is too large.");
         ContentValues row = new ContentValues(); row.put("profile", profile); row.put("kind", kind); row.put("id", id); row.put("data", protect(bytes, scope("secret:" + kind, id)));
         db.insertWithOnConflict("secrets", null, row, SQLiteDatabase.CONFLICT_REPLACE);
     }
     synchronized void forget(String kind, String id) { db.delete("secrets", "profile=? AND kind=? AND id=?", new String[] { profile, kind, id }); }
-    private static void kind(String kind) throws Exception { Protocol.require(kind.equals("workspace") || kind.equals("journal"), "invalid-record", "儲存種類無效。"); }
+    private static void kind(String kind) throws Exception { Protocol.require(kind.equals("workspace") || kind.equals("journal"), "invalid-record", "The storage kind is invalid."); }
     synchronized String stage(String kind, byte[] bytes, String digest) throws Exception {
-        Protocol.require(kind.equals("workspace") || kind.equals("journal") || kind.equals("attachment") || kind.equals("backup"), "invalid-transfer", "傳輸種類無效。");
+        Protocol.require(kind.equals("workspace") || kind.equals("journal") || kind.equals("attachment") || kind.equals("backup"), "invalid-transfer", "The transfer kind is invalid.");
         Protocol.digest(digest); int max = kind.equals("attachment") ? Protocol.ATTACHMENT : kind.equals("backup") ? Protocol.BACKUP : Protocol.RECORD;
-        Protocol.require(bytes.length <= max && Protocol.digest(bytes).equals(digest), "transfer-integrity", "傳輸內容校驗失敗。");
+        Protocol.require(bytes.length <= max && Protocol.digest(bytes).equals(digest), "transfer-integrity", "The transfer failed verification.");
         if (kind.equals("workspace") || kind.equals("journal")) validate(bytes);
         try (Cursor capacity = db.rawQuery("SELECT COUNT(*),COALESCE(SUM(size),0) FROM staging", null)) {
-            capacity.moveToFirst(); Protocol.require(capacity.getInt(0) < 20008 && capacity.getLong(1) + bytes.length <= 512L * 1024 * 1024, "transfer-capacity", "暫存資料容量已滿。");
+            capacity.moveToFirst(); Protocol.require(capacity.getInt(0) < 20008 && capacity.getLong(1) + bytes.length <= 512L * 1024 * 1024, "transfer-capacity", "Temporary storage is full.");
         }
         String token = Protocol.uuid(); ContentValues row = new ContentValues(); row.put("profile", profile); row.put("token", token); row.put("kind", kind); row.put("digest", digest); row.put("size", bytes.length); row.put("data", protect(bytes, scope("staging", token)));
         db.insertOrThrow("staging", null, row); return token;
     }
     private long validate(byte[] bytes) throws Exception {
-        JSONObject value = Protocol.json(bytes); Protocol.require(Protocol.text(value, "profileId", 256).equals(profile), "invalid-profile", "資料不屬於目前帳號。"); return Protocol.number(value, "revision", Protocol.SAFE_INTEGER);
+        JSONObject value = Protocol.json(bytes); Protocol.require(Protocol.text(value, "profileId", 256).equals(profile), "invalid-profile", "The data doesn't belong to the current account."); return Protocol.number(value, "revision", Protocol.SAFE_INTEGER);
     }
     synchronized byte[] staged(String token, String kind) throws Exception {
         try (Cursor cursor = db.query("staging", new String[] { "data", "digest" }, "profile=? AND token=? AND kind=?", new String[] { profile, token, kind }, null, null, null)) {
-            Protocol.require(cursor.moveToFirst(), "transfer-missing", "原生傳輸已失效。"); byte[] bytes = unprotect(cursor.getBlob(0), scope("staging", token));
-            Protocol.require(Protocol.digest(bytes).equals(cursor.getString(1)), "transfer-integrity", "傳輸內容校驗失敗。"); return bytes;
+            Protocol.require(cursor.moveToFirst(), "transfer-missing", "The native transfer has expired."); byte[] bytes = unprotect(cursor.getBlob(0), scope("staging", token));
+            Protocol.require(Protocol.digest(bytes).equals(cursor.getString(1)), "transfer-integrity", "The transfer failed verification."); return bytes;
         }
     }
     synchronized void discard(String token) { db.delete("staging", "profile=? AND token=?", new String[] { profile, token }); }
@@ -111,19 +111,19 @@ final class FleetDatabase implements AutoCloseable {
         db.beginTransaction(); try { String id = commitAttachment(token); db.setTransactionSuccessful(); return id; } finally { db.endTransaction(); }
     }
     synchronized void commit(String kind, String token, Long expected, JSONArray attachments, boolean replaceAttachments) throws Exception {
-        Protocol.require(!replaceAttachments || (kind.equals("workspace") && !profile.startsWith("google:")), "invalid-request", "只有本機工作空間可以清空附件後還原。");
+        Protocol.require(!replaceAttachments || (kind.equals("workspace") && !profile.startsWith("google:")), "invalid-request", "Only the local workspace can clear its attachments when restoring.");
         kind(kind); byte[] bytes = staged(token, kind);
         try {
-            long revision = validate(bytes); Protocol.require(revision == (expected == null ? 0 : expected + 1), "stale-workspace", "資料版本條件不符。");
+            long revision = validate(bytes); Protocol.require(revision == (expected == null ? 0 : expected + 1), "stale-workspace", "The data revision doesn't match.");
             db.beginTransaction();
             try {
                 try (Cursor cursor = db.query("records", new String[] { "revision" }, "profile=? AND kind=?", new String[] { profile, kind }, null, null, null)) {
-                    boolean present = cursor.moveToFirst(); Protocol.require(expected == null ? !present : present && cursor.getLong(0) == expected, "stale-workspace", "工作空間已由另一個寫入者變更。");
+                    boolean present = cursor.moveToFirst(); Protocol.require(expected == null ? !present : present && cursor.getLong(0) == expected, "stale-workspace", "Another writer has changed the workspace.");
                 }
-                Protocol.require(attachments.length() <= 20000, "invalid-attachment", "附件數量超限。");
+                Protocol.require(attachments.length() <= 20000, "invalid-attachment", "There are too many attachments.");
                 java.util.HashSet<String> unique = new java.util.HashSet<>();
                 if (replaceAttachments) db.delete("attachments", "profile=?", new String[] { profile });
-                for (int i = 0; i < attachments.length(); i++) { String attachment = attachments.getString(i); Protocol.require(unique.add(attachment), "invalid-attachment", "附件身分重複。"); commitAttachment(attachment); }
+                for (int i = 0; i < attachments.length(); i++) { String attachment = attachments.getString(i); Protocol.require(unique.add(attachment), "invalid-attachment", "An attachment ID is repeated."); commitAttachment(attachment); }
                 ContentValues row = new ContentValues(); row.put("profile", profile); row.put("kind", kind); row.put("revision", revision); row.put("data", protect(bytes, scope(kind, "record")));
                 db.insertWithOnConflict("records", null, row, SQLiteDatabase.CONFLICT_REPLACE); discard(token); db.setTransactionSuccessful();
             } finally { db.endTransaction(); }

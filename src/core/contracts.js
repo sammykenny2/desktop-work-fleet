@@ -1,4 +1,6 @@
 // Shared semantics have no dependency on a window system or storage provider.
+import { t } from '../i18n/index.js';
+
 export class FleetError extends Error {
   constructor(code, message, details = {}) {
     super(message);
@@ -27,11 +29,11 @@ export function validateGrid(rows, columns, groupCount) {
   requireValue(Number.isInteger(rows) && Number.isInteger(columns)
     && rows >= 1 && rows <= 3 && columns >= 1 && columns <= 4
     && rows * columns <= 9 && groupCount <= rows * columns,
-  'invalid-grid', '格局最多 3 列、4 欄、9 區，且必須容納所有群組。');
+  'invalid-grid', t('errors.core.gridInvalid'));
 }
 
 export function validateNewGroup(snapshot) {
-  requireValue(activeGroups(snapshot).length < 9, 'group-limit', '最多可建立九個群組。請先整理現有群組。');
+  requireValue(activeGroups(snapshot).length < 9, 'group-limit', t('errors.core.groupLimit'));
 }
 
 export function validRect(rect) {
@@ -70,18 +72,18 @@ export function summaryText(card) {
   const text = card.content?.title || card.content?.text || '';
   const line = text.split(/\r?\n/).map(part => part.trim()).find(Boolean) || '';
   return line.replace(/^#{1,6}\s+/, '').replace(/^[-*+]\s+(?:\[[ xX]\]\s*)?/, '')
-    .replace(/\s+/g, ' ').trim() || '新的想法';
+    .replace(/\s+/g, ' ').trim() || t('notes.summary.untitled');
 }
 
 export function gridRegions(grid, groups) {
   validateGrid(grid.rows, grid.columns, groups.length);
-  requireValue(validRect(grid.area), 'invalid-area', '需要有效的顯示器工作區。');
+  requireValue(validRect(grid.area), 'invalid-area', t('errors.common.workAreaRequired'));
   const ids = new Set(groups.map(group => group.id));
   requireValue(grid.slots.filter(Boolean).length === groups.length
     && new Set(grid.slots.filter(Boolean)).size === groups.length
     && grid.slots.filter(Boolean).every(id => ids.has(id))
     && grid.slots.length === grid.rows * grid.columns,
-  'invalid-slots', '每個群組必須有一個獨立區域；空區不會建立群組。');
+  'invalid-slots', t('errors.core.slotsInvalid'));
   const { x, y, width, height } = grid.area;
   return grid.slots.map((groupId, index) => ({
     groupId, x: x + (index % grid.columns) * width / grid.columns,
@@ -91,7 +93,7 @@ export function gridRegions(grid, groups) {
 }
 
 export function defaultGrid(groups, area) {
-  requireValue(groups.length <= 9, 'group-overflow', '同步帶來超過九組；資料保留，請先整理群組。');
+  requireValue(groups.length <= 9, 'group-overflow', t('errors.core.groupOverflow'));
   const rows = groups.length <= 4 ? 1 : groups.length <= 8 ? 2 : 3;
   const columns = Math.max(1, Math.ceil(groups.length / rows));
   return { rows, columns, area: copy(area),

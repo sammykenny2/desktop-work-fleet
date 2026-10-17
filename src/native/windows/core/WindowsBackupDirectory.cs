@@ -32,11 +32,11 @@ public sealed class WindowsBackupDirectory : IDisposable
     {
       var info = Information(directory);
       HostError.Require((info.Attributes & 0x10) != 0 && (info.Attributes & 0x400) == 0,
-        "backup-directory", "備份位置必須是實際資料夾，不能是連結。");
+        "backup-directory", "The backup location must be a real folder, not a link.");
       var fileSystem = new StringBuilder(64);
       if (!GetVolumeInformationByHandleW(directory, null, 0, out _, out _, out _, fileSystem, (uint)fileSystem.Capacity)) ThrowLast();
       // This implementation is qualified for local NTFS. Other backends must prove the same semantics separately.
-      HostError.Require(fileSystem.ToString() == "NTFS", "backup-filesystem", "此原生備份方式目前需要本機 NTFS 資料夾。");
+      HostError.Require(fileSystem.ToString() == "NTFS", "backup-filesystem", "This native backup method needs a local NTFS folder.");
       Reference = new BackupDirectoryReference(FinalPath(directory), Identity(directory, info));
     }
     catch { directory.Dispose(); throw; }
@@ -45,9 +45,9 @@ public sealed class WindowsBackupDirectory : IDisposable
   {
     var path = Path.GetFullPath(absolutePath);
     HostError.Require(path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] == '\\',
-      "backup-directory", "請選擇本機磁碟上的備份資料夾。");
+      "backup-directory", "Choose a backup folder on a local disk.");
     var drive = GetDriveTypeW(path[..3]);
-    HostError.Require(drive is 2 or 3, "backup-filesystem", "此原生備份方式目前不支援網路磁碟。");
+    HostError.Require(drive is 2 or 3, "backup-filesystem", "This native backup method doesn't support network drives.");
     return new WindowsBackupDirectory(Open("\\??\\" + path.TrimEnd('\\') + (path.Length == 3 ? "\\" : ""), null,
       ReadAttributes | Synchronize, 1, 1 | 0x20));
   }
@@ -55,7 +55,7 @@ public sealed class WindowsBackupDirectory : IDisposable
   {
     var path = reference.NativePath;
     HostError.Require(path.Length >= 49 && path.StartsWith(@"\\?\Volume{", StringComparison.Ordinal)
-      && Guid.TryParseExact(path.Substring(11, 36), "D", out _) && path[47..49] == @"}\", "backup-directory", "備份位置參照無效。");
+      && Guid.TryParseExact(path.Substring(11, 36), "D", out _) && path[47..49] == @"}\", "backup-directory", "The backup location reference is invalid.");
     // Windows' volume GUID namespace itself uses a system reparse mapping. Resolve only that root
     // through Win32, then refuse filesystem reparses while opening the saved directory below it.
     var root = CreateFileW(path[..49], ReadAttributes | Synchronize, 1, IntPtr.Zero, 3, 0x02000000 | 0x00200000, IntPtr.Zero);
@@ -64,12 +64,12 @@ public sealed class WindowsBackupDirectory : IDisposable
     if (path.Length == 49) result = new WindowsBackupDirectory(root);
     else using (root) result = new WindowsBackupDirectory(Open(path[49..], root, ReadAttributes | Synchronize, 1, 1 | 0x20));
     if (result.Reference.Identity == reference.Identity) return result;
-    result.Dispose(); throw new HostError("backup-directory-changed", "備份資料夾已被替換；請重新選擇位置。");
+    result.Dispose(); throw new HostError("backup-directory-changed", "The backup folder was replaced. Choose the location again.");
   }
   public BackupFileIdentity Create(string name, byte[] bytes, Action<BackupFileIdentity> reserve, CancellationToken cancellation = default)
   {
     Name(name);
-    HostError.Require(bytes.Length > 0 && bytes.Length <= MaxBackupBytes, "backup-limit", "備份檔案容量無效。");
+    HostError.Require(bytes.Length > 0 && bytes.Length <= MaxBackupBytes, "backup-limit", "The backup file size is invalid.");
     // Callers own the buffer for this synchronous operation. Native host stages own immutable bytes.
     var digest = LocalDatabase.Digest(bytes);
     lock (gate)
@@ -88,7 +88,7 @@ public sealed class WindowsBackupDirectory : IDisposable
       cancellation.ThrowIfCancellationRequested();
       // Finalize and read back even if cancellation arrives after this irreversible boundary.
       stream.Flush(flushToDisk: true); stream.Position = 0;
-      HostError.Require(stream.Length == bytes.Length && Digest(stream) == digest, "backup-save-integrity", "備份已寫入，但讀回校驗失敗。");
+      HostError.Require(stream.Length == bytes.Length && Digest(stream) == digest, "backup-save-integrity", "The backup was written, but reading it back failed the integrity check.");
       return identity;
     }
   }
@@ -100,7 +100,7 @@ public sealed class WindowsBackupDirectory : IDisposable
       ObjectDisposedException.ThrowIf(disposed, this);
       using var handle = OpenExisting(expected.Name, delete: false); if (handle is null) return null;
       MatchIdentity(handle, expected); using var stream = new FileStream(handle, FileAccess.Read);
-      HostError.Require(stream.Length <= MaxBackupBytes, "backup-limit", "備份檔案超過容量上限。");
+      HostError.Require(stream.Length <= MaxBackupBytes, "backup-limit", "The backup file is too large.");
       var bytes = new byte[checked((int)stream.Length)]; stream.ReadExactly(bytes); return bytes;
     }
   }
@@ -119,12 +119,12 @@ public sealed class WindowsBackupDirectory : IDisposable
     {
       ObjectDisposedException.ThrowIf(disposed, this);
       using var handle = OpenExisting(expected.Name, delete: false);
-      HostError.Require(handle is not null, "backup-latest-missing", "最新備份不存在，先保留舊檔。");
+      HostError.Require(handle is not null, "backup-latest-missing", "The latest backup is missing, so older files are kept.");
       try { MatchIdentity(handle!, expected); }
-      catch (HostError) { throw new HostError("backup-latest-missing", "最新備份已被替換，先保留舊檔。"); }
+      catch (HostError) { throw new HostError("backup-latest-missing", "The latest backup was replaced, so older files are kept."); }
       using var stream = new FileStream(handle!, FileAccess.Read);
       HostError.Require(stream.Length == expected.Size && Digest(stream) == expected.Sha256,
-        "backup-latest-missing", "最新備份已被修改，先保留舊檔。");
+        "backup-latest-missing", "The latest backup was modified, so older files are kept.");
       // Hold the latest valid file against writes/replacement throughout old-file deletion.
       operation();
     }
@@ -138,7 +138,7 @@ public sealed class WindowsBackupDirectory : IDisposable
       using var handle = OpenExisting(expected.Name, delete: true); if (handle is null) return;
       MatchIdentity(handle, expected); using var stream = new FileStream(handle, FileAccess.Read);
       HostError.Require(stream.Length == expected.Size && Digest(stream) == expected.Sha256,
-        "backup-file-changed", "舊備份已被修改，保留該檔案供檢查。");
+        "backup-file-changed", "An older backup was modified; it is kept for you to check.");
       beforeDisposition?.Invoke();
       // The callback is for native fault probes only. No renderer-supplied callbacks or paths.
       // Delete through the same handle. No File.Delete(path) check-then-delete sequence.
@@ -154,16 +154,16 @@ public sealed class WindowsBackupDirectory : IDisposable
   private static void Validate(BackupFileIdentity value)
   {
     Name(value.Name); LocalDatabase.CheckDigest(value.Sha256);
-    HostError.Require(value.Size > 0 && value.Size <= MaxBackupBytes, "backup-limit", "備份身分容量無效。");
+    HostError.Require(value.Size > 0 && value.Size <= MaxBackupBytes, "backup-limit", "The backup identity has an invalid size.");
   }
   private static void Name(string name) => HostError.Require(Regex.IsMatch(name, @"\Awork-fleet-(auto|backup)-[a-zA-Z0-9-]+\.zip\z", RegexOptions.CultureInvariant)
-    && name.Length <= 180, "backup-name", "備份檔名無效。");
+    && name.Length <= 180, "backup-name", "The backup file name is invalid.");
   private static string Digest(Stream stream) => Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
   private static void MatchIdentity(SafeFileHandle handle, BackupFileIdentity expected)
   {
     var info = Information(handle);
     HostError.Require((info.Attributes & (0x400 | 0x10)) == 0 && Identity(handle, info) == expected.Identity,
-      "backup-file-changed", "原備份已被替換，未修改現在的檔案。");
+      "backup-file-changed", "The original backup was replaced; the current file was not changed.");
   }
   private static FileInfo Information(SafeFileHandle handle)
   {
@@ -179,7 +179,7 @@ public sealed class WindowsBackupDirectory : IDisposable
     var path = new StringBuilder(32768);
     var size = GetFinalPathNameByHandleW(handle, path, (uint)path.Capacity, 1); // VOLUME_NAME_GUID
     if (size == 0) ThrowLast();
-    HostError.Require(size < path.Capacity, "backup-directory", "備份路徑過長。"); return path.ToString();
+    HostError.Require(size < path.Capacity, "backup-directory", "The backup path is too long."); return path.ToString();
   }
   private static SafeFileHandle Open(string name, SafeFileHandle? root, uint access, uint disposition, uint options)
   {

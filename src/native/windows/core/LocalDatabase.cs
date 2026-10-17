@@ -16,17 +16,17 @@ public sealed class LocalDatabase : IDisposable
   public string ProfileId { get; }
   public LocalDatabase(string directory, string profileId)
   {
-    HostError.Require(profileId.Length is > 0 and <= 256 && !profileId.Contains('\0'), "invalid-profile", "帳號分區無效。");
+    HostError.Require(profileId.Length is > 0 and <= 256 && !profileId.Contains('\0'), "invalid-profile", "The account partition is invalid.");
     ProfileId = profileId; Directory.CreateDirectory(directory);
     try { owner = new FileStream(Path.Combine(directory, "owner.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-    catch (IOException) { throw new HostError("native-already-open", "此資料位置已在另一個 Work Fleet 視窗開啟。請使用原視窗。"); }
+    catch (IOException) { throw new HostError("native-already-open", "This data location is already open in another Work Fleet window. Use that window."); }
     connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "fleet.sqlite3"),
       Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
     try
     {
       connection.Open(); Execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
       var version = Convert.ToInt64(Scalar("PRAGMA user_version;"));
-      HostError.Require(version is 0 or 1 or 2, "storage-version", "資料庫版本較新，請更新 Work Fleet。");
+      HostError.Require(version is 0 or 1 or 2, "storage-version", "The database is from a newer version. Update Work Fleet.");
       using var tx = connection.BeginTransaction();
       Execute("CREATE TABLE IF NOT EXISTS records (profile TEXT NOT NULL, kind TEXT NOT NULL, revision INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,kind));", tx);
       Execute("CREATE TABLE IF NOT EXISTS attachments (profile TEXT NOT NULL, id TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,id));", tx);
@@ -51,7 +51,7 @@ public sealed class LocalDatabase : IDisposable
   { using var command = Command(sql, tx, parameters); return command.ExecuteScalar(); }
   private string Scope(string kind, string id) => $"{ProfileId.Length}:{ProfileId}|{kind}|{id}";
   public static string Digest(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-  private static void Kind(string kind) => HostError.Require(kind is "workspace" or "journal", "invalid-record", "不支援的本機資料種類。");
+  private static void Kind(string kind) => HostError.Require(kind is "workspace" or "journal", "invalid-record", "This local data kind isn't supported.");
 
   public byte[]? ReadRecord(string kind)
   {
@@ -71,21 +71,21 @@ public sealed class LocalDatabase : IDisposable
       if (data is null) return null;
       var bytes = UserProtection.Unprotect(data, Scope("attachment", id));
       if (Digest(bytes) == id) return bytes;
-      CryptographicOperations.ZeroMemory(bytes); throw new HostError("attachment-integrity", "附件校驗失敗。");
+      CryptographicOperations.ZeroMemory(bytes); throw new HostError("attachment-integrity", "The attachment failed its integrity check.");
     }
   }
   public string Stage(string kind, byte[] bytes, string digest)
   {
-    HostError.Require(kind is "workspace" or "journal" or "attachment" or "backup", "invalid-transfer", "不支援的上傳種類。");
+    HostError.Require(kind is "workspace" or "journal" or "attachment" or "backup", "invalid-transfer", "This upload kind isn't supported.");
     CheckDigest(digest);
     HostError.Require(bytes.Length <= (kind == "attachment" ? MaxAttachment : kind == "backup" ? WindowsBackupDirectory.MaxBackupBytes : MaxRecord) && Digest(bytes) == digest,
-      "transfer-integrity", "傳輸容量或 SHA-256 校驗失敗。");
+      "transfer-integrity", "The transfer failed its size or SHA-256 check.");
     if (kind is "workspace" or "journal") ValidateRecord(bytes);
     lock (gate)
     {
       var total = Convert.ToInt64(Scalar("SELECT COALESCE(SUM(size),0) FROM staging;"));
       var count = Convert.ToInt64(Scalar("SELECT COUNT(*) FROM staging;"));
-      HostError.Require(total + bytes.Length <= 512L * 1024 * 1024 && count < 20008, "transfer-capacity", "暫存資料容量已滿；請完成或取消目前工作。");
+      HostError.Require(total + bytes.Length <= 512L * 1024 * 1024 && count < 20008, "transfer-capacity", "Temporary storage is full. Finish or cancel the current work.");
       var token = Guid.NewGuid().ToString(); var data = UserProtection.Protect(bytes, Scope("staging", token));
       Execute("INSERT INTO staging VALUES($p,$t,$k,$d,$s,$data);", null, ("$p", ProfileId), ("$t", token), ("$k", kind),
         ("$d", digest), ("$s", bytes.Length), ("$data", data));
@@ -96,7 +96,7 @@ public sealed class LocalDatabase : IDisposable
   {
     using var document = JsonRules.Parse(bytes); var root = document.RootElement;
     HostError.Require(root.ValueKind == System.Text.Json.JsonValueKind.Object && JsonRules.Text(root, "profileId") == ProfileId,
-      "invalid-profile", "本機資料不屬於目前帳號。");
+      "invalid-profile", "The local data belongs to another account.");
     return JsonRules.Integer(root, "revision");
   }
   private (byte[] Bytes, string Digest) Staged(string token, string kind, SqliteTransaction tx)
@@ -104,7 +104,7 @@ public sealed class LocalDatabase : IDisposable
     using var command = Command("SELECT data,digest FROM staging WHERE profile=$p AND token=$t AND kind=$k;", tx,
       ("$p", ProfileId), ("$t", token), ("$k", kind));
     using var reader = command.ExecuteReader();
-    HostError.Require(reader.Read(), "transfer-missing", "原生傳輸已失效，請重試。");
+    HostError.Require(reader.Read(), "transfer-missing", "The native transfer expired. Try again.");
     return (UserProtection.Unprotect((byte[])reader[0], Scope("staging", token)), reader.GetString(1));
   }
   public void Discard(string token)
@@ -121,14 +121,14 @@ public sealed class LocalDatabase : IDisposable
     {
       using var tx = connection.BeginTransaction(); var (bytes, digest) = Staged(token, kind, tx);
       if (Digest(bytes) == digest) return bytes;
-      CryptographicOperations.ZeroMemory(bytes); throw new HostError("transfer-integrity", "備份傳輸校驗失敗。");
+      CryptographicOperations.ZeroMemory(bytes); throw new HostError("transfer-integrity", "The backup transfer failed its integrity check.");
     }
   }
   // Only the native backup coordinator calls these methods. No renderer read/write metadata endpoint exists.
   public void SaveCapability(string kind, string id, byte[] bytes)
   {
     HostError.Require(kind is "backup-directory" or "backup-file" && Guid.TryParseExact(id, "D", out _) && bytes.Length <= 65536,
-      "backup-capability", "備份原生身分無效。");
+      "backup-capability", "The native backup identity is invalid.");
     lock (gate)
     {
       var data = UserProtection.Protect(bytes, Scope(kind, id));
@@ -148,10 +148,10 @@ public sealed class LocalDatabase : IDisposable
   {
     Kind(kind);
     HostError.Require(!replaceAttachments || (kind == "workspace" && !ProfileId.StartsWith("google:", StringComparison.Ordinal)),
-      "invalid-request", "只有本機工作空間可以清空附件後還原。");
-    HostError.Require(kind == "workspace" || attachmentTokens.Count == 0, "invalid-request", "備份紀錄不可夾帶附件。");
+      "invalid-request", "Only the local workspace can clear its attachments when restoring.");
+    HostError.Require(kind == "workspace" || attachmentTokens.Count == 0, "invalid-request", "The backup journal can't carry attachments.");
     HostError.Require(attachmentTokens.Count <= 20000 && attachmentTokens.Distinct(StringComparer.Ordinal).Count() == attachmentTokens.Count,
-      "invalid-request", "附件傳輸清單無效。");
+      "invalid-request", "The attachment transfer list is invalid.");
     lock (gate)
     {
       using var tx = connection.BeginTransaction(); var (bytes, _) = Staged(token, kind, tx);
@@ -160,9 +160,9 @@ public sealed class LocalDatabase : IDisposable
         var revision = ValidateRecord(bytes);
         var current = Scalar("SELECT revision FROM records WHERE profile=$p AND kind=$k;", tx, ("$p", ProfileId), ("$k", kind));
         HostError.Require((current is null ? null : (long?)Convert.ToInt64(current)) == expectedRevision,
-          kind == "workspace" ? "stale-writer" : "stale-backup-writer", "本機資料已變更；保留草稿，重新載入後再保存。");
+          kind == "workspace" ? "stale-writer" : "stale-backup-writer", "Local data has changed. Keep your draft, reload and save again.");
         HostError.Require(revision == (expectedRevision is null ? 0 : expectedRevision + 1) && revision <= JsonRules.MaxRevision,
-          "invalid-revision", "本機保存版本不連續。");
+          "invalid-revision", "The local save revisions are not continuous.");
         if (replaceAttachments) Execute("DELETE FROM attachments WHERE profile=$p;", tx, ("$p", ProfileId));
         foreach (var attachment in attachmentTokens) CommitAttachment(attachment, tx);
         var encrypted = UserProtection.Protect(bytes, Scope(kind, "record"));
@@ -183,7 +183,7 @@ public sealed class LocalDatabase : IDisposable
     var (bytes, id) = Staged(token, "attachment", tx);
     try
     {
-      HostError.Require(Digest(bytes) == id, "attachment-integrity", "附件校驗失敗，尚未保存。");
+      HostError.Require(Digest(bytes) == id, "attachment-integrity", "The attachment failed its integrity check and was not saved.");
       var encrypted = UserProtection.Protect(bytes, Scope("attachment", id));
       Execute("INSERT INTO attachments VALUES($p,$id,$d) ON CONFLICT(profile,id) DO UPDATE SET data=excluded.data;", tx,
         ("$p", ProfileId), ("$id", id), ("$d", encrypted));
@@ -193,7 +193,7 @@ public sealed class LocalDatabase : IDisposable
   }
   public string StoreSecret(string purpose, byte[] bytes)
   {
-    HostError.Require(purpose is "backup" or "google" && bytes.Length is > 0 and <= 65536, "invalid-secret", "安全儲存內容無效。");
+    HostError.Require(purpose is "backup" or "google" && bytes.Length is > 0 and <= 65536, "invalid-secret", "The secure storage content is invalid.");
     lock (gate)
     {
       var id = Guid.NewGuid().ToString(); var encrypted = UserProtection.Protect(bytes, Scope("vault:" + purpose, id));
@@ -207,7 +207,7 @@ public sealed class LocalDatabase : IDisposable
     {
       var data = Scalar("SELECT data FROM vault WHERE profile=$p AND purpose=$kind AND id=$id;", null,
         ("$p", ProfileId), ("$kind", purpose), ("$id", id)) as byte[];
-      HostError.Require(data is not null, "vault-missing", "安全儲存項目不存在或不屬於目前帳號。");
+      HostError.Require(data is not null, "vault-missing", "The secure storage item is missing or belongs to another account.");
       return UserProtection.Unprotect(data!, Scope("vault:" + purpose, id));
     }
   }
@@ -230,7 +230,7 @@ public sealed class LocalDatabase : IDisposable
     }
   }
   public static void CheckDigest(string digest) => HostError.Require(digest.Length == 64 && digest.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'),
-    "invalid-digest", "無效的 SHA-256。");
+    "invalid-digest", "The SHA-256 digest is invalid.");
   public void Dispose()
   {
     lock (gate) { if (disposed) return; connection.Dispose(); owner.Dispose(); disposed = true; }

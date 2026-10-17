@@ -83,7 +83,7 @@ try {
     $Data = Join-Path $env:LOCALAPPDATA "Packages\$($Installed.PackageFamilyName)\LocalCache\Local\WorkFleet"
     New-Item -ItemType Directory -Path $Data -Force | Out-Null
     # No sign-in task for the probe; crash-probe.txt makes this identity act as a sign-in launch that loses its renderer once.
-    [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false}')
+    [IO.File]::WriteAllText((Join-Path $Data 'host-preferences.json'), '{"version":1,"startAtLogin":false,"closeToTray":true,"openMainAtLogin":false,"language":"en"}')
     [IO.File]::WriteAllText((Join-Path $Data 'crash-probe.txt'), 'render-thread')
     $Log = Join-Path $Data 'host.log'
     function Read-Log { if (Test-Path -LiteralPath $Log) { [IO.File]::ReadAllText($Log) } else { '' } }

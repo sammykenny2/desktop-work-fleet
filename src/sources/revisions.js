@@ -1,12 +1,13 @@
 import { compareId, copy, requireValue, safeKey } from '../core/contracts.js';
 import { canonicalJson, parseJson } from './json.js';
 import { schemas, requireSchemaVersion } from '../core/schema.js';
+import { t } from '../i18n/index.js';
 
 export const REVISION_FORMAT = 'work-fleet-revision';
 const envelopeKeys = ['entityId', 'format', 'kind', 'parents', 'revisionId', 'schemaVersion', 'value'].sort();
 export const validId = value => safeKey(value) && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
 const identity = record => JSON.stringify([record.kind, record.entityId]);
-const invalid = condition => requireValue(condition, 'invalid-revision-record', '版本記錄的身分、內容或父版本無效。');
+const invalid = condition => requireValue(condition, 'invalid-revision-record', t('errors.sources.revisionInvalid'));
 
 /** Values retain unknown JSON extension fields. Unknown envelope versions never enter the graph. */
 export function validateRevision(input) {
@@ -14,7 +15,7 @@ export function validateRevision(input) {
   invalid(record && typeof record === 'object' && !Array.isArray(record));
   requireSchemaVersion(record, 'revision', { code: 'unsupported-revision-format' });
   requireValue(record.format === REVISION_FORMAT,
-    'unsupported-revision-format', '此同步資料需要其他或較新版 App；本機內容仍保留。');
+    'unsupported-revision-format', t('errors.sources.revisionFormatUnsupported'));
   invalid(JSON.stringify(Object.keys(record).sort()) === JSON.stringify(envelopeKeys));
   invalid(['card', 'group'].includes(record.kind) && validId(record.entityId) && validId(record.revisionId));
   invalid(Array.isArray(record.parents) && record.parents.length <= 1024
@@ -62,7 +63,7 @@ function* analysisSteps(records) {
     for (const parentId of record.parents) {
       const parent = records.get(parentId);
       if (parent) {
-        requireValue(identity(parent) === identity(record), 'parent-identity', '父版本屬於另一筆資料，同步已保留原狀。');
+        requireValue(identity(parent) === identity(record), 'parent-identity', t('errors.sources.parentIdentity'));
         known++;
         if (!children.has(parentId)) children.set(parentId, []);
         children.get(parentId).push(id);
@@ -85,7 +86,7 @@ function* analysisSteps(records) {
     }
     if (++work % 128 === 0) yield;
   }
-  requireValue(queue.length === records.size, 'revision-cycle', '版本關係形成循環，同步已保留原狀。');
+  requireValue(queue.length === records.size, 'revision-cycle', t('errors.sources.revisionCycle'));
   const heads = new Map();
   for (const id of complete) {
     const key = identity(records.get(id));
@@ -126,7 +127,7 @@ export class RevisionGraph {
       const record = validateRevision(input); const bytes = canonicalJson(record);
       if (graph.#records.has(record.revisionId)) {
         requireValue(graph.#canonical.get(record.revisionId) === bytes, 'revision-collision',
-          '相同版本身分包含不同內容，同步已停止且保留本機資料。');
+          t('errors.common.revisionCollision'));
       } else {
         graph.#records.set(record.revisionId, record); graph.#canonical.set(record.revisionId, bytes);
       }
@@ -173,7 +174,7 @@ export class RevisionGraph {
       const record = validateRevision(input); const bytes = canonicalJson(record);
       if (records.has(record.revisionId)) {
         requireValue(canonical.get(record.revisionId) === bytes, 'revision-collision',
-          '相同版本身分包含不同內容，同步已停止且保留本機資料。');
+          t('errors.common.revisionCollision'));
       } else {
         records.set(record.revisionId, record); canonical.set(record.revisionId, bytes); added++;
       }

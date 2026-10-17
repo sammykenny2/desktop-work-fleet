@@ -61,6 +61,8 @@ import WebKit
         try check(reopened.record("workspace") == bytes, "Encrypted SQLite reopen failed")
         reopened.close()
         print("PASS encrypted SQLite reopen")
+        // The probe pins the display language to English before the window opens, as a stored preference would.
+        FleetText.apply("en")
         let host = try FleetWebHost(directory: root.appendingPathComponent("renderer", isDirectory: true))
         self.host = host
         host.web.configuration.userContentController.addUserScript(WKUserScript(source: "globalThis.__probeErrors = []; addEventListener('error', e => __probeErrors.push(e.message || e.target?.src || 'Script load error'), true); addEventListener('unhandledrejection', e => __probeErrors.push(String(e.reason))); addEventListener('securitypolicyviolation', e => __probeErrors.push(e.violatedDirective + ': ' + e.blockedURI));", injectionTime: .atDocumentStart, forMainFrameOnly: true))
@@ -75,16 +77,20 @@ import WebKit
                 guard let desktop else { throw FleetFailure("startup-probe", "Desktop was released") }
                 return try desktop.invoke(method, args)
             }
+            // host.info then reports the pinned preference, so the renderer starts in English on any system language.
+            await service.setLanguage { preference in FleetText.apply(preference) }
         }
         host.stopped = { [weak self] in self?.desktop?.close() }
         var lastState = "No renderer response"
         for _ in 0..<200 {
             do {
-                let value = try await host.web.evaluateJavaScript("({status: document.querySelector('#status')?.textContent || '', error: document.querySelector('#status')?.classList.contains('error') || false, storage: document.querySelector('#storage-note')?.textContent || '', groups: document.querySelector('#groups')?.children.length || 0, ready: document.readyState, errors: globalThis.__probeErrors || [], bridge: typeof globalThis.__workFleetReceive, resources: performance.getEntriesByType('resource').map(e => e.name)})")
+                let value = try await host.web.evaluateJavaScript("({status: document.querySelector('#status')?.textContent || '', error: document.querySelector('#status')?.classList.contains('error') || false, storage: document.querySelector('#storage-note')?.textContent || '', groups: document.querySelector('#groups')?.children.length || 0, lang: document.documentElement.lang, chinese: /[\\u3400-\\u9fff]/.test((document.querySelector('#status')?.textContent || '') + (document.querySelector('#storage-note')?.textContent || '')), ready: document.readyState, errors: globalThis.__probeErrors || [], bridge: typeof globalThis.__workFleetReceive, resources: performance.getEntriesByType('resource').map(e => e.name)})")
                 if let state = value as? [String: Any] {
                     lastState = String(describing: state)
-                    if state["status"] as? String == "已開啟本機資料",
-                        (state["storage"] as? String)?.hasPrefix("加密保存在這台裝置") == true, (state["groups"] as? Int ?? 0) > 0 {
+                    // Element state, not wording: the catalogs own the text. Startup finished in English with native storage and groups.
+                    if (state["status"] as? String)?.isEmpty == false, state["error"] as? Bool == false, state["lang"] as? String == "en",
+                        state["chinese"] as? Bool == false, (state["storage"] as? String)?.isEmpty == false, state["bridge"] as? String == "function",
+                        (state["groups"] as? Int ?? 0) > 0 {
                         await host.stop()
                         return
                     }

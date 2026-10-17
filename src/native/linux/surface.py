@@ -173,7 +173,7 @@ def rectangle(value):
 
 class Surface:
     def __init__(self, display, layer, assets, web_factory, dispatch, lost, dismiss, mode):
-        p.require(layer in layers(mode), "desktop-layer", "此桌面環境沒有要求的層級。")
+        p.require(layer in layers(mode), "desktop-layer", "This desktop doesn't have the requested layer.")
         self.id, self.layer, self.display = p.identifier(), layer, display
         self.viewport = display["viewport"]
         self.ready = self.retired = False
@@ -250,12 +250,12 @@ class Surface:
 
     def receive(self, value):
         try:
-            p.require(not self.retired and p.number(value, "v", 1) == 1 and p.is_uuid(value.get("id")) and isinstance(value.get("params"), dict), "scene-command", "桌面訊息無效。")
+            p.require(not self.retired and p.number(value, "v", 1) == 1 and p.is_uuid(value.get("id")) and isinstance(value.get("params"), dict), "scene-command", "The desktop message isn't valid.")
             result = self.dispatch(self, p.text(value, "method"), value["params"])
             self.local.post({"v": 1, "id": value["id"], "ok": True, "result": result})
         except Exception as error:
             if p.is_uuid(value.get("id")):
-                failure = error if isinstance(error, p.Failure) else p.Failure("scene-command", "桌面操作未完成，請保留未保存文字。")
+                failure = error if isinstance(error, p.Failure) else p.Failure("scene-command", "The desktop action didn't finish. Keep your unsaved text.")
                 self.local.post({"v": 1, "id": value["id"], "ok": False, "error": {"code": failure.code, "message": str(failure)}})
 
     def set_display(self, display):

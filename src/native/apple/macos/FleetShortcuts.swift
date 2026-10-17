@@ -27,11 +27,11 @@ import Carbon
     /// A minimized or menu-bar-only main window leaves the app active with no key window, and nothing else would see the keys.
     nonisolated static func suspends(blocked: Bool, active: Bool, keyWindow: Bool) -> Bool { blocked || active && keyWindow }
     func configure(_ args: [String: Any]) throws -> Any {
-        guard let values = args["bindings"] as? [[String: Any]], values.count <= 32 else { throw FleetFailure("shortcut-settings", "此裝置最多設定 32 組快捷鍵。") }
+        guard let values = args["bindings"] as? [[String: Any]], values.count <= 32 else { throw FleetFailure("shortcut-settings", "This device can have up to 32 shortcuts.") }
         var next: [(String, String)] = [], keys = Set<String>()
         for value in values {
             let key = try FleetProtocol.text(value, "key", 80), target = try FleetProtocol.text(value, "target", 128)
-            try FleetProtocol.require(keys.insert(key).inserted && target.range(of: "^(?:@(?:all|capture|toggle)|[A-Za-z0-9][A-Za-z0-9._:-]{0,127})$", options: .regularExpression) != nil && !["__proto__", "constructor", "prototype"].contains(target), "shortcut-settings", "快捷鍵目標無效。")
+            try FleetProtocol.require(keys.insert(key).inserted && target.range(of: "^(?:@(?:all|capture|toggle)|[A-Za-z0-9][A-Za-z0-9._:-]{0,127})$", options: .regularExpression) != nil && !["__proto__", "constructor", "prototype"].contains(target), "shortcut-settings", "A shortcut target isn't valid.")
             next.append((key, target))
         }
         bindings = next; refresh(); return ["registrations": registrations]

@@ -29,7 +29,7 @@ test('loading V1 is read-only and ordinary edits stay V1 with one normal commit 
   const workspace = new Workspace(fixture, async state => { writes++; assert.equal(state.schemaVersion, 1); });
   assert.equal(writes, 0); assert.deepEqual(fixture, original);
   assert.deepEqual(workspace.state.drafts, fixture.drafts); assert.deepEqual(workspace.state.extension, fixture.extension);
-  await workspace.createCard({ format: 'markdown', text: '直接調整 V1', extra: { keep: true } }, fixture.groups[0].id);
+  await workspace.createCard({ format: 'markdown', text: 'Edit V1 directly', extra: { keep: true } }, fixture.groups[0].id);
   assert.equal(writes, 1); assert.equal(workspace.state.schemaVersion, 1);
   const fresh = await Workspace.create({ profileId: 'local', deviceId: 'fresh-device', area, persist: async () => {} });
   assert.equal(fresh.state.schemaVersion, 1);

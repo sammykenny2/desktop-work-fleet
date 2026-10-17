@@ -2,6 +2,7 @@ import { copy, requireValue } from '../core/contracts.js';
 import { Workspace } from '../core/workspace.js';
 import { prepareRestore, SafetyBackupReceipt } from './restore.js';
 import { FileSync, resetSource } from '../sources/file-sync.js';
+import { t } from '../i18n/index.js';
 
 const planKey = Symbol('cloud-restore-plan');
 
@@ -9,7 +10,7 @@ const planKey = Symbol('cloud-restore-plan');
 export class CloudRestorePlan {
   #state; #restore; #source; #empty;
   constructor(key, state, restore, sourceId, empty) {
-    requireValue(key === planKey, 'invalid-restore-plan', '需要有效的雲端覆蓋預覽。');
+    requireValue(key === planKey, 'invalid-restore-plan', t('errors.backup.cloudPlanRequired'));
     this.#state = state; this.#restore = restore; this.#source = sourceId; this.#empty = empty;
   }
   get attachments() { return this.#restore.attachments; }
@@ -20,10 +21,10 @@ export class CloudRestorePlan {
   materialize(state, safety, sourceId) {
     const binding = safety instanceof SafetyBackupReceipt ? safety.binding : null;
     requireValue(state.profileId === this.#state.profileId && sourceId === this.#source,
-      'restore-profile', 'Google 帳號已切換，請重新預覽。');
-    requireValue(state.revision === this.#state.revision, 'stale-restore-plan', '預覽後資料已變更，請重新預覽。');
+      'restore-profile', t('errors.backup.cloudAccountChanged'));
+    requireValue(state.revision === this.#state.revision, 'stale-restore-plan', t('errors.common.previewStale'));
     requireValue(binding?.profileId === state.profileId && binding.revision === state.revision,
-      'missing-safety-backup', '請先成功保存目前 Google 工作空間的備份。');
+      'missing-safety-backup', t('errors.backup.cloudSafetyBackupRequired'));
     const next = this.#restore.materialize(this.#empty);
     next.revision = state.revision + 1;
     next.cloudRestore = { sourceId, phase: 'reset', fingerprint: this.#restore.preview.fingerprint };
@@ -34,8 +35,8 @@ export class CloudRestorePlan {
 export async function prepareCloudRestore({ workspace, document, sourceId, ...options }) {
   const current = workspace.state;
   requireValue(current.profileId.startsWith('google:') && typeof sourceId === 'string' && sourceId.length > 0,
-    'restore-profile', '請先登入要覆蓋的 Google 帳號。');
-  requireValue(!current.cloudRestore, 'cloud-restore-pending', '請先完成尚未完成的 Google 覆蓋。');
+    'restore-profile', t('errors.backup.cloudSignInRequired'));
+  requireValue(!current.cloudRestore, 'cloud-restore-pending', t('errors.backup.cloudRestorePending'));
   const empty = await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
     area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {} });
   const restore = await prepareRestore({ ...options, workspace: empty, document, mode: 'merge' });
@@ -44,7 +45,7 @@ export async function prepareCloudRestore({ workspace, document, sourceId, ...op
 
 /** Save the complete replacement locally before any remote deletion. A restart reads this durable job. */
 export async function stageCloudRestore({ workspace, storage, fileStore, plan, safetyBackup }) {
-  requireValue(plan instanceof CloudRestorePlan, 'invalid-restore-plan', '需要有效的雲端覆蓋預覽。');
+  requireValue(plan instanceof CloudRestorePlan, 'invalid-restore-plan', t('errors.backup.cloudPlanRequired'));
   const current = workspace.state;
   const next = plan.materialize(current, safetyBackup, fileStore.sourceId);
   await storage.saveWithAttachments(next, current.revision, plan.attachments);
@@ -55,26 +56,26 @@ export async function stageCloudRestore({ workspace, storage, fileStore, plan, s
 export async function resumeCloudRestore({ state, storage, fileStore, progress = () => {}, resetOptions = {} }) {
   state = copy(state);
   requireValue(state.profileId.startsWith('google:') && state.cloudRestore?.sourceId === fileStore.sourceId
-    && ['reset', 'upload'].includes(state.cloudRestore.phase), 'restore-profile', '覆蓋工作不屬於目前 Google 帳號。');
+    && ['reset', 'upload'].includes(state.cloudRestore.phase), 'restore-profile', t('errors.backup.cloudJobMismatch'));
   if (state.cloudRestore.phase === 'reset') {
-    progress('正在清空 Google 的 Work Fleet 資料…');
+    progress(t('backup.cloudRestore.clearing'));
     await resetSource(fileStore, { ...resetOptions, job: state.cloudRestore.resetJob,
       initialization: { mode: 'restore', records: state.revisions,
         attachments: state.revisions.flatMap(record => (record.value.content?.attachments || []).map(file => file.id)) },
       saveJob: async job => {
         const next = copy(state); next.revision++; next.cloudRestore.resetJob = job;
         await storage.save(next, state.revision); state = next;
-      }, progress: (done, total) => progress(`正在清空雲端：${done} / ${total}`) });
+      }, progress: (done, total) => progress(t('backup.cloudRestore.clearingProgress', { done, total })) });
     const next = copy(state); next.revision++; next.cloudRestore.phase = 'upload';
     await storage.save(next, state.revision); state = next;
   }
-  progress('正在將備份還原到 Google…');
+  progress(t('backup.cloudRestore.restoring'));
   const workspace = new Workspace(state, (next, revision) => storage.save(next, revision));
   const sync = new FileSync({ workspace, storage, fileStore, initializationPlan: state.cloudRestore.resetJob?.planId });
   try {
     await sync.sync({ force: true });
     requireValue(workspace.pendingOperations.length === 0 && workspace.syncState.initialization?.activePlan,
-      'cloud-restore-pending', '備份仍有資料等待上傳或驗證，請繼續覆蓋。');
+      'cloud-restore-pending', t('errors.backup.cloudUploadPending'));
     const next = workspace.state; delete next.cloudRestore; next.revision++;
     await storage.save(next, workspace.state.revision);
     return next;

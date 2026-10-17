@@ -13,7 +13,7 @@ import UIKit
     }
     #if os(macOS)
     func export(_ bytes: Data, name: String, action: String, window: NSWindow?) async throws -> Any {
-        try FleetProtocol.require(action == "save", "file-export", "此平台請使用檔案匯出。");
+        try FleetProtocol.require(action == "save", "file-export", "Use file export on this platform.");
         let panel = NSSavePanel(); panel.nameFieldStringValue = Self.filename(name); panel.canCreateDirectories = true
         let response: NSApplication.ModalResponse = await withCheckedContinuation { continuation in
             if let window { panel.beginSheetModal(for: window) { continuation.resume(returning: $0) } }
@@ -29,10 +29,10 @@ import UIKit
     private var picker: UIViewController?
     private var timeout: Task<Void, Never>?
     func export(_ bytes: Data, name: String, action: String, presenter: UIViewController?) async throws -> Any {
-        try FleetProtocol.require(["save", "share", "shareText"].contains(action) && continuation == nil && presenter != nil && presenter?.presentedViewController == nil, "file-busy", "檔案選擇器目前不可用。");
+        try FleetProtocol.require(["save", "share", "shareText"].contains(action) && continuation == nil && presenter != nil && presenter?.presentedViewController == nil, "file-busy", "The file picker isn't available right now.");
         let items: [Any]; var file: URL?
         if action == "shareText" {
-            guard bytes.count <= 128 * 1024, let text = String(data: bytes, encoding: .utf8) else { throw FleetFailure("file-capacity", "文字分享容量或格式無效，請改用檔案分享。") }
+            guard bytes.count <= 128 * 1024, let text = String(data: bytes, encoding: .utf8) else { throw FleetFailure("file-capacity", "This text is too large or not valid to share as text. Share it as a file instead.") }
             items = [text]
         } else {
             let root = FileManager.default.temporaryDirectory.appendingPathComponent("exports", isDirectory: true)
@@ -58,7 +58,7 @@ import UIKit
             }
             timeout = Task { [weak self] in
                 do { try await Task.sleep(for: .seconds(110)) } catch { return }
-                self?.picker?.dismiss(animated: true); self?.finish(false, error: FleetFailure("file-timeout", "檔案選擇逾時，請重試。"))
+                self?.picker?.dismiss(animated: true); self?.finish(false, error: FleetFailure("file-timeout", "The file picker timed out. Try again."))
             }
         }
         return ["completed": completed, "shared": action != "save"]
@@ -68,7 +68,7 @@ import UIKit
         if let temporary { try? FileManager.default.removeItem(at: temporary) }; temporary = nil
         if let error { pending.resume(throwing: error) } else { pending.resume(returning: completed) }
     }
-    func close() { picker?.dismiss(animated: false); finish(false, error: FleetFailure("native-closed", "原生工作階段已結束。")) }
+    func close() { picker?.dismiss(animated: false); finish(false, error: FleetFailure("native-closed", "The native session has ended.")) }
     #endif
 }
 #if os(iOS)

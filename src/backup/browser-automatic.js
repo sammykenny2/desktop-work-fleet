@@ -1,4 +1,5 @@
 import { copy, FleetError, requireValue, safeKey } from '../core/contracts.js';
+import { t } from '../i18n/index.js';
 
 /** Account-scoped policy/inventory; directory and file handles stay out of Workspace and portable backups. */
 export class IndexedDbBackupJournal {
@@ -11,7 +12,7 @@ export class IndexedDbBackupJournal {
         request.result.createObjectStore('journals', { keyPath: 'profileId' });
       };
       request.onerror = () => { failed = true; reject(request.error); };
-      request.onblocked = () => { failed = true; reject(new FleetError('backup-journal-blocked', '另一視窗尚未關閉備份紀錄。')); };
+      request.onblocked = () => { failed = true; reject(new FleetError('backup-journal-blocked', t('errors.backup.journalBlocked'))); };
       request.onsuccess = () => {
         if (failed) { request.result.close(); return; }
         request.result.onversionchange = () => request.result.close(); resolve(new IndexedDbBackupJournal(request.result));
@@ -23,7 +24,7 @@ export class IndexedDbBackupJournal {
     return new Promise((resolve, reject) => {
       const transaction = this.#db.transaction([store], mode, { durability: 'strict' }); let value; let failure;
       transaction.oncomplete = () => resolve(value);
-      transaction.onabort = () => reject(failure || transaction.error || new FleetError('backup-journal-aborted', '備份紀錄保存中止。'));
+      transaction.onabort = () => reject(failure || transaction.error || new FleetError('backup-journal-aborted', t('errors.backup.journalAborted')));
       const context = { result: result => { value = result; }, fail: error => { failure = error; transaction.abort(); } };
       try { action(transaction.objectStore(store), context); } catch (error) { context.fail(error); }
     });
@@ -33,9 +34,9 @@ export class IndexedDbBackupJournal {
       const request = objectStore.get(key); request.onsuccess = () => context.result(request.result || null);
     });
   }
-  load(profileId) { requireValue(safeKey(profileId), 'backup-profile', '備份帳號無效。'); return this.#get('journals', profileId); }
+  load(profileId) { requireValue(safeKey(profileId), 'backup-profile', t('errors.backup.profileInvalid')); return this.#get('journals', profileId); }
   reset(profileId) {
-    requireValue(safeKey(profileId), 'backup-profile', '備份帳號無效。');
+    requireValue(safeKey(profileId), 'backup-profile', t('errors.backup.profileInvalid'));
     return this.#transaction('journals', 'readwrite', store => { store.delete(profileId); });
   }
   save(state, expectedRevision) {
@@ -44,7 +45,7 @@ export class IndexedDbBackupJournal {
       const request = store.get(state.profileId);
       request.onsuccess = () => {
         if ((request.result?.revision ?? null) !== expectedRevision || state.revision !== (expectedRevision === null ? 0 : expectedRevision + 1)) {
-          context.fail(new FleetError('stale-backup-writer', '另一個工作已更新備份紀錄，尚未寫入檔案。')); return;
+          context.fail(new FleetError('stale-backup-writer', t('errors.backup.journalStaleWriter'))); return;
         }
         store.put(state);
       };

@@ -3,6 +3,7 @@ import { activeGroups, compareId, containsRect, copy, defaultGrid,
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { groupLayerOrder } from './stages.js';
 import { schemas } from '../core/schema.js';
+import { t } from '../i18n/index.js';
 
 /** How the main window shows a group's papers on this device; a layout without a choice shows the board. */
 export const mainViews = Object.freeze(['board', 'list']);
@@ -31,10 +32,10 @@ export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
 
 export function recordTransferLayout(draft, cardId, position, transfer) {
   const rect = draft.placements[cardId];
-  requireValue(rect || !position, 'missing-placement', '找不到卡片位置。');
+  requireValue(rect || !position, 'missing-placement', t('errors.core.placementMissing'));
   draft.history.push({ kind: 'transfer', before: rect ? { [cardId]: geometry(rect) } : {}, transfer: copy(transfer) });
   if (position) {
-    requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', '卡片位置無效。');
+    requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', t('errors.core.positionInvalid'));
     Object.assign(rect, { x: position.x, y: position.y });
   }
 }
@@ -47,7 +48,7 @@ export function reachable(rect, workAreas) {
 }
 
 export function rescueRect(rect, workAreas) {
-  requireValue(workAreas.length && workAreas.every(validRect), 'invalid-area', '沒有可用顯示器。');
+  requireValue(workAreas.length && workAreas.every(validRect), 'invalid-area', t('errors.core.noDisplay'));
   if (reachable(rect, workAreas)) return copy(rect);
   const distance = area => Math.max(area.x - rect.x, 0, rect.x - area.x - area.width) ** 2
     + Math.max(area.y - rect.y, 0, rect.y - area.y - area.height) ** 2;
@@ -72,7 +73,7 @@ export class LayoutStore {
   #tail = Promise.resolve();
 
   constructor(state, persist) {
-    requireValue(typeof persist === 'function', 'missing-storage', '需要可靠的版面保存介面。');
+    requireValue(typeof persist === 'function', 'missing-storage', t('errors.core.layoutStorageRequired'));
     this.#state = copy(state);
     this.#persist = persist;
   }
@@ -107,30 +108,30 @@ export class LayoutStore {
   async configure(patch, snapshot) {
     patch = copy(patch); snapshot = copy(snapshot);
     const allowed = ['grid', 'desktopVisible', 'myGroupId', 'shortcuts', 'mainView'];
-    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', '未知的版面設定。');
+    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
     if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
-    requireValue(!('desktopVisible' in patch) || typeof patch.desktopVisible === 'boolean', 'invalid-setting', '顯示設定必須是布林值。');
+    requireValue(!('desktopVisible' in patch) || typeof patch.desktopVisible === 'boolean', 'invalid-setting', t('errors.core.visibilityInvalid'));
     requireValue(!('myGroupId' in patch) || patch.myGroupId === null || activeGroups(snapshot).some(group => group.id === patch.myGroupId),
-      'invalid-group-setting', '屬於我的群組已不存在。');
+      'invalid-group-setting', t('errors.core.myGroupMissing'));
     if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, activeGroups(snapshot));
-    requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', '未知的主畫面檢視。');
+    requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', t('errors.core.mainViewUnknown'));
     return this.#transaction(draft => { Object.assign(draft, copy(patch)); return { groups: groupKey(snapshot) }; });
   }
 
   async setCardPolicy(cardId, patch) {
     patch = copy(patch);
-    requireValue(Object.keys(patch).every(key => key === 'visible'), 'invalid-setting', '未知的卡片顯示設定。');
-    requireValue(!('visible' in patch) || typeof patch.visible === 'boolean', 'invalid-setting', '顯示設定必須是布林值。');
+    requireValue(Object.keys(patch).every(key => key === 'visible'), 'invalid-setting', t('errors.core.noteSettingUnknown'));
+    requireValue(!('visible' in patch) || typeof patch.visible === 'boolean', 'invalid-setting', t('errors.core.visibilityInvalid'));
     return this.#transaction(draft => {
-      requireValue(draft.placements[cardId], 'missing-placement', '找不到卡片位置。');
+      requireValue(draft.placements[cardId], 'missing-placement', t('errors.core.placementMissing'));
       Object.assign(draft.placements[cardId], copy(patch));
     });
   }
 
   /** The layer belongs to the group on this device; every paper of the group follows it. */
   async setGroupLayer(groupId, layer, snapshot) {
-    requireValue(groupLayerOrder.includes(layer), 'invalid-setting', '未知的常駐層級。');
-    requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', '群組已不存在。');
+    requireValue(groupLayerOrder.includes(layer), 'invalid-setting', t('errors.core.layerUnknown'));
+    requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
     return this.#transaction(draft => { draft.groupLayers = { ...draft.groupLayers, [groupId]: layer }; });
   }
 
@@ -138,7 +139,7 @@ export class LayoutStore {
   // papers already placed keep their size.
   async placeNew(snapshot, workAreas, paperSize = { width: 240, height: 240 }, checkpoint = null) {
     snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
-    requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', '卡片尺寸必須大於零。');
+    requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', t('errors.core.paperSizeInvalid'));
     return this.#transaction(async draft => {
       const groups = activeGroups(snapshot);
       const gridIds = draft.grid.slots.filter(Boolean);
@@ -177,11 +178,11 @@ export class LayoutStore {
 
   async move(cardId, position, expectedRevision) {
     position = copy(position);
-    requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', '卡片位置無效。');
+    requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', t('errors.core.positionInvalid'));
     return this.#transaction(draft => {
-      requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', '版面已變更，請重試。');
+      requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', t('errors.common.layoutChanged'));
       const rect = draft.placements[cardId];
-      requireValue(rect, 'missing-placement', '找不到卡片位置。');
+      requireValue(rect, 'missing-placement', t('errors.core.placementMissing'));
       if (rect.x === position.x && rect.y === position.y) return;
       draft.history.push({ kind: 'move', before: { [cardId]: geometry(rect) } });
       Object.assign(rect, { x: position.x, y: position.y });
@@ -191,7 +192,7 @@ export class LayoutStore {
   async transfer(cardId, position, expectedRevision, transfer, persist) {
     position = copy(position); transfer = copy(transfer);
     return this.#transaction(draft => {
-      requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', '版面已變更，請重試。');
+      requireValue(expectedRevision === undefined || expectedRevision === draft.revision, 'stale-layout', t('errors.common.layoutChanged'));
       recordTransferLayout(draft, cardId, position, transfer);
     }, persist);
   }
@@ -206,8 +207,8 @@ export class LayoutStore {
     return this.#transaction(draft => {
       requireValue(plan.layoutRevision === draft.revision
         && plan.membership === membershipKey(getSnapshot(), draft),
-      'stale-plan', '預覽後資料或版面已變更，請重新預覽。');
-      requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', '本次未允許改變卡片尺寸。');
+      'stale-plan', t('errors.core.arrangePlanStale'));
+      requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', t('errors.core.resizeNotAllowed'));
       const before = {};
       for (const [id, rect] of Object.entries(plan.changes)) {
         before[id] = geometry(draft.placements[id]);
@@ -224,7 +225,7 @@ export class LayoutStore {
     return this.#transaction(draft => {
       const entry = draft.history.at(-1);
       if (!entry) return { kind: 'empty', rescued: [] };
-      requireValue(entry.kind !== 'transfer' || persist, 'conditional-undo', '轉組復原需由資料來源檢查版本。');
+      requireValue(entry.kind !== 'transfer' || persist, 'conditional-undo', t('errors.core.undoMoveNeedsSource'));
       const snapshot = getSnapshot();
       const live = new Set(snapshot.cards.filter(card => !card.deleted).map(card => card.id));
       const rescued = [];
@@ -255,7 +256,7 @@ export class LayoutStore {
    */
   async reset(snapshot, area) {
     snapshot = copy(snapshot); area = copy(area);
-    requireValue(validRect(area), 'invalid-area', '沒有可用顯示器。');
+    requireValue(validRect(area), 'invalid-area', t('errors.core.noDisplay'));
     return this.#transaction(draft => {
       const groups = activeGroups(snapshot);
       // More than nine groups have no default grid; keep the regions and still clear every paper position.
@@ -270,7 +271,7 @@ export class LayoutStore {
    */
   async recoverDisplays(workAreas, primary) {
     workAreas = copy(workAreas);
-    requireValue(validRect(primary), 'invalid-area', '沒有可用顯示器。');
+    requireValue(validRect(primary), 'invalid-area', t('errors.core.noDisplay'));
     const { x, y, width, height } = primary;
     return this.#transaction(draft => {
       const rescued = [];

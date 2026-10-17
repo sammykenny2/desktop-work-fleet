@@ -1,4 +1,6 @@
 import { summaryText } from '../core/contracts.js';
+import { groupName } from '../core/group-name.js';
+import { plural, t } from '../i18n/index.js';
 
 const element = (tag, text, className) => {
   const node = document.createElement(tag);
@@ -10,7 +12,7 @@ const element = (tag, text, className) => {
 /** Shared conflict/history UI. Every action checks the heads shown when this view was built. */
 export function showRevisionDialog({ workspace, storage, profileId, onChanged }) {
   const dialog = element('dialog', undefined, 'revision-dialog'); dialog.id = 'revision-dialog';
-  const heading = element('h2', '版本與衝突');
+  const heading = element('h2', t('conflicts.title'));
   const message = element('p', '', 'revision-message'); message.setAttribute('role', 'status');
   const navigation = element('div', undefined, 'editor-tabs');
   const body = element('div', undefined, 'revision-body');
@@ -28,46 +30,47 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
     return button;
   };
   const changed = async () => { try { await onChanged(); } finally { render(); } };
-  const groupName = id => workspace.snapshot.groups.find(group => group.id === id)?.name || '群組尚待同步';
+  const groupLabel = id => groupName(workspace.snapshot.groups.find(group => group.id === id)) || t('conflicts.version.groupPending');
   const headsFor = (kind, id) => workspace.revisionHeads(kind, id).map(record => record.revisionId);
 
   function renderValue(record, { heads, fromHistory = false, repair = false } = {}) {
     const card = record.kind === 'card'; const value = record.value;
     const article = element('article', undefined, 'revision-option'); article.dataset.revisionId = record.revisionId;
-    article.append(element('h4', card ? summaryText(value) : value.name));
+    article.append(element('h4', card ? summaryText(value) : groupName(value)));
     if (card) {
-      const labels = [groupName(value.groupId), value.deleted ? '刪除區' : value.archived ? '封存' : value.completed ? '已完成' : '待處理'];
+      const labels = [groupLabel(value.groupId), value.deleted ? t('conflicts.version.deleted') : value.archived ? t('conflicts.version.archived')
+        : value.completed ? t('conflicts.version.completed') : t('conflicts.version.toDo')];
       article.append(element('p', labels.join(' · '), 'list-meta'));
       const text = element('pre', value.content.text, 'revision-text'); text.tabIndex = 0; article.append(text);
       if (value.content.attachments?.length) {
         const attachments = element('ul');
         for (const attachment of value.content.attachments) {
           const row = element('li');
-          row.append(action(`下載附件：${attachment.name}`, async () => {
+          row.append(action(t('conflicts.version.downloadAttachment', { name: attachment.name }), async () => {
             const blob = await storage.getAttachment(profileId, attachment.id);
-            if (!blob) throw new Error('附件尚未收到，原始引用仍保留，請完成同步後重試。');
+            if (!blob) throw new Error(t('conflicts.errors.attachmentMissing'));
             const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); urls.push(url);
             const anchor = element('a'); anchor.href = url; anchor.download = attachment.name; anchor.click();
           })); attachments.append(row);
         }
         article.append(attachments);
       }
-    } else article.append(element('p', value.deleted ? `已合併至「${groupName(value.redirectGroupId)}」` : '使用中的群組'));
-    const details = element('details'); details.append(element('summary', '版本資料'), element('code', record.revisionId));
-    details.append(element('p', record.parents.length ? `承接 ${record.parents.length} 個版本` : '最初版本'));
+    } else article.append(element('p', value.deleted ? t('conflicts.version.mergedInto', { group: groupLabel(value.redirectGroupId) }) : t('conflicts.version.activeGroup')));
+    const details = element('details'); details.append(element('summary', t('conflicts.version.details')), element('code', record.revisionId));
+    details.append(element('p', record.parents.length ? plural('conflicts.version.parents', record.parents.length) : t('conflicts.version.first')));
     article.append(details);
     const apply = patch => workspace.resolveRevisions({ kind: record.kind, entityId: record.entityId,
       selectedRevision: record.revisionId, heads, patch, fromHistory });
     if (heads) {
-      if (repair && !card) article.append(action('恢復此群組', async () => { await apply({ deleted: false }); await changed(); }, 'primary'));
+      if (repair && !card) article.append(action(t('conflicts.version.restoreGroup'), async () => { await apply({ deleted: false }); await changed(); }, 'primary'));
       else if (repair && card) {
-        const label = element('label', '改放到群組', 'field'); const select = element('select');
-        for (const group of workspace.snapshot.groups.filter(group => !group.deleted)) select.append(new Option(group.name, group.id));
-        label.append(select); article.append(label, action('保留內容並移至此組', async () => {
-          if (!select.value) throw new Error('請先恢復或建立一個可用群組。');
+        const label = element('label', t('conflicts.version.moveToGroup'), 'field'); const select = element('select');
+        for (const group of workspace.snapshot.groups.filter(group => !group.deleted)) select.append(new Option(groupName(group), group.id));
+        label.append(select); article.append(label, action(t('conflicts.version.keepAndMove'), async () => {
+          if (!select.value) throw new Error(t('conflicts.errors.noGroup'));
           await apply({ groupId: select.value }); await changed();
         }, 'primary'));
-      } else article.append(action(fromHistory ? '恢復為目前版本' : value.deleted ? '採用此刪除／合併版本' : '採用此版本', async () => {
+      } else article.append(action(fromHistory ? t('conflicts.version.restore') : value.deleted ? t('conflicts.version.useDeleted') : t('conflicts.version.use'), async () => {
         await apply({}); await changed();
       }, 'primary'));
     }
@@ -76,50 +79,52 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
 
   function renderConflicts() {
     const conflicts = workspace.state.conflicts;
-    if (!conflicts.length) { body.append(element('p', '目前沒有需要處理的版本。')); return; }
-    body.append(element('p', '先比較內容，再選擇目前採用的版本。其他版本會保留在歷史中；未完成草稿不受影響。', 'hint'));
+    if (!conflicts.length) { body.append(element('p', t('conflicts.list.none'))); return; }
+    body.append(element('p', t('conflicts.list.hint'), 'hint'));
     for (const conflict of conflicts) {
       const section = element('section', undefined, 'revision-conflict');
       if (conflict.kind === 'revision') {
-        section.append(element('h3', conflict.entityKind === 'card' ? '便箋有多個版本' : '群組有多個版本'));
+        section.append(element('h3', conflict.entityKind === 'card' ? t('conflicts.revision.noteTitle') : t('conflicts.revision.groupTitle')));
         const options = element('div', undefined, 'revision-options');
         for (const record of workspace.revisionHeads(conflict.entityKind, conflict.entityId)) {
           options.append(renderValue(record, { heads: conflict.heads }));
         }
         section.append(options);
       } else if (conflict.kind === 'group-reference') {
-        section.append(element('h3', conflict.reason === 'group-cycle' ? '群組合併形成循環' : '接收群組尚未收到'),
-          element('p', '卡片及草稿仍保留。可等待同步補齊，或恢復這個群組。'));
+        section.append(element('h3', conflict.reason === 'group-cycle' ? t('conflicts.groupReference.cycleTitle') : t('conflicts.groupReference.missingTitle')),
+          element('p', t('conflicts.groupReference.hint')));
         for (const record of workspace.revisionHeads('group', conflict.groupId)) {
           section.append(renderValue(record, { heads: headsFor('group', conflict.groupId), repair: true }));
         }
       } else if (conflict.kind === 'card-group') {
-        section.append(element('h3', '便箋的群組需要處理'), element('p', '可先處理上方群組問題，或明確選擇另一組。'));
+        section.append(element('h3', t('conflicts.noteGroup.title')), element('p', t('conflicts.noteGroup.hint')));
         for (const record of workspace.revisionHeads('card', conflict.cardId)) {
           section.append(renderValue(record, { heads: headsFor('card', conflict.cardId), repair: true }));
         }
       } else if (conflict.kind === 'group-overflow') {
-        section.append(element('h3', `目前有 ${conflict.count} 個群組`), element('p', '所有資料都已保留。請在群組選單合併到最多九組，再安排桌面區域。'));
+        section.append(element('h3', plural('conflicts.groupOverflow.title', conflict.count)), element('p', t('conflicts.groupOverflow.hint')));
       } else if (conflict.kind === 'pending-revisions') {
-        section.append(element('h3', '部分版本尚待同步補齊'), element('p', `${conflict.revisions.length} 個版本正在等待 ${conflict.missing.length} 個較早版本。現有內容與待補資料都已保留。`));
+        section.append(element('h3', t('conflicts.pending.title')), element('p', plural('conflicts.pending.hint', conflict.revisions.length,
+          { earlier: plural('conflicts.pending.earlier', conflict.missing.length) })));
       } else if (conflict.kind === 'transfer') {
-        section.append(element('h3', '先前轉組未完成'), element('p', `目的群組：${groupName(conflict.groupId)}。卡片在操作期間已更新。`));
+        section.append(element('h3', t('conflicts.transfer.title')), element('p', t('conflicts.transfer.hint', { group: groupLabel(conflict.groupId) })));
         const card = workspace.snapshot.cards.find(card => card.id === conflict.cardId);
-        if (card && !card.deleted) section.append(action('以目前版本重試轉組', async () => {
+        if (card && !card.deleted) section.append(action(t('conflicts.transfer.retry'), async () => {
           await workspace.retryTransferIntent(conflict, card.revision); await changed();
         }));
-        section.append(action('取消這次轉組意圖', async () => { await workspace.clearTransferIntent(conflict); await changed(); }));
+        section.append(action(t('conflicts.transfer.cancel'), async () => { await workspace.clearTransferIntent(conflict); await changed(); }));
       }
       body.append(section);
     }
   }
 
   function renderHistory() {
-    body.append(element('p', '歷史從目前版本向較早版本顯示。恢復會建立新版本；後來的內容仍保留在歷史中。', 'hint'));
-    const label = element('label', '選擇便箋或群組', 'field'); const select = element('select');
+    body.append(element('p', t('conflicts.history.hint'), 'hint'));
+    const label = element('label', t('conflicts.history.choose'), 'field'); const select = element('select');
     const entities = [
-      ...workspace.snapshot.cards.map(card => ({ kind: 'card', id: card.id, name: `便箋：${summaryText(card)}` })),
-      ...workspace.snapshot.groups.map(group => ({ kind: 'group', id: group.id, name: `群組：${group.name}${group.deleted ? '（已合併）' : ''}` })),
+      ...workspace.snapshot.cards.map(card => ({ kind: 'card', id: card.id, name: t('conflicts.history.note', { summary: summaryText(card) }) })),
+      ...workspace.snapshot.groups.map(group => ({ kind: 'group', id: group.id,
+        name: group.deleted ? t('conflicts.history.mergedGroup', { group: groupName(group) }) : t('conflicts.history.group', { group: groupName(group) }) })),
     ];
     entities.forEach((entity, index) => select.append(new Option(entity.name, String(index))));
     const remembered = entities.findIndex(entity => `${entity.kind}:${entity.id}` === historyKey);
@@ -131,13 +136,13 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
       historyKey = `${entity.kind}:${entity.id}`;
       const history = workspace.revisionHistory(entity.kind, entity.id); const heads = headsFor(entity.kind, entity.id);
       let shown = 0;
-      const more = action('顯示更早版本', async () => append());
+      const more = action(t('conflicts.history.more'), async () => append());
       const append = () => {
         more.remove();
         for (const record of history.slice(shown, shown + 20)) records.append(renderValue(record, { heads, fromHistory: true }));
         shown += 20; if (shown < history.length) records.append(more);
       };
-      records.append(element('p', `共 ${history.length} 個完整版本`)); append();
+      records.append(element('p', plural('conflicts.history.count', history.length))); append();
     };
     select.onchange = choose; choose();
   }
@@ -145,14 +150,14 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
   function render() {
     for (const url of urls.splice(0)) URL.revokeObjectURL(url);
     body.replaceChildren(); navigation.replaceChildren();
-    const conflictTab = action('需要處理', async () => { view = 'conflicts'; render(); });
-    const historyTab = action('版本歷史', async () => { view = 'history'; render(); });
+    const conflictTab = action(t('conflicts.tab.conflicts'), async () => { view = 'conflicts'; render(); });
+    const historyTab = action(t('conflicts.tab.history'), async () => { view = 'history'; render(); });
     conflictTab.setAttribute('aria-pressed', String(view === 'conflicts'));
     historyTab.setAttribute('aria-pressed', String(view === 'history'));
     navigation.append(conflictTab, historyTab);
     if (view === 'conflicts') renderConflicts(); else renderHistory();
   }
-  const actions = element('div', undefined, 'dialog-actions'); actions.append(action('關閉', async () => dialog.close()));
+  const actions = element('div', undefined, 'dialog-actions'); actions.append(action(t('common.close'), async () => dialog.close()));
   dialog.append(heading, navigation, message, body, actions); document.body.append(dialog);
   dialog.oncancel = event => { if (busy) event.preventDefault(); };
   dialog.addEventListener('close', () => { urls.forEach(url => URL.revokeObjectURL(url)); dialog.remove(); });

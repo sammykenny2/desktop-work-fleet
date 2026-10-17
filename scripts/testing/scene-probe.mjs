@@ -2,6 +2,8 @@
 import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { t } from '../../src/i18n/index.js';
+import { catalogs } from '../../src/i18n/catalogs.js';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT\nLoads the built desktop scene with an in-page synthetic host and synthetic papers only.');
@@ -13,9 +15,10 @@ const base = new URL(process.argv[urlIndex + 1]);
 assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'Only loopback development previews are allowed');
 base.pathname = '/desktop/index.html';
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
-const page = await (await browser.newContext({ viewport: { width: 900, height: 560 } })).newPage();
+const page = await (await browser.newContext({ viewport: { width: 900, height: 560 }, locale: 'en-US' })).newPage();
 const errors = []; page.on('pageerror', error => errors.push(error.message));
 // The host answers the scene's requests the way the native owners do: info, a chunked frame with its digest, applied.
+// Each frame carries the owner's locale, as projectDesktop does.
 await page.addInitScript(() => {
   const listeners = new Set(); const frames = new Map(); let sequence = 1;
   const send = data => setTimeout(() => listeners.forEach(listener => listener({ data })), 0);
@@ -23,14 +26,14 @@ await page.addInitScript(() => {
   const paper = (id, x, summary, text, color) => ({ id, groupId: 'g1', revision: 'r1', summary, text, format: 'markdown', attachmentCount: 0,
     rect: { x, y: 24, width: 240, height: 240 }, layer: 'desktop', interactive: true, draggable: false, editing: false,
     selected: false, completed: false, mine: false, color });
-  const frame = () => ({ protocol: 1, sessionId: 's1', sequence, topology: 0, workspaceRevision: sequence, layoutRevision: sequence,
-    groups: [{ id: 'g1', name: '我的便箋', color: '#fff6cc', region: null }], operationScope: { kind: 'none' }, activeGroupId: 'g1',
-    cards: window.probeLong ? [{ ...paper('long', 24, '長便箋', Array.from({ length: 30 }, (_, n) => `第 ${n + 1} 行，寫得夠長讓它在紙上換行。`).join('\n\n'), '#ffe98a'),
+  const frame = () => ({ protocol: 1, sessionId: 's1', sequence, topology: 0, locale: window.probeLocale || 'en', workspaceRevision: sequence, layoutRevision: sequence,
+    groups: [{ id: 'g1', name: 'My notes', color: '#fff6cc', region: null }], operationScope: { kind: 'none' }, activeGroupId: 'g1',
+    cards: window.probeLong ? [{ ...paper('long', 24, 'Long note', Array.from({ length: 30 }, (_, n) => `Line ${n + 1}, long enough to wrap on the paper.`).join('\n\n'), '#ffe98a'),
       rect: { x: 24, y: 24, width: 240, height: window.probeTall ? 480 : 240 }, interactive: !window.probeWallpaper,
       attachments: Array.from({ length: 6 }, (_, n) => ({ id: `blob-${n}`, name: `file-${n}.pdf` })) }] : window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
-      paper('c1', 24, '季度報告', `# 季度報告\n\n- [x] 收集數字\n- [ ] 畫圖表\n- [${sequence > 1 ? 'x' : ' '}] 寫結論`, '#fff6cc'),
-      paper('c2', 292, '買牛奶、雞蛋、咖啡豆', '買牛奶、雞蛋、咖啡豆', '#e7f2e7'),
-      paper('c3', 560, sequence > 1 ? '牙醫改期' : '牙醫預約', `# ${sequence > 1 ? '牙醫改期' : '牙醫預約'}\n\n下週二 14:30，記得帶健保卡。`, '#e5edf8'),
+      paper('c1', 24, 'Quarterly report', `# Quarterly report\n\n- [x] Collect the numbers\n- [ ] Draw the charts\n- [${sequence > 1 ? 'x' : ' '}] Write the summary`, '#fff6cc'),
+      paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'),
+      paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'),
     ], editor: null, dropTarget: null, fallbacks: [], notice: null });
   window.probeApplied = 0; window.probeCommands = [];
   window.probeNextFrame = () => { sequence++; send({ v: 1, event: 'desktop-frame' }); };
@@ -66,15 +69,19 @@ const read = () => page.evaluate(() => ({
   steps: [...document.querySelectorAll('.card-body input')].map(input => input.checked),
   square: [...document.querySelectorAll('.card')].every(node => node.offsetWidth === node.offsetHeight),
 }));
+// The scene's own text: document language, title, landmark label and the first paper button.
+const texts = () => page.evaluate(() => ({ lang: document.documentElement.lang, title: document.title,
+  label: document.querySelector('#scene').getAttribute('aria-label'), edit: document.querySelector('.card-actions button')?.textContent ?? null }));
 try {
   await page.goto(base.href);
   await page.waitForFunction(() => window.probeApplied === 1);
   const first = await read();
   assert.equal(first.status, null);
-  assert.deepEqual(first.summaries, ['季度報告', '買牛奶、雞蛋、咖啡豆', '牙醫預約']);
+  assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), edit: null });
+  assert.deepEqual(first.summaries, ['Quarterly report', 'Buy milk, eggs and coffee beans', 'Dentist appointment']);
   // The body shows the whole text from its first line, even where the band already shows that line.
-  assert.equal(first.bodies[1], '買牛奶、雞蛋、咖啡豆', 'a one-line note fills its body, not only its band');
-  assert.match(first.bodies[2], /^牙醫預約\s+下週二 14:30，記得帶健保卡。$/);
+  assert.equal(first.bodies[1], 'Buy milk, eggs and coffee beans', 'a one-line note fills its body, not only its band');
+  assert.match(first.bodies[2], /^Dentist appointment\s+Next Tuesday at 14:30, bring the insurance card\.$/);
   assert.equal(first.headings, 2); assert.equal(first.bulletedSteps, 0, 'checklist steps show a box, not a bullet');
   assert.deepEqual(first.steps, [true, false, false]); assert.ok(first.square);
   // A later frame reuses each paper's nodes; the title and the steps must follow without a scene error.
@@ -82,8 +89,8 @@ try {
   await page.waitForFunction(() => window.probeApplied === 2 || !document.querySelector('#scene-status').hidden);
   const second = await read();
   assert.equal(second.status, null, 'the second frame renders without a scene error');
-  assert.deepEqual(second.summaries, ['季度報告', '買牛奶、雞蛋、咖啡豆', '牙醫改期']);
-  assert.deepEqual(second.steps, [true, false, true]); assert.match(second.bodies[2], /^牙醫改期\s/);
+  assert.deepEqual(second.summaries, ['Quarterly report', 'Buy milk, eggs and coffee beans', 'Dentist moved']);
+  assert.deepEqual(second.steps, [true, false, true]); assert.match(second.bodies[2], /^Dentist moved\s/);
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe.png' });
   await page.evaluate(() => { window.probeRich = true; window.probeNextFrame(); });
   await page.waitForFunction(() => window.probeApplied === 3);
@@ -145,6 +152,14 @@ try {
   await page.waitForFunction(() => window.probeApplied === 9);
   const again = await fitted();
   assert.ok(again.overflow === 'auto' && again.scrolls && !again.ends, 'a paper that takes the mouse again scrolls without "…"');
+  // A frame in another locale switches the scene's own text before it draws; the next English frame switches it back.
+  await page.evaluate(() => { window.probeLong = false; window.probeLocale = 'zh-TW'; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 10);
+  const zh = catalogs['zh-TW'];
+  assert.deepEqual(await texts(), { lang: 'zh-TW', title: zh['desktop.scene.title'], label: zh['desktop.scene.label'], edit: zh['desktop.card.edit'] });
+  await page.evaluate(() => { window.probeLocale = 'en'; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 11);
+  assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), edit: t('desktop.card.edit') });
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');
     const element = document.createElement('div');
@@ -160,7 +175,7 @@ try {
   assert.equal(budgets.blocks, 80); assert.equal(budgets.spans, 0);
   assert.ok(budgets.characters > 160000, 'large documents retain all code as plain text');
   assert.deepEqual(errors, []);
-  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, read-only checklists, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing');
+  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, read-only checklists, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe-failure.png' });
   if (errors.length) console.error('Scene page errors:', errors);

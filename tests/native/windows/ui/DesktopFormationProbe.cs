@@ -55,7 +55,7 @@ internal static class DesktopFormationProbe
     var original = NativeScreenCapture.Read(bounds);
     NativeScreenCapture.Save(bounds, Path.Combine(directory, "before.png"));
     using var focus = new ForegroundObservation();
-    var window = new FleetWindow(Path.Combine(directory, "data"), desktopDisplays: [display with { WorkArea = bounds }])
+    var window = new FleetWindow(Program.English(Path.Combine(directory, "data")), desktopDisplays: [display with { WorkArea = bounds }])
     { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = -20000,
       ShowActivated = false, ShowInTaskbar = false, Width = 1180, Height = 800 };
     window.Show();
@@ -63,7 +63,7 @@ internal static class DesktopFormationProbe
     focus.AllowedWindow = new WindowInteropHelper(window).Handle;
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent==='已開啟本機資料'", "formation fixture initialized");
+      await Program.Wait(window, "document.querySelector('#status')?.textContent==='Local data opened'", "formation fixture initialized");
       var log = File.ReadAllText(Path.Combine(directory, "data", "host.log"));
       if (!log.Contains(" displays at start " + NativeDisplays.Describe([display with { WorkArea = bounds }]) + "\n", StringComparison.Ordinal))
         throw new Exception("host.log did not record the display inventory at start: " + log);
@@ -146,13 +146,13 @@ internal static class DesktopFormationProbe
       {
         var previous = await Papers(surface.WebView.CoreWebView2);
         if (ReferenceEquals(surface, floating))
-          await Eval(surface.WebView.CoreWebView2, $"[...document.querySelectorAll('.adjust-tools button')].find(b=>b.textContent==='{(mode == "stack" ? "堆疊" : "攤開")}').click()");
+          await Eval(surface.WebView.CoreWebView2, $"[...document.querySelectorAll('.adjust-tools button')].find(b=>b.textContent==='{(mode == "stack" ? "Stack" : "Spread")}').click()");
         else
         {
           await Eval(main, $"document.querySelector('#{mode}').click()");
           await Wait(main, "document.querySelector('#formation-dialog').open&&!document.querySelector('#apply-formation').disabled", name + " preview");
           await Eval(main, "document.querySelector('#apply-formation').click()");
-          await Wait(main, "!document.querySelector('#formation-dialog').open&&document.querySelector('#status').textContent.includes('排列已完成')", name + " durable formation");
+          await Wait(main, "!document.querySelector('#formation-dialog').open&&document.querySelector('#status').textContent.includes('Arranged.')", name + " durable formation");
         }
         var until = DateTime.UtcNow.AddSeconds(10);
         while ((await Papers(surface.WebView.CoreWebView2)).SequenceEqual(previous) && DateTime.UtcNow < until) await Task.Delay(100);
@@ -177,7 +177,7 @@ internal static class DesktopFormationProbe
       {
         await Eval(main, "document.querySelector('#groups .group-row .group-menu').click()");
         await Wait(main, "Boolean(document.querySelector('dialog[open]'))", "group layer dialog");
-        await Eval(main, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='wallpaper';[...d.querySelectorAll('button')].find(b=>b.textContent==='保存').click()})()");
+        await Eval(main, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='wallpaper';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()})()");
         await Wait(main, "!document.querySelector('dialog[open]')", "save wallpaper policy");
         var wallpaper = window.Desktop.Surfaces[2];
         await Check(wallpaper, "wallpaper-return");

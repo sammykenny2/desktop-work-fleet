@@ -16,6 +16,8 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
+from text import t
+
 PLATFORM = "linux"
 ARCHITECTURE = "all"
 PACKAGE = "work-fleet"
@@ -31,13 +33,17 @@ REPOSITORY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$"
 
 
 class UpdateError(Exception):
-    def __init__(self, code, message):
-        super().__init__(message)
-        self.code = code
+    """`code` is stable; the message is host text (text.py), looked up when shown so it follows the display language."""
+    def __init__(self, code, key, **values):
+        super().__init__(code, key)
+        self.code, self.key, self.values = code, key, values
+
+    def __str__(self):
+        return t(self.key, **self.values)
 
 
-def invalid(detail=""):
-    return UpdateError("metadata_invalid", "更新資訊格式不符，未下載任何檔案。" + detail)
+def invalid(key="update.metadataInvalid"):
+    return UpdateError("metadata_invalid", key)
 
 
 def parse_version(text):
@@ -49,7 +55,7 @@ def parse_version(text):
 def latest(releases, repository, platform, channel, current):
     """The newest release for this platform and channel that is newer than `current` (a tuple), or None."""
     if channel != "preview":
-        raise invalid("不支援這個更新頻道。")
+        raise invalid("update.channelUnsupported")
     try:
         text = releases.decode("utf-8")
         if "<!DOCTYPE" in text or "<!ENTITY" in text:
@@ -75,13 +81,13 @@ def latest(releases, repository, platform, channel, current):
             if version > current and (best is None or version > best["version"]):
                 best = {"repository": repository, "tag": tag, "version": version, "page": page}
     if entries and not found_platform:
-        raise invalid("來源未列出這個平台的版本，請至 Releases 頁面確認。")
+        raise invalid("update.platformMissing")
     return best
 
 
 def asset_url(release, name):
     if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}", name):
-        raise invalid("下載檔名無效。")
+        raise invalid("update.fileNameInvalid")
     return f"https://github.com/{release['repository']}/releases/download/{release['tag']}/{name}"
 
 
@@ -106,7 +112,7 @@ def manifest(data, release, platform, arch):
         raise invalid()
     matches = [asset for asset in assets if isinstance(asset, dict) and asset.get("arch") == arch]
     if len(matches) != 1:
-        raise invalid("沒有這個架構的安裝檔。")
+        raise invalid("update.architectureMissing")
     chosen = matches[0]
     name, sha256, size = chosen.get("name"), chosen.get("sha256"), chosen.get("size")
     if not isinstance(name, str) or not isinstance(sha256, str) or not DIGEST.fullmatch(sha256) or type(size) is not int or not 0 < size <= MAX_PACKAGE:
@@ -127,16 +133,16 @@ def check_deb(path, version, current, run=subprocess.run, architecture=None):
     try:
         result = run(["dpkg-deb", "-f", str(path), "Package", "Version", "Architecture"], capture_output=True, text=True, timeout=30, check=True)
     except (OSError, subprocess.SubprocessError) as error:
-        raise UpdateError("identity_mismatch", "下載的檔案不是有效的 DEB，未安裝。") from error
+        raise UpdateError("identity_mismatch", "update.notDeb") from error
     fields = {}
     for line in result.stdout.splitlines():
         key, _, value = line.partition(":")
         fields[key.strip()] = value.strip()
     if fields.get("Package") != PACKAGE:
-        raise UpdateError("identity_mismatch", "下載的安裝檔不是這個 App，未安裝。")
+        raise UpdateError("identity_mismatch", "update.wrongPackage")
     if fields.get("Version") != version or parse_version(fields.get("Version")) is None or parse_version(fields["Version"]) <= current \
             or fields.get("Architecture") not in ("all", architecture if architecture is not None else host_architecture(run)):
-        raise UpdateError("identity_mismatch", "下載的安裝檔版本或架構不符，未安裝。")
+        raise UpdateError("identity_mismatch", "update.wrongVersion")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -154,7 +160,7 @@ class Fetcher:
         for _hop in range(4):
             parts = urllib.parse.urlsplit(url)
             if parts.scheme != "https" or parts.port not in (None, 443) or parts.username or parts.password or (parts.hostname or "").lower() not in hosts:
-                raise UpdateError("provider_rejected", "更新來源指向未允許的位置，已停止。")
+                raise UpdateError("provider_rejected", "update.sourceNotAllowed")
             headers = {"User-Agent": self.user_agent, "Accept": accept}
             try:
                 return self.opener.open(urllib.request.Request(url, headers=headers), timeout=timeout)
@@ -163,23 +169,23 @@ class Fetcher:
                 error.close()
                 if error.code in (301, 302, 303, 307, 308) and location:
                     if hosts == FEED_HOSTS:
-                        raise UpdateError("provider_rejected", "更新來源轉址，已停止。") from error
+                        raise UpdateError("provider_rejected", "update.sourceRedirected") from error
                     url, hosts = urllib.parse.urljoin(url, location), DOWNLOAD_HOSTS
                     continue
                 if error.code == 429 or error.code == 403 and error.headers and error.headers.get("Retry-After"):
-                    raise UpdateError("rate_limited", "GitHub 暫時限制查詢次數，請稍後再試。") from error
-                raise UpdateError("provider_rejected", f"GitHub 回應錯誤（{error.code}），請稍後再試。") from error
+                    raise UpdateError("rate_limited", "update.rateLimited") from error
+                raise UpdateError("provider_rejected", "update.githubError", status=error.code) from error
             except urllib.error.URLError as error:
-                raise UpdateError("offline", "無法連線到 GitHub，請確認網路後再試。") from error
+                raise UpdateError("offline", "update.offline") from error
             except TimeoutError as error:
-                raise UpdateError("timeout", "連線逾時，請稍後再試。") from error
-        raise UpdateError("provider_rejected", "更新來源轉址次數過多，已停止。")
+                raise UpdateError("timeout", "update.timeout") from error
+        raise UpdateError("provider_rejected", "update.tooManyRedirects")
 
     def fetch(self, url, limit, hosts):
         with self.open(url, hosts, "application/atom+xml" if hosts == FEED_HOSTS else "application/octet-stream", 30) as response:
             data = response.read(limit + 1)
         if len(data) > limit:
-            raise invalid("超過容量上限。")
+            raise invalid("update.metadataTooLarge")
         return data
 
     def download(self, url, path, size, sha256, progress):
@@ -192,14 +198,14 @@ class Fetcher:
                         break
                     received += len(chunk)
                     if received > size:
-                        raise UpdateError("checksum_mismatch", "下載的檔案大小不符，已刪除。")
+                        raise UpdateError("checksum_mismatch", "update.sizeMismatch")
                     digest.update(chunk)
                     output.write(chunk)
                     progress(received)
         except TimeoutError as error:
-            raise UpdateError("timeout", "下載逾時，請稍後再試。") from error
+            raise UpdateError("timeout", "update.downloadTimeout") from error
         if received != size or digest.hexdigest() != sha256:
-            raise UpdateError("checksum_mismatch", "下載的檔案與更新資訊不符，已刪除。")
+            raise UpdateError("checksum_mismatch", "update.checksumMismatch")
 
 
 class Updater:
@@ -214,8 +220,9 @@ class Updater:
         self.publish, self.record_check, self.run = publish, record_check, run
         self.fetcher = fetcher or Fetcher(f"WorkFleet/{version}")
         tools = which("pkexec") and which("dpkg-deb")
-        self.reason = ("只有以 DEB 安裝的版本支援 App 內更新。" if distribution != "deb" else "這個版本沒有設定更新來源。" if not self.repository
-                       else "系統缺少 pkexec 或 dpkg-deb，無法安裝更新。" if not tools else "")
+        # A text.py key, looked up in snapshot() so the reason follows the display language.
+        self.reason = ("update.debOnly" if distribution != "deb" else "update.noSource" if not self.repository
+                       else "update.noTools" if not tools else "")
         self.capable = not self.reason
         self.status = "idle" if self.capable else "unavailable"
         self.last_checked, self.pending, self.downloaded = last_checked, None, None
@@ -228,7 +235,7 @@ class Updater:
     def snapshot(self):
         failed_next = "check" if self.pending is None else "download" if self.downloaded is None else "install"
         next_action = {"idle": "check", "up_to_date": "check", "update_available": "download", "downloaded": "install", "failed": failed_next}.get(self.status, "none")
-        return {"available": self.capable, "reason": self.reason or None, "currentVersion": self.current_text, "channel": self.channel,
+        return {"available": self.capable, "reason": t(self.reason) if self.reason else None, "currentVersion": self.current_text, "channel": self.channel,
                 "status": self.status, "nextAction": next_action, "version": self.pending and self.pending["version"],
                 "summary": self.pending and self.pending["summary"], "pageUrl": self.pending and self.pending["page"], "lastCheckedAt": self.last_checked,
                 "progress": {"received": self.received, "total": self.total} if self.status == "downloading" else None,
@@ -256,10 +263,10 @@ class Updater:
                     self.error = error
                     self.set("failed")
                 except OSError:
-                    self.error = UpdateError("install_failed", "無法保存下載的更新，請確認磁碟空間後再試。")
+                    self.error = UpdateError("install_failed", "update.saveFailed")
                     self.set("failed")
                 except Exception:
-                    self.error = UpdateError("unknown", "更新沒有完成，請稍後再試。")
+                    self.error = UpdateError("unknown", "update.unknown")
                     self.set("failed")
                 finally:
                     if done:
@@ -321,11 +328,11 @@ class Updater:
     def ready(self):
         """The verified package, checked again right before installing."""
         if self.status != "downloaded" or self.downloaded is None or self.pending is None:
-            raise UpdateError("update-not-ready", "還沒有下載好的更新。")
+            raise UpdateError("update-not-ready", "update.notReady")
         if not self.downloaded.is_file() or self.digest(self.downloaded) != self.pending["sha256"]:
             self.downloaded = None
             self.set("update_available")
-            raise UpdateError("checksum_mismatch", "下載的更新已變更，請重新下載。")
+            raise UpdateError("checksum_mismatch", "update.downloadChanged")
         check_deb(self.downloaded, self.pending["version"], self.current, self.run)
         return self.downloaded
 
@@ -346,15 +353,15 @@ class Updater:
             try:
                 result = self.run(command, capture_output=True, text=True, timeout=1800)
             except subprocess.TimeoutExpired as error:
-                raise UpdateError("install_failed", "安裝逾時，未完成。") from error
+                raise UpdateError("install_failed", "update.installTimeout") from error
             if result.returncode in (126, 127):
-                self.error = UpdateError("authorization_cancelled", "沒有取得系統授權，未安裝更新。")
+                self.error = UpdateError("authorization_cancelled", "update.authorizationCancelled")
                 self.set("downloaded")
                 done(False)
                 return
             if result.returncode != 0:
                 tail = (result.stderr or result.stdout or "").strip().splitlines()[-1:] or [""]
-                self.error = UpdateError("install_failed", "安裝沒有完成：" + tail[0][:200])
+                self.error = UpdateError("install_failed", "update.installFailed", detail=tail[0][:200])
                 self.set("downloaded")
                 done(False)
                 return

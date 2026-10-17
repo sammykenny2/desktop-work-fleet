@@ -39,7 +39,7 @@ internal static class CompositionProbe
     web.CoreWebView2.NavigateToString("""
       <!doctype html><html><head><style>html,body{margin:0;background:transparent;overflow:hidden}
       #paper{position:absolute;left:80px;top:50px;width:260px;height:170px;background:#ffe080;color:#234;font:20px sans-serif}
-      </style></head><body><article id="paper">透明表面測試<textarea style="display:block;width:200px">原生輸入</textarea></article></body></html>
+      </style></head><body><article id="paper">Transparent surface test<textarea style="display:block;width:200px">Native input</textarea></article></body></html>
       """);
     await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
     await VerifyPixels((Visual)web, directory, "composition.png", blue: false);

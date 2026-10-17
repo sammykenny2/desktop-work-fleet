@@ -27,7 +27,7 @@ export class Drafts {
   }
   create(snapshot, note = null) { return this.write(this.blank(snapshot, note)); }
   edit(draft, patch) {
-    if (draft.pending) throw new Error('請先重試上一次傳送，或保留為新副本。');
+    if (draft.pending) throw new Error('Retry the last send first, or keep this draft as a new copy.');
     return this.write({ ...draft, ...patch });
   }
   prepare(draft) {

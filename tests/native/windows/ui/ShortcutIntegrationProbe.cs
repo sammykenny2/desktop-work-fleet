@@ -42,15 +42,15 @@ internal static class ShortcutIntegrationProbe
     }
     else coordinator.DispatchAction("@all"); // The OS may already have focused this owned probe window.
     await Wait(() => Check(scene, "Boolean(document.querySelector('.card.operable'))"), "native action opened floating scope");
-    await scene.ExecuteScriptAsync("[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");
+    await scene.ExecuteScriptAsync("[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
     await Wait(() => Check(scene, "Boolean(document.querySelector('textarea'))"), "inline editor");
-    await scene.ExecuteScriptAsync("document.querySelector('textarea').value='快捷鍵退出前的草稿';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
+    await scene.ExecuteScriptAsync("document.querySelector('textarea').value='Draft before the shortcut exit';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
     await Task.Delay(200);
     if (!await Check(scene, "Boolean(document.querySelector('textarea'))")) throw new Exception("Composing shortcut closed the editor.");
     await scene.ExecuteScriptAsync("document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
     await Wait(() => Check(web, "document.querySelector('#stop-operation').hidden"), "local scene scope chord safely toggles off");
     await web.ExecuteScriptAsync("document.querySelector('#drafts-button').click()");
-    await Wait(() => Check(web, "document.querySelector('#draft-list').textContent.includes('快捷鍵退出前的草稿')"), "scope chord kept exact durable draft");
+    await Wait(() => Check(web, "document.querySelector('#draft-list').textContent.includes('Draft before the shortcut exit')"), "scope chord kept exact durable draft");
     await web.ExecuteScriptAsync("document.querySelector('#close-drafts').click()");
     // Blocked close / initialization cannot be undone by a concurrent settings refresh.
     using (var block = JsonDocument.Parse("{\"blocked\":true}")) coordinator.Invoke("desktop.shortcuts.block", block.RootElement);

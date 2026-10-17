@@ -37,15 +37,15 @@ async function client(profileId, bootstrapGroup = false) {
 
 async function scenario() {
   const local = await client('local', true);
-  const bytes = new TextEncoder().encode('完整附件'); const id = await sha256(bytes);
+  const bytes = new TextEncoder().encode('complete attachment'); const id = await sha256(bytes);
   await local.storage.putAttachmentBytes('local', id, bytes);
   const group = local.workspace.snapshot.groups[0];
-  const card = await local.workspace.createCard({ ...text('本機備份內容'), attachments: [{ id, name: 'note.txt', size: bytes.length }] }, group.id);
-  const draft = local.workspace.blankDraft(group.id); draft.content.text = '本機未完成草稿'; await local.workspace.saveDraft(draft);
+  const card = await local.workspace.createCard({ ...text('Local backup content'), attachments: [{ id, name: 'note.txt', size: bytes.length }] }, group.id);
+  const draft = local.workspace.blankDraft(group.id); draft.content.text = 'Unfinished local draft'; await local.workspace.saveDraft(draft);
   const document = await openBackup((await createBackup({ workspace: local.workspace, storage: local.storage })).bytes);
   const remote = await client('google:account-a', true); const store = new MemoryFileStore();
-  const oldCard = await remote.workspace.createCard(text('不要留下的雲端內容'), remote.workspace.snapshot.groups[0].id);
-  const oldDraft = remote.workspace.blankDraft(oldCard.groupId); oldDraft.content.text = '舊 Google 草稿'; await remote.workspace.saveDraft(oldDraft);
+  const oldCard = await remote.workspace.createCard(text('Cloud content to drop'), remote.workspace.snapshot.groups[0].id);
+  const oldDraft = remote.workspace.blankDraft(oldCard.groupId); oldDraft.content.text = 'Old Google draft'; await remote.workspace.saveDraft(oldDraft);
   const sync = new FileSync({ workspace: remote.workspace, storage: remote.storage, fileStore: store });
   await sync.sync(); await sync.stop({ endSession: false });
   const oldIds = [...store.files.keys()];
@@ -60,7 +60,7 @@ test('explicit same-account backup overwrite republishes an automatic initial gr
   const store = new MemoryFileStore(); const original = await client('google:account-a');
   const sync = new FileSync({ workspace: original.workspace, storage: original.storage, fileStore: store, bootstrapGroup: true });
   await sync.sync(); const group = original.workspace.snapshot.groups[0];
-  const card = await original.workspace.createCard(text('明確還原的便箋'), group.id); await sync.sync(); await sync.stop();
+  const card = await original.workspace.createCard(text('Explicitly restored note'), group.id); await sync.sync(); await sync.stop();
   const document = await openBackup((await createBackup({ workspace: original.workspace, storage: original.storage })).bytes);
   const plan = await prepareCloudRestore({ workspace: original.workspace, document, sourceId: store.sourceId, workAreas: [area] });
   const safetyBackup = await saveSafetyBackup({ workspace: original.workspace, storage: original.storage,
@@ -108,7 +108,7 @@ test('missing safety backup, stale preview, wrong account and disk failure canno
   s.remote.fail(true);
   await assert.rejects(stageCloudRestore({ ...args, safetyBackup: s.safetyBackup }), /disk full/);
   s.remote.fail(false);
-  await s.remote.workspace.createCard(text('預覽後新增'), s.oldCard.groupId);
+  await s.remote.workspace.createCard(text('Added after the preview'), s.oldCard.groupId);
   await assert.rejects(stageCloudRestore({ ...args, safetyBackup: s.safetyBackup }), fails('stale-restore-plan'));
   assert.equal(s.store.calls.length, calls);
   for (const id of s.oldIds) assert.equal(s.store.files.has(id), true);
@@ -151,7 +151,7 @@ test('upload failure survives a restart and retries without resetting the restor
 
 test('a backup containing unresolved parent history completes initialization without discarding its pending revisions', async () => {
   const local = await client('local', true); const session = await local.workspace.beginSync('history-fixture');
-  const pending = revisionRecord('group', { id: 'pending-group', revision: 'pending-revision', name: '待補群組', deleted: false }, ['missing-parent']);
+  const pending = revisionRecord('group', { id: 'pending-group', revision: 'pending-revision', name: 'Group still pending', deleted: false }, ['missing-parent']);
   await local.workspace.receiveRevisions([pending], { session, expectedCursor: null, cursor: 'history' });
   const document = await openBackup((await createBackup({ workspace: local.workspace, storage: local.storage })).bytes);
   const remote = await client('google:account-a'); const store = new MemoryFileStore();

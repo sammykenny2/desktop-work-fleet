@@ -1,0 +1,100 @@
+export default {
+  // Backup files and archives
+  'errors.backup.cancelled': 'Backup cancelled. Your current data is unchanged.',
+  'errors.backup.zipInvalid': 'The backup ZIP is invalid or contains unsupported files.',
+  'errors.backup.zipBytesRequired': 'ZIP file bytes are needed.',
+  'errors.backup.archiveLimit': "The backup exceeds the format's size or item limit. Nothing was truncated or imported.",
+  'errors.backup.pathNotFixed': 'Backup paths must be fixed names.',
+  'errors.backup.pathNotAllowed': "The backup contains a path that isn't allowed. Nothing is extracted to the file system.",
+  'errors.backup.deflateUnsupported': "This environment can't strictly decompress DEFLATE data. Update the app or the system.",
+  'errors.backup.compressedDataCorrupt': "The backup's compressed data is damaged. Nothing was imported.",
+  'errors.backup.entriesRequired': 'Backup entries must be listed explicitly.',
+  'errors.backup.entryBytesRequired': 'A backup entry needs bytes.',
+  'errors.backup.fileTooLarge': 'The backup file is over the size limit.',
+
+  // Saving backup files
+  'errors.backup.saveSizeMismatch': "The file was written, but its size didn't match when read back. The backup isn't confirmed.",
+  'errors.backup.saveChecksumMismatch': "The file was written, but its checksum failed when read back. The backup isn't confirmed.",
+  'errors.backup.saveIncomplete': "The file may have been written, but saving or reading it back didn't finish. Check the destination file and try again. The backup isn't confirmed.",
+  'errors.backup.saveUnconfirmable': 'This environment can only offer a download. Use the app or a browser that can confirm the save before replacing.',
+
+  // Backup contents
+  'errors.backup.dataInvalid': "The backup data's format, references or counts don't match. Nothing was imported.",
+  'errors.backup.dataUnsupported': "This device has conflict data that backups don't support yet. A backup can't leave it out and still claim to be complete.",
+  'errors.backup.dataLimit': 'The data exceeds the backup size or item limit. Nothing was left out.',
+  'errors.backup.attachmentsIncomplete': "Attachments are missing or their sizes don't match, so the backup isn't complete. The original data is kept.",
+  'errors.backup.attachmentsTooLarge': "The backup's attachments exceed the total size limit. Nothing was truncated.",
+  'errors.backup.attachmentChecksum': 'An attachment on this device failed its checksum. No backup was written.',
+
+  // Encryption
+  'errors.backup.passwordRequired': 'Enter the backup password, up to 1,024 characters.',
+  'errors.backup.passwordLength': 'The backup password needs 12 to 1,024 characters.',
+  'errors.backup.decryptionFailed': 'The password is wrong or the encrypted backup is damaged. Nothing was restored.',
+  'errors.backup.encryptionUnsupported': "The backup's encryption format or settings aren't supported. No restore was attempted.",
+  'errors.backup.encryptionTooLarge': 'The backup to encrypt is over the size limit.',
+  'errors.backup.encryptionHeaderInvalid': "The backup's encryption header is invalid.",
+  'errors.backup.encryptedPackageInvalid': 'The encrypted backup package is invalid.',
+  'errors.backup.encryptedContentIncomplete': 'The encrypted content is incomplete.',
+  'errors.backup.encryptedSizeInvalid': 'The encrypted content size is invalid.',
+  'errors.backup.nestedEncryption': "Nested encrypted backups aren't supported.",
+  'errors.backup.nativeEncryptionIncomplete': "Native encryption didn't return a complete backup.",
+  'errors.backup.nativeEncryptionNotEncrypted': "Native encryption didn't return an encrypted package. No unencrypted data was saved.",
+
+  // Export
+  'errors.backup.exportSyncUnavailable': "Google can't be synced right now.",
+  'errors.backup.exportSyncIncomplete': 'Some changes are still waiting to sync to Google.',
+  'errors.backup.exportCancelled': 'Export cancelled. No backup was saved.',
+  'errors.backup.exportWorkspaceChanged': 'The workspace changed. Export again.',
+
+  // Automatic backup
+  'errors.backup.jobInvalid': 'The automatic backup job is invalid. No files were touched.',
+  'errors.backup.jobIdCollision': 'The backup job ID is already in use. No file was written.',
+  'errors.backup.journalInvalid': 'The automatic backup record is invalid. No files were written or removed.',
+  'errors.backup.journalSettingsInvalid': 'The automatic backup settings are invalid. No files were written or removed.',
+  'errors.backup.journalIdentityInvalid': 'The automatic backup ID or success record is invalid.',
+  'errors.backup.journalUnavailable': "The backup record can't be read or saved.",
+  'errors.backup.journalMissing': 'The automatic backup record is missing. Reopen the workspace.',
+  'errors.backup.journalBlocked': 'Another window still has the backup record open.',
+  'errors.backup.journalAborted': 'Saving the backup record was interrupted.',
+  'errors.backup.journalStaleWriter': 'Another task updated the backup record. No file was written.',
+  'errors.backup.profileInvalid': 'The backup account is invalid.',
+  'errors.backup.clockInvalid': 'The system time is invalid.',
+  'errors.backup.settingUnknown': 'Unknown automatic backup setting.',
+  'errors.backup.createUnavailable': "This environment can't safely create new files, so automatic backup can't be turned on yet.",
+  'errors.backup.createPaused': "Safe file creation isn't available, so automatic backup is paused.",
+  'errors.backup.vaultUnavailable': "This environment has no secure password storage, so scheduled encrypted backups can't be turned on.",
+  'errors.backup.vaultPaused': "Secure password storage isn't available, so scheduled encrypted backups are paused.",
+  'errors.backup.automaticFailed': 'Automatic backup failed. Your current data is kept.',
+  'errors.backup.automaticNotSaved': "The automatic backup isn't confirmed as saved. Older backups are kept.",
+  'errors.backup.latestReplaced': 'The latest backup was replaced. Older backups are kept and a new one will be made.',
+  'errors.backup.latestMissing': 'The latest backup is missing or was modified. Older backups are kept and a new one will be made.',
+  'errors.backup.retentionLatest': "The latest successful backup can't be removed.",
+
+  // Restore
+  'errors.backup.restorePlanRequired': 'A valid restore preview is needed.',
+  'errors.backup.restoreAccountChanged': "The restore's target account changed. Preview again.",
+  'errors.backup.restoreModeInvalid': 'Choose a valid restore mode and layout option.',
+  'errors.backup.displayAreaRequired': 'A usable display area is needed.',
+  'errors.backup.backupNotVerified': 'Verify the complete backup first.',
+  'errors.backup.alreadyRestored': 'This backup was already restored. A new restore starts only if you choose to restore it again.',
+  'errors.backup.localNotesRequired': 'Switch to Local notes before clearing this device and restoring.',
+  'errors.backup.restoreIdCollision': 'A new ID was duplicated or invalid. Nothing was restored.',
+  'errors.backup.restoreJobCollision': 'The restore job ID has different contents.',
+  'errors.backup.revisionCollision': 'One version ID has different contents. Nothing was restored.',
+  'errors.backup.headLimit': 'There are more parallel versions than one replace allows. Resolve the conflicts first.',
+
+  // Pre-restore backups
+  'errors.backup.safetyBackupRequired': 'A saved pre-restore backup is needed.',
+  'errors.backup.safetyBackupMissing': 'Save a pre-restore backup of the current data first.',
+  'errors.backup.safetyBackupNotSaved': "The pre-restore backup isn't confirmed as saved, so data can't be replaced.",
+  'errors.backup.saveHostRequired': 'A way to confirm that the file was saved is needed.',
+
+  // Restoring to Google
+  'errors.backup.cloudPlanRequired': 'A valid preview of the Google overwrite is needed.',
+  'errors.backup.cloudAccountChanged': 'The Google account changed. Preview again.',
+  'errors.backup.cloudSignInRequired': 'Sign in to the Google account you want to overwrite first.',
+  'errors.backup.cloudSafetyBackupRequired': 'Save a backup of the current Google workspace first.',
+  'errors.backup.cloudRestorePending': 'Finish the unfinished Google overwrite first.',
+  'errors.backup.cloudJobMismatch': "This overwrite doesn't belong to the current Google account.",
+  'errors.backup.cloudUploadPending': 'Some backup data is still waiting to upload or be verified. Continue the overwrite.',
+};

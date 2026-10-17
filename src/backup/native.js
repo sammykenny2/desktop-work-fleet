@@ -1,12 +1,13 @@
 import { requireValue } from '../core/contracts.js';
 import { NativeTransfers } from '../storage/native.js';
 import { checkCancelled } from './archive.js';
+import { t } from '../i18n/index.js';
 
 /** Native grants expose only opaque IDs; neither stored passwords nor filesystem paths are returned. */
 export function nativeBackupAdapters(bridge, info) {
   const transfers = new NativeTransfers(bridge, info);
   const available = info.capabilities.automaticFiles === true;
-  const check = profileId => requireValue(profileId === info.profileId, 'backup-profile', '備份帳號已切換。');
+  const check = profileId => requireValue(profileId === info.profileId, 'backup-profile', t('errors.common.backupProfileChanged'));
   const jobArgs = job => {
     check(job.profileId);
     const { bytes, signal, ...args } = job; return args;

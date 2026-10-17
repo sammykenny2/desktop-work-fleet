@@ -103,11 +103,17 @@ import AppKit
         var card: [String: Any] = ["id": "paper", "groupId": "group", "text": "Synthetic layer probe", "color": "#ff7799",
             "rect": ["x": -280, "y": 70, "width": 120, "height": 80], "layer": "wallpaper",
             "interactive": false, "draggable": false, "editing": false, "selected": false, "completed": false, "mine": false]
-        func parse(_ card: [String: Any]) throws -> FleetSceneFrame {
-            try FleetSceneFrame.parse(FleetProtocol.encode(["protocol": 1, "sessionId": session, "sequence": 1, "topology": 0,
-                "workspaceRevision": 1, "layoutRevision": 1, "groups": [], "operationScope": ["kind": "none"], "cards": [card]]), session: session, previous: -1)
+        func parse(_ card: [String: Any], _ extra: [String: Any] = [:]) throws -> FleetSceneFrame {
+            var frame: [String: Any] = ["protocol": 1, "sessionId": session, "sequence": 1, "topology": 0,
+                "workspaceRevision": 1, "layoutRevision": 1, "groups": [], "operationScope": ["kind": "none"], "cards": [card]]
+            for (key, value) in extra { frame[key] = value }
+            return try FleetSceneFrame.parse(FleetProtocol.encode(frame), session: session, previous: -1)
         }
         _ = try parse(card)
+        // Frames carry the owner's UI locale for the scenes; the host relays it and accepts only short text.
+        _ = try parse(card, ["locale": "zh-TW"])
+        do { _ = try parse(card, ["locale": 1]); throw FleetFailure("probe", "A non-text locale was accepted") }
+        catch let failure as FleetFailure { try check(failure.code == "invalid-request", "A frame locale must be text") }
         for flag in ["interactive", "draggable", "editing"] {
             card[flag] = true
             do { _ = try parse(card); throw FleetFailure("probe", "Interactive wallpaper was accepted") }

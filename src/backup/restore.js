@@ -8,6 +8,7 @@ import { groupLayersFromPapers } from '../layout/stages.js';
 import { Workspace } from '../core/workspace.js';
 import { BackupDocument, createBackup } from './payload.js';
 import { backupScheduler, checkCancelled } from './archive.js';
+import { t } from '../i18n/index.js';
 
 const planKey = Symbol('restore-plan'); const safetyKey = Symbol('saved-safety-backup');
 const equal = (a, b) => canonicalJson(a) === canonicalJson(b);
@@ -25,7 +26,7 @@ function allocator(state, data, uuid) {
   [...Object.values(state.drafts), ...data.drafts].forEach(rememberDraft);
   Object.keys(state.restoreReceipts || {}).forEach(id => used.add(id));
   return () => {
-    const id = uuid(); requireValue(validId(id) && !used.has(id), 'restore-id-collision', '新身分重複或無效，尚未還原。');
+    const id = uuid(); requireValue(validId(id) && !used.has(id), 'restore-id-collision', t('errors.backup.restoreIdCollision'));
     used.add(id); return id;
   };
 }
@@ -87,17 +88,17 @@ async function importData(data, fresh, checkpoint) {
 /** A host-confirmed saved backup of one exact committed profile revision. */
 export class SafetyBackupReceipt {
   #binding;
-  constructor(key, binding) { requireValue(key === safetyKey, 'invalid-safety-backup', '需要已保存的還原前備份。'); this.#binding = copy(binding); }
+  constructor(key, binding) { requireValue(key === safetyKey, 'invalid-safety-backup', t('errors.backup.safetyBackupRequired')); this.#binding = copy(binding); }
   get binding() { return copy(this.#binding); }
 }
 
 export async function saveSafetyBackup({ workspace, storage, save, ...options }) {
-  requireValue(typeof save === 'function', 'missing-backup-host', '需要確認檔案保存成功的介面。');
+  requireValue(typeof save === 'function', 'missing-backup-host', t('errors.backup.saveHostRequired'));
   const state = workspace.state;
   const backup = await createBackup({ ...options, workspace: { state }, storage }); checkCancelled(options.signal);
   const result = await save({ bytes: backup.bytes, manifest: backup.manifest, encrypted: backup.encrypted, signal: options.signal });
   requireValue(result?.saved === true && typeof result.receipt === 'string' && result.receipt.length > 0 && result.receipt.length <= 4096,
-    'backup-not-saved', '尚未確認還原前備份已保存，不能取代資料。');
+    'backup-not-saved', t('errors.backup.safetyBackupNotSaved'));
   // A trusted adapter completes its irreversible save/readback phase despite a late cancellation.
   return new SafetyBackupReceipt(safetyKey, { profileId: state.profileId, revision: state.revision,
     backupId: backup.manifest.backupId, receipt: result.receipt });
@@ -107,25 +108,25 @@ export async function saveSafetyBackup({ workspace, storage, save, ...options })
 export class RestorePlan {
   #state; #document; #preview; #receipt;
   constructor(key, state, document, preview, receipt) {
-    requireValue(key === planKey, 'invalid-restore-plan', '需要有效的還原預覽。');
+    requireValue(key === planKey, 'invalid-restore-plan', t('errors.backup.restorePlanRequired'));
     this.#state = state; this.#document = document; this.#preview = preview; this.#receipt = receipt;
   }
   get preview() { return copy(this.#preview); }
   get receipt() { return copy(this.#receipt); }
   get attachments() { return this.#document.attachmentIds.map(id => ({ id, bytes: this.#document.attachment(id) })); }
   existing(state) {
-    requireValue(state.profileId === this.#preview.profileId, 'restore-profile', '還原目標帳號已切換，請重新預覽。');
+    requireValue(state.profileId === this.#preview.profileId, 'restore-profile', t('errors.backup.restoreAccountChanged'));
     const found = state.restoreReceipts?.[this.#receipt.jobId];
-    if (found) requireValue(equal(found, this.#receipt), 'restore-job-collision', '還原工作身分包含不同內容。');
+    if (found) requireValue(equal(found, this.#receipt), 'restore-job-collision', t('errors.backup.restoreJobCollision'));
     return found ? copy(found) : null;
   }
   materialize(state, safety) {
     this.existing(state);
-    requireValue(state.revision === this.#preview.revision, 'stale-restore-plan', '預覽後資料已變更，請重新預覽。');
+    requireValue(state.revision === this.#preview.revision, 'stale-restore-plan', t('errors.common.previewStale'));
     if (this.#preview.mode === 'replace') {
       const binding = safety instanceof SafetyBackupReceipt ? safety.binding : null;
       requireValue(binding?.profileId === state.profileId && binding.revision === state.revision,
-        'missing-safety-backup', '請先成功保存目前這一版資料的還原前備份。');
+        'missing-safety-backup', t('errors.backup.safetyBackupMissing'));
     }
     return copy(this.#state);
   }
@@ -134,10 +135,10 @@ export class RestorePlan {
 /** Replaces only an offline workspace, using the same verified portable document and commit boundary. */
 export async function prepareLocalRestore({ workspace, document, ...options }) {
   const current = workspace.state;
-  requireValue(!current.profileId.startsWith('google:'), 'restore-profile', '請先切換到本機便箋，再清空本機還原。');
-  requireValue(document instanceof BackupDocument, 'invalid-backup-data', '請先驗證完整備份。');
+  requireValue(!current.profileId.startsWith('google:'), 'restore-profile', t('errors.backup.localNotesRequired'));
+  requireValue(document instanceof BackupDocument, 'invalid-backup-data', t('errors.backup.backupNotVerified'));
   requireValue(options.repeat || !Object.values(current.restoreReceipts || {}).some(item => item.fingerprint === document.fingerprint),
-    'already-restored', '這份備份已還原；只有明確選擇再還原一次才建立新工作。');
+    'already-restored', t('errors.backup.alreadyRestored'));
   const empty = await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
     area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {} });
   const restore = await prepareRestore({ ...options, workspace: empty, document, mode: 'merge', layout: 'backup' });
@@ -154,14 +155,14 @@ export async function prepareLocalRestore({ workspace, document, ...options }) {
 
 export async function prepareRestore({ workspace, document, mode = 'import', layout = 'preserve', workAreas,
   repeat = false, uuid = () => crypto.randomUUID(), signal }) {
-  requireValue(document instanceof BackupDocument, 'invalid-backup-data', '請先驗證完整備份。');
+  requireValue(document instanceof BackupDocument, 'invalid-backup-data', t('errors.backup.backupNotVerified'));
   requireValue(['import', 'merge', 'replace'].includes(mode) && ['preserve', 'backup'].includes(layout),
-    'invalid-restore-mode', '請選擇有效還原模式與版面選項。');
-  requireValue(Array.isArray(workAreas) && workAreas.length > 0 && workAreas.every(validRect), 'invalid-area', '需要可用的顯示區域。');
+    'invalid-restore-mode', t('errors.backup.restoreModeInvalid'));
+  requireValue(Array.isArray(workAreas) && workAreas.length > 0 && workAreas.every(validRect), 'invalid-area', t('errors.backup.displayAreaRequired'));
   workAreas = copy(workAreas); checkCancelled(signal);
   const state = workspace.state; const original = document.data; const checkpoint = backupScheduler(signal);
   const prior = Object.values(state.restoreReceipts || {}).find(item => item.fingerprint === document.fingerprint);
-  requireValue(!prior || repeat, 'already-restored', '這份備份已還原；只有明確選擇再還原一次才建立新工作。', { receipt: prior });
+  requireValue(!prior || repeat, 'already-restored', t('errors.backup.alreadyRestored'), { receipt: prior });
   const fresh = allocator(state, original, uuid); const jobId = fresh();
   const imported = mode === 'import' ? await importData(original, fresh, checkpoint) : { data: original, mappings: {} };
   const data = imported.data; const next = copy(state); const additions = [];
@@ -169,7 +170,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   const append = record => { additions.push(record); known.set(record.revisionId, record); };
   for (const record of data.records) {
     const previous = known.get(record.revisionId);
-    requireValue(!previous || equal(previous, record), 'revision-collision', '同一版本身分包含不同內容，沒有還原任何資料。');
+    requireValue(!previous || equal(previous, record), 'revision-collision', t('errors.backup.revisionCollision'));
     if (!previous) append(record); await checkpoint();
   }
   let graph = await RevisionGraph.create([...state.revisions, ...additions], checkpoint);
@@ -179,12 +180,12 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     const backupSnapshot = await projectRevisionsAsync(backupGraph, { ...data.local, conflicts: data.local.transferIntents }, checkpoint);
     let recipient = backupSnapshot.groups.find(group => !group.deleted)?.id;
     if (!recipient) {
-      recoveryGroup = { id: fresh(), revision: fresh(), name: '還原後保留', deleted: false }; recipient = recoveryGroup.id;
+      recoveryGroup = { id: fresh(), revision: fresh(), name: t('backup.restore.recoveryGroupName'), deleted: false }; recipient = recoveryGroup.id;
       append(revisionRecord('group', recoveryGroup)); preferences.groups.push({ id: recipient, revision: recoveryGroup.revision });
     }
     const restoreHeads = (kind, entityId, heads, patch = {}) => {
       const parents = [...new Set([...graph.heads(kind, entityId), ...heads].map(record => record.revisionId))];
-      requireValue(parents.length <= 1024, 'restore-head-limit', '並行版本超過單次取代上限，請先整理衝突。');
+      requireValue(parents.length <= 1024, 'restore-head-limit', t('errors.backup.headLimit'));
       for (const head of heads) {
         const value = { ...copy(head.value), ...patch, revision: fresh() };
         append(revisionRecord(kind, value, parents)); restoredHeads.set(head.revisionId, value.revision);

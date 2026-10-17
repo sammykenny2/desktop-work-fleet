@@ -1,6 +1,7 @@
 /** Real IDB scheduler/UI probe with an explicitly synthetic file host. Usage: node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT */
 import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
+import { t } from '../../src/i18n/index.js';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT\nVerifies real IndexedDB journals and UI using synthetic atomic files. Browser automatic filesystem access stays unavailable.');
@@ -9,13 +10,13 @@ if (process.argv.includes('--help')) {
 const index = process.argv.indexOf('--url'); assert.ok(index >= 0 && process.argv[index + 1], '--url is required');
 const base = new URL(process.argv[index + 1]); assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'Only loopback development previews are allowed');
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
-const context = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+const context = await browser.newContext({ viewport: { width: 1400, height: 1000 }, locale: 'en-US' });
 const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
 try {
   const app = new URL('/app/index.html', base); app.searchParams.set('profile', crypto.randomUUID());
-  await page.goto(app.href); await expect(page.locator('#status')).toHaveText('已開啟本機資料');
+  await page.goto(app.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await page.locator('#settings-button').click(); await page.locator('[data-page="data"]').click();
-  await expect(page.locator('#auto-backup-retention')).toContainText('不支援自動備份');
+  await expect(page.locator('#auto-backup-retention')).toHaveText(t('backup.automatic.unsupported'));
   for (const id of ['location', 'enable', 'now', 'keep']) await expect(page.locator(`#auto-backup-${id}`)).toBeDisabled();
   await expect(page.locator('#export-backup')).toBeEnabled();
   await page.goto(new URL('/app/style.css', base).href);
@@ -61,21 +62,21 @@ try {
     window.autoProbe = fixture;
   });
   await page.locator('#auto-backup-location').click(); await page.locator('#auto-backup-enable').click();
-  await expect(page.locator('#auto-backup-message')).toContainText('沒有安全密碼儲存');
+  await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.errors.vaultUnavailable'));
   assert.equal(await page.evaluate(() => window.autoProbe.journal.load(window.autoProbe.profileId)), null);
   await page.locator('#auto-backup-encrypt').uncheck(); await page.locator('#auto-backup-keep').fill('1');
-  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toContainText('檔案檢查無誤');
-  await page.locator('#auto-backup-now').click(); await expect(page.locator('#auto-backup-message')).toContainText('檔案檢查無誤');
+  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.automatic.result.saved'));
+  await page.locator('#auto-backup-now').click(); await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.automatic.result.saved'));
   assert.deepEqual(await page.evaluate(() => ({ count: window.autoProbe.count, inventory: window.autoProbe.service.state.inventory.length })), { count: 2, inventory: 1 });
   await page.evaluate(() => {
     window.autoProbe.flush = () => new Promise(resolve => { window.autoProbe.gateEntered = true; window.autoProbe.release = resolve; });
   });
   await page.locator('#auto-backup-now').click(); await page.waitForFunction(() => window.autoProbe.gateEntered);
   await expect(page.locator('#auto-backup-disable')).toBeEnabled(); await page.locator('#auto-backup-disable').click();
-  await page.evaluate(() => window.autoProbe.release()); await expect(page.locator('#auto-backup-status')).toContainText('已停用');
+  await page.evaluate(() => window.autoProbe.release()); await expect(page.locator('#auto-backup-status')).toContainText(t('backup.automatic.state.off'));
   assert.equal(await page.evaluate(() => window.autoProbe.count), 2, 'stopped preparation created no new output');
   await page.evaluate(() => { window.autoProbe.flush = async () => {}; });
-  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toContainText('檔案檢查無誤');
+  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.automatic.result.saved'));
   const result = await page.evaluate(async () => {
     const f = window.autoProbe; const assert = (value, message) => { if (!value) throw new Error(message); };
     f.lose = true;

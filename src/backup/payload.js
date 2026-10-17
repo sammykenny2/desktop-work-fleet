@@ -8,10 +8,11 @@ import { schemas, requireSchemaVersion } from '../core/schema.js';
 import { mainViews } from '../layout/store.js';
 import { BACKUP_LIMITS, backupScheduler, checkCancelled, entryLimit, packZip, unpackZip } from './archive.js';
 import { decryptBackup, encryptBackup } from './encryption.js';
+import { t } from '../i18n/index.js';
 
 const encoder = new TextEncoder();
 const encode = value => encoder.encode(canonicalJson(value));
-const fail = condition => requireValue(condition, 'invalid-backup-data', '備份資料格式、引用或數量不一致，尚未匯入。');
+const fail = condition => requireValue(condition, 'invalid-backup-data', t('errors.backup.dataInvalid'));
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const exact = (value, keys) => fail(object(value) && Object.keys(value).sort().join(',') === [...keys].sort().join(','));
 const count = value => Number.isSafeInteger(value) && value >= 0;
@@ -195,7 +196,7 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   now = () => new Date(), uuid = () => crypto.randomUUID(), signal, progress = () => {} }) {
   checkCancelled(signal); const state = workspace.state; const profileId = state.profileId;
   requireValue(state.conflicts.every(item => item.kind === 'transfer' || projectionConflictKinds.has(item.kind)),
-    'unsupported-backup-data', '本機包含尚未支援的衝突資料，不能省略後宣稱備份完成。');
+    'unsupported-backup-data', t('errors.backup.dataUnsupported'));
   const data = { records: state.revisions, drafts: Object.values(state.drafts), layout: state.layout,
     local: { cards: state.cards.map(({ id, revision }) => ({ id, revision })), groups: state.groups.map(({ id, revision }) => ({ id, revision })),
       membershipRebases: state.membershipRebases || {}, transferIntents: state.conflicts.filter(item => item.kind === 'transfer') } };
@@ -204,7 +205,7 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   const add = (name, bytes) => {
     expanded += bytes.length;
     requireValue(files.size + 1 + (name === 'manifest.json' ? 0 : 1) <= BACKUP_LIMITS.entries && expanded <= BACKUP_LIMITS.expandedBytes,
-      'backup-limit', '資料超過備份容量或項目上限，尚未省略任何內容。'); files.set(name, bytes);
+      'backup-limit', t('errors.backup.dataLimit')); files.set(name, bytes);
   };
   for (let i = 0; i < data.records.length; i++) { add(filename('revisions', i), encodeRevision(data.records[i])); await checkpoint(); }
   for (let i = 0; i < data.drafts.length; i++) { add(filename('drafts', i), encode(data.drafts[i])); await checkpoint(); }
@@ -213,10 +214,10 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   for (const [id, sizes] of validated.attachments) {
     const blob = await storage.getAttachment(profileId, id); checkCancelled(signal);
     requireValue(blob instanceof Blob && blob.size <= BACKUP_LIMITS.attachmentBytes && (!sizes.size || sizes.has(blob.size)),
-      'incomplete-backup', '尚缺附件或大小不符，不能宣稱已完成備份；原資料保留。');
-    requireValue(expanded + blob.size <= BACKUP_LIMITS.expandedBytes, 'backup-limit', '備份附件超過總容量，尚未截斷。');
+      'incomplete-backup', t('errors.backup.attachmentsIncomplete'));
+    requireValue(expanded + blob.size <= BACKUP_LIMITS.expandedBytes, 'backup-limit', t('errors.backup.attachmentsTooLarge'));
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    requireValue(await sha256(bytes) === id, 'incomplete-backup', '本機附件校驗失敗，尚未輸出備份。');
+    requireValue(await sha256(bytes) === id, 'incomplete-backup', t('errors.backup.attachmentChecksum'));
     add(`attachments/${id}.bin`, bytes); progress({ phase: 'attachments', completed: ++completed, total: validated.attachments.size });
     await checkpoint();
   }

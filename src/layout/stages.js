@@ -1,4 +1,5 @@
 import { eligible, requireValue } from '../core/contracts.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Each group sits on one desktop layer, kept per device. A group key steps it through the wallpaper, the desktop and
@@ -25,7 +26,7 @@ export function nextGroupStage(layer, { adjusting = false, wallpaper = true, des
 export async function stepGroup({ workspace, controller, groupId, wallpaper, desktop = true, floating = true }) {
   const layout = workspace.layout.state; const scope = controller.state.operationScope;
   requireValue(workspace.snapshot.cards.some(card => card.groupId === groupId && eligible(card, layout) && layout.placements[card.id]),
-    'empty-scope', '這個群組沒有桌面便箋，請在主畫面管理顯示卡片。');
+    'empty-scope', t('errors.core.groupNoDesktopNotes'));
   const stage = nextGroupStage(groupLayer(layout, groupId), { adjusting: scope.kind === 'group' && scope.groupId === groupId, wallpaper, desktop, floating });
   // The layer changes before adjust mode does, so leaving adjust mode drops papers straight onto their new layer.
   // Adjust mode itself keeps the resting layer, which matters where the topmost layer is skipped.

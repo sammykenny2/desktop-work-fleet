@@ -17,6 +17,7 @@ class MacOSReleaseFeedTests(unittest.TestCase):
             build = subprocess.run([
                 "swiftc", "-module-cache-path", str(folder / "module-cache"),
                 str(root / "src/native/apple/Shared/FleetProtocol.swift"),
+                str(root / "src/native/apple/Shared/FleetText.swift"),
                 str(root / "src/native/apple/macos/FleetReleaseFeed.swift"),
                 str(root / "tests/native/apple/ReleaseFeedProbe.swift"), "-o", str(executable),
             ], capture_output=True, text=True, timeout=120)

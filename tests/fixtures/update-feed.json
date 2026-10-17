@@ -17,9 +17,9 @@
   ],
   "manifests": [
     { "name": "a matching manifest names the asset to download",
-      "manifest": { "schemaVersion": 1, "platform": "windows", "version": "0.1.10", "tag": "windows-v0.1.10", "summary": "修正與改進",
+      "manifest": { "schemaVersion": 1, "platform": "windows", "version": "0.1.10", "tag": "windows-v0.1.10", "summary": "Fixes and improvements",
         "assets": [{ "arch": "x64", "name": "WorkFleet-0.1.10-x64.msix", "size": 1000, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }] },
-      "expected": { "version": "0.1.10", "summary": "修正與改進", "name": "WorkFleet-0.1.10-x64.msix", "size": 1000,
+      "expected": { "version": "0.1.10", "summary": "Fixes and improvements", "name": "WorkFleet-0.1.10-x64.msix", "size": 1000,
         "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
         "url": "https://github.com/o/r/releases/download/windows-v0.1.10/WorkFleet-0.1.10-x64.msix" } },
     { "name": "another platform's manifest is refused",

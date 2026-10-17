@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Input;
 using System.Windows.Media;
+using WorkFleet.Windows.Core;
 
 namespace WorkFleet.Windows;
 
@@ -116,7 +117,7 @@ public sealed class DesktopSurface : IDisposable
 
   private static Window Create(double left, double top, double width, double height, bool layered) => new()
   {
-    Title = "Work Fleet 桌面", Left = left, Top = top, Width = width, Height = height,
+    Title = HostText.Get("desktop.windowTitle"), Left = left, Top = top, Width = width, Height = height,
     WindowStyle = WindowStyle.None, ResizeMode = ResizeMode.NoResize, AllowsTransparency = layered,
     // Empty browser pixels must not expose a white WPF background during paper-region transitions.
     Background = Brushes.Transparent, ShowActivated = false, ShowInTaskbar = false,
@@ -162,7 +163,7 @@ public sealed class DesktopSurface : IDisposable
     var current = GetAncestor(handle, 1); // GA_PARENT excludes an owner of a top-level window.
     if (shellParent != IntPtr.Zero && (!IsWindow(shellParent)
       || !AreDpiAwarenessContextsEqual(GetWindowDpiAwarenessContext(handle), GetWindowDpiAwarenessContext(shellParent))))
-      throw new InvalidOperationException("Explorer 桌面宿主已失效或 DPI 模式不相容。");
+      throw new InvalidOperationException("The Explorer desktop host is gone or its DPI mode is incompatible.");
     var style = GetWindowLongPtrW(handle, -16).ToInt64();
     if (shellParent != IntPtr.Zero && current != shellParent
       && !SetWindowPos(handle, new IntPtr(-2), 0, 0, 0, 0, 0x13))

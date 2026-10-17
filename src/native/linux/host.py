@@ -39,9 +39,17 @@ from desktop import Desktop
 from surface import backend
 from tray import Tray
 import protocol as p
+import text
+from text import t
 
 ORIGIN = "workfleet://app"
 DOCUMENT = ORIGIN + "/app/index.html"
+# What the fatal-error window says for a failure's code; any other failure gets the generic text.
+FATAL = {"native-view": "fatal.viewStopped", "workspace-owned": "fatal.workspaceOwned", "native-storage": "fatal.storageAccess",
+         "native-version": "fatal.dataVersion", "vault-locked": "fatal.keyringLocked", "vault-unavailable": "fatal.keyMissing",
+         "storage-integrity": "fatal.keyUnverified", "google-config": "fatal.googleConfig"}
+# Why desktop notes are unavailable, by the code that stopped them; returned in host.info for the page to show.
+DESKTOP_REASONS = {"desktop-unsupported": "reason.desktopUnsupported", "desktop-capacity": "reason.desktopDisplays"}
 
 
 class LocalWeb:
@@ -75,10 +83,10 @@ class LocalWeb:
         data, media = b"Resource unavailable", "text/plain"
         try:
             path = unquote(uri.path)
-            p.require(uri.scheme == "workfleet" and uri.netloc == "app" and not uri.query and not uri.fragment and request.get_http_method() == "GET" and ".." not in Path(path).parts and "\\" not in path, "native-assets", "封裝資產位置無效。")
+            p.require(uri.scheme == "workfleet" and uri.netloc == "app" and not uri.query and not uri.fragment and request.get_http_method() == "GET" and ".." not in Path(path).parts and "\\" not in path, "native-assets", "The packaged asset path isn't valid.")
             file = (self.assets / path.lstrip("/")).resolve(strict=True)
             file.relative_to(self.assets)
-            p.require(file.is_file() and file.stat().st_size <= 16 * 1024 * 1024, "native-assets", "封裝資產容量無效。")
+            p.require(file.is_file() and file.stat().st_size <= 16 * 1024 * 1024, "native-assets", "The packaged asset's size isn't valid.")
             data = file.read_bytes()
             media = "text/javascript" if file.suffix == ".js" else mimetypes.guess_type(file.name)[0] or "application/octet-stream"
         except (OSError, ValueError, p.Failure):
@@ -91,9 +99,9 @@ class LocalWeb:
             return
         try:
             raw = result.get_js_value().to_json(0)
-            p.require(len(raw.encode("utf-8")) <= 1024 * 1024 + 256, "message-size", "原生訊息容量超限。")
+            p.require(len(raw.encode("utf-8")) <= 1024 * 1024 + 256, "message-size", "The native message is too large.")
             value = p.decode(raw)
-            p.require(value.get("key") == self.key and isinstance(value.get("value"), dict), "invalid-request", "訊息來源無效。")
+            p.require(value.get("key") == self.key and isinstance(value.get("value"), dict), "invalid-request", "The message source isn't valid.")
             self.receive(value["value"])
         except Exception:
             pass
@@ -147,6 +155,10 @@ class FleetApp(Gtk.Application):
         # ADR-043: startup behaviour and the main window's bounds belong to this data directory, not to a profile.
         self.preferences, existed = hostsettings.read_preferences(directory)
         self.first_run = not existed
+        # The tray, dialogs and reasons use the stored display language from the start, before any window opens; a
+        # sign-in start shows the tray long before the page (docs/i18n.md).
+        self.system_languages = text.system_languages(os.environ)
+        text.set_locale(text.resolve_locale(self.preferences["language"], self.system_languages))
         self.hidden_start = launched_at_login and not self.preferences["openMainAtLogin"]
         # A hidden sign-in start waits this long for the tray before showing the main window: the panel that hosts the tray can
         # start in the same second as Work Fleet, as wf-panel-pi does on Raspberry Pi OS, and register its watcher later (ADR-043).
@@ -194,7 +206,7 @@ class FleetApp(Gtk.Application):
         self.window.connect("delete-event", self.window_close)
         self.window.connect("configure-event", lambda *_: self.window_changed())
         self.window.connect("window-state-event", lambda _window, event: self.window_changed(event.new_window_state))
-        self.window.add(Gtk.Label(label="正在開啟安全工作空間…"))
+        self.window.add(Gtk.Label(label=t("window.opening")))
         self.reveal()
         self.log(f"start version={hostsettings.version(self.assets, __file__)} distribution={hostsettings.distribution(self.assets)} "
                  f"pid={os.getpid()} launchedAtLogin={self.launched_at_login} hidden={self.hidden_start}")
@@ -352,7 +364,7 @@ class FleetApp(Gtk.Application):
         try:
             hostsettings.remove_placement(self.directory)
         except OSError as error:
-            raise p.Failure("placement-reset", "無法清除主視窗位置，請稍後重試。") from error
+            raise p.Failure("placement-reset", "The main window position couldn't be cleared. Try again later.") from error
         self.placement = None
         if self.window.is_maximized():
             self.window.unmaximize()
@@ -374,7 +386,7 @@ class FleetApp(Gtk.Application):
             command, _reason = self.startup_command()
             path = hostsettings.autostart_path(os.environ)
             if self.preferences["startAtLogin"] and command is not None and not path.exists():
-                hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview")
+                hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview", text.translations("startup.entryComment"))
             hostsettings.write_preferences(self.directory, self.preferences)
         except OSError:
             pass
@@ -382,7 +394,7 @@ class FleetApp(Gtk.Application):
     def describe_preferences(self):
         command, reason = self.startup_command()
         if command is None:
-            start = {"available": False, "enabled": False, "preference": self.preferences["startAtLogin"], "state": "unavailable", "reason": reason, "systemSettings": False}
+            start = {"available": False, "enabled": False, "preference": self.preferences["startAtLogin"], "state": "unavailable", "reason": t(reason) if reason else None, "systemSettings": False}
         else:
             state = hostsettings.autostart_state(hostsettings.autostart_path(os.environ))
             start = {"available": True, "enabled": state == "enabled", "preference": self.preferences["startAtLogin"], "state": state, "reason": None, "systemSettings": False}
@@ -396,29 +408,40 @@ class FleetApp(Gtk.Application):
             return self.describe_preferences()
         if method == "host.preferences.set":
             name, value = p.text(args, "name", 32), p.boolean(args, "value")
-            p.require(name in hostsettings.DEFAULTS, "invalid-request", "沒有這個啟動行為設定。")
+            p.require(name in hostsettings.DEFAULTS, "invalid-request", "There's no such startup setting.")
             if name == "startAtLogin":
                 path = hostsettings.autostart_path(os.environ)
                 try:
                     if value:
-                        command, reason = self.startup_command()
-                        p.require(command is not None, "startup-unavailable", reason or "這台電腦目前不支援登入時啟動。")
-                        hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview")
+                        command, _reason = self.startup_command()
+                        p.require(command is not None, "startup-unavailable", "This computer doesn't support starting at sign-in.")
+                        hostsettings.write_autostart(path, command, self.config.get("appId") or "app.workfleet.preview", text.translations("startup.entryComment"))
                     else:
                         hostsettings.remove_autostart(path)
                 except PermissionError as error:
-                    raise p.Failure("startup-foreign", "這個登入啟動項目不是 Work Fleet 建立的，請在系統設定中移除。") from error
+                    raise p.Failure("startup-foreign", "This autostart entry wasn't created by Work Fleet. Remove it in the system settings.") from error
                 except OSError as error:
-                    raise p.Failure("startup-write", "無法更新登入啟動項目，請稍後重試。") from error
+                    raise p.Failure("startup-write", "The autostart entry couldn't be updated. Try again later.") from error
             changed = hostsettings.change(self.preferences, name, value)
             try:
                 hostsettings.write_preferences(self.directory, changed)
             except OSError as error:
-                raise p.Failure("preferences-write", "無法保存啟動行為設定，請稍後重試。") from error
+                raise p.Failure("preferences-write", "The startup setting couldn't be saved. Try again later.") from error
             self.preferences = changed
             return self.describe_preferences()
+        if method == "host.language.set":
+            preference = p.text(args, "preference", 16)
+            p.require(preference in hostsettings.LANGUAGES, "invalid-request", "The display language must be auto, en or zh-TW.")
+            changed = {**self.preferences, "language": preference}
+            try:
+                hostsettings.write_preferences(self.directory, changed)
+            except OSError as error:
+                raise p.Failure("preferences-write", "The display language couldn't be saved. Try again later.") from error
+            self.preferences = changed
+            self.apply_language()
+            return self.describe_language()
         if method == "host.preferences.openSystem":
-            raise p.Failure("startup-settings", "這個桌面環境沒有可開啟的登入項目設定。")
+            raise p.Failure("startup-settings", "This desktop has no autostart settings to open.")
         if method == "update.state":
             return self.updater.snapshot()
         if method == "update.check":
@@ -433,7 +456,16 @@ class FleetApp(Gtk.Application):
         if method == "host.window.resetPlacement":
             self.reset_placement()
             return None
-        raise p.Failure("unsupported-method", "原生主機沒有此操作。")
+        raise p.Failure("unsupported-method", "The native host doesn't support this operation.")
+
+    def describe_language(self):
+        return {"preference": self.preferences["language"], "system": list(self.system_languages)}
+
+    def apply_language(self):
+        """Re-resolves the host locale and redraws what the host draws itself; reasons and update text follow when next read."""
+        text.set_locale(text.resolve_locale(self.preferences["language"], self.system_languages))
+        if self.tray is not None:
+            self.tray.relabel()
 
     def record_update_check(self, time):
         changed = {**self.preferences, "lastUpdateCheck": time}
@@ -450,7 +482,7 @@ class FleetApp(Gtk.Application):
 
     def begin_install(self):
         """pkexec installs the verified DEB while Work Fleet runs; on success the usual close saves drafts and restarts it."""
-        p.require(self.updater.status == "downloaded" and not self.closing, "update-not-ready", "還沒有下載好的更新。")
+        p.require(self.updater.status == "downloaded" and not self.closing, "update-not-ready", "No update has finished downloading yet.")
         self.updater.install(lambda ok: GLib.idle_add(self.installed, ok))
 
     def installed(self, ok):
@@ -461,10 +493,10 @@ class FleetApp(Gtk.Application):
             self.message(Gtk.MessageType.WARNING, str(self.updater.error))
         return False
 
-    def message(self, kind, text, question=False, answer=None):
+    def message(self, kind, body, question=False, answer=None):
         dialog = Gtk.MessageDialog(transient_for=self.window if self.window is not None and self.window.get_visible() else None, modal=True,
-                                   message_type=kind, buttons=Gtk.ButtonsType.YES_NO if question else Gtk.ButtonsType.CLOSE, text="Work Fleet 更新")
-        dialog.format_secondary_text(text)
+                                   message_type=kind, buttons=Gtk.ButtonsType.YES_NO if question else Gtk.ButtonsType.CLOSE, text=t("dialog.updateTitle"))
+        dialog.format_secondary_text(body)
         self.dialog_opened()
 
         def responded(dialog, response):
@@ -483,13 +515,13 @@ class FleetApp(Gtk.Application):
         status, current = self.updater.status, self.updater.current_text
         if status in ("update_available", "downloaded"):
             pending = self.updater.pending
-            text = f"有新版本 {pending['version']}（目前 {current}）。" + (f"\n\n{pending['summary']}" if pending["summary"] else "") \
-                + "\n\n要現在更新並重新啟動 Work Fleet 嗎？安裝需要系統密碼，未保存的文字會先保存。"
-            self.message(Gtk.MessageType.QUESTION, text, True, lambda yes: yes and self.tray_download())
+            # Paragraphs: the release summary sits between the two sentences.
+            paragraphs = [t("dialog.updateAvailable", version=pending["version"], current=current), pending["summary"], t("dialog.updateConfirm")]
+            self.message(Gtk.MessageType.QUESTION, "\n\n".join(value for value in paragraphs if value), True, lambda yes: yes and self.tray_download())
         elif status == "up_to_date":
-            self.message(Gtk.MessageType.INFO, f"Work Fleet {current} 已是最新版本。")
+            self.message(Gtk.MessageType.INFO, t("dialog.upToDate", version=current))
         else:
-            self.message(Gtk.MessageType.WARNING, str(self.updater.error) if self.updater.error else "更新沒有完成，請稍後再試。")
+            self.message(Gtk.MessageType.WARNING, str(self.updater.error) if self.updater.error else t("update.unknown"))
         return False
 
     def tray_download(self):
@@ -502,18 +534,18 @@ class FleetApp(Gtk.Application):
         if self.updater.status == "downloaded":
             try:
                 self.begin_install()
-            except p.Failure as error:
-                self.message(Gtk.MessageType.WARNING, str(error))
+            except p.Failure:
+                # begin_install only refuses an update that is not downloaded.
+                self.message(Gtk.MessageType.WARNING, t("update.notReady"))
         else:
-            self.message(Gtk.MessageType.WARNING, str(self.updater.error) if self.updater.error else "更新沒有完成，請稍後再試。")
+            self.message(Gtk.MessageType.WARNING, str(self.updater.error) if self.updater.error else t("update.unknown"))
         return False
 
     def ask_display(self, profile):
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.QUESTION,
-                                   buttons=Gtk.ButtonsType.NONE, text="要改用 XWayland 顯示桌面便箋嗎？")
-        dialog.format_secondary_text("GNOME Wayland 沒有 Work Fleet 需要的桌面圖層，桌面便箋要經 XWayland 才能顯示；"
-                                     "改用後主畫面的輸入法與縮放也會改走 XWayland。之後可在設定的「桌面」頁變更。")
-        dialog.add_buttons("維持目前方式", Gtk.ResponseType.REJECT, "改用 XWayland 重新啟動", Gtk.ResponseType.ACCEPT)
+                                   buttons=Gtk.ButtonsType.NONE, text=t("dialog.xwaylandTitle"))
+        dialog.format_secondary_text(t("dialog.xwaylandBody"))
+        dialog.add_buttons(t("dialog.xwaylandKeep"), Gtk.ResponseType.REJECT, t("dialog.xwaylandRestart"), Gtk.ResponseType.ACCEPT)
         dialog.set_default_response(Gtk.ResponseType.ACCEPT)
         self.dialog_opened()
 
@@ -570,7 +602,7 @@ class FleetApp(Gtk.Application):
 
         def invoke():
             try:
-                p.require(not self.stopped, "native-closed", "原生工作階段已結束。")
+                p.require(not self.stopped, "native-closed", "The native session has ended.")
                 result["value"] = work()
             except Exception as error:
                 result["error"] = error
@@ -578,7 +610,7 @@ class FleetApp(Gtk.Application):
                 done.set()
             return False
         GLib.idle_add(invoke)
-        p.require(done.wait(110), "native-unavailable", "原生介面未回應，請保留資料後重試。")
+        p.require(done.wait(110), "native-unavailable", "The native interface isn't responding. Keep your data and try again.")
         if "error" in result:
             raise result["error"]
         return result.get("value")
@@ -589,7 +621,7 @@ class FleetApp(Gtk.Application):
         def show():
             if done.is_set() or self.stopped:
                 return False
-            picker = Gtk.FileChooserNative.new("選擇備份資料夾", self.window, Gtk.FileChooserAction.SELECT_FOLDER, "選擇", "取消")
+            picker = Gtk.FileChooserNative.new(t("picker.backupFolder"), self.window, Gtk.FileChooserAction.SELECT_FOLDER, t("picker.choose"), t("picker.cancel"))
             result["picker"] = picker
             self.dialog_opened()
 
@@ -612,7 +644,7 @@ class FleetApp(Gtk.Application):
                     self.dialog_closed()
                 return False
             GLib.idle_add(cancel)
-            raise p.Failure("backup-cancelled", "選擇備份位置逾時，請重試。")
+            raise p.Failure("backup-cancelled", "Choosing a backup location timed out. Try again.")
         return result.get("path")
 
     def open_store(self, profile, persist=False):
@@ -655,6 +687,7 @@ class FleetApp(Gtk.Application):
                 self.service.display = self.display
                 self.service.identity = {"appVersion": hostsettings.version(self.assets, __file__), "distribution": hostsettings.distribution(self.assets)}
                 self.service.shell = lambda method, args: self.ui(lambda: self.shell_invoke(method, args))
+                self.service.language = self.describe_language
                 self.service.updates = self.updater.capable
                 self.close_desktop()
                 if self.view is not None:
@@ -675,7 +708,7 @@ class FleetApp(Gtk.Application):
                 except Exception as error:
                     self.close_desktop()
                     self.service.desktop = None
-                    self.service.desktop_reason = str(error) if isinstance(error, p.Failure) else "桌面呈現目前無法啟動；仍可在主畫面保存便箋。"
+                    self.service.desktop_reason = DESKTOP_REASONS.get(getattr(error, "code", None), "reason.desktopUnavailable")
                 self.reveal()
                 self.view.load(lambda error: self.failure(error) if error else None)
             except Exception as error:
@@ -685,7 +718,7 @@ class FleetApp(Gtk.Application):
 
     def receive(self, value):
         try:
-            p.require(not self.stopped and self.service is not None and self.admitted < 32 and p.number(value, "v", 1) == 1 and p.is_uuid(value.get("id")) and isinstance(value.get("params"), dict), "invalid-request", "原生訊息無效。")
+            p.require(not self.stopped and self.service is not None and self.admitted < 32 and p.number(value, "v", 1) == 1 and p.is_uuid(value.get("id")) and isinstance(value.get("params"), dict), "invalid-request", "The native message isn't valid.")
             method = p.text(value, "method", 64)
             self.admitted += 1
             session, current, view = self.service, self.epoch, self.view
@@ -721,7 +754,7 @@ class FleetApp(Gtk.Application):
                     elif self.closing and session.close_ready:
                         self.quit()
                 except Exception as error:
-                    failure = error if isinstance(error, p.Failure) else p.Failure("native-unavailable", "原生操作未完成，請保留草稿後重試。")
+                    failure = error if isinstance(error, p.Failure) else p.Failure("native-unavailable", "The native operation didn't finish. Keep your draft and try again.")
                     view.post({"v": 1, "id": value["id"], "ok": False, "error": {"code": failure.code, "message": str(failure)}})
                 return False
             future.add_done_callback(lambda _: GLib.idle_add(complete))
@@ -758,7 +791,7 @@ class FleetApp(Gtk.Application):
         download.connect("received-data", data_received)
 
         def destination(_download, suggested):
-            picker = Gtk.FileChooserNative.new("保存檔案", self.window, Gtk.FileChooserAction.SAVE, "保存", "取消")
+            picker = Gtk.FileChooserNative.new(t("picker.saveFile"), self.window, Gtk.FileChooserAction.SAVE, t("picker.save"), t("picker.cancel"))
             picker.set_current_name(Path(suggested or "work-fleet-export").name[:240])
             picker.set_do_overwrite_confirmation(True)
             self.dialog_opened()
@@ -778,7 +811,7 @@ class FleetApp(Gtk.Application):
         download.connect("decide-destination", destination)
 
     def failure(self, error):
-        message = str(error) if isinstance(error, p.Failure) else "無法開啟工作空間，請保留 App 資料與本機金鑰後重試。"
+        message = t(FATAL.get(error.code, "fatal.workspace") if isinstance(error, p.Failure) else "fatal.workspace")
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text="Work Fleet")
         dialog.format_secondary_text(message)
         self.dialog_opened()
@@ -798,7 +831,7 @@ class FleetApp(Gtk.Application):
         if self.window is not None and not self.window.get_visible():
             self.window.set_focus_on_map(False)
             self.window.show_all()
-        self.failure(p.Failure("native-view", "畫面程序已停止；已確認保存的資料仍保留，請重新開啟。"))
+        self.failure(p.Failure("native-view", "The window's page process stopped. Data confirmed as saved is kept; reopen Work Fleet."))
 
     def shutdown(self, _application):
         self.flush_placement()

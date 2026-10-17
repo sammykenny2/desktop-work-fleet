@@ -6,13 +6,14 @@ import labwc
 import protocol as p
 import scenes
 from shortcuts import Shortcuts
+from text import t
 from surface import Surface, adjust_overlay, backend, come_back, layers, rectangle, remap, resident_layers, scene_viewport, step_aside, wallpaper_placement
 
 
 class Desktop:
     def __init__(self, assets, web_factory, send, main, hide):
         self.mode = backend()
-        p.require(self.mode is not None, "desktop-unsupported", "此桌面環境未提供可用的桌面呈現能力；仍可在主畫面保存便箋。")
+        p.require(self.mode is not None, "desktop-unsupported", "This desktop doesn't offer what desktop notes need; notes can still be saved in the main window.")
         self.layers = layers(self.mode)
         self.assets, self.web_factory, self.send, self.main, self.hide = assets, web_factory, send, main, hide
         self.session = p.identifier()
@@ -83,7 +84,7 @@ class Desktop:
     def read_displays(self):
         display = Gdk.Display.get_default()
         count = display.get_n_monitors()
-        p.require(0 < count <= 16, "desktop-capacity", "螢幕數量超過支援容量，資料仍保留。")
+        p.require(0 < count <= 16, "desktop-capacity", "There are more displays than desktop notes support; your data is kept.")
         values, seen = [], {}
         primary = display.get_primary_monitor()
         for index in range(count):
@@ -109,7 +110,7 @@ class Desktop:
         return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "residentLayers": list(resident_layers(self.mode)), "adjustOverlay": adjust_overlay(self.mode), "backend": self.mode, "wallpaperPlacement": wallpaper_placement(self.mode, self.layers), "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
 
     def new_view(self, display, layer):
-        p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "桌面視窗容量已滿，請保存後重新開啟。")
+        p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "There are too many desktop windows. Save, then reopen Work Fleet.")
         view = Surface(display, layer, self.assets, self.web_factory, self.scene, self.retire, lambda identifier: self.send("desktop-dismiss", viewId=identifier), self.mode)
         self.views.append(view)
         self.watch(view.window)
@@ -117,7 +118,7 @@ class Desktop:
 
     def view(self, identifier):
         value = next((view for view in self.views if view.id == identifier and not view.retired and view.ready), None)
-        p.require(value is not None, "desktop-view", "桌面視窗已關閉或尚未就緒。")
+        p.require(value is not None, "desktop-view", "The desktop window is closed or not ready yet.")
         return value
 
     def start(self):
@@ -204,7 +205,7 @@ class Desktop:
                 if self.started:
                     self.send("desktop-displays", topology=self.proposed_topology, workAreas=self.work_areas(self.proposed))
             except Exception:
-                self.send("desktop-error", message="目前無法讀取螢幕，已保留資料與編輯文字；請重試桌面呈現。")
+                self.send("desktop-error", message=t("desktop.displaysUnreadable"))
             return False
         self.display_timer = GLib.timeout_add(250, refresh)
 
@@ -227,7 +228,7 @@ class Desktop:
         requested = p.number(args, "topology")
         if requested == self.topology and not self.pending:
             return self.info()
-        p.require(requested == self.proposed_topology and self.proposed is not None, "desktop-topology", "螢幕已再次變更，正在重新套用版面。")
+        p.require(requested == self.proposed_topology and self.proposed is not None, "desktop-topology", "The displays changed again; the layout is being applied again.")
         assignments = {}
         if args.get("editorViewId") is not None:
             editing = self.view(p.text(args, "editorViewId"))
@@ -264,7 +265,7 @@ class Desktop:
         return self.info()
 
     def invoke(self, method, args):
-        p.require(not self.closed, "desktop-closed", "桌面工作階段已關閉。")
+        p.require(not self.closed, "desktop-closed", "The desktop session has closed.")
         self.sweep()
         if method == "desktop.info":
             return self.info()
@@ -286,13 +287,13 @@ class Desktop:
                     view.local.event("desktop-shortcuts", bindings=self.bindings)
             return {**result, "labwc": self.shortcuts.labwc_status()}
         if method == "desktop.shortcuts.labwc":
-            p.require(self.shortcuts.labwc is not None, "labwc-unavailable", "這個桌面不是 labwc。")
+            p.require(self.shortcuts.labwc is not None, "labwc-unavailable", "This desktop isn't labwc.")
             try:
                 self.shortcuts.write_labwc()
             except labwc.ConfigError:
-                raise p.Failure("labwc-config", "labwc 設定檔格式有誤，沒有修改；請先修正 rc.xml。") from None
+                raise p.Failure("labwc-config", "The labwc configuration isn't well-formed, so nothing was changed. Fix rc.xml first.") from None
             except OSError:
-                raise p.Failure("labwc-write", "無法寫入 labwc 設定檔，沒有修改。") from None
+                raise p.Failure("labwc-write", "The labwc configuration couldn't be written, so nothing was changed.") from None
             return {"registrations": self.shortcuts.registrations, "labwc": self.shortcuts.labwc_status()}
         if method == "desktop.shortcuts.block":
             self.blocked = p.boolean(args, "blocked")
@@ -304,7 +305,7 @@ class Desktop:
                 self.intent, self.focus_sequence = captured, None
             return {"intent": None if captured is None else captured["id"]}
         if method == "desktop.hideMain":
-            p.require(self.hide(), "tray-unavailable", "系統匣目前不可用，主畫面保持開啟。")
+            p.require(self.hide(), "tray-unavailable", "The tray isn't available right now, so the main window stays open.")
             return None
         if method == "desktop.mainVisible":
             # The adjust overlay moves the main window aside and brings it back where it was, only if it moved it.
@@ -349,17 +350,17 @@ class Desktop:
             return None
         if method == "desktop.command.read":
             command = self.command(args)
-            p.require(command["upload"] is not None, "scene-command", "此命令沒有大型輸入。")
+            p.require(command["upload"] is not None, "scene-command", "This command has no large input.")
             return self.transfers.read(command["view"].id, command["upload"], args)
         if method == "desktop.reply":
             ticket, command = p.text(args, "ticket"), self.command(args)
-            p.require(len(p.encode(args)) <= 65536, "scene-size", "桌面操作回覆過大。")
+            p.require(len(p.encode(args)) <= 65536, "scene-size", "The desktop action's reply is too large.")
             command["view"].local.event("desktop-command-result", commandId=command["id"], ok=p.boolean(args, "ok"), result=args.get("result"), error=args.get("error"))
             self.release(ticket)
             return None
         if method == "desktop.flush":
             view, key, draft = self.view(p.text(args, "viewId")), p.text(args, "id"), p.text(args, "draftId")
-            p.require(p.is_uuid(key) and len(self.flushes) < 4 and key not in self.flushes, "scene-busy", "桌面草稿仍在保存。")
+            p.require(p.is_uuid(key) and len(self.flushes) < 4 and key not in self.flushes, "scene-busy", "A desktop draft is still saving.")
             self.flushes[key], self.frozen[key] = (view.id, draft), view.id
             view.local.event("desktop-flush", id=key, draftId=draft)
             return None
@@ -371,10 +372,10 @@ class Desktop:
                 if source is not None:
                     self.view(source).local.event("desktop-unfreeze", id=key, resume=source == args.get("viewId"), draftId=args.get("draftId"))
             return None
-        raise p.Failure("unsupported-method", "桌面主機沒有此操作。")
+        raise p.Failure("unsupported-method", "The desktop host doesn't support this operation.")
 
     def scene(self, view, method, args):
-        p.require(not self.closed and not view.retired, "scene-closed", "桌面工作階段已關閉。")
+        p.require(not self.closed and not view.retired, "scene-closed", "The desktop session has closed.")
         self.sweep()
         if method == "scene.info":
             view.ready = True
@@ -405,7 +406,7 @@ class Desktop:
             sequence = p.number(args, "sequence")
             if self.pending or not view.active or view.downloading is None or view.downloading["topology"] != self.topology or p.number(args, "topology") != self.topology:
                 return {"accepted": False}
-            p.require(sequence == view.downloading["sequence"] and sequence >= view.applied, "scene-order", "桌面輸入尚未對應已顯示畫面。")
+            p.require(sequence == view.downloading["sequence"] and sequence >= view.applied, "scene-order", "The desktop input doesn't match the frame on screen yet.")
             view.apply(view.downloading)
             view.applied = sequence
             self.try_focus(view)
@@ -417,14 +418,14 @@ class Desktop:
         if method == "scene.command":
             token = args.get("token")
             command = p.decode(self.transfers.seal(view.id, token)) if token is not None else args.get("command")
-            p.require(isinstance(command, dict) and (token is not None or len(p.encode(command)) <= 65536), "scene-size", "桌面命令格式或容量無效。")
+            p.require(isinstance(command, dict) and (token is not None or len(p.encode(command)) <= 65536), "scene-size", "The desktop command's format or size isn't valid.")
             key, operation = p.text(command, "id"), p.text(command, "method")
-            p.require(p.is_uuid(key) and command.get("sessionId") == self.session and p.number(command, "serial") > 0 and isinstance(command.get("args"), dict), "scene-session", "桌面命令工作階段無效。")
+            p.require(p.is_uuid(key) and command.get("sessionId") == self.session and p.number(command, "serial") > 0 and isinstance(command.get("args"), dict), "scene-session", "The desktop command's session isn't valid.")
             allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange")
-            p.require(operation in allowed, "unsupported-method", "桌面表面沒有此操作。")
+            p.require(operation in allowed, "unsupported-method", "The desktop surface doesn't support this operation.")
             draft, topology = operation == "editor.change", p.number(args, "topology")
-            p.require(draft or not self.pending and view.active and topology == self.topology, "desktop-topology", "桌面座標正在更新，請保留目前文字。")
-            p.require(sum(value["draft"] == draft for value in self.commands.values()) < (4 if draft else 24) and not any(value["view"] == view and value["id"] == key for value in self.commands.values()), "scene-busy", "桌面操作仍在處理。")
+            p.require(draft or not self.pending and view.active and topology == self.topology, "desktop-topology", "Desktop coordinates are updating. Keep your current text.")
+            p.require(sum(value["draft"] == draft for value in self.commands.values()) < (4 if draft else 24) and not any(value["view"] == view and value["id"] == key for value in self.commands.values()), "scene-busy", "A desktop action is still being processed.")
             ticket = p.identifier()
             self.commands[ticket] = {"view": view, "id": key, "upload": token, "draft": draft, "created": time.monotonic()}
             captured = self.scene_intents.pop(args.get("intent"), None)
@@ -441,12 +442,12 @@ class Desktop:
             return {"accepted": True}
         if method == "scene.flushed":
             key, draft = p.text(args, "id"), p.text(args, "draftId")
-            p.require(self.flushes.get(key) == (view.id, draft), "scene-flush", "草稿保存請求已失效。")
+            p.require(self.flushes.get(key) == (view.id, draft), "scene-flush", "The draft save request has expired.")
             ok, sequence = p.boolean(args, "ok"), p.number(args, "sequence")
             self.flushes.pop(key)
             self.send("desktop-flushed", id=key, viewId=view.id, draftId=draft, ok=ok, sequence=sequence)
             return None
-        raise p.Failure("unsupported-method", "桌面表面沒有儲存或系統操作權限。")
+        raise p.Failure("unsupported-method", "The desktop surface has no access to storage or system operations.")
 
     def return_main(self, place):
         come_back(self.main, self.mode, place)
@@ -476,7 +477,7 @@ class Desktop:
 
     def command(self, args):
         value = self.commands.get(p.text(args, "ticket"))
-        p.require(value is not None, "scene-command", "桌面操作已失效。")
+        p.require(value is not None, "scene-command", "The desktop action has expired.")
         return value
 
     def release(self, ticket):
@@ -500,7 +501,7 @@ class Desktop:
         self.flushes = {key: value for key, value in self.flushes.items() if value[0] != view.id}
         self.frozen = {key: value for key, value in self.frozen.items() if value != view.id}
         self.scene_intents = {key: value for key, value in self.scene_intents.items() if value[0] != view.id}
-        self.send("desktop-view-lost", viewId=view.id, message="桌面畫面程序已停止，最後確認的草稿仍保留於主畫面。")
+        self.send("desktop-view-lost", viewId=view.id, message=t("desktop.viewLost"))
 
     def close(self):
         if self.closed:

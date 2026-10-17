@@ -23,7 +23,8 @@ void Fails(Action action, string? code = null)
   try { action(); } catch (Exception error) { if (code is not null) Require(error is HostError host && host.Code == code, error.ToString()); return; }
   throw new Exception("Expected rejection");
 }
-byte[] Record(int revision, string profile = "local", string text = "native-secret-marker-中文") =>
+// The escaped CJK markers check UTF-8 round trips and that no test plaintext reaches the database files.
+byte[] Record(int revision, string profile = "local", string text = "native-secret-marker-\u4E2D\u6587") =>
   JsonSerializer.SerializeToUtf8Bytes(new { profileId = profile, revision, text });
 void Query(string sql)
 {
@@ -31,7 +32,7 @@ void Query(string sql)
   using var command = conn.CreateCommand(); command.CommandText = sql; command.ExecuteNonQuery();
 }
 string secretId;
-var attachment = Encoding.UTF8.GetBytes("test attachment bytes-中文"); var id = LocalDatabase.Digest(attachment);
+var attachment = Encoding.UTF8.GetBytes("test attachment bytes-\u4E2D\u6587"); var id = LocalDatabase.Digest(attachment);
 string abandoned;
 using (var db = new LocalDatabase(root, "local"))
 {
@@ -89,6 +90,31 @@ using (var db = new LocalDatabase(root, "local"))
     }
     foreach (var message in new[] { "[]", "{}", new string('a', BridgeSession.MaxMessage + 1) })
       Require(!JsonDocument.Parse(bridge.Dispatch(message)).RootElement.GetProperty("ok").GetBoolean());
+  });
+  Test("host.info reports the display language only for a window that stores it", () =>
+  {
+    JsonElement Info(BridgeSession bridge)
+    {
+      using var reply = JsonDocument.Parse(bridge.Dispatch(JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid(), method = "host.info", @params = new { } })));
+      return reply.RootElement.GetProperty("result").Clone();
+    }
+    HostText.Apply("zh-TW", ["en-US"]);
+    using (var plain = new BridgeSession(db))
+    {
+      var info = Info(plain);
+      Require(!info.GetProperty("capabilities").GetProperty("languagePreference").GetBoolean() && info.GetProperty("language").ValueKind == JsonValueKind.Null);
+      // The window answers host.language.set; the storage bridge alone refuses it with an English message.
+      using var refused = JsonDocument.Parse(plain.Dispatch(JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid(), method = "host.language.set", @params = new { preference = "en" } })));
+      Require(refused.RootElement.GetProperty("error").GetProperty("code").GetString() == "unsupported-method"
+        && refused.RootElement.GetProperty("error").GetProperty("message").GetString() == "The native host doesn't support this operation.");
+    }
+    using (var window = new BridgeSession(db, languagePreference: true))
+    {
+      var info = Info(window); var language = info.GetProperty("language");
+      Require(info.GetProperty("capabilities").GetProperty("languagePreference").GetBoolean() && language.GetProperty("preference").GetString() == "zh-TW"
+        && language.GetProperty("system").EnumerateArray().Select(tag => tag.GetString()).SequenceEqual(["en-US"]));
+    }
+    HostText.Apply("en");
   });
   Test("complete 20000 attachment token manifest fits bounded IPC", () =>
   {

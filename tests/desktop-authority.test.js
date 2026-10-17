@@ -4,6 +4,8 @@ import { Workspace } from '../src/core/workspace.js';
 import { InteractionController } from '../src/interaction/controller.js';
 import { DesktopAuthority } from '../src/desktop/authority.js';
 import { projectDesktop } from '../src/desktop/projection.js';
+import { INITIAL_GROUP_NAME } from '../src/sources/initial-group.js';
+import { setLocale, t } from '../src/i18n/index.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 };
 const uuid = () => crypto.randomUUID();
@@ -13,9 +15,9 @@ async function fixture(attachments) {
   let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent; const arranged = [];
   const workspace = await Workspace.create({ profileId: 'local', deviceId: uuid(), area,
     persist: async value => { if (fail) throw new Error('disk full'); durable = structuredClone(value); } });
-  const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('另一組');
-  const card = await workspace.createCard({ format: 'markdown', text: '# 第一件事', attachments: [] }, a.id);
-  const other = await workspace.createCard({ format: 'markdown', text: '第二件事', attachments: [] }, b.id);
+  const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('Other group');
+  const card = await workspace.createCard({ format: 'markdown', text: '# First thing', attachments: [] }, a.id);
+  const other = await workspace.createCard({ format: 'markdown', text: 'Second thing', attachments: [] }, b.id);
   await workspace.layout.placeNew(workspace.snapshot, [area]);
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
@@ -88,6 +90,18 @@ test('desktop projection separates resident policy, temporary floating and conte
   assert.equal(f.workspace.layout.state.groupLayers[f.b.id], 'wallpaper');
   await f.workspace.layout.setCardPolicy(f.card.id, { visible: false });
   assert.equal(f.frame().cards.some(c => c.id === f.card.id), false);
+});
+
+test('frames carry the owner locale and show the stored initial group name in that language', async () => {
+  const f = await fixture(); const initial = await f.workspace.createGroup(INITIAL_GROUP_NAME);
+  const names = () => Object.fromEntries(f.frame().groups.map(group => [group.id, group.name]));
+  assert.equal(f.frame().locale, 'en');
+  assert.equal(names()[initial.id], t('app.groups.defaultName')); assert.equal(names()[f.b.id], 'Other group');
+  setLocale('zh-TW');
+  try {
+    assert.equal(f.frame().locale, 'zh-TW');
+    assert.equal(names()[initial.id], t('app.groups.defaultName')); assert.equal(names()[f.b.id], 'Other group');
+  } finally { setLocale('en'); }
 });
 
 test('wallpaper projections stay passive, float only their operated group, then restore current resident policy', async () => {
@@ -202,14 +216,14 @@ test('read-only selectable desktop text does not grant editing or card commands'
 test('desktop draft acknowledgement follows durable save and enforces view, identity and text sequence', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'all' });
   const draft = await f.command('card.edit', { cardId: f.card.id });
-  const update = { draftId: draft.draftId, sequence: 1, text: '中文尚未提交' };
+  const update = { draftId: draft.draftId, sequence: 1, text: 'Text not yet committed' };
   await rejects(f.command('editor.change', update, f.foreign), 'desktop-editor');
   f.fail(true); await assert.rejects(f.command('editor.change', update), /disk full/);
   assert.equal(f.editor().sequence, 0); f.fail(false);
   await f.command('editor.change', update);
   assert.equal(f.durable().drafts[draft.draftId].content.text, update.text);
   await f.command('editor.change', update); // New transport request after an unknown acknowledgement outcome.
-  await rejects(f.command('editor.change', { ...update, text: '遲到的其他文字' }), 'desktop-edit-order');
+  await rejects(f.command('editor.change', { ...update, text: 'Other late text' }), 'desktop-edit-order');
   await rejects(f.command('editor.change', { ...update, sequence: 3 }), 'desktop-edit-order');
   await rejects(f.command('editor.save', { draftId: draft.draftId, sequence: 0 }), 'desktop-editor');
   await f.command('editor.save', { draftId: draft.draftId, sequence: 1 });
@@ -222,10 +236,10 @@ test('flush barrier can receive its last draft write while the owner is awaiting
   f.flush(async () => { requested.resolve(); await barrier.promise; });
   const exit = f.command('editor.end', { draftId: draft.draftId, sequence: 0 }); await requested.promise;
   const crowded = Array.from({ length: 23 }, () => f.command('card.select', { cardId: f.other.id }));
-  await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: '退出前最後輸入' });
+  await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'Last input before exit' });
   barrier.resolve(); await exit;
   await Promise.all(crowded);
-  assert.equal(f.editor(), null); assert.equal(f.workspace.state.drafts[draft.draftId].content.text, '退出前最後輸入');
+  assert.equal(f.editor(), null); assert.equal(f.workspace.state.drafts[draft.draftId].content.text, 'Last input before exit');
 });
 
 test('evicted receipts reject replay and an owner scope change releases the previous gesture', async () => {
@@ -244,7 +258,7 @@ test('evicted receipts reject replay and an owner scope change releases the prev
 test('an end command waits for earlier admitted draft writes before validating its editor sequence', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'all' });
   const draft = await f.command('card.edit', { cardId: f.card.id });
-  const update = f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: '最後已接收的文字' });
+  const update = f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'Last accepted text' });
   const end = f.command('editor.end', { draftId: draft.draftId, sequence: 0 });
   await update; await rejects(end, 'desktop-editor');
   assert.equal(f.editor().sequence, 1); assert.equal(f.controller.state.editingCardId, f.card.id);

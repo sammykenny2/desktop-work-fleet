@@ -1,6 +1,17 @@
 import { FleetError, requireValue } from '../core/contracts.js';
+import { hasMessage, t } from '../i18n/index.js';
 
 const MAX_MESSAGE_BYTES = 1024 * 1024;
+
+/**
+ * Hosts reply with a stable code and an English message. A code with a catalog entry is shown in the UI language;
+ * any other code keeps the host's message (docs/i18n.md).
+ */
+export function nativeError(error) {
+  const code = typeof error?.code === 'string' && error.code ? error.code : 'native-error';
+  const key = `nativeErrors.${code}`;
+  return new FleetError(code, hasMessage(key) ? t(key) : error?.message || t('nativeErrors.native-error'));
+}
 
 /** Native channels carry bounded data and explicit password enrollment, never executable source, paths, SQL or saved credentials. */
 export class NativeBridge {
@@ -20,20 +31,20 @@ export class NativeBridge {
       if (!pending || typeof message.ok !== 'boolean') return;
       clearTimeout(pending.timer); this.#pending.delete(message.id);
       if (message.ok) pending.resolve(message.result);
-      else pending.reject(new FleetError(message.error?.code || 'native-error', message.error?.message || '原生操作未完成。'));
+      else pending.reject(nativeError(message.error));
     };
     transport.addEventListener('message', this.#receive);
   }
   request(method, params = {}) {
-    if (this.#closed) return Promise.reject(new FleetError('native-closed', '原生連線已關閉，請重新開啟。'));
-    requireValue(this.#pending.size < 24, 'native-busy', '原生儲存忙碌，請稍後重試。');
+    if (this.#closed) return Promise.reject(new FleetError('native-closed', t('nativeErrors.native-closed')));
+    requireValue(this.#pending.size < 24, 'native-busy', t('nativeErrors.native-busy'));
     return new Promise((resolve, reject) => {
       const id = crypto.randomUUID();
       const message = { v: 1, id, method, params };
-      requireValue(new TextEncoder().encode(JSON.stringify(message)).length <= MAX_MESSAGE_BYTES, 'message-size', '原生訊息超過容量上限，尚未傳送。');
+      requireValue(new TextEncoder().encode(JSON.stringify(message)).length <= MAX_MESSAGE_BYTES, 'message-size', t('nativeErrors.message-size'));
       const timer = setTimeout(() => {
         this.#pending.delete(id);
-        reject(new FleetError('native-outcome-unknown', '原生主機尚未確認結果；提交可能已完成，請保留草稿後重新開啟確認。'));
+        reject(new FleetError('native-outcome-unknown', t('nativeErrors.native-outcome-unknown')));
       }, this.#timeout);
       this.#pending.set(id, { resolve, reject, timer });
       try { this.#transport.postMessage(message); }
@@ -49,7 +60,7 @@ export class NativeBridge {
     if (this.#closed) return; this.#closed = true;
     this.#transport.removeEventListener('message', this.#receive);
     for (const pending of this.#pending.values()) {
-      clearTimeout(pending.timer); pending.reject(new FleetError('native-outcome-unknown', '原生連線已中斷；重新開啟可確認已提交資料。'));
+      clearTimeout(pending.timer); pending.reject(new FleetError('native-outcome-unknown', t('nativeErrors.native-outcome-unknown.closed')));
     }
     this.#pending.clear(); this.#listeners.clear(); this.#events.clear();
   }
@@ -83,7 +94,7 @@ export async function connectNative(view = globalThis) {
     const info = await bridge.request('host.info');
     requireValue(info?.protocol === 1 && ['windows', 'macos', 'linux', 'ios', 'android'].includes(info.platform) && typeof info.profileId === 'string'
       && info.capabilities?.nativeStorage === true && info.maxChunkBytes === 256 * 1024,
-    'native-version', '此原生主機與介面版本不相容，請更新完整 App。');
+    'native-version', t('nativeErrors.native-version'));
     return { bridge, info };
   } catch (error) { bridge.close(); throw error; }
 }

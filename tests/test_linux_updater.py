@@ -6,12 +6,16 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import unittest
 import urllib.error
 
 ROOT = Path(__file__).resolve().parents[1]
+# updater.py imports the host's string table, text.py, from its own folder.
+sys.path.insert(0, str(ROOT / "src/native/linux"))
+import text  # noqa: E402
 spec = importlib.util.spec_from_file_location("updater", ROOT / "src/native/linux/updater.py")
 updater = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(updater)
@@ -181,6 +185,7 @@ class LinuxUpdaterTests(unittest.TestCase):
             self.assertFalse(instance.capable)
             self.assertEqual(instance.snapshot()["status"], "unavailable")
             self.assertIn(reason, instance.snapshot()["reason"])
+            self.assertEqual(instance.snapshot()["reason"], text.t(instance.reason))
             self.assertFalse(instance.check())
         bad = updater.Updater(folder, {"update": {"repository": "https://github.com/o/r"}}, "0.1.0", "deb", lambda _s: None, lambda _t: None,
                               which=lambda name: name)
@@ -192,7 +197,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         deb = b"debian package"
         feed = "https://github.com/o/r/releases.atom"
         base = "https://github.com/o/r/releases/download/linux-v0.2.0/"
-        manifest = json.dumps({"schemaVersion": 1, "platform": "linux", "version": "0.2.0", "tag": "linux-v0.2.0", "summary": "新版",
+        manifest = json.dumps({"schemaVersion": 1, "platform": "linux", "version": "0.2.0", "tag": "linux-v0.2.0", "summary": "New version",
                                "assets": [{"arch": "all", "name": "work-fleet_0.2.0_all.deb", "size": len(deb), "sha256": hashlib.sha256(deb).hexdigest()}]}).encode()
         releases = feed_for("linux-v0.2.0")
         commands = []
@@ -210,7 +215,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.assertEqual(instance.snapshot()["nextAction"], "check")
         self.wait(instance, instance.check)
         snapshot = instance.snapshot()
-        self.assertEqual((snapshot["status"], snapshot["version"], snapshot["summary"], snapshot["nextAction"]), ("update_available", "0.2.0", "新版", "download"))
+        self.assertEqual((snapshot["status"], snapshot["version"], snapshot["summary"], snapshot["nextAction"]), ("update_available", "0.2.0", "New version", "download"))
         self.assertEqual(len(self.recorded), 1)
         requests = instance.fetcher.opener.requests
         self.assertEqual([request.full_url for request in requests], [feed, base + "work-fleet-update.json"])
@@ -225,6 +230,13 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.assertTrue(done.wait(10))
         self.assertEqual(results, [False])
         self.assertEqual((instance.snapshot()["status"], instance.snapshot()["error"]["code"]), ("downloaded", "authorization_cancelled"))
+        # The page shows the message as host text, looked up when the state is read, so it follows a language change.
+        self.assertEqual(instance.snapshot()["error"]["message"], text.t("update.authorizationCancelled"))
+        text.set_locale("zh-TW")
+        try:
+            self.assertEqual(instance.snapshot()["error"]["message"], text.ZH_TW["update.authorizationCancelled"])
+        finally:
+            text.set_locale("en")
         self.assertEqual(commands[-1][0], "pkexec")
         self.assertTrue(commands[-1][-1].endswith("work-fleet_0.2.0_all.deb"))
         pkexec["code"] = 0
@@ -253,6 +265,16 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.wait(instance, instance.check)
         self.assertEqual(instance.snapshot()["status"], "up_to_date")
         self.assertEqual(list((folder / "updates").iterdir()), [])
+
+    def test_error_messages_are_whole_sentences_from_the_string_table(self):
+        self.assertEqual(str(updater.UpdateError("install_failed", "update.installFailed", detail="dpkg: error")),
+                         "The installation didn't finish: dpkg: error")
+        self.assertEqual(str(updater.UpdateError("provider_rejected", "update.githubError", status=502)),
+                         "GitHub returned an error (502). Try again later.")
+        self.assertEqual(str(updater.invalid()), text.t("update.metadataInvalid"))
+        with self.assertRaises(updater.UpdateError) as caught:
+            updater.latest(feed_for("linux-v0.2.0"), "o/r", "linux", "stable", (0, 1, 0))
+        self.assertEqual((caught.exception.code, str(caught.exception)), ("metadata_invalid", text.t("update.channelUnsupported")))
 
     def test_unsupported_channel_is_not_silently_changed_to_preview(self):
         with tempfile.TemporaryDirectory() as folder:

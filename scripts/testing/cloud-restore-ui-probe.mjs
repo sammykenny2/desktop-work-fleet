@@ -2,6 +2,7 @@
 import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { t } from '../../src/i18n/index.js';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/testing/cloud-restore-ui-probe.mjs --url http://127.0.0.1:PORT\nUses isolated IndexedDB, OPFS and a synthetic FileStore. No Google account or personal files.');
@@ -14,7 +15,7 @@ const fixture = (await readFile(new URL('../../tests/fixtures/file-store.js', im
   .replace("import assert from 'node:assert/strict';", "const assert = { equal: (a, b) => { if (a !== b) throw new Error('fixture integrity'); } };")
   .replaceAll('../../src/', '/');
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
-const context = await browser.newContext();
+const context = await browser.newContext({ locale: 'en-US' });
 await context.route('**/fixtures/file-store.js', route => route.fulfill({ contentType: 'text/javascript', body: fixture }));
 // Keep the real document/styles, but mount only the panel under test rather than a competing app owner.
 await context.route('**/app/main.js', route => route.fulfill({ contentType: 'text/javascript', body: '' }));
@@ -34,11 +35,11 @@ try {
     const area = { x: 0, y: 0, width: 1400, height: 900 };
     const create = profileId => Workspace.create({ profileId, deviceId: crypto.randomUUID(), area, persist: (s, r) => storage.save(s, r) });
     const local = await create('local'); const localGroup = local.snapshot.groups[0];
-    await local.createCard({ format: 'markdown', text: '備份還原內容' }, localGroup.id);
-    const draft = local.blankDraft(localGroup.id); draft.content.text = '備份草稿不發布'; await local.saveDraft(draft);
+    await local.createCard({ format: 'markdown', text: 'restored backup content' }, localGroup.id);
+    const draft = local.blankDraft(localGroup.id); draft.content.text = 'backup draft stays unpublished'; await local.saveDraft(draft);
     const backup = await createBackup({ workspace: local, storage });
     const workspace = await create(`google:cloud-ui-${crypto.randomUUID()}`); const store = new MemoryFileStore();
-    await workspace.createCard({ format: 'markdown', text: '清空前舊資料' }, workspace.snapshot.groups[0].id);
+    await workspace.createCard({ format: 'markdown', text: 'old data before clearing' }, workspace.snapshot.groups[0].id);
     const sync = new FileSync({ workspace, storage, fileStore: store }); await sync.sync(); await sync.stop({ endSession: false });
     const oldIds = [...store.files.keys()];
     const root = await navigator.storage.getDirectory();
@@ -58,7 +59,7 @@ try {
           const state = await resumeCloudRestore({ state: await storage.load(workspace.state.profileId), storage, fileStore: store });
           window.probeResult = { text: state.cards.map(card => card.content.text), drafts: Object.values(state.drafts).map(draft => draft.content.text),
             oldFilesGone: oldIds.every(id => !store.files.has(id)), pending: Boolean(state.cloudRestore), filesSaved };
-          say('覆蓋完成');
+          say('synthetic overwrite finished');
         } } });
     document.body.replaceChildren(panel.element); window.probePanel = panel;
     window.probeCalls = () => store.calls.length;
@@ -71,7 +72,7 @@ try {
   await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toHaveClass(/error/);
   assert.equal(await page.evaluate(() => window.probeCalls()), calls);
   await choose(Buffer.from(bytes)); await page.locator('#backup-encrypt').uncheck();
-  const preview = async () => { await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toContainText('確認還原'); };
+  const preview = async () => { await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.ready')); };
   await preview(); assert.equal(await page.evaluate(() => window.probePanel.blocksSync()), true);
   await expect(page.locator('#confirm-restore')).toBeDisabled();
   await page.locator('#restore-cloud-agree').check(); await expect(page.locator('#confirm-restore')).toBeDisabled();
@@ -80,9 +81,9 @@ try {
   await expect(page.locator('#confirm-restore')).toBeDisabled();
   await preview(); await page.locator('#save-safety-backup').click(); await expect(page.locator('#confirm-restore')).toBeDisabled();
   await page.locator('#restore-cloud-agree').check(); await expect(page.locator('#confirm-restore')).toBeEnabled();
-  await page.locator('#confirm-restore').click(); await expect(page.locator('#backup-status')).toHaveText('覆蓋完成');
+  await page.locator('#confirm-restore').click(); await expect(page.locator('#backup-status')).toHaveText('synthetic overwrite finished');
   const result = await page.evaluate(() => window.probeResult);
-  assert.deepEqual(result, { text: ['備份還原內容'], drafts: ['備份草稿不發布'], oldFilesGone: true, pending: false, filesSaved: 2 });
+  assert.deepEqual(result, { text: ['restored backup content'], drafts: ['backup draft stays unpublished'], oldFilesGone: true, pending: false, filesSaved: 2 });
   assert.deepEqual(errors, []);
   console.log('PASS cloud overwrite UI: verified safety save plus explicit consent, changed-file invalidation, paused preview sync, real IndexedDB restore and synthetic remote replacement');
 } finally { await context.close(); await browser.close(); }

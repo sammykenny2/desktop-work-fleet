@@ -25,19 +25,19 @@ def require(condition, code, message):
 
 def text(value, key, maximum=256):
     result = value.get(key)
-    require(isinstance(result, str) and result and len(result.encode("utf-16-le", "surrogatepass")) // 2 <= maximum, "invalid-request", "文字欄位無效。")
+    require(isinstance(result, str) and result and len(result.encode("utf-16-le", "surrogatepass")) // 2 <= maximum, "invalid-request", "A text field isn't valid.")
     return result
 
 
 def number(value, key, maximum=SAFE_INTEGER):
     result = value.get(key)
-    require(type(result) in (int, float) and 0 <= result <= maximum and math.isfinite(result) and result == int(result), "invalid-request", "數字欄位超限。")
+    require(type(result) in (int, float) and 0 <= result <= maximum and math.isfinite(result) and result == int(result), "invalid-request", "A number field is out of range.")
     return int(result)
 
 
 def boolean(value, key):
     result = value.get(key)
-    require(type(result) is bool, "invalid-request", "布林欄位無效。")
+    require(type(result) is bool, "invalid-request", "A true/false field isn't valid.")
     return result
 
 
@@ -72,16 +72,16 @@ def decode(data):
     def pairs(values):
         result = {}
         for key, value in values:
-            require(key not in result, "invalid-json", "JSON 欄位重複。")
+            require(key not in result, "invalid-json", "The JSON repeats a field.")
             result[key] = value
         return result
 
     def constant(_):
-        raise Failure("invalid-json", "JSON 數值無效。")
+        raise Failure("invalid-json", "The JSON has an invalid number.")
 
     try:
         result = json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
     except (ValueError, UnicodeError, RecursionError) as error:
-        raise Failure("invalid-json", "JSON 格式無效。") from error
-    require(isinstance(result, dict), "invalid-json", "JSON 需要單一物件。")
+        raise Failure("invalid-json", "The JSON isn't valid.") from error
+    require(isinstance(result, dict), "invalid-json", "The JSON must be a single object.")
     return result

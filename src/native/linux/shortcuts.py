@@ -5,6 +5,7 @@ import gi
 from gi.repository import Gdk, Gio, GLib
 
 import protocol as p
+from text import t
 
 
 def parse(key):
@@ -54,12 +55,12 @@ class Shortcuts:
 
     def configure(self, args):
         values = args.get("bindings")
-        p.require(isinstance(values, list) and len(values) <= 32, "shortcut-settings", "此裝置最多設定 32 組快捷鍵。")
+        p.require(isinstance(values, list) and len(values) <= 32, "shortcut-settings", "This device allows at most 32 shortcuts.")
         keys, bindings = set(), []
         for value in values:
-            p.require(isinstance(value, dict), "shortcut-settings", "快捷鍵設定無效。")
+            p.require(isinstance(value, dict), "shortcut-settings", "The shortcut settings aren't valid.")
             key, target = p.text(value, "key", 80), p.text(value, "target", 128)
-            p.require(key not in keys and re.fullmatch(r"@(?:all|capture|toggle)|[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", target) is not None and target not in ("__proto__", "constructor", "prototype"), "shortcut-settings", "快捷鍵身分或目標無效。")
+            p.require(key not in keys and re.fullmatch(r"@(?:all|capture|toggle)|[A-Za-z0-9][A-Za-z0-9._:-]{0,127}", target) is not None and target not in ("__proto__", "constructor", "prototype"), "shortcut-settings", "A shortcut's key or target isn't valid.")
             keys.add(key)
             chord, status = parse(key)
             identifier = "wf_" + hashlib.sha256((key + "\0" + target).encode()).hexdigest()[:32]
@@ -147,7 +148,7 @@ class Shortcuts:
         def completed(connection, result, _data):
             try:
                 returned = connection.call_finish(result).unpack()[0]
-                p.require(returned == path, "shortcut-portal", "系統快捷鍵請求身分無效。")
+                p.require(returned == path, "shortcut-portal", "The system shortcut request's identity isn't valid.")
             except (GLib.Error, p.Failure):
                 self.remove_request(path)
                 if generation == self.generation and not self.closed:
@@ -167,11 +168,12 @@ class Shortcuts:
             values = []
             for binding in self.bindings:
                 if binding["chord"]:
-                    names = {"@all": "調整所有群組", "@capture": "快速記錄", "@toggle": "顯示／隱藏桌面便箋"}
+                    # The portal shows these descriptions in the system shortcut settings, in the language current at binding.
+                    names = {"@all": "tray.adjustAll", "@capture": "tray.quickCapture", "@toggle": "tray.toggleDesktop"}
                     parts = binding["key"].split("+")
                     mods = {"Ctrl": "CTRL", "Alt": "ALT", "Shift": "SHIFT", "Meta": "LOGO"}
                     trigger = "+".join([mods[value] for value in parts[:-1]] + [parts[-1] if len(parts[-1]) > 1 else parts[-1].lower()])
-                    values.append((binding["id"], {"description": GLib.Variant("s", names.get(binding["target"], "調整指定群組")), "preferred_trigger": GLib.Variant("s", trigger)}))
+                    values.append((binding["id"], {"description": GLib.Variant("s", t(names.get(binding["target"], "shortcut.adjustGroup"))), "preferred_trigger": GLib.Variant("s", trigger)}))
 
             def bound(result):
                 registered = {} if result is None else {key: value.get("trigger_description", "") for key, value in result.get("shortcuts", [])}

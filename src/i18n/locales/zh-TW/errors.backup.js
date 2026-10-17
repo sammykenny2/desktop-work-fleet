@@ -1,0 +1,100 @@
+export default {
+  // Backup files and archives
+  'errors.backup.cancelled': '備份工作已取消，現有資料未變更。',
+  'errors.backup.zipInvalid': '備份 ZIP 結構無效或包含不支援的檔案。',
+  'errors.backup.zipBytesRequired': '需要 ZIP 檔案 bytes。',
+  'errors.backup.archiveLimit': '備份超過格式的容量或項目上限，尚未截斷或匯入。',
+  'errors.backup.pathNotFixed': '備份路徑必須是固定名稱。',
+  'errors.backup.pathNotAllowed': '備份含未允許的路徑；不會解壓到檔案系統。',
+  'errors.backup.deflateUnsupported': '此環境不支援嚴格 DEFLATE 解壓，請更新 App 或系統。',
+  'errors.backup.compressedDataCorrupt': '備份壓縮資料損壞，尚未匯入。',
+  'errors.backup.entriesRequired': '備份 entries 必須明確列出。',
+  'errors.backup.entryBytesRequired': '備份 entry 需要 bytes。',
+  'errors.backup.fileTooLarge': '備份檔案超過容量上限。',
+
+  // Saving backup files
+  'errors.backup.saveSizeMismatch': '檔案已寫入，但讀回大小不符，尚未確認備份成功。',
+  'errors.backup.saveChecksumMismatch': '檔案已寫入，但讀回校驗失敗，尚未確認備份成功。',
+  'errors.backup.saveIncomplete': '檔案可能已寫入，但保存或讀回未完成。請檢查目的檔後重試，尚未確認備份成功。',
+  'errors.backup.saveUnconfirmable': '此環境只能交付下載，請使用支援確認保存的 App 或瀏覽器後再取代。',
+
+  // Backup contents
+  'errors.backup.dataInvalid': '備份資料格式、引用或數量不一致，尚未匯入。',
+  'errors.backup.dataUnsupported': '本機包含尚未支援的衝突資料，不能省略後宣稱備份完成。',
+  'errors.backup.dataLimit': '資料超過備份容量或項目上限，尚未省略任何內容。',
+  'errors.backup.attachmentsIncomplete': '尚缺附件或大小不符，不能宣稱已完成備份；原資料保留。',
+  'errors.backup.attachmentsTooLarge': '備份附件超過總容量，尚未截斷。',
+  'errors.backup.attachmentChecksum': '本機附件校驗失敗，尚未輸出備份。',
+
+  // Encryption
+  'errors.backup.passwordRequired': '請輸入備份密碼，最多 1,024 字元。',
+  'errors.backup.passwordLength': '備份密碼至少需要 12 個字元，最多 1,024 字元。',
+  'errors.backup.decryptionFailed': '密碼不正確或加密備份已損壞；沒有還原任何內容。',
+  'errors.backup.encryptionUnsupported': '備份加密格式或參數不受支援，尚未嘗試還原。',
+  'errors.backup.encryptionTooLarge': '待加密備份超過容量上限。',
+  'errors.backup.encryptionHeaderInvalid': '備份加密 header 無效。',
+  'errors.backup.encryptedPackageInvalid': '加密備份封裝無效。',
+  'errors.backup.encryptedContentIncomplete': '加密內容不完整。',
+  'errors.backup.encryptedSizeInvalid': '加密內容大小無效。',
+  'errors.backup.nestedEncryption': '不支援巢狀加密備份。',
+  'errors.backup.nativeEncryptionIncomplete': '原生加密未回傳完整備份。',
+  'errors.backup.nativeEncryptionNotEncrypted': '原生加密未回傳加密封裝，未保存明文。',
+
+  // Export
+  'errors.backup.exportSyncUnavailable': '目前無法同步 Google。',
+  'errors.backup.exportSyncIncomplete': '仍有修改等待同步到 Google。',
+  'errors.backup.exportCancelled': '已取消匯出，沒有保存備份。',
+  'errors.backup.exportWorkspaceChanged': '工作空間已切換，請重新匯出。',
+
+  // Automatic backup
+  'errors.backup.jobInvalid': '自動備份工作無效，未操作檔案。',
+  'errors.backup.jobIdCollision': '備份工作身分重複，未寫入檔案。',
+  'errors.backup.journalInvalid': '自動備份紀錄無效，未寫入或清理檔案。',
+  'errors.backup.journalSettingsInvalid': '自動備份設定無效，未寫入或清理檔案。',
+  'errors.backup.journalIdentityInvalid': '自動備份身分或成功紀錄無效。',
+  'errors.backup.journalUnavailable': '無法讀取或保存備份紀錄。',
+  'errors.backup.journalMissing': '自動備份紀錄遺失，請重新開啟工作空間。',
+  'errors.backup.journalBlocked': '另一視窗尚未關閉備份紀錄。',
+  'errors.backup.journalAborted': '備份紀錄保存中止。',
+  'errors.backup.journalStaleWriter': '另一個工作已更新備份紀錄，尚未寫入檔案。',
+  'errors.backup.profileInvalid': '備份帳號無效。',
+  'errors.backup.clockInvalid': '系統時間無效。',
+  'errors.backup.settingUnknown': '未知自動備份設定。',
+  'errors.backup.createUnavailable': '此環境沒有安全建立新檔的能力，自動備份尚無法啟用。',
+  'errors.backup.createPaused': '安全建立新檔的能力不可用，自動備份已暫停。',
+  'errors.backup.vaultUnavailable': '此環境尚無安全密碼儲存，不能啟用加密排程。',
+  'errors.backup.vaultPaused': '安全密碼儲存無法使用，加密排程已暫停。',
+  'errors.backup.automaticFailed': '自動備份失敗，現有資料保留。',
+  'errors.backup.automaticNotSaved': '尚未確認自動備份已保存；舊備份保留。',
+  'errors.backup.latestReplaced': '最新備份已被替換，先保留舊備份並重新建立。',
+  'errors.backup.latestMissing': '最新備份已遺失或被修改，先保留舊備份並重新建立。',
+  'errors.backup.retentionLatest': '不能移除最新成功備份。',
+
+  // Restore
+  'errors.backup.restorePlanRequired': '需要有效的還原預覽。',
+  'errors.backup.restoreAccountChanged': '還原目標帳號已切換，請重新預覽。',
+  'errors.backup.restoreModeInvalid': '請選擇有效還原模式與版面選項。',
+  'errors.backup.displayAreaRequired': '需要可用的顯示區域。',
+  'errors.backup.backupNotVerified': '請先驗證完整備份。',
+  'errors.backup.alreadyRestored': '這份備份已還原；只有明確選擇再還原一次才建立新工作。',
+  'errors.backup.localNotesRequired': '請先切換到本機便箋，再清空本機還原。',
+  'errors.backup.restoreIdCollision': '新身分重複或無效，尚未還原。',
+  'errors.backup.restoreJobCollision': '還原工作身分包含不同內容。',
+  'errors.backup.revisionCollision': '同一版本身分包含不同內容，沒有還原任何資料。',
+  'errors.backup.headLimit': '並行版本超過單次取代上限，請先整理衝突。',
+
+  // Pre-restore backups
+  'errors.backup.safetyBackupRequired': '需要已保存的還原前備份。',
+  'errors.backup.safetyBackupMissing': '請先成功保存目前這一版資料的還原前備份。',
+  'errors.backup.safetyBackupNotSaved': '尚未確認還原前備份已保存，不能取代資料。',
+  'errors.backup.saveHostRequired': '需要確認檔案保存成功的介面。',
+
+  // Restoring to Google
+  'errors.backup.cloudPlanRequired': '需要有效的雲端覆蓋預覽。',
+  'errors.backup.cloudAccountChanged': 'Google 帳號已切換，請重新預覽。',
+  'errors.backup.cloudSignInRequired': '請先登入要覆蓋的 Google 帳號。',
+  'errors.backup.cloudSafetyBackupRequired': '請先成功保存目前 Google 工作空間的備份。',
+  'errors.backup.cloudRestorePending': '請先完成尚未完成的 Google 覆蓋。',
+  'errors.backup.cloudJobMismatch': '覆蓋工作不屬於目前 Google 帳號。',
+  'errors.backup.cloudUploadPending': '備份仍有資料等待上傳或驗證，請繼續覆蓋。',
+};

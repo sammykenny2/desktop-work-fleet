@@ -38,15 +38,15 @@ async function fixture(initial = null, sourceBlobs = new Map(), profileId = cryp
 
 async function source(profileId) {
   const f = await fixture(null, new Map(), profileId); const a = f.workspace.snapshot.groups[0]; const b = await f.workspace.createGroup('B');
-  const bytes = new TextEncoder().encode('附件 中文 💡 <svg onload="x()">'); const id = await sha256(bytes); f.blobs.set(id, bytes);
-  let card = await f.workspace.createCard({ ...text('原始中文 💡\n- [ ] 工作'), attachments: [{ id, name: 'file.svg', size: bytes.length }] }, a.id);
+  const bytes = new TextEncoder().encode('attachment 中文 💡 <svg onload="x()">'); const id = await sha256(bytes); f.blobs.set(id, bytes);
+  let card = await f.workspace.createCard({ ...text('Original 中文 💡\n- [ ] Task'), attachments: [{ id, name: 'file.svg', size: bytes.length }] }, a.id);
   card = await f.workspace.updateCard(card.id, { completed: true, archived: true }, card.revision);
-  const deleted = await f.workspace.createCard(text('可恢復刪除'), b.id);
+  const deleted = await f.workspace.createCard(text('Recoverable deletion'), b.id);
   await f.workspace.updateCard(deleted.id, { deleted: true }, deleted.revision);
   await f.workspace.layout.placeNew(f.workspace.snapshot, [area]);
   await f.workspace.layout.setGroupLayer(a.id, 'wallpaper', f.workspace.snapshot);
-  const draft = f.workspace.blankDraft(a.id, card); draft.content.text = '未保存草稿'; await f.workspace.saveDraft(draft);
-  const recovered = f.workspace.recoverDraft(draft.id); recovered.content.text = '恢復草稿'; await f.workspace.saveDraft(recovered);
+  const draft = f.workspace.blankDraft(a.id, card); draft.content.text = 'Unsaved draft'; await f.workspace.saveDraft(draft);
+  const recovered = f.workspace.recoverDraft(draft.id); recovered.content.text = 'Recovered draft'; await f.workspace.saveDraft(recovered);
   return { ...f, a, b, card, deleted, draft, recovered, id, bytes };
 }
 
@@ -276,7 +276,7 @@ test('an older backup that bound keys to groups restores them as keys for the re
 });
 
 test('an older backup that kept a layer on each paper restores as the lowest layer of each group', async () => {
-  const s = await source(); const shown = [await s.workspace.createCard(text('桌面上'), s.a.id), await s.workspace.createCard(text('也在桌面上'), s.a.id)];
+  const s = await source(); const shown = [await s.workspace.createCard(text('On the desktop'), s.a.id), await s.workspace.createCard(text('Also on the desktop'), s.a.id)];
   await s.workspace.layout.placeNew(s.workspace.snapshot, [area]); const target = await fixture(s.disk(), s.blobs);
   const files = await unpackZip((await createBackup({ workspace: s.workspace, storage: s.storage })).bytes);
   const manifest = parseJson(files.get('manifest.json')); const layout = parseJson(files.get('layout.json'));

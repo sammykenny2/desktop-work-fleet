@@ -23,6 +23,7 @@ class MacOSHostShellTests(unittest.TestCase):
         result = subprocess.run([
             "swiftc", "-module-cache-path", str(cls.folder / "module-cache"),
             str(root / "src/native/apple/Shared/FleetProtocol.swift"),
+            str(root / "src/native/apple/Shared/FleetText.swift"),
             str(root / "src/native/apple/macos/FleetHostShell.swift"),
             str(root / "tests/native/apple/HostShellProbe.swift"),
             "-o", str(cls.executable),
@@ -60,6 +61,12 @@ class MacOSHostShellTests(unittest.TestCase):
 
     def test_failed_registration_is_reported_and_retryable(self):
         self.run_probe("registration-error")
+
+    def test_display_language_is_saved_with_startup_settings(self):
+        self.run_probe("language")
+
+    def test_display_language_rules_and_host_text(self):
+        self.run_probe("language-rules")
 
     @unittest.skipUnless(os.environ.get("WORK_FLEET_TEST_LOGIN_ITEMS") == "1",
                          "Opt-in: temporarily registers a unique sandboxed login-item probe")

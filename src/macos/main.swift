@@ -52,8 +52,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
   var probeBaseline: pid_t = 0
   var serverField = NSTextField(string: "http://127.0.0.1:9847")
   var inviteField = NSSecureTextField(string: "")
-  var message = NSTextField(wrappingLabelWithString: "輸入一次性配對碼，連接你的便箋。")
-  var cardStatus = NSTextField(wrappingLabelWithString: "尚未連線")
+  var message = NSTextField(wrappingLabelWithString: "Enter a one-time pairing code to connect your notes.")
+  var cardStatus = NSTextField(wrappingLabelWithString: "Not connected")
   var qr = NSImageView()
   var inviteLink = NSTextField(wrappingLabelWithString: "")
   let dataDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -96,10 +96,10 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     card.setFrameAutosaveName(probe ? "probe-card" : "backlog-card")
     controls = NSWindow(contentRect: NSRect(x: screen.minX + 70, y: screen.midY - 220, width: 470, height: 540),
                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
-    controls.title = "Work Fleet · 連線與展示"
+    controls.title = "Work Fleet · Connection and display"
     controls.isReleasedWhenClosed = false
     let modes = NSPopUpButton()
-    modes.addItems(withTitles: ["一般視窗", "桌面圖示上方", "桌面圖示下方（實驗）"])
+    modes.addItems(withTitles: ["Normal window", "Above desktop icons", "Below desktop icons (experimental)"])
     modes.selectItem(at: mode)
     modes.target = self; modes.action = #selector(changeMode(_:))
     qr.frame.size = NSSize(width: 170, height: 170)
@@ -108,10 +108,10 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     let controlCanvas = NoteCanvas(frame: NSRect(x: 0, y: 0, width: 470, height: 760))
     let items: [(NSView, CGFloat)] = [
       (NSTextField(labelWithString: "Server URL"), 20), (serverField, 28),
-      (NSTextField(labelWithString: "一次性配對碼（5 分鐘有效）"), 20), (inviteField, 28),
-      (button("配對此 Mac", #selector(pair)), 32), (message, 52), (modes, 28),
-      (button("解鎖／編輯", #selector(unlock)), 32), (button("重新鎖定", #selector(lock)), 32),
-      (button("產生手機配對 QR（管理員）", #selector(invite)), 32), (qr, 180), (inviteLink, 80)]
+      (NSTextField(labelWithString: "One-time pairing code (valid for 5 minutes)"), 20), (inviteField, 28),
+      (button("Pair this Mac", #selector(pair)), 32), (message, 52), (modes, 28),
+      (button("Unlock / Edit", #selector(unlock)), 32), (button("Lock again", #selector(lock)), 32),
+      (button("Create phone pairing QR code (admin)", #selector(invite)), 32), (qr, 180), (inviteLink, 80)]
     var controlY: CGFloat = 18
     for (view, height) in items {
       view.frame = NSRect(x: 18, y: controlY, width: 424, height: height)
@@ -124,8 +124,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     statusItem.button?.title = "WF"
     let menu = NSMenu()
-    for (title, selector) in [("快速記錄／解鎖", #selector(unlock)), ("鎖定", #selector(lock)),
-                               ("連線與展示…", #selector(showControls)), ("結束", #selector(quit))] {
+    for (title, selector) in [("Quick capture / Unlock", #selector(unlock)), ("Lock", #selector(lock)),
+                               ("Connection and display…", #selector(showControls)), ("Quit", #selector(quit))] {
       let item = NSMenuItem(title: title, action: selector, keyEquivalent: "")
       item.target = self; menu.addItem(item)
     }
@@ -176,7 +176,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     editor.evaluateJavaScript("typeof window.workFleetFlushDraft === 'function' ? window.workFleetFlushDraft() : !(document.getElementById('note-text')?.value)") { value, _ in
       if value as? Bool == true { NSApp.terminate(nil) }
       else {
-        self.message.stringValue = "草稿尚未落地或正在傳送，請先複製／匯出文字或等待傳送完成。"
+        self.message.stringValue = "A draft is not stored yet or is still sending. Copy or export the text, or wait for the send to finish."
         self.unlock(); self.showControls()
       }
     }
@@ -200,7 +200,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     if let editor = web {
       editor.evaluateJavaScript("typeof window.workFleetFlushDraft === 'function' ? window.workFleetFlushDraft() : !(document.getElementById('note-text')?.value)") { value, _ in
         if value as? Bool == true { self.performPair() }
-        else { self.message.stringValue = "有尚未落地的草稿，請先複製或匯出文字，再重新配對。" }
+        else { self.message.stringValue = "A draft is not stored yet. Copy or export the text, then pair again." }
       }
     } else { performPair() }
   }
@@ -209,7 +209,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     let base = serverField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     guard let url = URL(string: base), url.user == nil, url.password == nil, url.query == nil, url.fragment == nil,
           url.path.isEmpty, url.scheme == "https" || (url.scheme == "http" && ["127.0.0.1", "localhost"].contains(url.host ?? "")) else {
-      message.stringValue = "請用 HTTPS；本機可用 http://127.0.0.1:9847。"; return
+      message.stringValue = "Use HTTPS. On this Mac you can use http://127.0.0.1:9847."; return
     }
     serverField.stringValue = base
     if !card.locked { lock() }
@@ -218,20 +218,20 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
       self.pairing = false
       guard status == 200, let data = data,
             let result = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-            let token = result["token"] as? String else { self.message.stringValue = "配對失敗（\(status)），請取得新邀請。"; return }
+            let token = result["token"] as? String else { self.message.stringValue = "Pairing failed (\(status)). Get a new invite."; return }
       if !self.card.locked { self.lock() }
       let nextConnection = Connection(server: base, token: token)
       do {
         try JSONEncoder().encode(nextConnection).write(to: self.configURL, options: .atomic)
         try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: self.configURL.path)
-      } catch { self.message.stringValue = "無法保存新連線，仍使用原來源；請重試新的邀請。"; return }
+      } catch { self.message.stringValue = "Could not save the new connection; still using the previous server. Try again with a new invite."; return }
       self.generation += 1
       self.connection = nextConnection
       self.snapshot = nil
       self.draftSummary = ""
       try? FileManager.default.removeItem(at: self.cacheURL)
       self.web?.stopLoading(); self.web = nil
-      self.inviteField.stringValue = ""; self.message.stringValue = "已配對。鎖定模式仍會接收更新。"
+      self.inviteField.stringValue = ""; self.message.stringValue = "Paired. The locked note still receives updates."
       self.diagnostic("paired"); self.poll()
       if self.probe { self.invite() }
     }
@@ -247,8 +247,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
       if status == 200, let data = data, let snap = try? JSONDecoder().decode(Snapshot.self, from: data) {
         self.snapshot = snap
         do { try data.write(to: self.cacheURL, options: .atomic) }
-        catch { self.message.stringValue = "已同步，但離線快取寫入失敗。" }
-        self.cardStatus.stringValue = "已同步 · \(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)) · 鎖定\(self.draftSummary)"
+        catch { self.message.stringValue = "Synced, but the offline cache could not be written." }
+        self.cardStatus.stringValue = "Synced · \(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .short)) · Locked\(self.draftSummary)"
         if self.card.locked { self.render() }
         self.diagnostic("snapshot", ["count": snap.notes.filter { !$0.deleted }.count,
           "revisionSum": snap.notes.reduce(0) { $0 + $1.revision },
@@ -277,7 +277,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
           }
         }
       } else {
-        self.cardStatus.stringValue = (status == 401 ? "存取已失效 · 請重新配對" : "離線 · 顯示上次內容") + self.draftSummary
+        self.cardStatus.stringValue = (status == 401 ? "Access is no longer valid · Pair again" : "Offline · Showing the last content") + self.draftSummary
         self.diagnostic("sync_error", ["status": status])
       }
     }
@@ -297,14 +297,14 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
       field.frame = NSRect(x: 20, y: y, width: width - 40, height: height)
       canvas.addSubview(field); y += height + 8
     }
-    label("我的 Backlog", size: 23, bold: true)
+    label("My Backlog", size: 23, bold: true)
     cardStatus.removeFromSuperview()
     cardStatus.textColor = NSColor(calibratedWhite: 0.35, alpha: 1)
     cardStatus.font = .systemFont(ofSize: 12)
     cardStatus.frame = NSRect(x: 20, y: y, width: width - 40, height: 38)
     canvas.addSubview(cardStatus); y += 46
     let visible = (snapshot?.notes ?? []).filter { !$0.deleted && $0.status != "done" }
-    if visible.isEmpty { label("從選單列 WF 快速記下一件事。", size: 15) }
+    if visible.isEmpty { label("Use WF in the menu bar to capture a thought.", size: 15) }
     for note in visible {
       label("\(note.status == "in_progress" ? "◐ In Progress" : "○ Todo") · \(note.board)", size: 12, bold: true)
       label(note.text, size: 15); y += 12
@@ -322,7 +322,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     scroll.displayIfNeeded()
   }
   @objc func unlock() {
-    if pairing { message.stringValue = "配對處理中，請稍候。"; showControls(); return }
+    if pairing { message.stringValue = "Pairing in progress. Please wait."; showControls(); return }
     guard let connection = connection else { showControls(); return }
     if !card.locked { card.makeKeyAndOrderFront(nil); return }
     previousApp = NSWorkspace.shared.frontmostApplication
@@ -350,10 +350,10 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     if let editor = web {
       editor.evaluateJavaScript("typeof window.workFleetDraftState === 'function' ? window.workFleetDraftState() : null") { result, _ in
         guard let state = result as? [String: Any] else { return }
-        if state["storageFailed"] as? Bool == true { self.draftSummary = " · 草稿未能落地，請解鎖複製文字" }
-        else if (state["count"] as? Int ?? 0) > 0 { self.draftSummary = " · 本機尚有草稿" }
+        if state["storageFailed"] as? Bool == true { self.draftSummary = " · A draft could not be stored; unlock to copy its text" }
+        else if (state["count"] as? Int ?? 0) > 0 { self.draftSummary = " · Drafts remain on this Mac" }
         else { self.draftSummary = "" }
-        if self.card.locked { self.cardStatus.stringValue = "鎖定" + self.draftSummary }
+        if self.card.locked { self.cardStatus.stringValue = "Locked" + self.draftSummary }
       }
     }
     // Keep the WebView alive, including memory text when local persistence failed.
@@ -406,7 +406,7 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     request("/api/invites", body: ["role": "editor"]) { status, data in
       guard status == 200, let data = data,
             let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let link = obj["url"] as? String else {
-        self.message.stringValue = "需要管理員權限或重新連線（\(status)）。"; return
+        self.message.stringValue = "Needs admin access or a new connection (\(status))."; return
       }
       let filter = CIFilter.qrCodeGenerator()
       filter.message = Data(link.utf8); filter.correctionLevel = "M"
@@ -420,8 +420,8 @@ final class App: NSObject, NSApplicationDelegate, WKNavigationDelegate {
         }
       }
       self.inviteLink.stringValue = link
-      self.message.stringValue = "一次性 QR，5 分鐘有效。手機需可達此 server；loopback 僅供本機。"
-      DispatchQueue.main.asyncAfter(deadline: .now() + 300) { self.qr.image = nil; self.inviteLink.stringValue = "邀請已到期" }
+      self.message.stringValue = "One-time QR code, valid for 5 minutes. The phone must be able to reach this server; a loopback address works only on this Mac."
+      DispatchQueue.main.asyncAfter(deadline: .now() + 300) { self.qr.image = nil; self.inviteLink.stringValue = "Invite expired" }
     }
   }
 }

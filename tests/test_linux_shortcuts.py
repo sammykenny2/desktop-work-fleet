@@ -6,6 +6,8 @@ import types
 import unittest
 
 NATIVE = Path(__file__).resolve().parents[1] / "src/native/linux"
+# shortcuts.py imports the host's string table, text.py, which needs no GI.
+sys.path.insert(0, str(NATIVE))
 
 
 class FakeKeybinder(types.ModuleType):

@@ -1,6 +1,7 @@
 import { activeGroups, containsPoint, copy, eligible, FleetError, gridRegions, inScope,
   requireValue, stableCards } from '../core/contracts.js';
 import { groupLayer } from '../layout/stages.js';
+import { t } from '../i18n/index.js';
 
 export const idleInteraction = () => ({ operationScope: { kind: 'none' }, activeGroupId: null,
   selectedCardId: null, editingCardId: null, dragSession: null });
@@ -54,7 +55,7 @@ export class InteractionController {
   get state() { return copy(this.#state); }
   setComposing(value) { this.#composing = Boolean(value); }
   #card(id) { return this.#getSnapshot().cards.find(card => card.id === id && !card.deleted); }
-  #assertIdle() { requireValue(!this.#busy, 'busy', '正在保存，請稍候。'); }
+  #assertIdle() { requireValue(!this.#busy, 'busy', t('errors.core.busy')); }
   #participating(groupId) {
     const layout = this.#layout.state;
     return stableCards(this.#getSnapshot().cards.filter(card => eligible(card, layout)
@@ -75,11 +76,11 @@ export class InteractionController {
     scope = copy(scope);
     if (this.#composing || consumed) return false;
     this.#assertIdle();
-    requireValue(['none', 'all', 'group'].includes(scope.kind), 'invalid-scope', '未知的調整範圍。');
+    requireValue(['none', 'all', 'group'].includes(scope.kind), 'invalid-scope', t('errors.core.adjustScopeUnknown'));
     if (scope.kind === 'group') requireValue(activeGroups(this.#getSnapshot()).some(group => group.id === scope.groupId),
-      'missing-group', '群組已不存在。');
+      'missing-group', t('errors.common.groupMissing'));
     if (scope.kind !== 'none' && !this.#participating(scope.kind === 'group' ? scope.groupId : undefined).length) {
-      throw new FleetError('empty-scope', '這個範圍沒有桌面便箋，請在主畫面管理顯示卡片。');
+      throw new FleetError('empty-scope', t('errors.core.scopeNoDesktopNotes'));
     }
     this.#busy = true;
     try {
@@ -102,7 +103,7 @@ export class InteractionController {
     if (control || (gesture && this.#suppressedCard === cardId)) return false;
     this.#assertIdle();
     const card = this.#card(cardId);
-    requireValue(card && cardPolicy(card, this.#layout.state, this.#state).draggable, 'outside-scope', '此卡不在調整範圍。');
+    requireValue(card && cardPolicy(card, this.#layout.state, this.#state).draggable, 'outside-scope', t('errors.core.outsideAdjustScope'));
     this.#busy = true;
     try {
       if (this.#state.editingCardId && this.#state.editingCardId !== cardId) {
@@ -116,7 +117,7 @@ export class InteractionController {
 
   async beginEdit(cardId, options = {}) {
     if (options.control || this.#state.dragSession || (options.gesture && this.#suppressedCard === cardId)) return false;
-    requireValue(this.#getSnapshot().writable, 'read-only', '來源是唯讀，無法編輯。');
+    requireValue(this.#getSnapshot().writable, 'read-only', t('errors.core.readOnlyEdit'));
     if (!await this.select(cardId, options)) return false;
     this.#state.editingCardId = cardId;
     return true;
@@ -153,11 +154,11 @@ export class InteractionController {
   pointerDown(cardId, point, { pointerId = 1, control = false, handle = false, threshold = 5 } = {}) {
     this.#assertIdle();
     if (control || (this.#state.editingCardId === cardId && !handle)) return false;
-    requireValue(!this.#state.dragSession, 'drag-active', '已有拖曳操作。');
+    requireValue(!this.#state.dragSession, 'drag-active', t('errors.core.dragActive'));
     const card = this.#card(cardId); const layout = this.#layout.state;
-    requireValue(card && cardPolicy(card, layout, this.#state).draggable, 'outside-scope', '此卡不在調整範圍。');
+    requireValue(card && cardPolicy(card, layout, this.#state).draggable, 'outside-scope', t('errors.core.outsideAdjustScope'));
     requireValue(layout.placements[cardId] && Number.isFinite(threshold) && threshold > 0
-      && Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', '無效的拖曳起點。');
+      && Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', t('errors.core.dragStartInvalid'));
     this.#suppressedCard = null;
     this.#state.dragSession = { generation: crypto.randomUUID(), cardId, pointerId, groupId: card.groupId, revision: card.revision,
       layoutRevision: layout.revision, start: copy(point), current: copy(point), origin: copy(layout.placements[cardId]),
@@ -168,7 +169,7 @@ export class InteractionController {
   pointerMove(point, { pointerId = 1, shiftKey = false, labels = [] } = {}) {
     const drag = this.#state.dragSession;
     if (!drag || this.#busy || drag.pointerId !== pointerId) return null;
-    requireValue(Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', '無效的拖曳位置。');
+    requireValue(Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', t('errors.core.dragPointInvalid'));
     drag.current = copy(point);
     if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) >= drag.threshold) drag.dragging = true;
     if (!drag.dragging) return copy(drag);
@@ -204,7 +205,7 @@ export class InteractionController {
       try {
         await this.#flush();
         if (drag.target && drag.target.groupId !== drag.groupId) {
-          requireValue(this.#getSnapshot().writable, 'read-only', '來源是唯讀，無法轉組。');
+          requireValue(this.#getSnapshot().writable, 'read-only', t('errors.core.readOnlyMove'));
           await this.#commands.transferCard({ cardId: drag.cardId, groupId: drag.target.groupId,
             expectedRevision: drag.revision, position: { x: drag.position.x, y: drag.position.y },
             expectedLayoutRevision: drag.layoutRevision });
@@ -231,9 +232,9 @@ export class InteractionController {
     this.#assertIdle(); this.#busy = true;
     try {
       await this.#flush();
-      requireValue(this.#getSnapshot().writable, 'read-only', '來源是唯讀，無法轉組。');
+      requireValue(this.#getSnapshot().writable, 'read-only', t('errors.core.readOnlyMove'));
       const card = this.#card(cardId);
-      requireValue(card, 'missing-card', '卡片已不存在。');
+      requireValue(card, 'missing-card', t('errors.common.noteMissing'));
       await this.#commands.transferCard({ cardId, groupId, expectedRevision: card.revision });
       this.#afterTransfer(cardId, groupId);
     } finally { this.#busy = false; }

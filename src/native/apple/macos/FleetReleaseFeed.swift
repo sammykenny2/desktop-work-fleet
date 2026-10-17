@@ -1,6 +1,7 @@
 import Foundation
 
 /// ADR-044 public release discovery. Atom carries published previews; asset URLs stay in the configured repository/tag.
+/// Refusals reach the update section as they are, so their text comes from the host table.
 enum FleetReleaseFeed {
   struct Release {
     let tag: String
@@ -16,7 +17,7 @@ enum FleetReleaseFeed {
   static func latest(_ data: Data, repository: String, channel: String, current: [Int]) throws -> Release? {
     guard channel == "preview", data.count <= 2 * 1024 * 1024,
        let text = String(data: data, encoding: .utf8), !text.contains("<!DOCTYPE"), !text.contains("<!ENTITY") else {
-      throw FleetFailure("metadata_invalid", "更新資訊格式不符，未下載任何檔案。")
+      throw FleetFailure("metadata_invalid", FleetText.text("update.invalidFeed"))
     }
     let delegate = ReleaseParser(repository: repository, current: current)
     let parser = XMLParser(data: data)
@@ -24,10 +25,10 @@ enum FleetReleaseFeed {
     parser.shouldResolveExternalEntities = false
     parser.delegate = delegate
     guard parser.parse(), delegate.validRoot else {
-      throw FleetFailure("metadata_invalid", "更新資訊格式不符，未下載任何檔案。")
+      throw FleetFailure("metadata_invalid", FleetText.text("update.invalidFeed"))
     }
     if delegate.entries > 0 && !delegate.foundPlatform {
-      throw FleetFailure("metadata_invalid", "來源未列出這個平台的版本，請至 Releases 頁面確認。")
+      throw FleetFailure("metadata_invalid", FleetText.text("update.noPlatformRelease"))
     }
     return delegate.best
   }

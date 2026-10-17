@@ -26,7 +26,7 @@ internal static class AdjustOverlayProbe
     var window = Program.Open(Path.Combine(directory, "data"));
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", "adjust fixture");
+      await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "adjust fixture");
       var main = window.WebView.CoreWebView2;
       foreach (var title in new[] { "Adjust A", "Adjust B" })
       {
@@ -43,7 +43,7 @@ internal static class AdjustOverlayProbe
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar on the first adjustment");
       await Wait(scene, "document.querySelectorAll('.card.operable').length === 2", "adjusted papers");
       var controls = (await Eval(scene, "[...document.querySelectorAll('.adjust-tools button')].map(b=>b.textContent).join(',')")).GetString();
-      if (controls != "堆疊,攤開,復原,完成") throw new Exception("Unexpected adjust controls: " + controls);
+      if (controls != "Stack,Spread,Undo,Done") throw new Exception("Unexpected adjust controls: " + controls);
       if (!(await Eval(scene, "(()=>{const t=document.querySelector('.adjust-tools'),r=t.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&document.elementFromPoint(r.right-20,r.top+15)?.closest('.adjust-tools')===t})()")).GetBoolean())
         throw new Exception("Adjust toolbar is clipped or not hit-testable.");
       foreach (var surface in window.Desktop.Surfaces.Where(s => !ReferenceEquals(s, floating)))
@@ -59,10 +59,10 @@ internal static class AdjustOverlayProbe
         if (await Geometry() == before) throw new Exception(name + " did not change the papers through the owner.");
         if (!(await Eval(scene, "Boolean(document.querySelector('.adjust-tools'))")).GetBoolean()) throw new Exception(name + " ended adjustment.");
       }
-      await Arrange("堆疊");
+      await Arrange("Stack");
       var stacked = await Geometry();
-      await Arrange("攤開");
-      await Arrange("復原");
+      await Arrange("Spread");
+      await Arrange("Undo");
       if (await Geometry() != stacked) throw new Exception("Undo did not restore the stacked layout.");
       using (var preview = File.Create(Path.Combine(directory, "adjust-toolbar.png")))
         await scene.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, preview);
@@ -81,16 +81,16 @@ internal static class AdjustOverlayProbe
       await Eval(main, "document.querySelector('#operate-all').click()");
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar from a minimized main window");
       if (await Geometry() != stacked) throw new Exception("Exiting and reentering changed the stored paper positions.");
-      await Eval(scene, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='編輯').click()");
+      await Eval(scene, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
       await Wait(scene, "Boolean(document.querySelector('textarea'))", "inline editor");
       await Eval(scene, "document.querySelector('textarea').value='Toolbar draft preserved';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-      await Wait(scene, "document.querySelector('.draft-state')?.textContent==='草稿已存本機'", "durable toolbar draft");
+      await Wait(scene, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'", "durable toolbar draft");
       await Eval(scene, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));document.querySelector('.adjust-tools button.primary').click()");
-      await Program.Wait(window, "document.querySelector('#status').textContent.includes('請先完成')", "IME blocks Done");
+      await Program.Wait(window, "document.querySelector('#status').textContent.startsWith('Finish ')", "IME blocks Done");
       if (!(await Eval(scene, "Boolean(document.querySelector('.adjust-tools'))&&document.querySelector('textarea')?.value==='Toolbar draft preserved'")).GetBoolean())
         throw new Exception("Done discarded the active IME editor.");
       await Eval(scene, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");
-      await Wait(scene, "!document.querySelector('textarea').readOnly&&document.querySelector('.draft-state')?.textContent==='草稿已存本機'", "composition ended");
+      await Wait(scene, "!document.querySelector('textarea').readOnly&&document.querySelector('.draft-state')?.textContent==='Draft saved locally'", "composition ended");
       await Eval(scene, "document.querySelector('.adjust-tools button.primary').click()");
       await Wait(scene, "!document.querySelector('.adjust-tools')", "Done after composition");
       await Program.Wait(window, "document.querySelector('#stop-operation').hidden", "minimized main stays aside");

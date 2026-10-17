@@ -10,7 +10,7 @@ const index = process.argv.indexOf('--url'); assert.ok(index >= 0 && process.arg
 const base = new URL(process.argv[index + 1]);
 assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'Only loopback development previews are allowed');
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
-const page = await browser.newPage();
+const context = await browser.newContext({ locale: 'en-US' }); const page = await context.newPage();
 try {
   // An isolated document installs only the packaged import map; it does not start the application writer.
   await page.goto(new URL('/app/style.css', base).href);
@@ -87,4 +87,4 @@ try {
     } finally { storage.close(); }
   });
   console.log(JSON.stringify({ passed: true, ...result }));
-} finally { await browser.close(); }
+} finally { await context.close(); await browser.close(); }

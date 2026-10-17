@@ -14,7 +14,7 @@ internal static class GridAreaProbe
   private sealed record Frame(double X, double Y, double Width, double Height);
   internal static async Task Run(string directory)
   {
-    var data = Path.Combine(directory, "data"); Directory.CreateDirectory(data);
+    var data = Program.English(Path.Combine(directory, "data"));
     var display = NativeDisplays.Read().First(d => d.Primary); var scale = display.Dpi / 96d; var work = display.WorkArea;
     var small = work with { Width = work.Width / 2, Height = work.Height / 2 };
     async Task Check(PhysicalBounds area, string name)
@@ -23,7 +23,7 @@ internal static class GridAreaProbe
       window.Show();
       try
       {
-        await Program.Wait(window, "document.querySelector('#status')?.textContent === '已開啟本機資料'", name + " initialization");
+        await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", name + " initialization");
         var main = window.WebView.CoreWebView2;
         if (name == "small")
         {

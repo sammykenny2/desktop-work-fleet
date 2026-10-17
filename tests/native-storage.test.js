@@ -55,9 +55,9 @@ nativeTest('native reset deletes the profile workspace, journal and attachments,
   const host = await session(); const area = { x: 0, y: 0, width: 1000, height: 800 };
   try {
     const workspace = await Workspace.create({ profileId: 'local', deviceId: 'reset-native', area, persist: (state, revision) => host.storage.save(state, revision) });
-    const payload = new TextEncoder().encode('reset attachment 中文'); const digest = await sha256(payload);
+    const payload = new TextEncoder().encode('reset attachment'); const digest = await sha256(payload);
     await host.storage.putAttachmentBytes('local', digest, payload);
-    await workspace.createCard({ format: 'markdown', text: '重設前的便箋', attachments: [{ id: digest, size: payload.length, name: 'a.txt' }] });
+    await workspace.createCard({ format: 'markdown', text: 'Note before the reset', attachments: [{ id: digest, size: payload.length, name: 'a.txt' }] });
     await host.storage.saveJournal({ profileId: 'local', revision: 0 }, null);
     await assert.rejects(host.storage.reset('other'), { code: 'invalid-profile' });
     await host.storage.reset('local');
@@ -98,7 +98,7 @@ nativeTest('native automatic encryption, retention and directory/key grants surv
   try {
     const workspace = await Workspace.create({ profileId: 'local', deviceId: 'backup-native', area: { x: 0, y: 0, width: 1000, height: 800 },
       persist: (state, revision) => host.storage.save(state, revision) });
-    const payload = new TextEncoder().encode('backup attachment 中文'); const digest = await sha256(payload);
+    const payload = new TextEncoder().encode('backup attachment'); const digest = await sha256(payload);
     await host.storage.putAttachmentBytes('local', digest, payload);
     const card = await workspace.createCard({ format: 'markdown', text: '# Native backup\n- [ ] retain', attachments: [{ id: digest, size: payload.length, name: '中文.txt' }] });
     const draft = workspace.blankDraft(card.groupId, card); draft.content.text += '\nunsaved editor'; await workspace.saveDraft(draft);

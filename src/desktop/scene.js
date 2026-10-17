@@ -6,11 +6,12 @@ import { DesktopClient, DesktopDraft } from './client.js';
 import { download, parse } from './transport.js';
 import { shortcutForEvent } from '../core/shortcuts.js';
 import { createFrameRefresher } from './frame-refresh.js';
+import { getLocale, localizeDocument, setLocale, t } from '../i18n/index.js';
 
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set(); const fitter = paperFitter();
 let bridge, client, info, frame, editor = null, composing = false, gesture = null, lastError, displayPending = false;
-let repaintPending = false;
+let repaintPending = false; let drawnLocale = null;
 const make = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const rect = (node, value) => Object.assign(node.style, { left: `${value.x}px`, top: `${value.y}px`, width: `${value.width}px`, height: `${value.height}px` });
 const report = error => {
@@ -28,7 +29,7 @@ function captureIntent() {
 }
 async function saveDraft() {
   if (!editor || composing) return;
-  const current = editor; draftStatus('正在保存草稿…'); await current.flush(); if (editor === current) draftStatus('草稿已存本機');
+  const current = editor; draftStatus(t('desktop.draft.saving')); await current.flush(); if (editor === current) draftStatus(t('desktop.draft.saved'));
 }
 async function editAction(method) {
   if (!editor || composing) return;
@@ -39,7 +40,14 @@ function updateFrozen() { const input = root.querySelector('textarea'); if (inpu
 function render(next) {
   if (next.sessionId !== info.sessionId || frame && next.sequence <= frame.sequence) return false;
   const active = next.editor?.viewId === info.viewId ? next.editor : null;
-  if (editor && editor.draftId !== active?.draftId && (editor.dirty || composing)) throw new Error('仍有未確認輸入，保留目前文字；請重試保存或複製文字。');
+  if (editor && editor.draftId !== active?.draftId && (editor.dirty || composing)) throw new Error(t('errors.desktop.unconfirmedInput'));
+  // The scene shows the main window's language: every frame carries the owner's locale. Nodes that outlive a frame
+  // follow a change here; buttons and region labels are rebuilt below, and status lines keep theirs until updated.
+  setLocale(next.locale); const relocalized = drawnLocale !== getLocale();
+  if (relocalized) {
+    localizeDocument(); renderAdjustOverlay(false);
+    root.querySelector('.inline-editor')?.setAttribute('aria-label', t('desktop.editor.label'));
+  }
   if (!active) { editor = null; frozen.clear(); }
   else if (!editor || editor.draftId !== active.draftId) editor = new DesktopDraft(client, active);
   frame = next; status.hidden = true;
@@ -74,7 +82,7 @@ function render(next) {
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {
         item.disposeAttachments?.(); item.disposeAttachments = null; item.filesKey = null; item.files.hidden = true;
-        item.editorId = editor.draftId; const input = make('textarea', undefined, 'inline-editor'); input.value = editor.text; input.setAttribute('aria-label', '就地編輯便箋');
+        item.editorId = editor.draftId; const input = make('textarea', undefined, 'inline-editor'); input.value = editor.text; input.setAttribute('aria-label', t('desktop.editor.label'));
         input.oninput = () => { editor.text = input.value; if (!composing) void run(saveDraft); };
         input.addEventListener('compositionstart', () => { composing = true; });
         input.addEventListener('compositionend', () => { composing = false; editor.text = input.value; void run(saveDraft); });
@@ -84,15 +92,17 @@ function render(next) {
             event.preventDefault(); event.stopPropagation(); void run(() => editAction(event.key === 'Escape' ? 'editor.end' : 'editor.save'));
           }
         };
-        body.replaceChildren(input, make('div', '草稿已存本機', 'draft-state'));
+        body.replaceChildren(input, make('div', t('desktop.draft.saved'), 'draft-state'));
         queueMicrotask(() => { if (input.isConnected) input.focus(); });
       }
       updateFrozen();
-      actions.replaceChildren(button('重試保存', saveDraft), button('完整編輯', () => editAction('editor.full')), button('保存', () => editAction('editor.save')));
+      actions.replaceChildren(button(t('desktop.editor.retrySave'), saveDraft), button(t('desktop.editor.full'), () => editAction('editor.full')),
+        button(t('common.save'), () => editAction('editor.save')));
     } else {
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
       const missingChanged = item.files.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;
-      if (item.editorId || item.filesKey !== filesKey || missingChanged) {
+      // Attachment tiles and rendered text carry catalog labels, so a language change draws them again.
+      if (relocalized || item.editorId || item.filesKey !== filesKey || missingChanged) {
         item.disposeAttachments?.(); item.filesKey = filesKey; item.attachmentRevision = next.workspaceRevision;
         item.files.hidden = !card.attachments?.length;
         const args = file => ({ cardId: card.id, revision: card.revision, attachmentId: file.id });
@@ -103,16 +113,17 @@ function render(next) {
         for (const tile of item.files.querySelectorAll('button')) tile.disabled = !card.interactive;
         fitTiles(item.files);
       }
-      const changed = item.editorId || item.text !== card.text;
+      const changed = relocalized || item.editorId || item.text !== card.text;
       if (changed) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; }
       // A paper that starts or stops taking the mouse starts or stops scrolling, so its "…" goes or comes.
       if (changed || item.interactive !== card.interactive) fitText(body);
       item.interactive = card.interactive;
       actions.replaceChildren();
-      if (card.draggable) actions.append(button('編輯', () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
+      if (card.draggable) actions.append(button(t('desktop.card.edit'), () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
     }
     if (gesture?.cardId === card.id && gesture.preview) rect(paper, gesture.preview);
   });
+  drawnLocale = getLocale();
   return true;
 }
 // Where adjust mode is a modal overlay (every desktop host), the topmost scene tints its whole area and carries
@@ -121,11 +132,11 @@ function renderAdjustOverlay(on) {
   const shown = document.querySelector('.adjust-overlay');
   if (!on) { shown?.remove(); document.querySelector('.adjust-tools')?.remove(); return; }
   if (shown) return;
-  const tools = make('div', undefined, 'adjust-tools'); tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', '調整便箋');
+  const tools = make('div', undefined, 'adjust-tools'); tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', t('desktop.adjust.toolbar'));
   const arrange = kind => client.command('layout.arrange', { kind });
-  const done = button('完成', async () => { await saveDraft(); await client.command('interaction.done', {}); }); done.classList.add('primary');
-  tools.append(make('span', '調整位置', 'adjust-title'), button('堆疊', () => arrange('stack')), button('攤開', () => arrange('spread')),
-    button('復原', () => arrange('undo')), done);
+  const done = button(t('common.done'), async () => { await saveDraft(); await client.command('interaction.done', {}); }); done.classList.add('primary');
+  tools.append(make('span', t('desktop.adjust.title'), 'adjust-title'), button(t('desktop.adjust.stack'), () => arrange('stack')),
+    button(t('desktop.adjust.spread'), () => arrange('spread')), button(t('desktop.adjust.undo'), () => arrange('undo')), done);
   document.body.prepend(make('div', undefined, 'adjust-overlay')); document.body.append(tools);
 }
 // A notice is drawn once per id, so later frames carrying the same notice do not restart its fade.
@@ -181,8 +192,10 @@ async function cancel() {
   }
 }
 async function initialize() {
+  // English until the first frame brings the main window's locale.
+  localizeDocument();
   const transport = nativeTransport();
-  if (!transport) throw new Error('桌面視窗需由 Work Fleet 原生 App 開啟。');
+  if (!transport) throw new Error(t('errors.desktop.nativeOnly'));
   bridge = new NativeBridge(transport); info = await bridge.request('scene.info'); client = new DesktopClient(bridge, info);
   root.style.transform = `translate(${-info.viewport.x}px, ${-info.viewport.y}px)`;
   bridge.onEvent('desktop-frame', () => { void run(refresh); });
@@ -210,7 +223,7 @@ async function initialize() {
   bridge.onEvent('desktop-unfreeze', message => { if (message.resume && message.draftId === editor?.draftId) frozen.delete(message.id); updateFrozen(); });
   bridge.onEvent('desktop-flush', message => { void run(async () => {
     frozen.add(message.id); updateFrozen(); let ok = false;
-    try { if (!editor || editor.draftId !== message.draftId || composing) throw new Error('請先完成目前輸入。'); await saveDraft(); ok = true; }
+    try { if (!editor || editor.draftId !== message.draftId || composing) throw new Error(t('errors.desktop.finishInput')); await saveDraft(); ok = true; }
     catch (error) { report(error); }
     await bridge.request('scene.flushed', { id: message.id, draftId: message.draftId, sequence: editor?.sequence || 0, ok });
   }); });

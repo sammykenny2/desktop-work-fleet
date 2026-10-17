@@ -1,6 +1,7 @@
 import { FleetError, requireValue } from '../core/contracts.js';
 import { sha256 } from '../sources/files.js';
 import { BACKUP_LIMITS, checkCancelled } from './archive.js';
+import { t } from '../i18n/index.js';
 
 export function backupFilename(now = new Date()) {
   return `work-fleet-backup-${now.toISOString().replace(/[:.]/g, '-')}-${crypto.randomUUID().slice(0, 8)}.zip`;
@@ -9,7 +10,7 @@ export function backupFilename(now = new Date()) {
 /** FileSystemFileHandle adapter; success requires close and a matching readback, not merely a queued write. */
 export async function saveBackupToHandle(handle, { bytes, signal, progress = () => {} }) {
   requireValue(bytes instanceof Uint8Array && bytes.length <= BACKUP_LIMITS.encryptedBytes,
-    'backup-limit', '備份檔案超過容量上限。');
+    'backup-limit', t('errors.backup.fileTooLarge'));
   bytes = new Uint8Array(bytes); checkCancelled(signal);
   const writable = await handle.createWritable();
   let publishing = false;
@@ -22,14 +23,14 @@ export async function saveBackupToHandle(handle, { bytes, signal, progress = () 
     // close publishes the file. Once this boundary starts, finish verification even if a late abort arrives.
     progress({ phase: 'save-commit', completed: bytes.length, total: bytes.length });
     publishing = true; await writable.close(); const file = await handle.getFile();
-    requireValue(file.size === bytes.length, 'backup-save-integrity', '檔案已寫入，但讀回大小不符，尚未確認備份成功。');
+    requireValue(file.size === bytes.length, 'backup-save-integrity', t('errors.backup.saveSizeMismatch'));
     requireValue(await sha256(new Uint8Array(await file.arrayBuffer())) === await sha256(bytes),
-      'backup-save-integrity', '檔案已寫入，但讀回校驗失敗，尚未確認備份成功。');
+      'backup-save-integrity', t('errors.backup.saveChecksumMismatch'));
     return { saved: true, receipt: crypto.randomUUID() };
   } catch (error) {
     try { await writable.abort(); } catch { /* Already closed or failed: there is no rollback promise. */ }
     if (publishing && error.code !== 'backup-save-integrity') throw new FleetError('backup-save-unconfirmed',
-      '檔案可能已寫入，但保存或讀回未完成。請檢查目的檔後重試，尚未確認備份成功。');
+      t('errors.backup.saveIncomplete'));
     throw error;
   }
 }
@@ -40,10 +41,10 @@ export function browserBackupFiles() {
     // Called directly in the click handler, before compression/KDF can consume transient user activation.
     async chooseDestination({ suggestedName = backupFilename(), requireConfirmed = false } = {}) {
       if (typeof globalThis.showSaveFilePicker === 'function') {
-        const handle = await globalThis.showSaveFilePicker({ suggestedName, types: [{ description: 'Work Fleet 備份', accept: { 'application/zip': ['.zip'] } }] });
+        const handle = await globalThis.showSaveFilePicker({ suggestedName, types: [{ description: t('backup.file.description'), accept: { 'application/zip': ['.zip'] } }] });
         return { save: value => saveBackupToHandle(handle, value) };
       }
-      requireValue(!requireConfirmed, 'backup-save-unavailable', '此環境只能交付下載，請使用支援確認保存的 App 或瀏覽器後再取代。');
+      requireValue(!requireConfirmed, 'backup-save-unavailable', t('errors.backup.saveUnconfirmable'));
       return { save: async ({ bytes, signal }) => {
         checkCancelled(signal); const url = URL.createObjectURL(new Blob([bytes], { type: 'application/zip' }));
         const link = document.createElement('a'); link.href = url; link.download = suggestedName;

@@ -11,6 +11,7 @@ mkdir -p "$ROOT/build"
 OUTPUT="$(mktemp -d "$ROOT/build/macos-layer-checks-XXXXXXXX")"
 xcrun swiftc -parse-as-library -swift-version 5 \
     src/native/apple/Shared/FleetProtocol.swift \
+    src/native/apple/Shared/FleetText.swift \
     src/native/apple/macos/FleetSceneProtocol.swift \
     src/native/apple/macos/FleetSceneSurface.swift \
     src/native/apple/macos/FleetShortcuts.swift \

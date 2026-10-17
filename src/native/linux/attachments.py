@@ -18,7 +18,7 @@ EXECUTABLE = {".exe", ".com", ".bat", ".cmd", ".ps1", ".msi", ".msp", ".scr", ".
 
 
 def filename(name):
-    p.require(isinstance(name, str) and name.strip() and len(name) <= 240, "invalid-attachment", "附件檔名無效。")
+    p.require(isinstance(name, str) and name.strip() and len(name) <= 240, "invalid-attachment", "The attachment file name isn't valid.")
     clean = "".join("_" if char in '\\/:*?"<>|' or ord(char) < 32 or ord(char) == 127 else char for char in name).strip(". ")
     if len(clean.encode("utf-8")) > 180:
         suffix = Path(clean).suffix
@@ -40,13 +40,13 @@ class AttachmentFiles:
 
     def invoke(self, data, name, open_file=False):
         with self.lock:
-            p.require(not self.closed, "native-closed", "附件工作階段已結束。")
+            p.require(not self.closed, "native-closed", "The attachment session has ended.")
             name = filename(name)
-            p.require(isinstance(data, bytes) and len(data) <= p.ATTACHMENT, "attachment-capacity", "附件超過容量上限。")
+            p.require(isinstance(data, bytes) and len(data) <= p.ATTACHMENT, "attachment-capacity", "The attachment is larger than the size limit.")
             key = (hashlib.sha256(data).hexdigest(), name)
             if not open_file and key in self.previews:
                 return self.previews[key]
-            p.require(not open_file or Path(name).suffix.lower() not in EXECUTABLE, "attachment-not-document", "此類檔案請先匯出，再自行選擇開啟方式。")
+            p.require(not open_file or Path(name).suffix.lower() not in EXECUTABLE, "attachment-not-document", "Export this kind of file first, then choose how to open it.")
             folder = Path(tempfile.mkdtemp(dir=self.root))
             file = folder / name
             file.write_bytes(data)
@@ -54,17 +54,17 @@ class AttachmentFiles:
             if open_file:
                 self.copies.append(folder)
                 try:
-                    p.require(self.launch(file), "attachment-open", "無法開啟附件，請確認已安裝對應的應用程式。")
+                    p.require(self.launch(file), "attachment-open", "The attachment couldn't be opened. Check that an app for it is installed.")
                 except p.Failure:
                     raise
                 except Exception as error:
-                    raise p.Failure("attachment-open", "無法開啟附件，請確認已安裝對應的應用程式。") from error
+                    raise p.Failure("attachment-open", "The attachment couldn't be opened. Check that an app for it is installed.") from error
                 return {"opened": True}
         try:
             png = self.render(file)
             result = {"available": True, "png": base64.b64encode(png).decode("ascii") if png and len(png) <= 256 * 1024 else None}
             with self.lock:
-                p.require(not self.closed, "stale-session", "附件工作階段已結束。")
+                p.require(not self.closed, "stale-session", "The attachment session has ended.")
                 if len(self.previews) >= 64:
                     self.previews.pop(next(iter(self.previews)))
                 self.previews[key] = result

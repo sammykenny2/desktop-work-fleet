@@ -2,6 +2,8 @@
 import gi
 from gi.repository import Gtk
 
+from text import t
+
 
 class Tray:
     def __init__(self, app_id, main, action, quit_app, menu_active, icon=None, reveal=None, update=None, changed=None):
@@ -10,18 +12,17 @@ class Tray:
         self.available = self.closed = self.ever_connected = False
         self.indicator = self.icon = None
         self.menu = Gtk.Menu()
-        for title, target in (("開啟 Work Fleet", "show"), ("快速記錄", "@capture"), ("調整所有群組", "@all"), ("顯示／隱藏桌面便箋", "@toggle")):
-            item = Gtk.MenuItem.new_with_label(title)
+        # Each item keeps its text.py key, so a language change relabels the menu in place.
+        self.items = []
+        for key, target in (("tray.open", "show"), ("tray.quickCapture", "@capture"), ("tray.adjustAll", "@all"), ("tray.toggleDesktop", "@toggle")):
+            item = self.item(key)
             item.connect("activate", lambda _item, value=target: self.dispatch(value))
-            self.menu.append(item)
         if update is not None:
-            update_item = Gtk.MenuItem.new_with_label("檢查更新…")
+            update_item = self.item("tray.checkUpdates")
             update_item.connect("activate", lambda *_: (self.menu_active(False), update()))
-            self.menu.append(update_item)
         self.menu.append(Gtk.SeparatorMenuItem())
-        quit_item = Gtk.MenuItem.new_with_label("保存並結束")
+        quit_item = self.item("tray.saveAndQuit")
         quit_item.connect("activate", lambda *_: (self.menu_active(False), quit_app()))
-        self.menu.append(quit_item)
         self.menu.connect("show", lambda *_: self.menu_active(True))
         self.menu.connect("hide", lambda *_: self.menu_active(False))
         self.menu.show_all()
@@ -53,6 +54,19 @@ class Tray:
             self.icon.set_visible(True)
             # Embedding is asynchronous: the start only records it, and a hidden sign-in start waits for it (ADR-043).
             self.available = self.ever_connected = self.icon.is_embedded()
+
+    def item(self, key):
+        item = Gtk.MenuItem.new_with_label(t(key))
+        self.items.append((item, key))
+        self.menu.append(item)
+        return item
+
+    def relabel(self):
+        """Redraws the menu in the current display language; the indicator exports label changes by itself."""
+        if self.closed:
+            return
+        for item, key in self.items:
+            item.set_label(t(key))
 
     def connection(self, connected):
         if self.closed:

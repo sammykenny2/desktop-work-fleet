@@ -5,6 +5,7 @@ import { createBackup } from './payload.js';
 import { BACKUP_LIMITS, checkCancelled } from './archive.js';
 import { validateEncryptedBackup } from './encryption.js';
 import { schemas, requireSchemaVersion } from '../core/schema.js';
+import { t } from '../i18n/index.js';
 
 const DAY = 24 * 60 * 60 * 1000;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -16,7 +17,7 @@ const validJob = job => job && uuidPattern.test(job.id) && uuidPattern.test(job.
   && validDigest(job.sha256) && integer(job.size) && job.size > 0 && job.size <= BACKUP_LIMITS.encryptedBytes;
 
 export function validateAutomaticJob(job) {
-  requireValue(validJob(job), 'invalid-backup-job', '自動備份工作無效，未操作檔案。'); return job;
+  requireValue(validJob(job), 'invalid-backup-job', t('errors.backup.jobInvalid')); return job;
 }
 
 export function validateAutomaticState(state, profileId) {
@@ -25,19 +26,19 @@ export function validateAutomaticState(state, profileId) {
     && typeof state.enabled === 'boolean' && typeof state.paused === 'boolean' && integer(state.failures) && integer(state.nextAttemptAt)
     && Array.isArray(state.inventory) && state.inventory.length <= 10000
     && state.inventory.every(item => validJob(item) && ['verified', 'unconfirmed'].includes(item.status))
-    && (!state.pending || validJob(state.pending)), 'invalid-backup-journal', '自動備份紀錄無效，未寫入或清理檔案。');
+    && (!state.pending || validJob(state.pending)), 'invalid-backup-journal', t('errors.backup.journalInvalid'));
   const settings = state.settings;
   requireValue(settings === null || (uuidPattern.test(settings.scheduleId) && uuidPattern.test(settings.policyId) && reference(settings.destinationId)
     && typeof settings.destinationName === 'string' && settings.destinationName.length <= 1024
     && typeof settings.encrypted === 'boolean' && (settings.encrypted ? reference(settings.keyId) : settings.keyId === null)
     && Number.isInteger(settings.keep) && settings.keep >= 1 && settings.keep <= 90),
-  'invalid-backup-journal', '自動備份設定無效，未寫入或清理檔案。');
+  'invalid-backup-journal', t('errors.backup.journalSettingsInvalid'));
   requireValue((!state.enabled || settings) && (!state.lastSuccess || (validJob(state.lastSuccess) && integer(state.lastSuccess.savedAt)))
     && (!state.lastFailure || (typeof state.lastFailure.code === 'string' && state.lastFailure.code.length <= 128
       && typeof state.lastFailure.message === 'string' && state.lastFailure.message.length <= 2048 && integer(state.lastFailure.failedAt)))
     && new Set(state.inventory.map(item => item.id)).size === state.inventory.length
     && (!state.pending || !state.inventory.some(item => item.id === state.pending.id)),
-  'invalid-backup-journal', '自動備份身分或成功紀錄無效。');
+  'invalid-backup-journal', t('errors.backup.journalIdentityInvalid'));
   return state;
 }
 
@@ -67,15 +68,15 @@ export class AutomaticBackup {
   #pause(error) {
     this.#runtimePaused = true; this.#phase = 'idle';
     this.#transientError = { code: String(error.code || 'backup-journal-unavailable').slice(0, 128),
-      message: String(error.message || '無法讀取或保存備份紀錄。').slice(0, 2048), failedAt: Date.now() };
+      message: String(error.message || t('errors.backup.journalUnavailable')).slice(0, 2048), failedAt: Date.now() };
     this.#announce();
   }
-  #clock() { const value = this.#now(); requireValue(integer(value), 'backup-clock', '系統時間無效。'); return value; }
+  #clock() { const value = this.#now(); requireValue(integer(value), 'backup-clock', t('errors.backup.clockInvalid')); return value; }
   #fresh() {
     const id = this.#uuid(); requireValue(uuidPattern.test(id) && !this.#issued.has(id) && id !== this.#state.settings?.scheduleId
       && id !== this.#state.settings?.policyId
       && id !== this.#state.pending?.id && !this.#state.inventory.some(item => item.id === id || item.scheduleId === id),
-    'backup-id-collision', '備份工作身分重複，未寫入檔案。'); this.#issued.add(id); return id;
+    'backup-id-collision', t('errors.backup.jobIdCollision')); this.#issued.add(id); return id;
   }
   #queue(work) {
     const operation = this.#tail.then(async () => {
@@ -91,8 +92,8 @@ export class AutomaticBackup {
   async #reload() {
     const state = await this.#journal.load(this.#state.profileId);
     if (state) { this.#state = copy(validateAutomaticState(state, this.#state.profileId)); this.#persisted = true; }
-    else requireValue(!this.#persisted, 'backup-journal-missing', '自動備份紀錄遺失，請重新開啟工作空間。');
-    requireValue(this.#workspace.state.profileId === this.#state.profileId, 'backup-profile', '備份帳號已切換。');
+    else requireValue(!this.#persisted, 'backup-journal-missing', t('errors.backup.journalMissing'));
+    requireValue(this.#workspace.state.profileId === this.#state.profileId, 'backup-profile', t('errors.common.backupProfileChanged'));
   }
   async #save(patch) {
     const expected = this.#persisted ? this.#state.revision : null;
@@ -110,9 +111,9 @@ export class AutomaticBackup {
     settings = copy(settings);
     return this.#queue(async () => {
       requireValue(settings && Object.keys(settings).every(key => ['destinationId', 'destinationName', 'encrypted', 'keyId', 'keep'].includes(key)),
-        'invalid-backup-setting', '未知自動備份設定。');
-      requireValue(this.#files.canCreate === true, 'backup-create-unavailable', '此環境沒有安全建立新檔的能力，自動備份尚無法啟用。');
-      requireValue(!settings.encrypted || this.#vault?.available === true, 'backup-vault-unavailable', '此環境尚無安全密碼儲存，不能啟用加密排程。');
+        'invalid-backup-setting', t('errors.backup.settingUnknown'));
+      requireValue(this.#files.canCreate === true, 'backup-create-unavailable', t('errors.backup.createUnavailable'));
+      requireValue(!settings.encrypted || this.#vault?.available === true, 'backup-vault-unavailable', t('errors.backup.vaultUnavailable'));
       const sameDestination = settings.destinationId === this.#state.settings?.destinationId;
       const next = { ...settings, keyId: settings.encrypted ? settings.keyId : null,
         scheduleId: sameDestination ? this.#state.settings.scheduleId : this.#fresh(), policyId: this.#fresh() };
@@ -147,7 +148,7 @@ export class AutomaticBackup {
         try { await this.#reload(); } catch (journalError) { this.#pause(journalError); throw journalError; }
         const failedAt = this.#clock(); const failures = Math.min(this.#state.failures + 1, 20);
         const code = String(error.code || (error.name === 'NotAllowedError' ? 'backup-permission' : 'backup-failed')).slice(0, 128);
-        const failure = { code, failedAt, message: String(error.message || '自動備份失敗，現有資料保留。').slice(0, 2048) };
+        const failure = { code, failedAt, message: String(error.message || t('errors.backup.automaticFailed')).slice(0, 2048) };
         this.#transientError = failure;
         try {
           await this.#save({ failures, lastFailure: failure, paused: ['backup-permission', 'backup-key-unavailable', 'backup-vault-unavailable',
@@ -199,14 +200,14 @@ export class AutomaticBackup {
       try { bytes = await this.#files.read({ ...copy(latest), profileId: this.#state.profileId, signal }); }
       catch (error) {
         if (!['backup-file-unowned', 'backup-file-changed'].includes(error.code)) throw error;
-        throw new FleetError('backup-latest-missing', '最新備份已被替換，先保留舊備份並重新建立。');
+        throw new FleetError('backup-latest-missing', t('errors.backup.latestReplaced'));
       }
       requireValue(bytes !== null && bytes.length === latest.size && await sha256(bytes) === latest.sha256,
-        'backup-latest-missing', '最新備份已遺失或被修改，先保留舊備份並重新建立。');
+        'backup-latest-missing', t('errors.backup.latestMissing'));
     }
     for (const job of obsolete) {
       checkCancelled(signal);
-      requireValue(job.id !== this.#state.lastSuccess.id, 'backup-retention', '不能移除最新成功備份。');
+      requireValue(job.id !== this.#state.lastSuccess.id, 'backup-retention', t('errors.backup.retentionLatest'));
       // Adapter must recheck size/hash and exact authorized destination before deleting this single owned file.
       await this.#files.remove({ ...copy(job), profileId: this.#state.profileId, signal });
       await this.#save({ inventory: this.#state.inventory.filter(item => item.id !== job.id) });
@@ -214,7 +215,7 @@ export class AutomaticBackup {
   }
   async #perform(force, signal) {
     checkCancelled(signal);
-    requireValue(this.#files.canCreate === true, 'backup-create-unavailable', '安全建立新檔的能力不可用，自動備份已暫停。');
+    requireValue(this.#files.canCreate === true, 'backup-create-unavailable', t('errors.backup.createPaused'));
     if (await this.#recover(signal)) { await this.#prune(signal); return { kind: 'recovered', saved: copy(this.#state.lastSuccess) }; }
     const previous = this.#state.lastSuccess; const now = this.#clock();
     if (!force && this.#state.lastFailure?.code !== 'backup-latest-missing' && previous?.policyId === this.#state.settings.policyId
@@ -223,12 +224,12 @@ export class AutomaticBackup {
     }
     await this.#flush(); checkCancelled(signal);
     const settings = copy(this.#state.settings); const snapshot = this.#workspace.state;
-    requireValue(snapshot.profileId === this.#state.profileId, 'backup-profile', '備份帳號已切換。');
+    requireValue(snapshot.profileId === this.#state.profileId, 'backup-profile', t('errors.common.backupProfileChanged'));
     const id = this.#fresh(); const backup = await createBackup({ workspace: { state: snapshot }, storage: this.#storage, appVersion: this.#appVersion,
       uuid: () => id, now: () => new Date(now), signal });
     if (settings.encrypted) {
       requireValue(this.#vault?.available === true && typeof this.#vault.encrypt === 'function',
-        'backup-vault-unavailable', '安全密碼儲存無法使用，加密排程已暫停。');
+        'backup-vault-unavailable', t('errors.backup.vaultPaused'));
       const plaintext = backup.bytes;
       try {
         backup.bytes = await this.#vault.encrypt({ profileId: snapshot.profileId, keyId: settings.keyId, bytes: plaintext, signal });
@@ -241,7 +242,7 @@ export class AutomaticBackup {
     checkCancelled(signal); await this.#save({ pending: job });
     const result = await this.#files.create({ ...copy(job), profileId: snapshot.profileId, bytes: backup.bytes, signal });
     requireValue(result?.saved === true && typeof result.receipt === 'string' && result.receipt.length > 0,
-      'backup-not-saved', '尚未確認自動備份已保存；舊備份保留。');
+      'backup-not-saved', t('errors.backup.automaticNotSaved'));
     // The host's irreversible close/readback phase is authoritative even if cancel arrived too late.
     await this.#publish(job); await this.#prune(signal);
     return { kind: 'saved', saved: copy(this.#state.lastSuccess) };

@@ -91,7 +91,7 @@ public sealed class DesktopCoordinator : IDisposable
     displayWatcher = new NativeDisplayWatcher(() => { shell = NativeShellLayers.Discover(); return displayOverride ?? NativeDisplays.Read(); }, InvalidateDisplays, ProposeDisplays, () =>
     {
       if (displayError) return; displayError = true; note?.Invoke("displays unreadable; retrying");
-      sendOwner(new { v = 1, @event = "desktop-error", message = "目前無法讀取顯示器，已保留資料及編輯文字；正在重試。" });
+      sendOwner(new { v = 1, @event = "desktop-error", message = HostText.Get("desktop.displaysUnreadable") });
     });
     displayWatcher.LidChanged += NoteLid; displayWatcher.LidChanged += Release;
     shellWatcher = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(3) };
@@ -147,7 +147,7 @@ public sealed class DesktopCoordinator : IDisposable
     {
       if (view.Initialized && !view.Surface.NativeAlive)
       {
-        Retire(view, "桌面宿主已重新啟動，正在重新建立便箋畫面；資料保留。");
+        Retire(view, HostText.Get("desktop.shellRestarted"));
         view.Surface.Dispose();
       }
       else view.Surface.SuspendInput();
@@ -176,10 +176,10 @@ public sealed class DesktopCoordinator : IDisposable
   {
     var requested = JsonRules.Integer(args, "topology");
     if (requested == topology && !displayPending) return Info();
-    HostError.Require(requested == proposedTopology && proposedDisplays is not null, "desktop-topology", "顯示器已再次變更，正在重新套用版面。");
+    HostError.Require(requested == proposedTopology && proposedDisplays is not null, "desktop-topology", "The displays changed again. Reapplying the layout.");
     var editorId = args.GetProperty("editorViewId");
     var editing = editorId.ValueKind == JsonValueKind.Null ? null : views.FirstOrDefault(v => !v.Retired && v.Id == editorId.GetString());
-    HostError.Require(editorId.ValueKind == JsonValueKind.Null || editing is not null, "desktop-view", "編輯視窗已失聯，請保留最後輸入。");
+    HostError.Require(editorId.ValueKind == JsonValueKind.Null || editing is not null, "desktop-view", "The editing window was disconnected. Keep your last input.");
     var editorRect = editing is null ? null : DesktopFrame.Rect(args.GetProperty("editorRect"));
     var next = proposedDisplays!; var assignments = new List<(SceneView View, DisplayInfo Display)>();
     if (NativeDisplays.Describe(next) != NativeDisplays.Describe(displays)) note?.Invoke($"displays applying topology={requested}");
@@ -205,7 +205,7 @@ public sealed class DesktopCoordinator : IDisposable
       var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && assignments.All(a => a.View != v));
       if (match is null)
       {
-        HostError.Require(views.Count(v => !v.Retired) < 48, "desktop-capacity", "桌面視窗容量已滿，請重新啟動以恢復呈現；資料仍保留。");
+        HostError.Require(views.Count(v => !v.Retired) < 48, "desktop-capacity", "Too many desktop windows are open. Restart Work Fleet to show them again; your data is kept.");
         match = new(slot.Display, slot.Layer, scale); views.Add(match); Watch(match);
       }
       assignments.Add((match, slot.Display));
@@ -250,7 +250,7 @@ public sealed class DesktopCoordinator : IDisposable
       case "desktop.shortcuts.configure":
       {
         var values = args.GetProperty("bindings");
-        HostError.Require(values.ValueKind == JsonValueKind.Array && values.GetArrayLength() <= 32, "shortcut-settings", "此裝置最多設定 32 組快捷鍵。");
+        HostError.Require(values.ValueKind == JsonValueKind.Array && values.GetArrayLength() <= 32, "shortcut-settings", "This device allows at most 32 shortcuts.");
         var next = values.EnumerateArray().Select(b => new ShortcutBinding(JsonRules.Text(b, "key", 80), JsonRules.Text(b, "target", 128))).ToArray();
         shortcuts.Configure(next); bindings = next; activity.Block(shortcutsBlocked || nativeMenu);
         foreach (var view in views.Where(v => v.Ready && !v.Retired)) Post(view, new { v = 1, @event = "desktop-shortcuts", bindings = BindingMap() });
@@ -265,7 +265,7 @@ public sealed class DesktopCoordinator : IDisposable
         return new { accepted = true };
       }
       case "desktop.hideMain":
-        HostError.Require(hideMain?.Invoke() == true, "tray-unavailable", "系統匣目前不可用，主畫面保持開啟。"); return null;
+        HostError.Require(hideMain?.Invoke() == true, "tray-unavailable", "The tray isn't available right now, so the main window stays open."); return null;
       case "desktop.mainVisible":
       {
         // The owner asks only for a main window that had the focus as adjust mode began. Minimized, it keeps its place;
@@ -296,24 +296,24 @@ public sealed class DesktopCoordinator : IDisposable
       }
       case "desktop.command.read":
       {
-        var pending = Pending(args); HostError.Require(pending.Upload is not null, "scene-missing", "此命令沒有大型輸入。");
+        var pending = Pending(args); HostError.Require(pending.Upload is not null, "scene-missing", "This command has no large input.");
         return transfers.Read(pending.View.Id, pending.Upload!, Size(args, SceneTransfers.MaxCommand, "offset"));
       }
       case "desktop.reply":
       {
         var ticket = JsonRules.Text(args, "ticket"); var pending = Pending(args);
-        HostError.Require(args.GetProperty("ok").ValueKind is JsonValueKind.True or JsonValueKind.False, "scene-command", "桌面回覆格式無效。");
+        HostError.Require(args.GetProperty("ok").ValueKind is JsonValueKind.True or JsonValueKind.False, "scene-command", "The desktop reply is malformed.");
         var ok = args.GetProperty("ok").GetBoolean();
         var result = args.TryGetProperty("result", out var value) ? value.Clone() : (JsonElement?)null;
         var error = args.TryGetProperty("error", out value) ? value.Clone() : (JsonElement?)null;
-        HostError.Require(args.GetRawText().Length <= 64 * 1024, "scene-size", "桌面操作回覆過大。");
+        HostError.Require(args.GetRawText().Length <= 64 * 1024, "scene-size", "The desktop reply is too large.");
         Post(pending.View, new { v = 1, @event = "desktop-command-result", commandId = pending.Id, ok, result, error });
         Release(ticket, pending); return null;
       }
       case "desktop.flush":
       {
         var view = View(JsonRules.Text(args, "viewId")); var id = JsonRules.Text(args, "id"); var draft = JsonRules.Text(args, "draftId");
-        HostError.Require(id.Length == 36 && Guid.TryParseExact(id, "D", out _) && flushes.Count < 4 && !flushes.ContainsKey(id), "scene-busy", "桌面草稿仍在保存。");
+        HostError.Require(id.Length == 36 && Guid.TryParseExact(id, "D", out _) && flushes.Count < 4 && !flushes.ContainsKey(id), "scene-busy", "A desktop draft is still being saved.");
         flushes.Add(id, (view, draft)); frozen.Add(id, view); Post(view, new { v = 1, @event = "desktop-flush", id, draftId = draft }); return null;
       }
       case "desktop.flush.cancel": flushes.Remove(JsonRules.Text(args, "id")); return null;
@@ -331,7 +331,7 @@ public sealed class DesktopCoordinator : IDisposable
         if (accepted) { activation = null; focusSequence = null; showMain(); }
         return new { activated = accepted };
       }
-      default: throw new HostError("unsupported-method", "桌面主機沒有此操作。");
+      default: throw new HostError("unsupported-method", "The desktop host doesn't support this operation.");
     }
   }
 
@@ -342,7 +342,7 @@ public sealed class DesktopCoordinator : IDisposable
     {
       if (disposed) return;
       try { await Initialize(view); }
-      catch { Retire(view, "桌面視窗未能啟動，已保存資料仍保留於主畫面。"); }
+      catch { Retire(view, HostText.Get("desktop.sceneStartFailed")); }
     }
   }
   // ADR-046: no scene window exists while held, so a display change cannot reach one inside Explorer.
@@ -410,7 +410,7 @@ public sealed class DesktopCoordinator : IDisposable
       PostRaw(view, Dispatch(view, message));
     };
     core.DownloadStarting += (_, e) => e.Cancel = true;
-    core.ProcessFailed += (_, _) => Retire(view, "桌面畫面程序已停止。最後確認的草稿仍保留，請在主畫面繼續。");
+    core.ProcessFailed += (_, _) => Retire(view, HostText.Get("desktop.sceneStopped"));
     view.Surface.CloseRequested += () => sendOwner(new { v = 1, @event = "desktop-dismiss", viewId = view.Id });
     core.Navigate(NavigationPolicy.DesktopDocument);
   }
@@ -421,15 +421,15 @@ public sealed class DesktopCoordinator : IDisposable
     {
       using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(message)); var request = document.RootElement;
       id = JsonRules.Text(request, "id");
-      HostError.Require(id.Length == 36 && Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1, "scene-command", "桌面協定無效。");
+      HostError.Require(id.Length == 36 && Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1, "scene-command", "The desktop protocol is invalid.");
       var method = JsonRules.Text(request, "method"); var args = request.GetProperty("params");
-      HostError.Require(args.ValueKind == JsonValueKind.Object, "scene-command", "桌面參數無效。");
+      HostError.Require(args.ValueKind == JsonValueKind.Object, "scene-command", "The desktop parameters are invalid.");
       return JsonSerializer.Serialize(new { v = 1, id, ok = true, result = InvokeScene(view, method, args) });
     }
     catch (Exception error)
     {
       return JsonSerializer.Serialize(new { v = 1, id, ok = false,
-        error = new { code = (error as HostError)?.Code ?? "scene-command", message = (error as HostError)?.Message ?? "桌面操作未完成，請保留未保存文字。" } });
+        error = new { code = (error as HostError)?.Code ?? "scene-command", message = (error as HostError)?.Message ?? "The desktop operation didn't finish. Keep your unsaved text." } });
     }
   }
   private object? InvokeScene(SceneView view, string method, JsonElement args)
@@ -465,7 +465,7 @@ public sealed class DesktopCoordinator : IDisposable
       case "scene.prepare":
       {
         if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
-        HostError.Require(view.Downloading?.Sequence == JsonRules.Integer(args, "sequence"), "scene-order", "桌面畫面尚未準備更新。");
+        HostError.Require(view.Downloading?.Sequence == JsonRules.Integer(args, "sequence"), "scene-order", "The desktop frame isn't ready to update.");
         var nextRects = view.Downloading!.Cards.Where(c => c.Layer == view.Layer && Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
         // Remove an Explorer-attached surface before its browser erases or moves papers inside the old opaque region.
         // Otherwise that old region briefly paints the WebView's white background and can remain in the shell surface.
@@ -476,7 +476,7 @@ public sealed class DesktopCoordinator : IDisposable
       {
         var sequence = JsonRules.Integer(args, "sequence");
         if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
-        HostError.Require(view.Downloading?.Sequence == sequence && sequence >= view.Applied, "scene-order", "桌面輸入區域尚未對應已顯示畫面。");
+        HostError.Require(view.Downloading?.Sequence == sequence && sequence >= view.Applied, "scene-order", "The desktop input regions don't match the frame on screen yet.");
         var cards = view.Downloading!.Cards.Where(c => c.Layer == view.Layer).ToArray();
         var zoom = scale / (view.Surface.Dpi / 96d);
         // The adjust overlay takes the clicks on its whole screen, so nothing below reacts while adjusting.
@@ -513,16 +513,16 @@ public sealed class DesktopCoordinator : IDisposable
         else command = args.GetProperty("command").Clone();
         var id = JsonRules.Text(command, "id"); var commandMethod = JsonRules.Text(command, "method");
         HostError.Require(JsonRules.Text(command, "sessionId") == SessionId && id.Length == 36 && Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(command, "serial") > 0,
-          "scene-command", "桌面命令工作階段無效。");
+          "scene-command", "The desktop command session is invalid.");
         HostError.Require(commandMethod is "pointer.down" or "pointer.move" or "pointer.up" or "pointer.cancel" or "card.select" or "card.edit"
           or "card.details" or "card.transfer" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut"
           or "interaction.done" or "layout.arrange",
-          "unsupported-method", "桌面主機沒有此操作。");
+          "unsupported-method", "The desktop host doesn't support this operation.");
         var draft = commandMethod == "editor.change";
         var commandTopology = JsonRules.Integer(args, "topology");
-        HostError.Require(draft || !displayPending && view.Active && commandTopology == topology, "desktop-topology", "桌面座標正在更新，請稍候再操作；目前文字仍保留。");
-        HostError.Require(commands.Values.Count(c => c.Draft == draft) < (draft ? 4 : 24), "scene-busy", "桌面操作仍在處理。");
-        HostError.Require(!commands.Values.Any(c => c.View == view && c.Id == id), "scene-busy", "這個桌面操作已送出。");
+        HostError.Require(draft || !displayPending && view.Active && commandTopology == topology, "desktop-topology", "Desktop positions are updating. Wait a moment and try again; your text is kept.");
+        HostError.Require(commands.Values.Count(c => c.Draft == draft) < (draft ? 4 : 24), "scene-busy", "A desktop operation is still in progress.");
+        HostError.Require(!commands.Values.Any(c => c.View == view && c.Id == id), "scene-busy", "This desktop operation was already sent.");
         var ticket = Guid.NewGuid().ToString(); commands.Add(ticket, new(view, id, upload, draft, DateTime.UtcNow));
         string? intent = null;
         if (commandMethod is "card.details" or "editor.full" or "interaction.shortcut" && args.TryGetProperty("intent", out var tokenIntent)
@@ -543,11 +543,11 @@ public sealed class DesktopCoordinator : IDisposable
       case "scene.flushed":
       {
         var id = JsonRules.Text(args, "id");
-        HostError.Require(flushes.TryGetValue(id, out var pending) && pending.View == view && pending.Draft == JsonRules.Text(args, "draftId"), "scene-flush", "草稿保存請求已失效。");
+        HostError.Require(flushes.TryGetValue(id, out var pending) && pending.View == view && pending.Draft == JsonRules.Text(args, "draftId"), "scene-flush", "The draft save request has expired.");
         var ok = args.GetProperty("ok").GetBoolean(); var sequence = JsonRules.Integer(args, "sequence");
         flushes.Remove(id); sendOwner(new { v = 1, @event = "desktop-flushed", id, viewId = view.Id, draftId = pending.Draft, ok, sequence }); return null;
       }
-      default: throw new HostError("unsupported-method", "桌面表面沒有儲存或系統操作權限。");
+      default: throw new HostError("unsupported-method", "Desktop surfaces can't use storage or system operations.");
     }
   }
   private static bool Intersects(LogicalRect a, LogicalRect b) => a.X < b.X + b.Width && a.X + a.Width > b.X && a.Y < b.Y + b.Height && a.Y + a.Height > b.Y;
@@ -562,8 +562,8 @@ public sealed class DesktopCoordinator : IDisposable
     return true;
   }
   private static int Size(JsonElement args, int max, string key = "size") => (int)JsonRules.Integer(args, key, max);
-  private SceneView View(string id) => views.FirstOrDefault(v => v.Id == id && v.Ready && !v.Retired) ?? throw new HostError("desktop-view", "桌面視窗已關閉或尚未就緒。");
-  private PendingCommand Pending(JsonElement args) => commands.TryGetValue(JsonRules.Text(args, "ticket"), out var value) ? value : throw new HostError("scene-command", "桌面操作已失效。");
+  private SceneView View(string id) => views.FirstOrDefault(v => v.Id == id && v.Ready && !v.Retired) ?? throw new HostError("desktop-view", "The desktop window is closed or not ready yet.");
+  private PendingCommand Pending(JsonElement args) => commands.TryGetValue(JsonRules.Text(args, "ticket"), out var value) ? value : throw new HostError("scene-command", "The desktop operation has expired.");
   private void Release(string ticket, PendingCommand command)
   {
     commands.Remove(ticket); if (command.Upload is not null) transfers.Drop(command.View.Id, command.Upload);

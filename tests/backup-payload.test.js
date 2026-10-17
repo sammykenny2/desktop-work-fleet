@@ -20,29 +20,29 @@ async function fixture() {
     uuid: () => `id-${++sequence}`, persist: async (state, revision) => {
       assert.equal(disk?.revision ?? null, revision); disk = copy(state); writes++;
     } });
-  const bytes = new TextEncoder().encode('附件 中文 💡\u0000<svg onload="alert(1)">'); const id = await sha256(bytes);
+  const bytes = new TextEncoder().encode('attachment 中文 💡\u0000<svg onload="alert(1)">'); const id = await sha256(bytes);
   const blobs = new Map([[id, new Blob([bytes])]]);
   const storage = { getAttachment: async (profile, key) => {
     reads.push([profile, key]); assert.equal(profile, 'private-profile-a'); return blobs.get(key) ?? null;
   } };
-  const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('群組 B');
-  const content = { format: 'markdown', title: '', text: '# 中文 💡\n- [x] 已做\n- [ ] 未做\n',
+  const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('Group B');
+  const content = { format: 'markdown', title: '', text: '# 中文 💡\n- [x] Done\n- [ ] Not done\n',
     attachments: [{ id, name: '../名字.svg', mediaType: 'image/svg+xml', size: bytes.length, extension: { retained: true } }],
     unknown: { nested: ['preserved', false, null] } };
   const card = await workspace.createCard(content, a.id);
   await workspace.updateCard(card.id, { completed: true, archived: true }, card.revision);
-  const deleted = await workspace.createCard({ format: 'future-rich-format', text: '可恢復刪除', opaque: [1, 2] }, b.id);
+  const deleted = await workspace.createCard({ format: 'future-rich-format', text: 'Recoverable deletion', opaque: [1, 2] }, b.id);
   await workspace.updateCard(deleted.id, { deleted: true }, deleted.revision);
   await workspace.layout.placeNew(workspace.snapshot, [area]);
   await workspace.layout.setCardPolicy(card.id, { visible: false });
   await workspace.layout.setGroupLayer(b.id, 'wallpaper', workspace.snapshot);
   await workspace.layout.configure({ myGroupId: a.id, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } }, workspace.snapshot);
   const draft = workspace.blankDraft(a.id, workspace.snapshot.cards.find(item => item.id === card.id));
-  draft.content.text = '尚未保存的原稿'; await workspace.saveDraft(draft);
-  const recovered = { ...copy(draft), id: 'recovered-draft', content: { ...content, text: '恢復分支' },
+  draft.content.text = 'Unsaved original'; await workspace.saveDraft(draft);
+  const recovered = { ...copy(draft), id: 'recovered-draft', content: { ...content, text: 'Recovered branch' },
     recoveredFrom: [{ id: draft.id, baseline: JSON.stringify(draft) }] };
   await workspace.saveDraft(recovered);
-  const blank = workspace.blankDraft(b.id); blank.content.text = '未曾建立便箋'; await workspace.saveDraft(blank);
+  const blank = workspace.blankDraft(b.id); blank.content.text = 'Never became a note'; await workspace.saveDraft(blank);
   await workspace.mergeGroup(workspace.previewGroupMerge(a.id, b.id));
   return { workspace, storage, blobs, bytes, id, card, a, b, reads, disk: () => copy(disk), writes: () => writes,
     export: overrides => createBackup({ workspace, storage, ...options, ...overrides }) };
@@ -80,7 +80,7 @@ test('full local snapshot retains history, all card/group states, drafts, attach
 test('parallel branches, pending dependencies, transfer intent and unknown value extensions survive without inventing data', async () => {
   const f = await fixture(); const card = f.workspace.snapshot.cards.find(item => item.id === f.card.id);
   const session = await f.workspace.beginSync('private-source-id');
-  const root = revisionRecord('card', { ...card, revision: 'parallel-root', content: { ...card.content, text: '另一分支' }, future: { x: 1 } });
+  const root = revisionRecord('card', { ...card, revision: 'parallel-root', content: { ...card.content, text: 'Another branch' }, future: { x: 1 } });
   const pending = revisionRecord('card', { ...card, id: 'pending-card', revision: 'pending-revision' }, ['not-received-parent']);
   await f.workspace.receiveRevisions([root, pending], { session, expectedCursor: null, cursor: 'private-cursor' });
   const state = f.workspace.state;

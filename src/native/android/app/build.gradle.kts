@@ -92,7 +92,7 @@ val buildWebAssets = tasks.register<WebAssetsTask>("buildWebAssets") {
     workingDir(repositoryRoot)
     assetsDirectory.set(layout.buildDirectory.dir("generated/web-assets"))
     inputs.files(repositoryRoot.resolve("scripts/build-web.mjs"), repositoryRoot.resolve("scripts/config.mjs"), repositoryRoot.resolve("package.json"), repositoryRoot.resolve("package-lock.json"), repositoryRoot.resolve("LICENSE"), repositoryRoot.resolve("THIRD-PARTY-NOTICES.md"))
-    for (folder in listOf("app", "core", "layout", "interaction", "storage", "sources", "backup", "desktop")) {
+    for (folder in listOf("app", "core", "layout", "interaction", "storage", "sources", "backup", "desktop", "i18n")) {
         inputs.dir(repositoryRoot.resolve("src/$folder"))
     }
     for (name in listOf("bridge.js", "files.js", "capture.js", "shortcuts.js", "google.js")) {

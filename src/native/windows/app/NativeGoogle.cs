@@ -38,15 +38,15 @@ public sealed class NativeGoogle : IDisposable
       if (google.TryGetProperty("secrets", out var secrets) && secrets.TryGetProperty("windows", out var secret)) clientSecret = secret.GetString() ?? "";
     }
     else clientId = "";
-    HostError.Require(clientId.Length == 0 || Regex.IsMatch(clientId, "^[a-zA-Z0-9-]+\\.apps\\.googleusercontent\\.com$"), "google-config", "Google client ID 設定無效。");
-    HostError.Require(Regex.IsMatch(clientSecret, "^[!-~]{0,256}$"), "google-config", "Google client secret 設定無效。");
+    HostError.Require(clientId.Length == 0 || Regex.IsMatch(clientId, "^[a-zA-Z0-9-]+\\.apps\\.googleusercontent\\.com$"), "google-config", "The Google client ID setting is invalid.");
+    HostError.Require(Regex.IsMatch(clientSecret, "^[!-~]{0,256}$"), "google-config", "The Google client secret setting is invalid.");
     if (profile.StartsWith("google:", StringComparison.Ordinal)) credentials = Load(profile[7..]);
   }
   private static string RandomToken() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
   private static bool Account(string id) => Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,255}$");
   private string CredentialPath(string account)
   {
-    HostError.Require(Account(account), "google-account", "Google 帳號身分無效。");
+    HostError.Require(Account(account), "google-account", "The Google account ID is invalid.");
     return Path.Combine(directory, "google-" + account + ".vault");
   }
   private Credentials? Load(string account)
@@ -80,12 +80,12 @@ public sealed class NativeGoogle : IDisposable
     => path + "?" + Query(fields.Select(p => new KeyValuePair<string, string>(p.Key, p.Value)));
   private async Task<byte[]> Bounded(HttpResponseMessage response, int maximum, CancellationToken cancellation)
   {
-    HostError.Require(response.Content.Headers.ContentLength is null || response.Content.Headers.ContentLength <= maximum, "response-size", "Google 回應超過容量上限。");
+    HostError.Require(response.Content.Headers.ContentLength is null || response.Content.Headers.ContentLength <= maximum, "response-size", "The Google response is too large.");
     await using var stream = await response.Content.ReadAsStreamAsync(cancellation); using var result = new MemoryStream();
     var chunk = new byte[65536]; int length;
     while ((length = await stream.ReadAsync(chunk, cancellation)) > 0)
     {
-      HostError.Require(result.Length + length <= maximum, "response-size", "Google 回應超過容量上限。"); result.Write(chunk, 0, length);
+      HostError.Require(result.Length + length <= maximum, "response-size", "The Google response is too large."); result.Write(chunk, 0, length);
     }
     return result.ToArray();
   }
@@ -97,9 +97,9 @@ public sealed class NativeGoogle : IDisposable
     var bytes = await Bounded(response, 65536, cancellation);
     try
     {
-      HostError.Require(response.IsSuccessStatusCode, "unauthorized", "Google 授權未完成或已失效，請重新登入。");
+      HostError.Require(response.IsSuccessStatusCode, "unauthorized", "Google authorization didn't finish or has expired. Sign in again.");
       using var document = JsonRules.Parse(bytes); var value = document.RootElement;
-      HostError.Require(JsonRules.Text(value, "token_type", 32).Equals("Bearer", StringComparison.OrdinalIgnoreCase), "unauthorized", "Google 授權類型無效。");
+      HostError.Require(JsonRules.Text(value, "token_type", 32).Equals("Bearer", StringComparison.OrdinalIgnoreCase), "unauthorized", "The Google authorization type is invalid.");
       _ = JsonRules.Text(value, "access_token", 8192); _ = JsonRules.Integer(value, "expires_in", 86400);
       return value.Clone();
     }
@@ -107,7 +107,7 @@ public sealed class NativeGoogle : IDisposable
   }
   public async Task<object> SignIn()
   {
-    HostError.Require(Available, "google-config", "請先在 .env 設定 Windows Google client ID 並重新建置。");
+    HostError.Require(Available, "google-config", "Set the Windows Google client ID in .env and rebuild first.");
     await gate.WaitAsync(lifetime.Token);
     var started = Stopwatch.StartNew(); var outcome = "failed"; double? received = null; LoopbackCallback? callback = null;
     try
@@ -123,19 +123,19 @@ public sealed class NativeGoogle : IDisposable
           ["state"] = state, ["code_challenge"] = challenge, ["code_challenge_method"] = "S256", ["access_type"] = "offline", ["prompt"] = "consent select_account" });
         Process.Start(new ProcessStartInfo(auth) { UseShellExecute = true });
         var query = await callback.WaitAsync(cancel); received = started.Elapsed.TotalSeconds;
-        HostError.Require(!query.ContainsKey("error") && query.TryGetValue("code", out var codes) && codes.Length == 1 && codes[0].Length is > 0 and <= 8192, "google-cancelled", "Google 登入已取消或未授權。");
+        HostError.Require(!query.ContainsKey("error") && query.TryGetValue("code", out var codes) && codes.Length == 1 && codes[0].Length is > 0 and <= 8192, "google-cancelled", "Google sign-in was canceled or not authorized.");
         var code = query["code"][0];
         var tokens = await Token(new() { ["client_id"] = clientId, ["code"] = code, ["code_verifier"] = verifier,
           ["redirect_uri"] = redirect, ["grant_type"] = "authorization_code" }, cancel);
         var access = JsonRules.Text(tokens, "access_token", 8192);
         var scopes = JsonRules.Text(tokens, "scope", 4096).Split(' ');
-        HostError.Require(scopes.Contains(DriveScope) && scopes.Contains("openid"), "source-permission", "請授權 Work Fleet 的 Google 身分及 App 資料同步。");
+        HostError.Require(scopes.Contains(DriveScope) && scopes.Contains("openid"), "source-permission", "Allow Work Fleet to use your Google identity and sync its app data.");
         using var identityRequest = new HttpRequestMessage(HttpMethod.Get, "https://openidconnect.googleapis.com/v1/userinfo");
         identityRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access);
         using var identityResponse = await http.SendAsync(identityRequest, HttpCompletionOption.ResponseHeadersRead, cancel);
-        HostError.Require(identityResponse.IsSuccessStatusCode, "unauthorized", "無法確認 Google 帳號。");
+        HostError.Require(identityResponse.IsSuccessStatusCode, "unauthorized", "Couldn't verify the Google account.");
         using var identity = JsonRules.Parse(await Bounded(identityResponse, 65536, cancel));
-        var account = JsonRules.Text(identity.RootElement, "sub", 255); HostError.Require(Account(account), "google-account", "Google 帳號身分無效。");
+        var account = JsonRules.Text(identity.RootElement, "sub", 255); HostError.Require(Account(account), "google-account", "The Google account ID is invalid.");
         var email = identity.RootElement.TryGetProperty("email", out var emailValue) ? emailValue.GetString() ?? "" : "";
         var saved = new Credentials(account, email, clientId, JsonRules.Text(tokens, "refresh_token", 8192), access,
           DateTimeOffset.UtcNow.ToUnixTimeSeconds() + JsonRules.Integer(tokens, "expires_in", 86400));
@@ -146,7 +146,7 @@ public sealed class NativeGoogle : IDisposable
     catch (OperationCanceledException)
     {
       outcome = lifetime.IsCancellationRequested ? "closed" : "timeout";
-      throw new HostError("google-cancelled", "Google 登入逾時或已取消，請重試。");
+      throw new HostError("google-cancelled", "Google sign-in timed out or was canceled. Try again.");
     }
     catch (HostError error) { outcome = error.Code; throw; }
     finally
@@ -159,7 +159,7 @@ public sealed class NativeGoogle : IDisposable
   }
   public string OpenAccount(string account)
   {
-    HostError.Require(account == preparedAccount && Load(account) is not null, "google-account", "請先完成此帳號登入。");
+    HostError.Require(account == preparedAccount && Load(account) is not null, "google-account", "Finish signing in to this account first.");
     preparedAccount = null; return "google:" + account;
   }
   public async Task SignOut()
@@ -176,7 +176,7 @@ public sealed class NativeGoogle : IDisposable
   }
   private async Task Refresh(CancellationToken cancellation)
   {
-    HostError.Require(credentials is not null && profile == "google:" + credentials.AccountId, "unauthorized", "請先登入 Google。");
+    HostError.Require(credentials is not null && profile == "google:" + credentials.AccountId, "unauthorized", "Sign in to Google first.");
     if (credentials!.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 60) return;
     var tokens = await Token(new() { ["client_id"] = clientId, ["refresh_token"] = credentials.RefreshToken, ["grant_type"] = "refresh_token" }, cancellation);
     credentials = credentials with { AccessToken = JsonRules.Text(tokens, "access_token", 8192), ExpiresAt = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + JsonRules.Integer(tokens, "expires_in", 86400) };
@@ -187,7 +187,7 @@ public sealed class NativeGoogle : IDisposable
   {
     var cancel = lifetime.Token; await Refresh(cancel);
     var uri = new Uri("https://www.googleapis.com" + path);
-    HostError.Require(uri.Scheme == "https" && uri.Host == "www.googleapis.com" && uri.Port == 443 && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Fragment), "invalid-source", "Google 傳輸位置無效。");
+    HostError.Require(uri.Scheme == "https" && uri.Host == "www.googleapis.com" && uri.Port == 443 && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Fragment), "invalid-source", "The Google transfer location is invalid.");
     using var request = new HttpRequestMessage(method ?? HttpMethod.Get, uri);
     request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", credentials!.AccessToken);
     if (body is not null) request.Content = new ByteArrayContent(body);
@@ -206,7 +206,7 @@ public sealed class NativeGoogle : IDisposable
         : status >= 500 ? "service-unavailable" : status == 410 && context == "changes" ? "cursor-expired" : status is 400 or 410 && context == "listing" ? "page-expired"
         : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 && context == "delete" ? "file-missing"
         : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error";
-      throw new HostError(code, "Google Drive 未完成同步（" + code + "），本機資料與待送內容仍保留。");
+      throw new HostError(code, "Google Drive did not finish syncing (" + code + "). Local data and pending changes are kept.");
     }
     return (status, bytes, response.Headers.Location?.OriginalString,
       response.Headers.TryGetValues("Range", out var range) ? range.Single() : null);
@@ -216,7 +216,7 @@ public sealed class NativeGoogle : IDisposable
   private static (string Id, string Kind, string Digest, int Size) FileInfo(JsonElement file)
   {
     var id = JsonRules.Text(file, "id"); var kind = JsonRules.Text(file, "kind"); var digest = JsonRules.Text(file, "sha256");
-    HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment" or "reset" or "workspace", "invalid-source-file", "同步檔案身分無效。");
+    HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment" or "reset" or "workspace", "invalid-source-file", "The sync file ID is invalid.");
     LocalDatabase.CheckDigest(digest); var size = (int)JsonRules.Integer(file, "size", kind is "revision" or "workspace" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : LocalDatabase.MaxAttachment);
     return (id, kind, digest, size);
   }
@@ -225,7 +225,7 @@ public sealed class NativeGoogle : IDisposable
     await gate.WaitAsync(lifetime.Token);
     try
     {
-      HostError.Require(credentials is not null && JsonRules.Text(args, "accountId") == credentials.AccountId && profile == "google:" + credentials.AccountId, "stale-session", "Google 帳號已切換。");
+      HostError.Require(credentials is not null && JsonRules.Text(args, "accountId") == credentials.AccountId && profile == "google:" + credentials.AccountId, "stale-session", "The Google account has changed.");
       switch (method)
       {
         case "google.cursor": return await Json(PathQuery("/drive/v3/changes/startPageToken", ("fields", "startPageToken")));
@@ -244,14 +244,14 @@ public sealed class NativeGoogle : IDisposable
           var metadata = await Json(PathQuery("/drive/v3/files/" + file.Id, ("fields", Fields)));
           ValidateMetadata(metadata, file);
           var response = await Request(PathQuery("/drive/v3/files/" + file.Id, ("alt", "media")), maximum: Math.Max(file.Size, 65536));
-          HostError.Require(response.Body.Length == file.Size && LocalDatabase.Digest(response.Body) == file.Digest, "file-integrity", "Google 檔案校驗失敗。");
+          HostError.Require(response.Body.Length == file.Size && LocalDatabase.Digest(response.Body) == file.Digest, "file-integrity", "The Google file failed its integrity check.");
           return bridge.DownloadBytes(response.Body);
         }
         case "google.delete":
         {
           // Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
           var id = JsonRules.Text(args, "fileId");
-          HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$"), "invalid-source-file", "同步檔案身分無效。");
+          HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$"), "invalid-source-file", "The sync file ID is invalid.");
           try { await Request("/drive/v3/files/" + id, HttpMethod.Delete, context: "delete"); }
           catch (HostError error) when (error.Code == "file-missing") { }
           return null;
@@ -261,15 +261,15 @@ public sealed class NativeGoogle : IDisposable
           var file = FileInfo(args.GetProperty("file")); var bytes = bridge.UploadBytes(JsonRules.Text(args, "token"));
           try
           {
-            HostError.Require(bytes.Length == file.Size && LocalDatabase.Digest(bytes) == file.Digest, "file-integrity", "待送內容校驗失敗。");
+            HostError.Require(bytes.Length == file.Size && LocalDatabase.Digest(bytes) == file.Digest, "file-integrity", "The pending changes failed their integrity check.");
             return await Create(file, bytes);
           }
           finally { CryptographicOperations.ZeroMemory(bytes); }
         }
-        default: throw new HostError("unsupported-method", "Google 主機沒有此操作。");
+        default: throw new HostError("unsupported-method", "The Google host doesn't support this operation.");
       }
     }
-    catch (HttpRequestException) { throw new HostError("network", "無法連接 Google Drive，本機資料與待送內容仍保留。"); }
+    catch (HttpRequestException) { throw new HostError("network", "Couldn't connect to Google Drive. Local data and pending changes are kept."); }
     finally { gate.Release(); }
   }
   private static void ValidateMetadata(JsonElement metadata, (string Id, string Kind, string Digest, int Size) file)
@@ -280,7 +280,7 @@ public sealed class NativeGoogle : IDisposable
       && (!metadata.TryGetProperty("trashed", out var trashed) || !trashed.GetBoolean())
       && JsonRules.Text(properties, "wfFormat") == "work-fleet-file" && JsonRules.Text(properties, "wfSchema") == "1"
       && JsonRules.Text(properties, "wfKind") == file.Kind && JsonRules.Text(properties, "wfSha256") == file.Digest
-      && (!metadata.TryGetProperty("sha256Checksum", out var sha) || sha.GetString() == file.Digest), "upload-mismatch", "Google 檔案 metadata 與內容身分不同。");
+      && (!metadata.TryGetProperty("sha256Checksum", out var sha) || sha.GetString() == file.Digest), "upload-mismatch", "The Google file metadata doesn't match its content.");
   }
   private async Task<JsonElement> Create((string Id, string Kind, string Digest, int Size) file, byte[] bytes)
   {
@@ -300,7 +300,7 @@ public sealed class NativeGoogle : IDisposable
         var offset = 0;
         if (uploads.TryGetValue(file.Id, out var session))
         {
-          HostError.Require(session.Digest == file.Digest && session.Size == file.Size, "upload-mismatch", "續傳內容已變更。");
+          HostError.Require(session.Digest == file.Digest && session.Size == file.Size, "upload-mismatch", "The resumed upload content has changed.");
           response = await Request(session.Path, HttpMethod.Put, [], new() { ["Content-Range"] = $"bytes */{file.Size}" }, allow308: true, context: "upload");
           if (response.Status != 308) return await Completed(response.Body, file);
           offset = Offset(response.Range, file.Size, -1);
@@ -314,7 +314,7 @@ public sealed class NativeGoogle : IDisposable
           var pairs = Uri.TryCreate(response.Location, UriKind.Absolute, out var location) ? location.Query.TrimStart('?').Split('&') : Array.Empty<string>();
           HostError.Require(location is not null && response.Location!.Length <= 8192 && location.Scheme == "https" && location.Host == "www.googleapis.com" && location.Port == 443 && location.AbsolutePath == "/upload/drive/v3/files" && string.IsNullOrEmpty(location.UserInfo) && string.IsNullOrEmpty(location.Fragment)
             && pairs.All(pair => Regex.IsMatch(pair, "^[A-Za-z_]+=[A-Za-z0-9_%.-]*$")) && pairs.Select(pair => pair.Split('=')[0]).Distinct().Count() == pairs.Length
-            && pairs.Contains("uploadType=resumable") && pairs.Any(pair => pair.Length > 10 && pair.StartsWith("upload_id=", StringComparison.Ordinal)), "invalid-upload-session", "Google 續傳位置無效。");
+            && pairs.Contains("uploadType=resumable") && pairs.Any(pair => pair.Length > 10 && pair.StartsWith("upload_id=", StringComparison.Ordinal)), "invalid-upload-session", "The Google resumable upload location is invalid.");
           session = (location!.PathAndQuery, file.Digest, file.Size); uploads[file.Id] = session;
         }
         while (offset < file.Size)
@@ -324,7 +324,7 @@ public sealed class NativeGoogle : IDisposable
           if (response.Status != 308) return await Completed(response.Body, file);
           offset = Offset(response.Range, end, offset);
         }
-        throw new HostError("service-unavailable", "Google 尚未確認上傳完成，待送内容仍保留。");
+        throw new HostError("service-unavailable", "Google hasn't confirmed the upload. Pending changes are kept.");
       }
       return await Completed(response.Body, file);
     }
@@ -338,7 +338,7 @@ public sealed class NativeGoogle : IDisposable
   {
     var match = Regex.Match(range ?? "", "^bytes=0-([0-9]+)$");
     var offset = range is null ? 0 : match.Success && int.TryParse(match.Groups[1].Value, out var last) && last < int.MaxValue ? last + 1 : -1;
-    HostError.Require(offset >= 0 && offset <= maximum && offset > previous, "service-unavailable", "Google 續傳進度無效，待送内容仍保留。"); return offset;
+    HostError.Require(offset >= 0 && offset <= maximum && offset > previous, "service-unavailable", "Google reported invalid upload progress. Pending changes are kept."); return offset;
   }
   private async Task<JsonElement> Completed(byte[] body, (string Id, string Kind, string Digest, int Size) file)
   {
@@ -346,7 +346,7 @@ public sealed class NativeGoogle : IDisposable
     if (!document.RootElement.TryGetProperty("sha256Checksum", out _))
     {
       var content = await Request(PathQuery("/drive/v3/files/" + file.Id, ("alt", "media")), maximum: Math.Max(file.Size, 65536));
-      HostError.Require(content.Body.Length == file.Size && LocalDatabase.Digest(content.Body) == file.Digest, "upload-mismatch", "Google 上傳內容校驗失敗。");
+      HostError.Require(content.Body.Length == file.Size && LocalDatabase.Digest(content.Body) == file.Digest, "upload-mismatch", "The Google upload failed its integrity check.");
     }
     uploads.Remove(file.Id); return document.RootElement.Clone();
   }

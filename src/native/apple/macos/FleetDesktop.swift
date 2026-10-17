@@ -18,7 +18,7 @@ import AppKit
     private var observers: [(NotificationCenter, NSObjectProtocol)] = [], displayTask: Task<Void, Never>?
     init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Void, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void) throws {
         self.assets = assets; self.send = send; self.show = show; self.hide = hide; self.mainVisible = mainVisible
-        guard let primary = NSScreen.screens.first else { throw FleetFailure("desktop-display", "目前沒有可用螢幕。") }
+        guard let primary = NSScreen.screens.first else { throw FleetFailure("desktop-display", "No display is available.") }
         referenceTop = primary.frame.maxY; displays = try Self.readDisplays(top: primary.frame.maxY)
         for display in displays { for layer in Self.layers { _ = newView(display, layer) } }
         shortcuts.action = { [weak self] in self?.action($0) }; shortcuts.changed = { [weak self] in self?.send("desktop-shortcut-status", ["registrations": $0]) }
@@ -36,16 +36,16 @@ import AppKit
         let token = center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { action() } }; observers.append((center, token))
     }
     private static func readDisplays(top: CGFloat) throws -> [Display] {
-        let screens = NSScreen.screens; try FleetProtocol.require(!screens.isEmpty && screens.count <= 16, "desktop-display", "螢幕數量超過支援容量，資料仍保留。")
+        let screens = NSScreen.screens; try FleetProtocol.require(!screens.isEmpty && screens.count <= 16, "desktop-display", "There are more displays than supported. Your data is kept.")
         return try screens.enumerated().map { index, screen in
-            guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { throw FleetFailure("desktop-display", "無法讀取螢幕身分。") }
+            guard let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber else { throw FleetFailure("desktop-display", "Couldn't identify a display.") }
             func logical(_ rect: NSRect) -> NSRect { NSRect(x: rect.minX, y: top - rect.maxY, width: rect.width, height: rect.height) }
             return Display(id: id.stringValue, primary: index == 0, native: screen.frame, viewport: logical(screen.frame), work: logical(screen.visibleFrame))
         }
     }
     private func newView(_ display: Display, _ layer: String) -> FleetSceneSurface {
         let view = FleetSceneSurface(display: display.id, viewport: display.viewport, nativeBounds: display.native, layer: layer, assets: assets)
-        view.dispatch = { [weak self] view, method, args in guard let self else { throw FleetFailure("scene-closed", "桌面工作階段已關閉。") }; return try self.scene(view, method, args) }
+        view.dispatch = { [weak self] view, method, args in guard let self else { throw FleetFailure("scene-closed", "The desktop session has closed.") }; return try self.scene(view, method, args) }
         view.lost = { [weak self] in self?.retire($0) }; views.append(view); return view
     }
     private func rect(_ value: NSRect) -> [String: Any] { ["x": value.minX, "y": value.minY, "width": value.width, "height": value.height] }
@@ -57,7 +57,7 @@ import AppKit
             "workAreas": workAreas(displays), "views": views.filter { !$0.retired }.map(viewInfo)]
     }
     private func view(_ id: String) throws -> FleetSceneSurface {
-        guard let value = views.first(where: { $0.id == id && !$0.retired && $0.ready }) else { throw FleetFailure("desktop-view", "桌面視窗已關閉或尚未就緒。") }; return value
+        guard let value = views.first(where: { $0.id == id && !$0.retired && $0.ready }) else { throw FleetFailure("desktop-view", "The desktop window has closed or isn't ready yet.") }; return value
     }
     private func current(_ value: Intent) -> Bool {
         ProcessInfo.processInfo.systemUptime - value.created <= 5 && NSWorkspace.shared.frontmostApplication?.processIdentifier == value.process
@@ -85,13 +85,13 @@ import AppKit
                 proposed = try Self.readDisplays(top: referenceTop); proposedTopology += 1
                 if started, let proposed { send("desktop-displays", ["topology": proposedTopology, "workAreas": workAreas(proposed)]) }
             } catch is CancellationError { }
-            catch { if !closed { send("desktop-error", ["message": "無法讀取目前螢幕，已保留資料與編輯文字；請在主畫面重試桌面呈現。"] ) } }
+            catch { if !closed { send("desktop-error", ["message": FleetText.text("desktop.displaysUnreadable")] ) } }
         }
     }
     private func applyDisplays(_ args: [String: Any]) throws -> Any {
         let requested = try FleetProtocol.number(args, "topology")
         if requested == topology && !displayPending { return info() }
-        guard requested == proposedTopology, let next = proposed else { throw FleetFailure("desktop-topology", "螢幕已再次變更，正在重新套用版面。") }
+        guard requested == proposedTopology, let next = proposed else { throw FleetFailure("desktop-topology", "The displays changed again. The layout is being applied again.") }
         var assignments: [String: Display] = [:]
         if let editor = args["editorViewId"] as? String {
             let editing = try view(editor), paper = try FleetSceneFrame.rect(args["editorRect"])
@@ -99,13 +99,13 @@ import AppKit
                 func score(_ display: Display) -> CGFloat { let overlap = paper.intersection(display.viewport); return overlap.isEmpty ? 0 : overlap.width * overlap.height }
                 return score(left) < score(right) || score(left) == score(right) && left.id != editing.display
             }!; assignments[editing.id] = destination
-        } else { try FleetProtocol.require(args["editorViewId"] is NSNull, "desktop-view", "編輯視窗身分無效。") }
+        } else { try FleetProtocol.require(args["editorViewId"] is NSNull, "desktop-view", "The editing window ID isn't valid.") }
         for stable in [true, false] {
             for display in next { for layer in Self.layers {
                 if views.contains(where: { $0.layer == layer && assignments[$0.id]?.id == display.id }) { continue }
                 var match = views.first { !$0.retired && $0.layer == layer && assignments[$0.id] == nil && (!stable || $0.display == display.id) }
                 if match == nil && !stable {
-                    try FleetProtocol.require(views.filter { !$0.retired }.count < 48, "desktop-capacity", "桌面視窗容量已滿；請保存後重新開啟。")
+                    try FleetProtocol.require(views.filter { !$0.retired }.count < 48, "desktop-capacity", "There are too many desktop windows. Save, then reopen Work Fleet.")
                     match = newView(display, layer)
                 }
                 if let match { assignments[match.id] = display }
@@ -120,7 +120,7 @@ import AppKit
         Task { @MainActor in if !closed { startViews() } }; return info()
     }
     func invoke(_ method: String, _ args: [String: Any]) throws -> Any {
-        try FleetProtocol.require(!closed, "desktop-closed", "桌面工作階段已關閉。"); sweep()
+        try FleetProtocol.require(!closed, "desktop-closed", "The desktop session has closed."); sweep()
         switch method {
         case "desktop.info": return info()
         case "desktop.start": started = true; startViews(); if displayPending { refreshDisplays() }; return info()
@@ -132,7 +132,7 @@ import AppKit
         case "desktop.shortcuts.block": blocked = try FleetProtocol.bool(args, "blocked"); shortcuts.blocked = blocked || menu; return NSNull()
         case "desktop.intent":
             if NSApplication.shared.isActive, let captured = capture() { intent = captured; focusSequence = nil; return ["intent": captured.id] }; return ["intent": NSNull()]
-        case "desktop.hideMain": try FleetProtocol.require(hide(), "tray-unavailable", "選單列目前不可用，主畫面保持開啟。"); return NSNull()
+        case "desktop.hideMain": try FleetProtocol.require(hide(), "tray-unavailable", "The menu bar isn't available, so the main window stays open."); return NSNull()
         case "desktop.mainVisible": mainVisible(try FleetProtocol.bool(args, "visible")); return NSNull()
         case "desktop.showMain":
             guard let id = args["intent"] as? String, let intent, id == intent.id, current(intent) else { return ["activated": false] }
@@ -148,24 +148,24 @@ import AppKit
             for view in views where view.ready && !view.retired { view.event("desktop-frame", ["sequence": next.sequence]) }; return ["sequence": next.sequence]
         case "desktop.frame.discard": let token = try FleetProtocol.text(args, "token"); if token != frameToken { transfers.drop("owner", token) }; return NSNull()
         case "desktop.command.read":
-            let pending = try pending(args); guard let upload = pending.upload else { throw FleetFailure("scene-command", "此命令沒有大型输入。") }; return try transfers.read(pending.view.id, upload, args)
+            let pending = try pending(args); guard let upload = pending.upload else { throw FleetFailure("scene-command", "This command has no large input.") }; return try transfers.read(pending.view.id, upload, args)
         case "desktop.reply":
             let ticket = try FleetProtocol.text(args, "ticket"), pending = try pending(args), ok = try FleetProtocol.bool(args, "ok")
-            try FleetProtocol.require(FleetProtocol.encode(args).count <= 64 * 1024, "scene-size", "桌面操作回覆過大。")
+            try FleetProtocol.require(FleetProtocol.encode(args).count <= 64 * 1024, "scene-size", "The desktop reply is too large.")
             pending.view.event("desktop-command-result", ["commandId": pending.id, "ok": ok, "result": args["result"] ?? NSNull(), "error": args["error"] ?? NSNull()]); release(ticket); return NSNull()
         case "desktop.flush":
             let view = try view(FleetProtocol.text(args, "viewId")), id = try FleetProtocol.text(args, "id"), draft = try FleetProtocol.text(args, "draftId")
-            try FleetProtocol.require(FleetProtocol.isUUID(id) && flushes.count < 4 && flushes[id] == nil, "scene-busy", "桌面草稿仍在保存。")
+            try FleetProtocol.require(FleetProtocol.isUUID(id) && flushes.count < 4 && flushes[id] == nil, "scene-busy", "A desktop draft is still being saved.")
             flushes[id] = (view.id, draft); frozen[id] = view.id; view.event("desktop-flush", ["id": id, "draftId": draft]); return NSNull()
         case "desktop.flush.cancel": flushes.removeValue(forKey: try FleetProtocol.text(args, "id")); return NSNull()
         case "desktop.flush.release":
             let id = try FleetProtocol.text(args, "id"); flushes.removeValue(forKey: id)
             if let source = frozen.removeValue(forKey: id), let view = try? view(source) { view.event("desktop-unfreeze", ["id": id, "resume": source == (args["viewId"] as? String), "draftId": args["draftId"] ?? NSNull()]) }; return NSNull()
-        default: throw FleetFailure("unsupported-method", "桌面主機沒有此操作。")
+        default: throw FleetFailure("unsupported-method", "The desktop host does not support this operation.")
         }
     }
     private func scene(_ view: FleetSceneSurface, _ method: String, _ args: [String: Any]) throws -> Any {
-        try FleetProtocol.require(!closed && !view.retired, "scene-closed", "桌面工作階段已關閉。"); sweep()
+        try FleetProtocol.require(!closed && !view.retired, "scene-closed", "The desktop session has closed."); sweep()
         switch method {
         case "scene.info": view.ready = true; var value = viewInfo(view); value["sessionId"] = session; value["topology"] = topology; value["bindings"] = bindings; return value
         case "scene.intent":
@@ -181,22 +181,22 @@ import AppKit
         case "scene.applied":
             let sequence = try FleetProtocol.number(args, "sequence"), requested = try FleetProtocol.number(args, "topology")
             guard !displayPending, view.active, requested == topology, let frame = view.downloading, frame.topology == topology else { return ["accepted": false] }
-            try FleetProtocol.require(sequence == frame.sequence && sequence >= view.applied, "scene-order", "桌面輸入尚未對應已顯示畫面。")
+            try FleetProtocol.require(sequence == frame.sequence && sequence >= view.applied, "scene-order", "The desktop input doesn't match the frame on screen yet.")
             view.apply(frame); view.applied = sequence; _ = tryFocus(view); return ["accepted": true]
         case "scene.command.begin": return try transfers.begin(view.id, args, maximum: 16 * 1024 * 1024)
         case "scene.command.append": return try transfers.append(view.id, args)
         case "scene.command":
             let token = args["token"] as? String; let command: [String: Any]
             if let token { command = try FleetProtocol.json(transfers.seal(view.id, token)) }
-            else if let value = args["command"] as? [String: Any] { command = value; try FleetProtocol.require(FleetProtocol.encode(value).count <= 64 * 1024, "scene-size", "桌面命令過大。") }
-            else { throw FleetFailure("scene-command", "桌面命令格式無效。") }
+            else if let value = args["command"] as? [String: Any] { command = value; try FleetProtocol.require(FleetProtocol.encode(value).count <= 64 * 1024, "scene-size", "The desktop command is too large.") }
+            else { throw FleetFailure("scene-command", "The desktop command isn't valid.") }
             let id = try FleetProtocol.text(command, "id"), method = try FleetProtocol.text(command, "method"), requested = try FleetProtocol.number(args, "topology")
-            try FleetProtocol.require(FleetProtocol.isUUID(id) && FleetProtocol.text(command, "sessionId") == session && FleetProtocol.number(command, "serial") > 0 && command["args"] is [String: Any], "scene-session", "桌面命令工作階段無效。")
+            try FleetProtocol.require(FleetProtocol.isUUID(id) && FleetProtocol.text(command, "sessionId") == session && FleetProtocol.number(command, "serial") > 0 && command["args"] is [String: Any], "scene-session", "The desktop command belongs to another session.")
             let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange"]
-            try FleetProtocol.require(allowed.contains(method), "unsupported-method", "桌面表面沒有此操作。")
+            try FleetProtocol.require(allowed.contains(method), "unsupported-method", "The desktop surface does not support this operation.")
             let draft = method == "editor.change"
-            try FleetProtocol.require(draft || !displayPending && view.active && requested == topology, "desktop-topology", "桌面座標正在更新，請保留目前文字。")
-            try FleetProtocol.require(commands.values.filter { $0.draft == draft }.count < (draft ? 4 : 24) && !commands.values.contains { $0.view === view && $0.id == id }, "scene-busy", "桌面操作仍在處理。")
+            try FleetProtocol.require(draft || !displayPending && view.active && requested == topology, "desktop-topology", "Desktop positions are updating. Keep your current text.")
+            try FleetProtocol.require(commands.values.filter { $0.draft == draft }.count < (draft ? 4 : 24) && !commands.values.contains { $0.view === view && $0.id == id }, "scene-busy", "A desktop operation is still in progress.")
             let ticket = FleetProtocol.uuid(); commands[ticket] = Command(view: view, id: id, upload: token, draft: draft)
             var admitted: Any = NSNull()
             if ["card.details", "editor.full", "interaction.shortcut"].contains(method), let id = args["intent"] as? String, let captured = sceneIntents.removeValue(forKey: id), captured.0 == view.id, current(captured.1) { intent = captured.1; focusSequence = nil; admitted = id }
@@ -205,10 +205,10 @@ import AppKit
             send("desktop-command", message); return ["accepted": true]
         case "scene.flushed":
             let id = try FleetProtocol.text(args, "id"), draft = try FleetProtocol.text(args, "draftId")
-            guard let pending = flushes[id], pending.0 == view.id, pending.1 == draft else { throw FleetFailure("scene-flush", "草稿保存請求已失效。") }
+            guard let pending = flushes[id], pending.0 == view.id, pending.1 == draft else { throw FleetFailure("scene-flush", "The draft save request has expired.") }
             let ok = try FleetProtocol.bool(args, "ok"), sequence = try FleetProtocol.number(args, "sequence"); flushes.removeValue(forKey: id)
             send("desktop-flushed", ["id": id, "viewId": view.id, "draftId": draft, "ok": ok, "sequence": sequence]); return NSNull()
-        default: throw FleetFailure("unsupported-method", "桌面表面沒有儲存或系統操作權限。")
+        default: throw FleetFailure("unsupported-method", "The desktop surface has no access to storage or system operations.")
         }
     }
     private func tryFocus(_ view: FleetSceneSurface) -> Bool {
@@ -219,7 +219,7 @@ import AppKit
         revokeIntent(); view.focus(); return true
     }
     private func pending(_ args: [String: Any]) throws -> Command {
-        guard let value = commands[try FleetProtocol.text(args, "ticket")] else { throw FleetFailure("scene-command", "桌面操作已失效。") }; return value
+        guard let value = commands[try FleetProtocol.text(args, "ticket")] else { throw FleetFailure("scene-command", "The desktop operation has expired.") }; return value
     }
     private func release(_ ticket: String) { if let value = commands.removeValue(forKey: ticket), let token = value.upload { transfers.drop(value.view.id, token) } }
     private func sweep() { for (ticket, value) in commands where Date().timeIntervalSince(value.created) > 120 { release(ticket) } }
@@ -227,7 +227,7 @@ import AppKit
         guard !view.retired else { return }; view.close(); transfers.dropOwner(view.id)
         for (ticket, value) in commands where value.view === view { release(ticket) }
         sceneIntents = sceneIntents.filter { $0.value.0 != view.id }; flushes = flushes.filter { $0.value.0 != view.id }; frozen = frozen.filter { $0.value != view.id }
-        send("desktop-view-lost", ["viewId": view.id, "message": "桌面畫面程序已停止，最後確認的草稿仍保留於主畫面。"])
+        send("desktop-view-lost", ["viewId": view.id, "message": FleetText.text("desktop.viewLost")])
     }
     func close() {
         guard !closed else { return }; closed = true; displayTask?.cancel(); shortcuts.close()

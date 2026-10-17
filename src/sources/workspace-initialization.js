@@ -3,11 +3,12 @@ import { canonicalJson, parseJson } from './json.js';
 import { sha256, validDigest, validFileId } from './files.js';
 import { encodeRevision, validId } from './revisions.js';
 import { initialGroupRecord } from './initial-group.js';
+import { t } from '../i18n/index.js';
 
 export const initializationProtocol = 'workspace-init-v1';
 export const encodeInitialization = value => new TextEncoder().encode(canonicalJson(value));
 const exact = (value, keys) => value && canonicalJson(Object.keys(value).sort()) === canonicalJson(keys.sort());
-const invalid = value => requireValue(value, 'invalid-initialization', '工作空間初始化紀錄無效，資料仍保留。');
+const invalid = value => requireValue(value, 'invalid-initialization', t('errors.sources.initializationInvalid'));
 
 export async function workspaceIdentity(sourceId) {
   return sha256(new TextEncoder().encode(canonicalJson(['work-fleet-workspace', sourceId])));

@@ -10,12 +10,12 @@ public sealed record BackupJob(string Id, string ScheduleId, string PolicyId, st
   {
     string Id(string name)
     {
-      var id = JsonRules.Text(value, name); HostError.Require(Guid.TryParseExact(id, "D", out _), "invalid-backup-job", "備份工作身分無效。"); return id;
+      var id = JsonRules.Text(value, name); HostError.Require(Guid.TryParseExact(id, "D", out _), "invalid-backup-job", "The backup job ID is invalid."); return id;
     }
     var job = new BackupJob(Id("id"), Id("scheduleId"), Id("policyId"), Id("destinationId"), JsonRules.Text(value, "name"),
       JsonRules.Integer(value, "sourceRevision"), JsonRules.Integer(value, "createdAt"), value.GetProperty("encrypted").GetBoolean(),
       JsonRules.Text(value, "sha256"), checked((int)JsonRules.Integer(value, "size", WindowsBackupDirectory.MaxBackupBytes)));
-    HostError.Require(job.Size > 0 && job.Name == $"work-fleet-auto-{job.Id}.zip", "invalid-backup-job", "備份工作檔名或容量無效。");
+    HostError.Require(job.Size > 0 && job.Name == $"work-fleet-auto-{job.Id}.zip", "invalid-backup-job", "The backup job file name or size is invalid.");
     LocalDatabase.CheckDigest(job.Sha256); return job;
   }
 }
@@ -40,7 +40,7 @@ public sealed class NativeBackupFiles(LocalDatabase database) : IDisposable
       try
       {
         var id = Guid.NewGuid().ToString(); var name = Path.GetFileName(Path.TrimEndingDirectorySeparator(pickerPath));
-        if (string.IsNullOrEmpty(name)) name = "備份資料夾";
+        if (string.IsNullOrEmpty(name)) name = HostText.Get("backup.folderName");
         database.SaveCapability("backup-directory", id, JsonSerializer.SerializeToUtf8Bytes(new Destination(name, directory.Reference), Json));
         directories.Add(id, directory); return new { destinationId = id, destinationName = name };
       }
@@ -62,7 +62,7 @@ public sealed class NativeBackupFiles(LocalDatabase database) : IDisposable
     lock (gate)
     {
       CheckJournal(job, "create");
-      HostError.Require(bytes.Length == job.Size && LocalDatabase.Digest(bytes) == job.Sha256, "backup-integrity", "備份內容與工作紀錄不符。");
+      HostError.Require(bytes.Length == job.Size && LocalDatabase.Digest(bytes) == job.Sha256, "backup-integrity", "The backup content doesn't match the job record.");
       var directory = Directory(job.DestinationId); var owned = Owned(job);
       if (owned is not null)
       {
@@ -70,7 +70,7 @@ public sealed class NativeBackupFiles(LocalDatabase database) : IDisposable
         try
         {
           HostError.Require(previous is not null && previous.Length == job.Size && LocalDatabase.Digest(previous) == job.Sha256,
-            "backup-unconfirmed", "先前建立的檔案尚未完整確認，保留該檔案供檢查。");
+            "backup-unconfirmed", "A file created earlier was never fully confirmed; it is kept for you to check.");
         }
         finally { if (previous is not null) CryptographicOperations.ZeroMemory(previous); }
       }
@@ -86,7 +86,7 @@ public sealed class NativeBackupFiles(LocalDatabase database) : IDisposable
       CheckJournal(job, "read"); var directory = Directory(job.DestinationId); var owned = Owned(job);
       // Reserve may fail after create. Presence is enough to quarantine it; never read/claim its bytes.
       if (owned is not null) return directory.Read(owned.File);
-      HostError.Require(!directory.Contains(job.Name), "backup-file-unowned", "同名檔案缺少原生建立紀錄，保留為未確認檔案。");
+      HostError.Require(!directory.Contains(job.Name), "backup-file-unowned", "A file with the same name has no native creation record; it is kept as unconfirmed.");
       return null;
     }
   }
@@ -95,9 +95,9 @@ public sealed class NativeBackupFiles(LocalDatabase database) : IDisposable
     lock (gate)
     {
       var latest = CheckJournal(job, "remove"); var owned = Owned(job);
-      HostError.Require(owned is not null, "backup-file-unowned", "此檔案沒有原生建立紀錄，未刪除。");
+      HostError.Require(owned is not null, "backup-file-unowned", "This file has no native creation record, so it was not deleted.");
       var newest = Owned(latest!);
-      HostError.Require(newest is not null, "backup-latest-missing", "最新備份無法確認，先保留舊檔。");
+      HostError.Require(newest is not null, "backup-latest-missing", "The latest backup couldn't be confirmed, so older files are kept.");
       Directory(latest!.DestinationId).WhileVerified(newest!.File, () => Directory(job.DestinationId).Remove(owned!.File));
       return new { removed = true };
     }
@@ -105,40 +105,40 @@ public sealed class NativeBackupFiles(LocalDatabase database) : IDisposable
   private OwnedFile? Owned(BackupJob job)
   {
     var value = ReadMetadata<OwnedFile>("backup-file", job.Id);
-    HostError.Require(value is null || value.Job == job, "backup-file-unowned", "備份身分與原生建立紀錄不符。"); return value;
+    HostError.Require(value is null || value.Job == job, "backup-file-unowned", "The backup identity doesn't match the native creation record."); return value;
   }
   private WindowsBackupDirectory Directory(string id)
   {
     ObjectDisposedException.ThrowIf(disposed, this);
     if (directories.TryGetValue(id, out var directory)) return directory;
     var saved = ReadMetadata<Destination>("backup-directory", id);
-    HostError.Require(saved is not null, "backup-permission", "備份資料夾尚未授權，請重新選擇位置。");
+    HostError.Require(saved is not null, "backup-permission", "The backup folder isn't authorized. Choose the location again.");
     directory = WindowsBackupDirectory.Reopen(saved!.Reference); directories.Add(id, directory); return directory;
   }
   private T? ReadMetadata<T>(string kind, string id) where T : class
   {
     var bytes = database.ReadCapability(kind, id); if (bytes is null) return null;
-    try { return JsonSerializer.Deserialize<T>(bytes, Json) ?? throw new HostError("backup-capability", "原生備份身分無效。"); }
+    try { return JsonSerializer.Deserialize<T>(bytes, Json) ?? throw new HostError("backup-capability", "The native backup identity is invalid."); }
     finally { CryptographicOperations.ZeroMemory(bytes); }
   }
   private BackupJob? CheckJournal(BackupJob job, string operation)
   {
-    var bytes = database.ReadRecord("journal"); HostError.Require(bytes is not null, "backup-journal-missing", "自動備份紀錄不存在。");
+    var bytes = database.ReadRecord("journal"); HostError.Require(bytes is not null, "backup-journal-missing", "The automatic backup journal is missing.");
     try
     {
       using var document = JsonRules.Parse(bytes!); var root = document.RootElement;
       var pending = root.GetProperty("pending"); var inventory = root.GetProperty("inventory");
       HostError.Require(inventory.ValueKind == JsonValueKind.Array && inventory.GetArrayLength() <= 10000,
-        "invalid-backup-journal", "自動備份紀錄格式無效。");
+        "invalid-backup-journal", "The automatic backup journal is malformed.");
       var isPending = pending.ValueKind == JsonValueKind.Object && BackupJob.Parse(pending) == job;
       var matching = inventory.EnumerateArray().Where(value => BackupJob.Parse(value) == job).ToArray();
-      HostError.Require(operation == "create" ? isPending : isPending || matching.Length == 1, "backup-job-unowned", "備份工作不在目前帳號的紀錄中。");
+      HostError.Require(operation == "create" ? isPending : isPending || matching.Length == 1, "backup-job-unowned", "The backup job isn't in this account's records.");
       if (operation != "remove") return null;
       var settings = root.GetProperty("settings"); var latest = BackupJob.Parse(root.GetProperty("lastSuccess"));
       HostError.Require(matching.Length == 1 && JsonRules.Text(matching[0], "status") == "verified" && !isPending && latest.Id != job.Id
         && latest.ScheduleId == job.ScheduleId && latest.DestinationId == job.DestinationId
         && JsonRules.Text(settings, "scheduleId") == job.ScheduleId && JsonRules.Text(settings, "destinationId") == job.DestinationId,
-        "backup-retention", "此備份不符合目前排程的清理條件，已保留。");
+        "backup-retention", "This backup doesn't meet the current schedule's cleanup rules, so it was kept.");
       return latest;
     }
     finally { if (bytes is not null) CryptographicOperations.ZeroMemory(bytes); }

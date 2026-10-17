@@ -51,7 +51,7 @@ import WebKit
             WKContentRuleListStore.default().compileContentRuleList(forIdentifier: "work-fleet-scene-assets-v1", encodedContentRuleList: rules) { result, error in
                 if let error { continuation.resume(throwing: error) }
                 else if let result { continuation.resume(returning: result) }
-                else { continuation.resume(throwing: FleetFailure("native-assets", "無法保護本機畫面。")) }
+                else { continuation.resume(throwing: FleetFailure("native-assets", "Couldn't protect the local view.")) }
             }
         }
         guard !retired else { return }; web.configuration.userContentController.add(blocker); web.loadFileURL(document, allowingReadAccessTo: assets)
@@ -65,11 +65,11 @@ import WebKit
             web.url?.standardizedFileURL == document.standardizedFileURL, let value = message.body as? [String: Any], let id = value["id"] as? String, FleetProtocol.isUUID(id) else { return }
         admitted += 1; defer { admitted -= 1 }
         do {
-            try FleetProtocol.require(FleetProtocol.encode(value).count <= 1024 * 1024 && FleetProtocol.number(value, "v", 1) == 1, "scene-command", "桌面協定無效。")
-            guard let args = value["params"] as? [String: Any], let dispatch else { throw FleetFailure("scene-command", "桌面工作階段已關閉。") }
+            try FleetProtocol.require(FleetProtocol.encode(value).count <= 1024 * 1024 && FleetProtocol.number(value, "v", 1) == 1, "scene-command", "The desktop protocol isn't valid.")
+            guard let args = value["params"] as? [String: Any], let dispatch else { throw FleetFailure("scene-command", "The desktop session has closed.") }
             let result = try dispatch(self, FleetProtocol.text(value, "method"), args); post(["v": 1, "id": id, "ok": true, "result": result])
         } catch {
-            let failure = error as? FleetFailure ?? FleetFailure("scene-command", "桌面操作未完成，請保留未保存文字。")
+            let failure = error as? FleetFailure ?? FleetFailure("scene-command", "The desktop operation didn't finish. Keep your unsaved text.")
             post(["v": 1, "id": id, "ok": false, "error": ["code": failure.code, "message": failure.message]])
         }
     }

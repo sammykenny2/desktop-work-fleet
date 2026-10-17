@@ -10,7 +10,7 @@ import QuickLookThumbnailing
     private var requests: [UUID: QLThumbnailGenerator.Request] = [:]
     private static let executable = Set(["exe", "com", "bat", "cmd", "ps1", "msi", "msp", "scr", "lnk", "url", "desktop", "sh", "app", "command", "vbs", "js", "jse", "wsf", "hta", "cpl", "pif", "vbe", "wsh", "py", "pyw", "rb", "pl", "jar", "jnlp", "webloc", "workflow", "action", "run", "deb", "rpm", "pkg", "dmg", "reg", "inf"])
     static func filename(_ name: String) throws -> String {
-        try FleetProtocol.require(!name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 240, "invalid-attachment", "附件檔名無效。")
+        try FleetProtocol.require(!name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && name.count <= 240, "invalid-attachment", "The attachment name isn't valid.")
         let denied = CharacterSet(charactersIn: "\\/:*?\"<>|").union(.controlCharacters)
         var clean = String(String.UnicodeScalarView(name.unicodeScalars.map { denied.contains($0) ? "_" : $0 })).trimmingCharacters(in: CharacterSet(charactersIn: ". "))
         if clean.utf8.count > 180 {
@@ -23,18 +23,18 @@ import QuickLookThumbnailing
         return clean.isEmpty ? "attachment.bin" : clean
     }
     func invoke(_ bytes: Data, name: String, open: Bool) async throws -> Any {
-        try FleetProtocol.require(!closed, "native-closed", "附件工作階段已結束。")
+        try FleetProtocol.require(!closed, "native-closed", "The attachment session has ended.")
         let name = try Self.filename(name), key = FleetProtocol.digest(bytes) + ":" + name
-        try FleetProtocol.require(bytes.count <= FleetProtocol.attachment, "attachment-capacity", "附件超過容量上限。")
+        try FleetProtocol.require(bytes.count <= FleetProtocol.attachment, "attachment-capacity", "The attachment is over the size limit.")
         if !open, let result = previews[key] { return result }
-        try FleetProtocol.require(!open || !Self.executable.contains((name as NSString).pathExtension.lowercased()), "attachment-not-document", "此類檔案請先匯出，再自行選擇開啟方式。")
+        try FleetProtocol.require(!open || !Self.executable.contains((name as NSString).pathExtension.lowercased()), "attachment-not-document", "Export this kind of file first, then choose how to open it.")
         let folder = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
         let file = folder.appendingPathComponent(name); try bytes.write(to: file, options: .atomic)
         if open {
             try FileManager.default.setAttributes([.posixPermissions: 0o400], ofItemAtPath: file.path)
             copies.append(folder)
-            guard NSWorkspace.shared.open(file) else { throw FleetFailure("attachment-open", "無法開啟附件，請確認已安裝對應的應用程式。") }
+            guard NSWorkspace.shared.open(file) else { throw FleetFailure("attachment-open", "Couldn't open the attachment. Check that an app that opens it is installed.") }
             return ["opened": true]
         }
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -55,7 +55,7 @@ import QuickLookThumbnailing
                 }
             }
         }
-        try FleetProtocol.require(!closed, "stale-session", "附件工作階段已結束。")
+        try FleetProtocol.require(!closed, "stale-session", "The attachment session has ended.")
         let png = Self.png(image ?? NSWorkspace.shared.icon(forFile: file.path))
         let result: [String: Any] = ["available": true, "png": png.map { $0.base64EncodedString() } as Any? ?? NSNull()]
         if previews.count >= 64, let first = previews.keys.first { previews.removeValue(forKey: first) }; previews[key] = result

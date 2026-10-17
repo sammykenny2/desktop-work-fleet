@@ -34,7 +34,7 @@ public static class UserProtection
       // CRYPTPROTECT_UI_FORBIDDEN, with CurrentUser (no LOCAL_MACHINE flag).
       var succeeded = encrypt ? CryptProtectData(ref input, null, ref entropy, IntPtr.Zero, IntPtr.Zero, 1, out output)
         : CryptUnprotectData(ref input, IntPtr.Zero, ref entropy, IntPtr.Zero, IntPtr.Zero, 1, out output);
-      if (!succeeded) throw new CryptographicException("Windows 安全儲存無法使用；請使用原 Windows 帳號重試。",
+      if (!succeeded) throw new CryptographicException("Windows secure storage is unavailable. Try again with the original Windows account.",
         new Win32Exception(Marshal.GetLastWin32Error()));
       var result = new byte[output.Size]; Marshal.Copy(output.Data, result, 0, output.Size); return result;
     }

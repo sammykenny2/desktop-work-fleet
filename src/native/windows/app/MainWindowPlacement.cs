@@ -89,7 +89,7 @@ internal sealed class MainWindowPlacement
   {
     timer.Stop(); dirty = false; current = null; PendingMaximize = false;
     try { WindowPlacement.Remove(directory); }
-    catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new HostError("placement-reset", "無法清除主視窗位置，請稍後重試。"); }
+    catch (Exception error) when (error is IOException or UnauthorizedAccessException) { throw new HostError("placement-reset", "Couldn't reset the main window position. Try again later."); }
     var was = tracking; tracking = false;
     try { if (window.WindowState != WindowState.Normal) window.WindowState = WindowState.Normal; Apply(); }
     finally { tracking = was; }

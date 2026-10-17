@@ -25,6 +25,8 @@ import ServiceManagement
     let launchedAtLogin: Bool
     private(set) var startAtLogin = true, closeToTray = true, openMainAtLogin = false
     private(set) var lastUpdateCheck: String?
+    /// The display language: auto, en or zh-TW (docs/i18n.md). A missing or damaged value reads as auto.
+    private(set) var language = "auto"
     private let firstRun: Bool
     private let loginItem: LoginItem
     private var current: Placement?
@@ -45,6 +47,7 @@ import ServiceManagement
             if let flag = Self.flag(value, "closeToTray") { closeToTray = flag }
             if let flag = Self.flag(value, "openMainAtLogin") { openMainAtLogin = flag }
             if let text = value["lastUpdateCheck"] as? String, text.count <= 64 { lastUpdateCheck = text }
+            if let text = value["language"] as? String, FleetText.preferences.contains(text) { language = text }
         }
         current = Self.readPlacement(directory)
     }
@@ -162,7 +165,7 @@ import ServiceManagement
         pending?.cancel(); pending = nil; dirty = false; current = nil; pendingMaximize = false
         let file = directory.appendingPathComponent(Self.placementFile)
         if FileManager.default.fileExists(atPath: file.path) {
-            do { try FileManager.default.removeItem(at: file) } catch { throw FleetFailure("placement-reset", "無法清除主視窗位置，請稍後重試。") }
+            do { try FileManager.default.removeItem(at: file) } catch { throw FleetFailure("placement-reset", "Couldn't clear the main window position. Try again later.") }
         }
         let was = tracking; tracking = false
         if window.isZoomed { window.zoom(nil) }
@@ -179,7 +182,7 @@ import ServiceManagement
 
     private func writePreferences() throws {
         try write(Self.preferencesFile, ["version": 1, "startAtLogin": startAtLogin, "closeToTray": closeToTray, "openMainAtLogin": openMainAtLogin,
-                                         "lastUpdateCheck": lastUpdateCheck.map { $0 as Any } ?? NSNull()])
+                                         "lastUpdateCheck": lastUpdateCheck.map { $0 as Any } ?? NSNull(), "language": language])
     }
     private func loginState() -> String {
         switch loginItem.status() {
@@ -193,7 +196,7 @@ import ServiceManagement
         let state = loginState(), available = state != "unavailable"
         return [
             "startAtLogin": ["available": available, "enabled": state == "enabled", "preference": startAtLogin, "state": state,
-                             "reason": available ? NSNull() : "macOS 回報未知的登入項目狀態，請到系統設定的「登入項目」確認。", "systemSettings": true] as [String: Any],
+                             "reason": available ? NSNull() : FleetText.text("reason.loginItemUnknown"), "systemSettings": true] as [String: Any],
             "closeToTray": ["available": trayAvailable, "enabled": closeToTray] as [String: Any],
             "openMainAtLogin": ["available": available, "enabled": openMainAtLogin] as [String: Any],
             "launchedAtLogin": launchedAtLogin,
@@ -206,17 +209,23 @@ import ServiceManagement
                 let state = loginItem.status()
                 if value && state != .enabled && state != .requiresApproval { try loginItem.register() }
                 if !value && state != .notRegistered && state != .notFound { try loginItem.unregister() }
-            } catch { throw FleetFailure("startup-write", "無法更新登入項目，請到系統設定的「登入項目」調整。") }
+            } catch { throw FleetFailure("startup-write", "Couldn't update the login item. Change it in Login Items in System Settings.") }
             startAtLogin = value
         case "closeToTray": closeToTray = value
         case "openMainAtLogin": openMainAtLogin = value
-        default: throw FleetFailure("invalid-request", "沒有這個啟動行為設定。")
+        default: throw FleetFailure("invalid-request", "There is no such startup setting.")
         }
-        do { try writePreferences() } catch { throw FleetFailure("preferences-write", "無法保存啟動行為設定，請稍後重試。") }
+        do { try writePreferences() } catch { throw FleetFailure("preferences-write", "Couldn't save the startup settings. Try again later.") }
         return describe(trayAvailable: trayAvailable)
     }
+    /// host.language.set; a failed write keeps the previous language so the menus do not change.
+    func setLanguage(_ value: String) throws {
+        guard FleetText.preferences.contains(value) else { throw FleetFailure("invalid-request", "The display language must be auto, en or zh-TW.") }
+        let previous = language; language = value
+        do { try writePreferences() } catch { language = previous; throw FleetFailure("preferences-write", "Couldn't save the display language. Try again later.") }
+    }
     static func openSystemSettings() { SMAppService.openSystemSettingsLoginItems() }
-    /// Remembers the last update check; losing it only changes the 上次檢查 time shown.
+    /// Remembers the last update check; losing it only changes the "Last checked" time shown.
     func recordUpdateCheck(_ time: String) { lastUpdateCheck = time; try? writePreferences() }
     static var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0" }
 }

@@ -1,10 +1,11 @@
 import { Zip, ZipDeflate, ZipPassThrough } from 'fflate';
 import { FleetError, requireValue } from '../core/contracts.js';
+import { t } from '../i18n/index.js';
 
 const MiB = 1024 * 1024;
 export const BACKUP_LIMITS = Object.freeze({ entries: 20000, expandedBytes: 128 * MiB,
   zipBytes: 136 * MiB, encryptedBytes: 136 * MiB + 4096, jsonBytes: 8 * MiB, attachmentBytes: 25 * MiB });
-export const checkCancelled = signal => requireValue(!signal?.aborted, 'backup-cancelled', '備份工作已取消，現有資料未變更。');
+export const checkCancelled = signal => requireValue(!signal?.aborted, 'backup-cancelled', t('errors.backup.cancelled'));
 export async function yieldBackup(signal) { checkCancelled(signal); await new Promise(resolve => setTimeout(resolve, 0)); checkCancelled(signal); }
 export function backupScheduler(signal) {
   let last = performance.now();
@@ -13,16 +14,16 @@ export function backupScheduler(signal) {
     if (performance.now() - last >= 8) { await yieldBackup(signal); last = performance.now(); }
   };
 }
-const invalid = condition => requireValue(condition, 'invalid-backup-zip', '備份 ZIP 結構無效或包含不支援的檔案。');
-const limit = condition => requireValue(condition, 'backup-limit', '備份超過格式的容量或項目上限，尚未截斷或匯入。');
+const invalid = condition => requireValue(condition, 'invalid-backup-zip', t('errors.backup.zipInvalid'));
+const limit = condition => requireValue(condition, 'backup-limit', t('errors.backup.archiveLimit'));
 
 export function entryLimit(name) {
-  requireValue(typeof name === 'string', 'invalid-backup-path', '備份路徑必須是固定名稱。');
+  requireValue(typeof name === 'string', 'invalid-backup-path', t('errors.backup.pathNotFixed'));
   if (['manifest.json', 'local.json', 'layout.json'].includes(name) || /^(revisions|drafts)\/[0-9]{8}\.json$/.test(name)) return BACKUP_LIMITS.jsonBytes;
   if (/^attachments\/[0-9a-f]{64}\.bin$/.test(name)) return BACKUP_LIMITS.attachmentBytes;
   if (name === 'encryption.json') return 4096;
   if (name === 'payload.bin') return BACKUP_LIMITS.zipBytes + 16;
-  throw new FleetError('invalid-backup-path', '備份含未允許的路徑；不會解壓到檔案系統。');
+  throw new FleetError('invalid-backup-path', t('errors.backup.pathNotAllowed'));
 }
 
 const crcTable = Uint32Array.from({ length: 256 }, (_, value) => {
@@ -118,7 +119,7 @@ function directory(bytes) {
 
 /** Caller data is snapshotted before the first await; actual output counts enforce declared limits. */
 export async function unpackZip(input, { signal, progress = () => {} } = {}) {
-  requireValue(input instanceof Uint8Array, 'invalid-backup-zip', '需要 ZIP 檔案 bytes。');
+  requireValue(input instanceof Uint8Array, 'invalid-backup-zip', t('errors.backup.zipBytesRequired'));
   checkCancelled(signal); limit(input.length <= BACKUP_LIMITS.encryptedBytes);
   const bytes = new Uint8Array(input); const entries = directory(bytes); const result = new Map(); const checkpoint = backupScheduler(signal);
   await yieldBackup(signal);
@@ -137,7 +138,7 @@ export async function unpackZip(input, { signal, progress = () => {} } = {}) {
     else {
       let decompressor;
       try { decompressor = new DecompressionStream('deflate-raw'); }
-      catch { throw new FleetError('backup-runtime', '此環境不支援嚴格 DEFLATE 解壓，請更新 App 或系統。'); }
+      catch { throw new FleetError('backup-runtime', t('errors.backup.deflateUnsupported')); }
       let position = 0;
       const stream = new ReadableStream({ pull(controller) {
         checkCancelled(signal);
@@ -155,7 +156,7 @@ export async function unpackZip(input, { signal, progress = () => {} } = {}) {
       } catch (error) {
         await reader.cancel().catch(() => {});
         if (error instanceof FleetError) throw error;
-        throw new FleetError('invalid-backup-zip', '備份壓縮資料損壞，尚未匯入。');
+        throw new FleetError('invalid-backup-zip', t('errors.backup.compressedDataCorrupt'));
       } finally { reader.releaseLock(); }
     }
     invalid(written === entry.size && ((crc ^ 0xffffffff) >>> 0) === entry.crc);
@@ -165,11 +166,11 @@ export async function unpackZip(input, { signal, progress = () => {} } = {}) {
 }
 
 export async function packZip(files, { signal, progress = () => {} } = {}) {
-  requireValue(files instanceof Map, 'invalid-backup-zip', '備份 entries 必須明確列出。');
+  requireValue(files instanceof Map, 'invalid-backup-zip', t('errors.backup.entriesRequired'));
   checkCancelled(signal); limit(files.size <= BACKUP_LIMITS.entries);
   const entries = []; let total = 0;
   for (const [name, input] of files) {
-    requireValue(input instanceof Uint8Array, 'invalid-backup-zip', '備份 entry 需要 bytes。');
+    requireValue(input instanceof Uint8Array, 'invalid-backup-zip', t('errors.backup.entryBytesRequired'));
     limit(input.length <= entryLimit(name)); total += input.length;
     limit(total <= BACKUP_LIMITS.zipBytes + 4112);
     entries.push({ name, bytes: new Uint8Array(input) });

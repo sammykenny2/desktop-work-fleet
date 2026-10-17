@@ -50,7 +50,7 @@ class LinuxHostSettingsTests(unittest.TestCase):
         folder = self.folder()
         value, existed = hostsettings.read_preferences(folder)
         self.assertFalse(existed)
-        self.assertEqual(value, {"startAtLogin": True, "closeToTray": True, "openMainAtLogin": False, "lastUpdateCheck": None})
+        self.assertEqual(value, {"startAtLogin": True, "closeToTray": True, "openMainAtLogin": False, "lastUpdateCheck": None, "language": "auto"})
         changed = hostsettings.change(hostsettings.change(value, "startAtLogin", False), "openMainAtLogin", True)
         hostsettings.write_preferences(folder, changed)
         self.assertEqual(hostsettings.read_preferences(folder), (changed, True))
@@ -61,6 +61,30 @@ class LinuxHostSettingsTests(unittest.TestCase):
         (folder / "host-preferences.json").write_text('{"version":1,"startAtLogin":"no","closeToTray":false}', "utf-8")
         self.assertEqual(hostsettings.read_preferences(folder)[0]["startAtLogin"], True)
         self.assertEqual(hostsettings.read_preferences(folder)[0]["closeToTray"], False)
+
+    def test_display_language_round_trips_and_damaged_values_follow_the_system(self):
+        folder = self.folder()
+        value, _ = hostsettings.read_preferences(folder)
+        for language in ("zh-TW", "en", "auto"):
+            hostsettings.write_preferences(folder, {**value, "language": language})
+            stored = json.loads((folder / "host-preferences.json").read_text("utf-8"))
+            self.assertEqual((stored["version"], stored["language"]), (1, language))
+            self.assertEqual(hostsettings.read_preferences(folder), ({**value, "language": language}, True))
+        # A preference the host cannot read never blocks startup: the other settings stay, the language is auto.
+        for language in ('"fr"', '"zh-tw"', '"ZH-TW"', '""', "null", "1", "true", '["en"]', '{"value":"en"}'):
+            with self.subTest(language=language):
+                (folder / "host-preferences.json").write_text('{"version":1,"closeToTray":false,"language":' + language + "}", "utf-8")
+                read = hostsettings.read_preferences(folder)[0]
+                self.assertEqual((read["language"], read["closeToTray"]), ("auto", False))
+        (folder / "host-preferences.json").write_text('{"version":1,"startAtLogin":false}', "utf-8")
+        self.assertEqual(hostsettings.read_preferences(folder)[0]["language"], "auto")
+        hostsettings.write_preferences(folder, {**value, "language": "fr"})
+        self.assertEqual(json.loads((folder / "host-preferences.json").read_text("utf-8"))["language"], "auto")
+        # Changing another setting keeps the language.
+        changed = hostsettings.change({**value, "language": "en"}, "closeToTray", False)
+        self.assertEqual(changed["language"], "en")
+        with self.assertRaises(ValueError):
+            hostsettings.change(value, "language", "en")
 
     def test_distribution_version_and_sign_in_command(self):
         base = self.folder()
@@ -86,7 +110,8 @@ class LinuxHostSettingsTests(unittest.TestCase):
         self.assertEqual(hostsettings.version(source, base / "native" / "host.py"), "0.1.0")
         command, reason = hostsettings.launch_command(source, default, default)
         self.assertIsNone(command)
-        self.assertIn("原始碼", reason)
+        # The reason is a text.py key; the host shows it in the display language.
+        self.assertEqual(reason, "startup.sourceRun")
 
     def test_autostart_entry_follows_xdg_config_home_and_only_removes_its_own(self):
         base = self.folder()
@@ -94,9 +119,12 @@ class LinuxHostSettingsTests(unittest.TestCase):
         self.assertEqual(hostsettings.autostart_path({"XDG_CONFIG_HOME": "relative"}), Path.home() / ".config/autostart/work-fleet.desktop")
         path = base / "config/autostart/work-fleet.desktop"
         self.assertEqual(hostsettings.autostart_state(path), "disabled")
-        hostsettings.write_autostart(path, "work-fleet --launch-at-login", "app.workfleet.preview")
+        hostsettings.write_autostart(path, "work-fleet --launch-at-login", "app.workfleet.preview",
+                                     {"en": "Shows notes after sign-in", "zh-TW": "Traditional Chinese comment"})
         text = path.read_text("utf-8")
         self.assertIn("Exec=work-fleet --launch-at-login\n", text)
+        # The session shows the comment in its own language: English by default, Comment[zh_TW] for Traditional Chinese.
+        self.assertIn("\nComment=Shows notes after sign-in\nComment[zh_TW]=Traditional Chinese comment\n", text)
         self.assertIn("X-Work-Fleet-Managed=true\n", text)
         self.assertEqual(hostsettings.autostart_state(path), "enabled")
         path.write_text(text.replace("X-GNOME-Autostart-enabled=true", "X-GNOME-Autostart-enabled=false"), "utf-8")

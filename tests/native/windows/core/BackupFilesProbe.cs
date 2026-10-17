@@ -23,7 +23,8 @@ internal static class BackupFilesProbe
       throw new Exception("Expected native file operation to fail");
     }
     string Name() => $"work-fleet-auto-{Guid.NewGuid()}.zip";
-    var bytes = Encoding.UTF8.GetBytes("complete synthetic backup bytes-中文");
+    // Escaped CJK characters: backup bytes are copied exactly, multi-byte UTF-8 included.
+    var bytes = Encoding.UTF8.GetBytes("complete synthetic backup bytes-\u4E2D\u6587");
     var target = Within(Path.Combine(root, "backups")); Directory.CreateDirectory(target);
     BackupDirectoryReference reference;
     BackupFileIdentity original;

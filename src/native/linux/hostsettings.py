@@ -1,4 +1,5 @@
-"""ADR-043 host-level settings: startup behaviour, the main window's bounds, the XDG autostart entry and host.log.
+"""ADR-043 host-level settings: startup behaviour, the display language, the main window's bounds, the XDG autostart entry
+and host.log.
 
 Kept beside profile.txt in the data directory, never in a profile, backup or Google. Pure functions, no GTK."""
 from datetime import datetime
@@ -10,6 +11,8 @@ import tempfile
 PREFERENCES = "host-preferences.json"
 PLACEMENT = "window-placement.json"
 DEFAULTS = {"startAtLogin": True, "closeToTray": True, "openMainAtLogin": False}
+# The display-language preference (docs/i18n.md); text.PREFERENCES lists the same values.
+LANGUAGES = ("auto", "en", "zh-TW")
 AUTOSTART = "work-fleet.desktop"
 MARKER = "X-Work-Fleet-Managed=true"
 LOGIN_ARGUMENT = "--launch-at-login"
@@ -62,17 +65,23 @@ def read_preferences(directory):
     value = _object(path)
     result = dict(DEFAULTS)
     result["lastUpdateCheck"] = None
+    result["language"] = "auto"
     if value is not None:
         for key in DEFAULTS:
             if isinstance(value.get(key), bool):
                 result[key] = value[key]
         if isinstance(value.get("lastUpdateCheck"), str) and len(value["lastUpdateCheck"]) <= 64:
             result["lastUpdateCheck"] = value["lastUpdateCheck"]
+        # An unknown or damaged language falls back to following the system, like the other settings.
+        if isinstance(value.get("language"), str) and value["language"] in LANGUAGES:
+            result["language"] = value["language"]
     return result, path.exists()
 
 
 def write_preferences(directory, preferences):
-    value = {"version": 1, **{key: bool(preferences[key]) for key in DEFAULTS}, "lastUpdateCheck": preferences.get("lastUpdateCheck")}
+    language = preferences.get("language")
+    value = {"version": 1, **{key: bool(preferences[key]) for key in DEFAULTS}, "lastUpdateCheck": preferences.get("lastUpdateCheck"),
+             "language": language if language in LANGUAGES else "auto"}
     replace(directory, PREFERENCES, (json.dumps(value) + "\n").encode("utf-8"))
 
 
@@ -210,10 +219,10 @@ def _quote(argument):
 
 
 def launch_command(assets, data, default_data):
-    """The sign-in command, or None with the reason when this run cannot be started again by itself."""
+    """The sign-in command, or None with the reason's text.py key when this run cannot be started again by itself."""
     kind = distribution(assets)
     if kind == "source":
-        return None, "從原始碼執行時不支援登入時啟動，請使用 DEB 或封裝版本。"
+        return None, "startup.sourceRun"
     arguments = ["work-fleet"] if kind == "deb" else [str(Path(assets).parent / "run-work-fleet.sh")]
     if Path(data).absolute() != Path(default_data).absolute():
         arguments += ["--data", str(Path(data).absolute())]
@@ -232,9 +241,13 @@ def autostart_state(path):
     return "enabled"
 
 
-def write_autostart(path, command, icon):
+def write_autostart(path, command, icon, comments=None):
+    """`comments` maps a locale ("en", "zh-TW") to the entry's description: English is Comment, others Comment[ll_CC]."""
     path = Path(path)
-    body = "\n".join(["[Desktop Entry]", "Type=Application", "Name=Work Fleet", "Comment=登入後顯示 Work Fleet 桌面便箋",
+    comments = comments or {}
+    described = ([f"Comment={comments['en']}"] if comments.get("en") else []) + \
+        [f"Comment[{locale.replace('-', '_')}]={value}" for locale, value in sorted(comments.items()) if locale != "en" and value]
+    body = "\n".join(["[Desktop Entry]", "Type=Application", "Name=Work Fleet", *described,
                       f"Exec={command}", f"Icon={icon}", "Terminal=false", "X-GNOME-Autostart-enabled=true", MARKER, ""])
     replace(path.parent, path.name, body.encode("utf-8"))
 

@@ -29,6 +29,13 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Main window: a board of paper tiles or a list, remembered per device; an optional title that search, drafts and sharing include;
   papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring.
 - Verified with model tests, Edge/Chromium browser and scene probes, and the Windows native UI probes.
+- Languages: the UI is English-first with a Traditional Chinese catalog; Settings > General > Display language offers
+  Auto-detect, English and Traditional Chinese and switches without a reload. Every host stores the choice per device and
+  draws its tray, menus and dialogs in it; host errors arrive in English and are shown through the catalogs
+  ([ADR-056](docs/decisions/056-english-first-ui-and-locale-catalogs.md), [i18n guide](docs/i18n.md)).
+  Verified with model tests, Edge probes, the Windows core and WebView2 UI probes, the Linux Docker host-shell checks
+  (including a zh-TW tray) and Android JUnit tests. Not verified: the macOS and iOS hosts and Share Extension were not
+  compiled after the change; no switch was tried on a real Mac, Linux desktop, phone or installed Windows package.
 - Not verified: text fitting only in Chromium (Edge, WebView2), not in WebKitGTK or WKWebView; the shared palette and shrunk
   new papers on a native desktop. Display changes while running and the Ctrl+Shift+digit hint have no automated test.
 
@@ -146,6 +153,7 @@ Pending verification on real devices:
 - Windows: a sign-in start where the built-in primary display is removed within the first minute.
 - Linux: a Pi reboot with a hidden start and the tray wait; the keyring unlock dialog from "Sync now".
 - macOS: full-screen Spaces, Spaces switching and login-launch detection.
+- macOS and iOS: a compile (`apple-native-build.yml`) and a Display language switch after the localization change.
 - Google: a multi-device reset and initialization with a test account (steps in [testing](docs/testing.md)).
 - Phones: Google sign-in on an iPhone and an Android device; the first dispatch of the phone workflows.
 

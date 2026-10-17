@@ -35,7 +35,7 @@ def main():
     output = Path(tempfile.mkdtemp(prefix="native-startup-", dir=root / "build/apple"))
     fixture = output / "source"
     fixture.mkdir()
-    for directory in ["app", "core", "layout", "interaction", "storage", "sources", "backup", "desktop"]:
+    for directory in ["app", "core", "layout", "interaction", "storage", "sources", "backup", "desktop", "i18n"]:
         shutil.copytree(root / "src" / directory, fixture / "src" / directory)
     shutil.copytree(root / "src/native/apple", fixture / "src/native/apple",
                     ignore=shutil.ignore_patterns(".generated", "xcuserdata", "Local.xcconfig"))

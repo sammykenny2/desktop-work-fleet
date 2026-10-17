@@ -16,24 +16,24 @@ final class GoogleSignInErrors {
         while (cause instanceof ExecutionException && cause.getCause() != null) cause = cause.getCause();
         if (cause instanceof Protocol.Failure) return (Protocol.Failure) cause;
         if (cause instanceof GetCredentialCancellationException || cause instanceof CancellationException)
-            return new Protocol.Failure("google-cancelled", "已取消 Google 登入。");
+            return new Protocol.Failure("google-cancelled", "Google sign-in was cancelled.");
         if (cause instanceof TimeoutException)
-            return new Protocol.Failure("google-timeout", "Google 登入等候逾時，請重試。");
+            return new Protocol.Failure("google-timeout", "Google sign-in timed out. Try again.");
         if (cause instanceof NoCredentialException)
-            return new Protocol.Failure("google-account", "無法選取 Google 帳號，請確認裝置已加入帳號及 Google Play 服務可用。");
+            return new Protocol.Failure("google-account", "Couldn't choose a Google account. Make sure this device has a Google account and Google Play services are available.");
         if (cause instanceof GetCredentialProviderConfigurationException)
-            return new Protocol.Failure("google-config", "這個版本的 Google 登入設定不完整，請更新 App 後重試。");
+            return new Protocol.Failure("google-config", "Google sign-in isn't fully configured in this version. Update the app and try again.");
         if (cause instanceof IOException)
-            return new Protocol.Failure("network", "無法連接 Google，請確認網路後重試。");
+            return new Protocol.Failure("network", "Couldn't reach Google. Check your connection and try again.");
         if (cause instanceof ApiException) {
             switch (((ApiException) cause).getStatusCode()) {
-                case CommonStatusCodes.CANCELED: return new Protocol.Failure("google-cancelled", "已取消 Google 登入。");
-                case CommonStatusCodes.DEVELOPER_ERROR: return new Protocol.Failure("google-config", "這個版本的 Google 登入設定不符，請更新 App 後重試。");
-                case CommonStatusCodes.NETWORK_ERROR: return new Protocol.Failure("network", "無法連接 Google，請確認網路後重試。");
-                case CommonStatusCodes.TIMEOUT: return new Protocol.Failure("google-timeout", "Google 登入等候逾時，請重試。");
-                case CommonStatusCodes.SIGN_IN_REQUIRED: return new Protocol.Failure("unauthorized", "Google 授權已失效，請重新登入。");
+                case CommonStatusCodes.CANCELED: return new Protocol.Failure("google-cancelled", "Google sign-in was cancelled.");
+                case CommonStatusCodes.DEVELOPER_ERROR: return new Protocol.Failure("google-config", "Google sign-in settings don't match this version. Update the app and try again.");
+                case CommonStatusCodes.NETWORK_ERROR: return new Protocol.Failure("network", "Couldn't reach Google. Check your connection and try again.");
+                case CommonStatusCodes.TIMEOUT: return new Protocol.Failure("google-timeout", "Google sign-in timed out. Try again.");
+                case CommonStatusCodes.SIGN_IN_REQUIRED: return new Protocol.Failure("unauthorized", "Google authorization has expired. Sign in again.");
             }
         }
-        return new Protocol.Failure("google-unavailable", "Google 登入未完成，請稍後重試。");
+        return new Protocol.Failure("google-unavailable", "Google sign-in didn't finish. Try again later.");
     }
 }

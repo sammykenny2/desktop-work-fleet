@@ -15,6 +15,9 @@ import unittest
 from unittest.mock import patch
 
 NATIVE = Path(__file__).resolve().parents[1] / "src/native/linux"
+# google.py and service.py import the host's string table, text.py, from their own folder.
+sys.path.insert(0, str(NATIVE))
+import text  # noqa: E402
 
 
 class FakeSecret(types.ModuleType):
@@ -222,7 +225,7 @@ class LinuxVaultTests(unittest.TestCase):
         self.legacy_data()
         self.secret.items[0]["locked"] = True
         before = (self.directory / "fleet.sqlite3").read_bytes()
-        self.assertIn("鎖定", self.failure("vault-locked"))
+        self.assertIn("locked", self.failure("vault-locked"))
         self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)
         self.assertEqual(self.secret.searches, [])
 
@@ -240,7 +243,7 @@ class LinuxVaultTests(unittest.TestCase):
         self.legacy_data()
         self.secret.items.clear()
         before = (self.directory / "fleet.sqlite3").read_bytes()
-        self.assertIn("缺少原金鑰", self.failure("vault-unavailable"))
+        self.assertIn("original key is missing", self.failure("vault-unavailable"))
         self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)
 
     def test_unavailable_legacy_keeps_database(self):
@@ -543,8 +546,7 @@ class LinuxVaultTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("requires its own dbus-run-session wrapper", result.stderr)
 
-    def test_slow_backup_vault_does_not_block_owner_storage_bridge(self):
-        db = self.open()
+    def service(self, db):
         modules = {"protocol": self.protocol, "database": self.module}
         with patch.dict(sys.modules, modules):
             for name in ("backup", "google", "service"):
@@ -553,7 +555,26 @@ class LinuxVaultTests(unittest.TestCase):
                 spec.loader.exec_module(module)
                 modules[name] = module
                 sys.modules[name] = module
-            service = modules["service"].Service(db, self.vault, {}, None, None)
+            return modules["service"].Service(db, self.vault, {}, None, None)
+
+    def test_host_info_reports_the_display_language_and_language_set_reaches_the_owner(self):
+        service = self.service(self.open())
+        info = service.invoke("host.info", {})
+        self.assertEqual((info["capabilities"]["languagePreference"], info["language"], info["desktopReason"]), (False, None, None))
+        calls = []
+        service.language = lambda: {"preference": "zh-TW", "system": ["zh-TW", "en-US"]}
+        service.shell = lambda method, args: (calls.append((method, args)), {"preference": args["preference"], "system": ["zh-TW", "en-US"]})[1]
+        service.desktop_reason = "reason.desktopUnsupported"
+        info = service.invoke("host.info", {})
+        self.assertTrue(info["capabilities"]["languagePreference"])
+        self.assertEqual(info["language"], {"preference": "zh-TW", "system": ["zh-TW", "en-US"]})
+        self.assertEqual(info["desktopReason"], text.t("reason.desktopUnsupported"))
+        self.assertEqual(service.invoke("host.language.set", {"preference": "en"}), {"preference": "en", "system": ["zh-TW", "en-US"]})
+        self.assertEqual(calls, [("host.language.set", {"preference": "en"})])
+
+    def test_slow_backup_vault_does_not_block_owner_storage_bridge(self):
+        db = self.open()
+        service = self.service(db)
         entered, release, completed = threading.Event(), threading.Event(), threading.Event()
         original = self.vault.save
         def slow(*args):

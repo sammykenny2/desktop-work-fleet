@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
+import { formatDate, plural, t } from '../src/i18n/index.js';
 
 // Run the actual account presenter with a bounded DOM/bridge fixture; no account data or browser is opened.
 const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'utf8');
@@ -9,14 +10,17 @@ const initialize = source.slice(source.indexOf('async function initializeGoogle(
 const presenter = source.slice(source.indexOf('function renderGoogleAccess()'), source.indexOf('// The account chip'));
 const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('async function changeGoogleAccount('));
 const changeAccount = source.slice(source.indexOf('async function changeGoogleAccount('), source.indexOf('function resetPlan()'));
+// main.js passes status text as a string or as a function that builds it in the current language.
+const textOf = value => typeof value === 'function' ? value() : value;
 
 async function fixture(profileId, account, state = {}) {
   const nodes = new Map(); const timers = []; const syncs = []; const connections = []; let immediate = 0;
+  const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
   const context = vm.createContext({
-    profileId, googleAccount: null, syncTimer: null, syncService: null,
+    profileId, googleAccount: null, syncTimer: null, syncService: null, t,
     native: { info: { profileId }, bridge: { request: async method => { assert.equal(method, 'google.status'); return account; } } },
     workspace: { state }, storage: {}, sourceResetAsked: true,
-    $: id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); },
+    $, setText: (id, text) => { $(id).textContent = textOf(text); },
     clearInterval() {}, setInterval: (callback, delay) => { timers.push({ callback, delay }); return 1; }, addEventListener() {},
     renderAccount() {}, setSync: (...args) => syncs.push(args), syncGoogle: async () => { immediate++; },
     changeGoogleAccount() {}, askResumeCloudRestore() {}, askAfterSourceReset() { connections.push('recover-local-copy'); }, openSettings() {},
@@ -28,10 +32,10 @@ async function fixture(profileId, account, state = {}) {
 }
 
 test('locked vault keeps offline Google notes and a retry route without suggesting reauthentication', async () => {
-  const f = await fixture('google:fixture', { configured: true, connected: false, accountId: 'fixture', paused: true, pauseReason: '系統金鑰圈已鎖定' });
-  assert.equal(f.nodes.get('#google-value').textContent, '同步暫停');
-  assert.equal(f.nodes.get('#google-sign-in').textContent, '切換帳號');
-  assert.equal(f.nodes.get('#google-sync').textContent, '立即同步');
+  const f = await fixture('google:fixture', { configured: true, connected: false, accountId: 'fixture', paused: true, pauseReason: 'The system keyring is locked' });
+  assert.equal(f.nodes.get('#google-value').textContent, t('sync.status.paused'));
+  assert.equal(f.nodes.get('#google-sign-in').textContent, t('sync.google.switchAccount'));
+  assert.equal(f.nodes.get('#google-sync').textContent, t('sync.actions.syncNow'));
   assert.equal(f.nodes.get('#sync-row').hidden, false);
   assert.equal(f.nodes.get('#google-sign-out').hidden, false);
   assert.equal(f.immediate, 0);
@@ -47,10 +51,10 @@ test('pending reset journals pause automatic sync and superseded reset or restor
     const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, state);
     assert.equal(f.immediate, 0); assert.equal(f.timers.length, 0); assert.equal(f.connections.length, 0);
     if (state.sourceReset?.superseded || state.cloudRestore) {
-      assert.equal(f.nodes.get('#google-sync').textContent, '重新取得雲端副本');
+      assert.equal(f.nodes.get('#google-sync').textContent, t('sync.actions.refetch'));
       await f.nodes.get('#google-sync').onclick();
       assert.deepEqual(f.connections, ['recover-local-copy']);
-    } else assert.equal(f.nodes.get('#google-sync').textContent, '繼續重設資料');
+    } else assert.equal(f.nodes.get('#google-sync').textContent, t('sync.actions.resumeReset'));
   }
 });
 
@@ -59,7 +63,7 @@ test('unlock status updates the same account controls without starting OAuth', a
   f.context.googleAccount = { configured: true, connected: true, accountId: 'fixture', email: 'synthetic@example.test', paused: false };
   vm.runInContext('renderGoogleAccess()', f.context);
   assert.equal(f.nodes.get('#google-value').textContent, 'synthetic@example.test');
-  assert.equal(f.nodes.get('#google-sign-in').textContent, '切換帳號');
+  assert.equal(f.nodes.get('#google-sign-in').textContent, t('sync.google.switchAccount'));
   assert.equal(f.nodes.get('#sync-row').hidden, false);
 });
 
@@ -68,7 +72,7 @@ test('hosts without optional vault pause fields retain connected and signed-out 
   assert.equal(connected.immediate, 1);
   assert.equal(connected.connections[0].bootstrapGroup, true, 'the app delegates initial group creation to the sync coordinator');
   const local = await fixture('local', { configured: true, connected: false });
-  assert.equal(local.nodes.get('#google-value').textContent, '未登入');
+  assert.equal(local.nodes.get('#google-value').textContent, t('sync.google.signedOut'));
   assert.equal(local.nodes.get('#sync-row').hidden, true);
   assert.equal(local.timers.length, 0);
 });
@@ -76,15 +80,16 @@ test('hosts without optional vault pause fields retain connected and signed-out 
 function syncFixture({ capability = true, unlock, sync } = {}) {
   const nodes = new Map(); const calls = []; const states = [];
   const account = { configured: true, connected: true, paused: false, accountId: 'fixture', email: 'synthetic@example.test' };
+  const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
   const context = vm.createContext({
-    profileId: 'google:fixture', googleAccount: { ...account, connected: false, paused: true },
+    profileId: 'google:fixture', googleAccount: { ...account, connected: false, paused: true }, t, plural, formatDate,
     native: { info: { capabilities: { vaultUnlock: capability } }, bridge: { request: async method => {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
     } } },
     syncService: { sync: async options => { calls.push(['sync', options.force]); if (sync) await sync(); } },
     syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, desktop: null,
     document: { querySelectorAll: () => [] },
-    $: id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); },
+    $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
     flushDraft: async () => calls.push('flush'),
     workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingOperations: [], layout: { placeNew: async () => {} } },
@@ -100,29 +105,29 @@ test('manual sync requests native system unlock then continues the same account 
   await f.invoke(true);
   assert.deepEqual(f.calls, ['google.unlockVault', 'flush', ['sync', true]]);
   assert.equal(f.context.googleAccount.accountId, 'fixture');
-  assert.equal(f.nodes.get('#storage-note').textContent, '同步到你的 Google 帳號');
+  assert.equal(f.nodes.get('#storage-note').textContent, t('sync.storage.google'));
   assert.equal(f.states.at(-1)[0], 'ok');
   assert.equal(f.context.syncBusy, false);
   assert.equal(f.nodes.get('#google-sync').disabled, false);
 });
 
 test('background sync never requests unlock even when the vault is locked', async () => {
-  const f = syncFixture({ sync: () => { throw Object.assign(new Error('金鑰圈已鎖住'), { code: 'vault-locked' }); } });
+  const f = syncFixture({ sync: () => { throw Object.assign(new Error('Keyring locked'), { code: 'vault-locked' }); } });
   await f.invoke(false);
   assert.deepEqual(f.calls, ['flush', ['sync', false]]);
-  assert.equal(f.states.at(-1)[1], '同步暫停');
+  assert.equal(textOf(f.states.at(-1)[1]), t('sync.status.paused'));
 });
 
 test('cancelled or timed-out unlock keeps notes paused and a later click can retry', async () => {
   for (const code of ['vault-unlock-cancelled', 'vault-unlock-timeout']) {
     let cancel = true;
     const f = syncFixture({ unlock: () => {
-      if (cancel) throw Object.assign(new Error('解鎖未完成'), { code });
+      if (cancel) throw Object.assign(new Error('Unlock not finished'), { code });
       return { configured: true, connected: true, accountId: 'fixture', paused: false };
     } });
     await f.invoke(true);
     assert.deepEqual(f.calls, ['google.unlockVault']);
-    assert.equal(f.states.at(-1)[1], '同步暫停');
+    assert.equal(textOf(f.states.at(-1)[1]), t('sync.status.paused'));
     assert.equal(f.context.syncBusy, false);
     assert.equal(f.nodes.get('#google-sync').disabled, false);
     assert.equal(f.nodes.get('#google-sync').disabled, false);
@@ -166,7 +171,7 @@ test('account switch, local mode and sign-out discard the old unlock response be
     assert.deepEqual(f.calls, ['google.unlockVault']);
     assert.equal(f.context.googleAccount, nextAccount);
     assert.equal(f.context.syncBusy, false);
-    assert.equal(f.states.some(state => state[1] === '同步失敗'), false);
+    assert.equal(f.states.some(state => textOf(state[1]) === t('sync.status.failed')), false);
   }
 });
 
@@ -179,7 +184,7 @@ test('closing the host or cancelling an old account prompt does not overwrite th
     f.context.accountBusy = !closing;
     const nextAccount = { accountId: 'other', connected: true };
     f.context.googleAccount = nextAccount;
-    reject(Object.assign(new Error('舊操作已取消'), { code: 'vault-unlock-cancelled' }));
+    reject(Object.assign(new Error('Old request cancelled'), { code: 'vault-unlock-cancelled' }));
     await first;
     assert.deepEqual(f.calls, ['google.unlockVault']);
     assert.equal(f.context.googleAccount, nextAccount);
@@ -202,15 +207,15 @@ test('cancelled account change or close leaves an immediately usable manual-sync
       f.context.document.body = {};
       f.context.native.bridge.request = async method => {
         assert.equal(method, 'google.local');
-        reject(Object.assign(new Error('操作已取消'), { code: 'vault-unlock-cancelled' }));
-        throw new Error('帳號切換已取消');
+        reject(Object.assign(new Error('Request cancelled'), { code: 'vault-unlock-cancelled' }));
+        throw new Error('Account switch cancelled');
       };
       await vm.runInContext(`${changeAccount}\nchangeGoogleAccount('local')`, f.context);
       assert.equal(f.context.accountBusy, false);
       assert.equal(f.context.document.body.inert, false);
     } else {
       f.context.nativeClosing = true;
-      reject(Object.assign(new Error('操作已取消'), { code: 'vault-unlock-cancelled' }));
+      reject(Object.assign(new Error('Request cancelled'), { code: 'vault-unlock-cancelled' }));
     }
     await first;
     assert.equal(f.nodes.get('#google-sync').disabled, false);
@@ -243,7 +248,7 @@ test('cancelled Google sign-in preserves the workspace and restores editing, syn
     f.context.document.body = {};
     f.context.native.bridge.request = async method => {
       calls.push(method);
-      throw Object.assign(new Error('登入未完成'), { code });
+      throw Object.assign(new Error('Sign-in not finished'), { code });
     };
     await vm.runInContext(`${changeAccount}\nchangeGoogleAccount('signIn')`, f.context);
     assert.deepEqual(calls, ['stop-backups', 'backups-idle', 'stop-sync', 'google.signIn', 'restart-backups', 'restore-sync']);

@@ -6,7 +6,7 @@
     {
       "deleted": false,
       "id": "fixture-1",
-      "name": "我的便箋",
+      "name": "My notes",
       "revision": "fixture-2"
     }
   ],
@@ -17,10 +17,10 @@
       "content": {
         "attachments": [],
         "custom": {
-          "retained": "擴充資料"
+          "retained": "Extension data"
         },
         "format": "markdown",
-        "text": "舊便箋\n- [ ] 未完成"
+        "text": "Old note\n- [ ] Not done"
       },
       "createdAt": "2026-10-06T12:00:00.000Z",
       "deleted": false,
@@ -37,10 +37,10 @@
       "baseRevision": "fixture-4",
       "content": {
         "format": "markdown",
-        "text": "尚未儲存的草稿",
+        "text": "Unsaved draft",
         "attachments": [],
         "custom": {
-          "retained": "擴充資料"
+          "retained": "Extension data"
         }
       }
     }
@@ -53,7 +53,7 @@
       "parents": [],
       "value": {
         "id": "fixture-1",
-        "name": "我的便箋",
+        "name": "My notes",
         "revision": "fixture-2",
         "deleted": false
       }
@@ -69,10 +69,10 @@
         "groupId": "fixture-1",
         "content": {
           "format": "markdown",
-          "text": "舊便箋\n- [ ] 未完成",
+          "text": "Old note\n- [ ] Not done",
           "attachments": [],
           "custom": {
-            "retained": "擴充資料"
+            "retained": "Extension data"
           }
         },
         "deleted": false,
@@ -121,7 +121,7 @@
   },
   "extension": {
     "retained": [
-      "歷史格式",
+      "Historical format",
       42
     ]
   }

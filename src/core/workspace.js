@@ -11,10 +11,11 @@ import { schemas, requireSchemaVersion } from './schema.js';
 import { initialGroupRecord, resetFileIds } from '../sources/initial-group.js';
 import { encodeSourceRevision } from '../sources/source-revisions.js';
 import { initializationComplete, initializationId, validateInitialization } from '../sources/workspace-initialization.js';
+import { t } from '../i18n/index.js';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
-    'invalid-content', '便箋需要文字及格式。');
+    'invalid-content', t('errors.core.contentInvalid'));
   // Preserve extension data and attachments; adapters must not reduce an unknown format to text.
   canonicalJson(content);
   return copy(content);
@@ -42,7 +43,7 @@ function loadRevisions(state) {
   for (const [kind, values] of [['group', state.groups], ['card', state.cards]]) {
     for (const value of values) {
       requireValue(graph.get(value.revision)?.entityId === value.id && graph.get(value.revision)?.kind === kind
-        && graph.isComplete(value.revision), 'incomplete-local-history', '本機版本歷史不完整，資料保留，請先恢復來源。');
+        && graph.isComplete(value.revision), 'incomplete-local-history', t('errors.core.localHistoryIncomplete'));
     }
   }
   return graph;
@@ -61,7 +62,7 @@ function rebaseMembership(state, draft) {
   }
   const seen = new Set();
   while (state.membershipRebases?.[draft.baseRevision]?.cardId === draft.cardId) {
-    requireValue(!seen.has(draft.baseRevision), 'revision-cycle', '群組版本關係無效，草稿尚未提交。');
+    requireValue(!seen.has(draft.baseRevision), 'revision-cycle', t('errors.core.draftRevisionCycle'));
     seen.add(draft.baseRevision);
     draft.baseRevision = state.membershipRebases[draft.baseRevision].revision;
   }
@@ -86,7 +87,7 @@ export class Workspace {
   #runtimeId = crypto.randomUUID();
 
   static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID(), now = Date.now }) {
-    const groups = bootstrapGroup ? [{ id: uuid(), name: '我的便箋', revision: uuid(), deleted: false }] : [];
+    const groups = bootstrapGroup ? [{ id: uuid(), name: t('app.groups.defaultName'), revision: uuid(), deleted: false }] : [];
     const state = { schemaVersion: schemas.workspace, profileId, revision: 0, groups, cards: [],
       drafts: {}, membershipRebases: {}, outbox: groups.map(group => ({ operationId: group.revision, kind: 'group', entityId: group.id,
         parents: [], value: copy(group) })), revisions: groups.map(group => revisionRecord('group', group)),
@@ -106,11 +107,11 @@ export class Workspace {
     this.#state.layout = groupLayersFromPapers(this.#state.layout, this.#state.cards);
     this.#state.layout.shortcuts = regionShortcuts(this.#state.layout.shortcuts, this.#state.layout.grid.slots);
     this.#layout = new LayoutStore(this.#state.layout, (layout, revision, validation) => this.#commit(draft => {
-      requireValue(draft.layout.revision === revision, 'stale-layout', '版面已由另一個寫入者變更。');
+      requireValue(draft.layout.revision === revision, 'stale-layout', t('errors.core.layoutChangedByOther'));
       if (validation?.membership) requireValue(validation.membership === membershipKey(draft, draft.layout),
-        'stale-plan', '預覽後資料已變更，請重新預覽。');
+        'stale-plan', t('errors.common.previewStale'));
       if (validation?.groups) requireValue(validation.groups === groupKey(draft),
-        'stale-groups', '群組已變更，請重新開啟設定或排列。');
+        'stale-groups', t('errors.core.groupsChanged'));
       draft.layout = copy(layout);
     }));
   }
@@ -143,9 +144,9 @@ export class Workspace {
   /** One restore transaction includes attachment bytes; the caller must supply an atomic persistence adapter. */
   async applyRestore(plan, { persist, safetyBackup, signal } = {}) {
     const { RestorePlan } = await import('../backup/restore.js');
-    requireValue(plan instanceof RestorePlan && typeof persist === 'function', 'invalid-restore-plan', '需要有效預覽及原子還原儲存介面。');
+    requireValue(plan instanceof RestorePlan && typeof persist === 'function', 'invalid-restore-plan', t('errors.core.restorePlanRequired'));
     const replaceGraph = plan.preview.mode === 'local-replace';
-    const cancelled = () => requireValue(!signal?.aborted, 'backup-cancelled', '還原已取消，現有資料未變更。');
+    const cancelled = () => requireValue(!signal?.aborted, 'backup-cancelled', t('errors.core.restoreCancelled'));
     cancelled();
     return this.#layout.integrateSource(() => {
       cancelled(); const existing = plan.existing(this.#state);
@@ -165,8 +166,8 @@ export class Workspace {
 
   #card(state, id, revision) {
     const card = state.cards.find(card => card.id === id);
-    requireValue(card && !card.deleted, 'missing-card', '卡片已不存在。');
-    requireValue(card.revision === revision, 'conflict', '卡片已由另一個操作更新；保留目前草稿與轉組意圖。',
+    requireValue(card && !card.deleted, 'missing-card', t('errors.common.noteMissing'));
+    requireValue(card.revision === revision, 'conflict', t('errors.core.noteUpdatedElsewhere'),
       { cardId: id, expectedRevision: revision, actualRevision: card.revision });
     this.#resolved(state, 'card', id);
     return card;
@@ -174,19 +175,19 @@ export class Workspace {
 
   #resolved(state, kind, id) {
     requireValue(!state.conflicts.some(item => item.kind === 'revision' && item.entityKind === kind && item.entityId === id),
-      'conflict', '這筆資料有多個版本，請先處理衝突；目前草稿仍保留。');
+      'conflict', t('errors.core.conflictUnresolved'));
   }
 
   #group(state, id) {
-    requireValue(state.groups.some(group => group.id === id && !group.deleted), 'missing-group', '群組不存在或尚待同步。');
+    requireValue(state.groups.some(group => group.id === id && !group.deleted), 'missing-group', t('errors.common.groupMissingOrPending'));
     this.#resolved(state, 'group', id);
   }
 
   #record(state, kind, value, parents) {
     const record = revisionRecord(kind, value, parents);
-    requireValue(!state.revisions.some(item => item.revisionId === record.revisionId), 'revision-collision', '版本身分重複，尚未保存。');
+    requireValue(!state.revisions.some(item => item.revisionId === record.revisionId), 'revision-collision', t('errors.core.revisionIdDuplicate'));
     requireValue(parents.every(parent => state.revisions.some(item => item.revisionId === parent
-      && item.kind === kind && item.entityId === value.id)), 'missing-parent', '找不到完整的父版本，尚未保存。');
+      && item.kind === kind && item.entityId === value.id)), 'missing-parent', t('errors.core.parentMissing'));
     state.revisions.push(record);
     state.outbox.push({ operationId: value.revision, kind, entityId: value.id, parents, value: copy(value) });
   }
@@ -207,7 +208,7 @@ export class Workspace {
     const key = canonicalJson(intent);
     return this.#commit(state => {
       const index = state.conflicts.findIndex(item => item.kind === 'transfer' && canonicalJson(item) === key);
-      requireValue(index >= 0, 'missing-intent', '這筆轉組意圖已處理。');
+      requireValue(index >= 0, 'missing-intent', t('errors.core.moveIntentHandled'));
       state.conflicts.splice(index, 1);
     });
   }
@@ -215,9 +216,9 @@ export class Workspace {
   async retryTransferIntent(intent, expectedRevision) {
     intent = copy(intent); const key = canonicalJson(intent);
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
-      requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試。');
+      requireValue(state.layout.revision === revision, 'stale-layout', t('errors.common.layoutChanged'));
       const index = state.conflicts.findIndex(item => item.kind === 'transfer' && canonicalJson(item) === key);
-      requireValue(index >= 0, 'missing-intent', '這筆轉組意圖已處理。');
+      requireValue(index >= 0, 'missing-intent', t('errors.core.moveIntentHandled'));
       const card = this.#card(state, intent.cardId, expectedRevision); this.#group(state, intent.groupId);
       if (card.groupId !== intent.groupId) {
         const nextRevision = this.#uuid();
@@ -232,9 +233,9 @@ export class Workspace {
   }
 
   async beginSync(sourceId) {
-    requireValue(typeof sourceId === 'string' && sourceId.length > 0, 'invalid-source', '需要明確的來源身分。');
+    requireValue(typeof sourceId === 'string' && sourceId.length > 0, 'invalid-source', t('errors.core.sourceIdRequired'));
     return this.#commit(state => {
-      requireValue(!state.sync.sourceId || state.sync.sourceId === sourceId, 'source-mismatch', '不同帳號或來源必須使用獨立工作空間。');
+      requireValue(!state.sync.sourceId || state.sync.sourceId === sourceId, 'source-mismatch', t('errors.core.sourceMismatch'));
       state.sync.sourceId = sourceId; state.sync.sessionId = this.#uuid();
       return { profileId: state.profileId, sourceId, sessionId: state.sync.sessionId, runtimeId: this.#runtimeId };
     });
@@ -243,7 +244,7 @@ export class Workspace {
   #session(state, session) {
     requireValue(session && session.runtimeId === this.#runtimeId && session.profileId === state.profileId && session.sourceId === state.sync.sourceId
       && session.sessionId && session.sessionId === state.sync.sessionId,
-    'stale-session', '來源連線已結束或帳號已變更，舊回應未寫入。');
+    'stale-session', t('errors.core.sessionStale'));
   }
 
   async endSync(session) {
@@ -253,7 +254,7 @@ export class Workspace {
 
   async completeSync(session, completedAt) {
     requireValue(typeof completedAt === 'string' && Number.isFinite(Date.parse(completedAt)) && new Date(completedAt).toISOString() === completedAt,
-      'invalid-sync-time', '同步完成時間無效。');
+      'invalid-sync-time', t('errors.core.syncTimeInvalid'));
     session = copy(session);
     return this.#commit(state => {
       this.#session(state, session);
@@ -266,7 +267,7 @@ export class Workspace {
   #file(state, file) {
     state.sync.files ||= {};
     const previous = Object.hasOwn(state.sync.files, file.id) ? state.sync.files[file.id] : null;
-    requireValue(!previous || canonicalJson(previous) === canonicalJson(file), 'file-changed', '原有同步檔案已被修改，資料仍保留，請處理來源完整性。');
+    requireValue(!previous || canonicalJson(previous) === canonicalJson(file), 'file-changed', t('errors.core.syncFileChanged'));
     state.sync.files[file.id] = copy(file);
   }
 
@@ -274,22 +275,22 @@ export class Workspace {
     session = copy(session); file = validateFile(file);
     if (file.kind === 'revision') {
       const record = this.#graph.get(key);
-      requireValue(record, 'missing-revision', '找不到待同步版本。');
+      requireValue(record, 'missing-revision', t('errors.core.pendingRevisionMissing'));
       const bytes = encodeSourceRevision(record, resetFileIds(this.#state.sync.files));
-      requireValue(file.size === bytes.byteLength && file.sha256 === await sha256(bytes), 'upload-mismatch', '待同步檔案與不可變版本不符。');
-    } else requireValue(validDigest(key) && key === file.sha256, 'upload-mismatch', '附件必須以內容校驗值定址。');
+      requireValue(file.size === bytes.byteLength && file.sha256 === await sha256(bytes), 'upload-mismatch', t('errors.core.uploadRevisionMismatch'));
+    } else requireValue(validDigest(key) && key === file.sha256, 'upload-mismatch', t('errors.core.attachmentAddress'));
     return this.#commit(state => {
       this.#session(state, session); state.sync.uploads ||= {};
       const operation = `${file.kind}:${key}`;
       const existing = state.sync.uploads[operation];
       if (existing) {
         requireValue(existing.file.kind === file.kind && existing.file.sha256 === file.sha256 && existing.file.size === file.size,
-          'upload-mismatch', '重試的檔案內容與原始操作不符。');
+          'upload-mismatch', t('errors.core.retryMismatch'));
         return copy(existing);
       }
-      if (file.kind === 'revision') requireValue(state.outbox.some(item => item.operationId === key), 'missing-outbox', '這筆版本已同步或不在待送清單。');
+      if (file.kind === 'revision') requireValue(state.outbox.some(item => item.operationId === key), 'missing-outbox', t('errors.core.outboxMissing'));
       requireValue(!Object.values(state.sync.uploads).some(item => item.file.id === file.id) && !Object.hasOwn(state.sync.files || {}, file.id),
-        'file-id-collision', '來源配置了已使用的檔案身分，尚未上傳。');
+        'file-id-collision', t('errors.core.fileIdCollision'));
       const upload = { file, complete: false };
       state.sync.uploads[operation] = copy(upload); return copy(upload);
     });
@@ -300,7 +301,7 @@ export class Workspace {
     return this.#commit(state => {
       this.#session(state, session);
       const upload = state.sync.uploads?.[operation];
-      requireValue(safeKey(operation) && upload?.file?.id === fileId, 'upload-mismatch', '上傳回應不屬於目前操作。');
+      requireValue(safeKey(operation) && upload?.file?.id === fileId, 'upload-mismatch', t('errors.core.uploadResponseMismatch'));
       upload.complete = true; this.#file(state, upload.file);
       if (upload.file.kind === 'revision') state.outbox = state.outbox.filter(entry => `revision:${entry.operationId}` !== operation);
     });
@@ -313,14 +314,14 @@ export class Workspace {
     const controls = await Promise.all(workspaceRecords.map(async value => {
       const record = await validateInitialization(value, session.sourceId); return { record, id: await initializationId(record) };
     }));
-    requireValue(cursor === null || (typeof cursor === 'string' && cursor.length <= 8192), 'invalid-cursor', '同步游標無效。');
+    requireValue(cursor === null || (typeof cursor === 'string' && cursor.length <= 8192), 'invalid-cursor', t('errors.core.cursorInvalid'));
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
       this.#session(state, session);
-      requireValue(state.sync.cursor === expectedCursor, 'stale-cursor', '已有更新的同步進度，請重新取得游標。');
-      requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試同步。');
+      requireValue(state.sync.cursor === expectedCursor, 'stale-cursor', t('errors.core.cursorStale'));
+      requireValue(state.layout.revision === revision, 'stale-layout', t('errors.core.layoutChangedRetrySync'));
       const pendingReset = state.sync.initialization?.expected && !state.sync.initialization.activePlan && !state.cloudRestore
         && !Object.keys(state.sync.initialization.plans).length && !Object.keys(state.sync.initialization.receipts).length;
-      requireValue(!removedFiles.length || pendingReset, 'source-file-missing', '原有同步檔案已移除，副本仍保留。');
+      requireValue(!removedFiles.length || pendingReset, 'source-file-missing', t('errors.core.syncFileRemoved'));
       const previousResets = canonicalJson(resetFileIds(state.sync.files));
       for (const id of removedFiles) delete state.sync.files[id];
       for (const file of files) this.#file(state, file);
@@ -343,13 +344,13 @@ export class Workspace {
       if (activatePlan) {
         requireValue(initialization && canonicalJson(initialization) === expectedInitialization
           && initialization.plans[activatePlan] && initialization.receipts[activatePlan]
-          && Object.keys(initialization.plans).length === 1, 'stale-initialization', '初始化資料已變更，請重新同步。');
+          && Object.keys(initialization.plans).length === 1, 'stale-initialization', t('errors.core.initializationChanged'));
         initialization.activePlan = activatePlan; initialization.incoming = {};
       } else if (stage && initialization && !initialization.activePlan) {
         const known = new Map([...state.revisions, ...Object.values(initialization.incoming)].map(record => [record.revisionId, record]));
         for (const record of records) {
           requireValue(!known.has(record.revisionId) || canonicalJson(known.get(record.revisionId)) === canonicalJson(record),
-            'revision-collision', '相同版本身分包含不同內容，同步已停止且保留本機資料。');
+            'revision-collision', t('errors.common.revisionCollision'));
           initialization.incoming[record.revisionId] = record; known.set(record.revisionId, record);
         }
         records = [];
@@ -382,7 +383,7 @@ export class Workspace {
     job = copy(job);
     return this.#commit(state => {
       requireValue(typeof job.sourceId === 'string' && (!state.sync.sourceId || state.sync.sourceId === job.sourceId),
-        'source-mismatch', '重設工作不屬於目前來源。');
+        'source-mismatch', t('errors.core.resetJobMismatch'));
       state.sourceReset = job;
     });
   }
@@ -390,18 +391,18 @@ export class Workspace {
   /** Explicitly adopt one observed branch, optionally editing it; old revisions remain in history. */
   async resolveRevisions({ kind, entityId, heads, selectedRevision, patch = {}, fromHistory = false }) {
     heads = copy(heads); patch = copy(patch);
-    requireValue(['card', 'group'].includes(kind), 'invalid-kind', '未知的資料種類。');
+    requireValue(['card', 'group'].includes(kind), 'invalid-kind', t('errors.core.kindUnknown'));
     const allowed = kind === 'card' ? ['content', 'groupId', 'deleted', 'archived', 'completed'] : ['name', 'deleted', 'redirectGroupId'];
-    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-command', '衝突決議不可修改身分或版本。');
+    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-command', t('errors.core.resolutionForbidden'));
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
-      requireValue(state.layout.revision === revision, 'stale-layout', '版面已變更，請重試。');
+      requireValue(state.layout.revision === revision, 'stale-layout', t('errors.common.layoutChanged'));
       const current = this.#graph.heads(kind, entityId);
       requireValue(Array.isArray(heads) && new Set(heads).size === heads.length
         && JSON.stringify([...heads].sort()) === JSON.stringify(current.map(item => item.revisionId).sort()),
-      'stale-resolution', '預覽後版本已變更，請重新比較再決定。');
+      'stale-resolution', t('errors.core.resolutionStale'));
       const selected = fromHistory ? this.#graph.get(selectedRevision) : current.find(item => item.revisionId === selectedRevision);
       requireValue(selected && selected.kind === kind && selected.entityId === entityId && this.#graph.isComplete(selected.revisionId),
-        'missing-revision', '找不到完整的所選版本。');
+        'missing-revision', t('errors.core.chosenRevisionMissing'));
       const value = { ...copy(selected.value), ...patch, revision: this.#uuid() };
       if (kind === 'card') {
         value.groupId = resolveGroupId(state, value.groupId); this.#group(state, value.groupId);
@@ -410,7 +411,7 @@ export class Workspace {
         if (!state.groups.some(group => group.id === value.id && !group.deleted)) validateNewGroup(state);
       } else {
         value.redirectGroupId = resolveGroupId(state, value.redirectGroupId);
-        requireValue(value.redirectGroupId !== value.id, 'group-cycle', '接收群組不能再導回自己。');
+        requireValue(value.redirectGroupId !== value.id, 'group-cycle', t('errors.core.groupRedirectSelf'));
       }
       this.#record(state, kind, value, heads);
       const graph = this.#graph.fork([state.revisions.at(-1)]);
@@ -421,7 +422,7 @@ export class Workspace {
   }
 
   async createGroup(name) {
-    requireValue(typeof name === 'string' && name.trim(), 'invalid-name', '請輸入群組名稱。');
+    requireValue(typeof name === 'string' && name.trim(), 'invalid-name', t('errors.core.groupNameRequired'));
     return this.#commit(state => {
       validateNewGroup(state);
       const group = { id: this.#uuid(), revision: this.#uuid(), name: name.trim(), deleted: false };
@@ -439,11 +440,11 @@ export class Workspace {
     return this.#commit(state => {
       this.#session(state, session);
       requireValue(state.sync.cursor !== null && canonicalJson(resetFileIds(state.sync.files)) === resets,
-        'initial-sync-required', '請先完成 Google 同步，再新增便箋。');
+        'initial-sync-required', t('errors.common.initialSyncRequired'));
       if (planId) {
         const plan = state.sync.initialization?.plans[planId];
         requireValue(plan?.mode === 'starter' && plan.revisions[0].id === record.revisionId
-          && canonicalJson(plan.sourceResetIds) === resets, 'stale-initialization', '初始化計畫已變更，請重新同步。');
+          && canonicalJson(plan.sourceResetIds) === resets, 'stale-initialization', t('errors.core.initializationPlanChanged'));
         if (state.revisions.some(item => item.revisionId === record.revisionId)) return null;
       } else if (state.revisions.length || state.groups.length) return null;
       const group = record.value;
@@ -453,11 +454,11 @@ export class Workspace {
   }
 
   async renameGroup(id, name, expectedRevision) {
-    requireValue(typeof name === 'string' && name.trim(), 'invalid-name', '請輸入群組名稱。');
+    requireValue(typeof name === 'string' && name.trim(), 'invalid-name', t('errors.core.groupNameRequired'));
     return this.#commit(state => {
       this.#group(state, id);
       const group = state.groups.find(group => group.id === id);
-      requireValue(group.revision === expectedRevision, 'conflict', '群組已更新，請重試。');
+      requireValue(group.revision === expectedRevision, 'conflict', t('errors.core.groupUpdated'));
       group.name = name.trim(); group.revision = this.#uuid();
       this.#record(state, 'group', group, [expectedRevision]);
       return copy(group);
@@ -473,7 +474,7 @@ export class Workspace {
     return this.#layout.integrateSource((layout, layoutRevision) => this.#commit(state => {
       validateGroupMerge(state, plan);
       this.#group(state, plan.sourceId); this.#group(state, plan.targetId);
-      requireValue(state.layout.revision === layoutRevision, 'stale-layout', '版面已變更，請重試。');
+      requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.common.layoutChanged'));
       state.membershipRebases ||= {};
       for (const card of state.cards.filter(card => card.groupId === plan.sourceId)) {
         this.#resolved(state, 'card', card.id);
@@ -509,10 +510,10 @@ export class Workspace {
   async updateCard(cardId, patch, expectedRevision) {
     patch = copy(patch);
     requireValue(Object.keys(patch).every(key => ['content', 'archived', 'completed', 'deleted'].includes(key)),
-      'invalid-command', '卡片更新不可修改身分、版本或群組。');
+      'invalid-command', t('errors.core.noteUpdateForbidden'));
     if ('content' in patch) contentValue(patch.content);
     for (const key of ['archived', 'completed', 'deleted']) {
-      requireValue(!(key in patch) || typeof patch[key] === 'boolean', 'invalid-command', '卡片狀態必須是布林值。');
+      requireValue(!(key in patch) || typeof patch[key] === 'boolean', 'invalid-command', t('errors.core.noteFlagInvalid'));
     }
     return this.#commit(state => {
       const card = this.#card(state, cardId, expectedRevision);
@@ -531,7 +532,7 @@ export class Workspace {
 
   recoverDraft(draftId) {
     const original = this.#state.drafts[draftId];
-    requireValue(original, 'missing-draft', '找不到這份草稿。');
+    requireValue(original, 'missing-draft', t('errors.core.draftMissing'));
     return { ...copy(original), id: this.#uuid(), recoveredFrom: [
       ...(original.recoveredFrom || []), { id: original.id, baseline: draftBaseline(original) },
     ] };
@@ -540,7 +541,7 @@ export class Workspace {
   async commitDraft(draftId, { asCopy = false } = {}) {
     return this.#commit(state => {
       const draft = state.drafts[draftId];
-      requireValue(draft, 'missing-draft', '找不到已保存的草稿。');
+      requireValue(draft, 'missing-draft', t('errors.core.savedDraftMissing'));
       this.#group(state, draft.groupId);
       let card;
       if (draft.baseRevision && !asCopy) {
@@ -549,7 +550,7 @@ export class Workspace {
         this.#record(state, 'card', card, [draft.baseRevision]);
       } else {
         const id = asCopy ? this.#uuid() : draft.cardId;
-        requireValue(!state.cards.some(existing => existing.id === id), 'duplicate-card', '卡片身分已存在，請另存副本。');
+        requireValue(!state.cards.some(existing => existing.id === id), 'duplicate-card', t('errors.core.noteDuplicate'));
         card = { id, revision: this.#uuid(), groupId: draft.groupId, content: copy(draft.content),
           deleted: false, archived: false, completed: false, createdAt: this.#createdAt() };
         state.cards.push(card); this.#record(state, 'card', card, []);
@@ -567,7 +568,7 @@ export class Workspace {
   async restoreCard(cardId, expectedRevision) {
     return this.#commit(state => {
       const card = state.cards.find(card => card.id === cardId);
-      requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', '刪除區卡片已變更，請重新載入。');
+      requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', t('errors.core.deletedNoteChanged'));
       this.#resolved(state, 'card', cardId);
       this.#group(state, card.groupId);
       card.deleted = false; card.revision = this.#uuid();
@@ -588,7 +589,7 @@ export class Workspace {
       const transfer = { cardId, fromGroupId: current.groupId, toGroupId: groupId,
         previousRevision: expectedRevision, expectedRevision: revision };
       await this.#layout.transfer(cardId, position, expectedLayoutRevision, transfer, (layout, layoutRevision) => this.#commit(state => {
-        requireValue(state.layout.revision === layoutRevision, 'stale-layout', '版面已變更。');
+        requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.core.layoutChangedPlain'));
         const card = this.#card(state, cardId, expectedRevision);
         this.#group(state, groupId);
         card.groupId = groupId; card.revision = revision;
@@ -606,7 +607,7 @@ export class Workspace {
   async undo(workAreas) {
     const undoRevision = this.#uuid();
     return this.#layout.undo(() => this.snapshot, workAreas, (layout, layoutRevision, result) => this.#commit(state => {
-      requireValue(state.layout.revision === layoutRevision, 'stale-layout', '版面已變更。');
+      requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.core.layoutChangedPlain'));
       if (result.transfer) {
         const { cardId, fromGroupId, expectedRevision } = result.transfer;
         const card = this.#card(state, cardId, expectedRevision);
@@ -620,7 +621,7 @@ export class Workspace {
 
   async saveDraft(draft) {
     draft = copy(draft);
-    requireValue(safeKey(draft.id) && safeKey(draft.cardId), 'invalid-draft', '草稿身分無效。');
+    requireValue(safeKey(draft.id) && safeKey(draft.cardId), 'invalid-draft', t('errors.core.draftIdInvalid'));
     contentValue(draft.content);
     return this.#commit(state => { state.drafts[draft.id] = rebaseDraft(state, copy(draft)); });
   }

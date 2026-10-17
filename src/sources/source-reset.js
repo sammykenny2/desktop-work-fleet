@@ -4,6 +4,7 @@ import { initialGroupRecord } from './initial-group.js';
 import { encodeSourceRevision } from './source-revisions.js';
 import { fileLimit, sha256, validFileId, validateFile, verifyFile } from './files.js';
 import { encodeInitialization, initializationId, initializationProtocol, initializationReceipt, prepareInitialization, validateInitialization } from './workspace-initialization.js';
+import { t } from '../i18n/index.js';
 
 const retryable = code => ['network', 'rate-limit', 'service-unavailable'].includes(code);
 
@@ -20,16 +21,16 @@ export async function resetSource(store, { job = null, saveJob = async () => {},
     const ids = []; const resets = []; const tokens = new Set(); let pageToken = null;
     do {
       const page = await attempt(() => store.listFileIds({ pageToken }));
-      requireValue(!page.incomplete, 'incomplete-source-scan', '來源尚未完整列舉，已停止重設。');
+      requireValue(!page.incomplete, 'incomplete-source-scan', t('errors.sources.resetScanIncomplete'));
       requireValue(Array.isArray(page.ids) && page.ids.length <= 1000 && Array.isArray(page.resetIds),
-        'invalid-source-page', '來源未提供重設身分，已停止清除。');
+        'invalid-source-page', t('errors.sources.resetIdMissing'));
       requireValue(page.ids.every(validFileId) && page.resetIds.every(id => validFileId(id) && page.ids.includes(id)),
-        'invalid-source-page', '來源重設身分無效，已停止清除。');
+        'invalid-source-page', t('errors.sources.resetIdInvalid'));
       ids.push(...page.ids); resets.push(...page.resetIds);
       pageToken = page.nextPageToken ?? null;
       if (pageToken !== null) {
         requireValue(typeof pageToken === 'string' && pageToken.length && pageToken.length <= 8192 && !tokens.has(pageToken),
-          'source-page-loop', '來源分頁無效，已停止重設。'); tokens.add(pageToken);
+          'source-page-loop', t('errors.sources.resetPageInvalid')); tokens.add(pageToken);
       }
     } while (pageToken !== null);
     return { ids, resets };
@@ -43,34 +44,34 @@ export async function resetSource(store, { job = null, saveJob = async () => {},
     const bytes = new TextEncoder().encode(canonicalJson(markerValue));
     const marker = validateFile({ id, kind: 'reset', sha256: await sha256(bytes), size: bytes.length });
     // Validate/encode the complete plan before any remote deletion.
-    requireValue(encodeInitialization(plan).length <= fileLimit('workspace'), 'invalid-initialization', '初始化計畫超過容量，尚未清除雲端。');
+    requireValue(encodeInitialization(plan).length <= fileLimit('workspace'), 'invalid-initialization', t('errors.sources.resetPlanTooLarge'));
     await save({ sourceId: store.sourceId, marker, markerValue, previousResetIds: before.resets.sort(), plan,
       planId: await initializationId(plan), phase: 'reset', markerPublished: false, uploads: {}, deleted: 0 });
   } else job = copy(job);
   requireValue(job.sourceId === store.sourceId && ['reset', 'initialize', 'upload', 'complete'].includes(job.phase)
     && job.marker?.kind === 'reset' && Array.isArray(job.previousResetIds) && job.previousResetIds.every(validFileId)
     && typeof job.markerPublished === 'boolean' && Number.isSafeInteger(job.deleted) && job.deleted >= 0
-    && job.uploads && typeof job.uploads === 'object' && !Array.isArray(job.uploads), 'invalid-reset-job', '重設工作無效或屬於其他帳號。');
+    && job.uploads && typeof job.uploads === 'object' && !Array.isArray(job.uploads), 'invalid-reset-job', t('errors.sources.resetJobInvalid'));
   validateFile(job.marker); await validateInitialization(job.plan, store.sourceId);
   requireValue(job.plan.phase === 'prepare' && job.plan.origin === 'reset' && ['starter', 'restore'].includes(job.plan.mode)
     && encodeInitialization(job.plan).length <= fileLimit('workspace')
     && job.planId === await initializationId(job.plan) && canonicalJson(job.plan.sourceResetIds) === canonicalJson([job.marker.id])
     && job.markerValue?.format === 'work-fleet-reset' && job.markerValue.schema === 1 && job.markerValue.initialization === initializationProtocol,
-    'invalid-reset-job', '重設計畫身分不符。');
+    'invalid-reset-job', t('errors.sources.resetPlanMismatch'));
   for (const [key, file] of Object.entries(job.uploads)) {
     validateFile(file);
-    requireValue(key === `${file.kind}:${file.sha256}` && ['workspace', 'revision'].includes(file.kind), 'invalid-reset-job', '重設上傳保留身分無效。');
+    requireValue(key === `${file.kind}:${file.sha256}` && ['workspace', 'revision'].includes(file.kind), 'invalid-reset-job', t('errors.sources.resetUploadIdInvalid'));
   }
   const markerBytes = new TextEncoder().encode(canonicalJson(job.markerValue)); await verifyFile(job.marker, markerBytes);
   const guard = async () => {
     const remote = await listing();
     requireValue(!remote.resets.some(id => id !== job.marker.id && !job.previousResetIds.includes(id))
       && (!job.markerPublished || remote.ids.includes(job.marker.id)), 'source-reset-superseded',
-    '雲端已有其他重設或原重設標記已移除，這份舊重設工作已停止，沒有繼續清除。');
+    t('errors.sources.resetSuperseded'));
     return remote;
   };
   const create = async (file, bytes) => {
-    try { const result = await attempt(() => store.createFile({ file, bytes })); requireValue(canonicalJson(validateFile(result)) === canonicalJson(file), 'upload-mismatch', '上傳身分不同。'); }
+    try { const result = await attempt(() => store.createFile({ file, bytes })); requireValue(canonicalJson(validateFile(result)) === canonicalJson(file), 'upload-mismatch', t('errors.sources.resetUploadMismatch')); }
     catch (error) { if (error.code !== 'file-exists') throw error; await verifyFile(file, await attempt(() => store.readFile({ file }))); }
   };
   const publish = async (kind, bytes) => {
@@ -93,7 +94,7 @@ export async function resetSource(store, { job = null, saveJob = async () => {},
         await save({ ...job, deleted: job.deleted + 1 }); progress(job.deleted, job.deleted + ids.length - index - 1);
       }
     }
-    if (!cleared) throw new FleetError('source-reset-incomplete', '雲端仍出現新檔案，重設尚未完成；請停止其他裝置同步後續行。');
+    if (!cleared) throw new FleetError('source-reset-incomplete', t('errors.sources.resetIncomplete'));
     await save({ ...job, phase: 'initialize' });
   }
   if (job.phase === 'initialize') {

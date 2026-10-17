@@ -12,9 +12,13 @@ from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import protocol as p
+from text import t
 
 SCOPE = "https://www.googleapis.com/auth/drive.appdata"
 FIELDS = "id,size,spaces,trashed,appProperties,sha256Checksum"
+# Why sync is paused, by the code of the keyring error: the page shows this text, so it is host text (text.py).
+PAUSE_REASONS = {"vault-locked": "sync.keyringLocked", "vault-unlock-timeout": "sync.unlockTimedOut",
+                 "vault-unlock-cancelled": "sync.unlockCancelled", "storage-integrity": "sync.secretsUnverified"}
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -24,7 +28,7 @@ class NoRedirect(HTTPRedirectHandler):
 
 def http(url, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024):
     uri = urlsplit(url)
-    p.require(uri.scheme == "https" and uri.hostname in ("oauth2.googleapis.com", "www.googleapis.com") and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment, "invalid-source", "Google 傳輸位置無效。")
+    p.require(uri.scheme == "https" and uri.hostname in ("oauth2.googleapis.com", "www.googleapis.com") and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment, "invalid-source", "The Google transfer address isn't valid.")
     request = Request(url, data=data, headers=headers or {}, method=method)
     try:
         try:
@@ -33,21 +37,21 @@ def http(url, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024):
             response = error
         with response:
             length = response.headers.get("Content-Length")
-            p.require(length is None or length.isdigit() and int(length) <= maximum, "source-capacity", "Google 回應容量超限。")
+            p.require(length is None or length.isdigit() and int(length) <= maximum, "source-capacity", "Google's response is too large.")
             chunks, size, deadline = [], 0, time.monotonic() + 110
             while True:
-                p.require(time.monotonic() < deadline, "network", "Google 傳輸逾時，待送內容保留。")
+                p.require(time.monotonic() < deadline, "network", "The Google transfer timed out; content waiting to upload is kept.")
                 chunk = response.read(min(65536, maximum + 1 - size))
                 if not chunk:
                     break
                 chunks.append(chunk)
                 size += len(chunk)
-                p.require(size <= maximum, "source-capacity", "Google 回應容量超限。")
+                p.require(size <= maximum, "source-capacity", "Google's response is too large.")
             return response.status, b"".join(chunks), response.headers
     except p.Failure:
         raise
     except (URLError, OSError, TimeoutError) as error:
-        raise p.Failure("network", "無法連接 Google，本機資料與待送內容保留。") from error
+        raise p.Failure("network", "Can't connect to Google; local data and content waiting to upload are kept.") from error
 
 
 class Google:
@@ -56,7 +60,7 @@ class Google:
         self.client = config.get("google", {}).get("clients", {}).get("linux", "")
         # A Desktop-type client's secret: Google's token endpoint requires it even with PKCE and documents it as non-confidential.
         self.secret = config.get("google", {}).get("secrets", {}).get("linux", "")
-        p.require(isinstance(self.secret, str) and len(self.secret) <= 256 and all("!" <= c <= "~" for c in self.secret), "google-config", "Google client secret 設定無效。")
+        p.require(isinstance(self.secret, str) and len(self.secret) <= 256 and all("!" <= c <= "~" for c in self.secret), "google-config", "The Google client secret setting isn't valid.")
         self.account = profile[7:] if profile.startswith("google:") else ""
         self.prepared = None
         self.closed = threading.Event()
@@ -77,13 +81,13 @@ class Google:
         if value is None:
             return None
         credentials = p.decode(value)
-        p.require(credentials.get("accountId") == account, "google-account", "Google 帳號身分不符。")
+        p.require(credentials.get("accountId") == account, "google-account", "The Google account doesn't match.")
         if credentials.get("clientId") != self.client or SCOPE not in credentials.get("scope", "").split():
             return None
         return credentials
 
     def save(self, credentials):
-        p.require(not self.closed.is_set(), "stale-session", "Google 工作階段已結束。")
+        p.require(not self.closed.is_set(), "stale-session", "The Google session has ended.")
         self.vault.save("google-account", credentials["accountId"], p.encode(credentials).decode("ascii"))
 
     def status(self):
@@ -91,9 +95,7 @@ class Google:
         return self.describe_status()
 
     def describe_status(self):
-        reason = None if self.vault_error is None else str(self.vault_error)
-        if self.vault_error is not None and self.vault_error.code == "vault-locked":
-            reason = "系統金鑰圈已鎖定，同步暫停。按「立即同步」可開啟系統解鎖視窗，完成後會接續同步。便箋仍可離線使用。"
+        reason = None if self.vault_error is None else t(PAUSE_REASONS.get(self.vault_error.code, "sync.keyringUnavailable"))
         return {"configured": self.available, "connected": self.credentials is not None, "profileId": self.profile,
                 "accountId": self.account if self.credentials is None and self.vault_error else None if self.credentials is None else self.credentials["accountId"],
                 "email": None if self.credentials is None else self.credentials["email"],
@@ -107,7 +109,7 @@ class Google:
             self.credentials = self.load(self.account)
         except Exception as error:
             self.credentials = None
-            self.vault_error = error if isinstance(error, p.Failure) else p.Failure("vault-unavailable", "系統安全儲存目前無法讀取；同步暫停，便箋仍可使用。")
+            self.vault_error = error if isinstance(error, p.Failure) else p.Failure("vault-unavailable", "The system's secure storage can't be read right now; sync is paused, and your notes still work.")
             if required:
                 raise self.vault_error
 
@@ -124,16 +126,16 @@ class Google:
             cancel()
 
     def unlock_vault(self, deadline=None, request_cancelled=None):
-        p.require(not self.closed.is_set() and self.account, "google-account", "請在 Google 便箋中使用手動同步。")
+        p.require(not self.closed.is_set() and self.account, "google-account", "Use manual sync in a Google notes workspace.")
         request_cancelled = self.request_unlock() if request_cancelled is None else request_cancelled
-        p.require(not request_cancelled.is_set(), "vault-unlock-cancelled", "已取消解鎖；同步維持暫停。")
+        p.require(not request_cancelled.is_set(), "vault-unlock-cancelled", "The unlock was cancelled; sync stays paused.")
         with self.vault.interaction(self.closed, deadline, request_cancelled):
             self.refresh_credentials()
             if self.vault_error is not None:
                 if self.vault_error.code != "vault-locked":
                     raise self.vault_error
                 self.vault.unlock(self.closed)
-            p.require(not self.closed.is_set(), "stale-session", "Google 工作階段已結束。")
+            p.require(not self.closed.is_set(), "stale-session", "The Google session has ended.")
             self.refresh_credentials(required=True)
             return self.describe_status()
 
@@ -141,18 +143,18 @@ class Google:
         if self.secret:
             fields = {**fields, "client_secret": self.secret}
         status, data, _ = http("https://oauth2.googleapis.com/token", "POST", urlencode(fields).encode("ascii"), {"Content-Type": "application/x-www-form-urlencoded"}, 65536)
-        p.require(status == 200, "unauthorized", "Google 授權未完成或已撤銷，請重新登入。")
+        p.require(status == 200, "unauthorized", "Google authorization didn't finish or was revoked. Sign in again.")
         return p.decode(data)
 
     def identity(self, access):
         status, data, _ = http("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": "Bearer " + access}, maximum=65536)
-        p.require(status == 200, "unauthorized", "無法核對 Google 帳號。")
+        p.require(status == 200, "unauthorized", "Work Fleet couldn't verify the Google account.")
         value = p.decode(data)
-        p.require(p.is_account(value.get("sub")), "google-account", "Google 帳號身分無效。")
+        p.require(p.is_account(value.get("sub")), "google-account", "The Google account ID isn't valid.")
         return value
 
     def sign_in(self):
-        p.require(self.available and not self.closed.is_set(), "google-config", "請先填寫 .env 的 Linux Google client ID 並重新建置。")
+        p.require(self.available and not self.closed.is_set(), "google-config", "Set the Linux Google client ID in .env and rebuild first.")
         self.vault.writable()
         verifier, state = secrets.token_urlsafe(64), secrets.token_urlsafe(32)
         challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).rstrip(b"=").decode("ascii")
@@ -177,7 +179,7 @@ class Google:
                 self.send_header("Referrer-Policy", "no-referrer")
                 self.send_header("Connection", "close")
                 self.end_headers()
-                self.wfile.write("請返回 Work Fleet 完成登入。".encode("utf-8"))
+                self.wfile.write(t("signIn.returnToApp").encode("utf-8"))
 
         class Server(HTTPServer):
             def get_request(self):
@@ -193,10 +195,10 @@ class Google:
             deadline = time.monotonic() + 110
             while not result and time.monotonic() < deadline and not self.closed.is_set():
                 server.handle_request()
-            p.require("code" in result and not self.closed.is_set(), "google-cancelled", "Google 登入已取消或逾時。")
+            p.require("code" in result and not self.closed.is_set(), "google-cancelled", "Google sign-in was cancelled or timed out.")
             tokens = self.token_request({"client_id": self.client, "code": result["code"], "code_verifier": verifier, "redirect_uri": redirect, "grant_type": "authorization_code"})
         access, scope = p.text(tokens, "access_token", 8192), p.text(tokens, "scope", 4096)
-        p.require(SCOPE in scope.split(), "source-permission", "尚未授權 App 資料同步。")
+        p.require(SCOPE in scope.split(), "source-permission", "App data sync hasn't been authorized.")
         identity = self.identity(access)
         credentials = {"accountId": identity["sub"], "email": p.text(identity, "email", 512), "clientId": self.client, "scope": scope, "refreshToken": p.text(tokens, "refresh_token", 8192), "accessToken": access, "expiresAt": int(time.time()) + p.number(tokens, "expires_in", 86400)}
         self.save(credentials)
@@ -204,7 +206,7 @@ class Google:
         return {"accountId": credentials["accountId"], "email": credentials["email"], "profileId": "google:" + credentials["accountId"]}
 
     def open_account(self, account):
-        p.require(account == self.prepared and self.load(account) is not None, "google-account", "請先完成此帳號登入。")
+        p.require(account == self.prepared and self.load(account) is not None, "google-account", "Finish signing in to this account first.")
         self.prepared = None
         return "google:" + account
 
@@ -223,11 +225,11 @@ class Google:
     def token(self):
         # A later keyring lock must also stop use of an access token previously loaded into memory.
         self.refresh_credentials(required=True)
-        p.require(not self.closed.is_set() and self.credentials is not None and self.profile == "google:" + self.credentials["accountId"], "unauthorized", "請先登入目前 Google 帳號。")
+        p.require(not self.closed.is_set() and self.credentials is not None and self.profile == "google:" + self.credentials["accountId"], "unauthorized", "Sign in to the current Google account first.")
         if self.credentials["expiresAt"] <= int(time.time()) + 60 or self.credentials["accessToken"] == self.rejected_access:
             tokens = self.token_request({"client_id": self.client, "refresh_token": self.credentials["refreshToken"], "grant_type": "refresh_token"})
             access = p.text(tokens, "access_token", 8192)
-            p.require(self.identity(access)["sub"] == self.account, "google-account", "Google 回傳不同帳號，已停止同步。")
+            p.require(self.identity(access)["sub"] == self.account, "google-account", "Google returned a different account, so sync stopped.")
             updated = {**self.credentials, "accessToken": access, "expiresAt": int(time.time()) + p.number(tokens, "expires_in", 86400)}
             self.save(updated)
             self.credentials = updated
@@ -239,7 +241,7 @@ class Google:
 
     def request(self, path, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024, context="", allow308=False):
         status, body, response = http("https://www.googleapis.com" + path, method, data, {**(headers or {}), "Authorization": "Bearer " + self.token()}, maximum)
-        p.require(not self.closed.is_set(), "stale-session", "Google 工作階段已結束。")
+        p.require(not self.closed.is_set(), "stale-session", "The Google session has ended.")
         if 200 <= status < 300 or allow308 and status == 308:
             return status, body, response
         try:
@@ -270,7 +272,7 @@ class Google:
             code = "storage-quota"
         elif status == 403:
             code = "source-permission"
-        error = p.Failure(code, "Google Drive 未完成同步，本機資料與待送內容保留。")
+        error = p.Failure(code, "Google Drive didn't finish syncing; local data and content waiting to upload are kept.")
         error.status = status
         raise error
 
@@ -279,18 +281,18 @@ class Google:
 
     def file(self, args):
         value = args.get("file")
-        p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment", "reset", "workspace") and p.is_digest(value.get("sha256")), "invalid-source-file", "同步檔案身分無效。")
+        p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment", "reset", "workspace") and p.is_digest(value.get("sha256")), "invalid-source-file", "The sync file's identity isn't valid.")
         size = p.number(value, "size", {"revision": 8 * 1024 * 1024, "workspace": 8 * 1024 * 1024, "reset": 4096}.get(value["kind"], p.ATTACHMENT))
         return {"id": value["id"], "kind": value["kind"], "sha256": value["sha256"], "size": size}
 
     def metadata(self, value, file):
         properties = value.get("appProperties", {})
-        p.require(value.get("id") == file["id"] and str(value.get("size")) == str(file["size"]) and "appDataFolder" in value.get("spaces", []) and value.get("trashed", False) is False and properties.get("wfFormat") == "work-fleet-file" and properties.get("wfSchema") == "1" and properties.get("wfKind") == file["kind"] and properties.get("wfSha256") == file["sha256"] and value.get("sha256Checksum", file["sha256"]) == file["sha256"], "upload-mismatch", "Google 檔案 metadata 與內容身分不同。")
+        p.require(value.get("id") == file["id"] and str(value.get("size")) == str(file["size"]) and "appDataFolder" in value.get("spaces", []) and value.get("trashed", False) is False and properties.get("wfFormat") == "work-fleet-file" and properties.get("wfSchema") == "1" and properties.get("wfKind") == file["kind"] and properties.get("wfSha256") == file["sha256"] and value.get("sha256Checksum", file["sha256"]) == file["sha256"], "upload-mismatch", "The Google file's metadata doesn't match its content.")
 
     def read_file(self, file):
         self.metadata(self.json(self.path("/drive/v3/files/" + file["id"], fields=FIELDS)), file)
         data = self.request(self.path("/drive/v3/files/" + file["id"], alt="media"), maximum=max(65536, file["size"]))[1]
-        p.require(len(data) == file["size"] and p.digest(data) == file["sha256"], "file-integrity", "Google 檔案內容校驗失敗。")
+        p.require(len(data) == file["size"] and p.digest(data) == file["sha256"], "file-integrity", "The Google file's content failed its checksum.")
         return data
 
     def completed(self, data, file):
@@ -303,9 +305,9 @@ class Google:
 
     def offset(self, headers, size, previous):
         value = headers.get("Range")
-        p.require(value is None or re.fullmatch(r"bytes=0-[0-9]+", value) is not None, "invalid-upload-range", "Google 續傳進度無效。")
+        p.require(value is None or re.fullmatch(r"bytes=0-[0-9]+", value) is not None, "invalid-upload-range", "Google's resumable upload progress isn't valid.")
         offset = 0 if value is None else int(value[8:]) + 1
-        p.require(previous < offset <= size, "service-unavailable", "Google 尚未確認新的續傳進度。")
+        p.require(previous < offset <= size, "service-unavailable", "Google hasn't confirmed new upload progress.")
         return offset
 
     def create_file(self, file, data):
@@ -318,7 +320,7 @@ class Google:
                 return self.completed(self.request(self.path("/upload/drive/v3/files", uploadType="multipart", fields=FIELDS), "POST", body, {"Content-Type": "multipart/related; boundary=" + boundary})[1], file)
             saved, position = self.uploads.get(key), 0
             if saved is not None:
-                p.require(saved[1:] == (file["sha256"], size), "upload-mismatch", "續傳內容與原上傳不同。")
+                p.require(saved[1:] == (file["sha256"], size), "upload-mismatch", "The resumed content differs from the original upload.")
                 status, body, headers = self.request(saved[0], "PUT", b"", {"Content-Range": f"bytes */{size}"}, context="upload", allow308=True)
                 if status != 308:
                     return self.completed(body, file)
@@ -332,7 +334,7 @@ class Google:
                 pairs = uri.query.split("&")
                 p.require(len(location) <= 8192 and uri.scheme == "https" and uri.hostname == "www.googleapis.com" and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment and uri.path == "/upload/drive/v3/files"
                           and all(re.fullmatch(r"[A-Za-z_]+=[A-Za-z0-9_%.-]*", pair) for pair in pairs) and len({pair.split("=")[0] for pair in pairs}) == len(pairs)
-                          and "uploadType=resumable" in pairs and any(pair.startswith("upload_id=") and len(pair) > 10 for pair in pairs), "invalid-upload-uri", "Google 續傳位置無效。")
+                          and "uploadType=resumable" in pairs and any(pair.startswith("upload_id=") and len(pair) > 10 for pair in pairs), "invalid-upload-uri", "Google's resumable upload address isn't valid.")
                 saved = (urlunsplit(("", "", uri.path, uri.query, "")), file["sha256"], size)
                 self.uploads[key] = saved
             while position < size:
@@ -341,7 +343,7 @@ class Google:
                 if status != 308:
                     return self.completed(body, file)
                 position = self.offset(headers, end, position)
-            raise p.Failure("service-unavailable", "Google 尚未確認上傳完成，待送內容保留。")
+            raise p.Failure("service-unavailable", "Google hasn't confirmed that the upload finished; content waiting to upload is kept.")
         except p.Failure as error:
             if 400 <= getattr(error, "status", 0) < 500:
                 self.uploads.pop(key, None)
@@ -351,7 +353,7 @@ class Google:
             raise
 
     def invoke(self, method, args, data=None):
-        p.require(p.text(args, "accountId") == self.account and not self.closed.is_set(), "stale-session", "Google 帳號已切換。")
+        p.require(p.text(args, "accountId") == self.account and not self.closed.is_set(), "stale-session", "The Google account has changed.")
         if method == "google.cursor":
             return self.json(self.path("/drive/v3/changes/startPageToken", fields="startPageToken"))
         if method == "google.list":
@@ -366,7 +368,7 @@ class Google:
         if method == "google.delete":
             # Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
             file_id = p.text(args, "fileId", 256)
-            p.require(re.fullmatch(r"[A-Za-z0-9_-]{1,256}", file_id) is not None, "invalid-source-file", "同步檔案身分無效。")
+            p.require(re.fullmatch(r"[A-Za-z0-9_-]{1,256}", file_id) is not None, "invalid-source-file", "The sync file's identity isn't valid.")
             try:
                 self.request("/drive/v3/files/" + file_id, method="DELETE", context="delete")
             except p.Failure as failure:
@@ -377,9 +379,9 @@ class Google:
         if method == "google.read":
             return self.read_file(file)
         if method == "google.create":
-            p.require(data is not None and len(data) == file["size"] and p.digest(data) == file["sha256"], "file-integrity", "待送檔案校驗失敗。")
+            p.require(data is not None and len(data) == file["size"] and p.digest(data) == file["sha256"], "file-integrity", "The file waiting to upload failed its checksum.")
             return self.create_file(file, data)
-        raise p.Failure("unsupported-method", "Google 主機沒有此操作。")
+        raise p.Failure("unsupported-method", "The Google host doesn't support this operation.")
 
     def close(self):
         self.closed.set()

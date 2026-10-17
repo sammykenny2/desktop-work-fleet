@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { access, chmod, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, chmod, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
@@ -33,7 +33,7 @@ test('native notices can be refreshed after read-only package licenses were copi
 
 async function fixture(root) {
   for (const file of ['src/native/apple/Shared/FleetProtocol.swift', 'src/native/apple/Shared/FleetCaptureInbox.swift',
-    'src/native/apple/ios/Main.swift', 'src/native/apple/macos/Main.swift', 'src/native/apple/share/ShareViewController.swift',
+    'src/native/apple/Shared/FleetText.swift', 'src/native/apple/ios/Main.swift', 'src/native/apple/macos/Main.swift', 'src/native/apple/share/ShareViewController.swift',
     'src/native/apple/PrivacyInfo.xcprivacy', 'src/native/apple/config/WorkFleet.xcconfig', 'LICENSE', 'THIRD-PARTY-NOTICES.md']) {
     await mkdir(path.dirname(path.join(root, file)), { recursive: true });
     await writeFile(path.join(root, file), 'fixture\n');
@@ -79,6 +79,12 @@ test('Xcode project is location independent and does not embed local configurati
           }
         }
       }
+      // Every target that draws text compiles the host string table; the extension takes only the files it needs.
+      const sources = target => objects[target.buildPhases.find(id => objects[id].isa === 'PBXSourcesBuildPhase')].files
+        .map(id => path.basename(objects[objects[id].fileRef].path)).sort();
+      for (const name of ['WorkFleetIOS', 'WorkFleetMac']) assert.ok(sources(targets.find(target => target.name === name)).includes('FleetText.swift'), name);
+      assert.deepEqual(sources(targets.find(target => target.name === 'WorkFleetShare')),
+        ['FleetCaptureInbox.swift', 'FleetProtocol.swift', 'FleetText.swift', 'ShareViewController.swift']);
       const ios = targets.find(target => target.name === 'WorkFleetIOS');
       assert.equal(ios.dependencies.length, 1);
       assert.ok(ios.buildPhases.some(id => objects[id].name === 'Embed Share Extension'));
@@ -87,6 +93,24 @@ test('Xcode project is location independent and does not embed local configurati
       projects.push(text);
     }
     assert.equal(projects[0], projects[1]);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('the committed Xcode project is what the generator writes', async () => {
+  // A Swift file added to Shared/ or to the Share Extension must reach the committed project and its schemes.
+  const root = fileURLToPath(new URL('../', import.meta.url));
+  const directory = await mkdtemp(path.join(tmpdir(), 'work-fleet-apple-sync-'));
+  try {
+    const apple = path.join(root, 'src/native/apple');
+    await cp(apple, path.join(directory, 'src/native/apple'), { recursive: true,
+      filter: source => !['.generated', 'xcuserdata', 'Local.xcconfig'].includes(path.basename(source)) });
+    for (const file of ['LICENSE', 'THIRD-PARTY-NOTICES.md']) await cp(path.join(root, file), path.join(directory, file));
+    const { project } = await generateAppleProject(directory);
+    for (const file of ['project.pbxproj', 'xcshareddata/xcschemes/WorkFleetIOS.xcscheme', 'xcshareddata/xcschemes/WorkFleetMac.xcscheme']) {
+      assert.equal(await readFile(path.join(project, file), 'utf8'), await readFile(path.join(apple, 'WorkFleet.xcodeproj', file), 'utf8'), file);
+    }
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -108,6 +132,9 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     assert.ok(plist.includes('group.app.workfleet.ios'));
     assert.ok(plist.includes('<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/>'));
     assert.ok(plist.includes('<string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string>'));
+    // System-drawn alert buttons, share sheets and menus follow the user's language for both supported localizations.
+    const localizations = '<key>CFBundleDevelopmentRegion</key><string>en</string><key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string></array>';
+    assert.ok(plist.includes(localizations));
     const bundled = await readFile(path.join(app, 'Config/public.json'), 'utf8');
     assert.equal(JSON.parse(bundled).appId, environment.WORK_FLEET_APP_ID);
     assert.equal(bundled.includes('synthetic-secret'), false);
@@ -128,6 +155,7 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     const sharePlist = await readFile(path.join(share, 'Info.plist'), 'utf8');
     assert.ok(sharePlist.includes('com.apple.share-services'));
     assert.ok(sharePlist.includes('group.app.workfleet.ios'));
+    assert.ok(sharePlist.includes(localizations));
     assert.equal(sharePlist.includes('UIApplicationSceneManifest'), false);
     assert.equal(sharePlist.includes(environment.WORK_FLEET_GOOGLE_IOS_CLIENT_ID), false);
     await assert.rejects(access(path.join(share, 'Config')));

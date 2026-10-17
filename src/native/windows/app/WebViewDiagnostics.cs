@@ -16,7 +16,7 @@ public static class WebViewDiagnostics
     var value = Environment.GetEnvironmentVariable(PortVariable);
     if (string.IsNullOrEmpty(value)) return null;
     HostError.Require(int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var port) && port is >= 1024 and <= 65535,
-      "debug-port-invalid", $"{PortVariable} 必須是 1024–65535 的連接埠。");
+      "debug-port-invalid", $"{PortVariable} must be a port from 1024 to 65535.");
     return new CoreWebView2EnvironmentOptions($"--remote-debugging-port={port}");
   }
 #else

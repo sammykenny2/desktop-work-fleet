@@ -18,7 +18,7 @@ public static class JsonRules
       var names = new HashSet<string>(StringComparer.Ordinal);
       foreach (var field in value.EnumerateObject())
       {
-        HostError.Require(names.Add(field.Name), "invalid-json", "資料含重複 JSON 欄位。");
+        HostError.Require(names.Add(field.Name), "invalid-json", "The data has duplicate JSON fields.");
         Visit(field.Value);
       }
     }
@@ -27,20 +27,20 @@ public static class JsonRules
   public static string Text(JsonElement value, string key, int maximum = 256)
   {
     HostError.Require(value.TryGetProperty(key, out var field) && field.ValueKind == JsonValueKind.String,
-      "invalid-request", "原生請求缺少必要文字欄位。");
+      "invalid-request", "The native request is missing a required text field.");
     var text = field.GetString()!;
-    HostError.Require(text.Length > 0 && text.Length <= maximum, "invalid-request", "原生請求文字長度無效。");
+    HostError.Require(text.Length > 0 && text.Length <= maximum, "invalid-request", "A native request text field has an invalid length.");
     return text;
   }
   public static long Integer(JsonElement value, string key, long maximum = MaxRevision)
   {
     HostError.Require(value.TryGetProperty(key, out var field) && field.TryGetInt64(out var number)
-      && number >= 0 && number <= maximum, "invalid-request", "原生請求數字無效。");
+      && number >= 0 && number <= maximum, "invalid-request", "A native request number is invalid.");
     return field.GetInt64();
   }
   public static long? ExpectedRevision(JsonElement value)
   {
-    HostError.Require(value.TryGetProperty("expectedRevision", out var field), "invalid-request", "缺少版本條件。");
+    HostError.Require(value.TryGetProperty("expectedRevision", out var field), "invalid-request", "The revision condition is missing.");
     return field.ValueKind == JsonValueKind.Null ? null : Integer(value, "expectedRevision");
   }
 }

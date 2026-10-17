@@ -21,10 +21,10 @@ async function fixture() {
   const workspace = await Workspace.create({ profileId: 'account-a', deviceId: 'device-a', area,
     persist, uuid: () => `id-${String(++counter).padStart(4, '0')}` });
   const a = workspace.snapshot.groups[0];
-  const b = await workspace.createGroup('別組');
-  const a1 = await workspace.createCard(markdown('第一件事'), a.id);
-  const a2 = await workspace.createCard(markdown('第二件事'), a.id);
-  const b1 = await workspace.createCard(markdown('第三件事'), b.id);
+  const b = await workspace.createGroup('Other group');
+  const a1 = await workspace.createCard(markdown('First task'), a.id);
+  const a2 = await workspace.createCard(markdown('Second task'), a.id);
+  const b1 = await workspace.createCard(markdown('Third task'), b.id);
   await workspace.layout.placeNew(workspace.snapshot, workAreas);
   const saved = [];
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
@@ -41,11 +41,11 @@ function plan(f, overrides = {}) {
 
 test('C01: quick capture needs only content and keeps extensible structured data', async () => {
   const f = await fixture();
-  const content = { ...markdown('- [ ] 子步驟'), attachments: [{ id: 'blob-a', name: 'diagram.png' }], future: { value: 4 } };
+  const content = { ...markdown('- [ ] Substep'), attachments: [{ id: 'blob-a', name: 'diagram.png' }], future: { value: 4 } };
   const card = await f.workspace.createCard(content);
   assert.equal(card.groupId, f.a.id);
   assert.deepEqual(card.content, content);
-  assert.equal(summaryText(card), '子步驟');
+  assert.equal(summaryText(card), 'Substep');
   assert.equal('status' in card, false);
 });
 
@@ -72,7 +72,7 @@ test('C03: rejected grid preserves data and placements', async () => {
 test('C05: renaming and remapping keep stable shortcut target IDs', async () => {
   const f = await fixture();
   await f.workspace.layout.configure({ shortcuts: { 'Ctrl+Shift+1': f.a.id } }, f.workspace.snapshot);
-  await f.workspace.renameGroup(f.a.id, '新名稱', f.a.revision);
+  await f.workspace.renameGroup(f.a.id, 'New name', f.a.revision);
   const grid = f.workspace.layout.state.grid; grid.slots.reverse();
   await f.workspace.layout.configure({ grid }, f.workspace.snapshot);
   assert.equal(f.workspace.layout.state.shortcuts['Ctrl+Shift+1'], f.a.id);
@@ -196,14 +196,14 @@ test('C11: consent applies to one preview; undo restores geometry without rewind
   const preview = plan(f, { grid, allowResize: true });
   assert.ok(preview.resized.length > 0);
   await f.controller.applyFormation(preview);
-  await f.workspace.updateCard(f.a1.id, { content: markdown('較新文字') }, f.a1.revision);
+  await f.workspace.updateCard(f.a1.id, { content: markdown('Newer text') }, f.a1.revision);
   await f.workspace.layout.setCardPolicy(f.a1.id, { visible: false });
   await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
   await f.workspace.undo(workAreas);
   const restored = f.workspace.layout.state.placements[f.a1.id];
   assert.equal(restored.width, before.placements[f.a1.id].width);
   assert.equal(f.workspace.layout.state.groupLayers[f.a.id], 'floating'); assert.equal(restored.visible, false);
-  assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.a1.id).content.text, '較新文字');
+  assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.a1.id).content.text, 'Newer text');
   assert.equal(plan(f).allowResize, false);
 });
 
@@ -315,15 +315,15 @@ test('C28: target re-mapping during drag cancels instead of transferring to the 
 
 test('C29/C30: stale transfer and transfer undo cannot overwrite newer text or membership', async () => {
   const f = await fixture();
-  await f.workspace.updateCard(f.a1.id, { content: markdown('遠端新文字') }, f.a1.revision);
+  await f.workspace.updateCard(f.a1.id, { content: markdown('New remote text') }, f.a1.revision);
   await rejectsCode(f.workspace.transferCard({ cardId: f.a1.id, groupId: f.b.id, expectedRevision: f.a1.revision }), 'conflict');
   const current = f.workspace.snapshot.cards.find(c => c.id === f.a1.id);
-  assert.equal(current.content.text, '遠端新文字');
+  assert.equal(current.content.text, 'New remote text');
   assert.deepEqual(f.workspace.state.conflicts.at(-1), { kind: 'transfer', cardId: f.a1.id,
     groupId: f.b.id, expectedRevision: f.a1.revision });
   await f.workspace.transferCard({ cardId: current.id, groupId: f.b.id, expectedRevision: current.revision });
   const moved = f.workspace.snapshot.cards.find(c => c.id === f.a1.id);
-  await f.workspace.updateCard(moved.id, { content: markdown('轉組後又修改') }, moved.revision);
+  await f.workspace.updateCard(moved.id, { content: markdown('Edited after the move') }, moved.revision);
   const before = f.disk();
   await rejectsCode(f.workspace.undo(workAreas), 'conflict');
   assert.deepEqual(f.disk(), before);
@@ -331,7 +331,7 @@ test('C29/C30: stale transfer and transfer undo cannot overwrite newer text or m
 
 test('C31/C32/C36: new placement only touches new cards; content and membership do not reflow', async () => {
   const f = await fixture(); const before = f.workspace.layout.state.placements;
-  const fresh = await f.workspace.createCard(markdown('手機新增'), f.b.id);
+  const fresh = await f.workspace.createCard(markdown('Added on the phone'), f.b.id);
   await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas);
   for (const [id, rect] of Object.entries(before)) assert.deepEqual(f.workspace.layout.state.placements[id], rect);
   assert.ok(f.workspace.layout.state.placements[fresh.id].x >= 600);
@@ -415,7 +415,7 @@ test('C39: undo skips deleted cards and keeps newly added cards, respecting inte
   await f.workspace.undo(workAreas);
   assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], afterFormation[f.a1.id]);
   await f.workspace.updateCard(f.a2.id, { deleted: true }, f.a2.revision);
-  const newCard = await f.workspace.createCard(markdown('新卡'));
+  const newCard = await f.workspace.createCard(markdown('New note'));
   await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas);
   const newPosition = f.workspace.layout.state.placements[newCard.id];
   await f.workspace.undo(workAreas);
@@ -451,10 +451,10 @@ test('C43b: group regions follow the primary work area, also when it grows, with
 });
 
 test('C44: creation stops at nine; reading ten preserves data and rejects formation', async () => {
-  const f = await fixture(); for (let i = 2; i < 9; i++) await f.workspace.createGroup(`組 ${i}`);
-  await rejectsCode(f.workspace.createGroup('第十組'), 'group-limit');
+  const f = await fixture(); for (let i = 2; i < 9; i++) await f.workspace.createGroup(`Group ${i}`);
+  await rejectsCode(f.workspace.createGroup('Tenth group'), 'group-limit');
   const remote = f.workspace.snapshot;
-  remote.groups.push({ id: 'remote-tenth', name: '离線新增', revision: 'r1' });
+  remote.groups.push({ id: 'remote-tenth', name: 'Added offline', revision: 'r1' });
   const before = copy(remote);
   throwsCode(() => defaultGrid(activeGroups(remote), area), 'group-overflow');
   assert.deepEqual(remote, before);
@@ -474,7 +474,7 @@ test('C45/C46: hidden cards stay hidden and exit uses current resident policy', 
 
 test('formation refuses previews after a new card or a moved card', async () => {
   const f = await fixture(); const first = plan(f);
-  await f.workspace.createCard(markdown('預覽後新增'));
+  await f.workspace.createCard(markdown('Added after the preview'));
   await rejectsCode(f.controller.applyFormation(first), 'stale-plan');
   await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas);
   const second = plan(f); await f.workspace.layout.move(f.a1.id, { x: 800, y: 200 });
@@ -494,17 +494,17 @@ test('atomic persistence failure leaves membership, geometry, undo and outbox un
 test('serialized operations and independent draft IDs survive reopening', async () => {
   const f = await fixture();
   await Promise.all([
-    f.workspace.saveDraft({ id: 'editor-one', cardId: f.a1.id, content: markdown('甲') }),
-    f.workspace.saveDraft({ id: 'editor-two', cardId: f.a1.id, content: markdown('乙') }),
+    f.workspace.saveDraft({ id: 'editor-one', cardId: f.a1.id, content: markdown('first') }),
+    f.workspace.saveDraft({ id: 'editor-two', cardId: f.a1.id, content: markdown('second') }),
     f.workspace.layout.move(f.b1.id, { x: 900, y: 600 }),
   ]);
   const reopened = new Workspace(f.disk(), f.persist);
-  assert.deepEqual(Object.values(reopened.state.drafts).map(draft => draft.content.text), ['甲', '乙']);
+  assert.deepEqual(Object.values(reopened.state.drafts).map(draft => draft.content.text), ['first', 'second']);
   assert.equal(reopened.layout.state.placements[f.b1.id].x, 900);
 });
 
 test('C27: mobile transfer works for a card with no desktop placement', async () => {
-  const f = await fixture(); const card = await f.workspace.createCard(markdown('只有手機'));
+  const f = await fixture(); const card = await f.workspace.createCard(markdown('Only on the phone'));
   await f.workspace.transferCard({ cardId: card.id, groupId: f.b.id, expectedRevision: card.revision });
   assert.equal(f.workspace.snapshot.cards.find(c => c.id === card.id).groupId, f.b.id);
   assert.equal(f.workspace.layout.state.placements[card.id], undefined);
@@ -692,7 +692,7 @@ test('ending an edit discards a blank draft and blank unchanged ancestors but ke
   assert.equal(f.workspace.state.drafts[blank.id], undefined); assert.equal(f.disk().drafts[blank.id], undefined);
   assert.equal(await f.workspace.discardUnneededDraft('missing-draft'), false);
   const kept = [];
-  for (const content of [markdown('留下這句'), { ...markdown(''), attachments: [{ id: 'blob-a', name: 'a.png' }] }, { ...markdown(''), title: '標題' }]) {
+  for (const content of [markdown('Keep this sentence'), { ...markdown(''), attachments: [{ id: 'blob-a', name: 'a.png' }] }, { ...markdown(''), title: 'Title' }]) {
     const draft = f.workspace.blankDraft(f.a.id); draft.content = content; await f.workspace.saveDraft(draft); kept.push(draft.id);
   }
   const revision = f.disk().revision;
@@ -700,10 +700,10 @@ test('ending an edit discards a blank draft and blank unchanged ancestors but ke
   assert.equal(f.disk().revision, revision, 'kept drafts must not cause another write');
   assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [...kept].sort());
   const late = f.workspace.blankDraft(f.a.id); await f.workspace.saveDraft(late);
-  const typing = f.workspace.saveDraft({ ...late, content: markdown('剛打的字') });
+  const typing = f.workspace.saveDraft({ ...late, content: markdown('Just typed') });
   assert.equal(await f.workspace.discardUnneededDraft(late.id), false, 'a queued text save wins over the discard');
-  await typing; assert.equal(f.workspace.state.drafts[late.id].content.text, '剛打的字');
-  for (const originalText of ['', '原本的內容']) {
+  await typing; assert.equal(f.workspace.state.drafts[late.id].content.text, 'Just typed');
+  for (const originalText of ['', 'Original content']) {
     const g = await fixture(); const original = g.workspace.blankDraft(g.a.id); original.content.text = originalText;
     await g.workspace.saveDraft(original);
     const recovered = g.workspace.recoverDraft(original.id); recovered.content.text = '';
@@ -716,13 +716,13 @@ test('ending an edit discards a blank draft and blank unchanged ancestors but ke
 test('ending an edit discards an unchanged copy of its card but keeps edits and copies of an older revision', async () => {
   const f = await fixture();
   const unchanged = f.workspace.blankDraft(f.a.id, f.a1); await f.workspace.saveDraft(unchanged);
-  const edited = f.workspace.blankDraft(f.a.id, f.a2); edited.content.text = '改過的內容'; await f.workspace.saveDraft(edited);
+  const edited = f.workspace.blankDraft(f.a.id, f.a2); edited.content.text = 'Edited content'; await f.workspace.saveDraft(edited);
   assert.equal(await f.workspace.discardUnneededDraft(unchanged.id), true);
   assert.equal(await f.workspace.discardUnneededDraft(edited.id), false);
   const stale = f.workspace.blankDraft(f.b.id, f.b1); await f.workspace.saveDraft(stale);
-  await f.workspace.updateCard(f.b1.id, { content: markdown('其他裝置改過') }, f.b1.revision);
+  await f.workspace.updateCard(f.b1.id, { content: markdown('Edited on another device') }, f.b1.revision);
   assert.equal(await f.workspace.discardUnneededDraft(stale.id), false, 'a copy of an older revision is kept');
-  const bare = await f.workspace.createCard({ format: 'markdown', text: '沒有附件欄位' }, f.a.id);
+  const bare = await f.workspace.createCard({ format: 'markdown', text: 'No attachments field' }, f.a.id);
   const opened = f.workspace.blankDraft(f.a.id, bare); opened.content.attachments ||= []; await f.workspace.saveDraft(opened);
   assert.equal(await f.workspace.discardUnneededDraft(opened.id), true, 'a missing attachments list equals an empty one');
   assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [edited.id, stale.id].sort());

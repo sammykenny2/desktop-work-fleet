@@ -1,16 +1,21 @@
 import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { cardPolicy, sceneOrder } from '../interaction/controller.js';
+import { groupName } from '../core/group-name.js';
+import { getLocale, t } from '../i18n/index.js';
 
-/** Presentation data only. Historical versions, sync cursors, outbox and credentials never enter this projection. */
+/**
+ * Presentation data only. Historical versions, sync cursors, outbox and credentials never enter this projection.
+ * The frame carries the owner's UI locale, which every scene applies before drawing, and group names as shown.
+ */
 export function projectDesktop({ snapshot, layout, interaction, sessionId, sequence, workspaceRevision,
   layers = ['desktop', 'floating'], residentLayers = layers, editor = null, topology = 0, notice = null }) {
   requireValue(typeof sessionId === 'string' && sessionId.length > 0 && Number.isSafeInteger(sequence) && sequence >= 0,
-    'desktop-frame', '桌面畫面身分無效。');
+    'desktop-frame', t('errors.desktop.frameInvalid'));
   // A host offers the desktop layer, the wallpaper layer or both for resting papers, and may keep its topmost scene for
   // adjusted papers only. A resting paper asking for a layer it cannot rest on sits on the desktop or the wallpaper.
   requireValue((residentLayers.includes('desktop') || residentLayers.includes('wallpaper')) && residentLayers.every(layer => layers.includes(layer))
-    && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)), 'desktop-layer', '桌面主機沒有可用的呈現層。');
+    && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)), 'desktop-layer', t('errors.desktop.noLayer'));
   const resident = residentLayers.includes('desktop') ? 'desktop' : 'wallpaper';
   const groups = activeGroups(snapshot); const groupIndex = new Map(groups.map((group, index) => [group.id, index]));
   let regions = [];
@@ -20,7 +25,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
     const policy = cardPolicy(card, layout, interaction); const saved = layout.placements[card.id];
     if (!policy.visible || !saved) continue;
     const placement = interaction.dragSession?.cardId === card.id ? interaction.dragSession.position : saved;
-    requireValue(validRect(placement), 'desktop-geometry', '桌面卡片的位置或尺寸無效，尚未更新畫面。');
+    requireValue(validRect(placement), 'desktop-geometry', t('errors.desktop.geometryInvalid'));
     let layer = policy.layer; let { interactive, draggable, editing } = policy;
     // Only adjusted papers are draggable; they may use any scene, resting papers only the layers they can rest on.
     if (!(draggable ? layers : residentLayers).includes(layer)) { fallbacks.push({ cardId: card.id, requested: layer, effective: resident }); layer = resident; }
@@ -36,8 +41,8 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;
-  return copy({ protocol: 1, sessionId, sequence, topology, workspaceRevision, layoutRevision: layout.revision,
-    groups: groups.map((group, index) => ({ id: group.id, name: group.name, color: groupColors[index % groupColors.length],
+  return copy({ protocol: 1, sessionId, sequence, topology, locale: getLocale(), workspaceRevision, layoutRevision: layout.revision,
+    groups: groups.map((group, index) => ({ id: group.id, name: groupName(group), color: groupColors[index % groupColors.length],
       region: regions.find(region => region.groupId === group.id) || null })),
     operationScope: interaction.operationScope, activeGroupId: interaction.activeGroupId, cards, editor: projectedEditor,
     dropTarget: interaction.dragSession?.target || null, fallbacks,

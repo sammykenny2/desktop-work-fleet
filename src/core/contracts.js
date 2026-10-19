@@ -47,8 +47,10 @@ export const containsRect = (outer, inner) => inner.x >= outer.x && inner.y >= o
   && inner.x + inner.width <= outer.x + outer.width + 0.001
   && inner.y + inner.height <= outer.y + outer.height + 0.001;
 
+// A completed paper stays on the desktop, marked as completed, unless this device hides completed papers.
 export function eligible(card, layout) {
-  return !card.deleted && !card.archived && layout.placements[card.id]?.visible !== false;
+  return !card.deleted && !card.archived && (!card.completed || layout.completedVisible !== false)
+    && layout.placements[card.id]?.visible !== false;
 }
 
 export function inScope(card, scope) {

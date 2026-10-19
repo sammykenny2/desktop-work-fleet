@@ -247,7 +247,8 @@ physical overlap.
 | Restore formation | Restores position, size and base stacking order from this layout transaction | Text, remote changes, deleted cards |
 
 The participating set is decided by the display policy (see below). "Recall all" includes the group's cards that were
-dragged into other regions; it does not make archived, deleted or explicitly hidden content reappear on the desktop.
+dragged into other regions; it does not make archived, deleted or explicitly hidden content, or completed cards this
+device hides, reappear on the desktop.
 A group formation takes its set by logical membership, not by where the cards physically are at the time.
 Cards of other groups inside the group region must not be moved along when this group is arranged.
 
@@ -317,6 +318,7 @@ committed.
 |---|---|
 | Desktop display (master) | Whether desktop notes are shown at all; turning it off does not delete content |
 | Per-card display set | Which cards take part in this device's desktop presentation |
+| Completed cards | Whether this device's desktop presentation includes completed cards; on by default, kept per device, never synced |
 | Resident system layer | Candidate capabilities such as Desktop, Wallpaper and resident floating; actual support must be reported per platform |
 | Operation scope | Which group, or all, can be dragged temporarily and floats above ordinary apps |
 | Read-only text selection | If offered, accepts mouse text selection without changing text; cannot be enabled together with full click-through |
@@ -329,7 +331,12 @@ Q03); do not assume that it is all removed or copied as is.
 
 ### Effective behaviour defaults (D)
 
-- Deleted, archived or explicitly hidden cards are not pinned back onto the desktop by a group shortcut.
+- Deleted, archived or explicitly hidden cards, and completed cards while this device hides them, are not pinned back
+  onto the desktop by a group shortcut.
+- Completed cards stay on the desktop, marked as completed, until this device turns off showing completed cards. Then
+  they leave this desktop as archived cards do: no formation, group key or adjust mode includes them, and they keep
+  their placement for when they are shown again or marked To do. Turning the setting on or off records no shared
+  revision, and resetting the desktop layout turns it back on.
 - With desktop display off, explicitly calling up a group works as a temporary operation summon: only that group's
   cards that were eligible for the desktop are shown, and they are hidden again afterwards; the master switch is not
   turned on permanently. If the set is empty, a reachable management entry is offered instead of silently doing nothing.
@@ -580,7 +587,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C43 | Unplug the external display | Only unreachable cards are rescued; no automatic global formation |
 | C43b | The primary display's work area grows (for example only the external display remains after a closed laptop's built-in screen turns off) | Group regions cover the new primary display's work area; cards do not move |
 | C44 | Concurrent creation produces more than nine groups | Data is kept in full, the user is told to tidy up, the extra groups are not deleted |
-| C45 | Cards in local Deleted / hidden cards meet a group summon | They are not permanently switched to desktop display |
+| C45 | Cards in local Deleted / hidden cards / completed cards this device hides meet a group summon | They are not permanently switched to desktop display |
 | C46 | Change the resident layer of cards in the scope, then exit | The new persisted setting applies; the old snapshot is not written back |
 | C47 | The highlight overlaps the dragged card / across renderers | The hint does not take capture; the drop runs the command only once |
 | C48 | The file source or the renderer is replaced by a fake adapter | Group, position and interaction semantics hold; no coupling to Google or window handles |

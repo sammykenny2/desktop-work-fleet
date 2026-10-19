@@ -83,8 +83,8 @@ interface. To switch, see [Settings](#settings).
   - Phones have no third view.
 - The filters "To do", "Completed", "Archived" and "Deleted" show the notes in each state, and you can restore notes
   from them. Search covers titles and the full text.
-- Completed notes stay on the desktop, marked as completed; only archiving or deleting takes a note out of the set
-  shown on the desktop.
+- Completed notes stay on the desktop, marked as completed, unless this computer hides them (see "Show completed
+  notes" below). Archiving or deleting takes a note off the desktop on every device.
 
 ## Desktop notes and layers
 
@@ -102,6 +102,9 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   does not pass through them. The Wallpaper layer always lets the mouse pass through.
 - "Show notes while locked" in Settings > Desktop must be on for notes to stay on the desktop while Locked. When it is
   off, notes appear on the desktop only while you adjust them.
+- "Show completed notes" in Settings > Desktop is on at first. When it is off, completed notes leave this computer's
+  desktop, also while you adjust, and return to their old places when you turn it on again or move them back to To do.
+  Each computer keeps its own choice, and "Reset desktop layout" turns it back on.
 - In the Windows Explorer desktop, the Wallpaper layer attaches below the desktop icons. macOS offers the same
   controls with three AppKit layers; Linux layer-shell uses three native bands.
 - pcmanfm desktops draw the wallpaper and the icons on the same surface, so notes cannot go below the icons and there
@@ -175,9 +178,9 @@ effect at once but do not rearrange existing notes.
 - Account and sync: see [Google sign-in and sync](#google-sign-in-and-sync).
 - Data and backup: see [Backups and restore](#backups-and-restore).
 - Desktop (desktop apps and the browser preview; phones have no Desktop or Shortcuts page): "Show notes while
-  locked", "My group", "Group regions" and "Reset desktop layout". The desktop apps also show "Startup", "Version and
-  updates" and "Reset main window". On GNOME Wayland the page also has "Show desktop notes through XWayland" (see
-  [Linux](#linux)).
+  locked", "Show completed notes", "My group", "Group regions" and "Reset desktop layout". The desktop apps also show
+  "Startup", "Version and updates" and "Reset main window". On GNOME Wayland the page also has "Show desktop notes
+  through XWayland" (see [Linux](#linux)).
 - Shortcuts: see [Shortcuts](#shortcuts).
 
 ### Startup and the main window

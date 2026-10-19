@@ -41,6 +41,8 @@ export default {
   'settings.desktop.display.fixed': 'The GDK_BACKEND environment variable sets the display mode right now, so this setting has no effect.',
   'settings.desktop.visible': 'Show notes while locked',
   'settings.desktop.visibleHint': 'When off, notes appear on the desktop only while you adjust them.',
+  'settings.desktop.completed': 'Show completed notes',
+  'settings.desktop.completedHint': 'When off, completed notes leave this desktop until you turn this on again or move them back to To do. Other devices keep their own choice.',
   'settings.desktop.myGroup': 'My group',
   'settings.desktop.myGroupHint': 'Notes in this group get an accent-colored edge.',
   'settings.desktop.regions': 'Group regions',

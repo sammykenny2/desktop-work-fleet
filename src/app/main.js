@@ -833,7 +833,9 @@ function render() {
   if (notesShown) renderNotes(listCards, view, Boolean(query));
   else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
-  $('#empty').hidden = snapshot.cards.some(card => eligible(card, layout));
+  // Completed papers this device hides are still notes, so they never bring up the first-note prompt.
+  const withCompleted = { ...layout, completedVisible: true };
+  $('#empty').hidden = snapshot.cards.some(card => eligible(card, withCompleted));
   $('#desktop-hidden').hidden = handheld || !hidden || filter !== 'active' || Boolean(query);
   $('#desktop-hidden-text').textContent = plural('app.desktopHidden.text', hidden);
   desktop?.publish(); syncAdjustOverlay();
@@ -1476,12 +1478,14 @@ function setHostPreference(name, input) {
 function renderDesktopSettings() {
   renderDisplaySetting(); renderHostSettings();
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
+  $('#desktop-completed').checked = layout.completedVisible !== false;
   settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
   previewGrid();
 }
 function applyLayout(patch) {
-  return run(async () => { await workspace.layout.configure(patch, workspace.snapshot); render(); });
+  // Hiding completed papers can take away the paper being edited or selected, as hiding one paper does.
+  return run(async () => { await workspace.layout.configure(patch, workspace.snapshot); await controller.reconcile(); render(); });
 }
 // Quick capture and the desktop toggle come first, then 0 for every group and 1–9 for the desktop regions. Region
 // rows show the group now in that region, by its current name and paper colour.
@@ -1626,6 +1630,7 @@ function bindEvents() {
   });
   settings.addEventListener('close', () => { dataPanel?.dispose(); dataPanel = null; if (narrow.matches) settingsPage = null; });
   $('#desktop-visible').onchange = () => applyLayout({ desktopVisible: $('#desktop-visible').checked });
+  $('#desktop-completed').onchange = () => applyLayout({ completedVisible: $('#desktop-completed').checked });
   $('#display-xwayland').onchange = () => run(async () => {
     displayBackend = await native.bridge.request('host.displayBackend', { xwayland: $('#display-xwayland').checked }); renderDisplaySetting();
   });

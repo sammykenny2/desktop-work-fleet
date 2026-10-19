@@ -5,6 +5,7 @@ import { Workspace } from '../src/core/workspace.js';
 import { planFormation } from '../src/layout/formation.js';
 import { createLayout, LayoutStore, mainView, reachable } from '../src/layout/store.js';
 import { cardPolicy, InteractionController, resolveDropTarget, sceneOrder } from '../src/interaction/controller.js';
+import { stepGroup } from '../src/layout/stages.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 };
 const workAreas = [area];
@@ -480,6 +481,33 @@ test('C45/C46: hidden cards stay hidden and exit uses current resident policy', 
   await f.controller.escape();
   const policy = cardPolicy(f.a2, f.workspace.layout.state, f.controller.state);
   assert.equal(policy.visible, false); assert.equal(policy.layer, 'floating'); assert.equal(policy.editing, false);
+});
+
+test('C45: completed papers stay on the desktop until this device hides them, and hidden ones take part in nothing', async () => {
+  const f = await fixture(); const card = id => f.workspace.snapshot.cards.find(item => item.id === id);
+  const visible = id => cardPolicy(card(id), f.workspace.layout.state, f.controller.state).visible;
+  await f.workspace.updateCard(f.b1.id, { completed: true }, f.b1.revision);
+  assert.equal(f.workspace.layout.state.completedVisible, undefined); assert.equal(visible(f.b1.id), true);
+  const shownPlan = plan(f); assert.ok(shownPlan.changes[f.b1.id], 'a shown completed paper is arranged like any other');
+  await f.controller.activate({ kind: 'all' }); assert.equal(await f.controller.beginEdit(f.b1.id), true);
+  await rejectsCode(f.workspace.layout.configure({ completedVisible: 'no' }, f.workspace.snapshot), 'invalid-setting');
+  const revisions = f.workspace.state.revisions.length; const pending = f.workspace.pendingOperations.length;
+  await f.workspace.layout.configure({ completedVisible: false }, f.workspace.snapshot);
+  assert.equal(f.disk().layout.completedVisible, false);
+  assert.equal(f.workspace.state.revisions.length, revisions); assert.equal(f.workspace.pendingOperations.length, pending);
+  assert.equal(visible(f.b1.id), false, 'adjust mode does not summon it'); assert.equal(visible(f.a1.id), true);
+  await f.controller.reconcile();
+  assert.equal(f.controller.state.editingCardId, null); assert.notEqual(f.controller.state.selectedCardId, f.b1.id);
+  await rejectsCode(f.controller.applyFormation(shownPlan), 'stale-plan');
+  await f.controller.escape();
+  assert.equal(plan(f).changes[f.b1.id], undefined, 'a hidden completed paper is left out of formations');
+  await rejectsCode(stepGroup({ workspace: f.workspace, controller: f.controller, groupId: f.b.id, wallpaper: true }), 'empty-scope');
+  await f.workspace.updateCard(f.a1.id, { completed: true }, f.a1.revision); assert.equal(visible(f.a1.id), false);
+  await f.workspace.updateCard(f.a1.id, { completed: false }, card(f.a1.id).revision); assert.equal(visible(f.a1.id), true);
+  await f.workspace.layout.reset(f.workspace.snapshot, area);
+  assert.ok(f.workspace.layout.state.placements[f.b1.id] === undefined && f.workspace.layout.state.completedVisible === undefined,
+    'resetting the desktop layout shows completed papers again');
+  await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas); assert.equal(visible(f.b1.id), true);
 });
 
 test('formation refuses previews after a new card or a moved card', async () => {

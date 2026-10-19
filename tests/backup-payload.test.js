@@ -36,7 +36,8 @@ async function fixture() {
   await workspace.layout.placeNew(workspace.snapshot, [area]);
   await workspace.layout.setCardPolicy(card.id, { visible: false });
   await workspace.layout.setGroupLayer(b.id, 'wallpaper', workspace.snapshot);
-  await workspace.layout.configure({ myGroupId: a.id, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } }, workspace.snapshot);
+  await workspace.layout.configure({ myGroupId: a.id, completedVisible: false, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } },
+    workspace.snapshot);
   const draft = workspace.blankDraft(a.id, workspace.snapshot.cards.find(item => item.id === card.id));
   draft.content.text = 'Unsaved original'; await workspace.saveDraft(draft);
   const recovered = { ...copy(draft), id: 'recovered-draft', content: { ...content, text: 'Recovered branch' },
@@ -160,6 +161,7 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'local.json', value => { value.groups.pop(); }),
     files => edit(files, 'layout.json', value => { value.grid.slots = ['missing-group']; }),
     files => edit(files, 'layout.json', value => { value.mainView = 'grid'; }),
+    files => edit(files, 'layout.json', value => { value.completedVisible = 'no'; }),
     files => edit(files, 'layout.json', value => { value.placements['unknown-card'] = Object.values(value.placements)[0]; }),
     files => edit(files, 'local.json', value => { Object.values(value.membershipRebases)[0].revision = value.groups[0].revision; }),
     files => edit(files, 'drafts/00000000.json', value => { value.baseRevision = parseJson(files.get('local.json')).groups[0].revision; }),

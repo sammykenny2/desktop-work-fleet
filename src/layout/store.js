@@ -107,10 +107,11 @@ export class LayoutStore {
 
   async configure(patch, snapshot) {
     patch = copy(patch); snapshot = copy(snapshot);
-    const allowed = ['grid', 'desktopVisible', 'myGroupId', 'shortcuts', 'mainView'];
+    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'myGroupId', 'shortcuts', 'mainView'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
     if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
-    requireValue(!('desktopVisible' in patch) || typeof patch.desktopVisible === 'boolean', 'invalid-setting', t('errors.core.visibilityInvalid'));
+    requireValue(['desktopVisible', 'completedVisible'].every(key => !(key in patch) || typeof patch[key] === 'boolean'),
+      'invalid-setting', t('errors.core.visibilityInvalid'));
     requireValue(!('myGroupId' in patch) || patch.myGroupId === null || activeGroups(snapshot).some(group => group.id === patch.myGroupId),
       'invalid-group-setting', t('errors.core.myGroupMissing'));
     if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, activeGroups(snapshot));
@@ -250,7 +251,8 @@ export class LayoutStore {
   }
 
   /**
-   * Resets this device's desktop layout: default group regions, no placements or undo history, papers shown, every
+   * Resets this device's desktop layout: default group regions, no placements or undo history, papers shown, completed
+   * papers included, every
    * group on the given back layer (the desktop layer when none is given) and no highlighted group. Shortcuts and the
    * device identity stay. Callers re-place papers with placeNew afterwards; a crash in between leaves papers unplaced,
    * which the start-up placeNew already repairs.
@@ -265,6 +267,7 @@ export class LayoutStore {
       draft.grid = groups.length <= 9 ? defaultGrid(groups, area) : { ...draft.grid, area };
       const groupLayers = layer ? Object.fromEntries(groups.map(group => [group.id, layer])) : {};
       Object.assign(draft, { placements: {}, history: [], desktopVisible: true, myGroupId: null, groupLayers });
+      delete draft.completedVisible;
     });
   }
 

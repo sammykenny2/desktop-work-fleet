@@ -126,7 +126,25 @@ try {
   await page.locator('#drafts-button').click(); await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
   await expect(page.locator('#editor-group')).toHaveValue(a.id);
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
+
+  // A completed paper stays on the desktop until this device hides completed papers, and comes back to the same place.
+  await page.locator('[data-view="list"]').click();
+  await page.locator('.note-row').filter({ hasText: 'Original group note' })
+    .getByRole('button', { name: t('app.notes.markCompleted'), exact: true }).click();
+  await page.locator('[data-view="desktop"]').click();
+  const completed = page.locator('.card').filter({ hasText: 'Original group note' });
+  await expect(completed).toHaveClass(/completed/); const completedBox = await completed.boundingBox();
+  const beforeHiding = await read(); assert.equal(beforeHiding.layout.completedVisible, undefined);
+  await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
+  await expect(page.locator('#desktop-completed')).toBeChecked(); await page.locator('#desktop-completed').uncheck();
+  await expect.poll(async () => (await read()).layout.completedVisible).toBe(false);
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  await expect(completed).toHaveCount(0); await expect(page.locator('.card')).toHaveCount(1);
+  assert.deepEqual((await read()).revisions, beforeHiding.revisions, 'hiding completed papers records no shared revision');
+  await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
+  await page.locator('#desktop-completed').check(); await page.locator('#close-settings').click();
+  await expect(completed).toHaveClass(/completed/); assert.deepEqual(await completed.boundingBox(), completedBox);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, fixed geometry, grid remapping and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, fixed geometry, grid remapping and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

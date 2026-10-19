@@ -28,6 +28,13 @@ Global shortcuts and the tray enter the same command sequence according to
 While native focus is held, the OS registration is released and local handlers keep IME / editor priority; hiding the
 main window does not close the data authority.
 
+[ADR-058](decisions/058-desktop-presentation-lifecycle-and-core-isolation.md) proposes moving that authority and
+service scheduling out of graphical hosts into a nonvisual resident core, with disposable presentation processes
+and continuous availability/recovery under [SPEC-009](specs/009-desktop-presentation-lifecycle.md).
+This is a proposed boundary, not the current implementation; the main WebView still assembles the work services.
+Runtime selection, process grouping and session handover precede implementation in
+[PLAN-009](plans/009-desktop-presentation-lifecycle.md).
+
 [SPEC-004](specs/004-revision-graph-and-file-sync.md)/[ADR-011](decisions/011-immutable-revision-graph.md)
 define the strict JSON of `src/sources`, the immutable revision graph, missing parents and multiple heads.
 Workspace connects revisions, projections, conflicts, group layout references and the cursor at the atomic save

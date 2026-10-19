@@ -53,6 +53,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
+| [009-desktop-presentation-lifecycle](009-desktop-presentation-lifecycle.md) | Desktop presentation availability and recovery | Draft; implementation approval pending | [PLAN-009](../plans/009-desktop-presentation-lifecycle.md) |
 | [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and proof of reset completion | Approved; status in PROGRESS | [PLAN-008](../plans/008-workspace-initialization.md) |
 | [007-schema-evolution-and-migrations](007-schema-evolution-and-migrations.md) | V1 data policy during the testing phase | Implemented (revised 2026-10-17); the migration work was withdrawn | [PLAN-007](../plans/007-schema-evolution-and-migrations.md) |
 | [006-desktop-window-startup-and-updates](006-desktop-window-startup-and-updates.md) | Main window placement, startup behaviour and in-app updates | Approved; Q pending; status in PROGRESS | [PLAN-006](../plans/006-desktop-window-startup-and-updates.md) |

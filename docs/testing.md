@@ -17,6 +17,39 @@ A green result from old tests must not be listed as a pass for a new feature, an
 local and Google share the V1 ZIP, and unsupported formats are rejected with the data kept. There is no per-version migration or copy acceptance work.
 For documentation work, check_docs.py, git diff --check and a scope and semantic consistency check are enough.
 
+## Proposed desktop presentation lifecycle verification
+
+[SPEC-009 L01-L18](specs/009-desktop-presentation-lifecycle.md#acceptance-cases) defines the proposed acceptance
+matrix; [PLAN-009](plans/009-desktop-presentation-lifecycle.md) assigns the implementation and checks.
+The lifecycle is not implemented, and no new native probe or passing result is claimed here.
+
+After implementation approval, use isolated data directories and test identities. First test the policy with
+injected clocks/events, then use real core/child processes to exercise startup, IPC, durable saves and child loss.
+Record the core process identity and storage owner before and after each fault; keeping a database file alone
+does not prove that sync, drafts or automatic backup stayed alive. Use synthetic sync/backup adapters for fault
+tests; real cloud operations require a dedicated test account.
+
+For every native run, record OS/app version, local or remote session, display backend, relevant graphics/runtime
+versions, active capabilities and whether the monitor is powered off, disconnected or virtual. Collect bounded
+lifecycle/fatal logs without note text, credentials or private remote-access configuration. An absent display and
+a failed topology query are separate test inputs.
+
+| Environment | Required native exercises |
+|---|---|
+| Windows MSIX and ZIP | Sign-in/manual activation, eligible remote sessions with unreadable physical topology, failed D3D initialization, primary-display loss, resolution/DPI changes, sleep/wake, Explorer attachment/exit and isolated graphical-child failure |
+| Linux/Pi | Core startup without a display connection, actual X11/Wayland backend loss/reconnect, RustDesk and Guacamole separately, monitor off/on, supported layers/tray/shortcuts and resolution changes |
+| macOS | Nonvisual core startup, display/session changes, sleep/wake, graphical-host failure, menu-bar/login-item behavior and updater/explicit exit |
+
+Before disruptive display/server changes or fault injection, coordinate access with the maintainer, especially
+when the same remote session carries the diagnostic connection. Prefer disposable sessions and synthetic native
+hosts; a Docker virtual display does not validate the Pi's real compositor or monitor-power behavior.
+
+Exercise save-before/after-commit faults, lost acknowledgements, IME-preserving geometry updates, repeated identical
+events, exhausted retry budgets, unauthorized IPC, account/session changes and Quit during a pending launch.
+Verify that no late callback restarts the application, no layout is cleared during display absence, and the core
+retains the same writer while eligible services continue. Explicitly document the limit for unsubmitted input
+lost with a renderer. Add exact native commands only when their probes exist; unavailable platforms remain unverified.
+
 ## Note formatting and attachment checks
 
 - `node --test tests/rich-content.test.js tests/desktop-authority.test.js tests/desktop-transport.test.js`: code colouring and escaping, bounded PNG, the preview cache, ownership of the current attachments, stale versions, click-through, and slow previews not blocking save or close.

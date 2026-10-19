@@ -1,6 +1,6 @@
 # Progress
 
-Snapshot rewritten 2026-10-17.
+Snapshot rewritten 2026-10-20.
 
 This file is a short snapshot of the current state: what works, where it was verified, and what is still open.
 It is not a log. History lives in the git log (Conventional Commits with descriptive bodies),
@@ -75,8 +75,11 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   Atom-based in-app updates, Shell attachment thumbnails and the adjust toolbar on first use.
 - Verified: native probes and daily use on Windows 11 build 26200; native probes and a user check on 23H2 (build 22631);
   the local MSIX update probe; three reboots on 26200 with the .NET 10 build and no crash.
-- Sign-in crash: fixed by the .NET 10 WPF display-loss fix ([ADR-050](docs/decisions/050-windows-wpf-display-loss-runtime.md))
-  on the evidence of three reboots; early primary-display removal (13–43 s after start) is not yet compared, nor .NET 10 on 23H2.
+- Sign-in reliability remains open: the .NET 10 display-loss fix passed earlier field checks
+  ([ADR-050](docs/decisions/050-windows-wpf-display-loss-runtime.md)), but a separate D3D9 device-initialization failure
+  is observed. Continuous presentation recovery and a nonvisual core are proposed, not implemented
+  ([ADR-058](docs/decisions/058-desktop-presentation-lifecycle-and-core-isolation.md),
+  [SPEC-009](docs/specs/009-desktop-presentation-lifecycle.md)); early primary-display removal and .NET 10 on 23H2 remain unverified.
 - Not verified: 21H2, 22H2, 24H2 and 25H2+ after the install-floor change; Windows 10 install rejection; mixed DPI and hot-plug;
   a real Explorer restart; sleep/wake; virtual desktops; Win+D; real fast mouse drags and IME; a real `Shell_NotifyIcon`
   failure at sign-in; an in-app update from one real GitHub release to the next (no record).

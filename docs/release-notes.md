@@ -7,6 +7,18 @@ that record is the GitHub Releases `windows-v<version>`, `linux-v<version>`, `ma
 `Platforms` lists the platforms whose version files carry the number and that were meant for distribution.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.2
+
+Platforms: Windows, Linux, macOS, iOS, Android.
+
+Summary: Saving a group's settings without changing its name, for example to set only this device's layer, no longer creates a group change that syncs to your other devices and can show up there as a version conflict.
+
+- Group settings: Save with the name unchanged records nothing shared. Changing only the desktop layer stays on this device, and it also works while the group has an unresolved conflict.
+- Before this version every such save added a new version of the group that synced to all devices, and two devices saving the same group close together produced a conflict. Devices still on an older version keep doing this until they update.
+- Conflicts that already exist stay until you choose a version under "Versions and conflicts" on one device. Let the other devices sync before you change that group elsewhere.
+- macOS: the release build retries Apple's stapling step when the connection to the notary service drops.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.1
 
 Platforms: Windows, Linux, macOS, iOS, Android.

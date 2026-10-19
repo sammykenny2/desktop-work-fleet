@@ -141,6 +141,11 @@ because A is "me".
   default for new cards.
 - Renaming a group or changing its grid position changes neither its stable ID nor the group a shortcut is already
   assigned to.
+- Each device lists its groups in its own region order (left to right, top to bottom), then any group no region
+  holds. Reordering the sidebar moves groups between the regions they hold, leaving empty regions in place, so region
+  keys follow; it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
+  that order. While more than nine groups exist the regions cannot hold them all, so the order cannot change until
+  groups are merged.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group
   revision, so nothing syncs and no other device's edit of that group can conflict with it.
 - A group new to a computer starts at the back of that computer's desktop: the Wallpaper layer, or the Desktop layer

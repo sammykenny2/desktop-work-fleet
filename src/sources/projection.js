@@ -1,5 +1,6 @@
 import { compareCards, compareId, copy, defaultGrid } from '../core/contracts.js';
 import { groupResolver, resolveGroupId } from '../core/groups.js';
+import { orderedGroups } from '../layout/order.js';
 
 export const projectionConflictKinds = new Set(['revision', 'group-reference', 'card-group', 'group-overflow', 'pending-revisions']);
 
@@ -71,7 +72,7 @@ export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
   const unassigned = groups.filter(group => !slots.includes(group.id)).map(group => group.id);
   for (let index = 0; index < slots.length && unassigned.length; index++) if (!slots[index]) slots[index] = unassigned.shift();
   result.grid.slots = slots;
-  if (unassigned.length && groups.length <= 9) result.grid = defaultGrid(groups, result.grid.area);
+  if (unassigned.length && groups.length <= 9) result.grid = defaultGrid(orderedGroups(result, groups), result.grid.area);
   result.history = result.history.filter(entry => !entry.transfer
     || [entry.transfer.fromGroupId, entry.transfer.toGroupId].every(id => active.has(id)));
   if (JSON.stringify(result) !== JSON.stringify(layout)) result.revision++;

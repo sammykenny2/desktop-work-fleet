@@ -2,6 +2,7 @@ import { activeGroups, compareId, containsRect, copy, defaultGrid,
   gridRegions, groupKey, membershipKey, requireValue, validRect } from '../core/contracts.js';
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { groupLayerOrder } from './stages.js';
+import { orderedGroups } from './order.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
 
@@ -145,8 +146,8 @@ export class LayoutStore {
       const groups = activeGroups(snapshot);
       const gridIds = draft.grid.slots.filter(Boolean);
       if (groups.length <= 9 && (groups.length !== gridIds.length || groups.some(group => !gridIds.includes(group.id)))) {
-        // Region bookkeeping does not move papers already on the desktop.
-        draft.grid = defaultGrid(groups, draft.grid.area);
+        // Region bookkeeping does not move papers already on the desktop, and groups keep the order they had.
+        draft.grid = defaultGrid(orderedGroups(draft, groups), draft.grid.area);
       }
       const knownIds = new Set(groups.map(group => group.id));
       const regionGroups = groups.filter(group => gridIds.includes(group.id));
@@ -251,10 +252,10 @@ export class LayoutStore {
   }
 
   /**
-   * Resets this device's desktop layout: default group regions, no placements or undo history, papers shown, completed
-   * papers included, every
-   * group on the given back layer (the desktop layer when none is given) and no highlighted group. Shortcuts and the
-   * device identity stay. Callers re-place papers with placeNew afterwards; a crash in between leaves papers unplaced,
+   * Resets this device's desktop layout: default group regions in the current group order, no placements or undo
+   * history, papers shown, completed papers included, every group on the given back layer (the desktop layer when none
+   * is given) and no highlighted group. Shortcuts and the device identity stay. Callers re-place papers with placeNew
+   * afterwards; a crash in between leaves papers unplaced,
    * which the start-up placeNew already repairs.
    */
   async reset(snapshot, area, layer = null) {
@@ -264,7 +265,7 @@ export class LayoutStore {
     return this.#transaction(draft => {
       const groups = activeGroups(snapshot);
       // More than nine groups have no default grid; keep the regions and still clear every paper position.
-      draft.grid = groups.length <= 9 ? defaultGrid(groups, area) : { ...draft.grid, area };
+      draft.grid = groups.length <= 9 ? defaultGrid(orderedGroups(draft, groups), area) : { ...draft.grid, area };
       const groupLayers = layer ? Object.fromEntries(groups.map(group => [group.id, layer])) : {};
       Object.assign(draft, { placements: {}, history: [], desktopVisible: true, myGroupId: null, groupLayers });
       delete draft.completedVisible;

@@ -15,7 +15,7 @@ const guard = source.slice(source.indexOf('async function ensureCaptureGroup()')
 
 function fixture(profileId, groups = []) {
   const calls = [];
-  const context = vm.createContext({ profileId, activeGroups, FleetError, t, activeGroupId: null,
+  const context = vm.createContext({ profileId, activeGroups, FleetError, t, activeGroupId: null, shownGroups: () => activeGroups(context.workspace.snapshot),
     workspace: { snapshot: { groups }, createGroup: async name => {
       calls.push(name); const group = { id: 'new-local-group', name, deleted: false }; groups.push(group); return group;
     } }, render: () => calls.push('render') });

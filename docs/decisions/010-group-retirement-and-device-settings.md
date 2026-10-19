@@ -5,6 +5,7 @@
 Accepted (local merge command and settings), 2026-10-04.
 Revised 2026-10-06: number shortcuts are now bound to desktop regions and step through the group's layers; see
 the shortcut items under Decision.
+Revised 2026-10-20: the group list follows this computer's region order and can be reordered from the sidebar.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 
@@ -47,6 +48,13 @@ overwrite other changes.
 - Group regions can be swapped while group IDs stay stable; number shortcuts follow the region. Queued old
   settings and new-card placements check the group set again at the atomic save point, so a retired group is
   never written back into the grid or local preferences.
+- The group list (sidebar and group pickers) follows the region order in `grid.slots`, then any group no region
+  holds; there is no shared order field, so ordering never syncs or conflicts. Dragging in the sidebar rewrites the
+  slots with the same `configure` path as the regions settings: the occupied regions take the groups in the new
+  order and empty regions stay, so number keys follow and no paper moves. Default regions rebuilt when a group is
+  added, a source reconciles groups or the layout is reset keep the current order. With more than nine groups
+  the grid cannot validate, so the sidebar offers no reordering until a merge. The maintainer chose a
+  per-device order linked to the regions over a synced order or a separate list order.
 - Shortcuts point to explicit actions: all groups, Quick capture, the display toggle, or regions 1-9 (left to
   right, top to bottom); several bindings may point to the same action.
   A region key acts on the group currently in that region; keys for empty regions are not sent to the native host

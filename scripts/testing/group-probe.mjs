@@ -60,7 +60,21 @@ try {
   await expect.poll(async () => (await read()).layout.myGroupId).toBe(b.id);
   state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
-  await page.locator('#groups .group-row').first().locator('button').first().click();
+  // The sidebar follows the regions; dragging a row or Alt+arrow keys reorder the regions without moving notes.
+  const groupRow = id => page.locator(`#groups .group-row[data-group-id="${id}"]`);
+  await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', b.id);
+  const activeBefore = await page.locator('#groups .group-row.active').getAttribute('data-group-id');
+  const from = await groupRow(a.id).boundingBox(); const to = await groupRow(b.id).boundingBox();
+  await page.mouse.move(from.x + 60, from.y + from.height / 2); await page.mouse.down();
+  await page.mouse.move(from.x + 60, to.y + 4, { steps: 8 }); await page.mouse.up();
+  await expect.poll(async () => (await read()).layout.grid.slots).toEqual([a.id, b.id]);
+  await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', a.id);
+  await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', activeBefore);
+  await groupRow(a.id).locator('button').first().press('Alt+ArrowDown');
+  await expect.poll(async () => (await read()).layout.grid.slots).toEqual([b.id, a.id]);
+  await expect(groupRow(a.id).locator('button').first()).toBeFocused();
+  assert.deepEqual((await read()).layout.placements, positions, 'reordering groups does not move cards');
+  await groupRow(a.id).locator('button').first().click();
   await page.locator('body').click({ position: { x: 260, y: 20 } });
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', b.id);
@@ -101,7 +115,7 @@ try {
   await page.locator('#new-card').click(); await page.locator('#editor-text').fill('Draft that survives the merge');
   await page.locator('#keep-draft').click();
   const before = await read();
-  await page.locator('#groups .group-row').nth(1).locator('.group-menu').click();
+  await groupRow(b.id).locator('.group-menu').click();
   await page.getByRole('button', { name: t('app.groupEditor.merge'), exact: true }).click();
   await expect(page.getByRole('button', { name: t('app.merge.confirm'), exact: true })).toBeDisabled();
   await page.locator('#merge-target').selectOption(a.id);
@@ -110,7 +124,7 @@ try {
   await expect(page.locator('.merge-preview')).toContainText(t('app.merge.itemArchived', { note: 'Research note' }));
   await page.locator('#merge-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
   assert.deepEqual(await read(), before, 'cancelled preview must not write');
-  await page.locator('#groups .group-row').nth(1).locator('.group-menu').click();
+  await groupRow(b.id).locator('.group-menu').click();
   await page.getByRole('button', { name: t('app.groupEditor.merge'), exact: true }).click();
   await page.locator('#merge-target').selectOption(a.id);
   await page.getByRole('button', { name: t('app.merge.confirm'), exact: true }).click();
@@ -161,5 +175,5 @@ try {
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

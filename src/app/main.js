@@ -5,6 +5,7 @@ import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, sho
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
 import { mainView } from '../layout/store.js';
+import { orderedGroups, reorderSlots } from '../layout/order.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -99,10 +100,12 @@ function screenArea() {
 function workAreas() { return desktopInfo ? desktopInfo.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })) : [screenArea()]; }
 function groupColor(id) { return groupColors[Math.max(0, activeGroups(workspace.snapshot).findIndex(group => group.id === id)) % groupColors.length]; }
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
+// The sidebar and every group picker list groups in this device's region order.
+function shownGroups() { return orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot)); }
 function fillGroups(select, selected, none = false) {
   select.replaceChildren();
   if (none) select.append(new Option(t('app.groups.none'), ''));
-  for (const group of activeGroups(workspace.snapshot)) select.append(new Option(groupName(group), group.id));
+  for (const group of shownGroups()) select.append(new Option(groupName(group), group.id));
   select.value = selected || '';
 }
 
@@ -147,7 +150,7 @@ async function initialize() {
   workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
   workspace.setArrivalLayer(backLayer);
-  activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
+  activeGroupId = shownGroups()[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); },
     releaseDraft: async cardId => {
@@ -342,7 +345,7 @@ async function syncGoogle(force = false) {
       if (result?.phase === 'waiting-initialization') {
         setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
       }
-      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : activeGroups(workspace.snapshot)[0]?.id;
+      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : shownGroups()[0]?.id;
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       if (googleAccount?.paused) {
         const account = await native.bridge.request('google.status');
@@ -788,6 +791,87 @@ async function prepareNativeClose() {
   finally { nativeClosing = false; document.body.inert = false; }
 }
 
+function renderGroupList(snapshot, layout, groups) {
+  $('#groups').replaceChildren(); const reorderable = groups.every(group => layout.grid.slots.includes(group.id));
+  for (const group of groups) {
+    const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
+    row.dataset.groupId = group.id;
+    const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
+    const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
+    choose.append(dot, element('span', groupName(group), 'group-name'),
+      element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
+    // Groups move only while every group holds a region; past nine, regions cannot take a new order until a merge.
+    if (reorderable) {
+      row.classList.add('reorderable'); choose.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
+      const grip = element('span', undefined, 'group-grip'); grip.setAttribute('aria-hidden', 'true');
+      grip.append(icon('M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01')); row.append(grip);
+    }
+    row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
+  }
+}
+
+// Dragging a group row reorders the regions, so the list, the desktop regions and the region keys keep one order;
+// papers stay where they are. A mouse drags the whole row; a finger drags the grip, so the drawer still scrolls.
+let groupDrag = null; let groupDragClick = false;
+function reorderGroups(ids) {
+  return run(async () => {
+    const grid = workspace.layout.state.grid; const held = grid.slots.filter(Boolean);
+    // A group that arrived during the drag goes last, and one that left drops out.
+    const order = [...ids.filter(id => held.includes(id)), ...held.filter(id => !ids.includes(id))];
+    // A refused order must not leave the rows where they were dropped.
+    try { if (order.some((id, index) => id !== held[index])) await workspace.layout.configure({ grid: reorderSlots(grid, order) }, workspace.snapshot); }
+    finally { render(); }
+  });
+}
+function startGroupDrag(event) {
+  const row = event.target.closest('.group-row.reorderable');
+  if (!row || event.button !== 0 || groupDrag?.active || event.target.closest('.group-menu')) return;
+  if (event.pointerType === 'touch' && !event.target.closest('.group-grip')) return;
+  groupDrag = { pointerId: event.pointerId, row, startY: event.clientY, active: false };
+  if (event.pointerType === 'touch') moveGroupDrag(event, true);
+}
+function moveGroupDrag(event, force = false) {
+  if (groupDrag?.pointerId !== event.pointerId) return;
+  // A press released outside the list never reached it; hovering back must not start a drag.
+  if (!(event.buttons & 1)) { endGroupDrag(event, false); return; }
+  if (!groupDrag.active) {
+    if (!force && Math.abs(event.clientY - groupDrag.startY) < 5) return;
+    // A render since the press replaced the row; the next press starts afresh.
+    if (!groupDrag.row.isConnected) { groupDrag = null; return; }
+    // Capturing only now leaves a plain click on the row's own button.
+    groupDrag.active = true; $('#groups').setPointerCapture(event.pointerId);
+    groupDrag.row.classList.add('dragging'); document.body.classList.add('group-dragging');
+  }
+  event.preventDefault();
+  const rows = [...$('#groups').querySelectorAll('.group-row.reorderable')].filter(row => row !== groupDrag.row);
+  const before = rows.find(row => { const box = row.getBoundingClientRect(); return event.clientY < box.top + box.height / 2; });
+  const end = $('#groups').querySelector('.group-row:not(.reorderable)');
+  const target = before || end;
+  if (groupDrag.row.nextElementSibling !== target) $('#groups').insertBefore(groupDrag.row, target);
+}
+function endGroupDrag(event, dropped) {
+  if (groupDrag?.pointerId !== event.pointerId) return;
+  const { active, row } = groupDrag; groupDrag = null;
+  if (!active) return;
+  row.classList.remove('dragging'); document.body.classList.remove('group-dragging');
+  // The click that ends a drag must not also choose the group.
+  groupDragClick = true; setTimeout(() => { groupDragClick = false; }, 0);
+  if (dropped) void reorderGroups([...$('#groups').querySelectorAll('.group-row.reorderable')].map(node => node.dataset.groupId));
+  else render();
+}
+// Alt+Up and Alt+Down move the focused group one place, for keyboards.
+function stepGroupOrder(event) {
+  const row = event.target.closest('.group-row.reorderable');
+  if (!row || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+  event.preventDefault();
+  const ids = shownGroups().map(group => group.id).filter(id => workspace.layout.state.grid.slots.includes(id));
+  const from = ids.indexOf(row.dataset.groupId); const to = from + (event.key === 'ArrowUp' ? -1 : 1);
+  if (from < 0 || to < 0 || to >= ids.length) return;
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  const moved = row.dataset.groupId;
+  void reorderGroups(ids).then(() => $('#groups').querySelector(`.group-row[data-group-id="${CSS.escape(moved)}"] button`)?.focus());
+}
+
 function matchesFilter(card) {
   if (filter === 'deleted') return card.deleted;
   if (card.deleted) return false;
@@ -799,18 +883,10 @@ function matchesFilter(card) {
 function render() {
   nativeShortcuts?.update(liveShortcuts());
   if (remoteEditor && controller.state.editingCardId !== remoteEditor.cardId) { remoteEditor = null; currentDraft = null; }
-  const snapshot = workspace.snapshot; const groups = activeGroups(snapshot); const layout = workspace.layout.state;
+  const snapshot = workspace.snapshot; const layout = workspace.layout.state; const groups = shownGroups();
   if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0]?.id;
-  $('#groups').replaceChildren();
-  for (const group of groups) {
-    const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
-    row.dataset.groupId = group.id;
-    const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
-    const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
-    choose.append(dot, element('span', groupName(group), 'group-name'),
-      element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
-    row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
-  }
+  // A row being dragged stays where the pointer holds it; the drop renders the list again.
+  if (!groupDrag?.active) renderGroupList(snapshot, layout, groups);
   const query = $('#search').value.trim().toLocaleLowerCase();
   // Filters and search look through papers the desktop does not show, so they always use the board or the list.
   const notesShown = !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
@@ -1056,7 +1132,7 @@ async function openGroupMerge(group) {
   const dialog = element('dialog'); dialog.id = 'merge-dialog'; dialog.append(element('h2', t('app.merge.title', { group: groupName(group) })));
   const field = element('label', t('app.groups.receiving'), 'field'); const select = element('select'); select.id = 'merge-target';
   select.append(new Option(t('app.merge.choose'), ''));
-  for (const target of activeGroups(workspace.snapshot).filter(item => item.id !== group.id)) select.append(new Option(groupName(target), target.id));
+  for (const target of shownGroups().filter(item => item.id !== group.id)) select.append(new Option(groupName(target), target.id));
   field.append(select);
   const message = element('p'); message.id = 'merge-message'; message.setAttribute('role', 'status');
   const items = element('ul', undefined, 'merge-preview'); const actions = element('div', undefined, 'dialog-actions');
@@ -1116,7 +1192,7 @@ function cardDetails(card) {
 async function ensureCaptureGroup() {
   const groups = activeGroups(workspace.snapshot);
   if (groups.length) {
-    if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0].id;
+    if (!groups.some(group => group.id === activeGroupId)) activeGroupId = shownGroups()[0].id;
     return;
   }
   // A new or cleared account must receive its existing groups before choosing an initial group.
@@ -1383,7 +1459,7 @@ async function mountDataPanel() {
     files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
     appVersion: native?.info.appVersion, uninstallNotice: native?.info.platform === 'windows' ? t('settings.data.uninstallNotice') : null,
     onChanged: async () => {
-      if (!activeGroups(workspace.snapshot).some(group => group.id === activeGroupId)) activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
+      if (!activeGroups(workspace.snapshot).some(group => group.id === activeGroupId)) activeGroupId = shownGroups()[0]?.id;
       await controller.reconcile(); render();
     } });
   host.replaceChildren(dataPanel.element);
@@ -1554,7 +1630,7 @@ function applyShortcuts() {
 }
 // The grid preview is a small map of the screen; each cell is tinted with its group's paper colour.
 function previewGrid(reshape = false, apply = false) {
-  const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = activeGroups(workspace.snapshot);
+  const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = shownGroups();
   if (reshape || settingsSlots.length !== rows * columns) {
     const ordered = settingsSlots.filter(id => id && groups.some(group => group.id === id));
     for (const group of groups) if (!ordered.includes(group.id)) ordered.push(group.id);
@@ -1668,6 +1744,13 @@ function bindEvents() {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
   $('#add-group').onclick = () => groupEditor();
+  const groupList = $('#groups');
+  groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', event => moveGroupDrag(event));
+  groupList.addEventListener('pointerup', event => endGroupDrag(event, true)); groupList.addEventListener('pointercancel', event => endGroupDrag(event, false));
+  // Only the list's own capture counts; a grip handing its touch capture to the list must not end the drag.
+  groupList.addEventListener('lostpointercapture', event => { if (event.target === groupList) endGroupDrag(event, false); });
+  groupList.addEventListener('click', event => { if (groupDragClick) { event.preventDefault(); event.stopPropagation(); } }, true);
+  groupList.addEventListener('keydown', stepGroupOrder);
   $('#search').oninput = render;
   // Board and list are this device's saved choice; the desktop canvas or layout map is only for this session and shows To do.
   document.querySelectorAll('[data-view]').forEach(node => { node.onclick = () => run(async () => {

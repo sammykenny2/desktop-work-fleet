@@ -73,6 +73,11 @@ try {
   await page.mouse.move(from.x + 60, to.y + 4, { steps: 8 }); await page.mouse.up();
   await expect.poll(async () => (await read()).layout.grid.slots).toEqual([a.id, b.id]);
   await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', a.id);
+  // A toast says which region keys now act on which group.
+  await expect(page.locator('#toast')).toBeVisible(); await expect(page.locator('#toast')).toContainText(t('app.groups.keysMoved'));
+  await expect(page.locator('#toast')).toContainText(t('app.groups.keyMoved', { keys: 'Ctrl+Shift+2', group: 'Research' }));
+  await page.locator('#toast').getByRole('button', { name: t('common.close'), exact: true }).click();
+  await expect(page.locator('#toast')).toBeEmpty(); await expect(page.locator('#toast')).toBeHidden();
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', activeBefore);
   await groupRow(a.id).locator('button').first().press('Alt+ArrowDown');
   await expect.poll(async () => (await read()).layout.grid.slots).toEqual([b.id, a.id]);

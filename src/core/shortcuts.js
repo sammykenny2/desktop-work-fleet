@@ -57,6 +57,19 @@ export function regionShortcuts(shortcuts, slots) {
   return result;
 }
 
+/**
+ * After the regions are reordered, the keys whose region now holds a different group, one entry per region in region
+ * order. Regions without a key, emptied regions and regions keeping their group are left out.
+ */
+export function regionKeyChanges(shortcuts, before, after) {
+  const bound = regionShortcuts(shortcuts, before); const changes = [];
+  after.forEach((groupId, index) => {
+    const keys = Object.keys(bound).filter(key => shortcutRegion(bound[key]) === index + 1);
+    if (groupId && groupId !== before[index] && keys.length) changes.push({ keys, groupId });
+  });
+  return changes;
+}
+
 /** Region keys act on the group now in that region; keys for empty regions are dropped and stay free for other apps. */
 export function resolveShortcuts(shortcuts, slots) {
   const result = {};

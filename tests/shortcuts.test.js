@@ -1,8 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultShortcuts, eventShortcut, isEditingShortcut, normalizeShortcut, regionShortcuts, resolveShortcuts, shortcutForEvent,
-  validateShortcuts } from '../src/core/shortcuts.js';
+import { defaultShortcuts, eventShortcut, isEditingShortcut, normalizeShortcut, regionKeyChanges, regionShortcuts, resolveShortcuts,
+  shortcutForEvent, validateShortcuts } from '../src/core/shortcuts.js';
 import { Workspace } from '../src/core/workspace.js';
+
+test('after a reorder, only keys whose region now holds another group are reported, in region order', () => {
+  const shortcuts = { 'Ctrl+Shift+1': '@region1', 'Alt+Shift+1': '@region1', 'Ctrl+Shift+3': '@region3', 'Ctrl+Shift+0': '@all' };
+  // Region 2 has no key, region 3 keeps its group and region 4 is empty.
+  assert.deepEqual(regionKeyChanges(shortcuts, ['a', 'b', 'c', null], ['b', 'a', 'c', null]),
+    [{ keys: ['Ctrl+Shift+1', 'Alt+Shift+1'], groupId: 'b' }]);
+  assert.deepEqual(regionKeyChanges(shortcuts, ['a', 'b', 'c'], ['a', 'b', 'c']), []);
+  // A layout from before region keys bound a key to a group; it counts as the region that group held before, and the
+  // region left without a key has its default digit, as when such a layout opens.
+  assert.deepEqual(regionKeyChanges({ 'Ctrl+1': 'a' }, ['a', 'b'], ['b', 'a']),
+    [{ keys: ['Ctrl+1'], groupId: 'b' }, { keys: ['Ctrl+Shift+2'], groupId: 'a' }]);
+});
 
 test('shortcut validation normalizes modifiers, preserves stable targets and refuses collisions or plain typing', () => {
   assert.equal(normalizeShortcut('shift + control + a'), 'Ctrl+Shift+A');

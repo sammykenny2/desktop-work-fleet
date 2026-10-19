@@ -55,6 +55,8 @@
     <footer><span id="mode-label" data-arrange></span><span class="status-line" role="status" aria-live="polite"><span id="status"></span><button id="status-action" type="button" aria-describedby="status" hidden></button></span></footer>
     <button id="compose" class="primary" data-i18n-attr="aria-label:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>
+  <!-- Outside main, which the phone drawer makes inert; empty and zero-sized when idle, so screen readers hear each fill. -->
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
   <dialog id="capture-inbox-dialog">
     <h2 data-i18n="app.shareInbox.title"></h2><p data-i18n="app.shareInbox.hint"></p>
     <div id="capture-list"></div>

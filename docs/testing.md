@@ -412,7 +412,8 @@ It also uses real IDB to verify concurrent CAS, rejection of non-consecutive rev
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
 Keep this wait if the probe is edited.
 The group probe verifies group preview, cancel and merge, archived data and draft integrity, region swaps not moving cards,
-the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards,
+the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, the
+toast naming the keys that changed group,
 a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
 group settings with the name unchanged records no revision, that "Show completed notes" hides a completed paper and

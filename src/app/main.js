@@ -1,7 +1,7 @@
 import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
-import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
+import { normalizeShortcut, regionKeyChanges, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, stepGroup } from '../layout/stages.js';
 import { mainView } from '../layout/store.js';
@@ -72,6 +72,18 @@ function button(text, action, className) {
   node.addEventListener('click', event => { event.stopPropagation(); run(action); }); return node;
 }
 // A status can offer one follow-up, such as undoing a delete, which runs once; the next status takes it away.
+// Phones arrange no desktop, so "My group" means nothing there, even when a restored computer layout carries one.
+const myGroupOf = layout => handheld ? null : layout.myGroupId;
+// A short message floating above the page that leaves on its own or when closed; a newer one replaces it. The live
+// region stays in the page and is emptied rather than hidden, so assistive technology announces every message.
+let toastTimer = 0;
+function closeToast() { clearTimeout(toastTimer); $('#toast').replaceChildren(); }
+function toast(title, lines = []) {
+  const close = element('button', '×', 'toast-close'); close.type = 'button'; close.setAttribute('aria-label', t('common.close'));
+  close.onclick = event => { event.stopPropagation(); closeToast(); };
+  $('#toast').replaceChildren(element('strong', title), ...lines.map(line => element('span', line)), close);
+  clearTimeout(toastTimer); toastTimer = setTimeout(closeToast, 4000 + 1500 * lines.length);
+}
 function status(text, error = false, action = null) {
   $('#status').textContent = text; $('#status').classList.toggle('error', error);
   const follow = $('#status-action'); follow.hidden = !action; follow.textContent = action?.label ?? '';
@@ -806,7 +818,7 @@ function renderGroupList(snapshot, layout, groups) {
     const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
     const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
     choose.append(dot);
-    if (layout.myGroupId === group.id) choose.append(sidebarMark(icon(starPath), 'group-star', t('app.groups.myGroupMark')));
+    if (myGroupOf(layout) === group.id) choose.append(sidebarMark(icon(starPath), 'group-star', t('app.groups.myGroupMark')));
     choose.append(element('span', groupName(group), 'group-name'));
     if (desktopInfo) choose.append(layerMark(groupLayer(layout, group.id)));
     choose.append(element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
@@ -849,6 +861,10 @@ function reorderGroups(ids) {
     // A refused order must not leave the rows where they were dropped.
     try { if (order.some((id, index) => id !== held[index])) await workspace.layout.configure({ grid: reorderSlots(grid, order) }, workspace.snapshot); }
     finally { render(); }
+    // Region keys now act on other groups; say which, since nothing on screen shows it. Phones have no keys.
+    const layout = workspace.layout.state; const changes = handheld ? [] : regionKeyChanges(layout.shortcuts, grid.slots, layout.grid.slots);
+    if (changes.length) toast(t('app.groups.keysMoved'), changes.map(({ keys, groupId }) => t('app.groups.keyMoved',
+      { keys: keys.join(t('app.groups.keySeparator')), group: groupName(activeGroups(workspace.snapshot).find(group => group.id === groupId)) })));
   });
 }
 function startGroupDrag(event) {
@@ -1005,7 +1021,7 @@ function renderStage(cards) {
     if (!policy.visible || !placement) continue;
     const paper = element('article', undefined, 'card'); paper.dataset.cardId = card.id;
     paper.classList.toggle('operable', policy.draggable); paper.classList.toggle('selectable', !policy.draggable && policy.interactive);
-    paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', layout.myGroupId === card.groupId);
+    paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', myGroupOf(layout) === card.groupId);
     paper.classList.toggle('completed', card.completed);
     paper.style.setProperty('--paper', groupColor(card.groupId)); paper.style.zIndex = String(z++); rectStyle(paper, placement);
     paper.append(element('div', summaryText(card), 'card-summary'));
@@ -1058,7 +1074,7 @@ function renderNotes(cards, view, acrossGroups) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
   boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? t('app.views.listLabel') : t('app.views.boardLabel'));
   if (!cards.length) { list.append(element('p', t('app.notes.empty'), 'hint')); return; }
-  const groups = activeGroups(workspace.snapshot); const { myGroupId } = workspace.layout.state;
+  const groups = activeGroups(workspace.snapshot); const myGroupId = myGroupOf(workspace.layout.state);
   const holder = element('div', undefined, view === 'list' ? 'note-list' : 'board');
   for (const card of cards) {
     const title = summaryText(card);
@@ -1792,6 +1808,7 @@ function bindEvents() {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
   $('#add-group').onclick = () => groupEditor();
+  $('#toast').onclick = closeToast;
   const groupList = $('#groups');
   groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', event => moveGroupDrag(event));
   groupList.addEventListener('pointerup', event => endGroupDrag(event, true)); groupList.addEventListener('pointercancel', event => endGroupDrag(event, false));

@@ -143,14 +143,16 @@ because A is "me".
   assigned to.
 - Each device lists its groups in its own region order (left to right, top to bottom), then any group no region
   holds. Reordering the sidebar moves groups between the regions they hold, leaving empty regions in place, so region
-  keys follow; it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
+  keys follow, and a toast lists every bound key that now acts on a different group (phones, which have no keys, show
+  none); it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
   that order. While more than nine groups exist the regions cannot hold them all, so the order cannot change until
   groups are merged.
 - Each device stores which of the nine palette colours each group wears. A group without a stored colour takes the
   colour of its place in the workspace list when no other group wears it, otherwise the first free colour; a retired
   group frees its colour; choosing a colour another group wears swaps the two. Colours never sync, and reordering
   groups does not repaint them. Past nine groups, colours repeat.
-- The sidebar marks this device's "My group" with a star. On desktop computers each group row also shows the layer
+- The sidebar marks this device's "My group" with a star; phones have no "My group" and ignore one in a restored
+  layout. On desktop computers each group row also shows the layer
   its papers rest on, as a three-plate icon with the layer named in its tooltip; where the desktop cannot offer the
   chosen layer, the icon shows the layer the papers fall back to and the tooltip names both.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group

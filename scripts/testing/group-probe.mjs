@@ -31,6 +31,13 @@ try {
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups .group-row')).toHaveCount(2); await capture('Research note');
   let state = await read(); const [a, b] = state.groups; const positions = state.layout.placements;
+  // Saving group settings with the name as shown, including the translated default name, records no group revision.
+  for (const index of [0, 1]) {
+    await page.locator('#groups .group-row').nth(index).locator('.group-menu').click();
+    await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
+    await expect(page.locator('dialog[open]')).toHaveCount(0); await expect(page.locator('#status')).toHaveText(t('app.status.groupSaved'));
+  }
+  assert.deepEqual((await read()).revisions, state.revisions, 'an unchanged group name must not record a revision');
   // Settings apply as soon as they are valid; there is no save button.
   await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
   await page.getByRole('combobox', { name: t('settings.desktop.regionGroup', { number: 1 }), exact: true }).selectOption(b.id);
@@ -121,5 +128,5 @@ try {
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: group preview/cancel/merge, draft recovery, archived content, fixed geometry, grid remapping and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, fixed geometry, grid remapping and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

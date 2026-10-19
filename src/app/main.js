@@ -1018,8 +1018,9 @@ function groupEditor(group) {
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
     let groupId = group?.id;
-    // A name left as shown keeps the stored one, so a default name keeps following the UI language.
-    if (group) await workspace.renameGroup(group.id, input.value.trim() === groupName(group) ? group.name : input.value, group.revision);
+    // A name left as shown is not renamed: a default name keeps following the UI language, and changing only this
+    // device's layer neither syncs a group revision nor fails on a group that is in conflict.
+    if (group) { if (input.value.trim() !== groupName(group)) await workspace.renameGroup(group.id, input.value, group.revision); }
     else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; }
     if (layerField && layers.value !== currentLayer) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status(t('app.status.groupSaved'));

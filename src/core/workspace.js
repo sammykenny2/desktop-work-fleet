@@ -459,6 +459,8 @@ export class Workspace {
       this.#group(state, id);
       const group = state.groups.find(group => group.id === id);
       requireValue(group.revision === expectedRevision, 'conflict', t('errors.core.groupUpdated'));
+      // An unchanged name is not an edit; a revision would sync and fork the group with any other device's edit.
+      if (group.name === name.trim()) return copy(group);
       group.name = name.trim(); group.revision = this.#uuid();
       this.#record(state, 'group', group, [expectedRevision]);
       return copy(group);

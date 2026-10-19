@@ -159,3 +159,13 @@ test('queued old settings cannot reintroduce retired group references after merg
   await assert.rejects(f.workspace.layout.placeNew(oldSnapshot, [area]), error => error.code === 'stale-groups');
   assert.deepEqual(f.disk(), before); assert.deepEqual(f.workspace.layout.state, before.layout);
 });
+
+test('saving an unchanged group name records no revision to sync and still checks the expected revision', async () => {
+  const f = await fixture();
+  const revisions = f.workspace.state.revisions.length; const pending = f.workspace.pendingOperations.length;
+  assert.deepEqual(await f.workspace.renameGroup(f.b.id, '  B ', f.b.revision), f.b);
+  assert.equal(f.workspace.state.revisions.length, revisions); assert.equal(f.workspace.pendingOperations.length, pending);
+  const renamed = await f.workspace.renameGroup(f.b.id, 'Renamed', f.b.revision);
+  assert.notEqual(renamed.revision, f.b.revision); assert.equal(f.workspace.pendingOperations.length, pending + 1);
+  await assert.rejects(f.workspace.renameGroup(f.b.id, 'Renamed', f.b.revision), error => error.code === 'conflict');
+});

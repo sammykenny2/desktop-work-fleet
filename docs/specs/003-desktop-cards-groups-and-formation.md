@@ -141,6 +141,8 @@ because A is "me".
   default for new cards.
 - Renaming a group or changing its grid position changes neither its stable ID nor the group a shortcut is already
   assigned to.
+- Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group
+  revision, so nothing syncs and no other device's edit of that group can conflict with it.
 - Shortcut bindings are a local setting. Ctrl+Shift+1 to Ctrl+Shift+9 are the candidate default combinations and 0
   maps to all; all of them can be changed. A shortcut that failed to register must not be shown as available; a
   combination conflict should not stop the app from starting.

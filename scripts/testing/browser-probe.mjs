@@ -154,7 +154,8 @@ try {
   await page.locator('#search').fill('Weekly report'); await expect(page.locator('#list .note-title')).toHaveText(['Weekly report']);
   await page.locator('#list .note-title').click(); await expect(page.locator('#editor-heading')).toHaveValue('Weekly report');
   await page.locator('#editor-heading').fill(''); await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
-  await page.locator('#search').fill('');
+  // The open editor is modal, so clearing the search before it closes types into nothing.
+  await expect(page.locator('#editor-dialog')).not.toBeVisible(); await page.locator('#search').fill('');
   await expect(titled.locator('.card-summary')).toHaveText('Sum up this week');
   await page.locator('#new-card').click();
   await page.locator('#editor-heading').fill('Title typed, then deleted'); await page.locator('#editor-heading').fill('');

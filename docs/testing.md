@@ -412,7 +412,13 @@ It also uses real IDB to verify concurrent CAS, rejection of non-consecutive rev
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
 Keep this wait if the probe is edited.
 The group probe verifies group preview, cancel and merge, archived data and draft integrity, region swaps not moving cards,
-custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again.
+custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
+group settings with the name unchanged records no revision, that "Show completed notes" hides a completed paper and
+brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also
+in a 390 px window.
+After saving from the editor, the browser probe waits for the modal editor to close before it types into the search
+box; without the wait the text is lost and a later check reads a stale title (2026-10-20). Keep this wait if the probe
+is edited.
 The revision probe verifies with synthetic data a two-version comparison, HTML text isolation and raw attachment bytes, delete/edit resolution,
 history restore, keeping drafts and geometry, the IME boundary, and the group-cycle repair entry at 390 px when no group is active.
 It injects versions through a core fixture and does not connect to Google; the screenshot is `build/revision-probe.png`.

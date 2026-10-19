@@ -56,6 +56,9 @@ overwrite other changes.
   Duplicate canonical keys, invalid modifiers and vanished groups are rejected.
 - The layer belongs to the group: each computer's layout records in `groupLayers` whether each group is on the
   wallpaper layer, the desktop layer or the top layer; a group with no record is on the desktop layer.
+  A group this computer first receives from a sync source, never having held it before (a retired group counts as
+  held), is recorded on the wallpaper layer in the same transaction where the desktop offers that layer; elsewhere it
+  gets no record. Groups created on this computer and groups it already holds are not changed.
   The desktop app's group settings can show and change the layer; phones and the browser preview have no desktop
   layers and do not show this option.
   Note details no longer have a per-note resident layer or "Select text while locked".

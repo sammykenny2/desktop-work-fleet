@@ -5,7 +5,7 @@ import { canonicalJson, parseJson } from '../sources/json.js';
 import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { regionShortcuts } from './shortcuts.js';
-import { groupLayersFromPapers } from '../layout/stages.js';
+import { groupLayerOrder, groupLayersFromPapers } from '../layout/stages.js';
 import { sha256, validDigest, validateFile } from '../sources/files.js';
 import { schemas, requireSchemaVersion } from './schema.js';
 import { initialGroupRecord, resetFileIds } from '../sources/initial-group.js';
@@ -85,6 +85,7 @@ export class Workspace {
   #graph;
   #now;
   #runtimeId = crypto.randomUUID();
+  #arrivalLayer = () => null;
 
   static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID(), now = Date.now }) {
     const groups = bootstrapGroup ? [{ id: uuid(), name: t('app.groups.defaultName'), revision: uuid(), deleted: false }] : [];
@@ -122,6 +123,8 @@ export class Workspace {
   get layout() { return this.#layout; }
   get syncState() { return copy(this.#state.sync); }
   get pendingOperations() { return copy(this.#state.outbox); }
+  /** Picks the layer a group this device first receives from a source starts on; null keeps the desktop layer. */
+  setArrivalLayer(choose) { this.#arrivalLayer = choose; }
   assertSyncSession(session) { this.#session(this.#state, session); }
   uploadState(session, operation) { this.#session(this.#state, session); return copy(this.#state.sync.uploads?.[operation] || null); }
 
@@ -355,6 +358,8 @@ export class Workspace {
         }
         records = [];
       }
+      // Tombstones count as seen: a group this device already holds as retired is not new when it comes back.
+      const seenGroups = new Set(state.groups.map(group => group.id));
       const graph = this.#graph.fork(records);
       const known = new Set(state.revisions.map(item => item.revisionId));
       for (const record of records) if (!known.has(record.revisionId)) {
@@ -362,7 +367,10 @@ export class Workspace {
       }
       const result = { added: graph.size - this.#graph.size, pending: graph.pending, missing: graph.missing };
       Object.assign(state, projectRevisions(graph, state));
-      state.layout = reconcileSourceLayout(layout, state); state.sync.cursor = cursor;
+      const layer = this.#arrivalLayer();
+      const arrived = groupLayerOrder.includes(layer)
+        ? Object.fromEntries(activeGroups(state).filter(group => !seenGroups.has(group.id)).map(group => [group.id, layer])) : {};
+      state.layout = reconcileSourceLayout(layout, state, arrived); state.sync.cursor = cursor;
       if (cursor !== null) state.sync.sourceResetIds = resetFileIds(state.sync.files);
       return { layout: state.layout, value: result };
     }));

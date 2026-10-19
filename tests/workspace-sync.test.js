@@ -4,6 +4,7 @@ import { Workspace } from '../src/core/workspace.js';
 import { activeGroups, copy, gridRegions } from '../src/core/contracts.js';
 import { revisionRecord, RevisionGraph } from '../src/sources/revisions.js';
 import { resolveGroupId } from '../src/core/groups.js';
+import { arrivalLayer, groupLayer } from '../src/layout/stages.js';
 
 const area = { x: 0, y: 0, width: 1400, height: 900 };
 const content = text => ({ format: 'markdown', text, attachments: [{ id: 'blob', name: 'kept.txt', size: 10 }], extra: { keep: true } });
@@ -277,4 +278,33 @@ test('projection keeps established local group order when new UUIDs sort before 
     { session, expectedCursor: null, cursor: 'one' });
   assert.deepEqual(workspace.snapshot.groups.map(group => group.id), ['z-group', 'a-group', '0-first']);
   assert.deepEqual(workspace.layout.state.grid.slots, ['z-group', 'a-group', '0-first']);
+});
+
+test('a group first received from sync starts on the arrival layer, and only then', async () => {
+  const f = await fixture(); f.workspace.setArrivalLayer(() => 'wallpaper');
+  const remote = { id: 'remote-group', revision: 'remote-root', name: 'Remote', deleted: false };
+  const retired = { id: 'retired-group', revision: 'retired-root', name: 'Retired', deleted: false };
+  await f.receive([revisionRecord('group', remote), groupBranch(f.b, 'b-remote', { name: 'B elsewhere' }),
+    revisionRecord('group', retired),
+    groupBranch(retired, 'retired-gone', { deleted: true, redirectGroupId: f.a.id })]);
+  // This device's own groups and a group that arrives already retired keep the default desktop layer.
+  assert.deepEqual(f.workspace.layout.state.groupLayers, { 'remote-group': 'wallpaper' });
+  assert.deepEqual(f.disk().layout, f.workspace.layout.state);
+  // A layer chosen here survives later revisions of the group, and a retired group coming back is not new.
+  await f.workspace.layout.setGroupLayer('remote-group', 'floating', f.workspace.snapshot);
+  await f.receive([groupBranch(remote, 'remote-renamed', { name: 'Renamed' }),
+    revisionRecord('group', { ...retired, revision: 'retired-back' }, ['retired-gone'])]);
+  assert.equal(activeGroups(f.workspace.snapshot).some(group => group.id === 'retired-group'), true);
+  assert.deepEqual(f.workspace.layout.state.groupLayers, { 'remote-group': 'floating' });
+  assert.equal(groupLayer(new Workspace(f.disk(), f.persist).layout.state, 'remote-group'), 'floating');
+});
+
+test('without a wallpaper layer, or without any desktop layers, received groups keep the default desktop layer', async () => {
+  for (const choose of [undefined, () => arrivalLayer(['desktop', 'floating']), () => arrivalLayer([])]) {
+    const f = await fixture(); if (choose) f.workspace.setArrivalLayer(choose);
+    await f.receive([revisionRecord('group', { id: 'remote-group', revision: 'remote-root', name: 'Remote', deleted: false })]);
+    assert.equal(activeGroups(f.workspace.snapshot).some(group => group.id === 'remote-group'), true);
+    assert.deepEqual(f.workspace.layout.state.groupLayers, {});
+    assert.equal(groupLayer(f.workspace.layout.state, 'remote-group'), 'desktop');
+  }
 });

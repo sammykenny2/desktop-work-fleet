@@ -52,10 +52,14 @@ export async function projectRevisionsAsync(graph, previous, checkpoint) {
 }
 
 /** Remote content may reconcile device references, but never move or resize an existing paper. */
-export function reconcileSourceLayout(layout, snapshot) {
+export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
   const result = copy(layout);
   const groups = snapshot.groups.filter(group => !group.deleted);
   const active = new Set(groups.map(group => group.id));
+  // Groups this device has just received for the first time take the layer chosen for them; a stored layer stays.
+  for (const [id, layer] of Object.entries(arrived)) {
+    if (active.has(id) && !Object.hasOwn(result.groupLayers ?? {}, id)) result.groupLayers = { ...result.groupLayers, [id]: layer };
+  }
   const resolve = id => {
     try { return resolveGroupId(snapshot, id); } catch { return id; }
   };

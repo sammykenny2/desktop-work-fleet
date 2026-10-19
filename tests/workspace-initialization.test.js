@@ -144,6 +144,17 @@ test('conflicting plans and wrong required content stop without publishing stage
   }
 });
 
+test('a fresh computer signing in puts the groups that initialization releases on the arrival layer', async () => {
+  const store = new MemoryFileStore(); const plan = await prepareInitialization(store.sourceId, [], { mode: 'existing' });
+  await store.seed(encodeRevision(group('manual')));
+  await seedControl(store, plan); await seedControl(store, await initializationReceipt(plan));
+  const c = await client(store); c.workspace.setArrivalLayer(() => 'wallpaper'); await c.sync.sync();
+  assert.equal(c.workspace.syncState.initialization.activePlan, await initializationId(plan));
+  assert.deepEqual(c.workspace.snapshot.groups.map(g => g.id), ['manual']);
+  assert.deepEqual(c.workspace.layout.state.groupLayers, { manual: 'wallpaper' });
+  assert.deepEqual(c.disk().layout, c.workspace.layout.state);
+});
+
 test('an initialized empty workspace remains empty and an existing same-name group is adopted by identity', async () => {
   for (const existing of [true, false]) {
     const store = new MemoryFileStore(); const plan = await prepareInitialization(store.sourceId, [], { mode: 'existing' });

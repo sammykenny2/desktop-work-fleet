@@ -4,7 +4,7 @@ import { Workspace } from '../src/core/workspace.js';
 import { InteractionController, cardPolicy } from '../src/interaction/controller.js';
 import { projectDesktop } from '../src/desktop/projection.js';
 import { groupColors } from '../src/core/palette.js';
-import { adjustStage, groupLayer, groupLayersFromPapers, nextGroupStage, stepGroup } from '../src/layout/stages.js';
+import { adjustStage, arrivalLayer, groupLayer, groupLayersFromPapers, nextGroupStage, stepGroup } from '../src/layout/stages.js';
 
 const area = { x: 0, y: 0, width: 1600, height: 900 };
 const text = value => ({ format: 'markdown', text: value, attachments: [] });
@@ -28,6 +28,13 @@ test('four stages: wallpaper, desktop, topmost, adjust mode, and a missing wallp
   assert.equal(nextGroupStage('floating'), adjustStage); assert.equal(nextGroupStage('floating', { adjusting: true }), 0);
   assert.equal(nextGroupStage('floating', { adjusting: true, wallpaper: false }), 1);
   assert.equal(nextGroupStage('wallpaper', { wallpaper: false }), 1, 'a group already on the wallpaper still steps to the desktop');
+});
+
+test('groups new to this computer start on the wallpaper where it is offered, otherwise on the default desktop layer', () => {
+  assert.equal(arrivalLayer(['desktop', 'floating', 'wallpaper']), 'wallpaper');
+  assert.equal(arrivalLayer(['wallpaper']), 'wallpaper');
+  assert.equal(arrivalLayer(['desktop', 'floating']), null);
+  assert.equal(arrivalLayer([]), null);
 });
 
 test('without a desktop layer the wallpaper steps straight to the topmost layer', async () => {

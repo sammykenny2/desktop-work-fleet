@@ -3,7 +3,7 @@ import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } fr
 import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
-import { adjustStage, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
+import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
 import { mainView } from '../layout/store.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
@@ -139,6 +139,8 @@ async function initialize() {
   const persist = (state, revision) => storage.save(state, revision);
   workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:') });
+  // Groups that sign-in or sync brings to this computer for the first time start at the back of its desktop.
+  workspace.setArrivalLayer(() => arrivalLayer(residentLayers()));
   activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); },

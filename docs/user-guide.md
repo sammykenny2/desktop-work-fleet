@@ -90,9 +90,10 @@ interface. To switch, see [Settings](#settings).
 
 Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 
-- Each group sits on one layer. From back to front: Wallpaper layer, Desktop layer, Top layer. New groups start on
-  the Desktop layer. Switch a group's layer with its region key (default Ctrl+Shift+1-9, see
-  [Shortcuts](#shortcuts)).
+- Each group sits on one layer. From back to front: Wallpaper layer, Desktop layer, Top layer. Groups created on
+  this computer start on the Desktop layer. A group that signing in or syncing with Google brings to this computer
+  for the first time starts at the back: on the Wallpaper layer, or on the Desktop layer where the desktop has no
+  Wallpaper layer. Switch a group's layer with its region key (default Ctrl+Shift+1-9, see [Shortcuts](#shortcuts)).
 - The layer belongs to the group, and each computer stores its own. On a computer you can also choose it in the
   group's "⋯" > "Group settings" > "Layer on the desktop"; phones and the browser preview have no such option. A note's
   own "⋯" details keep only "Show on the desktop".

@@ -67,11 +67,15 @@ It uses no secrets; the WebView2 UI probe (`Test-WindowsNative.ps1`), signing, A
 The step that uploads failure evidence runs `sudo chmod -R a+rX` first, because root-owned 0700 folders from the container (such as `config/autostart`) are unreadable to the runner.
 It runs only on failure, so it is unverified while CI is green (as of 2026-10-14).
 
-Manual phone workflows: `android-apk.yml` and `ios-ipa.yml`; their configuration is in the phone test builds section of [deployment](deployment.md).
-Both should have only workflow_dispatch, contents: read, explicit artifact paths and an always-run cleanup of temporary signing data, and create no tag or Release.
-When actionlint is available, run `actionlint .github/workflows/android-apk.yml .github/workflows/ios-ipa.yml`.
-The local checks of both workflows used actionlint 1.7.12 plus trigger, permission and shell-syntax checks (2026-10-17).
-Local checks and builds do not mean the hosted workflow has run; signing Secrets and dispatch each need their own authorization.
+The manual phone workflow is `android-apk.yml`; configuration is in [phone test builds](deployment.md#phone-test-builds).
+Its build job has contents: read, explicit artifact paths and always-run cleanup of temporary signing data. The optional
+publication job has contents: write and runs only with `release` enabled and the maintainer's authorization.
+`apple-native-build.yml` is an unsigned macOS-only compile/package check. iOS builds and installation stay local
+([ADR-057](decisions/057-local-ios-builds-and-device-privacy.md)); public Actions artifacts are not private storage for IPAs.
+When actionlint is available, run `actionlint .github/workflows/android-apk.yml .github/workflows/apple-native-build.yml`.
+`node --test tests/mobile-build-boundaries.test.js` guards against iOS IPA uploads and hosted iOS signing and checks that
+the macOS artifact patterns exclude device IPAs, simulator ZIPs and their checksums, including stale files in `build/`.
+Local checks do not establish a hosted build or real-device acceptance; signing Secrets and dispatch need authorization.
 
 - `python3 -B -m unittest discover -s tests -p 'test_ios_*.py' -v`: the iOS profiles' validity period, Team, certificate, App ID, App Group and Keychain, the same device set,
   and, before signing, the bundle and Extension identity, version and executable scope. It uses only synthetic data and never reads a real private key.

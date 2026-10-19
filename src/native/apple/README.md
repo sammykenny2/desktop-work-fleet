@@ -85,16 +85,16 @@ per platform are in the [distribution document](../../../docs/deployment.md#vers
 This is a natively compiled preview; protected storage, Google and iOS installation still need a suitable signature and
 profile.
 
-To get a signed IPA from GitHub that installs on a registered iPhone/iPad, use the **iOS registered-device IPA** workflow
-(`.github/workflows/ios-ipa.yml`). It first compiles an unsigned Debug build, then uses the Apple Development identity in
-a temporary CI keychain to sign the main app, the Share Extension and the nested code; it supports existing
-Xcode-managed profiles and needs no Apple account sign-in in CI.
-Both profiles must allow the same set of devices; after adding a device, update both Secrets. Setup and installation are
-in [phone test builds](../../../docs/deployment.md#phone-test-builds). This workflow keeps artifacts for only fourteen
-days and does not bump the version, publish a release or upload to TestFlight.
+Build and install iOS locally with Xcode or the local build, signing and packaging scripts. Development and Ad Hoc
+IPAs embed profiles that disclose registered device UDIDs, so iOS packages are not built or uploaded by GitHub Actions
+([ADR-057](../../../docs/decisions/057-local-ios-builds-and-device-privacy.md)). Public Actions artifacts are not private
+downloads, even when no Release is created. Keep both the main app's and Share Extension's profiles on the Mac;
+after adding a device, update both local profiles. Local signing with existing Xcode-managed profiles is also supported
+by `scripts/sign_ios_app.py`. Commands and installation are in
+[phone test builds](../../../docs/deployment.md#phone-test-builds).
 `--unsigned` does not allow Release and does not skip the configuration requirements of a release archive.
-`.github/workflows/apple-native-build.yml` provides a manual hosted Mac build with seven-day artifact retention,
-a limit of 20 minutes per target, and no tests or store upload; runner billing for a private repository needs the
+`.github/workflows/apple-native-build.yml` provides only a manual unsigned macOS build with seven-day artifact retention,
+a limit of 20 minutes, and no tests or store upload; runner billing for a private repository needs the
 maintainer's consent first.
 
 GoogleSignIn's Apple SDK uses an **iOS-type OAuth client** for both macOS and iOS, each matching

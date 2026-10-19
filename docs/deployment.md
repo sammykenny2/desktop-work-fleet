@@ -315,67 +315,68 @@ accounts are configured by the maintainer.
 
 ### Phone test builds
 
-In GitHub Actions, choose **Android device APK** (`android-apk.yml`) or **iOS registered-device IPA** (`ios-ipa.yml`),
-select main and press Run workflow. Both are manual only and need the user's authorization to run; they change no
-version and send nothing to TestFlight or Google Play. After a successful run, download the installer, its SHA-256
-and the source-commit record from the run's Artifacts, which are kept for fourteen days.
-Artifact names carry the version, the run ID and the attempt, so packages of the same version from different commits
-cannot be confused.
+#### Android on GitHub
 
-With the **release** input checked, the same run also publishes a GitHub prerelease tagged `android-v<versionName>` or
-`ios-v<MARKETING_VERSION>` ([ADR-055](decisions/055-mobile-device-build-workflows.md)). As for the desktop previews,
-the version-bump commit must already carry the version's `docs/release-notes.md` entry, which becomes the release
-text; the run refuses a version whose tag or release exists, and it publishes only after the package is built, signed
-and verified. After dispatch the same rules as for the desktop previews apply: no release bookkeeping, and a fix for a
-failed run is an ordinary commit. The IPA is still development-signed and installs
-only on the registered devices, whose identifiers its embedded profiles list.
+In GitHub Actions, choose **Android device APK** (`android-apk.yml`), select main and press Run workflow. It is manual
+only and needs the user's authorization to run; it changes no version and sends nothing to Google Play. After a
+successful run, download the APK, its SHA-256 and the source-commit record from Artifacts, kept for fourteen days.
+Artifact names carry the version, run ID and attempt so different builds of the same version cannot be confused.
 
-Both use the repository variables `WORK_FLEET_APP_ID` and `WORK_FLEET_GOOGLE_PROJECT_ID`.
-Android also needs `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`, `WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and
-`WORK_FLEET_ANDROID_DEBUG_SHA1` (the signing SHA-1, colon-separated).
-iOS also needs `WORK_FLEET_APPLE_TEAM_ID` and `WORK_FLEET_GOOGLE_IOS_CLIENT_ID`, and optionally
-`WORK_FLEET_APP_GROUP_ID` (default `group.<APP_ID>`). They reuse the existing Google Cloud project, and no Web client
-secret is needed.
+With the **release** input checked, the run also publishes a GitHub prerelease tagged `android-v<versionName>`
+([ADR-055](decisions/055-mobile-device-build-workflows.md)). The version-bump commit must already carry the version's
+`docs/release-notes.md` entry, which becomes the release text. The run refuses an existing tag or release and publishes
+only after building, signing and verification succeed. The same release authorization and no-bookkeeping rules as for
+the desktop previews apply; a fix for a failed run is an ordinary commit.
+
+Repository Variables: `WORK_FLEET_APP_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`,
+`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and `WORK_FLEET_ANDROID_DEBUG_SHA1` (the signing SHA-1, colon-separated).
+It reuses the existing Google Cloud project and needs no Web client secret.
 `WORK_FLEET_ANDROID_DEBUG_SHA1` holds the fingerprint of the existing local test signer, which is also the SHA-1
 registered for the Android OAuth client (2026-10-17).
 
 | Repository Secret | Purpose |
 |---|---|
 | `ANDROID_DEBUG_KEYSTORE_BASE64` | base64 of the fixed test debug keystore; alias `androiddebugkey`, and the key and store passwords are the Android standard test value `android` |
-| `IOS_DEVELOPMENT_P12_BASE64` | base64 of the encrypted PKCS12 (with the private key) of this project's Apple Development identity |
-| `IOS_DEVELOPMENT_P12_PASSWORD` | the password of that PKCS12 |
-| `IOS_APP_PROFILE_BASE64` | base64 of the main app's development `.mobileprovision` |
-| `IOS_SHARE_PROFILE_BASE64` | base64 of the `<APP_ID>.share` development `.mobileprovision` |
 
 First get the maintainer's explicit authorization to upload signing data to this repository's Secrets; never commit a
 private key or put the values in public Variables.
-On 2026-10-17, with the maintainer's explicit authorization, all five Secrets above were stored in the repository and
-their names and update times were checked. The iOS identity was exported with a random password, and the temporary
-export was deleted.
 The fixed Android key must be the same as the installed version's and must match the SHA-1 registered with OAuth; CI
 checks this after packaging and fails on a mismatch.
 This is a debug test build; the release Play App Signing key and upload key are prepared separately.
 
-iOS rejects profiles that are expired, have the wrong Team, bundle ID, App Group, Keychain group or certificate, or have
-different device sets.
-The main app and the extension each embed their own profile; the workflow first compiles an unsigned Debug build, then
-signs the nested code and both bundles with the given development identity,
-without relying on an Xcode sign-in on the runner, and it also works with existing Xcode-managed profiles. The IPA is
-kept only after `codesign --verify --deep --strict` passes.
-The two current iOS development profiles passed the workflow checks and allow two registered devices (2026-10-17).
-Only devices registered in the profiles can install it, with Developer Mode turned on, through Xcode or Apple
-Configurator on a Mac;
-the GitHub download link offers no direct install on the phone and no automatic updates. After adding an iPhone or iPad,
-update both profile Secrets and build again.
+#### iOS local builds
 
-The existing `.github/workflows/apple-native-build.yml` remains an unsigned compile check; the decision on the two phone
-device workflows is in [ADR-055](decisions/055-mobile-device-build-workflows.md).
+iOS is built, signed and installed locally; GitHub workflows do not compile, sign, upload or publish iOS packages
+([ADR-057](decisions/057-local-ios-builds-and-device-privacy.md)). A development or Ad Hoc IPA embeds profiles listing
+registered device UDIDs. Skipping a Release does not hide those identifiers when the IPA is still uploaded as an
+artifact of this public repository. Do not upload device IPAs, profiles or real-device data backups to public storage.
 
-Apple can use the manual `.github/workflows/apple-native-build.yml` to compile a native unsigned
-Debug ZIP and an iOS device IPA, including the iOS extension, on a hosted Mac; hosted runners are free for a public
-repository, and dispatch still needs the user's authorization.
-The workflow is limited to 20 minutes per target, and its output is kept for seven days. An unsigned IPA still needs
-valid signing and provisioning before it can be installed.
+On a Mac with Xcode and a configured Apple Development identity, open `src/native/apple/WorkFleet.xcodeproj`, choose
+`WorkFleetIOS` and the connected device, then Run. The local CLI equivalent is:
+
+```bash
+bash scripts/macos/build-native-app.sh --platform ios
+codesign --verify --deep --strict build/apple/DerivedData/Build/Products/Debug-iphoneos/WorkFleetIOS.app
+bash scripts/macos/package-preview-app.sh --platform ios
+```
+
+Local `.env` settings: `WORK_FLEET_APP_ID`, `WORK_FLEET_APPLE_TEAM_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`,
+`WORK_FLEET_GOOGLE_IOS_CLIENT_ID` and optionally `WORK_FLEET_APP_GROUP_ID` (default `group.<APP_ID>`).
+The private signing identity stays in the Mac's Keychain; the main app and Share Extension each need a local profile.
+For existing Xcode-managed profiles that cannot use manual Xcode signing, first build with `--unsigned`, then use
+`python3 scripts/sign_ios_app.py --help` to sign locally with both profiles and the matching public DER certificate.
+The tool validates the Team, bundle IDs, App Group, main app's Keychain group, validity, certificate and matching device
+sets; it signs the nested code, extension and app, embeds the matching profiles, and verifies the result.
+
+Packaging produces `build/WorkFleet-<version>-ios-development.ipa` and its SHA-256 without changing the version.
+Install the signed `.app` using Xcode or `xcrun devicectl device install app --device <DEVICE_ID> <APP_PATH>`, or use
+Apple Configurator with the IPA. Keep the bundle ID and Team unchanged when updating an installed copy. Only devices
+registered in both profiles can install it, with Developer Mode enabled. After adding a device, update both local
+profiles and build again. No GitHub iOS signing Secrets or workflow dispatch are required.
+
+The manual `.github/workflows/apple-native-build.yml` now targets only an unsigned macOS Debug ZIP. Hosted runners
+are free for a public repository, dispatch needs authorization, the limit is 20 minutes and artifacts last seven days.
+
 Android `-Signed`/`--signed` requires the four signing environment variables and produces a release AAB, see
 [store preparation](release/README.md). An ordinary release build without signing inputs produces an unsigned AAB.
 The Linux runtime tar.gz embeds no Python or GTK; the DEB is for distributions that provide the supported dependency

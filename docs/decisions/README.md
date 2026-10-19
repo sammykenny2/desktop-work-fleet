@@ -4,8 +4,9 @@ Updated: 2026-10-17.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-057](057-local-ios-builds-and-device-privacy.md) | Accepted (local iOS builds, 2026-10-20) | iOS builds and device signing stay on the maintainer's Mac; no iOS packages in public Actions artifacts or Releases |
 | [ADR-056](056-english-first-ui-and-locale-catalogs.md) | Accepted (UI language, 2026-10-17) | English-first UI with en and zh-TW locale catalogs and a Display language setting |
-| [ADR-055](055-mobile-device-build-workflows.md) | Accepted (phone test builds) | Manual APK / development-signed IPA for registered devices, fixed test signing, fourteen-day artifacts; optional `android-v`/`ios-v` prereleases (2026-10-17 revision) |
+| [ADR-055](055-mobile-device-build-workflows.md) | Accepted for Android; iOS superseded by ADR-057 | Fixed-key manual APK builds with fourteen-day artifacts and optional Android prereleases |
 | [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted (note formatting and attachments) | Six heading levels, code coloring, native attachment thumbnails and opening a copy; V1 and checklists unchanged |
 | [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted (testing-phase V1 policy) | Current JSON schemas stay at V1; version bumps, migrations and copies are evaluated when store launch is planned |
 | [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | Name, independent development, backlog focus and bootstrap scope |

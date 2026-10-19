@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted, 2026-10-17. The user asked for GitHub build workflows for an APK and an IPA for specified devices, with no
-version bump and no preview release.
+Accepted for Android, 2026-10-17. The iOS hosting and distribution decision is superseded by
+[ADR-057](057-local-ios-builds-and-device-privacy.md), 2026-10-20; the original decision and revision below are historical
+for iOS. The original request was for GitHub APK and registered-device IPA builds without a version bump or preview release.
 
 ## Context
 
@@ -29,10 +30,11 @@ OAuth signature.
   embeds each one's profile.
   This also supports existing Xcode-managed profiles without CI signing in to the Apple account; the local Xcode project
   settings are unchanged.
-- Private keys/keystores/profiles live only in GitHub Secrets; the runner uses a temporary keychain/files and removes
-  them in an always step.
-  Secrets are never written to public configuration, the repository or artifacts. Authorization to send credentials to
-  GitHub and each workflow dispatch are obtained separately.
+- Private keys and keystores live in GitHub Secrets; the runner uses a temporary keychain/files and removes
+  them in an always step. Private signing keys are never written to public configuration, the repository or artifacts.
+  Provisioning profiles are also restored from Secrets, but become readable inside a signed IPA after embedding;
+  their device identifiers are not protected by the Secret or by choosing not to create a Release.
+  Authorization to send credentials to GitHub and each workflow dispatch are obtained separately.
 - The IPA is limited to the devices registered in the profiles and is installed from a Mac with Xcode/Apple
   Configurator, with Developer Mode enabled on the device.
   After adding a device, update the profiles of both the main app and the Extension, then build again.
@@ -66,8 +68,8 @@ The maintainer asked for Android and iOS previews to be published on GitHub like
   download site.
 - Having the GitHub workflows written does not mean they have run in the cloud or that a phone has accepted the
   build; missing Secrets fail explicitly.
-- A published IPA embeds its development profiles, which list the registered devices' identifiers (UDIDs); a
-  public prerelease makes them public.
+- A signed IPA embeds its development profiles, which list registered device identifiers (UDIDs); both a public
+  prerelease and a public repository's Actions artifacts expose them. ADR-057 replaces this iOS hosting approach.
 - Phone prereleases share the repository's release feed with the desktop updaters (ADR-044). Each updater only reads
   its own tag prefix, but the Atom feed lists only the most recent releases, so many phone-only releases in a row
   could push the newest desktop release out of it; the per-platform update index ADR-044 leaves open would remove

@@ -43,7 +43,7 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 | [ADR-026](decisions/026-native-file-export-and-sharing.md) | Accepted: native file export, text and attachment sharing on phones |
 | [ADR-027](decisions/027-native-share-inbox-and-extension.md) | Accepted: encrypted share inbox, group choice and the iOS extension |
 | [ADR-028](decisions/028-native-package-and-signing-entry-points.md) | Accepted: Windows MSIX / ZIP, Apple export / PKG / DMG, Android upload signing |
-| [ADR-055](decisions/055-mobile-device-build-workflows.md) | Accepted: manual APK / registered-device IPA builds, fixed signing and Actions artifacts; no version bump or publication |
+| [ADR-055](decisions/055-mobile-device-build-workflows.md)/[ADR-057](decisions/057-local-ios-builds-and-device-privacy.md) | Accepted: manual fixed-key Android APK builds; iOS builds, signing and installation stay local to protect registered device identifiers |
 | [ADR-029](decisions/029-portable-apple-xcode-project.md) | Accepted: a committed Xcode project that opens directly, relative paths and automatic asset preparation |
 | [ADR-030](decisions/030-windows-explorer-wallpaper-layer.md) | Accepted: Explorer icon / wallpaper hosts, three-layer scenes and click-through |
 | [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md) | Accepted: the third layer on Mac / Linux, click-through / redraw and continued reference measurements |

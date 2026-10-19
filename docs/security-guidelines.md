@@ -2,6 +2,15 @@
 
 Updated: 2026-10-17.
 
+## Public build artifacts
+
+iOS device builds, signing and installation stay local under
+[ADR-057](decisions/057-local-ios-builds-and-device-privacy.md). Embedded development and Ad Hoc profiles disclose
+registered device UDIDs even when their inputs came from GitHub Secrets. A public repository's Actions artifacts
+are downloadable by signed-in users with read access, so skipping Release publication is not a privacy boundary.
+Do not upload device IPAs, real provisioning profiles or real-device data backups to public artifacts or Git.
+Public signing certificates, OAuth Client IDs and Apple Team IDs are identifiers, not private signing keys or user tokens.
+
 ## 1.0 local renderer
 
 - [ADR-051](decisions/051-schema-evolution-and-atomic-migrations.md): during the test phase the JSON schemas stay at

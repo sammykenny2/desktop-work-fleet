@@ -1,15 +1,12 @@
-name: Apple native packages
+name: macOS native packages
+
+# iOS device builds stay local: embedded profiles disclose registered device identifiers.
 
 on:
   workflow_dispatch:
     inputs:
-      platform:
-        description: Native preview targets
-        type: choice
-        options: [both, macos, ios]
-        default: both
       job_minutes:
-        description: Maximum runner minutes per target
+        description: Maximum runner minutes
         type: choice
         options: ['5', '10', '20']
         default: '10'
@@ -25,18 +22,12 @@ jobs:
   native:
     runs-on: macos-15
     timeout-minutes: ${{ fromJSON(inputs.job_minutes) }}
-    strategy:
-      fail-fast: false
-      matrix:
-        platform: ${{ fromJSON(inputs.platform == 'macos' && '["macos"]' || inputs.platform == 'ios' && '["ios"]' || '["macos","ios"]') }}
     env:
-      FLEET_PLATFORM: ${{ matrix.platform }}
       WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
       WORK_FLEET_APP_GROUP_ID: ${{ vars.WORK_FLEET_APP_GROUP_ID }}
       WORK_FLEET_APPLE_TEAM_ID: ${{ vars.WORK_FLEET_APPLE_TEAM_ID }}
       WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
       WORK_FLEET_GOOGLE_MACOS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_MACOS_CLIENT_ID }}
-      WORK_FLEET_GOOGLE_IOS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_IOS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -48,26 +39,25 @@ jobs:
       - name: Install asset dependencies
         run: npm ci --ignore-scripts
       - name: Compile native app and embedded extension
-        run: bash scripts/macos/build-native-app.sh --platform "$FLEET_PLATFORM" --unsigned
+        run: bash scripts/macos/build-native-app.sh --platform macos --unsigned
       - name: Package native preview
-        run: bash scripts/macos/package-preview-app.sh --platform "$FLEET_PLATFORM"
+        run: bash scripts/macos/package-preview-app.sh --platform macos
       - name: Save native packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: work-fleet-${{ matrix.platform }}-native-preview
+          name: work-fleet-macos-native-preview
           path: |
-            build/WorkFleet-*.zip
-            build/WorkFleet-*.ipa
-            build/WorkFleet-*.sha256
-            build/apple/preview-*/README.txt
-            build/apple/preview-*/toolchain.txt
+            build/WorkFleet-*-macos-universal-unsigned.zip
+            build/WorkFleet-*-macos-universal-unsigned.zip.sha256
+            build/apple/preview-macos/README.txt
+            build/apple/preview-macos/toolchain.txt
           if-no-files-found: error
           retention-days: 7
       - name: Save build diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: work-fleet-${{ matrix.platform }}-build-diagnostics
+          name: work-fleet-macos-build-diagnostics
           path: build/apple/DerivedData/Logs/Build
           if-no-files-found: ignore
           retention-days: 7

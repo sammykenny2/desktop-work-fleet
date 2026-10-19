@@ -130,12 +130,12 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - `ci.yml` runs on every push to main and every pull request: JS and Python tests and build, Linux Docker desktop-layer and host
   checks, and the Windows build, core probe and unsigned package check. Browser probes and the WebView2 UI probe run only locally.
 - `windows-preview.yml`, `linux-release.yml` and `macos-release.yml` run only on manual dispatch and refuse an existing tag;
-  `apple-native-build.yml` is an unsigned compile check. Platforms share one version number by default; the exceptions and
+  `apple-native-build.yml` is an unsigned macOS compile check. Platforms share one version number by default; the exceptions and
   version files are in [deployment](docs/deployment.md).
-- The phone workflows `android-apk.yml` and `ios-ipa.yml` build a test-signed APK and a development-signed IPA from
-  stored signing Secrets and, with their `release` input, publish `android-v`/`ios-v` prereleases
-  ([ADR-055](docs/decisions/055-mobile-device-build-workflows.md)). Hosted APK and IPA builds passed on 2026-10-17; neither
-  package has been installed from a hosted build yet.
+- `android-apk.yml` builds a test-signed APK from the fixed signing Secret; its optional publication procedure is in
+  [deployment](docs/deployment.md). iOS builds, signing and installation stay local; no GitHub workflow builds or uploads
+  iOS packages because embedded provisioning profiles disclose registered device identifiers
+  ([ADR-057](docs/decisions/057-local-ios-builds-and-device-privacy.md)).
 - Store listings and privacy text are drafted in [docs/release](docs/release/README.md). Developer accounts, a Partner Center
   reservation, native screenshots, store signing and the final SDK licence inventory are missing.
 

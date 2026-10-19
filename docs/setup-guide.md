@@ -272,20 +272,22 @@ The DEB suits distributions that provide the system dependencies above.
 The version number is in `src/native/linux/VERSION`; normal and release builds both use it, and early versions get
 no extra `~preview`.
 
-The GitHub build workflows for phone-installable builds are **Android device APK**
-(`.github/workflows/android-apk.yml`) and **iOS registered-device IPA** (`.github/workflows/ios-ipa.yml`). After the
-public Variables and the explicitly authorized signing Secrets are configured, run them manually from Actions on main,
-and download the APK or IPA, its checksum and the source commit from Artifacts, which are kept for fourteen days.
-They keep each platform's existing version number, create no Release or tag and submit nothing to stores. The signing
-settings and how to install on specific devices are in the phone device test builds section of
-[Deployment](deployment.md). After adding an iOS device, update both profiles, for the main app and the Extension.
+The GitHub **Android device APK** workflow (`.github/workflows/android-apk.yml`) builds a phone-installable APK after
+the public Variables and the explicitly authorized fixed signing Secret are configured. Run it manually from Actions
+on main, then download the APK, checksum and source-commit record from Artifacts, kept for fourteen days. It keeps the
+recorded version and submits nothing to stores; its optional `release` input publishes an Android GitHub prerelease.
+Signing settings and installation are in [phone test builds](deployment.md#phone-test-builds).
 
-The unsigned Apple build workflow is `.github/workflows/apple-native-build.yml`. Choose macOS, iOS or both; it
-compiles the native Debug app on a hosted Mac and outputs an unsigned ZIP or device IPA. Public settings use GitHub
+iOS builds and installation stay local with Xcode or the existing Mac scripts. Keep the main app's and Share
+Extension's profiles on the Mac and update both when adding a device. Development IPAs disclose registered device UDIDs,
+including when shared through public Actions artifacts without a Release; see
+[the local build procedure](deployment.md#ios-local-builds) and [ADR-057](decisions/057-local-ios-builds-and-device-privacy.md).
+
+The unsigned Apple workflow `.github/workflows/apple-native-build.yml` targets only macOS; it
+compiles the native Debug app on a hosted Mac and outputs an unsigned macOS ZIP. Public settings use GitHub
 repository variables with the same names; without values it uses the preview IDs and the local mode without Google.
 Hosted runners for a public repository are free; a manual workflow still needs the user's authorization to start.
-After a developer account and signing are in place, the formal archive and export above are still needed; an unsigned
-device IPA has to be re-signed before it can be installed.
+After a developer account and signing are in place, the formal archive and export above are still needed.
 
 ## 0.1.0 requirements
 

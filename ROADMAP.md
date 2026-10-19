@@ -1,6 +1,6 @@
 # Roadmap
 
-Updated: 2026-10-17. This document only sets the order of work and does not commit to release dates. It is not a status
+Updated: 2026-10-20. This document only sets the order of work and does not commit to release dates. It is not a status
 record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of each version in
 [docs/release-notes.md](docs/release-notes.md).
 
@@ -60,3 +60,18 @@ Needs a product decision first:
 - **Shortcuts on other Wayland compositors**: on desktops without a shortcut portal, such as sway, wayfire and Hyprland,
   binding `gapplication action` manually; first decide whether to only document it or also add actions such as showing
   the main window and quitting.
+
+## 0.4.x
+
+Being scheduled for 0.4.x does not mean a design is approved.
+
+Needs an ADR first:
+
+- **Permanent deletion**: "Delete forever" and "Empty Deleted" in the Deleted filter, possibly with automatic emptying
+  after a set time, as Google Keep (7 days), Apple Notes and Notion (about 30 days) offer. Today a deleted note's text,
+  attachments and every revision stay in Google Drive, on every device and in every backup. Revisions are immutable and
+  each holds the full content, so the ADR first decides: whether a purge leaves an empty tombstone or removes the
+  history; how the purge syncs, and how devices that are offline or on an older version are kept from bringing the
+  content back; what happens to an edit made at the same time on another device; how restoring an older backup treats
+  purged notes; when an attachment's bytes can go; and which clock an automatic period follows. Unlike "Move to
+  Deleted", these actions cannot be undone and ask for confirmation. It changes SPEC-002 and SPEC-004.

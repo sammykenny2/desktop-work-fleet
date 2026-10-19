@@ -37,6 +37,32 @@ test('groups new to this computer start on the wallpaper where it is offered, ot
   assert.equal(arrivalLayer([]), null);
 });
 
+test('groups made on this computer start on its back layer: the first group and each new one', async () => {
+  let disk;
+  const workspace = await Workspace.create({ profileId: 'local', deviceId: 'device-a', area, arrivalLayer: () => 'wallpaper',
+    persist: async state => { disk = structuredClone(state); } });
+  const first = workspace.snapshot.groups[0];
+  assert.deepEqual(workspace.layout.state.groupLayers, { [first.id]: 'wallpaper' });
+  const before = workspace.layout.state.revision; const made = await workspace.createGroup('Made here');
+  assert.equal(groupLayer(workspace.layout.state, made.id), 'wallpaper');
+  assert.equal(workspace.layout.state.revision, before + 1);
+  assert.deepEqual(disk.layout, workspace.layout.state);
+  // The layout store keeps working on the layout the new group was recorded in.
+  await workspace.layout.setGroupLayer(made.id, 'floating', workspace.snapshot);
+  assert.deepEqual(disk.layout.groupLayers, { [first.id]: 'wallpaper', [made.id]: 'floating' });
+});
+
+test('without a wallpaper layer, or without desktop layers, groups made here keep the default desktop layer', async () => {
+  for (const arrivalChoice of [undefined, () => arrivalLayer(['desktop', 'floating']), () => arrivalLayer([])]) {
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'device-a', area, persist: async () => {},
+      ...arrivalChoice && { arrivalLayer: arrivalChoice } });
+    const before = workspace.layout.state.revision; const made = await workspace.createGroup('Made here');
+    assert.deepEqual(workspace.layout.state.groupLayers, {});
+    assert.equal(workspace.layout.state.revision, before);
+    assert.equal(groupLayer(workspace.layout.state, made.id), 'desktop');
+  }
+});
+
 test('without a desktop layer the wallpaper steps straight to the topmost layer', async () => {
   assert.equal(nextGroupStage('wallpaper', { desktop: false }), 2);
   assert.equal(nextGroupStage('desktop', { desktop: false }), 2, 'a group saved on the desktop shows on the wallpaper and steps on');

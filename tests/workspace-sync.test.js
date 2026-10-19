@@ -287,7 +287,7 @@ test('a group first received from sync starts on the arrival layer, and only the
   await f.receive([revisionRecord('group', remote), groupBranch(f.b, 'b-remote', { name: 'B elsewhere' }),
     revisionRecord('group', retired),
     groupBranch(retired, 'retired-gone', { deleted: true, redirectGroupId: f.a.id })]);
-  // This device's own groups and a group that arrives already retired keep the default desktop layer.
+  // Groups this device already held and a group that arrives already retired get no layer.
   assert.deepEqual(f.workspace.layout.state.groupLayers, { 'remote-group': 'wallpaper' });
   assert.deepEqual(f.disk().layout, f.workspace.layout.state);
   // A layer chosen here survives later revisions of the group, and a retired group coming back is not new.

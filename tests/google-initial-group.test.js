@@ -37,6 +37,18 @@ test('Google notes with an existing group remain available offline and local cap
   assert.deepEqual(local.calls, [t('app.groups.defaultName'), 'render']); assert.equal(local.context.activeGroupId, 'new-local-group');
 });
 
+test('the starter group a computer makes for an empty account starts on its back layer', async () => {
+  let disk;
+  const workspace = await Workspace.create({ profileId: 'google:account', deviceId: 'device', bootstrapGroup: false,
+    area: { x: 0, y: 0, width: 1400, height: 900 }, arrivalLayer: () => 'wallpaper', persist: async state => { disk = structuredClone(state); } });
+  const sync = new FileSync({ workspace, storage: new MemoryAttachmentStorage(), fileStore: new MemoryFileStore(), bootstrapGroup: true });
+  await sync.sync();
+  const [starter] = activeGroups(workspace.snapshot);
+  assert.equal(starter.name, INITIAL_GROUP_NAME);
+  assert.deepEqual(workspace.layout.state.groupLayers, { [starter.id]: 'wallpaper' });
+  assert.deepEqual(disk.layout, workspace.layout.state);
+});
+
 test('a persisted initial group stays usable offline when its first upload fails before the active selection updates', async () => {
   const workspace = await Workspace.create({ profileId: 'google:account', deviceId: 'device', bootstrapGroup: false,
     area: { x: 0, y: 0, width: 1400, height: 900 }, persist: async () => {} });

@@ -11,8 +11,9 @@ export const groupLayerOrder = Object.freeze(['wallpaper', 'desktop', 'floating'
 export const adjustStage = groupLayerOrder.length;
 export const groupLayer = (layout, groupId) => layout.groupLayers?.[groupId] ?? 'desktop';
 /**
- * A group this computer first receives from sync starts at the back, on the wallpaper layer. Where the desktop offers no
- * wallpaper layer it keeps the default desktop layer (null); phones and the browser preview offer no layers at all.
+ * A group new to this computer, made here or first received from sync, starts at the back, on the wallpaper layer. Where
+ * the desktop offers no wallpaper layer it keeps the default desktop layer (null); phones and the browser preview offer
+ * no layers at all.
  */
 export const arrivalLayer = residentLayers => residentLayers.includes('wallpaper') ? 'wallpaper' : null;
 

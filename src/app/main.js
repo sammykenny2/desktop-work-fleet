@@ -137,10 +137,11 @@ async function initialize() {
   });
   const saved = await storage.load(profileId);
   const persist = (state, revision) => storage.save(state, revision);
+  // Groups new to this computer, made here or brought by sign-in or sync, start at the back of its desktop.
+  const backLayer = () => arrivalLayer(residentLayers());
   workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
-    deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:') });
-  // Groups that sign-in or sync brings to this computer for the first time start at the back of its desktop.
-  workspace.setArrivalLayer(() => arrivalLayer(residentLayers()));
+    deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
+  workspace.setArrivalLayer(backLayer);
   activeGroupId = activeGroups(workspace.snapshot)[0]?.id;
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); },
@@ -998,7 +999,8 @@ function groupEditor(group) {
   const label = element('label', t('app.groupEditor.name'), 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = groupName(group); label.append(input);
   // Which desktop layer the group sits on belongs to this computer; phones and the browser preview have no desktop layers.
   const layerField = desktop ? element('label', t('app.groupEditor.layer'), 'field') : null; const layers = element('select');
-  const currentLayer = group ? groupLayer(workspace.layout.state, group.id) : 'desktop';
+  // A new group is created on the back layer, so the dialog starts there too.
+  const currentLayer = group ? groupLayer(workspace.layout.state, group.id) : arrivalLayer(residentLayers()) ?? 'desktop';
   if (layerField) {
     // A layer this desktop cannot rest papers on says so and names where they show instead, as the desktop note does.
     const fallback = stageNames()[groupLayerOrder.indexOf(residentLayers().includes('desktop') ? 'desktop' : 'wallpaper')];
@@ -1024,7 +1026,9 @@ function groupEditor(group) {
     // device's layer neither syncs a group revision nor fails on a group that is in conflict.
     if (group) { if (input.value.trim() !== groupName(group)) await workspace.renameGroup(group.id, input.value, group.revision); }
     else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; }
-    if (layerField && layers.value !== currentLayer) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
+    // A new group already sits on the layer chosen when it was created, which the dialog only guessed at opening.
+    const layerNow = group ? currentLayer : groupLayer(workspace.layout.state, groupId);
+    if (layerField && layers.value !== layerNow) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status(t('app.status.groupSaved'));
   }); });
   dialog.showModal(); input.focus();

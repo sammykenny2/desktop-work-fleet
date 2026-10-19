@@ -49,6 +49,9 @@ function loadRevisions(state) {
   return graph;
 }
 
+// Groups this device takes in for the first time, each on the layer chosen for new groups; none when no layer is chosen.
+const arrivalLayers = (groups, layer) => groupLayerOrder.includes(layer) ? Object.fromEntries(groups.map(group => [group.id, layer])) : {};
+
 function draftBaseline(draft) {
   if (!draft) return null;
   const value = copy(draft); delete value.recoveredFrom;
@@ -87,14 +90,18 @@ export class Workspace {
   #runtimeId = crypto.randomUUID();
   #arrivalLayer = () => null;
 
-  static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, uuid = () => crypto.randomUUID(), now = Date.now }) {
+  static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, arrivalLayer = () => null,
+    uuid = () => crypto.randomUUID(), now = Date.now }) {
     const groups = bootstrapGroup ? [{ id: uuid(), name: t('app.groups.defaultName'), revision: uuid(), deleted: false }] : [];
     const state = { schemaVersion: schemas.workspace, profileId, revision: 0, groups, cards: [],
       drafts: {}, membershipRebases: {}, outbox: groups.map(group => ({ operationId: group.revision, kind: 'group', entityId: group.id,
         parents: [], value: copy(group) })), revisions: groups.map(group => revisionRecord('group', group)),
       conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, groups, area) };
+    state.layout.groupLayers = arrivalLayers(groups, arrivalLayer());
     await persist(copy(state), null);
-    return new Workspace(state, persist, uuid, now);
+    const workspace = new Workspace(state, persist, uuid, now);
+    workspace.setArrivalLayer(arrivalLayer);
+    return workspace;
   }
 
   constructor(state, persist, uuid = () => crypto.randomUUID(), now = Date.now) {
@@ -123,7 +130,7 @@ export class Workspace {
   get layout() { return this.#layout; }
   get syncState() { return copy(this.#state.sync); }
   get pendingOperations() { return copy(this.#state.outbox); }
-  /** Picks the layer a group this device first receives from a source starts on; null keeps the desktop layer. */
+  /** Picks the layer a group new to this device, made here or first received from a source, starts on; null keeps the desktop layer. */
   setArrivalLayer(choose) { this.#arrivalLayer = choose; }
   assertSyncSession(session) { this.#session(this.#state, session); }
   uploadState(session, operation) { this.#session(this.#state, session); return copy(this.#state.sync.uploads?.[operation] || null); }
@@ -367,9 +374,7 @@ export class Workspace {
       }
       const result = { added: graph.size - this.#graph.size, pending: graph.pending, missing: graph.missing };
       Object.assign(state, projectRevisions(graph, state));
-      const layer = this.#arrivalLayer();
-      const arrived = groupLayerOrder.includes(layer)
-        ? Object.fromEntries(activeGroups(state).filter(group => !seenGroups.has(group.id)).map(group => [group.id, layer])) : {};
+      const arrived = arrivalLayers(activeGroups(state).filter(group => !seenGroups.has(group.id)), this.#arrivalLayer());
       state.layout = reconcileSourceLayout(layout, state, arrived); state.sync.cursor = cursor;
       if (cursor !== null) state.sync.sourceResetIds = resetFileIds(state.sync.files);
       return { layout: state.layout, value: result };
@@ -429,9 +434,20 @@ export class Workspace {
     }));
   }
 
+  // A group made on this device starts on the layer chosen for new groups, recorded in the transaction that adds it.
+  #addGroup(change) {
+    return this.#layout.integrateSource((layout, layoutRevision) => this.#commit(state => {
+      requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.common.layoutChanged'));
+      const group = change(state);
+      const arrived = group ? arrivalLayers([group], this.#arrivalLayer()) : {};
+      if (Object.keys(arrived).length) state.layout = { ...layout, revision: layoutRevision + 1, groupLayers: { ...arrived, ...layout.groupLayers } };
+      return { layout: state.layout, value: group };
+    }));
+  }
+
   async createGroup(name) {
     requireValue(typeof name === 'string' && name.trim(), 'invalid-name', t('errors.core.groupNameRequired'));
-    return this.#commit(state => {
+    return this.#addGroup(state => {
       validateNewGroup(state);
       const group = { id: this.#uuid(), revision: this.#uuid(), name: name.trim(), deleted: false };
       state.groups.push(group); this.#record(state, 'group', group, []);
@@ -445,7 +461,7 @@ export class Workspace {
     if (!planId && (this.#state.revisions.length || this.#state.groups.length)) return null;
     const resets = canonicalJson(resetFileIds(this.#state.sync.files));
     const record = await initialGroupRecord(session.sourceId, resetFileIds(this.#state.sync.files));
-    return this.#commit(state => {
+    return this.#addGroup(state => {
       this.#session(state, session);
       requireValue(state.sync.cursor !== null && canonicalJson(resetFileIds(state.sync.files)) === resets,
         'initial-sync-required', t('errors.common.initialSyncRequired'));

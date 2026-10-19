@@ -31,6 +31,7 @@ const seed = async kind => {
     const { IndexedDbStorage } = await import('/storage/indexed-db.js');
     const { Workspace } = await import('/core/workspace.js');
     const { revisionRecord } = await import('/sources/revisions.js');
+    const { reorderSlots } = await import('/layout/order.js');
     const storage = await IndexedDbStorage.open(); const workspace = await Workspace.create({
       profileId, deviceId: 'test-device', area: { x: 0, y: 0, width: 1100, height: 650 },
       persist: (state, revision) => storage.save(state, revision),
@@ -45,6 +46,12 @@ const seed = async kind => {
       await workspace.updateCard(card.id, { content: { ...card.content, text: 'local edit' } }, card.revision);
       await workspace.receiveRevisions([revisionRecord('card', { ...card, revision: 'remote-version', deleted: true,
         content: { ...card.content, text: 'deleted on another device\n<img src=x onerror="window.bad=true">' } }, [card.revision])], { session, expectedCursor: null, cursor: 'page-1' });
+    } else if (kind === 'missing') {
+      // A third group dragged to the top of the sidebar, and a note whose group never arrived.
+      const c = await workspace.createGroup('Third group'); await workspace.layout.placeNew(workspace.snapshot, [{ x: 0, y: 0, width: 1100, height: 650 }]);
+      await workspace.layout.configure({ grid: reorderSlots(workspace.layout.state.grid, [c.id, a.id, b.id]) }, workspace.snapshot);
+      await workspace.receiveRevisions([revisionRecord('card', { ...card, revision: 'lost-group', groupId: 'missing-group' }, [card.revision])],
+        { session, expectedCursor: null, cursor: 'page-1' });
     } else if (kind === 'cycle') {
       await workspace.receiveRevisions([
         revisionRecord('group', { ...a, revision: 'retire-a', deleted: true, redirectGroupId: b.id }, [a.revision]),
@@ -100,6 +107,20 @@ try {
   const repaired = await read(); assert.equal(repaired.cards[0].groupId, cyclic.b.id);
   assert.deepEqual(repaired.layout.placements, cyclic.state.layout.placements);
   assert.deepEqual(repaired.drafts, cyclic.state.drafts);
-  assert.deepEqual(errors, []); await page.screenshot({ path: 'build/revision-probe.png', fullPage: true });
-  console.log('PASS: real-browser conflicts, HTML/attachments, delete/edit resolution, history restore, drafts/IME, mobile group-cycle recovery.');
+  await page.screenshot({ path: 'build/revision-probe.png', fullPage: true });
+
+  // A note whose group is missing is moved with a picker that lists groups in the sidebar's order.
+  await seed('missing'); await page.setViewportSize({ width: 1440, height: 1050 }); await open();
+  const sidebarOrder = await page.locator('#groups .group-name').allTextContents();
+  assert.equal(sidebarOrder[0], 'Third group');
+  await page.locator('#conflicts-button').click();
+  await expect(page.locator('#revision-dialog')).toContainText(t('conflicts.noteGroup.title'));
+  const picker = page.locator('[data-revision-id="lost-group"] select');
+  assert.deepEqual(await picker.locator('option').allTextContents(), sidebarOrder);
+  await picker.selectOption({ label: 'Third group' });
+  await page.locator('[data-revision-id="lost-group"]').getByRole('button', { name: t('conflicts.version.keepAndMove') }).click();
+  await expect(page.locator('#conflict-count')).toHaveText('0');
+  const moved = await read(); assert.equal(moved.cards[0].groupId, moved.layout.grid.slots[0]);
+  assert.deepEqual(errors, []);
+  console.log('PASS: real-browser conflicts, HTML/attachments, delete/edit resolution, history restore, drafts/IME, mobile group-cycle recovery, missing-group picker in sidebar order.');
 } finally { await context.close(); await browser.close(); }

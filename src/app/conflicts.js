@@ -1,5 +1,6 @@
-import { summaryText } from '../core/contracts.js';
+import { activeGroups, summaryText } from '../core/contracts.js';
 import { groupName } from '../core/group-name.js';
+import { orderedGroups } from '../layout/order.js';
 import { plural, t } from '../i18n/index.js';
 
 const element = (tag, text, className) => {
@@ -65,7 +66,8 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
       if (repair && !card) article.append(action(t('conflicts.version.restoreGroup'), async () => { await apply({ deleted: false }); await changed(); }, 'primary'));
       else if (repair && card) {
         const label = element('label', t('conflicts.version.moveToGroup'), 'field'); const select = element('select');
-        for (const group of workspace.snapshot.groups.filter(group => !group.deleted)) select.append(new Option(groupName(group), group.id));
+        // Groups are offered in this device's sidebar order.
+        for (const group of orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot))) select.append(new Option(groupName(group), group.id));
         label.append(select); article.append(label, action(t('conflicts.version.keepAndMove'), async () => {
           if (!select.value) throw new Error(t('conflicts.errors.noGroup'));
           await apply({ groupId: select.value }); await changed();

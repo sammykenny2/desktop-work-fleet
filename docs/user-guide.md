@@ -93,7 +93,7 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 - Each group sits on one layer. From back to front: Wallpaper layer, Desktop layer, Top layer. Groups you create on
   this computer, including the first one, and groups that signing in or syncing with Google brings to it for the
   first time start at the back: on the Wallpaper layer, or on the Desktop layer where the desktop has no Wallpaper
-  layer. Groups already on this computer keep their layer.
+  layer. Groups already on this computer keep their layer until "Reset desktop layout" moves every group there.
   Switch a group's layer with its region key (default Ctrl+Shift+1-9, see [Shortcuts](#shortcuts)).
 - The layer belongs to the group, and each computer stores its own. On a computer you can also choose it in the
   group's "⋯" > "Group settings" > "Layer on the desktop"; phones and the browser preview have no such option. A note's
@@ -198,8 +198,9 @@ on the primary display. Desktop notes are not affected.
 ### Reset desktop layout
 
 At the bottom of Settings > Desktop, "Reset desktop layout…" asks for confirmation ("Reset"), then only puts this
-computer's notes back into their group regions and restores their default size and display; it does not touch
-content, groups or shortcuts. Drafts stay on this device. Whether a restore applies a backup's layout is chosen
+computer's notes back into their group regions, restores their default size and display, and moves every group to
+the back layer (the Wallpaper layer, or the Desktop layer where the desktop has no Wallpaper layer); it does not touch
+content, group names and contents, or shortcuts. Drafts stay on this device. Whether a restore applies a backup's layout is chosen
 separately ("Also restore desktop positions"), and importing new data does not move existing notes.
 
 ## Google sign-in and sync

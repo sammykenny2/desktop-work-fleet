@@ -146,7 +146,7 @@ because A is "me".
 - A group new to a computer starts at the back of that computer's desktop: the Wallpaper layer, or the Desktop layer
   where the desktop offers no Wallpaper layer. This covers groups created on the computer (the first default group,
   the account's starter group and groups the user adds) and groups that sign-in or sync brings to it for the first
-  time. Groups the computer already held keep their layer.
+  time. Groups the computer already held keep their layer; "Reset desktop layout" puts every group on that back layer.
 - Shortcut bindings are a local setting. Ctrl+Shift+1 to Ctrl+Shift+9 are the candidate default combinations and 0
   maps to all; all of them can be changed. A shortcut that failed to register must not be shown as available; a
   combination conflict should not stop the app from starting.

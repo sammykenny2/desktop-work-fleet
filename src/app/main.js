@@ -1675,7 +1675,8 @@ function bindEvents() {
     if (currentDraft) await flushDraft();
     if (!await controller.endEdit()) return;
     currentDraft = null; controller.cancelDrag(); await controller.activate({ kind: 'none' });
-    await workspace.layout.reset(workspace.snapshot, screenArea());
+    // Every group goes to the back layer, where new groups start.
+    await workspace.layout.reset(workspace.snapshot, screenArea(), arrivalLayer(residentLayers()));
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); await controller.reconcile();
     $('#reset-layout-dialog').close(); renderDesktopSettings(); render(); status(t('app.status.layoutReset'));
   });

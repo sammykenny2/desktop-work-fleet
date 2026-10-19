@@ -59,7 +59,9 @@ overwrite other changes.
   A group new to this computer is recorded on the wallpaper layer, in the same transaction that adds it, where the
   desktop offers that layer; elsewhere it gets no record. New means created on this computer (the first default
   group, the account's starter group or a group the user adds) or received from a sync source without having been
-  held before (a retired group counts as held). Groups it already holds are not changed.
+  held before (a retired group counts as held). Groups it already holds are not changed, except that resetting the
+  desktop layout records every active group on that same back layer, or clears every record where the desktop
+  offers no wallpaper layer.
   The desktop app's group settings can show and change the layer; phones and the browser preview have no desktop
   layers and do not show this option.
   Note details no longer have a per-note resident layer or "Select text while locked".

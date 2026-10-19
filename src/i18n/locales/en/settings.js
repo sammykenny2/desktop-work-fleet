@@ -84,10 +84,10 @@ export default {
   'settings.desktop.resetWindow.hint': "The main window returns to its default size, centered on the primary screen. Desktop notes aren't affected.",
   'settings.desktop.resetWindow.action': 'Reset main window size and position',
   'settings.desktop.resetLayout.title': 'Reset desktop layout',
-  'settings.desktop.resetLayout.hint': 'Puts notes back in their group regions and restores their default size and display.',
+  'settings.desktop.resetLayout.hint': 'Puts notes back in their group regions, restores their default size and display, and moves every group to the back layer.',
   'settings.desktop.resetLayout.action': 'Reset desktop layout…',
   'settings.desktop.resetLayout.confirmTitle': 'Reset desktop layout?',
-  'settings.desktop.resetLayout.confirmText': "The notes on this computer go back to their group regions, and their position, size and display return to the defaults. Note content, groups and shortcuts don't change.",
+  'settings.desktop.resetLayout.confirmText': "The notes on this computer go back to their group regions, their position, size and display return to the defaults, and every group moves to the back layer. Note content, group names and contents, and shortcuts don't change.",
   'settings.desktop.resetLayout.irreversible': "This can't be undone.",
   'settings.desktop.resetLayout.confirm': 'Reset',
 

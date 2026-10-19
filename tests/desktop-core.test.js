@@ -372,7 +372,17 @@ test('layout reset re-places every paper by group and keeps content, groups and 
   for (const card of [f.a1, f.a2]) assert.ok(layout.placements[card.id].x < 600, 'first group papers return to its region');
   assert.ok(layout.placements[f.b1.id].x >= 600);
   assert.deepEqual(Object.values(layout.placements).map(rect => rect.visible), [true, true, true]);
-  assert.deepEqual(layout.groupLayers, {}, 'every group is back on the desktop layer');
+  assert.deepEqual(layout.groupLayers, {}, 'without a back layer every group is back on the desktop layer');
+});
+
+test('layout reset puts every active group on the back layer it is given', async () => {
+  const f = await fixture(); const c = await f.workspace.createGroup('Retired group');
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
+  await f.workspace.mergeGroup(f.workspace.previewGroupMerge(c.id, f.b.id));
+  await rejectsCode(f.workspace.layout.reset(f.workspace.snapshot, area, 'ceiling'), 'invalid-setting');
+  await f.workspace.layout.reset(f.workspace.snapshot, area, 'wallpaper');
+  assert.deepEqual(f.workspace.layout.state.groupLayers, { [f.a.id]: 'wallpaper', [f.b.id]: 'wallpaper' }, 'a retired group gets no layer');
+  assert.deepEqual(f.disk().layout.groupLayers, f.workspace.layout.state.groupLayers);
 });
 
 test('C33: failed draft flush prevents scope exit and formation with editor intact', async () => {

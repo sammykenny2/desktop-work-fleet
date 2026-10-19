@@ -84,10 +84,10 @@ export default {
   'settings.desktop.resetWindow.hint': '主視窗回到預設大小，並置中於主要螢幕。桌面便箋不受影響。',
   'settings.desktop.resetWindow.action': '重置主視窗大小與位置',
   'settings.desktop.resetLayout.title': '重置桌面佈局',
-  'settings.desktop.resetLayout.hint': '把便箋放回各自的群組區域，並恢復預設大小與顯示方式。',
+  'settings.desktop.resetLayout.hint': '把便箋放回各自的群組區域，恢復預設大小與顯示方式，並把每個群組移到最後面的層級。',
   'settings.desktop.resetLayout.action': '重置桌面佈局…',
   'settings.desktop.resetLayout.confirmTitle': '重置桌面佈局？',
-  'settings.desktop.resetLayout.confirmText': '這台電腦上的便箋會回到各自的群組區域，位置、大小與顯示方式恢復預設。便箋內容、群組和快捷鍵不會改變。',
+  'settings.desktop.resetLayout.confirmText': '這台電腦上的便箋會回到各自的群組區域，位置、大小與顯示方式恢復預設，每個群組移到最後面的層級。便箋內容、群組名稱與內容、快捷鍵不會改變。',
   'settings.desktop.resetLayout.irreversible': '重置後無法復原。',
   'settings.desktop.resetLayout.confirm': '重置',
 

@@ -7,6 +7,21 @@ that record is the GitHub Releases `windows-v<version>`, `linux-v<version>`, `ma
 `Platforms` lists the platforms whose version files carry the number and that were meant for distribution.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.3
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Reorder groups in the sidebar and choose each group's color on this device. Desktop groups show their layers, new groups start on the back layer, completed notes can be hidden, and moving a note to Deleted offers Undo.
+
+- Groups: drag a sidebar group or use Alt+Up/Down to change this device's order. Group pickers follow that order, including conflict repair. On computers, a short message lists region shortcuts whose groups changed after a reorder.
+- Group settings offer nine paper colors per device. Choosing a color another group uses swaps the two; colors do not sync or change when groups are reordered.
+- The desktop sidebar marks this device's My group with a star and shows each group's resting layer, including a tooltip for an unsupported layer's fallback. Phones ignore My group settings carried over by a restored layout.
+- New groups created on a computer or first received there from sync start on its back layer: the wallpaper layer when available, otherwise the default desktop layer. Reset desktop layout also moves every group to the back layer.
+- Settings > Desktop > Show completed notes can hide completed papers from this computer's desktop without changing their status or other devices.
+- Moving a note to Deleted offers Undo in the status line. Permanent deletion remains outside this version.
+- iOS device builds and installation stay local; public GitHub workflows no longer build or upload iOS packages containing registered device identifiers.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.2
 
 Platforms: Windows, Linux, macOS, iOS, Android.

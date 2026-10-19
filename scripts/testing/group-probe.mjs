@@ -2,6 +2,7 @@
 import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { plural, t } from '../../src/i18n/index.js';
+import { groupColors } from '../../src/core/palette.js';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT\nUses synthetic notes in an isolated browser profile.');
@@ -27,7 +28,7 @@ const capture = async text => {
 try {
   await page.goto(base.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await capture('Original group note');
-  await page.locator('#add-group').click(); await page.locator('dialog[open] input').fill('Research');
+  await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups .group-row')).toHaveCount(2); await capture('Research note');
   let state = await read(); const [a, b] = state.groups; const positions = state.layout.placements;
@@ -74,6 +75,16 @@ try {
   await expect.poll(async () => (await read()).layout.grid.slots).toEqual([b.id, a.id]);
   await expect(groupRow(a.id).locator('button').first()).toBeFocused();
   assert.deepEqual((await read()).layout.placements, positions, 'reordering groups does not move cards');
+  // Colours are this device's: choosing the colour another group wears swaps the two and records no group revision.
+  const beforeColors = await read();
+  await groupRow(a.id).locator('.group-menu').click();
+  await page.locator('dialog[open] .swatch').nth(beforeColors.layout.groupColors[b.id]).click();
+  await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  await expect.poll(async () => (await read()).layout.groupColors)
+    .toEqual({ [a.id]: beforeColors.layout.groupColors[b.id], [b.id]: beforeColors.layout.groupColors[a.id] });
+  assert.deepEqual((await read()).revisions, beforeColors.revisions, 'a colour change must not record a revision');
+  await expect(groupRow(a.id).locator('.group-dot')).toHaveAttribute('style', `--group-color: ${groupColors[beforeColors.layout.groupColors[b.id]]};`);
   await groupRow(a.id).locator('button').first().click();
   await page.locator('body').click({ position: { x: 260, y: 20 } });
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
@@ -175,5 +186,5 @@ try {
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

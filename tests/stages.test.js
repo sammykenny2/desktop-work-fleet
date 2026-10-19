@@ -56,9 +56,8 @@ test('without a wallpaper layer, or without desktop layers, groups made here kee
   for (const arrivalChoice of [undefined, () => arrivalLayer(['desktop', 'floating']), () => arrivalLayer([])]) {
     const workspace = await Workspace.create({ profileId: 'local', deviceId: 'device-a', area, persist: async () => {},
       ...arrivalChoice && { arrivalLayer: arrivalChoice } });
-    const before = workspace.layout.state.revision; const made = await workspace.createGroup('Made here');
+    const made = await workspace.createGroup('Made here');
     assert.deepEqual(workspace.layout.state.groupLayers, {});
-    assert.equal(workspace.layout.state.revision, before);
     assert.equal(groupLayer(workspace.layout.state, made.id), 'desktop');
   }
 });

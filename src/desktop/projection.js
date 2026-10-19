@@ -1,5 +1,6 @@
 import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
+import { settleGroupColors } from '../layout/colors.js';
 import { cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { groupName } from '../core/group-name.js';
 import { getLocale, t } from '../i18n/index.js';
@@ -17,7 +18,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
   requireValue((residentLayers.includes('desktop') || residentLayers.includes('wallpaper')) && residentLayers.every(layer => layers.includes(layer))
     && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)), 'desktop-layer', t('errors.desktop.noLayer'));
   const resident = residentLayers.includes('desktop') ? 'desktop' : 'wallpaper';
-  const groups = activeGroups(snapshot); const groupIndex = new Map(groups.map((group, index) => [group.id, index]));
+  const groups = activeGroups(snapshot); const colors = settleGroupColors(layout.groupColors, groups);
   let regions = [];
   try { regions = gridRegions(layout.grid, groups); } catch { /* A group overflow must not hide existing cards. */ }
   const fallbacks = []; const cards = [];
@@ -37,12 +38,12 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       rect: { x: placement.x, y: placement.y, width: placement.width, height: placement.height }, layer,
       interactive, draggable, editing,
       selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,
-      color: groupColors[(groupIndex.get(card.groupId) ?? 0) % groupColors.length] });
+      color: groupColors[colors[card.groupId] ?? 0] });
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;
   return copy({ protocol: 1, sessionId, sequence, topology, locale: getLocale(), workspaceRevision, layoutRevision: layout.revision,
-    groups: groups.map((group, index) => ({ id: group.id, name: groupName(group), color: groupColors[index % groupColors.length],
+    groups: groups.map(group => ({ id: group.id, name: groupName(group), color: groupColors[colors[group.id]],
       region: regions.find(region => region.groupId === group.id) || null })),
     operationScope: interaction.operationScope, activeGroupId: interaction.activeGroupId, cards, editor: projectedEditor,
     dropTarget: interaction.dragSession?.target || null, fallbacks,

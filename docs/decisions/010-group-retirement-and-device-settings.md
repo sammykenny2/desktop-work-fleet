@@ -5,7 +5,8 @@
 Accepted (local merge command and settings), 2026-10-04.
 Revised 2026-10-06: number shortcuts are now bound to desktop regions and step through the group's layers; see
 the shortcut items under Decision.
-Revised 2026-10-20: the group list follows this computer's region order and can be reordered from the sidebar.
+Revised 2026-10-20: the group list follows this computer's region order and can be reordered from the sidebar,
+and each group's paper colour is stored per device.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 
@@ -55,6 +56,12 @@ overwrite other changes.
   added, a source reconciles groups or the layout is reset keep the current order. With more than nine groups
   the grid cannot validate, so the sidebar offers no reordering until a merge. The maintainer chose a
   per-device order linked to the regions over a synced order or a separate list order.
+- A group's paper colour is a device setting: `groupColors` maps each active group to one of the nine palette
+  entries. Layouts without it get the colour each group already showed (its place in the workspace list); a group
+  added by this device or a source takes its place's colour when free, otherwise the first free one, in the same
+  transaction that adds it; a retired group frees its colour. Choosing a worn colour swaps it with the wearer, so
+  colours stay unique up to nine groups. Like the order, colours never sync, as the maintainer chose; before this a
+  colour followed the group's list position and shifted whenever an earlier group was merged away.
 - Shortcuts point to explicit actions: all groups, Quick capture, the display toggle, or regions 1-9 (left to
   right, top to bottom); several bindings may point to the same action.
   A region key acts on the group currently in that region; keys for empty regions are not sent to the native host

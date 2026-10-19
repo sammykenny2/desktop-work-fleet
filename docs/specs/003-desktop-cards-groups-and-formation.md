@@ -146,6 +146,10 @@ because A is "me".
   keys follow; it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
   that order. While more than nine groups exist the regions cannot hold them all, so the order cannot change until
   groups are merged.
+- Each device stores which of the nine palette colours each group wears. A group without a stored colour takes the
+  colour of its place in the workspace list when no other group wears it, otherwise the first free colour; a retired
+  group frees its colour; choosing a colour another group wears swaps the two. Colours never sync, and reordering
+  groups does not repaint them. Past nine groups, colours repeat.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group
   revision, so nothing syncs and no other device's edit of that group can conflict with it.
 - A group new to a computer starts at the back of that computer's desktop: the Wallpaper layer, or the Desktop layer
@@ -218,8 +222,9 @@ or have its content hidden.
   high), left to right. Thumbnails that do not fit are not shown, with no horizontal scrolling, buttons or hover
   reveal; opening is still a double click. The main window board, the main window's desktop view and native desktop
   papers behave the same. Hidden attachments in the strip cannot be reached with Tab (2026-10-17).
-- Paper background colours come from one shared nine-colour palette (`src/core/palette.js`) in group order, the same in
-  the main window and on the desktop; colours are not written to data. As of 2026-10-17 the shared palette, and new
+- Paper background colours come from one shared nine-colour palette (`src/core/palette.js`), the same in the main
+  window and on the desktop; which entry each group wears is a device setting (see "Group identity and first use") and
+  never part of shared data. As of 2026-10-17 the shared palette, and new
   papers that shrink to fit a short region, have been checked only in browser and scene probes, not on a native
   desktop.
 - Content too long for a card is handled by reading and editing within the stable size, not by automatically stretching

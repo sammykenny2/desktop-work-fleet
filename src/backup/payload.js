@@ -6,6 +6,7 @@ import { projectRevisionsAsync, projectionConflictKinds } from '../sources/proje
 import { sha256, validDigest } from '../sources/files.js';
 import { schemas, requireSchemaVersion } from '../core/schema.js';
 import { mainViews } from '../layout/store.js';
+import { validColor } from '../layout/colors.js';
 import { BACKUP_LIMITS, backupScheduler, checkCancelled, entryLimit, packZip, unpackZip } from './archive.js';
 import { decryptBackup, encryptBackup } from './encryption.js';
 import { t } from '../i18n/index.js';
@@ -66,6 +67,9 @@ function validateLayout(layout, snapshot, graph) {
   // Older backups kept the layer on each paper instead of in groupLayers.
   fail(layout.groupLayers === undefined || object(layout.groupLayers)
     && Object.entries(layout.groupLayers).every(([id, layer]) => groups.has(id) && layers.includes(layer)));
+  // Colours may repeat: more than nine groups after a sync share them.
+  fail(layout.groupColors === undefined || object(layout.groupColors)
+    && Object.entries(layout.groupColors).every(([id, index]) => groups.has(id) && validColor(index)));
   for (const undo of layout.history) {
     fail(object(undo) && ['move', 'formation', 'transfer'].includes(undo.kind) && object(undo.before));
     for (const [id, rect] of Object.entries(undo.before)) fail(cards.has(id) && geometry(rect));

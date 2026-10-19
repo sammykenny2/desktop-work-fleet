@@ -1,6 +1,7 @@
 import { compareCards, compareId, copy, defaultGrid } from '../core/contracts.js';
 import { groupResolver, resolveGroupId } from '../core/groups.js';
 import { orderedGroups } from '../layout/order.js';
+import { settleGroupColors } from '../layout/colors.js';
 
 export const projectionConflictKinds = new Set(['revision', 'group-reference', 'card-group', 'group-overflow', 'pending-revisions']);
 
@@ -61,6 +62,8 @@ export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
   for (const [id, layer] of Object.entries(arrived)) {
     if (active.has(id) && !Object.hasOwn(result.groupLayers ?? {}, id)) result.groupLayers = { ...result.groupLayers, [id]: layer };
   }
+  // Every group keeps its colour; a new one takes a free colour and a retired one frees its own.
+  result.groupColors = settleGroupColors(result.groupColors, groups);
   const resolve = id => {
     try { return resolveGroupId(snapshot, id); } catch { return id; }
   };

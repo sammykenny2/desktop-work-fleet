@@ -69,6 +69,8 @@ export interface DeviceLayout {
   shortcuts: Record<string, Id>;
   /** Missing groups are on the desktop layer. */
   groupLayers: Record<Id, ResidentLayer>;
+  /** Palette index (0-8) each group wears on this device; a group without one takes a free colour. */
+  groupColors?: Record<Id, number>;
   /** The main window's view of a group's papers on this device; missing shows the board. */
   mainView?: 'board' | 'list';
 }

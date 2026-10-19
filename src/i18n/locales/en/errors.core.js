@@ -86,6 +86,7 @@ export default {
   'errors.core.mainViewUnknown': 'Unknown main window view.',
   'errors.core.noteSettingUnknown': 'Unknown note display setting.',
   'errors.core.layerUnknown': 'Unknown layer.',
+  'errors.core.colorUnknown': 'Unknown group color.',
   'errors.core.noDisplay': 'No display is available.',
   'errors.core.placementMissing': "The note's position can't be found.",
   'errors.core.positionInvalid': "The note's position is invalid.",

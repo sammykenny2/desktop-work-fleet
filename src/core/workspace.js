@@ -6,6 +6,7 @@ import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revi
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { regionShortcuts } from './shortcuts.js';
 import { groupLayerOrder, groupLayersFromPapers } from '../layout/stages.js';
+import { settleGroupColors } from '../layout/colors.js';
 import { sha256, validDigest, validateFile } from '../sources/files.js';
 import { schemas, requireSchemaVersion } from './schema.js';
 import { initialGroupRecord, resetFileIds } from '../sources/initial-group.js';
@@ -113,6 +114,8 @@ export class Workspace {
     this.#state.sync ||= { sourceId: null, sessionId: null, cursor: null };
     // Group-bound keys and per-paper layers from older layouts are converted here and saved with the next layout change.
     this.#state.layout = groupLayersFromPapers(this.#state.layout, this.#state.cards);
+    // Layouts from before stored colours get the colours their groups already showed, by place in the list.
+    this.#state.layout.groupColors = settleGroupColors(this.#state.layout.groupColors, activeGroups(this.#state));
     this.#state.layout.shortcuts = regionShortcuts(this.#state.layout.shortcuts, this.#state.layout.grid.slots);
     this.#layout = new LayoutStore(this.#state.layout, (layout, revision, validation) => this.#commit(draft => {
       requireValue(draft.layout.revision === revision, 'stale-layout', t('errors.core.layoutChangedByOther'));
@@ -434,13 +437,15 @@ export class Workspace {
     }));
   }
 
-  // A group made on this device starts on the layer chosen for new groups, recorded in the transaction that adds it.
+  // A group made on this device starts on the layer chosen for new groups and takes a free colour, both recorded in
+  // the transaction that adds it.
   #addGroup(change) {
     return this.#layout.integrateSource((layout, layoutRevision) => this.#commit(state => {
       requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.common.layoutChanged'));
       const group = change(state);
       const arrived = group ? arrivalLayers([group], this.#arrivalLayer()) : {};
-      if (Object.keys(arrived).length) state.layout = { ...layout, revision: layoutRevision + 1, groupLayers: { ...arrived, ...layout.groupLayers } };
+      const next = { ...layout, groupLayers: { ...arrived, ...layout.groupLayers }, groupColors: settleGroupColors(layout.groupColors, activeGroups(state)) };
+      if (JSON.stringify(next) !== JSON.stringify(layout)) state.layout = { ...next, revision: layoutRevision + 1 };
       return { layout: state.layout, value: group };
     }));
   }

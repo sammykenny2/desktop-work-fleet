@@ -48,6 +48,7 @@ function remapLayout(layout, ids) {
   grid(result.grid); result.placements = geometry(result.placements);
   if (result.myGroupId !== null) result.myGroupId = ids.group(result.myGroupId);
   if (result.groupLayers) result.groupLayers = Object.fromEntries(Object.entries(result.groupLayers).map(([id, layer]) => [ids.group(id), layer]));
+  if (result.groupColors) result.groupColors = Object.fromEntries(Object.entries(result.groupColors).map(([id, index]) => [ids.group(id), index]));
   for (const key of Object.keys(result.shortcuts)) if (!result.shortcuts[key].startsWith('@')) result.shortcuts[key] = ids.group(result.shortcuts[key]);
   for (const undo of result.history) {
     undo.before = geometry(undo.before);
@@ -249,6 +250,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
       for (const [id, rect] of Object.entries(restoredLayout.placements)) if (!existingCards.has(id)) next.layout.placements[id] = rescueRect(rect, workAreas);
       next.layout.history.push(...restoredLayout.history);
       next.layout.groupLayers = { ...restoredLayout.groupLayers, ...next.layout.groupLayers };
+      // Imported groups take free colours instead of the backup's, which could clash with this device's own.
     } else {
       next.layout = { ...restoredLayout, deviceId: state.layout.deviceId, revision: state.layout.revision,
         placements: { ...state.layout.placements, ...restoredLayout.placements } };

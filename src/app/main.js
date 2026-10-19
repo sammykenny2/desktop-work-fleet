@@ -6,6 +6,7 @@ import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
 import { mainView } from '../layout/store.js';
 import { orderedGroups, reorderSlots } from '../layout/order.js';
+import { settleGroupColors } from '../layout/colors.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -98,7 +99,13 @@ function screenArea() {
     || { x: 0, y: 0, width: Math.max(320, innerWidth), height: Math.max(280, innerHeight) });
 }
 function workAreas() { return desktopInfo ? desktopInfo.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })) : [screenArea()]; }
-function groupColor(id) { return groupColors[Math.max(0, activeGroups(workspace.snapshot).findIndex(group => group.id === id)) % groupColors.length]; }
+// Each group's paper colour is this device's choice; the settled colours cover a group the layout has not stored yet.
+function groupColor(id) {
+  const stored = workspace.layout.state.groupColors;
+  return groupColors[stored?.[id] ?? settleGroupColors(stored, activeGroups(workspace.snapshot))[id] ?? 0];
+}
+const colorNames = () => [t('app.colors.yellow'), t('app.colors.mint'), t('app.colors.blue'), t('app.colors.peach'), t('app.colors.lavender'),
+  t('app.colors.teal'), t('app.colors.pink'), t('app.colors.sand'), t('app.colors.slate')];
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
 // The sidebar and every group picker list groups in this device's region order.
 function shownGroups() { return orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot)); }
@@ -1103,6 +1110,22 @@ function groupEditor(group) {
     }
     layers.value = currentLayer; layerField.append(layers);
   }
+  // The colour is this device's too. A new group is offered the colour it would take; choosing one another group wears
+  // swaps the two, and each swatch names the group that wears it.
+  const peers = activeGroups(workspace.snapshot).filter(item => item.id !== group?.id);
+  const settled = settleGroupColors(workspace.layout.state.groupColors, group ? activeGroups(workspace.snapshot) : [...peers, { id: '' }]);
+  const colorAtOpen = settled[group?.id ?? '']; const colorField = element('fieldset', undefined, 'field color-field');
+  colorField.append(element('legend', t('app.groupEditor.color')));
+  const swatches = element('div', undefined, 'swatches');
+  colorNames().forEach((name, index) => {
+    const wearer = peers.find(item => settled[item.id] === index);
+    const swatch = element('label', undefined, 'swatch'); swatch.title = wearer ? t('app.groupEditor.colorWorn', { color: name, group: groupName(wearer) }) : name;
+    const radio = element('input'); radio.type = 'radio'; radio.name = 'group-color'; radio.value = String(index); radio.checked = index === colorAtOpen;
+    radio.setAttribute('aria-label', swatch.title);
+    const chip = element('span'); chip.style.setProperty('--swatch', groupColors[index]); chip.classList.toggle('worn', Boolean(wearer));
+    swatch.append(radio, chip); swatches.append(swatch);
+  });
+  colorField.append(swatches);
   const actions = element('div', undefined, 'dialog-actions');
   const save = element('button', t('common.save'), 'primary'); save.type = 'submit';
   if (group) {
@@ -1110,7 +1133,7 @@ function groupEditor(group) {
     merge.disabled = activeGroups(workspace.snapshot).length < 2; actions.append(merge);
   }
   actions.append(button(t('common.cancel'), () => dialog.close()), save);
-  form.append(title, label, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
+  form.append(title, label, colorField, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
     let groupId = group?.id;
@@ -1118,9 +1141,13 @@ function groupEditor(group) {
     // device's layer neither syncs a group revision nor fails on a group that is in conflict.
     if (group) { if (input.value.trim() !== groupName(group)) await workspace.renameGroup(group.id, input.value, group.revision); }
     else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; }
-    // A new group already sits on the layer chosen when it was created, which the dialog only guessed at opening.
+    // A new group already took a layer and a colour when it was created; the dialog only guessed them at opening. Only
+    // a choice the user changed is applied, so a sync landing meanwhile cannot make an untouched guess repaint a group.
     const layerNow = group ? currentLayer : groupLayer(workspace.layout.state, groupId);
-    if (layerField && layers.value !== layerNow) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
+    if (layerField && layers.value !== currentLayer && layers.value !== layerNow) await workspace.layout.setGroupLayer(groupId, layers.value, workspace.snapshot);
+    const chosen = Number(form.elements['group-color'].value);
+    const colorNow = group ? colorAtOpen : workspace.layout.state.groupColors?.[groupId];
+    if (chosen !== colorAtOpen && chosen !== colorNow) await workspace.layout.setGroupColor(groupId, chosen, workspace.snapshot);
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status(t('app.status.groupSaved'));
   }); });
   dialog.showModal(); input.focus();

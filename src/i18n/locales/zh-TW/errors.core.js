@@ -86,6 +86,7 @@ export default {
   'errors.core.mainViewUnknown': '未知的主畫面檢視。',
   'errors.core.noteSettingUnknown': '未知的卡片顯示設定。',
   'errors.core.layerUnknown': '未知的常駐層級。',
+  'errors.core.colorUnknown': '未知的群組顏色。',
   'errors.core.noDisplay': '沒有可用顯示器。',
   'errors.core.placementMissing': '找不到卡片位置。',
   'errors.core.positionInvalid': '卡片位置無效。',

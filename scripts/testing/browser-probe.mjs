@@ -52,7 +52,7 @@ try {
   assert.deepEqual(await page.locator('.card').boundingBox(), originalBox);
   await expect(page.locator('.card-body')).toContainText('Saved in place');
   await page.getByRole('button', { name: t('app.sidebar.addGroup'), exact: true }).click();
-  await page.locator('dialog[open] input').fill('Research');
+  await page.locator('dialog[open] input:not([type=radio])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups')).toContainText('Research');
   const paper = page.locator('.card');

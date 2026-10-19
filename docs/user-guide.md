@@ -74,6 +74,10 @@ interface. To switch, see [Settings](#settings).
   group. Reordering moves the groups between their regions, so each region key then acts on the group now in its
   region; notes already on the desktop stay where they are until you arrange them. While there are more than nine
   groups (after syncing offline changes), the order cannot change until groups are merged.
+- Each group has one of nine paper colors on this device. Choose it in the group's "⋯" > "Group settings" >
+  "Color on this device"; a small dot marks a color another group already uses, and choosing it swaps the two
+  groups' colors. A new group takes a color no other group uses, and a merged group frees its color. Colors do not
+  sync: each device keeps its own, and reordering groups does not change them.
 - "My group" in Settings > Desktop gives the notes of one group an accent-colored edge on this device.
 - Each group sits on one desktop layer; see [Desktop notes and layers](#desktop-notes-and-layers).
 

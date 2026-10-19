@@ -3,6 +3,7 @@ import { activeGroups, compareId, containsRect, copy, defaultGrid,
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { groupLayerOrder } from './stages.js';
 import { orderedGroups } from './order.js';
+import { settleGroupColors, swapGroupColor, validColor } from './colors.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
 
@@ -15,15 +16,17 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
   return { schemaVersion: schemas.layout, deviceId, revision: 0, grid: defaultGrid(groups, area),
-    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(), groupLayers: {} };
+    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(), groupLayers: {},
+    groupColors: settleGroupColors({}, groups) };
 }
 
 export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   const affected = new Set(affectedCards);
   draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
   if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
-  // The receiving group keeps its own layer.
+  // The receiving group keeps its own layer and colour; the retired group's colour is free again.
   if (draft.groupLayers) delete draft.groupLayers[sourceId];
+  if (draft.groupColors) delete draft.groupColors[sourceId];
   for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
   const oldLength = draft.history.length;
   draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
@@ -135,6 +138,14 @@ export class LayoutStore {
     requireValue(groupLayerOrder.includes(layer), 'invalid-setting', t('errors.core.layerUnknown'));
     requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
     return this.#transaction(draft => { draft.groupLayers = { ...draft.groupLayers, [groupId]: layer }; });
+  }
+
+  /** The colour belongs to the group on this device; a group already wearing it takes the colour this one gives up. */
+  async setGroupColor(groupId, index, snapshot) {
+    const groups = activeGroups(copy(snapshot));
+    requireValue(validColor(index), 'invalid-setting', t('errors.core.colorUnknown'));
+    requireValue(groups.some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
+    return this.#transaction(draft => { draft.groupColors = swapGroupColor(settleGroupColors(draft.groupColors, groups), groupId, index); });
   }
 
   // New papers are square, like the familiar 3 × 3 in sticky note, and smaller only where their region is shorter;
@@ -254,9 +265,8 @@ export class LayoutStore {
   /**
    * Resets this device's desktop layout: default group regions in the current group order, no placements or undo
    * history, papers shown, completed papers included, every group on the given back layer (the desktop layer when none
-   * is given) and no highlighted group. Shortcuts and the device identity stay. Callers re-place papers with placeNew
-   * afterwards; a crash in between leaves papers unplaced,
-   * which the start-up placeNew already repairs.
+   * is given) and no highlighted group. Shortcuts, group colours and the device identity stay. Callers re-place papers
+   * with placeNew afterwards; a crash in between leaves papers unplaced, which the start-up placeNew already repairs.
    */
   async reset(snapshot, area, layer = null) {
     snapshot = copy(snapshot); area = copy(area);

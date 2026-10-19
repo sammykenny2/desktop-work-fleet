@@ -44,7 +44,7 @@ export default {
   'settings.desktop.completed': 'Show completed notes',
   'settings.desktop.completedHint': 'When off, completed notes leave this desktop until you turn this on again or move them back to To do. Other devices keep their own choice.',
   'settings.desktop.myGroup': 'My group',
-  'settings.desktop.myGroupHint': 'Notes in this group get an accent-colored edge.',
+  'settings.desktop.myGroupHint': 'Notes in this group get an accent-colored edge, and the group gets a star in the sidebar.',
   'settings.desktop.regions': 'Group regions',
   'settings.desktop.regionsHint': 'When notes are arranged, each group goes into its own region.',
   'settings.desktop.rows': 'Rows',

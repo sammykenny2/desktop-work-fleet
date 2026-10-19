@@ -44,7 +44,7 @@ export default {
   'settings.desktop.completed': '顯示已完成的便箋',
   'settings.desktop.completedHint': '關閉後，已完成的便箋會離開這台電腦的桌面，直到重新開啟或把便箋改回待處理。其他裝置各自設定。',
   'settings.desktop.myGroup': '我的群組',
-  'settings.desktop.myGroupHint': '這一組的便箋會加上強調色邊。',
+  'settings.desktop.myGroupHint': '這一組的便箋會加上強調色邊，側欄的群組名稱前也會加上星號。',
   'settings.desktop.regions': '群組區域',
   'settings.desktop.regionsHint': '整理便箋時，每個群組會排進自己的區域。',
   'settings.desktop.rows': '列',

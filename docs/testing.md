@@ -413,7 +413,7 @@ Measuring a paper right after a drop can read a null box, because the redraw aft
 Keep this wait if the probe is edited.
 The group probe verifies group preview, cancel and merge, archived data and draft integrity, region swaps not moving cards,
 the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards,
-a colour swap in group settings recording no revision and repainting the sidebar dot,
+a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
 group settings with the name unchanged records no revision, that "Show completed notes" hides a completed paper and
 brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also

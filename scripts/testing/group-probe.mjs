@@ -59,6 +59,9 @@ try {
   await page.locator('[data-page="desktop"]').click(); await page.locator('#my-group').selectOption(b.id);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await expect.poll(async () => (await read()).layout.myGroupId).toBe(b.id);
+  // My group carries a star in the sidebar, and only My group does.
+  await expect(page.locator('#groups .group-star')).toHaveCount(1);
+  await expect(page.locator(`#groups .group-row[data-group-id="${b.id}"] .group-star`)).toHaveAttribute('aria-label', t('app.groups.myGroupMark'));
   state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
   // The sidebar follows the regions; dragging a row or Alt+arrow keys reorder the regions without moving notes.
@@ -144,6 +147,7 @@ try {
   assert.equal(state.cards.find(card => card.content.text.startsWith('Research note')).archived, true);
   assert.ok(state.cards.every(card => card.groupId === a.id));
   assert.equal(state.layout.myGroupId, a.id); assert.equal(state.layout.shortcuts['Ctrl+Shift+1'], '@region1');
+  await expect(page.locator(`#groups .group-row[data-group-id="${a.id}"] .group-star`)).toHaveCount(1);
   assert.equal(state.layout.shortcuts['Alt+Shift+1'], '@region1'); assert.equal(state.layout.shortcuts['Ctrl+Shift+9'], '@all');
   await page.locator('#settings-button').click();
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
@@ -186,5 +190,5 @@ try {
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

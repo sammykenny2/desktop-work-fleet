@@ -16,6 +16,9 @@ export const groupLayer = (layout, groupId) => layout.groupLayers?.[groupId] ?? 
  * no layers at all.
  */
 export const arrivalLayer = residentLayers => residentLayers.includes('wallpaper') ? 'wallpaper' : null;
+/** Where a group's papers actually rest: its own layer when the desktop offers it, otherwise the desktop or the wallpaper. */
+export const restingLayer = (layer, residentLayers) => residentLayers.includes(layer) ? layer
+  : residentLayers.includes('desktop') ? 'desktop' : 'wallpaper';
 
 /**
  * Where the desktop has no wallpaper layer the cycle restarts at the desktop; a group already on the wallpaper still steps on.

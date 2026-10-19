@@ -78,7 +78,8 @@ interface. To switch, see [Settings](#settings).
   "Color on this device"; a small dot marks a color another group already uses, and choosing it swaps the two
   groups' colors. A new group takes a color no other group uses, and a merged group frees its color. Colors do not
   sync: each device keeps its own, and reordering groups does not change them.
-- "My group" in Settings > Desktop gives the notes of one group an accent-colored edge on this device.
+- "My group" in Settings > Desktop gives the notes of one group an accent-colored edge on this device and puts a
+  star before its name in the sidebar.
 - Each group sits on one desktop layer; see [Desktop notes and layers](#desktop-notes-and-layers).
 
 ## The board and the list
@@ -106,6 +107,10 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   first time start at the back: on the Wallpaper layer, or on the Desktop layer where the desktop has no Wallpaper
   layer. Groups already on this computer keep their layer until "Reset desktop layout" moves every group there.
   Switch a group's layer with its region key (default Ctrl+Shift+1-9, see [Shortcuts](#shortcuts)).
+- In the desktop apps each group row in the sidebar shows a small stack of three plates for the group's layer: the
+  bottom plate filled for the Wallpaper layer, the middle one for the Desktop layer, the top one for the Top layer.
+  Hover it for the layer's name. Where this computer cannot show the chosen layer, the icon shows where the notes
+  really are and the tooltip says so. In a window narrower than about 950 pixels the sidebar leaves the icon out.
 - The layer belongs to the group, and each computer stores its own. On a computer you can also choose it in the
   group's "⋯" > "Group settings" > "Layer on the desktop"; phones and the browser preview have no such option. A note's
   own "⋯" details keep only "Show on the desktop".

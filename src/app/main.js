@@ -3,7 +3,7 @@ import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } fr
 import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
-import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, stepGroup } from '../layout/stages.js';
+import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, stepGroup } from '../layout/stages.js';
 import { mainView } from '../layout/store.js';
 import { orderedGroups, reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
@@ -805,8 +805,11 @@ function renderGroupList(snapshot, layout, groups) {
     row.dataset.groupId = group.id;
     const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
     const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
-    choose.append(dot, element('span', groupName(group), 'group-name'),
-      element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
+    choose.append(dot);
+    if (layout.myGroupId === group.id) choose.append(sidebarMark(icon(starPath), 'group-star', t('app.groups.myGroupMark')));
+    choose.append(element('span', groupName(group), 'group-name'));
+    if (desktopInfo) choose.append(layerMark(groupLayer(layout, group.id)));
+    choose.append(element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
     // Groups move only while every group holds a region; past nine, regions cannot take a new order until a merge.
     if (reorderable) {
       row.classList.add('reorderable'); choose.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
@@ -815,6 +818,24 @@ function renderGroupList(snapshot, layout, groups) {
     }
     row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
+}
+
+// Small marks in a group row: a star for My group, and on desktop computers the layer the group's papers rest on.
+const starPath = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z';
+// Three plates stacked back to front from the bottom; the group's plate is filled.
+const layerPlates = { floating: 'M12 2.5 20 5.5 12 8.5 4 5.5Z', desktop: 'M12 9 20 12 12 15 4 12Z', wallpaper: 'M12 15.5 20 18.5 12 21.5 4 18.5Z' };
+function sidebarMark(svg, className, label, tooltip = label) {
+  const mark = element('span', undefined, className); mark.setAttribute('role', 'img'); mark.setAttribute('aria-label', label);
+  mark.title = tooltip; mark.append(svg); return mark;
+}
+// A layer this desktop cannot rest papers on shows where the papers really are; the tooltip says why, while screen
+// readers hear only the layer's name inside the row's button.
+function layerMark(layer) {
+  const shown = restingLayer(layer, residentLayers()); const name = value => stageNames()[groupLayerOrder.indexOf(value)];
+  const svg = icon(...Object.values(layerPlates));
+  Object.keys(layerPlates).forEach((plate, index) => svg.children[index].classList.toggle('current', plate === shown));
+  return sidebarMark(svg, 'group-layer', name(shown),
+    shown === layer ? name(layer) : t('app.groupEditor.layerUnsupported', { layer: name(layer), fallback: name(shown) }));
 }
 
 // Dragging a group row reorders the regions, so the list, the desktop regions and the region keys keep one order;
@@ -1102,10 +1123,10 @@ function groupEditor(group) {
   const currentLayer = group ? groupLayer(workspace.layout.state, group.id) : arrivalLayer(residentLayers()) ?? 'desktop';
   if (layerField) {
     // A layer this desktop cannot rest papers on says so and names where they show instead, as the desktop note does.
-    const fallback = stageNames()[groupLayerOrder.indexOf(residentLayers().includes('desktop') ? 'desktop' : 'wallpaper')];
+    const stageName = value => stageNames()[groupLayerOrder.indexOf(value)];
     for (const [value, name] of [['wallpaper', t('app.groupEditor.layerWallpaper')], ['desktop', t('app.groupEditor.layerDesktop')], ['floating', t('app.groupEditor.layerFloating')]]) {
       const supported = residentLayers().includes(value);
-      const option = new Option(supported ? name : t('app.groupEditor.layerUnsupported', { layer: stageNames()[groupLayerOrder.indexOf(value)], fallback }), value);
+      const option = new Option(supported ? name : t('app.groupEditor.layerUnsupported', { layer: stageName(value), fallback: stageName(restingLayer(value, residentLayers())) }), value);
       option.disabled = !supported && currentLayer !== value; layers.append(option);
     }
     layers.value = currentLayer; layerField.append(layers);

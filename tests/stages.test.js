@@ -4,7 +4,7 @@ import { Workspace } from '../src/core/workspace.js';
 import { InteractionController, cardPolicy } from '../src/interaction/controller.js';
 import { projectDesktop } from '../src/desktop/projection.js';
 import { groupColors } from '../src/core/palette.js';
-import { adjustStage, arrivalLayer, groupLayer, groupLayersFromPapers, nextGroupStage, stepGroup } from '../src/layout/stages.js';
+import { adjustStage, arrivalLayer, groupLayer, groupLayersFromPapers, nextGroupStage, restingLayer, stepGroup } from '../src/layout/stages.js';
 
 const area = { x: 0, y: 0, width: 1600, height: 900 };
 const text = value => ({ format: 'markdown', text: value, attachments: [] });
@@ -35,6 +35,28 @@ test('groups new to this computer start on the wallpaper where it is offered, ot
   assert.equal(arrivalLayer(['wallpaper']), 'wallpaper');
   assert.equal(arrivalLayer(['desktop', 'floating']), null);
   assert.equal(arrivalLayer([]), null);
+});
+
+test('the sidebar shows the layer papers really rest on: their own, or the desktop or wallpaper fallback', () => {
+  assert.equal(restingLayer('wallpaper', ['desktop', 'floating', 'wallpaper']), 'wallpaper');
+  assert.equal(restingLayer('wallpaper', ['desktop', 'floating']), 'desktop');
+  assert.equal(restingLayer('floating', ['wallpaper']), 'wallpaper');
+  assert.equal(restingLayer('desktop', ['wallpaper']), 'wallpaper');
+});
+
+test('the sidebar and the desktop frame agree on where a group whose layer is not offered really rests', async () => {
+  const f = await fixture();
+  for (const residentLayers of [['desktop', 'floating', 'wallpaper'], ['desktop', 'floating'], ['wallpaper']]) {
+    for (const layer of ['wallpaper', 'desktop', 'floating']) {
+      await f.workspace.layout.setGroupLayer(f.a.id, layer, f.workspace.snapshot);
+      const frame = projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state, interaction: f.controller.state,
+        sessionId: 'resting', sequence: 1, workspaceRevision: f.workspace.state.revision, layers: ['desktop', 'floating', 'wallpaper'], residentLayers });
+      assert.ok(frame.cards.some(item => item.groupId === f.a.id));
+      for (const card of frame.cards.filter(item => item.groupId === f.a.id)) {
+        assert.equal(card.layer, restingLayer(layer, residentLayers), `${layer} on ${residentLayers.join('+')}`);
+      }
+    }
+  }
 });
 
 test('groups made on this computer start on its back layer: the first group and each new one', async () => {

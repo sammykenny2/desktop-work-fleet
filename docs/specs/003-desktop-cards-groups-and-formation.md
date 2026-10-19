@@ -150,6 +150,9 @@ because A is "me".
   colour of its place in the workspace list when no other group wears it, otherwise the first free colour; a retired
   group frees its colour; choosing a colour another group wears swaps the two. Colours never sync, and reordering
   groups does not repaint them. Past nine groups, colours repeat.
+- The sidebar marks this device's "My group" with a star. On desktop computers each group row also shows the layer
+  its papers rest on, as a three-plate icon with the layer named in its tooltip; where the desktop cannot offer the
+  chosen layer, the icon shows the layer the papers fall back to and the tooltip names both.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group
   revision, so nothing syncs and no other device's edit of that group can conflict with it.
 - A group new to a computer starts at the back of that computer's desktop: the Wallpaper layer, or the Desktop layer

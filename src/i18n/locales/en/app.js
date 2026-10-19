@@ -93,6 +93,7 @@ export default {
   'app.groups.all': 'All groups',
   'app.groups.fallback': 'Group',
   'app.groups.none': 'None',
+  'app.groups.myGroupMark': 'My group',
   'app.groups.pendingSync': 'Group not synced yet',
   'app.groups.receiving': 'Receiving group',
   'app.groupEditor.newTitle': 'New group',

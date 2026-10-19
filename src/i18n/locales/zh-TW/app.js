@@ -93,6 +93,7 @@ export default {
   'app.groups.all': '所有群組',
   'app.groups.fallback': '群組',
   'app.groups.none': '不指定',
+  'app.groups.myGroupMark': '我的群組',
   'app.groups.pendingSync': '群組待同步',
   'app.groups.receiving': '接收群組',
   'app.groupEditor.newTitle': '新增群組',

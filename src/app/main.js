@@ -69,7 +69,12 @@ function button(text, action, className) {
   const node = element('button', text, className); node.type = 'button';
   node.addEventListener('click', event => { event.stopPropagation(); run(action); }); return node;
 }
-function status(text, error = false) { $('#status').textContent = text; $('#status').classList.toggle('error', error); }
+// A status can offer one follow-up, such as undoing a delete, which runs once; the next status takes it away.
+function status(text, error = false, action = null) {
+  $('#status').textContent = text; $('#status').classList.toggle('error', error);
+  const follow = $('#status-action'); follow.hidden = !action; follow.textContent = action?.label ?? '';
+  follow.onclick = action && (() => { follow.hidden = true; run(action.run); });
+}
 const textOf = text => typeof text === 'function' ? text() : text ?? '';
 // Text set outside the render functions keeps how it was built, so relocalize() can build it again in a new language.
 const shownText = new Map();
@@ -995,6 +1000,15 @@ async function changeCard(id, patch) {
   await controller.reconcile(); render(); status(t('app.status.savedLocally'));
 }
 
+// Deleting asks nothing: the status line offers to undo it, and Deleted keeps the note until it is restored.
+async function deleteCard(id) {
+  const deleted = await workspace.updateCard(id, { deleted: true }, currentCard(id).revision);
+  await controller.reconcile(); render();
+  status(t('app.status.deleted'), false, { label: t('app.status.undoDelete'), run: async () => {
+    await workspace.restoreCard(id, deleted.revision); render(); status(t('app.status.restored'));
+  } });
+}
+
 function groupEditor(group) {
   const dialog = element('dialog'); const form = element('form');
   const title = element('h2', group ? t('app.groupEditor.editTitle') : t('app.groupEditor.newTitle'));
@@ -1090,7 +1104,7 @@ function cardDetails(card) {
   dialog.append(groupLabel, ...handheld ? [] : [visibility]);
   const actions = element('div', undefined, 'dialog-actions');
   actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
-    button(t('app.card.delete'), async () => { await changeCard(card.id, { deleted: true }); dialog.close(); }),
+    button(t('app.card.delete'), async () => { await deleteCard(card.id); dialog.close(); }),
     button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
       if (select.value !== card.groupId) await controller.moveToGroup(card.id, select.value);
       if (!handheld) await workspace.layout.setCardPolicy(card.id, { visible: check.checked });

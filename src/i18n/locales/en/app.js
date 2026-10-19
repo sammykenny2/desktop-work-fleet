@@ -185,6 +185,8 @@ export default {
   'app.status.savedLocally': 'Saved locally',
   'app.status.noteSaved': 'Note saved locally',
   'app.status.restored': 'Restored',
+  'app.status.deleted': 'Moved to Deleted',
+  'app.status.undoDelete': 'Undo',
   'app.status.undone': 'Undone',
   'app.status.arranged': 'Arranged. You can undo this.',
   'app.status.movedToGroup': 'Moved to the new group. You can undo this.',

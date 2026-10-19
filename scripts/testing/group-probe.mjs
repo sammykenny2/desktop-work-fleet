@@ -144,7 +144,22 @@ try {
   await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
   await page.locator('#desktop-completed').check(); await page.locator('#close-settings').click();
   await expect(completed).toHaveClass(/completed/); assert.deepEqual(await completed.boundingBox(), completedBox);
+
+  // Deleting asks nothing; the status line offers to undo it, also in a phone-sized window, until the next status.
+  await page.locator('[data-view="list"]').click();
+  const survivor = page.locator('.note-row').filter({ hasText: 'Draft that survives the merge' });
+  await survivor.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click();
+  await expect(page.locator('#status')).toHaveText(t('app.status.deleted')); await expect(survivor).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const undoDelete = page.locator('#status-action');
+  await expect(undoDelete).toHaveText(t('app.status.undoDelete')); await expect(undoDelete).toBeInViewport();
+  // A double click runs the Undo once, so the second click cannot report the restored note as changed.
+  await undoDelete.dblclick(); await expect(page.locator('#status')).toHaveText(t('app.status.restored'));
+  await expect(undoDelete).toBeHidden(); await page.setViewportSize({ width: 1440, height: 1050 });
+  await expect(survivor).toHaveCount(1);
+  assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, fixed geometry, grid remapping and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

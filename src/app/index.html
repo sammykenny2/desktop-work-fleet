@@ -52,7 +52,7 @@
     <div id="stage-shell"><div id="stage" data-i18n-attr="aria-label:app.stage.label"></div><div id="empty" hidden><div class="empty-paper">&#xFF0B;</div><h2 data-i18n="app.empty.title"></h2><p data-i18n="app.empty.text"></p><button id="empty-add" class="primary" data-i18n="app.empty.add"></button></div></div>
     <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p></section>
     <section id="list" hidden></section>
-    <footer><span id="mode-label" data-arrange></span><span id="status" role="status" aria-live="polite"></span></footer>
+    <footer><span id="mode-label" data-arrange></span><span class="status-line" role="status" aria-live="polite"><span id="status"></span><button id="status-action" type="button" aria-describedby="status" hidden></button></span></footer>
     <button id="compose" class="primary" data-i18n-attr="aria-label:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>
   <dialog id="capture-inbox-dialog">

@@ -85,6 +85,8 @@ interface. To switch, see [Settings](#settings).
   from them. Search covers titles and the full text.
 - Completed notes stay on the desktop, marked as completed, unless this computer hides them (see "Show completed
   notes" below). Archiving or deleting takes a note off the desktop on every device.
+- "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
+  next message, and the note stays in Deleted until you restore it there.
 
 ## Desktop notes and layers
 

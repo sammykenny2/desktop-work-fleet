@@ -185,6 +185,8 @@ export default {
   'app.status.savedLocally': '已存本機',
   'app.status.noteSaved': '便箋已存本機',
   'app.status.restored': '已還原',
+  'app.status.deleted': '已移至刪除區',
+  'app.status.undoDelete': '復原',
   'app.status.undone': '已復原',
   'app.status.arranged': '排列已完成，可按復原還原',
   'app.status.movedToGroup': '已移至新群組，可按復原',

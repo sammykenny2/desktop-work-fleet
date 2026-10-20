@@ -87,7 +87,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
     } } },
     syncService: { sync: async options => { calls.push(['sync', options.force]); if (sync) await sync(); } },
-    syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, desktop: null,
+    syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null,
     document: { querySelectorAll: () => [] },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
@@ -116,6 +116,13 @@ test('background sync never requests unlock even when the vault is locked', asyn
   await f.invoke(false);
   assert.deepEqual(f.calls, ['flush', ['sync', false]]);
   assert.equal(textOf(f.states.at(-1)[1]), t('sync.status.paused'));
+});
+
+test('an open versions page holds syncing, because its choices name the versions it shows', async () => {
+  const f = syncFixture(); f.context.revisions = { busy: () => false };
+  await f.invoke(false); await f.invoke(true);
+  assert.deepEqual(f.calls, []);
+  assert.equal(f.context.syncBusy, false);
 });
 
 test('cancelled or timed-out unlock keeps notes paused and a later click can retry', async () => {

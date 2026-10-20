@@ -161,16 +161,21 @@ try {
   await expect(page.locator('#editor-group')).toHaveValue(a.id);
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
 
-  // A completed paper stays on the desktop until this device hides completed papers, and comes back to the same place.
+  // A completed paper leaves the desktop until this device shows completed papers, and comes back to the same place.
   await page.locator('[data-view="list"]').click();
   await page.locator('.note-row').filter({ hasText: 'Original group note' })
     .getByRole('button', { name: t('app.notes.markCompleted'), exact: true }).click();
   await page.locator('[data-view="desktop"]').click();
   const completed = page.locator('.card').filter({ hasText: 'Original group note' });
-  await expect(completed).toHaveClass(/completed/); const completedBox = await completed.boundingBox();
-  const beforeHiding = await read(); assert.equal(beforeHiding.layout.completedVisible, undefined);
+  await expect(completed).toHaveCount(0); assert.equal((await read()).layout.completedVisible, undefined);
   await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
-  await expect(page.locator('#desktop-completed')).toBeChecked(); await page.locator('#desktop-completed').uncheck();
+  await expect(page.locator('#desktop-completed')).not.toBeChecked(); await page.locator('#desktop-completed').check();
+  await expect.poll(async () => (await read()).layout.completedVisible).toBe(true);
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  await expect(completed).toHaveClass(/completed/); const completedBox = await completed.boundingBox();
+  const beforeHiding = await read();
+  await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
+  await page.locator('#desktop-completed').uncheck();
   await expect.poll(async () => (await read()).layout.completedVisible).toBe(false);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await expect(completed).toHaveCount(0); await expect(page.locator('.card')).toHaveCount(1);

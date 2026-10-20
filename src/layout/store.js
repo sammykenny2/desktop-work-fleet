@@ -264,7 +264,7 @@ export class LayoutStore {
 
   /**
    * Resets this device's desktop layout: default group regions in the current group order, no placements or undo
-   * history, papers shown, completed papers included, every group on the given back layer (the desktop layer when none
+   * history, papers shown, completed papers hidden, every group on the given back layer (the desktop layer when none
    * is given) and no highlighted group. Shortcuts, group colours and the device identity stay. Callers re-place papers
    * with placeNew afterwards; a crash in between leaves papers unplaced, which the start-up placeNew already repairs.
    */

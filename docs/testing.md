@@ -453,8 +453,8 @@ the sidebar following the regions and reordering them by mouse drag and Alt+arro
 toast naming the keys that changed group,
 a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
-group settings with the name unchanged records no revision, that "Show completed notes" hides a completed paper and
-brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also
+group settings with the name unchanged records no revision, that "Show completed notes" starts off, shows a completed
+paper when turned on, and hides it and brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also
 in a 390 px window.
 It does not drag the touch grip; dragging the grip in the 390 px drawer was checked once with Edge touch emulation (2026-10-20).
 After saving from the editor, the browser probe waits for the modal editor to close before it types into the search

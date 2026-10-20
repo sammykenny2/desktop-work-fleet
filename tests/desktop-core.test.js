@@ -483,11 +483,12 @@ test('C45/C46: hidden cards stay hidden and exit uses current resident policy', 
   assert.equal(policy.visible, false); assert.equal(policy.layer, 'floating'); assert.equal(policy.editing, false);
 });
 
-test('C45: completed papers stay on the desktop until this device hides them, and hidden ones take part in nothing', async () => {
+test('C45: completed papers leave the desktop unless this device shows them, and hidden ones take part in nothing', async () => {
   const f = await fixture(); const card = id => f.workspace.snapshot.cards.find(item => item.id === id);
   const visible = id => cardPolicy(card(id), f.workspace.layout.state, f.controller.state).visible;
   await f.workspace.updateCard(f.b1.id, { completed: true }, f.b1.revision);
-  assert.equal(f.workspace.layout.state.completedVisible, undefined); assert.equal(visible(f.b1.id), true);
+  assert.equal(f.workspace.layout.state.completedVisible, undefined); assert.equal(visible(f.b1.id), false, 'a fresh device hides completed papers');
+  await f.workspace.layout.configure({ completedVisible: true }, f.workspace.snapshot); assert.equal(visible(f.b1.id), true);
   const shownPlan = plan(f); assert.ok(shownPlan.changes[f.b1.id], 'a shown completed paper is arranged like any other');
   await f.controller.activate({ kind: 'all' }); assert.equal(await f.controller.beginEdit(f.b1.id), true);
   await rejectsCode(f.workspace.layout.configure({ completedVisible: 'no' }, f.workspace.snapshot), 'invalid-setting');
@@ -506,8 +507,8 @@ test('C45: completed papers stay on the desktop until this device hides them, an
   await f.workspace.updateCard(f.a1.id, { completed: false }, card(f.a1.id).revision); assert.equal(visible(f.a1.id), true);
   await f.workspace.layout.reset(f.workspace.snapshot, area);
   assert.ok(f.workspace.layout.state.placements[f.b1.id] === undefined && f.workspace.layout.state.completedVisible === undefined,
-    'resetting the desktop layout shows completed papers again');
-  await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas); assert.equal(visible(f.b1.id), true);
+    'resetting the desktop layout hides completed papers again');
+  await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas); assert.equal(visible(f.b1.id), false);
 });
 
 test('formation refuses previews after a new card or a moved card', async () => {

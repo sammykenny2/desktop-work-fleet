@@ -95,8 +95,8 @@ interface. To switch, see [Settings](#settings).
 - The filters "To do", "Completed", "Archived" and "Deleted" show the notes in each state, and you can restore notes
   from them. Search covers titles and the full text. Its field sits next to the views, or in the top bar when the
   window is too narrow; on phones it opens from the magnifier at the top right.
-- Completed notes stay on the desktop, marked as completed, unless this computer hides them (see "Show completed
-  notes" below). Archiving or deleting takes a note off the desktop on every device.
+- Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
+  are marked as completed. Archiving or deleting takes a note off the desktop on every device.
 - "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
   next message, and the note stays in Deleted until you restore it there.
 
@@ -120,9 +120,9 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   does not pass through them. The Wallpaper layer always lets the mouse pass through.
 - "Show notes while locked" in Settings > Desktop must be on for notes to stay on the desktop while Locked. When it is
   off, notes appear on the desktop only while you adjust them.
-- "Show completed notes" in Settings > Desktop is on at first. When it is off, completed notes leave this computer's
-  desktop, also while you adjust, and return to their old places when you turn it on again or move them back to To do.
-  Each computer keeps its own choice, and "Reset desktop layout" turns it back on.
+- "Show completed notes" in Settings > Desktop is off at first. While it is off, completed notes leave this computer's
+  desktop, also while you adjust, and return to their old places when you turn it on or move them back to To do.
+  Each computer keeps its own choice, and "Reset desktop layout" turns it back off.
 - In the Windows Explorer desktop, the Wallpaper layer attaches below the desktop icons. macOS offers the same
   controls with three AppKit layers; Linux layer-shell uses three native bands.
 - pcmanfm desktops draw the wallpaper and the icons on the same surface, so notes cannot go below the icons and there

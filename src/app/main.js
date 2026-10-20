@@ -1633,7 +1633,7 @@ function setHostPreference(name, input) {
 function renderDesktopSettings() {
   renderDisplaySetting(); renderHostSettings();
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
-  $('#desktop-completed').checked = layout.completedVisible !== false;
+  $('#desktop-completed').checked = layout.completedVisible === true;
   settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
   previewGrid();

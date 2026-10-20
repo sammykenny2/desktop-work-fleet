@@ -47,9 +47,9 @@ export const containsRect = (outer, inner) => inner.x >= outer.x && inner.y >= o
   && inner.x + inner.width <= outer.x + outer.width + 0.001
   && inner.y + inner.height <= outer.y + outer.height + 0.001;
 
-// A completed paper stays on the desktop, marked as completed, unless this device hides completed papers.
+// A completed paper leaves the desktop unless this device shows completed papers; then it stays, marked as completed.
 export function eligible(card, layout) {
-  return !card.deleted && !card.archived && (!card.completed || layout.completedVisible !== false)
+  return !card.deleted && !card.archived && (!card.completed || layout.completedVisible === true)
     && layout.placements[card.id]?.visible !== false;
 }
 

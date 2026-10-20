@@ -335,7 +335,7 @@ committed.
 |---|---|
 | Desktop display (master) | Whether desktop notes are shown at all; turning it off does not delete content |
 | Per-card display set | Which cards take part in this device's desktop presentation |
-| Completed cards | Whether this device's desktop presentation includes completed cards; on by default, kept per device, never synced |
+| Completed cards | Whether this device's desktop presentation includes completed cards; off by default, kept per device, never synced |
 | Resident system layer | Candidate capabilities such as Desktop, Wallpaper and resident floating; actual support must be reported per platform |
 | Operation scope | Which group, or all, can be dragged temporarily and floats above ordinary apps |
 | Read-only text selection | If offered, accepts mouse text selection without changing text; cannot be enabled together with full click-through |
@@ -350,10 +350,10 @@ Q03); do not assume that it is all removed or copied as is.
 
 - Deleted, archived or explicitly hidden cards, and completed cards while this device hides them, are not pinned back
   onto the desktop by a group shortcut.
-- Completed cards stay on the desktop, marked as completed, until this device turns off showing completed cards. Then
-  they leave this desktop as archived cards do: no formation, group key or adjust mode includes them, and they keep
-  their placement for when they are shown again or marked To do. Turning the setting on or off records no shared
-  revision, and resetting the desktop layout turns it back on.
+- Completed cards leave this desktop as archived cards do until this device turns on showing completed cards: no
+  formation, group key or adjust mode includes them, and they keep their placement for when they are shown or marked
+  To do. Shown, they stay on the desktop marked as completed. Turning the setting on or off records no shared
+  revision, and resetting the desktop layout turns it back off.
 - With desktop display off, explicitly calling up a group works as a temporary operation summon: only that group's
   cards that were eligible for the desktop are shown, and they are hidden again afterwards; the master switch is not
   turned on permanently. If the set is empty, a reachable management entry is offered instead of silently doing nothing.

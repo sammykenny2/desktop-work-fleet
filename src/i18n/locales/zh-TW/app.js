@@ -17,7 +17,7 @@ export default {
   'app.search.open': '搜尋',
   'app.search.close': '結束搜尋',
 
-  // Adjust position in the view bar, the adjust bar and the desktop stages
+  // Adjust position in the sidebar, the adjust bar and the desktop stages
   'app.toolbar.label': '調整便箋',
   'app.toolbar.adjust': '調整',
   'app.toolbar.thisGroup': '此組',

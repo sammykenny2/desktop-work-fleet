@@ -38,6 +38,10 @@ try {
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('.card-summary')).toHaveText('First thing');
+  // Adjust position sits at the foot of the sidebar; the view bar holds only filters and views, and search ends the top bar.
+  assert.equal(await page.locator('#sidebar .adjust-entry').count(), 1);
+  assert.equal(await page.locator('.view-bar .search, .view-bar .adjust-entry').count(), 0);
+  assert.equal(await page.locator('.top-actions > :not([hidden])').evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).at(-1)?.className), 'search');
   await page.getByRole('button', { name: t('app.toolbar.adjustAll'), exact: true }).click();
   await expect(page.locator('.card')).toHaveClass(/operable/);
   await page.locator('.card-summary').dblclick();
@@ -70,9 +74,11 @@ try {
   // The drop re-renders the stage once its layout commit lands; measure the settled paper, not the one being replaced.
   await expect(paper).not.toHaveClass(/dragging/);
   const moved = await paper.boundingBox();
-  // Adjust mode lays its bar over the filters, search and views; Done gives them back without moving a paper.
-  await expect(page.locator('.view-filters')).toBeHidden();
+  // Adjust mode lays its bar over the filters and views and holds search, which would swap the canvas for the list;
+  // Done gives them back without moving a paper and hands focus to the sidebar entry.
+  await expect(page.locator('.view-filters')).toBeHidden(); await expect(page.locator('#search')).toBeDisabled();
   await page.locator('#stop-operation').click(); await expect(page.locator('#adjust-bar')).toBeHidden();
+  await expect(page.locator('#operate-group')).toBeFocused();
   assert.deepEqual(await paper.boundingBox(), moved, 'leaving adjust mode keeps the paper in place');
   for (const filter of ['completed', 'archived', 'deleted']) {
     await page.locator(`[data-filter="${filter}"]`).click();
@@ -214,7 +220,7 @@ try {
   await page.locator('#keep-draft').click();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   // The view bar gives way by measuring its row: from the desktop apps' default 1180 px down, nothing overlaps and no
-  // filter is cut off, and a narrow window moves search up to the top bar.
+  // filter is cut off, and search stays in the top bar.
   const viewBarFits = () => page.evaluate(() => {
     const box = selector => document.querySelector(selector).getBoundingClientRect(); const filters = document.querySelector('.view-filters');
     return filters.scrollWidth <= filters.clientWidth + 1 && box('.view-filters').right <= box('.view-tools').left + 1
@@ -230,6 +236,13 @@ try {
   await expect(page.locator('#drafts-button')).not.toBeInViewport(); await page.locator('#drawer-toggle').click();
   await expect(page.locator('#drafts-button')).toBeVisible();
   await expect(page.locator('#settings-button')).toBeVisible();
+  // Adjust position lives in the drawer on phones; choosing it closes the drawer onto the canvas and its adjust bar.
+  await page.locator('#operate-group').click(); await expect(page.locator('#adjust-bar')).toBeVisible();
+  await expect(page.locator('#sidebar')).not.toBeInViewport(); await expect(page.locator('#stop-operation')).toBeFocused();
+  await expect(page.locator('#search-toggle')).toBeDisabled();
+  await page.locator('#stop-operation').click(); await expect(page.locator('#adjust-bar')).toBeHidden();
+  await expect(page.locator('.view-switch [aria-pressed="true"]')).toBeFocused();
+  await page.locator('#drawer-toggle').click();
   await page.locator('#drafts-button').click();
   await expect(page.locator('#draft-list')).toContainText('Important draft still being written');
   await page.locator('#close-drafts').click();

@@ -3,7 +3,7 @@
 > UI terms (2026-10-06): the "everyday" state in this document is called "Locked" in the UI, and "operation scope /
 > operate this group" is called "adjust mode / Adjust this group"; the exit button is "Done". Since 2026-10-20 the
 > main window shows the entry as "Adjust" with "This group" and "All" (the full names stay as their
-> accessible names), and adjust mode replaces the view bar with an adjust bar. Changing text is still
+> accessible names) at the foot of the sidebar, and adjust mode replaces the view bar with an adjust bar. Changing text is still
 > called "Edit". The resident layers, from back to front, are "Wallpaper layer / Desktop layer / Top layer" (internally
 > `wallpaper` / `desktop` / `floating`). Internal code names (`operationScope` and others) are unchanged.
 

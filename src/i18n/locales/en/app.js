@@ -17,7 +17,7 @@ export default {
   'app.search.open': 'Search',
   'app.search.close': 'Close search',
 
-  // Adjust position in the view bar, the adjust bar and the desktop stages
+  // Adjust position in the sidebar, the adjust bar and the desktop stages
   'app.toolbar.label': 'Adjust notes',
   'app.toolbar.adjust': 'Adjust',
   'app.toolbar.thisGroup': 'This group',

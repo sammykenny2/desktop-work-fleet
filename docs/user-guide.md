@@ -15,7 +15,7 @@ interface. To switch, see [Settings](#settings).
 
 - You can record notes offline without a Google account: the app starts with Local notes, which stay on this device.
   To sync across devices, sign in to Google later (see [Google sign-in and sync](#google-sign-in-and-sync)).
-- "Capture" at the top right of the main window opens the editor for a new note in the group you are viewing. Settings
+- "Capture" in the top bar, next to search, opens the editor for a new note in the group you are viewing. Settings
   opens from the gear at the bottom left of the sidebar, or with Ctrl+, (Command+, on macOS).
 - On narrow screens and phones the sidebar folds into a drawer that the button at the top left opens, and you add a
   note with the plus button at the bottom right.
@@ -93,8 +93,8 @@ interface. To switch, see [Settings](#settings).
     arrange them there (see [Browser preview](#browser-preview)).
   - Phones have no third view.
 - The filters "To do", "Completed", "Archived" and "Deleted" show the notes in each state, and you can restore notes
-  from them. Search covers titles and the full text. Its field sits next to the views, or in the top bar when the
-  window is too narrow; on phones it opens from the magnifier at the top right.
+  from them. Search covers titles and the full text. Its field ends the top bar; on phones it opens from the
+  magnifier at the top right.
 - Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
   are marked as completed. Archiving or deleting takes a note off the desktop on every device.
 - "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
@@ -137,13 +137,12 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 
 ## Adjust mode and arranging
 
-- Notes are normally Locked, and you cannot change their text. Under "Adjust" at the right of the view bar, press "This
-  group" or "All" to enter adjust mode: click selects a note, double-click edits it in place. "Done" returns to
-  Locked. When the window is too narrow for the whole row, "Adjust" shows only in the "Desktop" (or "Layout map")
-  view.
+- Notes are normally Locked, and you cannot change their text. Under "Adjust" at the bottom of the sidebar, press
+  "This group" (the group selected above it) or "All" to enter adjust mode: click selects a note, double-click edits
+  it in place. "Done" returns to Locked. In a narrow window "Adjust" is in the drawer, and search waits until "Done".
 - While you adjust, the view bar turns into a dark adjust bar that names what you are adjusting and has "Bring to
   front" (‹ › brings the previous or next note of the group to the front), "Stack", "Spread", "Undo" and "Done". The
-  filters, search and views come back after "Done". In the browser preview, adjusting from the board or the list
+  filters and views come back after "Done". In the browser preview, adjusting from the board or the list
   switches to the "Desktop" canvas.
 - In the desktop apps, adjust mode covers the screen with a translucent overlay that has "Adjust position", "Stack",
   "Spread", "Undo" and "Done" at the top. When you enter it, the main window is minimized first only if it has the

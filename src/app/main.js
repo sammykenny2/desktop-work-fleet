@@ -972,6 +972,9 @@ function render() {
   const scope = controller.state.operationScope; const adjusting = scope.kind !== 'none';
   $('main').classList.toggle('adjusting', adjusting); $('main').classList.toggle('desktop-shown', view === 'desktop');
   $('#adjust-bar').hidden = handheld || !adjusting; $('#stop-operation').hidden = !adjusting;
+  // Search would swap the canvas being adjusted for the list, so it waits until Done. Desktop hosts adjust on the
+  // desktop itself and keep it.
+  const canvasAdjust = adjusting && !desktopInfo; $('#search').disabled = canvasAdjust; $('#search-toggle').disabled = canvasAdjust;
   $('#mode-label').textContent = !adjusting ? '' : scope.kind === 'all' ? t('app.mode.adjustingAll')
     : t('app.mode.adjustingGroup', { group: groupName(groups.find(group => group.id === scope.groupId)) || t('app.groups.fallback') });
   const desktopLabel = desktopInfo ? t('app.views.layoutMap') : t('app.views.desktop');
@@ -1781,7 +1784,7 @@ function setDrawer(open) {
 // covers the view switch until Done.
 function showCanvas() {
   if (desktopInfo || handheld || controller.state.operationScope.kind === 'none') return;
-  showDesktop = true; filter = 'active'; if ($('#search').value) setSearching(false);
+  showDesktop = true; filter = 'active'; if ($('#search').value || $('.topbar').classList.contains('searching')) setSearching(false);
 }
 // Auto margins take only free space, so counting them never makes a fitting row look too wide.
 function rowFits(row) {
@@ -1791,27 +1794,23 @@ function rowFits(row) {
     + px(style.columnGap) * Math.max(0, items.length - 1) + px(style.paddingLeft) + px(style.paddingRight);
   return needed <= row.clientWidth + 1;
 }
-// The view bar gives way only as far as its row does not fit, which depends on the language and the window: view names
-// go first, then the Adjust label, then search moves up to the top bar, and last Adjust position is left to the Desktop
-// view, which needs no filters. Phones always keep search behind the app bar button. A field being typed in stays put.
+// A bar that does not fit its row, which depends on the language and the window, drops its labels: the view bar its
+// view names, the adjust bar its Bring to front label. The name of what is adjusted shortens on its own.
 function fitBars() {
-  const bar = $('.view-bar'); const search = $('.search'); const typing = search.contains(document.activeElement);
-  const placeSearch = up => {
-    if (typing || search.parentElement === (up ? $('.top-actions') : $('.view-tools'))) return;
-    if (up) $('#search-toggle').before(search); else $('.view-tools').prepend(search);
-  };
-  bar.classList.remove('compact', 'tight', 'slim'); placeSearch(narrow.matches);
-  for (const step of [() => bar.classList.add('compact'), () => bar.classList.add('tight'), () => placeSearch(true), () => bar.classList.add('slim')]) {
-    if (rowFits(bar)) break;
-    step();
-  }
-  // The adjust bar drops its Bring to front label first; the name of what is adjusted shortens on its own.
+  const bar = $('.view-bar'); bar.classList.remove('compact');
+  if (!rowFits(bar)) bar.classList.add('compact');
   const adjust = $('#adjust-bar'); adjust.classList.remove('tight');
   if (!adjust.hidden && !rowFits(adjust)) adjust.classList.add('tight');
 }
-// Entering or leaving adjust mode hides the control that had focus; the control now in its place takes it.
+// The sidebar entry stays in place and keeps focus, except that the phone drawer closes onto the adjust bar, where
+// Done takes it. Leaving adjust mode hides the adjust bar, so a control that had focus there hands it to the entry in
+// the sidebar, or to the view switch while the phone drawer is closed.
 function handOverFocus(before) {
-  if (before?.closest?.('.adjust-entry, #adjust-bar')) ($('#stop-operation').hidden ? $('#operate-group') : $('#stop-operation')).focus();
+  const bar = $('#adjust-bar'); const inSidebar = () => $('#sidebar').contains(document.activeElement);
+  if (before?.closest?.('.adjust-entry')) { if (!bar.hidden && !inSidebar()) $('#stop-operation').focus(); return; }
+  if (!before?.closest?.('#adjust-bar') || !bar.hidden) return;
+  $('#operate-group').focus();
+  if (!inSidebar()) $('.view-switch [aria-pressed="true"]')?.focus();
 }
 function setSearching(on) {
   $('.topbar').classList.toggle('searching', on);
@@ -1891,9 +1890,10 @@ function bindEvents() {
     render();
   }); });
   document.querySelectorAll('[data-filter]').forEach(node => { node.onclick = () => { filter = node.dataset.filter; render(); }; });
-  const adjust = scope => run(async () => {
-    const before = document.activeElement; await controller.activate(scope); showCanvas(); render(); handOverFocus(before);
-  });
+  // A phone drawer closes onto the adjust bar before adjusting starts; closing moves the focus, so it is read first.
+  const adjust = scope => { const before = document.activeElement; setDrawer(false); run(async () => {
+    await controller.activate(scope); showCanvas(); render(); handOverFocus(before);
+  }); };
   $('#operate-group').onclick = () => adjust({ kind: 'group', groupId: activeGroupId });
   $('#operate-all').onclick = () => adjust({ kind: 'all' });
   $('#stop-operation').onclick = () => adjust({ kind: 'none' });

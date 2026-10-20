@@ -10,12 +10,11 @@ const element = (tag, text, className) => {
   return node;
 };
 
-/** Shared conflict/history UI. Every action checks the heads shown when this view was built. */
-export function showRevisionDialog({ workspace, storage, profileId, onChanged }) {
-  const dialog = element('dialog', undefined, 'revision-dialog'); dialog.id = 'revision-dialog';
-  const heading = element('h2', t('conflicts.title'));
+/** The Versions and conflicts page of Settings. Every action checks the heads shown when this view was built. */
+export function revisionPanel({ workspace, storage, profileId, onChanged }) {
+  const root = element('div', undefined, 'revision-panel'); root.id = 'revision-panel';
   const message = element('p', '', 'revision-message'); message.setAttribute('role', 'status');
-  const navigation = element('div', undefined, 'editor-tabs');
+  const navigation = element('div', undefined, 'editor-tabs revision-tabs');
   const body = element('div', undefined, 'revision-body');
   let busy = false; let view = 'conflicts'; let historyKey; const urls = [];
 
@@ -23,10 +22,11 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
     const button = element('button', label, className); button.type = 'button';
     button.onclick = async () => {
       if (busy) return;
-      busy = true; dialog.querySelectorAll('button,select').forEach(node => { node.disabled = true; });
+      busy = true; root.querySelectorAll('button,select').forEach(node => { node.disabled = true; });
       try { await callback(); message.textContent = ''; }
-      catch (error) { message.textContent = error.message; }
-      finally { busy = false; dialog.querySelectorAll('button,select').forEach(node => { node.disabled = false; }); }
+      // A refused choice may mean the versions changed, so the page shows them again under the reason.
+      catch (error) { render(); message.textContent = error.message; }
+      finally { busy = false; root.querySelectorAll('button,select').forEach(node => { node.disabled = false; }); }
     };
     return button;
   };
@@ -159,9 +159,7 @@ export function showRevisionDialog({ workspace, storage, profileId, onChanged })
     navigation.append(conflictTab, historyTab);
     if (view === 'conflicts') renderConflicts(); else renderHistory();
   }
-  const actions = element('div', undefined, 'dialog-actions'); actions.append(action(t('common.close'), async () => dialog.close()));
-  dialog.append(heading, navigation, message, body, actions); document.body.append(dialog);
-  dialog.oncancel = event => { if (busy) event.preventDefault(); };
-  dialog.addEventListener('close', () => { urls.forEach(url => URL.revokeObjectURL(url)); dialog.remove(); });
-  render(); dialog.showModal();
+  root.append(navigation, message, body); render();
+  // Settings keeps the page while a choice is being saved, and disposing frees downloaded attachments.
+  return { element: root, busy: () => busy, dispose() { for (const url of urls.splice(0)) URL.revokeObjectURL(url); } };
 }

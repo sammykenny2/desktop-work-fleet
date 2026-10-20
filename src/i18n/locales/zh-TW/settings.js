@@ -30,6 +30,9 @@ export default {
   'settings.data.keeps.localNotes': '這台裝置上的本機便箋',
   'settings.data.keeps.googleWorkspace': '這台裝置上的 Google 帳號工作空間',
 
+  // Versions and conflicts (the page's own text is in conflicts.js)
+  'settings.revisions.title': '版本與衝突',
+
   // Desktop
   'settings.desktop.title': '桌面',
   'settings.desktop.layerFallback.one': '{count} 張便箋設在{requested}，但這台電腦目前不支援，先放在{effective}。',

@@ -1,5 +1,4 @@
 export default {
-  'conflicts.title': 'Versions and conflicts',
   'conflicts.tab.conflicts': 'Needs attention',
   'conflicts.tab.history': 'Version history',
 

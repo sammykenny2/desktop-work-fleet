@@ -1,5 +1,4 @@
 export default {
-  'conflicts.title': '版本與衝突',
   'conflicts.tab.conflicts': '需要處理',
   'conflicts.tab.history': '版本歷史',
 

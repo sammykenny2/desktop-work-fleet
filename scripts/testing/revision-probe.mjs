@@ -2,7 +2,7 @@
 import { chromium, expect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { t } from '../../src/i18n/index.js';
+import { plural, t } from '../../src/i18n/index.js';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT\nSeeds synthetic local revisions; does not access Google.');
@@ -65,9 +65,12 @@ const seed = async kind => {
 try {
   const fixture = await seed('branches'); await open();
   const initial = await read(); const localRevision = initial.cards[0].revision;
-  await expect(page.locator('#conflict-count')).toHaveText('1');
+  // A conflict shows in the status bar and on its Settings page; the button opens that page.
+  await expect(page.locator('#conflict-count')).toHaveText(plural('app.conflicts.count', 1));
   await page.locator('#conflicts-button').click();
-  const dialog = page.locator('#revision-dialog'); await expect(dialog.locator('.revision-option')).toHaveCount(2);
+  await expect(page.locator('#settings-page-title')).toHaveText(t('settings.revisions.title'));
+  await expect(page.locator('#settings-conflict-count')).toHaveText('1');
+  const dialog = page.locator('#revision-panel'); await expect(dialog.locator('.revision-option')).toHaveCount(2);
   await expect(dialog).toContainText('local edit'); await expect(dialog).toContainText('deleted on another device');
   assert.equal(await dialog.locator('img').count(), 0); assert.equal(await page.evaluate(() => window.bad), undefined);
   const downloadEvent = page.waitForEvent('download');
@@ -76,7 +79,8 @@ try {
   assert.equal(download.suggestedFilename(), 'retained.html');
   assert.equal((await readFile(await download.path())).toString(), '<h1>download only</h1>');
   await dialog.locator('[data-revision-id="remote-version"]').getByRole('button', { name: t('conflicts.version.useDeleted') }).click();
-  await expect(page.locator('#conflict-count')).toHaveText('0'); await expect(dialog).toContainText(t('conflicts.list.none'));
+  await expect(page.locator('#conflicts-button')).toBeHidden(); await expect(page.locator('#settings-conflict-count')).toBeHidden();
+  await expect(dialog).toContainText(t('conflicts.list.none'));
   const resolved = await read(); assert.equal(resolved.cards[0].deleted, true);
   assert.deepEqual(resolved.drafts, initial.drafts); assert.deepEqual(resolved.layout.placements, initial.layout.placements);
   await dialog.getByRole('button', { name: t('conflicts.tab.history'), exact: true }).click();
@@ -85,25 +89,29 @@ try {
   const restored = await read(); assert.equal(restored.cards[0].content.text, 'local edit'); assert.equal(restored.cards[0].deleted, false);
   assert.deepEqual(restored.cards[0].content.extension, { keep: true });
   assert.deepEqual(restored.drafts, initial.drafts); assert.ok(restored.revisions.length > resolved.revisions.length);
-  await dialog.getByRole('button', { name: t('common.close'), exact: true }).click();
+  // The button that opened Settings is gone with the last conflict, so closing hands focus to the gear.
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-button')).toBeFocused();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('.card-summary')).toHaveText('local edit');
   await page.locator('#operate-all').click(); await page.locator('.card-summary').dblclick();
   await page.locator('.inline-editor').fill('typed before comparing versions');
   await page.locator('.inline-editor').dispatchEvent('compositionstart');
-  await page.locator('#conflicts-button').click(); await expect(page.locator('#revision-dialog')).toHaveCount(0);
-  await page.locator('.inline-editor').dispatchEvent('compositionend');
-  await page.locator('#conflicts-button').click(); await expect(page.locator('#revision-dialog')).toBeVisible();
+  // Version history stays in Settings without conflicts; it waits for the IME, then saves the edit as a draft first.
+  const versionsPage = async () => { await page.locator('#settings-button').click(); await page.locator('#settings-dialog [data-page="revisions"]').click(); };
+  await versionsPage(); await expect(page.locator('#revisions-host')).toHaveText(t('settings.data.finishInput'));
+  await page.locator('#close-settings').click(); await page.locator('.inline-editor').dispatchEvent('compositionend');
+  await versionsPage(); await expect(page.locator('#revision-panel')).toBeVisible(); await expect(page.locator('.inline-editor')).toHaveCount(0);
   assert.ok(Object.values((await read()).drafts).some(draft => draft.content.text === 'typed before comparing versions'));
-  await page.locator('#revision-dialog').getByRole('button', { name: t('common.close'), exact: true }).click();
+  await page.locator('#close-settings').click();
 
   const cyclic = await seed('cycle'); await page.setViewportSize({ width: 390, height: 844 }); await open();
   await expect(page.locator('#groups .group-row')).toHaveCount(0);
-  await page.locator('#drawer-toggle').click();
+  // Phones show the conflict in the status bar too, so the drawer button carries no dot for it.
+  await expect(page.locator('#attention-dot')).toBeHidden();
   await expect(page.locator('#conflicts-button')).toBeInViewport(); await page.locator('#conflicts-button').click();
-  await expect(page.locator('#revision-dialog')).toContainText(t('conflicts.groupReference.cycleTitle'));
+  await expect(page.locator('#revision-panel')).toContainText(t('conflicts.groupReference.cycleTitle'));
   await page.locator('[data-revision-id="retire-b"]').getByRole('button', { name: t('conflicts.version.restoreGroup') }).click();
-  await expect(page.locator('#conflict-count')).toHaveText('0');
+  await expect(page.locator('#conflicts-button')).toBeHidden();
   const repaired = await read(); assert.equal(repaired.cards[0].groupId, cyclic.b.id);
   assert.deepEqual(repaired.layout.placements, cyclic.state.layout.placements);
   assert.deepEqual(repaired.drafts, cyclic.state.drafts);
@@ -114,13 +122,13 @@ try {
   const sidebarOrder = await page.locator('#groups .group-name').allTextContents();
   assert.equal(sidebarOrder[0], 'Third group');
   await page.locator('#conflicts-button').click();
-  await expect(page.locator('#revision-dialog')).toContainText(t('conflicts.noteGroup.title'));
+  await expect(page.locator('#revision-panel')).toContainText(t('conflicts.noteGroup.title'));
   const picker = page.locator('[data-revision-id="lost-group"] select');
   assert.deepEqual(await picker.locator('option').allTextContents(), sidebarOrder);
   await picker.selectOption({ label: 'Third group' });
   await page.locator('[data-revision-id="lost-group"]').getByRole('button', { name: t('conflicts.version.keepAndMove') }).click();
-  await expect(page.locator('#conflict-count')).toHaveText('0');
+  await expect(page.locator('#conflicts-button')).toBeHidden();
   const moved = await read(); assert.equal(moved.cards[0].groupId, moved.layout.grid.slots[0]);
   assert.deepEqual(errors, []);
-  console.log('PASS: real-browser conflicts, HTML/attachments, delete/edit resolution, history restore, drafts/IME, mobile group-cycle recovery, missing-group picker in sidebar order.');
+  console.log('PASS: real-browser conflicts, HTML/attachments, delete/edit resolution, history restore, drafts/IME, status-bar entry into Settings, mobile group-cycle recovery, missing-group picker in sidebar order.');
 } finally { await context.close(); await browser.close(); }

@@ -133,8 +133,9 @@ dependencies, drafts can still be saved; input must not be lost because a rebase
 
 ### Comparison, resolution and history recovery
 
-"Versions and conflicts" offers pending items, history, attachment download, group recovery or choosing another group
-for a card, and retrying or cancelling unfinished group transfers.
+"Versions and conflicts", a Settings page that the main window's status bar opens while anything needs attention,
+offers pending items, history, attachment download, group recovery or choosing another group for a card, and retrying
+or cancelling unfinished group transfers.
 Adopting a revision and recovering history both check all heads seen in the preview; a stale decision is rejected and
 cannot consume a new branch that nobody has seen.
 Recovering history creates a new revision with all current heads as parents, keeping later content and drafts.

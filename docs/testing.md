@@ -466,8 +466,9 @@ After saving from the editor, the browser probe waits for the modal editor to cl
 box; without the wait the text is lost and a later check reads a stale title (2026-10-20). Keep this wait if the probe
 is edited.
 The revision probe verifies with synthetic data a two-version comparison, HTML text isolation and raw attachment bytes, delete/edit resolution,
-history restore, keeping drafts and geometry, the IME boundary, the group-cycle repair entry at 390 px when no group is active,
-and that moving a note whose group is missing offers the groups in the sidebar's order.
+history restore, keeping drafts and geometry, the IME boundary (the Settings page waits with a finish-input hint, then saves and
+closes the inline edit), the status-bar conflict button that opens the Settings page and hides once nothing is left (closing
+Settings then focuses the gear), the group-cycle repair at 390 px when no group is active with no drawer dot for conflicts, and that moving a note whose group is missing offers the groups in the sidebar's order.
 It injects versions through a core fixture and does not connect to Google; the screenshot is `build/revision-probe.png`.
 The sync probe connects FileSync to a synthetic FileStore in real Edge and IndexedDB and verifies that reservations reach disk,
 that reopening after a lost response reuses the same file ID, attachment verification and partition isolation, two-device branches and persistence after reopening; it is still not real Google.

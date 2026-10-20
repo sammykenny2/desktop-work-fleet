@@ -47,9 +47,11 @@ interface. To switch, see [Settings](#settings).
 
 ### Versions and conflicts
 
-- "Versions and conflicts" in the sidebar has two tabs, "Needs attention" and "Version history". There you compare
+- "Versions and conflicts" in Settings has two tabs, "Needs attention" and "Version history". There you compare
   branches, adopt a version ("Use this version"), download its attachments, restore earlier content ("Make this the
   current version") and resolve group merge cycles.
+- While something needs attention, the status bar at the bottom of the main window shows the number of conflicts;
+  select it to open that page. With nothing to resolve it does not appear.
 - Restoring creates a new version and keeps the later content; unfinished drafts can still be recovered. While
   several branches are unresolved, an ordinary save keeps the draft and tells you so.
 - When a group has no receiving target or there are more than nine groups, the data is kept and the app explains how
@@ -200,6 +202,7 @@ effect at once but do not rearrange existing notes.
   - The choice belongs to this device: it is not part of a backup or of Google data.
 - Account and sync: see [Google sign-in and sync](#google-sign-in-and-sync).
 - Data and backup: see [Backups and restore](#backups-and-restore).
+- Versions and conflicts: see [Versions and conflicts](#versions-and-conflicts).
 - Desktop (desktop apps and the browser preview; phones have no Desktop or Shortcuts page): "Show notes while
   locked", "Show completed notes", "My group", "Group regions" and "Reset desktop layout". The desktop apps also show
   "Startup", "Version and updates" and "Reset main window". On GNOME Wayland the page also has "Show desktop notes

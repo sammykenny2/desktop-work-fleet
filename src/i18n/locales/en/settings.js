@@ -30,6 +30,9 @@ export default {
   'settings.data.keeps.localNotes': 'the local notes on this device',
   'settings.data.keeps.googleWorkspace': "the Google account's workspace on this device",
 
+  // Versions and conflicts (the page's own text is in conflicts.js)
+  'settings.revisions.title': 'Versions and conflicts',
+
   // Desktop
   'settings.desktop.title': 'Desktop',
   'settings.desktop.layerFallback.one': "{count} note is set to the {requested}, which this computer doesn't support yet, so it shows on the {effective} for now.",

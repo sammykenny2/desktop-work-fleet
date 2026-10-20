@@ -7,8 +7,7 @@ export default {
   'app.sidebar.groups': 'All groups',
   'app.sidebar.groupsLabel': 'Groups',
   'app.sidebar.addGroup': 'Add group',
-  'app.sidebar.linksLabel': 'Drafts and versions',
-  'app.sidebar.conflicts': 'Versions and conflicts',
+  'app.sidebar.linksLabel': 'Drafts and share inbox',
   'app.sidebar.settingsTitle': 'Settings (Ctrl+,)',
   'app.sidebar.settingsTitleMac': 'Settings (⌘,)',
   'app.topbar.openSidebar': 'Open sidebar',
@@ -16,6 +15,10 @@ export default {
   'app.search.placeholder': 'Search notes…',
   'app.search.open': 'Search',
   'app.search.close': 'Close search',
+
+  // The status bar shows conflicts only while there are some
+  'app.conflicts.count.one': '{count} conflict',
+  'app.conflicts.count.other': '{count} conflicts',
 
   // Adjust position in the sidebar, the adjust bar and the desktop stages
   'app.toolbar.label': 'Adjust notes',

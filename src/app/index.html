@@ -19,7 +19,6 @@
     <nav class="sidebar-links" data-i18n-attr="aria-label:app.sidebar.linksLabel">
       <button id="drafts-button" hidden><bdi data-i18n="app.drafts.title"></bdi> <span id="draft-count">0</span></button>
       <button id="capture-inbox-button" hidden><bdi data-i18n="app.shareInbox.title"></bdi> <span id="capture-count">0</span></button>
-      <button id="conflicts-button"><bdi data-i18n="app.sidebar.conflicts"></bdi> <span id="conflict-count" hidden>0</span></button>
     </nav>
     <!-- Adjusting moves desktop papers whatever the view shows; This group is the group selected above. -->
     <div class="adjust-entry" role="group" data-arrange data-i18n-attr="aria-label:app.toolbar.adjust">
@@ -63,7 +62,8 @@
     <div id="stage-shell"><div id="stage" data-i18n-attr="aria-label:app.stage.label"></div><div id="empty" hidden><div class="empty-paper">&#xFF0B;</div><h2 data-i18n="app.empty.title"></h2><p data-i18n="app.empty.text"></p><button id="empty-add" class="primary" data-i18n="app.empty.add"></button></div></div>
     <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p></section>
     <section id="list" hidden></section>
-    <footer><span class="status-line" role="status" aria-live="polite"><span id="status"></span><button id="status-action" type="button" aria-describedby="status" hidden></button></span></footer>
+    <!-- Conflicts show only while there are some, apart from the passing status, and open their page in Settings. -->
+    <footer><button id="conflicts-button" type="button" hidden data-i18n-attr="title:settings.revisions.title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.9 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.5M12 17.5h.01"/></svg><span id="conflict-count"></span></button><span class="status-line" role="status" aria-live="polite"><span id="status"></span><button id="status-action" type="button" aria-describedby="status" hidden></button></span></footer>
     <button id="compose" class="primary" data-i18n-attr="aria-label:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
   </main>
   <!-- Outside main, which the phone drawer makes inert; empty and zero-sized when idle, so screen readers hear each fill. -->
@@ -108,6 +108,7 @@
         <button type="button" data-page="general"><span class="tile tile-general"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/></svg></span><span class="nav-label" data-i18n="settings.general.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <button type="button" data-page="account"><span class="tile tile-account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.2-3.6 4-5.3 7-5.3s5.8 1.7 7 5.3"/></svg></span><span class="nav-label" data-i18n="settings.account.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <button type="button" data-page="data"><span class="tile tile-data"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="5" rx="1.2"/><path d="M5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4"/></svg></span><span class="nav-label" data-i18n="settings.data.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="revisions"><span class="tile tile-revisions"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 13.2A7.5 7.5 0 1 0 6.7 6.7L4.5 8.9"/><path d="M4.5 4.7v4.2h4.2"/><path d="M12 8.2v4.1l2.8 1.7"/></svg></span><span class="nav-label" data-i18n="settings.revisions.title"></span><span id="settings-conflict-count" class="nav-count" hidden></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <button type="button" data-page="desktop" data-arrange><span class="tile tile-desktop"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg></span><span class="nav-label" data-i18n="settings.desktop.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <button type="button" data-page="shortcuts" data-arrange><span class="tile tile-shortcuts"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M7.5 14h9"/></svg></span><span class="nav-label" data-i18n="settings.shortcuts.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         </div>
@@ -135,6 +136,7 @@
             <p class="settings-note" id="account-detail" hidden></p>
           </section>
           <section class="settings-page" data-panel="data" hidden><div id="data-host"></div></section>
+          <section class="settings-page" data-panel="revisions" hidden><div id="revisions-host"></div></section>
           <section class="settings-page" data-panel="desktop" hidden>
             <p class="settings-note warn" id="desktop-note" hidden></p>
             <div class="settings-list">

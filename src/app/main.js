@@ -11,7 +11,7 @@ import { InteractionController, cardPolicy, sceneOrder } from '../interaction/co
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
-import { showRevisionDialog } from './conflicts.js';
+import { revisionPanel } from './conflicts.js';
 import { backupPanel } from './backup.js';
 import { AutomaticBackup } from '../backup/automatic.js';
 import { IndexedDbBackupJournal, BrowserAutomaticFiles } from '../backup/browser-automatic.js';
@@ -44,7 +44,7 @@ let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resol
 let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
 let lastVisibleArea;
-let settingsSlots = []; let settingsPage = null; let dataPanel = null;
+let settingsSlots = []; let settingsPage = null; let dataPanel = null; let revisions = null;
 let automatic; let automaticError; let browserJournal;
 let native; let nativeBackups; let stopAutomatic; let nativeClosing = false;
 let nativeFiles; let attachmentFiles;
@@ -362,14 +362,15 @@ function setSync(state, text, detail = '') {
   if (state === 'ok' || state === 'pending') loadGoogleProfile();
 }
 // The drawer hides the account chip and the sidebar links on phones, so their warnings show on the drawer button.
+// Conflicts show in the status bar, outside the drawer.
 function updateAttention() {
-  $('#attention-dot').hidden = !(workspace?.state.conflicts.length || captureCount || ['error', 'attention'].includes(syncState));
+  $('#attention-dot').hidden = !(captureCount || ['error', 'attention'].includes(syncState));
 }
 async function syncGoogle(force = false) {
   // Settings edits nothing a sync could overwrite and holds Sync now, so it does not hold syncing; a running backup or
-  // restore on its data page does.
+  // restore on its data page does, and so does the versions page, whose choices name the versions it shows.
   const settings = $('#settings-dialog');
-  if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync()
+  if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync() || revisions
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
   const sourceSync = syncService; const sourceProfile = profileId;
   const current = () => !nativeClosing && !accountBusy && syncService === sourceSync && profileId === sourceProfile;
@@ -1027,11 +1028,13 @@ async function arrangeDesktop(kind) {
   await controller.applyFormation(plan); render(); status(t('app.status.arranged')); return null;
 }
 
-// Drafts and the share inbox appear only when they hold something; version history stays reachable.
+// Drafts and the share inbox appear only when they hold something, and conflicts show in the status bar only while
+// there are some; version history stays in Settings.
 function renderCounts() {
   const draftCount = Object.keys(workspace.state.drafts).length; const conflictCount = workspace.state.conflicts.length;
   $('#draft-count').textContent = String(draftCount); $('#drafts-button').hidden = !draftCount;
-  $('#conflict-count').textContent = String(conflictCount); $('#conflict-count').hidden = !conflictCount; updateAttention();
+  $('#conflict-count').textContent = plural('app.conflicts.count', conflictCount); $('#conflicts-button').hidden = !conflictCount;
+  $('#settings-conflict-count').textContent = String(conflictCount); $('#settings-conflict-count').hidden = !conflictCount;
 }
 
 function renderStage(cards) {
@@ -1518,8 +1521,9 @@ function relocalize() {
   if ($('#settings-dialog').open) {
     renderLanguageSetting(); renderDesktopSettings(); renderShortcutSettings();
     $('#settings-page-title').textContent = settingsTitle(settingsPage);
-    // The data page is the backup panel's own markup, so an idle one is built again.
+    // The data and versions pages are their panels' own markup, so an idle one is built again.
     if (settingsPage === 'data' && dataPanel && !dataPanel.busy()) { dataPanel.dispose(); dataPanel = null; void run(mountDataPanel); }
+    if (settingsPage === 'revisions' && revisions && !revisions.busy()) { revisions.dispose(); revisions = null; void run(mountRevisions); }
   }
 }
 function openSettings(page = null) {
@@ -1529,9 +1533,10 @@ function openSettings(page = null) {
 }
 async function showSettingsPage(page) {
   if (page === null && !narrow.matches) page = settingsPage || 'account';
-  // A running backup or restore keeps its page; leaving would drop its progress.
-  if (dataPanel?.busy() && page !== 'data') return;
+  // A running backup or restore keeps its page, and so does a version being chosen; leaving would drop its progress.
+  if ((dataPanel?.busy() && page !== 'data') || (revisions?.busy() && page !== 'revisions')) return;
   if (page !== 'data') { dataPanel?.dispose(); dataPanel = null; }
+  if (page !== 'revisions') { revisions?.dispose(); revisions = null; }
   settingsPage = page; const dialog = $('#settings-dialog');
   dialog.classList.toggle('listing', page === null);
   for (const panel of dialog.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== page;
@@ -1544,6 +1549,21 @@ async function showSettingsPage(page) {
   // Region rows name the group in each region, which the Desktop page may just have changed.
   if (page === 'shortcuts') renderShortcutSettings();
   if (page === 'data' && !dataPanel) await mountDataPanel();
+  if (page === 'revisions' && !revisions) await mountRevisions();
+}
+// Choosing a version can rewrite the paper being edited, so any edit in progress is saved and closed first.
+async function mountRevisions() {
+  const host = $('#revisions-host');
+  if (editorBusy || composing) { host.replaceChildren(element('p', t('settings.data.finishInput'), 'hint')); return; }
+  if (currentDraft) await flushDraft();
+  if (!await controller.endEdit()) { host.replaceChildren(element('p', t('settings.data.finishInput'), 'hint')); return; }
+  currentDraft = null; render();
+  // Settings may have closed or moved to another page while the edit was being saved.
+  if (!$('#settings-dialog').open || settingsPage !== 'revisions') return;
+  revisions = revisionPanel({ workspace, storage, profileId, onChanged: async () => {
+    await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
+  } });
+  host.replaceChildren(revisions.element);
 }
 async function mountDataPanel() {
   const host = $('#data-host');
@@ -1552,6 +1572,8 @@ async function mountDataPanel() {
   if (currentDraft) await flushDraft();
   if (!await controller.endEdit()) { host.replaceChildren(element('p', t('settings.data.finishInput'), 'hint')); return; }
   currentDraft = null; controller.cancelDrag(); render();
+  // Settings may have closed or moved to another page while the edit was being saved.
+  if (!$('#settings-dialog').open || settingsPage !== 'data') return;
   dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic,
     automaticError: automaticError && t('settings.data.automaticOff', { error: automaticError.message }),
     files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
@@ -1841,13 +1863,22 @@ function bindEvents() {
     try { await changeLanguage($('#language').value); }
     catch (error) { renderLanguageSetting(); $('#language-message').textContent = error.message; $('#language-message').hidden = false; }
   });
-  for (const id of ['#close-settings', '#close-settings-list']) $(id).onclick = () => { if (!dataPanel?.busy()) settings.close(); };
+  for (const id of ['#close-settings', '#close-settings-list']) $(id).onclick = () => { if (!dataPanel?.busy() && !revisions?.busy()) settings.close(); };
   settings.addEventListener('cancel', event => {
     if (dataPanel?.busy()) { event.preventDefault(); dataPanel.abort(); return; }
+    if (revisions?.busy()) { event.preventDefault(); return; }
     // On phones, Back and Escape leave a page for the page list before closing.
     if (narrow.matches && settingsPage !== null) { event.preventDefault(); void showSettingsPage(null); }
   });
-  settings.addEventListener('close', () => { dataPanel?.dispose(); dataPanel = null; if (narrow.matches) settingsPage = null; });
+  settings.addEventListener('close', () => {
+    dataPanel?.dispose(); dataPanel = null; revisions?.dispose(); revisions = null; if (narrow.matches) settingsPage = null;
+    // Resolving the last conflict hides the status bar button that opened Settings, so once the browser has tried to
+    // return focus there, it goes to the gear instead, or to the view switch while the phone drawer hides the gear.
+    setTimeout(() => {
+      if (document.activeElement !== document.body || document.querySelector('dialog[open]')) return;
+      $('#settings-button').focus(); if (document.activeElement === document.body) $('.view-switch [aria-pressed="true"]')?.focus();
+    });
+  });
   $('#desktop-visible').onchange = () => applyLayout({ desktopVisible: $('#desktop-visible').checked });
   $('#desktop-completed').onchange = () => applyLayout({ completedVisible: $('#desktop-completed').checked });
   $('#display-xwayland').onchange = () => run(async () => {
@@ -1978,18 +2009,9 @@ function bindEvents() {
     if (!list.children.length) list.append(element('p', t('app.drafts.none'))); $('#drafts-dialog').showModal();
   };
   $('#close-drafts').onclick = () => $('#drafts-dialog').close();
-  $('#conflicts-button').onclick = () => run(async () => {
-    if (editorBusy || composing) return;
-    setEditorBusy(true);
-    try {
-      if (currentDraft) await flushDraft();
-      if (!await controller.endEdit()) return;
-      currentDraft = null; render();
-      showRevisionDialog({ workspace, storage, profileId, onChanged: async () => {
-        await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
-      } });
-    } finally { setEditorBusy(false); }
-  });
+  // The status bar shows conflicts only while there are some; the button opens their page in Settings, which waits for
+  // an input in progress.
+  $('#conflicts-button').onclick = () => run(() => openSettings('revisions'));
   const stage = $('#stage');
   // A double click lands while the first click is still saving the previous draft, so stage gestures run in order.
   let stageQueue = Promise.resolve();

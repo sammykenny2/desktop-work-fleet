@@ -7,8 +7,7 @@ export default {
   'app.sidebar.groups': '所有群組',
   'app.sidebar.groupsLabel': '群組',
   'app.sidebar.addGroup': '新增群組',
-  'app.sidebar.linksLabel': '草稿與版本',
-  'app.sidebar.conflicts': '版本與衝突',
+  'app.sidebar.linksLabel': '草稿與分享收件匣',
   'app.sidebar.settingsTitle': '設定（Ctrl+,）',
   'app.sidebar.settingsTitleMac': '設定（⌘,）',
   'app.topbar.openSidebar': '開啟側欄',
@@ -16,6 +15,10 @@ export default {
   'app.search.placeholder': '搜尋內容…',
   'app.search.open': '搜尋',
   'app.search.close': '結束搜尋',
+
+  // The status bar shows conflicts only while there are some
+  'app.conflicts.count.one': '{count} 個衝突',
+  'app.conflicts.count.other': '{count} 個衝突',
 
   // Adjust position in the sidebar, the adjust bar and the desktop stages
   'app.toolbar.label': '調整便箋',

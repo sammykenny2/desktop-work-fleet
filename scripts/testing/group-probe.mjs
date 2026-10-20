@@ -117,7 +117,7 @@ try {
   await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
   await page.locator('.inline-editor').dispatchEvent('compositionend');
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('.inline-editor')).toHaveCount(0);
-  await expect(page.locator('#mode-label')).toHaveText(t('app.mode.locked'));
+  await expect(page.locator('#adjust-bar')).toBeHidden(); await expect(page.locator('#stop-operation')).toBeHidden();
   await page.locator('#drafts-button').click(); await expect(page.locator('#draft-list')).toContainText('Kept through shortcut switching');
   await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');

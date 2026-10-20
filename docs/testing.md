@@ -443,7 +443,7 @@ as well as Google export with sync, the explicit choice after a failure, and can
 Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which needs
 `npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
 The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, inline editing on fixed papers,
-plain and Shift drag-and-drop, undo, search and filters not moving cards, the board and list views (square papers, no repeated titles, the selection kept after reopening),
+plain and Shift drag-and-drop, undo, the adjust bar covering the filters, search and views until Done and Done moving no paper, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px with search in the top bar when narrow, search and filters not moving cards, the board and list views (square papers, no repeated titles, the selection kept after reopening),
 multi-step draft operations, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).

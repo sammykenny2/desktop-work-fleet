@@ -4,7 +4,6 @@ export default {
   // Sidebar and top bar
   'app.sidebar.label': '側欄',
   'app.sidebar.tagline': '留住想法，開始下一步。',
-  'app.sidebar.capture': '＋ 記下想法',
   'app.sidebar.groups': '我的群組',
   'app.sidebar.groupsLabel': '群組',
   'app.sidebar.addGroup': '新增群組',
@@ -18,16 +17,19 @@ export default {
   'app.search.open': '搜尋',
   'app.search.close': '結束搜尋',
 
-  // Toolbar, adjust mode and the desktop stages
-  'app.toolbar.label': '便箋操作',
+  // Adjust position in the view bar, the adjust bar and the desktop stages
+  'app.toolbar.label': '調整便箋',
+  'app.toolbar.adjust': '調整',
+  'app.toolbar.thisGroup': '此組',
+  'app.toolbar.all': '全部',
   'app.toolbar.adjustGroup': '調整此組',
   'app.toolbar.adjustAll': '調整全部',
   'app.toolbar.previous': '上一張',
   'app.toolbar.next': '下一張',
+  'app.toolbar.cycle': '逐張置頂',
   'app.toolbar.stack': '堆疊',
   'app.toolbar.spread': '攤開',
   'app.toolbar.undo': '復原',
-  'app.mode.locked': '鎖定中',
   'app.mode.adjustingAll': '正在調整所有群組',
   'app.mode.adjustingGroup': '正在調整 {group}',
   'app.stages.wallpaper': '桌布層',

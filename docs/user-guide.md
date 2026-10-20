@@ -15,8 +15,8 @@ interface. To switch, see [Settings](#settings).
 
 - You can record notes offline without a Google account: the app starts with Local notes, which stay on this device.
   To sync across devices, sign in to Google later (see [Google sign-in and sync](#google-sign-in-and-sync)).
-- "+ Capture" in the sidebar opens the editor for a new note. Settings opens from the gear at the bottom left of the
-  sidebar, or with Ctrl+, (Command+, on macOS).
+- "Capture" at the top right of the main window opens the editor for a new note in the group you are viewing. Settings
+  opens from the gear at the bottom left of the sidebar, or with Ctrl+, (Command+, on macOS).
 - On narrow screens and phones the sidebar folds into a drawer that the button at the top left opens, and you add a
   note with the plus button at the bottom right.
 - A second independent window of the same profile is not allowed to write. Leaving the page while a save is in
@@ -26,7 +26,7 @@ interface. To switch, see [Settings](#settings).
 
 ## Notes and the editor
 
-- "+ Capture" opens the editor. It supports Markdown and checklists ("+ Checklist" adds a step, "Preview / checklist"
+- "Capture" opens the editor. It supports Markdown and checklists ("+ Checklist" adds a step, "Preview / checklist"
   shows the result), and "+ Attachment" attaches files of up to 25 MiB each.
 - "Title (optional)" can stay empty. With a title, the top of the paper shows it; without one, the paper shows the
   first line of the body. The body is always shown from its first line.
@@ -93,7 +93,8 @@ interface. To switch, see [Settings](#settings).
     arrange them there (see [Browser preview](#browser-preview)).
   - Phones have no third view.
 - The filters "To do", "Completed", "Archived" and "Deleted" show the notes in each state, and you can restore notes
-  from them. Search covers titles and the full text.
+  from them. Search covers titles and the full text. Its field sits next to the views, or in the top bar when the
+  window is too narrow; on phones it opens from the magnifier at the top right.
 - Completed notes stay on the desktop, marked as completed, unless this computer hides them (see "Show completed
   notes" below). Archiving or deleting takes a note off the desktop on every device.
 - "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
@@ -136,14 +137,20 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 
 ## Adjust mode and arranging
 
-- Notes are normally Locked, and you cannot change their text. Press "Adjust this group" or "Adjust all" to enter
-  adjust mode: click selects a note, double-click edits it in place. "Done" returns to Locked.
+- Notes are normally Locked, and you cannot change their text. Under "Adjust" at the right of the view bar, press "This
+  group" or "All" to enter adjust mode: click selects a note, double-click edits it in place. "Done" returns to
+  Locked. When the window is too narrow for the whole row, "Adjust" shows only in the "Desktop" (or "Layout map")
+  view.
+- While you adjust, the view bar turns into a dark adjust bar that names what you are adjusting and has "Bring to
+  front" (‹ › brings the previous or next note of the group to the front), "Stack", "Spread", "Undo" and "Done". The
+  filters, search and views come back after "Done". In the browser preview, adjusting from the board or the list
+  switches to the "Desktop" canvas.
 - In the desktop apps, adjust mode covers the screen with a translucent overlay that has "Adjust position", "Stack",
   "Spread", "Undo" and "Done" at the top. When you enter it, the main window is minimized first only if it has the
   focus, and it is restored when you finish
   ([ADR-042](decisions/042-adjust-overlay-on-every-desktop-host.md)).
-- In the main window, "Adjust this group" and "Adjust all" move the matching notes to the Top layer for the time
-  being; "Done" returns them to their group's layer.
+- In the main window, "This group" and "All" move the matching notes to the Top layer for the time being; "Done"
+  returns them to their group's layer.
 - Dragging only moves a note. It changes groups only when you drop it on another group's receiving label, or hold
   Shift and drop it into another group's region.
 - "Stack" and "Spread" (Arrange) show a preview first, and "Apply arrangement" applies it. Resizing notes has to be
@@ -380,8 +387,8 @@ separately ("Also restore desktop positions"), and importing new data does not m
 
 ### Phones
 
-- Phones have no desktop notes, so there is no layer option, no Desktop or Shortcuts page in Settings and no adjust
-  toolbar. The sidebar and the new-note button work as described in [Getting started](#getting-started).
+- Phones have no desktop notes, so there is no layer option, no Desktop or Shortcuts page in Settings and no Adjust
+  position controls. The sidebar and the new-note button work as described in [Getting started](#getting-started).
 
 ### Browser preview
 

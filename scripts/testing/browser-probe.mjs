@@ -21,7 +21,7 @@ page.on('pageerror', error => errors.push(error.message));
 try {
   await page.goto(base.href);
   await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  await page.getByRole('button', { name: t('app.sidebar.capture'), exact: true }).click();
+  await page.getByRole('button', { name: t('app.actions.capture'), exact: true }).click();
   await page.getByRole('textbox', { name: t('app.editor.textLabel'), exact: true }).fill('# First thing\n\nNotes to keep.\n\n- [ ] First step\n- [x] Finished step');
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
   await page.getByRole('button', { name: t('app.editor.previewTab'), exact: true }).click();
@@ -70,6 +70,10 @@ try {
   // The drop re-renders the stage once its layout commit lands; measure the settled paper, not the one being replaced.
   await expect(paper).not.toHaveClass(/dragging/);
   const moved = await paper.boundingBox();
+  // Adjust mode lays its bar over the filters, search and views; Done gives them back without moving a paper.
+  await expect(page.locator('.view-filters')).toBeHidden();
+  await page.locator('#stop-operation').click(); await expect(page.locator('#adjust-bar')).toBeHidden();
+  assert.deepEqual(await paper.boundingBox(), moved, 'leaving adjust mode keeps the paper in place');
   for (const filter of ['completed', 'archived', 'deleted']) {
     await page.locator(`[data-filter="${filter}"]`).click();
     await expect(page.locator('#stage-shell')).not.toBeVisible();
@@ -142,6 +146,7 @@ try {
   await firstPaper.locator('.card-summary').dblclick(); await expect(firstPaper.locator('.inline-editor')).toBeVisible();
   await secondPaper.locator('.card-summary').dblclick(); await expect(secondPaper.locator('.inline-editor')).toBeVisible();
   await secondPaper.locator('.inline-editor').press('Escape'); await expect(page.locator('.inline-editor')).toHaveCount(0);
+  await page.locator('#stop-operation').click();
 
   // An optional title heads the paper and is searchable, while the body still starts from its first line. A cleared title
   // is left out: the paper falls back to that line, and an editor holding nothing else keeps no draft.
@@ -208,6 +213,18 @@ try {
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
   await page.locator('#keep-draft').click();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  // The view bar gives way by measuring its row: from the desktop apps' default 1180 px down, nothing overlaps and no
+  // filter is cut off, and a narrow window moves search up to the top bar.
+  const viewBarFits = () => page.evaluate(() => {
+    const box = selector => document.querySelector(selector).getBoundingClientRect(); const filters = document.querySelector('.view-filters');
+    return filters.scrollWidth <= filters.clientWidth + 1 && box('.view-filters').right <= box('.view-tools').left + 1
+      && box('.view-tools').right <= box('.view-bar').right + 1;
+  });
+  for (const width of [1180, 1024, 700]) {
+    await page.setViewportSize({ width, height: 800 });
+    await expect.poll(viewBarFits, { message: `the view bar fits at ${width} px` }).toBe(true);
+  }
+  await expect(page.locator('.topbar .search')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   // Phones keep the sidebar in a drawer that opens only from the app bar button.
   await expect(page.locator('#drafts-button')).not.toBeInViewport(); await page.locator('#drawer-toggle').click();

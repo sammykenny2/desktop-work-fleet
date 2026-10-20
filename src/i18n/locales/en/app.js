@@ -4,7 +4,6 @@ export default {
   // Sidebar and top bar
   'app.sidebar.label': 'Sidebar',
   'app.sidebar.tagline': 'Keep the idea, take the next step.',
-  'app.sidebar.capture': '+ Capture',
   'app.sidebar.groups': 'My groups',
   'app.sidebar.groupsLabel': 'Groups',
   'app.sidebar.addGroup': 'Add group',
@@ -18,16 +17,19 @@ export default {
   'app.search.open': 'Search',
   'app.search.close': 'Close search',
 
-  // Toolbar, adjust mode and the desktop stages
-  'app.toolbar.label': 'Note actions',
+  // Adjust position in the view bar, the adjust bar and the desktop stages
+  'app.toolbar.label': 'Adjust notes',
+  'app.toolbar.adjust': 'Adjust',
+  'app.toolbar.thisGroup': 'This group',
+  'app.toolbar.all': 'All',
   'app.toolbar.adjustGroup': 'Adjust this group',
   'app.toolbar.adjustAll': 'Adjust all',
   'app.toolbar.previous': 'Previous note',
   'app.toolbar.next': 'Next note',
+  'app.toolbar.cycle': 'Bring to front',
   'app.toolbar.stack': 'Stack',
   'app.toolbar.spread': 'Spread',
   'app.toolbar.undo': 'Undo',
-  'app.mode.locked': 'Locked',
   'app.mode.adjustingAll': 'Adjusting all groups',
   'app.mode.adjustingGroup': 'Adjusting {group}',
   'app.stages.wallpaper': 'Wallpaper layer',

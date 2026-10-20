@@ -747,6 +747,7 @@ async function desktopAction(target, intent) {
     const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
     if (changed && target !== shortcutActions.all && target !== '@stop') activeGroupId = target;
     const adjusting = controller.state.operationScope.kind !== 'none';
+    if (changed) showCanvas();
     if (changed && desktop && target !== '@stop') {
       announce(target === shortcutActions.all ? null : target, adjusting ? t('app.stages.adjust')
         : target === shortcutActions.all ? t('app.desktop.backToLayers') : t('app.desktop.adjustDone'));
@@ -937,11 +938,11 @@ function render() {
   $('#workspace-title').textContent = notesShown ? groupName(groups.find(group => group.id === activeGroupId)) || t('app.groups.defaultName')
     : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
   renderCounts();
-  const scope = controller.state.operationScope;
-  $('#operate-all').classList.toggle('operating', scope.kind === 'all');
-  $('#operate-group').classList.toggle('operating', scope.kind === 'group');
-  $('#stop-operation').hidden = scope.kind === 'none';
-  $('#mode-label').textContent = scope.kind === 'none' ? t('app.mode.locked') : scope.kind === 'all' ? t('app.mode.adjustingAll')
+  // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.
+  const scope = controller.state.operationScope; const adjusting = scope.kind !== 'none';
+  $('main').classList.toggle('adjusting', adjusting); $('main').classList.toggle('desktop-shown', view === 'desktop');
+  $('#adjust-bar').hidden = handheld || !adjusting; $('#stop-operation').hidden = !adjusting;
+  $('#mode-label').textContent = !adjusting ? '' : scope.kind === 'all' ? t('app.mode.adjustingAll')
     : t('app.mode.adjustingGroup', { group: groupName(groups.find(group => group.id === scope.groupId)) || t('app.groups.fallback') });
   const desktopLabel = desktopInfo ? t('app.views.layoutMap') : t('app.views.desktop');
   $('#desktop-view-label').textContent = desktopLabel; $('[data-view="desktop"]').title = desktopLabel;
@@ -963,7 +964,7 @@ function render() {
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, withCompleted));
   $('#desktop-hidden').hidden = handheld || !hidden || filter !== 'active' || Boolean(query);
   $('#desktop-hidden-text').textContent = plural('app.desktopHidden.text', hidden);
-  desktop?.publish(); syncAdjustOverlay();
+  desktop?.publish(); syncAdjustOverlay(); fitBars();
 }
 
 // Where adjust mode is a modal overlay (every desktop host), a focused main window steps aside while it is on
@@ -1746,7 +1747,42 @@ function setDrawer(open) {
   if (open) ($('#groups .group-row.active button') || $('#sidebar button:not([hidden])'))?.focus();
   else if (leaving) $('#drawer-toggle').focus();
 }
-// Phones fold the search field into an app bar button.
+// Without desktop scenes the papers being adjusted are on this window's canvas, so adjust mode shows it; the adjust bar
+// covers the view switch until Done.
+function showCanvas() {
+  if (desktopInfo || handheld || controller.state.operationScope.kind === 'none') return;
+  showDesktop = true; filter = 'active'; if ($('#search').value) setSearching(false);
+}
+// Auto margins take only free space, so counting them never makes a fitting row look too wide.
+function rowFits(row) {
+  const items = [...row.children].filter(node => node.getClientRects().length && getComputedStyle(node).position !== 'absolute');
+  const style = getComputedStyle(row); const px = value => parseFloat(value) || 0;
+  const needed = items.reduce((sum, node) => { const own = getComputedStyle(node); return sum + node.scrollWidth + px(own.marginLeft) + px(own.marginRight); }, 0)
+    + px(style.columnGap) * Math.max(0, items.length - 1) + px(style.paddingLeft) + px(style.paddingRight);
+  return needed <= row.clientWidth + 1;
+}
+// The view bar gives way only as far as its row does not fit, which depends on the language and the window: view names
+// go first, then the Adjust label, then search moves up to the top bar, and last Adjust position is left to the Desktop
+// view, which needs no filters. Phones always keep search behind the app bar button. A field being typed in stays put.
+function fitBars() {
+  const bar = $('.view-bar'); const search = $('.search'); const typing = search.contains(document.activeElement);
+  const placeSearch = up => {
+    if (typing || search.parentElement === (up ? $('.top-actions') : $('.view-tools'))) return;
+    if (up) $('#search-toggle').before(search); else $('.view-tools').prepend(search);
+  };
+  bar.classList.remove('compact', 'tight', 'slim'); placeSearch(narrow.matches);
+  for (const step of [() => bar.classList.add('compact'), () => bar.classList.add('tight'), () => placeSearch(true), () => bar.classList.add('slim')]) {
+    if (rowFits(bar)) break;
+    step();
+  }
+  // The adjust bar drops its Bring to front label first; the name of what is adjusted shortens on its own.
+  const adjust = $('#adjust-bar'); adjust.classList.remove('tight');
+  if (!adjust.hidden && !rowFits(adjust)) adjust.classList.add('tight');
+}
+// Entering or leaving adjust mode hides the control that had focus; the control now in its place takes it.
+function handOverFocus(before) {
+  if (before?.closest?.('.adjust-entry, #adjust-bar')) ($('#stop-operation').hidden ? $('#operate-group') : $('#stop-operation')).focus();
+}
 function setSearching(on) {
   $('.topbar').classList.toggle('searching', on);
   // The label follows the state, and localizeDocument() puts the same one back after a language change.
@@ -1756,7 +1792,7 @@ function setSearching(on) {
   else if ($('#search').value) { $('#search').value = ''; render(); }
 }
 function bindEvents() {
-  setDrawer(false);
+  setDrawer(false); new ResizeObserver(fitBars).observe($('.view-bar'));
   narrow.addEventListener('change', () => { setDrawer(false); if ($('#settings-dialog').open) void showSettingsPage(settingsPage); });
   $('#drawer-toggle').onclick = () => setDrawer(true); $('#scrim').onclick = () => setDrawer(false);
   $('#sidebar').addEventListener('click', event => { if (event.target.closest('.sidebar-links button')) setDrawer(false); });
@@ -1825,9 +1861,12 @@ function bindEvents() {
     render();
   }); });
   document.querySelectorAll('[data-filter]').forEach(node => { node.onclick = () => { filter = node.dataset.filter; render(); }; });
-  $('#operate-group').onclick = () => run(async () => { await controller.activate({ kind: 'group', groupId: activeGroupId }); render(); });
-  $('#operate-all').onclick = () => run(async () => { await controller.activate({ kind: 'all' }); render(); });
-  $('#stop-operation').onclick = () => run(async () => { await controller.activate({ kind: 'none' }); render(); });
+  const adjust = scope => run(async () => {
+    const before = document.activeElement; await controller.activate(scope); showCanvas(); render(); handOverFocus(before);
+  });
+  $('#operate-group').onclick = () => adjust({ kind: 'group', groupId: activeGroupId });
+  $('#operate-all').onclick = () => adjust({ kind: 'all' });
+  $('#stop-operation').onclick = () => adjust({ kind: 'none' });
   $('#cycle-prev').onclick = () => run(() => { controller.cycle(activeGroupId, -1); render(); });
   $('#cycle-next').onclick = () => run(() => { controller.cycle(activeGroupId, 1); render(); });
   $('#stack').onclick = () => openFormation('stack'); $('#spread').onclick = () => openFormation('spread');
@@ -1966,11 +2005,12 @@ function bindEvents() {
     if (shortcut) {
       event.preventDefault();
       const admission = desktop && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });
-      run(async () => desktopAction(shortcut.target, (await admission).intent));
+      const before = document.activeElement;
+      run(async () => { await desktopAction(shortcut.target, (await admission).intent); handOverFocus(before); });
       return;
     }
     if (editControl) return;
-    if (event.key === 'Escape') { event.preventDefault(); run(async () => { await controller.escape(); render(); }); }
+    if (event.key === 'Escape') { event.preventDefault(); const before = document.activeElement; run(async () => { await controller.escape(); render(); handOverFocus(before); }); }
     // The main window has no paper to edit in place when real desktop scenes are connected.
     if (event.key === 'Enter' && controller.state.selectedCardId && !event.target.closest('button,a')) {
       event.preventDefault(); const card = currentCard(controller.state.selectedCardId);

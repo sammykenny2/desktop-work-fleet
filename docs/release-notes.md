@@ -7,6 +7,19 @@ that record is the GitHub Releases `windows-v<version>`, `linux-v<version>`, `ma
 `Platforms` lists the platforms whose version files carry the number and that were meant for distribution.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.4
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: The main window is easier to read: Capture sits in the top bar, search sits with the filters and views, and arranging tools appear in their own bar only while you adjust notes.
+
+- Capture moves from the sidebar to the top bar and adds to the group you are viewing; the sidebar now only lists places. Phones keep the floating button.
+- Search moves next to the filters and views. When a window is too narrow, view names and labels shorten first, then search moves up to the top bar.
+- "Adjust: This group | All" replaces the old toolbar. While you adjust, a dark bar like the desktop overlay covers the view bar with what is being adjusted, "Bring to front" (the old arrows, now labelled), Stack, Spread, Undo and Done.
+- The status line no longer shows a Locked light; the sync status keeps the only light.
+- In the browser preview, adjusting from the board or list switches to the Desktop canvas.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.3
 
 Platforms: Windows, Linux, macOS, Android.

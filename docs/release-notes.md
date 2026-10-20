@@ -7,6 +7,20 @@ that record is the GitHub Releases `windows-v<version>`, `linux-v<version>`, `ma
 `Platforms` lists the platforms whose version files carry the number and that were meant for distribution.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.5
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Search is back at the end of the top bar, Adjust sits at the foot of the sidebar, Versions and conflicts moves into Settings, and the sidebar shows your Google name and photo.
+
+- Search returns to the right end of the top bar, with Capture beside it; the view bar holds only the filters and the views. Phones keep the magnifier and the floating button.
+- "Adjust: This group | All" moves to the foot of the sidebar, where This group is the group selected above it; in a narrow window it is in the drawer. While the browser preview's canvas is being adjusted, search waits until Done.
+- "Versions and conflicts" is now a Settings page. While anything needs attention, the status bar shows the number of conflicts and opens that page; the sidebar entry and the drawer button's dot for conflicts are gone. Sync waits while the page is open.
+- Signed in with Google, the sidebar and the Account page show the account's name and photo, and the email address appears when you hover over the account. They are read with the existing Drive permission and kept in memory only; the privacy notice describes this.
+- The sidebar's group list is called "All groups", so it no longer shares a name with the "My group" setting.
+- Completed notes stay off the desktop unless this computer turns on "Show completed notes" in Settings > Desktop. Computers that never changed the setting now hide them as well, and "Reset desktop layout" turns it off again.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.4
 
 Platforms: Windows, Linux, macOS, Android.

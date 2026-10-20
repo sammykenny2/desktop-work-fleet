@@ -2,7 +2,7 @@
 
 English: [privacy.md](privacy.md)
 
-維護者：sammykenny2。聯絡方式：[sammykenny2@gmail.com](mailto:sammykenny2@gmail.com)。生效日期：2026-10-14。
+維護者：sammykenny2。聯絡方式：[sammykenny2@gmail.com](mailto:sammykenny2@gmail.com)。生效日期：2026-10-20。
 本文件是 GitHub 預覽版的公開隱私說明；商店提交仍需依實際 SDK 與散布產物核對各商店表單。
 
 Work Fleet 用於記錄便箋、待辦、草稿與附件。使用者可以只用本機工作空間，或主動登入 Google 以同步資料。
@@ -17,11 +17,13 @@ Work Fleet 用於記錄便箋、待辦、草稿與附件。使用者可以只用
 ## Google 同步
 
 登入與 Drive 授權由 Google／作業系統的原生流程處理。
-App 使用 Google 帳號的穩定識別碼區分工作空間，並以 email 顯示正在使用的帳號。
+App 使用 Google 帳號的穩定識別碼區分工作空間，並以帳號的姓名、頭像與 email 顯示正在使用的帳號。
+姓名與頭像取自 Google Drive 在 App 資料權限下已提供的帳號資訊，頭像圖片從 Google 的圖片伺服器（googleusercontent.com）下載；
+兩者只在 App 執行時保存在記憶體，下次啟動後再重新取得。
 登入資料不以便箋本文形式保存，也不納入便箋備份。
 
 啟用同步後，便箋、群組、附件及版本資料會傳到該帳號的 Google Drive App 資料空間。
-Google 接收 OAuth 與 Drive 請求所需的帳號／網路資訊；其資料處理適用 Google 的隱私政策。
+Google 接收 OAuth、Drive 與頭像圖片請求所需的帳號／網路資訊；其資料處理適用 Google 的隱私政策。
 Work Fleet 沒有自家便箋內容 server，不要求存取一般 Drive 資料夾。
 登出會中止本機同步並移除 App 保存的登入資料，已保存的便箋仍留在原帳號分區。
 

@@ -235,6 +235,9 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - Sign in from Settings > Account and sync in the native apps: press "Sign in" in the "Google account" row. The
   account area at the bottom left of the sidebar opens that page. The browser preview has no Google sign-in or sync
   and only keeps local data.
+- Once signed in, the account area shows the account's name and photo; on a computer, hover over it to see the email
+  address, which the "Google account" row also shows. Until the first sync reaches Google, for example when the app
+  starts offline, it shows the email address and its first letter.
 - Signing in does not send your existing Local notes or browser preview data automatically. How to move them, and the
   other account procedures, are in [Google setup](google-setup.md).
 - To overwrite everything in Google after signing in, use "Clear Google, then restore from the backup"; see

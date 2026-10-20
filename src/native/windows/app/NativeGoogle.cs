@@ -237,6 +237,7 @@ public sealed class NativeGoogle : IDisposable
         }
         case "google.changes": return await Json(PathQuery("/drive/v3/changes", ("pageToken", JsonRules.Text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", $"nextPageToken,newStartPageToken,changes(fileId,removed,file({Fields},mimeType))")), "changes");
         case "google.allocate": return await Json(PathQuery("/drive/v3/files/generateIds", ("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")));
+        case "google.profile": return await Profile();
         case "google.read":
         {
           var file = FileInfo(args.GetProperty("file"));
@@ -272,6 +273,37 @@ public sealed class NativeGoogle : IDisposable
     catch (HttpRequestException) { throw new HostError("network", "Couldn't connect to Google Drive. Local data and pending changes are kept."); }
     finally { gate.Release(); }
   }
+  // The account chip's name and photo: Drive's about.user needs no scope beyond app data. The photo is a public
+  // googleusercontent address, fetched without the access token; an unusable photo leaves only the name.
+  private async Task<object> Profile()
+  {
+    var about = await Json(PathQuery("/drive/v3/about", ("fields", "user(displayName,photoLink)")));
+    var user = about.ValueKind == JsonValueKind.Object && about.TryGetProperty("user", out var found) && found.ValueKind == JsonValueKind.Object ? found : default;
+    string? Field(string key) => user.ValueKind == JsonValueKind.Object && user.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString()!.Trim() : null;
+    var name = Field("displayName"); if (name is { Length: 0 or > 256 }) name = null;
+    var link = Field("photoLink");
+    return new { name, photo = link is null ? null : await Photo(link) };
+  }
+  private async Task<object?> Photo(string link)
+  {
+    if (link.Length > 2048 || !Uri.TryCreate(link, UriKind.Absolute, out var uri) || uri.Scheme != "https" || !Regex.IsMatch(uri.Host, "^lh[3-6]\\.googleusercontent\\.com$")
+      || uri.Port != 443 || uri.UserInfo.Length > 0 || uri.Fragment.Length > 0) return null;
+    try
+    {
+      using var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token); timeout.CancelAfter(TimeSpan.FromSeconds(20));
+      using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+      using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+      if (response.StatusCode != System.Net.HttpStatusCode.OK) return null;
+      var bytes = await Bounded(response, 128 * 1024, timeout.Token);
+      var type = ImageType(bytes); return type is null ? null : new { type, data = Convert.ToBase64String(bytes) };
+    }
+    catch (Exception error) when (error is HttpRequestException or IOException or HostError || error is OperationCanceledException && !lifetime.IsCancellationRequested) { return null; }
+  }
+  private static string? ImageType(byte[] b) =>
+    b.Length >= 8 && b.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }) ? "image/png"
+    : b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF ? "image/jpeg"
+    : b.Length >= 6 && Encoding.ASCII.GetString(b, 0, 6) is "GIF87a" or "GIF89a" ? "image/gif"
+    : b.Length >= 12 && Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && Encoding.ASCII.GetString(b, 8, 4) == "WEBP" ? "image/webp" : null;
   private static void ValidateMetadata(JsonElement metadata, (string Id, string Kind, string Digest, int Size) file)
   {
     var properties = metadata.GetProperty("appProperties");

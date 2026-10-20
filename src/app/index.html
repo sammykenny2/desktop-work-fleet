@@ -22,7 +22,7 @@
       <button id="conflicts-button"><bdi data-i18n="app.sidebar.conflicts"></bdi> <span id="conflict-count" hidden>0</span></button>
     </nav>
     <div id="account" class="account" data-sync="off">
-      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span></span><span class="account-text"><span id="account-name"></span><span id="sync-status"></span></span></button>
+      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span><img alt="" hidden></span><span class="account-text"><span id="account-name"></span><span id="sync-status"></span></span></button>
       <button id="settings-button" class="icon-button" data-i18n-attr="aria-label:settings.title;title:app.sidebar.settingsTitle"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
     </div>
   </aside>
@@ -124,7 +124,7 @@
             <p id="language-message" class="settings-note error" role="status" hidden></p>
           </section>
           <section class="settings-page" data-panel="account">
-            <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span></span><div><strong id="identity-name"></strong><p id="storage-note"></p></div></div>
+            <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span><img alt="" hidden></span><div><strong id="identity-name"></strong><p id="storage-note"></p></div></div>
             <div class="settings-list">
               <div class="settings-row" id="sync-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.row.label"></span><span class="row-value" id="sync-detail"></span></span><button type="button" id="google-sync"></button></div>
               <div class="settings-row" id="google-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.account.google"></span><span class="row-value" id="google-value"></span></span><span class="row-actions"><button type="button" id="google-sign-in" hidden></button><button type="button" id="google-sign-out" hidden data-i18n="sync.google.signOut"></button></span></div>

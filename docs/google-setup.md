@@ -24,7 +24,8 @@ and verification procedures and evidence are in [testing](testing.md) and the gi
    As of 2026-10-17 the consent screen is still in Testing. According to Google's documentation, refresh tokens issued in
    Testing expire after 7 days; publishing the app to production removes that limit.
 4. Data Access uses `openid`, `email` and `https://www.googleapis.com/auth/drive.appdata`.
-   Read and write access to the whole Drive is not needed.
+   Read and write access to the whole Drive is not needed. The name and photo in the sidebar come from Drive's
+   account information under the app data scope, so no `profile` scope is needed.
 5. Create the OAuth clients from the table below; put the client IDs in the root `.env`, then rebuild the app.
    All platforms must use the same project to reach the same app data space.
 

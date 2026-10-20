@@ -309,5 +309,61 @@ class VaultPause(unittest.TestCase):
         self.assertEqual(refreshes[0]["grant_type"], ["refresh_token"])
 
 
+class AccountDetails(unittest.TestCase):
+    """The account chip's name and photo come from Drive's about.user under the app data scope; the photo is fetched
+    from a pinned googleusercontent host without the access token, and an unusable photo leaves only the name."""
+    PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 24
+    LINK = "https://lh3.googleusercontent.com/a/synthetic=s64"
+
+    def details(self, user, photo_response=None):
+        g = google.Google(FakeVault(), {"google": {"clients": {}}}, "google:fixture", None)
+        g.token = lambda: "synthetic-access"
+        calls = []
+
+        def http(url, method="GET", data=None, headers=None, maximum=0, hosts=google.GOOGLE_HOSTS):
+            calls.append({"url": url, "headers": headers or {}, "hosts": hosts, "maximum": maximum})
+            if url.startswith("https://www.googleapis.com/drive/v3/about?"):
+                return 200, json.dumps({"user": user}).encode(), {}
+            if isinstance(photo_response, Exception):
+                raise photo_response
+            return photo_response
+        with patch.object(google, "http", http):
+            return g.invoke("google.profile", {"accountId": "fixture"}), calls
+
+    def test_name_and_photo_are_read_without_sending_the_token_to_the_photo_host(self):
+        result, calls = self.details({"displayName": "  Synthetic Person ", "photoLink": self.LINK}, (200, self.PNG, {}))
+        self.assertEqual(result, {"name": "Synthetic Person", "photo": {"type": "image/png", "data": google.base64.b64encode(self.PNG).decode()}})
+        about, photo = calls
+        self.assertEqual(parse_qs(about["url"].split("?", 1)[1])["fields"], ["user(displayName,photoLink)"])
+        self.assertEqual(about["headers"]["Authorization"], "Bearer synthetic-access")
+        self.assertEqual((photo["url"], photo["headers"], photo["hosts"], photo["maximum"]), (self.LINK, {}, google.PHOTO_HOSTS, 128 * 1024))
+
+    def test_unusable_photos_leave_the_name(self):
+        for link in ("http://lh3.googleusercontent.com/a/x", "https://evil.example/a.png", "https://lh3.googleusercontent.com.evil.example/a",
+                     "https://user@lh3.googleusercontent.com/a", "https://lh3.googleusercontent.com:8443/a", "https://lh3.googleusercontent.com/" + "a" * 2048):
+            result, calls = self.details({"displayName": "Synthetic", "photoLink": link}, (200, self.PNG, {}))
+            self.assertEqual(result, {"name": "Synthetic", "photo": None}, link)
+            self.assertEqual(len(calls), 1, link)
+        for response in ((200, b"<html></html>", {}), (404, self.PNG, {}), p.Failure("source-capacity", "too large"), p.Failure("network", "offline"),
+                         google.HTTPException("incomplete read"), ValueError("invalid URL")):
+            result, _ = self.details({"displayName": "Synthetic", "photoLink": self.LINK}, response)
+            self.assertEqual(result, {"name": "Synthetic", "photo": None})
+
+    def test_missing_or_oversized_names_are_null(self):
+        for user in ({}, {"displayName": " "}, {"displayName": 7}, {"displayName": "x" * 257}):
+            self.assertEqual(self.details(user)[0], {"name": None, "photo": None})
+
+    def test_image_types_come_from_the_bytes(self):
+        self.assertEqual(google.image_type(b"\xff\xd8\xff\xe0"), "image/jpeg")
+        self.assertEqual(google.image_type(b"GIF89a..."), "image/gif")
+        self.assertEqual(google.image_type(b"RIFF\x00\x00\x00\x00WEBPVP8 "), "image/webp")
+        self.assertIsNone(google.image_type(b"RIFF\x00\x00\x00\x00WAVE"))
+
+    def test_ordinary_google_requests_still_refuse_the_photo_host(self):
+        with self.assertRaises(p.Failure) as error:
+            google.http(self.LINK)
+        self.assertEqual(error.exception.code, "invalid-source")
+
+
 if __name__ == "__main__":
     unittest.main()

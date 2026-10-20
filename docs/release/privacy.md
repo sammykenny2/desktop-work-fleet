@@ -2,7 +2,7 @@
 
 Traditional Chinese: [privacy.zh-TW.md](privacy.zh-TW.md)
 
-Maintainer: sammykenny2. Contact: [sammykenny2@gmail.com](mailto:sammykenny2@gmail.com). Effective date: 2026-10-14.
+Maintainer: sammykenny2. Contact: [sammykenny2@gmail.com](mailto:sammykenny2@gmail.com). Effective date: 2026-10-20.
 This document is the public privacy notice for the GitHub preview builds; store submissions still require each store's
 forms to be checked against the actual SDKs and distributed artifacts.
 
@@ -20,11 +20,13 @@ Use portable backups to keep important content, and keep backup passwords safe.
 ## Google sync
 
 Sign-in and Drive authorization are handled by the native flows of Google and the operating system.
-The app uses the Google account's stable identifier to keep workspaces apart, and shows the email address to indicate
-which account is in use. Sign-in data is not stored as note text and is not included in note backups.
+The app uses the Google account's stable identifier to keep workspaces apart, and shows the account's name, profile
+photo and email address to indicate which account is in use. The name and photo come from the account information
+Google Drive already provides under the app data permission; the photo is downloaded from Google's image server
+(googleusercontent.com). Both are kept in memory only while the app runs and are fetched again after the next start. Sign-in data is not stored as note text and is not included in note backups.
 
 When sync is on, notes, groups, attachments and version data are sent to that account's Google Drive app data space.
-Google receives the account and network information that OAuth and Drive requests need; its handling of that data is
+Google receives the account and network information that OAuth, Drive and profile photo requests need; its handling of that data is
 governed by Google's privacy policy.
 Work Fleet has no note-content server of its own and does not ask for access to ordinary Drive folders.
 Signing out stops sync on this device and removes the sign-in data the app stored; notes already saved remain in that

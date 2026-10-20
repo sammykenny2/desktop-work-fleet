@@ -4,7 +4,7 @@
   "platforms": ["windows", "macos", "linux", "ios", "android"],
   "dataInventory": [
     { "category": "userContent", "items": ["notes", "checklists", "groups", "drafts", "attachments", "revisionHistory"], "purpose": ["localPersistence", "userRequestedSync", "userRequestedBackup"], "destinations": ["device", "selectedGoogleAccount", "selectedBackupLocation"] },
-    { "category": "accountIdentity", "items": ["googleSub", "email"], "purpose": ["accountIsolation", "accountDisplay"], "destinations": ["device", "GoogleIdentityServices"] },
+    { "category": "accountIdentity", "items": ["googleSub", "email", "displayName", "profilePhoto"], "purpose": ["accountIsolation", "accountDisplay"], "destinations": ["device", "GoogleIdentityServices"] },
     { "category": "credentials", "items": ["oauthAccessToken", "nativeRefreshCredential", "backupPassword"], "purpose": ["authorization", "backupEncryption"], "rendererReadback": false },
     { "category": "deviceSettings", "items": ["cardGeometry", "displayPreference", "shortcuts", "backupSchedule", "mainWindowBounds", "startupBehavior", "lastUpdateCheck"], "purpose": ["localPresentation", "userRequestedBackup"], "contentSync": false },
     { "category": "updateCheck", "items": ["appVersion", "requestMetadata"], "purpose": ["userRequestedAppUpdate"], "destinations": ["GitHubReleases"], "contentSync": false }

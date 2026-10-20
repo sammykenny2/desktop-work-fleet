@@ -34,6 +34,30 @@ actor FleetDrive {
         throw FleetFailure(code, "Google Drive didn't finish syncing (\(code)). Local data and pending changes are kept.")
     }
     private func json(_ path: String, context: String = "") async throws -> [String: Any] { try FleetProtocol.json((try await request(path, context: context)).0) }
+    // The account chip's name and photo: Drive's about.user needs no scope beyond app data. The photo is a public
+    // googleusercontent address, fetched without the access token; an unusable photo leaves only the name.
+    private func profile() async throws -> [String: Any] {
+        let user = try await json(path("/drive/v3/about", [("fields", "user(displayName,photoLink)")]))["user"] as? [String: Any] ?? [:]
+        let name = (user["displayName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var photo: Any = NSNull()
+        if let link = user["photoLink"] as? String, let value = await self.photo(link.trimmingCharacters(in: .whitespacesAndNewlines)) { photo = value }
+        return ["name": (1...256).contains(name.count) ? name as Any : NSNull(), "photo": photo]
+    }
+    private func photo(_ link: String) async -> [String: Any]? {
+        guard !closed, link.count <= 2048, let url = URL(string: link), url.scheme == "https", let host = url.host, host.range(of: "^lh[3-6]\\.googleusercontent\\.com$", options: .regularExpression) != nil,
+              url.user == nil, url.password == nil, url.fragment == nil, url.port == nil || url.port == 443 else { return nil }
+        let id = UUID(), client = BoundedHTTP(maximum: 128 * 1024); clients[id] = client; defer { clients.removeValue(forKey: id) }
+        guard let result = try? await client.send(URLRequest(url: url)), result.1.statusCode == 200, !closed, let type = Self.imageType(result.0) else { return nil }
+        return ["type": type, "data": result.0.base64EncodedString()]
+    }
+    private static func imageType(_ bytes: Data) -> String? {
+        let b = [UInt8](bytes.prefix(12))
+        if b.starts(with: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]) { return "image/png" }
+        if b.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
+        if b.starts(with: Array("GIF87a".utf8)) || b.starts(with: Array("GIF89a".utf8)) { return "image/gif" }
+        if b.count == 12 && b.starts(with: Array("RIFF".utf8)) && Array(b[8..<12]) == Array("WEBP".utf8) { return "image/webp" }
+        return nil
+    }
     private func file(_ args: [String: Any]) throws -> [String: Any] {
         guard let value = args["file"] as? [String: Any] else { throw FleetFailure("invalid-source-file", "The sync file isn't valid.") }
         let id = try FleetProtocol.text(value, "id"), kind = try FleetProtocol.text(value, "kind"), digest = try FleetProtocol.text(value, "sha256")
@@ -57,6 +81,7 @@ actor FleetDrive {
             return try await json(path("/drive/v3/files", fields), context: "listing")
         case "google.changes": return try await json(path("/drive/v3/changes", [("pageToken", FleetProtocol.text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(Self.fields),mimeType))")]), context: "changes")
         case "google.allocate": return try await json(path("/drive/v3/files/generateIds", [("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")]))
+        case "google.profile": return try await profile()
         case "google.read":
             let file = try self.file(args), id = try FleetProtocol.text(file, "id"), size = Int(try FleetProtocol.number(file, "size"))
             try metadata(await json(path("/drive/v3/files/" + id, [("fields", Self.fields)])), file)

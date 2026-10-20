@@ -137,6 +137,34 @@ final class GoogleFiles implements AutoCloseable {
         throw new Protocol.Failure(code, "Google Drive didn't finish syncing (" + code + "). Local data and pending changes are kept.");
     }
     private Response request(String path) throws Exception { return request(path, "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, ""); }
+    // The account chip's name and photo: Drive's about.user needs no scope beyond app data. The photo is a public
+    // googleusercontent address, fetched without the access token; an unusable photo leaves only the name.
+    private JSONObject profile() throws Exception {
+        JSONObject user = Protocol.json(request(path("/drive/v3/about", "fields", "user(displayName,photoLink)")).bytes).optJSONObject("user");
+        String name = user != null && user.opt("displayName") instanceof String ? user.getString("displayName").trim() : "";
+        Object link = user == null ? null : user.opt("photoLink");
+        return Protocol.object("name", name.isEmpty() || name.length() > 256 ? null : name, "photo", link instanceof String ? photo(((String) link).trim()) : null);
+    }
+    private JSONObject photo(String link) {
+        try {
+            URL url = new URL(link);
+            if (link.length() > 2048 || !url.getProtocol().equals("https") || !url.getHost().matches("lh[3-6]\\.googleusercontent\\.com") || url.getUserInfo() != null || url.getRef() != null || url.getPort() != -1 && url.getPort() != 443) return null;
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection(); connection.setInstanceFollowRedirects(false); connection.setConnectTimeout(20000); connection.setReadTimeout(20000);
+            try {
+                if (connection.getResponseCode() != 200 || connection.getContentLengthLong() > 128 * 1024) return null;
+                byte[] bytes; try (InputStream input = connection.getInputStream()) { bytes = Protocol.bytes(input, 128 * 1024); }
+                String type = imageType(bytes); return type == null || closed ? null : Protocol.object("type", type, "data", Base64.encodeToString(bytes, Base64.NO_WRAP));
+            } finally { connection.disconnect(); }
+        } catch (Exception error) { return null; }
+    }
+    private static String imageType(byte[] b) {
+        String head = new String(b, 0, Math.min(b.length, 12), StandardCharsets.ISO_8859_1);
+        if (head.startsWith("\u0089PNG\r\n\u001a\n")) return "image/png";
+        if (head.startsWith("ÿØÿ")) return "image/jpeg";
+        if (head.startsWith("GIF87a") || head.startsWith("GIF89a")) return "image/gif";
+        if (head.length() == 12 && head.startsWith("RIFF") && head.substring(8).equals("WEBP")) return "image/webp";
+        return null;
+    }
     private static JSONObject file(JSONObject value) throws Exception {
         String id = Protocol.text(value, "id", 256), kind = Protocol.text(value, "kind", 16), sha = Protocol.text(value, "sha256", 64); Protocol.digest(sha);
         Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}") && (kind.equals("revision") || kind.equals("attachment") || kind.equals("reset") || kind.equals("workspace")), "invalid-source-file", "The Google file ID is invalid.");
@@ -159,6 +187,7 @@ final class GoogleFiles implements AutoCloseable {
             }
             case "google.changes": return Protocol.json(request(path("/drive/v3/changes", "pageToken", Protocol.text(args, "cursor", 8192), "spaces", "appDataFolder", "includeRemoved", "true", "pageSize", "100", "fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(" + FIELDS + ",mimeType))"), "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "changes").bytes);
             case "google.allocate": return Protocol.json(request(path("/drive/v3/files/generateIds", "count", "1", "space", "appDataFolder", "type", "files", "fields", "ids")).bytes);
+            case "google.profile": return profile();
             case "google.read": {
                 JSONObject file = file(args.getJSONObject("file")); metadata(Protocol.json(request(path("/drive/v3/files/" + file.getString("id"), "fields", FIELDS)).bytes), file);
                 Response response = request(path("/drive/v3/files/" + file.getString("id"), "alt", "media"), "GET", null, Collections.emptyMap(), Math.max(file.getInt("size"), 65536), false, "");

@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import hmac
+from http.client import HTTPException
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import re
 import secrets
@@ -19,6 +20,8 @@ FIELDS = "id,size,spaces,trashed,appProperties,sha256Checksum"
 # Why sync is paused, by the code of the keyring error: the page shows this text, so it is host text (text.py).
 PAUSE_REASONS = {"vault-locked": "sync.keyringLocked", "vault-unlock-timeout": "sync.unlockTimedOut",
                  "vault-unlock-cancelled": "sync.unlockCancelled", "storage-integrity": "sync.secretsUnverified"}
+GOOGLE_HOSTS = ("oauth2.googleapis.com", "www.googleapis.com")
+PHOTO_HOSTS = tuple(f"lh{n}.googleusercontent.com" for n in range(3, 7))
 
 
 class NoRedirect(HTTPRedirectHandler):
@@ -26,9 +29,9 @@ class NoRedirect(HTTPRedirectHandler):
         return None
 
 
-def http(url, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024):
+def http(url, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024, hosts=GOOGLE_HOSTS):
     uri = urlsplit(url)
-    p.require(uri.scheme == "https" and uri.hostname in ("oauth2.googleapis.com", "www.googleapis.com") and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment, "invalid-source", "The Google transfer address isn't valid.")
+    p.require(uri.scheme == "https" and uri.hostname in hosts and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment, "invalid-source", "The Google transfer address isn't valid.")
     request = Request(url, data=data, headers=headers or {}, method=method)
     try:
         try:
@@ -52,6 +55,35 @@ def http(url, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024):
         raise
     except (URLError, OSError, TimeoutError) as error:
         raise p.Failure("network", "Can't connect to Google; local data and content waiting to upload are kept.") from error
+
+
+def image_type(data):
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+def photo(link):
+    """A profile photo is a public googleusercontent address, fetched without the access token; None when unusable."""
+    try:
+        uri = urlsplit(link)
+        usable = len(link) <= 2048 and uri.scheme == "https" and uri.hostname in PHOTO_HOSTS and uri.port in (None, 443) and uri.username is None and uri.password is None and not uri.fragment
+    except ValueError:
+        usable = False
+    if not usable:
+        return None
+    try:
+        status, data, _ = http(link, maximum=128 * 1024, hosts=PHOTO_HOSTS)
+    except (p.Failure, HTTPException, ValueError):
+        return None
+    kind = image_type(data) if status == 200 else None
+    return None if kind is None else {"type": kind, "data": base64.b64encode(data).decode("ascii")}
 
 
 class Google:
@@ -352,6 +384,14 @@ class Google:
                 return self.json(self.path("/drive/v3/files/" + key, fields=FIELDS))
             raise
 
+    def account_details(self):
+        # The account chip's name and photo: Drive's about.user needs no scope beyond app data.
+        about = self.json(self.path("/drive/v3/about", fields="user(displayName,photoLink)"))
+        user = about.get("user") if isinstance(about, dict) and isinstance(about.get("user"), dict) else {}
+        name = user["displayName"].strip() if isinstance(user.get("displayName"), str) else ""
+        link = user.get("photoLink")
+        return {"name": name if 0 < len(name) <= 256 else None, "photo": photo(link.strip()) if isinstance(link, str) else None}
+
     def invoke(self, method, args, data=None):
         p.require(p.text(args, "accountId") == self.account and not self.closed.is_set(), "stale-session", "The Google account has changed.")
         if method == "google.cursor":
@@ -365,6 +405,8 @@ class Google:
             return self.json(self.path("/drive/v3/changes", pageToken=p.text(args, "cursor", 8192), spaces="appDataFolder", pageSize="100", includeRemoved="true", fields=f"nextPageToken,newStartPageToken,changes(fileId,removed,file({FIELDS},mimeType))"), context="changes")
         if method == "google.allocate":
             return self.json(self.path("/drive/v3/files/generateIds", count="1", space="appDataFolder", type="files", fields="ids"))
+        if method == "google.profile":
+            return self.account_details()
         if method == "google.delete":
             # Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
             file_id = p.text(args, "fileId", 256)

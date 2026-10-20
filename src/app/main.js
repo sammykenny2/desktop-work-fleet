@@ -316,12 +316,41 @@ function renderGoogleAccess() {
 // The account chip and the settings identity say where the papers live and how syncing goes.
 function renderAccount() {
   const connected = Boolean(googleAccount?.connected);
-  const name = connected ? googleAccount.email || t('sync.account.google') : profileId.startsWith('google:') ? t('sync.account.google') : t('sync.account.localNotes');
+  if (!connected && googleProfile) { if (googleProfile.photo) URL.revokeObjectURL(googleProfile.photo); googleProfile = null; }
+  const known =connected && googleProfile?.accountId === googleAccount.accountId ? googleProfile : null;
+  const email = connected ? googleAccount.email || '' : '';
+  const name = known?.name || (connected ? email || t('sync.account.google') : profileId.startsWith('google:') ? t('sync.account.google') : t('sync.account.localNotes'));
   for (const [avatar, initial, label] of [['#account-avatar', '#account-initial', '#account-name'], ['#identity-avatar', '#identity-initial', '#identity-name']]) {
     $(label).textContent = name;
-    $(initial).textContent = connected ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !connected;
+    $(initial).textContent = connected ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !connected || Boolean(known?.photo);
     $(`${avatar} svg`).toggleAttribute('hidden', connected); $(avatar).classList.toggle('signed-in', connected);
+    const photo = $(`${avatar} img`); photo.hidden = !known?.photo;
+    if (known?.photo) photo.src = known.photo; else photo.removeAttribute('src');
   }
+  // The name stands in for the email, which stays in the chip's tooltip and in Settings.
+  if (email) $('#account-button').title = email; else $('#account-button').removeAttribute('title');
+}
+// After a sync reaches Google, the host reads the account's name and photo; until then, or without them, the chip shows
+// the email. The page loads nothing from the network, so the photo arrives as bytes and shows from a blob URL. A failed
+// read waits ten minutes before the next sync tries again.
+let googleProfile = null; let profileLoading = null; let profileRetryAt = 0;
+function loadGoogleProfile() {
+  const accountId = googleAccount?.connected ? googleAccount.accountId : null;
+  if (!accountId || !native?.bridge || googleProfile?.accountId === accountId || profileLoading === accountId || Date.now() < profileRetryAt) return;
+  profileLoading = accountId;
+  Promise.resolve().then(() => native.bridge.request('google.profile', { accountId })).then(result => {
+    if (googleAccount?.connected && googleAccount.accountId === accountId) showGoogleProfile(accountId, result);
+  }, () => { profileRetryAt = Date.now() + 600000; }).finally(() => { if (profileLoading === accountId) profileLoading = null; });
+}
+function showGoogleProfile(accountId, result) {
+  const name = typeof result?.name === 'string' && result.name.length <= 256 ? result.name.trim() : '';
+  const photo = result?.photo; let url = null;
+  if (['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(photo?.type) && typeof photo.data === 'string' && photo.data.length <= 180000) {
+    try { url = URL.createObjectURL(new Blob([Uint8Array.from(atob(photo.data), c => c.charCodeAt(0))], { type: photo.type })); } catch { url = null; }
+  }
+  if (googleProfile?.photo) URL.revokeObjectURL(googleProfile.photo);
+  googleProfile = { accountId, name: name || null, photo: url };
+  renderAccount();
 }
 // Text and detail are host or error text, or a function that builds catalog text; relocalize() shows the last state again.
 let shownSync = null;
@@ -330,6 +359,7 @@ function setSync(state, text, detail = '') {
   syncState = state; $('#account').dataset.sync = state; $('#settings-dialog').dataset.sync = state;
   $('#sync-status').textContent = textOf(text); $('#sync-detail').textContent = textOf(text);
   $('#account-detail').textContent = shownDetail; $('#account-detail').hidden = !shownDetail; updateAttention();
+  if (state === 'ok' || state === 'pending') loadGoogleProfile();
 }
 // The drawer hides the account chip and the sidebar links on phones, so their warnings show on the drawer button.
 function updateAttention() {

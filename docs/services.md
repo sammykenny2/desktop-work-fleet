@@ -47,6 +47,11 @@ code, token or account.
 This listener serves no note API, binds no LAN address, uses no fixed port and does not change the external port
 registry. Google HTTPS token, userinfo and Drive requests are all sent by the native side; the renderer holds no
 credentials and no arbitrary HTTP capability.
+The account chip's name and photo come from Drive's `about.user` (`google.profile`), which the app data scope covers;
+the page asks after a sync reaches Google, and waits ten minutes after a failed read.
+Each host fetches the photo itself from a pinned `lh3`-`lh6.googleusercontent.com` HTTPS address, without the access
+token or redirects, at most 128 KiB and only when its bytes are a PNG, JPEG, GIF or WebP image; it reaches the page as
+bytes shown from a `blob:` URL, since the page loads nothing from the network.
 
 ## Linux native host and Google callback
 

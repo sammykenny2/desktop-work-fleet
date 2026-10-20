@@ -58,7 +58,7 @@ interface. To switch, see [Settings](#settings).
 
 ## Groups
 
-- The plus button next to "My groups" in the sidebar opens "New group".
+- The plus button next to "All groups" in the sidebar opens "New group".
 - The "⋯" next to a group opens "Group settings", where you can rename the group, or merge it into another group with
   "Merge or remove group". First choose a receiving group and preview all of the notes and drafts that move; then
   "Merge and remove the original group" confirms. The content and desktop positions are kept and the source group is

@@ -4,7 +4,7 @@ export default {
   // Sidebar and top bar
   'app.sidebar.label': 'Sidebar',
   'app.sidebar.tagline': 'Keep the idea, take the next step.',
-  'app.sidebar.groups': 'My groups',
+  'app.sidebar.groups': 'All groups',
   'app.sidebar.groupsLabel': 'Groups',
   'app.sidebar.addGroup': 'Add group',
   'app.sidebar.linksLabel': 'Drafts and versions',

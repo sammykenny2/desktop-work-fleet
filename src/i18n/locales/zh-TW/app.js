@@ -4,7 +4,7 @@ export default {
   // Sidebar and top bar
   'app.sidebar.label': '側欄',
   'app.sidebar.tagline': '留住想法，開始下一步。',
-  'app.sidebar.groups': '我的群組',
+  'app.sidebar.groups': '所有群組',
   'app.sidebar.groupsLabel': '群組',
   'app.sidebar.addGroup': '新增群組',
   'app.sidebar.linksLabel': '草稿與版本',

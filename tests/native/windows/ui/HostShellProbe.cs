@@ -7,8 +7,9 @@ using WorkFleet.Windows;
 using WorkFleet.Windows.Core;
 
 /// <summary>
-/// ADR-043 on a real window: startup settings in the Desktop page, saved and restored bounds, reset and the second-launch
-/// channel. The window appears briefly on the primary display without taking focus; data stays in the output folder.
+/// ADR-043 on a real window: startup settings in the Desktop page, saved and restored bounds, the reset that comes with
+/// Reset desktop layout and the second-launch channel. The window appears briefly on the primary display without taking
+/// focus; data stays in the output folder.
 /// </summary>
 internal static class HostShellProbe
 {
@@ -53,7 +54,14 @@ internal static class HostShellProbe
     window.WindowState = WindowState.Maximized; await Task.Delay(300); window.WindowState = WindowState.Normal;
     await Until(() => WindowPlacement.Read(directory) == moved, "restore clears the maximized flag");
 
-    await Eval(window, "document.querySelector('#reset-window').click()");
+    // Reset desktop layout also resets the main window once it is confirmed, and its hint and confirmation say so.
+    const string windowLine = "The main window returns to its default size, centered on the primary screen.";
+    await Program.Wait(window, $"document.querySelector('#reset-layout-hint').textContent.includes('{windowLine}')", "reset hint names the main window");
+    await Eval(window, "document.querySelector('#reset-layout').click()");
+    await Program.Wait(window, $"document.querySelector('#reset-layout-dialog').open && document.querySelector('#reset-layout-text').textContent.includes('{windowLine}')", "reset confirmation names the main window");
+    await Eval(window, "document.querySelector('#confirm-reset-layout').click()");
+    // The layout is reset first; a failure there leaves the dialog open and its status names the cause.
+    await Program.Wait(window, "!document.querySelector('#reset-layout-dialog').open && document.querySelector('#status').textContent === 'Desktop layout and main window reset'", "layout and window reset reported");
     await Until(() => WindowPlacement.Read(directory) is null && Bounds(window) == Default(area, dpi), "reset removes the file and centres the default size");
     Move(window, moved);
     await Until(() => WindowPlacement.Read(directory) == moved, "bounds saved again after reset");

@@ -49,7 +49,7 @@ Each phase can be committed on its own; version bumps, releases and Actions disp
 - [x] 2.2 Windows: save and apply the Win32 window placement; validate before showing; write it again on hiding to the tray, exit, sign-out and shutdown.
 - [x] 2.3 macOS: save the window frame and maximized state; validate against `NSScreen.visibleFrame`; write it again on hide and exit.
 - [x] 2.4 Linux: X11 position and size, Wayland size and maximized state; coordinate getting out of the way / restoring with the ADR-042 adjust overlay (all three platforms).
-- [x] 2.5 Settings page "Reset main window size and position".
+- [x] 2.5 Settings page "Reset main window size and position" (merged into "Reset desktop layout" on 2026-10-23).
 
 **Deliverables**: C01–C04 pass on the available hardware; mixed DPI and multiple displays are listed as untested when equipment is missing.
 

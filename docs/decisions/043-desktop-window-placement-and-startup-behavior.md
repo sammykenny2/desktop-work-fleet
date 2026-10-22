@@ -11,6 +11,9 @@ Revised 2026-10-17: the user reported that on the installed Pi build "I set it t
 opens", and said to "fix them both" (Linux and Windows). At sign-in, a tray that is "not ready yet" is no longer treated
 as "unavailable"; see "Waiting for the tray at sign-in" under Decision.
 
+Revised 2026-10-23: the maintainer merged "Reset main window size and position" into "Reset desktop layout", so one
+confirmed reset also returns the main window to its default; see Decision.
+
 ## Context
 
 On Windows, macOS and Linux the main window always opened centered at a fixed size and did not remember the position,
@@ -65,8 +68,10 @@ project's approach) would disagree with the user's choice in the system.
   do not change the saved placement; the host still restores from the state it remembers itself.
 - The default stays 1180×800 centered on the primary work area; a smaller work area shrinks it to fit, and the minimum
   of 380×520 is unchanged.
-- Settings > Desktop offers "Reset main window size and position": it deletes the saved file and applies the default at
-  once. Desktop scenes and card positions are not affected.
+- "Reset desktop layout" in Settings > Desktop, once confirmed, also resets the main window: after the layout it
+  deletes the saved file and applies the default at once. Until 2026-10-23 this was a separate "Reset main window size
+  and position" that left desktop scenes and card positions alone. The browser preview has no host window, so there
+  the reset and its text cover only the layout.
 
 ### Startup behavior
 

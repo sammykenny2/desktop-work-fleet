@@ -456,12 +456,13 @@ as well as Google export with sync, the explicit choice after a failure, and can
 Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which needs
 `npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
 The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, inline editing on fixed papers,
-plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers, no repeated titles, the selection kept after reopening),
+plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers 240 px wide at 900 and 1440 px, no repeated titles, the selection kept after reopening), Capture floating just above the status row and both ending at its right edge at those widths,
 multi-step draft operations, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
 Keep this wait if the probe is edited.
-The group probe verifies group preview, cancel and merge, archived data and draft integrity, region swaps not moving cards,
+The group probe verifies group preview, cancel and merge, archived data and draft integrity, the browser's Reset desktop
+layout hint naming no main window, region swaps not moving cards,
 the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, the
 toast naming the keys that changed group,
 a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
@@ -705,7 +706,7 @@ and that `/json/list` has the main document, and it reads DOM state through a re
 Next it runs `--host-shell OUTPUT_DIRECTORY` ([ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)):
 the main window briefly appears on the primary display without taking focus. It checks the version and the "Startup" section in Settings > Desktop (Debug has no StartupTask, so the start-at-sign-in option is disabled with the reason shown),
 that "Keep running in the tray when the main window closes" is written to `host-preferences.json`, `window-placement.json` after move, maximize, minimize and restore,
-that reset returns to the default size, centred, that reopening returns to the saved position, that the default is used when the display of the saved position no longer exists, and that a second launch wakes the existing instance through the per-user,
+that Reset desktop layout, with its hint and confirmation naming the main window, also returns it to the default size, centred, that reopening returns to the saved position, that the default is used when the display of the saved position no longer exists, and that a second launch wakes the existing instance through the per-user,
 per-data-directory pipe. The core probe verifies the placement rules shared with Linux and macOS using `tests/fixtures/window-placement.json`.
 Start at sign-in, hidden start and StartupTask can be verified only with an installed MSIX, by the user signing out and in again; mixed DPI needs real multiple displays.
 

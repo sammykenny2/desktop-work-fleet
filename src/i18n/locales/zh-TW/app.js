@@ -222,7 +222,8 @@ export default {
   'app.status.shareCancelled': '已取消分享',
   'app.status.desktopShown': '已顯示桌面便箋',
   'app.status.layoutReset': '桌面佈局已重置',
-  'app.status.windowReset': '主視窗已回到預設大小與位置',
+  'app.status.layoutWindowReset': '桌面佈局與主視窗已重置',
+  'app.status.layoutResetWindowFailed': '桌面佈局已重置，但主視窗未能重置：{error}',
   'app.status.labwcWritten': '已寫入 labwc 快捷鍵設定',
 
   // Closing the app

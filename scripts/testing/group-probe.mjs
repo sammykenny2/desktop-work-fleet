@@ -51,6 +51,8 @@ try {
   assert.deepEqual((await read()).revisions, state.revisions, 'an unchanged group name must not record a revision');
   // Settings apply as soon as they are valid; there is no save button.
   await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
+  // The browser has no main window of its own, so Reset desktop layout names only the layout.
+  await expect(page.locator('#reset-layout-hint')).toHaveText(t('settings.desktop.resetLayout.hint'));
   await page.getByRole('combobox', { name: t('settings.desktop.regionGroup', { number: 1 }), exact: true }).selectOption(b.id);
   await expect(page.getByRole('combobox', { name: t('settings.desktop.regionGroup', { number: 2 }), exact: true })).toHaveValue(a.id);
   // Digit keys follow regions: after the swap, region 1 holds Research and its row says so.

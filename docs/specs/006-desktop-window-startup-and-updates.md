@@ -62,7 +62,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | WP-F04 | Maximizing is applied only when the window is first shown; a hidden sign-in start must not show the main window because of it |
 | WP-F05 | Default 1180×800 centred on the primary work area, shrunk to fit a smaller work area; minimum 380×520 |
 | WP-F06 | Windows saves and applies the window placement in physical pixels; macOS in points; Linux X11 saves the position, and Wayland only the size and the maximized state |
-| WP-F07 | Settings > Desktop offers "Reset main window size and position", which deletes the saved file and applies the default at once; desktop scenes and cards are not affected |
+| WP-F07 | "Reset desktop layout" in Settings > Desktop, once confirmed, also deletes the saved file and applies the default at once (until 2026-10-23 a separate "Reset main window size and position" that left desktop scenes and cards alone) |
 | WP-F08 | A corrupt file, an unknown version or a failed write does not block start or close; it is only logged and the default is used |
 
 ### Startup behaviour (SB)

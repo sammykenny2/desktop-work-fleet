@@ -107,6 +107,22 @@ try {
   await expect(tile.locator('.note-body')).toContainText('Saved in place'); await expect(tile.locator('.note-body h1')).toHaveText('First thing');
   await expect(tile.locator('.note-meta span')).toHaveText([plural('app.count.steps', 1, { done: 1 }), plural('app.count.attachments', 1)]);
   assert.ok(await tile.evaluate(node => Math.abs(node.offsetWidth - node.offsetHeight) <= 1), 'board papers are square');
+  // Board papers keep a new desktop paper's 240 px square; the window width only changes how many fit in a row. The
+  // status row keeps the whole width under the notes, with the status at its right end, and Capture floats just above
+  // it, also under the narrower layout's smaller margins.
+  await expect(page.locator('#compose')).toBeVisible();
+  for (const width of [900, 1440]) {
+    await page.setViewportSize({ width, height: 1050 });
+    await expect.poll(() => tile.evaluate(node => [node.offsetWidth, node.offsetHeight]), { message: `board paper at ${width} px` }).toEqual([240, 240]);
+    const foot = await page.evaluate(() => {
+      const box = selector => document.querySelector(selector).getBoundingClientRect();
+      return { compose: box('#compose'), footer: box('footer'), status: box('.status-line') };
+    });
+    const gap = foot.footer.top - foot.compose.bottom;
+    assert.ok(gap >= 0 && gap <= 24, `Capture sits just above the status row at ${width} px (${gap} px apart)`);
+    assert.ok(Math.abs(foot.status.right - foot.footer.right) <= 1 && Math.abs(foot.compose.right - foot.footer.right) <= 1,
+      `the status and Capture end at the right edge of the status row at ${width} px`);
+  }
   const tileDownload = page.waitForEvent('download'); await tile.locator('.attachment-tile').dblclick();
   assert.equal((await tileDownload).suggestedFilename(), 'proof.txt', 'the browser downloads when no native opener is available');
   await expect(page.locator('#editor-dialog')).not.toBeVisible();

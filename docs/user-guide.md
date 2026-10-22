@@ -98,8 +98,10 @@ interface. To switch, see [Settings](#settings).
 ## The board and the list
 
 - In the desktop apps the main window does not mirror the desktop layout; you drag notes on the desktop itself.
-- On the right of the filter bar, switch between "Board" (a grid of square papers) and "List". This device remembers
-  the choice. Click a note to edit it. The third view differs by platform:
+- On the right of the filter bar, switch between "Board" (a grid of square papers, each the 240×240 of a new desktop
+  note; the window width only changes how many fit in a row, while phones and windows 640 px or narrower show two
+  columns across) and "List". This device remembers the choice. Click a note to edit it. The third view differs by
+  platform:
   - Desktop apps: "Layout map", only a blank placeholder for now.
   - Browser preview: "Desktop", a canvas inside the page that shows the To do notes in their group regions; you
     arrange them there (see [Browser preview](#browser-preview)).
@@ -220,8 +222,8 @@ effect at once but do not rearrange existing notes.
 - Versions and conflicts: see [Versions and conflicts](#versions-and-conflicts).
 - Desktop (desktop apps and the browser preview; phones have no Desktop or Shortcuts page): "Show notes while
   locked", "Show completed notes", "My group", "Group regions" and "Reset desktop layout". The desktop apps also show
-  "Startup", "Version and updates" and "Reset main window". On GNOME Wayland the page also has "Show desktop notes
-  through XWayland" (see [Linux](#linux)).
+  "Startup" and "Version and updates". On GNOME Wayland the page also has "Show desktop notes through XWayland" (see
+  [Linux](#linux)).
 - Shortcuts: see [Shortcuts](#shortcuts).
 
 ### Startup and the main window
@@ -236,15 +238,13 @@ actually does:
 - "Open the main window after starting at sign-in". When it is off, a start at sign-in only shows desktop notes in the
   background; opening Work Fleet yourself always shows the main window.
 
-Under "Reset main window", "Reset main window size and position" returns the main window to its default size, centered
-on the primary display. Desktop notes are not affected.
-
 ### Reset desktop layout
 
-At the bottom of Settings > Desktop, "Reset desktop layout…" asks for confirmation ("Reset"), then only puts this
+At the bottom of Settings > Desktop, "Reset desktop layout…" asks for confirmation ("Reset"), then puts this
 computer's notes back into their group regions, restores their default size and display, and moves every group to
 the back layer (the Wallpaper layer, or the Desktop layer where the desktop has no Wallpaper layer); it does not touch
-content, group names and contents, or shortcuts. Drafts stay on this device. Whether a restore applies a backup's layout is chosen
+content, group names and contents, or shortcuts. In the desktop apps it also returns the main window to its default
+size, centered on the primary display. Drafts stay on this device. Whether a restore applies a backup's layout is chosen
 separately ("Also restore desktop positions"), and importing new data does not move existing notes.
 
 ## Google sign-in and sync

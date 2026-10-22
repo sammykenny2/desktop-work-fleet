@@ -9,6 +9,12 @@ the notes on every screen, and shows only while the selected group's To do notes
 not under another filter, during a search, or on the canvas or layout map of every group. Quick capture first shows
 the target group's To do on the board or list and ends a search; a saved new note shows and remembers its group.
 A Capture button at the top of the sidebar, as in Gmail, was rejected: there it is global and ignores the selected folder.
+Later that day the maintainer gave the status row back its whole width under the notes, conflicts at its left and the
+passing status at its right, and moved the "+" up above it; the phone layout keeps the "+" beside its status. Board
+papers no longer stretch with the window, which drew a narrow window's papers larger than a wide one's: each is the
+240×240 square of a new desktop paper, and the width only changes how many fit in a row. The phone layout, at 640 px
+and narrower, keeps two columns across, so a desktop window narrowed that far still stretches them, and between 641
+and about 730 px one column fits.
 
 2026-10-17: the user found the horizontal list hard to match to the notes on the desktop, and chose to make the
 board the main window's default:
@@ -18,8 +24,8 @@ The two are switched at the right of the filter bar; the choice is stored as `ma
 (unset means the board), and phones offer both.
 The third option on desktop hosts is still the layout map stub, and in the browser preview the original canvas;
 these two last only for the current session, and choosing them returns to To do.
-The board grid reflows with the window width and does not represent desktop coordinates; the main window still
-does not mirror the desktop.
+The board grid reflows with the window width (since 2026-10-23 only the number of columns above the phone layout; the papers keep one size)
+and does not represent desktop coordinates; the main window still does not mirror the desktop.
 
 2026-10-06: the user decided that once native desktop scenes are connected, the main window no longer redraws the
 notes in the top-left of the primary display as a 1:1 crop;

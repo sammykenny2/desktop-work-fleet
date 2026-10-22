@@ -1127,7 +1127,8 @@ function icon(...paths) {
 }
 function iconButton(label, paths, action) { const node = button('', action, 'note-action'); node.setAttribute('aria-label', label); node.title = label; node.append(icon(...paths)); return node; }
 
-// The board shows each paper as the square it is on the desktop; the list keeps one row per paper. Both open the editor.
+// The board shows each paper as the 240 px square a new desktop paper is, however wide the window, until the phone
+// layout's two columns take over at 640 px; the list keeps one row per paper. Both open the editor.
 function renderNotes(cards, view, acrossGroups) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
   boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? t('app.views.listLabel') : t('app.views.boardLabel'));
@@ -1632,6 +1633,10 @@ const distributionName = value => ({ msix: t('settings.desktop.distribution.msix
 const menuBar = () => native?.info.platform === 'macos';
 function renderHostSettings() {
   const available = native?.info.capabilities.hostPreferences === true; $('#host-settings').hidden = !available;
+  // Where the host keeps the main window's placement, resetting the desktop layout also resets the window, and says so.
+  const hint = $('#reset-layout-hint'); hint.dataset.i18n = available ? 'settings.desktop.resetLayout.hintWindow' : 'settings.desktop.resetLayout.hint';
+  const text = $('#reset-layout-text'); text.dataset.i18n = available ? 'settings.desktop.resetLayout.confirmTextWindow' : 'settings.desktop.resetLayout.confirmText';
+  hint.textContent = t(hint.dataset.i18n); text.textContent = t(text.dataset.i18n);
   if (!available) return;
   $('#app-version').textContent = t('settings.desktop.version', { version: native.info.appVersion });
   $('#app-distribution').textContent = distributionName(native.info.distribution);
@@ -1934,7 +1939,6 @@ function bindEvents() {
   $('#open-main').onchange = () => setHostPreference('openMainAtLogin', $('#open-main'));
   $('#start-login-system').onclick = () => run(() => native.bridge.request('host.preferences.openSystem'));
   $('#update-action').onclick = () => runUpdateAction();
-  $('#reset-window').onclick = () => run(async () => { await native.bridge.request('host.window.resetPlacement'); status(t('app.status.windowReset')); });
   $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
@@ -1986,7 +1990,13 @@ function bindEvents() {
     // Every group goes to the back layer, where new groups start.
     await workspace.layout.reset(workspace.snapshot, screenArea(), arrivalLayer(residentLayers()));
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); await controller.reconcile();
-    $('#reset-layout-dialog').close(); renderDesktopSettings(); render(); status(t('app.status.layoutReset'));
+    $('#reset-layout-dialog').close(); renderDesktopSettings(); render();
+    // The main window goes back to its default size and position after the layout, which stays reset if this fails;
+    // the status says so, as repeating the whole reset would undo any arranging done since.
+    if (native?.info.capabilities.hostPreferences !== true) { status(t('app.status.layoutReset')); return; }
+    try { await native.bridge.request('host.window.resetPlacement'); }
+    catch (error) { status(t('app.status.layoutResetWindowFailed', { error: error.message }), true); return; }
+    status(t('app.status.layoutWindowReset'));
   });
   $('#editor-text').oninput = () => { if (!currentDraft || editorBusy) return; currentDraft.content.text = $('#editor-text').value; queueDraft(); };
   // A blank title is left out, so a paper falls back to its first line and an empty draft is still empty.

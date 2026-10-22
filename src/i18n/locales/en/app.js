@@ -222,7 +222,8 @@ export default {
   'app.status.shareCancelled': 'Sharing cancelled',
   'app.status.desktopShown': 'Desktop notes are showing',
   'app.status.layoutReset': 'Desktop layout reset',
-  'app.status.windowReset': 'The main window is back to its default size and position',
+  'app.status.layoutWindowReset': 'Desktop layout and main window reset',
+  'app.status.layoutResetWindowFailed': "Desktop layout reset, but the main window wasn't: {error}",
   'app.status.labwcWritten': 'Wrote the labwc shortcut settings',
 
   // Closing the app

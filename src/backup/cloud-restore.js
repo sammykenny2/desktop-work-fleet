@@ -1,5 +1,6 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { Workspace } from '../core/workspace.js';
+import { BackupDocument } from './payload.js';
 import { prepareRestore, SafetyBackupReceipt } from './restore.js';
 import { FileSync, resetSource } from '../sources/file-sync.js';
 import { t } from '../i18n/index.js';
@@ -32,15 +33,38 @@ export class CloudRestorePlan {
   }
 }
 
+/**
+ * Without the backup's layout this device keeps its own: grid and regions, shortcuts, colours, layers, display and
+ * main-window settings, and the positions of the notes the backup holds. What refers to notes or groups the backup does
+ * not hold is dropped, and so are the undo records, which belong to the data being replaced. The backup's own IDs are
+ * the restored ones because the plan merges into a blank state, which keeps every identity.
+ */
+function deviceLayout(layout, data) {
+  const cards = new Set(data.local.cards.map(item => item.id));
+  const groups = new Set(data.local.groups.map(item => item.id));
+  const known = (value, set) => Object.fromEntries(Object.entries(value ?? {}).filter(([id]) => set.has(id)));
+  const result = { ...copy(layout), history: [], placements: known(layout.placements, cards),
+    groupLayers: known(layout.groupLayers, groups), groupColors: known(layout.groupColors, groups),
+    grid: { ...copy(layout.grid), slots: layout.grid.slots.map(id => groups.has(id) ? id : null) } };
+  if (!groups.has(result.myGroupId)) result.myGroupId = null;
+  if (!groups.has(result.mainGroupId)) delete result.mainGroupId;
+  return result;
+}
+
 export async function prepareCloudRestore({ workspace, document, sourceId, ...options }) {
   const current = workspace.state;
   requireValue(current.profileId.startsWith('google:') && typeof sourceId === 'string' && sourceId.length > 0,
     'restore-profile', t('errors.backup.cloudSignInRequired'));
   requireValue(!current.cloudRestore, 'cloud-restore-pending', t('errors.backup.cloudRestorePending'));
-  const empty = await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
-    area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {} });
-  const restore = await prepareRestore({ ...options, workspace: empty, document, mode: 'merge' });
-  return new CloudRestorePlan(planKey, current, restore, sourceId, empty.state);
+  requireValue(document instanceof BackupDocument, 'invalid-backup-data', t('errors.backup.backupNotVerified'));
+  const empty = (await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
+    area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {} })).state;
+  // Either way the layout revision moves on from this device's.
+  empty.layout = options.layout === 'backup' ? { ...empty.layout, revision: current.layout.revision }
+    : deviceLayout(current.layout, document.data);
+  // The plan reads only the state; a Workspace would settle this device's colours against a blank group list first.
+  const restore = await prepareRestore({ ...options, workspace: { state: empty }, document, mode: 'merge' });
+  return new CloudRestorePlan(planKey, current, restore, sourceId, empty);
 }
 
 /** Save the complete replacement locally before any remote deletion. A restart reads this durable job. */

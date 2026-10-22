@@ -74,6 +74,46 @@ test('explicit same-account backup overwrite republishes an automatic initial gr
   assert.equal(fresh.workspace.state.revisions.length, 2, 'portable root and note identities are retained by explicit restore');
 });
 
+test('an overwrite keeps the layout of this device for what the backup holds unless the backup layout is chosen', async () => {
+  const store = new MemoryFileStore(); const device = await client('google:account-a', true);
+  const [a] = device.workspace.snapshot.groups; const b = await device.workspace.createGroup('B');
+  const kept = await device.workspace.createCard(text('Kept note'), a.id); await device.workspace.createCard(text('B note'), b.id);
+  await device.workspace.layout.placeNew(device.workspace.snapshot, [area]);
+  const document = await openBackup((await createBackup({ workspace: device.workspace, storage: device.storage })).bytes);
+  // Settings changed after the backup, and a group and a note the backup does not hold.
+  const c = await device.workspace.createGroup('C'); const extra = await device.workspace.createCard(text('Not in the backup'), c.id);
+  await device.workspace.layout.placeNew(device.workspace.snapshot, [area]);
+  await device.workspace.layout.move(kept.id, { x: 700, y: 500 });
+  for (const group of [a, c]) await device.workspace.layout.setGroupLayer(group.id, 'floating', device.workspace.snapshot);
+  await device.workspace.layout.configure({ myGroupId: b.id, mainView: 'list', completedVisible: true,
+    shortcuts: { ...device.workspace.layout.state.shortcuts, 'Alt+F2': '@capture' } }, device.workspace.snapshot);
+  await device.workspace.layout.setMainGroup(c.id, device.workspace.snapshot);
+  const before = device.workspace.layout.state; assert.ok(before.history.length > 0);
+  const overwrite = async layout => {
+    const plan = await prepareCloudRestore({ workspace: device.workspace, document, sourceId: store.sourceId, workAreas: [area], layout });
+    const safetyBackup = await saveSafetyBackup({ workspace: device.workspace, storage: device.storage,
+      save: async () => ({ saved: true, receipt: 'confirmed-file' }) });
+    return plan.materialize(device.workspace.state, safetyBackup, store.sourceId);
+  };
+
+  const next = await overwrite('preserve'); const layout = next.layout;
+  assert.deepEqual(layout.placements[kept.id], before.placements[kept.id]); assert.equal(layout.placements[extra.id], undefined);
+  assert.deepEqual(layout.groupLayers, { [a.id]: 'floating' });
+  assert.deepEqual(layout.groupColors, { [a.id]: before.groupColors[a.id], [b.id]: before.groupColors[b.id] });
+  assert.deepEqual(layout.grid, { ...before.grid, slots: before.grid.slots.map(id => id === c.id ? null : id) }, 'this device keeps its grid');
+  assert.deepEqual(layout.history, []);
+  assert.equal(layout.myGroupId, b.id); assert.equal(layout.mainGroupId, undefined, 'a remembered group the backup lacks is dropped');
+  assert.equal(layout.mainView, 'list'); assert.equal(layout.completedVisible, true); assert.equal(layout.shortcuts['Alt+F2'], '@capture');
+  assert.equal(layout.deviceId, before.deviceId); assert.ok(layout.revision > before.revision);
+  // The restored copy must still pass every reference check of the next backup.
+  await openBackup((await createBackup({ workspace: new Workspace(next, async () => {}), storage: device.storage })).bytes);
+
+  const applied = (await overwrite('backup')).layout; const backupLayout = document.data.layout;
+  assert.deepEqual(applied.placements[kept.id], backupLayout.placements[kept.id]); assert.deepEqual(applied.shortcuts, backupLayout.shortcuts);
+  assert.equal(applied.mainView, undefined); assert.equal(applied.myGroupId, null); assert.deepEqual(applied.groupLayers, {});
+  assert.ok(applied.revision > before.revision, 'the layout revision never goes back');
+});
+
 test('local export replaces all Google history and attachments, and a fresh device receives only backup content', async () => {
   const s = await scenario(); const beforeCalls = s.store.calls.length;
   assert.ok(s.safetyDocument.data.records.some(record => record.entityId === s.oldCard.id));

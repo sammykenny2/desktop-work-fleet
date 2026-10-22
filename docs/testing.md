@@ -519,6 +519,9 @@ The Node model tests cover cross-tab drafts and recovery, and local write failur
 `node --test tests/cloud-restore.test.js` uses a synthetic FileStore to verify that a full clear leaves only the backup content,
 attachments, that drafts are not published, that old devices meet the reset marker, zero remote deletions without a safety backup, when stale, on the wrong account or with a disk failure,
 and resuming after a restart when the clear or the upload fails, with upload retries not clearing again.
+It also checks that without "Also restore desktop positions" the device keeps its own grid, positions, colours, layers,
+shortcuts and main-window settings for what the backup holds, drops references to the rest and its undo records, and
+still exports a valid backup, while with the option the backup's layout applies.
 `cloud-restore-ui-probe.mjs` uses real Edge, IndexedDB and OPFS with a synthetic FileStore
 to verify the double gate of the safety save and the clear checkbox, the confirmation being invalidated when the file changes, that the preview pauses ordinary sync, and the full restore.
 It mounts only the backup panel and simulates neither native account switching nor resuming in the full main window; it is not real Google end to end.

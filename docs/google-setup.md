@@ -179,7 +179,9 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
 4. The app first saves the complete restore data, then clears all Work Fleet appDataFolder data of the current Google
    project,
    and then uploads the backup's notes, groups, full history and attachments. Drafts from the backup return only to this
-   device and are not published automatically; desktop positions remain per-device settings.
+   device and are not published automatically. Layouts stay per device: unless "Also restore desktop positions" is
+   ticked, this device keeps its own positions, regions, shortcuts and other device settings for the notes and groups
+   in the backup; with it, the backup's layout applies.
 5. If it is interrupted or fails, reopen the app and press "Continue overwriting Google" in Account and sync. A retry of
    the upload stage never clears again;
    it needs the network and sign-in permission back. On other older devices that show the cloud reset prompt, back up

@@ -289,7 +289,8 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - The old content does not stay in Deleted. The automatic backup settings and other workspaces are kept. You can
   still choose "Back up current data first".
 - In a Google workspace, "Clear Google, then restore from the backup" overwrites everything; see
-  [Google setup](google-setup.md).
+  [Google setup](google-setup.md). Unless "Also restore desktop positions" is ticked, this device keeps its own layout
+  and settings for the notes and groups in the backup.
 
 ### Automatic backups
 

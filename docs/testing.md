@@ -457,6 +457,7 @@ The group probe verifies group preview, cancel and merge, archived data and draf
 the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, the
 toast naming the keys that changed group,
 a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
+the group chosen in the sidebar, by a region key or by creating it being remembered in the layout and shown again after a reload,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
 group settings with the name unchanged records no revision, that "Show completed notes" starts off, shows a completed
 paper when turned on, and hides it and brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also

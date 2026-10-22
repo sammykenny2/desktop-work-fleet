@@ -31,6 +31,7 @@ const groupBranch = (group, revision, patch) => revisionRecord('group', { ...gro
 test('remote data, conflict projection, device references and cursor commit together or all roll back', async () => {
   const f = await fixture();
   await f.workspace.layout.configure({ myGroupId: f.a.id, shortcuts: { 'Ctrl+1': f.a.id } }, f.workspace.snapshot);
+  await f.workspace.layout.setMainGroup(f.a.id, f.workspace.snapshot);
   const draft = f.workspace.blankDraft(f.a.id, f.card); draft.content.text = 'unsaved independent edit';
   await f.workspace.saveDraft(draft);
   const records = [groupBranch(f.a, 'retire-a', { deleted: true, redirectGroupId: f.b.id }), branch(f.card, 'remote', 'new text')];
@@ -42,7 +43,7 @@ test('remote data, conflict projection, device references and cursor commit toge
   f.fail(false); await f.receive(records);
   const after = f.disk();
   assert.equal(after.cards[0].content.text, 'new text'); assert.equal(after.cards[0].groupId, f.b.id);
-  assert.equal(after.layout.myGroupId, f.b.id); assert.equal(after.layout.shortcuts['Ctrl+1'], f.b.id);
+  assert.equal(after.layout.myGroupId, f.b.id); assert.equal(after.layout.mainGroupId, f.b.id); assert.equal(after.layout.shortcuts['Ctrl+1'], f.b.id);
   assert.deepEqual(after.layout.placements, before.layout.placements);
   assert.deepEqual(after.drafts, before.drafts); assert.deepEqual(after.outbox, before.outbox);
   assert.notEqual(after.sync.cursor, before.sync.cursor); assert.deepEqual(f.workspace.layout.state, after.layout);

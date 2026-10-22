@@ -107,7 +107,8 @@ test('local and Google use the same backup format in all four migration directio
 });
 
 test('import preview is read-only; commit maps complete identities and atomically retains existing data, attachments and layout', async () => {
-  const s = await source(); const document = await s.export(); const target = await fixture();
+  const s = await source(); await s.workspace.layout.setMainGroup(s.b.id, s.workspace.snapshot);
+  const document = await s.export(); const target = await fixture();
   const existing = await target.workspace.createCard(text('keep existing')); await target.workspace.layout.placeNew(target.workspace.snapshot, [area]);
   const before = target.disk(); const writes = target.writes();
   const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'import', layout: 'backup', workAreas: [area] });
@@ -122,6 +123,7 @@ test('import preview is read-only; commit maps complete identities and atomicall
   assert.deepEqual(imported.content, s.card.content); assert.equal(imported.completed, true); assert.equal(imported.archived, true);
   assert.notEqual(imported.groupId, s.a.id); assert.equal(after.groups.find(group => group.id === imported.groupId).name, s.a.name);
   assert.deepEqual(target.blobs.get(s.id), s.bytes); assert.equal(after.layout.deviceId, before.layout.deviceId);
+  assert.equal(after.layout.mainGroupId, before.layout.mainGroupId, 'an import keeps the group this main window shows');
   assert.deepEqual(after.layout.placements[imported.id], s.disk().layout.placements[s.card.id]);
   assert.equal(after.outbox.length, before.outbox.length + s.disk().revisions.length);
   assert.deepEqual(after.restoreReceipts[receipt.jobId], receipt); assert.deepEqual(after.sync, before.sync);
@@ -196,7 +198,9 @@ test('same revision ID with different bytes rejects merge before any writes', as
 });
 
 test('replace needs a saved safety backup, appends all-head revisions, retires extra groups and preserves later history and both drafts', async () => {
-  const s = await source(); const document = await s.export(); const target = await fixture(s.disk(), s.blobs);
+  const s = await source(); await s.workspace.layout.setMainGroup(s.b.id, s.workspace.snapshot);
+  const document = await s.export(); const target = await fixture(s.disk(), s.blobs);
+  await target.workspace.layout.setMainGroup(s.a.id, target.workspace.snapshot);
   const later = await target.workspace.updateCard(s.card.id, { content: { ...s.card.content, text: 'later target text' } }, s.card.revision);
   const extraGroup = await target.workspace.createGroup('extra'); const extra = await target.workspace.createCard(text('extra card'), extraGroup.id);
   const before = target.disk(); const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'replace', layout: 'backup', workAreas: [area] });
@@ -215,6 +219,7 @@ test('replace needs a saved safety backup, appends all-head revisions, retires e
   assert.ok(after.revisions.some(record => record.revisionId === later.revision && record.value.content.text === 'later target text'));
   assert.equal(after.cards.find(card => card.id === extra.id).deleted, true);
   assert.equal(after.groups.find(group => group.id === extraGroup.id).deleted, true);
+  assert.equal(after.layout.mainGroupId, s.b.id, 'the restored layout brings the group its main window showed');
   assert.deepEqual(after.drafts[s.draft.id], before.drafts[s.draft.id]);
   assert.equal(after.drafts[plan.receipt.mappings.restoredDrafts[s.draft.id]].baseRevision, restored.revision);
   // The next backup must still pass all rebase and reference proofs after replacement.

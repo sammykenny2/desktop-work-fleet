@@ -68,6 +68,7 @@ export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
     try { return resolveGroupId(snapshot, id); } catch { return id; }
   };
   if (result.myGroupId) result.myGroupId = resolve(result.myGroupId);
+  if (result.mainGroupId) result.mainGroupId = resolve(result.mainGroupId);
   for (const [key, target] of Object.entries(result.shortcuts)) {
     if (!target.startsWith('@')) result.shortcuts[key] = resolve(target);
   }

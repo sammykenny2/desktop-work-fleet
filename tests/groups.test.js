@@ -27,6 +27,7 @@ async function fixture() {
 test('group merge previews every state, atomically redirects membership and preserves content and geometry', async () => {
   const f = await fixture();
   await f.workspace.layout.configure({ myGroupId: f.a.id, shortcuts: { 'Ctrl+Shift+1': f.a.id } }, f.workspace.snapshot);
+  await f.workspace.layout.setMainGroup(f.a.id, f.workspace.snapshot);
   const before = f.disk(); const plan = f.workspace.previewGroupMerge(f.a.id, f.b.id);
   assert.equal(plan.cards.length, 4); assert.equal(plan.cards.filter(card => card.deleted).length, 1);
   assert.deepEqual(f.disk(), before, 'preview does not write');
@@ -34,7 +35,7 @@ test('group merge previews every state, atomically redirects membership and pres
   assert.deepEqual(f.disk(), before); assert.deepEqual(f.workspace.state, before);
   f.fail(false); await f.workspace.mergeGroup(plan);
   assert.deepEqual(f.workspace.layout.state.placements, before.layout.placements);
-  assert.equal(f.workspace.layout.state.myGroupId, f.b.id);
+  assert.equal(f.workspace.layout.state.myGroupId, f.b.id); assert.equal(f.workspace.layout.state.mainGroupId, f.b.id);
   assert.equal(f.workspace.layout.state.shortcuts['Ctrl+Shift+1'], f.b.id);
   assert.deepEqual(f.workspace.layout.state.grid.slots, before.layout.grid.slots.map(id => id === f.a.id ? null : id));
   for (const previous of before.cards) {

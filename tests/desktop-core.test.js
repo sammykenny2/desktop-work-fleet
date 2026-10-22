@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { activeGroups, containsRect, copy, defaultGrid, FleetError, gridRegions, summaryText, validateGrid } from '../src/core/contracts.js';
 import { Workspace } from '../src/core/workspace.js';
 import { planFormation } from '../src/layout/formation.js';
-import { createLayout, LayoutStore, mainView, reachable } from '../src/layout/store.js';
+import { createLayout, LayoutStore, mainGroup, mainView, reachable } from '../src/layout/store.js';
 import { cardPolicy, InteractionController, resolveDropTarget, sceneOrder } from '../src/interaction/controller.js';
 import { stepGroup } from '../src/layout/stages.js';
 
@@ -353,6 +353,21 @@ test('new papers are square and the main-window view is a per-device setting kep
   assert.equal(mainView(f.workspace.layout.state), 'list'); assert.equal(f.disk().layout.mainView, 'list');
   await f.workspace.layout.reset(f.workspace.snapshot, area);
   assert.equal(mainView(f.workspace.layout.state), 'list', 'resetting the desktop layout keeps the main-window view');
+});
+
+test('the main window remembers its group per device through a layout reset and falls back to the first group', async () => {
+  const f = await fixture(); const groups = activeGroups(f.workspace.snapshot);
+  assert.equal(f.workspace.layout.state.mainGroupId, undefined); assert.equal(mainGroup(f.workspace.layout.state, groups), groups[0].id);
+  await rejectsCode(f.workspace.layout.setMainGroup('missing-group', f.workspace.snapshot), 'missing-group');
+  await rejectsCode(f.workspace.layout.setMainGroup(null, f.workspace.snapshot), 'missing-group');
+  // A group added by a sync after the choice was made does not refuse it.
+  const chosenFrom = f.workspace.snapshot; await f.workspace.createGroup('Arrived meanwhile');
+  await f.workspace.layout.setMainGroup(f.b.id, chosenFrom);
+  assert.equal(mainGroup(f.workspace.layout.state, groups), f.b.id); assert.equal(f.disk().layout.mainGroupId, f.b.id);
+  await f.workspace.layout.reset(f.workspace.snapshot, area);
+  assert.equal(f.workspace.layout.state.mainGroupId, f.b.id, 'resetting the desktop layout keeps the main-window group');
+  assert.equal(mainGroup(f.workspace.layout.state, groups.filter(group => group.id !== f.b.id)), groups.find(group => group.id !== f.b.id).id,
+    'a remembered group that is gone falls back to the first group shown');
 });
 
 test('layout reset re-places every paper by group and keeps content, groups and shortcuts', async () => {

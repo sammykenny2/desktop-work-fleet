@@ -73,6 +73,8 @@ export interface DeviceLayout {
   groupColors?: Record<Id, number>;
   /** The main window's view of a group's papers on this device; missing shows the board. */
   mainView?: 'board' | 'list';
+  /** The group the main window shows on this device, which quick capture files into; missing shows the first group. */
+  mainGroupId?: Id;
 }
 export interface FormationPlan {
   kind: 'formation';

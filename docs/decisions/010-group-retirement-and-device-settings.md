@@ -7,6 +7,8 @@ Revised 2026-10-06: number shortcuts are now bound to desktop regions and step t
 the shortcut items under Decision.
 Revised 2026-10-20: the group list follows this computer's region order and can be reordered from the sidebar,
 and each group's paper colour is stored per device.
+Revised 2026-10-23: the group the main window shows is remembered per device, so quick capture keeps its group
+across restarts; see the `mainGroupId` item under Decision.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 
@@ -62,6 +64,14 @@ overwrite other changes.
   transaction that adds it; a retired group frees its colour. Choosing a worn colour swaps it with the wearer, so
   colours stay unique up to nine groups. Like the order, colours never sync, as the maintainer chose; before this a
   colour followed the group's list position and shifted whenever an earlier group was merged away.
+- The group the main window shows is a device setting: the optional `mainGroupId` records the group last chosen in
+  the sidebar, with a region key or by creating it, and quick capture files new notes into it. On opening, the
+  remembered group is shown while it is active, otherwise the first group in the sidebar. A local merge or a received
+  redirect carries it to the receiving group, resetting the desktop layout keeps it, a restore that replaces the
+  layout brings the backup's and an import keeps this device's. It never syncs and is not the transient active group
+  of an adjust scope: adjusting all groups or selecting papers on the desktop does not write it. The maintainer asked
+  for this because a sign-in start keeps the main window in the tray, and capture used to fall back to the first
+  group after every restart.
 - Shortcuts point to explicit actions: all groups, Quick capture, the display toggle, or regions 1-9 (left to
   right, top to bottom); several bindings may point to the same action.
   A region key acts on the group currently in that region; keys for empty regions are not sent to the native host

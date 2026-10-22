@@ -4,7 +4,7 @@ import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionKeyChanges, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, stepGroup } from '../layout/stages.js';
-import { mainView } from '../layout/store.js';
+import { mainGroup, mainView } from '../layout/store.js';
 import { orderedGroups, reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
@@ -123,6 +123,14 @@ const colorNames = () => [t('app.colors.yellow'), t('app.colors.mint'), t('app.c
 function currentCard(id) { return workspace.snapshot.cards.find(card => card.id === id); }
 // The sidebar and every group picker list groups in this device's region order.
 function shownGroups() { return orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot)); }
+// A group chosen in the sidebar or by a region key is remembered on this device, so after a restart the main window and
+// quick capture return to it. A group that is gone falls back to the remembered one, which a merge carries to the
+// receiving group, and then to the first. Remembering never holds up the action that chose the group; a failed write
+// only says so.
+const rememberedGroup = () => mainGroup(workspace.layout.state, shownGroups());
+async function rememberGroup() {
+  if (activeGroupId) await workspace.layout.setMainGroup(activeGroupId, workspace.snapshot).catch(error => status(error.message, true));
+}
 function fillGroups(select, selected, none = false) {
   select.replaceChildren();
   if (none) select.append(new Option(t('app.groups.none'), ''));
@@ -171,7 +179,7 @@ async function initialize() {
   workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
   workspace.setArrivalLayer(backLayer);
-  activeGroupId = shownGroups()[0]?.id;
+  activeGroupId = rememberedGroup();
   controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); },
     releaseDraft: async cardId => {
@@ -397,7 +405,7 @@ async function syncGoogle(force = false) {
       if (result?.phase === 'waiting-initialization') {
         setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
       }
-      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : shownGroups()[0]?.id;
+      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
       await controller.reconcile(); await workspace.layout.placeNew(workspace.snapshot, workAreas()); render();
       if (googleAccount?.paused) {
         const account = await native.bridge.request('google.status');
@@ -775,10 +783,11 @@ async function desktopAction(target, intent) {
     const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper: layers.includes('wallpaper'), desktop: layers.includes('desktop'), floating: layers.includes('floating') });
     activeGroupId = target; const stages = desktopStages();
     announce(target, stageNames()[stage], stages.indexOf(stage) + 1, stages.length);
+    await rememberGroup();
   }
   else {
     const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
-    if (changed && target !== shortcutActions.all && target !== '@stop') activeGroupId = target;
+    if (changed && target !== shortcutActions.all && target !== '@stop') { activeGroupId = target; await rememberGroup(); }
     const adjusting = controller.state.operationScope.kind !== 'none';
     if (changed) showCanvas();
     if (changed && desktop && target !== '@stop') {
@@ -849,7 +858,7 @@ function renderGroupList(snapshot, layout, groups) {
   for (const group of groups) {
     const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
     row.dataset.groupId = group.id;
-    const choose = button('', () => { activeGroupId = group.id; setDrawer(false); render(); });
+    const choose = button('', async () => { activeGroupId = group.id; setDrawer(false); render(); await rememberGroup(); });
     const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
     choose.append(dot);
     if (myGroupOf(layout) === group.id) choose.append(sidebarMark(icon(starPath), 'group-star', t('app.groups.myGroupMark')));
@@ -962,7 +971,7 @@ function render() {
   nativeShortcuts?.update(liveShortcuts());
   if (remoteEditor && controller.state.editingCardId !== remoteEditor.cardId) { remoteEditor = null; currentDraft = null; }
   const snapshot = workspace.snapshot; const layout = workspace.layout.state; const groups = shownGroups();
-  if (!groups.some(group => group.id === activeGroupId)) activeGroupId = groups[0]?.id;
+  if (!groups.some(group => group.id === activeGroupId)) activeGroupId = mainGroup(layout, groups);
   // A row being dragged stays where the pointer holds it; the drop renders the list again.
   if (!groupDrag?.active) renderGroupList(snapshot, layout, groups);
   const query = $('#search').value.trim().toLocaleLowerCase();
@@ -1219,7 +1228,7 @@ function groupEditor(group) {
     // A name left as shown is not renamed: a default name keeps following the UI language, and changing only this
     // device's layer neither syncs a group revision nor fails on a group that is in conflict.
     if (group) { if (input.value.trim() !== groupName(group)) await workspace.renameGroup(group.id, input.value, group.revision); }
-    else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; }
+    else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; await rememberGroup(); }
     // A new group already took a layer and a colour when it was created; the dialog only guessed them at opening. Only
     // a choice the user changed is applied, so a sync landing meanwhile cannot make an untouched guess repaint a group.
     const layerNow = group ? currentLayer : groupLayer(workspace.layout.state, groupId);
@@ -1298,7 +1307,7 @@ function cardDetails(card) {
 async function ensureCaptureGroup() {
   const groups = activeGroups(workspace.snapshot);
   if (groups.length) {
-    if (!groups.some(group => group.id === activeGroupId)) activeGroupId = shownGroups()[0].id;
+    if (!groups.some(group => group.id === activeGroupId)) activeGroupId = rememberedGroup();
     return;
   }
   // A new or cleared account must receive its existing groups before choosing an initial group.
@@ -1585,7 +1594,8 @@ async function mountDataPanel() {
     files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
     appVersion: native?.info.appVersion, uninstallNotice: native?.info.platform === 'windows' ? t('settings.data.uninstallNotice') : null,
     onChanged: async () => {
-      if (!activeGroups(workspace.snapshot).some(group => group.id === activeGroupId)) activeGroupId = shownGroups()[0]?.id;
+      // After a restore the main window shows the remembered group: the backup's when the layout was replaced.
+      activeGroupId = rememberedGroup();
       await controller.reconcile(); render();
     } });
   host.replaceChildren(dataPanel.element);

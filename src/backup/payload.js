@@ -63,6 +63,7 @@ function validateLayout(layout, snapshot, graph) {
     && typeof rect.visible === 'boolean' && (rect.readOnlySelect === undefined || typeof rect.readOnlySelect === 'boolean')
     && (rect.residentLayer === undefined || layers.includes(rect.residentLayer)));
   fail(layout.mainView === undefined || mainViews.includes(layout.mainView));
+  fail(layout.mainGroupId === undefined || validId(layout.mainGroupId) && groups.has(layout.mainGroupId));
   fail(layout.completedVisible === undefined || typeof layout.completedVisible === 'boolean');
   // Older backups kept the layer on each paper instead of in groupLayers.
   fail(layout.groupLayers === undefined || object(layout.groupLayers)

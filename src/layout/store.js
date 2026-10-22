@@ -10,6 +10,8 @@ import { t } from '../i18n/index.js';
 /** How the main window shows a group's papers on this device; a layout without a choice shows the board. */
 export const mainViews = Object.freeze(['board', 'list']);
 export const mainView = layout => layout.mainView === 'list' ? 'list' : 'board';
+/** The group the main window shows on this device, kept across restarts; quick capture files new notes into it. */
+export const mainGroup = (layout, groups) => groups.some(group => group.id === layout.mainGroupId) ? layout.mainGroupId : groups[0]?.id;
 
 const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -24,6 +26,7 @@ export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   const affected = new Set(affectedCards);
   draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
   if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
+  if (draft.mainGroupId === sourceId) draft.mainGroupId = targetId;
   // The receiving group keeps its own layer and colour; the retired group's colour is free again.
   if (draft.groupLayers) delete draft.groupLayers[sourceId];
   if (draft.groupColors) delete draft.groupColors[sourceId];
@@ -131,6 +134,15 @@ export class LayoutStore {
       requireValue(draft.placements[cardId], 'missing-placement', t('errors.core.placementMissing'));
       Object.assign(draft.placements[cardId], copy(patch));
     });
+  }
+
+  /**
+   * Remembers the group the main window shows. A sync that changes the groups meanwhile does not refuse the choice:
+   * a merge or redirect carries it on, and a group that is gone falls back to the first one when read.
+   */
+  async setMainGroup(groupId, snapshot) {
+    requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
+    return this.#transaction(draft => { draft.mainGroupId = groupId; });
   }
 
   /** The layer belongs to the group on this device; every paper of the group follows it. */

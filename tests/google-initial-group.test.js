@@ -6,6 +6,7 @@ import { activeGroups, FleetError } from '../src/core/contracts.js';
 import { Workspace } from '../src/core/workspace.js';
 import { FileSync } from '../src/sources/file-sync.js';
 import { INITIAL_GROUP_NAME } from '../src/sources/initial-group.js';
+import { mainGroup } from '../src/layout/store.js';
 import { t } from '../src/i18n/index.js';
 import { MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.js';
 
@@ -16,6 +17,7 @@ const guard = source.slice(source.indexOf('async function ensureCaptureGroup()')
 function fixture(profileId, groups = []) {
   const calls = [];
   const context = vm.createContext({ profileId, activeGroups, FleetError, t, activeGroupId: null, shownGroups: () => activeGroups(context.workspace.snapshot),
+    rememberedGroup: () => mainGroup(context.workspace.layout?.state ?? {}, context.shownGroups()),
     workspace: { snapshot: { groups }, createGroup: async name => {
       calls.push(name); const group = { id: 'new-local-group', name, deleted: false }; groups.push(group); return group;
     } }, render: () => calls.push('render') });

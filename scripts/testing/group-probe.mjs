@@ -32,6 +32,7 @@ try {
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups .group-row')).toHaveCount(2); await capture('Research note');
   let state = await read(); const [a, b] = state.groups; const positions = state.layout.placements;
+  assert.equal(state.layout.mainGroupId, b.id, 'a new group is shown and remembered');
   // Saving group settings with the name as shown, including the translated default name, records no group revision.
   for (const index of [0, 1]) {
     await page.locator('#groups .group-row').nth(index).locator('.group-menu').click();
@@ -94,9 +95,15 @@ try {
   assert.deepEqual((await read()).revisions, beforeColors.revisions, 'a colour change must not record a revision');
   await expect(groupRow(a.id).locator('.group-dot')).toHaveAttribute('style', `--group-color: ${groupColors[beforeColors.layout.groupColors[b.id]]};`);
   await groupRow(a.id).locator('button').first().click();
+  // The group chosen in the sidebar is remembered on this device and comes back after a restart, though it is not first.
+  await expect.poll(async () => (await read()).layout.mainGroupId).toBe(a.id);
+  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', b.id);
+  await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', a.id);
   await page.locator('body').click({ position: { x: 260, y: 20 } });
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', b.id);
+  await expect.poll(async () => (await read()).layout.mainGroupId).toBe(b.id);
   const aCard = state.cards.find(card => card.groupId === a.id); const bCard = state.cards.find(card => card.groupId === b.id);
   await page.locator('#cycle-next').click();
   await expect(page.locator('.card.selected')).toHaveAttribute('data-card-id', bCard.id);
@@ -200,5 +207,5 @@ try {
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star and configurable shortcuts');
+  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

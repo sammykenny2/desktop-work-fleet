@@ -47,6 +47,7 @@ function remapLayout(layout, ids) {
   const geometry = value => Object.fromEntries(Object.entries(value).map(([id, rect]) => [ids.card(id), rect]));
   grid(result.grid); result.placements = geometry(result.placements);
   if (result.myGroupId !== null) result.myGroupId = ids.group(result.myGroupId);
+  if (result.mainGroupId !== undefined) result.mainGroupId = ids.group(result.mainGroupId);
   if (result.groupLayers) result.groupLayers = Object.fromEntries(Object.entries(result.groupLayers).map(([id, layer]) => [ids.group(id), layer]));
   if (result.groupColors) result.groupColors = Object.fromEntries(Object.entries(result.groupColors).map(([id, index]) => [ids.group(id), index]));
   for (const key of Object.keys(result.shortcuts)) if (!result.shortcuts[key].startsWith('@')) result.shortcuts[key] = ids.group(result.shortcuts[key]);

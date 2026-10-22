@@ -2,7 +2,7 @@
 
 [Traditional Chinese edition](user-guide.zh-TW.md)
 
-Updated: 2026-10-17.
+Updated: 2026-10-23.
 
 How to use the 1.0 Work Fleet app on Windows, macOS, Linux, phones and in the browser preview. How to build, run and
 package the app, and how to use the 0.1.0 validation prototype, are in [Setup](setup-guide.md). Current status is in
@@ -61,6 +61,11 @@ interface. To switch, see [Settings](#settings).
 ## Groups
 
 - The plus button next to "All groups" in the sidebar opens "New group".
+- The group you choose in the sidebar, the group a region key switches to, or a group you just created is the one
+  the main window shows, and "Capture" and Quick capture add new notes to it. This device remembers it, so after a
+  restart, including one that starts in the tray, the same group is chosen again. A merge passes it on to the
+  receiving group; if the group no longer exists, the first group is chosen. "Adjust all" and clicking notes on the
+  desktop do not change the remembered group.
 - The "⋯" next to a group opens "Group settings", where you can rename the group, or merge it into another group with
   "Merge or remove group". First choose a receiving group and preview all of the notes and drafts that move; then
   "Merge and remove the original group" confirms. The content and desktop positions are kept and the source group is

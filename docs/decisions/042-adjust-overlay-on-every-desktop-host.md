@@ -41,6 +41,10 @@ appears.
     it back with xdg-activation, showing it again if that is refused.
   - Windows minimizes it, and on restore returns it to its previous normal or maximized state and activates it.
   - macOS minimizes it to the Dock, and on restore expands it and brings it to the front.
+- The main document is inert while the desktop overlay is active, including if the user restores the main window.
+  Main-window input and repeated adjustment/arrangement commands are blocked until adjustment ends. Queued duplicate
+  entry clicks cannot toggle the new adjustment off. Overlay controls and native shortcuts keep their existing
+  semantics; the browser preview still accepts adjustment input in the main window.
 
 ## Consequences
 

@@ -24,6 +24,15 @@ internal static class DesktopIntegrationProbe
   }
   public static async Task Run(FleetWindow main, string directory)
   {
+    async Task Layer(string value)
+    {
+      await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
+      await Wait(async () => (await Eval(main.WebView.CoreWebView2, "Boolean(document.querySelector('dialog[open]'))")).GetBoolean(), "group layer dialog", main);
+      await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()}})()");
+      await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save group layer", main);
+    }
+    // This probe exercises the interactive Desktop layer; newly created groups start on the Wallpaper layer.
+    await Layer("desktop");
     await Wait(async () =>
     {
       var surfaces = main.Desktop?.Surfaces;
@@ -86,7 +95,7 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
       "large scene draft chunk transport", main);
     await Eval(floating, "document.querySelector('textarea').value='Last desktop text before closing';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))");
-    await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
+    await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
     await Wait(async () => (await Eval(main.WebView.CoreWebView2, "document.querySelector('#status').textContent.startsWith('Finish ')")).ValueKind == JsonValueKind.True,
       "IME prevents scope exit through the owner flush barrier", main);
     if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind != JsonValueKind.True) throw new Exception("IME editor was destroyed.");
@@ -105,27 +114,20 @@ internal static class DesktopIntegrationProbe
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
     await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent==='Native note'")).ValueKind == JsonValueKind.True,
       "fixture restored", main);
-    await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
+    await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
     await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
       "exit returns the paper to its group's desktop layer", main);
     Console.WriteLine("PASS real display-only WebView2 scene, storage isolation, draft chunks, IME barrier and owner commit");
     if (main.Desktop.Surfaces.Count == 3)
     {
       var wallpaper = main.Desktop.Surfaces[2].WebView.CoreWebView2;
-      async Task Layer(string value)
-      {
-        // The layer belongs to the group and is set in the group's settings dialog.
-        await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
-        await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()}})()");
-        await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save group layer", main);
-      }
       await Layer("wallpaper");
       await Wait(async () => (await Eval(wallpaper, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).GetBoolean(), "wallpaper receives note", main);
       await Wait(async () => (await Eval(resident, "!document.querySelector('.card')")).GetBoolean(), "desktop copy removed", main);
       await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-group').click()");
       await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('.card.operable'))")).GetBoolean()
         && (await Eval(wallpaper, "!document.querySelector('.card')")).GetBoolean(), "wallpaper group floats", main);
-      await Eval(main.WebView.CoreWebView2, "document.querySelector('#stop-operation').click()");
+      await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
       await Wait(async () => (await Eval(wallpaper, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.interactive')")).GetBoolean()
         && (await Eval(floating, "!document.querySelector('.card')")).GetBoolean(), "group returns to wallpaper", main);
       await Layer("desktop");

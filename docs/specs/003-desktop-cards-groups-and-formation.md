@@ -88,6 +88,9 @@ the requirement, update this document from the latest explicit instruction.
 - A device has only one operation scope at a time (one group or all), and at most one card edited in place on the
   desktop. Drafts in other main-window or phone editors can coexist; desktop mode does not take a cross-device
   exclusive lock.
+- While a native desktop adjust overlay is active, the main window accepts no input, even if restored from the
+  taskbar or Dock. Its adjustment entries and arrangement dialogs cannot start another operation; finish through
+  the overlay or a desktop shortcut first. The browser preview continues to adjust in the main window.
 - Shared content and membership sync; each device's coordinates, sizes and region layout are independent; operation
   focus is not persisted.
 - Detailed D rules are in the following sections. D items not listed under Q can be built as written once

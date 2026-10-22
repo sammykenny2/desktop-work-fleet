@@ -93,9 +93,11 @@ const textOf = text => typeof text === 'function' ? text() : text ?? '';
 // Text set outside the render functions keeps how it was built, so relocalize() can build it again in a new language.
 const shownText = new Map();
 function setText(selector, text) { shownText.set(selector, text); $(selector).textContent = textOf(text); }
-async function run(action) {
+async function run(action, { duringAdjust = false } = {}) {
   if (nativeClosing) return;
-  const pending = desktop ? desktop.perform(action) : Promise.resolve().then(action); activeActions.add(pending);
+  // A click can enter the queue before adjustment starts; admit owner UI again when its turn actually runs.
+  const invoke = () => { if (duringAdjust || !adjustOverlayActive()) return action(); };
+  const pending = desktop ? desktop.perform(invoke) : Promise.resolve().then(invoke); activeActions.add(pending);
   try { await pending; }
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
   finally { activeActions.delete(pending); }
@@ -200,7 +202,7 @@ async function initialize() {
       stopAutomatic?.(); void run(async () => {
         await flushDraft(); await automatic?.service.whenIdle();
         if (message.id) await native.bridge.request('host.backgroundReady', { id: message.id });
-      });
+      }, { duringAdjust: true });
     });
     native.bridge.onEvent('host-foreground', () => {
       stopAutomatic?.(); if (automatic && !nativeClosing && !accountBusy) stopAutomatic = startAutomaticBackup(automatic.service);
@@ -214,7 +216,7 @@ async function initialize() {
     native.bridge.onEvent('desktop-action', message => { void run(async () => {
       try { await desktopAction(message.target, message.intent); }
       catch (error) { await native.bridge.request('desktop.showMain', { intent: message.intent }).catch(() => {}); throw error; }
-    }); });
+    }, { duringAdjust: true }); });
     const note = $('#shortcut-note'); note.dataset.i18n = 'settings.shortcuts.noteGlobal'; note.textContent = t('settings.shortcuts.noteGlobal');
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
@@ -410,7 +412,7 @@ async function syncGoogle(force = false) {
     }
   } catch (error) {
     if (!current()) return;
-    if (error.code === 'source-reset') { setSync('attention', () => t('sync.status.cloudReset'), error.message); askAfterSourceReset(); return; }
+    if (error.code === 'source-reset') { setSync('attention', () => t('sync.status.cloudReset'), error.message); void run(askAfterSourceReset); return; }
     const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup', 'vault-unlock-cancelled', 'vault-unlock-timeout'].includes(error.code);
     if (vaultPaused) {
       googleAccount = { ...googleAccount, connected: false, paused: true, pauseReason: error.message };
@@ -1006,9 +1008,12 @@ function render() {
 // the overlay maps and takes it. Hiding waits for the overlay frame and showing for the frame without it, so one window
 // always stays on screen and the returning main window is not stacked under a still-mapped overlay.
 let adjustMain = { adjusting: false, aside: false }; let adjustSync = Promise.resolve();
+const adjustOverlayActive = () => Boolean(desktopInfo?.adjustOverlay && controller.state.operationScope.kind !== 'none');
 function syncAdjustOverlay() {
+  // Read focus before making the owner inert: only the desktop scene accepts input during its modal adjustment.
+  const focused = document.hasFocus(); document.documentElement.inert = adjustOverlayActive();
   if (!desktop || !desktopInfo?.adjustOverlay) return;
-  const step = overlayMainStep(adjustMain, controller.state.operationScope.kind !== 'none', document.hasFocus());
+  const step = overlayMainStep(adjustMain, controller.state.operationScope.kind !== 'none', focused);
   adjustMain = step.state;
   if (step.visible === null) return;
   adjustSync = adjustSync.then(async () => {
@@ -1473,6 +1478,7 @@ async function renderAttachments() {
 }
 
 function openFormation(mode) {
+  if (adjustOverlayActive() || $('#formation-dialog').open) return;
   formationMode = mode; setText('#formation-title', mode === 'stack' ? () => t('app.formation.stackTitle') : () => t('app.formation.spreadTitle'));
   $('#allow-resize').checked = false;
   $('#formation-scope').value = controller.state.operationScope.kind === 'all' ? 'all' : 'group';
@@ -1843,6 +1849,13 @@ function setSearching(on) {
   else if ($('#search').value) { $('#search').value = ''; render(); }
 }
 function bindEvents() {
+  // Inert blocks real input and focus; capture also rejects synthetic or already dispatched owner input.
+  for (const type of ['click', 'dblclick', 'pointerdown', 'keydown', 'submit']) document.addEventListener(type, event => {
+    if (!adjustOverlayActive()) return;
+    // An owned foreground window suspends global hotkeys, so its local desktop keys and Escape must still work.
+    if (type === 'keydown' && (event.key === 'Escape' || shortcutForEvent(event, liveShortcuts()))) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+  }, true);
   setDrawer(false); new ResizeObserver(fitBars).observe($('.view-bar'));
   narrow.addEventListener('change', () => { setDrawer(false); if ($('#settings-dialog').open) void showSettingsPage(settingsPage); });
   $('#drawer-toggle').onclick = () => setDrawer(true); $('#scrim').onclick = () => setDrawer(false);
@@ -1903,7 +1916,7 @@ function bindEvents() {
   $('#show-desktop').onclick = () => run(async () => {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
-  $('#add-group').onclick = () => groupEditor();
+  $('#add-group').onclick = () => run(() => groupEditor());
   $('#toast').onclick = closeToast;
   const groupList = $('#groups');
   groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', event => moveGroupDrag(event));
@@ -1923,6 +1936,7 @@ function bindEvents() {
   document.querySelectorAll('[data-filter]').forEach(node => { node.onclick = () => { filter = node.dataset.filter; render(); }; });
   // A phone drawer closes onto the adjust bar before adjusting starts; closing moves the focus, so it is read first.
   const adjust = scope => { const before = document.activeElement; setDrawer(false); run(async () => {
+    if (document.querySelector('dialog[open]')) throw new Error(t('app.errors.finishInputOrDialog'));
     await controller.activate(scope); showCanvas(); render(); handOverFocus(before);
   }); };
   $('#operate-group').onclick = () => adjust({ kind: 'group', groupId: activeGroupId });
@@ -1930,12 +1944,12 @@ function bindEvents() {
   $('#stop-operation').onclick = () => adjust({ kind: 'none' });
   $('#cycle-prev').onclick = () => run(() => { controller.cycle(activeGroupId, -1); render(); });
   $('#cycle-next').onclick = () => run(() => { controller.cycle(activeGroupId, 1); render(); });
-  $('#stack').onclick = () => openFormation('stack'); $('#spread').onclick = () => openFormation('spread');
+  $('#stack').onclick = () => run(() => openFormation('stack')); $('#spread').onclick = () => run(() => openFormation('spread'));
   $('#undo').onclick = () => run(async () => { await workspace.undo(workAreas()); await controller.reconcile(); render(); status(t('app.status.undone')); });
   $('#formation-scope').onchange = updateFormation; $('#allow-resize').onchange = updateFormation;
   $('#cancel-formation').onclick = () => $('#formation-dialog').close();
   $('#apply-formation').onclick = () => run(async () => { await controller.applyFormation(formationPreview); $('#formation-dialog').close(); render(); status(t('app.status.arranged')); });
-  $('#reset-layout').onclick = () => $('#reset-layout-dialog').showModal();
+  $('#reset-layout').onclick = () => run(() => $('#reset-layout-dialog').showModal());
   $('#cancel-reset-layout').onclick = () => $('#reset-layout-dialog').close();
   $('#confirm-reset-layout').onclick = () => run(async () => {
     if (editorBusy || composing) return;
@@ -2001,13 +2015,13 @@ function bindEvents() {
     try { for (const file of files) { const metadata = await storage.putAttachment(profileId, file); if (!currentDraft.content.attachments.some(item => item.id === metadata.id)) currentDraft.content.attachments.push(metadata); } await queueDraft(); await renderAttachments(); }
     finally { $('#attachment-input').value = ''; setEditorBusy(false); }
   });
-  $('#drafts-button').onclick = () => {
+  $('#drafts-button').onclick = () => run(() => {
     const list = $('#draft-list'); list.replaceChildren();
     for (const draft of Object.values(workspace.state.drafts)) {
       const row = element('div', undefined, 'draft-row'); row.append(element('p', (draft.content.title || draft.content.text).slice(0, 110) || t('app.drafts.blank')), button(t('app.drafts.resume'), () => { $('#drafts-dialog').close(); return openEditor(null, draft); })); list.append(row);
     }
     if (!list.children.length) list.append(element('p', t('app.drafts.none'))); $('#drafts-dialog').showModal();
-  };
+  });
   $('#close-drafts').onclick = () => $('#drafts-dialog').close();
   // The status bar shows conflicts only while there are some; the button opens their page in Settings, which waits for
   // an input in progress.
@@ -2058,11 +2072,11 @@ function bindEvents() {
       event.preventDefault();
       const admission = desktop && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });
       const before = document.activeElement;
-      run(async () => { await desktopAction(shortcut.target, (await admission).intent); handOverFocus(before); });
+      run(async () => { await desktopAction(shortcut.target, (await admission).intent); handOverFocus(before); }, { duringAdjust: true });
       return;
     }
     if (editControl) return;
-    if (event.key === 'Escape') { event.preventDefault(); const before = document.activeElement; run(async () => { await controller.escape(); render(); handOverFocus(before); }); }
+    if (event.key === 'Escape') { event.preventDefault(); const before = document.activeElement; run(async () => { await controller.escape(); render(); handOverFocus(before); }, { duringAdjust: true }); }
     // The main window has no paper to edit in place when real desktop scenes are connected.
     if (event.key === 'Enter' && controller.state.selectedCardId && !event.target.closest('button,a')) {
       event.preventDefault(); const card = currentCard(controller.state.selectedCardId);

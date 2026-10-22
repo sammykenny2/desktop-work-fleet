@@ -584,6 +584,12 @@ The same script runs `--adjust-overlay OUTPUT_DIRECTORY`: after the first scene 
 and confirms that the toolbar is visible, inside the viewport and hittable, that Stack, Spread and Undo write back through the owner, and that Done removes the mask and the operation state;
 Adjust this group reuses the same toolbar and can be left with Esc. A synthetic CompositionEvent blocks Done, and after Done the text can be recovered from Unfinished drafts;
 an already minimized main window stays minimized, and leaving and re-entering keeps the arrangement. The screenshot is `adjust-overlay/adjust-toolbar.png`.
+The probe also submits duplicate entry and dialog-opening clicks before the first activation renders, restores the main window during adjustment,
+and checks that it stays inert: focus, repeated adjustment, arrangement and dialog-opening actions are blocked, including
+direct adjustment/arrangement handlers that bypass event capture. Done releases the main window and permits an arrangement
+dialog again. The restored owner's desktop shortcut still exits adjustment, and Quick capture ends adjustment before
+opening the editor. Native shortcut toggles retain their separate semantics. Manual acceptance should also restore the main
+window from the taskbar/Dock and try mouse and keyboard input before and after Done on each desktop platform.
 This is an off-screen scene with synthetic DOM input and cannot replace a real mouse, a real IME, multiple displays or acceptance in a macOS or Linux graphical session.
 
 The same script also runs the native foundation probes `--composition` and `--platform`:

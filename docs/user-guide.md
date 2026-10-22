@@ -150,6 +150,8 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   "Spread", "Undo" and "Done" at the top. When you enter it, the main window is minimized first only if it has the
   focus, and it is restored when you finish
   ([ADR-042](decisions/042-adjust-overlay-on-every-desktop-host.md)).
+  While the overlay is active, the main window cannot be operated, even if you restore it. Finish with the overlay's
+  "Done" or a desktop shortcut before using the main window again.
 - In the main window, "This group" and "All" move the matching notes to the Top layer for the time being; "Done"
   returns them to their group's layer.
 - Dragging only moves a note. It changes groups only when you drop it on another group's receiving label, or hold

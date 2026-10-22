@@ -69,6 +69,11 @@ internal static class DesktopFormationProbe
         throw new Exception("host.log did not record the display inventory at start: " + log);
       var main = window.WebView.CoreWebView2;
       focus.BrowserProcess = main.BrowserProcessId;
+      // Start explicitly on the Desktop layer, since new groups now default to the Wallpaper layer.
+      await Eval(main, "document.querySelector('#groups .group-row .group-menu').click()");
+      await Wait(main, "Boolean(document.querySelector('dialog[open]'))", "fixture group layer");
+      await Eval(main, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='desktop';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()})()");
+      await Wait(main, "!document.querySelector('dialog[open]')", "save fixture Desktop layer");
       foreach (var title in new[] { "Formation A", "Formation B" })
       {
         await Eval(main, "document.querySelector('#new-card').click()");
@@ -135,7 +140,7 @@ internal static class DesktopFormationProbe
         """);
       await Wait(core, FormattableString.Invariant($"(()=>{{const c=document.querySelector('.card');return Math.abs(parseFloat(c.style.left)-{origin.X + 40})<1&&Math.abs(parseFloat(c.style.top)-{origin.Y + 90})<1}})()"), "adjusted geometry");
       await Task.Delay(800);
-      await Eval(main, "document.querySelector('#stop-operation').click()");
+      await Eval(core, "document.querySelector('.adjust-tools button.primary').click()");
       await Wait(core, "document.querySelectorAll('.card').length===0", "leave adjustment scope");
       adjusting = false; focus.AllowedSceneWindows.Clear();
       await Check(resident, "desktop-adjusted");
@@ -169,7 +174,7 @@ internal static class DesktopFormationProbe
       await Wait(core, "document.querySelectorAll('.card.operable').length===2", "formation in floating scope");
       await Formation("stack", floating, "floating-stack");
       await Formation("spread", floating, "floating-spread");
-      await Eval(main, "document.querySelector('#stop-operation').click()");
+      await Eval(core, "document.querySelector('.adjust-tools button.primary').click()");
       await Wait(core, "document.querySelectorAll('.card').length===0", "return after floating formation");
       adjusting = false; focus.AllowedSceneWindows.Clear();
       await Check(resident, "desktop-after-floating-formation");

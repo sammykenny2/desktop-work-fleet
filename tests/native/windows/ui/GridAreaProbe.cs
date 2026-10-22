@@ -55,7 +55,7 @@ internal static class GridAreaProbe
         if (Math.Abs(frame.X - expected.X) > 2 || Math.Abs(frame.Y - expected.Y) > 2 || Math.Abs(frame.Width - expected.Width) > 2 || Math.Abs(frame.Height - expected.Height) > 2)
           throw new Exception($"{name}: region frame {frame} instead of the work area {expected}");
         Console.WriteLine($"PASS grid area {name}: region frame {frame.Width:0}x{frame.Height:0} matches the primary work area");
-        await main.ExecuteScriptAsync("document.querySelector('#stop-operation').click()");
+        await window.Desktop!.Surfaces[1].WebView.CoreWebView2.ExecuteScriptAsync("document.querySelector('.adjust-tools button.primary').click()");
         await Program.Wait(window, "document.querySelector('#stop-operation').hidden", name + " finish adjusting");
       }
       finally { await Program.Close(window); }

@@ -38,10 +38,13 @@ internal static class AdjustOverlayProbe
       var floating = window.Desktop!.Surfaces[1];
       var scene = floating.WebView.CoreWebView2;
       await Wait(scene, "document.readyState === 'complete'", "initial scene navigation");
-      await Eval(main, "document.querySelector('#operate-all').click()");
+      // These clicks are admitted before activation renders; queued owner actions must not toggle it off or open dialogs.
+      await Eval(main, "document.querySelector('#operate-all').click();for(const id of ['operate-all','settings-button','new-card','stack','spread','add-group','drafts-button','reset-layout'])document.getElementById(id).click()");
       // No display refresh is sent: initial scene.info must carry the same capabilities as later viewport updates.
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar on the first adjustment");
       await Wait(scene, "document.querySelectorAll('.card.operable').length === 2", "adjusted papers");
+      if ((await Eval(main, "Boolean(document.querySelector('dialog[open]'))")).GetBoolean())
+        throw new Exception("An owner dialog queued before adjustment opened under the overlay.");
       var controls = (await Eval(scene, "[...document.querySelectorAll('.adjust-tools button')].map(b=>b.textContent).join(',')")).GetString();
       if (controls != "Stack,Spread,Undo,Done") throw new Exception("Unexpected adjust controls: " + controls);
       if (!(await Eval(scene, "(()=>{const t=document.querySelector('.adjust-tools'),r=t.getBoundingClientRect();return r.width>0&&r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight&&document.elementFromPoint(r.right-20,r.top+15)?.closest('.adjust-tools')===t})()")).GetBoolean())
@@ -49,6 +52,22 @@ internal static class AdjustOverlayProbe
       foreach (var surface in window.Desktop.Surfaces.Where(s => !ReferenceEquals(s, floating)))
         if ((await Eval(surface.WebView.CoreWebView2, "Boolean(document.querySelector('.adjust-tools'))")).GetBoolean())
           throw new Exception("A resident layer must not display the adjust toolbar.");
+      // Restoring the owner from the taskbar must not create a second interaction surface under the desktop overlay.
+      window.WindowState = WindowState.Minimized; window.WindowState = WindowState.Normal;
+      await Program.Wait(window, "document.documentElement.inert", "restored main window stays inert while adjusting");
+      var scope = (await Eval(main, "document.querySelector('#mode-label').textContent")).GetString();
+      if ((await Eval(main, "document.querySelector('#operate-all').focus();document.activeElement===document.querySelector('#operate-all')")).GetBoolean())
+        throw new Exception("The main window can focus an adjustment entry under the overlay.");
+      await Eval(main, "for(const id of ['operate-group','operate-all','stack','spread','stop-operation','new-card','settings-button','add-group','drafts-button'])document.getElementById(id).click()");
+      // Direct handlers bypass event capture, exercising the command guards as well.
+      await Eval(main, "document.querySelector('#operate-all').onclick();document.querySelector('#operate-group').onclick();document.querySelector('#stack').onclick();document.querySelector('#spread').onclick()");
+      await Eval(main, "document.body.dispatchEvent(new KeyboardEvent('keydown',{key:',',ctrlKey:true,bubbles:true,cancelable:true}));document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))");
+      // A blocked action must neither open a dialog nor change the scope in either view.
+      if ((await Eval(main, "Boolean(document.querySelector('dialog[open]'))")).GetBoolean()
+        || (await Eval(main, "document.querySelector('#mode-label').textContent")).GetString() != scope
+        || !(await Eval(scene, "Boolean(document.querySelector('.adjust-tools'))&&document.querySelectorAll('.card.operable').length===2")).GetBoolean())
+        throw new Exception("A main-window action reentered or changed the active desktop adjustment.");
+      Console.WriteLine("PASS queued duplicate adjustment entry and restored main-window input are blocked");
       async Task<string> Geometry() => (await Eval(scene, "JSON.stringify([...document.querySelectorAll('.card.operable')].map(c=>[c.dataset.cardId,c.style.left,c.style.top,c.style.width,c.style.height]))")).GetString()!;
       async Task Arrange(string name)
       {
@@ -69,6 +88,10 @@ internal static class AdjustOverlayProbe
       await Eval(scene, "document.querySelector('.adjust-tools button.primary').click()");
       await Wait(scene, "!document.querySelector('.adjust-tools')&&!document.querySelector('.adjust-overlay')&&!document.querySelector('.card.operable')", "Done ends the overlay");
       await Program.Wait(window, "document.querySelector('#stop-operation').hidden", "owner leaves adjust mode");
+      if ((await Eval(main, "document.documentElement.inert")).GetBoolean()) throw new Exception("Done left the main window inert.");
+      await Eval(main, "document.querySelector('#stack').click()");
+      await Program.Wait(window, "document.querySelector('#formation-dialog').open", "main-window arrangement is available after Done");
+      await Eval(main, "document.querySelector('#cancel-formation').click()");
       Console.WriteLine("PASS initial Windows adjust toolbar, viewport hit test, stack/spread/undo and Done through the owner");
       // A group entry uses the same controls, and Esc is the common keyboard exit.
       await Eval(main, "document.querySelector('#operate-group').click()");
@@ -77,6 +100,19 @@ internal static class AdjustOverlayProbe
       await Wait(scene, "!document.querySelector('.adjust-tools')", "Esc exits group adjustment");
       await Program.Wait(window, "document.querySelector('#stop-operation').hidden", "group exit reaches the owner");
       Console.WriteLine("PASS group adjustment shares the toolbar and Esc exits");
+      // Native hosts suspend global hotkeys while the restored owner has focus; its local desktop keys must still work.
+      await Eval(main, "document.querySelector('#operate-all').click()");
+      await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "adjustment before owner shortcut");
+      await Eval(main, "document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'0',code:'Digit0',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
+      await Program.Wait(window, "!document.documentElement.inert&&document.querySelector('#stop-operation').hidden", "owner shortcut ends adjustment");
+      await Wait(scene, "!document.querySelector('.adjust-tools')", "owner shortcut removes the overlay");
+      await Eval(main, "document.querySelector('#operate-all').click()");
+      await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "adjustment before quick capture");
+      await Eval(main, "document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'N',code:'KeyN',ctrlKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
+      await Program.Wait(window, "!document.documentElement.inert&&document.querySelector('#editor-dialog').open&&document.querySelector('#stop-operation').hidden", "quick capture leaves adjustment before opening the editor");
+      await Eval(main, "document.querySelector('#keep-draft').click()");
+      await Program.Wait(window, "!document.querySelector('#editor-dialog').open", "close blank quick capture");
+      Console.WriteLine("PASS restored owner keeps desktop shortcut exit and quick capture available");
       window.WindowState = WindowState.Minimized;
       await Eval(main, "document.querySelector('#operate-all').click()");
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar from a minimized main window");

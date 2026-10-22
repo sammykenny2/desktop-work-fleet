@@ -71,6 +71,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows group regions on a grown work area probe failed.' }
     & $UiProbe --adjust-overlay (Join-Path $ProbeRoot 'adjust-overlay')
     if ($LASTEXITCODE -ne 0) { throw 'Windows initial adjust toolbar and controls regression failed.' }
+    & $UiProbe --scene-growth
+    if ($LASTEXITCODE -ne 0) { throw 'Windows scene growth past its creation size regression failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

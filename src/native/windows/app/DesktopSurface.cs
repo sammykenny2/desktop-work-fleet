@@ -214,10 +214,28 @@ public sealed class DesktopSurface : IDisposable
     if (Math.Abs((long)bounds.X) > 1_000_000 || Math.Abs((long)bounds.Y) > 1_000_000
       || bounds.Width is <= 0 or > 32768 || bounds.Height is <= 0 or > 32768) throw new ArgumentException("Invalid physical bounds.");
     var origin = ToParent(bounds.X, bounds.Y);
-    if (InputHandle == IntPtr.Zero || !SetWindowPos(InputHandle, IntPtr.Zero, origin.X, origin.Y, bounds.Width, bounds.Height, 0x14))
+    if (InputHandle == IntPtr.Zero) throw new InvalidOperationException("Unable to position scene.");
+    AllowAnySize(InputWindow); AllowAnySize(VisualWindow);
+    if (!SetWindowPos(InputHandle, IntPtr.Zero, origin.X, origin.Y, bounds.Width, bounds.Height, 0x14))
       throw new InvalidOperationException("Unable to position scene.");
     physicalBounds = bounds;
     InputWindow.UpdateLayout(); AlignVisual();
+  }
+
+  /// <summary>
+  /// WPF lays a window's content out no larger than the maximum track size of the last WM_GETMINMAXINFO it received.
+  /// Windows sends that message on a resize only to overlapped or thick-frame windows, and Attach makes scenes popup or
+  /// child windows, so they keep the value from their creation. A scene created on a 1920x1080 display kept its 1940x1100
+  /// content inside the 2560x1306 window it was resized to for a remote session. Sending the message again with the
+  /// largest scene size lifts that limit before every resize.
+  /// </summary>
+  private static void AllowAnySize(Window window)
+  {
+    var handle = new WindowInteropHelper(window).Handle;
+    if (handle == IntPtr.Zero) return;
+    var limits = new MinMaxInfo { MaxSize = new() { X = 32768, Y = 32768 }, MaxTrackSize = new() { X = 32768, Y = 32768 } };
+    _ = SendMessageW(handle, 0x0024, IntPtr.Zero, ref limits);
+    window.InvalidateMeasure();
   }
 
   public void SetInput(IEnumerable<SceneHitRect> backToFront)
@@ -450,6 +468,8 @@ public sealed class DesktopSurface : IDisposable
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }
   [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
   [StructLayout(LayoutKind.Sequential)] private struct WindowPosition { public IntPtr Window, After; public int X, Y, Width, Height; public uint Flags; }
+  [StructLayout(LayoutKind.Sequential)] private struct MinMaxInfo { public NativePoint Reserved, MaxSize, MaxPosition, MinTrackSize, MaxTrackSize; }
+  [DllImport("user32.dll")] private static extern IntPtr SendMessageW(IntPtr window, uint message, IntPtr wParam, ref MinMaxInfo lParam);
   private delegate bool EnumCallback(IntPtr window, IntPtr parameter);
   [DllImport("user32.dll")] private static extern bool EnumWindows(EnumCallback callback, IntPtr parameter);
   [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);

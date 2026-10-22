@@ -739,6 +739,14 @@ Next it runs `--grid-area OUTPUT_DIRECTORY` (SPEC-003, "Display changes"):
 - Before the fix, the second region frame was still a quarter of the size, the same as the `Ctrl+Shift+digit` dashed frame the user reported.
 - It checks only the startup path. The layout-saving rule is verified by the node test C43b; the wiring for display changes while running and the `Ctrl+Shift+digit` hint have no automated test and await a real-machine check.
 
+Last, after `--adjust-overlay`, it runs `--scene-growth` (ADR-020) with no output directory; the WebView2 controls exist, but no browser is started:
+- A floating scene and a scene attached as a child of an offscreen host window are each shown, hidden, resized and shown again, as the coordinator does on a display change.
+  The new bounds are 240 by 160 pixels larger than this screen's maximum track size, so no display has to change.
+- Both windows of each scene, their content and the browser control must fill the new bounds.
+- Before the fix the content stopped at the maximum track size of the scene's creation (2580x1326 inside 2820x1486 here).
+  The reported case was a 1920x1080 start later viewed through a 2560x1306 remote session: adjust mode drew only 1940x1100.
+- It does not change the real display, and the remote-session resize itself awaits a real-machine check.
+
 MSIX end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsRecovery.ps1`.
 - It installs the `app.workfleet.crashprobe.e2e` test identity and has it, as a sign-in start, throw the same error after the scenes enter Explorer.
 - It checks four things:

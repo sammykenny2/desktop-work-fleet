@@ -27,13 +27,14 @@ internal static class Program
     var diagnostics = args.Length == 2 && args[0] == "--diagnostics";
     var formation = args.Length == 2 && args[0] == "--formation";
     var platform = args.Length == 1 && args[0] == "--platform";
+    var sceneGrowth = args.Length == 1 && args[0] == "--scene-growth";
     var hostShell = args.Length == 2 && args[0] == "--host-shell";
     var crashGuard = args.Length == 2 && args[0] == "--crash-guard";
     var signInHold = args.Length == 2 && args[0] == "--sign-in-hold";
     var gridArea = args.Length == 2 && args[0] == "--grid-area";
     var adjustOverlay = args.Length == 2 && args[0] == "--adjust-overlay";
     if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && !signInHold && !gridArea && !adjustOverlay && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay] OUTPUT_DIRECTORY [--wait-desktop] | --platform");
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -43,6 +44,7 @@ internal static class Program
         if (hostChild) await HostChildProbe.Run(new IntPtr(Convert.ToInt64(args[1], 16)), Path.GetFullPath(args[2]), args[3]);
         else if (hostCheck) await HostChildProbe.Check(Path.GetFullPath(args[1]));
         else if (platform) await PlatformProbe.Run();
+        else if (sceneGrowth) SceneGrowthProbe.Run();
         else if (wallpaper) await WallpaperProbe.Run(Path.GetFullPath(args[1]));
         else if (composition) await CompositionProbe.Run(Path.GetFullPath(args[1]));
         else if (diagnostics) await DiagnosticsProbe.Run(Path.GetFullPath(args[1]));

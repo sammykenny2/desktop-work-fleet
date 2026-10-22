@@ -44,6 +44,15 @@ saved data is kept and the displays are enumerated again.
 Rebuilding all WebViews on every notification: dropped, because it would break unfinished input and IME
 composition.
 
+## 2026-10-23 Scenes that grow past their creation size
+
+WPF lays a window's content out no larger than the maximum track size of the last `WM_GETMINMAXINFO`. Windows sends that
+message on a resize only to overlapped or thick-frame windows, and the scene windows become popup or child windows when
+they are attached, so they keep the value from their creation. After a 1920x1080 start, the coordinator resized the scene
+windows for a remote session at 2560x1306, but their content stayed at 1940x1100: adjust mode drew only that part of the
+screen, and attached scenes had the same limit. Before every resize, `DesktopSurface` now sends the message again with the
+largest scene size. The `--scene-growth` probe in [docs/testing.md](../testing.md) covers it.
+
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)

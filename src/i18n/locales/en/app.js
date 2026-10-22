@@ -12,9 +12,10 @@ export default {
   'app.sidebar.settingsTitleMac': 'Settings (⌘,)',
   'app.topbar.openSidebar': 'Open sidebar',
   'app.search.label': 'Search notes',
-  'app.search.placeholder': 'Search notes…',
+  'app.search.placeholder': 'Search all groups…',
   'app.search.open': 'Search',
   'app.search.close': 'Close search',
+  'app.search.title': 'Search results in all groups',
 
   // The status bar shows conflicts only while there are some
   'app.conflicts.count.one': '{count} conflict',

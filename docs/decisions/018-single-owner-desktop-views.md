@@ -2,6 +2,14 @@
 
 ## Status
 
+2026-10-23: the maintainer settled the main window's hierarchy on the phone's: the top bar names what is shown, a group
+or a search through every group (the title then reads "Search results in all groups"), and ends with search; the
+view bar below chooses how it is shown. Capture adds to one group, so it left the top bar for the floating "+" over
+the notes on every screen, and shows only while the selected group's To do notes are on the board or in the list:
+not under another filter, during a search, or on the canvas or layout map of every group. Quick capture first shows
+the target group's To do on the board or list and ends a search; a saved new note shows and remembers its group.
+A Capture button at the top of the sidebar, as in Gmail, was rejected: there it is global and ignores the selected folder.
+
 2026-10-17: the user found the horizontal list hard to match to the notes on the desktop, and chose to make the
 board the main window's default:
 a grid of square papers shows the current group, with the same paper colour and title band as the desktop papers;

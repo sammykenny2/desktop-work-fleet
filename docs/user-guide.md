@@ -15,10 +15,11 @@ interface. To switch, see [Settings](#settings).
 
 - You can record notes offline without a Google account: the app starts with Local notes, which stay on this device.
   To sync across devices, sign in to Google later (see [Google sign-in and sync](#google-sign-in-and-sync)).
-- "Capture" in the top bar, next to search, opens the editor for a new note in the group you are viewing. Settings
-  opens from the gear at the bottom left of the sidebar, or with Ctrl+, (Command+, on macOS).
-- On narrow screens and phones the sidebar folds into a drawer that the button at the top left opens, and you add a
-  note with the plus button at the bottom right.
+- The round "+" button at the bottom right ("Capture") opens the editor for a new note in the group you are viewing.
+  It shows only while that group's To do notes are on the board or in the list; under another filter, during a search
+  and on the Desktop canvas or the Layout map, which show every group, it steps aside. Settings opens from the gear at
+  the bottom left of the sidebar, or with Ctrl+, (Command+, on macOS).
+- On narrow screens and phones the sidebar folds into a drawer that the button at the top left opens.
 - A second independent window of the same profile is not allowed to write. Leaving the page while a save is in
   progress or has failed shows a warning.
 - The desktop apps also keep desktop notes, a tray (menu bar on macOS) and global shortcuts; see
@@ -61,8 +62,9 @@ interface. To switch, see [Settings](#settings).
 ## Groups
 
 - The plus button next to "All groups" in the sidebar opens "New group".
-- The group you choose in the sidebar, the group a region key switches to, or a group you just created is the one
-  the main window shows, and "Capture" and Quick capture add new notes to it. This device remembers it, so after a
+- The group you choose in the sidebar, the group a region key switches to, a group you just created, or the group
+  you save a new note into (also when you pick another one in the editor) is the one the main window shows, and
+  "Capture" and Quick capture add new notes to it. This device remembers it, so after a
   restart, including one that starts in the tray, the same group is chosen again. A merge passes it on to the
   receiving group; if the group no longer exists, the first group is chosen. "Adjust all" and clicking notes on the
   desktop do not change the remembered group.
@@ -100,8 +102,9 @@ interface. To switch, see [Settings](#settings).
     arrange them there (see [Browser preview](#browser-preview)).
   - Phones have no third view.
 - The filters "To do", "Completed", "Archived" and "Deleted" show the notes in each state, and you can restore notes
-  from them. Search covers titles and the full text. Its field ends the top bar; on phones it opens from the
-  magnifier at the top right.
+  from them. Search covers titles and the full text in every group: while it has text the title reads "Search results
+  in all groups", and on the board each result names its group. Its field ends the top bar; on phones it opens from the magnifier
+  at the top right.
 - Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
   are marked as completed. Archiving or deleting takes a note off the desktop on every device.
 - "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
@@ -172,6 +175,8 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   for one action with commas; leave the field empty to remove the shortcut.
 - Defaults: Quick capture Ctrl+Shift+N, Show or hide desktop notes Ctrl+Shift+D, All groups Ctrl+Shift+0, regions 1-9
   Ctrl+Shift+1-9.
+- Quick capture brings up the main window on the To do notes of the group it adds to, on the board or in the list,
+  ending a search, and opens the editor over them, so the new note appears where you see it.
 - In the desktop apps, each press of a region key moves that group's notes to the next step: Wallpaper layer →
   Desktop layer → Top layer → Adjust position, and the next press returns to the Wallpaper layer. Desktops that do
   not support the Wallpaper layer skip it.

@@ -456,7 +456,7 @@ as well as Google export with sync, the explicit choice after a failure, and can
 Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which needs
 `npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
 The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, inline editing on fixed papers,
-plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers, no repeated titles, the selection kept after reopening),
+plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers, no repeated titles, the selection kept after reopening),
 multi-step draft operations, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
@@ -465,7 +465,7 @@ The group probe verifies group preview, cancel and merge, archived data and draf
 the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, the
 toast naming the keys that changed group,
 a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
-the group chosen in the sidebar, by a region key or by creating it being remembered in the layout and shown again after a reload,
+the group chosen in the sidebar, by a region key, by creating it or in the editor of a new note being remembered in the layout and shown again after a reload,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
 group settings with the name unchanged records no revision, that "Show completed notes" starts off, shows a completed
 paper when turned on, and hides it and brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also

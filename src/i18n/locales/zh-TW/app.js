@@ -12,9 +12,10 @@ export default {
   'app.sidebar.settingsTitleMac': '設定（⌘,）',
   'app.topbar.openSidebar': '開啟側欄',
   'app.search.label': '搜尋便箋',
-  'app.search.placeholder': '搜尋內容…',
+  'app.search.placeholder': '搜尋所有群組…',
   'app.search.open': '搜尋',
   'app.search.close': '結束搜尋',
+  'app.search.title': '所有群組的搜尋結果',
 
   // The status bar shows conflicts only while there are some
   'app.conflicts.count.one': '{count} 個衝突',

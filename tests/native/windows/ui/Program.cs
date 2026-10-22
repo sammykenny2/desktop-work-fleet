@@ -112,7 +112,7 @@ internal static class Program
     await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native app initialization");
     await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('Encrypted on this device')", "native adapter selection");
     Console.WriteLine($"WebView2 {window.WebView.CoreWebView2.Environment.BrowserVersionString}");
-    await Eval(window, "document.querySelector('#new-card').click()");
+    await Eval(window, "document.querySelector('#compose').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "open editor");
     await Eval(window, "document.querySelector('#editor-text').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
     await Wait(window, "document.querySelector('#draft-status').textContent === 'Draft saved locally'", "durable draft");
@@ -135,7 +135,7 @@ internal static class Program
     if (window.WebView.CoreWebView2.Source != NavigationPolicy.Document) throw new Exception("Unexpected navigation");
     await Eval(window, "const frame=document.createElement('iframe');frame.src='/app/index.html';document.body.append(frame)");
     await Task.Delay(200);
-    await Wait(window, "document.querySelector('iframe').contentDocument?.querySelector('#new-card') === null", "frame navigation blocked");
+    await Wait(window, "document.querySelector('iframe').contentDocument?.querySelector('#compose') === null", "frame navigation blocked");
     await Eval(window, "document.querySelector('iframe').remove();document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('dialog[open]') !== null", "settings dialog");
     window.Close(); await Task.Delay(200);
@@ -144,7 +144,7 @@ internal static class Program
     await BackupProbe(window, directory);
     using (var screenshot = File.Create(Path.Combine(directory, "native-ui.png")))
       await window.WebView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
-    await Eval(window, "document.querySelector('#new-card').click()");
+    await Eval(window, "document.querySelector('#compose').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "second draft");
     await Eval(window, "document.querySelector('#editor-text').value='Draft still unsaved at the moment of closing';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
     await Close(window); window = Open(directory);
@@ -171,7 +171,7 @@ internal static class Program
     await Wait(window, "window.nativeReadyHeld === true", "hold native readiness");
     window.Width = 980; await Task.Delay(300);
     await Wait(window, "document.querySelectorAll('.card,.group-menu').length === 0 && document.querySelector('#status').textContent === 'Loading…'", "resize cannot bypass native readiness");
-    await Eval(window, "document.querySelector('#new-card').click()");
+    await Eval(window, "document.querySelector('#compose').click()");
     await Wait(window, "!document.querySelector('#editor-dialog').open", "editor remains unavailable before readiness");
     await Close(window);
     using var db = new LocalDatabase(directory, "local");

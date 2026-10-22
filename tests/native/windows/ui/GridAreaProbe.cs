@@ -28,7 +28,7 @@ internal static class GridAreaProbe
         if (name == "small")
         {
           // Adjusting needs a paper on the desktop.
-          await main.ExecuteScriptAsync("document.querySelector('#new-card').click()");
+          await main.ExecuteScriptAsync("document.querySelector('#compose').click()");
           await Program.Wait(window, "document.querySelector('#editor-dialog').open", "new note");
           await main.ExecuteScriptAsync("document.querySelector('#editor-text').value='# Grid area';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('#editor-form').requestSubmit()");
           await Program.Wait(window, "!document.querySelector('#editor-dialog').open", "save note");

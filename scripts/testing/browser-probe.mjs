@@ -18,10 +18,18 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1050
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
+// Capture floats over a group's board or list; the canvas of every group has none, so the probe goes there and back.
+const capture = async () => {
+  await page.locator('[data-view="board"]').click(); await page.getByRole('button', { name: t('app.actions.capture'), exact: true }).click();
+};
+const canvas = () => page.locator('[data-view="desktop"]').click();
 try {
   await page.goto(base.href);
   await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  await page.getByRole('button', { name: t('app.actions.capture'), exact: true }).click();
+  // Quick capture from the canvas shows the group's board behind the editor, where the note will land.
+  await expect(page.locator('#compose')).toBeHidden();
+  await page.locator('body').click({ position: { x: 700, y: 20 } }); await page.keyboard.press('Control+Shift+N');
+  await expect(page.locator('#editor-dialog')).toBeVisible(); await expect(page.locator('[data-view="board"]')).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('textbox', { name: t('app.editor.textLabel'), exact: true }).fill('# First thing\n\nNotes to keep.\n\n- [ ] First step\n- [x] Finished step');
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
   await page.getByRole('button', { name: t('app.editor.previewTab'), exact: true }).click();
@@ -34,7 +42,8 @@ try {
   await expect(page.locator('#attachments .attachment-tile')).toHaveText('TXTproof.txt');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   await expect(page.locator('#editor-dialog')).not.toBeVisible();
-  await expect(page.locator('.card-summary')).toHaveText('First thing');
+  await expect(page.locator('#compose')).toBeVisible(); await expect(page.locator('#list .note-title')).toHaveText(['First thing']);
+  await canvas(); await expect(page.locator('.card-summary')).toHaveText('First thing');
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('.card-summary')).toHaveText('First thing');
@@ -133,10 +142,10 @@ try {
   assert.equal(downloaded, 'retained attachment');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   await expect(page.locator('#draft-count')).toHaveText('0');
-  await page.locator('#new-card').click();
+  await capture();
   await page.locator('#editor-text').fill('Second thing');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
-  await expect(page.locator('.card')).toHaveCount(2);
+  await canvas(); await expect(page.locator('.card')).toHaveCount(2);
   await page.locator('#operate-all').click();
   const firstPaper = page.locator(`[data-card-id="${firstCardId}"]`);
   const secondPaper = page.locator('.card').filter({ hasText: 'Second thing' });
@@ -156,29 +165,35 @@ try {
 
   // An optional title heads the paper and is searchable, while the body still starts from its first line. A cleared title
   // is left out: the paper falls back to that line, and an editor holding nothing else keeps no draft.
-  await page.locator('#new-card').click();
+  await capture();
   await page.locator('#editor-heading').fill('Weekly report'); await page.locator('#editor-text').fill('Sum up this week\n\nHand in on Monday');
-  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
+  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await canvas();
   const titled = page.locator('.card').filter({ hasText: 'Sum up this week' });
   await expect(titled.locator('.card-summary')).toHaveText('Weekly report');
   await expect(titled.locator('.card-body p')).toHaveText(['Sum up this week', 'Hand in on Monday']);
   await page.locator('#search').fill('Weekly report'); await expect(page.locator('#list .note-title')).toHaveText(['Weekly report']);
+  // Search looks through every group: the title says so, and capture, which adds to one group, steps aside.
+  await expect(page.locator('#workspace-title')).toHaveText(t('app.search.title')); await expect(page.locator('#compose')).toBeHidden();
   await page.locator('#list .note-title').click(); await expect(page.locator('#editor-heading')).toHaveValue('Weekly report');
   await page.locator('#editor-heading').fill(''); await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
-  // The open editor is modal, so clearing the search before it closes types into nothing.
-  await expect(page.locator('#editor-dialog')).not.toBeVisible(); await page.locator('#search').fill('');
+  // The open editor is modal, so clearing the search before it closes types into nothing. Editing a note keeps the search.
+  await expect(page.locator('#editor-dialog')).not.toBeVisible(); await expect(page.locator('#search')).toHaveValue('Weekly report');
+  await page.locator('#search').fill('');
   await expect(titled.locator('.card-summary')).toHaveText('Sum up this week');
-  await page.locator('#new-card').click();
+  await capture();
   await page.locator('#editor-heading').fill('Title typed, then deleted'); await page.locator('#editor-heading').fill('');
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
   await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.closedNoDraft'));
   // On the board a long paper ends its text with "…", and its attachments are one row below the text.
-  await page.locator('#new-card').click();
+  await capture();
   await page.locator('#editor-text').fill(Array.from({ length: 40 }, (_, n) => `Paragraph ${n + 1} of a long text.`).join('\n\n'));
   await page.locator('#attachment-input').setInputFiles({ name: 'row.txt', mimeType: 'text/plain', buffer: Buffer.from('row') });
   await expect(page.locator('#attachments a')).toHaveText('row.txt');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
-  await page.locator('[data-view="board"]').click();
+  await expect(page.locator('[data-view="board"]')).toHaveAttribute('aria-pressed', 'true');
+  // Other filters hide capture: a note it adds would not show there.
+  await page.locator('[data-filter="completed"]').click(); await expect(page.locator('#compose')).toBeHidden();
+  await page.locator('[data-filter="active"]').click(); await expect(page.locator('#compose')).toBeVisible();
   const long = page.locator('.note-paper').filter({ hasText: 'Paragraph 1 of a long text' });
   await expect(long.locator('.note-body').locator('.fit-lines, .fit-more').first()).toBeAttached();
   assert.ok(await long.evaluate(node => node.querySelector('.note-body + .paper-files .attachment-tile') !== null
@@ -186,7 +201,7 @@ try {
   await page.locator('[data-view="desktop"]').click();
 
   // Never render attachment HTML/SVG in the application origin, including open-in-new-tab.
-  await page.locator('#new-card').click();
+  await capture();
   const attack = '<script>localStorage.setItem("attachment-script-ran","yes")</script>';
   await page.locator('#attachment-input').setInputFiles({ name: 'untrusted.html', mimeType: 'text/html', buffer: Buffer.from(attack) });
   const unsafeLink = page.locator('#attachments a'); await expect(unsafeLink).toHaveText('untrusted.html');
@@ -286,7 +301,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture, Markdown/checklist, attachment isolation, reload, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, attachment isolation, reload, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

@@ -76,7 +76,7 @@ internal static class DesktopFormationProbe
       await Wait(main, "!document.querySelector('dialog[open]')", "save fixture Desktop layer");
       foreach (var title in new[] { "Formation A", "Formation B" })
       {
-        await Eval(main, "document.querySelector('#new-card').click()");
+        await Eval(main, "document.querySelector('#compose').click()");
         await Wait(main, "document.querySelector('#editor-dialog').open", "new synthetic note");
         await Eval(main, $"document.querySelector('#editor-text').value={JsonSerializer.Serialize("# " + title + "\n\nPixel regression")};document.querySelector('#editor-text').dispatchEvent(new Event('input',{{bubbles:true}}));document.querySelector('#editor-form').requestSubmit()");
         await Wait(main, "!document.querySelector('#editor-dialog').open", "save synthetic note");

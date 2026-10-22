@@ -21,8 +21,9 @@ const read = () => page.evaluate(async profile => {
   const { IndexedDbStorage } = await import('../storage/indexed-db.js');
   const storage = await IndexedDbStorage.open(); const state = await storage.load(profile); storage.close(); return state;
 }, profile);
+// Capture floats over a group's board or list, not over the canvas of every group.
 const capture = async text => {
-  await page.locator('#new-card').click(); await page.locator('#editor-text').fill(text);
+  await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); await page.locator('#editor-text').fill(text);
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 try {
@@ -30,9 +31,17 @@ try {
   await capture('Original group note');
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
-  await expect(page.locator('#groups .group-row')).toHaveCount(2); await capture('Research note');
+  await expect(page.locator('#groups .group-row')).toHaveCount(2);
+  const created = await read(); assert.equal(created.layout.mainGroupId, created.groups[1].id, 'a new group is shown and remembered');
+  // A note filed into another group from the editor shows and remembers that group, as a sidebar choice does.
+  await page.locator('#groups .group-row').first().locator('button').first().click();
+  await expect.poll(async () => (await read()).layout.mainGroupId).toBe(created.groups[0].id);
+  await page.locator('#compose').click(); await page.locator('#editor-text').fill('Research note');
+  await page.locator('#editor-group').selectOption(created.groups[1].id);
+  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
+  await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', created.groups[1].id);
   let state = await read(); const [a, b] = state.groups; const positions = state.layout.placements;
-  assert.equal(state.layout.mainGroupId, b.id, 'a new group is shown and remembered');
+  assert.equal(state.layout.mainGroupId, b.id, 'the group chosen in the editor is remembered');
   // Saving group settings with the name as shown, including the translated default name, records no group revision.
   for (const index of [0, 1]) {
     await page.locator('#groups .group-row').nth(index).locator('.group-menu').click();
@@ -138,7 +147,7 @@ try {
   await row.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
-  await page.locator('#new-card').click(); await page.locator('#editor-text').fill('Draft that survives the merge');
+  await page.locator('#compose').click(); await page.locator('#editor-text').fill('Draft that survives the merge');
   await page.locator('#keep-draft').click();
   const before = await read();
   await groupRow(b.id).locator('.group-menu').click();

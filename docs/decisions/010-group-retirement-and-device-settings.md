@@ -65,7 +65,8 @@ overwrite other changes.
   colours stay unique up to nine groups. Like the order, colours never sync, as the maintainer chose; before this a
   colour followed the group's list position and shifted whenever an earlier group was merged away.
 - The group the main window shows is a device setting: the optional `mainGroupId` records the group last chosen in
-  the sidebar, with a region key or by creating it, and quick capture files new notes into it. On opening, the
+  the sidebar, with a region key, by creating it or by saving a new note into it (the editor's group picker counts as
+  a choice, as the maintainer decided), and quick capture files new notes into it. On opening, the
   remembered group is shown while it is active, otherwise the first group in the sidebar. A local merge or a received
   redirect carries it to the receiving group, resetting the desktop layout keeps it, a restore that replaces the
   layout brings the backup's and an import keeps this device's. It never syncs and is not the transient active group

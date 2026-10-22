@@ -770,6 +770,8 @@ async function desktopAction(target, intent) {
   if (target === shortcutActions.capture) {
     await leaveAdjustOverlay();
     if (desktop) await native.bridge.request('desktop.showMain', { intent: intent ?? null });
+    // Behind the editor the main window shows where the note goes.
+    showToDo(); render();
     await openEditor(); return;
   }
   if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
@@ -977,8 +979,13 @@ function render() {
   const query = $('#search').value.trim().toLocaleLowerCase();
   // Filters and search look through papers the desktop does not show, so they always use the board or the list.
   const notesShown = !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
-  $('#workspace-title').textContent = notesShown ? groupName(groups.find(group => group.id === activeGroupId)) || t('app.groups.defaultName')
-    : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
+  // Search looks through every group, so the title stops naming the selected one while it has text.
+  $('#workspace-title').textContent = query ? t('app.search.title')
+    : notesShown ? groupName(groups.find(group => group.id === activeGroupId)) || t('app.groups.defaultName')
+      : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
+  // Capture adds to the selected group's To do, so it shows only while that is what is shown: not under another
+  // filter, a search or the canvas and layout map of every group.
+  $('#compose').hidden = filter !== 'active' || Boolean(query) || view === 'desktop';
   renderCounts();
   // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.
   const scope = controller.state.operationScope; const adjusting = scope.kind !== 'none';
@@ -1420,9 +1427,13 @@ async function saveEditor(asCopy = false) {
   setEditorBusy(true);
   try {
     await flushDraft();
+    // A new note's group, picked in the editor or not, becomes the one shown and remembered, as a sidebar choice does.
+    const landed = currentDraft.baseRevision ? null : currentDraft.groupId;
     await workspace.commitDraft(currentDraft.id, { asCopy });
     currentDraft = null; remoteEditor = null; $('#editor-dialog').close(); controller.setComposing(false); await controller.endEdit();
+    if (landed) { activeGroupId = landed; showToDo(); }
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); render(); status(t('app.status.noteSaved'));
+    if (landed) await rememberGroup();
   } catch (error) { if (error.code === 'conflict') $('#save-copy').hidden = false; throw error; }
   finally { setEditorBusy(false); }
 }
@@ -1850,6 +1861,12 @@ function handOverFocus(before) {
   $('#operate-group').focus();
   if (!inSidebar()) $('.view-switch [aria-pressed="true"]')?.focus();
 }
+// A note that is being or was just captured is seen where it lands: its group's To do on the board or list, not a
+// search, the canvas or the layout map of every group. A browser canvas still being adjusted stays.
+function showToDo() {
+  filter = 'active'; if ($('#search').value || $('.topbar').classList.contains('searching')) setSearching(false);
+  if (controller.state.operationScope.kind === 'none') showDesktop = false;
+}
 function setSearching(on) {
   $('.topbar').classList.toggle('searching', on);
   // The label follows the state, and localizeDocument() puts the same one back after a language change.
@@ -1922,7 +1939,7 @@ function bindEvents() {
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
   $('#labwc-write').onclick = () => run(async () => { await nativeShortcuts?.writeLabwc(); status(t('app.status.labwcWritten')); });
-  for (const id of ['new-card', 'empty-add']) $(`#${id}`).onclick = () => run(() => openEditor());
+  $('#empty-add').onclick = () => run(() => openEditor());
   $('#show-desktop').onclick = () => run(async () => {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });

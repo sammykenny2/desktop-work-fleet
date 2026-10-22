@@ -30,7 +30,7 @@ internal static class AdjustOverlayProbe
       var main = window.WebView.CoreWebView2;
       foreach (var title in new[] { "Adjust A", "Adjust B" })
       {
-        await Eval(main, "document.querySelector('#new-card').click()");
+        await Eval(main, "document.querySelector('#compose').click()");
         await Wait(main, "document.querySelector('#editor-dialog').open", "new note");
         await Eval(main, $"document.querySelector('#editor-text').value={JsonSerializer.Serialize("# " + title)};document.querySelector('#editor-text').dispatchEvent(new Event('input',{{bubbles:true}}));document.querySelector('#editor-form').requestSubmit()");
         await Wait(main, "!document.querySelector('#editor-dialog').open", "save note");
@@ -39,7 +39,7 @@ internal static class AdjustOverlayProbe
       var scene = floating.WebView.CoreWebView2;
       await Wait(scene, "document.readyState === 'complete'", "initial scene navigation");
       // These clicks are admitted before activation renders; queued owner actions must not toggle it off or open dialogs.
-      await Eval(main, "document.querySelector('#operate-all').click();for(const id of ['operate-all','settings-button','new-card','stack','spread','add-group','drafts-button','reset-layout'])document.getElementById(id).click()");
+      await Eval(main, "document.querySelector('#operate-all').click();for(const id of ['operate-all','settings-button','compose','stack','spread','add-group','drafts-button','reset-layout'])document.getElementById(id).click()");
       // No display refresh is sent: initial scene.info must carry the same capabilities as later viewport updates.
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar on the first adjustment");
       await Wait(scene, "document.querySelectorAll('.card.operable').length === 2", "adjusted papers");
@@ -58,7 +58,7 @@ internal static class AdjustOverlayProbe
       var scope = (await Eval(main, "document.querySelector('#mode-label').textContent")).GetString();
       if ((await Eval(main, "document.querySelector('#operate-all').focus();document.activeElement===document.querySelector('#operate-all')")).GetBoolean())
         throw new Exception("The main window can focus an adjustment entry under the overlay.");
-      await Eval(main, "for(const id of ['operate-group','operate-all','stack','spread','stop-operation','new-card','settings-button','add-group','drafts-button'])document.getElementById(id).click()");
+      await Eval(main, "for(const id of ['operate-group','operate-all','stack','spread','stop-operation','compose','settings-button','add-group','drafts-button'])document.getElementById(id).click()");
       // Direct handlers bypass event capture, exercising the command guards as well.
       await Eval(main, "document.querySelector('#operate-all').onclick();document.querySelector('#operate-group').onclick();document.querySelector('#stack').onclick();document.querySelector('#spread').onclick()");
       await Eval(main, "document.body.dispatchEvent(new KeyboardEvent('keydown',{key:',',ctrlKey:true,bubbles:true,cancelable:true}));document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true,cancelable:true}))");

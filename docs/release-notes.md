@@ -7,6 +7,23 @@ that record is the GitHub Releases `windows-v<version>`, `linux-v<version>`, `ma
 `Platforms` lists the platforms whose version files carry the number and that were meant for distribution.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.6
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Capture floats over the group's To do, the main window remembers its group, new notes no longer land on top of each other, and Windows follows display changes.
+
+- Capture is the floating "+" at the bottom right on every screen. It shows while the selected group's To do notes are on the board or in the list, and the top-bar Capture button is gone. Quick capture (Ctrl+Shift+N or the tray) first shows the target group's To do, then opens the editor.
+- Search looks through every group: while it has text, the top bar reads "Search results in all groups".
+- Saving a new note shows the group it went into, under To do. The main window remembers its group on this device across restarts, so Capture and Quick capture keep filing into it after a sign-in start.
+- A new note, whether captured, synced, restored or placed after a layout reset, takes the first free place in its group's region instead of landing on the first note there. Only notes shown on the desktop take up room.
+- "Clear Google, then restore from the backup" with "Also restore desktop positions" unchecked keeps this device's layout and desktop settings instead of resetting them to the defaults.
+- While notes are being adjusted on the desktop, the main window no longer opens a dialog or another adjustment under the overlay; desktop shortcuts, Esc and Quick capture still work.
+- Windows: after a switch to a larger display or resolution while Work Fleet runs, for example a remote session, the adjust overlay and the notes cover the whole new screen.
+- Windows: after a display or scaling change while Work Fleet runs, notes are drawn at the new primary display's scaling, as after a restart, instead of the one Work Fleet started with.
+- Linux: on Wayland desktops that use layer-shell, such as labwc on a Raspberry Pi, notes stay clear of the panel.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.5
 
 Platforms: Windows, Linux, macOS, Android.

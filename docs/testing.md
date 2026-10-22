@@ -739,13 +739,22 @@ Next it runs `--grid-area OUTPUT_DIRECTORY` (SPEC-003, "Display changes"):
 - Before the fix, the second region frame was still a quarter of the size, the same as the `Ctrl+Shift+digit` dashed frame the user reported.
 - It checks only the startup path. The layout-saving rule is verified by the node test C43b; the wiring for display changes while running and the `Ctrl+Shift+digit` hint have no automated test and await a real-machine check.
 
-Last, after `--adjust-overlay`, it runs `--scene-growth` (ADR-020) with no output directory; the WebView2 controls exist, but no browser is started:
+After `--adjust-overlay`, it runs `--scene-growth` (ADR-020) with no output directory; the WebView2 controls exist, but no browser is started:
 - A floating scene and a scene attached as a child of an offscreen host window are each shown, hidden, resized and shown again, as the coordinator does on a display change.
   The new bounds are 240 by 160 pixels larger than this screen's maximum track size, so no display has to change.
 - Both windows of each scene, their content and the browser control must fill the new bounds.
 - Before the fix the content stopped at the maximum track size of the scene's creation (2580x1326 inside 2820x1486 here).
   The reported case was a 1920x1080 start later viewed through a 2560x1306 remote session: adjust mode drew only 1940x1100.
 - It does not change the real display, and the remote-session resize itself awaits a real-machine check.
+
+Last, it runs `--reference-dpi OUTPUT_DIRECTORY` (ADR-018, ADR-020):
+- The main window opens with one offscreen primary display reported at 192 DPI, and a note is added.
+- While the app runs, that display is replaced by one with the same bounds at 96 DPI and another device name, as in the reported switch, and the probe asks the coordinator to read the displays again; the owner applies the change.
+- `desktop.info` must report a reference DPI of 96 and a work area as wide as the physical display, the scene's browser zoom must halve and the scene must become twice as wide in scene units.
+- The offscreen origin moves in scene units, so the owner rescues the paper; it must then lie inside the scene, which shows that the owner rescued it in the units the scene now draws.
+- Before the fix the reference stayed at 192. The reported case was a 3840x2160 start at 150% later switched to 2560x1306 at 100%: papers stayed half as large again until a restart.
+- The real monitor's DPI cancels out of every ratio it checks. It does not cover a primary display at the origin, where papers keep their placements, or group regions.
+  A real scale or resolution switch, and a DPI change of the primary display while other displays are attached, await a real-machine check.
 
 MSIX end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsRecovery.ps1`.
 - It installs the `app.workfleet.crashprobe.e2e` test identity and has it, as a sign-in start, throw the same error after the scenes enter Explorer.

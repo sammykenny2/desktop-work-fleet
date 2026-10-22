@@ -34,7 +34,8 @@ public sealed class DesktopCoordinator : IDisposable
   private readonly Dictionary<string, (string View, ForegroundIntent Intent)> sceneIntents = new(StringComparer.Ordinal);
   private bool shortcutsBlocked;
   private bool nativeMenu;
-  private readonly double scale;
+  // ADR-018: one logical unit is this many physical pixels, the applied primary display's DPI over 96; only ApplyDisplays changes it.
+  private double scale;
   private IReadOnlyList<DisplayInfo> displays;
   // ADR-045: host.log times display changes against fatal errors; a sign-in topology change killed the renderer.
   private readonly Action<string>? note;
@@ -83,7 +84,7 @@ public sealed class DesktopCoordinator : IDisposable
   {
     this.environment = environment; this.sendOwner = sendOwner; this.showMain = showMain; this.openExternal = openExternal;
     this.hideMain = hideMain; this.mainWindow = mainWindow; this.note = note; holding = holdAtSignIn; this.builtInOverride = builtInOverride;
-    displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = displays.First(d => d.Primary).Dpi / 96d;
+    displays = NativeDisplays.Validate(displayOverride ?? NativeDisplays.Read()); scale = Unit(displays);
     NoteDisplays("displays at start", displays);
     shell = NativeShellLayers.Discover();
     foreach (var display in displays) foreach (var layer in Layers) views.Add(new(display, layer, scale));
@@ -127,8 +128,14 @@ public sealed class DesktopCoordinator : IDisposable
   {
     if (disposed) return; nativeMenu = value; activity.Block(shortcutsBlocked || nativeMenu);
   }
-  private object WorkAreas(IReadOnlyList<DisplayInfo> values) => values.Select(d => new { id = d.Id, primary = d.Primary,
-    x = d.WorkArea.X / scale, y = d.WorkArea.Y / scale, width = d.WorkArea.Width / scale, height = d.WorkArea.Height / scale }).ToArray();
+  private static double Unit(IReadOnlyList<DisplayInfo> values) => values.First(d => d.Primary).Dpi / 96d;
+  // A proposal is laid out in the unit its own displays will apply, so the owner rescues papers in the coordinates they get.
+  private static object WorkAreas(IReadOnlyList<DisplayInfo> values)
+  {
+    var unit = Unit(values);
+    return values.Select(d => new { id = d.Id, primary = d.Primary,
+      x = d.WorkArea.X / unit, y = d.WorkArea.Y / unit, width = d.WorkArea.Width / unit, height = d.WorkArea.Height / unit }).ToArray();
+  }
   private Dictionary<string, object> ViewInfo(SceneView v) => new()
   {
     ["viewId"] = v.Id, ["layer"] = v.Layer, ["active"] = v.Active,
@@ -181,13 +188,13 @@ public sealed class DesktopCoordinator : IDisposable
     var editing = editorId.ValueKind == JsonValueKind.Null ? null : views.FirstOrDefault(v => !v.Retired && v.Id == editorId.GetString());
     HostError.Require(editorId.ValueKind == JsonValueKind.Null || editing is not null, "desktop-view", "The editing window was disconnected. Keep your last input.");
     var editorRect = editing is null ? null : DesktopFrame.Rect(args.GetProperty("editorRect"));
-    var next = proposedDisplays!; var assignments = new List<(SceneView View, DisplayInfo Display)>();
+    var next = proposedDisplays!; var unit = Unit(next); var assignments = new List<(SceneView View, DisplayInfo Display)>();
     if (NativeDisplays.Describe(next) != NativeDisplays.Describe(displays)) note?.Invoke($"displays applying topology={requested}");
     if (editing is not null)
     {
       static double Overlap(LogicalRect a, LogicalRect b) => Math.Max(0, Math.Min(a.X + a.Width, b.X + b.Width) - Math.Max(a.X, b.X))
         * Math.Max(0, Math.Min(a.Y + a.Height, b.Y + b.Height) - Math.Max(a.Y, b.Y));
-      var destination = next.OrderByDescending(d => Overlap(editorRect!, new(d.Bounds.X / scale, d.Bounds.Y / scale, d.Bounds.Width / scale, d.Bounds.Height / scale)))
+      var destination = next.OrderByDescending(d => Overlap(editorRect!, new(d.Bounds.X / unit, d.Bounds.Y / unit, d.Bounds.Width / unit, d.Bounds.Height / unit)))
         .ThenByDescending(d => d.Id == editing.Display.Id).First();
       assignments.Add((editing, destination));
     }
@@ -206,7 +213,7 @@ public sealed class DesktopCoordinator : IDisposable
       if (match is null)
       {
         HostError.Require(views.Count(v => !v.Retired) < 48, "desktop-capacity", "Too many desktop windows are open. Restart Work Fleet to show them again; your data is kept.");
-        match = new(slot.Display, slot.Layer, scale); views.Add(match); Watch(match);
+        match = new(slot.Display, slot.Layer, unit); views.Add(match); Watch(match);
       }
       assignments.Add((match, slot.Display));
     }
@@ -218,17 +225,18 @@ public sealed class DesktopCoordinator : IDisposable
       else
       {
         view.Display = assignment.Display!;
-        view.Viewport = new(view.Display.Bounds.X / scale, view.Display.Bounds.Y / scale, view.Display.Bounds.Width / scale, view.Display.Bounds.Height / scale);
+        view.Viewport = new(view.Display.Bounds.X / unit, view.Display.Bounds.Y / unit, view.Display.Bounds.Width / unit, view.Display.Bounds.Height / unit);
         if (view.Initialized)
         {
           view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
           view.Surface.Show(view.Layer == "floating"); view.Surface.Hide();
           view.Surface.SetPhysicalBounds(view.Display.Bounds);
-          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = scale / (view.Surface.Dpi / 96d);
+          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = unit / (view.Surface.Dpi / 96d);
         }
       }
     }
-    displays = next; topology = requested; displayPending = false;
+    // Scale follows the primary display, as a restart on these displays would set it; placements keep their logical values.
+    displays = next; scale = unit; topology = requested; displayPending = false;
     foreach (var view in views.Where(v => v.Ready && !v.Retired)) Post(view, new { v = 1, @event = "desktop-viewport", topology, view = ViewInfo(view) });
     // Owner receives IDs before new scenes can submit commands; initialization yields through the dispatcher.
     Application.Current.Dispatcher.BeginInvoke(new Action(() => { if (!disposed) _ = Start(); }));

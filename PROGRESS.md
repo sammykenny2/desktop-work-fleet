@@ -37,7 +37,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   (including a zh-TW tray) and Android JUnit tests; the macOS, iOS and Share Extension sources compile in
   `apple-native-build.yml`. Not verified: no switch was tried on a real Mac, Linux desktop, phone or installed Windows package.
 - Not verified: text fitting only in Chromium (Edge, WebView2), not in WebKitGTK or WKWebView; the shared palette and shrunk
-  new papers on a native desktop. Display changes while running and the Ctrl+Shift+digit hint have no automated test.
+  new papers on a native desktop. Group regions after a display change while running and the Ctrl+Shift+digit hint
+  have no automated test.
 
 ### Sync and Google
 

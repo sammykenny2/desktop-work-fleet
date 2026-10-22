@@ -81,8 +81,9 @@ storage methods cannot be exposed.
   already accepted, and keeps editing frozen until native destruction.
   Input is restored only if closing fails. When a scene is lost, flush waits are released first, then the accepted
   draft lane is awaited until written to disk, and only then does the main window take over the latest draft.
-- Windows coordinates use one logical unit based on the primary display's DPI at startup: physical coordinates
-  divided by referenceDpi/96.
+- Windows coordinates use one logical unit based on the primary display's DPI: physical coordinates divided by
+  referenceDpi/96. Each applied display change takes referenceDpi from the new primary display, as a restart would
+  ([ADR-020](020-windows-display-lifecycle.md)); placements keep their logical values.
   Each display is covered explicitly with SetWindowPos over its physical bounds; the WebView ZoomFactor is
   referenceDpi/monitorDpi,
   and input rects are first converted to WPF logical coordinates and then by ADR-017 into native pixels. The work

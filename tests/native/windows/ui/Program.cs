@@ -33,8 +33,9 @@ internal static class Program
     var signInHold = args.Length == 2 && args[0] == "--sign-in-hold";
     var gridArea = args.Length == 2 && args[0] == "--grid-area";
     var adjustOverlay = args.Length == 2 && args[0] == "--adjust-overlay";
-    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && !signInHold && !gridArea && !adjustOverlay && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
+    var referenceDpi = args.Length == 2 && args[0] == "--reference-dpi";
+    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && !signInHold && !gridArea && !adjustOverlay && !referenceDpi && args.Length != 1)
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay|--reference-dpi] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -54,6 +55,7 @@ internal static class Program
         else if (signInHold) await SignInHoldProbe.Run(Path.GetFullPath(args[1]));
         else if (gridArea) await GridAreaProbe.Run(Path.GetFullPath(args[1]));
         else if (adjustOverlay) await AdjustOverlayProbe.Run(Path.GetFullPath(args[1]));
+        else if (referenceDpi) await ReferenceDpiProbe.Run(Path.GetFullPath(args[1]));
         else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
         app.Shutdown(0);
       }

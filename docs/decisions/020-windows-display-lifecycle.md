@@ -53,6 +53,20 @@ windows for a remote session at 2560x1306, but their content stayed at 1940x1100
 screen, and attached scenes had the same limit. Before every resize, `DesktopSurface` now sends the message again with the
 largest scene size. The `--scene-growth` probe in [docs/testing.md](../testing.md) covers it.
 
+## 2026-10-23 The reference DPI follows the primary display
+
+The coordinator read the primary display's DPI once at startup and kept it as the reference of
+[ADR-018](018-single-owner-desktop-views.md). A machine started on a 3840x2160 display at 150% and later switched to
+2560x1306 at 100% still drew its papers at 150%, half as large again as after a restart on the same display. A
+proposal now gives the owner work areas in the unit of its own primary display, and applying it takes that DPI as the
+reference before the scenes are moved and zoomed. The running app then matches a restart on the new displays: papers
+keep their logical placements, group regions follow the new primary work area, and the owner rescues papers that the
+new work areas cannot reach. A scaling change alone now also changes the logical work area. Going from 100% to 150%
+shrinks it to two thirds, and papers rescued into it stay there when the scaling goes back. With other displays
+attached, any change of the primary display's DPI moves their logical rectangles too, so papers near an edge between
+displays can be drawn on the neighbouring one; that case awaits real hardware. The `--reference-dpi` probe in
+[docs/testing.md](../testing.md) covers a single display.
+
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)

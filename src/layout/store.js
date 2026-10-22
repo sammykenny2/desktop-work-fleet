@@ -1,6 +1,7 @@
-import { activeGroups, compareId, containsRect, copy, defaultGrid,
+import { activeGroups, compareId, containsRect, copy, defaultGrid, eligible,
   gridRegions, groupKey, membershipKey, requireValue, validRect } from '../core/contracts.js';
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
+import { maximalAreas, overlaps, subtract } from './formation.js';
 import { groupLayerOrder } from './stages.js';
 import { orderedGroups } from './order.js';
 import { settleGroupColors, swapGroupColor, validColor } from './colors.js';
@@ -71,6 +72,34 @@ function fitNewPaper(size, region, margin = 12, smallest = 160) {
   const scale = Math.max(fit, Math.min(1, smallest / Math.min(size.width, size.height)));
   // The epsilon keeps 240 × (234 / 240) from flooring to 233.
   return { width: Math.floor(size.width * scale + 1e-9), height: Math.floor(size.height * scale + 1e-9) };
+}
+
+// A new paper takes the first free place in its group's region, row by row from the top left as a spread fills it,
+// keeping the 12px margin from the region's edge and from every paper shown on the desktop, whatever its group. In a
+// full region it cascades from the region's corner in 18 × 28 steps and takes the first step with no shown paper's corner
+// within one step, so it never hides another paper's title band corner; when every step has one, the step farthest away.
+function newPaperPosition(size, region, shown, margin = 12, step = { x: 18, y: 28 }) {
+  const corner = { x: region.x + margin, y: region.y + margin };
+  const bounds = { ...corner, width: region.width - 2 * margin, height: region.height - 2 * margin };
+  let free = validRect(bounds) ? [bounds] : [];
+  for (const rect of shown) {
+    if (!free.length) break;
+    const blocked = { x: rect.x - margin, y: rect.y - margin, width: rect.width + 2 * margin, height: rect.height + 2 * margin };
+    if (free.some(area => overlaps(area, blocked))) free = maximalAreas(free.flatMap(area => subtract(area, blocked)));
+  }
+  const spot = free.filter(area => area.width + 0.001 >= size.width && area.height + 0.001 >= size.height)
+    .sort((a, b) => a.y - b.y || a.x - b.x)[0];
+  if (spot) return { x: spot.x, y: spot.y };
+  let best = corner; let farthest = -1;
+  for (let index = 0; index < 40; index++) {
+    const trial = { x: corner.x + index * step.x, y: corner.y + index * step.y };
+    if (!containsRect(region, { ...trial, ...size })) break;
+    // Measured in cascade steps to the nearest shown paper's corner.
+    const distance = Math.min(...shown.map(rect => Math.max(Math.abs(rect.x - trial.x) / step.x, Math.abs(rect.y - trial.y) / step.y)));
+    if (distance >= 1) return trial;
+    if (distance > farthest) { best = trial; farthest = distance; }
+  }
+  return best;
 }
 
 /** Single writer per device; persist must atomically save the full supplied snapshot or reject. */
@@ -180,22 +209,16 @@ export class LayoutStore {
       let order = Math.max(0, ...Object.values(draft.placements).map(rect => rect.order)) + 1;
       const fresh = snapshot.cards.filter(card => !card.deleted && !draft.placements[card.id])
         .sort((a, b) => compareId(a.id, b.id));
-      const existing = Object.values(draft.placements);
+      // Placements outlive deleted, archived and hidden papers; only papers on the desktop take up room.
+      const shown = snapshot.cards.filter(card => draft.placements[card.id] && eligible(card, draft))
+        .map(card => draft.placements[card.id]);
       for (const card of fresh) {
         if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
-        let rect = { x: region.x + 12, y: region.y + 12, ...fitNewPaper(paperSize, region), order: order++, visible: true };
-        for (let step = 0; step < 40; step++) {
-          const trial = { ...rect, x: rect.x + step * 18, y: rect.y + step * 28 };
-          if (containsRect(region, trial) && !existing.some(other =>
-            trial.x < other.x + other.width && trial.x + trial.width > other.x
-            && trial.y < other.y + other.height && trial.y + trial.height > other.y)) {
-            rect = trial; break;
-          }
-        }
-        draft.placements[card.id] = rescueRect(rect, workAreas);
-        existing.push(draft.placements[card.id]);
+        const size = fitNewPaper(paperSize, region);
+        draft.placements[card.id] = rescueRect({ ...newPaperPosition(size, region, shown), ...size, order: order++, visible: true }, workAreas);
+        if (eligible(card, draft)) shown.push(draft.placements[card.id]);
       }
       return { deferred, groupOverflow: groups.length > 9, groups: groupKey(snapshot) };
     });

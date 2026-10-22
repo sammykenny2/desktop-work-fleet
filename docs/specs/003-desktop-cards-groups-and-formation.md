@@ -517,6 +517,13 @@ unlocking locally.
 - The initial position prefers free space in the group region. Without free space, overlap is allowed and the new card
   is indicated, without shrinking old cards, sending cards out of reach, or letting the new card take over the selected
   or editing card.
+- Reported by the user on 2026-10-23: a third note synced into a 480-wide region landed exactly on the first, because
+  the search tried only one diagonal of 18 × 28 steps and otherwise fell back to the region's corner. A new paper now
+  takes the first free place in its region, row by row from the top left as a spread fills it, 12px clear of the
+  region's edge and of every paper shown on the desktop, whatever its group; deleted, archived, hidden and hidden
+  completed papers leave their place free. A full region cascades from its corner in 18 × 28 steps and takes the first
+  step with no shown paper's corner within one step, otherwise the step farthest from them, so a new paper covers
+  another's corner only when every step is taken. The new paper is placed on top; it has no other marker yet.
 - Sync updates only shared data; longer content, a colour change, a card moving to another group or signing in again
   must not trigger a formation.
 - A card that already has a local position keeps it when it moves from A to B; the next B formation recalls it into

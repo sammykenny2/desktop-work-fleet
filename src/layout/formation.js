@@ -4,13 +4,13 @@ import { t } from '../i18n/index.js';
 
 const inset = (rect, gap) => ({ x: rect.x + gap, y: rect.y + gap,
   width: rect.width - 2 * gap, height: rect.height - 2 * gap });
-const overlaps = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x
+export const overlaps = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x
   && a.y < b.y + b.height && a.y + a.height > b.y;
 const intersection = (a, b) => ({ x: Math.max(a.x, b.x), y: Math.max(a.y, b.y),
   width: Math.min(a.x + a.width, b.x + b.width) - Math.max(a.x, b.x),
   height: Math.min(a.y + a.height, b.y + b.height) - Math.max(a.y, b.y) });
 
-function subtract(area, occupied) {
+export function subtract(area, occupied) {
   if (!overlaps(area, occupied)) return [area];
   const hit = intersection(area, occupied);
   return [
@@ -21,7 +21,7 @@ function subtract(area, occupied) {
   ].filter(validRect);
 }
 
-function maximalAreas(areas) {
+export function maximalAreas(areas) {
   return areas.filter((area, index) => !areas.some((other, otherIndex) => otherIndex !== index
     && containsRect(other, area) && (otherIndex < index || !containsRect(area, other))));
 }

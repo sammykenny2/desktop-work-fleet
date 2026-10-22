@@ -8,7 +8,7 @@ Evidence for the existing 0.1.0 prototype is in the [validation report](validati
 
 The requirements for the new cards, groups and formation are in [SPEC-003 C01–C48](specs/003-desktop-cards-groups-and-formation.md);
 the layered strategy is in [PLAN-003](plans/003-desktop-interaction-implementation.md).
-`tests/desktop-core.test.js` verifies the grid, formation and capacity, undo, operation scope, the gesture model,
+`tests/desktop-core.test.js` verifies the grid, where new papers land, formation and capacity, undo, operation scope, the gesture model,
 atomic save failures, safe exit from drafts and adapter replacement; the injected in-memory persist does not prove that the OS writes to disk.
 C numbers in test names mark only the simulated semantic part; the native capabilities of C16, C35, C40–C43 and C46–C47 still need acceptance on a real host.
 A green result from old tests must not be listed as a pass for a new feature, and document changes do not restart the old Mac probes.

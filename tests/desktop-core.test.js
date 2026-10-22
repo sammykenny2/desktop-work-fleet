@@ -191,6 +191,57 @@ test('a new paper stays square but shrinks to fit a short region, never below 16
   }
 });
 
+test('a new paper takes the first free place in its region and, once it is full, never lands on another paper', async () => {
+  const groups = Array.from({ length: 4 }, (_, i) => ({ id: `g${i}` }));
+  const workArea = { x: 0, y: 0, width: 1920, height: 1032 };
+  const store = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  const region = gridRegions(store.state.grid, groups)[0]; const cards = [];
+  const add = async (patch = {}) => {
+    const card = { id: `c${String(cards.length).padStart(2, '0')}`, groupId: 'g0', ...patch }; cards.push(card);
+    await store.placeNew({ groups, cards: [...cards] }, [workArea]);
+    return store.state.placements[card.id];
+  };
+  // Papers arriving one at a time, as from sync, fill the 480-wide region down its one column instead of a diagonal.
+  const column = [];
+  for (let i = 0; i < 4; i++) column.push(await add());
+  assert.deepEqual(column.map(rect => [rect.x, rect.y]), [[12, 12], [12, 264], [12, 516], [12, 768]]);
+  for (const rect of column) assert.ok(containsRect(region, rect));
+  // A full region cascades, keeping every earlier paper's corner and title band in sight.
+  for (let i = 0; i < 3; i++) {
+    const rect = await add(); const others = cards.slice(0, -1).map(card => store.state.placements[card.id]);
+    assert.ok(containsRect(region, rect));
+    for (const other of others) assert.ok(Math.abs(rect.x - other.x) >= 18 || Math.abs(rect.y - other.y) >= 28, 'a corner is covered');
+  }
+
+  // Deleted, hidden and completed papers keep their placement but leave their place free.
+  const fresh = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  const papers = [{ id: 'a', groupId: 'g0' }, { id: 'b', groupId: 'g0' }, { id: 'c', groupId: 'g0' }];
+  await fresh.placeNew({ groups, cards: papers }, [workArea]);
+  await fresh.setCardPolicy('b', { visible: false });
+  const later = [{ ...papers[0], deleted: true }, papers[1], { ...papers[2], completed: true },
+    { id: 'd', groupId: 'g0' }, { id: 'e', groupId: 'g0' }, { id: 'f', groupId: 'g0' }];
+  await fresh.placeNew({ groups, cards: later }, [workArea]);
+  assert.deepEqual(['d', 'e', 'f'].map(id => [fresh.state.placements[id].x, fresh.state.placements[id].y]),
+    [[12, 12], [12, 264], [12, 516]]);
+
+  // A paper the user moved leaves the room around it free.
+  const moved = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  await moved.placeNew({ groups, cards: [{ id: 'a', groupId: 'g0' }] }, [workArea]);
+  await moved.move('a', { x: 40, y: 30 });
+  await moved.placeNew({ groups, cards: [{ id: 'a', groupId: 'g0' }, { id: 'b', groupId: 'g0' }] }, [workArea]);
+  assert.deepEqual([moved.state.placements.b.x, moved.state.placements.b.y], [12, 282]);
+});
+
+test('a new paper fills a wider region row by row, as a spread does', async () => {
+  const groups = Array.from({ length: 3 }, (_, i) => ({ id: `g${i}` }));
+  const workArea = { x: 0, y: 0, width: 1920, height: 1032 };
+  const store = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  const cards = Array.from({ length: 4 }, (_, i) => ({ id: `c${i}`, groupId: 'g1' }));
+  await store.placeNew({ groups, cards }, [workArea]);
+  assert.deepEqual(cards.map(card => [store.state.placements[card.id].x, store.state.placements[card.id].y]),
+    [[652, 12], [904, 12], [652, 264], [904, 264]]);
+});
+
 test('C11: consent applies to one preview; undo restores geometry without rewinding text or policy', async () => {
   const f = await fixture(); const before = f.workspace.layout.state;
   const grid = { ...before.grid, area: { x: 0, y: 0, width: 440, height: 520 } };

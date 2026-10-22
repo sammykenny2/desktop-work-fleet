@@ -41,6 +41,9 @@ interface. To switch, see [Settings](#settings).
   the main window.
 - New notes are 240×240 squares. Where a group region is short, a new note shrinks to a square that fits (at least
   160×160). Notes already on the desktop keep their size until you use Reset desktop layout.
+- A new note, including one that arrives from sync, takes the first free place in its group's region, row by row from
+  the top left. Only when the region is full does it overlap, stepping down and to the right from the region's corner so
+  each note beneath still shows the start of its title.
 - Notes you can operate on the desktop scroll their text. Notes on the Wallpaper layer and on the main window's board
   do not scroll: text that does not fit ends with "…". Open the note in the editor to read all of it.
 - A paper with attachments shows a row of thumbnails along its bottom, from left to right; thumbnails that do not fit

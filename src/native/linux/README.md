@@ -130,6 +130,24 @@ X11 uses native window levels and input regions, and the scenes cover the displa
 ordinary windows away from the taskbar);
 the windows cannot be resized, and their size comes from the viewport size request;
 Wayland uses compositors that GtkLayerShell supports.
+GTK on Wayland reports a monitor's whole geometry as its work area, so layer-shell scenes would place new papers under a
+panel and count a title behind it as reachable. Layer-shell work areas therefore come from `_NET_WORKAREA` on the XWayland
+root window, read through libxcb and intersected with each monitor; labwc publishes it (wf-panel-pi on a 1920×1080 Pi
+display: `0, 36, 1920, 1044`, a 36 px panel at the top). A thread of its own reads it every two seconds over one
+connection, so an Xwayland that is starting or stalled holds up GTK for at most 3 s at start (waiting for the first
+sample) and 1 s on a display change (waiting for a fresh one); a read that fails keeps the sample before it. A panel
+that moves or resizes is picked up by the next display poll, and a paper whose title it then covers is rescued as on a
+display change.
+Without XWayland, libxcb or the property, or when the X root does not span the GTK monitor layout (a compositor that
+scales XWayland itself), papers keep 48 px clear on every edge, which clears the usual panels at scale 1. That margin is
+a guess, so it waits for a definite answer: until Xwayland first answers, and for up to 10 s while a new connection
+lacks the property or the X root still shows the layout before a display change, the monitor keeps its whole area, and
+papers near an edge are not rescued on a transient.
+`_NET_WORKAREA` is one rectangle for the whole layout, so with several displays only panels on the outer edges of the
+layout count: a panel at an inner edge (for example at the bottom of the shorter of two top-aligned displays) is
+missed, and a panel on one display also narrows a display beside it on the same outer edge.
+Holding the connection keeps an Xwayland that the compositor starts on demand running while Work Fleet does.
+The scenes still cover the whole monitor, so adjust mode keeps covering panels.
 Without layer-shell support the reason is reported, and notes can still be taken in the main window. Areas outside cards
 and papers that cannot be operated do not intercept desktop input.
 Input regions are set on the GTK widget with a queued draw, so click-through is not lost after reallocation; the

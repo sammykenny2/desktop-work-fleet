@@ -328,6 +328,14 @@ rejecting malformed files, new files in merge and non-merge mode, backing up onl
 `tests/native-shortcuts.test.js` also confirms that a write waits for a setting in progress and reports the rc.xml status. It neither reads nor writes the user's rc.xml.
 `tests/test_linux_xwayland.py` verifies GNOME Wayland detection, the preference file's permissions and atomic write, setting `GDK_BACKEND` from the choice before GTK starts,
 user settings taking precedence, a restart removing the value it set itself, asking only once, and no restart while the data lock is still held; the dialog and the real restart are verified only on real machines.
+`tests/test_linux_workarea.py` confirms that layer-shell work areas take a work area GTK knows first, then the published `_NET_WORKAREA` within each monitor, and otherwise 48 px on every edge;
+that an area whose X root does not span the GTK monitor layout, a missing, non-32-bit or non-CARDINAL property, an X error (which is freed), a reply lost with the connection and a lost connection read as no area;
+that one connection and atom serve every read and queued events are freed; that the reading thread keeps the previous sample when a read fails, picks up a changed area, makes a new layout wait for a fresh sample,
+leaves the caller waiting only for the bounded time when Xwayland stalls, and disconnects on close; that the monitor stays whole before the first answer, while a connection lacks the property and while the X root still shows
+the old layout, until the grace ends; and that libxcb is not loaded without `DISPLAY` or retried once it is missing. A fake libxcb answers in place of XWayland;
+only the binding to the real libxcb with a display name it refuses is checked when libxcb is installed. `Desktop.read_displays` itself has no automated test.
+On the Raspberry Pi 5 with labwc and wf-panel-pi at the top, the bundle read `0, 36, 1920, 1044` and placed a new paper's top edge at y = 48 (2026-10-23).
+Multiple displays, output scales other than 1, compositors other than labwc, an Xwayland started on demand by the first read, and a panel moved or resized while Work Fleet runs are not verified on real machines.
 In a real Mac graphical session, run `bash scripts/macos/test-desktop-layers.sh`, which compiles the AppKit
 scenes and coordinator directly and verifies native levels, the three-layer capability, position, click-through, the wallpaper refusing focus, that the scene WKWebView draws no opaque background
 (otherwise the whole scene would cover the wallpaper), and that during adjust mode the scene shows even without notes, the whole viewport receives input, and the keyboard and input panel are released on exit;

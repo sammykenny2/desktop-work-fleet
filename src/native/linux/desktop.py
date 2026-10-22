@@ -7,6 +7,7 @@ import protocol as p
 import scenes
 from shortcuts import Shortcuts
 from text import t
+import workarea
 from surface import Surface, adjust_overlay, backend, come_back, layers, rectangle, remap, resident_layers, scene_viewport, step_aside, wallpaper_placement
 
 
@@ -20,7 +21,7 @@ class Desktop:
         self.transfers = scenes.Transfers()
         self.views, self.commands, self.flushes, self.frozen, self.scene_intents = [], {}, {}, {}, {}
         self.frame = self.frame_token = self.intent = self.focus_sequence = None
-        self.proposed, self.displays = None, self.read_displays()
+        self.proposed = self.displays = None
         self.topology = self.proposed_topology = 0
         self.started = self.closed = self.pending = self.blocked = self.native_menu = False
         self.bindings, self.signals, self.timers = {}, [], []
@@ -41,10 +42,13 @@ class Desktop:
             self.sleep_subscription = self.sleep_bus.signal_subscribe("org.freedesktop.login1", "org.freedesktop.login1.Manager", "PrepareForSleep", "/org/freedesktop/login1", None, Gio.DBusSignalFlags.NONE, self.sleep_changed, None)
         except GLib.Error:
             pass
-        self.monitor_fingerprint = self.fingerprint(self.displays)
-        self.timers.append(GLib.timeout_add_seconds(2, self.poll_displays))
-        self.focus_changed()
+        # GTK on Wayland has no work area, so layer-shell scenes ask XWayland where the panels are.
+        self.published = workarea.Published() if self.mode == "wayland-layer-shell" else None
         try:
+            self.displays = self.read_displays()
+            self.monitor_fingerprint = self.fingerprint(self.displays)
+            self.timers.append(GLib.timeout_add_seconds(2, self.poll_displays))
+            self.focus_changed()
             for display in self.displays:
                 for layer in self.layers:
                     self.new_view(display, layer)
@@ -87,13 +91,18 @@ class Desktop:
         p.require(0 < count <= 16, "desktop-capacity", "There are more displays than desktop notes support; your data is kept.")
         values, seen = [], {}
         primary = display.get_primary_monitor()
-        for index in range(count):
-            monitor = display.get_monitor(index)
+        monitors = [display.get_monitor(index) for index in range(count)]
+        geometries = [rectangle(monitor.get_geometry()) for monitor in monitors]
+        layout = (max(value["x"] + value["width"] for value in geometries), max(value["y"] + value["height"] for value in geometries))
+        published = None if self.published is None else self.published.read(layout)
+        for index, monitor in enumerate(monitors):
             name = (monitor.get_manufacturer() or "display") + ":" + (monitor.get_model() or "monitor")
             occurrence = seen.get(name, 0)
             seen[name] = occurrence + 1
             key = name + ":" + str(occurrence)
-            geometry, work = rectangle(monitor.get_geometry()), rectangle(monitor.get_workarea())
+            geometry, work = geometries[index], rectangle(monitor.get_workarea())
+            if self.published is not None:
+                work = workarea.resolve(geometry, work, published)
             scenes.rect(geometry)
             scenes.rect(work)
             viewport = scene_viewport(self.mode, geometry, work)
@@ -508,6 +517,8 @@ class Desktop:
             return
         self.closed = True
         self.shortcuts.close()
+        if self.published is not None:
+            self.published.close()
         if self.display_timer is not None:
             GLib.source_remove(self.display_timer)
         if self.main_timer is not None:

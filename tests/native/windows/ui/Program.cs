@@ -35,8 +35,9 @@ internal static class Program
     var adjustOverlay = args.Length == 2 && args[0] == "--adjust-overlay";
     var referenceDpi = args.Length == 2 && args[0] == "--reference-dpi";
     var hiddenSync = args.Length == 2 && args[0] == "--hidden-sync";
-    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && !signInHold && !gridArea && !adjustOverlay && !referenceDpi && !hiddenSync && args.Length != 1)
-      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay|--reference-dpi|--hidden-sync] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
+    var dataFailure = args.Length == 2 && args[0] == "--data-failure";
+    if (!composition && !wallpaper && !diagnostics && !formation && !hostChild && !hostCheck && !hostShell && !crashGuard && !signInHold && !gridArea && !adjustOverlay && !referenceDpi && !hiddenSync && !dataFailure && args.Length != 1)
+      throw new ArgumentException("Usage: WorkFleet.Windows.Ui.Tests [--composition|--wallpaper|--diagnostics|--host-check|--formation|--host-shell|--crash-guard|--sign-in-hold|--grid-area|--adjust-overlay|--reference-dpi|--hidden-sync|--data-failure] OUTPUT_DIRECTORY [--wait-desktop] | --platform | --scene-growth");
     var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
     app.Startup += async (_, _) =>
     {
@@ -58,6 +59,7 @@ internal static class Program
         else if (adjustOverlay) await AdjustOverlayProbe.Run(Path.GetFullPath(args[1]));
         else if (referenceDpi) await ReferenceDpiProbe.Run(Path.GetFullPath(args[1]));
         else if (hiddenSync) await HiddenSyncProbe.Run(Path.GetFullPath(args[1]));
+        else if (dataFailure) await DataFailureUiProbe.Run(Path.GetFullPath(args[1]));
         else { await Probe(Path.GetFullPath(args[0])); Console.WriteLine("PASS real Windows WPF/WebView2/native SQLite UI probe"); }
         app.Shutdown(0);
       }

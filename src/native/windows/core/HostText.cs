@@ -180,6 +180,20 @@ public static partial class HostText
     ["desktop.sceneStartFailed"] = "A desktop window could not start. Saved data is still in the main window.",
     ["desktop.sceneStopped"] = "A desktop window's display process stopped. The last confirmed draft is kept; continue in the main window.",
     ["backup.folderName"] = "Backup folder",
+    ["dataFailure.title"] = "Work Fleet can't open your notes",
+    ["dataFailure.data-damaged"] = "The local data is damaged.",
+    ["dataFailure.data-full"] = "The disk is full. Free some space, then start Work Fleet again.",
+    ["dataFailure.data-in-use"] = "Another program is using the local data. Close it, for example a backup or sync tool, then start Work Fleet again.",
+    ["dataFailure.data-denied"] = "Windows doesn't let Work Fleet open its data folder. Check the folder's permissions, then start Work Fleet again.",
+    ["dataFailure.data-key"] = "The local data can't be decrypted under this Windows account. It can be read only by the Windows account, on the PC, that used Work Fleet before.",
+    ["dataFailure.data-unreadable"] = "Work Fleet couldn't open the local data, and it can't tell why.",
+    ["dataFailure.folder"] = "The data is in this folder:",
+    ["dataFailure.openFolder"] = "Open folder",
+    ["dataFailure.setAside"] = "Set aside and start again…",
+    ["dataFailure.close"] = "Close",
+    ["dataFailure.confirm"] = "Set the local data aside and start with empty data?\n\nThe database moves into a dated \"set-aside\" folder inside the data folder; nothing is deleted.\n\nGoogle workspaces get their notes, groups and attachments back from Drive after you sign in again. This PC's desktop positions, colours, shortcuts and drafts not yet synced stay only in the set-aside copy. The local workspace comes back only by restoring a backup ZIP.",
+    ["dataFailure.setAsideFailed"] = "The data couldn't be set aside, and nothing was deleted. Close other programs that use it and try again.",
+    ["dataFailure.setAsideIncomplete"] = "Part of the local data moved into a set-aside folder and couldn't be put back. Nothing was deleted. Move those files back into the data folder before starting Work Fleet again.",
     // i18n:end
   };
 
@@ -247,6 +261,20 @@ public static partial class HostText
     ["desktop.sceneStartFailed"] = "桌面視窗未能啟動，已保存資料仍保留於主畫面。",
     ["desktop.sceneStopped"] = "桌面畫面程序已停止。最後確認的草稿仍保留，請在主畫面繼續。",
     ["backup.folderName"] = "備份資料夾",
+    ["dataFailure.title"] = "Work Fleet 無法開啟你的便箋",
+    ["dataFailure.data-damaged"] = "本機資料已損壞。",
+    ["dataFailure.data-full"] = "磁碟已滿。請先清出一些空間，再重新啟動 Work Fleet。",
+    ["dataFailure.data-in-use"] = "另一個程式正在使用本機資料。請先關閉它（例如備份或同步工具），再重新啟動 Work Fleet。",
+    ["dataFailure.data-denied"] = "Windows 不允許 Work Fleet 開啟資料夾。請檢查資料夾權限，再重新啟動 Work Fleet。",
+    ["dataFailure.data-key"] = "本機資料無法在這個 Windows 帳號下解密。只有之前使用 Work Fleet 的那台電腦、那個 Windows 帳號才能讀取。",
+    ["dataFailure.data-unreadable"] = "Work Fleet 無法開啟本機資料，也無法判斷原因。",
+    ["dataFailure.folder"] = "資料在這個資料夾：",
+    ["dataFailure.openFolder"] = "開啟資料夾",
+    ["dataFailure.setAside"] = "移到一旁並重新開始…",
+    ["dataFailure.close"] = "關閉",
+    ["dataFailure.confirm"] = "要把本機資料移到一旁，從空白資料重新開始嗎？\n\n資料庫會移到資料夾內一個標有日期的「set-aside」資料夾，不會刪除任何東西。\n\nGoogle 工作空間重新登入後，便箋、群組與附件會從 Drive 回來；這台電腦的桌面位置、顏色、快捷鍵與尚未同步的草稿只留在移到一旁的副本裡。本機工作空間只能從備份 ZIP 還原。",
+    ["dataFailure.setAsideFailed"] = "資料無法移到一旁，也沒有刪除任何東西。請關閉正在使用它的程式後再試一次。",
+    ["dataFailure.setAsideIncomplete"] = "部分本機資料已移到 set-aside 資料夾，卻沒能移回來。沒有刪除任何東西。請先把那些檔案移回資料夾，再啟動 Work Fleet。",
     // i18n:end
   };
 }

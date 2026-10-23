@@ -12,6 +12,7 @@ import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
 import { rankSearch } from './search.js';
+import { canSetAside, causeKey, loadFailureCause, workspaceFailureCause } from './data-failure.js';
 import { revisionPanel } from './conflicts.js';
 import { backupPanel } from './backup.js';
 import { AutomaticBackup } from '../backup/automatic.js';
@@ -175,11 +176,17 @@ async function initialize() {
   addEventListener('beforeunload', event => {
     if (unsavedDrafts.size) { event.preventDefault(); event.returnValue = ''; }
   });
-  const saved = await storage.load(profileId);
+  // A host that can show the data folder and set the data aside explains notes it cannot read instead of only failing.
+  const recovery = native?.info.capabilities.dataRecovery === true;
+  let saved;
+  try { saved = await storage.load(profileId); }
+  catch (error) { if (recovery && loadFailureCause(error)) return showDataFailure(loadFailureCause(error)); throw error; }
   const persist = (state, revision) => storage.save(state, revision);
   // Groups new to this computer, made here or brought by sign-in or sync, start at the back of its desktop.
   const backLayer = () => arrivalLayer(residentLayers());
-  workspace = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId,
+  try { if (saved) workspace = new Workspace(saved, persist); }
+  catch (error) { if (recovery && workspaceFailureCause(error, saved)) return showDataFailure(workspaceFailureCause(error, saved)); throw error; }
+  workspace ||= await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
   workspace.setArrivalLayer(backLayer);
   activeGroupId = rememberedGroup();
@@ -266,6 +273,38 @@ async function initialize() {
       });
     }, 250);
   }).observe($('#stage-shell'));
+}
+
+// SPEC-006 DO: the notes on this device could not be read. The window says why and shows the data folder; where it can
+// help, it sets the data aside after a confirmation, and the host reopens this page on empty data.
+async function showDataFailure(cause) {
+  const dialog = $('#data-failure-dialog'); const body = $('#data-failure-body'); const actions = $('#data-failure-actions');
+  const location = await native.bridge.request('data.location').catch(() => null);
+  // Nothing behind it works without the notes, so the explanation stays until the data is set aside or the app quits;
+  // Esc or a browser close request only shows it again.
+  dialog.oncancel = event => event.preventDefault();
+  dialog.onclose = () => dialog.showModal();
+  // No workspace or controller exists yet, so its buttons report failures themselves instead of going through run().
+  const button = (text, action, className) => {
+    const node = element('button', text, className); node.type = 'button';
+    node.onclick = () => { void Promise.resolve().then(action).catch(error => status(error.message, true)); }; return node;
+  };
+  const explain = () => {
+    body.replaceChildren(element('p', t(causeKey(cause))));
+    if (location?.path) body.append(element('p', t('app.dataFailure.folder')), element('code', location.path, 'data-failure-path'));
+    actions.replaceChildren(button(t('app.dataFailure.openFolder'), () => native.bridge.request('data.reveal')));
+    if (canSetAside(cause)) actions.append(button(t('app.dataFailure.setAside'), confirm));
+  };
+  const confirm = () => {
+    body.replaceChildren(element('h3', t('app.dataFailure.confirmTitle')), element('p', t('app.dataFailure.confirmMove')),
+      element('p', t('app.dataFailure.confirmGoogle')), element('p', t('app.dataFailure.confirmLocal')));
+    actions.replaceChildren(button(t('common.cancel'), explain), button(t('app.dataFailure.confirm'), async () => {
+      for (const control of actions.querySelectorAll('button')) control.disabled = true;
+      body.append(element('p', t('app.dataFailure.settingAside')));
+      await native.bridge.request('data.setAside');
+    }, 'danger'));
+  };
+  explain(); status(t(causeKey(cause)), true); dialog.showModal();
 }
 
 async function initializeGoogle() {

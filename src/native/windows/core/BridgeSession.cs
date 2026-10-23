@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -7,10 +8,11 @@ namespace WorkFleet.Windows.Core;
 /// <summary>
 /// Per-document bounded protocol. The UI host authenticates source and navigation before dispatch. With
 /// languagePreference, host.info reports the display language from HostText; the window answers host.language.set.
+/// With dataRecovery, the window also answers data.location, data.reveal and data.setAside (SPEC-006 DO).
 /// </summary>
 public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? backupFiles = null, Func<string?>? chooseBackupDirectory = null,
   Func<string, JsonElement, object?>? desktop = null, bool googleAvailable = false, HostIdentity? identity = null,
-  Func<byte[], string, bool, object?>? attachmentFiles = null, bool languagePreference = false) : IDisposable
+  Func<byte[], string, bool, object?>? attachmentFiles = null, bool languagePreference = false, bool dataRecovery = false) : IDisposable
 {
   public const int ChunkSize = 256 * 1024;
   // Includes a complete manifest of 20,000 UUID attachment tokens plus the fixed envelope.
@@ -40,7 +42,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
       backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null,
-      hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true, attachmentFiles = attachmentFiles is not null, languagePreference },
+      hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true, attachmentFiles = attachmentFiles is not null, languagePreference, dataRecovery },
     language = languagePreference ? HostText.Describe() : null };
 
   /// <summary>The host runs this on its preview lane. Shell thumbnail handlers never hold the storage bridge gate.</summary>
@@ -95,6 +97,8 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         var (code, text) = error switch
         {
           HostError specific => (specific.Code, specific.Message),
+          // SPEC-006 DO: a database that opened but cannot be read names its cause, which the page explains.
+          SqliteException when method == "storage.load" && DataFailure.Classify(error) is { } cause => (cause, DataFailure.Describe(cause).Message),
           CryptographicException => (method?.StartsWith("backup.", StringComparison.Ordinal) == true ? "backup-vault-unavailable" : "vault-unavailable",
             "Windows secure storage couldn't decrypt this. Try again with the original Windows account."),
           ObjectDisposedException => ("native-closed", "The native workspace is closed. Reopen it."),

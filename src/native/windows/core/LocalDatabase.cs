@@ -17,9 +17,14 @@ public sealed class LocalDatabase : IDisposable
   public LocalDatabase(string directory, string profileId)
   {
     HostError.Require(profileId.Length is > 0 and <= 256 && !profileId.Contains('\0'), "invalid-profile", "The account partition is invalid.");
-    ProfileId = profileId; Directory.CreateDirectory(directory);
+    ProfileId = profileId;
+    // SPEC-006 DO: a failure to open the data names its cause, which the start-up dialog and the page explain.
+    try { Directory.CreateDirectory(directory); }
+    catch (Exception error) when (DataFailure.Classify(error) is { } cause) { throw DataFailure.Describe(cause); }
     try { owner = new FileStream(Path.Combine(directory, "owner.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
-    catch (IOException) { throw new HostError("native-already-open", "This data location is already open in another Work Fleet window. Use that window."); }
+    catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33)
+    { throw new HostError("native-already-open", "This data location is already open in another Work Fleet window. Use that window."); }
+    catch (Exception error) when (DataFailure.Classify(error) is { } cause) { throw DataFailure.Describe(cause); }
     connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "fleet.sqlite3"),
       Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
     try
@@ -36,7 +41,12 @@ public sealed class LocalDatabase : IDisposable
       // Exclusive owner proves no live transfer survives a process restart.
       Execute("DELETE FROM staging; PRAGMA user_version=2;", tx); tx.Commit();
     }
-    catch { connection.Dispose(); owner.Dispose(); throw; }
+    catch (Exception error)
+    {
+      connection.Dispose(); owner.Dispose();
+      if (error is not HostError && DataFailure.Classify(error) is { } cause) throw DataFailure.Describe(cause);
+      throw;
+    }
   }
   private SqliteCommand Command(string sql, SqliteTransaction? tx = null, params (string, object?)[] parameters)
   {

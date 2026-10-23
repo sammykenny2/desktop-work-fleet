@@ -194,7 +194,7 @@ public sealed class FleetWindow : Window
       }, ShowHiddenMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
         Log, holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true }, attachmentFiles.Invoke,
-        languagePreference: true);
+        languagePreference: true, dataRecovery: true);
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -212,7 +212,8 @@ public sealed class FleetWindow : Window
       var session = bridge; var epoch = navigation; queued++;
       if (IsPreviewRequest(json)) { _ = HandlePreview(session, epoch, json); return; }
       if (IsGoogleRequest(json)) { _ = HandleGoogle(session, epoch, json); return; }
-      if (ShellMethod(json) is { } shellMethod && (shell is not null || shellMethod == "host.language.set")) { _ = HandleShell(epoch, json); return; }
+      if (ShellMethod(json) is { } shellMethod && (shell is not null || shellMethod is "host.language.set" or "data.location" or "data.reveal" or "data.setAside"))
+      { _ = HandleShell(epoch, json); return; }
       messageQueue = HandleMessage(messageQueue, session, epoch, json);
     };
     core.ProcessFailed += (_, _) =>
@@ -279,7 +280,8 @@ public sealed class FleetWindow : Window
     {
       using var value = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var method = JsonRules.Text(value.RootElement, "method");
       return method is "host.preferences.get" or "host.preferences.set" or "host.preferences.openSystem" or "host.window.resetPlacement"
-        or "host.language.set" or "update.state" or "update.check" or "update.download" or "update.install" ? method : null;
+        or "host.language.set" or "update.state" or "update.check" or "update.download" or "update.install"
+        or "data.location" or "data.reveal" or "data.setAside" ? method : null;
     }
     catch { return null; }
   }
@@ -289,7 +291,7 @@ public sealed class FleetWindow : Window
   /// </summary>
   private async Task HandleShell(long epoch, string json)
   {
-    string? id = null; string reply;
+    string? id = null; string reply; var setAside = false;
     try
     {
       using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(json)); var request = document.RootElement;
@@ -299,6 +301,12 @@ public sealed class FleetWindow : Window
       object? result = null;
       switch (method)
       {
+        case "data.location": result = new { path = dataDirectory }; break;
+        case "data.reveal":
+          try { Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dataDirectory}\"") { UseShellExecute = true }); }
+          catch (Exception error) when (error is System.ComponentModel.Win32Exception or InvalidOperationException) { throw new HostError("data-reveal", "Couldn't open the data folder."); }
+          break;
+        case "data.setAside": setAside = true; break;
         case "host.preferences.get": result = await shell!.Describe(tray?.Available == true); break;
         case "host.preferences.set":
           HostError.Require(args.TryGetProperty("value", out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False, "invalid-request", "The setting value is invalid.");
@@ -321,6 +329,36 @@ public sealed class FleetWindow : Window
     finally { queued--; }
     if (epoch != navigation || shuttingDown || !NavigationPolicy.IsDocument(web.CoreWebView2.Source)) return;
     web.CoreWebView2.PostWebMessageAsJson(reply);
+    if (setAside) _ = Dispatcher.BeginInvoke(new Action(() => { if (epoch == navigation && !shuttingDown) SetAsideData(); }));
+  }
+  /// <summary>
+  /// SPEC-006 DO from the page: the data opened but its notes could not be read. The database moves aside and the same
+  /// profile reopens on empty data, as an account switch reopens it; a failed move reopens the old data and says so.
+  /// </summary>
+  private void SetAsideData()
+  {
+    var profile = database.ProfileId; var failed = false;
+    attachmentFiles.Dispose();
+    google?.Dispose(); bridge?.Dispose(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
+    try { DataFailure.SetAside(dataDirectory, DateTimeOffset.Now); }
+    catch (HostError error) when (error.Code == "data-set-aside-incomplete")
+    {
+      // Opening now would pair a new database with the journal files left behind.
+      Content = new TextBlock { Text = HostText.Get("dataFailure.setAsideIncomplete"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
+      return;
+    }
+    catch (HostError) { failed = true; }
+    try
+    {
+      database = new LocalDatabase(dataDirectory, profile); backupFiles = new NativeBackupFiles(database);
+      web.CoreWebView2.Navigate(NavigationPolicy.Document);
+    }
+    catch
+    {
+      Content = new TextBlock { Text = HostText.Get("window.openFailed"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
+      return;
+    }
+    if (failed) MessageBox.Show(this, HostText.Get("dataFailure.setAsideFailed"), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Error);
   }
   private async Task HandleGoogle(BridgeSession session, long epoch, string json)
   {

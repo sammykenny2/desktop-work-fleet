@@ -334,6 +334,20 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - In a Google workspace it also clears the data on Drive, and every device that uses the account is affected (see
   [Google setup](google-setup.md)).
 
+### When Work Fleet can't open your notes
+
+- On Windows, when the notes on this device can't be opened, Work Fleet says why instead of a general error: the data
+  is damaged, the disk is full, another program is using it, Windows doesn't let Work Fleet open its folder, or the data
+  can't be decrypted under this Windows account (only the account, on the PC, that used Work Fleet before can read it).
+- It shows the data folder, with "Open folder" to see it in File Explorer.
+- For damaged data or data that can't be decrypted, "Set aside and start again…" asks first,
+  then moves the database into a dated `set-aside-…` folder inside the data folder and opens empty data. Nothing is
+  deleted. A Google workspace gets its notes, groups and attachments back from Drive after you sign in again; this
+  device's desktop positions, colours, shortcuts and drafts not yet synced stay in the set-aside copy. The local
+  workspace comes back only by restoring a backup ZIP. Preferences such as the display language stay as they were.
+- A full disk, data another program holds, a folder Work Fleet may not open, or a cause it can't tell is not offered
+  setting aside: free space, close that program or check the folder's permissions, then start Work Fleet again.
+
 ### Keep your own copies
 
 - Without Google sync, clearing the browser's data loses the browser preview's data; save a ZIP first in

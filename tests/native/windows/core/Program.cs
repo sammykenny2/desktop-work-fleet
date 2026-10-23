@@ -230,5 +230,6 @@ try
   var host = HostSettingsProbe.Run(root); Console.WriteLine($"{host}/{host} native Windows host settings checks passed.");
   var feed = UpdateFeedProbe.Run(); Console.WriteLine($"{feed}/{feed} native Windows update feed checks passed.");
   var callback = LoopbackCallbackProbe.Run(); Console.WriteLine($"{callback}/{callback} native Windows sign-in callback checks passed.");
+  var data = DataFailureProbe.Run(root); Console.WriteLine($"{data}/{data} native Windows data failure checks passed.");
 }
 catch (Exception error) { Console.Error.WriteLine(error); Environment.ExitCode = 1; }

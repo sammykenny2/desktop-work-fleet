@@ -19,6 +19,8 @@ export interface NativeHostInfo {
     attachmentFiles?: boolean;
     /** The host stores the display language and reports it in `language`; see docs/i18n.md. */
     languagePreference?: boolean;
+    /** The host answers data.location, data.reveal and data.setAside (SPEC-006 DO). */
+    dataRecovery?: boolean;
   };
   language?: NativeLanguage;
 }
@@ -39,6 +41,11 @@ export type NativeRequest = { v: 1; id: string } & (
   | { method: 'transfer.finish' | 'transfer.discard' | 'storage.putAttachment'; params: { token: string } }
   | { method: 'transfer.read'; params: { token: string; offset: number } }
   | { method: 'storage.load'; params: { kind: NativeRecordKind } }
+  /**
+   * SPEC-006 DO, after a load the page cannot use: data.location answers { path }, data.reveal opens that folder, and
+   * data.setAside moves the database into a dated set-aside folder there and reopens the page on empty data.
+   */
+  | { method: 'data.location' | 'data.reveal' | 'data.setAside'; params: Record<string, never> }
   | { method: 'storage.attachment'; params: { id: string } }
   /** Only current-profile attachment IDs; no file paths or application commands. */
   | { method: 'attachment.preview' | 'attachment.open'; params: { id: string; name: string } }

@@ -598,6 +598,15 @@ The WebView2 UI probe can fail on the first window with `0x8876086A` when WebVie
 Rerun in an interactive desktop session that can create a D3D9 device.
 The Windows UI probe only checks that the scene DOM contains a card; it cannot tell whether the scene actually painted.
 
+### Local data that cannot be opened
+
+`DataFailureProbe` in the core probe opens a database that is not SQLite (it reports `data-damaged`), classifies the
+other SQLite, Win32 and DPAPI causes, puts back the moved database when a held `-wal` stops setting aside, and opens
+empty data after a set-aside. `WorkFleet.Windows.Ui.Tests.exe --data-failure DIR`, part of Test-WindowsNative, runs the
+start-up window on a damaged database through its set-aside and a reopen, then damages the DPAPI workspace record of a
+real profile and drives the page's explanation, its folder and its set-aside through the host until the page opens
+empty. Real full disks, held files and permissions are covered only by the classifier (2026-10-23).
+
 ### Sync while the main window is hidden
 
 Measured on 2026-10-23 with WebView2 155: after the main window went to the tray, the page turned `hidden` and its own

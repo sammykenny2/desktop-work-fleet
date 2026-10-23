@@ -75,6 +75,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows scene growth past its creation size regression failed.' }
     & $UiProbe --reference-dpi (Join-Path $ProbeRoot 'reference-dpi')
     if ($LASTEXITCODE -ne 0) { throw 'Windows reference DPI after a display change regression failed.' }
+    & $UiProbe --data-failure (Join-Path $ProbeRoot 'data-failure')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows data that cannot be opened regression failed.' }
     Write-Output "Native checks passed; synthetic evidence: $ProbeRoot"
 } finally {
     $env:WORK_FLEET_NATIVE_TEST = $PreviousNativeTest

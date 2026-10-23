@@ -502,8 +502,8 @@ After the movement has passed the drag threshold, mouseup/click/dblclick must no
 In drag mode the card surface handles moving; in text-editing mode the body area handles the cursor, selection and
 input. While editing, moving uses an explicit handle; dragging to select text must not carry the whole card away.
 Child controls such as links, buttons, checkboxes and text selection do not bubble the same gesture up into a drag or a
-double-click edit. The full policy for quick checklist ticking awaits Q01; exceptions must not let read-only cards
-change text. The draft is kept before leaving editing, switching groups, formation, hiding or switching accounts; a
+double-click edit. Ticking checklist steps on desktop papers follows the 2026-10-23 addendum; exceptions must not
+let read-only cards change text. The draft is kept before leaving editing, switching groups, formation, hiding or switching accounts; a
 failed local write to disk must be visible.
 A locked desktop does not block updates from phones; a source's read-only permission must not be bypassed by
 unlocking locally.
@@ -639,7 +639,8 @@ Concrete local implementation decisions are in [ADR-008](../decisions/008-portab
 ## 2026-10-17 addendum: note formatting and attachments
 
 The user approved six heading levels in CSS, code colouring, attachment thumbnails and opening attachments in the
-default app on double click, and explicitly excluded toggling checklist items directly on the desktop.
+default app on double click, and explicitly excluded toggling checklist items directly on the desktop (included
+again on 2026-10-23; see the next addendum).
 Attachments on the Desktop and Top layers can be operated, while the Wallpaper layer stays click-through; attachment
 actions do not trigger note dragging or text editing.
 Only the main workspace can ask the native side to handle an attachment, based on the current attachment references;
@@ -649,6 +650,29 @@ loaded. Content, sync and backup stay at V1.
 Concrete platforms, caching and the colouring budget are in [ADR-052](../decisions/052-rich-papers-and-native-attachments.md).
 Current status is in [PROGRESS](../../PROGRESS.md); verification evidence is in the git history and
 [testing](../testing.md).
+
+## 2026-10-23 addendum: the 0.3.x items
+
+On 2026-10-23 the maintainer asked for every 0.3.x item in [ROADMAP](../../ROADMAP.md#03x). Those that change this
+contract:
+
+- Quick capture from a global shortcut or the tray while the main window is hidden: saving the note or pressing Esc
+  hides the main window again. A main window that was open or minimized stays as it was, and a failed save keeps the
+  editor open with the window shown.
+- Files pasted or dropped into the editor become the note's attachments, exactly as files chosen with the file picker;
+  pasted or dropped text stays text.
+- Search ranks its results: notes whose title, or first line when there is no title, matches come first, then notes
+  matching in the first five lines of the text, then the rest; each tier keeps the existing order.
+- Ticking checklist steps on desktop papers replaces the exclusion of the 2026-10-17 addendum. On a paper that takes
+  clicks (Desktop and Top layers, and papers being adjusted), clicking a checkbox toggles that step and saves it as a
+  new revision that syncs. It does not select, drag or open the paper for editing. Papers that let clicks through
+  (the Wallpaper layer) stay read-only, a paper whose text changed since it was drawn refuses the stale click, and a
+  paper being edited shows its text, not checkboxes.
+- Each group can make its Top-layer papers see-through so they do not hide the work beneath them. The opacity is a
+  device setting next to the group's colour, from 30% to 100% and 100% by default, and never syncs. Only the paper
+  turns see-through; text, checkboxes and attachment thumbnails stay solid. It applies to papers resting on the Top
+  layer on every platform; papers on the Wallpaper and Desktop layers, papers being adjusted and the main window's
+  board and list stay opaque.
 
 ## References
 

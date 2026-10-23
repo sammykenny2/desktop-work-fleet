@@ -1,6 +1,6 @@
 # Roadmap
 
-Updated: 2026-10-20. This document only sets the order of work and does not commit to release dates. It is not a status
+Updated: 2026-10-23. This document only sets the order of work and does not commit to release dates. It is not a status
 record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of each version in
 [docs/release-notes.md](docs/release-notes.md).
 
@@ -33,33 +33,51 @@ existing Mac experience; do not restart the paused exploration goal.
 ## 0.3.x
 
 Being scheduled for 0.3.x does not mean a design is approved; these are behaviour ideas, each implemented independently.
+On 2026-10-23 the maintainer asked for all of them, in this order: the low-cost items first, then guidance when data
+cannot be opened, group transparency, and shortcuts on other Wayland compositors. Each item leaves this list in the
+commit that implements it.
 
 Low cost, clear value:
 
 - **Quick capture hides the main window again after saving**: when the main window was hidden and only shown by the
-  shortcut, saving or pressing Esc hides it again. Today `saveEditor` only closes the editor, and the main window stays
+  shortcut or the tray, saving or pressing Esc hides it again. A main window that was open or minimized stays as it
+  was, and a failed save keeps the editor open. Today `saveEditor` only closes the editor, and the main window stays
   where it is.
-- **Pasted or dropped images become attachments**: while editing, images can be pasted or dragged in directly; today
-  attachments can only be added through the file picker.
+- **Pasted or dropped images become attachments**: files pasted or dropped into the editor become attachments, as the
+  file picker adds them; pasted and dropped text stays text. Today attachments can only be added through the file
+  picker.
 - **Real-world sync check with the main window hidden**: on all three platforms, check whether the WebView throttles the
   20-second Google sync and desktop updates after the main window goes to the tray or menu bar; fix it only if a
   problem is confirmed.
-- **Search ranking**: matches in the first line first, then in the first few lines, then the rest; today it is an
-  unsorted substring filter.
+- **Search ranking**: notes whose title, or first line when there is no title, matches come first, then notes matching
+  in the first five lines of the text, then the rest, each tier in the existing order. Today it is an unsorted
+  substring filter.
 - **Ticking checklists directly on the desktop**: when a paper is not click-through, clicking a checkbox toggles its
   completion and saves and syncs it, without entering text editing and without triggering a drag or a double-click edit
-  by mistake. While click-through, papers still ignore clicks. For now this is listed for planning only.
+  by mistake. While click-through, papers still ignore clicks. The maintainer included it on 2026-10-23, replacing the
+  exclusion in the 2026-10-17 addendum of SPEC-003.
 
-Needs a product decision first:
+Decided on 2026-10-23:
 
-- **Group transparency**: desktop papers take a per-group transparency; first decide the scope of the setting and
-  whether it syncs across devices.
-- **Guidance when data cannot be opened**: when the local database cannot be opened, point to the data location and the
-  automatic backups and offer a way to restore, instead of only showing a generic error and stopping (so far confirmed
-  only on Windows); first decide each platform's entry point and the actions it can offer.
-- **Shortcuts on other Wayland compositors**: on desktops without a shortcut portal, such as sway, wayfire and Hyprland,
-  binding `gapplication action` manually; first decide whether to only document it or also add actions such as showing
-  the main window and quitting.
+- **Guidance when data cannot be opened**: on every desktop platform, when the local data cannot be opened at start,
+  the message names the cause where it can be told apart (damaged, disk full, in use or not permitted, cannot be
+  decrypted under this account), shows where the data is with a way to open that folder, and, where starting again
+  can help, offers to set the data aside and start with empty data. Setting aside only renames the data folder after
+  an explicit confirmation and never deletes it. The confirmation says what comes back: a Google workspace's notes
+  return from Drive after signing in, while this device's layout, colours, shortcuts and unsynced drafts stay only in
+  the set-aside copy; a local workspace comes back only from a backup ZIP. Data that cannot be decrypted first points to the
+  system account it belongs to. The existing messages for a second instance, a newer database and unknown
+  package data stay.
+- **Group transparency**: each group can make its Top-layer papers see-through, so they do not hide the work beneath
+  them. It is a device setting kept next to the group's colour and never syncs. Only the paper turns see-through:
+  text, checkboxes and attachment thumbnails stay solid. It applies while a paper rests on the Top layer, on every
+  platform; papers on the Wallpaper and Desktop layers and papers being adjusted stay opaque (on Windows those two
+  layers live in Explorer's desktop window, which cannot show transparent pixels). The opacity goes from 30% to 100%,
+  100% by default, and the main window's board and list do not change.
+- **Shortcuts on other Wayland compositors**: the Linux app exposes every shortcut action, plus showing the main window
+  and quitting, as named GApplication actions, so a keybinding in sway, wayfire or another compositor without a
+  GlobalShortcuts portal can run `gapplication action <app id> <action>`; the user guide gives examples. labwc keeps
+  the rc.xml keybinds that Settings writes.
 
 ## 0.4.x
 

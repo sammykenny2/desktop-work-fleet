@@ -9,6 +9,8 @@ Revised 2026-10-20: the group list follows this computer's region order and can 
 and each group's paper colour is stored per device.
 Revised 2026-10-23: the group the main window shows is remembered per device, so quick capture keeps its group
 across restarts; see the `mainGroupId` item under Decision.
+Revised again 2026-10-23: each group can make its Top-layer papers see-through; the opacity is a device setting
+next to its colour and never syncs.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 
@@ -64,6 +66,10 @@ overwrite other changes.
   transaction that adds it; a retired group frees its colour. Choosing a worn colour swaps it with the wearer, so
   colours stay unique up to nine groups. Like the order, colours never sync, as the maintainer chose; before this a
   colour followed the group's list position and shifted whenever an earlier group was merged away.
+- A group's Top-layer opacity is a device setting next to its colour, from 30% to 100% and 100% by default. As the
+  maintainer chose on 2026-10-23, it never syncs: colours do not either, and not every platform can show every layer
+  see-through. It applies only to papers resting on the Top layer, so that they do not hide the work beneath them; on
+  Windows the Wallpaper and Desktop layers live in Explorer's desktop window, which cannot show transparent pixels.
 - The group the main window shows is a device setting: the optional `mainGroupId` records the group last chosen in
   the sidebar, with a region key, by creating it or by saving a new note into it (the editor's group picker counts as
   a choice, as the maintainer decided), and quick capture files new notes into it. On opening, the

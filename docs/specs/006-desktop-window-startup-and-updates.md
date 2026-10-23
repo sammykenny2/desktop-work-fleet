@@ -14,7 +14,8 @@
 ## Summary
 
 Make Work Fleet on Windows, macOS and Linux remember the main window's position and size, offer a "Startup behaviour"
-setting, and check for, download and install new versions from the tray and the settings page. The requirements come
+setting, and check for, download and install new versions from the tray and the settings page. Since 2026-10-23 it
+also covers what the start shows when the local data cannot be opened (DO). The requirements come
 from experience with an Electron desktop reference project, but are redesigned for this product's native hosts.
 Current status is in [PROGRESS](../../PROGRESS.md); history and verification evidence are in the git history and
 [testing](../testing.md).
@@ -79,6 +80,17 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | SB-F08 | When keeping the app in the tray on close is off, closing the main window runs the existing save-and-quit flow; when the tray is unavailable, it still quits |
 | SB-F09 | A second start on Windows brings up the existing instance's main window and exits normally, without an "already open" error; macOS and Linux keep their existing activation |
 | SB-F10 | Toggling an option syncs the operating system; Windows also syncs at every start, while macOS and Linux apply the default only at the first start; an item the user disabled in the system is never silently re-enabled |
+
+### Local data that cannot be opened (DO, decided 2026-10-23)
+
+| ID | Requirement |
+|---|---|
+| DO-F01 | When the local data cannot be opened at start, Windows, macOS and Linux show a native message instead of only a generic error; the existing messages for a second instance, a database from a newer version and unknown package data stay as they are |
+| DO-F02 | The message names the cause where the host can tell it apart: the data is damaged, the disk is full, the data is in use or not permitted, or it cannot be decrypted under this system account; any other cause says so plainly |
+| DO-F03 | The message shows the data folder and offers to open it in the system file manager |
+| DO-F04 | Where starting again can help (damaged data or an unknown cause), the message offers "Set aside and start again". After an explicit confirmation it renames the data folder next to itself and starts with empty data; it never deletes anything, and a failed rename leaves everything as it was |
+| DO-F05 | The confirmation says what comes back: in a Google workspace the notes, groups and attachments return from Drive after signing in, while this device's layout, colours, shortcuts and drafts not yet synced stay only in the set-aside copy; a local workspace comes back only by restoring a backup ZIP |
+| DO-F06 | Data that cannot be decrypted, data in use and a full disk are not offered setting aside: the message points to the system account the data belongs to, to closing what holds it, or to freeing space |
 
 ### App updates (UP)
 
@@ -156,6 +168,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | C12 macOS update | A Developer ID notarized old version updates to the new one and reopens; a signature mismatch is rejected |
 | C13 Linux update | An old DEB updates to the new one and runs again; cancelling pkexec keeps it running |
 | C14 Release assets | Each platform release's manifest matches the actual installer's size, SHA-256, tag and platform |
+| C15 Data that cannot be opened | With a damaged database, a full disk, data held by another process and data from another system account, each start shows its own cause and the data folder; setting aside damaged data, once confirmed, renames the folder, starts empty and, in a Google workspace, gets the notes back after signing in |
 
 ## Dependencies
 

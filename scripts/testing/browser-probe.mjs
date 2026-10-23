@@ -40,6 +40,31 @@ try {
   await page.locator('#attachment-input').setInputFiles({ name: 'proof.txt', mimeType: 'text/plain', buffer: Buffer.from('retained attachment') });
   await expect(page.locator('#attachments a')).toHaveText('proof.txt');
   await expect(page.locator('#attachments .attachment-tile')).toHaveText('TXTproof.txt');
+  // Files pasted or dropped into the editor become attachments; a pasted picture without its own name gets a dated one,
+  // and a paste or drop without files is left to the text box.
+  const transfer = (type, files) => page.locator('#editor-text').evaluate((node, { type, files }) => {
+    const data = new DataTransfer();
+    for (const file of files) data.items.add(new File([file.text], file.name, { type: file.type }));
+    if (!files.length) data.setData('text/plain', 'plain text');
+    const event = type === 'paste' ? new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true })
+      : new DragEvent(type, { dataTransfer: data, bubbles: true, cancelable: true });
+    node.dispatchEvent(event); return event.defaultPrevented;
+  }, { type, files });
+  assert.equal(await transfer('paste', []), false, 'a text paste stays text');
+  assert.equal(await transfer('drop', []), false, 'a text drop stays text');
+  assert.equal(await transfer('paste', [{ name: 'image.png', type: 'image/png', text: 'pasted picture' }]), true);
+  const pastedImage = new RegExp(`^${t('app.editor.pastedImage', { time: String.raw`\d{4}-\d\d-\d\d \d\d\.\d\d\.\d\d` })}\.png$`);
+  await expect(page.locator('#attachments a')).toHaveText(['proof.txt', pastedImage]);
+  const dropped = [{ name: 'dropped.txt', type: 'text/plain', text: 'dropped file' }];
+  assert.equal(await transfer('dragover', dropped), true, 'a file drag is accepted');
+  assert.equal(await transfer('drop', dropped), true);
+  await expect(page.locator('#attachments a')).toHaveText(['proof.txt', pastedImage, 'dropped.txt']);
+  for (const [index, name] of [pastedImage, 'dropped.txt'].entries()) {
+    await page.locator('#attachments li', { has: page.locator('a', { hasText: name }) })
+      .getByRole('button', { name: t('app.editor.removeAttachment'), exact: true }).click();
+    await expect(page.locator('#attachments a')).toHaveCount(2 - index);
+  }
+  await expect(page.locator('#attachments a')).toHaveText('proof.txt');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   await expect(page.locator('#editor-dialog')).not.toBeVisible();
   await expect(page.locator('#compose')).toBeVisible(); await expect(page.locator('#list .note-title')).toHaveText(['First thing']);
@@ -317,7 +342,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, attachment isolation, reload, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

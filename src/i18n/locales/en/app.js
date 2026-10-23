@@ -151,6 +151,9 @@ export default {
   'app.editor.textLabel': 'Note content',
   'app.editor.textPlaceholder': 'What do you want to remember? Markdown and - [ ] to-do steps work here.',
   'app.editor.attach': '+ Attachment',
+  // File names for a pasted picture or file that brings none of its own; {time} is the local date and time.
+  'app.editor.pastedImage': 'Pasted image {time}',
+  'app.editor.pastedFile': 'Pasted file {time}',
   'app.editor.shareAttachment': 'Share',
   'app.editor.removeAttachment': 'Remove',
   'app.editor.notDownloaded': '{name} (not downloaded yet)',

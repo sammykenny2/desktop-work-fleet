@@ -39,9 +39,6 @@ commit that implements it.
 
 Low cost, clear value:
 
-- **Pasted or dropped images become attachments**: files pasted or dropped into the editor become attachments, as the
-  file picker adds them; pasted and dropped text stays text. Today attachments can only be added through the file
-  picker.
 - **Real-world sync check with the main window hidden**: on all three platforms, check whether the WebView throttles the
   20-second Google sync and desktop updates after the main window goes to the tray or menu bar; fix it only if a
   problem is confirmed.

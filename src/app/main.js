@@ -1458,6 +1458,27 @@ function showEditorTab(preview) {
     queueDraft(); showEditorTab(true);
   }) });
 }
+async function addAttachments(files) {
+  if (editorBusy || composing || !currentDraft || !files.length) return;
+  setEditorBusy(true);
+  try {
+    for (const file of files) {
+      const metadata = await storage.putAttachment(profileId, file);
+      if (!currentDraft.content.attachments.some(item => item.id === metadata.id)) currentDraft.content.attachments.push(metadata);
+    }
+    await queueDraft(); await renderAttachments();
+  } finally { setEditorBusy(false); }
+}
+// A picture pasted from a screenshot or another app arrives as "image.png"; a dated name tells several apart.
+function pastedName(file, index, files) {
+  const image = file.type.startsWith('image/');
+  if (file.name && !(image && /^image\.\w+$/i.test(file.name))) return file;
+  const pad = value => String(value).padStart(2, '0'); const now = new Date();
+  const time = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}.${pad(now.getMinutes())}.${pad(now.getSeconds())}`;
+  const extension = /\.\w+$/.exec(file.name)?.[0] || (image ? `.${file.type.slice(6).replace('jpeg', 'jpg')}` : '');
+  const name = t(image ? 'app.editor.pastedImage' : 'app.editor.pastedFile', { time }) + (files.length > 1 ? ` ${index + 1}` : '') + extension;
+  return new File([file], name, { type: file.type, lastModified: file.lastModified });
+}
 async function previewAttachment(file) {
   if (attachmentFiles) return attachmentFiles.preview(file);
   return { available: Boolean(await storage.getAttachment(profileId, file.id)), png: null };
@@ -2059,9 +2080,21 @@ function bindEvents() {
   });
   $('#editor-dialog').oncancel = event => { event.preventDefault(); if (!composing) run(closeEditor); };
   $('#attachment-input').onchange = () => run(async () => {
-    const files = [...$('#attachment-input').files]; setEditorBusy(true);
-    try { for (const file of files) { const metadata = await storage.putAttachment(profileId, file); if (!currentDraft.content.attachments.some(item => item.id === metadata.id)) currentDraft.content.attachments.push(metadata); } await queueDraft(); await renderAttachments(); }
-    finally { $('#attachment-input').value = ''; setEditorBusy(false); }
+    try { await addAttachments([...$('#attachment-input').files]); }
+    finally { $('#attachment-input').value = ''; }
+  });
+  // Files pasted or dropped into the editor become attachments, as the file picker adds them; text stays text.
+  const editorFiles = transfer => [...(transfer?.files || [])];
+  $('#editor-dialog').addEventListener('paste', event => {
+    const files = editorFiles(event.clipboardData); if (!files.length) return;
+    event.preventDefault(); run(() => addAttachments(files.map(pastedName)));
+  });
+  $('#editor-dialog').addEventListener('dragover', event => {
+    if (event.dataTransfer?.types.includes('Files')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; }
+  });
+  $('#editor-dialog').addEventListener('drop', event => {
+    const files = editorFiles(event.dataTransfer); if (!files.length) return;
+    event.preventDefault(); run(() => addAttachments(files));
   });
   $('#drafts-button').onclick = () => run(() => {
     const list = $('#draft-list'); list.replaceChildren();

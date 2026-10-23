@@ -151,6 +151,8 @@ export default {
   'app.editor.textLabel': '便箋內容',
   'app.editor.textPlaceholder': '想記住什麼？支援 Markdown 與 - [ ] 待辦步驟。',
   'app.editor.attach': '＋ 附件',
+  'app.editor.pastedImage': '貼上的圖片 {time}',
+  'app.editor.pastedFile': '貼上的檔案 {time}',
   'app.editor.shareAttachment': '分享',
   'app.editor.removeAttachment': '移除',
   'app.editor.notDownloaded': '{name}（尚未下載）',

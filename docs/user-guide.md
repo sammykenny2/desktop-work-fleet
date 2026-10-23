@@ -28,7 +28,9 @@ interface. To switch, see [Settings](#settings).
 ## Notes and the editor
 
 - "Capture" opens the editor. It supports Markdown and checklists ("+ Checklist" adds a step, "Preview / checklist"
-  shows the result), and "+ Attachment" attaches files of up to 25 MiB each.
+  shows the result), and "+ Attachment" attaches files of up to 25 MiB each. Files pasted or dragged into the editor,
+  such as a screenshot, are attached the same way; a pasted picture without a name of its own is named "Pasted image"
+  with the date and time. Pasted or dragged text stays text.
 - "Title (optional)" can stay empty. With a title, the top of the paper shows it; without one, the paper shows the
   first line of the body. The body is always shown from its first line.
 - Attachments can only be downloaded; HTML and SVG attachments are never run directly.

@@ -134,6 +134,11 @@ internal static class HostSettingsProbe
     Require(Rows(TrayMenu.Entries(true, true, false, [])) == "*show @hide | @capture @toggle @stop | exit",
       "a shown main window can be hidden; while adjusting only finishing is offered; no update row without updates");
     Require(TrayMenu.Entries(true, false, true, keys).Where(e => !e.IsSeparator).All(e => english.ContainsKey(e.Text)), "every row has host text");
+    Require(TrayMenu.Theme(false, 0) == "Dark" && TrayMenu.Theme(false, 1) == "Light" && TrayMenu.Theme(false, null) == "Light"
+      && TrayMenu.Theme(true, 0) == "HC", "the menu follows the Windows mode, light without a value, and high contrast first");
+    // A 1920x1080 display with a 48-pixel taskbar at the bottom, then at the left; a point already in the work area stays.
+    Require(TrayMenu.Anchor(1800, 1070, 0, 0, 1920, 1032) == (1800, 1031) && TrayMenu.Anchor(20, 900, 48, 0, 1920, 1080) == (48, 900)
+      && TrayMenu.Anchor(700, 500, 0, 0, 1920, 1032) == (700, 500), "the menu anchor moves off the taskbar into the work area");
     return count;
   }
   /// <summary>ADR-046: when a sign-in launch keeps its scenes out of Explorer.</summary>

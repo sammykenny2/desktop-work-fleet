@@ -51,6 +51,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Windows desktop-surface probe failed.' }
     & $UiProbe --platform
     if ($LASTEXITCODE -ne 0) { throw 'Windows native display/shortcut probe failed.' }
+    & $UiProbe --tray-menu (Join-Path $ProbeRoot 'tray-menu')
+    if ($LASTEXITCODE -ne 0) { throw 'Windows tray menu probe failed.' }
     & $UiProbe --app-data (Join-Path $ProbeRoot 'app-data')
     if ($LASTEXITCODE -ne 0) { throw 'Windows app data directory probe failed.' }
     & $UiProbe --wallpaper (Join-Path $ProbeRoot 'wallpaper')

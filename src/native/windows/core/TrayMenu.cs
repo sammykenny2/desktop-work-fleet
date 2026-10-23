@@ -34,4 +34,16 @@ public static class TrayMenu
     entries.Add(new("exit", "tray.exit"));
     return entries;
   }
+  /// <summary>
+  /// The Fluent theme the menu draws with: high contrast when it is on, otherwise the Windows mode (SystemUsesLightTheme),
+  /// which the taskbar follows, not the app mode. A missing value means light, as in Windows.
+  /// </summary>
+  public static string Theme(bool highContrast, object? systemUsesLightTheme)
+    => highContrast ? "HC" : systemUsesLightTheme is 0 ? "Dark" : "Light";
+  /// <summary>
+  /// Moves a physical anchor on the taskbar into the work area (right and bottom exclusive), so the menu opens beside the
+  /// taskbar, as Windows 11's own menus do, instead of over it.
+  /// </summary>
+  public static (int X, int Y) Anchor(int x, int y, int left, int top, int right, int bottom)
+    => (Math.Clamp(x, left, Math.Max(left, right - 1)), Math.Clamp(y, top, Math.Max(top, bottom - 1)));
 }

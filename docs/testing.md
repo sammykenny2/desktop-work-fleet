@@ -670,6 +670,12 @@ It also checks native capture, region moves, unexpected capture loss, and releas
 it injects no system mouse input and cannot replace user acceptance of fast drags. The capture check failed before the fix and has passed since testing resumed on 2026-10-09.
 `--platform` also shows one message box, checks that its button is themed and answers it itself: `app.manifest` selects Common Controls 6,
 without which Windows draws the update, data and startup message boxes with classic buttons and icons. The check failed before the manifest change on 2026-10-23.
+`--tray-menu` opens the tray menu through its own notification-icon callback, posted to the tray's window, and checks the rows, separators, shortcuts and bold default item;
+that it uses the Fluent theme for the Windows mode and is drawn by the Fluent template; and that it opens inside the work area at the anchor moved off the taskbar
+(it saves `tray-menu.png`). Keys posted to the tray's window choose an item (Down past a separator, then Enter), as UI Automation does; the item runs once, after the menu has closed.
+Esc, an app-deactivation message to the menu's window (what a click on another app sends) and a second right-click close it without running anything,
+and shortcuts are held while it is open and released each time. Whether Windows let the probe come to the front is reported, and SKIPped when it did not;
+the shell gives that permission to the icon's owner, and a menu that closed itself when its own window came to the front was found this way on 2026-10-23.
 Known one-off native probe failures that passed on rerun: the composition probe's "Reopened scene lost input policy" (2026-10-14), the composition cross-process hit tests (2026-10-06 and 2026-10-09),
 and `--wallpaper` desktop-layer step 4 not showing the paper on the first run (2026-10-15). Rerun the single probe before investigating.
 

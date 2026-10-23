@@ -1,16 +1,24 @@
 using System.Runtime.InteropServices;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Markup;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using WorkFleet.Windows.Core;
 
 namespace WorkFleet.Windows;
 
 /// <summary>
-/// Owned shell notification icon and native keyboard-accessible menu. No external process manipulation. Labels and the
-/// tooltip come from HostText, so the menu follows the display language each time it opens.
+/// Owned shell notification icon and its keyboard-accessible menu. No external process manipulation. The menu is a WPF
+/// context menu in WPF's Fluent (Windows 11) theme, light, dark or high contrast as Windows is when it opens (ADR-019).
+/// Labels and the tooltip come from HostText, so the menu follows the display language each time it opens.
 /// </summary>
 public sealed class NativeTray : IDisposable
 {
+  private static readonly Dictionary<string, ResourceDictionary> themes = [];
   private const int Callback = 0x8001;
   private const int Retries = 30;
   private readonly HwndSource receiver;
@@ -24,6 +32,10 @@ public sealed class NativeTray : IDisposable
   private int attempts;
   private string tip = HostText.Get("tray.tip");
   private bool disposed;
+  private ContextMenu? menu;
+  private string? chosen;
+  private bool escaped;
+  private int opened;
   public bool Available { get; private set; }
   /// <summary>Raised when the icon appears or goes away; a failed retry of an icon that was never there is not a change.</summary>
   public event Action? Changed;
@@ -40,6 +52,7 @@ public sealed class NativeTray : IDisposable
     receiver = new HwndSource(new HwndSourceParameters("Work Fleet notification area") { Width = 0, Height = 0,
       WindowStyle = unchecked((int)0x80000000), ExtendedWindowStyle = 0x08000080 });
     receiver.AddHook(Receive); retry.Tick += (_, _) => Retry(); Add();
+    receiver.Dispatcher.BeginInvoke(new Action(Prepare), DispatcherPriority.ApplicationIdle);
   }
   private NotifyData Data() => new() { Size = (uint)Marshal.SizeOf<NotifyData>(), Window = receiver.Handle, Id = 1,
     Flags = 1 | 2 | 4 | 0x80, Message = Callback, Icon = icon,
@@ -80,32 +93,86 @@ public sealed class NativeTray : IDisposable
   }
   private void Menu(IntPtr coordinates)
   {
-    var menu = CreatePopupMenu(); if (menu == IntPtr.Zero) return;
+    // Right-clicking the icon while the menu is open closes it.
+    if (menu?.IsOpen == true) { menu.IsOpen = false; return; }
+    var packed = coordinates.ToInt64(); var x = (int)(short)(packed & 0xffff); var y = (int)(short)((packed >> 16) & 0xffff);
+    if (x == -1 && y == -1) { _ = GetCursorPos(out var point); x = point.X; y = point.Y; }
+    MenuActive?.Invoke(true); var generation = ++opened; chosen = null; escaped = false;
     try
     {
-      MenuActive?.Invoke(true);
-      var choices = entries();
-      for (var i = 0; i < choices.Count; i++)
-      {
-        var entry = choices[i];
-        // A tab right-aligns the shortcut; the default item is the one the icon's click runs.
-        if (!(entry.IsSeparator ? AppendMenuW(menu, 0x800, UIntPtr.Zero, null)
-          : AppendMenuW(menu, 0, (UIntPtr)(i + 1), HostText.Get(entry.Text) + (entry.Shortcut is { } key ? "\t" + key : "")))) return;
-        if (entry.Default) _ = SetMenuDefaultItem(menu, (uint)(i + 1), 0);
-      }
-      var packed = coordinates.ToInt64(); var x = (int)(short)(packed & 0xffff); var y = (int)(short)((packed >> 16) & 0xffff);
-      if (x == -1 && y == -1) { _ = GetCursorPos(out var point); x = point.X; y = point.Y; }
+      var next = Build(generation);
+      // The menu opens beside the taskbar, at the anchor's display DPI; the offsets are device-independent units.
+      var monitor = MonitorFromPoint(new Point { X = x, Y = y }, 2); var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+      if (GetMonitorInfoW(monitor, ref info)) (x, y) = TrayMenu.Anchor(x, y, info.Work.Left, info.Work.Top, info.Work.Right, info.Work.Bottom);
+      var scale = GetDpiForMonitor(monitor, 0, out var dpi, out _) == 0 ? dpi / 96d : 1;
+      next.HorizontalOffset = x / scale; next.VerticalOffset = y / scale;
+      // With Work Fleet in front, as the shell allows for the icon's owner, the opening menu takes the keyboard and closes
+      // on a click anywhere else. Bringing the menu's own window forward after it opens moves WPF's focus and closes it.
       _ = SetForegroundWindow(receiver.Handle);
-      var selected = TrackPopupMenuEx(menu, 0x100 | 0x2, x, y, receiver.Handle, IntPtr.Zero);
-      _ = PostMessageW(receiver.Handle, 0, IntPtr.Zero, IntPtr.Zero);
-      if (selected > 0 && selected <= choices.Count && !choices[(int)selected - 1].IsSeparator) Schedule(choices[(int)selected - 1].Action);
-      else { var value = Data(); _ = Shell_NotifyIconW(3, ref value); }
+      menu = next; next.IsOpen = true;
+      // The popup window can start on another display; its own scale is the one the offsets are read in.
+      var actual = PresentationSource.FromVisual(next) is HwndSource popup ? popup.CompositionTarget.TransformToDevice.M11 : scale;
+      if (Math.Abs(actual - scale) > 0.001) { next.HorizontalOffset = x / actual; next.VerticalOffset = y / actual; }
     }
-    finally { _ = DestroyMenu(menu); MenuActive?.Invoke(false); }
+    catch { opened++; MenuActive?.Invoke(false); throw; }
+  }
+  private ContextMenu Build(int generation)
+  {
+    var next = new ContextMenu { Placement = PlacementMode.AbsolutePoint, Language = XmlLanguage.GetLanguage(HostText.Locale) };
+    next.Resources.MergedDictionaries.Add(Theme());
+    foreach (var entry in entries())
+    {
+      if (entry.IsSeparator) { next.Items.Add(new Separator()); continue; }
+      // WPF reads one underscore as an access-key mark; two keep it as text. The shortcut is drawn right-aligned.
+      var item = new MenuItem { Header = HostText.Get(entry.Text).Replace("_", "__"), InputGestureText = entry.Shortcut ?? "" };
+      // The default item is the one the icon's click runs.
+      if (entry.Default) item.FontWeight = FontWeights.SemiBold;
+      item.Click += (_, _) => { if (generation == opened) chosen = entry.Action; };
+      next.Items.Add(item);
+    }
+    next.PreviewKeyDown += (_, e) => { if (generation == opened && e.Key == Key.Escape) escaped = true; };
+    next.Closed += (_, _) => Closed(generation);
+    return next;
+  }
+  /// <summary>
+  /// The first menu loads WPF's Fluent theme and templates, about a second; laying out one that never opens while Work
+  /// Fleet is idle keeps the first right-click quick.
+  /// </summary>
+  private void Prepare()
+  {
+    if (disposed || opened > 0) return;
+    // A menu that cannot be prepared now is built when it opens; an idle failure must not end Work Fleet.
+    try { Build(0).Measure(new Size(double.PositiveInfinity, double.PositiveInfinity)); } catch (Exception) { }
+  }
+  private void Closed(int generation)
+  {
+    // A chosen item raises Click after the menu has hidden, at render priority, and Closed follows when its window is
+    // destroyed; this runs after both.
+    receiver.Dispatcher.BeginInvoke(new Action(() =>
+    {
+      if (disposed || generation != opened) return;
+      // The intent the action captures names the notification window. A click on the menu lets Work Fleet come to the
+      // front even when Windows refused it as the menu opened.
+      if (chosen is { } action) { _ = SetForegroundWindow(receiver.Handle); Schedule(action); }
+      // Esc, or any close that leaves the hidden notification window in front, returns the keyboard to the notification
+      // area; a click on another app leaves it there.
+      else if (escaped || GetForegroundWindow() == receiver.Handle) { var value = Data(); _ = Shell_NotifyIconW(3, ref value); }
+      MenuActive?.Invoke(false);
+    }), DispatcherPriority.Background);
+  }
+  /// <summary>Fluent.Light, Fluent.Dark or Fluent.HC from WPF's Fluent assembly, loaded once each.</summary>
+  private static ResourceDictionary Theme()
+  {
+    using var personalize = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+    var name = TrayMenu.Theme(SystemParameters.HighContrast, personalize?.GetValue("SystemUsesLightTheme"));
+    if (!themes.TryGetValue(name, out var theme))
+      themes[name] = theme = new ResourceDictionary { Source = new Uri($"pack://application:,,,/PresentationFramework.Fluent;component/Themes/Fluent.{name}.xaml") };
+    return theme;
   }
   public void Dispose()
   {
     if (disposed) return; disposed = true; retry.Stop(); var value = Data(); _ = Shell_NotifyIconW(2, ref value); Available = false;
+    if (menu is not null) menu.IsOpen = false;
     receiver.RemoveHook(Receive); receiver.Dispose();
     if (ownsIcon) _ = DestroyIcon(icon);
   }
@@ -120,17 +187,17 @@ public sealed class NativeTray : IDisposable
     public uint InfoFlags; public Guid Guid; public IntPtr BalloonIcon;
   }
   [StructLayout(LayoutKind.Sequential)] private struct Point { public int X, Y; }
+  [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+  [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }
   [DllImport("shell32.dll", CharSet = CharSet.Unicode)] private static extern bool Shell_NotifyIconW(uint message, ref NotifyData value);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern uint RegisterWindowMessageW(string name);
   [DllImport("user32.dll")] private static extern IntPtr LoadIconW(IntPtr instance, IntPtr name);
   [DllImport("shell32.dll", CharSet = CharSet.Unicode)] private static extern uint ExtractIconExW(string file, int index, IntPtr[]? large, IntPtr[]? small, uint count);
   [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr icon);
-  [DllImport("user32.dll")] private static extern IntPtr CreatePopupMenu();
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool AppendMenuW(IntPtr menu, uint flags, UIntPtr id, string? label);
-  [DllImport("user32.dll")] private static extern bool SetMenuDefaultItem(IntPtr menu, uint item, uint byPosition);
-  [DllImport("user32.dll")] private static extern bool DestroyMenu(IntPtr menu);
-  [DllImport("user32.dll")] private static extern uint TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr owner, IntPtr options);
+  [DllImport("user32.dll")] private static extern IntPtr MonitorFromPoint(Point point, uint flags);
+  [DllImport("user32.dll")] private static extern bool GetMonitorInfoW(IntPtr monitor, ref MonitorInfo info);
+  [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint x, out uint y);
   [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] private static extern bool GetCursorPos(out Point point);
-  [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
 }

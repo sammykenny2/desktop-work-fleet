@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.7
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: One reset now covers the desktop layout and the main window, the status row spans the main window again, board notes keep one size, and every platform ships in one release.
+
+- "Reset desktop layout" in Settings > Desktop also returns the main window to its default size, centered on the primary screen, in the desktop apps; the separate "Reset main window" section is gone. If the window cannot be reset, the status says that the layout was reset anyway.
+- The status row under the notes spans the whole width again, with conflicts on the left and the save status on the right; the round "+" sits above it.
+- Board notes keep the 240×240 size of a new desktop note however wide the window is; the width only changes how many fit in a row. Phones and windows 640 px or narrower keep two columns.
+- One GitHub release, tagged v0.3.7, carries Windows, macOS, Linux and Android. In-app updates on Windows, macOS and Linux look for these releases from now on. Installs of 0.3.6 or earlier look only for the older per-platform releases, so install 0.3.7 once by hand; later versions update in the app.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.6
 
 Platforms: Windows, Linux, macOS, Android.

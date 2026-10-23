@@ -749,6 +749,8 @@ This is not acceptance of user desktop gestures, WebView capture and IME, multi-
 The native foundation is in [ADR-017](decisions/017-windows-composition-surface-and-input.md), and the product connection in [ADR-018](decisions/018-single-owner-desktop-views.md).
 The main WPF probe now also opens the real scene page: it confirms projection, that the scene cannot call storage, floating-layer operations, in-place drafts,
 chunking of 1.2 MiB of Chinese input, a synthetic CompositionEvent blocking exit, and the return to the click-through policy after a transactional save.
+It also checks that pinch zoom (`IsPinchZoomEnabled`) is off in the main window and every scene; the gesture itself is not
+performed, and the phone apps' fixed scale is not covered by an automated check.
 The close test deliberately delays the last storage.commit, confirms that editing stays frozen, and that after reopening the last draft text is complete.
 Display descriptions are injected as off-screen ranges only in the probe; synthetic ranges are never used to claim a real multi-display pass.
 The core also tests scene-lease reads across versions and principal isolation, that half copies and bad hashes are not published, rejection of stale sessions and frames,

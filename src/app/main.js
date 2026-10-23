@@ -165,6 +165,9 @@ async function initialize() {
     // Phones and tablets show no desktop papers, so nothing there arranges them: no canvas, layout tools or settings.
     handheld = ['ios', 'android'].includes(native.info.platform);
     if (handheld) { showDesktop = false; document.querySelectorAll('[data-arrange]').forEach(node => { node.hidden = true; }); }
+    // The phone apps are apps, not pages: two fingers, a double tap or a focused field do not zoom them. WKWebView keeps
+    // the page's scale limits; Android also turns zoom off in its WebView settings.
+    if (handheld) document.querySelector('meta[name="viewport"]').content = 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no';
     if (native.info.platform === 'macos') {
       const gear = $('#settings-button'); gear.dataset.i18nAttr = 'aria-label:settings.title;title:app.sidebar.settingsTitleMac';
       gear.title = t('app.sidebar.settingsTitleMac');

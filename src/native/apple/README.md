@@ -108,6 +108,9 @@ with a Keychain AES-256-GCM key. The database's same-revision CAS and the attach
 flock keeps a single owner.
 In WKWebView only the packaged document in the main frame can call the bridge; desktop windows have no database, file or
 credential capabilities.
+On iOS the page fixes its scale (`maximum-scale=1, user-scalable=no`), which WKWebView honours while
+`ignoresViewportScaleLimits` stays off, so two fingers, a double tap or a focused field do not zoom the app
+(2026-10-24). On macOS WKWebView's `allowsMagnification` stays off, so a trackpad pinch does not zoom either.
 Folder selection keeps a bookmark and the file system identity; the automatic backup journal and password are natively
 protected, and the password is never returned to the renderer.
 Portable backups stay in the SPEC-002 PBKDF2/AES-GCM ZIP format; restoring on another device needs the original

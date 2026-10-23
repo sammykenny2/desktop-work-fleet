@@ -400,6 +400,8 @@ public sealed class DesktopCoordinator : IDisposable
     core.SetVirtualHostNameToFolderMapping(NavigationPolicy.Host, Path.Combine(AppContext.BaseDirectory, "Assets"), CoreWebView2HostResourceAccessKind.Deny);
     core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = WebViewDiagnostics.DevToolsEnabled; core.Settings.IsStatusBarEnabled = false;
     core.Settings.AreBrowserAcceleratorKeysEnabled = false; core.Settings.IsBuiltInErrorPageEnabled = false; core.Settings.IsZoomControlEnabled = false;
+    // Two fingers on a paper must not zoom the whole scene.
+    core.Settings.IsPinchZoomEnabled = false;
     view.Surface.WebView.ZoomFactor = scale / (view.Surface.Dpi / 96d);
     core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
     core.FrameNavigationStarting += (_, e) => e.Cancel = true;

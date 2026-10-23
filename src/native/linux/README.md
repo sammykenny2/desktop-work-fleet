@@ -215,6 +215,8 @@ The following describes the program's behaviour; anything not tested on a real m
 
 Common to all desktops:
 
+- Two fingers on a touch screen can still zoom the main window or a scene: WebKitGTK has no setting to turn its pinch
+  zoom off, which the other platforms do (2026-10-24).
 - New workspaces and offline notes whose master-key migration is complete need no keyring; the local key is stored with
   0600/0700 permissions.
   Google tokens, saved backup passwords and the first migration of old data need libsecret and an unlocked Secret

@@ -5,6 +5,8 @@ Credential Manager account selection and Google AuthorizationClient Drive author
 overlay permission.
 The native WebView reads only packaged assets; Google and file operations go through a fixed bridge, and there is no
 local note server.
+The app does not zoom like a page (2026-10-24): the WebView turns zoom support off, and the page fixes its scale, so two
+fingers or a double tap change nothing.
 
 ## Open and build in Android Studio
 

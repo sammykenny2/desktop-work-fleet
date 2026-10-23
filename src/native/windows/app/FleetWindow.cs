@@ -180,6 +180,8 @@ public sealed class FleetWindow : Window
     core.Settings.AreHostObjectsAllowed = false; core.Settings.AreDevToolsEnabled = WebViewDiagnostics.DevToolsEnabled;
     core.Settings.IsStatusBarEnabled = false; core.Settings.AreBrowserAcceleratorKeysEnabled = false;
     core.Settings.IsBuiltInErrorPageEnabled = false;
+    // The window is an app, not a page: two fingers on a touch screen or touchpad do not zoom it.
+    core.Settings.IsPinchZoomEnabled = false;
     core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
     core.FrameNavigationStarting += (_, e) => e.Cancel = true;
     core.NewWindowRequested += (_, e) => { e.Handled = true; if (e.IsUserInitiated) OpenExternal(e.Uri); };

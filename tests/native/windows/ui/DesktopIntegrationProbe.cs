@@ -41,6 +41,9 @@ internal static class DesktopIntegrationProbe
     }, "resident scene received the real workspace projection", main);
     var resident = main.Desktop!.Surfaces[0].WebView.CoreWebView2;
     var floating = main.Desktop.Surfaces[1].WebView.CoreWebView2;
+    // Two fingers zoom neither the main window nor a scene.
+    if (main.WebView.CoreWebView2.Settings.IsPinchZoomEnabled || main.Desktop.Surfaces.Any(s => s.WebView.CoreWebView2.Settings.IsPinchZoomEnabled))
+      throw new Exception("Pinch zoom is enabled in the main window or a desktop scene.");
     // The topmost scene's composition WebView renders through a transparent browser popup just above Explorer's desktop;
     // one that takes clicks blocks every desktop icon whenever no application window covers it. Scenes attached to
     // Explorer use windowed WebViews and have no such popup.

@@ -105,6 +105,8 @@ public final class FleetActivity extends Activity {
             web.getSettings().setMixedContentMode(android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW);
             web.getSettings().setJavaScriptCanOpenWindowsAutomatically(false); web.getSettings().setSupportMultipleWindows(false);
             web.getSettings().setSafeBrowsingEnabled(true);
+            // The app does not zoom like a page: no pinch or double-tap zoom.
+            web.getSettings().setSupportZoom(false); web.getSettings().setBuiltInZoomControls(false);
             WebViewAssetLoader loader = new WebViewAssetLoader.Builder().addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this)).build();
             web.setWebViewClient(new WebViewClient() {
                 @Override public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {

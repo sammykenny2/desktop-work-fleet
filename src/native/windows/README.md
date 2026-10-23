@@ -8,6 +8,8 @@ installation and normal interaction is in [ADR-034](../../../docs/decisions/034-
 the [handoff](../../../docs/handoff/2026-10-09-windows-11-compatibility-handoff.md) and [testing](../../../docs/testing.md),
 and the current status in [PROGRESS](../../../PROGRESS.md).
 This directory is the 1.0 native host: a .NET WPF + WebView2 main window, desktop scenes and SQLite/DPAPI storage.
+Neither the main window nor a scene zooms with two fingers on a touch screen or touchpad (`IsPinchZoomEnabled` off,
+2026-10-24); scenes also ignore Ctrl+wheel, while the main window keeps Ctrl+wheel zoom.
 
 ## Structure
 

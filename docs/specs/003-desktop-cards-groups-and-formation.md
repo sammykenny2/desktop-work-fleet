@@ -147,7 +147,9 @@ because A is "me".
 - Renaming a group or changing its grid position changes neither its stable ID nor the group a shortcut is already
   assigned to.
 - Each device lists its groups in its own region order (left to right, top to bottom), then any group no region
-  holds. Reordering the sidebar moves groups between the regions they hold, leaving empty regions in place, so region
+  holds. A mouse drags a sidebar row; a finger drags its grip at once, or the rest of the row after holding it still
+  for 350 ms, while a finger that moves first scrolls the drawer (since 2026-10-24). The sidebar has no selectable
+  text, so a held finger brings up no text selection or callout on Android or iOS. Reordering the sidebar moves groups between the regions they hold, leaving empty regions in place, so region
   keys follow, and a toast lists every bound key that now acts on a different group (phones, which have no keys, show
   none); it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
   that order. While more than nine groups exist the regions cannot hold them all, so the order cannot change until

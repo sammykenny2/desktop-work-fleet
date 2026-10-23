@@ -93,7 +93,8 @@ interface. To switch, see [Settings](#settings).
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom.
 - The sidebar lists groups in region order, and each device keeps its own order. Drag a group up or down to reorder
-  it; on a phone, drag the dotted grip at the left of the row, and with a keyboard press Alt+Up or Alt+Down on the
+  it; on a phone, hold the group a moment and then drag it, or drag the dotted grip at the left of the row at once
+  (a finger that moves without holding scrolls the list), and with a keyboard press Alt+Up or Alt+Down on the
   group. Reordering moves the groups between their regions, so each region key then acts on the group now in its
   region; a short message lists the keys that now act on a different group and closes by itself. Notes already on
   the desktop stay where they are until you arrange them. While there are more than nine groups (after syncing

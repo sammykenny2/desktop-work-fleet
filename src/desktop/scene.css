@@ -2,9 +2,9 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: transparent; }
 #scene { position: absolute; inset: 0; pointer-events: none; }
-.card { position: absolute; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); border: 1px solid #1d2b332e; border-radius: 3px; pointer-events: none; user-select: none; }
+.card { position: absolute; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); border: 1px solid #1d2b332e; border-radius: 3px; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .card.interactive { pointer-events: auto; }
-.card.selectable { user-select: text; }
+.card.selectable { user-select: text; -webkit-user-select: text; }
 /* Outline stays inside the paper: transparent pixels outside it would change layered-window hit testing. */
 .card.selected { outline: 2px solid #245f50; outline-offset: -2px; }
 .card.mine { box-shadow: inset 3px 0 #245f50; }
@@ -25,7 +25,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .card-body table { border-collapse: collapse; }
 .card-body td, .card-body th { border: 1px solid #00000020; padding: 3px; }
 .card-body:has(textarea) { display: flex; flex-direction: column; padding: 4px; }
-textarea { flex: 1; min-height: 30px; width: 100%; resize: none; border: 0; outline: 1px solid #466b5940; padding: 6px; background: #ffffff50; color: inherit; font: inherit; line-height: 1.5; user-select: text; }
+textarea { flex: 1; min-height: 30px; width: 100%; resize: none; border: 0; outline: 1px solid #466b5940; padding: 6px; background: #ffffff50; color: inherit; font: inherit; line-height: 1.5; user-select: text; -webkit-user-select: text; }
 .card-actions { min-height: 31px; padding: 3px 6px; display: flex; justify-content: flex-end; gap: 5px; }
 /* Papers outside adjust mode have no buttons, so the row gives its height back to the text. */
 .card-actions:empty { display: none; }

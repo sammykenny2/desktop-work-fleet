@@ -274,5 +274,41 @@ try {
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
+  // On a phone a finger drags a group row held still for a moment, and the grip at once; a finger that moves at once
+  // scrolls the drawer instead, and the hold neither chooses the group nor leaves text selected.
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true, isMobile: true });
+  const handset = await phone.newPage(); handset.on('pageerror', error => errors.push(error.message));
+  const phoneUrl = new URL(base.href); phoneUrl.searchParams.set('profile', `groups-${crypto.randomUUID()}`);
+  await handset.goto(phoneUrl.href); await expect(handset.locator('#status')).toHaveText(t('app.status.opened'));
+  await handset.locator('#drawer-toggle').tap(); await handset.locator('#add-group').tap();
+  await handset.locator('dialog[open] input:not([type=radio])').fill('Research');
+  await handset.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).tap();
+  await expect(handset.locator('dialog[open]')).toHaveCount(0);
+  if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
+  const rows = handset.locator('#groups .group-row'); await expect(rows).toHaveCount(2);
+  const order = () => rows.evaluateAll(nodes => nodes.map(node => node.dataset.groupId));
+  const chosen = () => handset.locator('#groups .group-row.active').getAttribute('data-group-id');
+  const [first, second] = await order(); const chosenBefore = await chosen();
+  assert.equal(await rows.nth(1).evaluate(node => getComputedStyle(node).userSelect), 'none', 'group rows carry no selectable text');
+  const touch = await phone.newCDPSession(handset);
+  const centre = async locator => { const box = await locator.boundingBox(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
+  const slide = async (from, toY, hold) => {
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
+    if (hold) await handset.waitForTimeout(hold);
+    for (let step = 1; step <= 8; step++) {
+      await touch.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: from.x, y: from.y + (toY - from.y) * step / 8 }] });
+    }
+    await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  };
+  const top = async index => (await rows.nth(index).boundingBox()).y + 4;
+  await slide(await centre(rows.nth(1).locator('.group-name')), await top(0), 0);
+  await handset.waitForTimeout(500); assert.deepEqual(await order(), [first, second], 'a finger that moves at once does not drag');
+  await slide(await centre(rows.nth(1).locator('.group-name')), await top(0), 600);
+  await expect.poll(order, { message: 'a held row drags' }).toEqual([second, first]);
+  assert.equal(await chosen(), chosenBefore, 'the hold does not choose the group');
+  assert.equal(await handset.evaluate(() => getSelection().toString()), '', 'the hold leaves no text selected');
+  await slide(await centre(rows.nth(1).locator('.group-grip')), await top(0), 0);
+  await expect.poll(order, { message: 'the grip drags at once' }).toEqual([first, second]);
+  await phone.close(); assert.deepEqual(errors, []);
+  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, holding or gripping a group row to drag it on a phone, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

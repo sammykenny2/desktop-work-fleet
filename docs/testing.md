@@ -504,7 +504,11 @@ custom and duplicate shortcuts, and multiple bindings surviving a merge and bein
 group settings with the name unchanged records no revision, that "Show completed notes" starts off, shows a completed
 paper when turned on, and hides it and brings it back to the same place without a revision, and that Undo after "Move to Deleted" restores the note once, also
 in a 390 px window.
-It does not drag the touch grip; dragging the grip in the 390 px drawer was checked once with Edge touch emulation (2026-10-20).
+In a 390 px touch context (Edge touch emulation, CDP touch events) it checks that a group row held for 600 ms and
+then moved reorders the groups without choosing one or leaving text selected, that a finger moving at once does not
+drag, and that the grip drags at once. Emulation does not show Android's or iOS's own long-press text selection, so
+tests/web-styles.test.js checks instead that every user-select rule also sets -webkit-user-select and that the sidebar
+sets no selection and no touch callout.
 After saving from the editor, the browser probe waits for the modal editor to close before it types into the search
 box; without the wait the text is lost and a later check reads a stale title (2026-10-20). Keep this wait if the probe
 is edited.

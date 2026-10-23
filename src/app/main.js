@@ -949,8 +949,9 @@ function layerMark(layer) {
 }
 
 // Dragging a group row reorders the regions, so the list, the desktop regions and the region keys keep one order;
-// papers stay where they are. A mouse drags the whole row; a finger drags the grip, so the drawer still scrolls.
-let groupDrag = null; let groupDragClick = false;
+// papers stay where they are. A mouse drags the whole row. A finger drags the grip at once, or the rest of the row once
+// held still for a moment, as phone lists do; a finger that moves first scrolls the drawer.
+let groupDrag = null; let groupDragClick = false; const groupHold = 350;
 function reorderGroups(ids) {
   return run(async () => {
     const grid = workspace.layout.state.grid; const held = grid.slots.filter(Boolean);
@@ -968,21 +969,30 @@ function reorderGroups(ids) {
 function startGroupDrag(event) {
   const row = event.target.closest('.group-row.reorderable');
   if (!row || event.button !== 0 || groupDrag?.active || event.target.closest('.group-menu')) return;
-  if (event.pointerType === 'touch' && !event.target.closest('.group-grip')) return;
-  groupDrag = { pointerId: event.pointerId, row, startY: event.clientY, active: false };
-  if (event.pointerType === 'touch') moveGroupDrag(event, true);
+  groupDrag = { pointerId: event.pointerId, row, startX: event.clientX, startY: event.clientY, active: false };
+  if (event.pointerType !== 'touch') return;
+  if (event.target.closest('.group-grip')) { activateGroupDrag(); return; }
+  const drag = groupDrag; drag.hold = setTimeout(() => { if (groupDrag === drag) activateGroupDrag(); }, groupHold);
 }
-function moveGroupDrag(event, force = false) {
+function activateGroupDrag() {
+  // A render since the press replaced the row; the next press starts afresh.
+  if (!groupDrag.row.isConnected) { clearTimeout(groupDrag.hold); groupDrag = null; return false; }
+  // Capturing only now leaves a plain click on the row's own button.
+  groupDrag.active = true; $('#groups').setPointerCapture(groupDrag.pointerId); getSelection()?.removeAllRanges();
+  groupDrag.row.classList.add('dragging'); document.body.classList.add('group-dragging');
+  return true;
+}
+function moveGroupDrag(event) {
   if (groupDrag?.pointerId !== event.pointerId) return;
   // A press released outside the list never reached it; hovering back must not start a drag.
   if (!(event.buttons & 1)) { endGroupDrag(event, false); return; }
   if (!groupDrag.active) {
-    if (!force && Math.abs(event.clientY - groupDrag.startY) < 5) return;
-    // A render since the press replaced the row; the next press starts afresh.
-    if (!groupDrag.row.isConnected) { groupDrag = null; return; }
-    // Capturing only now leaves a plain click on the row's own button.
-    groupDrag.active = true; $('#groups').setPointerCapture(event.pointerId);
-    groupDrag.row.classList.add('dragging'); document.body.classList.add('group-dragging');
+    // A finger that moves before the hold ends is scrolling the drawer.
+    if (groupDrag.hold) {
+      if (Math.hypot(event.clientX - groupDrag.startX, event.clientY - groupDrag.startY) > 8) endGroupDrag(event, false);
+      return;
+    }
+    if (Math.abs(event.clientY - groupDrag.startY) < 5 || !activateGroupDrag()) return;
   }
   event.preventDefault();
   const rows = [...$('#groups').querySelectorAll('.group-row.reorderable')].filter(row => row !== groupDrag.row);
@@ -993,7 +1003,7 @@ function moveGroupDrag(event, force = false) {
 }
 function endGroupDrag(event, dropped) {
   if (groupDrag?.pointerId !== event.pointerId) return;
-  const { active, row } = groupDrag; groupDrag = null;
+  const { active, row, hold } = groupDrag; groupDrag = null; clearTimeout(hold);
   if (!active) return;
   row.classList.remove('dragging'); document.body.classList.remove('group-dragging');
   // The click that ends a drag must not also choose the group.
@@ -2134,7 +2144,11 @@ function bindEvents() {
   $('#add-group').onclick = () => run(() => groupEditor());
   $('#toast').onclick = closeToast;
   const groupList = $('#groups');
-  groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', event => moveGroupDrag(event));
+  groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', moveGroupDrag);
+  // A row dragged after a hold still has the drawer's panning, so its moves must not scroll; and a held finger must not
+  // bring up the system's text selection or menu.
+  groupList.addEventListener('touchmove', event => { if (groupDrag?.active && event.cancelable) event.preventDefault(); }, { passive: false });
+  groupList.addEventListener('contextmenu', event => { if (groupDrag) event.preventDefault(); });
   groupList.addEventListener('pointerup', event => endGroupDrag(event, true)); groupList.addEventListener('pointercancel', event => endGroupDrag(event, false));
   // Only the list's own capture counts; a grip handing its touch capture to the list must not end the drag.
   groupList.addEventListener('lostpointercapture', event => { if (event.target === groupList) endGroupDrag(event, false); });

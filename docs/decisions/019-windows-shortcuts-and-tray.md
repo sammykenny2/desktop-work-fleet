@@ -68,7 +68,8 @@ save taking focus that no longer belongs to the operation.
   closes the menu. So the menu has the keyboard and closes when another app comes to the front. A chosen item runs
   after the menu has closed, with an intent captured then, and Esc returns focus to the notification area.
   Application.ThemeMode is not used: it is experimental in .NET 10 and would also restyle the transparent desktop
-  windows.
+  windows. The start-up window for data that cannot be opened (SPEC-006) sets ThemeMode System on itself only, so it
+  has the Windows 11 look in the Windows app mode; the main window keeps the light frame of its light page.
 - Hiding the main window first saves drafts and then calls Hide, keeping the WebView, Workspace, SQLite and the
   desktop surfaces.
   Without a valid tray icon it does not hide; if rebuilding fails, the main window is shown again but not

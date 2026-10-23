@@ -7,14 +7,20 @@ using WorkFleet.Windows;
 internal static class NativeScreenCapture
 {
   // Capture the composed screen, not a browser preview: old pixels outside the new paper are the regression.
-  public static void Save(PhysicalBounds bounds, string path)
+  public static void Save(PhysicalBounds bounds, string path, IntPtr window = default)
   {
-    var pixels = Read(bounds);
+    var pixels = Read(bounds, window);
     var encoder = new PngBitmapEncoder();
     encoder.Frames.Add(BitmapFrame.Create(BitmapSource.Create(bounds.Width, bounds.Height, 96, 96, PixelFormats.Bgr32, null, pixels, bounds.Width * 4)));
     using var file = File.Create(path); encoder.Save(file);
   }
-  public static byte[] Read(PhysicalBounds bounds)
+  /// <summary>One window as Windows draws it, frame included, even where other windows cover it.</summary>
+  public static void SaveWindow(IntPtr window, string path)
+  {
+    if (!GetWindowRect(window, out var r)) throw new Exception("No window to capture.");
+    Save(new PhysicalBounds(0, 0, r.Right - r.Left, r.Bottom - r.Top), path, window);
+  }
+  public static byte[] Read(PhysicalBounds bounds, IntPtr window = default)
   {
     var screen = GetDC(IntPtr.Zero);
     var memory = CreateCompatibleDC(screen); var bitmap = CreateCompatibleBitmap(screen, bounds.Width, bounds.Height);
@@ -23,7 +29,7 @@ internal static class NativeScreenCapture
     {
       if (screen == IntPtr.Zero || memory == IntPtr.Zero || bitmap == IntPtr.Zero) throw new Exception("Unable to allocate screen capture.");
       previous = SelectObject(memory, bitmap);
-      if (!BitBlt(memory, 0, 0, bounds.Width, bounds.Height, screen, bounds.X, bounds.Y, 0x40CC0020))
+      if (window != IntPtr.Zero ? !PrintWindow(window, memory, 2) : !BitBlt(memory, 0, 0, bounds.Width, bounds.Height, screen, bounds.X, bounds.Y, 0x40CC0020))
         throw new Exception("Unable to capture the test footprint.");
       SelectObject(memory, previous); previous = IntPtr.Zero;
       var pixels = new byte[checked(bounds.Width * bounds.Height * 4)];
@@ -50,6 +56,9 @@ internal static class NativeScreenCapture
     public int XPixelsPerMeter, YPixelsPerMeter;
     public uint ColorsUsed, ColorsImportant, Color;
   }
+  [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+  [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect rect);
+  [DllImport("user32.dll")] private static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
   [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
   [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);
   [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr dc);

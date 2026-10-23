@@ -1,19 +1,34 @@
 using Microsoft.Data.Sqlite;
 using System.IO;
 using System.Text.Json;
+using System.Windows.Controls;
+using System.Windows.Interop;
+using System.Windows.Threading;
 using WorkFleet.Windows;
 using WorkFleet.Windows.Core;
 
 /// <summary>
 /// SPEC-006 DO in the real window: a database that is not SQLite stops the start, before any main window exists, with the
 /// explanation window, whose set-aside lets the next open start empty; a workspace record DPAPI cannot decrypt, as after a Windows account change,
-/// opens the page's explanation, which shows the folder and sets the data aside through the host.
+/// opens the page's explanation, which shows the folder and sets the data aside through the host. The start-up window has
+/// the Windows 11 look: the Fluent theme, with opening the folder as the accent action.
 /// </summary>
 internal static class DataFailureUiProbe
 {
   private static void Require(bool value, string message) { if (!value) throw new Exception(message); }
   private static async Task<bool> Check(FleetWindow window, string script) => await window.WebView.CoreWebView2.ExecuteScriptAsync(script) == "true";
   private static string[] SetAside(string directory) => Directory.EnumerateDirectories(directory, DataFailure.SetAsidePrefix + "*").ToArray();
+  private static string Themed(DataFailureWindow window, string output)
+  {
+    if (!window.Resources.MergedDictionaries.Any(d => d.Source?.OriginalString.Contains("/PresentationFramework.Fluent;component/Themes/Fluent", StringComparison.Ordinal) == true))
+      return "the Fluent theme";
+    if (window.Content is not StackPanel { Children: [.., StackPanel { Children: [Button open, ..] }] } || open.Style != window.FindResource("AccentButtonStyle"))
+      return "opening the folder as the accent action";
+    // Rendered, then saved as evidence of the look.
+    window.Dispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle); Thread.Sleep(300);
+    NativeScreenCapture.SaveWindow(new WindowInteropHelper(window).Handle, Path.Combine(output, "data-failure.png"));
+    return "";
+  }
 
   public static async Task Run(string directory)
   {
@@ -21,21 +36,22 @@ internal static class DataFailureUiProbe
     // As Program.Main does before any window: the explanation speaks the stored display language.
     HostText.Apply(HostPreferences.Read(start).Language);
     File.WriteAllText(Path.Combine(start, "fleet.sqlite3"), "these bytes are not a SQLite database");
-    string? cause = null, asked = null;
+    string? cause = null, asked = null, missing = null;
     var reopened = WorkFleet.Windows.Program.OpenWindow(start, () => Program.Open(start), found =>
     {
       cause = found;
       var explanation = new DataFailureWindow(start, found, text => { asked = text; return true; });
-      explanation.Show(); var done = explanation.SetAside() && explanation.SetAsideDone; explanation.Close(); return done;
+      explanation.Show(); missing = Themed(explanation, directory); var done = explanation.SetAside() && explanation.SetAsideDone; explanation.Close(); return done;
     });
     Require(cause == DataFailure.Damaged, $"A database that is not SQLite reported {cause ?? "no failure"}.");
+    Require(missing == "", $"The start-up explanation lacks {missing}.");
     Require(asked == HostText.Get("dataFailure.confirm") && reopened is not null, "The start-up explanation did not set the data aside after asking.");
     // A main window built over damaged data would stay registered with WPF and keep the app from ever shutting down.
     Require(System.Windows.Application.Current.Windows.OfType<FleetWindow>().SequenceEqual([reopened!]), "A failed main window stayed registered.");
     Require(SetAside(start) is [var folder] && File.Exists(Path.Combine(folder, "fleet.sqlite3")), "The damaged database is not in one set-aside folder.");
     await Program.Wait(reopened!, "document.querySelector('#status')?.textContent === 'Local data opened'", "empty data opens after the start-up set-aside");
     await Program.Close(reopened!);
-    Console.WriteLine("PASS a damaged database explains itself at start and opens empty once set aside");
+    Console.WriteLine("PASS a damaged database explains itself at start in the Fluent theme and opens empty once set aside");
 
     var page = Path.Combine(directory, "page");
     var first = Program.Open(page);

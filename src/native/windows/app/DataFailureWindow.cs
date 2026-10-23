@@ -22,8 +22,12 @@ public sealed class DataFailureWindow : Window
     this.confirm = confirm ?? (text => MessageBox.Show(this, text, "Work Fleet", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK);
     Title = "Work Fleet"; Width = 560; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
     WindowStartupLocation = WindowStartupLocation.CenterScreen;
+#pragma warning disable WPF0001 // Fluent ThemeMode is experimental; only this window opts in, never the transparent scene windows.
+    // The Windows 11 look: Fluent controls and backdrop in the Windows app light or dark mode, following a change while open.
+    ThemeMode = ThemeMode.System;
+#pragma warning restore WPF0001
     var panel = new StackPanel { Margin = new Thickness(24) };
-    panel.Children.Add(new TextBlock { Text = HostText.Get("dataFailure.title"), FontSize = 18, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+    panel.Children.Add(new TextBlock { Text = HostText.Get("dataFailure.title"), FontSize = 20, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
     panel.Children.Add(new TextBlock { Text = HostText.Get("dataFailure." + cause), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) });
     panel.Children.Add(new TextBlock { Text = HostText.Get("dataFailure.folder"), Margin = new Thickness(0, 16, 0, 4) });
     // Read-only but selectable, so the path can be copied into a support message.
@@ -31,10 +35,11 @@ public sealed class DataFailureWindow : Window
     var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 20, 0, 0) };
     Button Add(string key, Action action)
     {
-      var button = new Button { Content = HostText.Get(key), Padding = new Thickness(12, 4, 12, 4), Margin = new Thickness(8, 0, 0, 0) };
+      var button = new Button { Content = HostText.Get(key), MinWidth = 96, Margin = new Thickness(8, 0, 0, 0) };
       button.Click += (_, _) => action(); buttons.Children.Add(button); return button;
     }
-    Add("dataFailure.openFolder", OpenFolder);
+    // Opening the folder changes nothing, so it is the accent action; setting aside asks first.
+    Add("dataFailure.openFolder", OpenFolder).SetResourceReference(StyleProperty, "AccentButtonStyle");
     if (DataFailure.CanSetAside(cause)) Add("dataFailure.setAside", () => { if (SetAside()) Close(); });
     Add("dataFailure.close", Close).IsCancel = true;
     panel.Children.Add(buttons); Content = panel;

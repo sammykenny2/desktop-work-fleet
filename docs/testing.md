@@ -623,7 +623,8 @@ The Windows UI probe only checks that the scene DOM contains a card; it cannot t
 `DataFailureProbe` in the core probe opens a database that is not SQLite (it reports `data-damaged`), classifies the
 other SQLite, Win32 and DPAPI causes, puts back the moved database when a held `-wal` stops setting aside, and opens
 empty data after a set-aside. `WorkFleet.Windows.Ui.Tests.exe --data-failure DIR`, part of Test-WindowsNative, runs the
-start-up window on a damaged database through its set-aside and a reopen, then damages the DPAPI workspace record of a
+start-up window on a damaged database through its set-aside and a reopen, checks that it uses the Fluent theme with
+opening the folder as the accent action and saves it as `data-failure.png`, then damages the DPAPI workspace record of a
 real profile and drives the page's explanation, its folder and its set-aside through the host until the page opens
 empty. Real full disks, held files and permissions are covered only by the classifier (2026-10-23).
 

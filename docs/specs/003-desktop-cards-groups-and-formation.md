@@ -363,7 +363,7 @@ Q03); do not assume that it is all removed or copied as is.
   cards that were eligible for the desktop are shown, and they are hidden again afterwards; the master switch is not
   turned on permanently. If the set is empty, a reachable management entry is offered instead of silently doing nothing.
 - Scope=None: read-only by default, not draggable, no clicks, marquee selection or text selection; background sync does
-  not steal focus.
+  not steal focus. The opt-in quick move of the 2026-10-24 addendum is the one way to move a resting paper.
 - Scope=Group(A): A's participating cards temporarily float above ordinary apps and can be dragged; the effective
   policy of B and the other groups is unchanged.
 - Scope=All: all participating cards can be dragged and float temporarily; focusing A only changes the stacking order
@@ -677,6 +677,52 @@ this contract:
   turns see-through; text, checkboxes and attachment thumbnails stay solid. It applies to papers resting on the Top
   layer on every platform; papers on the Wallpaper and Desktop layers, papers being adjusted and the main window's
   board and list stay opaque.
+
+## 2026-10-24 addendum: quick move
+
+On 2026-10-24 the maintainer approved quick move: moving one resting paper by holding a key while dragging it,
+without entering adjust mode. It is a separate, opt-in mode, so U07 and the Scope=None default stay true while it is
+off. One gesture moves one paper; there is no selection that outlasts the gesture, and moving several papers at once
+is not planned.
+
+- **Setting.** Settings > Desktop notes has a switch, off by default, whose label names the key for this platform
+  (for example "Hold ⌘ and drag to move a note" on macOS, "Hold Ctrl and drag to move a note" on Windows and Linux).
+  It is a device setting in the desktop layout, like showing completed notes: it never syncs, and resetting the desktop
+  layout turns it off. A host whose resting papers all let clicks through (GNOME through XWayland), or that cannot
+  report the key held at pointer-down, does not offer the switch; phones and the browser preview have no desktop
+  papers and do not show it.
+- **Key.** Command on macOS, Ctrl on Windows and Linux. Shift keeps its group-transfer meaning, Control-click is a
+  secondary click on macOS, and Alt or Option is not delivered by every host's mouse path and is used by window
+  managers.
+- **Start.** With the switch on, outside adjust mode and with no paper being edited, pressing the primary button on a
+  paper that takes clicks (Desktop and Top layers) while the key is already held starts a quick move. A press on a
+  checkbox, attachment, link or other child control keeps that control's behaviour. Holding the key only after the
+  press began does not turn text selection into a move, and without the key a press behaves as before.
+- **During.** Below the drag threshold the gesture is a click and changes nothing. Past it, the paper follows the
+  pointer on its own layer, in front of its layer's other papers; a Desktop-layer paper stays below other apps'
+  windows, and a see-through Top-layer paper keeps its group's opacity. Releasing the key mid-drag does not end the move. No drop labels appear, and labels, regions and Shift
+  never change the paper's group: a quick move is only an ordinary move. The operation scope stays None: no overlay,
+  no adjust controls, and the main window stays where it is.
+- **End.** Releasing the button saves the new position as one move in this device's undo history, in the local
+  operation order, so adjust mode's Undo takes it back. A drop that would leave the paper's title out of reach puts the
+  paper at the nearest reachable position, as display changes do. The base stacking order does not change.
+- **Cancel.** The paper returns to where it started and nothing is saved on Esc (where the paper's window receives
+  keys), pointer cancel or lost capture, a display change, the paper leaving the desktop or changing layer (for
+  example through sync), adjust mode or editing starting, or the switch being turned off during the move.
+
+Acceptance cases:
+
+| ID | Given / When | Required observable result |
+|---|---|---|
+| C49 | Quick move is off (the default); hold the key and drag a Desktop- or Top-layer paper | Nothing moves; text selection and checkboxes behave as before |
+| C50 | Quick move is on; hold the key and drag a Desktop- or Top-layer paper | The paper moves on its own layer and keeps the drop position after restart; no overlay appears and the main window does not move |
+| C51 | Quick move is on; drag without the key, or press the key only after the press | Text selection as before; the paper does not move |
+| C52 | Quick move is on; hold the key and press on a checkbox, attachment or link | That control's behaviour; the paper does not move |
+| C53 | Quick move is on; hold the key, press and release without passing the threshold | Nothing changes: no move, no editing, no selection |
+| C54 | Quick move is on; drag over another group's label or region, with or without Shift | An ordinary move; the group is unchanged and no "Move to B" hint appears |
+| C55 | Esc, lost capture, a display change or the paper leaving the desktop during a quick move | The paper returns to its start; nothing is saved |
+| C56 | After a quick move, enter adjust mode and press Undo | The paper returns to its position before the quick move |
+| C57 | GNOME through XWayland, a phone or the browser preview | The quick move switch is not offered |
 
 ## References
 

@@ -9,6 +9,17 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.9
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Notes on the main window's board tick checklist steps with a click and open on a double-click, the Windows tray menu is regrouped, and Windows message boxes use the current Windows look.
+
+- On the main window's board, clicking a checklist box ticks or unticks that step, as on the desktop. With a mouse, a single click on a note no longer opens the editor: double-click it, or choose "More actions" (…) > "Edit". On a touch screen a tap still opens it.
+- Windows: the tray menu is grouped with separators. "Open Work Fleet" comes first in bold, as clicking the icon does; "Hide main window" shows only while the main window is open; "Adjust all notes" becomes "Done adjusting" while notes are being adjusted; desktop actions show their global shortcuts; and "Save and quit Work Fleet" is now "Exit Work Fleet", which still saves first.
+- Windows: message boxes, such as the answer to "Check for updates…", use the current Windows style instead of the classic one.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.8
 
 Platforms: Windows, Linux, macOS, Android.

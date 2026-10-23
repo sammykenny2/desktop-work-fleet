@@ -255,6 +255,21 @@ try {
   await page.waitForFunction(() => window.probeEditor.some(entry => entry.method === 'card.edit'));
   assert.deepEqual(await page.evaluate(() => window.probeEditor.find(entry => entry.method === 'card.edit').args), { cardId: 'c3' });
   assert.equal(await page.evaluate(() => window.probeCommands.slice(-2).join()), 'pointer.up,card.edit', 'the edit waits for the release');
+  // At a human pace the first release reaches the owner before the second press, which then starts its own captured
+  // quick gesture and aims the double click at the scene; the paper is still found under the pointer.
+  const editsBefore = await page.evaluate(() => window.probeEditor.filter(entry => entry.method === 'card.edit').length);
+  {
+    const box = await page.locator('.card[data-card-id="c1"] .card-summary').boundingBox();
+    await page.keyboard.down(quickModifier); await page.mouse.move(box.x + 20, box.y + box.height / 2);
+    const upsBefore = (await quickState()).ups;
+    await page.mouse.down(); await page.mouse.up();
+    await page.waitForFunction(count => window.probePointer.filter(entry => entry.method === 'pointer.up').length > count
+      && !document.querySelector('#scene').classList.contains('moving'), upsBefore);
+    await page.mouse.down({ clickCount: 2 }); await page.mouse.up({ clickCount: 2 }); await page.keyboard.up(quickModifier);
+  }
+  await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'card.edit').length > count, editsBefore);
+  assert.equal(await page.evaluate(() => window.probeEditor.filter(entry => entry.method === 'card.edit').at(-1).args.cardId), 'c1',
+    'a slower double click opens the paper under the pointer');
   const appliedEdit = await page.evaluate(() => window.probeApplied);
   await page.evaluate(() => { window.probeEditing = true; window.probeNextFrame(); });
   await page.waitForFunction(count => window.probeApplied > count && document.querySelector('.card[data-card-id="c2"] textarea'), appliedEdit);

@@ -774,8 +774,9 @@ function initializeDesktop() {
     changed: () => render(), error: error => status(error.message, true),
     displays: async proposal => {
       controller.cancelDrag();
-      // A quick edit closes on a display change and keeps a changed draft (SPEC-003, 2026-10-24).
-      if (controller.state.operationScope.kind === 'none' && controller.state.editingCardId) await controller.endEdit();
+      // A quick edit closes on a display change and keeps a changed draft (SPEC-003, 2026-10-24). An input method still
+      // composing keeps it open instead, and its view is carried across the change as before.
+      if (controller.state.operationScope.kind === 'none' && controller.state.editingCardId) await controller.endEdit().catch(() => false);
       const result = await workspace.layout.recoverDisplays(proposal.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })),
         primaryArea(proposal.workAreas));
       const editor = currentDesktopEditor();
@@ -796,6 +797,10 @@ function initializeDesktop() {
       await authority.whenDraftIdle();
       if (remoteEditor?.viewId === viewId && currentDraft?.id === draftId) {
         currentDraft = copy(workspace.state.drafts[draftId] || currentDraft); remoteEditor = null;
+        // A quick edit has no other place to go on (SPEC-003, 2026-10-24): it closes and keeps its draft.
+        if (controller.state.operationScope.kind === 'none' && controller.state.editingCardId === currentDraft.cardId) {
+          await queueDraft(); await controller.endEdit({ keepDraft: true }); currentDraft = null; render();
+        }
       }
     },
     dismiss: async () => { await controller.activate({ kind: 'none' }); render(); },
@@ -863,7 +868,8 @@ async function desktopAction(target, intent) {
     showToDo(); render();
     await openEditor(); editorHidesMain = Boolean(shown?.activated && shown.hidden && $('#editor-dialog').open); return;
   }
-  if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
+  // Hiding the desktop also closes a quick edit, keeping its draft, as the Settings switch does.
+  if (target === shortcutActions.toggle) { await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot); await controller.reconcile(); }
   // A group key moves its group one stage on: wallpaper, desktop, topmost, adjust mode, wallpaper again, skipping a layer
   // this desktop does not offer.
   // Ctrl+Shift+0 keeps its own meaning: every group into adjust mode, then back to each paper's own layer. Papers hidden
@@ -2309,7 +2315,7 @@ function bindEvents() {
     }
     const editControl = event.target.closest('input,textarea,select');
     // Shortcuts switch adjust scopes and desktop visibility, which phones and tablets do not have.
-    const shortcut = !handheld && shortcutForEvent(event, liveShortcuts(), { editing: Boolean(editControl), inline: editControl?.matches('.inline-editor') });
+    const shortcut = !handheld && shortcutForEvent(event, liveShortcuts(), { editing: Boolean(editControl) });
     if (shortcut) {
       event.preventDefault();
       const admission = desktop && shortcut.target === shortcutActions.capture ? native.bridge.request('desktop.intent').catch(() => ({ intent: null })) : Promise.resolve({ intent: null });

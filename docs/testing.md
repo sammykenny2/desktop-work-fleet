@@ -114,7 +114,9 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   edit's draft and leaves the note and the see-through opacity as they were (C58, C60, C61). The draft, flush and
   checkbox tests now open their editor with a quick edit.
 - `scene-probe`: adjusted papers carry no buttons and a double click or Enter on one sends no `card.edit`; with the key,
-  a double click on a resting paper sends `card.edit` only after its release reached the owner, the editor shows Retry,
+  a double click on a resting paper sends `card.edit` only after its release reached the owner, also at a human pace
+  where the second press starts its own captured gesture (which failed before the paper was looked up under the
+  pointer), the editor shows Retry,
   Full editor, Cancel and Save, Cancel sends `editor.cancel`, and a press with the key on the edited paper sends no
   quick move. `group-probe`, `browser-probe` and `revision-probe` check that adjusted papers open no editor and edit
   through the main window's editor. On 2026-10-24 these passed on macOS, `browser-probe` with its 390 px Capture-gap

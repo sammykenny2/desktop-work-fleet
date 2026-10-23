@@ -303,10 +303,12 @@ async function initialize() {
   };
   root.onpointercancel = () => { void run(cancel); }; root.onlostpointercapture = () => { void run(cancel); };
   // Quick edit (SPEC-003, 2026-10-24): the key held on a double click opens a resting paper once its second release is
-  // settled, so the owner sees no quick move still pending.
+  // settled, so the owner sees no quick move still pending. A captured press aims the double click at the scene itself,
+  // so the paper is found under the pointer.
   root.ondblclick = event => {
-    const paper = quickKey(event) ? event.target.closest('.card.interactive:not(.operable)') : null;
-    if (!paper || event.target.closest('button,a,input,textarea,select')) return;
+    const under = quickKey(event) ? document.elementFromPoint(event.clientX, event.clientY) : null;
+    const paper = under?.closest('.card.interactive:not(.operable)');
+    if (!paper || under.closest('button,a,input,textarea,select')) return;
     const cardId = paper.dataset.cardId; if (frame.cards.find(card => card.id === cardId)?.editing) return;
     void run(async () => { await released; await client.command('card.edit', { cardId }); });
   };

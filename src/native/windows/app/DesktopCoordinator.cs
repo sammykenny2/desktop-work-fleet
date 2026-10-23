@@ -521,13 +521,14 @@ public sealed class DesktopCoordinator : IDisposable
           return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, view.Layer != "wallpaper" && c.Interactive);
         }));
         var wasShown = view.Surface.Shown;
+        // A quick edit that closed here gives the foreground back before an emptied scene hides.
+        var editingHere = view.Layer == "floating" && !adjusting && view.Downloading.EditorView == view.Id;
+        if (view.Editing && !editingHere) ReturnEditorFocus(view);
+        view.Editing = editingHere;
         var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
         if (adjusting || notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
         view.PresentedRects = cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
         view.Applied = sequence; TryFocus(view); TryFocusEditor(view);
-        var editingHere = view.Layer == "floating" && !adjusting && view.Downloading.EditorView == view.Id;
-        if (view.Editing && !editingHere) ReturnEditorFocus(view);
-        view.Editing = editingHere;
         if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
         // Keys such as Esc reach the overlay as it appears.
         if (adjusting && !view.Adjusting && view.Surface.InputWindow.Activate()) { view.Surface.WebView.Focus(); Post(view, new { v = 1, @event = "desktop-focus" }); }
@@ -589,7 +590,9 @@ public sealed class DesktopCoordinator : IDisposable
   {
     if (editorFocus is not { } focus || focus.View != view.Id || displayPending || !view.Active || view.Retired || !view.Ready
       || view.Applied < focus.Sequence || !view.Surface.Shown) return;
-    editorFocus = null; editorReturn = GetForegroundWindow();
+    // Opening another paper in a scene that already has the keyboard keeps the window to give it back to.
+    var foreground = GetForegroundWindow(); editorFocus = null;
+    if (foreground != new System.Windows.Interop.WindowInteropHelper(view.Surface.InputWindow).Handle) editorReturn = foreground;
     if (view.Surface.InputWindow.Activate()) { view.Surface.WebView.Focus(); Post(view, new { v = 1, @event = "desktop-focus" }); }
   }
   // Only while the closed editor's scene still has the keyboard, so a window the user chose meanwhile keeps it.

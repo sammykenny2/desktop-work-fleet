@@ -367,13 +367,14 @@ separately ("Also restore desktop positions"), and importing new data does not m
 
 - While "Keep running in the tray when the main window closes" is on (the default; "Keep running in the menu bar when
   the main window closes" on macOS), closing the window (X) hides it to the tray (the menu bar on macOS). To quit, use
-  "Save and quit Work Fleet" in the Windows tray, or "Save and quit" in the Linux tray and the macOS menu bar. When the
-  switch is off, or when the tray is unavailable, X saves and quits.
+  "Exit Work Fleet" in the Windows tray, or "Save and quit" in the Linux tray and the macOS menu bar; both save first.
+  When the switch is off, or when the tray is unavailable, X saves and quits.
 - After X or the Windows tray's "Hide main window", the desktop notes and the authority over local data keep running.
   From the tray you can reopen the main window, use Quick capture, adjust notes or quit.
-- The Windows tray menu has "Open main window", "Quick capture", "Adjust all notes", "Done adjusting", "Show or hide
-  desktop notes", "Hide main window", "Check for updates…" (where in-app updates are available) and "Save and quit
-  Work Fleet".
+- The Windows tray menu starts with "Open Work Fleet" in bold, which is also what clicking the icon does, and "Hide
+  main window" while the main window shows. Then come "Quick capture", "Show or hide desktop notes" and "Adjust all
+  notes" ("Done adjusting" instead while notes are being adjusted), each with its global shortcut when that key is
+  registered, then "Check for updates…" (where in-app updates are available) and last "Exit Work Fleet".
 - The Linux tray and the macOS menu bar have "Open Work Fleet", "Quick capture", "Adjust all groups", "Show or hide
   desktop notes", "Check for updates…" (where in-app updates are available) and "Save and quit". The macOS
   application menu also has "Save and quit Work Fleet".

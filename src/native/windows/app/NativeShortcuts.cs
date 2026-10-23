@@ -15,9 +15,14 @@ public sealed class NativeShortcuts : IDisposable
   private readonly Dictionary<int, (ShortcutBinding Binding, uint Modifiers, uint Key)> active = [];
   private ShortcutBinding[] bindings = [];
   private ShortcutRegistration[] registrations = [];
+  // Windows' last answer per key, kept while suspended: a suspended key is not registered, so its status says nothing.
+  private readonly Dictionary<string, string> answered = new(StringComparer.Ordinal);
   private bool suspended;
   private bool disposed;
   public IReadOnlyList<ShortcutRegistration> Registrations => Array.AsReadOnly(registrations);
+  /// <summary>Registrations with each suspended key's last Windows answer, or "suspended" when Windows was never asked.</summary>
+  public IReadOnlyList<ShortcutRegistration> LastAnswers =>
+    registrations.Select(r => r.Status == "suspended" && answered.TryGetValue(r.Key, out var status) ? r with { Status = status } : r).ToArray();
   public event Action? Changed;
 
   public NativeShortcuts(Action<string> invoke)
@@ -56,6 +61,7 @@ public sealed class NativeShortcuts : IDisposable
         if (suspended) status = "suspended";
         else if (RegisterHotKey(receiver.Handle, id, modifiers | 0x4000, key)) active.Add(id, (binding, modifiers, key));
         else status = Marshal.GetLastWin32Error() == 1409 ? "conflict" : "unavailable";
+        if (!suspended) answered[binding.Key] = status;
       }
       result.Add(new(binding.Key, binding.Target, status)); id++;
     }

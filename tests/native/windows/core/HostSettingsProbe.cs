@@ -101,7 +101,7 @@ internal static class HostSettingsProbe
       Require(text.Trim().Length > 0 && chinese[key].Trim().Length > 0 && Placeholders(text).SequenceEqual(Placeholders(chinese[key])), $"{key} text and placeholders");
     Require(HostText.Format("en", "tray.tipDownloading", ("percent", 42)) == "Work Fleet · Downloading update 42%", "placeholders are filled");
     Require(HostText.Format("en", "dialog.updateAvailable", ("version", "0.4.0")).Contains("{current}"), "a missing value leaves its placeholder");
-    Require(HostText.Format("zh-TW", "missing.key") == "missing.key" && HostText.Format("fr", "tray.quit") == "Save and quit Work Fleet", "missing keys and locales");
+    Require(HostText.Format("zh-TW", "missing.key") == "missing.key" && HostText.Format("fr", "tray.exit") == "Exit Work Fleet", "missing keys and locales");
 
     // Apply re-resolves the host locale and notifies once per locale change.
     var changes = 0; void Changed() => changes++;
@@ -111,7 +111,7 @@ internal static class HostSettingsProbe
       HostText.Apply("en", ["zh-TW"]); var before = changes;
       HostText.Apply("zh-TW", ["en-US"]);
       Require(HostText.Locale == "zh-TW" && HostText.Preference == "zh-TW" && changes == before + 1, "a pinned zh-TW switches the host locale");
-      Require(HostText.Get("tray.quit") == chinese["tray.quit"], "lookups follow the host locale");
+      Require(HostText.Get("tray.exit") == chinese["tray.exit"], "lookups follow the host locale");
       HostText.Apply("auto", ["ja-JP", "zh-Hant-TW"]);
       Require(HostText.Locale == "zh-TW" && changes == before + 1, "auto resolving to the same locale is not a change");
       HostText.Apply("bogus", ["fr-FR"]);
@@ -123,6 +123,17 @@ internal static class HostSettingsProbe
       HostText.Apply("auto"); Require(HostText.System.SequenceEqual(system), "Apply reads the system languages itself");
     }
     finally { HostText.Changed -= Changed; HostText.Apply("en"); }
+
+    // ADR-019: the tray menu groups its rows, offers only what applies when it opens and shows the keys that register.
+    static string Rows(IEnumerable<TrayEntry> entries) => string.Join(" ", entries.Select(e => e.IsSeparator ? "|"
+      : (e.Default ? "*" : "") + e.Action + (e.Shortcut is { } key ? $"[{key}]" : "")));
+    (string, string, string)[] keys = [("Ctrl+Shift+N", "@capture", "available"), ("Ctrl+Shift+D", "@toggle", "conflict"),
+      ("Ctrl+Shift+0", "@all", "suspended"), ("Ctrl+Shift+1", "group-1", "available")];
+    Require(Rows(TrayMenu.Entries(false, false, true, keys)) == "*show | @capture[Ctrl+Shift+N] @toggle @all | update | exit",
+      "a hidden main window: open first and bold, only keys Windows registered, updates before exit");
+    Require(Rows(TrayMenu.Entries(true, true, false, [])) == "*show @hide | @capture @toggle @stop | exit",
+      "a shown main window can be hidden; while adjusting only finishing is offered; no update row without updates");
+    Require(TrayMenu.Entries(true, false, true, keys).Where(e => !e.IsSeparator).All(e => english.ContainsKey(e.Text)), "every row has host text");
     return count;
   }
   /// <summary>ADR-046: when a sign-in launch keeps its scenes out of Explorer.</summary>

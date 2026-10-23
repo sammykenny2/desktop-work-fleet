@@ -55,6 +55,12 @@ internal static class PlatformProbe
     using var second = new NativeShortcuts(_ => throw new Exception("Unrequested shortcut action"));
     second.Configure([new(chord, "@capture")]);
     if (second.Registrations.Single().Status != "conflict") throw new Exception("Native shortcut collision was not reported");
+    // The tray shows a key only when Windows registered it; suspending (an open menu, this app in front) keeps that answer.
+    second.Suspend(true);
+    if (second.Registrations.Single().Status != "suspended" || second.LastAnswers.Single().Status != "conflict")
+      throw new Exception("A suspended key lost Windows' last answer");
+    second.Suspend(false);
+    if (second.Registrations.Single().Status != "conflict") throw new Exception("Resuming a refused key hid its conflict");
     var field = typeof(NativeShortcuts).GetField("receiver", BindingFlags.NonPublic | BindingFlags.Instance)!;
     var handle = ((HwndSource)field.GetValue(first)!).Handle;
     void Post(uint key) { if (!PostMessageW(handle, 0x0312, new IntPtr(1), new IntPtr((long)((key << 16) | mods)))) throw new Exception("Owned message post failed"); }

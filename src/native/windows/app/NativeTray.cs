@@ -15,9 +15,10 @@ public sealed class NativeTray : IDisposable
   private const int Retries = 30;
   private readonly HwndSource receiver;
   private readonly Action<string, ForegroundIntent> invoke;
+  private readonly Func<IReadOnlyList<TrayEntry>> entries;
   private readonly uint taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
   private readonly IntPtr icon;
-  private readonly bool ownsIcon, updates;
+  private readonly bool ownsIcon;
   // At sign-in the notification area can time out or not exist yet, so a failed add is retried every 2 s for a minute (ADR-043).
   private readonly DispatcherTimer retry = new(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(2) };
   private int attempts;
@@ -27,9 +28,10 @@ public sealed class NativeTray : IDisposable
   /// <summary>Raised when the icon appears or goes away; a failed retry of an icon that was never there is not a change.</summary>
   public event Action? Changed;
   public event Action<bool>? MenuActive;
-  public NativeTray(Action<string, ForegroundIntent> invoke, bool updates = false)
+  /// <param name="entries">The menu rows for the state the menu opens in (TrayMenu.Entries).</param>
+  public NativeTray(Action<string, ForegroundIntent> invoke, Func<IReadOnlyList<TrayEntry>> entries)
   {
-    this.invoke = invoke; this.updates = updates;
+    this.invoke = invoke; this.entries = entries;
     // The executable's embedded icon at notification-area size; the stock application icon only if none is embedded.
     var small = new IntPtr[1];
     ownsIcon = Environment.ProcessPath is { } path && ExtractIconExW(path, 0, null, small, 1) > 0 && small[0] != IntPtr.Zero;
@@ -82,16 +84,21 @@ public sealed class NativeTray : IDisposable
     try
     {
       MenuActive?.Invoke(true);
-      var choices = new[] { ("show", HostText.Get("tray.openMain")), ("@capture", HostText.Get("tray.quickCapture")), ("@all", HostText.Get("tray.adjustAll")),
-        ("@stop", HostText.Get("tray.finishAdjusting")), ("@toggle", HostText.Get("tray.toggleDesktop")), ("@hide", HostText.Get("tray.hideMain")) }
-        .Concat(updates ? [("update", HostText.Get("tray.checkUpdates"))] : Array.Empty<(string, string)>()).Append(("exit", HostText.Get("tray.quit"))).ToArray();
-      for (var i = 0; i < choices.Length; i++) if (!AppendMenuW(menu, 0, (UIntPtr)(i + 1), choices[i].Item2)) return;
+      var choices = entries();
+      for (var i = 0; i < choices.Count; i++)
+      {
+        var entry = choices[i];
+        // A tab right-aligns the shortcut; the default item is the one the icon's click runs.
+        if (!(entry.IsSeparator ? AppendMenuW(menu, 0x800, UIntPtr.Zero, null)
+          : AppendMenuW(menu, 0, (UIntPtr)(i + 1), HostText.Get(entry.Text) + (entry.Shortcut is { } key ? "\t" + key : "")))) return;
+        if (entry.Default) _ = SetMenuDefaultItem(menu, (uint)(i + 1), 0);
+      }
       var packed = coordinates.ToInt64(); var x = (int)(short)(packed & 0xffff); var y = (int)(short)((packed >> 16) & 0xffff);
       if (x == -1 && y == -1) { _ = GetCursorPos(out var point); x = point.X; y = point.Y; }
       _ = SetForegroundWindow(receiver.Handle);
       var selected = TrackPopupMenuEx(menu, 0x100 | 0x2, x, y, receiver.Handle, IntPtr.Zero);
       _ = PostMessageW(receiver.Handle, 0, IntPtr.Zero, IntPtr.Zero);
-      if (selected > 0 && selected <= choices.Length) Schedule(choices[selected - 1].Item1);
+      if (selected > 0 && selected <= choices.Count && !choices[(int)selected - 1].IsSeparator) Schedule(choices[(int)selected - 1].Action);
       else { var value = Data(); _ = Shell_NotifyIconW(3, ref value); }
     }
     finally { _ = DestroyMenu(menu); MenuActive?.Invoke(false); }
@@ -119,7 +126,8 @@ public sealed class NativeTray : IDisposable
   [DllImport("shell32.dll", CharSet = CharSet.Unicode)] private static extern uint ExtractIconExW(string file, int index, IntPtr[]? large, IntPtr[]? small, uint count);
   [DllImport("user32.dll")] private static extern bool DestroyIcon(IntPtr icon);
   [DllImport("user32.dll")] private static extern IntPtr CreatePopupMenu();
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool AppendMenuW(IntPtr menu, uint flags, UIntPtr id, string label);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern bool AppendMenuW(IntPtr menu, uint flags, UIntPtr id, string? label);
+  [DllImport("user32.dll")] private static extern bool SetMenuDefaultItem(IntPtr menu, uint item, uint byPosition);
   [DllImport("user32.dll")] private static extern bool DestroyMenu(IntPtr menu);
   [DllImport("user32.dll")] private static extern uint TrackPopupMenuEx(IntPtr menu, uint flags, int x, int y, IntPtr owner, IntPtr options);
   [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);

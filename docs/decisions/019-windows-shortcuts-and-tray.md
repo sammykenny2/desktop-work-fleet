@@ -54,6 +54,11 @@ save taking focus that no longer belongs to the operation.
   toggle, hiding, and save and exit.
   TaskbarCreated only rebuilds its own icon; removal and exit release its own resources, without changing Explorer
   or other apps' settings.
+  2026-10-23: the menu is grouped by separators and offers only what applies when it opens (TrayMenu): "Open Work
+  Fleet" first and bold, as the icon's click does it, "Hide main window" only while the main window shows, "Adjust all
+  notes" or, while adjusting, "Done adjusting", each desktop action with its global shortcut when that key registered,
+  then "Check for updates…", and "Exit Work Fleet" last (the Windows term; it still saves first). The host does not
+  know whether desktop notes are shown, so that item keeps its "Show or hide" wording.
 - Hiding the main window first saves drafts and then calls Hide, keeping the WebView, Workspace, SQLite and the
   desktop surfaces.
   Without a valid tray icon it does not hide; if rebuilding fails, the main window is shown again but not

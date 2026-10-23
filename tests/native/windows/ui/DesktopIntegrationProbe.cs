@@ -127,6 +127,10 @@ internal static class DesktopIntegrationProbe
         $"desktop step {state} through the native owner", main);
     }
     Console.WriteLine("PASS a desktop paper ticks and unticks its checklist step through the native owner (DOM clicks)");
+    // The paper's attachment tile asks the native owner for its thumbnail; the Shell gives even a text file an icon.
+    await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.attachment-tile img'))")).GetBoolean(),
+      "desktop attachment thumbnail through the native owner", main);
+    Console.WriteLine("PASS a desktop paper shows its attachment thumbnail through the native owner");
     Console.WriteLine("PASS real display-only WebView2 scene, storage isolation, draft chunks, IME barrier and owner commit");
     if (main.Desktop.Surfaces.Count == 3)
     {

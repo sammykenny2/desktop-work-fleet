@@ -526,7 +526,7 @@ public sealed class DesktopCoordinator : IDisposable
           "scene-command", "The desktop command session is invalid.");
         HostError.Require(commandMethod is "pointer.down" or "pointer.move" or "pointer.up" or "pointer.cancel" or "card.select" or "card.edit"
           or "card.details" or "card.transfer" or "card.check" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut"
-          or "interaction.done" or "layout.arrange",
+          or "interaction.done" or "layout.arrange" or "attachment.preview" or "attachment.open",
           "unsupported-method", "The desktop host doesn't support this operation.");
         var draft = commandMethod == "editor.change";
         var commandTopology = JsonRules.Integer(args, "topology");

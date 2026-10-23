@@ -19,6 +19,7 @@ namespace WorkFleet.Windows;
 public sealed class NativeTray : IDisposable
 {
   private static readonly Dictionary<string, ResourceDictionary> themes = [];
+  private static ControlTemplate? still;
   private const int Callback = 0x8001;
   private const int Retries = 30;
   private readonly HwndSource receiver;
@@ -118,7 +119,7 @@ public sealed class NativeTray : IDisposable
   }
   private ContextMenu Build(int generation)
   {
-    var next = new ContextMenu { Placement = PlacementMode.AbsolutePoint, Language = XmlLanguage.GetLanguage(HostText.Locale) };
+    var next = new ContextMenu { Placement = PlacementMode.AbsolutePoint, Language = XmlLanguage.GetLanguage(HostText.Locale), Template = Still() };
     next.Resources.MergedDictionaries.Add(Theme());
     foreach (var entry in entries())
     {
@@ -160,6 +161,20 @@ public sealed class NativeTray : IDisposable
       MenuActive?.Invoke(false);
     }), DispatcherPriority.Background);
   }
+  /// <summary>
+  /// Fluent's ContextMenu template (dotnet/wpf release/10.0, Styles/ContextMenu.xaml) without its trigger that slides the
+  /// frame down as the menu opens, so the tray menu shows whole at once; the style still gives its colors and border.
+  /// </summary>
+  private static ControlTemplate Still() => still ??= (ControlTemplate)XamlReader.Parse("""
+    <ControlTemplate TargetType="ContextMenu" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+      <Border x:Name="Border" Padding="0,3,0,3" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+              BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8">
+        <ScrollViewer CanContentScroll="True" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel ClipToBounds="True" IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Cycle" Orientation="Vertical" />
+        </ScrollViewer>
+      </Border>
+    </ControlTemplate>
+    """);
   /// <summary>Fluent.Light, Fluent.Dark or Fluent.HC from WPF's Fluent assembly, loaded once each.</summary>
   private static ResourceDictionary Theme()
   {

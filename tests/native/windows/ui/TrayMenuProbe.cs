@@ -14,7 +14,7 @@ using WorkFleet.Windows.Core;
 
 /// <summary>
 /// ADR-019: the tray menu as the notification icon's own callback opens it, with the rows, the Fluent theme Windows is in
-/// and a place beside the taskbar; an item chosen with the keyboard or UI Automation runs once after the menu has closed;
+/// shown whole at once and a place beside the taskbar; an item chosen with the keyboard or UI Automation runs once after the menu has closed;
 /// Esc, another app coming to the front and a second right-click run nothing; and shortcuts are released each time. The
 /// callback, the keys and the deactivation are messages posted to the probe's own windows; no input is injected.
 /// </summary>
@@ -83,7 +83,9 @@ internal static class TrayMenuProbe
       var theme = TrayMenu.Theme(SystemParameters.HighContrast, personalize?.GetValue("SystemUsesLightTheme"));
       Require(menu.Resources.MergedDictionaries.Single().Source.OriginalString.EndsWith($"/Themes/Fluent.{theme}.xaml", StringComparison.Ordinal), "The menu does not use the Fluent theme Windows is in.");
       Require(Below<Border>(menu).Any(b => b.CornerRadius.TopLeft >= 4), "The menu is not drawn by the Fluent template.");
-      Console.WriteLine($"PASS tray menu rows, shortcut and default item in the Fluent {theme} theme");
+      // Shown whole at once: nothing in the menu moves as it opens, unlike Fluent's own slide-down.
+      Require(!Below<UIElement>(menu).Prepend(menu).Any(e => e.HasAnimatedProperties || e.RenderTransform.HasAnimatedProperties), "The menu slides down as it opens.");
+      Console.WriteLine($"PASS tray menu rows, shortcut and default item in the Fluent {theme} theme, shown without sliding");
     }
     // Placement: inside the work area, at the anchor moved off the taskbar.
     var popup = ((HwndSource)PresentationSource.FromVisual(menu)!).Handle;

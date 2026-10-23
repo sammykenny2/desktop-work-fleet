@@ -672,7 +672,7 @@ it injects no system mouse input and cannot replace user acceptance of fast drag
 `--platform` also shows one message box, checks that its button is themed and answers it itself: `app.manifest` selects Common Controls 6,
 without which Windows draws the update, data and startup message boxes with classic buttons and icons. The check failed before the manifest change on 2026-10-23.
 `--tray-menu` opens the tray menu through its own notification-icon callback, posted to the tray's window, and checks the rows, separators, shortcuts and bold default item;
-that it uses the Fluent theme for the Windows mode and is drawn by the Fluent template; and that it opens inside the work area at the anchor moved off the taskbar
+that it uses the Fluent theme for the Windows mode, is drawn by the Fluent template and shows whole at once, with nothing animated; and that it opens inside the work area at the anchor moved off the taskbar
 (it saves `tray-menu.png`). Keys posted to the tray's window choose an item (Down past a separator, then Enter), as UI Automation does; the item runs once, after the menu has closed.
 Esc, an app-deactivation message to the menu's window (what a click on another app sends) and a second right-click close it without running anything,
 and shortcuts are held while it is open and released each time. Whether Windows let the probe come to the front is reported, and SKIPped when it did not;

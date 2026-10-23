@@ -63,7 +63,8 @@ save taking focus that no longer belongs to the operation.
   WPF runtime the package carries) instead of a Win32 popup menu, so it looks like Windows 11's own menus: rounded
   corners and spacing, light or dark as the Windows mode is (SystemUsesLightTheme, which the taskbar follows, not the
   app mode), or the high-contrast theme. It opens beside the taskbar, inside the work area, at the icon's anchor
-  rather than over the taskbar. As with the Win32 menu, the notification window comes to the front first, which the
+  rather than over the taskbar, whole at once: the Fluent template's slide-down as it opens is removed (by the
+  user's choice, 2026-10-23). As with the Win32 menu, the notification window comes to the front first, which the
   shell allows for the icon's owner; the menu window itself never takes the front, because that moves WPF's focus and
   closes the menu. So the menu has the keyboard and closes when another app comes to the front. A chosen item runs
   after the menu has closed, with an intent captured then, and Esc returns focus to the notification area.

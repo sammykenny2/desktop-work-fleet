@@ -668,6 +668,8 @@ It is wired into Test-WindowsNative, creates no test Explorer, and a model pass 
 The composition probe applies the coordinator's existing click-through policy for render popups, and on an input failure reports the HWND, class and PID that were hit.
 It also checks native capture, region moves, unexpected capture loss, and release on hide and topology changes with synthetic WPF MouseDown and MouseUp;
 it injects no system mouse input and cannot replace user acceptance of fast drags. The capture check failed before the fix and has passed since testing resumed on 2026-10-09.
+`--platform` also shows one message box, checks that its button is themed and answers it itself: `app.manifest` selects Common Controls 6,
+without which Windows draws the update, data and startup message boxes with classic buttons and icons. The check failed before the manifest change on 2026-10-23.
 Known one-off native probe failures that passed on rerun: the composition probe's "Reopened scene lost input policy" (2026-10-14), the composition cross-process hit tests (2026-10-06 and 2026-10-09),
 and `--wallpaper` desktop-layer step 4 not showing the paper on the first run (2026-10-15). Rerun the single probe before investigating.
 

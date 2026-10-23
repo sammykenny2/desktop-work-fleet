@@ -81,6 +81,27 @@ internal static class PlatformProbe
     catch (ArgumentException) { }
     if (first.Registrations.Single().Target != "@all") throw new Exception("Rejected settings changed registrations");
     Console.WriteLine("PASS native hotkey registration/conflict/suspend/resume/dispose and stale-message isolation; callback messages are synthetic, no keyboard input injected");
+    // The shared manifest selects Common Controls 6, so the update, data and startup message boxes draw themed buttons
+    // instead of the classic ones. The probe shows one, reads its button's theme, and closes it.
+    var caption = "Work Fleet probe " + Guid.NewGuid().ToString("N"); bool? themed = null;
+    var reader = Task.Run(async () =>
+    {
+      for (var waited = 0; waited < 200; waited++, await Task.Delay(50))
+      {
+        var dialog = FindWindowW("#32770", caption); if (dialog == IntPtr.Zero) continue;
+        var button = FindWindowExW(dialog, IntPtr.Zero, "Button", null);
+        themed = button != IntPtr.Zero && GetWindowTheme(button) != IntPtr.Zero;
+        PostMessageW(dialog, 0x0111, new IntPtr(7), IntPtr.Zero); return; // WM_COMMAND IDNO
+
+      }
+    });
+    System.Windows.MessageBox.Show("Version 0.3.9 is available (you have 0.3.8).\n\nUpdate and restart Work Fleet now? Unsaved text is saved first.", caption, System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Question);
+    await reader;
+    if (themed != true) throw new Exception(themed is null ? "The probe message box did not appear." : "Message boxes draw classic, unthemed buttons.");
+    Console.WriteLine("PASS native message boxes draw themed buttons");
   }
   [DllImport("user32.dll")] private static extern bool PostMessageW(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindowW(string className, string windowName);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr FindWindowExW(IntPtr parent, IntPtr after, string className, string? windowName);
+  [DllImport("uxtheme.dll")] private static extern IntPtr GetWindowTheme(IntPtr window);
 }

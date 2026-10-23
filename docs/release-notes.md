@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.12
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: The gear now opens General, with the version, updates and startup options, and the account area opens Account and sync.
+
+- The account area at the bottom left of the sidebar always opens Account and sync. The gear and Ctrl+, (Command+, on macOS) always open General instead of the last page shown; in a phone-sized window the gear still opens the list of pages.
+- Settings lists the account as a card at the top, then General, Desktop notes and Shortcuts, then Data and backup, and Versions and conflicts.
+- General now holds Version and updates, Startup and Language. The Desktop page is renamed Desktop notes; Reset desktop layout stays last.
+- Data and backup starts with automatic backup, then export and restore; Reset all data stays last.
+- No setting was added or removed.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.11
 
 Platforms: Windows, Linux, macOS, Android.

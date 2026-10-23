@@ -33,10 +33,11 @@ await page.addInitScript(() => {
       attachments: Array.from({ length: 6 }, (_, n) => ({ id: `blob-${n}`, name: `file-${n}.pdf` })) }] : window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
       { ...paper('c1', 24, 'Quarterly report', `# Quarterly report\n\n- [x] Collect the numbers\n- [ ] Draw the charts\n- [${sequence > 1 ? 'x' : ' '}] Write the summary`, '#fff6cc'),
         interactive: !window.probeClickThrough },
-      paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'),
+      { ...paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'), editing: Boolean(window.probeEditing) },
       paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'),
-    ], editor: null, dropTarget: null, fallbacks: [], notice: null, quickMove: window.probeQuick || null });
-  window.probeApplied = 0; window.probeCommands = []; window.probeChecks = []; window.probePointer = [];
+    ], editor: window.probeEditing ? { cardId: 'c2', draftId: 'd1', viewId: 'v1', text: 'Buy milk, eggs and coffee beans', sequence: 0 } : null,
+    dropTarget: null, fallbacks: [], notice: null, quickMove: window.probeQuick || null });
+  window.probeApplied = 0; window.probeCommands = []; window.probeChecks = []; window.probePointer = []; window.probeEditor = [];
   window.probeNextFrame = () => { sequence++; send({ v: 1, event: 'desktop-frame' }); };
   const handle = async message => {
     const reply = result => send({ v: 1, id: message.id, ok: true, result });
@@ -57,6 +58,7 @@ await page.addInitScript(() => {
         : command.method === 'pointer.down' ? { accepted: true } : command.method === 'pointer.up' ? { kind: 'moved' }
         : command.method === 'pointer.move' && window.probeDropMove ? { kind: 'cancelled', reason: 'quick-move-ended' } : { opened: true };
       if (command.method.startsWith('pointer.')) window.probePointer.push({ method: command.method, args: command.args });
+      if (command.method === 'card.edit' || command.method.startsWith('editor.')) window.probeEditor.push({ method: command.method, args: command.args });
       if (command.method === 'card.check') window.probeChecks.push(command.args);
       if (command.method === 'card.check' && window.probeRefuseCheck) send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: false, error: { code: 'desktop-expired', message: 'The note has changed.' } });
       else send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: true, result });
@@ -244,6 +246,27 @@ try {
   await page.waitForFunction(count => window.probeApplied > count, appliedBefore);
   await drag('.card[data-card-id="c2"] .card-body p', quickModifier);
   assert.equal((await quickState()).downs.length, 2, 'with quick move off the key does nothing');
+  // Quick edit (SPEC-003, 2026-10-24): the key on a double click opens a resting paper once its release is settled; the
+  // editor offers Cancel, and the paper being edited does not start a quick move.
+  const appliedQuick = await page.evaluate(() => window.probeApplied);
+  await page.evaluate(quick => { window.probeQuick = quick; window.probeNextFrame(); }, quickKey);
+  await page.waitForFunction(count => window.probeApplied > count, appliedQuick);
+  await page.keyboard.down(quickModifier); await page.locator('.card[data-card-id="c3"] .card-body p').dblclick(); await page.keyboard.up(quickModifier);
+  await page.waitForFunction(() => window.probeEditor.some(entry => entry.method === 'card.edit'));
+  assert.deepEqual(await page.evaluate(() => window.probeEditor.find(entry => entry.method === 'card.edit').args), { cardId: 'c3' });
+  assert.equal(await page.evaluate(() => window.probeCommands.slice(-2).join()), 'pointer.up,card.edit', 'the edit waits for the release');
+  const appliedEdit = await page.evaluate(() => window.probeApplied);
+  await page.evaluate(() => { window.probeEditing = true; window.probeNextFrame(); });
+  await page.waitForFunction(count => window.probeApplied > count && document.querySelector('.card[data-card-id="c2"] textarea'), appliedEdit);
+  assert.deepEqual(await page.locator('.card[data-card-id="c2"] .card-actions button').allTextContents(),
+    [t('desktop.editor.retrySave'), t('desktop.editor.full'), t('common.cancel'), t('common.save')]);
+  const downsBefore = (await quickState()).downs.length;
+  await drag('.card[data-card-id="c2"] .card-summary', quickModifier);
+  assert.equal((await quickState()).downs.length, downsBefore, 'the paper being edited does not move');
+  await page.locator('.card[data-card-id="c2"] .card-actions button', { hasText: t('common.cancel') }).click();
+  await page.waitForFunction(() => window.probeEditor.some(entry => entry.method === 'editor.cancel'));
+  assert.equal(await page.evaluate(() => window.probeEditor.find(entry => entry.method === 'editor.cancel').args.draftId), 'd1');
+  await page.evaluate(() => { window.probeEditing = false; window.probeQuick = null; window.probeNextFrame(); });
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');
     const element = document.createElement('div');
@@ -259,7 +282,7 @@ try {
   assert.equal(budgets.blocks, 80); assert.equal(budgets.spans, 0);
   assert.ok(budgets.characters > 160000, 'large documents retain all code as plain text');
   assert.deepEqual(errors, []);
-  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, ticking checklists only where papers take clicks, quick move only with the key held and the setting on, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
+  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, ticking checklists only where papers take clicks, quick move only with the key held and the setting on, quick edit on a double click with the key and its Cancel, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe-failure.png' });
   if (errors.length) console.error('Scene page errors:', errors);

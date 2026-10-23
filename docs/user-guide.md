@@ -158,14 +158,23 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 - "Show completed notes" in Settings > Desktop notes is off at first. While it is off, completed notes leave this computer's
   desktop, also while you adjust, and return to their old places when you turn it on or move them back to To do.
   Each computer keeps its own choice, and "Reset desktop layout" turns it back off.
-- "Hold Ctrl and drag to move a note" ("Hold ⌘ and drag to move a note" on macOS) in Settings > Desktop notes is off at
-  first. When it is on, hold Ctrl (⌘ on macOS) before you press on a note on the Desktop or Top layer, then drag: that
+- "Hold Ctrl to drag or double-click a note" ("Hold ⌘ to drag or double-click a note" on macOS) in Settings > Desktop
+  notes is off at first. When it is on, hold Ctrl (⌘ on macOS) before you press on a note on the Desktop or Top layer, then drag: that
   one note moves without entering adjust mode, stays on its layer, and the main window stays where it is. Without the
   key a press selects text as before, and checkboxes, attachments and links keep working with it. It only moves the
   note, never to another group. Esc while dragging, or a change of displays, puts it back; "Undo" in adjust mode takes
   a finished move back. Each computer keeps its own choice, and "Reset desktop layout" turns it back off. GNOME through
   XWayland keeps notes on the Wallpaper layer only, so it does not offer this
   ([SPEC-003](specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-quick-move)).
+- With the same switch on, hold Ctrl (⌘ on macOS) and double-click such a note to edit it in place: it rises to the Top
+  layer, opaque, where it is, with no overlay, and the main window stays where it is. "Save" keeps the text, "Cancel"
+  discards what you changed since you opened it, Esc keeps a changed draft and closes, and "Full editor" moves the
+  draft to the main window. Clicking another app leaves it open; double-clicking another note with the key closes it,
+  keeping its draft, and opens that one. Entering adjust mode, a change of displays, the note leaving the desktop or
+  turning the switch off also close it and keep a changed draft. While one note is open the others can still be moved
+  with the key; the open one stays put. On Raspberry Pi OS and other layer-shell desktops, click into the text once if
+  typing does not reach it
+  ([SPEC-003](specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-adjust-mode-arranges-quick-edit-edits)).
 - In the Windows Explorer desktop, the Wallpaper layer attaches below the desktop icons. macOS offers the same
   controls with three AppKit layers; Linux layer-shell uses three native bands.
 - pcmanfm desktops draw the wallpaper and the icons on the same surface, so notes cannot go below the icons and there
@@ -183,7 +192,8 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 - Notes are normally Locked, and you cannot change their text. Under "Adjust" at the bottom of the sidebar, press
   "This group" (the group selected above it) or "All" to enter adjust mode, which only arranges notes: click selects a
   note and brings it to the front, and dragging moves it. Adjusted notes have no Edit or "⋯" button, and neither a
-  double-click nor Enter opens them; edit a note in the main window instead. "Done" returns to Locked. In a narrow
+  double-click nor Enter opens them; edit a note in the main window, or with the key and a double click on the desktop
+  (see [Desktop notes and layers](#desktop-notes-and-layers)). "Done" returns to Locked. In a narrow
   window "Adjust" is in the drawer, and search waits until "Done".
 - While you adjust, the view bar turns into a dark adjust bar that names what you are adjusting and has "Bring to
   front" (‹ › brings the previous or next note of the group to the front), "Stack", "Spread", "Undo" and "Done". The
@@ -256,7 +266,7 @@ groups:
   - Phones have the same setting; on iOS the Share Extension sheet follows it too.
   - The choice belongs to this device: it is not part of a backup or of Google data.
 - Desktop notes (desktop apps and the browser preview; phones have no Desktop notes or Shortcuts page): "Show notes
-  while locked", "Show completed notes", "Hold Ctrl and drag to move a note" (desktop apps only), "My group" and
+  while locked", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only), "My group" and
   "Group regions". On GNOME Wayland the page also has "Show
   desktop notes through XWayland" (see [Linux](#linux)). "Reset desktop layout" is last.
 - Shortcuts: see [Shortcuts](#shortcuts).

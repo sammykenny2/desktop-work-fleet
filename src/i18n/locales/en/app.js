@@ -243,6 +243,7 @@ export default {
   'app.status.groupMerged': 'Groups merged. Note content and desktop positions are kept.',
   'app.status.draftKept': 'Draft kept',
   'app.status.closedNoDraft': 'Closed. There was no draft to keep.',
+  'app.status.editCancelled': 'Changes discarded',
   'app.status.draftSaveFailed': "Couldn't save the draft: {error}",
   'app.status.draftCleanupFailed': "Couldn't tidy up the draft: {error}",
   'app.status.attachmentShared': 'Opened attachment sharing',

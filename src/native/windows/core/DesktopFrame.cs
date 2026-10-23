@@ -8,7 +8,7 @@ public sealed record PresentedCard(string Id, string Layer, LogicalRect Rect, bo
 /// <summary>Native input regions are derived only from a complete, validated owner projection. A stage notice only
 /// keeps the topmost scene visible; it never becomes an input region. While adjusting, the topmost scene is the
 /// modal adjust overlay.</summary>
-public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0, LogicalRect? Notice = null, bool Adjusting = false)
+public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<PresentedCard> Cards, long Topology = 0, LogicalRect? Notice = null, bool Adjusting = false, string? EditorView = null)
 {
   public static DesktopFrame Parse(ReadOnlyMemory<byte> bytes, string sessionId, long previous)
   {
@@ -71,7 +71,10 @@ public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<Presented
       _ = JsonRules.Text(value, "title", 200); _ = JsonRules.Text(value, "text", 200);
       notice = Rect(value.GetProperty("rect"));
     }
-    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0, notice, kind != "none");
+    // The view showing the in-place editor, if any: a quick edit hands the keyboard back when it leaves.
+    string? editorView = root.TryGetProperty("editor", out var editor) && editor.ValueKind == JsonValueKind.Object
+      && editor.TryGetProperty("viewId", out var viewId) && viewId.ValueKind == JsonValueKind.String ? viewId.GetString() : null;
+    return new(sequence, cards, root.TryGetProperty("topology", out _) ? JsonRules.Integer(root, "topology") : 0, notice, kind != "none", editorView);
   }
   private static bool Boolean(JsonElement value, string key)
   {

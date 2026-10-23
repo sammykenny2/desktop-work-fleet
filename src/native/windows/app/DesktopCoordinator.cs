@@ -1,5 +1,6 @@
 using Microsoft.Web.WebView2.Core;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Security.Cryptography;
@@ -31,6 +32,11 @@ public sealed class DesktopCoordinator : IDisposable
   private ShortcutBinding[] bindings = [];
   private ForegroundIntent? activation;
   private long? focusSequence;
+  // A quick edit's keyboard request, honoured once its view shows the frame and only shortly after a scene asked to edit;
+  // the window that had the keyboard gets it back when the edit closes.
+  private DateTime editRequested = DateTime.MinValue;
+  private (string View, long Sequence)? editorFocus;
+  private IntPtr editorReturn;
   private readonly Dictionary<string, (string View, ForegroundIntent Intent)> sceneIntents = new(StringComparer.Ordinal);
   private bool shortcutsBlocked;
   private bool nativeMenu;
@@ -79,7 +85,7 @@ public sealed class DesktopCoordinator : IDisposable
     public string? Download;
     public long Applied = -1;
     public LogicalRect[] PresentedRects = [];
-    public bool Adjusting;
+    public bool Adjusting, Editing;
   }
 
   public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Func<bool> showMain, Action<string> openExternal,
@@ -153,7 +159,7 @@ public sealed class DesktopCoordinator : IDisposable
 
   private void InvalidateDisplays()
   {
-    if (disposed) return; displayPending = true; activation = null; focusSequence = null; sceneIntents.Clear();
+    if (disposed) return; displayPending = true; activation = null; focusSequence = null; editorFocus = null; sceneIntents.Clear();
     foreach (var view in views.Where(v => !v.Retired).ToArray())
     {
       if (view.Initialized && !view.Surface.NativeAlive)
@@ -274,6 +280,14 @@ public sealed class DesktopCoordinator : IDisposable
         if (activation?.Id != JsonRules.Text(args, "intent") || !activation.Current) return new { accepted = false };
         focusSequence = JsonRules.Integer(args, "sequence");
         foreach (var view in views) if (TryFocus(view)) break;
+        return new { accepted = true };
+      }
+      case "desktop.focusEditor":
+      {
+        var id = JsonRules.Text(args, "viewId", 64); var sequence = JsonRules.Integer(args, "sequence");
+        if (DateTime.UtcNow - editRequested > TimeSpan.FromSeconds(5) || !views.Any(v => v.Id == id && v.Layer == "floating" && !v.Retired)) return new { accepted = false };
+        editorFocus = (id, sequence);
+        foreach (var view in views.Where(v => v.Id == id)) TryFocusEditor(view);
         return new { accepted = true };
       }
       case "desktop.hideMain":
@@ -510,7 +524,10 @@ public sealed class DesktopCoordinator : IDisposable
         var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
         if (adjusting || notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
         view.PresentedRects = cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
-        view.Applied = sequence; TryFocus(view);
+        view.Applied = sequence; TryFocus(view); TryFocusEditor(view);
+        var editingHere = view.Layer == "floating" && !adjusting && view.Downloading.EditorView == view.Id;
+        if (view.Editing && !editingHere) ReturnEditorFocus(view);
+        view.Editing = editingHere;
         if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
         // Keys such as Esc reach the overlay as it appears.
         if (adjusting && !view.Adjusting && view.Surface.InputWindow.Activate()) { view.Surface.WebView.Focus(); Post(view, new { v = 1, @event = "desktop-focus" }); }
@@ -531,10 +548,11 @@ public sealed class DesktopCoordinator : IDisposable
         HostError.Require(JsonRules.Text(command, "sessionId") == SessionId && id.Length == 36 && Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(command, "serial") > 0,
           "scene-command", "The desktop command session is invalid.");
         HostError.Require(commandMethod is "pointer.down" or "pointer.move" or "pointer.up" or "pointer.cancel" or "card.select" or "card.edit"
-          or "card.transfer" or "card.check" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut"
+          or "card.transfer" or "card.check" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "editor.cancel" or "interaction.escape" or "interaction.shortcut"
           or "interaction.done" or "layout.arrange" or "attachment.preview" or "attachment.open",
           "unsupported-method", "The desktop host doesn't support this operation.");
         var draft = commandMethod == "editor.change";
+        if (commandMethod == "card.edit") editRequested = DateTime.UtcNow;
         var commandTopology = JsonRules.Integer(args, "topology");
         HostError.Require(draft || !displayPending && view.Active && commandTopology == topology, "desktop-topology", "Desktop positions are updating. Wait a moment and try again; your text is kept.");
         HostError.Require(commands.Values.Count(c => c.Draft == draft) < (draft ? 4 : 24), "scene-busy", "A desktop operation is still in progress.");
@@ -567,6 +585,22 @@ public sealed class DesktopCoordinator : IDisposable
     }
   }
   private static bool Intersects(LogicalRect a, LogicalRect b) => a.X < b.X + b.Width && a.X + a.Width > b.X && a.Y < b.Y + b.Height && a.Y + a.Height > b.Y;
+  private void TryFocusEditor(SceneView view)
+  {
+    if (editorFocus is not { } focus || focus.View != view.Id || displayPending || !view.Active || view.Retired || !view.Ready
+      || view.Applied < focus.Sequence || !view.Surface.Shown) return;
+    editorFocus = null; editorReturn = GetForegroundWindow();
+    if (view.Surface.InputWindow.Activate()) { view.Surface.WebView.Focus(); Post(view, new { v = 1, @event = "desktop-focus" }); }
+  }
+  // Only while the closed editor's scene still has the keyboard, so a window the user chose meanwhile keeps it.
+  private void ReturnEditorFocus(SceneView view)
+  {
+    var target = editorReturn; editorReturn = IntPtr.Zero;
+    if (target != IntPtr.Zero && IsWindow(target) && GetForegroundWindow() == new System.Windows.Interop.WindowInteropHelper(view.Surface.InputWindow).Handle) SetForegroundWindow(target);
+  }
+  [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] private static extern bool IsWindow(IntPtr window);
   private bool TryFocus(SceneView view)
   {
     if (focusSequence is null || activation is null) return false;

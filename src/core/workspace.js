@@ -657,6 +657,17 @@ export class Workspace {
     return this.#commit(state => { state.drafts[draft.id] = rebaseDraft(state, copy(draft)); });
   }
 
+  /** Drops a draft outright: Cancel on a quick edit throws away the draft that edit began (SPEC-003, 2026-10-24). */
+  async discardDraft(draftId) {
+    requireValue(safeKey(draftId), 'invalid-draft', t('errors.core.draftIdInvalid'));
+    await this.#tail;
+    return this.#commit(state => {
+      if (!state.drafts[draftId]) return false;
+      delete state.drafts[draftId];
+      return true;
+    });
+  }
+
   /** Drops a draft with nothing to keep, and such drafts it was recovered from that have not changed since. */
   async discardUnneededDraft(draftId) {
     await this.#tail;

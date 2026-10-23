@@ -14,6 +14,11 @@ Quick move (SPEC-003, 2026-10-24) reads Ctrl from the scene's own pointer event 
 activated, so whether WebView2 reports Ctrl for that press, on the attached Desktop-layer scene and on the composition
 Top-layer scene alike, has not been checked on a real machine; if it does not, the host has to pass the key state itself
 or Windows has to stop offering the setting.
+Quick edit (SPEC-003, 2026-10-24) opens the paper in the display's Top-layer scene. On the owner's `desktop.focusEditor`,
+shortly after a scene sent `card.edit`, the coordinator activates that scene's input window as adjust mode does and
+remembers the window that had the foreground; when the frame no longer shows the editor there and the scene still has
+the foreground, it gives the foreground back. Not tried on a real machine, and the Windows UI probes that now open their
+editor this way have not been run since (2026-10-24).
 
 ## Structure
 

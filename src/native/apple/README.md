@@ -154,6 +154,9 @@ so its later checks did not run there.
 Quick move (SPEC-003, 2026-10-24) reads ⌘ from the event each paper's hit panel forwards; the hit panel that took the
 press keeps its frame and stays shown until the release, also when the paper moves off the piece it covered or off its
 screen, so the drag events it converts keep one origin and the release is not lost. A real ⌘-drag on a Mac has not been done, and over Screen Sharing the key may not arrive at all.
+Quick edit (SPEC-003, 2026-10-24) opens the paper in the screen's Top-layer scene; on the owner's `desktop.focusEditor`,
+shortly after a scene sent `card.edit`, that nonactivating panel becomes the key window without bringing the app to the
+front, and it resigns the keyboard when the frame no longer shows the editor there. Not tried on a real Mac yet.
 Data that can't be opened (SPEC-006 DO, 2026-10-23): `FleetDatabase` names a generic open failure from SQLite's last
 result code, and the macOS `FleetWebHost` shows an alert with the cause, the folder ("Show in Finder") and, for
 damaged data, the confirmed set-aside, which moves `fleet.sqlite3` and its journals into a dated set-aside folder; the

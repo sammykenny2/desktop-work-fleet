@@ -31,7 +31,7 @@ import WebKit
     // The hit panel holding the left button. Its drag events are converted through its frame, so a paper moved by a
     // quick move neither carries nor hides that panel until the button is released.
     private weak var pressed: NSWindow?
-    private var started = false, admitted = 0, adjusting = false
+    private var started = false, admitted = 0, adjusting = false, editing = false
     var dispatch: ((FleetSceneSurface, String, [String: Any]) throws -> Any)?
     var lost: ((FleetSceneSurface) -> Void)?
     init(display: String, viewport: NSRect, nativeBounds: NSRect, layer: String, assets: URL) {
@@ -80,7 +80,7 @@ import WebKit
         suspend(); self.display = display; self.viewport = viewport; self.nativeBounds = nativeBounds; panel.setFrame(nativeBounds, display: true); applied = -1
     }
     func suspend() { for hit in hits.values { hit.orderOut(nil) }; pressed = nil; panel.allowKey = false }
-    func hide() { suspend(); panel.orderOut(nil); adjusting = false }
+    func hide() { suspend(); panel.orderOut(nil); adjusting = false; editing = false }
     func apply(_ frame: FleetSceneFrame) {
         let cards = frame.cards.filter { $0.layer == layer && $0.rect.intersects(viewport) }
         let notice = layer == "floating" && (frame.notice?.intersects(viewport) ?? false)
@@ -109,6 +109,10 @@ import WebKit
         // panel takes them without raising the app. Leaving the overlay hands the keyboard back.
         if overlay && (!adjusting || !panel.allowKey) { panel.allowKey = true; panel.makeKey(); panel.makeFirstResponder(web) }
         if live.isEmpty || adjusting && !overlay { panel.allowKey = false; if panel.isKeyWindow { panel.resignKey() } }
+        // A quick edit that closed here hands the keyboard back, as leaving the overlay does.
+        let editingHere = !overlay && frame.editorView == id
+        if editing && !editingHere && !overlay { panel.allowKey = false; if panel.isKeyWindow { panel.resignKey() } }
+        editing = editingHere
         adjusting = overlay
     }
     private func place(hit id: String, _ bounds: NSRect, operable: Bool) {
@@ -141,6 +145,8 @@ import WebKit
         panel.sendEvent(forwarded)
     }
     func focus() { guard layer == "floating", !retired, active else { return }; panel.allowKey = true; NSApplication.shared.activate(ignoringOtherApps: true); panel.makeKey(); panel.makeFirstResponder(web); event("desktop-focus") }
+    // A quick edit takes the keyboard without bringing the app to the front, as the adjust overlay does.
+    func focusEditor() { guard layer == "floating", !retired, active else { return }; panel.allowKey = true; panel.makeKey(); panel.makeFirstResponder(web); event("desktop-focus") }
     func close() { retired = true; for hit in hits.values { hit.close() }; hits.removeAll(); panel.close(); web.configuration.userContentController.removeScriptMessageHandler(forName: "workFleet") }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { hide(); lost?(self) }
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {

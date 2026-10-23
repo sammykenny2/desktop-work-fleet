@@ -8,6 +8,8 @@ struct FleetSceneFrame {
     var notice: NSRect? = nil
     /// While adjusting, the topmost scene is the modal adjust overlay.
     var adjusting = false
+    /// The view showing the in-place editor, if any: a quick edit hands the keyboard back when it leaves.
+    var editorView: String? = nil
     static func rect(_ object: Any?) throws -> NSRect {
         guard let object = object as? [String: Any] else { throw FleetFailure("scene-frame", "The desktop position isn't valid.") }
         func number(_ key: String) throws -> Double {
@@ -65,7 +67,8 @@ struct FleetSceneFrame {
             _ = try FleetProtocol.text(object, "title", 200); _ = try FleetProtocol.text(object, "text", 200)
             notice = try rect(object["rect"])
         }
-        return FleetSceneFrame(sequence: sequence, topology: topology, cards: output, notice: notice, adjusting: kind != "none")
+        let editorView = (value["editor"] as? [String: Any])?["viewId"] as? String
+        return FleetSceneFrame(sequence: sequence, topology: topology, cards: output, notice: notice, adjusting: kind != "none", editorView: editorView)
     }
     private static func fields(_ object: [String: Any], _ allowed: String) throws {
         let fields = Set(allowed.split(separator: " ").map(String.init)); try FleetProtocol.require(object.keys.allSatisfy(fields.contains), "scene-frame", "The desktop frame contains data that isn't for display.")

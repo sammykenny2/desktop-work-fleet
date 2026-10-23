@@ -79,17 +79,26 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(resident, "window.preparedPaperRemoval === true")).ValueKind == JsonValueKind.True,
       "native frame preparation acknowledged before removing the resident paper", main);
     Console.WriteLine("PASS attached paper removal waits for native frame preparation before erasing its DOM");
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
-    await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True,
-      "scene inline editor", main);
+    // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper offers no buttons and a double click opens nothing.
+    if ((await Eval(floating, "document.querySelectorAll('.card-actions button').length")).GetInt32() != 0) throw new Exception("An adjusted paper offers buttons.");
+    await Eval(floating, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+    await Task.Delay(150);
+    if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True) throw new Exception("Adjust mode opened an editor.");
+    await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
+    await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
+      "exit returns the paper to its group's desktop layer", main);
+    // Quick edit: with the switch on, Ctrl and a double click open the resting paper in place on the Top layer. The scene
+    // learns the key from the next frame, so the double click repeats until the editor shows.
+    await Eval(main.WebView.CoreWebView2, "document.querySelector('#desktop-quick-move').click()");
+    await QuickEdit(resident, floating, main, "scene inline editor");
     // The draft carries escaped CJK characters: a repeated edit must keep non-ASCII text exactly.
     await Eval(floating, "document.querySelector('textarea').value='Desktop draft \u4E2D\u6587 text';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
       "scene draft acknowledged by native owner", main);
     using (var preview = File.Create(Path.Combine(directory, "native-desktop.png")))
       await floating.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, preview);
-    // Repeating edit on the same card must preserve its in-progress content and draft identity.
-    await Eval(floating, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+    // Repeating the gesture on the paper being edited must preserve its in-progress content and draft identity.
+    await Eval(floating, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true}))");
     await Task.Delay(150);
     if ((await Eval(floating, "document.querySelector('textarea').value")).GetString() != "Desktop draft \u4E2D\u6587 text") throw new Exception("Repeated edit replaced draft text.");
     // Larger than the 1 MiB message ceiling (an escaped three-byte CJK character): exercises chunked view -> owner command
@@ -97,29 +106,30 @@ internal static class DesktopIntegrationProbe
     await Eval(floating, "document.querySelector('textarea').value='\u9577'.repeat(400000);document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
       "large scene draft chunk transport", main);
+    // Entering adjust mode closes a quick edit, so the owner's flush barrier waits for the input method first.
     await Eval(floating, "document.querySelector('textarea').value='Last desktop text before closing';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))");
-    await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
+    await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-all').click()");
     await Wait(async () => (await Eval(main.WebView.CoreWebView2, "document.querySelector('#status').textContent.startsWith('Finish ')")).ValueKind == JsonValueKind.True,
-      "IME prevents scope exit through the owner flush barrier", main);
+      "IME prevents entering adjust mode through the owner flush barrier", main);
     if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind != JsonValueKind.True) throw new Exception("IME editor was destroyed.");
     await Eval(floating, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
       "failed exit resumes editing after composition", main);
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
-    // A one-line note shows in the title band and again in the body, which always starts from the first line.
-    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent === 'Last desktop text before closing' && document.querySelector('.card-body p')?.textContent === 'Last desktop text before closing'")).ValueKind == JsonValueKind.True,
+    // A one-line note shows in the title band and again in the body, which always starts from the first line; saved, the
+    // paper rests on its desktop layer again.
+    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea')")).ValueKind == JsonValueKind.True
+      && (await Eval(resident, "document.querySelector('.card-summary')?.textContent === 'Last desktop text before closing' && document.querySelector('.card-body p')?.textContent === 'Last desktop text before closing'")).ValueKind == JsonValueKind.True,
       "scene commits through existing owner transaction", main);
     // Restore the fixture's original title, preserving its attachment and the subsequent existing regression assertions.
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
-    await Wait(async () => (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True, "reopen desktop editor", main);
+    await QuickEdit(resident, floating, main, "reopen desktop editor");
     await Eval(floating, "document.querySelector('textarea').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True, "restore fixture text", main);
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
-    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea') && document.querySelector('.card-summary')?.textContent==='Native note'")).ValueKind == JsonValueKind.True,
-      "fixture restored", main);
-    await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
-    await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
-      "exit returns the paper to its group's desktop layer", main);
+    await Wait(async () => (await Eval(floating, "!document.querySelector('textarea')")).ValueKind == JsonValueKind.True
+      && (await Eval(resident, "document.querySelector('.card-summary')?.textContent==='Native note' && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
+      "fixture restored on its desktop layer", main);
+    await Eval(main.WebView.CoreWebView2, "document.querySelector('#desktop-quick-move').click()");
     // A desktop paper takes clicks while locked, so its checkbox ticks the step through the native owner and the next
     // frame draws it; a second click unticks it again. The paper never turns draggable or opens an editor. The clicks
     // are DOM clicks: the probe injects no system input, so native hit-testing of a real click is not covered here.
@@ -187,15 +197,22 @@ internal static class DesktopIntegrationProbe
   [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);
   [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
 
+  // Ctrl and a double click on the resting paper open a quick edit on the Top layer (SPEC-003, 2026-10-24); the scene
+  // takes the key from the frame after the switch changes, so the gesture repeats until the editor shows.
+  public static Task QuickEdit(CoreWebView2 resident, CoreWebView2 floating, FleetWindow main, string message) => Wait(async () =>
+  {
+    await Eval(resident, "document.querySelector('.card')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true}))");
+    return (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True;
+  }, message, main);
+
   public static async Task CloseWithDraft(FleetWindow main)
   {
-    await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-all').click()");
-    await Wait(async () => main.Desktop?.Surfaces.Count >= 2 && main.Desktop.Surfaces[1].WebView.CoreWebView2 is not null
-      && (await Eval(main.Desktop.Surfaces[1].WebView.CoreWebView2, "Boolean(document.querySelector('.card.operable'))")).ValueKind == JsonValueKind.True,
+    await Wait(async () => main.Desktop?.Surfaces.Count >= 2 && main.Desktop.Surfaces.Take(2).All(s => s.WebView.CoreWebView2 is not null)
+      && (await Eval(main.Desktop.Surfaces[0].WebView.CoreWebView2, "Boolean(document.querySelector('.card'))")).ValueKind == JsonValueKind.True,
       "desktop ready for close probe", main);
-    var scene = main.Desktop!.Surfaces[1].WebView.CoreWebView2;
-    await Eval(scene, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
-    await Wait(async () => (await Eval(scene, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True, "close probe editor", main);
+    var resident = main.Desktop!.Surfaces[0].WebView.CoreWebView2; var scene = main.Desktop.Surfaces[1].WebView.CoreWebView2;
+    await Eval(main.WebView.CoreWebView2, "if(!document.querySelector('#desktop-quick-move').checked)document.querySelector('#desktop-quick-move').click()");
+    await QuickEdit(resident, scene, main, "close probe editor");
     await Task.Delay(200);
     var released = false;
     scene.WebMessageReceived += (_, e) => { if (e.WebMessageAsJson.Contains("probe-unfreeze")) released = true; };

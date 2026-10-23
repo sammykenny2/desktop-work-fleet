@@ -8,7 +8,7 @@ import { t } from '../i18n/index.js';
 
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
-  'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
+  'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'editor.cancel', 'interaction.escape', 'interaction.shortcut',
   'interaction.done', 'layout.arrange', 'attachment.preview', 'attachment.open']);
 const arrangements = new Set(['stack', 'spread', 'undo']);
 
@@ -203,7 +203,14 @@ export class DesktopAuthority {
       case 'pointer.cancel':
         this.#matchGesture(viewId, args); controller.cancelDrag(); this.#gesture = null; return null;
       case 'card.select': this.#card(args.cardId); return controller.select(args.cardId, { gesture: true });
-      case 'card.edit': this.#card(args.cardId); return this.#editor.begin(args.cardId, viewId);
+      // Adjust mode only arranges (SPEC-003, 2026-10-24): a resting paper that takes clicks opens for a quick edit.
+      case 'card.edit': {
+        const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId && !value.deleted);
+        const policy = card && cardPolicy(card, this.#workspace.layout.state, controller.state);
+        requireValue(policy && controller.state.operationScope.kind === 'none' && !policy.draggable && this.#takesClicks(policy),
+          'outside-scope', t('errors.desktop.cardUnavailable'));
+        return this.#editor.begin(args.cardId, viewId);
+      }
       case 'card.transfer': this.#card(args.cardId); return controller.moveToGroup(args.cardId, args.groupId);
       // A checkbox on a paper that takes clicks ticks that step of the text it was drawn from, never a newer one.
       case 'card.check': {
@@ -230,11 +237,13 @@ export class DesktopAuthority {
         await this.#editor.change({ ...current, text: args.text, sequence: args.sequence });
         return { sequence: args.sequence };
       }
-      case 'editor.save': case 'editor.end': case 'editor.full': {
+      case 'editor.save': case 'editor.end': case 'editor.full': case 'editor.cancel': {
         const current = this.#editor.current();
         requireValue(current && current.viewId === viewId && current.draftId === args.draftId
           && current.sequence === args.sequence, 'desktop-editor', t('errors.desktop.draftBusy'));
-        return method === 'editor.save' ? this.#editor.save() : method === 'editor.full' ? this.#editor.full(intent) : this.#editor.end();
+        if (method === 'editor.save') return this.#editor.save();
+        if (method === 'editor.full') return this.#editor.full(intent);
+        return method === 'editor.cancel' ? this.#editor.cancel() : this.#editor.end();
       }
       // The adjust overlay's own buttons, for desktops where the main window is hidden while adjusting.
       case 'interaction.done': return controller.activate({ kind: 'none' });

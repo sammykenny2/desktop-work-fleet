@@ -30,8 +30,8 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
     const placement = interaction.dragSession?.cardId === card.id ? interaction.dragSession.position : saved;
     requireValue(validRect(placement), 'desktop-geometry', t('errors.desktop.geometryInvalid'));
     let layer = policy.layer; let { interactive, draggable, editing } = policy;
-    // Only adjusted papers are draggable; they may use any scene, resting papers only the layers they can rest on.
-    if (!(draggable ? layers : residentLayers).includes(layer)) { fallbacks.push({ cardId: card.id, requested: layer, effective: resident }); layer = resident; }
+    // Adjusted and edited papers may use any scene, resting papers only the layers they can rest on.
+    if (!(draggable || editing ? layers : residentLayers).includes(layer)) { fallbacks.push({ cardId: card.id, requested: layer, effective: resident }); layer = resident; }
     // Wallpaper papers always let clicks through, including desktop papers that fell back onto the wallpaper.
     if (layer === 'wallpaper') interactive = draggable = editing = false;
     cards.push({ id: card.id, groupId: card.groupId, revision: card.revision, summary: summaryText(card),
@@ -41,8 +41,8 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       interactive, draggable, editing,
       selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,
       color: groupColors[colors[card.groupId] ?? 0],
-      // Only a paper resting on the Top layer is see-through; one being adjusted stays opaque to be moved.
-      opacity: layer === 'floating' && !draggable ? groupOpacity(layout, card.groupId) : 1 });
+      // Only a paper resting on the Top layer is see-through; one being adjusted or edited stays opaque.
+      opacity: layer === 'floating' && !draggable && !editing ? groupOpacity(layout, card.groupId) : 1 });
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;

@@ -38,6 +38,7 @@ async function fixture(attachments, { check, residentLayers } = {}) {
     },
     save: async () => { await workspace.commitDraft(editor.draftId); await controller.endEdit(); editor = null; },
     end: async () => { await controller.endEdit(); editor = null; },
+    cancel: async () => { const id = editor.draftId; editor = null; await workspace.discardDraft(id); await controller.endEdit(); },
     full: async () => ({ draftId: editor.draftId }),
   } });
   authority.addView(view); authority.addView(foreign);
@@ -231,6 +232,29 @@ test('a quick move the owner ends mid-drag answers its scene quietly instead of 
   await rejects(f.command('pointer.up', { ...args, point: { x: 1, y: 1 } }), 'desktop-gesture');
 });
 
+test('C58/C60/C61: card.edit opens only a resting paper, opaque on the Top layer, and editor.cancel drops the edit', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
+  await f.workspace.layout.setGroupOpacity(f.a.id, 0.5, f.workspace.snapshot);
+  assert.equal(f.frame().cards.find(c => c.id === f.card.id).opacity, 0.5);
+  // Adjust mode only arranges.
+  await f.controller.activate({ kind: 'all' }); await rejects(f.command('card.edit', { cardId: f.card.id }), 'outside-scope');
+  await f.controller.activate({ kind: 'none' });
+  const draft = await f.command('card.edit', { cardId: f.card.id });
+  const drawn = f.frame().cards.find(c => c.id === f.card.id);
+  assert.deepEqual([drawn.layer, drawn.editing, drawn.draggable, drawn.opacity], ['floating', true, false, 1]);
+  assert.equal(f.frame().operationScope.kind, 'none');
+  await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'typed, then cancelled' });
+  await f.command('editor.cancel', { draftId: draft.draftId, sequence: 1 });
+  assert.equal(f.editor(), null); assert.equal(f.workspace.state.drafts[draft.draftId], undefined);
+  assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.card.id).content.text, '# First thing');
+  assert.equal(f.frame().cards.find(c => c.id === f.card.id).opacity, 0.5, 'the paper rests see-through again');
+  // A host whose papers rest only on the wallpaper never opens one.
+  const wallpaper = await fixture(undefined, { residentLayers: () => ['wallpaper'] });
+  await wallpaper.workspace.layout.configure({ quickMove: true }, wallpaper.workspace.snapshot);
+  await rejects(wallpaper.command('card.edit', { cardId: wallpaper.card.id }), 'outside-scope');
+});
+
 test('quick move frames carry the key only while nothing is adjusted, and wallpaper papers never start one', async () => {
   const f = await fixture(undefined, { residentLayers: () => ['wallpaper'] });
   const project = quickMove => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
@@ -257,13 +281,14 @@ test('desktop transfer uses shared atomic command; save failure leaves original 
 test('read-only selectable desktop text does not grant editing or card commands', async () => {
   const f = await fixture();
   assert.equal(f.frame().cards.find(c => c.id === f.card.id).interactive, true);
-  await rejects(f.command('card.edit', { cardId: f.card.id }), 'outside-scope');
+  // Without quick move a resting paper does not open for editing (SPEC-003, 2026-10-24).
+  await rejects(f.command('card.edit', { cardId: f.card.id }), 'quick-move-off');
   await rejects(f.command('card.transfer', { cardId: f.card.id, groupId: f.b.id }), 'outside-scope');
   assert.equal(f.editor(), null);
 });
 
 test('desktop draft acknowledgement follows durable save and enforces view, identity and text sequence', async () => {
-  const f = await fixture(); await f.controller.activate({ kind: 'all' });
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
   const draft = await f.command('card.edit', { cardId: f.card.id });
   const update = { draftId: draft.draftId, sequence: 1, text: 'Text not yet committed' };
   await rejects(f.command('editor.change', update, f.foreign), 'desktop-editor');
@@ -280,14 +305,15 @@ test('desktop draft acknowledgement follows durable save and enforces view, iden
 });
 
 test('flush barrier can receive its last draft write while the owner is awaiting edit exit', { timeout: 2000 }, async () => {
-  const f = await fixture(); await f.controller.activate({ kind: 'all' });
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
   const draft = await f.command('card.edit', { cardId: f.card.id }); const barrier = deferred(); const requested = deferred();
   f.flush(async () => { requested.resolve(); await barrier.promise; });
   const exit = f.command('editor.end', { draftId: draft.draftId, sequence: 0 }); await requested.promise;
+  // Ordinary commands only fill the lane here; outside adjust mode they are refused once their turn comes.
   const crowded = Array.from({ length: 23 }, () => f.command('card.select', { cardId: f.other.id }));
   await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'Last input before exit' });
   barrier.resolve(); await exit;
-  await Promise.all(crowded);
+  await Promise.allSettled(crowded);
   assert.equal(f.editor(), null); assert.equal(f.workspace.state.drafts[draft.draftId].content.text, 'Last input before exit');
 });
 
@@ -305,7 +331,7 @@ test('evicted receipts reject replay and an owner scope change releases the prev
 });
 
 test('an end command waits for earlier admitted draft writes before validating its editor sequence', async () => {
-  const f = await fixture(); await f.controller.activate({ kind: 'all' });
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
   const draft = await f.command('card.edit', { cardId: f.card.id });
   const update = f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'Last accepted text' });
   const end = f.command('editor.end', { draftId: draft.draftId, sequence: 0 });
@@ -389,11 +415,10 @@ test('a checkbox ticks only a paper that takes clicks and is not being edited, f
   await rejects(f.command('card.check', { cardId: card.id, revision: f.card.revision, task: 0 }), 'desktop-expired');
   await rejects(f.command('card.check', { cardId: 'missing', revision: card.revision, task: 0 }), 'desktop-expired');
   for (const task of [-1, 0.5, '0']) await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task }), 'desktop-command');
-  await f.controller.activate({ kind: 'group', groupId: f.a.id });
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
   await f.command('card.edit', { cardId: card.id });
   await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 }), 'outside-scope');
   await f.command('editor.end', { draftId: f.editor().draftId, sequence: f.editor().sequence });
-  await f.controller.activate({ kind: 'none' });
   await f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 });
   await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);
   await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 }), 'outside-scope');

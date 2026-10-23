@@ -42,13 +42,25 @@ internal static class ShortcutIntegrationProbe
     }
     else coordinator.DispatchAction("@all"); // The OS may already have focused this owned probe window.
     await Wait(() => Check(scene, "Boolean(document.querySelector('.card.operable'))"), "native action opened floating scope");
-    await scene.ExecuteScriptAsync("[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
-    await Wait(() => Check(scene, "Boolean(document.querySelector('textarea'))"), "inline editor");
+    // Adjust mode only arranges (SPEC-003, 2026-10-24): leave it, then open the resting paper with a quick edit.
+    await scene.ExecuteScriptAsync("document.querySelector('.adjust-tools button.primary').click()");
+    await Wait(() => Check(web, "document.querySelector('#stop-operation').hidden"), "adjust mode ended before the quick edit");
+    await web.ExecuteScriptAsync("if(!document.querySelector('#desktop-quick-move').checked)document.querySelector('#desktop-quick-move').click()");
+    var resident = coordinator.Surfaces[0].WebView.CoreWebView2;
+    await Wait(async () =>
+    {
+      await resident.ExecuteScriptAsync("document.querySelector('.card')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true}))");
+      return await Check(scene, "Boolean(document.querySelector('textarea'))");
+    }, "inline editor");
     await scene.ExecuteScriptAsync("document.querySelector('textarea').value='Draft before the shortcut exit';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
     await Task.Delay(200);
     if (!await Check(scene, "Boolean(document.querySelector('textarea'))")) throw new Exception("Composing shortcut closed the editor.");
     await scene.ExecuteScriptAsync("document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
-    await Wait(() => Check(web, "document.querySelector('#stop-operation').hidden"), "local scene scope chord safely toggles off");
+    // The all-groups chord closes the quick edit, keeping its draft, and starts adjusting; Done ends that again.
+    await Wait(() => Check(web, "!document.querySelector('#stop-operation').hidden"), "local scene scope chord closes the quick edit and adjusts");
+    await Wait(() => Check(scene, "!document.querySelector('textarea') && Boolean(document.querySelector('.adjust-tools'))"), "adjust overlay after the chord");
+    await scene.ExecuteScriptAsync("document.querySelector('.adjust-tools button.primary').click()");
+    await Wait(() => Check(web, "document.querySelector('#stop-operation').hidden"), "Done after the chord");
     await web.ExecuteScriptAsync("document.querySelector('#drafts-button').click()");
     await Wait(() => Check(web, "document.querySelector('#draft-list').textContent.includes('Draft before the shortcut exit')"), "scope chord kept exact durable draft");
     await web.ExecuteScriptAsync("document.querySelector('#close-drafts').click()");

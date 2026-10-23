@@ -242,6 +242,7 @@ export default {
   'app.status.groupMerged': '群組已合併，便箋內容與桌面位置已保留',
   'app.status.draftKept': '草稿已保留',
   'app.status.closedNoDraft': '已關閉，沒有需要保留的草稿',
+  'app.status.editCancelled': '已放棄修改',
   'app.status.draftSaveFailed': '草稿保存失敗：{error}',
   'app.status.draftCleanupFailed': '草稿整理失敗：{error}',
   'app.status.attachmentShared': '已開啟附件分享',

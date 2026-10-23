@@ -14,6 +14,8 @@ import AppKit
     private var sceneIntents: [String: (String, Intent)] = [:], bindings: [String: String] = [:]
     private var intent: Intent?, focusSequence: Int64?, frame: FleetSceneFrame?, frameToken: String?
     private var topology: Int64 = 0, proposedTopology: Int64 = 0
+    // A quick edit's keyboard request, honoured once its view shows the frame and only shortly after a scene asked to edit.
+    private var editRequested: TimeInterval = 0, editorFocus: (view: String, sequence: Int64)?
     private var started = false, closed = false, displayPending = false, blocked = false, menu = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = [], displayTask: Task<Void, Never>?
     init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Bool, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void) throws {
@@ -73,7 +75,7 @@ import AppKit
         for view in views where view.active && !view.retired { Task { @MainActor in do { try await view.start() } catch { if !closed { retire(view) } } } }
     }
     private func invalidateDisplays() {
-        guard !closed else { return }; displayPending = true; revokeIntent()
+        guard !closed else { return }; displayPending = true; revokeIntent(); editorFocus = nil
         for view in views where !view.retired { view.suspend(); if view.ready { view.event("desktop-displays-changing") } }
         if started { send("desktop-displays-changing", [:]) }
     }
@@ -141,6 +143,10 @@ import AppKit
         case "desktop.focus":
             guard let intent, intent.id == (args["intent"] as? String), current(intent) else { return ["accepted": false] }
             focusSequence = try FleetProtocol.number(args, "sequence"); for view in views { if tryFocus(view) { break } }; return ["accepted": true]
+        case "desktop.focusEditor":
+            let id = try FleetProtocol.text(args, "viewId", 128), sequence = try FleetProtocol.number(args, "sequence")
+            guard ProcessInfo.processInfo.systemUptime - editRequested < 5, views.contains(where: { $0.id == id && $0.layer == "floating" && !$0.retired }) else { return ["accepted": false] }
+            editorFocus = (id, sequence); for view in views where view.id == id { tryFocusEditor(view) }; return ["accepted": true]
         case "desktop.frame.begin": return try transfers.begin("owner", args, maximum: FleetProtocol.record)
         case "desktop.frame.append": return try transfers.append("owner", args)
         case "desktop.frame.publish":
@@ -183,7 +189,7 @@ import AppKit
             let sequence = try FleetProtocol.number(args, "sequence"), requested = try FleetProtocol.number(args, "topology")
             guard !displayPending, view.active, requested == topology, let frame = view.downloading, frame.topology == topology else { return ["accepted": false] }
             try FleetProtocol.require(sequence == frame.sequence && sequence >= view.applied, "scene-order", "The desktop input doesn't match the frame on screen yet.")
-            view.apply(frame); view.applied = sequence; _ = tryFocus(view); return ["accepted": true]
+            view.apply(frame); view.applied = sequence; _ = tryFocus(view); tryFocusEditor(view); return ["accepted": true]
         case "scene.command.begin": return try transfers.begin(view.id, args, maximum: 16 * 1024 * 1024)
         case "scene.command.append": return try transfers.append(view.id, args)
         case "scene.command":
@@ -193,8 +199,9 @@ import AppKit
             else { throw FleetFailure("scene-command", "The desktop command isn't valid.") }
             let id = try FleetProtocol.text(command, "id"), method = try FleetProtocol.text(command, "method"), requested = try FleetProtocol.number(args, "topology")
             try FleetProtocol.require(FleetProtocol.isUUID(id) && FleetProtocol.text(command, "sessionId") == session && FleetProtocol.number(command, "serial") > 0 && command["args"] is [String: Any], "scene-session", "The desktop command belongs to another session.")
-            let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open"]
+            let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "editor.cancel", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open"]
             try FleetProtocol.require(allowed.contains(method), "unsupported-method", "The desktop surface does not support this operation.")
+            if method == "card.edit" { editRequested = ProcessInfo.processInfo.systemUptime }
             let draft = method == "editor.change"
             try FleetProtocol.require(draft || !displayPending && view.active && requested == topology, "desktop-topology", "Desktop positions are updating. Keep your current text.")
             try FleetProtocol.require(commands.values.filter { $0.draft == draft }.count < (draft ? 4 : 24) && !commands.values.contains { $0.view === view && $0.id == id }, "scene-busy", "A desktop operation is still in progress.")
@@ -211,6 +218,10 @@ import AppKit
             send("desktop-flushed", ["id": id, "viewId": view.id, "draftId": draft, "ok": ok, "sequence": sequence]); return NSNull()
         default: throw FleetFailure("unsupported-method", "The desktop surface has no access to storage or system operations.")
         }
+    }
+    private func tryFocusEditor(_ view: FleetSceneSurface) {
+        guard let focus = editorFocus, focus.view == view.id, !displayPending, view.active, !view.retired, view.ready, view.applied >= focus.sequence else { return }
+        editorFocus = nil; view.focusEditor()
     }
     private func tryFocus(_ view: FleetSceneSurface) -> Bool {
         guard let sequence = focusSequence, let intent else { return false }

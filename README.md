@@ -25,7 +25,8 @@ work that stays in view.
 - Normally read-only and click-through; a shortcut activates one group or all groups, which temporarily float above
   ordinary apps.
 - Adjust mode only arranges: a single click selects; an ordinary drag only moves a card, and only a group label, a Shift
-  drag or a card action changes its group.
+  drag or a card action changes its group. Opt-in, a key held while dragging or double-clicking a resting card moves or
+  edits it without adjusting.
 - After free placement, only an explicit formation recalls, stacks or spreads cards; cycling only changes the temporary
   stacking order.
 - Paper size normally stays the same; formation resizes papers only with consent, without consent they may overflow the

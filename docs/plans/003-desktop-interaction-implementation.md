@@ -12,7 +12,7 @@
 
 ## Related Spec
 
-[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) is the authority for behaviour and the C01–C57 acceptance cases.
+[SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) is the authority for behaviour and the C01–C66 acceptance cases.
 [ADR-006](../decisions/006-card-group-and-formation-semantics.md) accepts the product semantics the user confirmed;
 [ADR-007](../decisions/007-desktop-scene-and-platform-host.md) is still a presentation architecture proposal.
 [ADR-008](../decisions/008-portable-interaction-core.md) accepts the shared semantic core; later conversations approved the full editor / backup / per-card settings scope, native apps on five platforms and store preparation.
@@ -137,7 +137,7 @@ a mock/fake source is not passed off as successful Google access with cross-plat
 - This round also delivers native iOS / Android apps and store submission preparation, reusing the shared data commands; desktop gestures do not replace the phone UX.
 - List licenses / transitive dependencies, signing and store configuration for the actual packages; do not infer from the original repo's MIT that all dependencies can be used directly.
 - The final operating documentation must match the shortcut registration results, the Linux backend and the available layers.
-- Keep the evidence mapping for C01–C57 and the known limits; update the slice status in this plan, and PROGRESS when project-level status changes.
+- Keep the evidence mapping for C01–C66 and the known limits; update the slice status in this plan, and PROGRESS when project-level status changes.
 - Store approval, real cross-device sync and native desktop behaviour each have their own bar and do not substitute for one another.
 
 ## Files to create or modify
@@ -198,7 +198,7 @@ For formal behaviour changes, choose the matching regressions; do not replace us
 | 2 | Formal local storage, shared renderer, Markdown/checklists/attachments, complete/archive, full settings | Shared UI and IndexedDB done; Windows SQLite/DPAPI, macOS Keychain/SQLite and Linux SQLite with the local key are in daily use; Android and iOS storage start on devices, with no full device acceptance |
 | 3 | Drive revision graph, OAuth, outbox, conflicts, account isolation | Done in shared code and all five hosts; Windows real sign-in and Drive upload verified; Windows, macOS and Linux used with one real account; phones not verified |
 | 4 | Manual, automatic and encrypted backups with groups/layout/attachments; import/merge/replace restores | Shared code and Windows native done; Android SAF, Apple bookmark and Linux native folders implemented but not run on real devices |
-| 5 | Windows/macOS/Linux native hosts, layering/pass-through/shortcuts/displays | Implemented, built in CI or release workflows and used on real machines; the full OS matrix (versions, multi-display, IME, sleep) is missing. Quick move (C49–C57, 2026-10-24) is in the shared code and the three hosts but has not been used on a real machine |
+| 5 | Windows/macOS/Linux native hosts, layering/pass-through/shortcuts/displays | Implemented, built in CI or release workflows and used on real machines; the full OS matrix (versions, multi-display, IME, sleep) is missing. Quick move (C49–C57) and adjust mode arranging only with quick edit (C58–C66), both 2026-10-24, are in the shared code and the three hosts but have not been used on a real machine |
 | 6 | iOS/Android native apps, files/OAuth/sharing/life cycle | Android APK runs on a Pixel 9 Pro; iOS development build runs on an iPhone 16 Plus; Google and full operation not verified |
 | 7 | Installers, signing and store submission preparation, license inventory, final 1.0 acceptance | Windows MSIX, Linux DEB and macOS notarized DMG come from manual workflows; phone APK/IPA workflows exist but have not been dispatched; release AAB, App Store archive, screenshots, final SDK license inventory and submissions are missing |
 

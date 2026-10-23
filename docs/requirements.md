@@ -13,7 +13,8 @@ be treated as approved features.
 - The first version uses a Google account and file-based storage, with no local note server of our own; the boundary for
   heterogeneous sources and renderers is designed now.
 - Read-only and click-through day to day. One group or all groups can temporarily float above ordinary apps for
-  dragging; adjust mode only arranges, and cards are edited in the main window (SPEC-003, 2026-10-24).
+  dragging; adjust mode only arranges, and cards are edited in the main window or, opt-in, by a key and a double
+  click on the desktop (SPEC-003, 2026-10-24).
 - Single click selects a card; an ordinary drag only changes position, and only the receiving label, a Shift drag
   into a group region or an action changes a card's group.
 - An explicit formation can recall and arrange cards globally or per group; a stack shows each card's first line, a spread

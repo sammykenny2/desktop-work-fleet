@@ -117,28 +117,16 @@ internal static class AdjustOverlayProbe
       await Eval(main, "document.querySelector('#operate-all').click()");
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar from a minimized main window");
       if (await Geometry() != stacked) throw new Exception("Exiting and reentering changed the stored paper positions.");
-      await Eval(scene, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Edit').click()");
-      await Wait(scene, "Boolean(document.querySelector('textarea'))", "inline editor");
-      await Eval(scene, "document.querySelector('textarea').value='Toolbar draft preserved';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-      await Wait(scene, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'", "durable toolbar draft");
-      await Eval(scene, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));document.querySelector('.adjust-tools button.primary').click()");
-      await Program.Wait(window, "document.querySelector('#status').textContent.startsWith('Finish ')", "IME blocks Done");
-      if (!(await Eval(scene, "Boolean(document.querySelector('.adjust-tools'))&&document.querySelector('textarea')?.value==='Toolbar draft preserved'")).GetBoolean())
-        throw new Exception("Done discarded the active IME editor.");
-      await Eval(scene, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");
-      await Wait(scene, "!document.querySelector('textarea').readOnly&&document.querySelector('.draft-state')?.textContent==='Draft saved locally'", "composition ended");
+      // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper offers no buttons and a double click opens nothing.
+      if (!(await Eval(scene, "document.querySelectorAll('.card-actions button').length===0")).GetBoolean()) throw new Exception("An adjusted paper offers buttons.");
+      await Eval(scene, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+      await Task.Delay(150);
+      if ((await Eval(scene, "Boolean(document.querySelector('textarea'))")).GetBoolean()) throw new Exception("Adjust mode opened an editor.");
       await Eval(scene, "document.querySelector('.adjust-tools button.primary').click()");
       await Wait(scene, "!document.querySelector('.adjust-tools')", "Done after composition");
       await Program.Wait(window, "document.querySelector('#stop-operation').hidden", "minimized main stays aside");
       if (window.WindowState != WindowState.Minimized) throw new Exception("Done restored a main window that was already minimized.");
-      // Changed work is retained in unfinished drafts; beginning a fresh edit must not auto-publish it.
-      await Eval(main, "document.querySelector('#drafts-button').click()");
-      await Program.Wait(window, "document.querySelector('#drafts-dialog').open&&document.querySelector('#draft-list').textContent.includes('Toolbar draft preserved')", "Done retained the unfinished draft");
-      await Eval(main, "[...document.querySelectorAll('#draft-list .draft-row')].find(r=>r.textContent.includes('Toolbar draft preserved')).querySelector('button').click()");
-      await Program.Wait(window, "document.querySelector('#editor-dialog').open&&document.querySelector('#editor-text').value==='Toolbar draft preserved'", "recover the retained draft");
-      await Eval(main, "document.querySelector('#keep-draft').click()");
-      await Program.Wait(window, "!document.querySelector('#editor-dialog').open", "close recovered draft");
-      Console.WriteLine("PASS Done preserves IME and durable drafts; an already minimized main window stays minimized");
+      Console.WriteLine("PASS adjusted papers open no editor; an already minimized main window stays minimized after Done");
     }
     finally { await Program.Close(window); }
   }

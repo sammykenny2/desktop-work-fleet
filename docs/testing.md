@@ -103,7 +103,32 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   paper leaves its screen; a real ⌘-drag has not been done, and over Screen Sharing the key may not arrive at all.
   Dragging a paper onto another display during a quick move has not been checked on any host.
 
+## Adjust mode arranging and quick edit
+
+- `node --test tests/desktop-core.test.js`: a quick edit needs the switch, floats only its paper to the Top layer with
+  nothing adjusted, keeps the paper being edited from moving while another one still moves, saves the first paper's
+  draft when another one opens, survives `reconcile` while it holds and closes when the switch goes off, adjust mode
+  starts, Esc is pressed or the paper leaves the desktop (C60, C63, C63b, C65).
+- `node --test tests/desktop-authority.test.js`: `card.edit` is refused for an adjusted paper, without the switch and
+  where papers rest on the wallpaper; the edited paper is drawn opaque on the Top layer, and `editor.cancel` drops the
+  edit's draft and leaves the note and the see-through opacity as they were (C58, C60, C61). The draft, flush and
+  checkbox tests now open their editor with a quick edit.
+- `scene-probe`: adjusted papers carry no buttons and a double click or Enter on one sends no `card.edit`; with the key,
+  a double click on a resting paper sends `card.edit` only after its release reached the owner, the editor shows Retry,
+  Full editor, Cancel and Save, Cancel sends `editor.cancel`, and a press with the key on the edited paper sends no
+  quick move. `group-probe`, `browser-probe` and `revision-probe` check that adjusted papers open no editor and edit
+  through the main window's editor. On 2026-10-24 these passed on macOS, `browser-probe` with its 390 px Capture-gap
+  check skipped locally (it fails on unchanged main there too).
+- The Windows UI probes open their in-place drafts, the IME barrier, the scope chord and the close test through a quick
+  edit with a synthetic Ctrl double click; they have not been run since that change (2026-10-24).
+- Not verified on any real machine (2026-10-24): the keyboard reaching the editor. The owner asks the host
+  (`desktop.focusEditor`) to focus the Top-layer view shortly after a scene sent `card.edit`; macOS makes the panel key
+  without bringing the app to the front and gives the keyboard back when the edit closes, Windows activates the scene
+  and returns the foreground to the window that had it, and Linux presents the scene, where layer-shell may still need a
+  click into the text and the keyboard is not handed back.
+
 ## Named GApplication actions on Linux
+
 
 - `tests/test_linux_hostsettings.py` (`LinuxNamedActionTests`, on every platform) checks the action names, their tray
   targets and that region targets match `regionTarget` in `src/core/shortcuts.js`.
@@ -771,8 +796,8 @@ They must run through the `.exe` apphost, including the cross-process target; th
 Running `dotnet ...Ui.Tests.dll` directly does not apply this executable manifest and cannot serve as evidence for the same DPI setting.
 This is not acceptance of user desktop gestures, WebView capture and IME, multi-display hot-plug, Win+D, virtual desktops or sleep.
 The native foundation is in [ADR-017](decisions/017-windows-composition-surface-and-input.md), and the product connection in [ADR-018](decisions/018-single-owner-desktop-views.md).
-The main WPF probe now also opens the real scene page: it confirms projection, that the scene cannot call storage, floating-layer operations, in-place drafts,
-chunking of 1.2 MiB of Chinese input, a synthetic CompositionEvent blocking exit, and the return to the click-through policy after a transactional save.
+The main WPF probe now also opens the real scene page: it confirms projection, that the scene cannot call storage, floating-layer operations, that adjusted papers open no editor, quick-edit drafts,
+chunking of 1.2 MiB of Chinese input, a synthetic CompositionEvent blocking entry into adjust mode, and the return to the click-through policy after a transactional save.
 It also checks that pinch zoom (`IsPinchZoomEnabled`) is off in the main window and every scene; the gesture itself is not
 performed, and the phone apps' fixed scale is not covered by an automated check.
 The close test deliberately delays the last storage.commit, confirms that editing stays frozen, and that after reopening the last draft text is complete.
@@ -783,7 +808,7 @@ independent draft admission, retry of unknown acks, release of the flush when th
 `desktop-frame-refresh.test.js` also covers a new frame arriving while an old frame is downloading, waiting for a drag to finish, and retry after a download failure;
 `desktop-transport.test.js` adds that a drag finish or cancel must wait until the latest geometry is published before replying. These have passed since testing resumed on 2026-10-09.
 The shortcut and tray probe also checks the real shell icon identity, the settings and actual registration state, native action → scope,
-that in-place scope keys save the draft first, synthetic IME rejection, that a close block is not released by a settings update, collapsing and reopening the same owner,
+that the all-groups key closes a quick edit after saving its draft, synthetic IME rejection, that a close block is not released by a settings update, collapsing and reopening the same owner,
 and rebuilding the icon on its own TaskbarCreated message; Explorer is not restarted.
 A positive foreground intent needs OS permission at that moment; if Windows refuses, that sub-item is explicitly SKIPped, and null and stale rejection are still tested.
 WPF IsActive does not stand in for actual ownership through GetForegroundWindow, and a failed precondition cannot count as a successful focus steal.

@@ -103,6 +103,10 @@ modifier state. Wayland sends modifiers only to the surface with keyboard focus,
 only once clicked, so whether the first Ctrl press on an unfocused scene is seen with Ctrl depends on the compositor; it
 has not been checked on labwc or elsewhere (2026-10-24). Under GNOME through XWayland papers rest only on the Wallpaper
 layer, so quick move is not offered there.
+Quick edit (SPEC-003, 2026-10-24) opens the paper in the display's Top-layer scene, which the owner's
+`desktop.focusEditor` presents shortly after a scene sent `card.edit`. X11 then focuses it; an ON_DEMAND layer-shell
+scene may still need a click into the text, and the keyboard is not handed back when the edit closes. Not tried on a
+real desktop yet (2026-10-24).
 Top layer notes outside the adjusted scope are drawn below the overlay. A main window that has focus when adjustment
 starts is minimized and brought back with xdg-activation afterwards; if that is refused, it is shown again
 (the compositor chooses the position). A main window that is already minimized or has no focus is left alone and is not

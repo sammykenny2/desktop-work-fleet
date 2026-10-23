@@ -28,11 +28,14 @@ export interface DesktopCommand {
   sessionId: string; id: string; serial: number;
   method: 'pointer.down' | 'pointer.move' | 'pointer.up' | 'pointer.cancel' | 'card.select' | 'card.edit' | 'card.transfer'
     | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut'
+    /** Closes the quick edit and discards the changes made since it began (SPEC-003, 2026-10-24). */
+    | 'editor.cancel'
     /** Adjust overlay controls: end adjust mode, or arrange the adjusted scope with args.kind stack, spread or undo. */
     | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open'
     /** Ticks checklist step args.task of a paper that takes clicks, drawn from note revision args.revision. */
     | 'card.check';
-  /** pointer.down with args.quick true starts a quick move of a resting paper instead of an adjust drag. */
+  /** pointer.down with args.quick true starts a quick move of a resting paper instead of an adjust drag; card.edit opens a
+   * resting paper for a quick edit on the Top layer. */
   args: Record<string, unknown>;
 }
 export interface DesktopInfo {
@@ -90,7 +93,10 @@ export type DesktopOwnerCall =
   | { method: 'desktop.shortcuts.block'; params: { blocked: boolean } }
   /** Writes the current keys into rc.xml's Work Fleet block and reloads labwc; returns registrations and LabwcShortcuts. */
   | { method: 'desktop.shortcuts.labwc'; params: Record<string, never> }
-  | { method: 'desktop.focus'; params: { intent: string; sequence: number } };
+  | { method: 'desktop.focus'; params: { intent: string; sequence: number } }
+  /** Gives the keyboard to the Top-layer view showing a quick edit once it has applied `sequence`; honoured only shortly
+   * after a scene asked for the edit, and without bringing the app to the front. */
+  | { method: 'desktop.focusEditor'; params: { viewId: string; sequence: number } };
 // Command serials are monotonically admitted per view. Replays outside the bounded receipt cache reject.
 // Native transfers are principal-bound, 256 KiB chunks, SHA-256 validated; frame 128 MiB, command 16 MiB.
 // A flush acknowledgement must follow the final durable editor.change acknowledgement, never just local input.

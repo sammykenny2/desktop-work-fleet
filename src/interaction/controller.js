@@ -10,11 +10,13 @@ export const idleInteraction = () => ({ operationScope: { kind: 'none' }, active
 export function cardPolicy(card, layout, state) {
   const participates = eligible(card, layout);
   const operating = participates && inScope(card, state.operationScope);
-  const layer = operating ? 'floating' : groupLayer(layout, card.groupId);
+  // A quick edit (SPEC-003, 2026-10-24) floats one resting paper on the Top layer while nothing is adjusted.
+  const quickEditing = participates && state.operationScope.kind === 'none' && state.editingCardId === card.id;
+  const layer = operating || quickEditing ? 'floating' : groupLayer(layout, card.groupId);
   // Desktop and topmost papers take clicks and text selection while locked; wallpaper papers always let clicks through.
   return { visible: participates && (layout.desktopVisible || operating),
-    interactive: operating || (participates && layout.desktopVisible && layer !== 'wallpaper'),
-    draggable: operating, editing: operating && state.editingCardId === card.id, layer };
+    interactive: operating || quickEditing || (participates && layout.desktopVisible && layer !== 'wallpaper'),
+    draggable: operating, editing: (operating || quickEditing) && state.editingCardId === card.id, layer };
 }
 
 /** The key that starts a quick move (SPEC-003, 2026-10-24): Command on macOS, Ctrl elsewhere. */
@@ -26,9 +28,12 @@ export const quickMoveKey = platform => platform === 'macos' ? 'meta' : 'ctrl';
  */
 export function quickMovable(card, layout, state) {
   const policy = card ? cardPolicy(card, layout, state) : null;
-  return Boolean(policy && layout.quickMove === true && state.operationScope.kind === 'none' && !state.editingCardId
+  return Boolean(policy && layout.quickMove === true && state.operationScope.kind === 'none' && !policy.editing
     && policy.visible && policy.interactive && !policy.draggable);
 }
+
+// A quick edit stays open while the setting is on and the paper is still shown on this desktop.
+const quickEditHolds = (card, layout) => layout.quickMove === true && layout.desktopVisible && eligible(card, layout);
 
 /** Back-to-front within a native layer. Hosts split layers without changing these card identities. */
 export function sceneOrder(cards, layout, state) {
@@ -132,12 +137,28 @@ export class InteractionController {
     } finally { this.#busy = false; }
   }
 
+  // With nothing adjusted this is a quick edit of a resting paper; another paper being edited closes, keeping its draft.
   async beginEdit(cardId, options = {}) {
     if (options.control || this.#state.dragSession || (options.gesture && this.#suppressedCard === cardId)) return false;
     requireValue(this.#getSnapshot().writable, 'read-only', t('errors.core.readOnlyEdit'));
+    if (this.#state.operationScope.kind === 'none') return this.#beginQuickEdit(cardId);
     if (!await this.select(cardId, options)) return false;
     this.#state.editingCardId = cardId;
     return true;
+  }
+
+  async #beginQuickEdit(cardId) {
+    this.#assertIdle();
+    if (this.#composing) return false;
+    const card = this.#card(cardId); const layout = this.#layout.state;
+    requireValue(card && this.#state.editingCardId !== cardId && quickMovable(card, layout, this.#state),
+      'quick-move-off', t('errors.core.quickEditOff'));
+    this.#busy = true;
+    try {
+      if (this.#state.editingCardId) { await this.#flush(); await this.#finishEdit(); }
+      this.#state.editingCardId = cardId;
+      return true;
+    } finally { this.#busy = false; }
   }
 
   async endEdit({ keepDraft = false } = {}) {
@@ -308,8 +329,9 @@ export class InteractionController {
     const drag = this.#state.dragSession;
     if (drag?.quick && !this.#quickHolds(drag)) this.cancelDrag();
     const editing = this.#card(this.#state.editingCardId);
-    if (this.#state.editingCardId && (!editing || !eligible(editing, this.#layout.state)
-      || !inScope(editing, this.#state.operationScope))) await this.endEdit();
+    const kept = editing && (this.#state.operationScope.kind === 'none' ? quickEditHolds(editing, this.#layout.state)
+      : eligible(editing, this.#layout.state) && inScope(editing, this.#state.operationScope));
+    if (this.#state.editingCardId && !kept) await this.endEdit();
     const selected = this.#card(this.#state.selectedCardId);
     const scope = this.#state.operationScope;
     if (this.#state.selectedCardId && (!selected || !eligible(selected, this.#layout.state)

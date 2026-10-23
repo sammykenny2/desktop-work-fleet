@@ -55,6 +55,8 @@ const noteAttachmentCleanup = []; const stageAttachmentCleanup = []; const edito
 const boardFitter = paperFitter(); const stageFitter = paperFitter();
 let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
+// What a quick edit started from, so that Cancel can put it back: the draft it began or took over, and that draft's content.
+let quickEntry = null;
 // Quick capture brought the main window out of the tray or menu bar, so closing its editor puts the window back.
 let editorHidesMain = false;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
@@ -685,6 +687,30 @@ async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } =
   }
 }
 
+// A quick edit opens in the Top-layer view of the display that shows most of the paper (SPEC-003, 2026-10-24).
+function editorView(cardId, fallback) {
+  const rect = workspace.layout.state.placements[cardId]; if (!rect) return fallback;
+  const span = (start, size, from, length) => Math.max(0, Math.min(start + size, from + length) - Math.max(start, from));
+  const overlap = view => span(rect.x, rect.width, view.viewport.x, view.viewport.width) * span(rect.y, rect.height, view.viewport.y, view.viewport.height);
+  const views = (desktopInfo?.views || []).filter(view => view.layer === 'floating' && view.active !== false && overlap(view) > 0);
+  return views.sort((a, b) => overlap(b) - overlap(a))[0]?.viewId ?? fallback;
+}
+// Cancel throws away what this quick edit changed: the draft it began goes, and a draft it took over returns to how it was.
+async function cancelQuickEdit() {
+  if (editorBusy || composing) return;
+  setEditorBusy(true);
+  try {
+    // Clear the editor first so a background flush cannot write the discarded text back.
+    await flushDraft(); const draft = currentDraft; const entry = quickEntry;
+    currentDraft = null; remoteEditor = null; quickEntry = null; controller.setComposing(false);
+    try {
+      if (draft && entry?.draftId === draft.id) {
+        if (entry.created) await workspace.discardDraft(draft.id); else await workspace.saveDraft({ ...copy(draft), content: entry.content });
+      }
+    } finally { await controller.endEdit(); render(); }
+    status(t('app.status.editCancelled'));
+  } finally { setEditorBusy(false); }
+}
 function currentDesktopEditor() {
   return remoteEditor && currentDraft?.id === remoteEditor.draftId && controller.state.editingCardId === remoteEditor.cardId ? copy(remoteEditor) : null;
 }
@@ -698,9 +724,9 @@ function initializeDesktop() {
     attachments: (method, file) => method === 'attachment.preview' ? previewAttachment(file) : openAttachment(file),
     editor: {
       current: currentDesktopEditor,
-      begin: async (id, viewId) => {
+      begin: async (id, requester) => {
         if (editorBusy || composing || document.querySelector('dialog[open]')) throw new Error(t('app.errors.finishMainEdit'));
-        const previous = currentDesktopEditor();
+        const viewId = editorView(id, requester); const previous = currentDesktopEditor();
         if (previous?.cardId === id && previous.viewId === viewId) return { draftId: previous.draftId, sequence: previous.sequence };
         const reuseId = currentDraft?.cardId === id ? currentDraft.id : null;
         if (currentDraft) {
@@ -709,8 +735,12 @@ function initializeDesktop() {
         }
         const card = currentCard(id); if (!await controller.beginEdit(id, { gesture: true })) return null;
         currentDraft = reuseId && currentDraft?.id === reuseId ? currentDraft : workspace.blankDraft(card.groupId, card); remoteEditor = null;
+        quickEntry = { draftId: currentDraft.id, created: currentDraft.id !== reuseId, content: copy(currentDraft.content) };
         await queueDraft(); remoteEditor = { cardId: id, draftId: currentDraft.id, viewId, text: currentDraft.content.text, sequence: 0 };
-        render(); return { draftId: remoteEditor.draftId, sequence: 0 };
+        render();
+        // The scene that asked holds the pointer; the host hands the keyboard to the view that shows the editor.
+        void desktop.whenPublished().then(sequence => native.bridge.request('desktop.focusEditor', { viewId, sequence })).catch(() => {});
+        return { draftId: remoteEditor.draftId, sequence: 0 };
       },
       change: async value => {
         const draft = copy(currentDraft); draft.content.text = value.text;
@@ -721,6 +751,7 @@ function initializeDesktop() {
       },
       save: () => saveEditor(),
       end: () => closeEditor(),
+      cancel: () => cancelQuickEdit(),
       full: async intent => {
         await flushDraft(); const draft = copy(currentDraft); const card = currentCard(draft.cardId);
         if (!await controller.endEdit({ keepDraft: true })) throw new Error(t('app.errors.finishInput')); remoteEditor = null;
@@ -743,6 +774,8 @@ function initializeDesktop() {
     changed: () => render(), error: error => status(error.message, true),
     displays: async proposal => {
       controller.cancelDrag();
+      // A quick edit closes on a display change and keeps a changed draft (SPEC-003, 2026-10-24).
+      if (controller.state.operationScope.kind === 'none' && controller.state.editingCardId) await controller.endEdit();
       const result = await workspace.layout.recoverDisplays(proposal.workAreas.map(({ x, y, width, height }) => ({ x, y, width, height })),
         primaryArea(proposal.workAreas));
       const editor = currentDesktopEditor();

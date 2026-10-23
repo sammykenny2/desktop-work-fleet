@@ -431,6 +431,34 @@ test('a quick move comes to the front only once it drags, survives unrelated lay
   assert.equal(f.controller.state.dragSession, null);
 });
 
+test('C60/C63/C63b/C65: a quick edit floats one resting paper, lets the others move and closes once it no longer holds', async () => {
+  const f = await fixture();
+  await rejectsCode(f.controller.beginEdit(f.a1.id), 'quick-move-off');
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const policy = id => cardPolicy(f.workspace.snapshot.cards.find(c => c.id === id), f.workspace.layout.state, f.controller.state);
+  assert.equal(await f.controller.beginEdit(f.a1.id), true);
+  assert.deepEqual([policy(f.a1.id).layer, policy(f.a1.id).editing, policy(f.a1.id).draggable], ['floating', true, false]);
+  assert.equal(policy(f.a2.id).layer, 'desktop'); assert.equal(f.controller.state.operationScope.kind, 'none');
+  // The paper being edited does not move; another one still does, and editing goes on.
+  assert.equal(f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }), false);
+  f.controller.pointerDown(f.a2.id, { x: 20, y: 20 }, { quick: true });
+  assert.equal((await f.controller.pointerUp({ x: 120, y: 20 })).kind, 'moved'); assert.equal(f.controller.state.editingCardId, f.a1.id);
+  // Opening another paper saves the first one's draft and closes it.
+  assert.equal(await f.controller.beginEdit(f.b1.id), true);
+  assert.equal(f.controller.state.editingCardId, f.b1.id); assert.ok(f.saved.includes(f.a1.id));
+  await f.controller.reconcile(); assert.equal(f.controller.state.editingCardId, f.b1.id, 'sync keeps a quick edit that still holds');
+  await f.workspace.layout.configure({ quickMove: false }, f.workspace.snapshot); await f.controller.reconcile();
+  assert.equal(f.controller.state.editingCardId, null, 'turning the setting off closes it');
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  await f.controller.beginEdit(f.b1.id); await f.controller.activate({ kind: 'all' });
+  assert.equal(f.controller.state.editingCardId, null, 'entering adjust mode closes it');
+  await f.controller.activate({ kind: 'none' });
+  await f.controller.beginEdit(f.b1.id); assert.equal(await f.controller.escape(), true); assert.equal(f.controller.state.editingCardId, null);
+  await f.controller.beginEdit(f.b1.id);
+  await f.workspace.updateCard(f.b1.id, { archived: true }, f.workspace.snapshot.cards.find(c => c.id === f.b1.id).revision);
+  await f.controller.reconcile(); assert.equal(f.controller.state.editingCardId, null, 'a paper that leaves the desktop closes');
+});
+
 test('C25/C27: action transfer retains position; card exits A scope without activating B', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'group', groupId: f.a.id });
   const before = f.workspace.layout.state.placements[f.a1.id];

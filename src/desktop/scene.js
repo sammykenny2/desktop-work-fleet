@@ -12,7 +12,7 @@ import { translucent } from '../layout/opacity.js';
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set(); const fitter = paperFitter();
 let bridge, client, info, frame, editor = null, composing = false, gesture = null, lastError, displayPending = false;
-let repaintPending = false; let drawnLocale = null;
+let repaintPending = false; let drawnLocale = null; let released = Promise.resolve();
 const make = (tag, text, className) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (className) node.className = className; return node; };
 const rect = (node, value) => Object.assign(node.style, { left: `${value.x}px`, top: `${value.y}px`, width: `${value.width}px`, height: `${value.height}px` });
 const report = error => {
@@ -98,7 +98,7 @@ function render(next) {
       }
       updateFrozen();
       actions.replaceChildren(button(t('desktop.editor.retrySave'), saveDraft), button(t('desktop.editor.full'), () => editAction('editor.full')),
-        button(t('common.save'), () => editAction('editor.save')));
+        button(t('common.cancel'), () => editAction('editor.cancel')), button(t('common.save'), () => editAction('editor.save')));
     } else {
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
       const missingChanged = item.files.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;
@@ -264,7 +264,9 @@ async function initialize() {
   root.onpointerdown = event => {
     const operable = event.target.closest('.card.operable');
     // A resting paper moves only when the key was already held at the press; otherwise its text selects as before.
-    const quick = !operable && quickKey(event) ? event.target.closest('.card.interactive') : null;
+    // The paper being edited does not move.
+    const resting = !operable && quickKey(event) ? event.target.closest('.card.interactive') : null;
+    const quick = resting && !frame.cards.find(card => card.id === resting.dataset.cardId)?.editing ? resting : null;
     const paper = operable || quick;
     if (displayPending || info.active === false || gesture || !paper || event.button !== 0 || event.target.closest('button,a,input,textarea,select')) return;
     const cardId = paper.dataset.cardId; const start = point(event); const id = crypto.randomUUID();
@@ -281,21 +283,33 @@ async function initialize() {
     if (Math.hypot(current.latest.point.x - current.start.x, current.latest.point.y - current.start.y) >= 5) paintDrag(current, current.latest.point);
     void run(() => pump(current));
   };
-  root.onpointerup = event => { void run(async () => {
+  // Only a release that ends a gesture becomes the one a quick edit waits for; a press ignored while the previous
+  // gesture was still ending must not stand in for it.
+  root.onpointerup = event => {
     const current = gesture; if (!current || current.ended || event.pointerId !== current.pointerId) return;
     const args = pointerArgs(current, event); current.ended = true;
-    if (current.preview) paintDrag(current, args.point);
-    try {
-      await current.pumping;
-      if ((await current.down).accepted) await client.command('pointer.up', args);
-      await refresh();
-    }
-    catch (error) {
-      await client.command('pointer.cancel', { gestureId: current.id, pointerId: current.pointerId }).catch(() => {}); throw error;
-    }
-    finally { gesture = null; moving(false); if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId); await refresh(); }
-  }); };
+    released = run(async () => {
+      if (current.preview) paintDrag(current, args.point);
+      try {
+        await current.pumping;
+        if ((await current.down).accepted) await client.command('pointer.up', args);
+        await refresh();
+      }
+      catch (error) {
+        await client.command('pointer.cancel', { gestureId: current.id, pointerId: current.pointerId }).catch(() => {}); throw error;
+      }
+      finally { gesture = null; moving(false); if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId); await refresh(); }
+    });
+  };
   root.onpointercancel = () => { void run(cancel); }; root.onlostpointercapture = () => { void run(cancel); };
+  // Quick edit (SPEC-003, 2026-10-24): the key held on a double click opens a resting paper once its second release is
+  // settled, so the owner sees no quick move still pending.
+  root.ondblclick = event => {
+    const paper = quickKey(event) ? event.target.closest('.card.interactive:not(.operable)') : null;
+    if (!paper || event.target.closest('button,a,input,textarea,select')) return;
+    const cardId = paper.dataset.cardId; if (frame.cards.find(card => card.id === cardId)?.editing) return;
+    void run(async () => { await released; await client.command('card.edit', { cardId }); });
+  };
   document.onkeydown = event => {
     const input = event.target.closest('input,textarea,select');
     const shortcut = shortcutForEvent(event, info.bindings || {}, { composing, editing: Boolean(input), inline: input?.matches('.inline-editor') });

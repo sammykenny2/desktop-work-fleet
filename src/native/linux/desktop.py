@@ -21,6 +21,9 @@ class Desktop:
         self.transfers = scenes.Transfers()
         self.views, self.commands, self.flushes, self.frozen, self.scene_intents = [], {}, {}, {}, {}
         self.frame = self.frame_token = self.intent = self.focus_sequence = None
+        # A quick edit's keyboard request, honoured once its view shows the frame and only shortly after a scene asked to
+        # edit (SPEC-003, 2026-10-24).
+        self.edit_requested, self.editor_focus = 0.0, None
         self.proposed = self.displays = None
         self.topology = self.proposed_topology = 0
         self.started = self.closed = self.pending = self.blocked = self.native_menu = False
@@ -186,7 +189,7 @@ class Desktop:
 
     def invalidate(self):
         self.pending = True
-        self.intent = self.focus_sequence = None
+        self.intent = self.focus_sequence = self.editor_focus = None
         self.scene_intents.clear()
         for view in self.views:
             if not view.retired:
@@ -339,6 +342,15 @@ class Desktop:
                 if self.try_focus(view):
                     break
             return {"accepted": True}
+        if method == "desktop.focusEditor":
+            view_id, sequence = p.text(args, "viewId", 64), p.number(args, "sequence")
+            if time.monotonic() - self.edit_requested > 5 or not any(view.id == view_id and view.layer == "floating" and not view.retired for view in self.views):
+                return {"accepted": False}
+            self.editor_focus = (view_id, sequence)
+            for view in self.views:
+                if view.id == view_id:
+                    self.try_focus_editor(view)
+            return {"accepted": True}
         if method == "desktop.frame.begin":
             return self.transfers.begin("owner", args, p.RECORD)
         if method == "desktop.frame.append":
@@ -421,6 +433,7 @@ class Desktop:
             view.apply(view.downloading)
             view.applied = sequence
             self.try_focus(view)
+            self.try_focus_editor(view)
             return {"accepted": True}
         if method == "scene.command.begin":
             return self.transfers.begin(view.id, args, scenes.COMMAND)
@@ -432,8 +445,10 @@ class Desktop:
             p.require(isinstance(command, dict) and (token is not None or len(p.encode(command)) <= 65536), "scene-size", "The desktop command's format or size isn't valid.")
             key, operation = p.text(command, "id"), p.text(command, "method")
             p.require(p.is_uuid(key) and command.get("sessionId") == self.session and p.number(command, "serial") > 0 and isinstance(command.get("args"), dict), "scene-session", "The desktop command's session isn't valid.")
-            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open")
+            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "editor.cancel", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open")
             p.require(operation in allowed, "unsupported-method", "The desktop surface doesn't support this operation.")
+            if operation == "card.edit":
+                self.edit_requested = time.monotonic()
             draft, topology = operation == "editor.change", p.number(args, "topology")
             p.require(draft or not self.pending and view.active and topology == self.topology, "desktop-topology", "Desktop coordinates are updating. Keep your current text.")
             p.require(sum(value["draft"] == draft for value in self.commands.values()) < (4 if draft else 24) and not any(value["view"] == view and value["id"] == key for value in self.commands.values()), "scene-busy", "A desktop action is still being processed.")
@@ -474,6 +489,13 @@ class Desktop:
                 remap(self.main, place)
             return False
         self.main_timer = GLib.timeout_add(600, check)
+
+    def try_focus_editor(self, view):
+        # On layer-shell an on-demand scene may still need a click into the text before it gets the keys.
+        if self.editor_focus is None or self.editor_focus[0] != view.id or self.pending or not view.active or view.retired or not view.ready or view.applied < self.editor_focus[1]:
+            return
+        self.editor_focus = None
+        view.focus()
 
     def try_focus(self, view):
         if self.focus_sequence is None or not self.current(self.intent):

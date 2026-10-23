@@ -336,11 +336,11 @@ separately ("Also restore desktop positions"), and importing new data does not m
 
 ### When Work Fleet can't open your notes
 
-- On Windows and Linux, when the notes on this device can't be opened, Work Fleet says why instead of a general error:
-  the data is damaged, the disk is full, another program is using it, the system doesn't let Work Fleet open its
-  folder, or the data can't be decrypted (on Windows only the Windows account, on the PC, that used Work Fleet before
-  can read it; on Linux only the local key kept with the data can).
-- It shows the data folder, with "Open folder" to see it in the file manager.
+- On Windows, macOS and Linux, when the notes on this device can't be opened, Work Fleet says why instead of a general
+  error: the data is damaged, the disk is full, another program is using it, the system doesn't let Work Fleet open
+  its folder, or the data can't be decrypted (on Windows only the Windows account, on the PC, that used Work Fleet
+  before can read it; on Linux only the local key kept with the data can).
+- It shows the data folder, with "Open folder" ("Show in Finder" on macOS) to see it in the file manager.
 - For damaged data or data that can't be decrypted, "Set aside and start again…" asks first, then moves the database
   (on Linux with its local key) into a dated `set-aside-…` folder inside the data folder and opens empty data. Nothing
   is deleted. A Google workspace gets its notes, groups and attachments back from Drive after you sign in again; this

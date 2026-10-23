@@ -83,6 +83,13 @@ actor FleetService {
                 if let data = result as? Data { return try download(data) }; return result
             }
         }
+        // SPEC-006 DO: the folder of data the page couldn't read; the host reopens the page on empty data after a set-aside.
+        if method == "data.location" { return ["path": database.directory.path] }
+        if method == "data.setAside" { return ["profileId": database.profile] }
+        if method == "data.reveal" {
+            guard let shell else { throw FleetFailure("unsupported-method", "The native host does not support this operation.") }
+            return try await shell(method, ["path": database.directory.path])
+        }
         if ["host.preferences.get", "host.preferences.set", "host.preferences.openSystem", "host.window.resetPlacement",
             "update.state", "update.check", "update.download", "update.install"].contains(method) {
             guard let shell else { throw FleetFailure("unsupported-method", "The native host does not support this operation.") }
@@ -94,7 +101,8 @@ actor FleetService {
                 "distribution": "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
                 "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
-                                 "hostPreferences": shell != nil, "updates": updates, "attachmentFiles": attachmentFiles != nil, "languagePreference": language != nil],
+                                 "hostPreferences": shell != nil, "updates": updates, "attachmentFiles": attachmentFiles != nil, "languagePreference": language != nil,
+                                 "dataRecovery": platform == "macos" && shell != nil],
                 "language": FleetText.describe()]
         case "host.language.set":
             guard let language else { throw FleetFailure("unsupported-method", "The native host does not support this operation.") }

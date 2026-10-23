@@ -94,29 +94,36 @@ import UIKit
             let id = try FleetProtocol.text(request, "id"), method = try FleetProtocol.text(request, "method")
             guard FleetProtocol.isUUID(id), let args = request["params"] as? [String: Any] else { return }; admitted += 1; let current = epoch
             Task {
-                let response: [String: Any]; var next: String?
+                let response: [String: Any]; var next: String?; var setAside = false
                 do {
                     let result = try await service.invoke(method, args); response = ["v": 1, "id": id, "ok": true, "result": result]
                     // A reset reopens the same, now empty, profile the same way an account switch opens another one.
                     if ["google.open", "google.signOut", "google.local", "storage.reset"].contains(method) { next = (result as? [String: Any])?["profileId"] as? String }
+                    // SPEC-006 DO: the page couldn't read its notes, so the database moves aside and the same profile opens empty.
+                    if method == "data.setAside" { next = (result as? [String: Any])?["profileId"] as? String; setAside = true }
                 } catch {
                     let failure = error as? FleetFailure ?? FleetFailure("native-unavailable", "The native operation didn't finish. Keep your draft and try again.")
                     response = ["v": 1, "id": id, "ok": false, "error": ["code": failure.code, "message": failure.message]]
                 }
                 admitted -= 1; guard current == epoch else { return }; reply(response)
-                if let next { await switchProfile(next) }
+                if let next { await switchProfile(next, setAside: setAside) }
                 else if method == "host.closeCancel" { closing = false; cancelled?() }
                 else if method == "host.backgroundReady", let id = args["id"] as? String { backgroundFinished?(id) }
                 else if closing { if await service.closeReady { await stop(); finished?() } }
             }
         } catch { /* Invalid sources and envelopes never reach native capabilities. */ }
     }
-    private func switchProfile(_ profile: String) async {
+    private func switchProfile(_ profile: String, setAside: Bool = false) async {
         epoch += 1
         #if os(iOS)
         exports.close()
         #endif
         await service?.close(); service = nil
+        if setAside {
+            // A set-aside that moved nothing reopens the old data, as before the attempt; a half-done one stops here.
+            do { _ = try FleetDatabase.setAside(directory) }
+            catch { showFailure(error); if (error as? FleetFailure)?.code != "data-set-aside" { return } }
+        }
         do { try Data(profile.utf8).write(to: directory.appendingPathComponent("profile.txt"), options: .atomic); await open() }
         catch { showFailure(error) }
     }
@@ -133,6 +140,9 @@ import UIKit
         await service?.close(); service = nil; google = nil; web.configuration.userContentController.removeScriptMessageHandler(forName: "workFleet")
     }
     private func showFailure(_ error: Error) {
+        #if os(macOS)
+        if let failure = error as? FleetFailure, failure.code.hasPrefix("data-"), !failure.code.hasPrefix("data-set-aside") { showDataFailure(failure); return }
+        #endif
         let text = FleetText.dialog(error, fallback: "dialog.openFailedRetry")
         #if os(macOS)
         let alert = NSAlert(); alert.messageText = "Work Fleet"; alert.informativeText = text; alert.addButton(withTitle: FleetText.text("dialog.ok")); alert.runModal()
@@ -140,6 +150,30 @@ import UIKit
         let alert = UIAlertController(title: "Work Fleet", message: text, preferredStyle: .alert); alert.addAction(UIAlertAction(title: FleetText.text("dialog.close"), style: .default)); presenter?.present(alert, animated: true)
         #endif
     }
+    #if os(macOS)
+    /// SPEC-006 DO: says why the local data couldn't be opened and shows its folder; damaged data can be set aside after a
+    /// confirmation, and then the same profile opens on empty data.
+    private func showDataFailure(_ failure: FleetFailure) {
+        while true {
+            let alert = NSAlert(); alert.alertStyle = .critical; alert.messageText = FleetText.text("dataFailure.title")
+            alert.informativeText = FleetText.dialog(failure, fallback: "dataFailure.unreadable") + "\n\n" + FleetText.text("dataFailure.folder") + "\n" + directory.path
+            alert.addButton(withTitle: FleetText.text("dataFailure.close")); alert.addButton(withTitle: FleetText.text("dataFailure.openFolder"))
+            let offered = FleetDatabase.canSetAside(failure.code)
+            if offered { alert.addButton(withTitle: FleetText.text("dataFailure.setAside")) }
+            let response = alert.runModal()
+            if response == .alertSecondButtonReturn { NSWorkspace.shared.activateFileViewerSelecting([directory]); continue }
+            // Nothing works without the data, so closing the explanation quits, as on Windows.
+            guard offered, response == .alertThirdButtonReturn else { NSApplication.shared.terminate(nil); return }
+            let confirm = NSAlert(); confirm.alertStyle = .warning; confirm.messageText = FleetText.text("dataFailure.title"); confirm.informativeText = FleetText.text("dataFailure.confirm")
+            // Cancel comes first, so Return never sets the data aside.
+            confirm.addButton(withTitle: FleetText.text("dataFailure.cancel")); confirm.addButton(withTitle: FleetText.text("dataFailure.confirmAction"))
+            guard confirm.runModal() == .alertSecondButtonReturn else { continue }
+            do { _ = try FleetDatabase.setAside(directory) }
+            catch { showFailure(error); if (error as? FleetFailure)?.code == "data-set-aside" { continue }; return }
+            Task { await open() }; return
+        }
+    }
+    #endif
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
         if navigationAction.targetFrame?.isMainFrame == true && url.standardizedFileURL == document.standardizedFileURL { decisionHandler(.allow); return }

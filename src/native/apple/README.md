@@ -146,6 +146,12 @@ As of 2026-10-17 these are not verified on macOS: Quick Look thumbnails and defa
 main-window placement, Intel Macs and IME. The macOS layer-probe additions from 2026-10-16 and the
 `config/startup.json` fixture updates to `apple-signing.test.js` and `apple_startup_probe.py` (2026-10-17) have not been
 run on a Mac.
+Data that can't be opened (SPEC-006 DO, 2026-10-23): `FleetDatabase` names a generic open failure from SQLite's last
+result code, and the macOS `FleetWebHost` shows an alert with the cause, the folder ("Show in Finder") and, for
+damaged data, the confirmed set-aside, which moves `fleet.sqlite3` and its journals into a dated set-aside folder; the
+storage key stays in the Keychain, so the set-aside copy stays readable. A Keychain failure keeps its own message. The
+page's explanation uses `data.location`, `data.reveal` and `data.setAside`. None of this has been compiled or run on
+a Mac; iOS gets the named causes in its existing alert only.
 
 The iOS 27 SDK terminates apps that do not adopt the UIScene life cycle, so the iOS main app uses `FleetSceneDelegate`
 to create the window and handle the Google callback and foreground/background events; the generated Info.plist contains a

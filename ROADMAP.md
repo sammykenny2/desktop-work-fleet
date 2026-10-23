@@ -39,15 +39,6 @@ commit that implements it.
 
 Decided on 2026-10-23:
 
-- **Guidance when data cannot be opened**: on every desktop platform, when the local data cannot be opened at start,
-  the message names the cause where it can be told apart (damaged, disk full, in use or not permitted, cannot be
-  decrypted under this account), shows where the data is with a way to open that folder, and, where starting again
-  can help, offers to set the data aside and start with empty data. Setting aside only renames the data folder after
-  an explicit confirmation and never deletes it. The confirmation says what comes back: a Google workspace's notes
-  return from Drive after signing in, while this device's layout, colours, shortcuts and unsynced drafts stay only in
-  the set-aside copy; a local workspace comes back only from a backup ZIP. Data that cannot be decrypted first points to the
-  system account it belongs to. The existing messages for a second instance, a newer database and unknown
-  package data stay.
 - **Group transparency**: each group can make its Top-layer papers see-through, so they do not hide the work beneath
   them. It is a device setting kept next to the group's colour and never syncs. Only the paper turns see-through:
   text, checkboxes and attachment thumbnails stay solid. It applies while a paper rests on the Top layer, on every

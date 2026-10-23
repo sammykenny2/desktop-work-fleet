@@ -100,6 +100,7 @@ import AppKit
         case "host.preferences.set": return try shell.set(FleetProtocol.text(args, "name", 32), FleetProtocol.bool(args, "value"), trayAvailable: statusItem?.button != nil)
         case "host.preferences.openSystem": FleetHostShell.openSystemSettings(); return NSNull()
         case "host.window.resetPlacement": try shell.reset(window); return NSNull()
+        case "data.reveal": NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: try FleetProtocol.text(args, "path", 4096), isDirectory: true)]); return NSNull()
         case "update.state": return updates?.snapshot() ?? [:]
         case "update.check":
             if let updates { Task { await updates.check() } }

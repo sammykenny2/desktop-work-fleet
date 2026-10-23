@@ -15,10 +15,21 @@ final class FleetDatabase {
     init(directory: URL, profile: String) throws {
         self.directory = directory; self.profile = profile
         try FleetProtocol.require(profile == "local" || profile.hasPrefix("google:") && FleetProtocol.isAccount(String(profile.dropFirst(7))), "invalid-profile", "The workspace ID isn't valid.")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        // SPEC-006 DO: a failure to open the data names its cause, which the start-up alert and the page explain.
+        do { try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700]) }
+        catch let error as CocoaError where error.code == .fileWriteOutOfSpace { throw FleetDatabase.failure("data-full") }
+        catch let error as CocoaError where error.code == .fileWriteNoPermission || error.code == .fileReadNoPermission { throw FleetDatabase.failure("data-denied") }
         let data = directory.appendingPathComponent("fleet.sqlite3")
         let descriptor = Darwin.open(directory.appendingPathComponent("owner.lock").path, O_RDWR | O_CREAT | O_CLOEXEC | O_NOFOLLOW, 0o600)
-        guard descriptor >= 0 && flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { if descriptor >= 0 { Darwin.close(descriptor) }; throw FleetFailure("native-already-open", "This workspace is already open in another Work Fleet window.") }
+        // A lock file that can't be created says why; only a held lock means another window has the workspace.
+        guard descriptor >= 0 else {
+            switch errno {
+            case ENOSPC: throw FleetDatabase.failure("data-full")
+            case EACCES, EPERM, EROFS: throw FleetDatabase.failure("data-denied")
+            default: throw FleetDatabase.failure("data-unreadable")
+            }
+        }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { Darwin.close(descriptor); throw FleetFailure("native-already-open", "This workspace is already open in another Work Fleet window.") }
         do { key = try FleetKeychain.storageKey(existing: FileManager.default.fileExists(atPath: data.path)) }
         catch { Darwin.close(descriptor); throw error }
         owner = descriptor
@@ -33,7 +44,51 @@ final class FleetDatabase {
             try execute("CREATE TABLE IF NOT EXISTS staging(profile TEXT,token TEXT PRIMARY KEY,kind TEXT,digest TEXT,size INTEGER,data BLOB);")
             try execute("CREATE TABLE IF NOT EXISTS secrets(profile TEXT,kind TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,kind,id));")
             try execute("DELETE FROM staging; PRAGMA user_version=1;")
-        } catch { sqlite3_close(database); database = nil; Darwin.close(owner); owner = -1; throw error }
+        } catch { let named = FleetDatabase.classified(database, error); sqlite3_close(database); database = nil; Darwin.close(owner); owner = -1; throw named }
+    }
+    static let databaseFiles = ["fleet.sqlite3", "fleet.sqlite3-wal", "fleet.sqlite3-shm", "fleet.sqlite3-journal"]
+    private static let messages = ["data-damaged": "The local data is damaged and can't be opened.",
+        "data-full": "The disk is full, so the local data can't be opened. Free some space and open Work Fleet again.",
+        "data-in-use": "Another program is using the local data. Close it and open Work Fleet again.",
+        "data-denied": "Work Fleet isn't allowed to open its local data folder.", "data-unreadable": "The local data can't be opened."]
+    static func failure(_ cause: String) -> FleetFailure { FleetFailure(cause, messages[cause] ?? "The local data can't be opened.") }
+    /// Names a generic open failure from SQLite's last result code; every other failure keeps its own code and message.
+    private static func classified(_ database: OpaquePointer?, _ error: Error) -> Error {
+        guard let failure = error as? FleetFailure, failure.code == "native-storage" else { return error }
+        let code = database.map { sqlite3_errcode($0) } ?? SQLITE_CANTOPEN
+        switch code & 0xff {
+        case SQLITE_CORRUPT, SQLITE_NOTADB: return Self.failure("data-damaged")
+        case SQLITE_FULL: return Self.failure("data-full")
+        case SQLITE_BUSY, SQLITE_LOCKED: return Self.failure("data-in-use")
+        case SQLITE_PERM, SQLITE_READONLY, SQLITE_CANTOPEN, SQLITE_AUTH: return Self.failure("data-denied")
+        default: return Self.failure("data-unreadable")
+        }
+    }
+    /// Starting with empty data helps only data shown to be damaged: never a full disk, held files, a closed folder or a
+    /// cause SQLite didn't name, which could be healthy data from a newer version.
+    static func canSetAside(_ cause: String) -> Bool { cause == "data-damaged" }
+    /// Moves the database files into a new dated set-aside folder inside the data folder and returns it. Nothing is deleted;
+    /// a failed move puts back what it moved, and a put-back that fails too reports data-set-aside-incomplete, after which
+    /// nothing may open the data folder. The storage key stays in the Keychain, so the set-aside copy stays readable.
+    static func setAside(_ directory: URL, now: Date = Date()) throws -> URL {
+        let manager = FileManager.default
+        let present = databaseFiles.map { directory.appendingPathComponent($0) }.filter { manager.fileExists(atPath: $0.path) }
+        try FleetProtocol.require(!present.isEmpty, "data-set-aside", "There is no local data to set aside.")
+        let format = DateFormatter(); format.locale = Locale(identifier: "en_US_POSIX"); format.dateFormat = "yyyyMMdd-HHmmss"
+        let folder = directory.appendingPathComponent("set-aside-" + format.string(from: now), isDirectory: true)
+        try FleetProtocol.require(!manager.fileExists(atPath: folder.path), "data-set-aside", "The local data was just set aside. Wait a moment and try again.")
+        var moved: [(URL, URL)] = []
+        do {
+            try manager.createDirectory(at: folder, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+            for source in present { let target = folder.appendingPathComponent(source.lastPathComponent); try manager.moveItem(at: source, to: target); moved.append((source, target)) }
+            return folder
+        } catch {
+            var restored = true
+            for (source, target) in moved.reversed() { do { try manager.moveItem(at: target, to: source) } catch { restored = false } }
+            if (try? manager.contentsOfDirectory(atPath: folder.path))?.isEmpty == true { try? manager.removeItem(at: folder) }
+            if !restored { throw FleetFailure("data-set-aside-incomplete", "Part of the local data is in \(folder.path). Nothing was deleted; move those files back before opening Work Fleet again.") }
+            throw FleetFailure("data-set-aside", "The local data couldn't be set aside, and nothing was moved. Check the folder's permissions and try again.")
+        }
     }
     deinit { close() }
     private func synchronized<T>(_ action: () throws -> T) rethrows -> T { lock.lock(); defer { lock.unlock() }; return try action() }
@@ -76,7 +131,13 @@ final class FleetDatabase {
         catch { throw FleetFailure("vault-unavailable", "Couldn't read the encrypted local data. Keep the original data and try again.") }
     }
     private func kind(_ value: String) throws { try FleetProtocol.require(["workspace", "journal"].contains(value), "invalid-record", "The storage kind isn't valid.") }
-    func record(_ kind: String) throws -> Data? { try synchronized { try self.kind(kind); guard let bytes = try scalar("SELECT data FROM records WHERE profile=? AND kind=?", [profile, kind]) as? Data else { return nil }; return try open(bytes, kind, "record") } }
+    func record(_ kind: String) throws -> Data? { try synchronized {
+        try self.kind(kind)
+        // A database that opened but can't be read names its cause, which the page explains.
+        let stored: Any?
+        do { stored = try scalar("SELECT data FROM records WHERE profile=? AND kind=?", [profile, kind]) } catch { throw Self.classified(database, error) }
+        guard let bytes = stored as? Data else { return nil }; return try open(bytes, kind, "record")
+    } }
     func attachment(_ id: String) throws -> Data? { try synchronized {
         try FleetProtocol.require(FleetProtocol.isDigest(id), "invalid-attachment", "The attachment ID isn't valid.")
         guard let bytes = try scalar("SELECT data FROM attachments WHERE profile=? AND id=?", [profile, id]) as? Data else { return nil }

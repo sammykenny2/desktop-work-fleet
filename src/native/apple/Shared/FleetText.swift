@@ -64,6 +64,21 @@ enum FleetText {
         "share.filesTooLarge": "Shared files are over 25 MiB in total.",
         "share.filesTooLargeOrUnsupported": "Shared files are over 25 MiB in total, or their format isn't supported.",
         "share.damagedPreview": "This shared item can't be read",
+        "dataFailure.title": "Work Fleet can't open your notes",
+        "dataFailure.damaged": "The local data is damaged.",
+        "dataFailure.full": "The disk is full. Free some space, then open Work Fleet again.",
+        "dataFailure.inUse": "Another program is using the local data. Close it, then open Work Fleet again.",
+        "dataFailure.denied": "Work Fleet isn't allowed to open its data folder.",
+        "dataFailure.unreadable": "Work Fleet couldn't open the local data, and it can't tell why.",
+        "dataFailure.folder": "The data is in this folder:",
+        "dataFailure.openFolder": "Show in Finder",
+        "dataFailure.setAside": "Set Aside and Start Again…",
+        "dataFailure.confirmAction": "Set Aside and Start Again",
+        "dataFailure.close": "Close",
+        "dataFailure.cancel": "Cancel",
+        "dataFailure.confirm": "The database moves into a dated set-aside folder inside the data folder, and Work Fleet opens empty data. Nothing is deleted. Google workspaces get their notes, groups and attachments back from Drive after you sign in again; this Mac's desktop positions, colours, shortcuts and drafts not yet synced stay only in the set-aside copy. The local workspace comes back only by restoring a backup ZIP.",
+        "dataFailure.setAsideFailed": "The data couldn't be set aside, and nothing was moved. Check the folder's permissions and try again.",
+        "dataFailure.setAsideIncomplete": "Part of the local data moved into a set-aside folder and couldn't be put back. Nothing was deleted. Move those files back into the data folder before opening Work Fleet again.",
     ]
     // i18n:end
 
@@ -124,6 +139,21 @@ enum FleetText {
         "share.filesTooLarge": "分享檔案總容量超過 25 MiB。",
         "share.filesTooLargeOrUnsupported": "分享檔案總容量超過 25 MiB 或格式不支援。",
         "share.damagedPreview": "分享內容無法讀取",
+        "dataFailure.title": "Work Fleet 無法開啟你的便箋",
+        "dataFailure.damaged": "本機資料已損壞。",
+        "dataFailure.full": "磁碟已滿。請先清出一些空間，再重新開啟 Work Fleet。",
+        "dataFailure.inUse": "另一個程式正在使用本機資料。請先關閉它，再重新開啟 Work Fleet。",
+        "dataFailure.denied": "Work Fleet 沒有權限開啟資料夾。",
+        "dataFailure.unreadable": "Work Fleet 無法開啟本機資料，也無法判斷原因。",
+        "dataFailure.folder": "資料在這個資料夾：",
+        "dataFailure.openFolder": "在 Finder 中顯示",
+        "dataFailure.setAside": "移到一旁並重新開始…",
+        "dataFailure.confirmAction": "移到一旁並重新開始",
+        "dataFailure.close": "關閉",
+        "dataFailure.cancel": "取消",
+        "dataFailure.confirm": "資料庫會移到資料夾內一個標有日期的 set-aside 資料夾，Work Fleet 再以空白資料開啟，不會刪除任何東西。Google 工作空間重新登入後，便箋、群組與附件會從 Drive 回來；這台 Mac 的桌面位置、顏色、快捷鍵與尚未同步的草稿只留在移到一旁的副本裡。本機工作空間只能從備份 ZIP 還原。",
+        "dataFailure.setAsideFailed": "資料無法移到一旁，也沒有移動任何東西。請檢查資料夾權限後再試一次。",
+        "dataFailure.setAsideIncomplete": "部分本機資料已移到 set-aside 資料夾，卻沒能移回來。沒有刪除任何東西。請先把那些檔案移回資料夾，再開啟 Work Fleet。",
     ]
     // i18n:end
 
@@ -170,7 +200,9 @@ enum FleetText {
 
     /// Failures a host dialog shows in the host locale. Any other failure keeps its English message; anything that is not
     /// a FleetFailure shows the fallback key's text.
-    private static let dialogs = ["native-already-open": "dialog.alreadyOpen", "storage-version": "dialog.newerData", "native-view": "dialog.viewStopped"]
+    private static let dialogs = ["native-already-open": "dialog.alreadyOpen", "storage-version": "dialog.newerData", "native-view": "dialog.viewStopped",
+        "data-damaged": "dataFailure.damaged", "data-full": "dataFailure.full", "data-in-use": "dataFailure.inUse", "data-denied": "dataFailure.denied",
+        "data-unreadable": "dataFailure.unreadable", "data-set-aside": "dataFailure.setAsideFailed", "data-set-aside-incomplete": "dataFailure.setAsideIncomplete"]
     static func dialog(_ error: Error, fallback: String) -> String {
         guard let failure = error as? FleetFailure else { return text(fallback) }
         if let key = dialogs[failure.code] { return text(key) }

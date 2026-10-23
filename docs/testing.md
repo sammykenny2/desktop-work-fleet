@@ -612,7 +612,7 @@ database with its `storage-key`, a failed move put back and a failed put-back th
 `data-failure` mode of `tests/native/linux/host_probe.py`, run by `scripts/linux/test-host-shell.sh` in the container,
 opens the real store on a database that is not SQLite, checks the dialog's cause and folder, confirms the set-aside and
 waits for empty data with a new key. The page's explanation and `data.setAside` on Linux are not run there; the
-container loads no page.
+container loads no page. The macOS alert, set-aside and page methods have not been compiled or run on a Mac (2026-10-23).
 
 ### Sync while the main window is hidden
 

@@ -11,6 +11,7 @@ import { InteractionController, cardPolicy, sceneOrder } from '../interaction/co
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
+import { rankSearch } from './search.js';
 import { revisionPanel } from './conflicts.js';
 import { backupPanel } from './backup.js';
 import { AutomaticBackup } from '../backup/automatic.js';
@@ -1004,8 +1005,7 @@ function render() {
   // With real desktop scenes the main window never mirrors them; its desktop view is the layout map.
   $('#stage-shell').hidden = notesShown || Boolean(desktopInfo); $('#layout-map').hidden = notesShown || !desktopInfo; $('#list').hidden = !notesShown;
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
-  const cards = snapshot.cards.filter(matchesFilter)
-    .filter(card => !query || `${card.content.title || ''}\n${card.content.text}`.toLocaleLowerCase().includes(query));
+  const cards = rankSearch(snapshot.cards.filter(matchesFilter), query);
   const listCards = cards.filter(card => query || card.groupId === activeGroupId);
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;

@@ -112,6 +112,8 @@ interface. To switch, see [Settings](#settings).
   from them. Search covers titles and the full text in every group: while it has text the title reads "Search results
   in all groups", and on the board each result names its group. Its field ends the top bar; on phones it opens from the magnifier
   at the top right.
+- Search results come in three tiers: notes whose title, or first line when there is no title, matches; then notes
+  matching in the first five lines of their text; then the rest. Within a tier the notes keep their usual order.
 - Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
   are marked as completed. Archiving or deleting takes a note off the desktop on every device.
 - "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the

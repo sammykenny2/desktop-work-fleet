@@ -64,6 +64,11 @@ lost with a renderer. Add exact native commands only when their probes exist; un
 - macOS must be built with Xcode, and Quick Look, the default app and cleanup on account switch must be verified in the sandboxed app; an environment without a Mac cannot claim these passed.
 - Text fitting with "…" (`src/app/fit.js`) has been checked only in Chromium (Edge and WebView2). Check it in WebKitGTK and WKWebView before relying on it there (2026-10-17).
 
+## Search ranking
+
+- `node --test tests/search.test.js`: the three search tiers (title or first line, the first five non-empty lines,
+  anywhere else), blank leading lines, the order kept within a tier and an empty query left alone.
+
 ## Language and release-notes checks
 
 Both run in the full JS suite (`node --test tests/*.test.js`); run one alone with `node --test tests/i18n.test.js` or `node --test tests/release-notes.test.js`.

@@ -42,9 +42,6 @@ Low cost, clear value:
 - **Real-world sync check with the main window hidden**: on all three platforms, check whether the WebView throttles the
   20-second Google sync and desktop updates after the main window goes to the tray or menu bar; fix it only if a
   problem is confirmed.
-- **Search ranking**: notes whose title, or first line when there is no title, matches come first, then notes matching
-  in the first five lines of the text, then the rest, each tier in the existing order. Today it is an unsorted
-  substring filter.
 - **Ticking checklists directly on the desktop**: when a paper is not click-through, clicking a checkbox toggles its
   completion and saves and syncs it, without entering text editing and without triggering a drag or a double-click edit
   by mistake. While click-through, papers still ignore clicks. The maintainer included it on 2026-10-23, replacing the

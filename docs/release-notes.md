@@ -9,6 +9,15 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.10
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: The Windows tray menu now has the Windows 11 look and follows the Windows light or dark mode.
+
+- Windows: the tray menu is drawn in the Windows 11 style, with rounded corners and Windows 11 spacing, light or dark as the Windows mode is, or in high contrast. It opens just above the taskbar instead of over it. Its items, keyboard use and shortcuts are unchanged.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.9
 
 Platforms: Windows, Linux, macOS, Android.

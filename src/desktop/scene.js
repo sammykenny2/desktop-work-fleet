@@ -125,8 +125,8 @@ function render(next) {
         item.text = card.text; item.revision = card.revision; item.ticks = ticks; item.editorId = null; fitText(body);
       }
       item.interactive = card.interactive;
+      // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper carries no Edit or "⋯".
       actions.replaceChildren();
-      if (card.draggable) actions.append(button(t('desktop.card.edit'), () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
     }
     if (gesture?.cardId === card.id && gesture.preview) rect(paper, gesture.preview);
   });
@@ -296,10 +296,6 @@ async function initialize() {
     finally { gesture = null; moving(false); if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId); await refresh(); }
   }); };
   root.onpointercancel = () => { void run(cancel); }; root.onlostpointercapture = () => { void run(cancel); };
-  root.ondblclick = event => {
-    const paper = event.target.closest('.card.operable');
-    if (paper && !event.target.closest('button,a,input,textarea,select')) void run(() => client.command('card.edit', { cardId: paper.dataset.cardId }));
-  };
   document.onkeydown = event => {
     const input = event.target.closest('input,textarea,select');
     const shortcut = shortcutForEvent(event, info.bindings || {}, { composing, editing: Boolean(input), inline: input?.matches('.inline-editor') });
@@ -310,11 +306,6 @@ async function initialize() {
     }
     if (event.isComposing || composing || event.defaultPrevented || input) return;
     if (event.key === 'Escape') { event.preventDefault(); void run(() => gesture ? cancel() : client.command('interaction.escape')); }
-    if (event.key === 'Enter') {
-      const focusedId = event.target.closest('.card.operable')?.dataset.cardId;
-      const selected = frame?.cards.find(c => c.draggable && (focusedId ? c.id === focusedId : c.selected));
-      if (selected && !event.target.closest('button,a')) { event.preventDefault(); void run(() => client.command('card.edit', { cardId: selected.id })); }
-    }
   };
   await refresh();
   addEventListener('pagehide', () => { client.close(); bridge.close(); });

@@ -24,8 +24,8 @@ work that stays in view.
   regions in total.
 - Normally read-only and click-through; a shortcut activates one group or all groups, which temporarily float above
   ordinary apps.
-- Single click selects, double click edits; an ordinary drag only moves a card, and only a group label, a Shift drag or
-  a card action changes its group.
+- Adjust mode only arranges: a single click selects; an ordinary drag only moves a card, and only a group label, a Shift
+  drag or a card action changes its group.
 - After free placement, only an explicit formation recalls, stacks or spreads cards; cycling only changes the temporary
   stacking order.
 - Paper size normally stays the same; formation resizes papers only with consent, without consent they may overflow the

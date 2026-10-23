@@ -22,7 +22,7 @@ async function fixture(attachments, { check, residentLayers } = {}) {
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
-  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, check, residentLayers, details: async id => ({ cardId: id }),
+  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, check, residentLayers,
     arrange: async kind => { arranged.push(kind); return null; },
     shortcut: (target, intent) => { shortcutIntent = intent; return controller.activate(target === '@all' ? { kind: 'all' } : { kind: 'group', groupId: target }); }, editor: {
     current: () => editor && structuredClone(editor),

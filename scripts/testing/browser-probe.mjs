@@ -106,7 +106,9 @@ try {
   await canvas(); await firstStep().click();
   await expect(page.locator('#status')).toHaveText(t('errors.desktop.noteHasDraft')); await expect(firstStep()).not.toBeChecked();
   await page.locator('#drafts-button').click(); await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
-  await page.locator('#editor-text').fill(savedText); await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  // The text changes only in the main window's editor: adjust mode arranges notes and opens none (SPEC-003, 2026-10-24).
+  assert.match(savedText, /^# First thing\n/);
+  await page.locator('#editor-text').fill('# First thing\n\nSaved in place\n\n- [x] First step'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#status')).toHaveText(t('app.status.noteSaved'));
   await expect(page.locator('#draft-count')).toHaveText('0');
   await canvas(); await expect(page.locator('.card-summary')).toHaveText('First thing');
@@ -116,15 +118,11 @@ try {
   assert.equal(await page.locator('.top-actions > :not([hidden])').evaluateAll(nodes => nodes.filter(node => node.getClientRects().length).at(-1)?.className), 'search');
   await page.getByRole('button', { name: t('app.toolbar.adjustAll'), exact: true }).click();
   await expect(page.locator('.card')).toHaveClass(/operable/);
-  await page.locator('.card-summary').dblclick();
-  const inline = page.getByRole('textbox', { name: t('desktop.editor.label'), exact: true });
-  await expect(inline).toBeVisible();
+  // An adjusted paper has no Edit or "⋯", and neither a double click nor Enter opens it; it does not move either.
+  await expect(page.locator('#stage .card-actions')).toHaveCount(0);
   const originalBox = await page.locator('.card').boundingBox();
-  await inline.fill('# First thing\n\nSaved in place\n\n- [x] First step');
-  await inline.dblclick();
-  await expect(inline).toHaveValue('# First thing\n\nSaved in place\n\n- [x] First step');
-  await inline.press('Control+Enter');
-  await expect(inline).not.toBeVisible();
+  await page.locator('.card-summary').dblclick(); await page.locator('#stage .card').focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('.inline-editor')).toHaveCount(0); await expect(editor).not.toBeVisible();
   assert.deepEqual(await page.locator('.card').boundingBox(), originalBox);
   await expect(page.locator('.card-body')).toContainText('Saved in place');
   await page.getByRole('button', { name: t('app.sidebar.addGroup'), exact: true }).click();
@@ -215,9 +213,12 @@ try {
   await expect(page.locator('#groups .group-row').nth(1)).toContainText('1');
   await page.getByRole('button', { name: t('app.toolbar.undo'), exact: true }).click();
   await expect(page.locator('#groups .group-row').first()).toContainText('1');
-  await page.locator('.card-summary').dblclick();
-  await inline.fill('Saved draft not yet committed'); await inline.press('Escape');
-  await expect(inline).not.toBeVisible();
+  // The undone note is back in the first group, which the board shows once it is selected again.
+  await page.locator('#stop-operation').click(); await page.locator('#groups .group-row').first().locator('button').first().click();
+  await page.locator('[data-view="board"]').click();
+  await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
+  await page.locator('#editor-text').fill('Saved draft not yet committed'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await page.locator('#drafts-button').click();
   await expect(page.locator('#draft-list')).toContainText('Saved draft not yet committed');
@@ -236,18 +237,10 @@ try {
   await page.locator('#operate-all').click();
   const firstPaper = page.locator(`[data-card-id="${firstCardId}"]`);
   const secondPaper = page.locator('.card').filter({ hasText: 'Second thing' });
-  await firstPaper.locator('.card-summary').dblclick();
-  await page.locator('.inline-editor').fill('Draft kept after switching notes');
-  await secondPaper.locator('.card-summary').click();
-  await expect(page.locator('.inline-editor')).toHaveCount(0);
-  await expect(secondPaper).toHaveClass(/selected/);
-  await page.locator('#drafts-button').click();
-  await expect(page.locator('#draft-list')).toContainText('Draft kept after switching notes');
-  await page.locator('#close-drafts').click();
-  // Double-clicking another paper while editing must open it even though the first click is still saving.
-  await firstPaper.locator('.card-summary').dblclick(); await expect(firstPaper.locator('.inline-editor')).toBeVisible();
-  await secondPaper.locator('.card-summary').dblclick(); await expect(secondPaper.locator('.inline-editor')).toBeVisible();
-  await secondPaper.locator('.inline-editor').press('Escape'); await expect(page.locator('.inline-editor')).toHaveCount(0);
+  // Clicking selects and raises a paper; double clicks open neither paper.
+  await secondPaper.locator('.card-summary').click(); await expect(secondPaper).toHaveClass(/selected/);
+  await firstPaper.locator('.card-summary').dblclick(); await secondPaper.locator('.card-summary').dblclick();
+  await expect(page.locator('.inline-editor')).toHaveCount(0); await expect(editor).not.toBeVisible();
   await page.locator('#stop-operation').click();
 
   // An optional title heads the paper and is searchable, while the body still starts from its first line. A cleared title
@@ -391,7 +384,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas and board steps and the kept-draft hold, opening board notes by double-click, tap or Edit, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas and board steps and the kept-draft hold, opening board notes by double-click, tap or Edit, adjusted papers opening no editor, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

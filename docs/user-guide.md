@@ -181,8 +181,10 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 ## Adjust mode and arranging
 
 - Notes are normally Locked, and you cannot change their text. Under "Adjust" at the bottom of the sidebar, press
-  "This group" (the group selected above it) or "All" to enter adjust mode: click selects a note, double-click edits
-  it in place. "Done" returns to Locked. In a narrow window "Adjust" is in the drawer, and search waits until "Done".
+  "This group" (the group selected above it) or "All" to enter adjust mode, which only arranges notes: click selects a
+  note and brings it to the front, and dragging moves it. Adjusted notes have no Edit or "⋯" button, and neither a
+  double-click nor Enter opens them; edit a note in the main window instead. "Done" returns to Locked. In a narrow
+  window "Adjust" is in the drawer, and search waits until "Done".
 - While you adjust, the view bar turns into a dark adjust bar that names what you are adjusting and has "Bring to
   front" (‹ › brings the previous or next note of the group to the front), "Stack", "Spread", "Undo" and "Done". The
   filters and views come back after "Done". In the browser preview, adjusting from the board or the list

@@ -8,22 +8,22 @@ import { t } from '../i18n/index.js';
 
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
-  'card.details', 'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
+  'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
   'interaction.done', 'layout.arrange', 'attachment.preview', 'attachment.open']);
 const arrangements = new Set(['stack', 'spread', 'undo']);
 
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
 export class DesktopAuthority {
-  #workspace; #controller; #sessionId; #editor; #details; #check; #shortcut; #arrange; #perform; #residentLayers; #views = new Map(); #seenViews = new Set();
+  #workspace; #controller; #sessionId; #editor; #check; #shortcut; #arrange; #perform; #residentLayers; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #dropped = null; #closed = false;
   #topology = 0; #displayPending = false;
   #attachments;
   #previewTails = [Promise.resolve(), Promise.resolve()]; #previewNext = 0; #previewPending = 0;
-  constructor({ workspace, controller, sessionId, editor, details, check, shortcut, arrange, attachments, residentLayers = () => ['desktop', 'floating'],
+  constructor({ workspace, controller, sessionId, editor, check, shortcut, arrange, attachments, residentLayers = () => ['desktop', 'floating'],
     perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', t('errors.desktop.sessionInvalid'));
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
-    this.#editor = editor; this.#details = details; this.#check = check; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
+    this.#editor = editor; this.#check = check; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
     this.#attachments = attachments; this.#residentLayers = residentLayers;
   }
   get sessionId() { return this.#sessionId; }
@@ -204,7 +204,6 @@ export class DesktopAuthority {
         this.#matchGesture(viewId, args); controller.cancelDrag(); this.#gesture = null; return null;
       case 'card.select': this.#card(args.cardId); return controller.select(args.cardId, { gesture: true });
       case 'card.edit': this.#card(args.cardId); return this.#editor.begin(args.cardId, viewId);
-      case 'card.details': this.#card(args.cardId); return this.#details(args.cardId, intent);
       case 'card.transfer': this.#card(args.cardId); return controller.moveToGroup(args.cardId, args.groupId);
       // A checkbox on a paper that takes clicks ticks that step of the text it was drawn from, never a newer one.
       case 'card.check': {

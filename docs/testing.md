@@ -509,7 +509,7 @@ as well as Google export with sync, the explicit choice after a failure, and can
 
 Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which needs
 `npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
-The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, inline editing on fixed papers,
+The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, adjusted papers carrying no Edit or "⋯" and opening no editor on a double click or Enter (C58),
 plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers 240 px wide at 900 and 1440 px, no repeated titles, the selection kept after reopening), Capture floating 16 px above the status row and both ending at its right edge at those widths and at 390 px, where Capture rises with a status that wraps,
 multi-step draft operations, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
@@ -538,8 +538,7 @@ After saving from the editor, the browser probe waits for the modal editor to cl
 box; without the wait the text is lost and a later check reads a stale title (2026-10-20). Keep this wait if the probe
 is edited.
 The revision probe verifies with synthetic data a two-version comparison, HTML text isolation and raw attachment bytes, delete/edit resolution,
-history restore, keeping drafts and geometry, the IME boundary (the Settings page waits with a finish-input hint, then saves and
-closes the inline edit), the status-bar conflict button that opens the Settings page and hides once nothing is left (closing
+history restore, keeping drafts and geometry, the status-bar conflict button that opens the Settings page and hides once nothing is left (closing
 Settings then focuses the gear), the group-cycle repair at 390 px when no group is active with no drawer dot for conflicts, and that moving a note whose group is missing offers the groups in the sidebar's order.
 It injects versions through a core fixture and does not connect to Google; the screenshot is `build/revision-probe.png`.
 The sync probe connects FileSync to a synthetic FileStore in real Edge and IndexedDB and verifies that reservations reach disk,

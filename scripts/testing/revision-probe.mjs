@@ -93,15 +93,9 @@ try {
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-button')).toBeFocused();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('.card-summary')).toHaveText('local edit');
-  await page.locator('#operate-all').click(); await page.locator('.card-summary').dblclick();
-  await page.locator('.inline-editor').fill('typed before comparing versions');
-  await page.locator('.inline-editor').dispatchEvent('compositionstart');
-  // Version history stays in Settings without conflicts; it waits for the IME, then saves the edit as a draft first.
-  const versionsPage = async () => { await page.locator('#settings-button').click(); await page.locator('#settings-dialog [data-page="revisions"]').click(); };
-  await versionsPage(); await expect(page.locator('#revisions-host')).toHaveText(t('settings.data.finishInput'));
-  await page.locator('#close-settings').click(); await page.locator('.inline-editor').dispatchEvent('compositionend');
-  await versionsPage(); await expect(page.locator('#revision-panel')).toBeVisible(); await expect(page.locator('.inline-editor')).toHaveCount(0);
-  assert.ok(Object.values((await read()).drafts).some(draft => draft.content.text === 'typed before comparing versions'));
+  // Version history stays in Settings without conflicts.
+  await page.locator('#settings-button').click(); await page.locator('#settings-dialog [data-page="revisions"]').click();
+  await expect(page.locator('#revision-panel')).toBeVisible();
   await page.locator('#close-settings').click();
 
   const cyclic = await seed('cycle'); await page.setViewportSize({ width: 390, height: 844 }); await open();

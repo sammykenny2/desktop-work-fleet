@@ -432,7 +432,7 @@ class Desktop:
             p.require(isinstance(command, dict) and (token is not None or len(p.encode(command)) <= 65536), "scene-size", "The desktop command's format or size isn't valid.")
             key, operation = p.text(command, "id"), p.text(command, "method")
             p.require(p.is_uuid(key) and command.get("sessionId") == self.session and p.number(command, "serial") > 0 and isinstance(command.get("args"), dict), "scene-session", "The desktop command's session isn't valid.")
-            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open")
+            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open")
             p.require(operation in allowed, "unsupported-method", "The desktop surface doesn't support this operation.")
             draft, topology = operation == "editor.change", p.number(args, "topology")
             p.require(draft or not self.pending and view.active and topology == self.topology, "desktop-topology", "Desktop coordinates are updating. Keep your current text.")
@@ -441,7 +441,7 @@ class Desktop:
             self.commands[ticket] = {"view": view, "id": key, "upload": token, "draft": draft, "created": time.monotonic()}
             captured = self.scene_intents.pop(args.get("intent"), None)
             admitted = None
-            if operation in ("card.details", "editor.full", "interaction.shortcut") and captured and captured[0] == view.id and self.current(captured[1]):
+            if operation in ("editor.full", "interaction.shortcut") and captured and captured[0] == view.id and self.current(captured[1]):
                 self.intent, self.focus_sequence, admitted = captured[1], None, captured[1]["id"]
             values = {"ticket": ticket, "viewId": view.id, "intent": admitted, "topology": topology}
             if token is None:

@@ -168,21 +168,16 @@ try {
   const afterFormation = (await read()).layout.placements;
   assert.deepEqual(afterFormation[aCard.id], beforeFormation[aCard.id], 'group shortcut must not form the previous sidebar group');
   assert.notDeepEqual(afterFormation[bCard.id], beforeFormation[bCard.id]);
-  await page.locator('.card').filter({ hasText: 'Research note' }).locator('.card-summary').dblclick();
-  await page.locator('.inline-editor').fill('Research note\nKept through shortcut switching');
-  await page.keyboard.press('Control+A'); await expect(page.locator('.inline-editor')).toBeVisible();
-  assert.equal(await page.locator('.inline-editor').evaluate(input => input.selectionEnd - input.selectionStart), 'Research note\nKept through shortcut switching'.length);
+  // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper has no Edit or "⋯", and neither a double click
+  // nor Enter opens it for editing.
+  await expect(page.locator('#stage .card-actions')).toHaveCount(0);
+  const research = page.locator('.card').filter({ hasText: 'Research note' });
+  await research.locator('.card-summary').dblclick(); await research.focus(); await page.keyboard.press('Enter');
+  await expect(page.locator('.inline-editor')).toHaveCount(0);
+  await expect(page.locator('#editor-dialog')).not.toBeVisible();
   await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
-  await page.locator('.inline-editor').dispatchEvent('compositionstart');
-  await page.keyboard.press('Escape'); await expect(page.locator('.inline-editor')).toBeVisible();
-  await page.keyboard.press('Control+Shift+1'); await expect(page.locator('.inline-editor')).toBeVisible();
-  await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
-  await page.locator('.inline-editor').dispatchEvent('compositionend');
-  await page.keyboard.press('Control+Shift+1'); await expect(page.locator('.inline-editor')).toHaveCount(0);
+  await page.keyboard.press('Control+Shift+1');
   await expect(page.locator('#adjust-bar')).toBeHidden(); await expect(page.locator('#stop-operation')).toBeHidden();
-  await page.locator('#drafts-button').click(); await expect(page.locator('#draft-list')).toContainText('Kept through shortcut switching');
-  await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
-  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
   await page.locator('body').click({ position: { x: 260, y: 20 } });
   await page.keyboard.press('Control+Shift+9'); await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingAll'));
   await page.locator('#stop-operation').click();

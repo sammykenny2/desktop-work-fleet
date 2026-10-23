@@ -2,7 +2,6 @@
 export default {
   'desktop.scene.title': 'Work Fleet desktop',
   'desktop.scene.label': 'Desktop notes',
-  'desktop.card.edit': 'Edit',
   'desktop.editor.label': 'Edit note in place',
   'desktop.editor.retrySave': 'Retry save',
   'desktop.editor.full': 'Full editor',

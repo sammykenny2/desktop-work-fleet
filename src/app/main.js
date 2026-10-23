@@ -23,7 +23,7 @@ import { connectNative } from '../native/bridge.js';
 import { NativeFiles } from '../native/files.js';
 import { NativeAttachments } from '../native/attachments.js';
 import { renderAttachmentTiles } from './attachments.js';
-import { fitText, paperFitter } from './fit.js';
+import { paperFitter } from './fit.js';
 import { NativeCaptureInbox } from '../native/capture.js';
 import { NativeStorage } from '../storage/native.js';
 import { nativeBackupAdapters } from '../backup/native.js';
@@ -694,7 +694,6 @@ function initializeDesktop() {
     shortcut: (target, intent) => desktopAction(target, intent),
     check: (id, revision, task) => tickStep(id, revision, task),
     residentLayers: () => residentLayers(),
-    details: async (id, intent) => { await leaveAdjustOverlay(); await native.bridge.request('desktop.showMain', { intent }); cardDetails(currentCard(id)); },
     arrange: kind => arrangeDesktop(kind),
     attachments: (method, file) => method === 'attachment.preview' ? previewAttachment(file) : openAttachment(file),
     editor: {
@@ -1193,38 +1192,16 @@ function renderStage(cards) {
     paper.style.setProperty('--paper', groupColor(card.groupId)); paper.style.zIndex = String(z++); rectStyle(paper, placement);
     paper.append(element('div', summaryText(card), 'card-summary'));
     const body = element('div', undefined, 'card-body markdown');
-    if (policy.editing && currentDraft?.cardId === card.id && !remoteEditor && !$('#editor-dialog').open) {
-      const input = element('textarea', undefined, 'inline-editor'); input.value = currentDraft.content.text;
-      input.setAttribute('aria-label', t('desktop.editor.label'));
-      input.oninput = () => { if (!editorBusy && currentDraft) { currentDraft.content.text = input.value; queueDraft(); } };
-      input.addEventListener('compositionstart', () => { composing = true; controller.setComposing(true); });
-      input.addEventListener('compositionend', () => { composing = false; controller.setComposing(false); });
-      input.onkeydown = event => {
-        if (event.isComposing || composing) return;
-        if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); run(async () => {
-          const draft = currentDraft; await controller.endEdit(); currentDraft = null; render(); status(closedStatus(draft));
-        }); }
-        if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); run(() => saveEditor()); }
-      };
-      body.append(input);
-      paper.append(body);
-    } else {
-      // The canvas stands in for the desktop, so papers that take clicks tick their steps there too.
-      // Its boxes wait while a tick saves, so a second quick click cannot tick from the same, soon outdated revision.
-      renderMarkdown(body, card.content.text, policy.interactive && !policy.editing ? { onToggle: task => {
-        for (const box of body.querySelectorAll('input[type="checkbox"]')) box.disabled = true;
-        run(() => tickStep(card.id, card.revision, task).catch(error => { render(); throw error; }));
-      } } : {});
-      paper.append(body); stageFitter.observe(body);
-      const strip = attachmentStrip(card.content.attachments || [], stageAttachmentCleanup, stageFitter); if (strip) paper.append(strip);
-    }
-    if (policy.draggable) {
-      paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card));
-      const actions = element('div', undefined, 'card-actions');
-      if (policy.editing) actions.append(button(t('desktop.editor.full'), () => openEditor(card, currentDraft)), button(t('common.save'), () => saveEditor()));
-      else actions.append(button(t('desktop.card.edit'), () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
-      paper.append(actions);
-    }
+    // The canvas stands in for the desktop, so papers that take clicks tick their steps there too.
+    // Its boxes wait while a tick saves, so a second quick click cannot tick from the same, soon outdated revision.
+    renderMarkdown(body, card.content.text, policy.interactive ? { onToggle: task => {
+      for (const box of body.querySelectorAll('input[type="checkbox"]')) box.disabled = true;
+      run(() => tickStep(card.id, card.revision, task).catch(error => { render(); throw error; }));
+    } } : {});
+    paper.append(body); stageFitter.observe(body);
+    const strip = attachmentStrip(card.content.attachments || [], stageAttachmentCleanup, stageFitter); if (strip) paper.append(strip);
+    // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper has no Edit or "⋯" and opens no editor.
+    if (policy.draggable) { paper.tabIndex = 0; paper.setAttribute('aria-label', summaryText(card)); }
     stage.append(paper);
   }
 }
@@ -1504,22 +1481,6 @@ async function openEditor(card = null, recovered = null) {
   $('#editor-dialog').showModal(); showEditorTab(false); await renderAttachments(); queueDraft(); $('#editor-text').focus();
 }
 
-async function beginInlineEdit(card, gesture = false) {
-  if (composing) return;
-  if (remoteEditor) {
-    const same = currentDraft?.cardId === card.id;
-    if (!await controller.endEdit({ keepDraft: same })) return; remoteEditor = null;
-    if (same) { await controller.beginEdit(card.id, { gesture }); render(); $('#stage .inline-editor')?.focus(); return; }
-  }
-  if (controller.state.editingCardId === card.id && currentDraft?.cardId === card.id) {
-    $('#stage .inline-editor')?.focus(); return;
-  }
-  if (!await controller.beginEdit(card.id, { gesture })) return;
-  activeGroupId = card.groupId;
-  currentDraft = workspace.blankDraft(card.groupId, card); queueDraft(); render();
-  $('#stage .inline-editor')?.focus();
-}
-
 function renderSelection() {
   const layout = workspace.layout.state; const state = controller.state;
   if (state.activeGroupId) activeGroupId = state.activeGroupId;
@@ -1534,15 +1495,6 @@ function renderSelection() {
   desktop?.publish();
 }
 
-function closeInlineView(cardId) {
-  const paper = [...$('#stage').querySelectorAll('.card')].find(node => node.dataset.cardId === cardId);
-  const card = currentCard(cardId);
-  if (paper && card) {
-    const body = paper.querySelector('.card-body'); renderMarkdown(body, card.content.text); fitText(body);
-    paper.querySelector('.card-actions')?.replaceChildren(button(t('desktop.card.edit'), () => beginInlineEdit(card)), button('⋯', () => cardDetails(card)));
-  }
-  if (currentDraft?.cardId === cardId) currentDraft = null;
-}
 
 function queueDraft() {
   if (!currentDraft) return Promise.resolve();
@@ -1570,7 +1522,6 @@ async function flushDraft() {
 }
 function setEditorBusy(value) {
   editorBusy = value; $('#editor-text').readOnly = value; $('#editor-heading').readOnly = value;
-  $('#stage').querySelectorAll('.inline-editor').forEach(node => { node.readOnly = value; });
   $('#editor-form').querySelectorAll('button').forEach(node => { node.disabled = value; });
   $('#attachment-input').disabled = value;
   $('#editor-group').disabled = value || Boolean(currentDraft?.baseRevision);
@@ -2295,7 +2246,7 @@ function bindEvents() {
   // an input in progress.
   $('#conflicts-button').onclick = () => run(() => openSettings('revisions'));
   const stage = $('#stage');
-  // A double click lands while the first click is still saving the previous draft, so stage gestures run in order.
+  // Stage gestures run in order, so a release never overtakes the one before it.
   let stageQueue = Promise.resolve();
   const stageRun = action => (stageQueue = stageQueue.then(() => run(action)));
   stage.onpointerdown = event => {
@@ -2311,22 +2262,12 @@ function bindEvents() {
   stage.onpointerup = event => stageRun(async () => {
     const id = event.target.closest('.card')?.dataset.cardId;
     const result = await controller.pointerUp(point(event), { pointerId: event.pointerId, shiftKey: event.shiftKey, labels: groupLabels });
-    if (result.kind === 'click' && id) {
-      const previousEditor = controller.state.editingCardId;
-      await controller.select(id, { gesture: true });
-      if (previousEditor && !controller.state.editingCardId) closeInlineView(previousEditor);
-      renderSelection();
-    }
+    if (result.kind === 'click' && id) { await controller.select(id, { gesture: true }); renderSelection(); }
     else if (result.kind !== 'ignored') { if (controller.state.activeGroupId) activeGroupId = controller.state.activeGroupId; render(); }
     if (result.kind === 'transferred') status(t('app.status.movedToGroup'));
   });
   stage.onpointercancel = () => { controller.cancelDrag(); render(); };
   stage.addEventListener('lostpointercapture', () => { if (controller.cancelDrag()) render(); });
-  stage.ondblclick = event => stageRun(async () => {
-    const paper = event.target.closest('.card.operable');
-    if (!paper || event.target.closest('button,a,input,textarea,select')) return;
-    await beginInlineEdit(currentCard(paper.dataset.cardId), true);
-  });
   document.addEventListener('keydown', event => {
     if (event.isComposing || composing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
     if (event.key === 'Escape' && document.body.classList.contains('drawer-open')) { event.preventDefault(); setDrawer(false); return; }
@@ -2345,11 +2286,6 @@ function bindEvents() {
     }
     if (editControl) return;
     if (event.key === 'Escape') { event.preventDefault(); const before = document.activeElement; run(async () => { await controller.escape(); render(); handOverFocus(before); }, { duringAdjust: true }); }
-    // The main window has no paper to edit in place when real desktop scenes are connected.
-    if (event.key === 'Enter' && controller.state.selectedCardId && !event.target.closest('button,a')) {
-      event.preventDefault(); const card = currentCard(controller.state.selectedCardId);
-      if (card) run(() => desktopInfo ? openEditor(card) : beginInlineEdit(card));
-    }
     if (event.key === 'Shift' && controller.state.dragSession) dragPaint(controller.pointerMove(controller.state.dragSession.current, { pointerId: controller.state.dragSession.pointerId, shiftKey: true, labels: groupLabels }));
   });
   document.addEventListener('keyup', event => {

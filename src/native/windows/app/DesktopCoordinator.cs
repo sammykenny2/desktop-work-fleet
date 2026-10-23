@@ -531,7 +531,7 @@ public sealed class DesktopCoordinator : IDisposable
         HostError.Require(JsonRules.Text(command, "sessionId") == SessionId && id.Length == 36 && Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(command, "serial") > 0,
           "scene-command", "The desktop command session is invalid.");
         HostError.Require(commandMethod is "pointer.down" or "pointer.move" or "pointer.up" or "pointer.cancel" or "card.select" or "card.edit"
-          or "card.details" or "card.transfer" or "card.check" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut"
+          or "card.transfer" or "card.check" or "editor.change" or "editor.save" or "editor.end" or "editor.full" or "interaction.escape" or "interaction.shortcut"
           or "interaction.done" or "layout.arrange" or "attachment.preview" or "attachment.open",
           "unsupported-method", "The desktop host doesn't support this operation.");
         var draft = commandMethod == "editor.change";
@@ -541,7 +541,7 @@ public sealed class DesktopCoordinator : IDisposable
         HostError.Require(!commands.Values.Any(c => c.View == view && c.Id == id), "scene-busy", "This desktop operation was already sent.");
         var ticket = Guid.NewGuid().ToString(); commands.Add(ticket, new(view, id, upload, draft, DateTime.UtcNow));
         string? intent = null;
-        if (commandMethod is "card.details" or "editor.full" or "interaction.shortcut" && args.TryGetProperty("intent", out var tokenIntent)
+        if (commandMethod is "editor.full" or "interaction.shortcut" && args.TryGetProperty("intent", out var tokenIntent)
           && tokenIntent.ValueKind == JsonValueKind.String && sceneIntents.TryGetValue(tokenIntent.GetString()!, out var captured) && captured.View == view.Id)
         {
           sceneIntents.Remove(captured.Intent.Id);

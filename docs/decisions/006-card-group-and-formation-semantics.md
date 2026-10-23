@@ -45,7 +45,8 @@ physical stack, and automatically regrouping on an ordinary drag across regions.
     as an IDE or a browser; ending the operation restores its normal resident layer. An all-groups entry was
     adopted with the user's authorization, for users not familiar with groups.
 11. A single click selects and a double click edits; dragging onto a group's receiving label, or holding Shift while
-    dragging into a region, changes the group only on release.
+    dragging into a region, changes the group only on release. Since 2026-10-24 adjust mode only arranges and a
+    double click there no longer edits ([SPEC-003](../specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-adjust-mode-arranges-quick-edit-edits)).
     The card action "Move to group" stays; changing the group is not formation.
 12. By default cards are read-only and mouse clicks pass through; the local operation lock is separate from source
     permissions and cross-device writes.

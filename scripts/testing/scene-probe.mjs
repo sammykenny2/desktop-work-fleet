@@ -76,15 +76,16 @@ const read = () => page.evaluate(() => ({
   steps: [...document.querySelectorAll('.card-body input')].map(input => input.checked),
   square: [...document.querySelectorAll('.card')].every(node => node.offsetWidth === node.offsetHeight),
 }));
-// The scene's own text: document language, title, landmark label and the first paper button.
+// The scene's own text: document language, title and landmark label. Adjusted papers carry no buttons
+// (SPEC-003, 2026-10-24), so the scene shows none here.
 const texts = () => page.evaluate(() => ({ lang: document.documentElement.lang, title: document.title,
-  label: document.querySelector('#scene').getAttribute('aria-label'), edit: document.querySelector('.card-actions button')?.textContent ?? null }));
+  label: document.querySelector('#scene').getAttribute('aria-label'), buttons: document.querySelectorAll('.card-actions button').length }));
 try {
   await page.goto(base.href);
   await page.waitForFunction(() => window.probeApplied === 1);
   const first = await read();
   assert.equal(first.status, null);
-  assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), edit: null });
+  assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), buttons: 0 });
   assert.deepEqual(first.summaries, ['Quarterly report', 'Buy milk, eggs and coffee beans', 'Dentist appointment']);
   // The body shows the whole text from its first line, even where the band already shows that line.
   assert.equal(first.bodies[1], 'Buy milk, eggs and coffee beans', 'a one-line note fills its body, not only its band');
@@ -147,6 +148,11 @@ try {
   await page.locator('.attachment-tile').last().focus(); await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.probeCommands.filter(method => method === 'attachment.open').length === 2);
   assert.equal(await page.evaluate(() => window.probeCommands.includes('card.edit') || window.probeCommands.includes('pointer.down')), false, 'attachment gestures and ticks never edit or drag the paper');
+  // Adjust mode only arranges (SPEC-003, 2026-10-24): a double click or Enter on an adjusted paper opens no editor.
+  // Synthetic double click: real presses would start adjust drags, whose refreshes reapply frames counted below.
+  await page.locator('.card[data-card-id="rich"] .card-summary').dispatchEvent('dblclick');
+  await page.locator('.card[data-card-id="rich"]').focus(); await page.keyboard.press('Enter');
+  assert.equal(await page.evaluate(() => window.probeCommands.includes('card.edit')), false, 'an adjusted paper opens no editor');
   await page.screenshot({ path: 'build/rich-content-probe.png' });
   await page.evaluate(() => { document.querySelector('.card-body').scrollTop = 0; });
   await page.screenshot({ path: 'build/rich-headings-probe.png' });
@@ -192,10 +198,10 @@ try {
   await page.evaluate(() => { window.probeLong = false; window.probeLocale = 'zh-TW'; window.probeNextFrame(); });
   await page.waitForFunction(() => window.probeApplied === 12);
   const zh = catalogs['zh-TW'];
-  assert.deepEqual(await texts(), { lang: 'zh-TW', title: zh['desktop.scene.title'], label: zh['desktop.scene.label'], edit: zh['desktop.card.edit'] });
+  assert.deepEqual(await texts(), { lang: 'zh-TW', title: zh['desktop.scene.title'], label: zh['desktop.scene.label'], buttons: 0 });
   await page.evaluate(() => { window.probeLocale = 'en'; window.probeNextFrame(); });
   await page.waitForFunction(() => window.probeApplied === 13);
-  assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), edit: t('desktop.card.edit') });
+  assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), buttons: 0 });
   // Quick move: with the frame's key held at the press, a resting paper drags through the owner and its text is not
   // selected. Without the key, or with quick move off, the same drag selects text and sends no gesture; a checkbox
   // still ticks. The key is the platform's: Command on macOS, Ctrl elsewhere.
@@ -209,7 +215,7 @@ try {
   };
   const quickState = () => page.evaluate(() => ({ downs: window.probePointer.filter(entry => entry.method === 'pointer.down').map(entry => entry.args),
     ups: window.probePointer.filter(entry => entry.method === 'pointer.up').length, selected: getSelection().toString().length > 0 }));
-  await page.evaluate(quick => { window.probeRich = false; window.probeQuick = quick; window.probeNextFrame(); }, quickKey);
+  await page.evaluate(quick => { window.probePointer = []; window.probeRich = false; window.probeQuick = quick; window.probeNextFrame(); }, quickKey);
   await page.waitForFunction(() => window.probeApplied === 14);
   await drag('.card[data-card-id="c3"] .card-body p');
   let quick = await quickState();

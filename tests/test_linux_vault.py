@@ -1,4 +1,5 @@
 """Linux local keys, real AES-GCM migration and credentials; no user data or keyring."""
+import errno
 import base64
 import ast
 from contextlib import closing
@@ -291,9 +292,11 @@ class LinuxVaultTests(unittest.TestCase):
     def test_key_publication_failure_leaves_database_unchanged_and_retryable(self):
         self.legacy_data()
         before = (self.directory / "fleet.sqlite3").read_bytes()
-        with patch.object(self.module.os, "link", side_effect=OSError("disk full")):
-            with self.assertRaises(OSError):
+        # A failed open names its cause (SPEC-006 DO): a full disk while publishing the key is data-full.
+        with patch.object(self.module.os, "link", side_effect=OSError(errno.ENOSPC, "disk full")):
+            with self.assertRaises(self.protocol.Failure) as raised:
                 self.open()
+        self.assertEqual(raised.exception.code, "data-full")
         self.assertFalse((self.directory / "storage-key").exists())
         self.assertEqual(list(self.directory.glob("storage-key-*")), [])
         self.assertEqual((self.directory / "fleet.sqlite3").read_bytes(), before)

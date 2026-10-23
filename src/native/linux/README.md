@@ -184,7 +184,7 @@ main window stays in the tray; because the panel can become ready later than the
 only if the tray has not connected within `trayWaitSeconds` seconds from `config/startup.json`.
 `host.log` in the data directory records each start, each change in tray availability and the seconds since start, with
 the same format and rotation as Windows (ADR-045), and no note content.
-`updater.py` (ADR-044) is enabled only for DEB installs: it checks the `linux-v<version>` releases, downloads and verifies
+`updater.py` (ADR-044) is enabled only for DEB installs: it checks the `v<version>` releases, downloads and verifies
 the package, installs it with pkexec, then saves and restarts on success.
 Native scene regressions for this product can run in an isolated headless labwc; the commands are in
 [testing](../../../docs/testing.md).

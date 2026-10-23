@@ -101,11 +101,11 @@ The step that uploads failure evidence runs `sudo chmod -R a+rX` first, because 
 It runs only on failure, so it is unverified while CI is green (as of 2026-10-14).
 
 The manual phone workflow is `android-apk.yml`; configuration is in [phone test builds](deployment.md#phone-test-builds).
-Its build job has contents: read, explicit artifact paths and always-run cleanup of temporary signing data. The optional
-publication job has contents: write and runs only with `release` enabled and the maintainer's authorization.
+Its build job has contents: read, explicit artifact paths and always-run cleanup of temporary signing data. It publishes
+nothing; `preview-release.yml` calls it for a release and publishes from its own job with contents: write.
 `apple-native-build.yml` is an unsigned macOS-only compile/package check. iOS builds and installation stay local
 ([ADR-057](decisions/057-local-ios-builds-and-device-privacy.md)); public Actions artifacts are not private storage for IPAs.
-When actionlint is available, run `actionlint .github/workflows/android-apk.yml .github/workflows/apple-native-build.yml`.
+When actionlint is available, run `actionlint .github/workflows/*.yml`.
 `node --test tests/mobile-build-boundaries.test.js` guards against iOS IPA uploads and hosted iOS signing and checks that
 the macOS artifact patterns exclude device IPAs, simulator ZIPs and their checksums, including stale files in `build/`.
 Local checks do not establish a hosted build or real-device acceptance; signing Secrets and dispatch need authorization.
@@ -177,7 +177,7 @@ These are process regressions and cannot count as Apple notarization or a real s
 `python3 -B -m unittest discover -s tests -p 'test_macos_runtime.py' -v` compiles real universal Mach-O fixtures on a Mac,
 and verifies moved paths and paths with spaces, a missing `LC_RPATH`, only the x86_64 slice broken, frameworks with missing files or architectures or available only on the build machine,
 and Debug dylibs inheriting the main program's search paths; other OSes skip it.
-The Mac job of `macos-release.yml` runs this regression before importing signing secrets.
+The Mac job of `macos-package.yml` runs this regression before importing signing secrets.
 The native macOS build, the preview package and the Release export all run `scripts/testing/check_macos_runtime.py`,
 which checks the arm64 and x86_64 main program and its dynamic dependencies inside the bundle one by one, and accepts no framework from outside the bundle on the build machine.
 Before notarization the Release export adds `--launch`, which runs the app's `--check-runtime`: the real dyld loads the app and it exits at once,
@@ -804,8 +804,11 @@ Google sign-in callback (ADR-021): the core probe verifies `LoopbackCallback` wi
 - `error=access_denied` carrying this run's state is handed to the caller to reject; on cancel the port and any open connections are closed.
 - Browser sign-in with a real Google account still needs a manual check on an installed build.
 
-In-app updates (ADR-044, revised 2026-10-15): the core probe uses `tests/fixtures/update-feed.atom` and `update-feed.json` to verify platform filtering of the public Atom feed,
-numeric version comparison, download locations in the same repo and tag, rejection of unknown channels and unlisted platforms, rejection of DTDs and external entities, and the manifest and MSIX identity checks.
+In-app updates (ADR-044, revised 2026-10-23): the core probe uses `tests/fixtures/update-feed.atom` and `update-feed.json` to verify that only `vX.Y.Z` releases count and older per-platform tags are ignored even when higher,
+numeric version comparison, download locations in the same repo and tag, this platform's manifest name, rejection of unknown channels and of a feed without any `vX.Y.Z` release, rejection of DTDs and external entities, and the manifest and MSIX identity checks.
+`node --test tests/release-assets.test.js` checks `scripts/validate-release-assets.mjs` on a synthetic release folder (exactly the expected files, `.sha256` files, each desktop manifest and the appcast in the same `vX.Y.Z` release), and that each platform workflow uploads exactly the files the validator expects and only `preview-release.yml` publishes.
+`tests/release-versions.test.js` checks that `scripts/platform-version.mjs --release` refuses version records that differ.
+None of this runs the release workflow itself; the first `preview-release.yml` run is its end-to-end check.
 `Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `app.workfleet.updateprobe.e2e`,
 signs both with the same local certificate, installs the old version and gives it a local test source, and confirms that it downloads, verifies and saves the update itself and that, after it closes, Windows replaces it with the new version; finally it removes the test package.
 It does not touch the installed Work Fleet; during the run the test identity's main window and an empty desktop scene appear briefly; the local feed also uses Atom.
@@ -815,10 +818,10 @@ cancelling pkexec and changes after download; it also verifies that queries do n
 Its timing test (install callback and worker end) can time out on its 10-second wait when the full JS suite or a build runs at the same time; it passes when run alone or rerun once the load is gone (2026-10-15 to 2026-10-17).
 The updater itself was not changed for this.
 `test-host-shell.sh` confirms that running from outside a DEB reports unsupported. A real pkexec and polkit install needs a real test with the DEB on Debian or the Pi.
-macOS: `tests/update-feed-writer.test.js` verifies the appcast and manifest that `write-update-feed.mjs` produces; the Swift code is compiled by the manual Apple build workflow.
+macOS: `tests/update-feed-writer.test.js` verifies the appcast and `work-fleet-update-macos.json` that `write-update-feed.mjs` produces; the Swift code is compiled by the manual Apple build workflow.
 `python3 -B -m unittest discover -s tests -p 'test_macos_release_feed.py' -v` compiles the official `FleetReleaseFeed` with the shared fixture on a Mac,
-and verifies macOS version selection, no downgrade from a newer local version, the appcast location, an empty feed, a DTD, a wrong namespace, an unknown channel, a different repo, and strict version numbers;
-platforms without the Swift SDK skip it. The Mac release job runs it before signing; it does not go online or use the real app or user data.
+and verifies version selection that ignores older per-platform tags, no downgrade from a newer local version, the appcast location, a feed without any `vX.Y.Z` release, an empty feed, a DTD, a wrong namespace, an unknown channel, a different repo, and strict version numbers;
+platforms without the Swift SDK skip it. The Mac job of `macos-package.yml` runs it before signing; it does not go online or use the real app or user data.
 Sparkle's sandboxed install, `feedURLString` and EdDSA key can be verified only on a Mac, by updating a Developer ID notarized old version to a new one.
 
 Inspecting the Debug app with CDP during development (it uses the official data directory; close the installed app first):

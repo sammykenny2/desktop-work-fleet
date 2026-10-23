@@ -158,8 +158,8 @@ commits. The version-bump commit changes the approved version records (for Windo
 the `<Version>` in `src/native/windows/Directory.Build.props`; see docs/deployment.md
 for the others) and adds that version's `docs/release-notes.md` entry, nothing that
 needs updating afterwards. Push it, verify a clean worktree and matching local/remote
-main, then dispatch each platform's release workflow only with that authorization; it
-creates the `<platform>-v<version>` tag and prerelease. Never reuse, move or delete a
+main, then dispatch `preview-release.yml` only with that authorization; it creates the
+one `v<version>` tag and prerelease for every platform. Never reuse, move or delete a
 published tag or release.
 
 After dispatch, agents MUST NOT make, or offer, commits whose only purpose is to
@@ -170,12 +170,12 @@ and ordinary documentation-sync rules do not authorize such bookkeeping.
 
 Fixes remain ordinary work. When a release run fails, or reveals a defect in code,
 scripts or workflows, agents MAY fix it in a normal commit with the usual checks and,
-under the same release authorization, dispatch the failed platform again: a platform
-publishes nothing until its workflow succeeds. A transient outside failure (for
-example a dropped connection to Apple's notary service) may simply be re-run.
-Re-dispatching builds the latest main, so first confirm that main holds no unrelated
-commits since the version bump; otherwise ask the maintainer. A fix for a platform
-whose release is already published ships in a new version, which needs approval.
+under the same release authorization, dispatch the release again: nothing is
+published until every platform succeeds. A transient outside failure (for example a
+dropped connection to Apple's notary service) may simply be re-run with "Re-run
+failed jobs". Re-dispatching builds the latest main, so first confirm that main holds
+no unrelated commits since the version bump; otherwise ask the maintainer. A fix for
+a version that is already published ships in a new version, which needs approval.
 
 Use the project's documented test command; confirm the manifest/CI configuration
 when this template still contains placeholders. Report missing tests as missing,

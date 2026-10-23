@@ -85,8 +85,8 @@ class LinuxPackageTests(unittest.TestCase):
                 self.assertNotIn("gir1.2-secret-1", self.field(packages[0], "Depends"))
                 self.assertIn("gir1.2-secret-1", self.field(packages[0], "Recommends"))
                 # ADR-044: the release's update manifest names exactly this DEB.
-                manifest = json.loads((self.output / "work-fleet-update.json").read_text(encoding="utf-8"))
-                self.assertEqual(manifest, {"schemaVersion": 1, "platform": "linux", "version": "2.3.4", "tag": "linux-v2.3.4", "summary": "",
+                manifest = json.loads((self.output / "work-fleet-update-linux.json").read_text(encoding="utf-8"))
+                self.assertEqual(manifest, {"schemaVersion": 1, "platform": "linux", "version": "2.3.4", "tag": "v2.3.4", "summary": "",
                                             "assets": [{"arch": "all", "name": "work-fleet_2.3.4_all.deb", "size": packages[0].stat().st_size,
                                                         "sha256": hashlib.sha256(packages[0].read_bytes()).hexdigest()}]})
                 self.assertEqual(
@@ -194,7 +194,7 @@ class LinuxPackageTests(unittest.TestCase):
         self.assertEqual(
             sorted(p.name for p in build.iterdir() if p.is_file()),
             ["keep.txt", "work-fleet-9.8.7.tar.gz", "work-fleet-9.8.7.tar.gz.sha256",
-             "work-fleet-update.json", "work-fleet_9.8.7_all.deb", "work-fleet_9.8.7_all.deb.sha256"],
+             "work-fleet-update-linux.json", "work-fleet_9.8.7_all.deb", "work-fleet_9.8.7_all.deb.sha256"],
         )
         self.assertEqual([p.name for p in (build / "linux").iterdir()], ["work-fleet-9.8.7"])
 

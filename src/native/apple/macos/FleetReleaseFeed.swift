@@ -1,6 +1,7 @@
 import Foundation
 
-/// ADR-044 public release discovery. Atom carries published previews; asset URLs stay in the configured repository/tag.
+/// ADR-044 public release discovery. Atom carries published previews, one `vX.Y.Z` release for every platform; asset URLs
+/// stay in the configured repository/tag.
 /// Refusals reach the update section as they are, so their text comes from the host table.
 enum FleetReleaseFeed {
   struct Release {
@@ -27,8 +28,9 @@ enum FleetReleaseFeed {
     guard parser.parse(), delegate.validRoot else {
       throw FleetFailure("metadata_invalid", FleetText.text("update.invalidFeed"))
     }
-    if delegate.entries > 0 && !delegate.foundPlatform {
-      throw FleetFailure("metadata_invalid", FleetText.text("update.noPlatformRelease"))
+    // A feed that lists releases but none of this form must not be read as "up to date".
+    if delegate.entries > 0 && !delegate.found {
+      throw FleetFailure("metadata_invalid", FleetText.text("update.noRelease"))
     }
     return delegate.best
   }
@@ -40,7 +42,7 @@ private final class ReleaseParser: NSObject, XMLParserDelegate {
   private var stack: [String] = []
   var validRoot = false
   var entries = 0
-  var foundPlatform = false
+  var found = false
   var best: FleetReleaseFeed.Release?
 
   init(repository: String, current: [Int]) { self.repository = repository; self.current = current }
@@ -59,8 +61,9 @@ private final class ReleaseParser: NSObject, XMLParserDelegate {
     let prefix = "https://github.com/\(repository)/releases/tag/"
     guard page.hasPrefix(prefix) else { return }
     let tag = String(page.dropFirst(prefix.count))
-    guard tag.hasPrefix("macos-v"), let version = FleetReleaseFeed.version(String(tag.dropFirst(7))) else { return }
-    foundPlatform = true
+    // Releases before 0.3.7 had one tag per platform, such as macos-v0.3.6; they never match this prefix.
+    guard tag.hasPrefix("v"), let version = FleetReleaseFeed.version(String(tag.dropFirst(1))) else { return }
+    found = true
     guard current.lexicographicallyPrecedes(version) else { return }
     if let best, !best.version.lexicographicallyPrecedes(version) { return }
     best = .init(tag: tag, version: version, appcast: "https://github.com/\(repository)/releases/download/\(tag)/appcast.xml")

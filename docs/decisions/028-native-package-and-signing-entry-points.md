@@ -144,6 +144,16 @@ Mach-O dependencies of both architectures; the direct distribution export runs `
 the app reports from its main entry point and exits without creating UI, storage or a login item. Signing and notarization
 checks do not replace this load check, and it is not treated as acceptance of Google or the main window.
 
+## 2026-10-23 revision: one release for every platform
+
+The maintainer asked for one GitHub Release per version instead of one per platform
+([ADR-044](044-desktop-in-app-updates-from-github-releases.md)). `preview-release.yml` now creates the `v<version>` tag
+and prerelease after `windows-package.yml`, `macos-package.yml`, `linux-package.yml` and `android-apk.yml` have built
+the four platforms from the same commit; `windows-preview.yml` and the other per-platform release workflows are gone.
+Each platform still records its own version, but a release starts only when all four records hold the same one
+(`scripts/platform-version.mjs --release`). File names are unchanged; the desktop update manifests are named per
+platform so that they can share the release.
+
 ## Alternatives Considered
 
 Putting signing passwords in `.env` or public JSON: rejected, because public settings are packaged into the app.

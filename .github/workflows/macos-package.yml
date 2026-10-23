@@ -1,74 +1,32 @@
-name: macOS preview release
+name: macOS package
 
-# Manual only. Archives the universal app, signs it with Developer ID, notarizes it and publishes a GitHub prerelease
-# tagged macos-v<MARKETING_VERSION> with the DMG, Sparkle update ZIP, appcast.xml and work-fleet-update.json
-# (ADR-044). An existing tag or release is never replaced. Requires the settings in docs/deployment.md,
+# Called by preview-release.yml for one vX.Y.Z release. Archives the universal app, signs it with Developer ID, notarizes
+# it and saves the DMG, the Sparkle update ZIP, their .sha256, appcast.xml and work-fleet-update-macos.json as the
+# release-macos artifact; the caller publishes every platform at once. Requires the settings in docs/deployment.md,
 # including a Developer ID profile for this app's Keychain entitlement. No Installer certificate is needed.
-# The release text and the in-app update summary come from the version's entry in docs/release-notes.md.
 
 on:
-  workflow_dispatch:
+  workflow_call:
+    inputs:
+      commit:
+        description: Commit to build
+        type: string
+        required: true
+      version:
+        description: Version in src/native/apple/config/WorkFleet.xcconfig (MARKETING_VERSION)
+        type: string
+        required: true
+      summary:
+        description: In-app update summary from docs/release-notes.md
+        type: string
+        required: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: macos-release
-  cancel-in-progress: false
-
 jobs:
-  guard:
-    name: Check version and tests
-    runs-on: ubuntu-24.04
-    outputs:
-      version: ${{ steps.version.outputs.version }}
-      tag: ${{ steps.version.outputs.tag }}
-      commit: ${{ steps.version.outputs.commit }}
-      summary: ${{ steps.notes.outputs.summary }}
-      changes: ${{ steps.notes.outputs.changes }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-          cache: npm
-      - name: Resolve the release tag
-        id: version
-        run: |
-          version=$(node scripts/platform-version.mjs --platform apple)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "tag=macos-v$version" >> "$GITHUB_OUTPUT"
-          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Refuse a version that was already published
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.version.outputs.tag }}
-        run: |
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1 || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "$TAG already exists. Bump MARKETING_VERSION in src/native/apple/config/WorkFleet.xcconfig to publish another preview."
-            exit 1
-          fi
-      - name: Read the release notes
-        id: notes
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          # The version-bump commit writes this entry; a release cannot start without it.
-          node scripts/release-notes.mjs --version "$VERSION" > /dev/null
-          {
-            echo "summary=$(node scripts/release-notes.mjs --version "$VERSION" --summary)"
-            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
-            node scripts/release-notes.mjs --version "$VERSION"
-            echo 'WORK_FLEET_RELEASE_NOTES'
-          } >> "$GITHUB_OUTPUT"
-      - run: npm ci --ignore-scripts
-      - run: npm test
-
   build:
     name: Archive, sign and notarize
-    needs: guard
     runs-on: macos-15
     timeout-minutes: 60
     env:
@@ -84,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.guard.outputs.commit }}
+          ref: ${{ inputs.commit }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
@@ -143,7 +101,7 @@ jobs:
       - name: Archive and package
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          SUMMARY: ${{ needs.guard.outputs.summary }}
+          SUMMARY: ${{ inputs.summary }}
         run: |
           [ -n "$SPARKLE_PRIVATE_KEY" ] || { echo 'Secret SPARKLE_PRIVATE_KEY is not set.'; exit 1; }
           umask 077; printf '%s' "$SPARKLE_PRIVATE_KEY" > "$RUNNER_TEMP/sparkle.key"
@@ -153,15 +111,17 @@ jobs:
             --provisioning-profile "$WORK_FLEET_MACOS_PROFILE_UUID" --notary-profile work-fleet-notary --dmg --no-pkg --update-summary "$SUMMARY"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: macos-preview
+          name: release-macos
           path: |
-            build/WorkFleet-${{ needs.guard.outputs.version }}-macos-universal.dmg
-            build/WorkFleet-${{ needs.guard.outputs.version }}-macos-universal.dmg.sha256
-            build/WorkFleet-${{ needs.guard.outputs.version }}-macos-universal.zip
-            build/WorkFleet-${{ needs.guard.outputs.version }}-macos-universal.zip.sha256
+            build/WorkFleet-${{ inputs.version }}-macos-universal.dmg
+            build/WorkFleet-${{ inputs.version }}-macos-universal.dmg.sha256
+            build/WorkFleet-${{ inputs.version }}-macos-universal.zip
+            build/WorkFleet-${{ inputs.version }}-macos-universal.zip.sha256
             build/appcast.xml
-            build/work-fleet-update.json
+            build/work-fleet-update-macos.json
           if-no-files-found: error
+          # A re-run of this job replaces the artifact its failed attempt may have left.
+          overwrite: true
           retention-days: 7
       - name: Remove temporary signing material
         if: always()
@@ -173,39 +133,3 @@ jobs:
           if [ -f "$RUNNER_TEMP/release.keychain-db" ]; then security delete-keychain "$RUNNER_TEMP/release.keychain-db"; fi
           rm -f "$RUNNER_TEMP/identity.p12" "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/sparkle.key" \
             "$RUNNER_TEMP/release.provisionprofile" "$RUNNER_TEMP/profile.plist" "$RUNNER_TEMP/certificate.pem" "$RUNNER_TEMP/certificate.cer"
-
-  publish:
-    name: Publish the prerelease
-    needs: [guard, build]
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: macos-preview
-          path: dist
-      - name: Create the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ needs.guard.outputs.tag }}
-          VERSION: ${{ needs.guard.outputs.version }}
-          COMMIT: ${{ needs.guard.outputs.commit }}
-          CHANGES: ${{ needs.guard.outputs.changes }}
-        run: |
-          cd dist
-          for file in WorkFleet-"$VERSION"-macos-universal.*.sha256; do shasum -a 256 -c "$file"; done
-          cat > notes.md <<EOF
-          macOS preview built from ${COMMIT}, signed with Developer ID and notarized by Apple. Requires macOS 13 or later.
-
-          ${CHANGES}
-
-          ## Installation
-          Open \`WorkFleet-${VERSION}-macos-universal.dmg\` and drag Work Fleet to Applications.
-          Afterwards you can check for updates from the menu bar or Settings > Desktop > Version and updates; Sparkle downloads, verifies and reopens the app.
-          Google sign-in is in testing: only accounts added as test users can sign in.
-          EOF
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
-            --title "Work Fleet for macOS $VERSION (preview)" --notes-file notes.md \
-            WorkFleet-"$VERSION"-macos-universal.dmg WorkFleet-"$VERSION"-macos-universal.dmg.sha256 \
-            WorkFleet-"$VERSION"-macos-universal.zip WorkFleet-"$VERSION"-macos-universal.zip.sha256 appcast.xml work-fleet-update.json

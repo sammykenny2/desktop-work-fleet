@@ -111,7 +111,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     await execute('bash', args, { cwd: directory, env });
     const files = await readdir(path.join(directory, 'build'));
     for (const file of ['WorkFleet-0.2.0-macos-universal.dmg', 'WorkFleet-0.2.0-macos-universal.dmg.sha256',
-      'WorkFleet-0.2.0-macos-universal.zip', 'WorkFleet-0.2.0-macos-universal.zip.sha256', 'appcast.xml', 'work-fleet-update.json']) assert.ok(files.includes(file));
+      'WorkFleet-0.2.0-macos-universal.zip', 'WorkFleet-0.2.0-macos-universal.zip.sha256', 'appcast.xml', 'work-fleet-update-macos.json']) assert.ok(files.includes(file));
     assert.equal(files.some(file => file.endsWith('.pkg')), false);
     const log = await readFile(env.TOOL_LOG, 'utf8');
     assert.equal(log.includes('/productbuild '), false);

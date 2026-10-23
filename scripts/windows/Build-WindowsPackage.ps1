@@ -26,8 +26,8 @@
 .PARAMETER SdkBin
     Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
 .PARAMETER UpdateSummary
-    Plain-text release summary (at most 500 characters) written into build/work-fleet-update.json, the
-    in-app update manifest (ADR-044) that a GitHub release carries beside the MSIX.
+    Plain-text release summary (at most 500 characters) written into build/work-fleet-update-windows.json, the
+    in-app update manifest (ADR-044) that the vX.Y.Z GitHub release carries beside the MSIX.
 .EXAMPLE
     .\scripts\windows\Build-WindowsPackage.ps1 -SkipRestore
 .EXAMPLE
@@ -154,9 +154,9 @@ try {
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
     Write-Checksum $Msix; Write-Checksum $Zip
     # ADR-044: the release's update manifest names this exact MSIX by size and SHA-256 for the in-app updater.
-    $UpdateManifest = Join-Path $Work 'work-fleet-update.json'
+    $UpdateManifest = Join-Path $Work 'work-fleet-update-windows.json'
     $MsixFile = Get-Item -LiteralPath $Msix
-    $Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $PackageVersion; tag = "windows-v$PackageVersion"; summary = $UpdateSummary
+    $Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $PackageVersion; tag = "v$PackageVersion"; summary = $UpdateSummary
         assets = @([ordered]@{ arch = 'x64'; name = $MsixFile.Name; size = $MsixFile.Length; sha256 = (Get-FileHash -Algorithm SHA256 -LiteralPath $Msix).Hash.ToLowerInvariant() }) }
     [IO.File]::WriteAllText($UpdateManifest, ($Update | ConvertTo-Json -Depth 4) + "`n", [Text.UTF8Encoding]::new($false))
     # Only a completely built and signed set replaces the release files in build/.
@@ -168,7 +168,7 @@ try {
     if ($LocalTestSign) { $PublicCertificate = Join-Path $Delivery 'WorkFleet-preview.cer' }
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
-    Write-Output "Update manifest: $(Join-Path $Delivery 'work-fleet-update.json')"
+    Write-Output "Update manifest: $(Join-Path $Delivery 'work-fleet-update-windows.json')"
     if ($LocalTestSign) { Write-Output "Locally trusted signed MSIX; public certificate: $PublicCertificate" }
     Write-Output 'Includes the .NET 10 Desktop runtime; WebView2 is required separately.'
     if (-not $CertificateThumbprint) { Write-Output 'MSIX is unsigned. Installation needs a trusted signature.' }

@@ -61,13 +61,18 @@ class LinuxUpdaterTests(unittest.TestCase):
             with self.subTest(case["name"]):
                 if "error" in case:
                     with self.assertRaises(updater.UpdateError) as caught:
-                        updater.latest(FEED, FIXTURE["repository"], case["platform"], case["channel"], updater.parse_version(case["current"]))
+                        updater.latest(FEED, FIXTURE["repository"], case["channel"], updater.parse_version(case["current"]))
                     self.assertEqual(caught.exception.code, case["error"])
                     continue
-                chosen = updater.latest(FEED, FIXTURE["repository"], case["platform"], case["channel"], updater.parse_version(case["current"]))
+                chosen = updater.latest(FEED, FIXTURE["repository"], case["channel"], updater.parse_version(case["current"]))
                 self.assertEqual(chosen and chosen["tag"], case["expected"])
-        release = updater.latest(FEED, FIXTURE["repository"], "windows", "preview", (0, 1, 2))
+        release = updater.latest(FEED, FIXTURE["repository"], "preview", (0, 1, 2))
         self.assertEqual(release["tag"], FIXTURE["manifestRelease"])
+        self.assertEqual(updater.MANIFEST, FIXTURE["manifestNames"]["linux"])
+        # Only per-platform tags of releases before 0.3.7: listed releases without a vX.Y.Z one are not "up to date".
+        with self.assertRaises(updater.UpdateError) as caught:
+            updater.latest(FIXTURE["withoutRelease"].encode(), FIXTURE["repository"], "preview", (0, 1, 0))
+        self.assertEqual((caught.exception.code, str(caught.exception)), ("metadata_invalid", updater.t("update.releaseMissing")))
         for case in FIXTURE["manifests"]:
             with self.subTest(case["name"]):
                 data = json.dumps(case["manifest"]).encode()
@@ -80,13 +85,13 @@ class LinuxUpdaterTests(unittest.TestCase):
                     self.assertEqual({key: package[key] for key in case["expected"]}, case["expected"])
         for damaged in [text.encode() for text in FIXTURE["invalidFeeds"]] + [b"\xff"]:
             with self.assertRaises(updater.UpdateError):
-                updater.latest(damaged, "o/r", "windows", "preview", (0, 1, 2))
+                updater.latest(damaged, "o/r", "preview", (0, 1, 2))
         self.assertEqual(updater.parse_version("0.1.10"), (0, 1, 10))
         for text in ("01.2.3", "1.2", "1.2.3.4", "1.2.3-beta", "1.2.3\n", None):
             self.assertIsNone(updater.parse_version(text))
 
     def test_manifest_cannot_redirect_or_escape_the_release_or_update_folder(self):
-        release = updater.latest(FEED, "o/r", "windows", "preview", (0, 1, 2))
+        release = updater.latest(FEED, "o/r", "preview", (0, 1, 2))
         good = FIXTURE["manifests"][0]["manifest"]
         for name in ("../outside.msix", "sub/file.msix", "sub\\file.msix", "https://evil.example/x", "file.msix?x",
                      "file.msix#x", "file.msix\n", "%2e%2e.msix", ""):
@@ -98,12 +103,12 @@ class LinuxUpdaterTests(unittest.TestCase):
 
     def test_feed_from_another_repository_is_refused(self):
         with self.assertRaises(updater.UpdateError) as caught:
-            updater.latest(FEED, "another/repository", "windows", "preview", (0, 1, 2))
+            updater.latest(FEED, "another/repository", "preview", (0, 1, 2))
         self.assertEqual(caught.exception.code, "metadata_invalid")
 
     def test_fetcher_follows_only_allowed_https_redirects(self):
         feed = "https://github.com/o/r/releases.atom"
-        asset = "https://github.com/o/r/releases/download/linux-v0.2.0/work-fleet-update.json"
+        asset = "https://github.com/o/r/releases/download/v0.2.0/work-fleet-update-linux.json"
         storage = "https://release-assets.githubusercontent.com/x"
         opener = Opener({feed: feed_for(), asset: (302, storage), storage: b"manifest"})
         fetcher = updater.Fetcher("WorkFleet/0.1.0", opener)
@@ -134,7 +139,7 @@ class LinuxUpdaterTests(unittest.TestCase):
     def test_download_checks_size_and_digest(self):
         folder = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, folder)
-        url = "https://github.com/o/r/releases/download/linux-v0.2.0/work-fleet_0.2.0_all.deb"
+        url = "https://github.com/o/r/releases/download/v0.2.0/work-fleet_0.2.0_all.deb"
         data = b"package bytes"
         fetcher = updater.Fetcher("WorkFleet/0.1.0", Opener({url: data}))
         seen = []
@@ -196,10 +201,10 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, folder)
         deb = b"debian package"
         feed = "https://github.com/o/r/releases.atom"
-        base = "https://github.com/o/r/releases/download/linux-v0.2.0/"
-        manifest = json.dumps({"schemaVersion": 1, "platform": "linux", "version": "0.2.0", "tag": "linux-v0.2.0", "summary": "New version",
+        base = "https://github.com/o/r/releases/download/v0.2.0/"
+        manifest = json.dumps({"schemaVersion": 1, "platform": "linux", "version": "0.2.0", "tag": "v0.2.0", "summary": "New version",
                                "assets": [{"arch": "all", "name": "work-fleet_0.2.0_all.deb", "size": len(deb), "sha256": hashlib.sha256(deb).hexdigest()}]}).encode()
-        releases = feed_for("linux-v0.2.0")
+        releases = feed_for("v0.2.0")
         commands = []
         pkexec = {"code": 126}
 
@@ -210,7 +215,7 @@ class LinuxUpdaterTests(unittest.TestCase):
             if command[0] == "dpkg":
                 return completed(stdout="amd64\n")
             return completed(pkexec["code"], stderr="dpkg: error\n")
-        routes = {feed: releases, base + "work-fleet-update.json": manifest, base + "work-fleet_0.2.0_all.deb": deb}
+        routes = {feed: releases, base + "work-fleet-update-linux.json": manifest, base + "work-fleet_0.2.0_all.deb": deb}
         instance, states = self.updater_for(folder, routes, run)
         self.assertEqual(instance.snapshot()["nextAction"], "check")
         self.wait(instance, instance.check)
@@ -218,7 +223,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.assertEqual((snapshot["status"], snapshot["version"], snapshot["summary"], snapshot["nextAction"]), ("update_available", "0.2.0", "New version", "download"))
         self.assertEqual(len(self.recorded), 1)
         requests = instance.fetcher.opener.requests
-        self.assertEqual([request.full_url for request in requests], [feed, base + "work-fleet-update.json"])
+        self.assertEqual([request.full_url for request in requests], [feed, base + "work-fleet-update-linux.json"])
         self.assertTrue(all("api.github.com" not in request.full_url for request in requests))
         self.wait(instance, instance.download)
         self.assertEqual(instance.snapshot()["status"], "downloaded")
@@ -273,7 +278,7 @@ class LinuxUpdaterTests(unittest.TestCase):
                          "GitHub returned an error (502). Try again later.")
         self.assertEqual(str(updater.invalid()), text.t("update.metadataInvalid"))
         with self.assertRaises(updater.UpdateError) as caught:
-            updater.latest(feed_for("linux-v0.2.0"), "o/r", "linux", "stable", (0, 1, 0))
+            updater.latest(feed_for("v0.2.0"), "o/r", "stable", (0, 1, 0))
         self.assertEqual((caught.exception.code, str(caught.exception)), ("metadata_invalid", text.t("update.channelUnsupported")))
 
     def test_unsupported_channel_is_not_silently_changed_to_preview(self):
@@ -281,7 +286,7 @@ class LinuxUpdaterTests(unittest.TestCase):
             feed = "https://github.com/o/r/releases.atom"
             instance = updater.Updater(folder, {"update": {"repository": "o/r", "channel": "stable"}}, "0.1.0", "deb",
                                        lambda _state: None, lambda _time: None,
-                                       fetcher=updater.Fetcher("WorkFleet/0.1.0", Opener({feed: feed_for("linux-v0.2.0")})),
+                                       fetcher=updater.Fetcher("WorkFleet/0.1.0", Opener({feed: feed_for("v0.2.0")})),
                                        which=lambda name: name)
             self.wait(instance, instance.check)
             self.assertEqual(instance.snapshot()["channel"], "stable")

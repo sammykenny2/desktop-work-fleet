@@ -138,11 +138,11 @@ public sealed class NativeUpdater : IDisposable
     using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
     var releases = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, "releases.atom"), timeout.Token)
       : await Fetch(new Uri($"https://github.com/{repository}/releases.atom"), MaxFeedBytes, FeedHosts, timeout.Token);
-    var release = UpdateFeed.Latest(releases, repository, Platform, channel, current);
+    var release = UpdateFeed.Latest(releases, repository, channel, current);
     lastChecked = DateTimeOffset.UtcNow.ToString("O"); recordCheck(lastChecked);
     if (release is null) { pending = null; Clean(null); Set("up_to_date"); return; }
-    var manifest = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, UpdateFeed.ManifestName), timeout.Token)
-      : await Fetch(Download(UpdateFeed.AssetUrl(release, UpdateFeed.ManifestName)), MaxManifestBytes, DownloadHosts, timeout.Token);
+    var manifest = testFeed is not null ? await File.ReadAllBytesAsync(Path.Combine(testFeed, UpdateFeed.ManifestName(Platform)), timeout.Token)
+      : await Fetch(Download(UpdateFeed.AssetUrl(release, UpdateFeed.ManifestName(Platform))), MaxManifestBytes, DownloadHosts, timeout.Token);
     var package = UpdateFeed.Manifest(manifest, release, Platform, Architecture);
     pending = package; var file = Path.Combine(folder, package.Name);
     // A downloaded installer counts only while the feed still names the same version and bytes.

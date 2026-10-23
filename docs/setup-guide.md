@@ -275,7 +275,7 @@ no extra `~preview`.
 The GitHub **Android device APK** workflow (`.github/workflows/android-apk.yml`) builds a phone-installable APK after
 the public Variables and the explicitly authorized fixed signing Secret are configured. Run it manually from Actions
 on main, then download the APK, checksum and source-commit record from Artifacts, kept for fourteen days. It keeps the
-recorded version and submits nothing to stores; its optional `release` input publishes an Android GitHub prerelease.
+recorded version, publishes nothing and submits nothing to stores; releases carry the APK through `preview-release.yml`.
 Signing settings and installation are in [phone test builds](deployment.md#phone-test-builds).
 
 iOS builds and installation stay local with Xcode or the existing Mac scripts. Keep the main app's and Share

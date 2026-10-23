@@ -88,8 +88,8 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | UP-F02 | Only installs with a valid update source embedded in `Config/public.json` and an install form that can upgrade in place have update capability: Windows MSIX, the Developer ID notarized macOS app, and Linux installed from a DEB |
 | UP-F03 | The native host owns the update state machine and the mapping of the single main button: "Check for updates", "Download update", "Restart and install"; repeated requests join the work in progress |
 | UP-F04 | When capable, the tray shows "Check for updates…", handled natively; a click checks again and answers with a native dialog, from which the app can update and restart directly |
-| UP-F05 | Read the public GitHub `releases.atom`, filtered by the configured repo and `<platform>-v<version>`; preview includes published prereleases; choose the highest version in the feed that is newer; never call or fall back to the REST API; reject unsupported channels and non-empty feeds that list no release for the platform |
-| UP-F06 | Build the URL of that release's `work-fleet-update.json` from the configured repo and the validated tag; check the platform, version, tag and single-level file name, and verify the actual download size and SHA-256 against the manifest; reject on any mismatch |
+| UP-F05 | Read the public GitHub `releases.atom`, filtered by the configured repo and `v<version>` (`<platform>-v<version>` until 2026-10-23); preview includes published prereleases; choose the highest version in the feed that is newer; never call or fall back to the REST API; reject unsupported channels and non-empty feeds that list no `v<version>` release |
+| UP-F06 | Build the URL of that release's `work-fleet-update-<platform>.json` (`work-fleet-update.json` until 2026-10-23) from the configured repo and the validated tag; check the platform, version, tag and single-level file name, and verify the actual download size and SHA-256 against the manifest; reject on any mismatch |
 | UP-F07 | Downloads use HTTPS only and send no credentials; redirects are allowed only to the GitHub release asset host; the size is capped and verified while downloading |
 | UP-F08 | Check again before downloading; when the downloaded version is no longer the latest, download again; only the last check time is persisted |
 | UP-F09 | Before installing, run the existing save-and-quit flow so that drafts are saved, scenes are taken down and data is closed |
@@ -97,7 +97,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | UP-F11 | macOS downloads, verifies and installs the signed and notarized new version with the standard Sparkle 2.10.0 dialog; this project only finds the release and provides the check entry |
 | UP-F12 | Linux checks the DEB name, architecture and version, installs with `pkexec` and runs again; when authorization is cancelled, it keeps running and shows the reason |
 | UP-F13 | Errors show with a stable code and Traditional Chinese text (the text now comes from the locale catalogs, see [ADR-056](../decisions/056-english-first-ui-and-locale-catalogs.md)); raw responses do not reach the UI, and logs contain no tokens or personal data |
-| UP-F14 | Each platform release carries the installer, its `.sha256` and `work-fleet-update.json`; tags are `<platform>-v<version>` |
+| UP-F14 | One release per version, tagged `v<version>`, carries every platform's installer with its `.sha256` and each desktop platform's `work-fleet-update-<platform>.json` (until 2026-10-23 one release per platform, tagged `<platform>-v<version>`, with `work-fleet-update.json`) |
 | UP-F15 | The privacy notice and the security rules list the GitHub connection, which happens only when the user checks or downloads |
 
 ## Delegated Defaults (D)

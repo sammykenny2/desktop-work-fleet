@@ -13,6 +13,15 @@ unauthenticated GitHub REST API query and use the public Atom feed instead. The 
 be a precondition for desktop updates; the official rules and measurements are in the
 [update-check rate-limit research](../research/2026-10-15-public-release-feed-without-api-quota.md).
 
+Revised 2026-10-23: deleting four releases and tags for every version was too much work, so the maintainer asked for one
+release per version carrying every platform, as Cats Desktop does, without breaking the desktop updates. From 0.3.7 the
+tag is `v<major>.<minor>.<patch>`; Windows and Linux read their own manifest in that release and macOS its appcast; see
+"Feed and downloads" and "Publishing". A release has one tag, so installs of 0.3.6 or earlier, which look only for
+`<platform>-v` tags, can never see the new releases: they report up to date until the old releases are deleted or leave
+the feed, and an error after that. A last per-platform release built with the new updaters was
+offered; the maintainer chose instead to install 0.3.7 by hand once on each desktop machine. The Atom feed lists only the
+ten newest releases: four per version showed two or three versions, one per version shows ten.
+
 ## Context
 
 The app showed no version and had no update check; users downloaded the MSIX from GitHub themselves and, for the same
@@ -73,19 +82,22 @@ prefix and numeric version, with no REST API.
   API; the query refuses redirects.
   Atom lists only published releases (no drafts), and the preview channel includes prereleases. Only direct
   entry/alternate links in the Atom namespace are read; a link must be an HTTPS release page of the configured repo,
-  and the tag must match `<platform>-v<major>.<minor>.<patch>`.
+  and the tag must match `v<major>.<minor>.<patch>` (until 2026-10-23 `<platform>-v<major>.<minor>.<patch>`; those older
+  tags are ignored).
   The highest version in the feed that is greater than the current version wins, regardless of publication order. The
   XML is capped at 2 MiB, and DTDs/external entities are refused.
   Atom has no reliable prerelease field, so only the approved preview channel is supported; other channels are refused,
   and there is no claim that preview versions can be excluded.
-  The feed is a limited list of recent releases; a non-empty feed that does not list this platform reports insufficient
+  The feed is a limited list of recent releases; a non-empty feed without any `v<version>` release reports insufficient
   source information and must not falsely report up to date.
 - The update metadata URL is built from the configured repo and the verified tag:
-  `https://github.com/<repository>/releases/download/<tag>/work-fleet-update.json`, and `appcast.xml` for macOS. The
-  repo-wide `releases/latest` is not used, and assets of old releases never need updating.
+  `https://github.com/<repository>/releases/download/<tag>/work-fleet-update-<platform>.json`, and `appcast.xml` for
+  macOS. The repo-wide `releases/latest` is not used, and assets of old releases never need updating.
 - 429, or 403 with `Retry-After`, maps to rate_limited; a plain 403 is provider_rejected, so not every source refusal
   is misreported as an exhausted quota.
-- Each release carries `work-fleet-update.json`: `schemaVersion`, `platform`, `version`, `tag`, `minimumOs`, `summary`,
+- Each release carries `work-fleet-update-windows.json`, `work-fleet-update-linux.json` and
+  `work-fleet-update-macos.json` (one `work-fleet-update.json` per platform release until 2026-10-23): `schemaVersion`,
+  `platform`, `version`, `tag`, `summary`,
   and for each installer its `arch`, `name`, `size` and `sha256`. A mismatch with the tag or platform rejects the whole
   version.
   Installer URLs are likewise built from repo/tag/manifest file name; the file name must be a single-level ASCII file
@@ -121,7 +133,7 @@ prefix and numeric version, with no REST API.
   Sparkle's standard dialogs (`SPUStandardUpdaterController`, including Traditional Chinese). A custom user driver was
   considered, but its roughly 15 protocol methods could not be verified without a Mac, and the standard interface is
   also what users of the reference project know. "Check for updates" in Settings and the menu bar first finds the
-  newest `macos-v` release by the same rules, then hands that release's `appcast.xml` to Sparkle
+  newest `v<version>` release by the same rules, then hands that release's `appcast.xml` to Sparkle
   (`feedURLString(for:)`) and checks; when no release is newer it answers up to date directly.
   Sparkle compares the appcast's `sparkle:version` with `CFBundleVersion` (`CURRENT_PROJECT_VERSION`), and the
   packaging script writes both version numbers.
@@ -145,9 +157,12 @@ prefix and numeric version, with no REST API.
 
 ### Publishing
 
-- Each platform's GitHub Release uses a `<platform>-v<version>` tag and carries the installer, `.sha256` and
-  `work-fleet-update.json`. Windows extends `windows-preview.yml`; macOS and Linux add matching publishing workflows
-  once the signing and account prerequisites are in place.
+- One GitHub Release per version, tagged `v<version>`, carries every platform: each desktop installer with its
+  `.sha256` and manifest, the macOS `appcast.xml`, and the Android APK. `preview-release.yml` builds the four platforms
+  side by side and publishes only after `scripts/validate-release-assets.mjs` has checked every file, so a desktop
+  client that finds a release always finds its manifest or appcast in it. A release needs all four version records to
+  agree, so no platform is released alone.
+  Until 2026-10-23 each platform had its own release tagged `<platform>-v<version>` from its own workflow.
 - Version bumps and Actions dispatches still need the user's explicit authorization, and no commits may follow a
   publication (AGENTS.md).
 

@@ -1,22 +1,24 @@
 name: Android device APK
 
-# Manual build only. Reuses the test signer and saves artifacts. With "release" it also publishes the APK as a GitHub
-# prerelease tagged android-v<versionName from build.gradle.kts>, with the text of that version's entry in
-# docs/release-notes.md. An existing tag or release is never replaced, and the release is created only after the APK is
-# built and its signer verified, so a failed run leaves nothing published.
+# Reuses the test signer and saves artifacts. Dispatched by hand, it builds a device APK and publishes nothing.
+# preview-release.yml calls it with the release commit; then the verified APK and its .sha256 are also saved as the
+# release-android artifact, which the caller publishes in the vX.Y.Z release with every other platform.
 on:
   workflow_dispatch:
+  workflow_call:
     inputs:
-      release:
-        description: Also publish the APK as the android-v<version> GitHub prerelease
-        type: boolean
-        default: false
+      commit:
+        description: Release commit to build
+        type: string
+        required: true
 
 permissions:
   contents: read
 
+# Inside preview-release.yml the workflow name is the caller's, so a hand-dispatched build never queues behind or
+# cancels a release's Android job.
 concurrency:
-  group: android-apk
+  group: ${{ github.workflow }}-android
   cancel-in-progress: false
 
 jobs:
@@ -24,9 +26,6 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    outputs:
-      version: ${{ steps.package.outputs.version }}
-      changes: ${{ steps.notes.outputs.changes }}
     env:
       WORK_FLEET_APP_ID: ${{ vars.WORK_FLEET_APP_ID }}
       WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
@@ -36,30 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.commit || github.sha }}
           persist-credentials: false
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '24'
           cache: npm
-      - name: Refuse a published version and read the release notes
-        id: notes
-        if: inputs.release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version=$(node scripts/platform-version.mjs --platform android)
-          tag="android-v$version"
-          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1 || gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "$tag already exists. Bump versionName in src/native/android/app/build.gradle.kts to publish another preview."
-            exit 1
-          fi
-          # The version-bump commit writes this entry; a release cannot start without it.
-          node scripts/release-notes.mjs --version "$version" > /dev/null
-          {
-            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
-            node scripts/release-notes.mjs --version "$version"
-            echo 'WORK_FLEET_RELEASE_NOTES'
-          } >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
@@ -93,7 +74,7 @@ jobs:
           [ "$actual" = "$expected" ] || { echo 'APK signer differs from the registered test key; refusing to save it.'; exit 1; }
           echo "version=$version" >> "$GITHUB_OUTPUT"
           printf 'Android %s\nCommit: %s\nRun: %s/%s/actions/runs/%s\nSigner SHA-1: %s\nInstall with adb install -r; Google OAuth must include this package and signer.\n' \
-            "$version" "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_ANDROID_DEBUG_SHA1" > build/android-build.txt
+            "$version" "$(git rev-parse HEAD)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_ANDROID_DEBUG_SHA1" > build/android-build.txt
           cat build/android-build.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Save APK and checksum
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -105,39 +86,18 @@ jobs:
             build/android-build.txt
           if-no-files-found: error
           retention-days: 14
+      - name: Save the release APK
+        if: inputs.commit != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-android
+          path: |
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk.sha256
+          if-no-files-found: error
+          # A re-run of this job replaces the artifact its failed attempt may have left.
+          overwrite: true
+          retention-days: 7
       - name: Remove the temporary keystore
         if: always()
         run: rm -f "$RUNNER_TEMP/android-debug.keystore"
-
-  publish:
-    name: Publish the prerelease
-    needs: build
-    if: inputs.release
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: work-fleet-android-${{ needs.build.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: dist
-      - name: Create the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.build.outputs.version }}
-          CHANGES: ${{ needs.build.outputs.changes }}
-        run: |
-          cd dist && sha256sum -c "WorkFleet-$VERSION-android-debug.apk.sha256"
-          cat > notes.md <<EOF
-          Android preview APK built from ${GITHUB_SHA}. Requires Android 9 (API 28) or later.
-
-          ${CHANGES}
-
-          ## Installation
-          Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\`.
-          The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and keeps your data; a build signed with another key cannot.
-          Google sign-in is in testing: only accounts added as test users can sign in.
-          EOF
-          gh release create "android-v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
-            --title "Work Fleet for Android $VERSION (preview)" --notes-file notes.md \
-            "WorkFleet-$VERSION-android-debug.apk" "WorkFleet-$VERSION-android-debug.apk.sha256"

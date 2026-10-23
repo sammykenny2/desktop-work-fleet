@@ -12,7 +12,7 @@ preparation is in the root [PROGRESS.md](../../PROGRESS.md); packaging and relea
 
 Store listings and the privacy policy keep an English and a Traditional Chinese edition. GitHub release text is English
 only: the version's entry in [release notes](../release-notes.md) plus the installation steps that the release
-workflows add, as described in [deployment](../deployment.md#windows-preview-releases).
+workflow adds, as described in [deployment](../deployment.md#preview-releases).
 
 The app ID, Google clients, Apple team, privacy and support URLs and contact email in `.env.example` are public
 settings. Signing keystores, certificates, store API keys, OAuth tokens and passwords never go into the repo or a public

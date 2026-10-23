@@ -53,6 +53,13 @@ The maintainer asked for Android and iOS previews to be published on GitHub like
 - The Android APK stays signed with the fixed test key and the IPA stays development-signed for the registered
   devices; neither is a store build.
 
+## 2026-10-23 revision: the APK goes into the shared release
+
+The Android `release` input and its `android-v<versionName>` prerelease are gone. Dispatched by hand, `android-apk.yml`
+only builds a device APK. `preview-release.yml` calls it with the release commit and publishes the verified APK and its
+SHA-256 in the one `v<version>` release that carries every platform
+([ADR-044](044-desktop-in-app-updates-from-github-releases.md)); the same authorization and no-bookkeeping rules apply.
+
 ## Consequences
 
 ### Positive

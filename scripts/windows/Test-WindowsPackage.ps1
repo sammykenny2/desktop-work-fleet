@@ -65,14 +65,14 @@ try {
     $ExpectedVersion = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
     if ($LASTEXITCODE -ne 0 -or $Manifest.Package.Identity.Version -cne "$ExpectedVersion.0") { throw 'Package version differs from the Windows version record.' }
     # ADR-044: when the package has its update manifest beside it, the manifest must name exactly this file.
-    $UpdateManifest = Join-Path (Split-Path -Parent $Package) 'work-fleet-update.json'
+    $UpdateManifest = Join-Path (Split-Path -Parent $Package) 'work-fleet-update-windows.json'
     if (Test-Path -LiteralPath $UpdateManifest) {
         $Update = Get-Content -LiteralPath $UpdateManifest -Raw | ConvertFrom-Json
         $Asset = @($Update.assets)
-        if ($Update.schemaVersion -ne 1 -or $Update.platform -cne 'windows' -or $Update.version -cne $ExpectedVersion -or $Update.tag -cne "windows-v$ExpectedVersion" -or
+        if ($Update.schemaVersion -ne 1 -or $Update.platform -cne 'windows' -or $Update.version -cne $ExpectedVersion -or $Update.tag -cne "v$ExpectedVersion" -or
             $Asset.Count -ne 1 -or $Asset[0].arch -cne 'x64' -or $Asset[0].name -cne (Split-Path -Leaf $Package) -or $Asset[0].size -ne (Get-Item -LiteralPath $Package).Length -or
             $Asset[0].sha256 -cne (Get-FileHash -Algorithm SHA256 -LiteralPath $Package).Hash.ToLowerInvariant()) {
-            throw 'work-fleet-update.json does not describe this package.'
+            throw 'work-fleet-update-windows.json does not describe this package.'
         }
         Write-Output 'PASS update manifest matches the package version, size and SHA-256'
     }

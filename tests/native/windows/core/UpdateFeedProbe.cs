@@ -18,17 +18,21 @@ internal static class UpdateFeedProbe
       var expected = item.GetProperty("expected").ValueKind == JsonValueKind.Null ? null : item.GetProperty("expected").GetString();
       if (item.TryGetProperty("error", out var failure))
       {
-        try { UpdateFeed.Latest(releases, repository, item.GetProperty("platform").GetString()!, item.GetProperty("channel").GetString()!,
+        try { UpdateFeed.Latest(releases, repository, item.GetProperty("channel").GetString()!,
           UpdateFeed.ParseVersion(item.GetProperty("current").GetString())!); throw new Exception("unsupported selection accepted"); }
         catch (HostError error) { Require(error.Code == failure.GetString(), "selection refusal"); }
         continue;
       }
-      var chosen = UpdateFeed.Latest(releases, repository, item.GetProperty("platform").GetString()!, item.GetProperty("channel").GetString()!,
+      var chosen = UpdateFeed.Latest(releases, repository, item.GetProperty("channel").GetString()!,
         UpdateFeed.ParseVersion(item.GetProperty("current").GetString())!);
       Require(chosen?.Tag == expected, $"{item.GetProperty("name").GetString()}: {chosen?.Tag ?? "none"} != {expected ?? "none"}");
     }
-    var release = UpdateFeed.Latest(releases, repository, "windows", "preview", new Version(0, 1, 2))!;
+    var release = UpdateFeed.Latest(releases, repository, "preview", new Version(0, 1, 2))!;
     Require(release.Tag == root.GetProperty("manifestRelease").GetString(), "manifest release");
+    Require(UpdateFeed.ManifestName("windows") == root.GetProperty("manifestNames").GetProperty("windows").GetString(), "manifest name");
+    // Only per-platform tags of releases before 0.3.7: listed releases without a vX.Y.Z one are not "up to date".
+    try { UpdateFeed.Latest(Encoding.UTF8.GetBytes(root.GetProperty("withoutRelease").GetString()!), repository, "preview", new Version(0, 1, 0)); throw new Exception("feed without a release accepted"); }
+    catch (HostError error) { Require(error.Code == "metadata_invalid" && error.Message == HostText.Get("update.releaseMissing"), "feed without a release"); }
     foreach (var item in root.GetProperty("manifests").EnumerateArray())
     {
       var name = item.GetProperty("name").GetString();
@@ -48,12 +52,12 @@ internal static class UpdateFeedProbe
     foreach (var item in root.GetProperty("invalidFeeds").EnumerateArray())
     {
       var damaged = item.GetString()!;
-      try { UpdateFeed.Latest(Encoding.UTF8.GetBytes(damaged), repository, "windows", "preview", new Version(0, 1, 2)); throw new Exception($"damaged feed accepted: {damaged}"); }
+      try { UpdateFeed.Latest(Encoding.UTF8.GetBytes(damaged), repository, "preview", new Version(0, 1, 2)); throw new Exception($"damaged feed accepted: {damaged}"); }
       catch (HostError error) { Require(error.Code == "metadata_invalid", $"damaged feed code: {damaged}"); }
     }
     Require(UpdateFeed.ParseVersion("0.1.10") == new Version(0, 1, 10) && UpdateFeed.ParseVersion("01.2.3") is null && UpdateFeed.ParseVersion("1.2") is null
       && UpdateFeed.ParseVersion("1.2.3.4") is null && UpdateFeed.ParseVersion("1.2.3-beta") is null && UpdateFeed.ParseVersion("1.2.3\n") is null, "strict versions");
-    Require(UpdateFeed.Latest(Encoding.UTF8.GetBytes("<feed xmlns=\"http://www.w3.org/2005/Atom\" />"), repository, "windows", "preview", new Version(0, 1, 2)) is null,
+    Require(UpdateFeed.Latest(Encoding.UTF8.GetBytes("<feed xmlns=\"http://www.w3.org/2005/Atom\" />"), repository, "preview", new Version(0, 1, 2)) is null,
       "empty published feed");
     foreach (var name in new[] { "../outside.msix", "sub/file.msix", "sub\\file.msix", "https://evil.example/x", "file.msix?x", "file.msix#x", "file.msix\n", "%2e%2e.msix", "" })
     {

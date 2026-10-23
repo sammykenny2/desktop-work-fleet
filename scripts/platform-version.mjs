@@ -1,4 +1,7 @@
-/** Print a platform's recorded release version. Usage: node scripts/platform-version.mjs --platform linux|windows|apple|android */
+/**
+ * Print a platform's recorded release version, or with --release the one version all four record.
+ * Usage: node scripts/platform-version.mjs --platform linux|windows|apple|android | --release
+ */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,10 +41,25 @@ export async function readPlatformVersion(platform, root = repositoryRoot) {
   return numeric(platform === 'linux' ? text.trim() : text.match(patterns[platform])?.[1], file, 'the version');
 }
 
+// One vX.Y.Z release carries every platform (ADR-044), so it starts only when the four records agree.
+export async function readReleaseVersion(root = repositoryRoot) {
+  const versions = {};
+  for (const platform of Object.keys(versionRecords)) versions[platform] = await readPlatformVersion(platform, root);
+  const distinct = new Set(Object.values(versions));
+  if (distinct.size !== 1) {
+    throw new Error(`One release needs one version, but the records differ: ${Object.entries(versions).map(([name, value]) => `${name} ${value}`).join(', ')}.`);
+  }
+  return [...distinct][0];
+}
+
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === '--help') {
-    console.log('Usage: node scripts/platform-version.mjs --platform linux|windows|apple|android\nPrints the version recorded for that platform in the repository.');
+    console.log(`Usage: node scripts/platform-version.mjs --platform linux|windows|apple|android | --release
+Prints the version recorded for that platform in the repository, or with --release the version all four record,
+failing when they differ.`);
+  } else if (args.length === 1 && args[0] === '--release') {
+    console.log(await readReleaseVersion());
   } else {
     if (args.length !== 2 || args[0] !== '--platform') throw new Error('Use --help.');
     console.log(await readPlatformVersion(args[1]));

@@ -127,10 +127,11 @@ they contain no note content and never go into backups or Google.
 In-app updates (ADR-044) connect from the native host only on a user action: with no credentials or cookies and only
 over HTTPS, the check reads only the configured repo's `github.com/<repository>/releases.atom`, refuses redirects and
 never calls the REST API. The XML is limited to 2 MiB with DTDs and external entities refused, and only Atom
-entry/alternate links of the same repo and valid platform tags are accepted. The manifest or appcast and installer
+entry/alternate links of the same repo and valid `vX.Y.Z` tags are accepted. The manifest or appcast and installer
 URLs are always built from the repo, the tag and a single-level file name. Downloads are allowed only from
 `github.com` and the GitHub release asset host, with at most three redirects; responses and installers have size
-limits, and the installer's size and SHA-256 must match the release's `work-fleet-update.json`. The MSIX identity
+limits, and the installer's size and SHA-256 must match the platform's manifest in the release
+(`work-fleet-update-windows.json`, `work-fleet-update-linux.json`). The MSIX identity
 (Name, Publisher, architecture) must be the same as the installed package with a higher version, and Windows checks
 the signature at installation.
 The manifest and the installer come from the same release, so this only protects against corruption and a single

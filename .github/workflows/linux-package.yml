@@ -1,0 +1,69 @@
+name: Linux package
+
+# Called by preview-release.yml for one vX.Y.Z release. Builds the DEB from the release commit and saves it with its
+# .sha256 and work-fleet-update-linux.json as the release-linux artifact; the caller publishes every platform at once.
+# Procedure: docs/deployment.md, "Preview releases".
+
+on:
+  workflow_call:
+    inputs:
+      commit:
+        description: Commit to build
+        type: string
+        required: true
+      version:
+        description: Version in src/native/linux/VERSION
+        type: string
+        required: true
+      summary:
+        description: In-app update summary from docs/release-notes.md
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build the DEB
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # A preview that cannot sign in to Google is not worth installing on another machine.
+      - name: Check Google settings
+        env:
+          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+          WORK_FLEET_GOOGLE_LINUX_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_LINUX_CLIENT_ID }}
+          HAS_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET != '' }}
+        run: |
+          node scripts/check-config.mjs --google --platform linux
+          [ "$HAS_SECRET" = true ] || { echo 'Secret WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET is not set.'; exit 1; }
+      - name: Build the package
+        env:
+          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+          WORK_FLEET_GOOGLE_LINUX_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_LINUX_CLIENT_ID }}
+          WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET }}
+          SUMMARY: ${{ inputs.summary }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          bash scripts/linux/build-native-app.sh --deb --update-summary "$SUMMARY"
+          test -f "build/work-fleet_${VERSION}_all.deb" && test -f build/work-fleet-update-linux.json
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-linux
+          path: |
+            build/work-fleet_${{ inputs.version }}_all.deb
+            build/work-fleet_${{ inputs.version }}_all.deb.sha256
+            build/work-fleet-update-linux.json
+          if-no-files-found: error
+          # A re-run of this job replaces the artifact its failed attempt may have left.
+          overwrite: true
+          retention-days: 7

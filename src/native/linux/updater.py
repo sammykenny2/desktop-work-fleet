@@ -1,6 +1,7 @@
 """ADR-044 Linux updater: GitHub Releases of the configured public repository and a DEB installed through pkexec.
 
-The feed rules match the Windows host (tests/fixtures/update-feed.json). HTTPS only, no credentials, a fixed host allowlist
+The feed rules match the Windows host (tests/fixtures/update-feed.json): one vX.Y.Z release carries every platform, and
+this platform's manifest in it is work-fleet-update-linux.json. HTTPS only, no credentials, a fixed host allowlist
 with at most three redirects, size limits and a streamed SHA-256. No GTK here: the owner passes callbacks that run on its
 main loop. Installing replaces the files of the running app, so the owner restarts right after a successful install."""
 import hashlib
@@ -21,7 +22,7 @@ from text import t
 PLATFORM = "linux"
 ARCHITECTURE = "all"
 PACKAGE = "work-fleet"
-MANIFEST = "work-fleet-update.json"
+MANIFEST = f"work-fleet-update-{PLATFORM}.json"
 MAX_FEED = 2 * 1024 * 1024
 MAX_MANIFEST = 64 * 1024
 MAX_PACKAGE = 512 * 1024 * 1024
@@ -52,8 +53,8 @@ def parse_version(text):
     return tuple(int(part) for part in match.groups()) if match else None
 
 
-def latest(releases, repository, platform, channel, current):
-    """The newest release for this platform and channel that is newer than `current` (a tuple), or None."""
+def latest(releases, repository, channel, current):
+    """The newest release on this channel that is newer than `current` (a tuple), or None."""
     if channel != "preview":
         raise invalid("update.channelUnsupported")
     try:
@@ -66,8 +67,9 @@ def latest(releases, repository, platform, channel, current):
     atom = "{http://www.w3.org/2005/Atom}"
     if value.tag != atom + "feed":
         raise invalid()
-    page_prefix, prefix, best = f"https://github.com/{repository}/releases/tag/", platform + "-v", None
-    entries, found_platform = value.findall(atom + "entry"), False
+    # Releases before 0.3.7 had one tag per platform, such as linux-v0.3.6; they never match this prefix.
+    page_prefix, prefix, best = f"https://github.com/{repository}/releases/tag/", "v", None
+    entries, found = value.findall(atom + "entry"), False
     for item in entries:
         for link in item.findall(atom + "link"):
             page = link.get("href", "")
@@ -77,11 +79,12 @@ def latest(releases, repository, platform, channel, current):
             version = parse_version(tag[len(prefix):]) if tag.startswith(prefix) else None
             if version is None:
                 continue
-            found_platform = True
+            found = True
             if version > current and (best is None or version > best["version"]):
                 best = {"repository": repository, "tag": tag, "version": version, "page": page}
-    if entries and not found_platform:
-        raise invalid("update.platformMissing")
+    # A feed that lists releases but none of this form must not be read as "up to date".
+    if entries and not found:
+        raise invalid("update.releaseMissing")
     return best
 
 
@@ -92,7 +95,7 @@ def asset_url(release, name):
 
 
 def manifest(data, release, platform, arch):
-    """Checks a release's work-fleet-update.json against the release and picks this architecture's installer."""
+    """Checks this platform's manifest against the release it came from and picks this architecture's installer."""
     def unique(pairs):
         keys = [key for key, _ in pairs]
         if len(keys) != len(set(keys)):
@@ -288,7 +291,7 @@ class Updater:
     def check_now(self):
         self.set("checking")
         releases = self.fetcher.fetch(f"https://github.com/{self.repository}/releases.atom", MAX_FEED, FEED_HOSTS)
-        release = latest(releases, self.repository, PLATFORM, self.channel, self.current)
+        release = latest(releases, self.repository, self.channel, self.current)
         self.last_checked = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         self.record_check(self.last_checked)
         if release is None:

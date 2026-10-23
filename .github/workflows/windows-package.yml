@@ -1,0 +1,90 @@
+name: Windows package
+
+# Called by preview-release.yml for one vX.Y.Z release. Builds the MSIX from the release commit, signs it with the preview
+# certificate and saves it with its .sha256, the public certificate and work-fleet-update-windows.json as the
+# release-windows artifact; the caller publishes every platform at once. Procedure: docs/deployment.md, "Preview releases".
+
+on:
+  workflow_call:
+    inputs:
+      commit:
+        description: Commit to build
+        type: string
+        required: true
+      version:
+        description: Version in src/native/windows/Directory.Build.props
+        type: string
+        required: true
+      summary:
+        description: In-app update summary from docs/release-notes.md
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and sign the MSIX
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: '10.0.x'
+      - run: npm ci --ignore-scripts
+      # A preview that cannot sign in to Google is not worth installing on another machine.
+      - name: Check Google settings
+        env:
+          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID }}
+          HAS_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET != '' }}
+        run: |
+          node scripts/check-config.mjs --google --platform windows
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if ($env:HAS_SECRET -ne 'true') { throw 'Secret WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET is not set.' }
+      # Build-WindowsPackage -LocalTestSign signs only with a certificate the machine already trusts, as an installing
+      # machine must, so the runner trusts the preview certificate's public part for this job.
+      - name: Install the preview signing certificate
+        env:
+          PFX_BASE64: ${{ secrets.WORK_FLEET_WINDOWS_SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.WORK_FLEET_WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          if (-not $env:PFX_BASE64 -or -not $env:PFX_PASSWORD) { throw 'The preview signing certificate secrets are not set.' }
+          # The key is persisted for SignTool, which runs as another process; the PFX itself never touches the disk.
+          $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            [Convert]::FromBase64String($env:PFX_BASE64), $env:PFX_PASSWORD, 'UserKeySet, PersistKeySet')
+          $mine = [System.Security.Cryptography.X509Certificates.X509Store]::new('My', 'CurrentUser')
+          $mine.Open('ReadWrite'); $mine.Add($certificate); $mine.Close()
+          $trusted = [System.Security.Cryptography.X509Certificates.X509Store]::new('TrustedPeople', 'LocalMachine')
+          $trusted.Open('ReadWrite'); $trusted.Add([System.Security.Cryptography.X509Certificates.X509Certificate2]::new($certificate.RawData)); $trusted.Close()
+          Write-Output "Preview certificate $($certificate.Subject), valid until $($certificate.NotAfter.ToString('yyyy-MM-dd'))"
+      - name: Build the signed package
+        env:
+          WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
+          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_ID }}
+          WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_WINDOWS_CLIENT_SECRET }}
+          VERSION: ${{ inputs.version }}
+          SUMMARY: ${{ inputs.summary }}
+        run: |
+          ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary $env:SUMMARY
+          if (-not (Test-Path -LiteralPath "build/WorkFleet-$env:VERSION-x64.msix")) { throw "build/WorkFleet-$env:VERSION-x64.msix was not produced." }
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-windows
+          path: |
+            build/WorkFleet-${{ inputs.version }}-x64.msix
+            build/WorkFleet-${{ inputs.version }}-x64.msix.sha256
+            build/WorkFleet-preview.cer
+            build/work-fleet-update-windows.json
+          if-no-files-found: error
+          # A re-run of this job replaces the artifact its failed attempt may have left.
+          overwrite: true
+          retention-days: 7

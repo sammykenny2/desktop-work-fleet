@@ -8,13 +8,18 @@ import Foundation
     let data = try Data(contentsOf: fixtureURL.deletingLastPathComponent().appendingPathComponent(fixture["feed"] as! String))
     var checks = 0
     func require(_ value: Bool) { precondition(value); checks += 1 }
-    let chosen = try FleetReleaseFeed.latest(data, repository: repository, channel: "preview", current: [0, 1, 0])
-    require(chosen?.tag == "macos-v0.5.0")
-    require(chosen?.appcast == "https://github.com/o/r/releases/download/macos-v0.5.0/appcast.xml")
-    for current in [[0, 5, 0], [0, 6, 0]] {
+    let chosen = try FleetReleaseFeed.latest(data, repository: repository, channel: "preview", current: [0, 1, 2])
+    require(chosen?.tag == (fixture["manifestRelease"] as? String))
+    require(chosen?.appcast == "https://github.com/o/r/releases/download/v0.1.10/appcast.xml")
+    // Older per-platform tags such as macos-v0.5.0 are ignored even though their version is higher.
+    for current in [[0, 1, 10], [0, 2, 1]] {
       let result = try FleetReleaseFeed.latest(data, repository: repository, channel: "preview", current: current)
       require(result == nil)
     }
+    do {
+      _ = try FleetReleaseFeed.latest(Data((fixture["withoutRelease"] as! String).utf8), repository: repository, channel: "preview", current: [0, 1, 0])
+      preconditionFailure("a feed without a vX.Y.Z release read as up to date")
+    } catch let failure as FleetFailure { require(failure.code == "metadata_invalid" && failure.message == FleetText.text("update.noRelease")) }
     let empty = Data("<feed xmlns=\"http://www.w3.org/2005/Atom\" />".utf8)
     let emptyResult = try FleetReleaseFeed.latest(empty, repository: repository, channel: "preview", current: [0, 1, 0])
     require(emptyResult == nil)

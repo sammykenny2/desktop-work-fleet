@@ -1,0 +1,175 @@
+name: Preview release
+
+# Manual only. Builds Windows, macOS, Linux and Android from the selected commit on main and publishes one GitHub
+# prerelease tagged v<version>, the version all four platform records hold (scripts/platform-version.mjs --release). The
+# desktop apps find that release in the public release feed and read their own manifest in it (ADR-044). An existing tag
+# or release is never replaced: bump the version to publish another preview. The release is created only after every
+# platform is built and its files pass scripts/validate-release-assets.mjs, so a failed run leaves nothing published;
+# "Re-run failed jobs" keeps the platforms that were built. The release text and the in-app update summary come from the
+# version's entry in docs/release-notes.md. Procedure: docs/deployment.md, "Preview releases".
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-release
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Check version and tests
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      commit: ${{ steps.version.outputs.commit }}
+      summary: ${{ steps.notes.outputs.summary }}
+      changes: ${{ steps.notes.outputs.changes }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Resolve the release tag
+        id: version
+        run: |
+          # The Android build only runs on main, and every platform must be in the release.
+          [ "$GITHUB_REF" = refs/heads/main ] || { echo 'Preview releases are built from main.'; exit 1; }
+          version=$(node scripts/platform-version.mjs --release)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Refuse a version that was already published
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" >/dev/null 2>&1 || gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "$TAG already exists. Bump the four version records (docs/deployment.md) to publish another preview."
+            exit 1
+          fi
+      - name: Read the release notes
+        id: notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # The version-bump commit writes this entry; a release cannot start without it.
+          node scripts/release-notes.mjs --version "$VERSION" > /dev/null
+          {
+            echo "summary=$(node scripts/release-notes.mjs --version "$VERSION" --summary)"
+            echo 'changes<<WORK_FLEET_RELEASE_NOTES'
+            node scripts/release-notes.mjs --version "$VERSION"
+            echo 'WORK_FLEET_RELEASE_NOTES'
+          } >> "$GITHUB_OUTPUT"
+      - run: npm ci --ignore-scripts
+      - run: npm test
+
+  windows:
+    name: Windows
+    needs: guard
+    uses: ./.github/workflows/windows-package.yml
+    with:
+      commit: ${{ needs.guard.outputs.commit }}
+      version: ${{ needs.guard.outputs.version }}
+      summary: ${{ needs.guard.outputs.summary }}
+    secrets: inherit
+
+  linux:
+    name: Linux
+    needs: guard
+    uses: ./.github/workflows/linux-package.yml
+    with:
+      commit: ${{ needs.guard.outputs.commit }}
+      version: ${{ needs.guard.outputs.version }}
+      summary: ${{ needs.guard.outputs.summary }}
+    secrets: inherit
+
+  macos:
+    name: macOS
+    needs: guard
+    uses: ./.github/workflows/macos-package.yml
+    with:
+      commit: ${{ needs.guard.outputs.commit }}
+      version: ${{ needs.guard.outputs.version }}
+      summary: ${{ needs.guard.outputs.summary }}
+    secrets: inherit
+
+  android:
+    name: Android
+    needs: guard
+    uses: ./.github/workflows/android-apk.yml
+    with:
+      commit: ${{ needs.guard.outputs.commit }}
+    secrets: inherit
+
+  publish:
+    name: Publish the prerelease
+    needs: [guard, windows, linux, macos, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.guard.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          merge-multiple: true
+          path: dist
+      - name: Check the release files
+        env:
+          VERSION: ${{ needs.guard.outputs.version }}
+        run: node scripts/validate-release-assets.mjs --dir dist --version "$VERSION" --repository "$GITHUB_REPOSITORY"
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.guard.outputs.tag }}
+          VERSION: ${{ needs.guard.outputs.version }}
+          COMMIT: ${{ needs.guard.outputs.commit }}
+          CHANGES: ${{ needs.guard.outputs.changes }}
+        run: |
+          cat > "$RUNNER_TEMP/notes.md" <<EOF
+          Preview of Work Fleet ${VERSION} for Windows, macOS, Linux and Android, built from ${COMMIT}.
+
+          ${CHANGES}
+
+          ## Windows
+          Requires Windows 11 (build 22000 or later). The package includes the .NET 10 Desktop Runtime, so .NET needs no separate installation; it uses the system's Evergreen WebView2 Runtime.
+          1. Trust the preview certificate (once per computer): download \`WorkFleet-preview.cer\` and run this in an administrator PowerShell:
+             \`Import-Certificate -FilePath .\\WorkFleet-preview.cer -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople\`.
+          2. Double-click \`WorkFleet-${VERSION}-x64.msix\` to install it.
+
+          A version higher than the installed one installs as an upgrade and keeps your data; the same version must be uninstalled first.
+          Uninstalling removes all local data inside the package (including drafts, settings and the Google sign-in); export a ZIP from Settings > Data and backup first.
+          Exported ZIPs and Google cloud data are not affected. Data from an older ZIP or Debug build must be exported with that version first and then imported into the MSIX.
+
+          ## macOS
+          Signed with Developer ID and notarized by Apple. Requires macOS 13 or later.
+          Open \`WorkFleet-${VERSION}-macos-universal.dmg\` and drag Work Fleet to Applications.
+
+          ## Linux
+          Requires the system GTK 3 and WebKitGTK 4.1 of Debian, Ubuntu or Raspberry Pi OS.
+          \`sudo apt install ./work-fleet_${VERSION}_all.deb\`
+
+          ## Android
+          Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\`.
+          The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and keeps your data; a build signed with another key cannot.
+
+          ## Updates
+          On Windows, macOS and Linux, check for and install updates from the tray (the menu bar on macOS) or Settings > Desktop > Version and updates. Installing on Linux asks for the system password; on macOS, Sparkle downloads, verifies and reopens the app.
+          Desktop installs of 0.3.6 or earlier look only for the older per-platform releases: they keep reporting that they are up to date, or an error once those releases are gone, and never offer this one. Install it once by hand as above.
+          Google sign-in is in testing: only accounts added as test users can sign in.
+          EOF
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
+            --title "Work Fleet $VERSION (preview)" --notes-file "$RUNNER_TEMP/notes.md" dist/*

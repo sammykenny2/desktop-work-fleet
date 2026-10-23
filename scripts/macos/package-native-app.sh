@@ -3,7 +3,7 @@
 # Names come from the archive's version; macOS requires a universal binary. Release files and their
 # .sha256 go directly in build/; build/apple/export-PLATFORM is replaced on every run.
 # A notarized Developer ID macOS export also writes the Sparkle update archive (the stapled app as a ZIP), its appcast.xml and
-# work-fleet-update.json for the macos-vVERSION release (ADR-044). sign_update reads the EdDSA private key from the login
+# work-fleet-update-macos.json for the vVERSION release (ADR-044). sign_update reads the EdDSA private key from the login
 # keychain, or from the file in SPARKLE_PRIVATE_KEY_FILE.
 # Usage: scripts/macos/package-native-app.sh --platform ios|macos --method METHOD [--archive PATH] [--application-identity NAME] [--provisioning-profile UUID] [--installer-identity NAME] [--notary-profile NAME] [--dmg] [--no-pkg] [--update-summary TEXT]
 set -euo pipefail
@@ -108,7 +108,7 @@ else
         REPOSITORY="$(node --input-type=module -e 'import fs from "node:fs"; console.log(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).update.repository);' "$APP/Contents/Resources/Config/public.json")"
         node scripts/macos/write-update-feed.mjs --archive "$OUTPUT/$NAME.zip" --signature "$SIGNATURE" --version "$VERSION" --build "$BUILD" \
             --repository "$REPOSITORY" --output "$OUTPUT" --summary "$SUMMARY"
-        deliver "$NAME.zip"; FEED=(appcast.xml work-fleet-update.json)
+        deliver "$NAME.zip"; FEED=(appcast.xml work-fleet-update-macos.json)
     fi
     if [[ "$PKG" == 1 ]]; then
         PACKAGE="$OUTPUT/$NAME.pkg"; PACKAGE_ARGS=(--component "$APP" /Applications)

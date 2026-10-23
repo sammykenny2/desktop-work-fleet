@@ -1,9 +1,10 @@
 /**
- * Write the macOS release's Sparkle appcast.xml and work-fleet-update.json (ADR-044).
+ * Write the macOS part of the vX.Y.Z release: Sparkle's appcast.xml and work-fleet-update-macos.json (ADR-044).
  * Usage: node scripts/macos/write-update-feed.mjs --archive ZIP --signature "sparkle:edSignature=... length=..." --version X.Y.Z
  *   --build N --repository OWNER/REPO --output DIR [--summary TEXT] [--help]
  * The signature line is what Sparkle's sign_update prints for the archive. The enclosure URL is the archive's download
- * address in the macos-vX.Y.Z GitHub release, so the release must carry the archive under the same name.
+ * address in the vX.Y.Z GitHub release that carries every platform, so the release must carry the archive under the
+ * same name.
  */
 import { createHash } from 'node:crypto';
 import { readFile, stat, writeFile } from 'node:fs/promises';
@@ -21,7 +22,7 @@ export async function writeUpdateFeed({ archive, signature, version, build, repo
   if (!match) throw new Error('signature must be the sign_update output line');
   const bytes = await readFile(archive); const size = (await stat(archive)).size;
   if (Number(match[2]) !== size) throw new Error('sign_update length does not match the archive');
-  const name = path.basename(archive); const tag = `macos-v${version}`;
+  const name = path.basename(archive); const tag = `v${version}`;
   const url = `https://github.com/${repository}/releases/download/${tag}/${encodeURIComponent(name)}`;
   const appcast = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
@@ -42,7 +43,7 @@ export async function writeUpdateFeed({ archive, signature, version, build, repo
   const manifest = { schemaVersion: 1, platform: 'macos', version, tag, summary,
     assets: [{ arch: 'universal', name, size, sha256: createHash('sha256').update(bytes).digest('hex') }] };
   await writeFile(path.join(output, 'appcast.xml'), appcast);
-  await writeFile(path.join(output, 'work-fleet-update.json'), JSON.stringify(manifest, null, 2) + '\n');
+  await writeFile(path.join(output, 'work-fleet-update-macos.json'), JSON.stringify(manifest, null, 2) + '\n');
   return { appcast, manifest };
 }
 
@@ -58,6 +59,6 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
     }
     for (const key of ['archive', 'signature', 'version', 'build', 'repository', 'output']) if (!options[key]) throw new Error(`Missing --${key}. Use --help.`);
     await writeUpdateFeed(options);
-    console.log(`Wrote appcast.xml and work-fleet-update.json in ${options.output}`);
+    console.log(`Wrote appcast.xml and work-fleet-update-macos.json in ${options.output}`);
   }
 }

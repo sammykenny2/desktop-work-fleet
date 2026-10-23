@@ -68,14 +68,14 @@ function New-ProbePackage([string]$PackageVersion, [string]$Destination) {
 $First = Join-Path $Work "probe-$Version.msix"; $SecondName = "WorkFleet-$Next-x64.msix"; $Second = Join-Path $Feed $SecondName
 New-ProbePackage $Version $First
 New-ProbePackage $Next $Second
-# The same shapes the updater reads from GitHub: a public Atom feed and the release's work-fleet-update.json.
+# The same shapes the updater reads from GitHub: a public Atom feed and the release's work-fleet-update-windows.json.
 $Size = (Get-Item -LiteralPath $Second).Length; $Sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $Second).Hash.ToLowerInvariant()
-$Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $Next; tag = "windows-v$Next"; summary = 'update probe'
+$Update = [ordered]@{ schemaVersion = 1; platform = 'windows'; version = $Next; tag = "v$Next"; summary = 'update probe'
     assets = @([ordered]@{ arch = 'x64'; name = $SecondName; size = $Size; sha256 = $Sha }) }
-$UpdatePath = Join-Path $Feed 'work-fleet-update.json'
+$UpdatePath = Join-Path $Feed 'work-fleet-update-windows.json'
 [IO.File]::WriteAllText($UpdatePath, ($Update | ConvertTo-Json -Depth 4), [Text.UTF8Encoding]::new($false))
 $ProbeRepository = (Get-Content -LiteralPath (Join-Path $Unpacked 'Config/public.json') -Raw | ConvertFrom-Json).update.repository
-$ReleasePage = "https://github.com/$ProbeRepository/releases/tag/windows-v$Next"
+$ReleasePage = "https://github.com/$ProbeRepository/releases/tag/v$Next"
 $ReleaseAtom = '<feed xmlns="http://www.w3.org/2005/Atom"><entry><link href="' + [Security.SecurityElement]::Escape($ReleasePage) + '" /></entry></feed>'
 [IO.File]::WriteAllText((Join-Path $Feed 'releases.atom'), $ReleaseAtom, [Text.UTF8Encoding]::new($false))
 

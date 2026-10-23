@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { readAppleVersion, readPlatformVersion, versionRecords } from '../scripts/platform-version.mjs';
+import { readAppleVersion, readPlatformVersion, readReleaseVersion, versionRecords } from '../scripts/platform-version.mjs';
 import { prepareAppleBuild } from '../scripts/prepare-apple-build.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -36,6 +36,8 @@ test('each platform reads its own version record', async () => {
     assert.equal(await readPlatformVersion('apple', directory), '7.8.9');
     assert.deepEqual(await readAppleVersion(directory), { version: '7.8.9', build: '42' });
     assert.equal(await readPlatformVersion('android', directory), '3.2.1');
+    // One vX.Y.Z release carries every platform, so it refuses records that differ.
+    await assert.rejects(readReleaseVersion(directory), /linux 1\.2\.3, windows 4\.5\.6, apple 7\.8\.9, android 3\.2\.1/);
     await assert.rejects(readPlatformVersion('ios', directory), /--platform linux\|windows\|apple\|android/);
     await writeFile(path.join(directory, versionRecords.linux), '1.2.3~preview\n');
     await assert.rejects(readPlatformVersion('linux', directory), /numeric x\.y\.z/);
@@ -44,6 +46,24 @@ test('each platform reads its own version record', async () => {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('the release version is the one all four records hold', async () => {
+  const records = {
+    [versionRecords.linux]: '1.2.3\n',
+    [versionRecords.windows]: '<Project><PropertyGroup><Version>1.2.3</Version></PropertyGroup></Project>\n',
+    [versionRecords.apple]: 'MARKETING_VERSION = 1.2.3\nCURRENT_PROJECT_VERSION = 123\n',
+    [versionRecords.android]: 'android {\n    defaultConfig {\n        versionCode = 123\n        versionName = "1.2.3"\n    }\n}\n',
+  };
+  const directory = await checkout(records);
+  try {
+    assert.equal(await readReleaseVersion(directory), '1.2.3');
+    await writeFile(path.join(directory, versionRecords.android), records[versionRecords.android].replace('"1.2.3"', '"1.2.4"'));
+    await assert.rejects(readReleaseVersion(directory), /android 1\.2\.4/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+  assert.match(await readReleaseVersion(), /^\d+\.\d+\.\d+$/);
 });
 
 test('repository records hold numeric versions and the packaging scripts never repeat them', async () => {
@@ -126,8 +146,7 @@ test('Apple Info.plist uses the xcconfig record and rejects local overrides', as
 });
 
 test('workflows and scripts ask platform-version.mjs only for platforms it records', async () => {
-  const callers = ['.github/workflows/ci.yml', '.github/workflows/linux-release.yml', '.github/workflows/macos-release.yml',
-    '.github/workflows/windows-preview.yml', 'scripts/linux/build-android-app.sh', 'scripts/linux/build-native-app.sh',
+  const callers = ['.github/workflows/ci.yml', '.github/workflows/android-apk.yml', 'scripts/linux/build-android-app.sh', 'scripts/linux/build-native-app.sh',
     'scripts/windows/Build-AndroidApp.ps1', 'scripts/windows/Build-LinuxPackage.ps1', 'scripts/windows/Build-WindowsPackage.ps1',
     'scripts/windows/Test-WindowsDisplaySwitch.ps1', 'scripts/windows/Test-WindowsPackage.ps1', 'scripts/windows/Test-WindowsRecovery.ps1',
     'scripts/windows/Test-WindowsUpdate.ps1'];
@@ -136,4 +155,6 @@ test('workflows and scripts ask platform-version.mjs only for platforms it recor
     assert.ok(platforms.length > 0, file);
     for (const platform of platforms) assert.ok(Object.hasOwn(versionRecords, platform), `${file} asks for ${platform}`);
   }
+  // The release takes the one version all four record.
+  assert.match(await readFile(path.join(root, '.github/workflows/preview-release.yml'), 'utf8'), /platform-version\.mjs --release\)/);
 });

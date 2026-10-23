@@ -6,16 +6,18 @@ using System.Xml.Linq;
 namespace WorkFleet.Windows.Core;
 
 public sealed record UpdateRelease(string Repository, string Tag, Version Version, string PageUrl);
-/// <summary>One installer chosen from a release's work-fleet-update.json, downloaded from that same release.</summary>
+/// <summary>One installer chosen from this platform's manifest in a release, downloaded from that same release.</summary>
 public sealed record UpdatePackage(string Version, string Tag, string Summary, string Name, long Size, string Sha256, string Url, string PageUrl);
 
 /// <summary>
 /// ADR-044 feed rules shared with the Linux and macOS hosts (tests/fixtures/update-feed.json): a public GitHub Atom feed,
-/// the per-platform tag `platform-vX.Y.Z`, and the release's work-fleet-update.json. Every refusal is metadata_invalid.
+/// one `vX.Y.Z` release for every platform, and this platform's manifest in it (work-fleet-update-windows.json). Every
+/// refusal is metadata_invalid.
 /// </summary>
 public static partial class UpdateFeed
 {
-  public const string ManifestName = "work-fleet-update.json";
+  /// <summary>Each platform's manifest in the shared release; tests/fixtures/update-feed.json lists them.</summary>
+  public static string ManifestName(string platform) => $"work-fleet-update-{platform}.json";
   public const long MaxPackageBytes = 512L * 1024 * 1024;
   [GeneratedRegex(@"^(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\.(0|[1-9][0-9]{0,8})\z")] private static partial Regex VersionPattern();
   [GeneratedRegex(@"^[0-9a-f]{64}\z")] private static partial Regex DigestPattern();
@@ -29,8 +31,8 @@ public static partial class UpdateFeed
   /// <summary>The message is update-state text the page shows as is, so it comes from HostText in the host language.</summary>
   private static HostError Invalid(string key = "update.invalidMetadata") => new("metadata_invalid", HostText.Get(key));
 
-  /// <summary>The newest release for this platform and channel that is newer than the running version, if any.</summary>
-  public static UpdateRelease? Latest(ReadOnlySpan<byte> releases, string repository, string platform, string channel, Version current)
+  /// <summary>The newest release on this channel that is newer than the running version, if any.</summary>
+  public static UpdateRelease? Latest(ReadOnlySpan<byte> releases, string repository, string channel, Version current)
   {
     // Atom includes published prereleases but has no reliable prerelease flag. Only the approved preview channel is supported.
     if (channel != "preview") throw Invalid("update.invalidChannel");
@@ -44,9 +46,10 @@ public static partial class UpdateFeed
       XNamespace atom = "http://www.w3.org/2005/Atom";
       if (document.Root?.Name != atom + "feed") throw Invalid();
       var pagePrefix = $"https://github.com/{repository}/releases/tag/";
-      var prefix = platform + "-v";
+      // Releases before 0.3.7 had one tag per platform, such as windows-v0.3.6; they never match this prefix.
+      const string prefix = "v";
       var entries = document.Root.Elements(atom + "entry").ToArray();
-      var foundPlatform = false;
+      var found = false;
       foreach (var item in entries)
       {
         foreach (var link in item.Elements(atom + "link"))
@@ -56,12 +59,12 @@ public static partial class UpdateFeed
           if (page is null || !page.StartsWith(pagePrefix, StringComparison.Ordinal)) continue;
           var tag = page[pagePrefix.Length..];
           if (!tag.StartsWith(prefix, StringComparison.Ordinal) || ParseVersion(tag[prefix.Length..]) is not { } version) continue;
-          foundPlatform = true;
+          found = true;
           if (version > current && (best is null || version > best.Version)) best = new(repository, tag, version, page);
         }
       }
-      // A recent-release feed is bounded: do not claim "up to date" when another platform has displaced this one's entries.
-      if (entries.Length > 0 && !foundPlatform) throw Invalid("update.platformMissing");
+      // A feed that lists releases but none of this form must not be read as "up to date".
+      if (entries.Length > 0 && !found) throw Invalid("update.releaseMissing");
     }
     catch (XmlException) { throw Invalid(); }
     return best;
@@ -74,7 +77,7 @@ public static partial class UpdateFeed
     return $"https://github.com/{release.Repository}/releases/download/{release.Tag}/{name}";
   }
 
-  /// <summary>Checks a release's work-fleet-update.json against the release it came from and picks this architecture's installer.</summary>
+  /// <summary>Checks this platform's manifest against the release it came from and picks this architecture's installer.</summary>
   public static UpdatePackage Manifest(ReadOnlySpan<byte> manifest, UpdateRelease release, string platform, string arch)
   {
     try

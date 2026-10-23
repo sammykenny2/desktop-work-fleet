@@ -27,14 +27,16 @@ Each platform records its version in a fixed file in the repository, and every b
 reads only that record (`node scripts/platform-version.mjs --platform linux|windows|apple|android` prints it).
 Any version bump needs the user's explicit approval of the specific version number.
 Since 0.2.0 the five platforms share one version number (the user's decision on 2026-10-14) and are bumped together.
-Release tags still carry a platform prefix (`windows-v`, `linux-v`, `macos-v`) because each platform's in-app updater
-looks only for releases with its own prefix.
-The user may ask to bump and release only some platforms; the other platforms keep their version and are not bumped
-automatically, so the records can differ. Read the version files for the current numbers. The version's entry in
-[release notes](release-notes.md) lists the platforms it covers under `Platforms`.
+Since 0.3.7 one GitHub prerelease tagged `v<version>` carries Windows, macOS, Linux and Android together (the
+maintainer's decision on 2026-10-23), so a release needs all four records to hold the same version
+(`node scripts/platform-version.mjs --release` prints it and fails when they differ), and no platform is released alone.
+The version's entry in [release notes](release-notes.md) lists the platforms under `Platforms`.
+Releases up to 0.3.6 had one tag per platform (`windows-v`, `linux-v`, `macos-v`, `android-v`). Desktop installs of 0.3.6
+or earlier look only for those: they keep reporting that they are up to date, or an error once those releases are deleted
+or leave the feed, and never offer a `v<version>` release. Each needs one manual install of 0.3.7 or later; after that,
+in-app updates find the shared releases.
 The shared Apple configuration raises the iOS record together with macOS, also when iOS is not released.
-Each of Windows, Linux and macOS creates its own release tag. The data schema stays at V1 and does not follow the app
-version.
+The data schema stays at V1 and does not follow the app version.
 Apple `CURRENT_PROJECT_VERSION` and Android `versionCode` are raised with each bump of that platform. The build number is
 minor × 100 + patch while the major version is 0 (0.2.7 is 207, 0.3.0 is 300).
 File names never come from the build machine's architecture, certificates or environment: the same commit produces the
@@ -120,10 +122,10 @@ An old standalone folder is neither moved nor deleted automatically: export with
 into the MSIX; see [ADR-037](decisions/037-msix-data-lifetime-and-google-backup-overwrite.md).
 This path creates no certificate, changes no trust and is not an MSIX installation acceptance.
 
-### Windows preview releases
+### Preview releases
 
-Windows previews are published as GitHub Releases so other computers can download the MSIX directly. Release only when
-the user asks for it; ordinary implementation, commits and pushes do not bump the version or release.
+Previews are published as one GitHub Release per version, so other computers and phones can download the MSIX, DMG, DEB
+and APK directly. Release only when the user asks for it; ordinary implementation, commits and pushes do not bump the version or release.
 The user's rule from 2026-10-09: any version bump needs approval of the specific version number, and a plain request for
 a preview release does not authorize choosing the number; dispatching GitHub Actions also needs explicit authorization,
 and consent already given in the current session is not asked for again.
@@ -148,23 +150,27 @@ applies to all platforms, and also to an agent's documentation and handoff wrap-
 2. Run the appropriate local checks and state their actual results in the bump commit's body, then push main.
    Before dispatching, confirm that the worktree is clean, that the local HEAD equals origin/main and that the version
    is the target the user approved.
-3. Once Actions is authorized: `gh workflow run windows-preview.yml --ref main` (or run Windows preview release from the
+3. Once Actions is authorized: `gh workflow run preview-release.yml --ref main` (or run Preview release from the
    Actions page with main selected).
    Note the run URL and check that the run's source SHA is the version-bump commit; from dispatch on, the repository
    gets no release bookkeeping (see below).
-4. [windows-preview.yml](../.github/workflows/windows-preview.yml) first confirms that neither the `windows-v<version>`
-   tag nor the release exists, reads the version's entry with `scripts/release-notes.mjs` (which fails when the entry is
-   missing or malformed) and runs `npm test`.
-   It then builds and signs the package with the preview certificate on a Windows runner, passing the entry's
-   `Summary` as the in-app update summary. Only after everything has succeeded does it create the tag and the
-   prerelease, whose text is the entry's change bullets followed by the installation steps, with the MSIX, `.sha256`,
-   the public CER and `work-fleet-update.json` attached. A failure leaves no release.
-   The release workflows take no dispatch inputs (there is no `summary` input): the release text and the update summary
-   come only from the entry.
-   Release text is English on every platform: the release-notes entry is written in English, and the installation
-   steps that `windows-preview.yml`, `linux-release.yml` and `macos-release.yml` append are English text in the
-   workflows. Where an in-app update prompt shows the entry's `Summary`, it stays English whatever the app's display
-   language.
+4. [preview-release.yml](../.github/workflows/preview-release.yml) first confirms that it runs on main, that the four
+   version records agree, that neither the `v<version>` tag nor the release exists, reads the version's entry with
+   `scripts/release-notes.mjs` (which fails when the entry is missing or malformed) and runs `npm test`.
+   It then builds the four platforms side by side through `windows-package.yml`, `macos-package.yml`,
+   `linux-package.yml` and `android-apk.yml`, passing the entry's `Summary` as the in-app update summary. Each saves
+   its share of the release as an artifact. The publish job checks all of them with
+   `scripts/validate-release-assets.mjs`: exactly the expected files, each `.sha256` and each desktop manifest matching
+   its files, and the appcast pointing at the macOS ZIP in this release. Only then does it create the tag and the
+   prerelease in one step, whose text is the entry's change bullets followed by each platform's installation steps.
+   The release carries the MSIX, the public CER and `work-fleet-update-windows.json`; the DMG, the Sparkle ZIP,
+   `appcast.xml` and `work-fleet-update-macos.json`; the DEB and `work-fleet-update-linux.json`; the APK; and a
+   `.sha256` for each installer. A failure leaves no release.
+   The workflow takes no dispatch inputs (there is no `summary` input): the release text and the update summary come
+   only from the entry.
+   Release text is English: the release-notes entry is written in English, and the installation steps that
+   `preview-release.yml` appends are English text in the workflow. Where an in-app update prompt shows the entry's
+   `Summary`, it stays English whatever the app's display language.
 5. Wait for the result, download the output into a Git-ignored directory and verify it, then report in the conversation
    the run and release URLs, the source commit, the verification results and any needed file sizes and hashes.
    The final SHA, the run URL and the success or failure of the release, which are known only afterwards, are recorded by
@@ -174,11 +180,13 @@ After dispatch, no commit may be made to update `PROGRESS.md`, handoffs, documen
 ordinary documentation sync and standing commit/push authorization are not exceptions, and such commits are not
 offered either. They add nothing and make everyone pushing at the same time merge and re-run CI.
 Fixes are different: when a run fails because of a defect in code, scripts or workflows, fix it in an ordinary commit
-with the usual checks, then dispatch the failed platform again under the same authorization; a transient outside
-failure, such as a dropped connection to Apple's notary or ticket service, is simply re-run. A platform publishes
-nothing until its workflow succeeds. Re-dispatching builds the latest main, so first confirm that main holds no
-unrelated commits since the version bump, or ask the maintainer. A platform that already published needs a new
-version for a fix.
+with the usual checks, then dispatch `preview-release.yml` again under the same authorization; a transient outside
+failure, such as a dropped connection to Apple's notary or ticket service, is re-run with "Re-run failed jobs", which
+keeps the platforms already built. Nothing is published until every platform succeeds. Re-dispatching builds the
+latest main, so first confirm that main holds no unrelated commits since the version bump, or ask the maintainer. A
+version that already published needs a new version for a fix.
+Old releases are removed only by the maintainer; with one release per version that is one
+`gh release delete v<version> --cleanup-tag` each.
 This boundary does not depend on whether the workflows can currently only be dispatched manually, and a CI-skip
 directive in a commit message does not replace it.
 
@@ -203,19 +211,18 @@ On each computer, the CER must first be imported into LocalMachine/TrustedPeople
 with a higher version installs directly as an upgrade, and the same version must be uninstalled first.
 Since the repository is public, the release page can be downloaded without signing in.
 
-In-app updates (ADR-044): `Build-WindowsPackage.ps1` writes `build/work-fleet-update.json` next to the MSIX (version,
-tag, x64 installer name, size and SHA-256; `-UpdateSummary` adds a summary of at most 500 characters, which
-`windows-preview.yml` takes from the release-notes entry). `Test-WindowsPackage.ps1` checks that it matches the MSIX,
-and `windows-preview.yml` attaches it to the release together with the MSIX.
-An installed MSIX checks the `windows-v<version>` releases from Settings > Desktop > Version and updates or from the tray
-item "Check for updates…"; it downloads and verifies the package, saves drafts and closes, and then Windows installs it.
-An app that had been running for at least 60 seconds is reopened after the installation. An old release without
-`work-fleet-update.json` is never chosen as an update.
+In-app updates (ADR-044): `Build-WindowsPackage.ps1` writes `build/work-fleet-update-windows.json` next to the MSIX
+(version, the `v<version>` tag, x64 installer name, size and SHA-256; `-UpdateSummary` adds a summary of at most 500
+characters, which `preview-release.yml` takes from the release-notes entry). `Test-WindowsPackage.ps1` checks that it
+matches the MSIX, and the release carries it together with the MSIX.
+An installed MSIX checks the `v<version>` releases from Settings > Desktop > Version and updates or from the tray item
+"Check for updates…"; it downloads and verifies the package, saves drafts and closes, and then Windows installs it.
+An app that had been running for at least 60 seconds is reopened after the installation.
 
-Linux previews: the manual `linux-release.yml` creates the `linux-v<version>` prerelease from `src/native/linux/VERSION`
-and attaches the DEB, its `.sha256` and `work-fleet-update.json` (written by `package-deb.sh`; `--update-summary` adds
-the summary, which the workflow takes from the release-notes entry, as it does the release text). Bumping and dispatch
-need the user's authorization in the same way; the repository settings it needs are the variables
+Linux previews: `linux-package.yml` builds the DEB from `src/native/linux/VERSION` with its `.sha256` and
+`work-fleet-update-linux.json` (written by `package-deb.sh`; `--update-summary` adds the summary, which the release
+takes from the release-notes entry, as it does the release text). Bumping and dispatch need the user's authorization
+in the same way; the repository settings it needs are the variables
 `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` and the secret
 `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET`.
 `WORK_FLEET_GOOGLE_LINUX_CLIENT_ID` and `WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET` were set from the local `.env` with `gh`
@@ -229,10 +236,10 @@ Only the preview channel is supported; the limits of the Atom feed's recent-entr
 in [ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md).
 
 macOS previews and updates (Sparkle):
-1. The manual `macos-release.yml` publishes a DMG and a Sparkle update ZIP that are Developer ID signed, notarized and
-   stapled; it produces no PKG and needs no Installer certificate. The version, tag and GitHub prerelease rules are the
-   same, the release text and the update summary come from the release-notes entry, and dispatch still needs the user's
-   explicit authorization.
+1. `macos-package.yml` builds a DMG and a Sparkle update ZIP that are Developer ID signed, notarized and stapled,
+   with `appcast.xml` and `work-fleet-update-macos.json`; it produces no PKG and needs no Installer certificate. They go
+   into the same `v<version>` release, the update summary comes from the release-notes entry, and dispatch still needs
+   the user's explicit authorization.
 2. Prepare a Developer ID Application `.p12` (with the private key and the Apple intermediate), its export password, and a
    **Developer ID distribution profile** that matches the App ID, the Team, that certificate and the Keychain access
    group. Create it under Apple Developer > Profiles > + > Developer ID;
@@ -297,7 +304,7 @@ Sparkle EdDSA. `stapler` calls reach Apple's ticket service, whose connection fr
 ("The network connection was lost", error 68; four runs in a row on 2026-10-17), so each staple and validate is retried
 up to six times with pauses growing from one minute (`WORK_FLEET_STAPLER_PAUSE` sets the first pause in seconds);
 only when everything succeeds are `WorkFleet-<version>-macos-universal.dmg`/`.zip`, their `.sha256` files,
-`appcast.xml` and `work-fleet-update.json` delivered to `build/`.
+`appcast.xml` and `work-fleet-update-macos.json` delivered to `build/`.
 Ordinary local packaging still produces a PKG by default; only `--no-pkg` skips it. Notarizing a PKG still needs
 `--installer-identity`.
 When using a notary keychain other than the default, set `WORK_FLEET_SIGNING_KEYCHAIN`.
@@ -318,15 +325,14 @@ accounts are configured by the maintainer.
 #### Android on GitHub
 
 In GitHub Actions, choose **Android device APK** (`android-apk.yml`), select main and press Run workflow. It is manual
-only and needs the user's authorization to run; it changes no version and sends nothing to Google Play. After a
-successful run, download the APK, its SHA-256 and the source-commit record from Artifacts, kept for fourteen days.
-Artifact names carry the version, run ID and attempt so different builds of the same version cannot be confused.
+only and needs the user's authorization to run; it changes no version, publishes no release and sends nothing to Google
+Play. After a successful run, download the APK, its SHA-256 and the source-commit record from Artifacts, kept for
+fourteen days. Artifact names carry the version, run ID and attempt so different builds of the same version cannot be
+confused.
 
-With the **release** input checked, the run also publishes a GitHub prerelease tagged `android-v<versionName>`
-([ADR-055](decisions/055-mobile-device-build-workflows.md)). The version-bump commit must already carry the version's
-`docs/release-notes.md` entry, which becomes the release text. The run refuses an existing tag or release and publishes
-only after building, signing and verification succeed. The same release authorization and no-bookkeeping rules as for
-the desktop previews apply; a fix for a failed run is an ordinary commit.
+Releases publish the APK through [preview releases](#preview-releases): `preview-release.yml` calls `android-apk.yml`
+with the release commit, and the verified APK goes into the `v<version>` release with the other platforms
+([ADR-055](decisions/055-mobile-device-build-workflows.md)).
 
 Repository Variables: `WORK_FLEET_APP_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`,
 `WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and `WORK_FLEET_ANDROID_DEBUG_SHA1` (the signing SHA-1, colon-separated).

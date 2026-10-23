@@ -90,7 +90,7 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 - Implemented: AppKit + WKWebView host, three layers, adjust overlay, Carbon global shortcuts, menu bar, window placement,
   SMAppService login item, Sparkle updates, Quick Look attachment thumbnails, and Developer ID signing and notarization
-  in `macos-release.yml`.
+  in `macos-package.yml`.
 - Verified by the user on a Mac: dragging papers; shortcuts with the main window focused, another app focused
   and the main window minimized (physical keyboard); no wallpaper tint; adjust mode (this group, all, toolbar, exit); topmost
   papers above a maximized window; Google sign-in and sync. Login-item registration passed with the real SMAppService in a probe.
@@ -133,11 +133,13 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 - `ci.yml` runs on every push to main and every pull request: JS and Python tests and build, Linux Docker desktop-layer and host
   checks, and the Windows build, core probe and unsigned package check. Browser probes and the WebView2 UI probe run only locally.
-- `windows-preview.yml`, `linux-release.yml` and `macos-release.yml` run only on manual dispatch and refuse an existing tag;
-  `apple-native-build.yml` is an unsigned macOS compile check. Platforms share one version number by default; the exceptions and
-  version files are in [deployment](docs/deployment.md).
-- `android-apk.yml` builds a test-signed APK from the fixed signing Secret; its optional publication procedure is in
-  [deployment](docs/deployment.md). iOS builds, signing and installation stay local; no GitHub workflow builds or uploads
+- `preview-release.yml` runs only on manual dispatch, refuses an existing tag and publishes one `v<version>` prerelease with
+  Windows, macOS, Linux and Android, built by `windows-package.yml`, `macos-package.yml`, `linux-package.yml` and
+  `android-apk.yml`; it needs the four version records to agree. Desktop installs of 0.3.6 or earlier need one manual install
+  to reach these releases. `apple-native-build.yml` is an unsigned macOS compile check. Version files are in
+  [deployment](docs/deployment.md).
+- `android-apk.yml` also builds a test-signed device APK on its own, from the fixed signing Secret, and publishes nothing then.
+  iOS builds, signing and installation stay local; no GitHub workflow builds or uploads
   iOS packages because embedded provisioning profiles disclose registered device identifiers
   ([ADR-057](docs/decisions/057-local-ios-builds-and-device-privacy.md)).
 - Store listings and privacy text are drafted in [docs/release](docs/release/README.md). Developer accounts, a Partner Center
@@ -150,7 +152,7 @@ Pending decisions:
 - Paper shape: keep squares or move to portrait, after the user reviews the measured line counts.
 - Whether to keep the ADR-049 software rendering (about 130 MB more per 4K display) now that the .NET 10 WPF fix is in.
 - Whether to re-enable the ADR-045 one-time reopen after a sign-in crash, turn on LocalDumps or update the GPU driver (the user decides).
-- A release channel beyond preview and a long-term per-platform update index
+- A release channel beyond preview and a long-term update index beyond the ten-entry Atom feed
   ([ADR-044](docs/decisions/044-desktop-in-app-updates-from-github-releases.md)); moving the OAuth consent screen out of Testing.
 - The unanswered questions in [SPEC-006](docs/specs/006-desktop-window-startup-and-updates.md).
 

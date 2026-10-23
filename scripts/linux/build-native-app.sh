@@ -1,7 +1,7 @@
 #!/bin/bash
 # Package native Linux sources/assets, optionally create a Debian package.
 # DEB output: build/work-fleet_VERSION_all.deb, with VERSION from src/native/linux/VERSION.
-# --update-summary TEXT goes into the DEB's work-fleet-update.json for the in-app updater (ADR-044).
+# --update-summary TEXT goes into the DEB's work-fleet-update-linux.json for the in-app updater (ADR-044).
 # Usage: scripts/linux/build-native-app.sh [--release] [--deb] [--update-summary TEXT] [--help]
 set -euo pipefail
 usage() { echo 'Usage: scripts/linux/build-native-app.sh [--release] [--deb] [--update-summary TEXT] [--help]'; }

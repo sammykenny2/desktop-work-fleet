@@ -2,7 +2,7 @@ import AppKit
 import Security
 import Sparkle
 
-/// ADR-044 on macOS. Work Fleet picks the newest `macos-vX.Y.Z` release with the same rules as Windows and Linux, then
+/// ADR-044 on macOS. Work Fleet picks the newest `vX.Y.Z` release with the same rules as Windows and Linux, then
 /// hands that release's appcast.xml to Sparkle, whose standard dialogs download, verify (EdDSA and Apple code signing),
 /// install and relaunch. Installing quits through applicationShouldTerminate, which saves drafts first.
 @MainActor final class FleetUpdates: NSObject, SPUUpdaterDelegate {

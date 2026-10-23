@@ -7,6 +7,6 @@ WORK_FLEET_MACOS_SIGNING_STYLE = Automatic
 WORK_FLEET_MACOS_SIGNING_IDENTITY = Apple Development
 WORK_FLEET_MACOS_PROFILE =
 // Apple release version; packages are named from it. Local.xcconfig must not override these.
-MARKETING_VERSION = 0.3.7
-CURRENT_PROJECT_VERSION = 307
+MARKETING_VERSION = 0.3.8
+CURRENT_PROJECT_VERSION = 308
 #include? "Local.xcconfig"

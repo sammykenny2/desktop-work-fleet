@@ -9,6 +9,23 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.8
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Desktop notes tick checklist steps and show their attachment thumbnails, groups can make Top-layer notes see-through, search puts title matches first, and data that can't be opened explains itself.
+
+- On desktop notes that take clicks (the Desktop and Top layers), clicking a checklist box ticks or unticks that step. It saves and syncs like any edit, without selecting, moving or opening the note. Wallpaper-layer notes still let clicks through, and a note with a kept draft waits until the draft is saved or dropped.
+- Desktop notes now show their attachment thumbnails and open an attachment on a double-click in the desktop apps, which refused both before.
+- "Opacity on the Top layer" in Group settings (30% to 100%) makes a group's notes see-through while they rest on the Top layer, so they don't hide the work beneath them. Text, checkboxes and thumbnails stay solid; it is kept on this device only.
+- Search lists notes whose title, or first line, matches first, then notes matching in their first five lines, then the rest.
+- Files pasted or dragged into the editor, such as a screenshot, become attachments; a pasted picture without a name of its own is named "Pasted image" with the date and time.
+- When Quick capture brought the main window out of the tray or menu bar, saving the note or pressing Esc puts it back there.
+- With the main window in the tray, sync keeps its 20-second pace instead of slowing to once a minute, and showing the window syncs at once.
+- When the notes on this device can't be opened, the desktop apps say why (damaged, disk full, in use, not permitted or can't be decrypted), show the data folder and, for damaged or undecryptable data, offer "Set aside and start again" after a confirmation. The database moves into a dated set-aside folder and nothing is deleted; a Google workspace gets its notes back from Drive after signing in again.
+- Linux: on sway, wayfire and other Wayland desktops without a global shortcuts portal, compositor keybindings can run Work Fleet's named actions with `gapplication action`; the user guide has examples.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.7
 
 Platforms: Windows, Linux, macOS, Android.

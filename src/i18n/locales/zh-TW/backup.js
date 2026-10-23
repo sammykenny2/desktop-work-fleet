@@ -112,7 +112,7 @@ export default {
   'backup.receipt.localReplace.other': '最近一次清空本機後還原新增了 {count} 份草稿。',
 
   'backup.automatic.title': '自動備份',
-  'backup.automatic.unsupported': '這裡不支援自動備份，請改用上方的「匯出備份」。',
+  'backup.automatic.unsupported': '這裡不支援自動備份，請改用下方的「匯出備份」。',
   'backup.automatic.hint': '有變更時每天備份一次。',
   'backup.automatic.location': '位置',
   'backup.automatic.noFolder': '尚未選擇',

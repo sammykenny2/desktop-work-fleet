@@ -490,7 +490,8 @@ multi-step draft operations, the slow-write prompt when leaving the page, the na
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
 Keep this wait if the probe is edited.
-The group probe verifies group preview, cancel and merge, archived data and draft integrity, the browser's Reset desktop
+The group probe verifies that the gear opens Settings on General and the account chip on Account and sync with the
+account card selected (at 390 px the gear shows the list of pages with the card on top), group preview, cancel and merge, archived data and draft integrity, the browser's Reset desktop
 layout hint naming no main window, region swaps not moving cards,
 the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, the
 toast naming the keys that changed group,
@@ -768,7 +769,7 @@ and that `/json/list` has the main document, and it reads DOM state through a re
 `Test-WindowsNative.ps1` requires the same scan to hit the Debug `WorkFleet.dll`, so the check cannot silently stop working; the script also clears any port variable the shell already set.
 
 Next it runs `--host-shell OUTPUT_DIRECTORY` ([ADR-043](decisions/043-desktop-window-placement-and-startup-behavior.md)):
-the main window briefly appears on the primary display without taking focus. It checks the version and the "Startup" section in Settings > Desktop (Debug has no StartupTask, so the start-at-sign-in option is disabled with the reason shown),
+the main window briefly appears on the primary display without taking focus. It checks that the gear opens Settings > General with the version and the "Startup" section (Debug has no StartupTask, so the start-at-sign-in option is disabled with the reason shown),
 that "Keep running in the tray when the main window closes" is written to `host-preferences.json`, `window-placement.json` after move, maximize, minimize and restore,
 that Reset desktop layout, with its hint and confirmation naming the main window, also returns it to the default size, centred, that reopening returns to the saved position, that the default is used when the display of the saved position no longer exists, and that a second launch wakes the existing instance through the per-user,
 per-data-directory pipe. The core probe verifies the placement rules shared with Linux and macOS using `tests/fixtures/window-placement.json`.

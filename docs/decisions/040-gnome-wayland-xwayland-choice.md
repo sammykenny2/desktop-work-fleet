@@ -26,7 +26,8 @@ live only in the web page.
   a native dialog asks once, before any data is opened. Choosing to switch to XWayland saves the choice and restarts
   right away; choosing to keep the current mode saves it and the question is not asked again; closing the dialog keeps
   the current mode for this run and asks again next time.
-- On GNOME Wayland, the Desktop page of Settings shows a "Show desktop notes through XWayland" switch; after a change, a
+- On GNOME Wayland, the Desktop page of Settings (Desktop notes since 2026-10-24, below Group regions;
+  [ADR-059](059-settings-pages-and-entry-points.md)) shows a "Show desktop notes through XWayland" switch; after a change, a
   "Restart now" button appears. The restart uses the normal close flow to save drafts and close the data, waits until
   the data lock is released, then `execve`s the same host, adding or removing the `GDK_BACKEND` the app set itself
   according to the new choice. If the data lock is still held, it does not restart and asks the user to open the app

@@ -45,7 +45,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 |---|---|
 | U01 | Remember the main window's position and size, following the behaviour of the existing desktop project |
 | U02 | The tray and the settings page offer "Check for updates" |
-| U03 | Settings > Desktop offers "Startup behaviour", following the options of the existing desktop project |
+| U03 | Settings > General (Settings > Desktop until 2026-10-24, [ADR-059](../decisions/059-settings-pages-and-entry-points.md)) offers "Startup behaviour", following the options of the existing desktop project |
 | U04 | The maintainer will make the repo public; updates come from this repo's GitHub Releases |
 | U05 | Windows, macOS and Linux all get in-app upgrades; Windows uses MSIX, not NSIS |
 | U06 | "Start Work Fleet at sign-in" is on by default |
@@ -63,14 +63,14 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | WP-F04 | Maximizing is applied only when the window is first shown; a hidden sign-in start must not show the main window because of it |
 | WP-F05 | Default 1180×800 centred on the primary work area, shrunk to fit a smaller work area; minimum 380×520 |
 | WP-F06 | Windows saves and applies the window placement in physical pixels; macOS in points; Linux X11 saves the position, and Wayland only the size and the maximized state |
-| WP-F07 | "Reset desktop layout" in Settings > Desktop, once confirmed, also deletes the saved file and applies the default at once (until 2026-10-23 a separate "Reset main window size and position" that left desktop scenes and cards alone) |
+| WP-F07 | "Reset desktop layout" in Settings > Desktop notes, once confirmed, also deletes the saved file and applies the default at once (until 2026-10-23 a separate "Reset main window size and position" that left desktop scenes and cards alone) |
 | WP-F08 | A corrupt file, an unknown version or a failed write does not block start or close; it is only logged and the default is used |
 
 ### Startup behaviour (SB)
 
 | ID | Requirement |
 |---|---|
-| SB-F01 | Settings > Desktop adds "Startup behaviour": "Start Work Fleet at sign-in" (on by default), "Keep running in the tray when the main window closes" (on by default), "Open the main window after a sign-in start" (off by default) |
+| SB-F01 | Settings > General adds "Startup behaviour": "Start Work Fleet at sign-in" (on by default), "Keep running in the tray when the main window closes" (on by default), "Open the main window after a sign-in start" (off by default) |
 | SB-F02 | The preferences live in the host-level `host-preferences.json`, written atomically; the renderer reads and writes them through host methods, which return the effective state |
 | SB-F03 | Windows MSIX registers through StartupTask; on `DisabledByUser`/`DisabledByPolicy` it does not override, shows the system state and can open the Windows Startup apps settings |
 | SB-F04 | Windows ZIP and Debug builds offer no sign-in start; the option is disabled with the reason; no Run key is written |
@@ -97,7 +97,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 
 | ID | Requirement |
 |---|---|
-| UP-F01 | `host.info` adds the app version and the distribution form; "App updates" in Settings > Desktop always shows the version and the channel |
+| UP-F01 | `host.info` adds the app version and the distribution form; "Version and updates", first on Settings > General, always shows the version and the channel |
 | UP-F02 | Only installs with a valid update source embedded in `Config/public.json` and an install form that can upgrade in place have update capability: Windows MSIX, the Developer ID notarized macOS app, and Linux installed from a DEB |
 | UP-F03 | The native host owns the update state machine and the mapping of the single main button: "Check for updates", "Download update", "Restart and install"; repeated requests join the work in progress |
 | UP-F04 | When capable, the tray shows "Check for updates…", handled natively; a click checks again and answers with a native dialog, from which the app can update and restart directly |

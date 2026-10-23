@@ -123,8 +123,8 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
 
 ## Account and data operations
 
-- Account settings are in Settings → Account and sync; clicking the account area at the bottom left of the sidebar opens
-  that page directly. It shows the current account, the "Sync" row, and the "Google account" row with "Sign in",
+- Account settings are in Settings → Account and sync; clicking the account area at the bottom left of the sidebar, or the
+  account card at the top of the Settings pages, opens that page directly. It shows the current account, the "Sync" row, and the "Google account" row with "Sign in",
   "Switch account" and "Sign out".
 - Press "Sign in" in the "Google account" row; after granting identity and app data access, that Google account's own
   workspace opens.

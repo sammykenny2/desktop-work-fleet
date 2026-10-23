@@ -49,8 +49,9 @@ try {
     await expect(page.locator('dialog[open]')).toHaveCount(0); await expect(page.locator('#status')).toHaveText(t('app.status.groupSaved'));
   }
   assert.deepEqual((await read()).revisions, state.revisions, 'an unchanged group name must not record a revision');
-  // Settings apply as soon as they are valid; there is no save button.
-  await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
+  // Settings apply as soon as they are valid; there is no save button. The gear opens General.
+  await page.locator('#settings-button').click(); await expect(page.locator('#settings-page-title')).toHaveText(t('settings.general.title'));
+  await expect(page.locator('[data-page="general"]')).toHaveAttribute('aria-current', 'page'); await page.locator('[data-page="desktop"]').click();
   // The browser has no main window of its own, so Reset desktop layout names only the layout.
   await expect(page.locator('#reset-layout-hint')).toHaveText(t('settings.desktop.resetLayout.hint'));
   await page.getByRole('combobox', { name: t('settings.desktop.regionGroup', { number: 1 }), exact: true }).selectOption(b.id);
@@ -71,6 +72,12 @@ try {
   await page.locator('[data-page="desktop"]').click(); await page.locator('#my-group').selectOption(b.id);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await expect.poll(async () => (await read()).layout.myGroupId).toBe(b.id);
+  // The account chip opens Account and sync, with the card above the pages; the gear still opens General afterwards.
+  await page.locator('#account-button').click(); await expect(page.locator('#settings-page-title')).toHaveText(t('settings.account.title'));
+  await expect(page.locator('.nav-account')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('#settings-account-name')).toHaveText(t('sync.account.localNotes'));
+  await page.locator('#close-settings').click(); await page.locator('#settings-button').click();
+  await expect(page.locator('#settings-page-title')).toHaveText(t('settings.general.title')); await page.locator('#close-settings').click();
   // My group carries a star in the sidebar, and only My group does.
   await expect(page.locator('#groups .group-star')).toHaveCount(1);
   await expect(page.locator(`#groups .group-row[data-group-id="${b.id}"] .group-star`)).toHaveAttribute('aria-label', t('app.groups.myGroupMark'));
@@ -213,10 +220,16 @@ try {
   await expect(undoDelete).toHaveText(t('app.status.undoDelete')); await expect(undoDelete).toBeInViewport();
   // A double click runs the Undo once, so the second click cannot report the restored note as changed.
   await undoDelete.dblclick(); await expect(page.locator('#status')).toHaveText(t('app.status.restored'));
-  await expect(undoDelete).toBeHidden(); await page.setViewportSize({ width: 1440, height: 1050 });
+  await expect(undoDelete).toBeHidden();
+  // At phone width the gear opens the list of pages, with the account card on top.
+  await page.locator('#drawer-toggle').click(); await page.locator('#settings-button').click();
+  await expect(page.locator('#settings-dialog')).toHaveClass(/listing/); await expect(page.locator('.nav-account')).toBeInViewport();
+  await page.locator('.nav-account').click(); await expect(page.locator('#settings-page-title')).toHaveText(t('settings.account.title'));
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
+  await page.setViewportSize({ width: 1440, height: 1050 });
   await expect(survivor).toHaveCount(1);
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
+  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

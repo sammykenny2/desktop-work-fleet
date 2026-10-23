@@ -26,7 +26,7 @@
       <span class="adjust-scopes"><button id="operate-group" type="button" data-i18n="app.toolbar.thisGroup" data-i18n-attr="aria-label:app.toolbar.adjustGroup;title:app.toolbar.adjustGroup"></button><button id="operate-all" type="button" data-i18n="app.toolbar.all" data-i18n-attr="aria-label:app.toolbar.adjustAll;title:app.toolbar.adjustAll"></button></span>
     </div>
     <div id="account" class="account" data-sync="off">
-      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span><img alt="" hidden></span><span class="account-text"><span id="account-name"></span><span id="sync-status"></span></span></button>
+      <button id="account-button" aria-controls="settings-dialog"><span id="account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="account-initial" hidden></span><img alt="" hidden></span><span class="account-text"><span id="account-name"></span><span id="sync-status" class="sync-text"></span></span></button>
       <button id="settings-button" class="icon-button" data-i18n-attr="aria-label:settings.title;title:app.sidebar.settingsTitle"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.6" stroke-width="2.6" stroke-dasharray="3.2 3.555"/><circle cx="12" cy="12" r="6.4"/><circle cx="12" cy="12" r="2.4"/></svg></button>
     </div>
   </aside>
@@ -106,13 +106,16 @@
     <div class="settings-shell">
       <nav class="settings-nav" data-i18n-attr="aria-label:settings.nav.label">
         <div class="nav-head"><h2 id="settings-title" data-i18n="settings.title"></h2><button type="button" id="close-settings-list" class="icon-button" data-i18n-attr="aria-label:settings.nav.close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
+        <!-- The account card opens Account and sync, as the sidebar chip does; the gear opens General. -->
+        <button type="button" data-page="account" class="nav-account"><span id="settings-account-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="settings-account-initial" hidden></span><img alt="" hidden></span><span class="account-text"><span id="settings-account-name" class="account-name"></span><span id="settings-account-status" class="sync-text"></span></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <div class="nav-list">
         <button type="button" data-page="general"><span class="tile tile-general"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.4 2.4 3.6 5.2 3.6 8.5s-1.2 6.1-3.6 8.5c-2.4-2.4-3.6-5.2-3.6-8.5s1.2-6.1 3.6-8.5z"/></svg></span><span class="nav-label" data-i18n="settings.general.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" data-page="account"><span class="tile tile-account"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 19.5c1.2-3.6 4-5.3 7-5.3s5.8 1.7 7 5.3"/></svg></span><span class="nav-label" data-i18n="settings.account.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" data-page="data"><span class="tile tile-data"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="5" rx="1.2"/><path d="M5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4"/></svg></span><span class="nav-label" data-i18n="settings.data.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        <button type="button" data-page="revisions"><span class="tile tile-revisions"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 13.2A7.5 7.5 0 1 0 6.7 6.7L4.5 8.9"/><path d="M4.5 4.7v4.2h4.2"/><path d="M12 8.2v4.1l2.8 1.7"/></svg></span><span class="nav-label" data-i18n="settings.revisions.title"></span><span id="settings-conflict-count" class="nav-count" hidden></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <button type="button" data-page="desktop" data-arrange><span class="tile tile-desktop"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="11.5" rx="1.5"/><path d="M9 19.5h6M12 16v3.5"/></svg></span><span class="nav-label" data-i18n="settings.desktop.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         <button type="button" data-page="shortcuts" data-arrange><span class="tile tile-shortcuts"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10.5 10h.01M14 10h.01M17 10h.01M7.5 14h9"/></svg></span><span class="nav-label" data-i18n="settings.shortcuts.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        </div>
+        <div class="nav-list">
+        <button type="button" data-page="data"><span class="tile tile-data"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4.5" width="16" height="5" rx="1.2"/><path d="M5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4"/></svg></span><span class="nav-label" data-i18n="settings.data.title"></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
+        <button type="button" data-page="revisions"><span class="tile tile-revisions"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4.6 13.2A7.5 7.5 0 1 0 6.7 6.7L4.5 8.9"/><path d="M4.5 4.7v4.2h4.2"/><path d="M12 8.2v4.1l2.8 1.7"/></svg></span><span class="nav-label" data-i18n="settings.revisions.title"></span><span id="settings-conflict-count" class="nav-count" hidden></span><svg class="icon chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
         </div>
       </nav>
       <div class="settings-main">
@@ -122,13 +125,27 @@
           <button type="button" id="close-settings" class="icon-button" data-i18n-attr="aria-label:settings.nav.close"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
         </header>
         <div class="settings-body">
-          <section class="settings-page" data-panel="general" hidden>
+          <section class="settings-page" data-panel="general">
+            <div id="host-settings" hidden>
+              <h4 class="settings-heading" data-i18n="settings.update.heading"></h4>
+              <div class="settings-list">
+                <div class="settings-row"><span class="row-text"><span class="row-label" id="app-version"></span><span class="row-value" id="app-distribution"></span></span></div>
+                <div class="settings-row" id="update-row"><span class="row-text"><span class="row-label" id="update-status"></span><span class="row-value" id="update-detail"></span></span><button type="button" id="update-action" hidden></button></div>
+              </div>
+              <h4 class="settings-heading" data-i18n="settings.desktop.startup"></h4>
+              <div class="settings-list">
+                <div class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.startLogin.label"></span><span class="row-value" id="start-login-detail"></span></span><span class="row-actions"><button type="button" id="start-login-system" hidden data-i18n="settings.desktop.startLogin.openSystem"></button><input id="start-login" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.startLogin.label"></span></div>
+                <label class="settings-row"><span class="row-text"><span class="row-label" id="close-tray-label"></span><span class="row-value" id="close-tray-detail"></span></span><input id="close-tray" class="switch" type="checkbox"></label>
+                <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.openMain"></span><span class="row-value" id="open-main-detail" data-i18n="settings.desktop.openMainHint"></span></span><input id="open-main" class="switch" type="checkbox"></label>
+              </div>
+            </div>
+            <h4 class="settings-heading" data-i18n="settings.general.languageHeading"></h4>
             <div class="settings-list">
               <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.general.language"></span><span class="row-value" data-i18n="settings.general.languageHint"></span></span><select id="language" data-i18n-attr="aria-label:settings.general.language"></select></label>
             </div>
             <p id="language-message" class="settings-note error" role="status" hidden></p>
           </section>
-          <section class="settings-page" data-panel="account">
+          <section class="settings-page" data-panel="account" hidden>
             <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span><img alt="" hidden></span><div><strong id="identity-name"></strong><p id="storage-note"></p></div></div>
             <div class="settings-list">
               <div class="settings-row" id="sync-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.row.label"></span><span class="row-value" id="sync-detail"></span></span><button type="button" id="google-sync"></button></div>
@@ -142,7 +159,6 @@
           <section class="settings-page" data-panel="desktop" hidden>
             <p class="settings-note warn" id="desktop-note" hidden></p>
             <div class="settings-list">
-              <div class="settings-row" id="display-row" hidden><span class="row-text"><span class="row-label" data-i18n="settings.desktop.display.label"></span><span class="row-value" id="display-detail"></span></span><span class="row-actions"><button type="button" id="display-restart" hidden data-i18n="settings.desktop.display.restart"></button><input id="display-xwayland" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.display.label"></span></div>
               <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.visible"></span><span class="row-value" data-i18n="settings.desktop.visibleHint"></span></span><input id="desktop-visible" class="switch" type="checkbox"></label>
               <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.completed"></span><span class="row-value" data-i18n="settings.desktop.completedHint"></span></span><input id="desktop-completed" class="switch" type="checkbox"></label>
               <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.myGroup"></span><span class="row-value" data-i18n="settings.desktop.myGroupHint"></span></span><select id="my-group"></select></label>
@@ -152,18 +168,8 @@
             <div class="grid-size"><label><span data-i18n="settings.desktop.rows"></span><select id="grid-rows" data-i18n-attr="aria-label:settings.desktop.rowCount"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label><span data-i18n="settings.desktop.columns"></span><select id="grid-columns" data-i18n-attr="aria-label:settings.desktop.columnCount"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
             <div id="grid-preview" data-i18n-attr="aria-label:settings.desktop.regionLayout"></div>
             <p id="grid-message" class="settings-note error" role="status" hidden></p>
-            <div id="host-settings" hidden>
-              <h4 class="settings-heading" data-i18n="settings.desktop.startup"></h4>
-              <div class="settings-list">
-                <div class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.startLogin.label"></span><span class="row-value" id="start-login-detail"></span></span><span class="row-actions"><button type="button" id="start-login-system" hidden data-i18n="settings.desktop.startLogin.openSystem"></button><input id="start-login" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.startLogin.label"></span></div>
-                <label class="settings-row"><span class="row-text"><span class="row-label" id="close-tray-label"></span><span class="row-value" id="close-tray-detail"></span></span><input id="close-tray" class="switch" type="checkbox"></label>
-                <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.openMain"></span><span class="row-value" id="open-main-detail" data-i18n="settings.desktop.openMainHint"></span></span><input id="open-main" class="switch" type="checkbox"></label>
-              </div>
-              <h4 class="settings-heading" data-i18n="settings.update.heading"></h4>
-              <div class="settings-list">
-                <div class="settings-row"><span class="row-text"><span class="row-label" id="app-version"></span><span class="row-value" id="app-distribution"></span></span></div>
-                <div class="settings-row" id="update-row"><span class="row-text"><span class="row-label" id="update-status"></span><span class="row-value" id="update-detail"></span></span><button type="button" id="update-action" hidden></button></div>
-              </div>
+            <div class="settings-list" id="display-list">
+              <div class="settings-row" id="display-row" hidden><span class="row-text"><span class="row-label" data-i18n="settings.desktop.display.label"></span><span class="row-value" id="display-detail"></span></span><span class="row-actions"><button type="button" id="display-restart" hidden data-i18n="settings.desktop.display.restart"></button><input id="display-xwayland" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.display.label"></span></div>
             </div>
             <section class="reset-section"><h4 class="settings-heading" data-i18n="settings.desktop.resetLayout.title"></h4><p class="hint" id="reset-layout-hint" data-i18n="settings.desktop.resetLayout.hint"></p><button id="reset-layout" type="button" data-i18n="settings.desktop.resetLayout.action"></button></section>
           </section>

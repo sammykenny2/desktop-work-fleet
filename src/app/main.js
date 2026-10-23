@@ -370,14 +370,15 @@ function renderGoogleAccess() {
   setText('#google-sign-in', connected || paused ? () => t('sync.google.switchAccount') : google ? () => t('sync.google.signInAgain') : () => t('sync.google.signIn'));
   $('#google-sign-out').hidden = !(connected || paused);
 }
-// The account chip and the settings identity say where the papers live and how syncing goes.
+// The account chip, the settings account card and identity say where the papers live and how syncing goes.
 function renderAccount() {
   const connected = Boolean(googleAccount?.connected);
   if (!connected && googleProfile) { if (googleProfile.photo) URL.revokeObjectURL(googleProfile.photo); googleProfile = null; }
   const known =connected && googleProfile?.accountId === googleAccount.accountId ? googleProfile : null;
   const email = connected ? googleAccount.email || '' : '';
   const name = known?.name || (connected ? email || t('sync.account.google') : profileId.startsWith('google:') ? t('sync.account.google') : t('sync.account.localNotes'));
-  for (const [avatar, initial, label] of [['#account-avatar', '#account-initial', '#account-name'], ['#identity-avatar', '#identity-initial', '#identity-name']]) {
+  for (const [avatar, initial, label] of [['#account-avatar', '#account-initial', '#account-name'], ['#identity-avatar', '#identity-initial', '#identity-name'],
+    ['#settings-account-avatar', '#settings-account-initial', '#settings-account-name']]) {
     $(label).textContent = name;
     $(initial).textContent = connected ? [...name][0].toLocaleUpperCase() : ''; $(initial).hidden = !connected || Boolean(known?.photo);
     $(`${avatar} svg`).toggleAttribute('hidden', connected); $(avatar).classList.toggle('signed-in', connected);
@@ -414,7 +415,7 @@ let shownSync = null;
 function setSync(state, text, detail = '') {
   shownSync = [state, text, detail]; const shownDetail = textOf(detail);
   syncState = state; $('#account').dataset.sync = state; $('#settings-dialog').dataset.sync = state;
-  $('#sync-status').textContent = textOf(text); $('#sync-detail').textContent = textOf(text);
+  $('#sync-status').textContent = textOf(text); $('#sync-detail').textContent = textOf(text); $('#settings-account-status').textContent = textOf(text);
   $('#account-detail').textContent = shownDetail; $('#account-detail').hidden = !shownDetail; updateAttention();
   if (state === 'ok' || state === 'pending') loadGoogleProfile();
 }
@@ -1680,13 +1681,15 @@ function relocalize() {
     if (settingsPage === 'revisions' && revisions && !revisions.busy()) { revisions.dispose(); revisions = null; void run(mountRevisions); }
   }
 }
+// Where the gear and Ctrl+, open settings: General, or the page list at phone width.
+const settingsHome = () => narrow.matches ? null : 'general';
 function openSettings(page = null) {
   const dialog = $('#settings-dialog');
   if (!dialog.open) { renderLanguageSetting(); renderDesktopSettings(); renderShortcutSettings(); renderAccount(); dialog.showModal(); }
   return showSettingsPage(page);
 }
 async function showSettingsPage(page) {
-  if (page === null && !narrow.matches) page = settingsPage || 'account';
+  if (page === null && !narrow.matches) page = settingsPage || 'general';
   // A running backup or restore keeps its page, and so does a version being chosen; leaving would drop its progress.
   if ((dataPanel?.busy() && page !== 'data') || (revisions?.busy() && page !== 'revisions')) return;
   if (page !== 'data') { dataPanel?.dispose(); dataPanel = null; }
@@ -2025,9 +2028,9 @@ function bindEvents() {
   });
   $('#compose').onclick = () => run(() => openEditor());
   const settings = $('#settings-dialog');
-  // The account chip opens its own page; the gear opens settings where it was left (the page list on phones).
+  // The account chip opens its own page; the gear opens General (the page list on phones).
   $('#account-button').onclick = () => { setDrawer(false); run(() => openSettings('account')); };
-  $('#settings-button').onclick = () => { setDrawer(false); run(() => openSettings(null)); };
+  $('#settings-button').onclick = () => { setDrawer(false); run(() => openSettings(settingsHome())); };
   for (const item of settings.querySelectorAll('[data-page]')) item.onclick = () => run(() => showSettingsPage(item.dataset.page));
   $('#settings-back').onclick = () => run(() => showSettingsPage(null));
   $('#language').onchange = () => run(async () => {
@@ -2239,7 +2242,7 @@ function bindEvents() {
     if (event.isComposing || composing || event.defaultPrevented || document.querySelector('dialog[open]')) return;
     if (event.key === 'Escape' && document.body.classList.contains('drawer-open')) { event.preventDefault(); setDrawer(false); return; }
     if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key === ',' && !handheld) {
-      event.preventDefault(); run(() => openSettings(null)); return;
+      event.preventDefault(); run(() => openSettings(settingsHome())); return;
     }
     const editControl = event.target.closest('input,textarea,select');
     // Shortcuts switch adjust scopes and desktop visibility, which phones and tablets do not have.

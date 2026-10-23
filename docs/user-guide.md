@@ -84,7 +84,7 @@ interface. To switch, see [Settings](#settings).
 - To move a note to another group, drag it there in adjust mode (see
   [Adjust mode and arranging](#adjust-mode-and-arranging)), or choose the group in "Move to group" in the note's "⋯"
   details.
-- When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop sets "Rows" and
+- When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop notes sets "Rows" and
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom.
 - The sidebar lists groups in region order, and each device keeps its own order. Drag a group up or down to reorder
@@ -101,7 +101,7 @@ interface. To switch, see [Settings](#settings).
   notes see-through while they rest on the Top layer, so they don't hide the work beneath them. Only the paper turns
   see-through; text, checkboxes and thumbnails stay solid. Notes on the Wallpaper and Desktop layers, notes being
   adjusted and the main window's board and list stay opaque. Like the color, it is kept on this device only.
-- "My group" in Settings > Desktop gives the notes of one group an accent-colored edge on this device and puts a
+- "My group" in Settings > Desktop notes gives the notes of one group an accent-colored edge on this device and puts a
   star before its name in the sidebar. Phones have no "My group" and ignore one carried over by a restored layout.
 - Each group sits on one desktop layer; see [Desktop notes and layers](#desktop-notes-and-layers).
 
@@ -147,9 +147,9 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   own "⋯" details keep only "Show on the desktop".
 - While Locked, notes on the Desktop layer and the Top layer still let you select text and click links, and the mouse
   does not pass through them. The Wallpaper layer always lets the mouse pass through.
-- "Show notes while locked" in Settings > Desktop must be on for notes to stay on the desktop while Locked. When it is
+- "Show notes while locked" in Settings > Desktop notes must be on for notes to stay on the desktop while Locked. When it is
   off, notes appear on the desktop only while you adjust them.
-- "Show completed notes" in Settings > Desktop is off at first. While it is off, completed notes leave this computer's
+- "Show completed notes" in Settings > Desktop notes is off at first. While it is off, completed notes leave this computer's
   desktop, also while you adjust, and return to their old places when you turn it on or move them back to To do.
   Each computer keeps its own choice, and "Reset desktop layout" turns it back off.
 - In the Windows Explorer desktop, the Wallpaper layer attaches below the desktop icons. macOS offers the same
@@ -220,11 +220,17 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 
 ## Settings
 
-Settings opens from the gear at the bottom left of the sidebar, or with Ctrl+, (Command+, on macOS). Changes take
-effect at once but do not rearrange existing notes.
+Settings opens on its General page from the gear at the bottom left of the sidebar, or with Ctrl+, (Command+, on
+macOS). The account area beside the gear opens Account and sync. In a phone-sized window Settings starts from its list
+of pages. Changes take effect at once but do not rearrange existing notes.
 
-- General > Display language: "Auto-detect", "English" or "Traditional Chinese". Each option is named in the current
-  interface language.
+The account card at the top of the list of pages shows the account and its sync status; the pages follow in two
+groups:
+
+- Account and sync (the account card): see [Google sign-in and sync](#google-sign-in-and-sync).
+- General: on the desktop apps, "Version and updates" (see [Updates](#updates)) and "Startup" (see
+  [Startup and the main window](#startup-and-the-main-window)); then "Language", whose "Display language" is
+  "Auto-detect", "English" or "Traditional Chinese". Each option is named in the current interface language.
   - "Auto-detect" (the default) follows the language of this device: the app takes the first of the system's
     preferred languages that is English or Traditional Chinese (including Chinese without a region, Hong Kong and
     Macau). Simplified Chinese and other languages are skipped, and with no match the app uses English.
@@ -233,18 +239,17 @@ effect at once but do not rearrange existing notes.
     screen keeps its language until it next changes.
   - Phones have the same setting; on iOS the Share Extension sheet follows it too.
   - The choice belongs to this device: it is not part of a backup or of Google data.
-- Account and sync: see [Google sign-in and sync](#google-sign-in-and-sync).
-- Data and backup: see [Backups and restore](#backups-and-restore).
-- Versions and conflicts: see [Versions and conflicts](#versions-and-conflicts).
-- Desktop (desktop apps and the browser preview; phones have no Desktop or Shortcuts page): "Show notes while
-  locked", "Show completed notes", "My group", "Group regions" and "Reset desktop layout". The desktop apps also show
-  "Startup" and "Version and updates". On GNOME Wayland the page also has "Show desktop notes through XWayland" (see
-  [Linux](#linux)).
+- Desktop notes (desktop apps and the browser preview; phones have no Desktop notes or Shortcuts page): "Show notes
+  while locked", "Show completed notes", "My group" and "Group regions". On GNOME Wayland the page also has "Show
+  desktop notes through XWayland" (see [Linux](#linux)). "Reset desktop layout" is last.
 - Shortcuts: see [Shortcuts](#shortcuts).
+- Data and backup: automatic backup, export, restore and, last, reset all data; see
+  [Backups and restore](#backups-and-restore).
+- Versions and conflicts: see [Versions and conflicts](#versions-and-conflicts).
 
 ### Startup and the main window
 
-On the desktop apps, the "Startup" section of Settings > Desktop has these switches; each shows what the system
+On the desktop apps, the "Startup" section of Settings > General has these switches; each shows what the system
 actually does:
 
 - "Start Work Fleet when you sign in to the computer". If you turned it off in the system (Startup apps in Windows,
@@ -256,7 +261,7 @@ actually does:
 
 ### Reset desktop layout
 
-At the bottom of Settings > Desktop, "Reset desktop layout…" asks for confirmation ("Reset"), then puts this
+At the bottom of Settings > Desktop notes, "Reset desktop layout…" asks for confirmation ("Reset"), then puts this
 computer's notes back into their group regions, restores their default size and display, and moves every group to
 the back layer (the Wallpaper layer, or the Desktop layer where the desktop has no Wallpaper layer); it does not touch
 content, group names and contents, or shortcuts. In the desktop apps it also returns the main window to its default
@@ -383,12 +388,12 @@ separately ("Also restore desktop positions"), and importing new data does not m
   application menu also has "Save and quit Work Fleet".
 - The tray and menu labels follow Settings > General > Display language.
 - If the focus has moved after a delay, click a floating note once to continue.
-- Whether closing the main window keeps Work Fleet in the tray is a switch in Settings > Desktop; see
+- Whether closing the main window keeps Work Fleet in the tray is a switch in Settings > General; see
   [Startup and the main window](#startup-and-the-main-window).
 
 ## Updates
 
-- Settings > Desktop > "Version and updates" shows the version, how it was installed and the in-app update state. A
+- Settings > General > "Version and updates" shows the version, how it was installed and the in-app update state. A
   single button offers the next step: "Check for updates", "Download update", or "Restart and install". The tray and
   the menu bar also have "Check for updates…".
 - Work Fleet checks for updates only when you ask; there is no automatic or periodic check.
@@ -431,7 +436,7 @@ separately ("Also restore desktop positions"), and importing new data does not m
   each needs is listed in [Setup](setup-guide.md).
 - GNOME Wayland (for example the Ubuntu 22.04 default) has no layer-shell, so desktop notes have to go through
   XWayland. On first start the app asks "Use XWayland to show desktop notes?" ("Restart with XWayland" or "Keep the
-  current mode"); later you can switch with "Show desktop notes through XWayland" in Settings > Desktop
+  current mode"); later you can switch with "Show desktop notes through XWayland" in Settings > Desktop notes
   ([ADR-040](decisions/040-gnome-wayland-xwayland-choice.md)), or start it directly with `GDK_BACKEND=x11 work-fleet`.
   Through XWayland, groups stay resident only on the Wallpaper layer
   ([ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)).

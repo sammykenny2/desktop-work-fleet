@@ -7,6 +7,7 @@ export default {
   // General
   'settings.general.title': 'General',
   'settings.general.language': 'Display language',
+  'settings.general.languageHeading': 'Language',
   'settings.general.languageHint': 'Auto-detect follows the language of this device.',
   'settings.general.languageAuto': 'Auto-detect',
   'settings.general.languageEnglish': 'English',
@@ -34,7 +35,7 @@ export default {
   'settings.revisions.title': 'Versions and conflicts',
 
   // Desktop
-  'settings.desktop.title': 'Desktop',
+  'settings.desktop.title': 'Desktop notes',
   'settings.desktop.layerFallback.one': "{count} note is set to the {requested}, which this computer doesn't support yet, so it shows on the {effective} for now.",
   'settings.desktop.layerFallback.other': "{count} notes are set to the {requested}, which this computer doesn't support yet, so they show on the {effective} for now.",
   'settings.desktop.display.label': 'Show desktop notes through XWayland',

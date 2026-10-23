@@ -7,9 +7,9 @@ using WorkFleet.Windows;
 using WorkFleet.Windows.Core;
 
 /// <summary>
-/// ADR-043 on a real window: startup settings in the Desktop page, saved and restored bounds, the reset that comes with
-/// Reset desktop layout and the second-launch channel. The window appears briefly on the primary display without taking
-/// focus; data stays in the output folder.
+/// ADR-043 on a real window: startup settings and the version on the General page the gear opens, saved and restored
+/// bounds, the reset that comes with Reset desktop layout and the second-launch channel. The window appears briefly on
+/// the primary display without taking focus; data stays in the output folder.
 /// </summary>
 internal static class HostShellProbe
 {
@@ -22,9 +22,8 @@ internal static class HostShellProbe
     await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "host shell initialization");
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Program.Wait(window, "document.querySelector('#settings-dialog').open", "settings");
-    await Eval(window, "document.querySelector('[data-page=desktop]').click()");
     var version = HostIdentity.BuildVersion();
-    await Program.Wait(window, $"!document.querySelector('#host-settings').hidden && document.querySelector('#app-version').textContent === 'Work Fleet {version} (preview)' && document.querySelector('#app-distribution').textContent === 'Development build'", "version shown");
+    await Program.Wait(window, $"document.querySelector('[data-page=general]').getAttribute('aria-current') === 'page' && document.querySelector('#host-settings').checkVisibility() && document.querySelector('#app-version').textContent === 'Work Fleet {version} (preview)' && document.querySelector('#app-distribution').textContent === 'Development build'", "version shown");
     // Only the MSIX has a StartupTask, so a Debug build explains why the sign-in switches are unavailable.
     await Program.Wait(window, $"document.querySelector('#start-login').disabled && document.querySelector('#start-login-detail').textContent === '{HostText.Format("en", "reason.startupNeedsMsix")}' && document.querySelector('#open-main').disabled", "sign-in switches unavailable outside the MSIX");
     await Program.Wait(window, "!document.querySelector('#close-tray').disabled && document.querySelector('#close-tray').checked", "close keeps Work Fleet in the tray by default");

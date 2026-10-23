@@ -215,7 +215,7 @@ In-app updates (ADR-044): `Build-WindowsPackage.ps1` writes `build/work-fleet-up
 (version, the `v<version>` tag, x64 installer name, size and SHA-256; `-UpdateSummary` adds a summary of at most 500
 characters, which `preview-release.yml` takes from the release-notes entry). `Test-WindowsPackage.ps1` checks that it
 matches the MSIX, and the release carries it together with the MSIX.
-An installed MSIX checks the `v<version>` releases from Settings > Desktop > Version and updates or from the tray item
+An installed MSIX checks the `v<version>` releases from Settings > General > Version and updates or from the tray item
 "Check for updates…"; it downloads and verifies the package, saves drafts and closes, and then Windows installs it.
 An app that had been running for at least 60 seconds is reopened after the installation.
 

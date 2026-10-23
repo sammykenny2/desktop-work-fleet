@@ -52,7 +52,8 @@ prefix and numeric version, with no REST API.
   metadata_invalid, checksum_mismatch, signature_rejected, identity_mismatch, authorization_cancelled, install_failed,
   unknown); raw responses never reach the UI. Since [ADR-056](056-english-first-ui-and-locale-catalogs.md) that text
   follows the display language (it was Traditional Chinese only before).
-- Settings > Desktop, "Version and updates", shows the version, channel (preview), state, summary, last check and a
+- Settings > Desktop, "Version and updates" (on Settings > General since 2026-10-24,
+  [ADR-059](059-settings-pages-and-entry-points.md)), shows the version, channel (preview), state, summary, last check and a
   single primary button chosen by nextAction: Check for updates, Download update, Restart and install. Without update
   capability it shows only the version and the reason.
 - On Windows, macOS and Linux, the tray gains "Check for updates…" when updates are possible. The native host handles

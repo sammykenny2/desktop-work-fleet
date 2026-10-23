@@ -1,9 +1,10 @@
 # Decision index
 
-Updated: 2026-10-20.
+Updated: 2026-10-24.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-059](059-settings-pages-and-entry-points.md) | Accepted (settings layout, 2026-10-24) | The account chip opens Account and sync, the gear General; Settings pages in two groups under an account card |
 | [ADR-058](058-desktop-presentation-lifecycle-and-core-isolation.md) | Proposed | Nonvisual resident core, disposable graphical clients, continuous presentation readiness/recovery and permanent removal of whole-app crash reopen |
 | [ADR-057](057-local-ios-builds-and-device-privacy.md) | Accepted (local iOS builds, 2026-10-20) | iOS builds and device signing stay on the maintainer's Mac; no iOS packages in public Actions artifacts or Releases |
 | [ADR-056](056-english-first-ui-and-locale-catalogs.md) | Accepted (UI language, 2026-10-17) | English-first UI with en and zh-TW locale catalogs and a Display language setting |

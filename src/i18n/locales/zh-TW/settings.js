@@ -7,6 +7,7 @@ export default {
   // General
   'settings.general.title': '一般',
   'settings.general.language': '顯示語言',
+  'settings.general.languageHeading': '語言',
   'settings.general.languageHint': '自動偵測會跟隨這台裝置的語言。',
   'settings.general.languageAuto': '自動偵測',
   'settings.general.languageEnglish': '英文',
@@ -34,7 +35,7 @@ export default {
   'settings.revisions.title': '版本與衝突',
 
   // Desktop
-  'settings.desktop.title': '桌面',
+  'settings.desktop.title': '桌面便箋',
   'settings.desktop.layerFallback.one': '{count} 張便箋設在{requested}，但這台電腦目前不支援，先放在{effective}。',
   'settings.desktop.layerFallback.other': '{count} 張便箋設在{requested}，但這台電腦目前不支援，先放在{effective}。',
   'settings.desktop.display.label': '以 XWayland 顯示桌面便箋',

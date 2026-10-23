@@ -75,7 +75,8 @@ project's approach) would disagree with the user's choice in the system.
 
 ### Startup behavior
 
-Settings > Desktop gains a "Startup behavior" section with three options:
+Settings > Desktop gains a "Startup behavior" section with three options (2026-10-24: the section moved to Settings >
+General, which the gear opens; [ADR-059](059-settings-pages-and-entry-points.md)):
 
 1. "Start Work Fleet at sign-in", on by default.
 2. "Keep running in the tray when the main window closes", on by default, which is the existing behavior; when off,

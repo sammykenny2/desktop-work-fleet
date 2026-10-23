@@ -232,7 +232,8 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     resetSection.append(node('h4', t('backup.reset.title'), 'settings-heading'), node('p', reset.blocked || t('backup.reset.hint', { target: reset.target }), 'hint'), buttons);
   }
   const status = node('div', undefined, 'backup-status-bar'); status.append(message, cancel);
-  panel.append(status, exportSection, restoreSection, automaticSection.element, resetSection);
+  // Whether backups are running comes before the actions; the reset stays last.
+  panel.append(status, automaticSection.element, exportSection, restoreSection, resetSection);
   mode.onchange = () => { if (mode.value === 'local-replace') layout.checked = true; resetPlan(); };
   for (const control of [layout, repeat]) control.onchange = resetPlan;
   cloudAgree.onchange = refresh;

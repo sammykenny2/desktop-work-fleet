@@ -112,7 +112,7 @@ export default {
   'backup.receipt.localReplace.other': 'The last restore after clearing this device added {count} drafts.',
 
   'backup.automatic.title': 'Automatic backup',
-  'backup.automatic.unsupported': 'Automatic backup is not available here. Use Export backup above instead.',
+  'backup.automatic.unsupported': 'Automatic backup is not available here. Use Export backup below instead.',
   'backup.automatic.hint': 'Backs up once a day when there are changes.',
   'backup.automatic.location': 'Location',
   'backup.automatic.noFolder': 'Not chosen yet',

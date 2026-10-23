@@ -98,6 +98,14 @@ jobs:
           done
           printf '%s' "$NOTARY_KEY" | base64 --decode > "$RUNNER_TEMP/notary.p8"
           xcrun notarytool store-credentials work-fleet-notary --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER" --keychain "$keychain"
+      # Since 2026-10-12 hosted runners drop the HTTP/3 (UDP 443) connection that xcrun stapler opens to Apple's ticket
+      # service ("The network connection was lost", error 68), while HTTPS over TCP works (actions/runner-images#14924,
+      # GitHub's workaround). Blocking outbound UDP 443 for this job makes stapler fall back to TCP; the rule ends with
+      # the job's virtual machine. Remove this step once that issue is fixed.
+      - name: Send Apple's ticket requests over TCP
+        run: |
+          echo "block return out quick proto udp from any to any port 443" | sudo pfctl -f -
+          sudo pfctl -E
       - name: Archive and package
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}

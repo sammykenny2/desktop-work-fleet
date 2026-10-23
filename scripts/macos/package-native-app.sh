@@ -66,9 +66,9 @@ DELIVERED=(); FEED=()
 NOTARY_ARGS=(--keychain-profile "$NOTARY")
 [[ -z "${WORK_FLEET_SIGNING_KEYCHAIN:-}" ]] || NOTARY_ARGS+=(--keychain "$WORK_FLEET_SIGNING_KEYCHAIN")
 deliver() { (cd "$OUTPUT"; shasum -a 256 "$1" > "$1.sha256"); DELIVERED+=("$1"); }
-# Stapling and validating ask Apple's ticket service, whose connection from CI runners sometimes drops ("The network
-# connection was lost", error 68) for minutes at a time; a failed call is retried with growing pauses before the export
-# fails. WORK_FLEET_STAPLER_PAUSE sets the first pause in seconds (tests use 0).
+# Stapling and validating ask Apple's ticket service over HTTP/3, which hosted CI runners drop ("The network connection
+# was lost", error 68; actions/runner-images#14924), so macos-package.yml sends it over TCP. A failed call is still
+# retried with growing pauses before the export fails. WORK_FLEET_STAPLER_PAUSE sets the first pause in seconds (tests use 0).
 stapler_retry() {
     local attempt=1 pause="${WORK_FLEET_STAPLER_PAUSE:-60}"
     until xcrun stapler "$@"; do

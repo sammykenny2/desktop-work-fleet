@@ -300,9 +300,13 @@ or a workspace.
 A missing framework, load path or native load failure stops packaging: nothing is sent for notarization and no update file
 is delivered. Details are in [testing](testing.md).
 After notarization the app and DMG signatures, Gatekeeper and the staple are checked, and the update ZIP is signed with
-Sparkle EdDSA. `stapler` calls reach Apple's ticket service, whose connection from CI runners can drop for minutes
-("The network connection was lost", error 68; four runs in a row on 2026-10-17), so each staple and validate is retried
-up to six times with pauses growing from one minute (`WORK_FLEET_STAPLER_PAUSE` sets the first pause in seconds);
+Sparkle EdDSA. `stapler` calls reach Apple's ticket service over HTTP/3 (UDP 443), which GitHub-hosted runners have
+dropped since 2026-10-12 ("The network connection was lost", error 68; four runs in a row on 2026-10-17, six tries over
+15 minutes on 2026-10-23) while HTTPS over TCP works ([actions/runner-images#14924](https://github.com/actions/runner-images/issues/14924)).
+The job therefore blocks outbound UDP 443 before packaging, GitHub's workaround, so stapler falls back to TCP; on
+`macos-15` on 2026-10-23, 6 of 10 staple-and-validate rounds failed with UDP 443 open and 10 of 10 passed with it
+blocked. Remove that step once the issue is fixed. Each staple and validate is still retried up to six times with pauses growing from
+one minute (`WORK_FLEET_STAPLER_PAUSE` sets the first pause in seconds);
 only when everything succeeds are `WorkFleet-<version>-macos-universal.dmg`/`.zip`, their `.sha256` files,
 `appcast.xml` and `work-fleet-update-macos.json` delivered to `build/`.
 Ordinary local packaging still produces a PKG by default; only `--no-pkg` skips it. Notarizing a PKG still needs

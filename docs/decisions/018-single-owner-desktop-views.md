@@ -2,6 +2,10 @@
 
 ## Status
 
+2026-10-24: the maintainer had the phone layout follow: its "+" also floats above the status row, which spans
+the width, instead of beside the status. On every width the "+" keeps 16 px above the row and rises with it when a
+long status wraps.
+
 2026-10-23: the maintainer settled the main window's hierarchy on the phone's: the top bar names what is shown, a group
 or a search through every group (the title then reads "Search results in all groups"), and ends with search; the
 view bar below chooses how it is shown. Capture adds to one group, so it left the top bar for the floating "+" over

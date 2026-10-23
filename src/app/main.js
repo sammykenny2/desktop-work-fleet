@@ -2019,6 +2019,8 @@ function bindEvents() {
     event.preventDefault(); event.stopImmediatePropagation();
   }, true);
   setDrawer(false); new ResizeObserver(fitBars).observe($('.view-bar'));
+  // Capture keeps one gap above the status row, which grows when a long status wraps.
+  new ResizeObserver(() => $('main').style.setProperty('--status-row', `${$('main > footer').offsetHeight}px`)).observe($('main > footer'));
   narrow.addEventListener('change', () => { setDrawer(false); if ($('#settings-dialog').open) void showSettingsPage(settingsPage); });
   $('#drawer-toggle').onclick = () => setDrawer(true); $('#scrim').onclick = () => setDrawer(false);
   $('#sidebar').addEventListener('click', event => { if (event.target.closest('.sidebar-links button')) setDrawer(false); });

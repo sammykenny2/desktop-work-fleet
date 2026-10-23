@@ -172,20 +172,28 @@ try {
   assert.ok(await tile.evaluate(node => Math.abs(node.offsetWidth - node.offsetHeight) <= 1), 'board papers are square');
   // Board papers keep a new desktop paper's 240 px square; the window width only changes how many fit in a row. The
   // status row keeps the whole width under the notes, with the status at its right end, and Capture floats just above
-  // it, also under the narrower layout's smaller margins.
+  // it, also under the narrower layout's and the phone layout's smaller margins. A status that wraps raises Capture
+  // with the row.
   await expect(page.locator('#compose')).toBeVisible();
-  for (const width of [900, 1440]) {
-    await page.setViewportSize({ width, height: 1050 });
-    await expect.poll(() => tile.evaluate(node => [node.offsetWidth, node.offsetHeight]), { message: `board paper at ${width} px` }).toEqual([240, 240]);
-    const foot = await page.evaluate(() => {
-      const box = selector => document.querySelector(selector).getBoundingClientRect();
-      return { compose: box('#compose'), footer: box('footer'), status: box('.status-line') };
-    });
-    const gap = foot.footer.top - foot.compose.bottom;
-    assert.ok(gap >= 0 && gap <= 24, `Capture sits just above the status row at ${width} px (${gap} px apart)`);
-    assert.ok(Math.abs(foot.status.right - foot.footer.right) <= 1 && Math.abs(foot.compose.right - foot.footer.right) <= 1,
+  const foot = () => page.evaluate(() => {
+    const box = selector => document.querySelector(selector).getBoundingClientRect();
+    return { compose: box('#compose'), footer: box('main > footer'), status: box('.status-line') };
+  });
+  for (const width of [390, 900, 1440]) {
+    await page.setViewportSize({ width, height: width < 640 ? 844 : 1050 });
+    if (width > 640) await expect.poll(() => tile.evaluate(node => [node.offsetWidth, node.offsetHeight]), { message: `board paper at ${width} px` }).toEqual([240, 240]);
+    const { compose, footer, status } = await foot();
+    assert.ok(Math.abs(footer.top - compose.bottom - 16) <= 1, `Capture sits 16 px above the status row at ${width} px (${footer.top - compose.bottom} px apart)`);
+    assert.ok(Math.abs(status.right - footer.right) <= 1 && Math.abs(compose.right - footer.right) <= 1,
       `the status and Capture end at the right edge of the status row at ${width} px`);
   }
+  await page.setViewportSize({ width: 390, height: 844 });
+  const shown = await page.locator('#status').textContent(); const oneLine = (await foot()).footer.height;
+  await page.locator('#status').evaluate(node => { node.textContent = `${node.textContent} `.repeat(8); });
+  await expect.poll(async () => { const { compose, footer } = await foot(); return footer.height > oneLine && Math.abs(footer.top - compose.bottom - 16) <= 1; },
+    { message: 'Capture rises with a wrapped status' }).toBe(true);
+  await page.locator('#status').evaluate((node, text) => { node.textContent = text; }, shown);
+  await page.setViewportSize({ width: 1440, height: 1050 });
   const tileDownload = page.waitForEvent('download'); await tile.locator('.attachment-tile').dblclick();
   assert.equal((await tileDownload).suggestedFilename(), 'proof.txt', 'the browser downloads when no native opener is available');
   await expect(page.locator('#editor-dialog')).not.toBeVisible();

@@ -110,7 +110,9 @@ interface. To switch, see [Settings](#settings).
 - In the desktop apps the main window does not mirror the desktop layout; you drag notes on the desktop itself.
 - On the right of the filter bar, switch between "Board" (a grid of square papers, each the 240×240 of a new desktop
   note; the window width only changes how many fit in a row, while phones and windows 640 px or narrower show two
-  columns across) and "List". This device remembers the choice. Click a note to edit it. The third view differs by
+  columns across) and "List". This device remembers the choice. Double-click a note, or choose "More actions" (…) >
+  "Edit", to edit it; on a touch screen a tap opens it. A single click on a board paper's checklist box ticks or
+  unticks that step, as on the desktop, and a click elsewhere on a note opens nothing. The third view differs by
   platform:
   - Desktop apps: "Layout map", only a blank placeholder for now.
   - Browser preview: "Desktop", a canvas inside the page that shows the To do notes in their group regions; you

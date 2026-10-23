@@ -80,7 +80,25 @@ try {
   await expect(page.locator('#status')).toHaveText(t('app.status.savedLocally')); await expect(firstStep()).not.toBeChecked();
   await expect(page.locator('#stage .card')).not.toHaveClass(/selected/);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened')); await expect(firstStep()).not.toBeChecked();
-  await page.locator('[data-view="board"]').click(); await page.locator('#list .note-paper').first().click();
+  // Board papers tick their steps with one click too. One click elsewhere on a paper opens nothing and two open the
+  // editor; a tap opens it at once, as phones have no double tap, and so does a click from assistive technology.
+  await page.locator('[data-view="board"]').click(); const boardPaper = page.locator('#list .note-paper').first();
+  const boardStep = boardPaper.locator('.note-body input[type="checkbox"]').first(); const editor = page.locator('#editor-dialog');
+  for (const checked of [true, false]) {
+    await boardStep.click(); await expect(boardStep).toBeChecked({ checked }); await expect(boardStep).toBeEnabled();
+    await expect(page.locator('#status')).toHaveText(t('app.status.savedLocally'));
+  }
+  await boardPaper.locator('.note-title').click(); await expect(editor).not.toBeVisible();
+  const touch = await context.newCDPSession(page); await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
+  const titleBox = await boardPaper.locator('.note-title').boundingBox();
+  const tapAt = [{ x: titleBox.x + titleBox.width / 2, y: titleBox.y + titleBox.height / 2 }];
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tapAt });
+  await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await expect(editor).toBeVisible(); await touch.send('Emulation.setTouchEmulationEnabled', { enabled: false }); await touch.detach();
+  await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
+  await boardPaper.locator('.note-title').dispatchEvent('click'); await expect(editor).toBeVisible();
+  await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
+  await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   const savedText = await page.locator('#editor-text').inputValue();
   await page.locator('#editor-text').fill(`${savedText}\n\nKept for later`);
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
@@ -235,7 +253,10 @@ try {
   await page.locator('#search').fill('Weekly report'); await expect(page.locator('#list .note-title')).toHaveText(['Weekly report']);
   // Search looks through every group: the title says so, and capture, which adds to one group, steps aside.
   await expect(page.locator('#workspace-title')).toHaveText(t('app.search.title')); await expect(page.locator('#compose')).toBeHidden();
-  await page.locator('#list .note-title').click(); await expect(page.locator('#editor-heading')).toHaveValue('Weekly report');
+  // "More actions" offers Edit for board and list notes.
+  await page.locator('#list article').filter({ hasText: 'Weekly report' }).getByRole('button', { name: t('app.notes.more'), exact: true }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.edit'), exact: true }).click();
+  await expect(page.locator('#editor-heading')).toHaveValue('Weekly report');
   await page.locator('#editor-heading').fill(''); await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   // The open editor is modal, so clearing the search before it closes types into nothing. Editing a note keeps the search.
   await expect(page.locator('#editor-dialog')).not.toBeVisible(); await expect(page.locator('#search')).toHaveValue('Weekly report');
@@ -362,7 +383,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas steps and the kept-draft hold, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas and board steps and the kept-draft hold, opening board notes by double-click, tap or Edit, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

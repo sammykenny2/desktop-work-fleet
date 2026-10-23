@@ -1185,7 +1185,7 @@ function icon(...paths) {
 function iconButton(label, paths, action) { const node = button('', action, 'note-action'); node.setAttribute('aria-label', label); node.title = label; node.append(icon(...paths)); return node; }
 
 // The board shows each paper as the 240 px square a new desktop paper is, however wide the window, until the phone
-// layout's two columns take over at 640 px; the list keeps one row per paper. Both open the editor.
+// layout's two columns take over at 640 px; the list keeps one row per paper.
 function renderNotes(cards, view, acrossGroups) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
   boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? t('app.views.listLabel') : t('app.views.boardLabel'));
@@ -1197,7 +1197,12 @@ function renderNotes(cards, view, acrossGroups) {
     const note = element('article', undefined, view === 'list' ? 'note-row' : 'note-paper'); note.dataset.cardId = card.id;
     note.style.setProperty('--paper', groupColor(card.groupId));
     note.classList.toggle('completed', card.completed); note.classList.toggle('mine', myGroupId === card.groupId);
-    const body = element('div', undefined, 'note-body markdown'); renderMarkdown(body, card.content.text, { highlight: view !== 'list' });
+    // A board paper ticks its checklist steps in place, as the desktop papers do; its boxes wait while a tick saves.
+    const body = element('div', undefined, 'note-body markdown');
+    renderMarkdown(body, card.content.text, { highlight: view !== 'list', ...card.deleted ? {} : { onToggle: task => {
+      for (const box of body.querySelectorAll('input[type="checkbox"]')) box.disabled = true;
+      run(() => tickStep(card.id, card.revision, task).catch(error => { render(); throw error; }));
+    } } });
     const meta = element('div', undefined, 'note-meta');
     const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
     if (total) meta.append(element('span', plural('app.count.steps', total, { done })));
@@ -1208,10 +1213,19 @@ function renderNotes(cards, view, acrossGroups) {
     else {
       actions.append(iconButton(card.completed ? t('app.notes.markToDo') : t('app.notes.markCompleted'), card.completed ? ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'] : ['m5 12.5 4.5 4.5L19 7'],
         () => changeCard(card.id, { completed: !card.completed })),
-      iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card)));
+      iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card, { edit: true })));
       note.tabIndex = 0; note.setAttribute('aria-label', title);
-      note.onclick = event => { if (!event.target.closest('a,button,input')) run(() => openEditor(card)); };
-      note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); run(() => openEditor(card)); } };
+      // A mouse opens the editor with a double-click, so a click that misses a checkbox opens nothing; a tap still opens
+      // it, as phones have no double tap. Enter, Space and "More actions" > Edit open it too.
+      // A click without a pointer (detail 0) comes from assistive technology and opens it as well. The editor starts from
+      // the note as it is now, which a tick may have changed since this paper was drawn.
+      let tapped = false; const opens = event => !event.target.closest('a,button,input');
+      const edit = () => run(() => openEditor(currentCard(card.id) ?? card));
+      note.onpointerdown = event => { tapped = event.pointerType === 'touch' || event.pointerType === 'pen'; };
+      note.onmousedown = event => { if (event.detail > 1 && opens(event)) event.preventDefault(); };
+      note.onclick = event => { if ((tapped || event.detail === 0) && opens(event)) edit(); };
+      note.ondblclick = event => { if (!tapped && opens(event)) edit(); };
+      note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); edit(); } };
     }
     const heading = element('h3', title, 'note-title');
     if (view === 'list') {
@@ -1375,7 +1389,8 @@ async function openGroupMerge(group) {
   dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); refresh(); dialog.showModal();
 }
 
-function cardDetails(card) {
+// Board and list notes also offer Edit here; papers on the canvas and the desktop have their own Edit button.
+function cardDetails(card, { edit = false } = {}) {
   const dialog = element('dialog'); dialog.append(element('h2', summaryText(card)));
   const groupLabel = element('label', t('app.card.moveToGroup'), 'field'); const select = element('select'); fillGroups(select, card.groupId); groupLabel.append(select);
   const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode(t('app.card.showOnDesktop')));
@@ -1383,6 +1398,7 @@ function cardDetails(card) {
   // Phones show no desktop papers, so the display option they cannot show stays unchanged.
   dialog.append(groupLabel, ...handheld ? [] : [visibility]);
   const actions = element('div', undefined, 'dialog-actions');
+  if (edit) actions.append(button(t('app.card.edit'), async () => { dialog.close(); await openEditor(currentCard(card.id) ?? card); }));
   actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
     button(t('app.card.delete'), async () => { await deleteCard(card.id); dialog.close(); }),
     button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {

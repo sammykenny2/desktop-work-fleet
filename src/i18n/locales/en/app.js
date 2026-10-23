@@ -87,6 +87,7 @@ export default {
   'app.notes.markCompleted': 'Mark as completed',
   'app.notes.markToDo': 'Back to To do',
   'app.notes.more': 'More actions',
+  'app.card.edit': 'Edit',
   'app.card.moveToGroup': 'Move to group',
   'app.card.showOnDesktop': 'Show on the desktop',
   'app.card.archive': 'Archive',

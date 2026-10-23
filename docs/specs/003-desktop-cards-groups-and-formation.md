@@ -227,9 +227,9 @@ or have its content hidden.
   title" rule left the body of a one-line note completely blank; that rule was dropped.
 - User instruction on 2026-10-17: the body shows as much as fits in the paper. Papers that can scroll do so as in Q07
   and get no "…": the Desktop layer, the Top layer, papers in adjust mode, and operable papers in the main window's
-  desktop view. Papers that cannot scroll end with "…" when the text does not fit: the main window board (a click opens
-  the editor) and the Wallpaper layer. With attachments, the bottom of the paper keeps one row of thumbnails (62px
-  high), left to right. Thumbnails that do not fit are not shown, with no horizontal scrolling, buttons or hover
+  desktop view. Papers that cannot scroll end with "…" when the text does not fit: the main window board (a
+  double-click, a tap or "More actions" > "Edit" opens the editor and one click ticks a checklist box, 2026-10-23) and
+  the Wallpaper layer. With attachments, the bottom of the paper keeps one row of thumbnails (62px high), left to right. Thumbnails that do not fit are not shown, with no horizontal scrolling, buttons or hover
   reveal; opening is still a double click. The main window board, the main window's desktop view and native desktop
   papers behave the same. Hidden attachments in the strip cannot be reached with Tab (2026-10-17).
 - Paper background colours come from one shared nine-colour palette (`src/core/palette.js`), the same in the main

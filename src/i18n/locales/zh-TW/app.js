@@ -87,6 +87,7 @@ export default {
   'app.notes.markCompleted': '標為完成',
   'app.notes.markToDo': '回待處理',
   'app.notes.more': '更多操作',
+  'app.card.edit': '編輯',
   'app.card.moveToGroup': '移至群組',
   'app.card.showOnDesktop': '在桌面顯示',
   'app.card.archive': '封存',

@@ -229,6 +229,9 @@ Common to all desktops:
 - Global shortcuts: X11 sessions use Keybinder, which receives nothing under XWayland; on labwc the settings page writes
   the shortcuts into rc.xml keybinds (ADR-041);
   other Wayland desktops need the GlobalShortcuts portal, which GNOME 42 and the wlroots portal (sway, wayfire) lack.
+  There, compositor keybindings can run the named GApplication actions in `hostsettings.NAMED_ACTIONS` with
+  `gapplication action <app id> <name>`, plus `quit`; each runs like its tray item, and region actions name a region
+  the page turns into its group (2026-10-23). Hyprland's portal implements GlobalShortcuts; not checked here.
 - Attachment thumbnails from installed thumbnailers and opening with the default app have not been checked on a real
   Linux desktop, and text fitting with "…" has not been checked in WebKitGTK (as of 2026-10-17).
 - Data that can't be opened (SPEC-006 DO): `datafailure.py` names the cause from SQLite and OS errors, and a

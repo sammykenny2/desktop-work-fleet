@@ -177,6 +177,13 @@ class FleetApp(Gtk.Application):
         shortcut = Gio.SimpleAction.new("shortcut", GLib.VariantType.new("s"))
         shortcut.connect("activate", lambda _action, value: self.desktop.shortcut(value.get_string()) if self.desktop is not None else None)
         self.add_action(shortcut)
+        for name, target in hostsettings.NAMED_ACTIONS.items():
+            action = Gio.SimpleAction.new(name, None)
+            action.connect("activate", lambda _action, _value, target=target: self.named_action(target))
+            self.add_action(action)
+        quit_action = Gio.SimpleAction.new("quit", None)
+        quit_action.connect("activate", lambda *_: self.close_requested() if self.window is not None else None)
+        self.add_action(quit_action)
         self.window = self.view = self.service = None
         # A set-aside that moved nothing, shown once the old data has opened again (SPEC-006 DO).
         self.set_aside_failure = None
@@ -597,6 +604,13 @@ class FleetApp(Gtk.Application):
     def dialog_closed(self):
         self.native_dialogs = max(0, self.native_dialogs - 1)
         self.update_native_block()
+
+    def named_action(self, target):
+        """A compositor keybinding ran a named action (hostsettings.NAMED_ACTIONS): the same as its tray item. Without an
+        activation token a Wayland compositor may not give the main window the focus."""
+        if self.window is None or self.stopped:
+            return
+        self.tray_action(target, Gtk.get_current_event_time(), None)
 
     def tray_action(self, target, timestamp, token):
         if target == "show":

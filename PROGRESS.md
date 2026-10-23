@@ -23,7 +23,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 ### Shared core and interaction
 
 - Implemented: cards, groups, formation (stack, spread, undo), adjust mode, drafts, Markdown with checklists and attachments,
-  complete/archive/delete, group merge, region shortcuts that step a group through its desktop layers, one settings window.
+  complete/archive/delete, group merge, region shortcuts that step a group through its desktop layers, one settings window;
+  checklist steps ticked on desktop papers that take clicks, a per-device Top-layer opacity per group, ranked search,
+  attachments pasted or dropped into the editor, and an explanation with a confirmed set-aside when local data cannot be
+  opened.
 - Papers: new papers are 240×240 squares that shrink to fit a short group region (minimum 160×160); placed papers keep their
   size until "reset desktop layout". One group palette serves desktop and main window; group regions follow the primary display.
 - Main window: a board of paper tiles or a list, remembered per device; an optional title that search, drafts and sharing include;
@@ -174,4 +177,4 @@ Known issues not yet fixed:
 - iOS: a WebContent crash during scene disconnection leaves a blank screen; a folder picker that is open when its scene
   goes away blocks later folder picks until restart. Android: the page stays scrolled after the keyboard closes.
 
-Planned features are in [ROADMAP](ROADMAP.md) under 0.3.x.
+Planned features are in [ROADMAP](ROADMAP.md).

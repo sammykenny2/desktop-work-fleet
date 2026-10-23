@@ -1,6 +1,6 @@
 """ADR-043 on the real GTK owner in isolated X11 and labwc sessions: main window bounds, startup settings and a hidden sign-in start.
 
-Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden, hidden-tray, data-failure (X11) or wayland, wayland-restore (labwc). Each
+Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden, hidden-tray, data-failure, actions (X11) or wayland, wayland-restore (labwc). Each
 mode is its own process so GApplication registers afresh; the data, bundle and XDG config folders live under OUTPUT. Only data-failure opens the
 workspace store: a database that is not SQLite explains itself, and its set-aside opens empty data (SPEC-006 DO).
 hidden-tray needs the Ayatana AppIndicator typelib and a private session bus: it plays a panel whose StatusNotifierWatcher starts late."""
@@ -199,6 +199,32 @@ elif MODE == "hidden-tray":
     log = (data / "host.log").read_text("utf-8").rsplit(" start version=", 1)[-1]
     check("launchedAtLogin=True hidden=True" in log and " tray available=False uptime=" in log and " tray available=True uptime=" in log,
           "host.log records the sign-in start and when the tray came and went")
+    app.shutdown(app)
+elif MODE == "actions":
+    # The named actions a sway or wayfire keybinding runs, called over D-Bus the way gapplication action calls them.
+    app.activate(app)
+    spin(lambda: app.window.get_mapped(), message="main window mapped")
+    check(set(hostsettings.NAMED_ACTIONS) | {"quit"} <= set(app.list_actions()), "every named action and quit is exported")
+    bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+
+    def run(name):
+        answered = []
+        bus.call("app.workfleet.hostprobe", "/app/workfleet/hostprobe", "org.gtk.Actions", "Activate", GLib.Variant("(sava{sv})", (name, [], {})),
+                 None, Gio.DBusCallFlags.NONE, -1, None, lambda source, result: answered.append(source.call_finish(result)))
+        spin(lambda: answered, message=f"{name} answered over D-Bus")
+    app.window.hide()
+    run("show-main")
+    spin(lambda: app.window.get_visible(), message="show-main shows the hidden main window")
+    check(True, "show-main shows the hidden main window")
+    routed = []
+    app.tray_action = lambda target, _timestamp, _token: routed.append(target)
+    for name in ("quick-capture", "toggle-desktop", "adjust-all", "done-adjusting", "region-3"):
+        run(name)
+    check(routed == ["@capture", "@toggle", "@all", "@stop", "@region3"], f"named actions run like their tray items ({routed})")
+    quitting = []
+    app.close_requested = lambda *_: quitting.append(True)
+    run("quit")
+    check(quitting == [True], "quit saves and quits like the tray item")
     app.shutdown(app)
 elif MODE == "data-failure":
     host.FleetApp.open_store = real_open_store

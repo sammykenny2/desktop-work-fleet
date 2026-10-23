@@ -434,6 +434,17 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - On layer-shell desktops such as Raspberry Pi OS (labwc), the resident layers are not limited by the overlay (the
   default pcmanfm desktop has no Wallpaper layer). Adjust mode likewise covers the whole screen with the overlay and
   hides the main window.
+- On Wayland desktops without a global shortcuts portal, such as sway and wayfire, Work Fleet can't register its keys.
+  Bind keys in the compositor's own configuration to Work Fleet's named actions instead, which run while Work Fleet
+  is open: `quick-capture`, `toggle-desktop`, `adjust-all`, `done-adjusting`, `region-1` to `region-9` (the group in
+  that region steps on, as its key does), `show-main` and `quit` (save and quit, as in the tray). For example, in
+  sway's config: `bindsym Ctrl+Shift+n exec gapplication action <app id> quick-capture`; in wayfire.ini, under
+  `[command]`: `binding_capture = <ctrl> <shift> KEY_N` and `command_capture = gapplication action <app id> quick-capture`.
+  `<app id>` is Work Fleet's application ID, the name of its icon in `/usr/lib/work-fleet/Icons` without `.png`
+  (`app.workfleet.preview` for builds without their own); `gapplication` comes with the GLib tools (`libglib2.0-bin`).
+  Without an activation token from the compositor, the main window may come to the front without taking the focus.
+  Hyprland's own portal offers global shortcuts, so there Settings > Shortcuts registers them as on GNOME or KDE
+  (not checked on Hyprland). On labwc, keep using the keybinds Settings writes into rc.xml.
 
 ### Phones
 

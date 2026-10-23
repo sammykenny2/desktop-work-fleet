@@ -16,7 +16,7 @@ cd "$ROOT"
 xvfb-run -a -s '-screen 0 1920x1080x24' bash -c '
     openbox > "$0/openbox.log" 2>&1 &
     sleep 1
-    for mode in place restore hidden hidden-tray data-failure; do python3 -B tests/native/linux/host_probe.py "$0" "$mode" || exit 1; done
+    for mode in place restore hidden hidden-tray data-failure actions; do python3 -B tests/native/linux/host_probe.py "$0" "$mode" || exit 1; done
 ' "$OUTPUT"
 # labwc places windows itself, as on the Raspberry Pi: only the size and maximized state are kept.
 rm -rf "$OUTPUT/data" "$OUTPUT/config" "$OUTPUT/bundle"

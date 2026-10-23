@@ -2,6 +2,7 @@
 import importlib.util
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
@@ -167,6 +168,16 @@ class LinuxHostSettingsTests(unittest.TestCase):
         blocked.write_text("not a folder", "utf-8")
         hostsettings.append_log(blocked, "never raises")
         self.assertEqual(blocked.read_text("utf-8"), "not a folder")
+
+# Pure data, so it runs on every platform.
+class LinuxNamedActionTests(unittest.TestCase):
+    def test_named_actions_run_tray_targets_and_every_region(self):
+        names = hostsettings.NAMED_ACTIONS
+        self.assertTrue(all(re.fullmatch(r"[a-z0-9-]+", name) for name in names), "valid GAction names")
+        self.assertEqual({target for target in names.values() if not target.startswith("@region")}, {"show", "@capture", "@toggle", "@all", "@stop"})
+        # The page's regionTarget in src/core/shortcuts.js spells region targets the same way.
+        self.assertEqual([names[f"region-{number}"] for number in range(1, 10)], [f"@region{number}" for number in range(1, 10)])
+        self.assertIn("export const regionTarget = number => `@region${number}`;", (ROOT / "src/core/shortcuts.js").read_text("utf-8"))
 
 
 if __name__ == "__main__":

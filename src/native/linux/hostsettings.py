@@ -18,6 +18,11 @@ MARKER = "X-Work-Fleet-Managed=true"
 LOGIN_ARGUMENT = "--launch-at-login"
 DEB_ROOT = Path("/usr/lib/work-fleet")
 LOG = "host.log"
+# GApplication actions a compositor keybinding runs with `gapplication action <app id> <name>`, for desktops without a
+# GlobalShortcuts portal such as sway and wayfire. Each runs like the tray item with the same target; "quit" saves and
+# quits as the tray's quit item does. Region actions name a region, which the page turns into the group there now.
+NAMED_ACTIONS = {"show-main": "show", "quick-capture": "@capture", "toggle-desktop": "@toggle", "adjust-all": "@all",
+                 "done-adjusting": "@stop", **{f"region-{number}": f"@region{number}" for number in range(1, 10)}}
 LOG_LIMIT = 256 * 1024
 
 

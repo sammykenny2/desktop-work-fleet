@@ -653,8 +653,8 @@ Current status is in [PROGRESS](../../PROGRESS.md); verification evidence is in 
 
 ## 2026-10-23 addendum: the 0.3.x items
 
-On 2026-10-23 the maintainer asked for every 0.3.x item in [ROADMAP](../../ROADMAP.md#03x). Those that change this
-contract:
+On 2026-10-23 the maintainer asked for every 0.3.x item then listed in [ROADMAP](../../ROADMAP.md). Those that change
+this contract:
 
 - Quick capture from a global shortcut or the tray while the main window is hidden: saving the note or pressing Esc
   hides the main window again. A main window that was open or minimized stays as it was, and a failed save keeps the

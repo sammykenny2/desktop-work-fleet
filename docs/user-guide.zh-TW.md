@@ -305,6 +305,16 @@
   經 XWayland 時群組只常駐桌布層（[ADR-039](decisions/039-gnome-desktop-icons-and-x11-scene-size.md)）。
 - Raspberry Pi OS（labwc）等 layer-shell 桌面的常駐層不受遮罩限制（預設 pcmanfm 桌面沒有桌布層），
   調整模式同樣以遮罩覆蓋整個螢幕並隱藏主視窗。
+- sway、wayfire 這類沒有全域快捷鍵 portal 的 Wayland 桌面，Work Fleet 無法自行註冊按鍵。請在桌面環境自己的設定裡，
+  把按鍵綁到 Work Fleet 的命名動作（Work Fleet 開著時才有效）：`quick-capture`、`toggle-desktop`、`adjust-all`、
+  `done-adjusting`、`region-1` 到 `region-9`（該區域的群組換到下一階，和它的按鍵一樣）、`show-main` 與 `quit`
+  （和系統匣一樣存檔後結束）。例如 sway 的設定檔：`bindsym Ctrl+Shift+n exec gapplication action <app id> quick-capture`；
+  wayfire.ini 的 `[command]` 區段：`binding_capture = <ctrl> <shift> KEY_N` 與
+  `command_capture = gapplication action <app id> quick-capture`。`<app id>` 是 Work Fleet 的應用程式 ID，即
+  `/usr/lib/work-fleet/Icons` 裡圖示去掉 `.png` 的檔名（沒有自訂時為 `app.workfleet.preview`）；`gapplication` 隨 GLib 工具
+  （`libglib2.0-bin`）提供。桌面環境沒有給 activation token 時，主視窗可能會跑到前面但沒有取得焦點。
+  Hyprland 自己的 portal 提供全域快捷鍵，所以在那裡「設定 → 快捷鍵」會像 GNOME、KDE 一樣註冊（未在 Hyprland 上實測）。
+  labwc 請繼續使用設定寫入 rc.xml 的快捷鍵。
 
 ### 手機
 

@@ -30,20 +30,6 @@ This 1.0 includes the Windows, macOS and Linux and the iOS and Android native ap
 the scope is in the answered Q items of SPEC-003. Integrating one host first does not cancel the other platforms. Use the
 existing Mac experience; do not restart the paused exploration goal.
 
-## 0.3.x
-
-Being scheduled for 0.3.x does not mean a design is approved; these are behaviour ideas, each implemented independently.
-On 2026-10-23 the maintainer asked for all of them, in this order: the low-cost items first, then guidance when data
-cannot be opened, group transparency, and shortcuts on other Wayland compositors. Each item leaves this list in the
-commit that implements it.
-
-Decided on 2026-10-23:
-
-- **Shortcuts on other Wayland compositors**: the Linux app exposes every shortcut action, plus showing the main window
-  and quitting, as named GApplication actions, so a keybinding in sway, wayfire or another compositor without a
-  GlobalShortcuts portal can run `gapplication action <app id> <action>`; the user guide gives examples. labwc keeps
-  the rc.xml keybinds that Settings writes.
-
 ## 0.4.x
 
 Being scheduled for 0.4.x does not mean a design is approved.

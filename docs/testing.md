@@ -78,6 +78,15 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   background in the topmost scene, then that it is opaque again on the Desktop layer. It checks styles, not the pixels
   the compositor draws; Linux and macOS have not been checked on a real desktop (2026-10-23).
 
+## Named GApplication actions on Linux
+
+- `tests/test_linux_hostsettings.py` (`LinuxNamedActionTests`, on every platform) checks the action names, their tray
+  targets and that region targets match `regionTarget` in `src/core/shortcuts.js`.
+- The `actions` mode of `tests/native/linux/host_probe.py` (in `test-host-shell.sh`) calls each action over D-Bus the
+  way `gapplication action` does: `show-main` shows the hidden main window, the others run their tray targets, and `quit`
+  runs the save-and-quit path. A real sway or wayfire keybinding and the page turning `@regionN` into its group in a
+  running app have not been checked (2026-10-23).
+
 ## Search ranking
 
 - `node --test tests/search.test.js`: the three search tiers (title or first line, the first five non-empty lines,

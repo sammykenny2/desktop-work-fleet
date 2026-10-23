@@ -1,7 +1,7 @@
 import { Workspace } from '../core/workspace.js';
 import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
-import { normalizeShortcut, regionKeyChanges, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, validateShortcuts } from '../core/shortcuts.js';
+import { normalizeShortcut, regionKeyChanges, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, stepGroup } from '../layout/stages.js';
 import { mainGroup, mainView } from '../layout/store.js';
@@ -816,6 +816,9 @@ function renderShortcutStatus() {
 async function desktopAction(target, intent) {
   if (composing || editorBusy || document.querySelector('dialog[open]')) throw new Error(t('app.errors.finishInputOrDialog'));
   if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
+  // A Linux named action names a region, which stands for the group it holds now.
+  const region = shortcutRegion(target);
+  if (region !== null) { target = workspace.layout.state.grid.slots[region - 1]; if (!target) return; }
   if (target === shortcutActions.capture) {
     await leaveAdjustOverlay();
     const shown = desktop ? await native.bridge.request('desktop.showMain', { intent: intent ?? null }) : null;

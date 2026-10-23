@@ -5,6 +5,9 @@
 Accepted, 2026-10-14. On a Raspberry Pi 5 with labwc, the maintainer reported that shortcuts could not switch layers
 when the main window was not focused or was minimized. After comparing "the app writes rc.xml", "provide only a
 configuration snippet" and "do nothing for now", the maintainer chose to have the app write it.
+Revised 2026-10-23: for other compositors without a GlobalShortcuts portal (sway, wayfire), the maintainer chose named
+GApplication actions (`quick-capture`, `region-1` and the others, `show-main`, `quit`) that the user binds in the
+compositor's own configuration, documented in the user guide; Work Fleet writes no configuration for them.
 
 ## Context
 

@@ -607,6 +607,13 @@ start-up window on a damaged database through its set-aside and a reopen, then d
 real profile and drives the page's explanation, its folder and its set-aside through the host until the page opens
 empty. Real full disks, held files and permissions are covered only by the classifier (2026-10-23).
 
+On Linux, `tests/test_linux_data_failure.py` (pure Python, also on Windows) covers the classifier, the move of the
+database with its `storage-key`, a failed move put back and a failed put-back that says where the files are. The
+`data-failure` mode of `tests/native/linux/host_probe.py`, run by `scripts/linux/test-host-shell.sh` in the container,
+opens the real store on a database that is not SQLite, checks the dialog's cause and folder, confirms the set-aside and
+waits for empty data with a new key. The page's explanation and `data.setAside` on Linux are not run there; the
+container loads no page.
+
 ### Sync while the main window is hidden
 
 Measured on 2026-10-23 with WebView2 155: after the main window went to the tray, the page turned `hidden` and its own

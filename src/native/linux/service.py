@@ -23,6 +23,8 @@ class Service:
         self.language = None
         self.updates = False
         self.attachment_files = None
+        # Set by the GTK owner: opens the data folder in the file manager (SPEC-006 DO).
+        self.reveal = None
         self.secrets = SystemSecrets(database, vault)
         self.backup = Backup(database, choose, self.secrets)
         self.google = Google(Credentials(database, vault, self.secrets), config, database.profile, open_browser)
@@ -90,6 +92,15 @@ class Service:
                       "host.language.set", "update.state", "update.check", "update.download", "update.install"):
             p.require(self.shell is not None, "unsupported-method", "The native host doesn't support this operation.")
             return self.shell(method, args)
+        # SPEC-006 DO: the folder of data the page couldn't read. The owner reopens the page on empty data after a set-aside.
+        if method == "data.location":
+            return {"path": str(self.database.directory)}
+        if method == "data.reveal":
+            p.require(self.reveal is not None, "unsupported-method", "The native host doesn't support this operation.")
+            self.reveal()
+            return None
+        if method == "data.setAside":
+            return {"profileId": self.database.profile}
         if method in ("attachment.preview", "attachment.open"):
             with self.lock:
                 p.require(not self.closed and self.attachment_files is not None, "native-closed", "The native session has ended.")
@@ -113,7 +124,7 @@ class Service:
                 return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": t(self.desktop_reason) if self.desktop_reason else None, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
                         "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
                                          "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True, "attachmentFiles": self.attachment_files is not None,
-                                         "languagePreference": self.language is not None},
+                                         "languagePreference": self.language is not None, "dataRecovery": self.reveal is not None},
                         "language": self.language() if self.language is not None else None}
             if method == "host.ready":
                 self.ready = True

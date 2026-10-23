@@ -174,7 +174,7 @@ export default {
   'app.dataFailure.full': 'The disk is full. Free some space, then start Work Fleet again.',
   'app.dataFailure.inUse': 'Another program is using the local data. Close it, for example a backup or sync tool, then start Work Fleet again.',
   'app.dataFailure.denied': "The system doesn't let Work Fleet open its data folder. Check the folder's permissions, then start Work Fleet again.",
-  'app.dataFailure.key': "The notes stored on this device can't be decrypted under this system account. Only the account, on the computer, that used Work Fleet before can read them.",
+  'app.dataFailure.key': "The notes stored on this device can't be decrypted with the keys this computer has now. Only the account and the keys that saved them can read them.",
   'app.dataFailure.unreadable': "Work Fleet couldn't read the notes stored on this device, and it can't tell why.",
   'app.dataFailure.folder': 'The data is in this folder:',
   'app.dataFailure.openFolder': 'Open folder',

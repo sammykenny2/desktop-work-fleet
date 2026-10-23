@@ -1,5 +1,6 @@
 #!/bin/bash
-# Check the GTK owner's main window bounds, startup settings and hidden sign-in start in private X11 and labwc sessions.
+# Check the GTK owner's main window bounds, startup settings, hidden sign-in start and the explanation of damaged data in
+# private X11 and labwc sessions.
 # Usage: ./scripts/linux/test-host-shell.sh OUTPUT [--help]
 # Needs xvfb-run, openbox, labwc and the GTK/WebKit bindings (tests/native/linux/Dockerfile). No user data or desktop is used.
 set -euo pipefail
@@ -15,7 +16,7 @@ cd "$ROOT"
 xvfb-run -a -s '-screen 0 1920x1080x24' bash -c '
     openbox > "$0/openbox.log" 2>&1 &
     sleep 1
-    for mode in place restore hidden hidden-tray; do python3 -B tests/native/linux/host_probe.py "$0" "$mode" || exit 1; done
+    for mode in place restore hidden hidden-tray data-failure; do python3 -B tests/native/linux/host_probe.py "$0" "$mode" || exit 1; done
 ' "$OUTPUT"
 # labwc places windows itself, as on the Raspberry Pi: only the size and maximized state are kept.
 rm -rf "$OUTPUT/data" "$OUTPUT/config" "$OUTPUT/bundle"

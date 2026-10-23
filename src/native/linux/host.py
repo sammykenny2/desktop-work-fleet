@@ -2,6 +2,7 @@
 """Native GTK owner. Usage: python3 host.py --assets PATH --config PATH [--data PATH]."""
 import argparse
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 import mimetypes
 import os
 from pathlib import Path
@@ -38,6 +39,7 @@ from attachments import AttachmentFiles
 from desktop import Desktop
 from surface import backend
 from tray import Tray
+import datafailure
 import protocol as p
 import text
 from text import t
@@ -47,7 +49,8 @@ DOCUMENT = ORIGIN + "/app/index.html"
 # What the fatal-error window says for a failure's code; any other failure gets the generic text.
 FATAL = {"native-view": "fatal.viewStopped", "workspace-owned": "fatal.workspaceOwned", "native-storage": "fatal.storageAccess",
          "native-version": "fatal.dataVersion", "vault-locked": "fatal.keyringLocked", "vault-unavailable": "fatal.keyMissing",
-         "storage-integrity": "fatal.keyUnverified", "google-config": "fatal.googleConfig"}
+         "storage-integrity": "fatal.keyUnverified", "google-config": "fatal.googleConfig",
+         "data-set-aside": "dataFailure.setAsideFailed", "data-set-aside-incomplete": "dataFailure.setAsideIncomplete"}
 # Why desktop notes are unavailable, by the code that stopped them; returned in host.info for the page to show.
 DESKTOP_REASONS = {"desktop-unsupported": "reason.desktopUnsupported", "desktop-capacity": "reason.desktopDisplays"}
 
@@ -175,6 +178,8 @@ class FleetApp(Gtk.Application):
         shortcut.connect("activate", lambda _action, value: self.desktop.shortcut(value.get_string()) if self.desktop is not None else None)
         self.add_action(shortcut)
         self.window = self.view = self.service = None
+        # A set-aside that moved nothing, shown once the old data has opened again (SPEC-006 DO).
+        self.set_aside_failure = None
         self.desktop = self.tray = self.display = None
         self.restart = False
         self.native_dialogs = 0
@@ -657,13 +662,22 @@ class FleetApp(Gtk.Application):
             raise p.Failure("backup-cancelled", "Choosing a backup location timed out. Try again.")
         return result.get("path")
 
-    def open_store(self, profile, persist=False):
+    def open_store(self, profile, persist=False, set_aside=False):
         current = self.epoch
 
         def open_native():
             old = self.service
             if old is not None:
                 old.close()
+            if set_aside:
+                # SPEC-006 DO: on the storage thread, after the old session closed and before the new database opens.
+                try:
+                    datafailure.set_aside(self.directory, datetime.now())
+                except p.Failure as error:
+                    # A set-aside that moved nothing reopens the old data, as before the attempt; a half-done one stops here.
+                    if error.code != "data-set-aside":
+                        raise
+                    self.set_aside_failure = error
             database = Database(self.directory, profile, self.vault)
             try:
                 service = Service(database, self.vault, self.config, self.choose_directory, lambda uri: self.ui(lambda: Gio.AppInfo.launch_default_for_uri(uri, None)))
@@ -688,13 +702,33 @@ class FleetApp(Gtk.Application):
         future = self.storage.submit(open_native)
 
         def ready():
+            failed, self.set_aside_failure = self.set_aside_failure, None
+            if failed is not None and current == self.epoch and not self.stopped:
+                # The set-aside that moved nothing says so before the old data shows again.
+                self.failure(failed, then=settle)
+            else:
+                settle()
+            return False
+
+        def settle():
             if current != self.epoch or self.stopped:
                 if not future.exception():
                     self.storage.submit(future.result().close)
-                return False
+                return
             try:
-                self.service = future.result()
+                service = future.result()
+            except Exception as error:
+                # SPEC-006 DO: the database's own failures say why and where the data is; anything else keeps its message.
+                cause = error.code if isinstance(error, p.Failure) and error.code in datafailure.CAUSES else None
+                if cause is None:
+                    self.failure(error)
+                else:
+                    self.data_failure(cause, profile)
+                return
+            try:
+                self.service = service
                 self.service.display = self.display
+                self.service.reveal = self.reveal_data
                 self.service.identity = {"appVersion": hostsettings.version(self.assets, __file__), "distribution": hostsettings.distribution(self.assets)}
                 self.service.shell = lambda method, args: self.ui(lambda: self.shell_invoke(method, args))
                 self.service.language = self.describe_language
@@ -723,7 +757,6 @@ class FleetApp(Gtk.Application):
                 self.view.load(lambda error: self.failure(error) if error else None)
             except Exception as error:
                 self.failure(error)
-            return False
         future.add_done_callback(lambda _: GLib.idle_add(ready))
 
     def receive(self, value):
@@ -755,6 +788,11 @@ class FleetApp(Gtk.Application):
                         self.epoch += 1
                         self.close_desktop()
                         self.open_store(result["profileId"], persist=True)
+                    elif method == "data.setAside":
+                        # The page couldn't read its notes: the database moves aside and the same profile opens empty.
+                        self.epoch += 1
+                        self.close_desktop()
+                        self.open_store(result["profileId"], set_aside=True)
                     elif method == "host.closeCancel":
                         self.closing = self.restart = False
                     elif method == "host.restart" and not self.closing:
@@ -820,7 +858,66 @@ class FleetApp(Gtk.Application):
             return True
         download.connect("decide-destination", destination)
 
-    def failure(self, error):
+    def show_data_folder(self):
+        """Opens the data folder in the file manager; on the main loop."""
+        try:
+            Gio.AppInfo.launch_default_for_uri(self.directory.as_uri(), None)
+        except GLib.Error as error:
+            raise p.Failure("data-reveal", "Couldn't open the data folder.") from error
+
+    def reveal_data(self):
+        """data.reveal from the storage thread, which waits for the main loop."""
+        self.ui(self.show_data_folder)
+
+    def data_failure(self, cause, profile):
+        """SPEC-006 DO: says why the local data couldn't be opened and shows its folder; for damaged or unverifiable data it
+        also sets the data aside after a confirmation and opens the same profile on empty data."""
+        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.NONE, text=t("dataFailure.title"))
+        dialog.format_secondary_text(t(datafailure.TEXT_KEYS[cause]) + "\n\n" + t("dataFailure.folder") + "\n" + str(self.directory))
+        dialog.add_button(t("dataFailure.openFolder"), 1)
+        if datafailure.can_set_aside(cause):
+            dialog.add_button(t("dataFailure.setAside"), 2)
+        dialog.add_button(t("dataFailure.close"), Gtk.ResponseType.CLOSE)
+        self.dialog_opened()
+
+        def responded(dialog, response):
+            if response == 1:
+                try:
+                    self.show_data_folder()
+                except p.Failure:
+                    pass
+                return
+            dialog.destroy()
+            self.dialog_closed()
+            if response == 2:
+                self.confirm_set_aside(profile, cause)
+            else:
+                # Nothing works without the data, so closing the explanation quits, as on Windows.
+                self.quit()
+        dialog.connect("response", responded)
+        dialog.show()
+
+    def confirm_set_aside(self, profile, cause):
+        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.NONE, text=t("dataFailure.title"))
+        dialog.format_secondary_text(t("dataFailure.confirm"))
+        dialog.add_button(t("dataFailure.cancel"), Gtk.ResponseType.CANCEL)
+        dialog.add_button(t("dataFailure.confirmAction"), Gtk.ResponseType.OK)
+        dialog.set_default_response(Gtk.ResponseType.CANCEL)
+        self.dialog_opened()
+
+        def responded(dialog, response):
+            dialog.destroy()
+            self.dialog_closed()
+            if response == Gtk.ResponseType.OK:
+                self.epoch += 1
+                self.close_desktop()
+                self.open_store(profile, set_aside=True)
+            else:
+                self.data_failure(cause, profile)
+        dialog.connect("response", responded)
+        dialog.show()
+
+    def failure(self, error, then=None):
         message = t(FATAL.get(error.code, "fatal.workspace") if isinstance(error, p.Failure) else "fatal.workspace")
         dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text="Work Fleet")
         dialog.format_secondary_text(message)
@@ -828,6 +925,8 @@ class FleetApp(Gtk.Application):
         def dismissed(dialog, _response):
             dialog.destroy()
             self.dialog_closed()
+            if then is not None:
+                then()
         dialog.connect("response", dismissed)
         dialog.show()
 

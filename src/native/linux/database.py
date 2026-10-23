@@ -12,6 +12,7 @@ import time
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
+import datafailure
 import protocol as p
 
 
@@ -567,7 +568,11 @@ class Database:
         self.lock = threading.RLock()
         self.owner = None
         self.connection = None
-        self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        # SPEC-006 DO: a failure to open the data names its cause, which the start-up dialog and the page explain.
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        except OSError as error:
+            raise datafailure.failure(datafailure.classify(error)) from error
         info = self.directory.lstat()
         p.require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and info.st_mode & 0o077 == 0, "native-storage", "The app data folder's owner or permissions aren't valid.")
         try:
@@ -600,8 +605,11 @@ class Database:
                 PRAGMA user_version=2;
             """)
             self.connection.execute("DELETE FROM staging WHERE profile=?", (profile,))
-        except Exception:
+        except Exception as error:
             self.close()
+            cause = None if isinstance(error, p.Failure) else datafailure.classify(error)
+            if cause is not None:
+                raise datafailure.failure(cause) from error
             raise
 
     def aad(self, kind, key):
@@ -620,7 +628,11 @@ class Database:
     def record(self, kind):
         p.require(kind in ("workspace", "journal"), "invalid-record", "The storage kind isn't valid.")
         with self.lock:
-            row = self.connection.execute("SELECT data FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()
+            try:
+                row = self.connection.execute("SELECT data FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()
+            except sqlite3.DatabaseError as error:
+                # A database that opened but can't be read names its cause, which the page explains.
+                raise datafailure.failure(datafailure.classify(error)) from error
             return None if row is None else self.open("record", kind, row[0])
 
     def attachment(self, key):

@@ -231,6 +231,10 @@ Common to all desktops:
   other Wayland desktops need the GlobalShortcuts portal, which GNOME 42 and the wlroots portal (sway, wayfire) lack.
 - Attachment thumbnails from installed thumbnailers and opening with the default app have not been checked on a real
   Linux desktop, and text fitting with "…" has not been checked in WebKitGTK (as of 2026-10-17).
+- Data that can't be opened (SPEC-006 DO): `datafailure.py` names the cause from SQLite and OS errors, and a
+  `storage-integrity` key failure counts as undecryptable data. Setting aside moves `fleet.sqlite3`, its journals and
+  `storage-key` together, on the storage thread after the old session closed. A locked keyring (`vault-locked`) or a
+  missing keyring keeps its own message and is not offered setting aside (2026-10-23).
 
 Per desktop:
 

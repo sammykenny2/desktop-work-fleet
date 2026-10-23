@@ -173,7 +173,7 @@ export default {
   'app.dataFailure.full': '磁碟已滿。請先清出一些空間，再重新啟動 Work Fleet。',
   'app.dataFailure.inUse': '另一個程式正在使用本機資料。請先關閉它（例如備份或同步工具），再重新啟動 Work Fleet。',
   'app.dataFailure.denied': '系統不允許 Work Fleet 開啟資料夾。請檢查資料夾權限，再重新啟動 Work Fleet。',
-  'app.dataFailure.key': '存在這台裝置上的便箋無法在這個系統帳號下解密。只有之前使用 Work Fleet 的那台電腦、那個帳號才能讀取。',
+  'app.dataFailure.key': '存在這台裝置上的便箋無法用這台電腦目前的金鑰解密。只有存下它們的帳號與金鑰才能讀取。',
   'app.dataFailure.unreadable': 'Work Fleet 無法讀取存在這台裝置上的便箋，也無法判斷原因。',
   'app.dataFailure.folder': '資料在這個資料夾：',
   'app.dataFailure.openFolder': '開啟資料夾',

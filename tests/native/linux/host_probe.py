@@ -1,7 +1,8 @@
 """ADR-043 on the real GTK owner in isolated X11 and labwc sessions: main window bounds, startup settings and a hidden sign-in start.
 
-Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden, hidden-tray (X11) or wayland, wayland-restore (labwc). Each mode is its own
-process so GApplication registers afresh; the data, bundle and XDG config folders live under OUTPUT. The workspace store is not opened.
+Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden, hidden-tray, data-failure (X11) or wayland, wayland-restore (labwc). Each
+mode is its own process so GApplication registers afresh; the data, bundle and XDG config folders live under OUTPUT. Only data-failure opens the
+workspace store: a database that is not SQLite explains itself, and its set-aside opens empty data (SPEC-006 DO).
 hidden-tray needs the Ayatana AppIndicator typelib and a private session bus: it plays a panel whose StatusNotifierWatcher starts late."""
 import json
 import os
@@ -72,7 +73,8 @@ bundle = OUTPUT / "bundle"
 (bundle / "run-work-fleet.sh").write_text("#!/bin/bash\n", "utf-8")
 (bundle / "package.json").write_text('{"version": "9.8.7"}', "utf-8")
 data = OUTPUT / "data"
-host.FleetApp.open_store = lambda self, profile, persist=False: None
+real_open_store = host.FleetApp.open_store
+host.FleetApp.open_store = lambda self, profile, persist=False, set_aside=False: None
 # A shorter wait than config/startup.json, delivered the same way: through the public config.
 WAIT = 3
 app = host.FleetApp(bundle / "Assets", {"appId": "app.workfleet.hostprobe", "startup": {"trayWaitSeconds": WAIT}}, data,
@@ -197,6 +199,35 @@ elif MODE == "hidden-tray":
     log = (data / "host.log").read_text("utf-8").rsplit(" start version=", 1)[-1]
     check("launchedAtLogin=True hidden=True" in log and " tray available=False uptime=" in log and " tray available=True uptime=" in log,
           "host.log records the sign-in start and when the tray came and went")
+    app.shutdown(app)
+elif MODE == "data-failure":
+    host.FleetApp.open_store = real_open_store
+    data.mkdir(parents=True, exist_ok=True)
+    os.chmod(data, 0o700)
+    for stale in data.glob("fleet.sqlite3*"):
+        stale.unlink()
+    (data / "fleet.sqlite3").write_bytes(b"these bytes are not a SQLite database")
+    key = data / "storage-key"
+    key.write_bytes(os.urandom(32))
+    os.chmod(key, 0o600)
+    explained = []
+    explain = host.FleetApp.data_failure
+    host.FleetApp.data_failure = lambda self, cause, profile: (explained.append(cause), explain(self, cause, profile))
+    app.activate(app)
+    shown = lambda: [window for window in Gtk.Window.list_toplevels() if isinstance(window, Gtk.MessageDialog) and window.get_visible()]
+    spin(lambda: explained and shown(), seconds=30, message="the damaged database explains itself")
+    secondary = shown()[0].get_property("secondary-text")
+    check(explained == ["data-damaged"] and text.EN["dataFailure.damaged"] in secondary and str(data) in secondary,
+          f"the explanation names the cause and the folder ({explained}, {secondary!r})")
+    shown()[0].response(2)
+    spin(lambda: shown() and shown()[0].get_property("secondary-text") == text.EN["dataFailure.confirm"], message="the set-aside asks first")
+    check(not list(data.glob("set-aside-*")), "nothing moves before the confirmation")
+    shown()[0].response(Gtk.ResponseType.OK)
+    spin(lambda: app.service is not None, seconds=30, message="empty data opens after the set-aside")
+    folders = list(data.glob("set-aside-*"))
+    check(len(folders) == 1 and (folders[0] / "fleet.sqlite3").read_bytes() == b"these bytes are not a SQLite database"
+          and (folders[0] / "storage-key").read_bytes() != (data / "storage-key").read_bytes(),
+          "the damaged database and its key moved into one set-aside folder, and the new data has its own key")
     app.shutdown(app)
 else:
     raise SystemExit("unknown mode")

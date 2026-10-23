@@ -37,12 +37,6 @@ On 2026-10-23 the maintainer asked for all of them, in this order: the low-cost 
 cannot be opened, group transparency, and shortcuts on other Wayland compositors. Each item leaves this list in the
 commit that implements it.
 
-Low cost, clear value:
-
-- **Real-world sync check with the main window hidden**: on all three platforms, check whether the WebView throttles the
-  20-second Google sync and desktop updates after the main window goes to the tray or menu bar; fix it only if a
-  problem is confirmed.
-
 Decided on 2026-10-23:
 
 - **Guidance when data cannot be opened**: on every desktop platform, when the local data cannot be opened at start,

@@ -216,6 +216,7 @@ class FleetApp(Gtk.Application):
                          update=self.tray_update if self.updater.capable else None,
                          changed=lambda available: self.log(f"tray available={available} uptime={self.uptime()}"))
         self.log(f"tray available={self.tray.available} uptime={self.uptime()}")
+        GLib.timeout_add_seconds(20, self.host_tick)
         if self.hidden_start:
             # A tray that never connects would leave the hidden window unreachable, so it shows after the wait.
             GLib.timeout_add_seconds(self.tray_wait, self.hidden_fallback)
@@ -235,6 +236,15 @@ class FleetApp(Gtk.Application):
             self.ask_display(profile)
         else:
             self.open_store(profile)
+
+    def host_tick(self):
+        """A hidden page's timers may slow down, so the host ticks every 20 seconds and a main window in the tray keeps
+        syncing on time."""
+        if self.stopped:
+            return False
+        if self.view is not None and not self.closing:
+            self.view.event("host-tick")
+        return True
 
     def reveal(self):
         """Shows the main window, or on a hidden sign-in start only realizes it so the page still loads."""

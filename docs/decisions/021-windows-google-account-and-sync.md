@@ -40,7 +40,8 @@ uploaded automatically.
 A new account first reads the source and creates the default group only after confirming that the source is empty. An
 explicit quick add by the user can also create a group.
 Background sync is attempted every 20 seconds and follows FileSync's backoff, conflict and outbox rules; it is deferred
-while a dialog is open or text is being composed.
+while a dialog is open or text is being composed. Since 2026-10-23 the host also sends a 20-second `host-tick`, on which
+a hidden main page syncs, because WebView2 runs a hidden page's interval only once a minute (docs/testing.md).
 Signing out clears only this device's credentials for that account and does not revoke the grant with Google (revised
 2026-10-15, see Status); note data stays in that account's partition.
 

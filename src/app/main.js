@@ -231,6 +231,10 @@ async function initialize() {
     const note = $('#shortcut-note'); note.dataset.i18n = 'settings.shortcuts.noteGlobal'; note.textContent = t('settings.shortcuts.noteGlobal');
     addEventListener('pagehide', () => nativeShortcuts.close());
   }
+  // A hidden page runs its timers only once a minute (WebView2, after one to two minutes in the tray), so the desktop hosts
+  // tick every 20 seconds and sync follows that tick while the main window is hidden. Showing it again syncs at once.
+  native?.bridge.onEvent('host-tick', () => { if (document.visibilityState === 'hidden') void syncGoogle(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void syncGoogle(); });
   displayBackend = native?.info.displayBackend ?? null;
   // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
   const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed; const reason = native?.info.desktopReason;

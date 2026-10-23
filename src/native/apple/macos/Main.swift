@@ -10,7 +10,8 @@ import AppKit
     private var shell: FleetHostShell?
     private var updates: FleetUpdates?
     private var attachmentFiles = FleetAttachmentFiles()
-    func applicationWillTerminate(_ notification: Notification) { attachmentFiles.close() }
+    private var tick: Timer?
+    func applicationWillTerminate(_ notification: Notification) { tick?.invalidate(); attachmentFiles.close() }
     static func main() {
         // Release packaging exercises the actual dyld loader without opening UI, storage or login items.
         if CommandLine.arguments.contains("--check-runtime") { print("PASS Work Fleet runtime load"); return }
@@ -28,6 +29,8 @@ import AppKit
             let updates = FleetUpdates(config: config, lastChecked: shell.lastUpdateCheck); self.updates = updates
             updates.publish = { [weak host] state in host?.event("update-state", ["state": state]) }
             updates.recordCheck = { [weak shell] time in shell?.recordUpdateCheck(time) }
+            // A hidden page's timers slow down, so the host ticks every 20 seconds and a main window in the menu bar keeps syncing on time.
+            tick = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak host] _ in MainActor.assumeIsolated { host?.event("host-tick") } }
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 800), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
             window.title = "Work Fleet"; window.minSize = NSSize(width: 380, height: 520); window.contentView = host.web; window.delegate = self; shell.apply(window)
             host.configure = { [weak self, weak host] service in

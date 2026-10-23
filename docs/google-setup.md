@@ -131,8 +131,9 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
   Existing local notes are not uploaded automatically; to move them, export a backup first, then import it in the Google
   workspace.
 - App data is in the hidden appDataFolder and does not appear in the normal Drive file list.
-- A signed-in workspace tries to sync every 20 seconds, and "Sync now" in Account and sync syncs immediately. Offline or
-  after a failure, local data and pending changes are kept.
+- A signed-in workspace tries to sync every 20 seconds, also while the main window is in the tray or menu bar, and
+  again as soon as the main window shows. "Sync now" in Account and sync syncs immediately. Offline or after a failure,
+  local data and pending changes are kept.
 - When "Sign in to Google again" appears, re-authorize with the original account; choosing another account opens a
   different workspace.
 - "Switch" in the "Local notes" row returns to the local workspace; "Sign out" removes only this device's account

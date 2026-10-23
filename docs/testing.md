@@ -596,6 +596,16 @@ that cannot count as a pass or as a reason to disable the WebView2 sandbox. The 
 The WebView2 UI probe can fail on the first window with `0x8876086A` when WebView2 cannot create a D3D9 device in the current session; unchanged HEAD fails the same way (2026-10-14).
 Rerun in an interactive desktop session that can create a D3D9 device.
 The Windows UI probe only checks that the scene DOM contains a card; it cannot tell whether the scene actually painted.
+
+### Sync while the main window is hidden
+
+Measured on 2026-10-23 with WebView2 155: after the main window went to the tray, the page turned `hidden` and its own
+20-second interval kept its pace for one to two minutes, then ran only once a minute until the window showed again.
+The hosts therefore send `host-tick` every 20 seconds, and the hidden page syncs on it; showing the main window syncs
+at once. `WorkFleet.Windows.Ui.Tests.exe --hidden-sync DIR` (about five minutes, not part of Test-WindowsNative) hides
+the main window for 270 seconds, requires a tick at least every 25 seconds and prints the page's own interval beside it.
+macOS (WKWebView, App Nap) and Linux (WebKitGTK) send the same tick but have not been measured hidden; whether their
+hidden pages slow down, and whether the tick reaches a suspended macOS page on time, is unverified (2026-10-23).
 A missing first paint after showing a scene (fixed on 2026-10-06 with a repaint 300 ms after show) would not be caught.
 The Windows app, core and probe projects compile on Linux (for example the Raspberry Pi) with .NET SDK 10.0.402 and `EnableWindowsTargeting`, with 0 warnings.
 The core probe cannot run there because its early cases use DPAPI; on 2026-10-17 the `StartupConfig` cases were run instead in a temporary console project on the Pi's .NET 10.0.13.

@@ -226,6 +226,15 @@ public sealed class FleetWindow : Window
     };
     core.DownloadStarting += (_, e) => { e.Handled = false; };
     core.Navigate(NavigationPolicy.Document);
+    // A hidden page runs its timers about once a minute (measured in WebView2 155), so the host ticks every 20 seconds and
+    // a main window in the tray keeps syncing on time.
+    var tick = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
+    tick.Tick += (_, _) =>
+    {
+      if (shuttingDown) { tick.Stop(); return; }
+      if (NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson("{\"v\":1,\"event\":\"host-tick\"}");
+    };
+    tick.Start(); Closed += (_, _) => tick.Stop();
   }
   private bool TryIntent(string json, out string? result)
   {

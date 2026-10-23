@@ -114,6 +114,12 @@ import AppKit
         _ = try parse(card, ["locale": "zh-TW"])
         do { _ = try parse(card, ["locale": 1]); throw FleetFailure("probe", "A non-text locale was accepted") }
         catch let failure as FleetFailure { try check(failure.code == "invalid-request", "A frame locale must be text") }
+        // Frames carry the key that starts a quick move in the scene, or null; nothing else is accepted.
+        for key: Any in ["meta", "ctrl", NSNull()] { _ = try parse(card, ["quickMove": key]) }
+        for key: Any in ["alt", 1] {
+            do { _ = try parse(card, ["quickMove": key]); throw FleetFailure("probe", "An unknown quick move key was accepted") }
+            catch let failure as FleetFailure { try check(failure.code == "scene-frame", "A frame quick move key must be meta or ctrl") }
+        }
         for flag in ["interactive", "draggable", "editing"] {
             card[flag] = true
             do { _ = try parse(card); throw FleetFailure("probe", "Interactive wallpaper was accepted") }

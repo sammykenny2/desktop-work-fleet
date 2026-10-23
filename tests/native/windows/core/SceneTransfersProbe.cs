@@ -73,6 +73,12 @@ internal static class SceneTransfersProbe
       foreach (var locale in new object?[] { 1, null, "", "e", "en_US", "en-US;x", "en-toolongtag", new string('a', 64) })
       { frame["locale"] = locale; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame"); }
       frame.Remove("locale");
+      // Frames carry the key that starts a quick move in the scene, or null; nothing else is accepted.
+      foreach (var key in new object?[] { "meta", "ctrl", null })
+      { frame["quickMove"] = key; Check(DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0).Sequence == 5); }
+      foreach (var key in new object?[] { "alt", "", 1, true })
+      { frame["quickMove"] = key; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame"); }
+      frame.Remove("quickMove");
       frame["outbox"] = new[] { "private" }; Reject(() => DesktopFrame.Parse(JsonSerializer.SerializeToUtf8Bytes(frame), session, 0), "scene-frame");
       using var rect = JsonDocument.Parse("{\"x\":0,\"y\":0,\"width\":-1,\"height\":1}"); Reject(() => DesktopFrame.Rect(rect.RootElement), "scene-frame");
       using var overflow = JsonDocument.Parse("{\"x\":-1500000,\"y\":0,\"width\":2000000,\"height\":50000}");

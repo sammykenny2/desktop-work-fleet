@@ -344,6 +344,93 @@ test('C24: capture loss and Escape discard only the current gesture', async () =
   assert.equal(f.controller.state.dragSession, null);
 });
 
+test('C49–C54/C56: quick move is off by default and, once on, moves one resting paper as an ordinary move', async () => {
+  const f = await fixture(); const start = copy(f.workspace.layout.state.placements[f.a1.id]);
+  assert.equal(f.workspace.layout.state.quickMove, undefined);
+  throwsCode(() => f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }), 'quick-move-off');
+  await rejectsCode(f.workspace.layout.configure({ quickMove: 'yes' }, f.workspace.snapshot), 'invalid-setting');
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  assert.equal(f.disk().layout.quickMove, true);
+  // Only the quick path takes a resting paper; an ordinary drag still needs adjust mode.
+  throwsCode(() => f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }), 'outside-scope');
+  assert.equal(f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }), true);
+  assert.equal((await f.controller.pointerUp({ x: 22, y: 21 })).kind, 'click');
+  assert.equal(f.controller.state.selectedCardId, null); assert.equal(f.workspace.layout.state.history.length, 0);
+  // Labels, regions and Shift never turn it into a transfer, and nothing enters adjust mode.
+  const labels = [{ groupId: f.b.id, x: 620, y: 0, width: 150, height: 40 }];
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true });
+  f.controller.pointerMove({ x: 630, y: 20 }, { labels, shiftKey: true });
+  assert.equal(f.controller.state.dragSession.target, null); assert.equal(f.controller.state.operationScope.kind, 'none');
+  assert.equal((await f.controller.pointerUp({ x: 630, y: 20 }, { labels, shiftKey: true })).kind, 'moved');
+  assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.a1.id).groupId, f.a.id);
+  assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], { ...start, x: start.x + 610 });
+  assert.equal(f.disk().layout.placements[f.a1.id].x, start.x + 610);
+  assert.deepEqual(f.workspace.layout.state.history.map(entry => entry.kind), ['move']);
+  await f.workspace.undo(workAreas);
+  assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], start);
+});
+
+test('C55: a quick move saves nothing once the setting, the layer, the desktop or the scope changes under it', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const start = copy(f.workspace.layout.state.placements[f.a1.id]);
+  const attempt = async (change, restore) => {
+    f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }); f.controller.pointerMove({ x: 300, y: 200 });
+    await change(); const result = await f.controller.pointerUp({ x: 300, y: 200 }); await restore();
+    assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], start); assert.equal(f.workspace.layout.state.history.length, 0);
+    assert.equal(f.controller.state.dragSession, null);
+    return result;
+  };
+  const configure = patch => () => f.workspace.layout.configure(patch, f.workspace.snapshot);
+  assert.equal((await attempt(configure({ quickMove: false }), configure({ quickMove: true }))).reason, 'quick-move-ended');
+  assert.equal((await attempt(() => f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot),
+    () => f.workspace.layout.setGroupLayer(f.a.id, 'desktop', f.workspace.snapshot))).reason, 'quick-move-ended');
+  assert.equal((await attempt(configure({ desktopVisible: false }), configure({ desktopVisible: true }))).reason, 'quick-move-ended');
+  assert.equal((await attempt(() => f.controller.activate({ kind: 'all' }), () => f.controller.activate({ kind: 'none' }))).kind, 'ignored');
+  assert.equal((await attempt(() => f.controller.escape(), async () => {})).kind, 'ignored');
+  // A wallpaper paper lets clicks through, so it never starts one.
+  await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);
+  throwsCode(() => f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }), 'quick-move-off');
+});
+
+test('a quick move keeps the title within reach, and a layout reset turns quick move off', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const controller = new InteractionController({ getSnapshot: () => f.workspace.snapshot, layout: f.workspace.layout,
+    commands: f.workspace, saveDraft: async () => {}, workAreas: () => workAreas });
+  const start = copy(f.workspace.layout.state.placements[f.a1.id]);
+  controller.pointerDown(f.a1.id, { x: start.x + 10, y: start.y + 10 }, { quick: true });
+  assert.equal((await controller.pointerUp({ x: start.x + 10, y: start.y - 5000 })).kind, 'moved');
+  const moved = f.workspace.layout.state.placements[f.a1.id];
+  assert.ok(reachable(moved, workAreas)); assert.deepEqual([moved.x, moved.y], [start.x, area.y]);
+  await f.workspace.layout.reset(f.workspace.snapshot, area);
+  assert.equal(f.workspace.layout.state.quickMove, undefined);
+});
+
+test('a quick move comes to the front only once it drags, survives unrelated layout saves and leaves editing alone', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const front = () => sceneOrder(f.workspace.snapshot.cards, f.workspace.layout.state, f.controller.state).at(-1).id;
+  const resting = front(); assert.notEqual(resting, f.a1.id);
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true });
+  assert.equal(front(), resting, 'a press below the threshold changes nothing');
+  f.controller.pointerMove({ x: 120, y: 20 });
+  assert.equal(front(), f.a1.id);
+  // A save that does not touch this paper, such as a synced paper being placed, does not end the move.
+  await f.workspace.layout.configure({ mainView: 'list' }, f.workspace.snapshot);
+  assert.equal((await f.controller.pointerUp({ x: 120, y: 20 })).kind, 'moved');
+  // Nothing is suppressed afterwards: in adjust mode the moved paper still opens for editing.
+  await f.controller.activate({ kind: 'all' });
+  assert.equal(await f.controller.beginEdit(f.a1.id, { gesture: true }), true);
+  await f.controller.endEdit(); await f.controller.activate({ kind: 'none' });
+  // Anything else moving this paper while it is held ends the move, and so does reconcile once it is no longer allowed.
+  const start = copy(f.workspace.layout.state.placements[f.a1.id]);
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }); f.controller.pointerMove({ x: 300, y: 20 });
+  await f.workspace.layout.move(f.a1.id, { x: start.x + 1, y: start.y });
+  assert.equal((await f.controller.pointerUp({ x: 300, y: 20 })).reason, 'quick-move-ended');
+  assert.equal(f.workspace.layout.state.placements[f.a1.id].x, start.x + 1);
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }); f.controller.pointerMove({ x: 300, y: 20 });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot); await f.controller.reconcile();
+  assert.equal(f.controller.state.dragSession, null);
+});
+
 test('C25/C27: action transfer retains position; card exits A scope without activating B', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'group', groupId: f.a.id });
   const before = f.workspace.layout.state.placements[f.a1.id];

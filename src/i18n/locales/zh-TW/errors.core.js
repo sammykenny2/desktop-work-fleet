@@ -109,6 +109,7 @@ export default {
   'errors.core.adjustScopeUnknown': '未知的調整範圍。',
   'errors.core.scopeNoDesktopNotes': '這個範圍沒有桌面便箋，請在主畫面管理顯示卡片。',
   'errors.core.outsideAdjustScope': '此卡不在調整範圍。',
+  'errors.core.quickMoveOff': '這張便箋目前不能用這種方式移動。',
   'errors.core.readOnlyEdit': '來源是唯讀，無法編輯。',
   'errors.core.readOnlyMove': '來源是唯讀，無法轉組。',
   'errors.core.dragActive': '已有拖曳操作。',

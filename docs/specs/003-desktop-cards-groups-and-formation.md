@@ -708,7 +708,9 @@ is not planned.
   paper at the nearest reachable position, as display changes do. The base stacking order does not change.
 - **Cancel.** The paper returns to where it started and nothing is saved on Esc (where the paper's window receives
   keys), pointer cancel or lost capture, a display change, the paper leaving the desktop or changing layer (for
-  example through sync), adjust mode or editing starting, or the switch being turned off during the move.
+  example through sync), another change moving the same paper, adjust mode or editing starting, or the switch being
+  turned off during the move. The scene ends such a move without an error; layout changes that do not touch the paper,
+  such as a synced paper being placed, do not end it.
 
 Acceptance cases:
 

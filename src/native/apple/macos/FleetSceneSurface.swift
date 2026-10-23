@@ -28,6 +28,9 @@ import WebKit
     private(set) var lastInput: TimeInterval = 0
     let panel: FleetScenePanel, web: WKWebView, document: URL, assets: URL
     private var hits: [String: FleetScenePanel] = [:]
+    // The hit panel holding the left button. Its drag events are converted through its frame, so a paper moved by a
+    // quick move neither carries nor hides that panel until the button is released.
+    private weak var pressed: NSWindow?
     private var started = false, admitted = 0, adjusting = false
     var dispatch: ((FleetSceneSurface, String, [String: Any]) throws -> Any)?
     var lost: ((FleetSceneSurface) -> Void)?
@@ -76,14 +79,15 @@ import WebKit
     func setBounds(display: String, viewport: NSRect, nativeBounds: NSRect) {
         suspend(); self.display = display; self.viewport = viewport; self.nativeBounds = nativeBounds; panel.setFrame(nativeBounds, display: true); applied = -1
     }
-    func suspend() { for hit in hits.values { hit.orderOut(nil) }; panel.allowKey = false }
+    func suspend() { for hit in hits.values { hit.orderOut(nil) }; pressed = nil; panel.allowKey = false }
     func hide() { suspend(); panel.orderOut(nil); adjusting = false }
     func apply(_ frame: FleetSceneFrame) {
         let cards = frame.cards.filter { $0.layer == layer && $0.rect.intersects(viewport) }
         let notice = layer == "floating" && (frame.notice?.intersects(viewport) ?? false)
         // Adjust mode is a modal overlay: each screen's topmost scene tints and takes its whole screen, even without papers.
         let overlay = layer == "floating" && frame.adjusting
-        guard !cards.isEmpty || notice || overlay else { hide(); return }
+        // A scene whose hit panel holds the button stays up until the release, even when the paper left its screen.
+        guard !cards.isEmpty || notice || overlay || pressed != nil else { hide(); return }
         // The visual surface always ignores the mouse. Only explicitly interactive paper rectangles receive events.
         panel.orderFrontRegardless(); var live = Set<String>(), covered: [NSRect] = []
         if overlay { live.insert("overlay"); place(hit: "overlay", nativeBounds, operable: false) }
@@ -99,7 +103,8 @@ import WebKit
             }
             covered.append(clipped)
         }
-        for (id, hit) in hits where !live.contains(id) { hit.orderOut(nil) }
+        // The pressed panel keeps receiving the drag even after its paper moved off the piece it covered.
+        for (id, hit) in hits where !live.contains(id) && hit !== pressed { hit.orderOut(nil) }
         // Keys such as Esc reach the overlay as it appears, and again after a display change suspended it; the nonactivating
         // panel takes them without raising the app. Leaving the overlay hands the keyboard back.
         if overlay && (!adjusting || !panel.allowKey) { panel.allowKey = true; panel.makeKey(); panel.makeFirstResponder(web) }
@@ -110,7 +115,7 @@ import WebKit
         let hit = hits[id] ?? FleetScenePanel(rect: bounds, level: panel.level)
         // Set explicitly: left at the default, WindowServer passes clicks through the clear panel's transparent pixels.
         if hits[id] == nil { let input = FleetSceneInput(frame: NSRect(origin: .zero, size: bounds.size)); input.autoresizingMask = [.width, .height]; input.surface = self; hit.contentView = input; hit.ignoresMouseEvents = false; hits[id] = hit }
-        (hit.contentView as? FleetSceneInput)?.operable = operable; hit.setFrame(bounds, display: false); hit.order(.above, relativeTo: panel.windowNumber)
+        (hit.contentView as? FleetSceneInput)?.operable = operable; if hit !== pressed { hit.setFrame(bounds, display: false) }; hit.order(.above, relativeTo: panel.windowNumber)
     }
     private static func subtract(_ rect: NSRect, _ cover: NSRect) -> [NSRect] {
         let overlap = rect.intersection(cover); if overlap.isEmpty { return [rect] }
@@ -128,8 +133,9 @@ import WebKit
             web.callAsyncJavaScript("const e=document.elementFromPoint(x,y)?.closest('.card-body'); if(e)e.scrollBy({left:-dx,top:-dy});", arguments: arguments, in: nil, in: .page, completionHandler: nil); return
         }
         if event.type == .leftMouseDown {
-            panel.allowKey = true; panel.makeKey(); panel.makeFirstResponder(web)
+            pressed = source; panel.allowKey = true; panel.makeKey(); panel.makeFirstResponder(web)
         }
+        if event.type == .leftMouseUp { pressed = nil }
         guard let forwarded = NSEvent.mouseEvent(with: event.type, location: point, modifierFlags: event.modifierFlags, timestamp: event.timestamp,
             windowNumber: panel.windowNumber, context: nil, eventNumber: event.eventNumber, clickCount: event.clickCount, pressure: event.pressure) else { return }
         panel.sendEvent(forwarded)

@@ -18,7 +18,9 @@ struct FleetSceneFrame {
     }
     static func parse(_ data: Data, session: String, previous: Int64) throws -> FleetSceneFrame {
         let value = try FleetProtocol.json(data)
-        try fields(value, "protocol sessionId sequence topology locale workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice")
+        try fields(value, "protocol sessionId sequence topology locale workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice quickMove")
+        // The key that starts a quick move in the scene; the host only relays it.
+        if let raw = value["quickMove"], !(raw is NSNull) { try FleetProtocol.require(["meta", "ctrl"].contains(raw as? String ?? ""), "scene-frame", "The desktop quick move key isn't valid.") }
         try FleetProtocol.require(FleetProtocol.number(value, "protocol", 1) == 1 && FleetProtocol.text(value, "sessionId") == session, "scene-session", "The desktop frame belongs to an earlier session.")
         let sequence = try FleetProtocol.number(value, "sequence"), topology = try FleetProtocol.number(value, "topology")
         try FleetProtocol.require(sequence > previous, "scene-order", "The desktop frame is out of date.")

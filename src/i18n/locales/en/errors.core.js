@@ -109,6 +109,7 @@ export default {
   'errors.core.adjustScopeUnknown': 'Unknown Adjust scope.',
   'errors.core.scopeNoDesktopNotes': 'There are no desktop notes here. Choose which notes to show in the main window.',
   'errors.core.outsideAdjustScope': "This note isn't being adjusted.",
+  'errors.core.quickMoveOff': "This note can't be moved this way right now.",
   'errors.core.readOnlyEdit': "The source is read-only, so it can't be edited.",
   'errors.core.readOnlyMove': "The source is read-only, so notes can't move to another group.",
   'errors.core.dragActive': 'A drag is already in progress.',

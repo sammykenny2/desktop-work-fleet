@@ -57,6 +57,16 @@ class LinuxSceneTests(unittest.TestCase):
                 with self.assertRaises(protocol.Failure):
                     self.parse({**projection(), "locale": locale})
 
+    def test_the_quick_move_key_reaches_the_scenes(self):
+        # src/desktop/projection.js sends the key that starts a quick move, or null while it is off (SPEC-003).
+        for key in ("meta", "ctrl", None):
+            with self.subTest(key=key):
+                self.assertEqual(self.parse({**projection(), "quickMove": key}).get("quickMove"), key)
+        for key in ("alt", "", 1, True, ["ctrl"]):
+            with self.subTest(key=key):
+                with self.assertRaises(protocol.Failure):
+                    self.parse({**projection(), "quickMove": key})
+
     def test_three_layers_keep_physical_geometry(self):
         for layer in ("wallpaper", "desktop", "floating"):
             with self.subTest(layer=layer):

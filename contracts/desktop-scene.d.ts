@@ -21,6 +21,8 @@ export interface DesktopFrame {
   fallbacks: { cardId: string; requested: ResidentLayer; effective: ResidentLayer }[];
   /** A short on-screen notice after a group or all-groups key, drawn by the topmost scene. */
   notice: { id: string; rect: Rect; title: string; text: string; step: number; steps: number } | null;
+  /** The key that starts a quick move on a resting paper (SPEC-003, 2026-10-24), or null while it is off or adjusting. */
+  quickMove: 'meta' | 'ctrl' | null;
 }
 export interface DesktopCommand {
   sessionId: string; id: string; serial: number;
@@ -30,6 +32,7 @@ export interface DesktopCommand {
     | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open'
     /** Ticks checklist step args.task of a paper that takes clicks, drawn from note revision args.revision. */
     | 'card.check';
+  /** pointer.down with args.quick true starts a quick move of a resting paper instead of an adjust drag. */
   args: Record<string, unknown>;
 }
 export interface DesktopInfo {

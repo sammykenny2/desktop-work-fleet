@@ -25,6 +25,7 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Implemented: cards, groups, formation (stack, spread, undo), adjust mode, drafts, Markdown with checklists and attachments,
   complete/archive/delete, group merge, region shortcuts that step a group through its desktop layers, one settings window;
   checklist steps ticked on desktop papers that take clicks, a per-device Top-layer opacity per group, ranked search,
+  an opt-in quick move of one resting paper with ⌘ or Ctrl held (not yet used on a real machine),
   attachments pasted or dropped into the editor, and an explanation with a confirmed set-aside when local data cannot be
   opened.
 - Papers: new papers are 240×240 squares that shrink to fit a short group region (minimum 160×160); placed papers keep their

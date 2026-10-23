@@ -196,13 +196,26 @@ async function pump(current) {
   if (current.pumping) return current.pumping;
   current.pumping = (async () => {
     if (!(await current.down).accepted) return;
-    while (current.latest && !current.ended) { const args = current.latest; current.latest = null; await client.command('pointer.move', args); }
+    while (current.latest && !current.ended) {
+      const args = current.latest; current.latest = null;
+      if ((await client.command('pointer.move', args))?.kind === 'cancelled') return release(current);
+    }
   })().finally(() => { current.pumping = null; });
   return current.pumping;
 }
+// A quick move holds the platform key at the press; while it lasts the papers' text cannot be selected.
+const quickKey = event => frame?.quickMove === 'meta' ? event.metaKey : frame?.quickMove === 'ctrl' && event.ctrlKey;
+const moving = on => root.classList.toggle('moving', on);
+// The owner already ended this quick move: the paper goes back to its frame position without another command.
+async function release(current) {
+  if (current.ended) return;
+  current.ended = true; if (gesture === current) gesture = null; moving(false);
+  if (root.hasPointerCapture(current.pointerId)) root.releasePointerCapture(current.pointerId);
+  await refresh();
+}
 async function cancel() {
   const current = gesture; if (!current || current.ended) return;
-  current.ended = true; gesture = null;
+  current.ended = true; gesture = null; moving(false);
   try {
     await current.pumping?.catch(() => {});
     // Even an unknown down/move outcome may have established the owner's gesture.
@@ -231,7 +244,7 @@ async function initialize() {
   });
   bridge.onEvent('desktop-displays-changing', () => {
     displayPending = true;
-    const current = gesture; gesture = null;
+    const current = gesture; gesture = null; moving(false);
     if (current) { current.ended = true; if (root.hasPointerCapture(current.pointerId)) root.releasePointerCapture(current.pointerId); }
   });
   bridge.onEvent('desktop-viewport', message => {
@@ -249,13 +262,19 @@ async function initialize() {
     await bridge.request('scene.flushed', { id: message.id, draftId: message.draftId, sequence: editor?.sequence || 0, ok });
   }); });
   root.onpointerdown = event => {
-    const paper = event.target.closest('.card.operable');
+    const operable = event.target.closest('.card.operable');
+    // A resting paper moves only when the key was already held at the press; otherwise its text selects as before.
+    const quick = !operable && quickKey(event) ? event.target.closest('.card.interactive') : null;
+    const paper = operable || quick;
     if (displayPending || info.active === false || gesture || !paper || event.button !== 0 || event.target.closest('button,a,input,textarea,select')) return;
     const cardId = paper.dataset.cardId; const start = point(event); const id = crypto.randomUUID();
-    gesture = { id, cardId, pointerId: event.pointerId, start, origin: frame.cards.find(c => c.id === cardId).rect,
-      down: client.command('pointer.down', { gestureId: id, cardId, pointerId: event.pointerId, point: start, handle: Boolean(event.target.closest('.card-summary')) }) };
+    gesture = { id, cardId, pointerId: event.pointerId, start, origin: frame.cards.find(c => c.id === cardId).rect, quick: Boolean(quick),
+      down: client.command('pointer.down', { gestureId: id, cardId, pointerId: event.pointerId, point: start, handle: Boolean(event.target.closest('.card-summary')),
+        ...(quick ? { quick: true } : {}) }) };
+    if (quick) { moving(true); getSelection()?.removeAllRanges(); }
     gesture.down.catch(report); root.setPointerCapture(event.pointerId); event.preventDefault();
   };
+  root.onselectstart = event => { if (gesture?.quick) event.preventDefault(); };
   root.onpointermove = event => {
     if (!gesture || gesture.ended || gesture.pointerId !== event.pointerId) return;
     const current = gesture; current.latest = pointerArgs(current, event);
@@ -274,7 +293,7 @@ async function initialize() {
     catch (error) {
       await client.command('pointer.cancel', { gestureId: current.id, pointerId: current.pointerId }).catch(() => {}); throw error;
     }
-    finally { gesture = null; if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId); await refresh(); }
+    finally { gesture = null; moving(false); if (root.hasPointerCapture(event.pointerId)) root.releasePointerCapture(event.pointerId); await refresh(); }
   }); };
   root.onpointercancel = () => { void run(cancel); }; root.onlostpointercapture = () => { void run(cancel); };
   root.ondblclick = event => {

@@ -11,11 +11,12 @@ import { getLocale, t } from '../i18n/index.js';
  * The frame carries the owner's UI locale, which every scene applies before drawing, and group names as shown.
  */
 export function projectDesktop({ snapshot, layout, interaction, sessionId, sequence, workspaceRevision,
-  layers = ['desktop', 'floating'], residentLayers = layers, editor = null, topology = 0, notice = null }) {
+  layers = ['desktop', 'floating'], residentLayers = layers, editor = null, topology = 0, notice = null, quickMove = null }) {
   requireValue(typeof sessionId === 'string' && sessionId.length > 0 && Number.isSafeInteger(sequence) && sequence >= 0,
     'desktop-frame', t('errors.desktop.frameInvalid'));
   // A host offers the desktop layer, the wallpaper layer or both for resting papers, and may keep its topmost scene for
   // adjusted papers only. A resting paper asking for a layer it cannot rest on sits on the desktop or the wallpaper.
+  requireValue(quickMove === null || ['meta', 'ctrl'].includes(quickMove), 'desktop-frame', t('errors.desktop.frameInvalid'));
   requireValue((residentLayers.includes('desktop') || residentLayers.includes('wallpaper')) && residentLayers.every(layer => layers.includes(layer))
     && layers.every(layer => ['desktop', 'floating', 'wallpaper'].includes(layer)), 'desktop-layer', t('errors.desktop.noLayer'));
   const resident = residentLayers.includes('desktop') ? 'desktop' : 'wallpaper';
@@ -50,6 +51,8 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       region: regions.find(region => region.groupId === group.id) || null })),
     operationScope: interaction.operationScope, activeGroupId: interaction.activeGroupId, cards, editor: projectedEditor,
     dropTarget: interaction.dragSession?.target || null, fallbacks,
+    // The key that starts a quick move on a resting paper, only while nothing is adjusted; null when it is off.
+    quickMove: interaction.operationScope.kind === 'none' ? quickMove : null,
     // A short on-screen notice after a group or all-groups key, drawn by the topmost scene and never taking the mouse.
     notice: notice && { id: notice.id, rect: notice.rect, title: notice.title, text: notice.text, step: notice.step, steps: notice.steps } });
 }

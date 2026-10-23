@@ -98,6 +98,11 @@ Adjust this group temporarily moves the group to the Top layer, and ending it re
 preference without changing positions. The Wallpaper layer is always click-through and never has keyboard focus.
 On layer-shell, adjust mode is an overlay: a Top layer scene covers the whole display (including panels), and during
 adjustment the EXCLUSIVE keyboard mode makes Esc work immediately.
+Quick move (SPEC-003, 2026-10-24) reads Ctrl from the scene's pointer event at the press. X11 button events carry the
+modifier state. Wayland sends modifiers only to the surface with keyboard focus, and an ON_DEMAND scene gets the keyboard
+only once clicked, so whether the first Ctrl press on an unfocused scene is seen with Ctrl depends on the compositor; it
+has not been checked on labwc or elsewhere (2026-10-24). Under GNOME through XWayland papers rest only on the Wallpaper
+layer, so quick move is not offered there.
 Top layer notes outside the adjusted scope are drawn below the overlay. A main window that has focus when adjustment
 starts is minimized and brought back with xdg-activation afterwards; if that is refused, it is shown again
 (the compositor chooses the position). A main window that is already minimized or has no focus is left alone and is not

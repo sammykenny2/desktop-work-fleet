@@ -15,7 +15,7 @@ const arrangements = new Set(['stack', 'spread', 'undo']);
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
 export class DesktopAuthority {
   #workspace; #controller; #sessionId; #editor; #details; #check; #shortcut; #arrange; #perform; #residentLayers; #views = new Map(); #seenViews = new Set();
-  #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #closed = false;
+  #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #dropped = null; #closed = false;
   #topology = 0; #displayPending = false;
   #attachments;
   #previewTails = [Promise.resolve(), Promise.resolve()]; #previewNext = 0; #previewPending = 0;
@@ -144,7 +144,15 @@ export class DesktopAuthority {
   async #invoke(viewId, method, args, intent) {
     const controller = this.#controller;
     const drag = controller.state.dragSession;
-    if (this.#gesture && drag?.generation !== this.#gesture.generation) this.#gesture = null;
+    // A quick move the owner ended (adjust mode began, or the paper stopped allowing it) ends quietly in its scene.
+    if (this.#gesture && drag?.generation !== this.#gesture.generation) {
+      this.#dropped = this.#gesture.quick ? this.#gesture : null; this.#gesture = null;
+    }
+    if (method.startsWith('pointer.') && method !== 'pointer.down' && this.#dropped?.viewId === viewId
+      && this.#dropped.id === args.gestureId && this.#dropped.pointerId === args.pointerId) {
+      if (method !== 'pointer.move') this.#dropped = null;
+      return method === 'pointer.cancel' ? null : { kind: 'cancelled', reason: 'quick-move-ended' };
+    }
     switch (method) {
       case 'attachment.preview': case 'attachment.open': {
         const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId);
@@ -166,9 +174,16 @@ export class DesktopAuthority {
       case 'pointer.down': {
         requireValue(!this.#gesture && uuid(args.gestureId) && Number.isSafeInteger(args.pointerId) && args.pointerId >= 0,
           'desktop-gesture', t('errors.desktop.gestureInvalid'));
-        this.#card(args.cardId); this.#point(args.point);
-        const accepted = controller.pointerDown(args.cardId, args.point, { pointerId: args.pointerId, handle: args.handle === true });
-        if (accepted) this.#gesture = { viewId, id: args.gestureId, pointerId: args.pointerId, cardId: args.cardId,
+        // A quick move starts on a resting paper that takes clicks as this host draws it, never on an adjusted one.
+        const quick = args.quick === true; this.#dropped = null;
+        if (quick) {
+          const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId && !value.deleted);
+          const policy = card && cardPolicy(card, this.#workspace.layout.state, controller.state);
+          requireValue(policy && !policy.draggable && this.#takesClicks(policy), 'outside-scope', t('errors.desktop.cardUnavailable'));
+        } else this.#card(args.cardId);
+        this.#point(args.point);
+        const accepted = controller.pointerDown(args.cardId, args.point, { pointerId: args.pointerId, handle: args.handle === true, quick });
+        if (accepted) this.#gesture = { viewId, id: args.gestureId, pointerId: args.pointerId, cardId: args.cardId, quick,
           generation: controller.state.dragSession.generation };
         return { accepted };
       }
@@ -176,11 +191,12 @@ export class DesktopAuthority {
         this.#matchGesture(viewId, args);
         return controller.pointerMove(this.#point(args.point), { pointerId: args.pointerId, shiftKey: args.shiftKey === true, labels: this.#labels(args) });
       case 'pointer.up': {
-        this.#matchGesture(viewId, args); const cardId = this.#gesture.cardId;
+        this.#matchGesture(viewId, args); const { cardId, quick } = this.#gesture;
         this.#point(args.point); const labels = this.#labels(args);
         try {
           const result = await controller.pointerUp(args.point, { pointerId: args.pointerId, shiftKey: args.shiftKey === true, labels });
-          if (result.kind === 'click') await controller.select(cardId, { gesture: true });
+          // A quick move that never passed the threshold changes nothing: a resting paper is not selected.
+          if (result.kind === 'click' && !quick) await controller.select(cardId, { gesture: true });
           return result;
         } finally { this.#gesture = null; }
       }

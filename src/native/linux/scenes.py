@@ -23,7 +23,9 @@ def intersection(a, b):
 
 def frame(data, session, previous):
     value = p.decode(data)
-    p.require(set(value) <= set("protocol sessionId sequence topology locale workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice".split()), "scene-frame", "The desktop frame contains data that isn't for display.")
+    p.require(set(value) <= set("protocol sessionId sequence topology locale workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice quickMove".split()), "scene-frame", "The desktop frame contains data that isn't for display.")
+    # The key that starts a quick move in the scene; the host only relays it.
+    p.require(value.get("quickMove") in (None, "meta", "ctrl"), "scene-frame", "The desktop quick move key isn't valid.")
     p.require(p.number(value, "protocol", 1) == 1 and p.text(value, "sessionId") == session and p.number(value, "sequence") > previous, "scene-session", "The desktop frame's session or sequence has expired.")
     p.number(value, "topology")
     # The owner's UI locale, which the scene applies before drawing its own text (docs/i18n.md).

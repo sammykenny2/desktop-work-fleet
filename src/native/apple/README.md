@@ -148,7 +148,12 @@ IME, multiple displays, Intel hardware and a real Google sign-in.
 As of 2026-10-17 these are not verified on macOS: Quick Look thumbnails and default-app opening inside the sandboxed app,
 main-window placement, Intel Macs and IME. The macOS layer-probe additions from 2026-10-16 and the
 `config/startup.json` fixture updates to `apple-signing.test.js` and `apple_startup_probe.py` (2026-10-17) have not been
-run on a Mac.
+run on a Mac. On 2026-10-24 `scripts/macos/test-desktop-layers.sh` ran on the maintainer's Mac over Screen Sharing and
+stopped at "Adjustment must receive input across the whole viewport", with and without that day's quick move change,
+so its later checks did not run there.
+Quick move (SPEC-003, 2026-10-24) reads ⌘ from the event each paper's hit panel forwards; the hit panel that took the
+press keeps its frame and stays shown until the release, also when the paper moves off the piece it covered or off its
+screen, so the drag events it converts keep one origin and the release is not lost. A real ⌘-drag on a Mac has not been done, and over Screen Sharing the key may not arrive at all.
 Data that can't be opened (SPEC-006 DO, 2026-10-23): `FleetDatabase` names a generic open failure from SQLite's last
 result code, and the macOS `FleetWebHost` shows an alert with the cause, the folder ("Show in Finder") and, for
 damaged data, the confirmed set-aside, which moves `fleet.sqlite3` and its journals into a dated set-aside folder; the

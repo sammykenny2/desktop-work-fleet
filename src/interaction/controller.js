@@ -1,6 +1,7 @@
 import { activeGroups, containsPoint, copy, eligible, FleetError, gridRegions, inScope,
   requireValue, stableCards } from '../core/contracts.js';
 import { groupLayer } from '../layout/stages.js';
+import { reachable, rescueRect } from '../layout/store.js';
 import { t } from '../i18n/index.js';
 
 export const idleInteraction = () => ({ operationScope: { kind: 'none' }, activeGroupId: null,
@@ -16,9 +17,23 @@ export function cardPolicy(card, layout, state) {
     draggable: operating, editing: operating && state.editingCardId === card.id, layer };
 }
 
+/** The key that starts a quick move (SPEC-003, 2026-10-24): Command on macOS, Ctrl elsewhere. */
+export const quickMoveKey = platform => platform === 'macos' ? 'meta' : 'ctrl';
+
+/**
+ * Whether a quick move may start or finish on this card now: the device setting is on, nothing is adjusted or
+ * edited, and the paper rests where it takes clicks. The authority adds the host's own layers on top of this.
+ */
+export function quickMovable(card, layout, state) {
+  const policy = card ? cardPolicy(card, layout, state) : null;
+  return Boolean(policy && layout.quickMove === true && state.operationScope.kind === 'none' && !state.editingCardId
+    && policy.visible && policy.interactive && !policy.draggable);
+}
+
 /** Back-to-front within a native layer. Hosts split layers without changing these card identities. */
 export function sceneOrder(cards, layout, state) {
-  const rank = card => state.dragSession?.cardId === card.id ? 3
+  const drag = state.dragSession; const front = drag && (!drag.quick || drag.dragging) ? drag.cardId : null;
+  const rank = card => front === card.id ? 3
     : state.selectedCardId === card.id ? 2 : state.activeGroupId === card.groupId ? 1 : 0;
   return stableCards(cards, layout).sort((a, b) => rank(a) - rank(b));
 }
@@ -39,13 +54,15 @@ export class InteractionController {
   #commands;
   #saveDraft;
   #releaseDraft;
+  #workAreas;
   #busy = false;
   #ending = null;
   #composing = false;
   #suppressedCard = null;
 
-  constructor({ getSnapshot, layout, commands, saveDraft, releaseDraft }) {
+  constructor({ getSnapshot, layout, commands, saveDraft, releaseDraft, workAreas = () => [] }) {
     this.#getSnapshot = getSnapshot;
+    this.#workAreas = workAreas;
     this.#layout = layout;
     this.#commands = commands;
     this.#saveDraft = saveDraft;
@@ -151,18 +168,21 @@ export class InteractionController {
     return true;
   }
 
-  pointerDown(cardId, point, { pointerId = 1, control = false, handle = false, threshold = 5 } = {}) {
+  // A quick move drags one resting paper outside adjust mode; it is only ever an ordinary move.
+  pointerDown(cardId, point, { pointerId = 1, control = false, handle = false, threshold = 5, quick = false } = {}) {
     this.#assertIdle();
     if (control || (this.#state.editingCardId === cardId && !handle)) return false;
     requireValue(!this.#state.dragSession, 'drag-active', t('errors.core.dragActive'));
     const card = this.#card(cardId); const layout = this.#layout.state;
-    requireValue(card && cardPolicy(card, layout, this.#state).draggable, 'outside-scope', t('errors.core.outsideAdjustScope'));
+    if (quick) requireValue(quickMovable(card, layout, this.#state), 'quick-move-off', t('errors.core.quickMoveOff'));
+    else requireValue(card && cardPolicy(card, layout, this.#state).draggable, 'outside-scope', t('errors.core.outsideAdjustScope'));
     requireValue(layout.placements[cardId] && Number.isFinite(threshold) && threshold > 0
       && Number.isFinite(point.x) && Number.isFinite(point.y), 'invalid-pointer', t('errors.core.dragStartInvalid'));
     this.#suppressedCard = null;
     this.#state.dragSession = { generation: crypto.randomUUID(), cardId, pointerId, groupId: card.groupId, revision: card.revision,
       layoutRevision: layout.revision, start: copy(point), current: copy(point), origin: copy(layout.placements[cardId]),
-      position: copy(layout.placements[cardId]), threshold, dragging: false, target: null };
+      position: copy(layout.placements[cardId]), threshold, dragging: false, target: null,
+      ...(quick ? { quick: true, layer: cardPolicy(card, layout, this.#state).layer } : {}) };
     return true;
   }
 
@@ -174,6 +194,7 @@ export class InteractionController {
     if (Math.hypot(point.x - drag.start.x, point.y - drag.start.y) >= drag.threshold) drag.dragging = true;
     if (!drag.dragging) return copy(drag);
     drag.position = { ...drag.origin, x: drag.origin.x + point.x - drag.start.x, y: drag.origin.y + point.y - drag.start.y };
+    if (drag.quick) return copy(drag);
     const groups = activeGroups(this.#getSnapshot());
     const layout = this.#layout.state;
     let regions = [];
@@ -198,6 +219,7 @@ export class InteractionController {
       this.cancelDrag(); return Promise.resolve({ kind: 'cancelled', reason: 'target-changed' });
     }
     if (!drag.dragging) { this.#state.dragSession = null; return Promise.resolve({ kind: 'click' }); }
+    if (drag.quick) return this.#endQuickMove(drag);
     this.#suppressedCard = drag.cardId;
     if (options.shiftKey && !drag.target) { this.cancelDrag(); return Promise.resolve({ kind: 'cancelled', reason: 'no-target' }); }
     this.#busy = true;
@@ -213,6 +235,29 @@ export class InteractionController {
           return { kind: 'transferred', cardId: drag.cardId, groupId: drag.target.groupId };
         }
         await this.#layout.move(drag.cardId, drag.position, drag.layoutRevision);
+        return { kind: 'moved', cardId: drag.cardId };
+      } finally { this.#state.dragSession = null; this.#busy = false; this.#ending = null; }
+    })();
+    return this.#ending;
+  }
+
+  // Whether a held quick move may still be saved: the paper still allows it, rests on the same layer and has not been
+  // moved by anything else meanwhile. Other layout saves, such as a synced paper being placed, do not end it.
+  #quickHolds(drag) {
+    const card = this.#card(drag.cardId); const layout = this.#layout.state; const saved = layout.placements[drag.cardId];
+    return quickMovable(card, layout, this.#state) && cardPolicy(card, layout, this.#state).layer === drag.layer
+      && Boolean(saved) && saved.x === drag.origin.x && saved.y === drag.origin.y;
+  }
+
+  // A resting paper has no click or double click to suppress after the move.
+  #endQuickMove(drag) {
+    if (!this.#quickHolds(drag)) { this.cancelDrag(); return Promise.resolve({ kind: 'cancelled', reason: 'quick-move-ended' }); }
+    const areas = this.#workAreas();
+    const position = areas.length && !reachable(drag.position, areas) ? rescueRect(drag.position, areas) : drag.position;
+    this.#busy = true;
+    this.#ending = (async () => {
+      try {
+        await this.#layout.move(drag.cardId, { x: position.x, y: position.y });
         return { kind: 'moved', cardId: drag.cardId };
       } finally { this.#state.dragSession = null; this.#busy = false; this.#ending = null; }
     })();
@@ -242,7 +287,7 @@ export class InteractionController {
 
   cancelDrag() {
     if (this.#busy || !this.#state.dragSession) return false;
-    if (this.#state.dragSession?.dragging) this.#suppressedCard = this.#state.dragSession.cardId;
+    if (this.#state.dragSession.dragging && !this.#state.dragSession.quick) this.#suppressedCard = this.#state.dragSession.cardId;
     this.#state.dragSession = null;
     return true;
   }
@@ -260,6 +305,8 @@ export class InteractionController {
 
   async reconcile() {
     if (this.#busy) return;
+    const drag = this.#state.dragSession;
+    if (drag?.quick && !this.#quickHolds(drag)) this.cancelDrag();
     const editing = this.#card(this.#state.editingCardId);
     if (this.#state.editingCardId && (!editing || !eligible(editing, this.#layout.state)
       || !inScope(editing, this.#state.operationScope))) await this.endEdit();

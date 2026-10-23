@@ -35,8 +35,8 @@ await page.addInitScript(() => {
         interactive: !window.probeClickThrough },
       paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'),
       paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'),
-    ], editor: null, dropTarget: null, fallbacks: [], notice: null });
-  window.probeApplied = 0; window.probeCommands = []; window.probeChecks = [];
+    ], editor: null, dropTarget: null, fallbacks: [], notice: null, quickMove: window.probeQuick || null });
+  window.probeApplied = 0; window.probeCommands = []; window.probeChecks = []; window.probePointer = [];
   window.probeNextFrame = () => { sequence++; send({ v: 1, event: 'desktop-frame' }); };
   const handle = async message => {
     const reply = result => send({ v: 1, id: message.id, ok: true, result });
@@ -52,7 +52,11 @@ await page.addInitScript(() => {
     if (message.method === 'scene.command') {
       const command = message.params.command; window.probeCommands.push(command.method);
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 96; const paint = canvas.getContext('2d'); paint.fillStyle = command.args.attachmentId === 'blob-a' ? '#e7edf8' : '#e7f2e7'; paint.fillRect(0, 0, 96, 96); paint.fillStyle = '#245f50'; paint.font = 'bold 22px sans-serif'; paint.textAlign = 'center'; paint.fillText(command.args.attachmentId === 'blob-a' ? 'PDF' : 'PNG', 48, 56);
-      const result = command.method === 'attachment.preview' ? { available: !window.probeMissing, png: window.probeMissing ? null : canvas.toDataURL('image/png').split(',')[1] } : { opened: true };
+      // Pointer gestures are accepted as the owner accepts a quick move, and recorded with their arguments.
+      const result = command.method === 'attachment.preview' ? { available: !window.probeMissing, png: window.probeMissing ? null : canvas.toDataURL('image/png').split(',')[1] }
+        : command.method === 'pointer.down' ? { accepted: true } : command.method === 'pointer.up' ? { kind: 'moved' }
+        : command.method === 'pointer.move' && window.probeDropMove ? { kind: 'cancelled', reason: 'quick-move-ended' } : { opened: true };
+      if (command.method.startsWith('pointer.')) window.probePointer.push({ method: command.method, args: command.args });
       if (command.method === 'card.check') window.probeChecks.push(command.args);
       if (command.method === 'card.check' && window.probeRefuseCheck) send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: false, error: { code: 'desktop-expired', message: 'The note has changed.' } });
       else send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: true, result });
@@ -192,6 +196,48 @@ try {
   await page.evaluate(() => { window.probeLocale = 'en'; window.probeNextFrame(); });
   await page.waitForFunction(() => window.probeApplied === 13);
   assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), edit: t('desktop.card.edit') });
+  // Quick move: with the frame's key held at the press, a resting paper drags through the owner and its text is not
+  // selected. Without the key, or with quick move off, the same drag selects text and sends no gesture; a checkbox
+  // still ticks. The key is the platform's: Command on macOS, Ctrl elsewhere.
+  const [quickKey, quickModifier] = process.platform === 'darwin' ? ['meta', 'Meta'] : ['ctrl', 'Control'];
+  const drag = async (selector, modifier) => {
+    // Along the first line of text, where a plain drag selects.
+    const box = await page.locator(selector).first().boundingBox(); const x = box.x + 4; const y = box.y + 8;
+    if (modifier) await page.keyboard.down(modifier);
+    await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 146, y, { steps: 10 }); await page.mouse.up();
+    if (modifier) await page.keyboard.up(modifier);
+  };
+  const quickState = () => page.evaluate(() => ({ downs: window.probePointer.filter(entry => entry.method === 'pointer.down').map(entry => entry.args),
+    ups: window.probePointer.filter(entry => entry.method === 'pointer.up').length, selected: getSelection().toString().length > 0 }));
+  await page.evaluate(quick => { window.probeRich = false; window.probeQuick = quick; window.probeNextFrame(); }, quickKey);
+  await page.waitForFunction(() => window.probeApplied === 14);
+  await drag('.card[data-card-id="c3"] .card-body p');
+  let quick = await quickState();
+  assert.deepEqual([quick.downs.length, quick.selected], [0, true], 'a drag without the key selects text and moves nothing');
+  await page.evaluate(() => getSelection().removeAllRanges());
+  await drag('.card[data-card-id="c3"] .card-body p', quickModifier);
+  // The gesture ends once the owner has answered the release.
+  await page.waitForFunction(() => window.probePointer.some(entry => entry.method === 'pointer.up') && !document.querySelector('#scene').classList.contains('moving'));
+  quick = await quickState();
+  assert.equal(quick.downs.length, 1); assert.equal(quick.downs[0].cardId, 'c3'); assert.equal(quick.downs[0].quick, true);
+  assert.equal(quick.ups, 1); assert.equal(quick.selected, false, 'a quick move selects no text');
+  assert.ok(await page.evaluate(() => window.probePointer.some(entry => entry.method === 'pointer.move')), 'the drag reaches the owner');
+  // A quick move the owner ends mid-drag stops in the scene without an error and without a release command.
+  await page.evaluate(() => { window.probeDropMove = true; });
+  await drag('.card[data-card-id="c3"] .card-body p', quickModifier);
+  await page.waitForFunction(() => window.probePointer.filter(entry => entry.method === 'pointer.down').length === 2 && !document.querySelector('#scene').classList.contains('moving'));
+  assert.equal((await quickState()).ups, 1, 'an ended quick move sends no release');
+  assert.equal(await page.evaluate(() => document.querySelector('#scene-status').hidden), true, 'an ended quick move shows no error');
+  await page.evaluate(() => { window.probeDropMove = false; });
+  await page.keyboard.down(quickModifier); await page.locator('.card[data-card-id="c1"] .card-body input').nth(1).click(); await page.keyboard.up(quickModifier);
+  await page.waitForFunction(() => window.probeChecks.length === 4);
+  assert.equal((await quickState()).downs.length, 2, 'a checkbox keeps ticking with the key held');
+  // Each refresh after a gesture applies its frame again, so wait for one more than now.
+  const appliedBefore = await page.evaluate(() => window.probeApplied);
+  await page.evaluate(() => { window.probeQuick = null; window.probeNextFrame(); });
+  await page.waitForFunction(count => window.probeApplied > count, appliedBefore);
+  await drag('.card[data-card-id="c2"] .card-body p', quickModifier);
+  assert.equal((await quickState()).downs.length, 2, 'with quick move off the key does nothing');
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');
     const element = document.createElement('div');
@@ -207,7 +253,7 @@ try {
   assert.equal(budgets.blocks, 80); assert.equal(budgets.spans, 0);
   assert.ok(budgets.characters > 160000, 'large documents retain all code as plain text');
   assert.deepEqual(errors, []);
-  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, ticking checklists only where papers take clicks, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
+  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, ticking checklists only where papers take clicks, quick move only with the key held and the setting on, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe-failure.png' });
   if (errors.length) console.error('Scene page errors:', errors);

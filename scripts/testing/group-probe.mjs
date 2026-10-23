@@ -233,6 +233,8 @@ try {
   await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
   await expect(page.locator('#desktop-completed')).not.toBeChecked(); await page.locator('#desktop-completed').check();
   await expect.poll(async () => (await read()).layout.completedVisible).toBe(true);
+  // The browser preview has no desktop layers, so quick move is not offered there.
+  await expect(page.locator('#quick-move-row')).toBeHidden();
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await expect(completed).toHaveClass(/completed/); const completedBox = await completed.boundingBox();
   const beforeHiding = await read();

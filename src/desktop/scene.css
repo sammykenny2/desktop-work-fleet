@@ -5,6 +5,7 @@ html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background:
 .card { position: absolute; display: flex; flex-direction: column; overflow: hidden; background: var(--paper); border: 1px solid #1d2b332e; border-radius: 3px; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .card.interactive { pointer-events: auto; }
 .card.selectable { user-select: text; -webkit-user-select: text; }
+#scene.moving .card { user-select: none; -webkit-user-select: none; cursor: grabbing; }
 /* Outline stays inside the paper: transparent pixels outside it would change layered-window hit testing. */
 .card.selected { outline: 2px solid #245f50; outline-offset: -2px; }
 .card.mine { box-shadow: inset 3px 0 #245f50; }

@@ -10,6 +10,10 @@ and the current status in [PROGRESS](../../../PROGRESS.md).
 This directory is the 1.0 native host: a .NET WPF + WebView2 main window, desktop scenes and SQLite/DPAPI storage.
 Neither the main window nor a scene zooms with two fingers on a touch screen or touchpad (`IsPinchZoomEnabled` off,
 2026-10-24); scenes also ignore Ctrl+wheel, while the main window keeps Ctrl+wheel zoom.
+Quick move (SPEC-003, 2026-10-24) reads Ctrl from the scene's own pointer event at the press. Scenes are never
+activated, so whether WebView2 reports Ctrl for that press, on the attached Desktop-layer scene and on the composition
+Top-layer scene alike, has not been checked on a real machine; if it does not, the host has to pass the key state itself
+or Windows has to stop offering the setting.
 
 ## Structure
 

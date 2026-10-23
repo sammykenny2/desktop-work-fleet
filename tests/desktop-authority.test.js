@@ -194,6 +194,55 @@ test('desktop gesture owns one view and commits one move despite a duplicate poi
   await rejects(f.authority.request(f.view, { ...up, args: { ...up.args, point: { x: 0, y: 0 } } }), 'desktop-replay');
 });
 
+test('a quick move drags a resting paper from its own scene, and a quick click selects nothing', async () => {
+  const f = await fixture(); const original = f.workspace.layout.state.placements[f.card.id];
+  const down = (point = { x: 100, y: 100 }) => {
+    const args = { gestureId: uuid(), pointerId: 2 };
+    return { args, accepted: f.command('pointer.down', { ...args, cardId: f.card.id, point, quick: true }) };
+  };
+  await rejects(down().accepted, 'quick-move-off');
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  let gesture = down(); assert.deepEqual(await gesture.accepted, { accepted: true });
+  assert.equal((await f.command('pointer.up', { ...gesture.args, point: { x: 101, y: 102 } })).kind, 'click');
+  assert.equal(f.controller.state.selectedCardId, null); assert.equal(f.controller.state.operationScope.kind, 'none');
+  gesture = down(); await gesture.accepted;
+  await f.command('pointer.move', { ...gesture.args, point: { x: 140, y: 160 } });
+  const moving = f.frame().cards.find(c => c.id === f.card.id);
+  assert.deepEqual([moving.rect.x, moving.layer, moving.draggable], [original.x + 40, 'desktop', false]);
+  assert.equal((await f.command('pointer.up', { ...gesture.args, point: { x: 140, y: 160 }, shiftKey: true })).kind, 'moved');
+  assert.equal(f.workspace.layout.state.placements[f.card.id].y, original.y + 60);
+  assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.card.id).groupId, f.a.id);
+  // An adjusted paper is dragged the ordinary way, never through the quick path.
+  await f.controller.activate({ kind: 'all' });
+  await rejects(down().accepted, 'outside-scope');
+});
+
+test('a quick move the owner ends mid-drag answers its scene quietly instead of with a gesture error', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const original = f.workspace.layout.state.placements[f.card.id];
+  const args = { gestureId: uuid(), pointerId: 2 };
+  await f.command('pointer.down', { ...args, cardId: f.card.id, point: { x: 100, y: 100 }, quick: true });
+  await f.command('pointer.move', { ...args, point: { x: 200, y: 100 } });
+  await f.controller.activate({ kind: 'all' });
+  assert.deepEqual(await f.command('pointer.move', { ...args, point: { x: 220, y: 100 } }), { kind: 'cancelled', reason: 'quick-move-ended' });
+  assert.equal((await f.command('pointer.up', { ...args, point: { x: 220, y: 100 } })).kind, 'cancelled');
+  assert.deepEqual(f.workspace.layout.state.placements[f.card.id], original);
+  // Once answered, the old gesture is gone; an adjust drag still reports a stray pointer as before.
+  await rejects(f.command('pointer.up', { ...args, point: { x: 1, y: 1 } }), 'desktop-gesture');
+});
+
+test('quick move frames carry the key only while nothing is adjusted, and wallpaper papers never start one', async () => {
+  const f = await fixture(undefined, { residentLayers: () => ['wallpaper'] });
+  const project = quickMove => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
+    interaction: f.controller.state, sessionId: f.sessionId, sequence: 1, workspaceRevision: f.workspace.state.revision, quickMove });
+  assert.equal(f.frame().quickMove, null); assert.equal(project('meta').quickMove, 'meta');
+  assert.throws(() => project('alt'), error => error.code === 'desktop-frame');
+  await f.controller.activate({ kind: 'all' }); assert.equal(project('ctrl').quickMove, null);
+  await f.controller.activate({ kind: 'none' });
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  await rejects(f.command('pointer.down', { gestureId: uuid(), pointerId: 2, cardId: f.card.id, point: { x: 1, y: 1 }, quick: true }), 'outside-scope');
+});
+
 test('desktop transfer uses shared atomic command; save failure leaves original placement and membership', async () => {
   const f = await fixture(); await f.controller.activate({ kind: 'all' });
   const before = f.workspace.state; f.fail(true);

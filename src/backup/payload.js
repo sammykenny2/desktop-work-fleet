@@ -66,6 +66,7 @@ function validateLayout(layout, snapshot, graph) {
   fail(layout.mainView === undefined || mainViews.includes(layout.mainView));
   fail(layout.mainGroupId === undefined || validId(layout.mainGroupId) && groups.has(layout.mainGroupId));
   fail(layout.completedVisible === undefined || typeof layout.completedVisible === 'boolean');
+  fail(layout.quickMove === undefined || typeof layout.quickMove === 'boolean');
   // Older backups kept the layer on each paper instead of in groupLayers.
   fail(layout.groupLayers === undefined || object(layout.groupLayers)
     && Object.entries(layout.groupLayers).every(([id, layer]) => groups.has(id) && layers.includes(layer)));

@@ -78,6 +78,31 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   background in the topmost scene, then that it is opaque again on the Desktop layer. It checks styles, not the pixels
   the compositor draws; Linux and macOS have not been checked on a real desktop (2026-10-23).
 
+## Quick move
+
+- `node --test tests/desktop-core.test.js`: quick move off by default and a non-boolean setting refused; with it on, a
+  resting paper moves only through the quick path, a press below the threshold changes nothing, labels, regions and
+  Shift never transfer, the move is one undo step, and turning the setting off, changing the layer, hiding the desktop,
+  entering adjust mode or Esc during the drag saves nothing; a wallpaper paper never starts one, a drop keeps the title
+  reachable, and a layout reset turns it off (C49–C56). The paper comes to the front only once it drags, an unrelated
+  layout save does not end it, another move of the same paper or `reconcile` after a layer change does, and the moved
+  paper still opens for editing in adjust mode afterwards.
+- `node --test tests/desktop-authority.test.js`: the scene command path, a quick click that selects nothing, a move the
+  owner ended answered with `cancelled` instead of a gesture error, frames that carry the key only while nothing is
+  adjusted, and a host whose papers rest on the wallpaper refusing it;
+  `tests/backup-payload.test.js` rejects a non-boolean `quickMove`.
+- The native frame checks accept `quickMove` only as `meta`, `ctrl` or null: the Windows core probe (CI),
+  `tests/test_linux_scenes.py` and, in `SceneLayersProbe.swift`, the macOS FleetSceneProtocol.
+- `scene-probe` holds the platform key (⌘ on macOS, Ctrl elsewhere) and drags a resting paper's text: the owner receives
+  `pointer.down` with `quick: true`, then moves and the release, and no text is selected; the same drag without the key
+  selects text and sends nothing, a move answered `cancelled` ends the drag with no error and no release, a checkbox
+  still ticks with the key held, and a frame with quick move off ignores the key. On 2026-10-24 it passed on macOS with ⌘.
+- Not verified on any real machine (2026-10-24): whether each host delivers the key with the press. Windows scenes are
+  never activated, and on layer-shell the first press on an unfocused scene may arrive before the compositor sends the
+  modifiers. The macOS hit panel that took the press keeps its frame and stays shown until the release, also when the
+  paper leaves its screen; a real ⌘-drag has not been done, and over Screen Sharing the key may not arrive at all.
+  Dragging a paper onto another display during a quick move has not been checked on any host.
+
 ## Named GApplication actions on Linux
 
 - `tests/test_linux_hostsettings.py` (`LinuxNamedActionTests`, on every platform) checks the action names, their tray

@@ -8,7 +8,7 @@ import { mainGroup, mainView } from '../layout/store.js';
 import { orderedGroups, reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity, MIN_OPACITY } from '../layout/opacity.js';
-import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
+import { InteractionController, cardPolicy, quickMoveKey, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
@@ -194,7 +194,7 @@ async function initialize() {
     deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
   workspace.setArrivalLayer(backLayer);
   activeGroupId = rememberedGroup();
-  controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout,
+  controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, workAreas,
     commands: workspace, saveDraft: async () => { if (currentDraft) await flushDraft(); },
     releaseDraft: async cardId => {
       if (currentDraft?.cardId !== cardId) return;
@@ -732,7 +732,8 @@ function initializeDesktop() {
   desktop = new DesktopOwner({ bridge: native.bridge, authority, editor: currentDesktopEditor,
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
-        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, residentLayers: residentLayers(), editor: currentDesktopEditor(), notice: desktopNotice });
+        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, residentLayers: residentLayers(), editor: currentDesktopEditor(), notice: desktopNotice,
+        quickMove: workspace.layout.state.quickMove === true && quickMoveOffered() ? quickMoveKey(native.info.platform) : null });
       // Settings only speaks up when a paper cannot sit on the layer it asks for.
       const [fallback] = frame.fallbacks; const layerName = layer => stageNames()[groupLayerOrder.indexOf(layer)];
       $('#desktop-note').hidden = !fallback;
@@ -864,6 +865,8 @@ async function desktopAction(target, intent) {
 const stageNames = () => [t('app.stages.wallpaper'), t('app.stages.desktop'), t('app.stages.floating'), t('app.stages.adjust')];
 // Layers a group can rest on; on GNOME Xwayland the topmost scene only carries the adjust overlay.
 const residentLayers = () => desktopInfo?.residentLayers || desktopInfo?.layers || [];
+// Quick move needs a resting layer that takes clicks; where papers rest only on the wallpaper it is not offered.
+const quickMoveOffered = () => residentLayers().some(layer => layer !== 'wallpaper');
 const desktopStages = () => [0, 1, 2].filter(stage => residentLayers().includes(groupLayerOrder[stage])).concat(adjustStage);
 let desktopNotice = null; let noticeSerial = 0;
 function announce(groupId, text, step = 0, steps = 0) {
@@ -1916,6 +1919,9 @@ function renderDesktopSettings() {
   renderDisplaySetting(); renderHostSettings();
   const layout = workspace.layout.state; $('#desktop-visible').checked = layout.desktopVisible;
   $('#desktop-completed').checked = layout.completedVisible === true;
+  $('#quick-move-row').hidden = !desktopInfo || !quickMoveOffered();
+  $('#quick-move-label').textContent = t('settings.desktop.quickMove', { key: native?.info.platform === 'macos' ? '⌘' : 'Ctrl' });
+  $('#desktop-quick-move').checked = layout.quickMove === true;
   settingsSlots = [...layout.grid.slots];
   fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
   previewGrid();
@@ -2123,6 +2129,7 @@ function bindEvents() {
   });
   $('#desktop-visible').onchange = () => applyLayout({ desktopVisible: $('#desktop-visible').checked });
   $('#desktop-completed').onchange = () => applyLayout({ completedVisible: $('#desktop-completed').checked });
+  $('#desktop-quick-move').onchange = () => applyLayout({ quickMove: $('#desktop-quick-move').checked });
   $('#display-xwayland').onchange = () => run(async () => {
     displayBackend = await native.bridge.request('host.displayBackend', { xwayland: $('#display-xwayland').checked }); renderDisplaySetting();
   });

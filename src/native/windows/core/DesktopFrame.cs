@@ -13,7 +13,11 @@ public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<Presented
   public static DesktopFrame Parse(ReadOnlyMemory<byte> bytes, string sessionId, long previous)
   {
     using var document = JsonRules.Parse(bytes); var root = document.RootElement;
-    Fields(root, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice locale");
+    Fields(root, "protocol sessionId sequence topology workspaceRevision layoutRevision groups operationScope activeGroupId cards editor dropTarget fallbacks notice locale quickMove");
+    // The key that starts a quick move in the scene; the host only relays it.
+    if (root.TryGetProperty("quickMove", out var quickMove))
+      HostError.Require(quickMove.ValueKind == JsonValueKind.Null || quickMove.ValueKind == JsonValueKind.String && quickMove.GetString() is "meta" or "ctrl",
+        "scene-frame", "The desktop quick move key is invalid.");
     // The main window's UI locale, which the scene applies before drawing (docs/i18n.md); only a short language tag.
     if (root.TryGetProperty("locale", out var locale))
       HostError.Require(locale.ValueKind == JsonValueKind.String && LocaleTag().IsMatch(locale.GetString()!), "scene-frame", "The desktop frame locale is invalid.");

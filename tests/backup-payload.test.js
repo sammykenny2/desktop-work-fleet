@@ -36,7 +36,7 @@ async function fixture() {
   await workspace.layout.placeNew(workspace.snapshot, [area]);
   await workspace.layout.setCardPolicy(card.id, { visible: false });
   await workspace.layout.setGroupLayer(b.id, 'wallpaper', workspace.snapshot);
-  await workspace.layout.configure({ myGroupId: a.id, completedVisible: false, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } },
+  await workspace.layout.configure({ myGroupId: a.id, completedVisible: false, quickMove: true, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } },
     workspace.snapshot);
   await workspace.layout.setMainGroup(a.id, workspace.snapshot);
   const draft = workspace.blankDraft(a.id, workspace.snapshot.cards.find(item => item.id === card.id));
@@ -165,6 +165,7 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'layout.json', value => { value.mainGroupId = 'missing-group'; }),
     files => edit(files, 'layout.json', value => { value.mainGroupId = null; }),
     files => edit(files, 'layout.json', value => { value.completedVisible = 'no'; }),
+    files => edit(files, 'layout.json', value => { value.quickMove = 'yes'; }),
     files => edit(files, 'layout.json', value => { value.groupColors = { ...value.groupColors, 'missing-group': 0 }; }),
     files => edit(files, 'layout.json', value => { value.groupColors = Object.fromEntries(Object.keys(value.groupColors).map(id => [id, 9])); }),
     files => edit(files, 'layout.json', value => { value.groupOpacity = { 'missing-group': 0.5 }; }),

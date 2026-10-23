@@ -1014,6 +1014,47 @@ function stepGroupOrder(event) {
   void reorderGroups(ids).then(() => $('#groups').querySelector(`.group-row[data-group-id="${CSS.escape(moved)}"] button`)?.focus());
 }
 
+// A mouse drags a board paper or list row onto another group in the sidebar to move it there. A click, a double-click
+// and ticking a step stay as they were; touch and the phone layout, whose sidebar is a closed drawer, keep "More
+// actions" > "Move to group", as keyboards do. The list holds the capture, since a render may replace the note.
+let noteDrag = null;
+function startNoteDrag(event) {
+  const note = event.target.closest('.movable');
+  if (!note || noteDrag || event.button !== 0 || event.pointerType !== 'mouse' || narrow.matches
+    || event.target.closest('a,button,input,select,textarea,.attachment-tile')) return;
+  noteDrag = { pointerId: event.pointerId, cardId: note.dataset.cardId, x: event.clientX, y: event.clientY, active: false };
+}
+function moveNoteDrag(event) {
+  if (noteDrag?.pointerId !== event.pointerId) return;
+  if (!(event.buttons & 1)) { endNoteDrag(event, false); return; }
+  const card = currentCard(noteDrag.cardId);
+  if (!noteDrag.active) {
+    if (Math.hypot(event.clientX - noteDrag.x, event.clientY - noteDrag.y) < 5) return;
+    if (!card || card.deleted) { noteDrag = null; return; }
+    noteDrag.active = true; $('#list').setPointerCapture(event.pointerId); getSelection()?.removeAllRanges();
+    noteDrag.ghost = element('div', undefined, 'note-ghost'); noteDrag.ghost.style.setProperty('--paper', groupColor(card.groupId));
+    noteDrag.ghost.append(element('span', summaryText(card)), element('span', '', 'ghost-target'));
+    document.body.append(noteDrag.ghost); document.body.classList.add('note-dragging');
+    $('#list').querySelector(`[data-card-id="${CSS.escape(card.id)}"]`)?.classList.add('dragging');
+  }
+  event.preventDefault();
+  noteDrag.ghost.style.transform = `translate(${event.clientX + 14}px, ${event.clientY + 14}px)`;
+  // Only another group takes the note; the label names the group, so colour is not the only sign.
+  const row = document.elementFromPoint(event.clientX, event.clientY)?.closest('#groups .group-row');
+  const target = row && card && row.dataset.groupId !== card.groupId ? row : null;
+  $('#groups').querySelectorAll('.group-row').forEach(node => node.classList.toggle('receiving', node === target));
+  noteDrag.groupId = target?.dataset.groupId ?? null;
+  noteDrag.ghost.lastChild.textContent = target ? t('app.stage.moveTo', { group: groupName(activeGroups(workspace.snapshot).find(group => group.id === noteDrag.groupId)) }) : '';
+}
+function endNoteDrag(event, dropped) {
+  if (noteDrag?.pointerId !== event.pointerId) return;
+  const { active, ghost, cardId, groupId } = noteDrag; noteDrag = null;
+  if (!active) return;
+  ghost.remove(); document.body.classList.remove('note-dragging');
+  document.querySelectorAll('.group-row.receiving, #list .dragging').forEach(node => node.classList.remove('receiving', 'dragging'));
+  if (dropped && groupId) void run(() => moveNoteToGroup(cardId, groupId));
+}
+
 function matchesFilter(card) {
   if (filter === 'deleted') return card.deleted;
   if (card.deleted) return false;
@@ -1215,7 +1256,7 @@ function renderNotes(cards, view, acrossGroups) {
       actions.append(iconButton(card.completed ? t('app.notes.markToDo') : t('app.notes.markCompleted'), card.completed ? ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'] : ['m5 12.5 4.5 4.5L19 7'],
         () => changeCard(card.id, { completed: !card.completed })),
       iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card, { edit: true })));
-      note.tabIndex = 0; note.setAttribute('aria-label', title);
+      note.tabIndex = 0; note.setAttribute('aria-label', title); note.classList.add('movable');
       // A mouse opens the editor with a double-click, so a click that misses a checkbox opens nothing; a tap still opens
       // it, as phones have no double tap. Enter, Space and "More actions" > Edit open it too.
       // A click without a pointer (detail 0) comes from assistive technology and opens it as well. The editor starts from
@@ -1269,6 +1310,17 @@ async function deleteCard(id) {
   await controller.reconcile(); render();
   status(t('app.status.deleted'), false, { label: t('app.status.undoDelete'), run: async () => {
     await workspace.restoreCard(id, deleted.revision); render(); status(t('app.status.restored'));
+  } });
+}
+
+// A note dropped on a sidebar group moves with the same command as "More actions" > "Move to group": a new version of
+// the same note, its desktop paper where it was. Undo moves it back only while no other move has happened since.
+async function moveNoteToGroup(id, groupId) {
+  const from = currentCard(id).groupId; const nameOf = groupId => groupName(activeGroups(workspace.snapshot).find(group => group.id === groupId));
+  await controller.moveToGroup(id, groupId); await controller.reconcile(); render();
+  status(t('app.status.movedTo', { group: nameOf(groupId) }), false, { label: t('app.status.undoMove'), run: async () => {
+    if (currentCard(id)?.groupId !== groupId) throw new FleetError('conflict', t('app.status.moveUndoStale'));
+    await controller.moveToGroup(id, from); await controller.reconcile(); render(); status(t('app.status.undone'));
   } });
 }
 
@@ -2088,6 +2140,17 @@ function bindEvents() {
   groupList.addEventListener('lostpointercapture', event => { if (event.target === groupList) endGroupDrag(event, false); });
   groupList.addEventListener('click', event => { if (groupDragClick) { event.preventDefault(); event.stopPropagation(); } }, true);
   groupList.addEventListener('keydown', stepGroupOrder);
+  const notes = $('#list');
+  notes.addEventListener('pointerdown', startNoteDrag); notes.addEventListener('pointermove', moveNoteDrag);
+  notes.addEventListener('pointerup', event => endNoteDrag(event, true)); notes.addEventListener('pointercancel', event => endNoteDrag(event, false));
+  notes.addEventListener('lostpointercapture', event => { if (event.target === notes) endNoteDrag(event, false); });
+  // An image or a selection must not start the browser's own drag while a note may be moving.
+  notes.addEventListener('dragstart', event => { if (noteDrag) event.preventDefault(); });
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Escape' || !noteDrag?.active) return;
+    event.preventDefault(); event.stopImmediatePropagation(); const { pointerId } = noteDrag;
+    endNoteDrag({ pointerId }, false); if (notes.hasPointerCapture(pointerId)) notes.releasePointerCapture(pointerId);
+  }, true);
   $('#search').oninput = render;
   // Board and list are this device's saved choice; the desktop canvas or layout map is only for this session and shows To do.
   document.querySelectorAll('[data-view]').forEach(node => { node.onclick = () => run(async () => {

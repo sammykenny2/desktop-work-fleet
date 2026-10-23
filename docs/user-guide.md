@@ -62,6 +62,8 @@ interface. To switch, see [Settings](#settings).
   current version") and resolve group merge cycles.
 - While something needs attention, the status bar at the bottom of the main window shows the number of conflicts;
   select it to open that page. With nothing to resolve it does not appear.
+- Moving a note to another group adds a version of the same note rather than deleting it and adding a copy, so its
+  history goes on; that version reads "Moved from …".
 - Restoring creates a new version and keeps the later content; unfinished drafts can still be recovered. While
   several branches are unresolved, an ordinary save keeps the draft and tells you so.
 - When a group has no receiving target or there are more than nine groups, the data is kept and the app explains how
@@ -83,7 +85,10 @@ interface. To switch, see [Settings](#settings).
   removed; Undo can't bring back a merged group.
 - To move a note to another group, drag it there in adjust mode (see
   [Adjust mode and arranging](#adjust-mode-and-arranging)), or choose the group in "Move to group" in the note's "⋯"
-  details.
+  details. On a computer you can also drag a note on the board or in the list onto a group in the sidebar with the
+  mouse: the group lights up and reads "Move to …", and Esc cancels. The status bar then offers "Undo", which moves
+  the note back unless it has moved again since. Moving from the sidebar or the "⋯" details leaves the desktop paper
+  where it is.
 - When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop notes sets "Rows" and
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom.

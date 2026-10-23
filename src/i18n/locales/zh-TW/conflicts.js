@@ -29,6 +29,7 @@ export default {
   'conflicts.version.completed': '已完成',
   'conflicts.version.archived': '封存',
   'conflicts.version.deleted': '刪除區',
+  'conflicts.version.movedFrom': '從「{group}」移來',
   'conflicts.version.downloadAttachment': '下載附件：{name}',
   'conflicts.version.mergedInto': '已合併至「{group}」',
   'conflicts.version.activeGroup': '使用中的群組',

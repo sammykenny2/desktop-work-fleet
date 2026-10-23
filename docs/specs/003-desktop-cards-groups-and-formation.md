@@ -441,6 +441,7 @@ OS offers the same window z-order.
 | Shift-drag onto a region that has a group | The whole region becomes the drop target; the transfer happens only on release |
 | Drag across an empty region or a group's ordinary area without Shift | Still an ordinary move; no guessing that the user wants a transfer |
 | Card action "Move to group" | The same transfer command; needs no desktop gesture and does not move the card |
+| Main window: mouse drag of a board paper or list row onto another group in the sidebar (since 2026-10-24) | The same transfer command as the action; the card keeps its desktop position. The row lights up and the dragged note reads "Move to B"; the note's own group is no target and Esc cancels. Touch and the phone layout keep the action |
 
 When a drag starts, recognizable and reachable group drop labels appear, not just tiny icons without text.
 Only a valid transfer target shows the region highlight and the "Move to B" text; colour is not the only signal.
@@ -596,6 +597,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C25 | Move A1 to B in single-group A mode | Completion hint; A1 returns to the resident policy; A's other cards remain operable; B is not summoned |
 | C26 | Move A1 to B in All mode | Still operable; the scope stays All |
 | C27 | Transfer from the action menu | The same data command; coordinates are kept; no mouse drag required |
+| C27a | Drop a board paper on group B in the main window's sidebar, then Undo in the status bar | One new revision of the same card in B, coordinates kept; Undo moves it back only while it is still in B; history marks each version "Moved from …" |
 | C28 | After target B was previewed, B is deleted / its position is taken by another group | No transfer to the wrong group; safe cancellation |
 | C29 | Remote text edit / group change during a transfer | Text is not overwritten, and neither membership intent is silently dropped |
 | C30 | Undoing a transfer when a newer change exists | Handled conditionally; the newer change is not blindly overwritten |

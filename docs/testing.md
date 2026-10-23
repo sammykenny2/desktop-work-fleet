@@ -493,7 +493,10 @@ Keep this wait if the probe is edited.
 The group probe verifies that the gear opens Settings on General and the account chip on Account and sync with the
 account card selected (at 390 px the gear shows the list of pages with the card on top), group preview, cancel and merge, archived data and draft integrity, the browser's Reset desktop
 layout hint naming no main window, region swaps not moving cards,
-the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, the
+the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, a board
+paper dragged onto another sidebar group (Esc and the note's own group moving nothing; one new version of the same note
+with its desktop position kept; Undo from the status bar; "Moved from" on the versions in history; nothing moving at
+390 px), the
 toast naming the keys that changed group,
 a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
 the group chosen in the sidebar, by a region key, by creating it or in the editor of a new note being remembered in the layout and shown again after a reload,

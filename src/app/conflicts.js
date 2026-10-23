@@ -33,6 +33,18 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
   const changed = async () => { try { await onChanged(); } finally { render(); } };
   const groupLabel = id => groupName(workspace.snapshot.groups.find(group => group.id === id)) || t('conflicts.version.groupPending');
   const headsFor = (kind, id) => workspace.revisionHeads(kind, id).map(record => record.revisionId);
+  // A note's version whose earlier versions all sit in one other group was moved from there. A note's versions are
+  // read again only when one of them is new to this render.
+  let groupsBefore = new Map();
+  const movedFrom = record => {
+    let known = groupsBefore.get(record.entityId);
+    if (!known || record.parents.some(id => !known.has(id))) {
+      known = new Map(workspace.revisionHistory('card', record.entityId).map(item => [item.revisionId, item.value.groupId]));
+      groupsBefore.set(record.entityId, known);
+    }
+    const groups = new Set(record.parents.map(id => known.get(id))); const [from] = groups;
+    return groups.size === 1 && from && from !== record.value.groupId ? from : null;
+  };
 
   function renderValue(record, { heads, fromHistory = false, repair = false } = {}) {
     const card = record.kind === 'card'; const value = record.value;
@@ -41,6 +53,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
     if (card) {
       const labels = [groupLabel(value.groupId), value.deleted ? t('conflicts.version.deleted') : value.archived ? t('conflicts.version.archived')
         : value.completed ? t('conflicts.version.completed') : t('conflicts.version.toDo')];
+      const from = movedFrom(record); if (from) labels.push(t('conflicts.version.movedFrom', { group: groupLabel(from) }));
       article.append(element('p', labels.join(' · '), 'list-meta'));
       const text = element('pre', value.content.text, 'revision-text'); text.tabIndex = 0; article.append(text);
       if (value.content.attachments?.length) {
@@ -151,7 +164,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
 
   function render() {
     for (const url of urls.splice(0)) URL.revokeObjectURL(url);
-    body.replaceChildren(); navigation.replaceChildren();
+    body.replaceChildren(); navigation.replaceChildren(); groupsBefore = new Map();
     const conflictTab = action(t('conflicts.tab.conflicts'), async () => { view = 'conflicts'; render(); });
     const historyTab = action(t('conflicts.tab.history'), async () => { view = 'history'; render(); });
     conflictTab.setAttribute('aria-pressed', String(view === 'conflicts'));

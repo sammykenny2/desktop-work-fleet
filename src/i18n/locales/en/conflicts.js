@@ -29,6 +29,7 @@ export default {
   'conflicts.version.completed': 'Completed',
   'conflicts.version.archived': 'Archived',
   'conflicts.version.deleted': 'Deleted',
+  'conflicts.version.movedFrom': 'Moved from "{group}"',
   'conflicts.version.downloadAttachment': 'Download attachment: {name}',
   'conflicts.version.mergedInto': 'Merged into "{group}"',
   'conflicts.version.activeGroup': 'Group in use',

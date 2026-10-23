@@ -115,6 +115,43 @@ try {
   await groupRow(a.id).locator('button').first().click();
   // The group chosen in the sidebar is remembered on this device and comes back after a restart, though it is not first.
   await expect.poll(async () => (await read()).layout.mainGroupId).toBe(a.id);
+  // A mouse drags a board paper onto another group in the sidebar: a new version of the same note, whose desktop paper
+  // stays where it was. Esc cancels and the note's own group takes nothing; the status offers Undo, and the history
+  // names the group each version was moved from.
+  const original = page.locator('.note-paper').filter({ hasText: 'Original group note' });
+  const beforeMove = await read(); const moving = beforeMove.cards.find(card => card.content.text === 'Original group note');
+  const dragNote = async (row, finish) => {
+    const from = await original.boundingBox(); const to = await row.boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2); await page.mouse.down();
+    await page.mouse.move(to.x + 60, to.y + to.height / 2, { steps: 10 }); await finish();
+  };
+  await dragNote(groupRow(b.id), async () => {
+    await expect(groupRow(b.id)).toHaveClass(/receiving/);
+    await expect(page.locator('.note-ghost')).toContainText(t('app.stage.moveTo', { group: 'Research' }));
+    await page.keyboard.press('Escape'); await page.mouse.up();
+  });
+  await expect(page.locator('.note-ghost')).toHaveCount(0); await expect(groupRow(b.id)).not.toHaveClass(/receiving/);
+  await dragNote(groupRow(a.id), async () => { await expect(groupRow(a.id)).not.toHaveClass(/receiving/); await page.mouse.up(); });
+  await expect(original).toHaveCount(1); assert.deepEqual((await read()).revisions, beforeMove.revisions, 'a cancelled drag and the own group move nothing');
+  await dragNote(groupRow(b.id), () => page.mouse.up());
+  await expect(page.locator('#status')).toHaveText(t('app.status.movedTo', { group: 'Research' })); await expect(original).toHaveCount(0);
+  const afterMove = await read(); const versions = state => state.revisions.filter(record => record.entityId === moving.id);
+  assert.equal(afterMove.cards.length, beforeMove.cards.length, 'a move adds no note');
+  assert.equal(afterMove.cards.find(card => card.id === moving.id).groupId, b.id);
+  assert.equal(versions(afterMove).length, versions(beforeMove).length + 1);
+  assert.deepEqual(versions(afterMove).at(-1).parents, [moving.revision], 'a move is one new version of the same note');
+  assert.deepEqual(afterMove.layout.placements[moving.id], beforeMove.layout.placements[moving.id], 'the desktop paper stays where it was');
+  await page.locator('#status-action').click(); await expect(page.locator('#status')).toHaveText(t('app.status.undone'));
+  await expect(original).toHaveCount(1); assert.equal((await read()).cards.find(card => card.id === moving.id).groupId, a.id);
+  await page.locator('#settings-button').click(); await page.locator('[data-page="revisions"]').click();
+  await page.getByRole('button', { name: t('conflicts.tab.history'), exact: true }).click();
+  await page.getByLabel(t('conflicts.history.choose')).selectOption({ label: t('conflicts.history.note', { summary: 'Original group note' }) });
+  const versionMeta = page.locator('#revision-panel .revision-option .list-meta');
+  await expect(versionMeta).toHaveCount(3);
+  await expect(versionMeta.nth(0)).toContainText(t('conflicts.version.movedFrom', { group: 'Research' }));
+  await expect(versionMeta.nth(1)).toContainText(t('conflicts.version.movedFrom', { group: t('app.groups.defaultName') }));
+  await expect(versionMeta.nth(2)).toHaveText(`${t('app.groups.defaultName')} · ${t('conflicts.version.toDo')}`);
+  await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', b.id);
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', a.id);
@@ -221,6 +258,12 @@ try {
   // A double click runs the Undo once, so the second click cannot report the restored note as changed.
   await undoDelete.dblclick(); await expect(page.locator('#status')).toHaveText(t('app.status.restored'));
   await expect(undoDelete).toBeHidden();
+  // At phone width the sidebar is a closed drawer, so a mouse press and move on a note moves nothing.
+  const beforePress = await read(); const pressed = await survivor.boundingBox();
+  await page.mouse.move(pressed.x + 40, pressed.y + pressed.height / 2); await page.mouse.down();
+  await page.mouse.move(pressed.x + 40, pressed.y + 220, { steps: 8 }); await page.mouse.up();
+  await expect(page.locator('.note-ghost')).toHaveCount(0);
+  assert.deepEqual((await read()).revisions, beforePress.revisions, 'a press and move at phone width moves no note');
   // At phone width the gear opens the list of pages, with the account card on top.
   await page.locator('#drawer-toggle').click(); await page.locator('#settings-button').click();
   await expect(page.locator('#settings-dialog')).toHaveClass(/listing/); await expect(page.locator('.nav-account')).toBeInViewport();
@@ -231,5 +274,5 @@ try {
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
-  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
+  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

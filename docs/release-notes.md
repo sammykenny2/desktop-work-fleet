@@ -9,6 +9,16 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.11
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: The Windows tray menu now appears at once, and the window for local data that cannot be opened has the Windows 11 look.
+
+- Windows: the tray menu appears whole at once instead of sliding down as it opens.
+- Windows: the window shown at start when the local data cannot be opened has the Windows 11 look and follows the Windows light or dark mode. Its accent button opens the data folder; setting the data aside still asks first.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.10
 
 Platforms: Windows, Linux, macOS, Android.

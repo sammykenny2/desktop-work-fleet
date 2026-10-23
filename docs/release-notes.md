@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.3.13
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Drag a note onto a group in the sidebar to move it there, and on a phone hold a group to reorder it without selecting text.
+
+- On a computer, drag a note on the board or in the list onto another group in the sidebar to move it there. The group lights up and reads "Move to …", Esc cancels, and the status bar offers Undo, which moves the note back unless it has moved again since. The desktop paper stays where it is, as with "Move to group".
+- Moving a note to another group adds a version of the same note rather than deleting it and adding a copy; in Versions and conflicts that version reads "Moved from …".
+- On a phone, hold a group in the sidebar for a moment and drag it to reorder; the grip still drags at once, and a finger that moves without holding scrolls the list. Holding a group no longer selects text on Android or iOS.
+- On phones the round "+" now floats above the status bar, which spans the full width, as on computers. On every width the "+" moves up when a long status wraps onto a second line.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.12
 
 Platforms: Windows, Linux, macOS, Android.

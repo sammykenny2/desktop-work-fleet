@@ -67,6 +67,7 @@ export interface LabwcShortcuts { state: 'absent' | 'outdated' | 'current'; path
 /** Main document only. Scene documents cannot invoke these methods. */
 export type DesktopOwnerCall =
   | { method: 'desktop.info' | 'desktop.start' | 'desktop.hideMain' | 'desktop.intent'; params: Record<string, never> }
+  /** Shows the main window for a current intent; returns { activated, hidden }, hidden meaning it was in the tray or never shown. */
   | { method: 'desktop.showMain'; params: { intent: string | null } }
   /** Moves a main window that had the focus aside for the adjust overlay (false) and brings back only that one (true). */
   | { method: 'desktop.mainVisible'; params: { visible: boolean } }

@@ -133,6 +133,8 @@ public sealed class FleetWindow : Window
     return $"{(DateTime.Now - process.StartTime).TotalSeconds:F1}s";
   }
   private void ShowMain() => ShowMain(true);
+  /// <summary>Shows the main window for a desktop action and reports whether it was hidden: in the tray or never shown.</summary>
+  private bool ShowHiddenMain() { var hidden = offscreen || !IsVisible; ShowMain(true); return hidden; }
   private void ShowMain(bool activate)
   {
     if (offscreen) { offscreen = false; ShowInTaskbar = true; placement?.Apply(); }
@@ -189,7 +191,7 @@ public sealed class FleetWindow : Window
       desktop = new DesktopCoordinator(environment, value =>
       {
         if (epoch == navigation && !shuttingDown && NavigationPolicy.IsDocument(core.Source)) core.PostWebMessageAsJson(JsonSerializer.Serialize(value));
-      }, ShowMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
+      }, ShowHiddenMain, OpenExternal, desktopDisplays, this, () => { if (tray?.Available != true) return false; placement?.Flush(); Hide(); return true; },
         Log, holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true }, attachmentFiles.Invoke,
         languagePreference: true);

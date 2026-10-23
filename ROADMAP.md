@@ -39,10 +39,6 @@ commit that implements it.
 
 Low cost, clear value:
 
-- **Quick capture hides the main window again after saving**: when the main window was hidden and only shown by the
-  shortcut or the tray, saving or pressing Esc hides it again. A main window that was open or minimized stays as it
-  was, and a failed save keeps the editor open. Today `saveEditor` only closes the editor, and the main window stays
-  where it is.
 - **Pasted or dropped images become attachments**: files pasted or dropped into the editor become attachments, as the
   file picker adds them; pasted and dropped text stays text. Today attachments can only be added through the file
   picker.

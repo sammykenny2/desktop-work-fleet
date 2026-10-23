@@ -71,7 +71,7 @@ import WebKit
         self.window = window
         host.configure = { [weak self, weak host] service in
             guard let self, let host else { throw FleetFailure("startup-probe", "Host was released") }
-            let desktop = try FleetDesktop(assets: host.assets, send: { [weak host] name, values in host?.event(name, values) }, show: {}, hide: { false }, mainVisible: { _ in })
+            let desktop = try FleetDesktop(assets: host.assets, send: { [weak host] name, values in host?.event(name, values) }, show: { false }, hide: { false }, mainVisible: { _ in })
             self.desktop = desktop
             await service.setDesktop { [weak desktop] method, args in
                 guard let desktop else { throw FleetFailure("startup-probe", "Desktop was released") }

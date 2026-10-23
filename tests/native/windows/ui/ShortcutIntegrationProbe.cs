@@ -89,6 +89,27 @@ internal static class ShortcutIntegrationProbe
       : "PASS native foreground grant captured before yielding; later foreground loss rejects activation");
     if (!PostMessageW(trayWindow, 0x8001, IntPtr.Zero, new IntPtr((1 << 16) | 0x401))) throw new Exception("Tray selection post failed");
     await Wait(() => Task.FromResult(main.IsVisible), "tray remains reachable after rejected late activation");
+    // Quick capture returns a main window it brought out of the tray when its editor closes, and leaves an open one open.
+    const string closeEditor = "document.querySelector('#editor-dialog').dispatchEvent(new Event('cancel',{cancelable:true}))";
+    main.Hide(); coordinator.DispatchAction("@capture");
+    await Wait(() => Check(web, "document.querySelector('#editor-dialog').open"), "quick capture editor from the tray");
+    var shownForCapture = main.IsVisible;
+    await web.ExecuteScriptAsync(closeEditor);
+    await Wait(() => Check(web, "!document.querySelector('#editor-dialog').open"), "quick capture editor closed with Esc");
+    if (shownForCapture)
+    {
+      await Wait(() => Task.FromResult(!main.IsVisible), "closing quick capture returns the main window to the tray");
+      Console.WriteLine("PASS quick capture from the tray hides the main window again when its editor closes");
+    }
+    else Console.WriteLine("SKIP quick capture re-hide: Windows did not keep the foreground the dispatch captured");
+    if (!PostMessageW(trayWindow, 0x8001, IntPtr.Zero, new IntPtr((1 << 16) | 0x401))) throw new Exception("Tray selection post failed");
+    await Wait(() => Task.FromResult(main.IsVisible), "tray reopens the owner after quick capture");
+    coordinator.DispatchAction("@capture");
+    await Wait(() => Check(web, "document.querySelector('#editor-dialog').open"), "quick capture editor over the open main window");
+    await web.ExecuteScriptAsync(closeEditor);
+    await Wait(() => Check(web, "!document.querySelector('#editor-dialog').open"), "quick capture over the open window closed");
+    await Task.Delay(300);
+    if (!main.IsVisible) throw new Exception("Closing quick capture hid a main window that was already open.");
     var recreated = RegisterWindowMessageW("TaskbarCreated");
     if (!PostMessageW(trayWindow, (int)recreated, IntPtr.Zero, IntPtr.Zero)) throw new Exception("Owned shell lifecycle post failed");
     await Task.Delay(150);

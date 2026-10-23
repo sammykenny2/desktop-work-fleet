@@ -52,6 +52,8 @@ const noteAttachmentCleanup = []; const stageAttachmentCleanup = []; const edito
 const boardFitter = paperFitter(); const stageFitter = paperFitter();
 let captureInbox; let selectedCapture; let captureBusy = false;
 let desktop; let desktopInfo; let remoteEditor = null;
+// Quick capture brought the main window out of the tray or menu bar, so closing its editor puts the window back.
+let editorHidesMain = false;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
@@ -769,10 +771,10 @@ async function desktopAction(target, intent) {
   if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
   if (target === shortcutActions.capture) {
     await leaveAdjustOverlay();
-    if (desktop) await native.bridge.request('desktop.showMain', { intent: intent ?? null });
+    const shown = desktop ? await native.bridge.request('desktop.showMain', { intent: intent ?? null }) : null;
     // Behind the editor the main window shows where the note goes.
     showToDo(); render();
-    await openEditor(); return;
+    await openEditor(); editorHidesMain = Boolean(shown?.activated && shown.hidden && $('#editor-dialog').open); return;
   }
   if (target === shortcutActions.toggle) await workspace.layout.configure({ desktopVisible: !workspace.layout.state.desktopVisible }, workspace.snapshot);
   // A group key moves its group one stage on: wallpaper, desktop, topmost, adjust mode, wallpaper again, skipping a layer
@@ -1325,6 +1327,7 @@ async function ensureCaptureGroup() {
 
 async function openEditor(card = null, recovered = null) {
   if (composing) return;
+  editorHidesMain = false;
   if (!card && !recovered) await ensureCaptureGroup();
   if (controller.state.editingCardId && currentDraft) await controller.endEdit({ keepDraft: recovered?.id === currentDraft.id });
   remoteEditor = null;
@@ -1420,8 +1423,15 @@ async function closeEditor() {
     try { if (draft) await workspace.discardUnneededDraft(draft.id); }
     finally { await controller.endEdit(); render(); }
     status(closedStatus(draft));
+    await returnHiddenMain();
   }
   finally { setEditorBusy(false); }
+}
+// The tray may have gone since; the window then simply stays open.
+async function returnHiddenMain() {
+  if (!editorHidesMain) return;
+  editorHidesMain = false;
+  if (desktop && !document.querySelector('dialog[open]')) await native.bridge.request('desktop.hideMain').catch(() => {});
 }
 async function saveEditor(asCopy = false) {
   if (editorBusy || !currentDraft || composing) return;
@@ -1435,6 +1445,7 @@ async function saveEditor(asCopy = false) {
     if (landed) { activeGroupId = landed; showToDo(); }
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); render(); status(t('app.status.noteSaved'));
     if (landed) await rememberGroup();
+    await returnHiddenMain();
   } catch (error) { if (error.code === 'conflict') $('#save-copy').hidden = false; throw error; }
   finally { setEditorBusy(false); }
 }

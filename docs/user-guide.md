@@ -181,7 +181,9 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 - Defaults: Quick capture Ctrl+Shift+N, Show or hide desktop notes Ctrl+Shift+D, All groups Ctrl+Shift+0, regions 1-9
   Ctrl+Shift+1-9.
 - Quick capture brings up the main window on the To do notes of the group it adds to, on the board or in the list,
-  ending a search, and opens the editor over them, so the new note appears where you see it.
+  ending a search, and opens the editor over them, so the new note appears where you see it. When the main window was
+  in the tray or menu bar, saving the note or pressing Esc puts it back there; a main window that was open or minimized
+  stays as it was.
 - In the desktop apps, each press of a region key moves that group's notes to the next step: Wallpaper layer →
   Desktop layer → Top layer → Adjust position, and the next press returns to the Wallpaper layer. Desktops that do
   not support the Wallpaper layer skip it.

@@ -20,7 +20,7 @@ public sealed class DesktopCoordinator : IDisposable
   private readonly Dictionary<string, SceneView> frozen = new(StringComparer.Ordinal);
   private readonly CoreWebView2Environment environment;
   private readonly Action<object> sendOwner;
-  private readonly Action showMain;
+  private readonly Func<bool> showMain;
   private readonly Action<string> openExternal;
   private readonly Func<bool>? hideMain;
   private readonly Window? mainWindow;
@@ -78,7 +78,7 @@ public sealed class DesktopCoordinator : IDisposable
     public bool Adjusting;
   }
 
-  public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Action showMain, Action<string> openExternal,
+  public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Func<bool> showMain, Action<string> openExternal,
     IReadOnlyList<DisplayInfo>? displayOverride = null, Window? mainWindow = null, Func<bool>? hideMain = null, Action<string>? note = null,
     bool holdAtSignIn = false, Func<BuiltInDisplays>? builtInOverride = null)
   {
@@ -336,8 +336,10 @@ public sealed class DesktopCoordinator : IDisposable
       {
         var intent = args.GetProperty("intent");
         var accepted = intent.ValueKind == JsonValueKind.String && activation is not null && activation.Id == intent.GetString() && activation.Current;
-        if (accepted) { activation = null; focusSequence = null; showMain(); }
-        return new { activated = accepted };
+        // `hidden` tells quick capture that the window was in the tray, so closing the editor puts it back there.
+        var hidden = false;
+        if (accepted) { activation = null; focusSequence = null; hidden = showMain(); }
+        return new { activated = accepted, hidden };
       }
       default: throw new HostError("unsupported-method", "The desktop host doesn't support this operation.");
     }

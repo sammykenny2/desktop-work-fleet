@@ -7,7 +7,7 @@ import AppKit
     private struct Intent { let id = FleetProtocol.uuid(), process: pid_t, created = ProcessInfo.processInfo.systemUptime }
     let session = FleetProtocol.uuid()
     private let assets: URL, referenceTop: CGFloat
-    private let send: (String, [String: Any]) -> Void, show: () -> Void, hide: () -> Bool, mainVisible: (Bool) -> Void
+    private let send: (String, [String: Any]) -> Void, show: () -> Bool, hide: () -> Bool, mainVisible: (Bool) -> Void
     private let transfers = FleetSceneTransfers(), shortcuts = FleetShortcuts()
     private var displays: [Display], proposed: [Display]?
     private var views: [FleetSceneSurface] = [], commands: [String: Command] = [:], flushes: [String: (String, String)] = [:], frozen: [String: String] = [:]
@@ -16,7 +16,7 @@ import AppKit
     private var topology: Int64 = 0, proposedTopology: Int64 = 0
     private var started = false, closed = false, displayPending = false, blocked = false, menu = false
     private var observers: [(NotificationCenter, NSObjectProtocol)] = [], displayTask: Task<Void, Never>?
-    init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Void, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void) throws {
+    init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Bool, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void) throws {
         self.assets = assets; self.send = send; self.show = show; self.hide = hide; self.mainVisible = mainVisible
         guard let primary = NSScreen.screens.first else { throw FleetFailure("desktop-display", "No display is available.") }
         referenceTop = primary.frame.maxY; displays = try Self.readDisplays(top: primary.frame.maxY)
@@ -136,7 +136,8 @@ import AppKit
         case "desktop.mainVisible": mainVisible(try FleetProtocol.bool(args, "visible")); return NSNull()
         case "desktop.showMain":
             guard let id = args["intent"] as? String, let intent, id == intent.id, current(intent) else { return ["activated": false] }
-            revokeIntent(); show(); return ["activated": true]
+            // `hidden` tells quick capture that the window was in the menu bar, so closing the editor puts it back there.
+            revokeIntent(); return ["activated": true, "hidden": show()]
         case "desktop.focus":
             guard let intent, intent.id == (args["intent"] as? String), current(intent) else { return ["accepted": false] }
             focusSequence = try FleetProtocol.number(args, "sequence"); for view in views { if tryFocus(view) { break } }; return ["accepted": true]

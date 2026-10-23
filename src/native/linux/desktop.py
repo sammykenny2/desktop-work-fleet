@@ -329,9 +329,11 @@ class Desktop:
             if self.intent is None or args.get("intent") != self.intent["id"] or not self.current(self.intent):
                 return {"activated" if method == "desktop.showMain" else "accepted": False}
             if method == "desktop.showMain":
+                # `hidden` tells quick capture that the window was in the tray, so closing the editor puts it back there.
                 value, self.intent, self.focus_sequence = self.intent, None, None
+                hidden = not self.main.get_visible()
                 self.activate(self.main, value)
-                return {"activated": True}
+                return {"activated": True, "hidden": hidden}
             self.focus_sequence = p.number(args, "sequence")
             for view in self.views:
                 if self.try_focus(view):

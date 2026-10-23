@@ -33,7 +33,7 @@ import AppKit
             host.configure = { [weak self, weak host] service in
                 guard let self, let host else { throw FleetFailure("native-closed", "The native session has ended.") }
                 self.desktop?.close()
-                let desktop = try FleetDesktop(assets: host.assets, send: { [weak host] name, values in host?.event(name, values) }, show: { [weak self] in self?.showMain() }, hide: { [weak self] in
+                let desktop = try FleetDesktop(assets: host.assets, send: { [weak host] name, values in host?.event(name, values) }, show: { [weak self] in self?.showHiddenMain() ?? false }, hide: { [weak self] in
                     guard let self, self.statusItem?.button != nil else { return false }; self.shell?.flush(); self.window.orderOut(nil); return true
                 }, mainVisible: { [weak self] in self?.mainVisible($0) }); self.desktop = desktop
                 await service.setDesktop { [weak desktop] method, args in guard let desktop else { throw FleetFailure("desktop-closed", "The desktop session has ended.") }; return try desktop.invoke(method, args) }
@@ -82,6 +82,8 @@ import AppKit
         guard let shell else { throw FleetFailure("native-closed", "The native session has ended.") }
         try shell.setLanguage(preference); FleetText.apply(preference); buildMenus()
     }
+    /// Shows the main window for a desktop action and reports whether it was hidden: ordered out, not minimized.
+    private func showHiddenMain() -> Bool { let hidden = !window.isVisible && !window.isMiniaturized; showMain(); return hidden }
     @objc private func showMain() {
         if !window.isVisible { shell?.beforeShow(window) }
         window.makeKeyAndOrderFront(nil)

@@ -32,7 +32,7 @@ import AppKit
     static func run() throws {
         guard let screen = NSScreen.screens.first else { throw FleetFailure("probe", "A graphical Mac session is required") }
         let assets = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent("build/app")
-        let coordinator = try FleetDesktop(assets: assets, send: { _, _ in }, show: {}, hide: { false }, mainVisible: { _ in })
+        let coordinator = try FleetDesktop(assets: assets, send: { _, _ in }, show: { false }, hide: { false }, mainVisible: { _ in })
         defer { coordinator.close() }
         let info = try coordinator.invoke("desktop.info", [:]) as! [String: Any]
         try check((info["layers"] as? [String]) == ["desktop", "floating", "wallpaper"], "Native capability must expose all three layers")

@@ -48,6 +48,8 @@ Later written answers in this round confirmed: while a group is being operated, 
 or a browser; single click selects, double click edits, dropping on a label or a Shift-drag moves a card to another
 group, and the card menu stays. These two items can no longer be recorded as pending. If the maintainer later changes
 the requirement, update this document from the latest explicit instruction.
+On 2026-10-24 the maintainer moved editing on the desktop out of adjust mode into quick edit; see the 2026-10-24
+addendum "adjust mode arranges, quick edit edits".
 
 ## Goals and scope
 
@@ -71,9 +73,9 @@ the requirement, update this document from the latest explicit instruction.
 | U14 | A new card's initial position defaults to its own group region; adding or syncing does not rearrange existing cards |
 | U15 | Formation can be undone |
 | U16 | At most 9 groups; the grid has at most 3 rows and 4 columns and at most 9 blocks in total, so 3 rows × 4 columns is forbidden |
-| U17 | A shortcut can activate drag mode for a single group, then enter editing of a single card |
+| U17 | A shortcut can activate drag mode for a single group; editing a single card on the desktop is quick edit (2026-10-24 addendum) |
 | U18 | The group being operated floats above ordinary app windows for the time being and returns to its original layer afterwards |
-| U19 | Single click selects, double click edits; an ordinary drag only moves; only a group label or a Shift + region drop moves a card to another group |
+| U19 | Single click selects; in adjust mode a double click does not edit (2026-10-24); an ordinary drag only moves; only a group label or a Shift + region drop moves a card to another group |
 | U20 | The card actions keep a "Move to group" entry |
 | U21 | Designed independently from scratch; no reuse of the auxiliary reference application's UI, assets, data contracts or large amounts of code |
 | U22 | Focus/Pomodoro and review features are not part of 1.0; the existing PM and architecture research is kept for later use |
@@ -392,8 +394,8 @@ together. activeGroupId can be set by read-only cycling; by itself it does not g
 | Pressing the same scope shortcut again | No IME or child dialog is handling it | Safely ends editing and the operation, and restores the resident policy |
 | Activating another scope | The current draft can be saved | Ends the old scope, then starts the new one; switches do not accumulate |
 | Single click on a card | The card is in scope, no drag | Selects the card and its group and raises them temporarily; does not enter editing |
-| Double click on a card | Editable, no drag or child-control gesture | Single-card editing; size unchanged |
-| Edit button / keyboard entry | Same as above | The same command as a double click, with no different save semantics |
+| Double click or Enter on an adjusted card | — | Nothing: adjust mode only arranges (2026-10-24) |
+| Key + double click on a resting card (quick edit) | The quick move switch is on, nothing is adjusted, the card takes clicks and is editable, no child-control gesture | Single-card editing on the Top layer; size unchanged (2026-10-24 addendum) |
 | Esc (while editing) | Not consumed first by the IME or a menu | Reliably keeps a changed draft locally (per U23), leaves editing, stays in that scope |
 | Esc (while dragging) | A dragSession exists | Cancels this drag and group transfer and restores the starting geometry; does not leave the whole scope |
 | Esc (scope only) | No inner operation | Ends the scope, keeping the moves and edits the user completed |
@@ -503,9 +505,9 @@ After the movement has passed the drag threshold, mouseup/click/dblclick must no
 ### Editing and dragging (D)
 
 In drag mode the card surface handles moving; in text-editing mode the body area handles the cursor, selection and
-input. While editing, moving uses an explicit handle; dragging to select text must not carry the whole card away.
+input. A paper being edited does not move, and dragging to select text must not carry the whole card away.
 Child controls such as links, buttons, checkboxes and text selection do not bubble the same gesture up into a drag or a
-double-click edit. Ticking checklist steps on desktop papers follows the 2026-10-23 addendum; exceptions must not
+quick edit. Ticking checklist steps on desktop papers follows the 2026-10-23 addendum; exceptions must not
 let read-only cards change text. The draft is kept before leaving editing, switching groups, formation, hiding or switching accounts; a
 failed local write to disk must be visible.
 A locked desktop does not block updates from phones; a source's read-only permission must not be bypassed by
@@ -589,9 +591,9 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C15 | An A card was dragged far into another region; cycle A | It is still reached by cycling and is not recalled automatically |
 | C16 | Activate single-group operation | Only the given group can be dragged and floats above ordinary apps; no formation ran |
 | C17 | Activate All, then click A | All groups can still be operated; group A is raised relatively |
-| C18 | Single click / double click on a card | The first selects, the second edits; paper size is unchanged |
+| C18 | Single click / double click on an adjusted card | The first selects, the second does not edit; paper size is unchanged |
 | C19 | Tiny pointer jitter / release after a real drag | The first can count as a click; the second does not open the editor afterwards |
-| C20 | Drag-select text / use the drag handle while editing | Text selection does not move the card; the handle does |
+| C20 | Drag-select text while editing | Text selection does not move the card |
 | C21 | Drag onto B's label, then off it | On entering, "Move to B" shows; leaving cancels the candidate, and nothing is written in advance |
 | C22 | Shift + drag into B's region and release | That same card changes to B and keeps its drop position; no other card is rearranged |
 | C23 | Drag into an empty region without Shift | Ordinary move; no group change and no new group |
@@ -725,6 +727,53 @@ Acceptance cases:
 | C55 | Esc, lost capture, a display change or the paper leaving the desktop during a quick move | The paper returns to its start; nothing is saved |
 | C56 | After a quick move, enter adjust mode and press Undo | The paper returns to its position before the quick move |
 | C57 | GNOME through XWayland, a phone or the browser preview | The quick move switch is not offered |
+
+## 2026-10-24 addendum: adjust mode arranges, quick edit edits
+
+On 2026-10-24 the maintainer decided that adjust mode only arranges papers and that editing a paper on the desktop
+starts from the quick move key instead. This changes U17, U19, C18 and C20 above.
+
+- **Adjust mode.** Adjusted papers carry no Edit or "⋯" button, and neither a double click nor Enter opens one for
+  editing, on the desktop overlay and on the browser preview's Desktop canvas alike. A single click still selects and
+  raises a paper; dragging, ‹ ›, Stack, Spread, Undo and Done are unchanged. Editing stays in the main window, whose
+  card actions keep "Move to group" (U20), and in quick edit below.
+- **Setting.** The quick move switch becomes "Hold Ctrl to drag or double-click a note" ("Hold ⌘ to drag or
+  double-click a note" on macOS). One switch covers moving and editing; it stays off by default and per device.
+- **Start.** With the switch on and nothing adjusted, double-clicking a paper that takes clicks (Desktop and Top
+  layers) with the key held opens it for editing. A double click on a checkbox, attachment or link keeps that
+  control's behaviour, and a read-only source refuses as for any edit. The two presses of the double click are
+  quick-move presses below the threshold and change nothing by themselves.
+- **While editing.** The paper floats on the Top layer at its own position and size, opaque, and returns to its group's
+  layer when editing ends, as an adjusted paper does (U18). No overlay appears and the main window stays where it is.
+  The editor takes the keyboard where the host allows; on layer-shell desktops a click into the text may be needed
+  first. Its actions are Save, Cancel and Full editor, besides retrying a failed save. Other papers keep their resting
+  behaviour, and no quick move starts while a paper is being edited. Clicking another app or the desktop does not end
+  editing: the paper stays open on the Top layer until one of the ends below.
+- **End.**
+  - Save commits the text as a new revision and closes.
+  - Cancel discards the changes made since this edit began and closes. The note stays as it was, and a draft kept
+    from an earlier edit stays as it was; with no changes it only closes.
+  - Esc, when the input method does not consume it, keeps a changed draft and closes (U23), as the main window's close
+    does.
+  - Full editor hands the draft to the main window's editor.
+  - Double-clicking another paper with the key keeps the current paper's changed draft, closes it and opens the other.
+  - Entering adjust mode, the paper leaving the desktop (deleted, archived, hidden, or completed while this device
+    hides completed notes), a display change, turning the switch off, signing out or quitting keep a changed draft and
+    close.
+
+Acceptance cases:
+
+| ID | Given / When | Required observable result |
+|---|---|---|
+| C58 | Adjust mode on the desktop or the browser preview's Desktop canvas | Papers show no Edit or "⋯"; double click and Enter do not edit; a single click selects and raises |
+| C59 | The switch is off; hold the key and double-click a resting paper | No editing; the double click behaves as before |
+| C60 | The switch is on; hold the key and double-click a Desktop- or Top-layer paper | It floats opaque on the Top layer at the same position and size and opens for editing; no overlay, the main window does not move |
+| C61 | Type, then Cancel | The note is unchanged, no new draft is kept, an earlier kept draft is unchanged, and the paper is back on its layer |
+| C62 | Type, then Esc | The changed draft is kept and the paper is back on its layer; Save instead commits a new revision |
+| C63 | While editing, hold the key and double-click another paper | The first keeps its changed draft and closes; the second opens |
+| C64 | While editing, click another app or the desktop | The editor stays open on the Top layer |
+| C65 | While editing, enter adjust mode, delete the note from another device, change displays or turn the switch off | The changed draft is kept and the editor closes |
+| C66 | Hold the key and double-click a checkbox, attachment or link; or a paper from a read-only source | That control's behaviour; a read-only paper does not open for editing |
 
 ## References
 

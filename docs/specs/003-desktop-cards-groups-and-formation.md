@@ -696,8 +696,8 @@ is not planned.
 - **Key.** Command on macOS, Ctrl on Windows and Linux. Shift keeps its group-transfer meaning, Control-click is a
   secondary click on macOS, and Alt or Option is not delivered by every host's mouse path and is used by window
   managers.
-- **Start.** With the switch on, outside adjust mode and with no paper being edited, pressing the primary button on a
-  paper that takes clicks (Desktop and Top layers) while the key is already held starts a quick move. A press on a
+- **Start.** With the switch on and outside adjust mode, pressing the primary button on a paper that takes clicks
+  (Desktop and Top layers) and is not being edited, while the key is already held, starts a quick move. A press on a
   checkbox, attachment, link or other child control keeps that control's behaviour. Holding the key only after the
   press began does not turn text selection into a move, and without the key a press behaves as before.
 - **During.** Below the drag threshold the gesture is a click and changes nothing. Past it, the paper follows the
@@ -746,9 +746,9 @@ starts from the quick move key instead. This changes U17, U19, C18 and C20 above
 - **While editing.** The paper floats on the Top layer at its own position and size, opaque, and returns to its group's
   layer when editing ends, as an adjusted paper does (U18). No overlay appears and the main window stays where it is.
   The editor takes the keyboard where the host allows; on layer-shell desktops a click into the text may be needed
-  first. Its actions are Save, Cancel and Full editor, besides retrying a failed save. Other papers keep their resting
-  behaviour, and no quick move starts while a paper is being edited. Clicking another app or the desktop does not end
-  editing: the paper stays open on the Top layer until one of the ends below.
+  first. Its actions are Save, Cancel and Full editor, besides retrying a failed save. The paper being edited does not
+  move; other papers keep their resting behaviour and can still be moved with the key. Clicking another app or the
+  desktop does not end editing: the paper stays open on the Top layer until one of the ends below.
 - **End.**
   - Save commits the text as a new revision and closes.
   - Cancel discards the changes made since this edit began and closes. The note stays as it was, and a draft kept
@@ -771,6 +771,7 @@ Acceptance cases:
 | C61 | Type, then Cancel | The note is unchanged, no new draft is kept, an earlier kept draft is unchanged, and the paper is back on its layer |
 | C62 | Type, then Esc | The changed draft is kept and the paper is back on its layer; Save instead commits a new revision |
 | C63 | While editing, hold the key and double-click another paper | The first keeps its changed draft and closes; the second opens |
+| C63b | While editing, hold the key and drag the edited paper, then another paper | The edited paper does not move; the other paper moves and editing goes on |
 | C64 | While editing, click another app or the desktop | The editor stays open on the Top layer |
 | C65 | While editing, enter adjust mode, delete the note from another device, change displays or turn the switch off | The changed draft is kept and the editor closes |
 | C66 | Hold the key and double-click a checkbox, attachment or link; or a paper from a read-only source | That control's behaviour; a read-only paper does not open for editing |

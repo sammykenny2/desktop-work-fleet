@@ -4,6 +4,9 @@
 
 Accepted, 2026-10-17. The user asked for attachment thumbnails, double-click to open, H1–H6 CSS and code coloring;
 ticking checklists directly on the desktop was explicitly excluded, with no version bump and no release.
+Revised 2026-10-23: the maintainer included desktop checklist ticking (SPEC-003, 2026-10-23 addendum): papers that
+take clicks send `card.check` with the revision they drew and the step index, and the main window saves it as a new
+revision.
 
 ## Context
 

@@ -117,6 +117,16 @@ internal static class DesktopIntegrationProbe
     await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
     await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card')) && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
       "exit returns the paper to its group's desktop layer", main);
+    // A desktop paper takes clicks while locked, so its checkbox ticks the step through the native owner and the next
+    // frame draws it; a second click unticks it again. The paper never turns draggable or opens an editor. The clicks
+    // are DOM clicks: the probe injects no system input, so native hit-testing of a real click is not covered here.
+    foreach (var (state, check) in new[] { ("ticked", "true"), ("unticked", "false") })
+    {
+      await Eval(resident, "document.querySelector('.card-body input[type=checkbox]').click()");
+      await Wait(async () => (await Eval(resident, $"(box => box?.checked === {check} && !box.disabled)(document.querySelector('.card-body input[type=checkbox]')) && !document.querySelector('.card.operable, textarea')")).GetBoolean(),
+        $"desktop step {state} through the native owner", main);
+    }
+    Console.WriteLine("PASS a desktop paper ticks and unticks its checklist step through the native owner (DOM clicks)");
     Console.WriteLine("PASS real display-only WebView2 scene, storage isolation, draft chunks, IME barrier and owner commit");
     if (main.Desktop.Surfaces.Count == 3)
     {

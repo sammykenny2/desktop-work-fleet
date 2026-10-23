@@ -25,7 +25,9 @@ export interface DesktopCommand {
   method: 'pointer.down' | 'pointer.move' | 'pointer.up' | 'pointer.cancel' | 'card.select' | 'card.edit' | 'card.details' | 'card.transfer'
     | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut'
     /** Adjust overlay controls: end adjust mode, or arrange the adjusted scope with args.kind stack, spread or undo. */
-    | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open';
+    | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open'
+    /** Ticks checklist step args.task of a paper that takes clicks, drawn from note revision args.revision. */
+    | 'card.check';
   args: Record<string, unknown>;
 }
 export interface DesktopInfo {

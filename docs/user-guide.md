@@ -50,6 +50,10 @@ interface. To switch, see [Settings](#settings).
   do not scroll: text that does not fit ends with "…". Open the note in the editor to read all of it.
 - A paper with attachments shows a row of thumbnails along its bottom, from left to right; thumbnails that do not fit
   are not shown. Double-click a thumbnail to open the attachment.
+- On notes that take clicks (the Desktop and Top layers, and notes being adjusted), click a checklist box to tick or
+  untick that step. It is saved and synced like any edit, without selecting, moving or opening the note. Notes on the
+  Wallpaper layer let clicks through, so their boxes cannot be ticked there; a note with a kept draft waits until the
+  draft is saved or dropped. The browser preview's canvas works the same way.
 
 ### Versions and conflicts
 

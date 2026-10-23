@@ -11,7 +11,7 @@ const area = { x: 0, y: 0, width: 1200, height: 900 };
 const uuid = () => crypto.randomUUID();
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
-async function fixture(attachments) {
+async function fixture(attachments, { check, residentLayers } = {}) {
   let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent; const arranged = [];
   const workspace = await Workspace.create({ profileId: 'local', deviceId: uuid(), area,
     persist: async value => { if (fail) throw new Error('disk full'); durable = structuredClone(value); } });
@@ -22,7 +22,7 @@ async function fixture(attachments) {
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
-  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, details: async id => ({ cardId: id }),
+  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, check, residentLayers, details: async id => ({ cardId: id }),
     arrange: async kind => { arranged.push(kind); return null; },
     shortcut: (target, intent) => { shortcutIntent = intent; return controller.activate(target === '@all' ? { kind: 'all' } : { kind: 'group', groupId: target }); }, editor: {
     current: () => editor && structuredClone(editor),
@@ -328,4 +328,45 @@ test('a slow thumbnail never holds mutating desktop actions or the close barrier
   await f.authority.whenIdle();
   f.authority.close(); waiting.resolve({ available: true, png: null });
   await rejects(preview, 'desktop-view');
+});
+
+test('a checkbox ticks only a paper that takes clicks and is not being edited, from the revision it was drawn from', async () => {
+  const ticks = [];
+  const f = await fixture(undefined, { check: async (id, revision, task) => { ticks.push({ id, revision, task }); return null; } });
+  const card = await f.workspace.updateCard(f.card.id, { content: { ...f.card.content, text: '- [ ] one\n- [ ] two' } }, f.card.revision);
+  assert.equal(f.frame().cards.find(value => value.id === card.id).interactive, true, 'desktop papers take clicks while locked');
+  await f.command('card.check', { cardId: card.id, revision: card.revision, task: 1 });
+  assert.deepEqual(ticks, [{ id: card.id, revision: card.revision, task: 1 }]);
+  await rejects(f.command('card.check', { cardId: card.id, revision: f.card.revision, task: 0 }), 'desktop-expired');
+  await rejects(f.command('card.check', { cardId: 'missing', revision: card.revision, task: 0 }), 'desktop-expired');
+  for (const task of [-1, 0.5, '0']) await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task }), 'desktop-command');
+  await f.controller.activate({ kind: 'group', groupId: f.a.id });
+  await f.command('card.edit', { cardId: card.id });
+  await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 }), 'outside-scope');
+  await f.command('editor.end', { draftId: f.editor().draftId, sequence: f.editor().sequence });
+  await f.controller.activate({ kind: 'none' });
+  await f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);
+  await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 }), 'outside-scope');
+  await f.workspace.layout.setGroupLayer(f.a.id, 'desktop', f.workspace.snapshot);
+  await f.workspace.layout.configure({ desktopVisible: false }, f.workspace.snapshot);
+  await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 }), 'outside-scope');
+  assert.equal(ticks.length, 2);
+});
+
+test('a desktop paper that rests on the wallpaper where the desktop has no desktop layer takes no ticks or opens', async () => {
+  const ticks = []; const opened = [];
+  const f = await fixture(async method => { opened.push(method); return { available: true, png: null }; },
+    { check: async (...args) => { ticks.push(args); }, residentLayers: () => ['wallpaper'] });
+  const card = await f.workspace.updateCard(f.card.id, { content: { ...f.card.content, text: '- [ ] one' } }, f.card.revision);
+  const project = () => projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state, interaction: f.controller.state,
+    sessionId: 'fallback-test', sequence: 1, workspaceRevision: f.workspace.state.revision, layers: ['wallpaper', 'floating'], residentLayers: ['wallpaper'] });
+  const drawn = project().cards.find(value => value.id === card.id);
+  assert.equal(drawn.layer, 'wallpaper'); assert.equal(drawn.interactive, false);
+  await rejects(f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 }), 'outside-scope');
+  await rejects(f.command('attachment.open', { cardId: card.id, revision: card.revision, attachmentId: 'none' }), 'outside-scope');
+  await f.controller.activate({ kind: 'group', groupId: f.a.id });
+  await f.command('card.check', { cardId: card.id, revision: card.revision, task: 0 });
+  assert.equal(ticks.length, 1, 'an adjusted paper floats and takes ticks');
+  assert.deepEqual(opened, []);
 });

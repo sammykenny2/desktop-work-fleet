@@ -72,6 +72,26 @@ try {
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('.card-summary')).toHaveText('First thing');
+  // The canvas stands in for the desktop: a paper that takes clicks ticks a step in place and keeps it, while a kept
+  // draft of the note holds ticking until the draft is saved or dropped.
+  const firstStep = () => page.locator('#stage .card-body input').first();
+  await expect(firstStep()).toBeChecked(); await expect(firstStep()).toBeEnabled();
+  await firstStep().click();
+  await expect(page.locator('#status')).toHaveText(t('app.status.savedLocally')); await expect(firstStep()).not.toBeChecked();
+  await expect(page.locator('#stage .card')).not.toHaveClass(/selected/);
+  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened')); await expect(firstStep()).not.toBeChecked();
+  await page.locator('[data-view="board"]').click(); await page.locator('#list .note-paper').first().click();
+  const savedText = await page.locator('#editor-text').inputValue();
+  await page.locator('#editor-text').fill(`${savedText}\n\nKept for later`);
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.draftKept'));
+  await canvas(); await firstStep().click();
+  await expect(page.locator('#status')).toHaveText(t('errors.desktop.noteHasDraft')); await expect(firstStep()).not.toBeChecked();
+  await page.locator('#drafts-button').click(); await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
+  await page.locator('#editor-text').fill(savedText); await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#status')).toHaveText(t('app.status.noteSaved'));
+  await expect(page.locator('#draft-count')).toHaveText('0');
+  await canvas(); await expect(page.locator('.card-summary')).toHaveText('First thing');
   // Adjust position sits at the foot of the sidebar; the view bar holds only filters and views, and search ends the top bar.
   assert.equal(await page.locator('#sidebar .adjust-entry').count(), 1);
   assert.equal(await page.locator('.view-bar .search, .view-bar .adjust-entry').count(), 0);
@@ -342,7 +362,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas steps and the kept-draft hold, inline edit, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

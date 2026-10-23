@@ -1,5 +1,6 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { cardPolicy } from '../interaction/controller.js';
+import { restingLayer } from '../layout/stages.js';
 import { resolveShortcuts } from '../core/shortcuts.js';
 import { canonicalJson } from '../sources/json.js';
 import { sha256 } from '../sources/files.js';
@@ -7,22 +8,23 @@ import { t } from '../i18n/index.js';
 
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
-  'card.details', 'card.transfer', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
+  'card.details', 'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'interaction.escape', 'interaction.shortcut',
   'interaction.done', 'layout.arrange', 'attachment.preview', 'attachment.open']);
 const arrangements = new Set(['stack', 'spread', 'undo']);
 
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
 export class DesktopAuthority {
-  #workspace; #controller; #sessionId; #editor; #details; #shortcut; #arrange; #perform; #views = new Map(); #seenViews = new Set();
+  #workspace; #controller; #sessionId; #editor; #details; #check; #shortcut; #arrange; #perform; #residentLayers; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #closed = false;
   #topology = 0; #displayPending = false;
   #attachments;
   #previewTails = [Promise.resolve(), Promise.resolve()]; #previewNext = 0; #previewPending = 0;
-  constructor({ workspace, controller, sessionId, editor, details, shortcut, arrange, attachments, perform = action => action() }) {
+  constructor({ workspace, controller, sessionId, editor, details, check, shortcut, arrange, attachments, residentLayers = () => ['desktop', 'floating'],
+    perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', t('errors.desktop.sessionInvalid'));
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
-    this.#editor = editor; this.#details = details; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
-    this.#attachments = attachments;
+    this.#editor = editor; this.#details = details; this.#check = check; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
+    this.#attachments = attachments; this.#residentLayers = residentLayers;
   }
   get sessionId() { return this.#sessionId; }
   addView(viewId) {
@@ -114,6 +116,14 @@ export class DesktopAuthority {
       'outside-scope', t('errors.desktop.outsideScope'));
     return card;
   }
+  // Whether the paper takes clicks as the scenes draw it: a resting paper whose layer this desktop cannot offer rests on
+  // the desktop or the wallpaper (see projectDesktop), and wallpaper papers let clicks through.
+  #takesClicks(policy) {
+    if (!policy.visible || !policy.interactive) return false;
+    if (policy.draggable) return true;
+    const resting = this.#residentLayers();
+    return restingLayer(policy.layer, resting) !== 'wallpaper';
+  }
   #point(point) {
     requireValue(point && Number.isFinite(point.x) && Number.isFinite(point.y)
       && Math.abs(point.x) <= 1_000_000 && Math.abs(point.y) <= 1_000_000, 'desktop-point', t('errors.desktop.pointInvalid'));
@@ -140,7 +150,7 @@ export class DesktopAuthority {
         const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId);
         requireValue(card && card.revision === args.revision, 'desktop-expired', t('errors.desktop.attachmentChanged'));
         const policy = cardPolicy(card, this.#workspace.layout.state, controller.state);
-        requireValue(policy.visible && (method === 'attachment.preview' || policy.interactive), 'outside-scope', t('errors.desktop.cardUnavailable'));
+        requireValue(policy.visible && (method === 'attachment.preview' || this.#takesClicks(policy)), 'outside-scope', t('errors.desktop.cardUnavailable'));
         const file = card.content.attachments?.find(value => value.id === args.attachmentId);
         requireValue(file && this.#attachments, 'missing-attachment', t('errors.desktop.attachmentMissing'));
         const result = await this.#attachments(method, copy(file));
@@ -180,6 +190,15 @@ export class DesktopAuthority {
       case 'card.edit': this.#card(args.cardId); return this.#editor.begin(args.cardId, viewId);
       case 'card.details': this.#card(args.cardId); return this.#details(args.cardId, intent);
       case 'card.transfer': this.#card(args.cardId); return controller.moveToGroup(args.cardId, args.groupId);
+      // A checkbox on a paper that takes clicks ticks that step of the text it was drawn from, never a newer one.
+      case 'card.check': {
+        const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId);
+        requireValue(card && card.revision === args.revision, 'desktop-expired', t('errors.desktop.noteChanged'));
+        const policy = cardPolicy(card, this.#workspace.layout.state, controller.state);
+        requireValue(this.#takesClicks(policy) && !policy.editing && this.#check, 'outside-scope', t('errors.desktop.cardUnavailable'));
+        requireValue(Number.isSafeInteger(args.task) && args.task >= 0, 'desktop-command', t('errors.desktop.commandInvalid'));
+        return this.#check(card.id, card.revision, args.task);
+      }
       case 'editor.change': {
         const current = this.#editor.current();
         requireValue(current && current.viewId === viewId && current.draftId === args.draftId,

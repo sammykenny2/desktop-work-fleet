@@ -42,10 +42,6 @@ Low cost, clear value:
 - **Real-world sync check with the main window hidden**: on all three platforms, check whether the WebView throttles the
   20-second Google sync and desktop updates after the main window goes to the tray or menu bar; fix it only if a
   problem is confirmed.
-- **Ticking checklists directly on the desktop**: when a paper is not click-through, clicking a checkbox toggles its
-  completion and saves and syncs it, without entering text editing and without triggering a drag or a double-click edit
-  by mistake. While click-through, papers still ignore clicks. The maintainer included it on 2026-10-23, replacing the
-  exclusion in the 2026-10-17 addendum of SPEC-003.
 
 Decided on 2026-10-23:
 

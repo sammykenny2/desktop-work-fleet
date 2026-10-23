@@ -113,10 +113,16 @@ function render(next) {
         for (const tile of item.files.querySelectorAll('button')) tile.disabled = !card.interactive;
         fitTiles(item.files);
       }
-      const changed = relocalized || item.editorId || item.text !== card.text;
-      if (changed) { renderMarkdown(body, card.text); item.text = card.text; item.editorId = null; }
-      // A paper that starts or stops taking the mouse starts or stops scrolling, so its "…" goes or comes.
-      if (changed || item.interactive !== card.interactive) fitText(body);
+      // A paper that takes the mouse ticks its checklist steps and scrolls, so starting or stopping also draws its text
+      // again: its checkboxes turn on or off, and its "…" goes or comes. A new revision draws it again even with the same
+      // text, which re-enables boxes held by a tick. A paper edited in another view keeps its boxes off.
+      const ticks = card.interactive && !card.editing;
+      const changed = relocalized || item.editorId || item.text !== card.text || item.revision !== card.revision
+        || item.interactive !== card.interactive || item.ticks !== ticks;
+      if (changed) {
+        renderMarkdown(body, card.text, ticks ? { onToggle: task => tick(card.id, task, body) } : {});
+        item.text = card.text; item.revision = card.revision; item.ticks = ticks; item.editorId = null; fitText(body);
+      }
       item.interactive = card.interactive;
       actions.replaceChildren();
       if (card.draggable) actions.append(button(t('desktop.card.edit'), () => client.command('card.edit', { cardId: card.id })), button('⋯', async () => client.command('card.details', { cardId: card.id }, await captureIntent())));
@@ -125,6 +131,20 @@ function render(next) {
   });
   drawnLocale = getLocale();
   return true;
+}
+// A ticked step is saved by the main window as a new revision of the note. Its checkboxes wait for the frame that
+// draws the saved text; a refused tick puts the box back.
+function tick(cardId, task, body) {
+  const boxes = [...body.querySelectorAll('input[type="checkbox"]')];
+  for (const box of boxes) box.disabled = true;
+  void run(async () => {
+    try { await client.command('card.check', { cardId, revision: frame.cards.find(card => card.id === cardId)?.revision ?? null, task }); }
+    catch (error) {
+      if (boxes[task]) boxes[task].checked = !boxes[task].checked;
+      for (const box of boxes) box.disabled = false;
+      throw error;
+    }
+  });
 }
 // Where adjust mode is a modal overlay (every desktop host), the topmost scene tints its whole area and carries
 // the controls the hidden main window would offer. The tint takes every click outside the adjusted papers.

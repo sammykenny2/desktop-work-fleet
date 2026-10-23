@@ -432,7 +432,7 @@ class Desktop:
             p.require(isinstance(command, dict) and (token is not None or len(p.encode(command)) <= 65536), "scene-size", "The desktop command's format or size isn't valid.")
             key, operation = p.text(command, "id"), p.text(command, "method")
             p.require(p.is_uuid(key) and command.get("sessionId") == self.session and p.number(command, "serial") > 0 and isinstance(command.get("args"), dict), "scene-session", "The desktop command's session isn't valid.")
-            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange")
+            allowed = ("pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.details", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange")
             p.require(operation in allowed, "unsupported-method", "The desktop surface doesn't support this operation.")
             draft, topology = operation == "editor.change", p.number(args, "topology")
             p.require(draft or not self.pending and view.active and topology == self.topology, "desktop-topology", "Desktop coordinates are updating. Keep your current text.")

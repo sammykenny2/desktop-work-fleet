@@ -24,6 +24,8 @@ export default {
   'errors.desktop.labelsInvalid': '群組接收標籤無效。',
   'errors.desktop.shortcutChanged': '快捷鍵已變更，請使用目前設定。',
   'errors.desktop.arrangeNotAdjusting': '只能在調整時排列便箋。',
+  'errors.desktop.noteChanged': '便箋已變更，請在更新後的便箋上再試一次。',
+  'errors.desktop.noteHasDraft': '這張便箋有草稿，請開啟它再勾選步驟。',
   'errors.desktop.attachmentChanged': '便箋已變更，請稍候再開啟附件。',
   'errors.desktop.attachmentMissing': '附件不存在或尚未提供開啟功能。',
   'errors.desktop.editorGone': '這個文字編輯視窗已失效，請保留輸入內容。',

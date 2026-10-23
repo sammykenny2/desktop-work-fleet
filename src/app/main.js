@@ -644,6 +644,8 @@ function initializeDesktop() {
   const authority = new DesktopAuthority({ workspace, controller, sessionId: desktopInfo.sessionId,
     perform: action => desktop.perform(action),
     shortcut: (target, intent) => desktopAction(target, intent),
+    check: (id, revision, task) => tickStep(id, revision, task),
+    residentLayers: () => residentLayers(),
     details: async (id, intent) => { await leaveAdjustOverlay(); await native.bridge.request('desktop.showMain', { intent }); cardDetails(currentCard(id)); },
     arrange: kind => arrangeDesktop(kind),
     attachments: (method, file) => method === 'attachment.preview' ? previewAttachment(file) : openAttachment(file),
@@ -1102,7 +1104,13 @@ function renderStage(cards) {
       body.append(input);
       paper.append(body);
     } else {
-      renderMarkdown(body, card.content.text); paper.append(body); stageFitter.observe(body);
+      // The canvas stands in for the desktop, so papers that take clicks tick their steps there too.
+      // Its boxes wait while a tick saves, so a second quick click cannot tick from the same, soon outdated revision.
+      renderMarkdown(body, card.content.text, policy.interactive && !policy.editing ? { onToggle: task => {
+        for (const box of body.querySelectorAll('input[type="checkbox"]')) box.disabled = true;
+        run(() => tickStep(card.id, card.revision, task).catch(error => { render(); throw error; }));
+      } } : {});
+      paper.append(body); stageFitter.observe(body);
       const strip = attachmentStrip(card.content.attachments || [], stageAttachmentCleanup, stageFitter); if (strip) paper.append(strip);
     }
     if (policy.draggable) {
@@ -1178,6 +1186,18 @@ function renderNotes(cards, view, acrossGroups) {
 
 async function changeCard(id, patch) {
   const card = currentCard(id); await workspace.updateCard(id, patch, card.revision);
+  await controller.reconcile(); render(); status(t('app.status.savedLocally'));
+}
+// A checkbox on a desktop paper ticks that step in place, as a new revision of the note. A draft of the note, open in
+// an editor (its first write may still be on the way to disk) or kept, would no longer match it, so ticking waits until
+// that draft is saved or dropped.
+async function tickStep(id, revision, task) {
+  const card = currentCard(id);
+  if (!card || card.revision !== revision) throw new FleetError('desktop-expired', t('errors.desktop.noteChanged'));
+  if (currentDraft?.cardId === id || Object.values(workspace.state.drafts).some(draft => draft.cardId === id)) {
+    throw new FleetError('draft-open', t('errors.desktop.noteHasDraft'));
+  }
+  await workspace.updateCard(id, { content: { ...card.content, text: toggleChecklist(card.content.text, task) } }, revision);
   await controller.reconcile(); render(); status(t('app.status.savedLocally'));
 }
 

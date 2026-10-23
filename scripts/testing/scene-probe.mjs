@@ -31,11 +31,12 @@ await page.addInitScript(() => {
     cards: window.probeLong ? [{ ...paper('long', 24, 'Long note', Array.from({ length: 30 }, (_, n) => `Line ${n + 1}, long enough to wrap on the paper.`).join('\n\n'), '#ffe98a'),
       rect: { x: 24, y: 24, width: 240, height: window.probeTall ? 480 : 240 }, interactive: !window.probeWallpaper,
       attachments: Array.from({ length: 6 }, (_, n) => ({ id: `blob-${n}`, name: `file-${n}.pdf` })) }] : window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
-      paper('c1', 24, 'Quarterly report', `# Quarterly report\n\n- [x] Collect the numbers\n- [ ] Draw the charts\n- [${sequence > 1 ? 'x' : ' '}] Write the summary`, '#fff6cc'),
+      { ...paper('c1', 24, 'Quarterly report', `# Quarterly report\n\n- [x] Collect the numbers\n- [ ] Draw the charts\n- [${sequence > 1 ? 'x' : ' '}] Write the summary`, '#fff6cc'),
+        interactive: !window.probeClickThrough },
       paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'),
       paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'),
     ], editor: null, dropTarget: null, fallbacks: [], notice: null });
-  window.probeApplied = 0; window.probeCommands = [];
+  window.probeApplied = 0; window.probeCommands = []; window.probeChecks = [];
   window.probeNextFrame = () => { sequence++; send({ v: 1, event: 'desktop-frame' }); };
   const handle = async message => {
     const reply = result => send({ v: 1, id: message.id, ok: true, result });
@@ -52,7 +53,9 @@ await page.addInitScript(() => {
       const command = message.params.command; window.probeCommands.push(command.method);
       const canvas = document.createElement('canvas'); canvas.width = canvas.height = 96; const paint = canvas.getContext('2d'); paint.fillStyle = command.args.attachmentId === 'blob-a' ? '#e7edf8' : '#e7f2e7'; paint.fillRect(0, 0, 96, 96); paint.fillStyle = '#245f50'; paint.font = 'bold 22px sans-serif'; paint.textAlign = 'center'; paint.fillText(command.args.attachmentId === 'blob-a' ? 'PDF' : 'PNG', 48, 56);
       const result = command.method === 'attachment.preview' ? { available: !window.probeMissing, png: window.probeMissing ? null : canvas.toDataURL('image/png').split(',')[1] } : { opened: true };
-      send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: true, result });
+      if (command.method === 'card.check') window.probeChecks.push(command.args);
+      if (command.method === 'card.check' && window.probeRefuseCheck) send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: false, error: { code: 'desktop-expired', message: 'The note has changed.' } });
+      else send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: true, result });
     }
     if (message.method === 'scene.applied') window.probeApplied++;
     return reply({});
@@ -84,6 +87,17 @@ try {
   assert.match(first.bodies[2], /^Dentist appointment\s+Next Tuesday at 14:30, bring the insurance card\.$/);
   assert.equal(first.headings, 2); assert.equal(first.bulletedSteps, 0, 'checklist steps show a box, not a bullet');
   assert.deepEqual(first.steps, [true, false, false]); assert.ok(first.square);
+  // A paper that takes clicks ticks a step through the owner, without selecting, dragging or editing it, and its boxes
+  // wait for the frame that draws the saved text.
+  const boxes = page.locator('.card[data-card-id="c1"] .card-body input');
+  const boxState = () => boxes.evaluateAll(nodes => nodes.map(node => ({ checked: node.checked, disabled: node.disabled })));
+  assert.deepEqual((await boxState()).map(box => box.disabled), [false, false, false]);
+  await boxes.nth(1).click();
+  await page.waitForFunction(() => window.probeChecks.length === 1);
+  assert.deepEqual(await page.evaluate(() => window.probeChecks[0]), { cardId: 'c1', revision: 'r1', task: 1 });
+  assert.deepEqual((await boxState()).map(box => box.disabled), [true, true, true], 'ticked boxes wait for the saved text');
+  assert.equal(await page.evaluate(() => window.probeCommands.some(method => method.startsWith('pointer.') || ['card.edit', 'card.select'].includes(method))), false,
+    'ticking never selects, drags or edits the paper');
   // A later frame reuses each paper's nodes; the title and the steps must follow without a scene error.
   await page.evaluate(() => window.probeNextFrame());
   await page.waitForFunction(() => window.probeApplied === 2 || !document.querySelector('#scene-status').hidden);
@@ -91,9 +105,23 @@ try {
   assert.equal(second.status, null, 'the second frame renders without a scene error');
   assert.deepEqual(second.summaries, ['Quarterly report', 'Buy milk, eggs and coffee beans', 'Dentist moved']);
   assert.deepEqual(second.steps, [true, false, true]); assert.match(second.bodies[2], /^Dentist moved\s/);
+  // A refused tick puts the box back and says why.
+  assert.deepEqual((await boxState()).map(box => box.disabled), [false, false, false], 'the next frame takes ticks again');
+  await page.evaluate(() => { window.probeRefuseCheck = true; });
+  await boxes.nth(0).click();
+  await page.waitForFunction(() => !document.querySelector('#scene-status').hidden);
+  assert.deepEqual(await boxState(), [{ checked: true, disabled: false }, { checked: false, disabled: false }, { checked: true, disabled: false }]);
+  await page.evaluate(() => { window.probeRefuseCheck = false; });
+  // The same text on a paper that stops taking clicks is drawn again with read-only boxes, and again when it takes them.
+  await page.evaluate(() => { window.probeClickThrough = true; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 3);
+  assert.deepEqual((await boxState()).map(box => box.disabled), [true, true, true], 'a click-through paper draws read-only boxes');
+  await page.evaluate(() => { window.probeClickThrough = false; window.probeNextFrame(); });
+  await page.waitForFunction(() => window.probeApplied === 4);
+  assert.deepEqual((await boxState()).map(box => box.disabled), [false, false, false]);
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe.png' });
   await page.evaluate(() => { window.probeRich = true; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 3);
+  await page.waitForFunction(() => window.probeApplied === 5);
   await page.waitForFunction(() => [...document.querySelectorAll('.attachment-tile img')].length === 2 && [...document.querySelectorAll('.attachment-tile img')].every(img => img.complete && img.naturalWidth));
   const rich = await page.evaluate(() => ({
     headings: [1, 2, 3, 4, 5, 6].map(level => parseFloat(getComputedStyle(document.querySelector('.card-body h' + level)).fontSize)),
@@ -104,20 +132,24 @@ try {
     unsafe: document.querySelectorAll('.card-body script,.card-body img:not(.attachment-tile img)').length,
   }));
   assert.ok(rich.headings.every((value, index) => index === 0 || value < rich.headings[index - 1]), 'six explicit heading sizes decrease');
-  assert.notEqual(rich.keyword, rich.string); assert.equal(rich.disabled, true);
+  assert.notEqual(rich.keyword, rich.string); assert.equal(rich.disabled, false, 'a paper that takes clicks can tick its steps');
   assert.equal(rich.unknown.trim(), '<script>never execute</script>'); assert.equal(rich.unsafe, 0);
+  // An adjusted paper's checkbox ticks without starting a drag on the paper beneath it.
+  await page.locator('.card-body input').first().click();
+  await page.waitForFunction(() => window.probeChecks.length === 3);
+  assert.deepEqual(await page.evaluate(() => window.probeChecks[2]), { cardId: 'rich', revision: 'r1', task: 0 });
   await page.locator('.attachment-tile').first().dblclick();
   await page.waitForFunction(() => window.probeCommands.filter(method => method === 'attachment.open').length === 1);
   await page.locator('.attachment-tile').last().focus(); await page.keyboard.press('Enter');
   await page.waitForFunction(() => window.probeCommands.filter(method => method === 'attachment.open').length === 2);
-  assert.equal(await page.evaluate(() => window.probeCommands.includes('card.edit') || window.probeCommands.includes('pointer.down')), false, 'attachment gestures never edit or drag the paper');
+  assert.equal(await page.evaluate(() => window.probeCommands.includes('card.edit') || window.probeCommands.includes('pointer.down')), false, 'attachment gestures and ticks never edit or drag the paper');
   await page.screenshot({ path: 'build/rich-content-probe.png' });
   await page.evaluate(() => { document.querySelector('.card-body').scrollTop = 0; });
   await page.screenshot({ path: 'build/rich-headings-probe.png' });
   await page.evaluate(() => { window.probeMissing = true; window.probeFileRevision = 'r2'; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 4 && document.querySelectorAll('.attachment-tile.missing').length === 2);
+  await page.waitForFunction(() => window.probeApplied === 6 && document.querySelectorAll('.attachment-tile.missing').length === 2);
   await page.evaluate(() => { window.probeMissing = false; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 5 && document.querySelectorAll('.attachment-tile img').length === 2);
+  await page.waitForFunction(() => window.probeApplied === 7 && document.querySelectorAll('.attachment-tile img').length === 2);
   // A long paper that takes the mouse scrolls its text and shows no "…". On the wallpaper layer it cannot scroll, so it
   // shows what fits and ends with "…", fitting again when it grows and dropping the "…" once it scrolls again. Either
   // way its attachments are one row below the text, and tiles past that row are hidden.
@@ -135,30 +167,30 @@ try {
   });
   const row = { tilesInBody: 0, rowBelow: true, tiles: 6, shownTiles: 4 };
   await page.evaluate(() => { window.probeLong = true; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 6);
+  await page.waitForFunction(() => window.probeApplied === 8);
   const scrolling = await fitted();
   assert.deepEqual({ ...scrolling, shown: undefined, inside: undefined },
     { overflow: 'auto', scrolls: true, ...row, ends: false, shown: undefined, inside: undefined });
   await page.evaluate(() => { window.probeWallpaper = true; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 7);
+  await page.waitForFunction(() => window.probeApplied === 9);
   const square = await fitted();
   assert.deepEqual({ ...square, shown: undefined }, { overflow: 'hidden', scrolls: false, ...row, ends: true, inside: true, shown: undefined });
   await page.screenshot({ path: 'build/fitted-paper-probe.png' });
   await page.evaluate(() => { window.probeTall = true; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 8);
+  await page.waitForFunction(() => window.probeApplied === 10);
   const tall = await fitted();
   assert.ok(tall.ends && tall.inside && tall.shown > square.shown * 2, `a taller paper shows more (${square.shown} → ${tall.shown})`);
   await page.evaluate(() => { window.probeTall = false; window.probeWallpaper = false; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 9);
+  await page.waitForFunction(() => window.probeApplied === 11);
   const again = await fitted();
   assert.ok(again.overflow === 'auto' && again.scrolls && !again.ends, 'a paper that takes the mouse again scrolls without "…"');
   // A frame in another locale switches the scene's own text before it draws; the next English frame switches it back.
   await page.evaluate(() => { window.probeLong = false; window.probeLocale = 'zh-TW'; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 10);
+  await page.waitForFunction(() => window.probeApplied === 12);
   const zh = catalogs['zh-TW'];
   assert.deepEqual(await texts(), { lang: 'zh-TW', title: zh['desktop.scene.title'], label: zh['desktop.scene.label'], edit: zh['desktop.card.edit'] });
   await page.evaluate(() => { window.probeLocale = 'en'; window.probeNextFrame(); });
-  await page.waitForFunction(() => window.probeApplied === 11);
+  await page.waitForFunction(() => window.probeApplied === 13);
   assert.deepEqual(await texts(), { lang: 'en', title: t('desktop.scene.title'), label: t('desktop.scene.label'), edit: t('desktop.card.edit') });
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');
@@ -175,7 +207,7 @@ try {
   assert.equal(budgets.blocks, 80); assert.equal(budgets.spans, 0);
   assert.ok(budgets.characters > 160000, 'large documents retain all code as plain text');
   assert.deepEqual(errors, []);
-  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, read-only checklists, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
+  console.log('PASS: desktop scene reuse, title band, scrolling text, … on the wallpaper layer refitted on resize, one row of attachments below the text, six heading sizes, code colours/escaping/budgets, ticking checklists only where papers take clicks, attachment PNG thumbnails and missing-file sync refresh, double-click and keyboard open without dragging/editing, scene text following the frame locale');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/scene-probe-failure.png' });
   if (errors.length) console.error('Scene page errors:', errors);

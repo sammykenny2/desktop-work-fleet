@@ -24,6 +24,8 @@ export default {
   'errors.desktop.labelsInvalid': 'The group drop labels are invalid.',
   'errors.desktop.shortcutChanged': 'Shortcuts have changed. Use the current settings.',
   'errors.desktop.arrangeNotAdjusting': 'Notes can only be arranged while adjusting.',
+  'errors.desktop.noteChanged': 'The note has changed. Try again on the updated note.',
+  'errors.desktop.noteHasDraft': 'This note has a draft. Open it to tick its steps.',
   'errors.desktop.attachmentChanged': 'The note has changed. Wait a moment, then open the attachment again.',
   'errors.desktop.attachmentMissing': "The attachment doesn't exist or can't be opened here yet.",
   'errors.desktop.editorGone': 'This text editor is no longer available. Keep a copy of what you typed.',

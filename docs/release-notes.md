@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.4.0
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Adjust mode now only arranges notes, and a new setting lets you hold Ctrl (⌘ on macOS) to drag or double-click a desktop note to move or edit it in place.
+
+- Adjust mode only arranges notes: adjusted notes no longer carry Edit or "⋯", and neither a double click nor Enter opens them, on the desktop and on the browser preview's Desktop canvas. Edit notes in the main window, or with the setting below.
+- New in Settings > Desktop notes, off at first: "Hold Ctrl to drag or double-click a note" ("Hold ⌘ …" on macOS). With it on, hold the key and drag a note resting on the Desktop or Top layer to move just that note without adjusting. It stays on its layer, never changes group, Esc while dragging puts it back, and Undo in adjust mode takes a move back.
+- With the same setting, hold the key and double-click such a note to edit it in place: it rises opaque to the Top layer where it is, with Save, Cancel (discards what this edit changed) and Full editor. Esc keeps a changed draft and closes. Clicking another app leaves it open; opening another note, entering adjust mode, a change of displays or turning the setting off close it and keep a changed draft. Other notes can still be moved with the key while one is open.
+- The setting belongs to each computer and Reset desktop layout turns it off. GNOME through XWayland, where notes rest only on the Wallpaper layer, phones and the browser preview do not offer it. On Raspberry Pi OS and other layer-shell desktops, click into the text once if typing does not reach an opened note.
+- The phone apps no longer zoom with two fingers, a double tap or a small text field, and on Windows neither the main window nor the desktop notes zoom with a pinch; the main window keeps Ctrl+wheel zoom.
+- Note, sync and backup formats stay at V1.
+
 ## 0.3.13
 
 Platforms: Windows, Linux, macOS, Android.

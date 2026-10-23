@@ -29,7 +29,8 @@ import Foundation
         preconditionFailure("damaged feed accepted")
       } catch let failure as FleetFailure { require(failure.code == "metadata_invalid" && failure.message == FleetText.text("update.invalidFeed")) }
     }
-    for (repo, channel) in [(repository, "stable"), ("another/repo", "preview")] {
+    // The feed lists another/repo's v99.0.0, which counts for that repository; a repository it does not list is refused.
+    for (repo, channel) in [(repository, "stable"), ("another/repository", "preview")] {
       do {
         _ = try FleetReleaseFeed.latest(data, repository: repo, channel: channel, current: [0, 1, 0])
         preconditionFailure("unsupported feed accepted")

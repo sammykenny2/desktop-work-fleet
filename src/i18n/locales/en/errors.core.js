@@ -87,6 +87,7 @@ export default {
   'errors.core.noteSettingUnknown': 'Unknown note display setting.',
   'errors.core.layerUnknown': 'Unknown layer.',
   'errors.core.colorUnknown': 'Unknown group color.',
+  'errors.core.opacityInvalid': 'The opacity must be between 30% and 100%.',
   'errors.core.noDisplay': 'No display is available.',
   'errors.core.placementMissing': "The note's position can't be found.",
   'errors.core.positionInvalid': "The note's position is invalid.",

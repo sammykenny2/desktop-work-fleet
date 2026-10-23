@@ -64,6 +64,8 @@ export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
   }
   // Every group keeps its colour; a new one takes a free colour and a retired one frees its own.
   result.groupColors = settleGroupColors(result.groupColors, groups);
+  // A retired group's opacity goes with it.
+  if (result.groupOpacity) result.groupOpacity = Object.fromEntries(Object.entries(result.groupOpacity).filter(([id]) => active.has(id)));
   const resolve = id => {
     try { return resolveGroupId(snapshot, id); } catch { return id; }
   };

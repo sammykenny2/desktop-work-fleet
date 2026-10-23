@@ -66,7 +66,8 @@ overwrite other changes.
   transaction that adds it; a retired group frees its colour. Choosing a worn colour swaps it with the wearer, so
   colours stay unique up to nine groups. Like the order, colours never sync, as the maintainer chose; before this a
   colour followed the group's list position and shifted whenever an earlier group was merged away.
-- A group's Top-layer opacity is a device setting next to its colour, from 30% to 100% and 100% by default. As the
+- A group's Top-layer opacity is a device setting next to its colour (`groupOpacity`, absent when opaque), from 30% to 100%
+  and 100% by default; `LayoutStore.setGroupOpacity` changes it and a retired group drops it. As the
   maintainer chose on 2026-10-23, it never syncs: colours do not either, and not every platform can show every layer
   see-through. It applies only to papers resting on the Top layer, so that they do not hide the work beneath them; on
   Windows the Wallpaper and Desktop layers live in Explorer's desktop window, which cannot show transparent pixels.

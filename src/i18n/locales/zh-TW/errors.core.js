@@ -87,6 +87,7 @@ export default {
   'errors.core.noteSettingUnknown': '未知的卡片顯示設定。',
   'errors.core.layerUnknown': '未知的常駐層級。',
   'errors.core.colorUnknown': '未知的群組顏色。',
+  'errors.core.opacityInvalid': '不透明度必須介於 30% 到 100%。',
   'errors.core.noDisplay': '沒有可用顯示器。',
   'errors.core.placementMissing': '找不到卡片位置。',
   'errors.core.positionInvalid': '卡片位置無效。',

@@ -97,6 +97,22 @@ internal static class SceneTransfersProbe
       Check(DesktopFrame.Parse(Frame("floating", true, true, true), session, 0).Cards.Single().Operable);
       Reject(() => DesktopFrame.Parse(Frame("unknown"), session, 0), "scene-frame");
     });
+    Test("native frames let only Top-layer papers be see-through, from 30%", () =>
+    {
+      var session = Guid.NewGuid().ToString();
+      byte[] Frame(string layer, double opacity) => JsonSerializer.SerializeToUtf8Bytes(new {
+        protocol = 1, sessionId = session, sequence = 1, workspaceRevision = 1, layoutRevision = 1,
+        groups = Array.Empty<object>(), operationScope = new { kind = "none" }, activeGroupId = (string?)null,
+        cards = new[] { new { id = "card", groupId = "group", revision = "revision", summary = "note", text = "text", format = "markdown",
+          attachmentCount = 0, rect = new { x = 20, y = 20, width = 300, height = 200 }, layer, interactive = layer != "wallpaper", draggable = false, editing = false,
+          selected = false, completed = false, mine = false, color = "#fff6cc", opacity } }, editor = (object?)null, dropTarget = (object?)null,
+        fallbacks = Array.Empty<object>() });
+      Check(DesktopFrame.Parse(Frame("floating", 0.3), session, 0).Cards.Single().Layer == "floating");
+      Check(DesktopFrame.Parse(Frame("desktop", 1), session, 0).Cards.Single().Layer == "desktop");
+      Reject(() => DesktopFrame.Parse(Frame("floating", 0.2), session, 0), "scene-frame");
+      Reject(() => DesktopFrame.Parse(Frame("desktop", 0.5), session, 0), "scene-frame");
+      Reject(() => DesktopFrame.Parse(Frame("wallpaper", 0.5), session, 0), "scene-frame");
+    });
     return count;
   }
 }

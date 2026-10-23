@@ -297,3 +297,20 @@ test('an older backup that kept a layer on each paper restores as the lowest lay
   assert.deepEqual(after.groupLayers, { [s.a.id]: 'floating' });
   assert.ok(Object.values(after.placements).every(rect => !('residentLayer' in rect) && !('readOnlySelect' in rect)));
 });
+
+test('a backup keeps each group opacity, and an import gives the imported groups theirs while the local groups keep their own', async () => {
+  const s = await source(); await s.workspace.layout.setGroupOpacity(s.b.id, 0.4, s.workspace.snapshot);
+  const document = await s.export();
+  const replaced = await fixture();
+  const replace = await prepareLocalRestore({ workspace: replaced.workspace, document, workAreas: [area], layout: 'backup' });
+  await replaced.workspace.applyRestore(replace, { persist: replaced.atomic });
+  assert.deepEqual(replaced.disk().layout.groupOpacity, { [s.b.id]: 0.4 });
+  const target = await fixture(); const own = target.workspace.snapshot.groups[0];
+  await target.workspace.layout.setGroupOpacity(own.id, 0.7, target.workspace.snapshot);
+  const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'import', layout: 'backup', workAreas: [area] });
+  await target.workspace.applyRestore(plan, { persist: target.atomic });
+  const opacity = target.disk().layout.groupOpacity; const imported = Object.keys(opacity).filter(id => id !== own.id);
+  assert.equal(opacity[own.id], 0.7, 'this device keeps its own groups');
+  assert.equal(imported.length, 1); assert.equal(opacity[imported[0]], 0.4);
+  assert.ok(target.workspace.snapshot.groups.some(group => group.id === imported[0]), 'the opacity follows the imported group');
+});

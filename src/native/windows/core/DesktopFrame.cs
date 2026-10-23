@@ -39,7 +39,7 @@ public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<Presented
     var cards = new List<PresentedCard>(); var ids = new HashSet<string>(StringComparer.Ordinal);
     foreach (var card in values.EnumerateArray())
     {
-      Fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color");
+      Fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity");
       if (card.TryGetProperty("attachments", out var attachments))
       {
         HostError.Require(attachments.ValueKind == JsonValueKind.Array && attachments.GetArrayLength() <= 20000, "scene-frame", "The attachment list is malformed.");
@@ -48,6 +48,10 @@ public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<Presented
       var id = JsonRules.Text(card, "id", 128); var layer = JsonRules.Text(card, "layer");
       HostError.Require(ids.Add(id) && layer is "desktop" or "floating" or "wallpaper", "scene-frame", "A desktop note has an invalid ID or layer.");
       _ = JsonRules.Text(card, "groupId", 128); Color(card);
+      // A paper resting on the Top layer may be see-through from 30%; every other paper is opaque.
+      if (card.TryGetProperty("opacity", out var opacity))
+        HostError.Require(opacity.ValueKind == JsonValueKind.Number && opacity.GetDouble() is >= 0.3 and <= 1 && (layer == "floating" || opacity.GetDouble() == 1),
+          "scene-frame", "A desktop note's opacity is invalid.");
       HostError.Require(card.GetProperty("text").ValueKind == JsonValueKind.String && card.GetProperty("text").GetString()!.Length <= 8 * 1024 * 1024,
         "scene-frame", "The desktop note text is too large.");
       foreach (var flag in new[] { "interactive", "draggable", "editing", "selected", "completed", "mine" }) _ = Boolean(card, flag);

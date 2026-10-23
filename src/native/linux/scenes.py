@@ -42,7 +42,7 @@ def frame(data, session, previous):
             rect(group["region"])
     ids = set()
     for card in cards:
-        p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color".split()), "scene-frame", "A desktop card's format isn't valid.")
+        p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity".split()), "scene-frame", "A desktop card's format isn't valid.")
         files = card.get("attachments", [])
         p.require(isinstance(files, list) and len(files) <= 20000, "scene-frame", "An attachment list's format isn't valid.")
         for file in files:
@@ -55,6 +55,9 @@ def frame(data, session, previous):
         p.text(card, "groupId", 128)
         p.require(isinstance(card.get("text"), str) and len(card["text"].encode("utf-16-le", "surrogatepass")) <= 16 * 1024 * 1024 and re.fullmatch(r"#[0-9A-Fa-f]{6}", p.text(card, "color")) is not None, "scene-frame", "A desktop card's text or color isn't valid.")
         rect(card.get("rect"))
+        # A paper resting on the Top layer may be see-through from 30%; every other paper is opaque.
+        opacity = card.get("opacity", 1)
+        p.require(type(opacity) in (int, float) and 0.3 <= opacity <= 1 and (card["layer"] == "floating" or opacity == 1), "scene-frame", "A desktop card's opacity isn't valid.")
         for flag in ("interactive", "draggable", "editing", "selected", "completed", "mine"):
             p.boolean(card, flag)
         p.require(card["layer"] != "wallpaper" or not any(card[flag] for flag in ("interactive", "draggable", "editing")), "scene-frame", "The wallpaper layer must let the pointer pass through.")

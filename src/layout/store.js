@@ -5,6 +5,7 @@ import { maximalAreas, overlaps, subtract } from './formation.js';
 import { groupLayerOrder } from './stages.js';
 import { orderedGroups } from './order.js';
 import { settleGroupColors, swapGroupColor, validColor } from './colors.js';
+import { validOpacity } from './opacity.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
 
@@ -31,6 +32,7 @@ export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   // The receiving group keeps its own layer and colour; the retired group's colour is free again.
   if (draft.groupLayers) delete draft.groupLayers[sourceId];
   if (draft.groupColors) delete draft.groupColors[sourceId];
+  if (draft.groupOpacity) delete draft.groupOpacity[sourceId];
   for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
   const oldLength = draft.history.length;
   draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
@@ -187,6 +189,18 @@ export class LayoutStore {
     requireValue(validColor(index), 'invalid-setting', t('errors.core.colorUnknown'));
     requireValue(groups.some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
     return this.#transaction(draft => { draft.groupColors = swapGroupColor(settleGroupColors(draft.groupColors, groups), groupId, index); });
+  }
+
+  /** How see-through the group's Top-layer papers are on this device; fully opaque removes the entry. */
+  async setGroupOpacity(groupId, value, snapshot) {
+    requireValue(validOpacity(value), 'invalid-setting', t('errors.core.opacityInvalid'));
+    requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
+    const rounded = Math.round(value * 100) / 100;
+    return this.#transaction(draft => {
+      const next = { ...draft.groupOpacity };
+      if (rounded === 1) delete next[groupId]; else next[groupId] = rounded;
+      draft.groupOpacity = next;
+    });
   }
 
   // New papers are square, like the familiar 3 × 3 in sticky note, and smaller only where their region is shorter;

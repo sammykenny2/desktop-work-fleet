@@ -1,6 +1,7 @@
 import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { settleGroupColors } from '../layout/colors.js';
+import { groupOpacity } from '../layout/opacity.js';
 import { cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { groupName } from '../core/group-name.js';
 import { getLocale, t } from '../i18n/index.js';
@@ -38,7 +39,9 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       rect: { x: placement.x, y: placement.y, width: placement.width, height: placement.height }, layer,
       interactive, draggable, editing,
       selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,
-      color: groupColors[colors[card.groupId] ?? 0] });
+      color: groupColors[colors[card.groupId] ?? 0],
+      // Only a paper resting on the Top layer is see-through; one being adjusted stays opaque to be moved.
+      opacity: layer === 'floating' && !draggable ? groupOpacity(layout, card.groupId) : 1 });
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;

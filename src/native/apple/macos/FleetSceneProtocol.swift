@@ -35,7 +35,7 @@ struct FleetSceneFrame {
         }
         var ids = Set<String>(); var output: [Card] = []
         for card in cards {
-            try fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color")
+            try fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity")
             if let raw = card["attachments"] {
                 guard let files = raw as? [[String: Any]], files.count <= 20000 else { throw FleetFailure("scene-frame", "The attachment list isn't valid.") }
                 for file in files { try fields(file, "id name"); _ = try FleetProtocol.text(file, "id", 128); _ = try FleetProtocol.text(file, "name", FleetProtocol.record) }
@@ -43,6 +43,11 @@ struct FleetSceneFrame {
             let id = try FleetProtocol.text(card, "id", 128), layer = try FleetProtocol.text(card, "layer")
             try FleetProtocol.require(ids.insert(id).inserted && ["desktop", "floating", "wallpaper"].contains(layer), "scene-frame", "A desktop note ID or layer isn't valid.")
             _ = try FleetProtocol.text(card, "groupId", 128); try color(card)
+            // A paper resting on the Top layer may be see-through from 30%; every other paper is opaque.
+            if let raw = card["opacity"] {
+                guard let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(), number.doubleValue >= 0.3, number.doubleValue <= 1,
+                      layer == "floating" || number.doubleValue == 1 else { throw FleetFailure("scene-frame", "A desktop note's opacity isn't valid.") }
+            }
             guard let text = card["text"] as? String, text.utf16.count <= 8 * 1024 * 1024 else { throw FleetFailure("scene-frame", "The desktop note text is too large.") }
             for flag in ["interactive", "draggable", "editing", "selected", "completed", "mine"] { _ = try FleetProtocol.bool(card, flag) }
             if layer == "wallpaper" {

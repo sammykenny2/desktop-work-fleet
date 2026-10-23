@@ -7,6 +7,7 @@ import { sha256, validDigest } from '../sources/files.js';
 import { schemas, requireSchemaVersion } from '../core/schema.js';
 import { mainViews } from '../layout/store.js';
 import { validColor } from '../layout/colors.js';
+import { validOpacity } from '../layout/opacity.js';
 import { BACKUP_LIMITS, backupScheduler, checkCancelled, entryLimit, packZip, unpackZip } from './archive.js';
 import { decryptBackup, encryptBackup } from './encryption.js';
 import { t } from '../i18n/index.js';
@@ -71,6 +72,8 @@ function validateLayout(layout, snapshot, graph) {
   // Colours may repeat: more than nine groups after a sync share them.
   fail(layout.groupColors === undefined || object(layout.groupColors)
     && Object.entries(layout.groupColors).every(([id, index]) => groups.has(id) && validColor(index)));
+  fail(layout.groupOpacity === undefined || object(layout.groupOpacity)
+    && Object.entries(layout.groupOpacity).every(([id, value]) => groups.has(id) && validOpacity(value)));
   for (const undo of layout.history) {
     fail(object(undo) && ['move', 'formation', 'transfer'].includes(undo.kind) && object(undo.before));
     for (const [id, rect] of Object.entries(undo.before)) fail(cards.has(id) && geometry(rect));

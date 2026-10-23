@@ -13,7 +13,9 @@ export interface DesktopFrame {
   operationScope: Scope; activeGroupId: string | null;
   cards: { id: string; groupId: string; revision: string; summary: string; text: string; format: string;
     attachmentCount: number; attachments?: { id: string; name: string }[]; rect: Rect; layer: ResidentLayer; interactive: boolean; draggable: boolean;
-    editing: boolean; selected: boolean; completed: boolean; mine: boolean; color: string }[];
+    editing: boolean; selected: boolean; completed: boolean; mine: boolean; color: string;
+    /** From 0.3 to 1: below 1 only for a paper resting on the Top layer, whose background then lets the work show through. */
+    opacity: number }[];
   editor: DesktopEditor | null;
   dropTarget: { groupId: string; kind: 'label' | 'region' } | null;
   fallbacks: { cardId: string; requested: ResidentLayer; effective: ResidentLayer }[];

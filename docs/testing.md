@@ -67,6 +67,17 @@ lost with a renderer. Add exact native commands only when their probes exist; un
 - macOS must be built with Xcode, and Quick Look, the default app and cleanup on account switch must be verified in the sandboxed app; an environment without a Mac cannot claim these passed.
 - Text fitting with "…" (`src/app/fit.js`) has been checked only in Chromium (Edge and WebView2). Check it in WebKitGTK and WKWebView before relying on it there (2026-10-17).
 
+## Group opacity on the Top layer
+
+- `node --test tests/group-opacity.test.js`: the setting's range and removal at 100%, see-through only for papers
+  resting on the Top layer (not on the other layers or while adjusted), a merged group dropping it and the paper colour
+  taking it as alpha; `tests/backup-payload.test.js` rejects an opacity for an unknown group or below 30%.
+- The native frame checks accept `opacity` only from 0.3 to 1 and below 1 only on the Top layer: the Windows core
+  probe, `tests/test_linux_scenes.py` and, unrun, the macOS FleetSceneProtocol.
+- The Windows UI probe moves a group to the Top layer at 50% through Group settings and checks the paper's computed
+  background in the topmost scene, then that it is opaque again on the Desktop layer. It checks styles, not the pixels
+  the compositor draws; Linux and macOS have not been checked on a real desktop (2026-10-23).
+
 ## Search ranking
 
 - `node --test tests/search.test.js`: the three search tiers (title or first line, the first five non-empty lines,

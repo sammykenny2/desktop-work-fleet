@@ -148,6 +148,18 @@ internal static class DesktopIntegrationProbe
       await Wait(async () => (await Eval(resident, "Boolean(document.querySelector('.card'))")).GetBoolean(), "restore fixture desktop layer", main);
       Console.WriteLine("PASS real owner settings -> wallpaper -> operate group -> floating -> stop -> wallpaper -> desktop");
     }
+    // A group resting on the Top layer at 50% draws its paper see-through in the topmost scene; back on the Desktop layer
+    // the paper is opaque again.
+    await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
+    await Wait(async () => (await Eval(main.WebView.CoreWebView2, "Boolean(document.querySelector('dialog[open] input[name=group-opacity]'))")).GetBoolean(), "group opacity control", main);
+    await Eval(main.WebView.CoreWebView2, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='floating'));s.value='floating';"
+      + "const r=d.querySelector('input[name=group-opacity]');r.value='50';r.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()})()");
+    await Wait(async () => (await Eval(floating, "(c => Boolean(c) && getComputedStyle(c).backgroundColor.endsWith(', 0.5)'))(document.querySelector('.card'))")).GetBoolean()
+      && (await Eval(resident, "!document.querySelector('.card')")).GetBoolean(), "see-through paper on the Top layer", main);
+    await Layer("desktop");
+    await Wait(async () => (await Eval(resident, "(c => Boolean(c) && getComputedStyle(c).backgroundColor.startsWith('rgb('))(document.querySelector('.card'))")).GetBoolean(),
+      "opaque paper back on the Desktop layer", main);
+    Console.WriteLine("PASS a group at 50% draws see-through papers on the Top layer only");
   }
   private static (int Visible, int Blocking) RenderPopups(uint browser)
   {

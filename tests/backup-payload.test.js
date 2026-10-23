@@ -167,6 +167,8 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'layout.json', value => { value.completedVisible = 'no'; }),
     files => edit(files, 'layout.json', value => { value.groupColors = { ...value.groupColors, 'missing-group': 0 }; }),
     files => edit(files, 'layout.json', value => { value.groupColors = Object.fromEntries(Object.keys(value.groupColors).map(id => [id, 9])); }),
+    files => edit(files, 'layout.json', value => { value.groupOpacity = { 'missing-group': 0.5 }; }),
+    files => edit(files, 'layout.json', value => { value.groupOpacity = Object.fromEntries(Object.keys(value.groupColors).map(id => [id, 0.1])); }),
     files => edit(files, 'layout.json', value => { value.placements['unknown-card'] = Object.values(value.placements)[0]; }),
     files => edit(files, 'local.json', value => { Object.values(value.membershipRebases)[0].revision = value.groups[0].revision; }),
     files => edit(files, 'drafts/00000000.json', value => { value.baseRevision = parseJson(files.get('local.json')).groups[0].revision; }),

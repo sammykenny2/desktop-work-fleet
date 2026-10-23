@@ -71,6 +71,8 @@ export interface DeviceLayout {
   groupLayers: Record<Id, ResidentLayer>;
   /** Palette index (0-8) each group wears on this device; a group without one takes a free colour. */
   groupColors?: Record<Id, number>;
+  /** This device's opacity, 0.3 to 1, for each group's papers resting on the Top layer; absent means opaque. Never syncs. */
+  groupOpacity?: Record<Id, number>;
   /** The main window's view of a group's papers on this device; missing shows the board. */
   mainView?: 'board' | 'list';
   /** The group the main window shows on this device, which quick capture files into; missing shows the first group. */

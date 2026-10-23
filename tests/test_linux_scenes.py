@@ -63,6 +63,18 @@ class LinuxSceneTests(unittest.TestCase):
                 value = projection(layer)
                 self.assertEqual(self.parse(value), value)
 
+    def test_only_top_layer_papers_are_see_through_from_30_percent(self):
+        for layer, opacity, valid in (("floating", 0.3, True), ("floating", 1, True), ("desktop", 1, True),
+                                      ("floating", 0.2, False), ("desktop", 0.5, False), ("wallpaper", 0.5, False), ("floating", True, False)):
+            with self.subTest(layer=layer, opacity=opacity):
+                value = projection(layer)
+                value["cards"][0]["opacity"] = opacity
+                if valid:
+                    self.assertEqual(self.parse(value), value)
+                else:
+                    with self.assertRaises(protocol.Failure):
+                        self.parse(value)
+
     def test_wallpaper_rejects_each_input_flag(self):
         for flag in ("interactive", "draggable", "editing"):
             with self.subTest(flag=flag):

@@ -97,6 +97,10 @@ interface. To switch, see [Settings](#settings).
   "Color on this device"; a small dot marks a color another group already uses, and choosing it swaps the two
   groups' colors. A new group takes a color no other group uses, and a merged group frees its color. Colors do not
   sync: each device keeps its own, and reordering groups does not change them.
+- In the desktop apps, "Opacity on the Top layer" in "Group settings" (30% to 100%, 100% by default) makes the group's
+  notes see-through while they rest on the Top layer, so they don't hide the work beneath them. Only the paper turns
+  see-through; text, checkboxes and thumbnails stay solid. Notes on the Wallpaper and Desktop layers, notes being
+  adjusted and the main window's board and list stay opaque. Like the color, it is kept on this device only.
 - "My group" in Settings > Desktop gives the notes of one group an accent-colored edge on this device and puts a
   star before its name in the sidebar. Phones have no "My group" and ignore one carried over by a restored layout.
 - Each group sits on one desktop layer; see [Desktop notes and layers](#desktop-notes-and-layers).

@@ -39,12 +39,6 @@ commit that implements it.
 
 Decided on 2026-10-23:
 
-- **Group transparency**: each group can make its Top-layer papers see-through, so they do not hide the work beneath
-  them. It is a device setting kept next to the group's colour and never syncs. Only the paper turns see-through:
-  text, checkboxes and attachment thumbnails stay solid. It applies while a paper rests on the Top layer, on every
-  platform; papers on the Wallpaper and Desktop layers and papers being adjusted stay opaque (on Windows those two
-  layers live in Explorer's desktop window, which cannot show transparent pixels). The opacity goes from 30% to 100%,
-  100% by default, and the main window's board and list do not change.
 - **Shortcuts on other Wayland compositors**: the Linux app exposes every shortcut action, plus showing the main window
   and quitting, as named GApplication actions, so a keybinding in sway, wayfire or another compositor without a
   GlobalShortcuts portal can run `gapplication action <app id> <action>`; the user guide gives examples. labwc keeps

@@ -7,6 +7,7 @@ import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, s
 import { mainGroup, mainView } from '../layout/store.js';
 import { orderedGroups, reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
+import { groupOpacity, MIN_OPACITY } from '../layout/opacity.js';
 import { InteractionController, cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { renderMarkdown } from './markdown.js';
@@ -1287,6 +1288,16 @@ function groupEditor(group) {
     swatch.append(radio, chip); swatches.append(swatch);
   });
   colorField.append(swatches);
+  // Papers resting on the Top layer can let the work beneath them show through; this desktop must offer that layer.
+  const opacityAtOpen = group ? groupOpacity(workspace.layout.state, group.id) : 1;
+  const opacityField = desktop && residentLayers().includes('floating') ? element('label', t('app.groupEditor.opacity'), 'field opacity-field') : null;
+  const opacity = element('input'); opacity.type = 'range'; opacity.min = String(MIN_OPACITY * 100); opacity.max = '100'; opacity.step = '5';
+  opacity.value = String(Math.round(opacityAtOpen * 100)); opacity.name = 'group-opacity';
+  // The slider moves in fives, so a stored 0.33 shows as 35%; only moving it changes the setting.
+  const opacityShown = opacity.value;
+  const opacityValue = element('output'); const showOpacity = () => { opacityValue.textContent = t('app.groupEditor.opacityValue', { percent: opacity.value }); };
+  opacity.oninput = showOpacity; showOpacity();
+  if (opacityField) { const row = element('span', undefined, 'opacity-row'); row.append(opacity, opacityValue); opacityField.append(row); }
   const actions = element('div', undefined, 'dialog-actions');
   const save = element('button', t('common.save'), 'primary'); save.type = 'submit';
   if (group) {
@@ -1294,7 +1305,8 @@ function groupEditor(group) {
     merge.disabled = activeGroups(workspace.snapshot).length < 2; actions.append(merge);
   }
   actions.append(button(t('common.cancel'), () => dialog.close()), save);
-  form.append(title, label, colorField, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
+  form.append(title, label, colorField, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
+    ...opacityField ? [opacityField, element('p', t('app.groupEditor.opacityHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
     let groupId = group?.id;
@@ -1309,6 +1321,7 @@ function groupEditor(group) {
     const chosen = Number(form.elements['group-color'].value);
     const colorNow = group ? colorAtOpen : workspace.layout.state.groupColors?.[groupId];
     if (chosen !== colorAtOpen && chosen !== colorNow) await workspace.layout.setGroupColor(groupId, chosen, workspace.snapshot);
+    if (opacityField && opacity.value !== opacityShown) await workspace.layout.setGroupOpacity(groupId, Number(opacity.value) / 100, workspace.snapshot);
     await workspace.layout.placeNew(workspace.snapshot, workAreas()); dialog.close(); render(); status(t('app.status.groupSaved'));
   }); });
   dialog.showModal(); input.focus();

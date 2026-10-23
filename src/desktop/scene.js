@@ -7,6 +7,7 @@ import { download, parse } from './transport.js';
 import { shortcutForEvent } from '../core/shortcuts.js';
 import { createFrameRefresher } from './frame-refresh.js';
 import { getLocale, localizeDocument, setLocale, t } from '../i18n/index.js';
+import { translucent } from '../layout/opacity.js';
 
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set(); const fitter = paperFitter();
@@ -77,7 +78,7 @@ function render(next) {
     const { paper, summary, body, actions } = item;
     paper.className = `card${card.interactive ? ' interactive' : ''}${card.draggable ? ' operable' : ' selectable'}${card.selected ? ' selected' : ''}${card.mine ? ' mine' : ''}${card.completed ? ' completed' : ''}`;
     // Topmost papers resting outside the adjusted scope stay under the overlay's tint, like the papers on lower layers.
-    paper.style.setProperty('--paper', card.color); paper.style.zIndex = String(overlay && !card.draggable ? -1 : index + 5); paper.tabIndex = card.draggable ? 0 : -1;
+    paper.style.setProperty('--paper', translucent(card.color, card.opacity ?? 1)); paper.style.zIndex = String(overlay && !card.draggable ? -1 : index + 5); paper.tabIndex = card.draggable ? 0 : -1;
     paper.setAttribute('aria-label', card.summary); summary.textContent = card.summary; rect(paper, card.rect);
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {

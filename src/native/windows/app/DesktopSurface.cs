@@ -31,6 +31,13 @@ public sealed class DesktopSurface : IDisposable
   public bool Shown => shown;
   public bool NativeAlive => InputHandle != IntPtr.Zero && VisualHandle != IntPtr.Zero && IsWindow(InputHandle) && IsWindow(VisualHandle);
   public uint Dpi => GetDpiForWindow(InputHandle);
+  /// <summary>
+  /// The DPI the browser draws at: that of the display under the scene, since neither WebView2 control sets a
+  /// rasterization scale. An attached scene's own DPI can differ: on a scaling change it takes the DPI of Explorer's
+  /// desktop window, which stayed at 144 at both 150% and 125% (Windows 11 build 26300), so after 150% to 125% those
+  /// scenes drew their papers at 125/150 of their size until Work Fleet restarted.
+  /// </summary>
+  public uint MonitorDpi => GetDpiForMonitor(MonitorFromWindow(InputHandle, 2), 0, out var dpi, out _) == 0 ? dpi : Dpi;
   public event Action? CloseRequested;
   public event Action? DpiChanged;
   public event Action? PointerCaptureLost;
@@ -485,6 +492,8 @@ public sealed class DesktopSurface : IDisposable
   [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr value);
   [DllImport("user32.dll")] private static extern int SetWindowRgn(IntPtr window, IntPtr region, bool redraw);
   [DllImport("user32.dll")] private static extern uint GetDpiForWindow(IntPtr window);
+  [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+  [DllImport("shcore.dll")] private static extern int GetDpiForMonitor(IntPtr monitor, int type, out uint dpiX, out uint dpiY);
   [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out NativeRect bounds);
   [DllImport("user32.dll")] private static extern IntPtr GetWindowLongPtrW(IntPtr window, int index);
   [DllImport("user32.dll", SetLastError = true)] private static extern IntPtr SetWindowLongPtrW(IntPtr window, int index, IntPtr value);

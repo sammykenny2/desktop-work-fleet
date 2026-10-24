@@ -74,6 +74,8 @@ public sealed class DesktopCoordinator : IDisposable
   private sealed class SceneView(DisplayInfo display, string layer, double scale)
   {
     public string Id = Guid.NewGuid().ToString();
+    // The display device the view was created on; a Top-layer view is reused only there.
+    public readonly string Device = display.Id;
     public DisplayInfo Display = display;
     public string Layer = layer;
     public LogicalRect Viewport = new(display.Bounds.X / scale, display.Bounds.Y / scale, display.Bounds.Width / scale, display.Bounds.Height / scale);
@@ -216,16 +218,22 @@ public sealed class DesktopCoordinator : IDisposable
     foreach (var slot in slots)
     {
       if (assignments.Any(a => a.Display.Id == slot.Display.Id && a.View.Layer == slot.Layer)) continue;
-      var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && v.Display.Id == slot.Display.Id && assignments.All(a => a.View != v));
+      var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && (v.Layer == "floating" ? v.Device : v.Display.Id) == slot.Display.Id
+        && assignments.All(a => a.View != v));
       if (match is not null) assignments.Add((match, slot.Display));
     }
     foreach (var slot in slots)
     {
       if (assignments.Any(a => a.Display.Id == slot.Display.Id && a.View.Layer == slot.Layer)) continue;
-      var match = views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && assignments.All(a => a.View != v));
+      // A Top-layer scene moved to another display device showed nothing there: after a switch from a remote session
+      // to the local display its composition stayed blank, adjust mode included, until Work Fleet restarted. That
+      // layer gets a new scene instead; the edited one assigned above is still carried across until its edit ends.
+      var match = slot.Layer == "floating" ? null : views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && assignments.All(a => a.View != v));
       if (match is null)
       {
-        HostError.Require(views.Count(v => !v.Retired) < 48, "desktop-capacity", "Too many desktop windows are open. Restart Work Fleet to show them again; your data is kept.");
+        // Unassigned Top-layer views are closed below, so they do not count.
+        HostError.Require(views.Count(v => !v.Retired && (v.Layer != "floating" || assignments.Any(a => a.View == v))) < 48, "desktop-capacity",
+          "Too many desktop windows are open. Restart Work Fleet to show them again; your data is kept.");
         match = new(slot.Display, slot.Layer, unit); views.Add(match); Watch(match);
       }
       assignments.Add((match, slot.Display));
@@ -234,7 +242,9 @@ public sealed class DesktopCoordinator : IDisposable
     {
       var assignment = assignments.FirstOrDefault(a => a.View == view); view.Surface.SuspendInput(); view.Applied = -1;
       view.Active = assignment.View is not null;
-      if (!view.Active) view.Surface.Hide();
+      // A Top-layer view without a slot is closed rather than kept for another display.
+      if (!view.Active && view.Layer == "floating") Close(view);
+      else if (!view.Active) view.Surface.Hide();
       else
       {
         view.Display = assignment.Display!;
@@ -244,7 +254,7 @@ public sealed class DesktopCoordinator : IDisposable
           view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
           view.Surface.Show(view.Layer == "floating"); view.Surface.Hide();
           view.Surface.SetPhysicalBounds(view.Display.Bounds);
-          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = unit / (view.Surface.Dpi / 96d);
+          if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = BrowserZoom(unit, view.Surface);
         }
       }
     }
@@ -372,6 +382,8 @@ public sealed class DesktopCoordinator : IDisposable
     foreach (var view in views.Where(v => v.Active && !v.Retired && !v.Initialized).ToArray())
     {
       if (disposed) return;
+      // Another pass, or a display change closing the view, may have come first while this one awaited.
+      if (view.Retired || view.Initialized || !view.Active) continue;
       try { await Initialize(view); }
       catch { Retire(view, HostText.Get("desktop.sceneStartFailed")); }
     }
@@ -419,7 +431,7 @@ public sealed class DesktopCoordinator : IDisposable
     core.Settings.AreBrowserAcceleratorKeysEnabled = false; core.Settings.IsBuiltInErrorPageEnabled = false; core.Settings.IsZoomControlEnabled = false;
     // Two fingers on a paper must not zoom the whole scene.
     core.Settings.IsPinchZoomEnabled = false;
-    view.Surface.WebView.ZoomFactor = scale / (view.Surface.Dpi / 96d);
+    view.Surface.WebView.ZoomFactor = BrowserZoom(scale, view.Surface);
     core.PermissionRequested += (_, e) => e.State = CoreWebView2PermissionState.Deny;
     core.FrameNavigationStarting += (_, e) => e.Cancel = true;
     core.NewWindowRequested += (_, e) => { e.Handled = true; if (e.IsUserInitiated) openExternal(e.Uri); };
@@ -529,6 +541,8 @@ public sealed class DesktopCoordinator : IDisposable
         // A quick edit that closed here gives the foreground back before an emptied scene hides.
         var editingHere = view.Layer == "floating" && !adjusting && view.Downloading.EditorView == view.Id;
         if (view.Editing && !editingHere) ReturnEditorFocus(view);
+        // A Top-layer view carried to another device for its edit is replaced once the edit ends.
+        if (view.Editing && !editingHere && view.Device != view.Display.Id) Application.Current.Dispatcher.BeginInvoke(new Action(displayWatcher.Refresh));
         view.Editing = editingHere;
         var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
         // An attached scene whose only paper rides the Top layer for a quick move keeps the pointer, so it stays shown,
@@ -596,7 +610,10 @@ public sealed class DesktopCoordinator : IDisposable
       default: throw new HostError("unsupported-method", "Desktop surfaces can't use storage or system operations.");
     }
   }
+  // Input regions are in the window's own units, which SetRegion turns into pixels with the window's DPI.
   private double Zoom(SceneView view) => scale / (view.Surface.Dpi / 96d);
+  // The browser draws at the display's DPI, which an attached scene's window does not follow after a scaling change.
+  private static double BrowserZoom(double unit, DesktopSurface surface) => unit / (surface.MonitorDpi / 96d);
   // Back to front, in the view's physical pixels.
   private IEnumerable<SceneHitRect> HitRects(SceneView view, IEnumerable<PresentedCard> cards)
   {
@@ -671,12 +688,26 @@ public sealed class DesktopCoordinator : IDisposable
   }
   private void Retire(SceneView view, string message)
   {
-    if (disposed || view.Retired) return; view.Retired = true; view.Surface.Hide();
+    if (disposed || view.Retired) return; Forget(view);
+    sendOwner(new { v = 1, @event = "desktop-view-lost", viewId = view.Id, message });
+  }
+  // Ends a view the applied displays no longer list; the owner drops it from that list, so no loss is reported.
+  private void Close(SceneView view)
+  {
+    Forget(view);
+    // Not inside the owner's bridge call that applies the displays.
+    Application.Current.Dispatcher.BeginInvoke(new Action(() => { view.Surface.Dispose(); views.Remove(view); }));
+  }
+  private void Forget(SceneView view)
+  {
+    // A quick edit that ends with its scene gives the foreground back first.
+    if (view.Editing) { ReturnEditorFocus(view); view.Editing = false; }
+    view.Retired = true; view.Surface.Hide();
     foreach (var key in sceneIntents.Where(pair => pair.Value.View == view.Id).Select(pair => pair.Key).ToArray()) sceneIntents.Remove(key);
     foreach (var pair in commands.Where(c => c.Value.View == view).ToArray()) Release(pair.Key, pair.Value);
     foreach (var pair in flushes.Where(c => c.Value.View == view).ToArray()) flushes.Remove(pair.Key);
     foreach (var pair in frozen.Where(c => c.Value == view).ToArray()) frozen.Remove(pair.Key);
-    transfers.DropOwner(view.Id); sendOwner(new { v = 1, @event = "desktop-view-lost", viewId = view.Id, message });
+    transfers.DropOwner(view.Id);
   }
   public void Dispose()
   {

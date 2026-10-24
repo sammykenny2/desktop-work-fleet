@@ -23,6 +23,12 @@ Quick edit (SPEC-003, 2026-10-24) opens the paper in the display's Top-layer sce
 shortly after a scene sent `card.edit`, the coordinator activates that scene's input window as adjust mode does and
 remembers the window that had the foreground; when the frame no longer shows the editor there and the scene still has
 the foreground, it gives the foreground back. The maintainer opened and typed in one on a real machine (2026-10-24).
+Display changes ([ADR-020](../../../docs/decisions/020-windows-display-lifecycle.md), 2026-10-24): a Top-layer scene is
+reused only on the display device it was created on, because one moved from a remote session to the local display
+composed nothing there, so adjust mode was invisible yet took every click. Another device gets a new Top-layer scene,
+apart from a quick edit still being composed, which is carried across and replaced once the edit ends. Each browser
+zooms by the DPI of the display under its scene, not by its window's DPI: after a scaling change while running,
+Explorer's desktop window keeps its DPI, and the attached scenes inside it take that DPI instead of the display's.
 
 ## Structure
 

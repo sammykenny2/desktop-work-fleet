@@ -3,6 +3,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.Wpf;
 using WorkFleet.Windows;
 
 /// <summary>
@@ -10,6 +11,8 @@ using WorkFleet.Windows;
 /// on those displays would. A machine started at 3840x2160 and 150% kept that reference after it switched to 2560x1306 at
 /// 100%, so its papers stayed half as large again until Work Fleet restarted. Here an offscreen primary display reported
 /// at 192 DPI is replaced by one at 96 DPI while the app runs; the real monitor's DPI cancels out of every ratio checked.
+/// The replacement display also has another device name, as after a switch from a remote session to the local display:
+/// the Top layer must get a new scene there, which still carries adjust mode, while the attached scenes are reused.
 /// </summary>
 internal static class ReferenceDpiProbe
 {
@@ -23,6 +26,21 @@ internal static class ReferenceDpiProbe
     using var json = JsonDocument.Parse(await core.ExecuteScriptAsync(script)); return json.RootElement.Clone();
   }
   private static JsonElement Info(FleetWindow window) => JsonSerializer.SerializeToElement(window.Desktop!.Invoke("desktop.info", default));
+  private static string[] ViewIds(JsonElement info, Func<string, bool> layer) => info.GetProperty("views").EnumerateArray()
+    .Where(v => layer(v.GetProperty("layer").GetString()!)).Select(v => v.GetProperty("viewId").GetString()!).Order().ToArray();
+  // Only the Top layer composes its browser into a layered window.
+  private static DesktopSurface? Floating(FleetWindow window) => window.Desktop!.Surfaces.SingleOrDefault(s => s.WebView is WebView2CompositionControl);
+  private static async Task Wait(CoreWebView2 core, string script, string description)
+  {
+    var until = DateTime.UtcNow.AddSeconds(15);
+    while (DateTime.UtcNow < until)
+    {
+      try { if ((await Eval(core, script)).ValueKind == JsonValueKind.True) return; }
+      catch (Exception error) when (error is InvalidOperationException or COMException) { }
+      await Task.Delay(80);
+    }
+    throw new Exception("Reference DPI: timed out waiting for " + description);
+  }
   private static void Check(bool condition, string description)
   {
     if (!condition) throw new Exception("Reference DPI: " + description);
@@ -71,6 +89,8 @@ internal static class ReferenceDpiProbe
       var before = await Until(window, p => Math.Abs(p.Width - 900) <= 1, "scene not 900 units wide for 1800 pixels at 192 DPI");
       var zoom = before.Surface.WebView.ZoomFactor;
       Check(Info(window).GetProperty("referenceDpi").GetDouble() == 192, $"started at {Info(window).GetProperty("referenceDpi")} instead of 192");
+      var oldFloating = Floating(window) ?? throw new Exception("Reference DPI: no Top-layer scene before the change");
+      var oldTop = ViewIds(Info(window), layer => layer == "floating"); var oldAttached = ViewIds(Info(window), layer => layer != "floating");
 
       // The reported switch also changed the primary display's device name.
       displays[0] = new("after", true, bounds, bounds, 96);
@@ -91,6 +111,28 @@ internal static class ReferenceDpiProbe
       // in the units the scene now draws, or the paper would land outside it.
       after = await Until(window, p => Math.Abs(p.Width - 1800) <= 1 && p.Inside, "paper not inside the scene after the change");
       Console.WriteLine($"PASS reference DPI follows the primary display: 192 -> 96, zoom {zoom:0.###} -> {after.Surface.WebView.ZoomFactor:0.###}, scene {before.Width:0} -> {after.Width:0} units");
+
+      var newTop = ViewIds(info, layer => layer == "floating");
+      Check(newTop.Length == 1 && !oldTop.Contains(newTop[0]), $"Top-layer views {string.Join(",", oldTop)} -> {string.Join(",", newTop)} instead of one new view");
+      Check(ViewIds(info, layer => layer != "floating").SequenceEqual(oldAttached), "the attached scenes were not reused on the new display");
+      Check(!window.Desktop!.Surfaces.Contains(oldFloating), "the old Top-layer scene is still in use");
+      var floating = Floating(window) ?? throw new Exception("Reference DPI: no Top-layer scene after the change");
+      // The new scene creates its browser after the change is applied.
+      var ready = DateTime.UtcNow.AddSeconds(30);
+      while (floating.WebView.CoreWebView2 is null && DateTime.UtcNow < ready) await Task.Delay(100);
+      var top = floating.WebView.CoreWebView2 ?? throw new Exception("Reference DPI: the new Top-layer scene has no browser");
+      await Wait(top, "document.readyState === 'complete'", "the new Top-layer scene to load");
+      await main.ExecuteScriptAsync("document.querySelector('#operate-all').click()");
+      await Wait(top, "Boolean(document.querySelector('.adjust-overlay'))&&Boolean(document.querySelector('.adjust-tools'))&&document.querySelectorAll('.card.operable').length===1",
+        "adjust mode in the new Top-layer scene");
+      // The page draws the overlay before the host applies its frame and shows the scene; the old one closes after the apply.
+      var shown = DateTime.UtcNow.AddSeconds(15);
+      while ((!floating.Shown || oldFloating.NativeAlive) && DateTime.UtcNow < shown) await Task.Delay(80);
+      Check(floating.Shown && floating.InputWindow.IsVisible, "the new Top-layer scene is not shown while adjusting");
+      Check(!oldFloating.NativeAlive, "the old Top-layer scene's windows were not closed");
+      await top.ExecuteScriptAsync("document.querySelector('.adjust-tools button.primary').click()");
+      await Program.Wait(window, "document.querySelector('#stop-operation').hidden", "Done in the new Top-layer scene");
+      Console.WriteLine("PASS a new display device gets a new Top-layer scene that carries adjust mode; attached scenes are reused");
     }
     finally { await Program.Close(window); }
   }

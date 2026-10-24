@@ -896,8 +896,17 @@ Last, it runs `--reference-dpi OUTPUT_DIRECTORY` (ADR-018, ADR-020):
 - `desktop.info` must report a reference DPI of 96 and a work area as wide as the physical display, the scene's browser zoom must halve and the scene must become twice as wide in scene units.
 - The offscreen origin moves in scene units, so the owner rescues the paper; it must then lie inside the scene, which shows that the owner rescued it in the units the scene now draws.
 - Before the fix the reference stayed at 192. The reported case was a 3840x2160 start at 150% later switched to 2560x1306 at 100%: papers stayed half as large again until a restart.
+- The new device name must give the Top layer a new view: `desktop.info` lists one Top-layer view, not the one from before, and the same attached views,
+  and the old Top-layer scene is no longer in use and its windows are closed. "Adjust all" must then show the tint, the toolbar and the paper in the new scene, and Done must end it.
+  Before the fix the old Top-layer scene was moved to the new display and this check failed. The reported case (2026-10-24) was a switch from a 2560x1306 remote
+  session to the local 3840x2160 display at 150%: the moved scene stayed blank, so adjust mode showed nothing while its full-screen input region took every click until Esc.
 - The real monitor's DPI cancels out of every ratio it checks. It does not cover a primary display at the origin, where papers keep their placements, or group regions.
-  A real scale or resolution switch, and a DPI change of the primary display while other displays are attached, await a real-machine check.
+  It cannot make the composition blank, so a real switch from a remote session to the local display awaits a real-machine check, as do a resolution switch and a
+  DPI change of the primary display while other displays are attached.
+- Real machine, 2026-10-24 (ADR-020): a scaling change while Work Fleet runs leaves the attached scene windows at the DPI of Explorer's desktop window, 144 here,
+  whatever the display's. With a Debug build beside the installed 0.4.1 on a 3840x2160 display switched from 150% to 125%, the installed build drew each desktop
+  paper at 125/150 of its size inside a white frame of the right size, while every scene of the Debug build reported a device pixel ratio of 1.25 and a 3072x1728 viewport.
+  No probe can make Explorer's DPI differ from the display's.
 
 MSIX end to end: first run `Build-WindowsPackage.ps1 -LocalTestSign`, then `Test-WindowsRecovery.ps1`.
 - It installs the `app.workfleet.crashprobe.e2e` test identity and has it, as a sign-in start, throw the same error after the scenes enter Explorer.

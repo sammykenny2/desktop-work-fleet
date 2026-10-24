@@ -67,6 +67,39 @@ attached, any change of the primary display's DPI moves their logical rectangles
 displays can be drawn on the neighbouring one; that case awaits real hardware. The `--reference-dpi` probe in
 [docs/testing.md](../testing.md) covers a single display.
 
+## 2026-10-24 The Top layer gets a new scene on a new display device
+
+0.4.1 started in a 2560x1306 remote session at 100%, and the maintainer then switched to the local 3840x2160 display
+at 150%. The device name changed from `\\.\DISPLAY1` to `\\.\DISPLAY5`, and the coordinator moved the same Top-layer
+scene there. Its window, input region, DPI and the browser's render window were all correct, but its
+`WebView2CompositionControl` showed nothing. Adjust mode therefore showed neither the tint nor the toolbar, while its
+full-screen input region took every click, the main window's too, until Esc or Done in the tray. The attached scenes,
+which host a windowed WebView, were unaffected. A restart fixed it, and a later scaling change alone on the same
+display (150% to 125%) left adjust mode working.
+
+A Top-layer scene is now reused only on the display device it was created on, as Windows names it (`\\.\DISPLAYn`). A
+Top-layer slot that no view of that device fills gets a new view, and a Top-layer view left without a slot is closed
+instead of kept in the pool. The owner gets the new view list from the applied displays and drops the old view without
+reporting a loss. The view of a quick edit still being composed stays the exception: it is assigned first and carried
+across, as above, and once its edit ends the displays are read and applied again, which replaces it. The attached
+layers keep their pool. This still honours the alternative rejected above: the edited view, which can hold unfinished
+input, is never rebuilt. The `--reference-dpi` probe changes the device name and checks the replacement; it cannot
+make the composition blank, so a real remote-session switch awaits a real-machine check, as do a new adapter that
+keeps the device name and a carried edit.
+
+## 2026-10-24 The browser zoom follows the display's DPI
+
+After a scaling change from 150% to 125% while Work Fleet ran, the attached scenes drew their papers at 125/150 of
+their size: a white frame of the right size and place, with the paper shrunk towards the scene's top-left corner. The
+scene windows kept 144 DPI, as did Explorer's desktop window, which never changed its DPI in these tests. Windows
+inside it get that DPI whenever the scaling changes, and the DPI of the display they are created on otherwise. Neither
+WebView2 control sets a rasterization scale, so the browser draws at the display's 120 DPI, while the zoom was the
+reference over the window's 144 DPI. The browser zoom is now the reference over the DPI of the display under the scene.
+Input regions keep the window's DPI, which matches the pixels SetRegion installs. On the maintainer's 4K display a
+Debug build with this change ran beside the installed 0.4.1 under the same condition: the installed build drew the
+shrunk papers again, while every scene of the Debug build reported a device pixel ratio of 1.25 and a 3072x1728
+viewport. No probe can make Explorer's DPI differ from the display's.
+
 ## References
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md)

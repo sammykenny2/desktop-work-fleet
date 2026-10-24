@@ -9,6 +9,16 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.4.2
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: On Windows, adjust mode and desktop notes now show correctly right after a change of displays or of display scaling.
+
+- Windows: after Work Fleet moved to another display while it ran, for example from a Remote Desktop session back to the computer's own screen, adjust mode showed neither its tint nor its toolbar yet took every click, the main window's too, until Esc or Done in the tray. Adjust mode now shows on the new display.
+- Windows: after a change of display scaling while Work Fleet ran, notes on the Desktop and Wallpaper layers could be drawn shrunk inside their frame until Work Fleet restarted. They now keep their size.
+- Note, sync and backup formats stay at V1.
+
 ## 0.4.1
 
 Platforms: Windows, Linux, macOS, Android.

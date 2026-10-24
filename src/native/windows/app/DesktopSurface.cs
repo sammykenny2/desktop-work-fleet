@@ -248,7 +248,10 @@ public sealed class DesktopSurface : IDisposable
       throw new ArgumentException("Invalid scene input rectangles.");
     // Build/validate before replacing the previous policy. SetWindowRgn owns only successful regions.
     if (InputHandle != IntPtr.Zero) SetRegion(shown ? next : []);
+    // A shown attached scene that drops a paper uncovers it for Explorer to draw again, as hiding does.
+    var uncovered = !layered && shown && rectangles.Except(next).Any();
     rectangles = next; inputSuspended = false;
+    if (uncovered) RepaintShellParent();
   }
 
   public void SuspendInput()

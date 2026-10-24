@@ -713,13 +713,18 @@ is not planned.
   example through sync), another change moving the same paper, adjust mode or editing starting, or the switch being
   turned off during the move. The scene ends such a move without an error; layout changes that do not touch the paper,
   such as a synced paper being placed, do not end it.
+- **Windows (2026-10-24).** A Desktop-layer scene there is attached to Explorer and cannot show a paper moving inside
+  it: the moving paper left white behind, and hiding the scene to avoid that ended the move. So on Windows the paper
+  rides the Top layer while it drags, in front of other apps' windows and letting clicks through, and rests on its
+  Desktop layer again at the drop; the scene it started in keeps the pointer. Nothing else changes. The host reports
+  this as `liftQuickMove` (contracts/desktop-scene.d.ts).
 
 Acceptance cases:
 
 | ID | Given / When | Required observable result |
 |---|---|---|
 | C49 | Quick move is off (the default); hold the key and drag a Desktop- or Top-layer paper | Nothing moves; text selection and checkboxes behave as before |
-| C50 | Quick move is on; hold the key and drag a Desktop- or Top-layer paper | The paper moves on its own layer and keeps the drop position after restart; no overlay appears and the main window does not move |
+| C50 | Quick move is on; hold the key and drag a Desktop- or Top-layer paper | The paper moves on its own layer (on Windows a Desktop-layer paper rides the Top layer until the drop) and keeps the drop position after restart; no overlay appears and the main window does not move |
 | C51 | Quick move is on; drag without the key, or press the key only after the press | Text selection as before; the paper does not move |
 | C52 | Quick move is on; hold the key and press on a checkbox, attachment or link | That control's behaviour; the paper does not move |
 | C53 | Quick move is on; hold the key, press and release without passing the threshold | Nothing changes: no move, no editing, no selection |

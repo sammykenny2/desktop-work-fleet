@@ -12,10 +12,14 @@ export function cardPolicy(card, layout, state) {
   const operating = participates && inScope(card, state.operationScope);
   // A quick edit (SPEC-003, 2026-10-24) floats one resting paper on the Top layer while nothing is adjusted.
   const quickEditing = participates && state.operationScope.kind === 'none' && state.editingCardId === card.id;
-  const layer = operating || quickEditing ? 'floating' : groupLayer(layout, card.groupId);
+  // Where the host asks for it, a quick move rides the Top layer while it drags; its scene below keeps the pointer, so
+  // the lifted paper lets clicks through.
+  const drag = state.dragSession;
+  const lifted = participates && drag?.lift === true && drag.dragging && drag.cardId === card.id;
+  const layer = operating || quickEditing || lifted ? 'floating' : groupLayer(layout, card.groupId);
   // Desktop and topmost papers take clicks and text selection while locked; wallpaper papers always let clicks through.
   return { visible: participates && (layout.desktopVisible || operating),
-    interactive: operating || quickEditing || (participates && layout.desktopVisible && layer !== 'wallpaper'),
+    interactive: operating || quickEditing || (participates && !lifted && layout.desktopVisible && layer !== 'wallpaper'),
     draggable: operating, editing: (operating || quickEditing) && state.editingCardId === card.id, layer };
 }
 
@@ -189,8 +193,9 @@ export class InteractionController {
     return true;
   }
 
-  // A quick move drags one resting paper outside adjust mode; it is only ever an ordinary move.
-  pointerDown(cardId, point, { pointerId = 1, control = false, handle = false, threshold = 5, quick = false } = {}) {
+  // A quick move drags one resting paper outside adjust mode; it is only ever an ordinary move. With lift it rides the
+  // Top layer while it drags (DesktopInfo.liftQuickMove).
+  pointerDown(cardId, point, { pointerId = 1, control = false, handle = false, threshold = 5, quick = false, lift = false } = {}) {
     this.#assertIdle();
     if (control || (this.#state.editingCardId === cardId && !handle)) return false;
     requireValue(!this.#state.dragSession, 'drag-active', t('errors.core.dragActive'));
@@ -203,7 +208,7 @@ export class InteractionController {
     this.#state.dragSession = { generation: crypto.randomUUID(), cardId, pointerId, groupId: card.groupId, revision: card.revision,
       layoutRevision: layout.revision, start: copy(point), current: copy(point), origin: copy(layout.placements[cardId]),
       position: copy(layout.placements[cardId]), threshold, dragging: false, target: null,
-      ...(quick ? { quick: true, layer: cardPolicy(card, layout, this.#state).layer } : {}) };
+      ...(quick ? { quick: true, layer: cardPolicy(card, layout, this.#state).layer, ...(lift ? { lift: true } : {}) } : {}) };
     return true;
   }
 
@@ -263,10 +268,12 @@ export class InteractionController {
   }
 
   // Whether a held quick move may still be saved: the paper still allows it, rests on the same layer and has not been
-  // moved by anything else meanwhile. Other layout saves, such as a synced paper being placed, do not end it.
+  // moved by anything else meanwhile. Other layout saves, such as a synced paper being placed, do not end it. The paper is
+  // judged where it rests, not on the Top layer it rides while lifted.
   #quickHolds(drag) {
     const card = this.#card(drag.cardId); const layout = this.#layout.state; const saved = layout.placements[drag.cardId];
-    return quickMovable(card, layout, this.#state) && cardPolicy(card, layout, this.#state).layer === drag.layer
+    const resting = { ...this.#state, dragSession: null };
+    return quickMovable(card, layout, resting) && cardPolicy(card, layout, resting).layer === drag.layer
       && Boolean(saved) && saved.x === drag.origin.x && saved.y === drag.origin.y;
   }
 

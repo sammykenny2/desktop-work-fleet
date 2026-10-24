@@ -79,9 +79,10 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(resident, "window.preparedPaperRemoval === true")).ValueKind == JsonValueKind.True,
       "native frame preparation acknowledged before removing the resident paper", main);
     Console.WriteLine("PASS attached paper removal waits for native frame preparation before erasing its DOM");
-    // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper offers no buttons and a double click opens nothing.
+    // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper offers no buttons and a double click, even with
+    // Ctrl, opens nothing.
     if ((await Eval(floating, "document.querySelectorAll('.card-actions button').length")).GetInt32() != 0) throw new Exception("An adjusted paper offers buttons.");
-    await Eval(floating, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+    await Eval(floating, "(()=>{const c=document.querySelector('.card');const t=c?.querySelector('.card-summary')||c;if(!t)return;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}))})()");
     await Task.Delay(150);
     if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True) throw new Exception("Adjust mode opened an editor.");
     await Eval(floating, "document.querySelector('.adjust-tools button.primary').click()");
@@ -98,7 +99,7 @@ internal static class DesktopIntegrationProbe
     using (var preview = File.Create(Path.Combine(directory, "native-desktop.png")))
       await floating.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, preview);
     // Repeating the gesture on the paper being edited must preserve its in-progress content and draft identity.
-    await Eval(floating, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true}))");
+    await Eval(floating, "(()=>{const c=document.querySelector('.card');const t=c?.querySelector('.card-summary')||c;if(!t)return;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}))})()");
     await Task.Delay(150);
     if ((await Eval(floating, "document.querySelector('textarea').value")).GetString() != "Desktop draft \u4E2D\u6587 text") throw new Exception("Repeated edit replaced draft text.");
     // Larger than the 1 MiB message ceiling (an escaped three-byte CJK character): exercises chunked view -> owner command
@@ -129,6 +130,7 @@ internal static class DesktopIntegrationProbe
     await Wait(async () => (await Eval(floating, "!document.querySelector('textarea')")).ValueKind == JsonValueKind.True
       && (await Eval(resident, "document.querySelector('.card-summary')?.textContent==='Native note' && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
       "fixture restored on its desktop layer", main);
+    await QuickMove(main, resident, floating);
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#desktop-quick-move').click()");
     // A desktop paper takes clicks while locked, so its checkbox ticks the step through the native owner and the next
     // frame draws it; a second click unticks it again. The paper never turns draggable or opens an editor. The clicks
@@ -198,12 +200,35 @@ internal static class DesktopIntegrationProbe
   [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
 
   // Ctrl and a double click on the resting paper open a quick edit on the Top layer (SPEC-003, 2026-10-24); the scene
-  // takes the key from the frame after the switch changes, so the gesture repeats until the editor shows.
+  // takes the key from the frame after the switch changes, so the gesture repeats until the editor shows. The scene finds
+  // the paper under the pointer, so the double click lands on the title band.
   public static Task QuickEdit(CoreWebView2 resident, CoreWebView2 floating, FleetWindow main, string message) => Wait(async () =>
   {
-    await Eval(resident, "document.querySelector('.card')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true}))");
+    await Eval(resident, "(()=>{const t=document.querySelector('.card-summary');if(!t)return;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}))})()");
     return (await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind == JsonValueKind.True;
   }, message, main);
+
+  // Ctrl and a drag move the resting Desktop-layer paper (SPEC-003, 2026-10-24). DevTools mouse input goes through the
+  // browser like a real press with Ctrl held, without system input; it does not exercise native capture or hit-testing.
+  // While it drags, the paper rides the Top layer and the attached scene stays shown; at the drop it rests there again.
+  private static async Task QuickMove(FleetWindow main, CoreWebView2 resident, CoreWebView2 floating)
+  {
+    var point = await Eval(resident, "(()=>{const r=document.querySelector('.card-summary').getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,left:parseFloat(document.querySelector('.card').style.left)}})()");
+    double x = point.GetProperty("x").GetDouble(), y = point.GetProperty("y").GetDouble(), left = point.GetProperty("left").GetDouble();
+    Task Mouse(string type, double atX, double atY, int buttons) => resident.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent",
+      JsonSerializer.Serialize(new { type, x = atX, y = atY, button = "left", buttons, clickCount = type == "mouseMoved" ? 0 : 1, modifiers = 2 }));
+    await Mouse("mouseMoved", x, y, 0); await Mouse("mousePressed", x, y, 1);
+    for (var step = 1; step <= 6; step++) await Mouse("mouseMoved", x + step * 10, y + step * 5, 1);
+    await Wait(async () => (await Eval(floating, "[...document.querySelectorAll('.card')].some(c=>c.querySelector('.card-summary')?.textContent==='Native note'&&!c.classList.contains('interactive'))")).ValueKind == JsonValueKind.True
+      && (await Eval(resident, "!document.querySelector('.card')")).ValueKind == JsonValueKind.True, "quick move rides the Top layer while it drags", main);
+    if (!main.Desktop!.Surfaces[0].Shown) throw new Exception("The attached scene hid while its quick move held the pointer.");
+    await Mouse("mouseReleased", x + 60, y + 30, 0);
+    var dropped = (left + 60).ToString(System.Globalization.CultureInfo.InvariantCulture);
+    await Wait(async () => (await Eval(resident, $"Math.abs(parseFloat(document.querySelector('.card')?.style.left)-({dropped}))<2")).ValueKind == JsonValueKind.True
+      && (await Eval(floating, "!document.querySelector('.card')")).ValueKind == JsonValueKind.True, "quick move rests on the desktop layer at the drop", main);
+    if (!main.Desktop.Surfaces[0].Shown) throw new Exception("The attached scene is not shown after the quick move.");
+    Console.WriteLine("PASS Ctrl and a drag move a resting desktop paper on the Top layer and leave it on its own layer");
+  }
 
   public static async Task CloseWithDraft(FleetWindow main)
   {

@@ -84,8 +84,10 @@ public sealed class DesktopCoordinator : IDisposable
     public DesktopFrame? Downloading;
     public string? Download;
     public long Applied = -1;
-    public LogicalRect[] PresentedRects = [];
+    public PresentedCard[] Presented = [];
     public bool Adjusting, Editing;
+    // The scene holds the pointer of a quick move (from pointer.down until pointer.up or pointer.cancel).
+    public bool QuickHeld;
   }
 
   public DesktopCoordinator(CoreWebView2Environment environment, Action<object> sendOwner, Func<bool> showMain, Action<string> openExternal,
@@ -150,11 +152,12 @@ public sealed class DesktopCoordinator : IDisposable
   {
     ["viewId"] = v.Id, ["layer"] = v.Layer, ["active"] = v.Active,
     ["viewport"] = new { x = v.Viewport.X, y = v.Viewport.Y, width = v.Viewport.Width, height = v.Viewport.Height },
-    ["adjustOverlay"] = v.Layer == "floating",
+    ["adjustOverlay"] = v.Layer == "floating", ["liftQuickMove"] = true,
   };
   // Adjust mode is a modal overlay on every host: the topmost scene tints the screen and carries the adjust controls.
+  // A quick move rides the Top layer while it drags: an attached scene cannot show a paper moving inside it.
   private object Info() => new { sessionId = SessionId, referenceDpi = scale * 96, topology,
-    layers = Layers, residentLayers = Layers, adjustOverlay = true,
+    layers = Layers, residentLayers = Layers, adjustOverlay = true, liftQuickMove = true,
     workAreas = WorkAreas(displays), views = views.Where(v => !v.Retired).Select(ViewInfo).ToArray() };
 
   private void InvalidateDisplays()
@@ -496,10 +499,19 @@ public sealed class DesktopCoordinator : IDisposable
       {
         if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
         HostError.Require(view.Downloading?.Sequence == JsonRules.Integer(args, "sequence"), "scene-order", "The desktop frame isn't ready to update.");
-        var nextRects = view.Downloading!.Cards.Where(c => c.Layer == view.Layer && Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
-        // Remove an Explorer-attached surface before its browser erases or moves papers inside the old opaque region.
-        // Otherwise that old region briefly paints the WebView's white background and can remain in the shell surface.
-        if (view.Layer != "floating" && view.Surface.Shown && !view.PresentedRects.SequenceEqual(nextRects)) view.Surface.Hide();
+        var next = view.Downloading!.Cards.Where(c => c.Layer == view.Layer && Intersects(c.Rect, view.Viewport)).ToArray();
+        // An Explorer-attached surface paints the WebView's white background wherever its browser erases a paper inside
+        // the old opaque region, and that white can remain in the shell surface. A paper that moves or resizes there
+        // hides the surface first. A paper that only leaves or arrives, as one riding the Top layer for a quick move or
+        // edit does, keeps the others shown and the pointer held: the region drops what leaves now, and scene.applied
+        // adds what arrives once the browser has drawn it.
+        if (view.Layer != "floating" && view.Surface.Shown && !view.Presented.Select(c => c.Rect).SequenceEqual(next.Select(c => c.Rect)))
+        {
+          var before = new Dictionary<string, LogicalRect>(StringComparer.Ordinal);
+          foreach (var card in view.Presented) before[card.Id] = card.Rect;
+          if (next.Any(c => before.TryGetValue(c.Id, out var rect) && rect != c.Rect)) view.Surface.Hide();
+          else view.Surface.SetInput(HitRects(view, next.Where(c => before.ContainsKey(c.Id))));
+        }
         return new { accepted = true };
       }
       case "scene.applied":
@@ -508,26 +520,22 @@ public sealed class DesktopCoordinator : IDisposable
         if (displayPending || !view.Active || view.Downloading?.Topology != topology || JsonRules.Integer(args, "topology") != topology) return new { accepted = false };
         HostError.Require(view.Downloading?.Sequence == sequence && sequence >= view.Applied, "scene-order", "The desktop input regions don't match the frame on screen yet.");
         var cards = view.Downloading!.Cards.Where(c => c.Layer == view.Layer).ToArray();
-        var zoom = scale / (view.Surface.Dpi / 96d);
+        var zoom = Zoom(view);
         // The adjust overlay takes the clicks on its whole screen, so nothing below reacts while adjusting.
         var adjusting = view.Layer == "floating" && view.Downloading.Adjusting;
         view.Surface.SetInput(adjusting ? new[] { new SceneHitRect(0, 0, view.Viewport.Width * zoom, view.Viewport.Height * zoom, true) }
-          : cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c =>
-        {
-          // Native region limits apply to the clipped viewport, not to persisted paper geometry.
-          var x = Math.Max(c.Rect.X, view.Viewport.X); var y = Math.Max(c.Rect.Y, view.Viewport.Y);
-          var right = Math.Min(c.Rect.X + c.Rect.Width, view.Viewport.X + view.Viewport.Width);
-          var bottom = Math.Min(c.Rect.Y + c.Rect.Height, view.Viewport.Y + view.Viewport.Height);
-          return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, view.Layer != "wallpaper" && c.Interactive);
-        }));
+          : HitRects(view, cards.Where(c => Intersects(c.Rect, view.Viewport))));
         var wasShown = view.Surface.Shown;
         // A quick edit that closed here gives the foreground back before an emptied scene hides.
         var editingHere = view.Layer == "floating" && !adjusting && view.Downloading.EditorView == view.Id;
         if (view.Editing && !editingHere) ReturnEditorFocus(view);
         view.Editing = editingHere;
         var notice = view.Layer == "floating" && view.Downloading.Notice is { } rect && Intersects(rect, view.Viewport);
-        if (adjusting || notice || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
-        view.PresentedRects = cards.Where(c => Intersects(c.Rect, view.Viewport)).Select(c => c.Rect).ToArray();
+        // An attached scene whose only paper rides the Top layer for a quick move keeps the pointer, so it stays shown,
+        // with an empty region, until the release.
+        var holding = view.Layer != "floating" && view.QuickHeld && view.Surface.Shown;
+        if (adjusting || notice || holding || cards.Any(c => Intersects(c.Rect, view.Viewport))) view.Surface.Show(view.Layer == "floating"); else view.Surface.Hide();
+        view.Presented = cards.Where(c => Intersects(c.Rect, view.Viewport)).ToArray();
         view.Applied = sequence; TryFocus(view); TryFocusEditor(view);
         if (!wasShown && view.Surface.Shown) { view.Surface.PassBrowserClicksThrough(); Repaint(view); }
         // Keys such as Esc reach the overlay as it appears.
@@ -554,6 +562,9 @@ public sealed class DesktopCoordinator : IDisposable
           "unsupported-method", "The desktop host doesn't support this operation.");
         var draft = commandMethod == "editor.change";
         if (commandMethod == "card.edit") editRequested = DateTime.UtcNow;
+        if (commandMethod == "pointer.down") view.QuickHeld = command.TryGetProperty("args", out var down) && down.ValueKind == JsonValueKind.Object
+          && down.TryGetProperty("quick", out var quick) && quick.ValueKind == JsonValueKind.True;
+        else if (commandMethod is "pointer.up" or "pointer.cancel") view.QuickHeld = false;
         var commandTopology = JsonRules.Integer(args, "topology");
         HostError.Require(draft || !displayPending && view.Active && commandTopology == topology, "desktop-topology", "Desktop positions are updating. Wait a moment and try again; your text is kept.");
         HostError.Require(commands.Values.Count(c => c.Draft == draft) < (draft ? 4 : 24), "scene-busy", "A desktop operation is still in progress.");
@@ -584,6 +595,20 @@ public sealed class DesktopCoordinator : IDisposable
       }
       default: throw new HostError("unsupported-method", "Desktop surfaces can't use storage or system operations.");
     }
+  }
+  private double Zoom(SceneView view) => scale / (view.Surface.Dpi / 96d);
+  // Back to front, in the view's physical pixels.
+  private IEnumerable<SceneHitRect> HitRects(SceneView view, IEnumerable<PresentedCard> cards)
+  {
+    var zoom = Zoom(view);
+    return cards.Select(c =>
+    {
+      // Native region limits apply to the clipped viewport, not to persisted paper geometry.
+      var x = Math.Max(c.Rect.X, view.Viewport.X); var y = Math.Max(c.Rect.Y, view.Viewport.Y);
+      var right = Math.Min(c.Rect.X + c.Rect.Width, view.Viewport.X + view.Viewport.Width);
+      var bottom = Math.Min(c.Rect.Y + c.Rect.Height, view.Viewport.Y + view.Viewport.Height);
+      return new SceneHitRect((x - view.Viewport.X) * zoom, (y - view.Viewport.Y) * zoom, (right - x) * zoom, (bottom - y) * zoom, view.Layer != "wallpaper" && c.Interactive);
+    }).ToArray();
   }
   private static bool Intersects(LogicalRect a, LogicalRect b) => a.X < b.X + b.Width && a.X + a.Width > b.X && a.Y < b.Y + b.Height && a.Y + a.Height > b.Y;
   private void TryFocusEditor(SceneView view)

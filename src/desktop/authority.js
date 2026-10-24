@@ -14,17 +14,17 @@ const arrangements = new Set(['stack', 'spread', 'undo']);
 
 /** Routes display-only views into the existing owner. This class never creates or persists another Workspace. */
 export class DesktopAuthority {
-  #workspace; #controller; #sessionId; #editor; #check; #shortcut; #arrange; #perform; #residentLayers; #views = new Map(); #seenViews = new Set();
+  #workspace; #controller; #sessionId; #editor; #check; #shortcut; #arrange; #perform; #residentLayers; #liftQuickMove; #views = new Map(); #seenViews = new Set();
   #receipts = new Map(); #tail = Promise.resolve(); #draftTail = Promise.resolve(); #pending = 0; #draftPending = 0; #gesture = null; #dropped = null; #closed = false;
   #topology = 0; #displayPending = false;
   #attachments;
   #previewTails = [Promise.resolve(), Promise.resolve()]; #previewNext = 0; #previewPending = 0;
   constructor({ workspace, controller, sessionId, editor, check, shortcut, arrange, attachments, residentLayers = () => ['desktop', 'floating'],
-    perform = action => action() }) {
+    liftQuickMove = () => false, perform = action => action() }) {
     requireValue(uuid(sessionId), 'desktop-session', t('errors.desktop.sessionInvalid'));
     this.#workspace = workspace; this.#controller = controller; this.#sessionId = sessionId;
     this.#editor = editor; this.#check = check; this.#shortcut = shortcut; this.#arrange = arrange; this.#perform = perform;
-    this.#attachments = attachments; this.#residentLayers = residentLayers;
+    this.#attachments = attachments; this.#residentLayers = residentLayers; this.#liftQuickMove = liftQuickMove;
   }
   get sessionId() { return this.#sessionId; }
   addView(viewId) {
@@ -182,7 +182,8 @@ export class DesktopAuthority {
           requireValue(policy && !policy.draggable && this.#takesClicks(policy), 'outside-scope', t('errors.desktop.cardUnavailable'));
         } else this.#card(args.cardId);
         this.#point(args.point);
-        const accepted = controller.pointerDown(args.cardId, args.point, { pointerId: args.pointerId, handle: args.handle === true, quick });
+        const accepted = controller.pointerDown(args.cardId, args.point, { pointerId: args.pointerId, handle: args.handle === true, quick,
+          lift: quick && this.#liftQuickMove() === true });
         if (accepted) this.#gesture = { viewId, id: args.gestureId, pointerId: args.pointerId, cardId: args.cardId, quick,
           generation: controller.state.dragSession.generation };
         return { accepted };

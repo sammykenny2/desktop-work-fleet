@@ -431,6 +431,28 @@ test('a quick move comes to the front only once it drags, survives unrelated lay
   assert.equal(f.controller.state.dragSession, null);
 });
 
+test('a lifted quick move rides the Top layer only while it drags, letting clicks through, and still saves', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const policy = () => cardPolicy(f.workspace.snapshot.cards.find(c => c.id === f.a1.id), f.workspace.layout.state, f.controller.state);
+  const start = copy(f.workspace.layout.state.placements[f.a1.id]);
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true, lift: true });
+  assert.equal(policy().layer, 'desktop', 'a press below the threshold stays where it rests');
+  f.controller.pointerMove({ x: 120, y: 40 });
+  assert.deepEqual([policy().layer, policy().interactive, policy().draggable], ['floating', false, false]);
+  // Riding the Top layer is not a change of layer: reconcile keeps it, and the drop saves an ordinary move.
+  await f.controller.reconcile(); assert.equal(f.controller.state.dragSession?.lift, true);
+  assert.equal((await f.controller.pointerUp({ x: 120, y: 40 })).kind, 'moved');
+  assert.deepEqual(f.workspace.layout.state.placements[f.a1.id], { ...start, x: start.x + 100, y: start.y + 20 });
+  assert.deepEqual([policy().layer, policy().interactive], ['desktop', true]);
+  // Without lift a quick move stays on its layer while it drags.
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true }); f.controller.pointerMove({ x: 120, y: 40 });
+  assert.equal(policy().layer, 'desktop'); f.controller.cancelDrag();
+  // A real change of layer still ends a lifted move.
+  f.controller.pointerDown(f.a1.id, { x: 20, y: 20 }, { quick: true, lift: true }); f.controller.pointerMove({ x: 120, y: 40 });
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot); await f.controller.reconcile();
+  assert.equal(f.controller.state.dragSession, null);
+});
+
 test('C60/C63/C63b/C65: a quick edit floats one resting paper, lets the others move and closes once it no longer holds', async () => {
   const f = await fixture();
   await rejectsCode(f.controller.beginEdit(f.a1.id), 'quick-move-off');

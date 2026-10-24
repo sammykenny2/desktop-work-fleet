@@ -49,7 +49,8 @@ internal static class ShortcutIntegrationProbe
     var resident = coordinator.Surfaces[0].WebView.CoreWebView2;
     await Wait(async () =>
     {
-      await resident.ExecuteScriptAsync("document.querySelector('.card')?.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true}))");
+      // The scene finds the paper under the pointer, so the double click lands on the title band.
+      await resident.ExecuteScriptAsync("(()=>{const c=document.querySelector('.card');const t=c?.querySelector('.card-summary')||c;if(!t)return;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}))})()");
       return await Check(scene, "Boolean(document.querySelector('textarea'))");
     }, "inline editor");
     await scene.ExecuteScriptAsync("document.querySelector('textarea').value='Draft before the shortcut exit';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");

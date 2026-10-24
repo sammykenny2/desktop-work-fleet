@@ -720,6 +720,7 @@ function initializeDesktop() {
     shortcut: (target, intent) => desktopAction(target, intent),
     check: (id, revision, task) => tickStep(id, revision, task),
     residentLayers: () => residentLayers(),
+    liftQuickMove: () => desktopInfo?.liftQuickMove === true,
     arrange: kind => arrangeDesktop(kind),
     attachments: (method, file) => method === 'attachment.preview' ? previewAttachment(file) : openAttachment(file),
     editor: {

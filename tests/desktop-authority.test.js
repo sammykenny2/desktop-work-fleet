@@ -11,7 +11,7 @@ const area = { x: 0, y: 0, width: 1200, height: 900 };
 const uuid = () => crypto.randomUUID();
 const rejects = (promise, code) => assert.rejects(promise, error => error.code === code);
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
-async function fixture(attachments, { check, residentLayers } = {}) {
+async function fixture(attachments, { check, residentLayers, liftQuickMove } = {}) {
   let fail = false; let durable; let flush = async () => {}; let editor = null; let shortcutIntent; const arranged = [];
   const workspace = await Workspace.create({ profileId: 'local', deviceId: uuid(), area,
     persist: async value => { if (fail) throw new Error('disk full'); durable = structuredClone(value); } });
@@ -22,7 +22,7 @@ async function fixture(attachments, { check, residentLayers } = {}) {
   const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
-  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, check, residentLayers,
+  const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, check, residentLayers, liftQuickMove,
     arrange: async kind => { arranged.push(kind); return null; },
     shortcut: (target, intent) => { shortcutIntent = intent; return controller.activate(target === '@all' ? { kind: 'all' } : { kind: 'group', groupId: target }); }, editor: {
     current: () => editor && structuredClone(editor),
@@ -216,6 +216,18 @@ test('a quick move drags a resting paper from its own scene, and a quick click s
   // An adjusted paper is dragged the ordinary way, never through the quick path.
   await f.controller.activate({ kind: 'all' });
   await rejects(down().accepted, 'outside-scope');
+});
+
+test('where the host lifts quick moves, the dragged paper rides the Top layer and rests on its own layer at the drop', async () => {
+  const f = await fixture(undefined, { liftQuickMove: () => true }); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const original = f.workspace.layout.state.placements[f.card.id]; const args = { gestureId: uuid(), pointerId: 2 };
+  const shown = () => f.frame().cards.find(c => c.id === f.card.id);
+  await f.command('pointer.down', { ...args, cardId: f.card.id, point: { x: 100, y: 100 }, quick: true });
+  assert.equal(shown().layer, 'desktop');
+  await f.command('pointer.move', { ...args, point: { x: 140, y: 160 } });
+  assert.deepEqual([shown().layer, shown().interactive, shown().rect.x], ['floating', false, original.x + 40]);
+  assert.equal((await f.command('pointer.up', { ...args, point: { x: 140, y: 160 } })).kind, 'moved');
+  assert.deepEqual([shown().layer, shown().interactive, shown().rect.y], ['desktop', true, original.y + 60]);
 });
 
 test('a quick move the owner ends mid-drag answers its scene quietly instead of with a gesture error', async () => {

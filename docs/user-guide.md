@@ -160,7 +160,7 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   Each computer keeps its own choice, and "Reset desktop layout" turns it back off.
 - "Hold Ctrl to drag or double-click a note" ("Hold ⌘ to drag or double-click a note" on macOS) in Settings > Desktop
   notes is off at first. When it is on, hold Ctrl (⌘ on macOS) before you press on a note on the Desktop or Top layer, then drag: that
-  one note moves without entering adjust mode, stays on its layer, and the main window stays where it is. Without the
+  one note moves without entering adjust mode, stays on its layer (on Windows a Desktop-layer note floats above other windows while you drag it), and the main window stays where it is. Without the
   key a press selects text as before, and checkboxes, attachments and links keep working with it. It only moves the
   note, never to another group. Esc while dragging, or a change of displays, puts it back; "Undo" in adjust mode takes
   a finished move back. Each computer keeps its own choice, and "Reset desktop layout" turns it back off. GNOME through

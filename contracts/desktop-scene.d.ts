@@ -50,6 +50,11 @@ export interface DesktopInfo {
    */
   adjustOverlay?: boolean;
   /**
+   * A quick move's paper rides the Top layer while it drags and rests on its own layer again at the drop. Windows
+   * reports it: its Desktop-layer scenes are attached to Explorer and cannot show a paper moving inside them.
+   */
+  liftQuickMove?: boolean;
+  /**
    * Background is a real layer-shell band; icon placement depends on the desktop shell. Desktop-window is an X11
    * desktop-type window that the shell's own icon window covers, as with GNOME's desktop icons; on GNOME Xorg only
    * once the icons have been clicked and risen. Unavailable also covers layer-shell under pcmanfm --desktop, which
@@ -66,6 +71,8 @@ export interface DesktopSceneInfo {
   prepareFrames?: boolean;
   /** The topmost scene draws the adjust overlay and its controls; see DesktopInfo.adjustOverlay. */
   adjustOverlay?: boolean;
+  /** See DesktopInfo.liftQuickMove: a scene below the Top layer leaves the paper where it is until a frame lifts it. */
+  liftQuickMove?: boolean;
 }
 export interface ShortcutRegistration {
   key: string; target: string;
@@ -101,5 +108,6 @@ export type DesktopOwnerCall =
 // Native transfers are principal-bound, 256 KiB chunks, SHA-256 validated; frame 128 MiB, command 16 MiB.
 // A flush acknowledgement must follow the final durable editor.change acknowledgement, never just local input.
 // With prepareFrames, scene.prepare({sequence, topology}) must be accepted before rendering the downloaded frame.
-// Windows hides an attached surface whose paper geometry changes before its browser erases the old paper region.
+// Windows hides an attached surface when a paper it keeps moves or resizes there, before its browser erases the old
+// paper region; a paper that only leaves or arrives changes the region instead, dropping what leaves at scene.prepare.
 // A pointer.up/cancel reply follows publication of the resulting geometry; the scene drains pending frame reads before clearing its preview.

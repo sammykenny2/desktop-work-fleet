@@ -205,6 +205,9 @@ async function pump(current) {
 }
 // A quick move holds the platform key at the press; while it lasts the papers' text cannot be selected.
 const quickKey = event => frame?.quickMove === 'meta' ? event.metaKey : frame?.quickMove === 'ctrl' && event.ctrlKey;
+// A lifted quick move (DesktopSceneInfo.liftQuickMove) is drawn by the Top layer from the owner's frames; a scene below
+// keeps the pointer but does not move the paper itself.
+const lifted = current => current.quick && info.liftQuickMove === true && info.layer !== 'floating';
 const moving = on => root.classList.toggle('moving', on);
 // The owner already ended this quick move: the paper goes back to its frame position without another command.
 async function release(current) {
@@ -280,7 +283,7 @@ async function initialize() {
   root.onpointermove = event => {
     if (!gesture || gesture.ended || gesture.pointerId !== event.pointerId) return;
     const current = gesture; current.latest = pointerArgs(current, event);
-    if (Math.hypot(current.latest.point.x - current.start.x, current.latest.point.y - current.start.y) >= 5) paintDrag(current, current.latest.point);
+    if (!lifted(current) && Math.hypot(current.latest.point.x - current.start.x, current.latest.point.y - current.start.y) >= 5) paintDrag(current, current.latest.point);
     void run(() => pump(current));
   };
   // Only a release that ends a gesture becomes the one a quick edit waits for; a press ignored while the previous

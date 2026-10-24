@@ -86,10 +86,13 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   entering adjust mode or Esc during the drag saves nothing; a wallpaper paper never starts one, a drop keeps the title
   reachable, and a layout reset turns it off (C49–C56). The paper comes to the front only once it drags, an unrelated
   layout save does not end it, another move of the same paper or `reconcile` after a layer change does, and the moved
-  paper still opens for editing in adjust mode afterwards.
+  paper still opens for editing in adjust mode afterwards. With `lift` (Windows), the paper rides the Top layer only past
+  the threshold, letting clicks through, `reconcile` keeps it and the drop saves an ordinary move; a real layer change
+  still ends it.
 - `node --test tests/desktop-authority.test.js`: the scene command path, a quick click that selects nothing, a move the
   owner ended answered with `cancelled` instead of a gesture error, frames that carry the key only while nothing is
-  adjusted, and a host whose papers rest on the wallpaper refusing it;
+  adjusted, a host whose papers rest on the wallpaper refusing it, and, with `liftQuickMove`, frames that carry the
+  dragged paper on the Top layer until the drop;
   `tests/backup-payload.test.js` rejects a non-boolean `quickMove`.
 - The native frame checks accept `quickMove` only as `meta`, `ctrl` or null: the Windows core probe (CI),
   `tests/test_linux_scenes.py` and, in `SceneLayersProbe.swift`, the macOS FleetSceneProtocol.
@@ -97,9 +100,14 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   `pointer.down` with `quick: true`, then moves and the release, and no text is selected; the same drag without the key
   selects text and sends nothing, a move answered `cancelled` ends the drag with no error and no release, a checkbox
   still ticks with the key held, and a frame with quick move off ignores the key. On 2026-10-24 it passed on macOS with ⌘.
-- Not verified on any real machine (2026-10-24): whether each host delivers the key with the press. Windows scenes are
-  never activated, and on layer-shell the first press on an unfocused scene may arrive before the compositor sends the
-  modifiers. The macOS hit panel that took the press keeps its frame and stays shown until the release, also when the
+- The Windows UI probe presses Ctrl and drags the resting Desktop-layer paper with DevTools mouse input
+  (`Input.dispatchMouseEvent`, no system input): while it drags the paper is on the Top-layer scene, click-through, and
+  gone from the attached scene, which stays shown; after the release it rests on the attached scene 60 px further.
+  Before 2026-10-24 the coordinator hid the attached scene on the first move, so the paper snapped back on a real
+  machine. Native capture and Explorer's redraw of the uncovered area are not covered by the probe.
+- Not verified on any real machine (2026-10-24): whether each host delivers the key with the press, except Windows,
+  where the maintainer confirmed that the scene gets Ctrl. On layer-shell the first press on an unfocused scene may
+  arrive before the compositor sends the modifiers. The macOS hit panel that took the press keeps its frame and stays shown until the release, also when the
   paper leaves its screen; a real ⌘-drag has not been done, and over Screen Sharing the key may not arrive at all.
   Dragging a paper onto another display during a quick move has not been checked on any host.
 
@@ -122,7 +130,9 @@ lost with a renderer. Add exact native commands only when their probes exist; un
   through the main window's editor. On 2026-10-24 these passed on macOS, `browser-probe` with its 390 px Capture-gap
   check skipped locally (it fails on unchanged main there too).
 - The Windows UI probes open their in-place drafts, the IME barrier, the scope chord and the close test through a quick
-  edit with a synthetic Ctrl double click; they have not been run since that change (2026-10-24).
+  edit with a synthetic Ctrl double click on the paper's title band. Until 2026-10-24 that double click carried no
+  coordinates, so the scene found no paper under it and the main Windows UI probe timed out at "scene inline editor";
+  the adjust-mode checks now also hold Ctrl and aim at the paper.
 - Not verified on any real machine (2026-10-24): the keyboard reaching the editor. The owner asks the host
   (`desktop.focusEditor`) to focus the Top-layer view shortly after a scene sent `card.edit`; macOS makes the panel key
   without bringing the app to the front and gives the keyboard back when the edit closes, Windows activates the scene

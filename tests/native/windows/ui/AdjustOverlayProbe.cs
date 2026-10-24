@@ -117,9 +117,10 @@ internal static class AdjustOverlayProbe
       await Eval(main, "document.querySelector('#operate-all').click()");
       await Wait(scene, "Boolean(document.querySelector('.adjust-tools'))", "toolbar from a minimized main window");
       if (await Geometry() != stacked) throw new Exception("Exiting and reentering changed the stored paper positions.");
-      // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper offers no buttons and a double click opens nothing.
+      // Adjust mode only arranges (SPEC-003, 2026-10-24): an adjusted paper offers no buttons and a double click, even with
+      // Ctrl, opens nothing.
       if (!(await Eval(scene, "document.querySelectorAll('.card-actions button').length===0")).GetBoolean()) throw new Exception("An adjusted paper offers buttons.");
-      await Eval(scene, "document.querySelector('.card').dispatchEvent(new MouseEvent('dblclick',{bubbles:true}))");
+      await Eval(scene, "(()=>{const c=document.querySelector('.card');const t=c?.querySelector('.card-summary')||c;if(!t)return;const r=t.getBoundingClientRect();t.dispatchEvent(new MouseEvent('dblclick',{bubbles:true,ctrlKey:true,clientX:r.x+r.width/2,clientY:r.y+r.height/2}))})()");
       await Task.Delay(150);
       if ((await Eval(scene, "Boolean(document.querySelector('textarea'))")).GetBoolean()) throw new Exception("Adjust mode opened an editor.");
       await Eval(scene, "document.querySelector('.adjust-tools button.primary').click()");

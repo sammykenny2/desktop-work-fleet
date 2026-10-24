@@ -27,7 +27,7 @@ final class FleetBridge implements AutoCloseable {
         Protocol.require(!closed, "native-closed", "The native workspace is closed."); sweep();
         if (method.startsWith("backup.")) return backups.invoke(method, args, this);
         switch (method) {
-            case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "storage", "sqlite-keystore",
+            case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "appVersion", BuildConfig.VERSION_NAME, "distribution", "android", "storage", "sqlite-keystore",
                 "maxChunkBytes", Protocol.CHUNK, "maxMessageBytes", 1024 * 1024, "maxRecordBytes", Protocol.RECORD, "maxAttachmentBytes", Protocol.ATTACHMENT, "maxBackupBytes", Protocol.BACKUP,
                 "capabilities", Protocol.object("nativeStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable(), "languagePreference", true),
                 "language", activity.languageInfo());

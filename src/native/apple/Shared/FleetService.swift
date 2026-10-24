@@ -98,7 +98,7 @@ actor FleetService {
         switch method {
         case "host.info":
             return ["protocol": 1, "platform": platform, "profileId": database.profile, "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
-                "distribution": "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
+                "distribution": platform == "ios" ? "ios" : "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
                 "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
                                  "hostPreferences": shell != nil, "updates": updates, "attachmentFiles": attachmentFiles != nil, "languagePreference": language != nil,

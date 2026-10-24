@@ -126,12 +126,15 @@
         </header>
         <div class="settings-body">
           <section class="settings-page" data-panel="general">
-            <div id="host-settings" hidden>
-              <h4 class="settings-heading" data-i18n="settings.update.heading"></h4>
+            <!-- Every app shows its version; only a desktop host updates itself and has startup settings. -->
+            <div id="version-settings" hidden>
+              <h4 class="settings-heading" id="version-heading" data-i18n="settings.update.heading"></h4>
               <div class="settings-list">
                 <div class="settings-row"><span class="row-text"><span class="row-label" id="app-version"></span><span class="row-value" id="app-distribution"></span></span></div>
                 <div class="settings-row" id="update-row"><span class="row-text"><span class="row-label" id="update-status"></span><span class="row-value" id="update-detail"></span></span><button type="button" id="update-action" hidden></button></div>
               </div>
+            </div>
+            <div id="host-settings" hidden>
               <h4 class="settings-heading" data-i18n="settings.desktop.startup"></h4>
               <div class="settings-list">
                 <div class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.desktop.startLogin.label"></span><span class="row-value" id="start-login-detail"></span></span><span class="row-actions"><button type="button" id="start-login-system" hidden data-i18n="settings.desktop.startLogin.openSystem"></button><input id="start-login" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.startLogin.label"></span></div>

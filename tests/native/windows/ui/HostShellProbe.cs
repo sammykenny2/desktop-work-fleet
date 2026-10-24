@@ -23,7 +23,7 @@ internal static class HostShellProbe
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Program.Wait(window, "document.querySelector('#settings-dialog').open", "settings");
     var version = HostIdentity.BuildVersion();
-    await Program.Wait(window, $"document.querySelector('[data-page=general]').getAttribute('aria-current') === 'page' && document.querySelector('#host-settings').checkVisibility() && document.querySelector('#app-version').textContent === 'Work Fleet {version} (preview)' && document.querySelector('#app-distribution').textContent === 'Development build'", "version shown");
+    await Program.Wait(window, $"document.querySelector('[data-page=general]').getAttribute('aria-current') === 'page' && document.querySelector('#host-settings').checkVisibility() && document.querySelector('#version-heading').textContent === 'Version and updates' && document.querySelector('#update-row').checkVisibility() && document.querySelector('#app-version').textContent === 'Work Fleet {version} (preview)' && document.querySelector('#app-distribution').textContent === 'Development build'", "version shown");
     // Only the MSIX has a StartupTask, so a Debug build explains why the sign-in switches are unavailable.
     await Program.Wait(window, $"document.querySelector('#start-login').disabled && document.querySelector('#start-login-detail').textContent === '{HostText.Format("en", "reason.startupNeedsMsix")}' && document.querySelector('#open-main').disabled", "sign-in switches unavailable outside the MSIX");
     await Program.Wait(window, "!document.querySelector('#close-tray').disabled && document.querySelector('#close-tray').checked", "close keeps Work Fleet in the tray by default");

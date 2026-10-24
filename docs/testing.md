@@ -519,12 +519,19 @@ node scripts/testing/cloud-restore-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/local-backup-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/handheld-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 The browser, group, revision, backup, restore UI, cloud restore UI, local backup UI, automatic backup and scene probes
 open their browser context with `locale: 'en-US'`, so "Auto-detect" resolves to English whatever the machine's
 language. `sync-probe` loads no UI (it opens a stylesheet and imports the modules) and uses the default
 context.
+
+`handheld-probe` needs the Windows core test build: the page at 390 x 844 talks to its stdio bridge over a temporary
+folder, and only `host.info` is changed to say Android (`en-US`) or iOS (`zh-TW`). It checks that the viewport does not
+zoom and that Settings > General starts with "Version", showing the version and the app, with no update row or startup
+settings. It tests the renderer's phone paths, not the iOS or Android hosts; the Windows UI probe checks the desktop
+"Version and updates" heading and update row.
 
 `scene-probe` loads the built desktop scene with an in-page synthetic host (`scene.info`, chunked frames with SHA-256, `scene.applied`),
 sends two frames in a row, and verifies that the title band is not repeated in the body, that checklists show only checkboxes, that papers are square, and that titles and steps update when nodes are reused;

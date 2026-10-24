@@ -46,6 +46,8 @@ android {
         versionCode = 400
         versionName = "0.4.0"
     }
+    // host.info reports versionName, which Settings shows and backups record.
+    buildFeatures { buildConfig = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     sourceSets["main"].assets.srcDir(layout.buildDirectory.dir("generated/notices").get().asFile)
     // CI restores the existing debug key so device updates and Google OAuth keep the same signer.

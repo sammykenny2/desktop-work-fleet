@@ -88,6 +88,8 @@ export default {
   'settings.desktop.distribution.bundle': '免安裝版',
   'settings.desktop.distribution.source': '原始碼執行',
   'settings.desktop.distribution.app': 'macOS App',
+  'settings.desktop.distribution.ios': 'iOS App',
+  'settings.desktop.distribution.android': 'Android App',
   'settings.desktop.resetLayout.title': '重置桌面佈局',
   'settings.desktop.resetLayout.hint': '把便箋放回各自的群組區域，恢復預設大小與顯示方式，並把每個群組移到最後面的層級。',
   'settings.desktop.resetLayout.hintWindow': '把便箋放回各自的群組區域，恢復預設大小與顯示方式，並把每個群組移到最後面的層級。主視窗回到預設大小，並置中於主要螢幕。',
@@ -100,6 +102,7 @@ export default {
 
   // Version and updates (on the Desktop page)
   'settings.update.heading': '版本與更新',
+  'settings.update.versionHeading': '版本',
   'settings.update.title': 'App 內更新',
   'settings.update.msixOnly': '只有安裝版（MSIX）支援 App 內更新。',
   'settings.update.notOffered': '這個平台的 App 內更新尚未提供。',

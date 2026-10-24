@@ -1816,7 +1816,8 @@ function renderDisplaySetting() {
 let hostPreferences = null;
 const distributionName = value => ({ msix: t('settings.desktop.distribution.msix'), zip: t('settings.desktop.distribution.zip'),
   debug: t('settings.desktop.distribution.debug'), deb: t('settings.desktop.distribution.deb'), bundle: t('settings.desktop.distribution.bundle'),
-  source: t('settings.desktop.distribution.source'), app: t('settings.desktop.distribution.app') })[value] || '';
+  source: t('settings.desktop.distribution.source'), app: t('settings.desktop.distribution.app'),
+  ios: t('settings.desktop.distribution.ios'), android: t('settings.desktop.distribution.android') })[value] || '';
 // macOS keeps Work Fleet in the menu bar; Windows and Linux in the tray.
 const menuBar = () => native?.info.platform === 'macos';
 function renderHostSettings() {
@@ -1825,9 +1826,15 @@ function renderHostSettings() {
   const hint = $('#reset-layout-hint'); hint.dataset.i18n = available ? 'settings.desktop.resetLayout.hintWindow' : 'settings.desktop.resetLayout.hint';
   const text = $('#reset-layout-text'); text.dataset.i18n = available ? 'settings.desktop.resetLayout.confirmTextWindow' : 'settings.desktop.resetLayout.confirmText';
   hint.textContent = t(hint.dataset.i18n); text.textContent = t(text.dataset.i18n);
+  // Every app shows its version; the phone apps update from their stores, so they have no update row.
+  const version = native?.info.appVersion; $('#version-settings').hidden = !version; $('#update-row').hidden = !available;
+  const heading = $('#version-heading'); heading.dataset.i18n = available ? 'settings.update.heading' : 'settings.update.versionHeading';
+  heading.textContent = t(heading.dataset.i18n);
+  if (version) {
+    $('#app-version').textContent = t('settings.desktop.version', { version });
+    $('#app-distribution').textContent = distributionName(native.info.distribution);
+  }
   if (!available) return;
-  $('#app-version').textContent = t('settings.desktop.version', { version: native.info.appVersion });
-  $('#app-distribution').textContent = distributionName(native.info.distribution);
   $('#close-tray-label').textContent = menuBar() ? t('settings.desktop.closeToMenuBar') : t('settings.desktop.closeToTray');
   renderHostPreferences(); renderUpdate();
   if (native.info.capabilities.updates) void native.bridge.request('update.state').then(value => { updateState = value; renderUpdate(); }, error => status(error.message, true));

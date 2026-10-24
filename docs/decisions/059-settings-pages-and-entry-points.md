@@ -4,6 +4,10 @@
 
 Accepted, 2026-10-24, at the maintainer's request.
 
+2026-10-24: the maintainer had the phone apps show their version too. On iOS and Android, General starts with
+"Version": the version and the app it runs in, with no update row, since the stores update them. Only the web shows
+Language alone.
+
 ## Context
 
 The account chip at the bottom left of the sidebar and the gear beside it opened the same Settings dialog. The account
@@ -26,8 +30,8 @@ runs came after export and restore.
   - Below the card come two groups. The first is how the app behaves: General, Desktop notes and Shortcuts. The
     second is the notes' data: Data and backup, and Versions and conflicts.
   - The Desktop page is renamed Desktop notes, so it names what it configures rather than the computer.
-- **General**: "Version and updates", then "Startup", then "Language". On the web and phones, which have no host
-  settings, only Language shows.
+- **General**: "Version and updates", then "Startup", then "Language". Phones show "Version" (no update row) and
+  Language; the web, which has no host, shows only Language.
 - **Desktop notes**: the display switches and My group, then Group regions, then "Show desktop notes through XWayland"
   (GNOME Wayland only), then Reset desktop layout last.
 - **Data and backup**: automatic backup, export, restore, then Reset all data last.

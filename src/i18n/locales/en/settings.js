@@ -88,6 +88,8 @@ export default {
   'settings.desktop.distribution.bundle': 'Portable',
   'settings.desktop.distribution.source': 'Running from source',
   'settings.desktop.distribution.app': 'macOS app',
+  'settings.desktop.distribution.ios': 'iOS app',
+  'settings.desktop.distribution.android': 'Android app',
   'settings.desktop.resetLayout.title': 'Reset desktop layout',
   'settings.desktop.resetLayout.hint': 'Puts notes back in their group regions, restores their default size and display, and moves every group to the back layer.',
   'settings.desktop.resetLayout.hintWindow': 'Puts notes back in their group regions, restores their default size and display, and moves every group to the back layer. The main window returns to its default size, centered on the primary screen.',
@@ -100,6 +102,7 @@ export default {
 
   // Version and updates (on the Desktop page)
   'settings.update.heading': 'Version and updates',
+  'settings.update.versionHeading': 'Version',
   'settings.update.title': 'In-app updates',
   'settings.update.msixOnly': 'Only the installed version (MSIX) supports in-app updates.',
   'settings.update.notOffered': "In-app updates aren't available on this platform yet.",

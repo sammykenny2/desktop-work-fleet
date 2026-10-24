@@ -31,8 +31,9 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 
 ## Non-Goals
 
-- Version display and updates on iOS and Android (handled by the stores), and the Microsoft Store and Mac App Store
-  update flows.
+- Updates on iOS and Android (handled by the stores), and the Microsoft Store and Mac App Store update flows. Since
+  2026-10-24 the phone apps report their version in `host.info` and show it on General without an update row
+  ([ADR-059](../decisions/059-settings-pages-and-entry-points.md)).
 - Automatic checks, periodic checks, skipping versions and automatic background installs (see Q01).
 - Remembering the position of desktop scene windows or of several main windows; scenes are recomputed per display, and
   card positions still belong to `layout`.

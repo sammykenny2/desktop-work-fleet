@@ -255,7 +255,8 @@ groups:
 
 - Account and sync (the account card): see [Google sign-in and sync](#google-sign-in-and-sync).
 - General: on the desktop apps, "Version and updates" (see [Updates](#updates)) and "Startup" (see
-  [Startup and the main window](#startup-and-the-main-window)); then "Language", whose "Display language" is
+  [Startup and the main window](#startup-and-the-main-window)); on iOS and Android, "Version", which the app stores
+  update; then "Language", whose "Display language" is
   "Auto-detect", "English" or "Traditional Chinese". Each option is named in the current interface language.
   - "Auto-detect" (the default) follows the language of this device: the app takes the first of the system's
     preferred languages that is English or Traditional Chinese (including Chinese without a region, Hong Kong and

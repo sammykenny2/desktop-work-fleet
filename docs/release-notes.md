@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.4.1
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: On Windows a desktop note now follows a Ctrl-drag to where you drop it, and the phone apps show their version in Settings.
+
+- Windows: holding Ctrl and dragging a note on the Desktop layer moved it a little and then snapped it back. It now follows the pointer, floating above other windows while you drag, and rests on its Desktop layer where you drop it.
+- Windows: when a note leaves or comes back to the Desktop layer (a Ctrl-drag, opening one with a Ctrl double-click, closing it, a new note), the other notes there no longer blink.
+- Known on Windows: the moved or opened note itself may still flicker briefly as it changes layer, during a Ctrl-drag, a Ctrl double-click and Save.
+- iOS and Android: Settings > General now starts with "Version", which shows the app's version; the stores update the phone apps, so there is no update row. Backups made on Android record the app's version instead of 0.1.0.
+- Note, sync and backup formats stay at V1.
+
 ## 0.4.0
 
 Platforms: Windows, Linux, macOS, Android.

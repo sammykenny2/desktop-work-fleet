@@ -55,6 +55,16 @@ internal static class ShellTopologyProbe
     Check(healthy.HasChanged(classic), "replacement Explorer triggers recovery");
     classic.Progman = 1; classic.Nodes[3].Alive = false; classic.Add(11, "WorkerW");
     Check(NativeShellLayers.Discover(classic) == new NativeShellLayers(1, 11, 1), "rediscovery rejects destroyed host and finds replacement");
+
+    // ADR-060: only (13, 1) makes Explorer draw the wallpaper again; nothing is sent without a living wallpaper host.
+    var painted = new Windows();
+    painted.Add(1, "Progman"); painted.Add(2, "SHELLDLL_DefView", parent: 1); painted.Add(3, "WorkerW");
+    var layers = NativeShellLayers.Discover(painted);
+    Check(layers.RepaintWallpaper(painted) && painted.Requests.SequenceEqual(new[] { (13, 1) }), "wallpaper repaint sends (13, 1) to Progman");
+    painted.Requests.Clear(); painted.Nodes[3].Alive = false;
+    Check(!layers.RepaintWallpaper(painted) && painted.Requests.Count == 0, "no wallpaper repaint once the host is gone");
+    Check(!(layers with { Wallpaper = IntPtr.Zero }).RepaintWallpaper(painted) && !new NativeShellLayers(0, 0, 0).RepaintWallpaper(painted)
+      && painted.Requests.Count == 0, "no wallpaper repaint without a wallpaper host or Explorer");
   }
 
   private static void Check(bool condition, string description)

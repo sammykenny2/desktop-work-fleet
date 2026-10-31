@@ -27,6 +27,7 @@ public sealed class DesktopSurface : IDisposable
   private bool inputSuspended;
   private bool dragCaptured;
   private IntPtr shellParent;
+  private Func<bool>? repaintWallpaper;
   private PhysicalBounds? physicalBounds;
   public bool Shown => shown;
   public bool NativeAlive => InputHandle != IntPtr.Zero && VisualHandle != IntPtr.Zero && IsWindow(InputHandle) && IsWindow(VisualHandle);
@@ -158,11 +159,15 @@ public sealed class DesktopSurface : IDisposable
     AlignVisual(); SetRegion(Current()); Order();
   }
 
-  public void SetShellParent(IntPtr parent)
+  /// <param name="repaintWallpaper">
+  /// Given when the parent is Explorer's wallpaper host (ADR-060): that host keeps whatever the scene last drew where
+  /// the scene leaves it, and only Explorer drawing the wallpaper again replaces it.
+  /// </param>
+  public void SetShellParent(IntPtr parent, Func<bool>? repaintWallpaper = null)
   {
     ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
     if (parent != shellParent && shown) Hide();
-    shellParent = parent;
+    shellParent = parent; this.repaintWallpaper = parent == IntPtr.Zero ? null : repaintWallpaper;
   }
 
   private void Attach(IntPtr handle)
@@ -211,8 +216,11 @@ public sealed class DesktopSurface : IDisposable
 
   private void RepaintShellParent()
   {
-    if (shellParent != IntPtr.Zero && IsWindow(shellParent))
-      _ = RedrawWindow(shellParent, IntPtr.Zero, IntPtr.Zero, 0x0001 | 0x0004 | 0x0080);
+    if (shellParent == IntPtr.Zero || !IsWindow(shellParent)) return;
+    // ADR-060: invalidating the wallpaper host leaves the scene's old pixels in place (black ones on 23H2, unseen on a
+    // black wallpaper); Explorer has to draw the wallpaper itself.
+    if (repaintWallpaper is { } repaint) _ = repaint();
+    else _ = RedrawWindow(shellParent, IntPtr.Zero, IntPtr.Zero, 0x0001 | 0x0004 | 0x0080);
   }
 
   public void SetPhysicalBounds(PhysicalBounds bounds)

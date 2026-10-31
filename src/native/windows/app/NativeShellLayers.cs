@@ -11,6 +11,20 @@ public sealed record NativeShellLayers(IntPtr Desktop, IntPtr Wallpaper, IntPtr 
     || Desktop != IntPtr.Zero && !windows.Alive(Desktop)
     || Wallpaper != IntPtr.Zero && !windows.Alive(Wallpaper);
 
+  /// <summary>
+  /// ADR-060: where a scene leaves the wallpaper host, Explorer keeps the scene's last pixels and invalidation does not
+  /// replace them. This request, one of those that create the host, makes Explorer draw the wallpaper again. False when
+  /// there is no living wallpaper host, so nothing is sent.
+  /// </summary>
+  public bool RepaintWallpaper() => RepaintWallpaper(NativeWindows.Instance);
+
+  internal bool RepaintWallpaper(IShellWindows windows)
+  {
+    if (Shell == IntPtr.Zero || Wallpaper == IntPtr.Zero || !windows.Alive(Wallpaper)) return false;
+    windows.RequestWallpaper(Shell, 13, 1);
+    return true;
+  }
+
   public static NativeShellLayers Discover() => Discover(NativeWindows.Instance);
 
   internal static NativeShellLayers Discover(IShellWindows windows)

@@ -5,6 +5,9 @@
 Accepted, 2026-10-09; revised the same day after testing resumed. The isolated regression tests pass; the user's original
 ghosting has not been reproduced yet.
 Supplements [ADR-017](017-windows-composition-surface-and-input.md) and [ADR-030](030-windows-explorer-wallpaper-layer.md).
+2026-10-31: [ADR-060](060-explorer-redraws-the-wallpaper-a-scene-leaves.md) found the wallpaper-layer cause. The wallpaper
+host keeps the scene's old pixels and the redraw below does not replace them; the transparent host made those pixels
+black, which a black wallpaper hides. Wallpaper scenes now ask Explorer to redraw the wallpaper.
 
 ## Context
 

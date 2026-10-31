@@ -18,6 +18,9 @@
   <ItemGroup Condition="'$(SelfContained)' == 'true'">
     <FrameworkReference Update="Microsoft.NETCore.App" RuntimeFrameworkVersion="$(WindowsRuntimeVersion)" />
     <FrameworkReference Update="Microsoft.WindowsDesktop.App.WPF" RuntimeFrameworkVersion="$(WindowsRuntimeVersion)" />
+    <!-- SDK 10.0.403 sizes the shared Desktop runtime pack from the profile-less Microsoft.WindowsDesktop.App and ignores
+         the WPF reference's version (10.0.402 honoured it), which bundled a 10.0.14 pack under a 10.0.13 runtimeconfig. -->
+    <KnownFrameworkReference Update="Microsoft.WindowsDesktop.App" LatestRuntimeFrameworkVersion="$(WindowsRuntimeVersion)" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="WorkFleet.Windows.Ui.Tests" />

@@ -94,6 +94,9 @@ Windows packaging is self-contained `win-x64` by default: the MSIX and the ZIP b
 so the receiving computer does not need to install .NET.
 The self-contained runtime patch is pinned to `10.0.13` (`WindowsRuntimeVersion` in `Directory.Build.props`), matching
 the Desktop licences and notices kept with it; when updating it, check the runtime source and licences as well.
+The app csproj pins it on the Core and WPF framework references and, because SDK 10.0.403 takes the Desktop runtime pack
+version from the profile-less `Microsoft.WindowsDesktop.App` instead, on that known framework reference too; without it
+the package step stops when the 10.0.14 pack's notices are missing for the 10.0.13 runtimeconfig.
 [ADR-050](decisions/050-windows-wpf-display-loss-runtime.md) adopts the WPF display-loss fix; three local reboots did not
 crash again, and early removal of the primary display and other OS versions are still to be compared.
 WebView2 still uses the system Evergreen Runtime. The package is larger, and an update of the bundled .NET requires

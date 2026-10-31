@@ -19,10 +19,12 @@ content with `PrintWindow(PW_RENDERFULLCONTENT)`, first for a Cats Bot note and 
   destroyed. It does not draw the wallpaper there again by itself, and `RedrawWindow` with
   `RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN` (also with `RDW_UPDATENOW | RDW_FRAME`) on the wallpaper host, the
   icons host, its list view or Progman does not replace it. The icons host has no such problem.
-- This app's attached scene leaves black there: its WPF host is transparent, which a non-layered child draws as black
-  (before ADR-035 the host was white, hence the reported white blocks). A black remnant on a black wallpaper looks
-  like the wallpaper, so the blocks seemed gone and the screen-pixel probes, which require a black background, passed.
-  On any other wallpaper the old paper positions show black.
+- This app's attached scene leaves black there: its WPF host is transparent, which a non-layered child draws as black.
+  A black remnant on a black wallpaper looks like the wallpaper, and the screen-pixel probes, which require a black
+  background, passed. On any other wallpaper the old paper positions show black.
+- Before ADR-035 the host was white, so the same remnant would have been white. That is consistent with the reported
+  white blocks and with their seeming gone afterwards, but it is an inference: the earlier build was not measured and
+  ADR-035 does not record which layer the blocks were on.
 - Explorer's private 0x052C message to Progman, already sent in bounded attempts to create the wallpaper host:
   (13, 0) and (0, 0) change nothing; (13, 1) makes Explorer draw the wallpaper again in about 40 ms, keeps the same
   host windows and does not cover children still attached.

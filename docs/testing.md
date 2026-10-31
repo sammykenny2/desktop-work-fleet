@@ -763,6 +763,11 @@ real WebView pixels, the native empty input region, physical bounds, repeated at
 The browser preview checks the paper content; the desktop crop where the test note sits is also captured, so that the old positions outside the new paper can be checked.
 It does not restart Explorer or inject keyboard or mouse input.
 A real-screen pixel FAIL fails the probe; external occlusion is still reported as SKIP, floating surfaces are judged by own HWNDs, and own windows are not treated as external occlusion.
+Its last step reads the wallpaper host itself with `PrintWindow` ([ADR-060](decisions/060-explorer-redraws-the-wallpaper-a-scene-leaves.md)), so occlusion and the wallpaper colour do not matter:
+it marks the host around the test spot with a magenta sentinel, which the host loses only by drawing the wallpaper, shows two papers, drops one and then hides the scene,
+and fails when an old position differs from the host beside it, saving `wallpaper-host-<step>.png`. It always ends by asking Explorer to redraw the wallpaper.
+Before ADR-060 it failed on Windows 11 23H2 (build 22631) with black where the dropped paper was; the screen checks above passed there because the wallpaper is black.
+It reports SKIP when the host does not keep the sentinel. The modern shell (24H2 and later) and picture wallpapers are unverified.
 Floating papers use a separate composition surface, as the coordinator does; the same windowed child is not turned into a popup.
 The foreground check observes the whole run with [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook),
 including momentary activation of the own WPF window and that WebView's browser; receiving one fails the check. When an external program switches the foreground on its own,

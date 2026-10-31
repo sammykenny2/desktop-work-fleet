@@ -46,7 +46,9 @@ internal static class WallpaperProbe
     // Same kind of surface the app attaches to Explorer: opaque, showing only its papers.
     using var surface = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
     var foreground = GetForegroundWindow();
-    surface.SetShellParent(shell.Wallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds);
+    // As DesktopCoordinator attaches a wallpaper scene (ADR-060).
+    Func<bool> repaintWallpaper = () => shell.RepaintWallpaper();
+    surface.SetShellParent(shell.Wallpaper, repaintWallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds);
     surface.SetInput([new(20, 20, 160, 100, false)]);
     var input = new WindowInteropHelper(surface.InputWindow).Handle;
     var visual = new WindowInteropHelper(surface.VisualWindow).Handle;
@@ -132,7 +134,7 @@ internal static class WallpaperProbe
     surface.Hide(); floatingSurface.SetInput([new(20, 20, 160, 100, true)]); floatingSurface.Show(true); floatingSurface.PassBrowserClicksThrough();
     screen.Add(await Screen("floating"));
     focus.Phase = "composition floating to wallpaper";
-    floatingSurface.Hide(); surface.SetShellParent(shell.Wallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("wallpaper again"));
+    floatingSurface.Hide(); surface.SetShellParent(shell.Wallpaper, repaintWallpaper); surface.Show(false); surface.SetPhysicalBounds(bounds); screen.Add(await Screen("wallpaper again"));
     foreach (var line in screen) Console.WriteLine(line);
     if (screen.Any(line => line.StartsWith("FAIL ")))
       throw new Exception("An Explorer-attached scene failed the real screen pixel check.");
@@ -142,7 +144,7 @@ internal static class WallpaperProbe
     if ((GetWindowLongPtrW(floatingInput, -16).ToInt64() & 0x40000000) != 0 || (GetWindowLongPtrW(floatingInput, -20).ToInt64() & 8) == 0)
       throw new Exception("Floating composition scene is not a top-level topmost window.");
     floatingSurface.Hide();
-    surface.Hide(); surface.SetShellParent(shell.Wallpaper); surface.Show(false); Parent(shell.Wallpaper);
+    surface.Hide(); surface.SetShellParent(shell.Wallpaper, repaintWallpaper); surface.Show(false); Parent(shell.Wallpaper);
     surface.Hide(); surface.SetShellParent(shell.Desktop); surface.Show(false); Parent(shell.Desktop);
     surface.Hide(); surface.Show(false); Parent(shell.Desktop);
     await Task.Delay(100);
@@ -172,7 +174,7 @@ internal static class WallpaperProbe
       foreach (var layer in new[] { (Name: "wallpaper", Parent: shell.Wallpaper), (Name: "desktop", Parent: shell.Desktop) })
       {
         var previous = targets[0];
-        surface.SetShellParent(layer.Parent);
+        surface.SetShellParent(layer.Parent, layer.Parent == shell.Wallpaper ? repaintWallpaper : null);
         await surface.WebView.ExecuteScriptAsync(FormattableString.Invariant($"Object.assign(document.getElementById('paper').style,{{left:'{offsetX + 20}px',top:'{offsetY + 20}px',height:'100px'}})"));
         surface.SetInput([new(offsetX + 20, offsetY + 20, 160, 100, false)]); surface.Show(false); await Task.Delay(800);
         NativeScreenCapture.Save(bounds, Path.Combine(directory, $"{layer.Name}-adjusted.png"));
@@ -211,7 +213,99 @@ internal static class WallpaperProbe
       Console.WriteLine("PASS hiding an Explorer-attached paper restores the original desktop pixel");
     }
     else Console.WriteLine("SKIP desktop pixel restoration: an application window covers the test spot");
+    focus.Phase = "wallpaper host remnants";
+    await WallpaperHostRemnants(shell, bounds, scale, environment, directory);
     focus.Check();
+  }
+
+  /// <summary>
+  /// ADR-060: Explorer does not draw the wallpaper again where an attached scene leaves its wallpaper host, so what the
+  /// scene last drew there stays. A black wallpaper hides a black remnant and the screen check above cannot see it, so
+  /// the host's own pixels are read and first marked with a sentinel colour the host loses only by drawing the wallpaper
+  /// itself. Where a paper was, the host must then show what it shows just beside it. No application covering the spot
+  /// matters: the host is read with PrintWindow.
+  /// </summary>
+  private static async Task WallpaperHostRemnants(NativeShellLayers shell, PhysicalBounds bounds, double scale,
+    CoreWebView2Environment environment, string directory)
+  {
+    if (!GetWindowRect(shell.Wallpaper, out var host)) throw new Exception("No wallpaper host to read.");
+    var hostBounds = new PhysicalBounds(0, 0, host.Right - host.Left, host.Bottom - host.Top);
+    (int R, int G, int B) HostPixel(byte[] pixels, double x, double y)
+    {
+      var index = (((bounds.Y + (int)(y * scale)) - host.Top) * hostBounds.Width + (bounds.X + (int)(x * scale)) - host.Left) * 4;
+      return (pixels[index + 2], pixels[index + 1], pixels[index]);
+    }
+    static bool Near((int R, int G, int B) a, (int R, int G, int B) b) =>
+      Math.Abs(a.R - b.R) < 24 && Math.Abs(a.G - b.G) < 24 && Math.Abs(a.B - b.B) < 24;
+    var sentinel = (R: 0xff, G: 0x00, B: 0xff);
+    void Mark()
+    {
+      var origin = new NativePoint { X = bounds.X, Y = bounds.Y };
+      if (!ScreenToClient(shell.Wallpaper, ref origin)) throw new Exception("Unable to map the wallpaper host.");
+      var dc = GetDC(shell.Wallpaper); var brush = CreateSolidBrush(0x00ff00ff);
+      try
+      {
+        // The host clips its children, so only the wallpaper outside the scene's papers is marked.
+        var rect = new NativeRect { Left = origin.X, Top = origin.Y, Right = origin.X + bounds.Width, Bottom = origin.Y + bounds.Height };
+        if (dc == IntPtr.Zero || brush == IntPtr.Zero || FillRect(dc, ref rect, brush) == 0) throw new Exception("Unable to mark the wallpaper host.");
+      }
+      finally { if (brush != IntPtr.Zero) DeleteObject(brush); if (dc != IntPtr.Zero) ReleaseDC(shell.Wallpaper, dc); }
+    }
+    // Beside both papers, inside the scene and the mark.
+    var beside = (X: 100.0, Y: 200.0);
+    var papers = new[] { (X: 20.0, Y: 20.0), (X: 200.0, Y: 20.0) };
+    try
+    {
+      Mark(); await Task.Delay(200);
+      if (!Near(HostPixel(NativeScreenCapture.Read(hostBounds, shell.Wallpaper), beside.X, beside.Y), sentinel))
+      {
+        Console.WriteLine("SKIP wallpaper host remnants: the host does not keep pixels drawn into it, so no remnant can stay");
+        return;
+      }
+      using var scene = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
+      // As DesktopCoordinator attaches a wallpaper scene.
+      scene.SetShellParent(shell.Wallpaper, () => shell.RepaintWallpaper()); scene.Show(false); scene.SetPhysicalBounds(bounds);
+      await scene.WebView.EnsureCoreWebView2Async(environment);
+      var loaded = new TaskCompletionSource();
+      scene.WebView.CoreWebView2.NavigationCompleted += (_, e) =>
+      { if (e.IsSuccess) loaded.TrySetResult(); else loaded.TrySetException(new Exception("Remnant WebView navigation failed.")); };
+      scene.WebView.CoreWebView2.NavigateToString("""
+        <!doctype html><html><head><style>html,body{margin:0;background:transparent;overflow:hidden}
+        article{position:absolute;top:20px;width:160px;height:100px;background:#e050a0}
+        </style></head><body><article style="left:20px"></article><article style="left:200px"></article></body></html>
+        """);
+      await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
+      scene.SetInput(papers.Select(p => new SceneHitRect(p.X, p.Y, 160, 100, false)));
+      var until = DateTime.UtcNow.AddSeconds(10); var painted = false;
+      while (!painted && DateTime.UtcNow < until)
+      {
+        await Task.Delay(200);
+        var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
+        painted = papers.All(p => Near(HostPixel(pixels, p.X + 80, p.Y + 50), (0xe0, 0x50, 0xa0)));
+      }
+      if (!painted) throw new Exception("The remnant scene's papers never showed on the wallpaper host.");
+      void Expect(string step, (double X, double Y) paper)
+      {
+        var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
+        var old = HostPixel(pixels, paper.X + 80, paper.Y + 50); var next = HostPixel(pixels, beside.X, beside.Y);
+        if (!Near(old, next))
+        {
+          NativeScreenCapture.Save(hostBounds, Path.Combine(directory, $"wallpaper-host-{step}.png"), shell.Wallpaper);
+          throw new Exception($"The wallpaper host kept a scene remnant after {step}: rgb{old} where the paper was, rgb{next} beside it");
+        }
+      }
+      // A dropped paper (SetInput's uncovered path), then the whole scene (Hide), each against a fresh mark.
+      Mark(); scene.SetInput([new SceneHitRect(papers[0].X, papers[0].Y, 160, 100, false)]); await Task.Delay(800);
+      Expect("dropping a paper", papers[1]);
+      Mark(); scene.Hide(); await Task.Delay(800);
+      Expect("hiding the scene", papers[0]);
+      Console.WriteLine("PASS the wallpaper host shows no scene remnant after a paper is dropped or the scene is hidden");
+    }
+    finally
+    {
+      // Never leave the sentinel or a remnant on the owner's wallpaper.
+      shell.RepaintWallpaper();
+    }
   }
   private static bool ShellAt(int x, int y, NativeShellLayers shell)
   {
@@ -225,6 +319,9 @@ internal static class WallpaperProbe
     finally { ReleaseDC(IntPtr.Zero, dc); }
   }
   [StructLayout(LayoutKind.Sequential)] private struct NativePoint { public int X, Y; }
+  [DllImport("user32.dll")] private static extern bool ScreenToClient(IntPtr window, ref NativePoint point);
+  [DllImport("user32.dll")] private static extern int FillRect(IntPtr dc, ref NativeRect rect, IntPtr brush);
+  [DllImport("gdi32.dll")] private static extern IntPtr CreateSolidBrush(uint color);
   [DllImport("user32.dll")] private static extern IntPtr WindowFromPoint(NativePoint point);
   [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr window);
   [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr window, IntPtr dc);

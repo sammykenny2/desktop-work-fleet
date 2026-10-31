@@ -1,9 +1,10 @@
 # Decision index
 
-Updated: 2026-10-24.
+Updated: 2026-10-31.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-060](060-explorer-redraws-the-wallpaper-a-scene-leaves.md) | Accepted (wallpaper remnants, 2026-10-31) | The wallpaper host keeps a scene's old pixels and ignores invalidation; wallpaper scenes ask Explorer to redraw with 0x052C (13, 1); a host-pixel probe catches black remnants on black wallpapers |
 | [ADR-059](059-settings-pages-and-entry-points.md) | Accepted (settings layout, 2026-10-24) | The account chip opens Account and sync, the gear General; Settings pages in two groups under an account card |
 | [ADR-058](058-desktop-presentation-lifecycle-and-core-isolation.md) | Proposed | Nonvisual resident core, disposable graphical clients, continuous presentation readiness/recovery and permanent removal of whole-app crash reopen |
 | [ADR-057](057-local-ios-builds-and-device-privacy.md) | Accepted (local iOS builds, 2026-10-20) | iOS builds and device signing stay on the maintainer's Mac; no iOS packages in public Actions artifacts or Releases |
@@ -45,7 +46,7 @@ Updated: 2026-10-24.
 | [ADR-032](032-windows-debug-webview-inspection.md) | Accepted (Windows Debug inspection) | DevTools only in Debug, opt-in loopback CDP and Release packaging guards; the data-sharing requirement is superseded by ADR-037 |
 | [ADR-033](033-apple-local-script-bundles.md) | Accepted (Apple packaging) | Local classic script bundles, keeping CSP/bridge, and a separate development-signed launch test |
 | [ADR-034](034-windows-11-compatibility-and-install-floor.md) | Accepted (Windows support range) | Early Windows 11 / 23H2 / 24H2+, MSIX target floor 22000, 23H2 tested on a real device and Store deferred; current status in PROGRESS.md |
-| [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted (attached scene fix direction) | Reports of white blocks on move/stack/spread; clipped hosts, no pixel copying and withdrawn old regions (the no-backing-bitmap style was withdrawn); effect untested |
+| [ADR-035](035-windows-attached-scene-background-lifecycle.md) | Accepted (attached scene fix direction) | Reports of white blocks on move/stack/spread; clipped hosts, no pixel copying and withdrawn old regions (the no-backing-bitmap style was withdrawn); a measured wallpaper-layer remnant and its fix are in ADR-060 |
 | [ADR-036](036-windows-self-contained-packaging.md) | Accepted (Windows packaged runtime) | Self-contained Desktop/win-x64 by default, version updated by ADR-050, runtime notices and package checks; WebView2 still depends on the system |
 | [ADR-037](037-msix-data-lifetime-and-google-backup-overwrite.md) | Accepted (data lifetime and overwrite) | MSIX uninstall removes local data; complete backups, safety backups and a resumable full Google overwrite |
 | [ADR-047](047-linux-local-key-without-keyring-prompts.md) | Accepted (local note key) | 0600 local key, migrated after verifying old data; the credential and backup password policy is superseded by ADR-048 |

@@ -251,7 +251,7 @@ public sealed class DesktopCoordinator : IDisposable
         view.Viewport = new(view.Display.Bounds.X / unit, view.Display.Bounds.Y / unit, view.Display.Bounds.Width / unit, view.Display.Bounds.Height / unit);
         if (view.Initialized)
         {
-          view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
+          SetShellParent(view);
           view.Surface.Show(view.Layer == "floating"); view.Surface.Hide();
           view.Surface.SetPhysicalBounds(view.Display.Bounds);
           if (view.Surface.WebView.CoreWebView2 is not null) view.Surface.WebView.ZoomFactor = BrowserZoom(unit, view.Surface);
@@ -419,10 +419,14 @@ public sealed class DesktopCoordinator : IDisposable
   {
     if (holding && started && !disposed && !Held()) _ = Start();
   }
+  private void SetShellParent(SceneView view) => view.Surface.SetShellParent(
+    view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero,
+    view.Layer == "wallpaper" ? () => shell.RepaintWallpaper() : null);
+
   private async Task Initialize(SceneView view)
   {
     view.Initialized = true;
-    view.Surface.SetShellParent(view.Layer == "wallpaper" ? shell.Wallpaper : view.Layer == "desktop" ? shell.Desktop : IntPtr.Zero);
+    SetShellParent(view);
     await view.Surface.Start(view.Layer == "floating", view.Display.Bounds, environment);
     if (disposed || view.Retired) return;
     var core = view.Surface.WebView.CoreWebView2; view.Surface.PassBrowserClicksThrough();

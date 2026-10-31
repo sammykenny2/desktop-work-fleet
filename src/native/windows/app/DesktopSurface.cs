@@ -28,6 +28,7 @@ public sealed class DesktopSurface : IDisposable
   private bool dragCaptured;
   private IntPtr shellParent;
   private Func<bool>? repaintWallpaper;
+  private bool repaintPending;
   private PhysicalBounds? physicalBounds;
   public bool Shown => shown;
   public bool NativeAlive => InputHandle != IntPtr.Zero && VisualHandle != IntPtr.Zero && IsWindow(InputHandle) && IsWindow(VisualHandle);
@@ -167,6 +168,8 @@ public sealed class DesktopSurface : IDisposable
   {
     ObjectDisposedException.ThrowIf(disposed, this); InputWindow.Dispatcher.VerifyAccess();
     if (parent != shellParent && shown) Hide();
+    // A repaint still waiting goes to the host it was meant for.
+    if (parent != shellParent && repaintPending) RepaintShellParent();
     shellParent = parent; this.repaintWallpaper = parent == IntPtr.Zero ? null : repaintWallpaper;
   }
 
@@ -201,7 +204,9 @@ public sealed class DesktopSurface : IDisposable
     InputWindow.Dispatcher.VerifyAccess(); if (disposed) return;
     ReleaseDragCapture();
     var wasShown = shown;
-    shown = false; if (!NativeAlive) return;
+    shown = false;
+    // Windows that died while shown (with a host that lives on) still uncovered it.
+    if (!NativeAlive) { if (wasShown) RepaintShellParent(); return; }
     // Keep the old region while hiding so User32 can uncover its actual footprint, not an already empty one.
     InputWindow.Hide(); VisualWindow.Hide();
     if (wasShown) RepaintShellParent();
@@ -216,11 +221,25 @@ public sealed class DesktopSurface : IDisposable
 
   private void RepaintShellParent()
   {
+    repaintPending = false;
     if (shellParent == IntPtr.Zero || !IsWindow(shellParent)) return;
     // ADR-060: invalidating the wallpaper host leaves the scene's old pixels in place (black ones on 23H2, unseen on a
     // black wallpaper); Explorer has to draw the wallpaper itself.
     if (repaintWallpaper is { } repaint) _ = repaint();
     else _ = RedrawWindow(shellParent, IntPtr.Zero, IntPtr.Zero, 0x0001 | 0x0004 | 0x0080);
+  }
+
+  /// <summary>
+  /// A dropped paper's wallpaper repaint waits for the rest of the dispatcher operation: `scene.applied` sets the input
+  /// and then hides the scene whose last paper left, and that Hide, sending its own repaint at once, covers both. Each
+  /// repaint blocks the dispatcher for about 40 ms. The desktop layer's redraw stays immediate (ADR-035).
+  /// </summary>
+  private void RepaintShellParentSoon()
+  {
+    if (repaintWallpaper is null) { RepaintShellParent(); return; }
+    if (repaintPending) return;
+    repaintPending = true;
+    InputWindow.Dispatcher.BeginInvoke(new Action(() => { if (repaintPending) RepaintShellParent(); }));
   }
 
   public void SetPhysicalBounds(PhysicalBounds bounds)
@@ -266,7 +285,7 @@ public sealed class DesktopSurface : IDisposable
     // A shown attached scene that drops a paper uncovers it for Explorer to draw again, as hiding does.
     var uncovered = !layered && shown && rectangles.Except(next).Any();
     rectangles = next; inputSuspended = false;
-    if (uncovered) RepaintShellParent();
+    if (uncovered) RepaintShellParentSoon();
   }
 
   public void SuspendInput()
@@ -305,7 +324,13 @@ public sealed class DesktopSurface : IDisposable
         mirror = IntPtr.Zero;
       }
     }
-    catch { InputWindow.Hide(); VisualWindow.Hide(); shown = false; throw; }
+    catch
+    {
+      // Hidden by the failure, so whatever the shown scene covered is uncovered as by Hide.
+      var wasShown = shown; InputWindow.Hide(); VisualWindow.Hide(); shown = false;
+      if (wasShown) RepaintShellParent();
+      throw;
+    }
     finally { result?.Dispose(); if (mirror != IntPtr.Zero) DeleteObject(mirror); }
   }
 
@@ -478,9 +503,9 @@ public sealed class DesktopSurface : IDisposable
 
   public void Dispose()
   {
+    // Hide repaints whatever a shown scene uncovers; closing hidden windows uncovers nothing more.
     if (disposed) return; InputWindow.Dispatcher.VerifyAccess(); Hide(); disposed = true;
     VisualWindow.Content = null; VisualWindow.Close(); InputWindow.Close(); ((IDisposable)WebView).Dispose();
-    RepaintShellParent();
   }
 
   [StructLayout(LayoutKind.Sequential)] private struct NativeRect { public int Left, Top, Right, Bottom; }

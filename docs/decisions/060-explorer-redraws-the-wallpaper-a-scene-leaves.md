@@ -33,29 +33,39 @@ content with `PrintWindow(PW_RENDERFULLCONTENT)`, first for a Cats Bot note and 
 
 - `NativeShellLayers.RepaintWallpaper` sends 0x052C (13, 1) to Progman, only while a wallpaper host is known and
   alive, with the same bounded `SendMessageTimeout` (abort if hung, 250 ms) as host discovery.
-- `DesktopSurface.SetShellParent` takes the repaint for the wallpaper host; where the scene uncovers its parent (hide,
-  a dropped or moved paper, dispose), a wallpaper scene asks Explorer to repaint instead of invalidating the host. The
-  desktop layer keeps the `RedrawWindow` of ADR-035, and ADR-035's clipping, pixel-copy and hide ordering stay.
+- `DesktopSurface.SetShellParent` takes the repaint for the wallpaper host; where a shown scene uncovers its parent (a
+  hide, including one by dispose, by a failed region change or of windows that died, and a dropped or moved paper), a
+  wallpaper scene asks Explorer to repaint instead of invalidating the host. A dropped paper's repaint waits for the
+  end of the dispatcher operation, so `scene.applied` dropping the last paper and hiding the scene sends one;
+  disposing a hidden scene sends none. The desktop layer keeps the immediate `RedrawWindow` of ADR-035, and ADR-035's
+  clipping, pixel-copy and hide ordering stay.
 - `DesktopCoordinator` passes the repaint for wallpaper views only, so a machine whose scenes never use the wallpaper
   layer never sends the message.
-- `--wallpaper` gains a remnant check that reads the wallpaper host itself: it marks the host around the test spot
-  with a sentinel colour the host loses only by drawing the wallpaper, shows two papers, drops one and hides the
-  scene, and requires each old position to match the host beside it. It does not depend on the wallpaper colour or
-  on windows covering the spot, and always ends with a repaint so no mark stays.
+- `--wallpaper` gains a remnant check that reads the wallpaper host itself. It reads the wallpaper as Explorer draws
+  it, marks the host around the test spot with a sentinel colour the host loses only by drawing the wallpaper, shows
+  two papers, drops one (the other must stay drawn), hides the scene, shows it again, drops the last paper and hides it
+  in one operation, and disposes it. After each step the old positions and the spot beside the papers must show the
+  wallpaper as first read, and the scene must have asked for exactly one repaint. Every step is checked and every
+  failure reported. It does not depend on a solid
+  wallpaper or on windows covering the spot, fails when the mark covers a shown paper (a host that does not clip its
+  children) or when the layout, scaled with the display, does not fit the scene, and always ends with a repaint so no
+  mark stays.
 
 ## Consequences
 
 ### Positive
 
 - Old paper positions on the wallpaper layer show the wallpaper on any wallpaper, measured on the build where
-  ADR-035's report came from, and the probe fails without the fix (black where the dropped paper was, the sentinel
-  beside it).
+  ADR-035's report came from. The probe fails at every step without the repaint (the sentinel stays beside the papers),
+  at the hide without Hide's own repaint, and on the repaint count when a dropped paper and the hide each send one or a
+  hidden scene's dispose sends one.
 
 ### Negative
 
-- It relies on undocumented Explorer behaviour measured on one build. The modern shell (24H2 and later, wallpaper
-  `WorkerW` under Progman), picture and slideshow wallpapers (a visible redraw is possible) and multiple monitors are
-  unverified.
+- It relies on undocumented Explorer behaviour measured on one build, at 100% scaling with a solid black wallpaper.
+  The modern shell (24H2 and later, wallpaper `WorkerW` under Progman), picture wallpapers (a visible redraw is
+  possible), slideshows (which can change during the probe and fail it) and multiple monitors are unverified; the
+  probe's layout is checked only arithmetically above 100%.
 - A hung Explorer makes the request time out, and that remnant stays until the next one.
 - Each repaint blocks the WPF dispatcher for about 40 ms.
 

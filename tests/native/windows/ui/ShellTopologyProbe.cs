@@ -103,7 +103,7 @@ internal static class ShellTopologyProbe
     public bool Alive(IntPtr window) => Nodes.TryGetValue(window, out var node) && node.Alive;
     public void RequestWallpaper(IntPtr shell, int wParam, int lParam)
     {
-      Check(shell == Progman, "creation request targets Progman");
+      Check(shell == Progman, "every 0x052C request, creation or repaint, targets Progman");
       Requests.Add((wParam, lParam)); OnRequest?.Invoke();
     }
   }

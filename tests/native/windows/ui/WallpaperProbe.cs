@@ -221,23 +221,30 @@ internal static class WallpaperProbe
   /// <summary>
   /// ADR-060: Explorer does not draw the wallpaper again where an attached scene leaves its wallpaper host, so what the
   /// scene last drew there stays. A black wallpaper hides a black remnant and the screen check above cannot see it, so
-  /// the host's own pixels are read and first marked with a sentinel colour the host loses only by drawing the wallpaper
-  /// itself. Where a paper was, the host must then show what it shows just beside it. No application covering the spot
-  /// matters: the host is read with PrintWindow.
+  /// the host's own pixels are read with PrintWindow, which no covering application changes. The wallpaper is first read
+  /// as Explorer draws it, then the host is marked with a sentinel colour it loses only by drawing the wallpaper itself.
+  /// After each step every old paper position and the spot beside the papers must show the wallpaper as first read, so a
+  /// picture wallpaper passes and a remnant fails whatever its colour. Each step is checked, and every failure reported.
   /// </summary>
   private static async Task WallpaperHostRemnants(NativeShellLayers shell, PhysicalBounds bounds, double scale,
     CoreWebView2Environment environment, string directory)
   {
     if (!GetWindowRect(shell.Wallpaper, out var host)) throw new Exception("No wallpaper host to read.");
     var hostBounds = new PhysicalBounds(0, 0, host.Right - host.Left, host.Bottom - host.Top);
-    (int R, int G, int B) HostPixel(byte[] pixels, double x, double y)
+    foreach (var check in new[] { 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 3.0 })
+      RemnantSpots(bounds, check);
+    Console.WriteLine("PASS the wallpaper remnant layout fits the 480x300 test scene at 100% to 300% scaling");
+    var (papers, beside) = RemnantLayout(bounds.Width / scale, bounds.Height / scale);
+    var centres = papers.Select(p => (X: p.X + p.Width / 2, Y: p.Y + p.Height / 2)).ToArray();
+    RemnantSpots(bounds, scale);
+    (int R, int G, int B) HostPixel(byte[] pixels, (double X, double Y) spot)
     {
-      var index = (((bounds.Y + (int)(y * scale)) - host.Top) * hostBounds.Width + (bounds.X + (int)(x * scale)) - host.Left) * 4;
+      var index = (((bounds.Y + (int)(spot.Y * scale)) - host.Top) * hostBounds.Width + (bounds.X + (int)(spot.X * scale)) - host.Left) * 4;
       return (pixels[index + 2], pixels[index + 1], pixels[index]);
     }
     static bool Near((int R, int G, int B) a, (int R, int G, int B) b) =>
       Math.Abs(a.R - b.R) < 24 && Math.Abs(a.G - b.G) < 24 && Math.Abs(a.B - b.B) < 24;
-    var sentinel = (R: 0xff, G: 0x00, B: 0xff);
+    var sentinel = (R: 0xff, G: 0x00, B: 0xff); var paper = (R: 0xe0, G: 0x50, B: 0xa0);
     void Mark()
     {
       var origin = new NativePoint { X = bounds.X, Y = bounds.Y };
@@ -245,67 +252,138 @@ internal static class WallpaperProbe
       var dc = GetDC(shell.Wallpaper); var brush = CreateSolidBrush(0x00ff00ff);
       try
       {
-        // The host clips its children, so only the wallpaper outside the scene's papers is marked.
         var rect = new NativeRect { Left = origin.X, Top = origin.Y, Right = origin.X + bounds.Width, Bottom = origin.Y + bounds.Height };
         if (dc == IntPtr.Zero || brush == IntPtr.Zero || FillRect(dc, ref rect, brush) == 0) throw new Exception("Unable to mark the wallpaper host.");
       }
       finally { if (brush != IntPtr.Zero) DeleteObject(brush); if (dc != IntPtr.Zero) ReleaseDC(shell.Wallpaper, dc); }
     }
-    // Beside both papers, inside the scene and the mark.
-    var beside = (X: 100.0, Y: 200.0);
-    var papers = new[] { (X: 20.0, Y: 20.0), (X: 200.0, Y: 20.0) };
+    var failures = new List<string>();
     try
     {
-      Mark(); await Task.Delay(200);
-      if (!Near(HostPixel(NativeScreenCapture.Read(hostBounds, shell.Wallpaper), beside.X, beside.Y), sentinel))
+      shell.RepaintWallpaper(); await Task.Delay(300);
+      var clean = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
+      var wallpaper = centres.Append(beside).ToDictionary(spot => spot, spot => HostPixel(clean, spot));
+      if (wallpaper.Values.Any(pixel => Near(pixel, sentinel) || Near(pixel, paper)))
       {
-        Console.WriteLine("SKIP wallpaper host remnants: the host does not keep pixels drawn into it, so no remnant can stay");
+        Console.WriteLine("SKIP wallpaper host remnants: the wallpaper at the test spots is too close to the sentinel or paper colour");
         return;
       }
-      using var scene = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
-      // As DesktopCoordinator attaches a wallpaper scene.
-      scene.SetShellParent(shell.Wallpaper, () => shell.RepaintWallpaper()); scene.Show(false); scene.SetPhysicalBounds(bounds);
-      await scene.WebView.EnsureCoreWebView2Async(environment);
-      var loaded = new TaskCompletionSource();
-      scene.WebView.CoreWebView2.NavigationCompleted += (_, e) =>
-      { if (e.IsSuccess) loaded.TrySetResult(); else loaded.TrySetException(new Exception("Remnant WebView navigation failed.")); };
-      scene.WebView.CoreWebView2.NavigateToString("""
-        <!doctype html><html><head><style>html,body{margin:0;background:transparent;overflow:hidden}
-        article{position:absolute;top:20px;width:160px;height:100px;background:#e050a0}
-        </style></head><body><article style="left:20px"></article><article style="left:200px"></article></body></html>
-        """);
-      await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
-      scene.SetInput(papers.Select(p => new SceneHitRect(p.X, p.Y, 160, 100, false)));
-      var until = DateTime.UtcNow.AddSeconds(10); var painted = false;
-      while (!painted && DateTime.UtcNow < until)
+      Mark(); await Task.Delay(200);
+      if (!Near(HostPixel(NativeScreenCapture.Read(hostBounds, shell.Wallpaper), beside), sentinel))
       {
-        await Task.Delay(200);
-        var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
-        painted = papers.All(p => Near(HostPixel(pixels, p.X + 80, p.Y + 50), (0xe0, 0x50, 0xa0)));
+        Console.WriteLine("SKIP wallpaper host remnants: the sentinel did not stay on the wallpaper host, so this shell keeps nothing drawn into it");
+        return;
       }
-      if (!painted) throw new Exception("The remnant scene's papers never showed on the wallpaper host.");
-      void Expect(string step, (double X, double Y) paper)
+      var scene = new DesktopSurface(bounds.X / scale, bounds.Y / scale, bounds.Width / scale, bounds.Height / scale, layered: false);
+      var repaints = 0;
+      try
       {
-        var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
-        var old = HostPixel(pixels, paper.X + 80, paper.Y + 50); var next = HostPixel(pixels, beside.X, beside.Y);
-        if (!Near(old, next))
+        // As DesktopCoordinator attaches a wallpaper scene, counting the repaints it asks for.
+        scene.SetShellParent(shell.Wallpaper, () => { repaints++; return shell.RepaintWallpaper(); });
+        scene.Show(false); scene.SetPhysicalBounds(bounds);
+        await scene.WebView.EnsureCoreWebView2Async(environment);
+        var loaded = new TaskCompletionSource();
+        scene.WebView.CoreWebView2.NavigationCompleted += (_, e) =>
+        { if (e.IsSuccess) loaded.TrySetResult(); else loaded.TrySetException(new Exception("Remnant WebView navigation failed.")); };
+        var articles = string.Concat(papers.Select(p => FormattableString.Invariant(
+          $"<article style=\"left:{p.X}px;top:{p.Y}px;width:{p.Width}px;height:{p.Height}px\"></article>")));
+        scene.WebView.CoreWebView2.NavigateToString($$"""
+          <!doctype html><html><head><style>html,body{margin:0;background:transparent;overflow:hidden}
+          article{position:absolute;background:#e050a0}</style></head><body>{{articles}}</body></html>
+          """);
+        await loaded.Task.WaitAsync(TimeSpan.FromSeconds(20));
+        scene.SetInput(papers);
+        var until = DateTime.UtcNow.AddSeconds(10); var painted = false;
+        while (!painted && DateTime.UtcNow < until)
         {
-          NativeScreenCapture.Save(hostBounds, Path.Combine(directory, $"wallpaper-host-{step}.png"), shell.Wallpaper);
-          throw new Exception($"The wallpaper host kept a scene remnant after {step}: rgb{old} where the paper was, rgb{next} beside it");
+          await Task.Delay(200);
+          var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
+          painted = centres.All(spot => Near(HostPixel(pixels, spot), paper));
         }
+        if (!painted) throw new Exception("The remnant scene's papers never showed on the wallpaper host.");
+        // The host clips its children: a mark drawn over a shown paper would hide the remnant the step looks for.
+        async Task Marked(string step, params (double X, double Y)[] shown)
+        {
+          Mark(); await Task.Delay(200);
+          var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper);
+          if (shown.Any(spot => !Near(HostPixel(pixels, spot), paper)))
+            failures.Add($"before {step}: the mark covered a shown paper, so the host does not clip its children");
+        }
+        void Expect(string step, int expected, params (double X, double Y)[] left)
+        {
+          var pixels = NativeScreenCapture.Read(hostBounds, shell.Wallpaper); var failed = false;
+          foreach (var spot in left.Append(beside))
+          {
+            var now = HostPixel(pixels, spot);
+            if (Near(now, wallpaper[spot])) continue;
+            failures.Add($"after {step}: rgb{now} at {spot} where the wallpaper is rgb{wallpaper[spot]}"); failed = true;
+          }
+          if (failed) NativeScreenCapture.Save(hostBounds, Path.Combine(directory, $"wallpaper-host-{step.Replace(' ', '-')}.png"), shell.Wallpaper);
+          if (repaints != expected) failures.Add($"after {step}: {repaints} wallpaper repaints were asked for, not {expected}");
+        }
+        // A dropped paper: SetInput's uncovered path, repainted once the dispatcher operation ends. Explorer's repaint
+        // must not cover the paper still attached.
+        await Marked("dropping a paper", centres);
+        scene.SetInput([papers[0]]); await Task.Delay(800);
+        Expect("dropping a paper", 1, centres[1]);
+        if (!Near(HostPixel(NativeScreenCapture.Read(hostBounds, shell.Wallpaper), centres[0]), paper))
+          failures.Add("after dropping a paper: the wallpaper repaint covered the paper still attached");
+        // The scene hidden with a paper shown: Hide's own repaint, the usual way off the wallpaper.
+        await Marked("hiding the scene", centres[0]);
+        scene.Hide(); await Task.Delay(800);
+        Expect("hiding the scene", 2, centres[0]);
+        // Shown again, then the last paper dropped and the scene hidden in one operation, as scene.applied does: one
+        // repaint for both.
+        scene.Show(false);
+        until = DateTime.UtcNow.AddSeconds(10); painted = false;
+        while (!painted && DateTime.UtcNow < until)
+        {
+          await Task.Delay(200);
+          painted = Near(HostPixel(NativeScreenCapture.Read(hostBounds, shell.Wallpaper), centres[0]), paper);
+        }
+        if (!painted) throw new Exception("The remnant scene's paper never showed again on the wallpaper host.");
+        await Marked("dropping the last paper and hiding", centres[0]);
+        scene.SetInput([]); scene.Hide(); await Task.Delay(800);
+        Expect("dropping the last paper and hiding", 3, centres[0]);
+        // Disposing a hidden scene uncovers nothing more.
+        var before = repaints; scene.Dispose(); await Task.Delay(300);
+        if (repaints != before) failures.Add($"disposing the hidden scene asked for {repaints - before} more wallpaper repaints");
       }
-      // A dropped paper (SetInput's uncovered path), then the whole scene (Hide), each against a fresh mark.
-      Mark(); scene.SetInput([new SceneHitRect(papers[0].X, papers[0].Y, 160, 100, false)]); await Task.Delay(800);
-      Expect("dropping a paper", papers[1]);
-      Mark(); scene.Hide(); await Task.Delay(800);
-      Expect("hiding the scene", papers[0]);
-      Console.WriteLine("PASS the wallpaper host shows no scene remnant after a paper is dropped or the scene is hidden");
+      finally { scene.Dispose(); }
     }
     finally
     {
       // Never leave the sentinel or a remnant on the owner's wallpaper.
       shell.RepaintWallpaper();
     }
+    if (failures.Count > 0) throw new Exception("The wallpaper host kept a scene remnant or repainted wrongly: " + string.Join("; ", failures));
+    Console.WriteLine("PASS the wallpaper host shows the wallpaper again after a paper is dropped, the scene is hidden, and both happen at once, with one repaint each");
+  }
+
+  /// <summary>
+  /// The remnant check's two papers, side by side at the top, and the spot below them, in DIPs of a scene of
+  /// <paramref name="width"/> by <paramref name="height"/> DIPs; they shrink with the scene, so they fit at any scaling.
+  /// </summary>
+  private static (SceneHitRect[] Papers, (double X, double Y) Beside) RemnantLayout(double width, double height)
+  {
+    var paperWidth = Math.Min(160, Math.Floor((width - 60) / 2)); var paperHeight = Math.Min(100, Math.Floor((height - 40) / 2));
+    if (paperWidth < 16 || paperHeight < 16) throw new Exception($"A {width:0}x{height:0} DIP scene is too small for the remnant check.");
+    return ([new(20, 20, paperWidth, paperHeight, false), new(40 + paperWidth, 20, paperWidth, paperHeight, false)],
+      (width / 2, 20 + paperHeight + (height - 20 - paperHeight) / 2));
+  }
+
+  /// <summary>Fails, rather than skipping, when a remnant spot falls outside the physical scene at this scaling.</summary>
+  private static void RemnantSpots(PhysicalBounds bounds, double scale)
+  {
+    var (papers, beside) = RemnantLayout(bounds.Width / scale, bounds.Height / scale);
+    foreach (var spot in papers.Select(p => (X: p.X + p.Width / 2, Y: p.Y + p.Height / 2)).Append(beside))
+    {
+      var (x, y) = ((int)(spot.X * scale), (int)(spot.Y * scale));
+      if (x < 0 || x >= bounds.Width || y < 0 || y >= bounds.Height)
+        throw new Exception($"The remnant spot {spot} lies outside the {bounds.Width}x{bounds.Height} scene at {scale:P0} scaling.");
+    }
+    if (papers[1].X + papers[1].Width > bounds.Width / scale || papers[0].Y + papers[0].Height >= beside.Y)
+      throw new Exception($"The remnant papers leave the scene or cover the spot beside them at {scale:P0} scaling.");
   }
   private static bool ShellAt(int x, int y, NativeShellLayers shell)
   {

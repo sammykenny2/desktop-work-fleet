@@ -9,6 +9,17 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.4.4
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: On Windows, the Wallpaper layer clears blocks in two more cases and asks Explorer to redraw less often.
+
+- Windows: Work Fleet asks Explorer to draw the wallpaper again once each time notes on the Wallpaper layer uncover it, not twice, for example when the last note there is moved away or the layer closes, and not at all when nothing there was shown. Each request pauses the app for about 40 ms.
+- Windows: two cases that could still leave blocks on the Wallpaper layer now clear them: the layer's windows closing unexpectedly while shown, and the layer being hidden because changing the area its notes cover failed.
+- Windows: the `--wallpaper` native check compares against the wallpaper as Explorer first drew it instead of expecting a solid colour; it lays out its test notes for display scaling up to 300% and checks how many redraws each step asks for.
+- Note, sync and backup formats stay at V1.
+
 ## 0.4.3
 
 Platforms: Windows, Linux, macOS, Android.

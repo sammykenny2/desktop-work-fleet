@@ -9,6 +9,16 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.4.3
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: On Windows, notes on the Wallpaper layer no longer leave blocks behind where they were.
+
+- Windows: when a note on the Wallpaper layer was moved, stacked or spread, hidden or closed, its old place kept the note's last pixels, because Explorer does not draw the wallpaper there again by itself. They were black, so a black wallpaper hid them; on any other wallpaper they showed as dark blocks. Work Fleet now asks Explorer to draw the wallpaper again whenever a note leaves the Wallpaper layer. The Desktop layer is unchanged.
+- Windows: the package still bundles the .NET 10.0.13 Desktop runtime when built with .NET SDK 10.0.403, which had started picking 10.0.14 for it and stopped the package build.
+- Note, sync and backup formats stay at V1.
+
 ## 0.4.2
 
 Platforms: Windows, Linux, macOS, Android.

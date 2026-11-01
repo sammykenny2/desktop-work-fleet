@@ -119,6 +119,9 @@ password, which the user must keep.
 The macOS desktop visual panel always has ignoresMouseEvents; only papers that can be operated, or that have read-only
 text selection open, get a transparent input region, clipped by the renderer's stacking order where covered. The
 in-place editor stays in the same WKWebView; the main window is the only content owner.
+The hit panels pass only presses, drags and scrolls to that WKWebView, never mouse movement, so the scene has no hover:
+CSS `:hover` and `title` tooltips do not appear there. A quick edit also leaves the app inactive, where AppKit shows no
+tooltips by default. The in-place editor's buttons are therefore icons with accessible names and no tooltip.
 The Desktop layer uses the public `desktopIconWindow + 1`, the Top layer uses floating; the Wallpaper layer uses
 `desktopWindow + 1`,
 above the wallpaper and below the icons, with fixed mouse click-through. Adjust this group temporarily moves the group to

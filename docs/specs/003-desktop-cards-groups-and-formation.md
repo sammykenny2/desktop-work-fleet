@@ -751,7 +751,9 @@ starts from the quick move key instead. This changes U17, U19, C18 and C20 above
 - **While editing.** The paper floats on the Top layer at its own position and size, opaque, and returns to its group's
   layer when editing ends, as an adjusted paper does (U18). No overlay appears and the main window stays where it is.
   The editor takes the keyboard where the host allows; on layer-shell desktops a click into the text may be needed
-  first. Its actions are Save, Cancel and Full editor, besides retrying a failed save. The paper being edited does not
+  first. Its actions are Save, Cancel and Full editor, besides retrying a failed save. They are icon buttons (a check
+  mark, a cross, outward arrows and a circular arrow) named for screen readers; they show no hover tooltip, because the
+  macOS scene receives no mouse movement (see the Apple README). The paper being edited does not
   move; other papers keep their resting behaviour and can still be moved with the key. Clicking another app or the
   desktop does not end editing: the paper stays open on the Top layer until one of the ends below.
 - **End.**

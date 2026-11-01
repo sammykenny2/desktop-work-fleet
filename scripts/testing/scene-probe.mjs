@@ -273,12 +273,16 @@ try {
   const appliedEdit = await page.evaluate(() => window.probeApplied);
   await page.evaluate(() => { window.probeEditing = true; window.probeNextFrame(); });
   await page.waitForFunction(count => window.probeApplied > count && document.querySelector('.card[data-card-id="c2"] textarea'), appliedEdit);
-  assert.deepEqual(await page.locator('.card[data-card-id="c2"] .card-actions button').allTextContents(),
+  // The editor's actions are icon buttons: each is named by its aria-label and shows only its icon.
+  const editorButtons = page.locator('.card[data-card-id="c2"] .card-actions button');
+  assert.deepEqual(await editorButtons.evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))),
     [t('desktop.editor.retrySave'), t('desktop.editor.full'), t('common.cancel'), t('common.save')]);
+  assert.deepEqual(await editorButtons.evaluateAll(nodes => nodes.map(node => node.textContent.trim() === '' && Boolean(node.querySelector('svg[aria-hidden="true"] path')))),
+    [true, true, true, true], 'the editor buttons show icons instead of text');
   const downsBefore = (await quickState()).downs.length;
   await drag('.card[data-card-id="c2"] .card-summary', quickModifier);
   assert.equal((await quickState()).downs.length, downsBefore, 'the paper being edited does not move');
-  await page.locator('.card[data-card-id="c2"] .card-actions button', { hasText: t('common.cancel') }).click();
+  await page.locator('.card[data-card-id="c2"] .card-actions').getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await page.waitForFunction(() => window.probeEditor.some(entry => entry.method === 'editor.cancel'));
   assert.equal(await page.evaluate(() => window.probeEditor.find(entry => entry.method === 'editor.cancel').args.draftId), 'd1');
   await page.evaluate(() => { window.probeEditing = false; window.probeQuick = null; window.probeNextFrame(); });

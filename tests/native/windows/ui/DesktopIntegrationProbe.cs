@@ -116,7 +116,7 @@ internal static class DesktopIntegrationProbe
     await Eval(floating, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
       "failed exit resumes editing after composition", main);
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
+    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.getAttribute('aria-label')==='Save').click()");
     // A one-line note shows in the title band and again in the body, which always starts from the first line; saved, the
     // paper rests on its desktop layer again.
     await Wait(async () => (await Eval(floating, "!document.querySelector('textarea')")).ValueKind == JsonValueKind.True
@@ -126,7 +126,7 @@ internal static class DesktopIntegrationProbe
     await QuickEdit(resident, floating, main, "reopen desktop editor");
     await Eval(floating, "document.querySelector('textarea').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
     await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True, "restore fixture text", main);
-    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.textContent==='Save').click()");
+    await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.getAttribute('aria-label')==='Save').click()");
     await Wait(async () => (await Eval(floating, "!document.querySelector('textarea')")).ValueKind == JsonValueKind.True
       && (await Eval(resident, "document.querySelector('.card-summary')?.textContent==='Native note' && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
       "fixture restored on its desktop layer", main);

@@ -39,8 +39,8 @@ interface. To switch, see [Settings](#settings).
 - Ctrl+Enter or Command+Enter saves. Esc keeps the draft and ends editing; blank or unchanged content keeps no draft.
   The full editor manages attachments and the preview.
 - On the desktop you can edit a paper in place: Ctrl+Enter saves, and Esc keeps the draft and leaves editing (blank
-  or unchanged content keeps no draft). For attachments and other content, "Full editor" goes back to the editor in
-  the main window.
+  or unchanged content keeps no draft). For attachments and other content, Full editor (the outward arrows) goes back
+  to the editor in the main window.
 - New notes are 240×240 squares. Where a group region is short, a new note shrinks to a square that fits (at least
   160×160). Notes already on the desktop keep their size until you use Reset desktop layout.
 - A new note, including one that arrives from sync, takes the first free place in its group's region, row by row from
@@ -167,9 +167,10 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   XWayland keeps notes on the Wallpaper layer only, so it does not offer this
   ([SPEC-003](specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-quick-move)).
 - With the same switch on, hold Ctrl (⌘ on macOS) and double-click such a note to edit it in place: it rises to the Top
-  layer, opaque, where it is, with no overlay, and the main window stays where it is. "Save" keeps the text, "Cancel"
-  discards what you changed since you opened it, Esc keeps a changed draft and closes, and "Full editor" moves the
-  draft to the main window. Clicking another app leaves it open; double-clicking another note with the key closes it,
+  layer, opaque, where it is, with no overlay, and the main window stays where it is. Below the text, the check mark
+  (Save) keeps the text, the cross (Cancel) discards what you changed since you opened it, the outward arrows (Full
+  editor) move the draft to the main window, and the circular arrow retries a save that failed. Esc keeps a changed
+  draft and closes. Clicking another app leaves it open; double-clicking another note with the key closes it,
   keeping its draft, and opens that one. Entering adjust mode, a change of displays, the note leaving the desktop or
   turning the switch off also close it and keep a changed draft. While one note is open the others can still be moved
   with the key; the open one stays put. On Raspberry Pi OS and other layer-shell desktops, click into the text once if

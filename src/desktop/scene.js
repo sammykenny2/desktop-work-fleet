@@ -23,6 +23,18 @@ const run = action => Promise.resolve().then(action).catch(report);
 const point = event => ({ x: info.viewport.x + event.clientX, y: info.viewport.y + event.clientY });
 const labels = () => (frame?.groups || []).filter(g => g.region).map(g => ({ groupId: g.id, x: g.region.x + 8, y: g.region.y + 5, width: 160, height: 28 }));
 const button = (text, action) => { const node = make('button', text); node.type = 'button'; node.onclick = event => { event.stopPropagation(); void run(action); }; return node; };
+// The in-place editor's actions are icons named by their aria-label, with no hover tooltip: the macOS host passes no
+// mouse movement to the scene and a quick edit leaves the app inactive, so a tooltip could not appear there.
+const svgNs = 'http://www.w3.org/2000/svg';
+const editorIcons = {
+  retry: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.3 3.2v3.5h-3.5', full: 'M14 4h6v6M20 4l-6 6M10 20H4v-6M4 20l6-6',
+  cancel: 'M6.5 6.5l11 11M17.5 6.5l-11 11', save: 'M5 12.5l4.5 4.5L19 7.5',
+};
+function iconButton(label, path, action) {
+  const node = button('', action); node.setAttribute('aria-label', label);
+  const svg = document.createElementNS(svgNs, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
+  const line = document.createElementNS(svgNs, 'path'); line.setAttribute('d', path); svg.append(line); node.append(svg); return node;
+}
 function draftStatus(text, error = false) { const state = root.querySelector('.draft-state'); if (state) { state.textContent = text; state.classList.toggle('error', error); } }
 function captureIntent() {
   try { return bridge.request('scene.intent').then(value => value.intent).catch(() => null); }
@@ -97,8 +109,10 @@ function render(next) {
         queueMicrotask(() => { if (input.isConnected) input.focus(); });
       }
       updateFrozen();
-      actions.replaceChildren(button(t('desktop.editor.retrySave'), saveDraft), button(t('desktop.editor.full'), () => editAction('editor.full')),
-        button(t('common.cancel'), () => editAction('editor.cancel')), button(t('common.save'), () => editAction('editor.save')));
+      actions.replaceChildren(iconButton(t('desktop.editor.retrySave'), editorIcons.retry, saveDraft),
+        iconButton(t('desktop.editor.full'), editorIcons.full, () => editAction('editor.full')),
+        iconButton(t('common.cancel'), editorIcons.cancel, () => editAction('editor.cancel')),
+        iconButton(t('common.save'), editorIcons.save, () => editAction('editor.save')));
     } else {
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
       const missingChanged = item.files.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;

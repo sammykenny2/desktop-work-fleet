@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 final class GoogleFiles implements AutoCloseable {
-    private static final String FIELDS = "id,size,spaces,trashed,appProperties,sha256Checksum";
+    private static final String FIELDS = DatasetFiles.FIELDS;
     private static final List<Scope> SCOPES = Arrays.asList(new Scope("openid"), new Scope("email"), new Scope("https://www.googleapis.com/auth/drive.appdata"));
     private final FleetActivity activity;
     private final FleetDatabase database;
@@ -131,8 +131,9 @@ final class GoogleFiles implements AutoCloseable {
             : response.status == 429 || reason.equals("rateLimitExceeded") || reason.equals("userRateLimitExceeded") ? "rate-limit"
             : response.status >= 500 ? "service-unavailable" : response.status == 410 && context.equals("changes") ? "cursor-expired"
             : (response.status == 400 || response.status == 410) && context.equals("listing") ? "page-expired"
-            : response.status == 404 && context.equals("upload") ? "upload-session-expired" : response.status == 404 && context.equals("delete") ? "file-missing"
+            : response.status == 404 && context.equals("upload") ? "upload-session-expired" : response.status == 404 ? "file-missing"
             : reason.equals("storageQuotaExceeded") ? "storage-quota"
+            : Arrays.asList("activeItemCreationLimitExceeded", "numChildrenInNonRootLimitExceeded").contains(reason) ? "source-item-limit"
             : response.status == 403 ? "source-permission" : "source-error";
         throw new Protocol.Failure(code, "Google Drive didn't finish syncing (" + code + "). Local data and pending changes are kept.");
     }
@@ -166,11 +167,13 @@ final class GoogleFiles implements AutoCloseable {
         return null;
     }
     private static JSONObject file(JSONObject value) throws Exception {
+        if (value.has("datasetId")) return DatasetFiles.file(value);
         String id = Protocol.text(value, "id", 256), kind = Protocol.text(value, "kind", 16), sha = Protocol.text(value, "sha256", 64); Protocol.digest(sha);
         Protocol.require(id.matches("[A-Za-z0-9_-]{1,256}") && (kind.equals("revision") || kind.equals("attachment") || kind.equals("reset") || kind.equals("workspace")), "invalid-source-file", "The Google file ID is invalid.");
         long size = Protocol.number(value, "size", (kind.equals("revision") || kind.equals("workspace")) ? 8 * 1024 * 1024 : kind.equals("reset") ? 4096 : Protocol.ATTACHMENT); return Protocol.object("id", id, "kind", kind, "sha256", sha, "size", size);
     }
     private static void metadata(JSONObject metadata, JSONObject file) throws Exception {
+        if (file.has("datasetId")) { DatasetFiles.verify(metadata, file); return; }
         JSONObject properties = metadata.getJSONObject("appProperties"); boolean appdata = false; JSONArray spaces = metadata.getJSONArray("spaces"); for (int i = 0; i < spaces.length(); i++) if (spaces.getString(i).equals("appDataFolder")) appdata = true;
         Protocol.require(metadata.getString("id").equals(file.getString("id")) && metadata.getString("size").equals(Long.toString(file.getLong("size"))) && appdata && !metadata.optBoolean("trashed", false)
             && properties.getString("wfFormat").equals("work-fleet-file") && properties.getString("wfSchema").equals("1") && properties.getString("wfKind").equals(file.getString("kind")) && properties.getString("wfSha256").equals(file.getString("sha256"))
@@ -178,6 +181,28 @@ final class GoogleFiles implements AutoCloseable {
     }
     synchronized Object invoke(String method, JSONObject args, FleetBridge bridge) throws Exception {
         Protocol.require(!closed && account != null && Protocol.text(args, "accountId", 255).equals(account.getString("accountId")), "stale-session", "The Google account has changed.");
+        if (method.equals("google.dataset.list")) {
+            JSONObject selector = args.getJSONObject("query");
+            String target = path("/drive/v3/files", "spaces", "appDataFolder", "q", DatasetFiles.query(selector), "pageSize", "100", "fields", "nextPageToken,incompleteSearch,files(" + FIELDS + ")");
+            if (selector.getString("scope").equals("history")) target += "&orderBy=" + encode("createdTime desc");
+            if (!args.isNull("pageToken")) target += "&pageToken=" + encode(Protocol.text(args, "pageToken", 8192));
+            return Protocol.json(request(target, "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "listing").bytes);
+        }
+        if (method.equals("google.dataset.get")) {
+            String id = Protocol.text(args, "fileId", 256); DatasetFiles.check(DatasetFiles.fileId(id));
+            return Protocol.json(request(path("/drive/v3/files/" + id, "fields", FIELDS)).bytes);
+        }
+        if (method.equals("google.dataset.folder")) {
+            JSONObject file = DatasetFiles.file(args.getJSONObject("file")); DatasetFiles.check(Arrays.asList("folder", "dataset-root").contains(file.getString("kind")));
+            JSONObject value;
+            try { value = Protocol.json(request(path("/drive/v3/files", "fields", FIELDS), "POST", DatasetFiles.metadata(file).toString().getBytes(StandardCharsets.UTF_8), headers("Content-Type", "application/json; charset=UTF-8"), 2 * 1024 * 1024, false, "").bytes); }
+            catch (Protocol.Failure error) { if (!error.code.equals("file-exists")) throw error; value = Protocol.json(request(path("/drive/v3/files/" + file.getString("id"), "fields", FIELDS)).bytes); }
+            DatasetFiles.verify(value, file); return value;
+        }
+        if (method.equals("google.dataset.read") || method.equals("google.dataset.create")) {
+            JSONObject file = DatasetFiles.file(args.getJSONObject("file")); DatasetFiles.check(!Arrays.asList("folder", "dataset-root").contains(file.getString("kind")));
+            method = method.equals("google.dataset.read") ? "google.read" : "google.create";
+        } else if (method.equals("google.dataset.changes")) method = "google.changes";
         switch (method) {
             case "google.cursor": return Protocol.json(request(path("/drive/v3/changes/startPageToken", "fields", "startPageToken")).bytes);
             case "google.list": {
@@ -224,7 +249,7 @@ final class GoogleFiles implements AutoCloseable {
     }
     private JSONObject create(JSONObject file, byte[] bytes) throws Exception {
         String id = file.getString("id"), digest = file.getString("sha256"), kind = file.getString("kind"); int size = file.getInt("size");
-        JSONObject metadata = Protocol.object("id", id, "name", "work-fleet-v1-" + kind + "-" + digest + ".bin", "mimeType", "application/octet-stream", "parents", new JSONArray().put("appDataFolder"),
+        JSONObject metadata = file.has("datasetId") ? DatasetFiles.metadata(file) : Protocol.object("id", id, "name", "work-fleet-v1-" + kind + "-" + digest + ".bin", "mimeType", "application/octet-stream", "parents", new JSONArray().put("appDataFolder"),
             "appProperties", Protocol.object("wfFormat", "work-fleet-file", "wfSchema", "1", "wfKind", kind, "wfSha256", digest));
         byte[] json = metadata.toString().getBytes(StandardCharsets.UTF_8);
         try {
@@ -254,7 +279,7 @@ final class GoogleFiles implements AutoCloseable {
             }
             throw new Protocol.Failure("service-unavailable", "Google hasn't confirmed the upload. Pending changes are kept.");
         } catch (Protocol.Failure error) {
-            if (Arrays.asList("file-exists", "unauthorized", "source-permission", "source-error", "upload-session-expired", "storage-quota").contains(error.code)) uploads.remove(id); throw error;
+            if (Arrays.asList("file-exists", "unauthorized", "source-permission", "source-error", "upload-session-expired", "storage-quota", "source-item-limit").contains(error.code)) uploads.remove(id); throw error;
         }
     }
     @Override public void close() { closed = true; preparedAccount = null; tokens.clear(); uploads.clear(); }

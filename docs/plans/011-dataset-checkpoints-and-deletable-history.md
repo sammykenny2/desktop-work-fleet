@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: current Workspace and record adapter; application and remote integration pending |
+| Status | In progress: local record core and dataset adapters; production workflows pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -128,6 +128,9 @@ Depends on the local transaction contract and reviewed remote candidate.
 
 - [ ] 2.1 Implement the dataset/ready descriptor, folder reservations, immutable revision/change/checkpoint kinds
   and typed provider queries. Keep OAuth tokens, upload URLs and arbitrary HTTP/SQL unavailable to the renderer.
+- [x] 2.1a Implement closed dataset descriptors and typed Drive list/get/changes/folder/read/create RPCs across
+  Windows, Apple, Linux and Android. Reuse bounded resumable transfers, validate parent/dataset ownership and keep
+  credentials native. Shared wire fixtures and isolated adapter checks do not complete initialization or 2.1.
 - [ ] 2.2 Implement token-before-list bootstrap, bounded catch-up, current reconciliation, relevant purge checks
   and atomic activation. Preserve local outbox/unsaved work and generation isolation (VC01, VC03, VC06, VC07).
 - [ ] 2.3 Implement one history-body upload plus small current receipt; checkpoint exact inputs before retiring

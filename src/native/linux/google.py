@@ -13,10 +13,11 @@ from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import protocol as p
+import dataset
 from text import t
 
 SCOPE = "https://www.googleapis.com/auth/drive.appdata"
-FIELDS = "id,size,spaces,trashed,appProperties,sha256Checksum"
+FIELDS = dataset.FIELDS
 # Why sync is paused, by the code of the keyring error: the page shows this text, so it is host text (text.py).
 PAUSE_REASONS = {"vault-locked": "sync.keyringLocked", "vault-unlock-timeout": "sync.unlockTimedOut",
                  "vault-unlock-cancelled": "sync.unlockCancelled", "storage-integrity": "sync.secretsUnverified"}
@@ -298,10 +299,12 @@ class Google:
             code = "page-expired"
         elif status == 404 and context == "upload":
             code = "upload-session-expired"
-        elif status == 404 and context == "delete":
+        elif status == 404:
             code = "file-missing"
         elif reason == "storageQuotaExceeded":
             code = "storage-quota"
+        elif reason in ("activeItemCreationLimitExceeded", "numChildrenInNonRootLimitExceeded"):
+            code = "source-item-limit"
         elif status == 403:
             code = "source-permission"
         error = p.Failure(code, "Google Drive didn't finish syncing; local data and content waiting to upload are kept.")
@@ -313,11 +316,15 @@ class Google:
 
     def file(self, args):
         value = args.get("file")
+        if isinstance(value, dict) and "datasetId" in value:
+            return dataset.file(value)
         p.require(isinstance(value, dict) and re.fullmatch(r"[A-Za-z0-9_-]{1,256}", p.text(value, "id")) is not None and value.get("kind") in ("revision", "attachment", "reset", "workspace") and p.is_digest(value.get("sha256")), "invalid-source-file", "The sync file's identity isn't valid.")
         size = p.number(value, "size", {"revision": 8 * 1024 * 1024, "workspace": 8 * 1024 * 1024, "reset": 4096}.get(value["kind"], p.ATTACHMENT))
         return {"id": value["id"], "kind": value["kind"], "sha256": value["sha256"], "size": size}
 
     def metadata(self, value, file):
+        if "datasetId" in file:
+            return dataset.verify(value, file)
         properties = value.get("appProperties", {})
         p.require(value.get("id") == file["id"] and str(value.get("size")) == str(file["size"]) and "appDataFolder" in value.get("spaces", []) and value.get("trashed", False) is False and properties.get("wfFormat") == "work-fleet-file" and properties.get("wfSchema") == "1" and properties.get("wfKind") == file["kind"] and properties.get("wfSha256") == file["sha256"] and value.get("sha256Checksum", file["sha256"]) == file["sha256"], "upload-mismatch", "The Google file's metadata doesn't match its content.")
 
@@ -344,7 +351,7 @@ class Google:
 
     def create_file(self, file, data):
         key, size = file["id"], file["size"]
-        metadata = p.encode({"id": key, "name": f"work-fleet-v1-{file['kind']}-{file['sha256']}.bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": {"wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": file["kind"], "wfSha256": file["sha256"]}})
+        metadata = p.encode(dataset.metadata(file) if "datasetId" in file else {"id": key, "name": f"work-fleet-v1-{file['kind']}-{file['sha256']}.bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": {"wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": file["kind"], "wfSha256": file["sha256"]}})
         try:
             if not data:
                 boundary = "wf_" + p.identifier()
@@ -394,6 +401,35 @@ class Google:
 
     def invoke(self, method, args, data=None):
         p.require(p.text(args, "accountId") == self.account and not self.closed.is_set(), "stale-session", "The Google account has changed.")
+        if method == "google.dataset.list":
+            selector = args.get("query")
+            query = {"spaces": "appDataFolder", "q": dataset.query(selector), "pageSize": "100", "fields": f"nextPageToken,incompleteSearch,files({FIELDS})"}
+            if selector["scope"] == "history":
+                query["orderBy"] = "createdTime desc"
+            if args.get("pageToken") is not None:
+                query["pageToken"] = p.text(args, "pageToken", 8192)
+            return self.json(self.path("/drive/v3/files", **query), context="listing")
+        if method == "google.dataset.get":
+            key = p.text(args, "fileId", 256)
+            dataset.check(dataset.file_id(key))
+            return self.json(self.path("/drive/v3/files/" + key, fields=FIELDS))
+        if method == "google.dataset.folder":
+            file = dataset.file(args.get("file"))
+            dataset.check(file["kind"] in ("folder", "dataset-root"))
+            try:
+                value = self.json(self.path("/drive/v3/files", fields=FIELDS), method="POST", data=p.encode(dataset.metadata(file)), headers={"Content-Type": "application/json; charset=UTF-8"})
+            except p.Failure as error:
+                if error.code != "file-exists":
+                    raise
+                value = self.json(self.path("/drive/v3/files/" + file["id"], fields=FIELDS))
+            dataset.verify(value, file)
+            return value
+        if method in ("google.dataset.read", "google.dataset.create"):
+            file = dataset.file(args.get("file"))
+            dataset.check(file["kind"] not in ("folder", "dataset-root"))
+            method = "google." + method.rsplit(".", 1)[1]
+        elif method == "google.dataset.changes":
+            method = "google.changes"
         if method == "google.cursor":
             return self.json(self.path("/drive/v3/changes/startPageToken", fields="startPageToken"))
         if method == "google.list":

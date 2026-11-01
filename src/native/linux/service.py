@@ -77,7 +77,7 @@ class Service:
                 return {"profileId": "local"}
             if method == "google.local":
                 return {"profileId": "local"}
-            data = self.upload(args, "attachment") if method == "google.create" else None
+            data = self.upload(args, "attachment") if method in ("google.create", "google.dataset.create") else None
             result = self.google.invoke(method, args, data)
             p.require(not self.closed, "stale-session", "The Google session has ended.")
             return self.download(result) if isinstance(result, bytes) else result

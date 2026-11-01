@@ -47,6 +47,13 @@ export type NativeRequest = { v: 1; id: string } & (
   | { method: 'storage.records.page'; params: import('./storage.js').RecordQuery }
   /** Token contains a RecordTransaction; receipt, affected records and owned attachment tokens commit atomically. */
   | { method: 'storage.records.commit'; params: { token: string; expectedRevision: number | null; attachments: string[] } }
+  /** Fixed Drive operations; hosts validate selectors/descriptors and retain OAuth and resumable upload state. */
+  | { method: 'google.dataset.list'; params: { accountId: string; query: import('./sync.js').DatasetQuery; pageToken: string | null } }
+  | { method: 'google.dataset.get'; params: { accountId: string; fileId: string } }
+  | { method: 'google.dataset.changes'; params: { accountId: string; cursor: string } }
+  | { method: 'google.dataset.read'; params: { accountId: string; file: import('./sync.js').DatasetFile } }
+  | { method: 'google.dataset.create'; params: { accountId: string; file: import('./sync.js').DatasetFile; token: string } }
+  | { method: 'google.dataset.folder'; params: { accountId: string; file: import('./sync.js').DatasetFolder } }
   /**
    * SPEC-006 DO, after a load the page cannot use: data.location answers { path }, data.reveal opens that folder, and
    * data.setAside moves the database into a dated set-aside folder there and reopens the page on empty data.

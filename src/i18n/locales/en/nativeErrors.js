@@ -1,5 +1,6 @@
 // Keys are nativeErrors.<code> for the codes native hosts send (docs/i18n.md); tests/i18n.test.js checks coverage.
 export default {
+  'nativeErrors.source-item-limit': 'This Google folder or account has reached its file limit. Local notes and pending changes are kept.',
   'nativeErrors.invalid-record-transaction': 'The local record transaction is invalid. Your saved data is unchanged.',
   'nativeErrors.incompatible-local-data': 'This profile uses an older format. Keep it or explicitly reset this local profile before continuing.',
   'nativeErrors.revision-collision': 'A revision ID has different content. Your saved data is unchanged.',

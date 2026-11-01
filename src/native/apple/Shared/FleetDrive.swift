@@ -1,7 +1,7 @@
 import Foundation
 
 actor FleetDrive {
-    private static let fields = "id,size,spaces,trashed,appProperties,sha256Checksum"
+    private static let fields = FleetDataset.fields
     private let google: FleetGoogle
     private let account: String
     private var closed = false
@@ -29,8 +29,10 @@ actor FleetDrive {
         let error = try? FleetProtocol.json(bytes); let reasons = (error?["error"] as? [String: Any])?["errors"] as? [[String: Any]]; let reason = reasons?.first?["reason"] as? String ?? ""
         let code = status == 401 ? "unauthorized" : status == 409 ? "file-exists" : status == 429 || ["rateLimitExceeded", "userRateLimitExceeded"].contains(reason) ? "rate-limit"
             : status >= 500 ? "service-unavailable" : status == 410 && context == "changes" ? "cursor-expired" : [400, 410].contains(status) && context == "listing" ? "page-expired"
-            : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 && context == "delete" ? "file-missing"
-            : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error"
+            : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 ? "file-missing"
+            : reason == "storageQuotaExceeded" ? "storage-quota"
+            : ["activeItemCreationLimitExceeded", "numChildrenInNonRootLimitExceeded"].contains(reason) ? "source-item-limit"
+            : status == 403 ? "source-permission" : "source-error"
         throw FleetFailure(code, "Google Drive didn't finish syncing (\(code)). Local data and pending changes are kept.")
     }
     private func json(_ path: String, context: String = "") async throws -> [String: Any] { try FleetProtocol.json((try await request(path, context: context)).0) }
@@ -60,11 +62,13 @@ actor FleetDrive {
     }
     private func file(_ args: [String: Any]) throws -> [String: Any] {
         guard let value = args["file"] as? [String: Any] else { throw FleetFailure("invalid-source-file", "The sync file isn't valid.") }
+        if value["datasetId"] != nil { return try FleetDataset.file(value) }
         let id = try FleetProtocol.text(value, "id"), kind = try FleetProtocol.text(value, "kind"), digest = try FleetProtocol.text(value, "sha256")
         try FleetProtocol.require(id.range(of: "^[A-Za-z0-9_-]{1,256}$", options: .regularExpression) != nil && ["revision", "attachment", "reset", "workspace"].contains(kind) && FleetProtocol.isDigest(digest), "invalid-source-file", "The sync file ID isn't valid.")
         let size = try FleetProtocol.number(value, "size", Int64(["revision", "workspace"].contains(kind) ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : FleetProtocol.attachment)); return ["id": id, "kind": kind, "sha256": digest, "size": size]
     }
     private func metadata(_ value: [String: Any], _ file: [String: Any]) throws {
+        if file["datasetId"] != nil { return try FleetDataset.verify(value, file) }
         guard let properties = value["appProperties"] as? [String: Any], let spaces = value["spaces"] as? [String] else { throw FleetFailure("upload-mismatch", "The Google file's metadata is incomplete.") }
         try FleetProtocol.require(FleetProtocol.text(value, "id") == FleetProtocol.text(file, "id") && FleetProtocol.text(value, "size") == String(FleetProtocol.number(file, "size"))
             && spaces.contains("appDataFolder") && (value["trashed"] == nil || FleetProtocol.bool(value, "trashed") == false)
@@ -73,6 +77,29 @@ actor FleetDrive {
     }
     func invoke(_ method: String, _ args: [String: Any], bytes: Data? = nil) async throws -> Any {
         try FleetProtocol.require(FleetProtocol.text(args, "accountId") == account && !closed, "stale-session", "The Google account has changed.")
+        var method = method
+        if method == "google.dataset.list" {
+            guard let selector = args["query"] as? [String: Any] else { throw FleetFailure("invalid-source-file", "The dataset query isn't valid.") }
+            var fields = [("spaces", "appDataFolder"), ("q", try FleetDataset.query(selector)), ("pageSize", "100"), ("fields", "nextPageToken,incompleteSearch,files(\(Self.fields))")]
+            if selector["scope"] as? String == "history" { fields.append(("orderBy", "createdTime desc")) }
+            if args["pageToken"] != nil && !(args["pageToken"] is NSNull) { fields.append(("pageToken", try FleetProtocol.text(args, "pageToken", 8192))) }
+            return try await json(path("/drive/v3/files", fields), context: "listing")
+        }
+        if method == "google.dataset.get" {
+            let id = try FleetProtocol.text(args, "fileId"); try FleetDataset.check(FleetDataset.fileID(id))
+            return try await json(path("/drive/v3/files/" + id, [("fields", Self.fields)]))
+        }
+        if method == "google.dataset.folder" {
+            let file = try self.file(args); try FleetDataset.check(["folder", "dataset-root"].contains(FleetProtocol.text(file, "kind")))
+            let metadata = try FleetDataset.metadata(file); let value: [String: Any]
+            do { value = try FleetProtocol.json((await request(path("/drive/v3/files", [("fields", Self.fields)]), method: "POST", body: FleetProtocol.encode(metadata), headers: ["Content-Type": "application/json; charset=UTF-8"])).0) }
+            catch let error as FleetFailure where error.code == "file-exists" { value = try await json(path("/drive/v3/files/" + FleetProtocol.text(file, "id"), [("fields", Self.fields)])) }
+            try FleetDataset.verify(value, file); return value
+        }
+        if ["google.dataset.read", "google.dataset.create"].contains(method) {
+            let file = try self.file(args); try FleetDataset.check(file["datasetId"] != nil && !["folder", "dataset-root"].contains(FleetProtocol.text(file, "kind")))
+            method = method == "google.dataset.read" ? "google.read" : "google.create"
+        } else if method == "google.dataset.changes" { method = "google.changes" }
         switch method {
         case "google.cursor": return try await json(path("/drive/v3/changes/startPageToken", [("fields", "startPageToken")]))
         case "google.list":
@@ -119,7 +146,7 @@ actor FleetDrive {
     }
     private func create(_ file: [String: Any], _ bytes: Data) async throws -> [String: Any] {
         let id = try FleetProtocol.text(file, "id"), digest = try FleetProtocol.text(file, "sha256"), kind = try FleetProtocol.text(file, "kind"), size = Int(try FleetProtocol.number(file, "size"))
-        let metadata: [String: Any] = ["id": id, "name": "work-fleet-v1-\(kind)-\(digest).bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": ["wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": kind, "wfSha256": digest]]
+        let metadata: [String: Any] = file["datasetId"] != nil ? try FleetDataset.metadata(file) : ["id": id, "name": "work-fleet-v1-\(kind)-\(digest).bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": ["wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": kind, "wfSha256": digest]]
         let json = try FleetProtocol.encode(metadata)
         do {
             if size == 0 {
@@ -151,7 +178,7 @@ actor FleetDrive {
             }
             throw FleetFailure("service-unavailable", "Google hasn't confirmed the upload. Pending changes are kept.")
         } catch let error as FleetFailure {
-            if ["file-exists", "unauthorized", "source-permission", "source-error", "upload-session-expired", "storage-quota"].contains(error.code) { uploads.removeValue(forKey: id) }; throw error
+            if ["file-exists", "unauthorized", "source-permission", "source-error", "upload-session-expired", "storage-quota", "source-item-limit"].contains(error.code) { uploads.removeValue(forKey: id) }; throw error
         }
     }
 }

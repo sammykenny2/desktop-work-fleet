@@ -13,7 +13,7 @@ namespace WorkFleet.Windows;
 /// <summary>Account-bound OAuth and semantic Drive operations. No credential or upload URI leaves this service.</summary>
 public sealed class NativeGoogle : IDisposable
 {
-  private const string Fields = "id,size,spaces,trashed,appProperties,sha256Checksum";
+  private const string Fields = DatasetFiles.Fields;
   private const string DriveScope = "https://www.googleapis.com/auth/drive.appdata";
   private readonly HttpClient http = new(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(90) };
   private readonly SemaphoreSlim gate = new(1);
@@ -204,8 +204,10 @@ public sealed class NativeGoogle : IDisposable
       if (status == 401) { credentials = credentials with { ExpiresAt = 0 }; }
       var code = status == 401 ? "unauthorized" : status == 409 ? "file-exists" : status == 429 || reason is "rateLimitExceeded" or "userRateLimitExceeded" ? "rate-limit"
         : status >= 500 ? "service-unavailable" : status == 410 && context == "changes" ? "cursor-expired" : status is 400 or 410 && context == "listing" ? "page-expired"
-        : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 && context == "delete" ? "file-missing"
-        : reason == "storageQuotaExceeded" ? "storage-quota" : status == 403 ? "source-permission" : "source-error";
+        : status == 404 && context == "upload" ? "upload-session-expired" : status == 404 ? "file-missing"
+        : reason == "storageQuotaExceeded" ? "storage-quota"
+        : reason is "activeItemCreationLimitExceeded" or "numChildrenInNonRootLimitExceeded" ? "source-item-limit"
+        : status == 403 ? "source-permission" : "source-error";
       throw new HostError(code, "Google Drive did not finish syncing (" + code + "). Local data and pending changes are kept.");
     }
     return (status, bytes, response.Headers.Location?.OriginalString,
@@ -215,6 +217,11 @@ public sealed class NativeGoogle : IDisposable
   { var response = await Request(path, context: context); using var value = JsonRules.Parse(response.Body); return value.RootElement.Clone(); }
   private static (string Id, string Kind, string Digest, int Size) FileInfo(JsonElement file)
   {
+    if (file.TryGetProperty("datasetId", out _))
+    {
+      file = DatasetFiles.File(file);
+      return (JsonRules.Text(file, "id"), JsonRules.Text(file, "kind"), JsonRules.Text(file, "sha256"), (int)JsonRules.Integer(file, "size", LocalDatabase.MaxAttachment));
+    }
     var id = JsonRules.Text(file, "id"); var kind = JsonRules.Text(file, "kind"); var digest = JsonRules.Text(file, "sha256");
     HostError.Require(Regex.IsMatch(id, "^[A-Za-z0-9_-]{1,256}$") && kind is "revision" or "attachment" or "reset" or "workspace", "invalid-source-file", "The sync file ID is invalid.");
     LocalDatabase.CheckDigest(digest); var size = (int)JsonRules.Integer(file, "size", kind is "revision" or "workspace" ? 8 * 1024 * 1024 : kind == "reset" ? 4096 : LocalDatabase.MaxAttachment);
@@ -226,6 +233,37 @@ public sealed class NativeGoogle : IDisposable
     try
     {
       HostError.Require(credentials is not null && JsonRules.Text(args, "accountId") == credentials.AccountId && profile == "google:" + credentials.AccountId, "stale-session", "The Google account has changed.");
+      if (method == "google.dataset.list")
+      {
+        var selector = args.GetProperty("query");
+        var path = PathQuery("/drive/v3/files", ("spaces", "appDataFolder"), ("q", DatasetFiles.Query(selector)), ("pageSize", "100"), ("fields", $"nextPageToken,incompleteSearch,files({Fields})"));
+        if (JsonRules.Text(selector, "scope") == "history") path += "&orderBy=" + Uri.EscapeDataString("createdTime desc");
+        if (args.TryGetProperty("pageToken", out var page) && page.ValueKind != JsonValueKind.Null) path += "&pageToken=" + Uri.EscapeDataString(JsonRules.Text(args, "pageToken", 8192));
+        return await Json(path, "listing");
+      }
+      if (method == "google.dataset.get")
+      {
+        var id = JsonRules.Text(args, "fileId"); DatasetFiles.Check(DatasetFiles.FileId(id));
+        return await Json(PathQuery("/drive/v3/files/" + id, ("fields", Fields)));
+      }
+      if (method == "google.dataset.folder")
+      {
+        var file = DatasetFiles.File(args.GetProperty("file")); DatasetFiles.Check(JsonRules.Text(file, "kind") is "folder" or "dataset-root");
+        JsonElement metadata;
+        try
+        {
+          var response = await Request(PathQuery("/drive/v3/files", ("fields", Fields)), HttpMethod.Post, JsonSerializer.SerializeToUtf8Bytes(DatasetFiles.Metadata(file)), new() { ["Content-Type"] = "application/json; charset=UTF-8" });
+          using var document = JsonRules.Parse(response.Body); metadata = document.RootElement.Clone();
+        }
+        catch (HostError error) when (error.Code == "file-exists") { metadata = await Json(PathQuery("/drive/v3/files/" + JsonRules.Text(file, "id"), ("fields", Fields))); }
+        DatasetFiles.Verify(metadata, file); return metadata;
+      }
+      if (method is "google.dataset.read" or "google.dataset.create")
+      {
+        var file = DatasetFiles.File(args.GetProperty("file")); DatasetFiles.Check(JsonRules.Text(file, "kind") is not ("folder" or "dataset-root"));
+        method = method == "google.dataset.read" ? "google.read" : "google.create";
+      }
+      else if (method == "google.dataset.changes") method = "google.changes";
       switch (method)
       {
         case "google.cursor": return await Json(PathQuery("/drive/v3/changes/startPageToken", ("fields", "startPageToken")));
@@ -243,7 +281,7 @@ public sealed class NativeGoogle : IDisposable
           var file = FileInfo(args.GetProperty("file"));
           // Verify metadata before reading: appdata authorization alone does not validate the supplied descriptor.
           var metadata = await Json(PathQuery("/drive/v3/files/" + file.Id, ("fields", Fields)));
-          ValidateMetadata(metadata, file);
+          ValidateMetadata(metadata, file, args.GetProperty("file").TryGetProperty("datasetId", out _) ? args.GetProperty("file") : null);
           var response = await Request(PathQuery("/drive/v3/files/" + file.Id, ("alt", "media")), maximum: Math.Max(file.Size, 65536));
           HostError.Require(response.Body.Length == file.Size && LocalDatabase.Digest(response.Body) == file.Digest, "file-integrity", "The Google file failed its integrity check.");
           return bridge.DownloadBytes(response.Body);
@@ -263,7 +301,7 @@ public sealed class NativeGoogle : IDisposable
           try
           {
             HostError.Require(bytes.Length == file.Size && LocalDatabase.Digest(bytes) == file.Digest, "file-integrity", "The pending changes failed their integrity check.");
-            return await Create(file, bytes);
+            return await Create(file, bytes, args.GetProperty("file").TryGetProperty("datasetId", out _) ? args.GetProperty("file") : null);
           }
           finally { CryptographicOperations.ZeroMemory(bytes); }
         }
@@ -304,8 +342,9 @@ public sealed class NativeGoogle : IDisposable
     : b.Length >= 3 && b[0] == 0xFF && b[1] == 0xD8 && b[2] == 0xFF ? "image/jpeg"
     : b.Length >= 6 && Encoding.ASCII.GetString(b, 0, 6) is "GIF87a" or "GIF89a" ? "image/gif"
     : b.Length >= 12 && Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && Encoding.ASCII.GetString(b, 8, 4) == "WEBP" ? "image/webp" : null;
-  private static void ValidateMetadata(JsonElement metadata, (string Id, string Kind, string Digest, int Size) file)
+  private static void ValidateMetadata(JsonElement metadata, (string Id, string Kind, string Digest, int Size) file, JsonElement? dataset = null)
   {
+    if (dataset.HasValue) { DatasetFiles.Verify(metadata, dataset.Value); return; }
     var properties = metadata.GetProperty("appProperties");
     HostError.Require(JsonRules.Text(metadata, "id") == file.Id && JsonRules.Text(metadata, "size") == file.Size.ToString(System.Globalization.CultureInfo.InvariantCulture)
       && metadata.GetProperty("spaces").EnumerateArray().Any(v => v.GetString() == "appDataFolder")
@@ -314,9 +353,9 @@ public sealed class NativeGoogle : IDisposable
       && JsonRules.Text(properties, "wfKind") == file.Kind && JsonRules.Text(properties, "wfSha256") == file.Digest
       && (!metadata.TryGetProperty("sha256Checksum", out var sha) || sha.GetString() == file.Digest), "upload-mismatch", "The Google file metadata doesn't match its content.");
   }
-  private async Task<JsonElement> Create((string Id, string Kind, string Digest, int Size) file, byte[] bytes)
+  private async Task<JsonElement> Create((string Id, string Kind, string Digest, int Size) file, byte[] bytes, JsonElement? dataset = null)
   {
-    var metadata = JsonSerializer.SerializeToUtf8Bytes(new { id = file.Id, name = $"work-fleet-v1-{file.Kind}-{file.Digest}.bin", mimeType = "application/octet-stream", parents = new[] { "appDataFolder" },
+    var metadata = dataset.HasValue ? JsonSerializer.SerializeToUtf8Bytes(DatasetFiles.Metadata(dataset.Value)) : JsonSerializer.SerializeToUtf8Bytes(new { id = file.Id, name = $"work-fleet-v1-{file.Kind}-{file.Digest}.bin", mimeType = "application/octet-stream", parents = new[] { "appDataFolder" },
       appProperties = new { wfFormat = "work-fleet-file", wfSchema = "1", wfKind = file.Kind, wfSha256 = file.Digest } });
     (int Status, byte[] Body, string? Location, string? Range) response;
     try
@@ -334,7 +373,7 @@ public sealed class NativeGoogle : IDisposable
         {
           HostError.Require(session.Digest == file.Digest && session.Size == file.Size, "upload-mismatch", "The resumed upload content has changed.");
           response = await Request(session.Path, HttpMethod.Put, [], new() { ["Content-Range"] = $"bytes */{file.Size}" }, allow308: true, context: "upload");
-          if (response.Status != 308) return await Completed(response.Body, file);
+          if (response.Status != 308) return await Completed(response.Body, file, dataset);
           offset = Offset(response.Range, file.Size, -1);
         }
         else
@@ -353,16 +392,16 @@ public sealed class NativeGoogle : IDisposable
         {
           var end = Math.Min(offset + 1024 * 1024, file.Size);
           response = await Request(session.Path, HttpMethod.Put, bytes[offset..end], new() { ["Content-Type"] = "application/octet-stream", ["Content-Range"] = $"bytes {offset}-{end - 1}/{file.Size}" }, allow308: true, context: "upload");
-          if (response.Status != 308) return await Completed(response.Body, file);
+          if (response.Status != 308) return await Completed(response.Body, file, dataset);
           offset = Offset(response.Range, end, offset);
         }
         throw new HostError("service-unavailable", "Google hasn't confirmed the upload. Pending changes are kept.");
       }
-      return await Completed(response.Body, file);
+      return await Completed(response.Body, file, dataset);
     }
     catch (HostError error)
     {
-      if (error.Code is "unauthorized" or "file-exists" or "upload-session-expired" or "source-error" or "source-permission" or "storage-quota") uploads.Remove(file.Id);
+      if (error.Code is "unauthorized" or "file-exists" or "upload-session-expired" or "source-error" or "source-permission" or "storage-quota" or "source-item-limit") uploads.Remove(file.Id);
       throw;
     }
   }
@@ -372,9 +411,9 @@ public sealed class NativeGoogle : IDisposable
     var offset = range is null ? 0 : match.Success && int.TryParse(match.Groups[1].Value, out var last) && last < int.MaxValue ? last + 1 : -1;
     HostError.Require(offset >= 0 && offset <= maximum && offset > previous, "service-unavailable", "Google reported invalid upload progress. Pending changes are kept."); return offset;
   }
-  private async Task<JsonElement> Completed(byte[] body, (string Id, string Kind, string Digest, int Size) file)
+  private async Task<JsonElement> Completed(byte[] body, (string Id, string Kind, string Digest, int Size) file, JsonElement? dataset = null)
   {
-    using var document = JsonRules.Parse(body); ValidateMetadata(document.RootElement, file);
+    using var document = JsonRules.Parse(body); ValidateMetadata(document.RootElement, file, dataset);
     if (!document.RootElement.TryGetProperty("sha256Checksum", out _))
     {
       var content = await Request(PathQuery("/drive/v3/files/" + file.Id, ("alt", "media")), maximum: Math.Max(file.Size, 65536));

@@ -1,4 +1,5 @@
 export default {
+  'errors.sources.driveItemLimit': 'This Google folder or account has reached its file limit. Local notes and pending changes are kept.',
   'errors.sources.datasetInvalid': 'The sync dataset contains an invalid or incompatible record. Local notes are kept.',
   'errors.sources.datasetBusy': 'Sync has more pending work than one pass can safely process. Local notes are kept; sync will continue.',
   'errors.sources.datasetChanged': 'The Google dataset has changed or disappeared. Keep local work and choose how to recover before uploading.',

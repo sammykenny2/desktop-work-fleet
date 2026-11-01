@@ -94,6 +94,7 @@ export class GoogleDriveFileStore {
       : context === 'listing' && [400, 410].includes(status) ? 'page-expired'
       : status === 404 ? (context === 'upload' ? 'upload-session-expired' : 'source-file-missing')
       : reason === 'storageQuotaExceeded' ? 'storage-quota'
+      : ['activeItemCreationLimitExceeded', 'numChildrenInNonRootLimitExceeded'].includes(reason) ? 'source-item-limit'
       : status === 403 ? 'source-permission' : 'source-error';
     const messages = {
       unauthorized: t('errors.sources.driveUnauthorized'), 'file-exists': t('errors.sources.driveFileExists'),
@@ -102,6 +103,7 @@ export class GoogleDriveFileStore {
       'upload-session-expired': t('errors.sources.driveUploadExpired'),
       'source-file-missing': t('errors.sources.driveFileMissing'),
       'storage-quota': t('errors.sources.driveQuota'),
+      'source-item-limit': t('errors.sources.driveItemLimit'),
       'source-permission': t('errors.sources.drivePermission'), 'source-error': t('errors.sources.driveError'),
     };
     throw new FleetError(code, messages[code], { status, retryAfterMs });
@@ -168,6 +170,7 @@ export class GoogleDriveFileStore {
   }
   async readObject({ file, signal }) {
     file = validateDatasetFile(file);
+    requireValue(Number.isSafeInteger(file.size), 'invalid-dataset', t('errors.sources.datasetInvalid'));
     requireValue(canonicalJson(await this.getObject({ id: file.id, signal })) === canonicalJson(file), 'file-integrity', t('errors.sources.fileIntegrity'));
     const response = await this.#http({ path: pathFor(`/drive/v3/files/${file.id}`, { alt: 'media' }), signal, maxResponseBytes: Math.max(file.size, 65536) });
     return verifyDatasetBytes(file, response.body);

@@ -26,6 +26,8 @@ actor ScriptedHTTP {
         var body: Data?
         var range: String?
         var fail = false
+        var expectedFileId = "fixture-file"
+        var expectedParents = ["appDataFolder"]
     }
     static let shared = ScriptedHTTP()
     private var steps: [Step] = []
@@ -44,8 +46,8 @@ actor ScriptedHTTP {
         if let range = step.range { try GoogleDriveProbe.check(request.value(forHTTPHeaderField: "Content-Range") == range, "Unexpected upload range") }
         if step.method == "POST" {
             let metadata = try FleetProtocol.json(request.httpBody ?? Data())
-            try GoogleDriveProbe.check(metadata["id"] as? String == "fixture-file", "Reserved file ID changed")
-            try GoogleDriveProbe.check(metadata["parents"] as? [String] == ["appDataFolder"], "Wrong Drive space")
+            try GoogleDriveProbe.check(metadata["id"] as? String == step.expectedFileId, "Reserved file ID changed")
+            try GoogleDriveProbe.check(metadata["parents"] as? [String] == step.expectedParents, "Wrong Drive parent")
         }
         if step.fail { throw URLError(.networkConnectionLost) }
         return (step.response, HTTPURLResponse(url: request.url!, statusCode: step.status, httpVersion: "HTTP/1.1", headerFields: step.headers)!)
@@ -54,7 +56,7 @@ actor ScriptedHTTP {
 
 @main enum GoogleDriveProbe {
     static let base = "https://www.googleapis.com/upload/drive/v3/files"
-    static let start = base + "?uploadType=resumable&fields=id,size,spaces,trashed,appProperties,sha256Checksum"
+    static let start = base + "?uploadType=resumable&fields=" + FleetDataset.fields
     static let location = start + "&upload_id=fixture-session&session_crd=fixture-crd"
     static let bytes = Data([0, 255, 1, 3])
     static var file: [String: Any] { ["id": "fixture-file", "kind": "attachment", "sha256": FleetProtocol.digest(bytes), "size": bytes.count] }
@@ -88,6 +90,28 @@ actor ScriptedHTTP {
     }
     static func fixture(_ name: String) async throws {
         switch name {
+        case "dataset":
+            let content = Data([0, 255, 1, 3])
+            let file: [String: Any] = ["id": "fixture-file", "kind": "revision", "datasetId": "11111111-2222-3333-4444-555555555555",
+                "parentId": "note-folder", "entityId": "one", "revisionId": "r1", "shard": "a", "sha256": FleetProtocol.digest(content), "size": 4]
+            var metadata = try FleetDataset.metadata(file)
+            metadata["spaces"] = ["appDataFolder"]; metadata["size"] = "4"; metadata["sha256Checksum"] = FleetProtocol.digest(content)
+            var startStep = begin(location); startStep.expectedParents = ["note-folder"]
+            let uploaded = ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try FleetProtocol.encode(metadata), body: content, range: "bytes 0-3/4")
+            let media = "https://www.googleapis.com/drive/v3/files/fixture-file"
+            try await ScriptedHTTP.shared.prepare([startStep, uploaded,
+                ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + FleetDataset.fields, response: try FleetProtocol.encode(metadata)),
+                ScriptedHTTP.Step(method: "GET", url: media + "?alt=media", response: content)])
+            let drive = adapter(), args: [String: Any] = ["accountId": "fixture-account", "file": file]
+            _ = try await drive.invoke("google.dataset.create", args, bytes: content)
+            let received = try await drive.invoke("google.dataset.read", args) as! Data
+            try check(received == content, "Dataset bytes changed")
+            metadata["parents"] = ["another-note"]
+            try await ScriptedHTTP.shared.prepare([ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + FleetDataset.fields, response: try FleetProtocol.encode(metadata))])
+            var rejected = false
+            do { _ = try await drive.invoke("google.dataset.read", args) }
+            catch let error as FleetFailure { rejected = error.code == "invalid-source-file" }
+            try check(rejected, "Cross-note dataset file was accepted")
         case "literal-fields", "encoded-fields":
             let target = name == "literal-fields" ? location : location.replacingOccurrences(of: ",", with: "%2C")
             try await ScriptedHTTP.shared.prepare([begin(target), upload(target)])

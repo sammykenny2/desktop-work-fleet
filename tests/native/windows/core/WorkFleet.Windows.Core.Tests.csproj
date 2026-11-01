@@ -8,6 +8,7 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../../../fixtures/dataset/native-wire.json" LogicalName="DatasetWire.json" />
     <ProjectReference Include="../../../../src/native/windows/core/WorkFleet.Windows.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -224,6 +224,13 @@ test('every resumable 4xx discards its session while retrying the same durable f
   }
 });
 
+test('folder and account item ceilings are explicit capacity failures, not lost authorization', async () => {
+  for (const reason of ['activeItemCreationLimitExceeded', 'numChildrenInNonRootLimitExceeded']) {
+    const s = scripted([response({ error: { errors: [{ reason }] } }, 403)]);
+    await assert.rejects(s.store.allocateFileId(), { code: 'source-item-limit' }); s.done();
+  }
+});
+
 test('untrusted Location headers cannot send contents or credentials to a different endpoint', async () => {
   const f = await fixture();
   for (const value of ['https://attacker.invalid/upload/drive/v3/files?uploadType=resumable&upload_id=x',

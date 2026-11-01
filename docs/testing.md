@@ -34,10 +34,13 @@ Run the isolated foundation checks:
 node --test tests/record-storage.test.js tests/record-storage-native.test.js
 node --test tests/current-revisions.test.js tests/workspace-records.test.js
 node --test tests/dataset-protocol.test.js tests/google-drive.test.js
+node --test tests/dataset-native.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
 python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
+python3 -B -m unittest discover -s tests -p 'test_dataset_native.py' -v
+python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
 ```
 
 - Shared tests exercise closed transaction/reply validation, exact receipt recovery after a lost reply, account
@@ -54,8 +57,14 @@ python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
   interruption in the fixture, eight simultaneous compactors, and bounded catch-up of irrelevant deletion events.
   Lazy 10k/100k/1m history fixtures produce identical current-query/read counts and reject all historical body reads
   after consolidation. This does not measure Google latency, create a million files or test an installed app.
-  The trusted JS Drive adapter has scripted typed-query/folder/upload/feed tests; native dataset methods and the
-  production sync controller are still pending. No live account or deletion experiment is part of these checks.
+  The trusted JS Drive adapter has scripted typed-query/folder/upload/feed tests. Native dataset methods now exist;
+  the production sync controller is still pending. No live account or deletion experiment is part of these checks.
+- `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
+  Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
+  identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a
+  mismatched note parent before reading media. Android compilation and unit tests cover identifier rejection;
+  JSON/HTTP behavior there still needs device or emulator verification. The Apple project includes the same adapter
+  on macOS and iOS; a successful macOS build is not an iOS runtime result.
 - The browser probe uses a new Playwright context, a synthetic intercepted origin and fresh database names;
   it needs no server or account. It tests competing writer connections, real IndexedDB commit/abort behavior,
   attachment rollback, byte-bounded pages, reopen/reset and opaque legacy data preserved without parsing.

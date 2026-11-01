@@ -20,6 +20,7 @@ class MacOSGoogleDriveTests(unittest.TestCase):
         result = subprocess.run([
             "swiftc", "-swift-version", "5", "-module-cache-path", str(folder / "module-cache"),
             str(root / "src/native/apple/Shared/FleetProtocol.swift"),
+            str(root / "src/native/apple/Shared/FleetDataset.swift"),
             str(root / "src/native/apple/Shared/FleetDrive.swift"),
             str(root / "tests/native/apple/GoogleDriveProbe.swift"),
             "-o", str(cls.executable),
@@ -35,6 +36,9 @@ class MacOSGoogleDriveTests(unittest.TestCase):
 
     def test_literal_commas_in_echoed_fields_are_accepted(self):
         self.run_probe("literal-fields")
+
+    def test_dataset_upload_readback_and_parent_validation(self):
+        self.run_probe("dataset")
 
     def test_percent_encoded_fields_are_preserved(self):
         self.run_probe("encoded-fields")

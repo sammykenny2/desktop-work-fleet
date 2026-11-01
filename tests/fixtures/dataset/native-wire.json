@@ -1,0 +1,554 @@
+{
+  "queries": [
+    {
+      "input": {
+        "scope": "datasets"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfKind' and value='dataset' }"
+    },
+    {
+      "input": {
+        "scope": "fences"
+      },
+      "expected": "trashed = false and appProperties has { key='wfKind' and value='reset' }"
+    },
+    {
+      "input": {
+        "scope": "legacy"
+      },
+      "expected": "trashed = false"
+    },
+    {
+      "input": {
+        "scope": "roots",
+        "datasetId": "11111111-2222-3333-4444-555555555555"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='dataset-root' } and 'appDataFolder' in parents"
+    },
+    {
+      "input": {
+        "scope": "ready",
+        "datasetId": "11111111-2222-3333-4444-555555555555"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='ready' }"
+    },
+    {
+      "input": {
+        "scope": "current",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "shard": "a"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfShard' and value='a' } and (appProperties has { key='wfKind' and value='checkpoint' } or appProperties has { key='wfKind' and value='change' })"
+    },
+    {
+      "input": {
+        "scope": "current",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "shard": "groups"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfShard' and value='groups' } and (appProperties has { key='wfKind' and value='checkpoint' } or appProperties has { key='wfKind' and value='change' })"
+    },
+    {
+      "input": {
+        "scope": "history",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "parentId": "note-folder"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and 'note-folder' in parents and appProperties has { key='wfKind' and value='revision' }"
+    },
+    {
+      "input": {
+        "scope": "children",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "parentId": "note-folder"
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and 'note-folder' in parents"
+    },
+    {
+      "input": {
+        "scope": "purges",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "entities": [
+          "one",
+          "two"
+        ]
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='purge' } and (appProperties has { key='wfEntity' and value='one' } or appProperties has { key='wfEntity' and value='two' })"
+    },
+    {
+      "input": {
+        "scope": "entity-folders",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "entities": [
+          "one"
+        ]
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and appProperties has { key='wfKind' and value='folder' } and (appProperties has { key='wfEntity' and value='one' })"
+    }
+  ],
+  "files": [
+    {
+      "input": {
+        "id": "dataset-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "dataset",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10
+      },
+      "metadata": {
+        "id": "dataset-id",
+        "name": "dataset-dataset-id.json",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "dataset",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "ready-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "ready",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10
+      },
+      "metadata": {
+        "id": "ready-id",
+        "name": "ready-ready-id.json",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "ready",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "revision-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "revision",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one",
+        "revisionId": "revision-one",
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "revision-id",
+        "name": "revision-revision-one.json",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "revision",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one",
+          "wfRevision": "revision-one",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "attachment-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "attachment",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one"
+      },
+      "metadata": {
+        "id": "attachment-id",
+        "name": "attachment-one.bin",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "attachment",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "change-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "change",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one",
+        "revisionId": "revision-one",
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "change-id",
+        "name": "change-revision-one.json",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "change",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one",
+          "wfRevision": "revision-one",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "checkpoint-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "checkpoint",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "checkpoint-id",
+        "name": "checkpoint-checkpoint-id.json",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "checkpoint",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "purge-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "purge",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one",
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "purge-id",
+        "name": "purge-one.json",
+        "mimeType": "application/octet-stream",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "purge",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "dataset-root-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "dataset-root",
+        "parentId": "appDataFolder",
+        "role": "root"
+      },
+      "metadata": {
+        "id": "dataset-root-id",
+        "name": "dataset-root-dataset-root-id",
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [
+          "appDataFolder"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "dataset-root",
+          "wfRole": "root"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false
+      }
+    },
+    {
+      "input": {
+        "id": "folder-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "folder",
+        "parentId": "parent-id",
+        "role": "note",
+        "entityId": "one"
+      },
+      "metadata": {
+        "id": "folder-id",
+        "name": "folder-one",
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "folder",
+          "wfRole": "note",
+          "wfEntity": "one"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false
+      }
+    }
+  ],
+  "badQueries": [
+    {
+      "scope": "legacy",
+      "q": "arbitrary"
+    },
+    {
+      "scope": "unknown"
+    },
+    {
+      "scope": "current",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "shard": "a' or true"
+    },
+    {
+      "scope": "history",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "parentId": "line\n"
+    },
+    {
+      "scope": "purges",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "entities": []
+    },
+    {
+      "scope": "purges",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "entities": [
+        "one",
+        "one"
+      ]
+    },
+    {
+      "scope": "purges",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "entities": [
+        "__proto__"
+      ]
+    },
+    {
+      "scope": "purges",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "entities": [
+        "n0",
+        "n1",
+        "n2",
+        "n3",
+        "n4",
+        "n5",
+        "n6",
+        "n7",
+        "n8",
+        "n9",
+        "n10",
+        "n11",
+        "n12",
+        "n13",
+        "n14",
+        "n15",
+        "n16",
+        "n17",
+        "n18",
+        "n19",
+        "n20"
+      ]
+    }
+  ],
+  "badFiles": [
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 10,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a",
+      "extra": "field"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "../other",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 10,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "line\n",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 10,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555\n",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 10,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 10,
+      "entityId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "0",
+      "size": 10,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": -1,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 8388609,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "a"
+    },
+    {
+      "id": "revision-id",
+      "datasetId": "11111111-2222-3333-4444-555555555555",
+      "kind": "revision",
+      "parentId": "parent-id",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "size": 10,
+      "entityId": "one",
+      "revisionId": "revision-one",
+      "shard": "unknown"
+    }
+  ]
+}

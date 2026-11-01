@@ -5,7 +5,7 @@ import { t } from '../i18n/index.js';
 
 export const REVISION_FORMAT = 'work-fleet-revision';
 const envelopeKeys = ['entityId', 'format', 'kind', 'parents', 'revisionId', 'schemaVersion', 'value'].sort();
-export const validId = value => safeKey(value) && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value);
+export const validId = value => safeKey(value) && value.match(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/)?.[0] === value;
 const identity = record => JSON.stringify([record.kind, record.entityId]);
 const invalid = condition => requireValue(condition, 'invalid-revision-record', t('errors.sources.revisionInvalid'));
 

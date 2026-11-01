@@ -77,7 +77,7 @@ actor FleetService {
             case "google.signOut": try await google.signOut(); return ["profileId": "local"]
             case "google.local": return ["profileId": "local"]
             default:
-                let bytes = method == "google.create" ? try database.staged(owned(args), "attachment") : nil
+                let bytes = ["google.create", "google.dataset.create"].contains(method) ? try database.staged(owned(args), "attachment") : nil
                 let result = try await drive.invoke(method, args, bytes: bytes)
                 try FleetProtocol.require(!closed, "stale-session", "The Google session has ended.")
                 if let data = result as? Data { return try download(data) }; return result

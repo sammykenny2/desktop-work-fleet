@@ -17,7 +17,7 @@ const exact = (value, keys) => value && typeof value === 'object' && !Array.isAr
   && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 const invalid = condition => requireValue(condition, 'invalid-dataset', t('errors.sources.datasetInvalid'));
 const unique = values => new Set(values).size === values.length;
-export const datasetId = value => typeof value === 'string' && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(value);
+export const datasetId = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(value);
 export const datasetFileLimit = kind => kind === 'attachment' ? 25 * 1024 * 1024
   : ['change', 'purge', 'dataset', 'ready'].includes(kind) ? 64 * 1024 : DATASET_LIMITS.checkpointBytes;
 export const datasetShard = async (kind, id) => kind === 'group' ? 'groups' : (await sha256(encoder.encode(id)))[0];
@@ -27,7 +27,7 @@ export function validateDatasetFile(input) {
   invalid(file && validFileId(file.id) && datasetId(file.datasetId) && kinds.has(file.kind) && validFileId(file.parentId));
   const keys = ['id', 'datasetId', 'kind', 'parentId'];
   if (folders.has(file.kind)) {
-    keys.push('role'); invalid(typeof file.role === 'string' && /^[a-z][a-z0-9-]{0,31}$/.test(file.role));
+    keys.push('role'); invalid(typeof file.role === 'string' && file.role.match(/^[a-z][a-z0-9-]{0,31}$/)?.[0] === file.role);
     if (file.entityId !== undefined) { keys.push('entityId'); invalid(validId(file.entityId)); }
     invalid(file.kind !== 'dataset-root' || (file.parentId === 'appDataFolder' && file.role === 'root'));
   } else {
@@ -58,7 +58,8 @@ export function datasetMetadata(input) {
 
 export function googleDatasetDescriptor(metadata, { rootParentVerified = false } = {}) {
   const properties = metadata?.appProperties;
-  invalid(metadata && metadata.trashed !== true && metadata.spaces?.includes('appDataFolder')
+  invalid(metadata && (metadata.trashed === undefined || metadata.trashed === false)
+    && Array.isArray(metadata.spaces) && metadata.spaces.includes('appDataFolder')
     && Array.isArray(metadata.parents) && metadata.parents.length === 1
     && properties?.wfFormat === DATASET_FORMAT && properties.wfSchema === '1');
   const file = { id: metadata.id, parentId: metadata.parents[0], datasetId: properties.wfDataset, kind: properties.wfKind };

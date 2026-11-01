@@ -5,7 +5,7 @@ using System.Text;
 namespace WorkFleet.Windows.Core;
 
 /// <summary>One native coordinator owns a database. Staging never appears in public reads.</summary>
-public sealed class LocalDatabase : IDisposable
+public sealed partial class LocalDatabase : IDisposable
 {
   public const int MaxRecord = 128 * 1024 * 1024;
   public const int MaxAttachment = 25 * 1024 * 1024;
@@ -38,6 +38,7 @@ public sealed class LocalDatabase : IDisposable
       Execute("CREATE TABLE IF NOT EXISTS staging (profile TEXT NOT NULL, token TEXT PRIMARY KEY, kind TEXT NOT NULL, digest TEXT NOT NULL, size INTEGER NOT NULL, data BLOB NOT NULL);", tx);
       Execute("CREATE TABLE IF NOT EXISTS vault (profile TEXT NOT NULL, purpose TEXT NOT NULL, id TEXT PRIMARY KEY, data BLOB NOT NULL);", tx);
       Execute("CREATE TABLE IF NOT EXISTS capabilities (profile TEXT NOT NULL, kind TEXT NOT NULL, id TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,kind,id));", tx);
+      InitializeRecordStore(tx);
       // Exclusive owner proves no live transfer survives a process restart.
       Execute("DELETE FROM staging; PRAGMA user_version=2;", tx); tx.Commit();
     }
@@ -231,7 +232,7 @@ public sealed class LocalDatabase : IDisposable
     {
       using (var tx = connection.BeginTransaction())
       {
-        foreach (var table in new[] { "records", "attachments", "staging", "vault", "capabilities" })
+        foreach (var table in new[] { "records", "record_entries", "record_heads", "attachments", "staging", "vault", "capabilities" })
           Execute($"DELETE FROM {table} WHERE profile=$p;", tx, ("$p", ProfileId));
         tx.Commit();
       }

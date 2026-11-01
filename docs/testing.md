@@ -17,14 +17,51 @@ A green result from old tests must not be listed as a pass for a new feature, an
 local and Google share the V1 ZIP, and unsupported formats are rejected with the data kept. There is no per-version migration or copy acceptance work.
 For documentation work, check_docs.py, git diff --check and a scope and semantic consistency check are enough.
 
-## Proposed dataset checkpoint and deletion verification
+## Dataset checkpoint and deletion verification
 
-[SPEC-010 VC01-VC26](specs/010-dataset-checkpoints-and-deletable-history.md#acceptance-cases) defines proposed
+[SPEC-010 VC01-VC26](specs/010-dataset-checkpoints-and-deletable-history.md#acceptance-cases) defines
 behavioral, failure and history-scaling acceptance; [PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md)
-starts local storage and remote proof independently after scope approval, followed by sync, reset, manual purge
+starts approved local storage and remote proof independently, followed by sync, reset, manual purge
 and backup integration. The research records externally supplied JS timings, not reproduced acceptance results.
-None of these new cases has passed yet. The design package does not authorize live cloud resets or imply that old
-sync tests verify the new model.
+The record transaction foundation is implemented, but the app still uses whole-workspace persistence. No complete
+VC case, improved typing latency, new bootstrap or destructive cloud behavior is claimed from primitive tests.
+The implementation grant does not authorize live cloud resets, and old sync tests do not verify the new model.
+
+Run the isolated foundation checks:
+
+```bash
+node --test tests/record-storage.test.js tests/record-storage-native.test.js
+node tests/record-storage.browser.mjs chromium
+node tests/record-storage.browser.mjs webkit
+python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
+python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
+```
+
+- Shared tests exercise closed transaction/reply validation, exact receipt recovery after a lost reply, account
+  boundaries, immutable history, attachment integrity, byte-bounded paging, and a single draft-row write with
+  20,000 pre-existing history rows. That last assertion measures records touched, not editor latency.
+- The browser probe uses a new Playwright context, a synthetic intercepted origin and fresh database names;
+  it needs no server or account. It tests competing writer connections, real IndexedDB commit/abort behavior,
+  attachment rollback, byte-bounded pages, reopen/reset and opaque legacy data preserved without parsing.
+  Chromium and Playwright WebKit pass this probe. WebKit stalled on abort with queued Blob attachment writes;
+  the new store keeps attachment bytes as typed arrays, and that same rollback fixture now completes. This is
+  not acceptance of an installed WKWebView/WebKitGTK application.
+- The Linux test uses real SQLite with an identity encryption fixture, query-plan/SQL instrumentation and a
+  receipt-write failure trigger. It does not exercise Secret Service or AES-GCM.
+- The macOS test compiles the production SQLite/AES-GCM database with a synthetic key in a disposable directory;
+  it exercises replay staging cleanup, rollback, paging, restart and legacy refusal. It never uses the user's
+  Keychain or database. Non-macOS systems skip this probe.
+- `RecordStoreProbe` is included in the existing Windows core test executable. It adds actual SQLite/DPAPI
+  transactions, injected receipt failure, attachment rollback, staging cleanup, paging and profile isolation.
+  It requires Windows; adding the probe is not evidence that it ran on this Mac.
+- Android's `:app:compileDebugJavaWithJavac :app:testDebugUnitTest` checks the new adapter compiles and existing
+  host tests pass. New SQLite/Keystore transaction behavior and near-limit cursor windows still need device or
+  emulator verification. The adapter sizes record/staging cursor windows explicitly using Android's
+  [SQLiteCursor window API](https://developer.android.com/reference/android/database/sqlite/SQLiteCursor#setWindow(android.database.CursorWindow)).
+
+The full shared suites and native build procedures below remain required. Workspace conversion to current-only
+state, explicit incompatible-profile UI, native bridge latency, process-death/power-loss acceptance, iOS runtime,
+remote protocol proof and real-provider checks remain open. Independent implementation review is still required.
 
 ## Proposed desktop presentation lifecycle verification
 

@@ -3,6 +3,8 @@ package app.workfleet.nativehost;
 import android.content.Context;
 import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.CursorWindow;
+import android.database.sqlite.SQLiteCursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.security.keystore.KeyGenParameterSpec;
@@ -26,6 +28,7 @@ final class FleetDatabase implements AutoCloseable {
     private final SecretKey key;
     private final RandomAccessFile owner;
     private final FileLock lock;
+    private final RecordStore records;
     final String profile;
     FleetDatabase(Context context, String profile) throws Exception {
         this.profile = profile;
@@ -50,9 +53,9 @@ final class FleetDatabase implements AutoCloseable {
             }
             @Override public void onUpgrade(SQLiteDatabase database, int oldVersion, int newVersion) { throw new IllegalStateException("Unsupported schema"); }
         };
-        db = helper.getWritableDatabase(); db.delete("staging", null, null);
+        db = helper.getWritableDatabase(); db.delete("staging", null, null); records = new RecordStore(this, db, profile);
     }
-    private String scope(String kind, String id) { return profile.length() + ":" + profile + "|" + kind + "|" + id; }
+    String scope(String kind, String id) { return profile.length() + ":" + profile + "|" + kind + "|" + id; }
     byte[] protect(byte[] bytes, String scope) throws Exception {
         Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding"); cipher.init(Cipher.ENCRYPT_MODE, key); cipher.updateAAD(scope.getBytes(StandardCharsets.UTF_8));
         byte[] sealed = cipher.doFinal(bytes); byte[] result = new byte[12 + sealed.length]; System.arraycopy(cipher.getIV(), 0, result, 0, 12); System.arraycopy(sealed, 0, result, 12, sealed.length); return result;
@@ -94,17 +97,29 @@ final class FleetDatabase implements AutoCloseable {
         JSONObject value = Protocol.json(bytes); Protocol.require(Protocol.text(value, "profileId", 256).equals(profile), "invalid-profile", "The data doesn't belong to the current account."); return Protocol.number(value, "revision", Protocol.SAFE_INTEGER);
     }
     synchronized byte[] staged(String token, String kind) throws Exception {
+        long size;
+        try (Cursor metadata = db.query("staging", new String[] { "size" }, "profile=? AND token=? AND kind=?", new String[] { profile, token, kind }, null, null, null)) {
+            Protocol.require(metadata.moveToFirst(), "transfer-missing", "The native transfer has expired."); size = metadata.getLong(0);
+            Protocol.require(size >= 0 && size <= Protocol.BACKUP, "transfer-capacity", "Temporary storage is full.");
+        }
         try (Cursor cursor = db.query("staging", new String[] { "data", "digest" }, "profile=? AND token=? AND kind=?", new String[] { profile, token, kind }, null, null, null)) {
+            Protocol.require(cursor instanceof SQLiteCursor, "native-storage", "The local record read did not finish.");
+            ((SQLiteCursor) cursor).setWindow(new CursorWindow("work-fleet-staging", size + 4096));
             Protocol.require(cursor.moveToFirst(), "transfer-missing", "The native transfer has expired."); byte[] bytes = unprotect(cursor.getBlob(0), scope("staging", token));
-            Protocol.require(Protocol.digest(bytes).equals(cursor.getString(1)), "transfer-integrity", "The transfer failed verification."); return bytes;
+            Protocol.require(bytes.length == size && Protocol.digest(bytes).equals(cursor.getString(1)), "transfer-integrity", "The transfer failed verification."); return bytes;
         }
     }
     synchronized void discard(String token) { db.delete("staging", "profile=? AND token=?", new String[] { profile, token }); }
-    private String commitAttachment(String token) throws Exception {
+    String commitAttachment(String token) throws Exception {
         byte[] bytes = staged(token, "attachment");
         try {
             String id = Protocol.digest(bytes); ContentValues row = new ContentValues(); row.put("profile", profile); row.put("id", id); row.put("data", protect(bytes, scope("attachment", id)));
-            db.insertWithOnConflict("attachments", null, row, SQLiteDatabase.CONFLICT_IGNORE); discard(token); return id;
+            if (db.insertWithOnConflict("attachments", null, row, SQLiteDatabase.CONFLICT_IGNORE) == -1) {
+                try (Cursor existing = db.query("attachments", new String[] { "id" }, "profile=? AND id=?", new String[] { profile, id }, null, null, null)) {
+                    Protocol.require(existing.moveToFirst(), "native-storage", "The local attachment write did not finish.");
+                }
+            }
+            discard(token); return id;
         } finally { Arrays.fill(bytes, (byte) 0); }
     }
     synchronized String putAttachment(String token) throws Exception {
@@ -132,10 +147,14 @@ final class FleetDatabase implements AutoCloseable {
     /** Deletes everything this profile keeps on the device; Google authorization is held by the system and stays. */
     synchronized void reset() {
         db.beginTransaction();
-        try { for (String table : new String[] { "records", "attachments", "staging", "secrets" }) db.delete(table, "profile=?", new String[] { profile }); db.setTransactionSuccessful(); }
+        try { for (String table : new String[] { "records", "record_entries", "record_heads", "attachments", "staging", "secrets" }) db.delete(table, "profile=?", new String[] { profile }); db.setTransactionSuccessful(); }
         finally { db.endTransaction(); }
         // Return the freed pages so the deleted notes do not stay behind in the database file.
         db.execSQL("VACUUM");
     }
     @Override public synchronized void close() throws Exception { helper.close(); lock.release(); owner.close(); }
+    synchronized JSONObject recordStatus() throws Exception { return records.status(); }
+    synchronized byte[] recordEntry(String collection, String id) throws Exception { return records.entry(collection, id); }
+    synchronized byte[] recordPage(JSONObject query) throws Exception { return records.page(query); }
+    synchronized JSONObject commitRecords(String token, Long expected, JSONArray attachments) throws Exception { return records.commit(token, expected, attachments); }
 }

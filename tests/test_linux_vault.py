@@ -106,7 +106,7 @@ def load_database(secret, real_crypto=False):
                  "cryptography.hazmat.primitives": types.ModuleType("cryptography.hazmat.primitives"),
                  "cryptography.hazmat.primitives.ciphers": types.ModuleType("cryptography.hazmat.primitives.ciphers"),
                  "cryptography.hazmat.primitives.ciphers.aead": aead}
-    previous = {name: sys.modules.get(name) for name in [*stubs, "protocol", "datafailure"]}
+    previous = {name: sys.modules.get(name) for name in [*stubs, "protocol", "datafailure", "record_store"]}
     try:
         spec = importlib.util.spec_from_file_location("protocol", NATIVE / "protocol.py")
         protocol = importlib.util.module_from_spec(spec)
@@ -116,6 +116,10 @@ def load_database(secret, real_crypto=False):
         failures = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(failures)
         sys.modules["datafailure"] = failures
+        spec = importlib.util.spec_from_file_location("record_store", NATIVE / "record_store.py")
+        records = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(records)
+        sys.modules["record_store"] = records
         spec = importlib.util.spec_from_file_location("database", NATIVE / "database.py")
         database = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(database)

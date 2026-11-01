@@ -29,7 +29,7 @@ final class FleetBridge implements AutoCloseable {
         switch (method) {
             case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "appVersion", BuildConfig.VERSION_NAME, "distribution", "android", "storage", "sqlite-keystore",
                 "maxChunkBytes", Protocol.CHUNK, "maxMessageBytes", 1024 * 1024, "maxRecordBytes", Protocol.RECORD, "maxAttachmentBytes", Protocol.ATTACHMENT, "maxBackupBytes", Protocol.BACKUP,
-                "capabilities", Protocol.object("nativeStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable(), "languagePreference", true),
+                "capabilities", Protocol.object("nativeStorage", true, "recordStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable(), "languagePreference", true),
                 "language", activity.languageInfo());
             case "host.language.set": return activity.setLanguage(Protocol.text(args, "preference", 16));
             case "host.ready": ready = true; return null;
@@ -66,13 +66,21 @@ final class FleetBridge implements AutoCloseable {
                 staged.clear(); database.reset(); return Protocol.object("profileId", database.profile);
             }
             case "storage.load": return download(database.record(Protocol.text(args, "kind", 32)));
+            case "storage.records.status": return database.recordStatus();
+            case "storage.records.get": return download(database.recordEntry(Protocol.text(args, "collection", 32), Protocol.text(args, "key", 256)));
+            case "storage.records.page": return download(database.recordPage(args));
             case "storage.attachment": return download(database.attachment(Protocol.text(args, "id", 64)));
             case "storage.putAttachment": { String token = owned(args); String id = database.putAttachment(token); staged.remove(token); return Protocol.object("id", id); }
-            case "storage.commit": {
+            case "storage.commit":
+            case "storage.records.commit": {
                 String token = owned(args); JSONArray attachments = args.optJSONArray("attachments"); if (attachments == null) attachments = new JSONArray();
                 for (int i = 0; i < attachments.length(); i++) Protocol.require(staged.contains(attachments.getString(i)), "transfer-missing", "The attachment transfer doesn't belong to this window.");
                 Protocol.require(args.has("expectedRevision"), "invalid-request", "The expected revision is missing.");
                 Long expected = args.isNull("expectedRevision") ? null : Protocol.number(args, "expectedRevision", Protocol.SAFE_INTEGER);
+                if (method.equals("storage.records.commit")) {
+                    JSONObject result = database.commitRecords(token, expected, attachments); staged.remove(token);
+                    for (int i = 0; i < attachments.length(); i++) staged.remove(attachments.getString(i)); return result;
+                }
                 Protocol.require(!args.has("replaceAttachments") || args.get("replaceAttachments") instanceof Boolean, "invalid-request", "A Boolean field is invalid.");
                 database.commit(Protocol.text(args, "kind", 32), token, expected, attachments, args.optBoolean("replaceAttachments", false)); staged.remove(token);
                 for (int i = 0; i < attachments.length(); i++) staged.remove(attachments.getString(i)); return null;

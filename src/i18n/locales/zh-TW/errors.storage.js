@@ -1,4 +1,6 @@
 export default {
+  'errors.storage.recordTransactionInvalid': '本機逐筆儲存交易無效，已保存的資料未變更。',
+  'errors.storage.incompatibleLocalData': '此裝置仍有舊格式資料。請保留原資料，或明確重設此本機帳號資料後繼續。',
   // Local storage
   'errors.storage.storageBlocked': '另一個視窗正在使用舊資料版本，請關閉後重試。',
   'errors.storage.storageAborted': '本機保存已中止。',

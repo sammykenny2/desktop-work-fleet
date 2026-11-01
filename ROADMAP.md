@@ -35,11 +35,11 @@ existing Mac experience; do not restart the paused exploration goal.
 The incompatible persistence redesign belongs in the next maintainer-approved minor application release, not a
 compatible 0.4.x patch. No target version or publication is authorized by this roadmap.
 
-- **Permanent deletion and history scale**: review
+- **Permanent deletion and history scale**: implement
   [ADR-062](docs/decisions/062-dataset-checkpoints-and-deletable-history.md),
   [SPEC-010](docs/specs/010-dataset-checkpoints-and-deletable-history.md) and
-  [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md). After scope approval, start record-level
-  local storage alongside remote protocol proof. The proposed minimum delivery adds checkpoint bootstrap,
+  [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md). Start record-level
+  local storage alongside remote protocol proof. The minimum delivery adds checkpoint bootstrap,
   explicit legacy reset, Delete forever, Empty Trash and the necessary backup/recovery integration.
 - **Capacity and later behavior**: follow with manual Clear this note's history, then selective version deletion;
   review larger complete-backup support as needed. Automatic whole-note Trash expiry needs a separate ADR.

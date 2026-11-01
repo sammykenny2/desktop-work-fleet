@@ -65,10 +65,10 @@ their own evidence.
 
 The revised deletion and history-scaling direction is recorded as confirmed U requirements in
 [SPEC-010](specs/010-dataset-checkpoints-and-deletable-history.md). Its checkpoint, manual purge and reset design
-is proposed in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md) for independent review;
-[PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md) is not approved for implementation.
+is accepted as the implementation direction in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md);
+[PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md) starts with independent local-storage and remote-proof tracks.
 Automatic whole-note Trash expiry is a later design, with no per-version retention.
-The implemented contracts below remain in force pending that review and later implementation.
+The implemented contracts below remain in force until the replacement passes its proof/review gates and is integrated.
 
 The [Drive research](research/2026-10-03-google-drive-notes-mvp-feasibility.md) recommends Drive rather than Keep;
 the appDataFolder provider was adopted by ADR-012, and the protocol is in SPEC-004. Native OAuth and real Google

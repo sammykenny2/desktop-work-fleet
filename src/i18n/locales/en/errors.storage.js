@@ -7,6 +7,8 @@ export default {
   'errors.storage.workspaceInvalid': "The local data's ID or version is invalid.",
   'errors.storage.staleWriter': 'The data changed in another window. Your changes are kept; reload, then save again.',
   'errors.storage.revisionGap': "The versions saved on this device aren't consecutive.",
+  'errors.storage.recordTransactionInvalid': 'The local record transaction is invalid. Your saved data is unchanged.',
+  'errors.storage.incompatibleLocalData': 'This device has data from an older format. Keep it or explicitly reset this local profile before continuing.',
 
   // Attachments
   'errors.storage.attachmentListRequired': 'A complete attachment list is needed.',

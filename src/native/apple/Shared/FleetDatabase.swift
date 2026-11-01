@@ -43,6 +43,7 @@ final class FleetDatabase {
             try execute("CREATE TABLE IF NOT EXISTS attachments(profile TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,id));")
             try execute("CREATE TABLE IF NOT EXISTS staging(profile TEXT,token TEXT PRIMARY KEY,kind TEXT,digest TEXT,size INTEGER,data BLOB);")
             try execute("CREATE TABLE IF NOT EXISTS secrets(profile TEXT,kind TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,kind,id));")
+            try initializeRecords()
             try execute("DELETE FROM staging; PRAGMA user_version=1;")
         } catch { let named = FleetDatabase.classified(database, error); sqlite3_close(database); database = nil; Darwin.close(owner); owner = -1; throw named }
     }
@@ -151,7 +152,7 @@ final class FleetDatabase {
     func forget(_ kind: String, _ id: String) throws { try synchronized { try execute("DELETE FROM secrets WHERE profile=? AND kind=? AND id=?", [profile, kind, id]) } }
     /// Deletes everything this profile keeps on the device; Google credentials live in the Keychain and stay.
     func reset() throws { try synchronized {
-        try transaction { for table in ["records", "attachments", "staging", "secrets"] { try execute("DELETE FROM \(table) WHERE profile=?", [profile]) } }
+        try transaction { for table in ["records", "record_entries", "record_heads", "attachments", "staging", "secrets"] { try execute("DELETE FROM \(table) WHERE profile=?", [profile]) } }
         // Return the freed pages so the deleted notes do not stay behind in the database file.
         try execute("PRAGMA wal_checkpoint(TRUNCATE)"); try execute("VACUUM")
     } }
@@ -192,4 +193,144 @@ final class FleetDatabase {
         }
     } }
     func close() { synchronized { if closed { return }; closed = true; sqlite3_close(database); database = nil; if owner >= 0 { flock(owner, LOCK_UN); Darwin.close(owner); owner = -1 } } }
+}
+
+extension FleetDatabase {
+    private static let recordFormat = "work-fleet-local-records", batchBytes = 8 * 1024 * 1024
+    private static let collections: Set<String> = ["meta", "current", "history", "draft", "outbox", "control", "job"]
+    private static func recordRequire(_ condition: Bool) throws {
+        try FleetProtocol.require(condition, "invalid-record-transaction", "The local record transaction is invalid. Saved data is unchanged.")
+    }
+    private static func recordKey(_ text: String) -> Bool {
+        text.range(of: "^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$", options: .regularExpression) == text.startIndex..<text.endIndex
+            && !["__proto__", "prototype", "constructor"].contains(text)
+    }
+    private func initializeRecords() throws {
+        try execute("CREATE TABLE IF NOT EXISTS record_heads(profile TEXT PRIMARY KEY,revision INTEGER NOT NULL,commit_id TEXT NOT NULL,digest TEXT NOT NULL);")
+        try execute("CREATE TABLE IF NOT EXISTS record_entries(profile TEXT NOT NULL,collection TEXT NOT NULL,id TEXT NOT NULL,entity TEXT NOT NULL,ordinal INTEGER NOT NULL,data BLOB NOT NULL,PRIMARY KEY(profile,collection,id));")
+        try execute("CREATE INDEX IF NOT EXISTS record_order ON record_entries(profile,collection,ordinal DESC,id DESC); CREATE INDEX IF NOT EXISTS record_entity ON record_entries(profile,collection,entity,ordinal DESC,id DESC);")
+    }
+    func recordStatus() throws -> [String: Any]? { try synchronized {
+        if let revision = try scalar("SELECT revision FROM record_heads WHERE profile=?", [profile]) as? Int64 {
+            guard let id = try scalar("SELECT commit_id FROM record_heads WHERE profile=?", [profile]) as? String,
+                let digest = try scalar("SELECT digest FROM record_heads WHERE profile=?", [profile]) as? String else {
+                throw FleetFailure("storage-integrity", "The local record receipt is incomplete.")
+            }
+            return ["format": Self.recordFormat, "schemaVersion": 1, "profileId": profile, "revision": revision, "commitId": id, "digest": digest]
+        }
+        // Detect the old format without decrypting its history or converting it.
+        if try scalar("SELECT 1 FROM records WHERE profile=? AND kind='workspace'", [profile]) != nil {
+            return ["format": "legacy-workspace", "profileId": profile]
+        }
+        return nil
+    } }
+    func recordEntry(_ collection: String, _ id: String) throws -> Data? { try synchronized {
+        try Self.recordRequire(Self.collections.contains(collection) && Self.recordKey(id))
+        guard let encrypted = try scalar("SELECT data FROM record_entries WHERE profile=? AND collection=? AND id=?", [profile, collection, id]) as? Data else { return nil }
+        let bytes = try open(encrypted, "entry:" + collection, id), value = try FleetProtocol.json(bytes)
+        try Self.recordRequire(value["collection"] as? String == collection && value["key"] as? String == id)
+        return bytes
+    } }
+    func recordPage(_ query: [String: Any]) throws -> Data { try synchronized {
+        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision"]))
+        let collection = try FleetProtocol.text(query, "collection"), entity = query["entity"] is NSNull || query["entity"] == nil ? nil : query["entity"] as? String
+        try Self.recordRequire(Self.collections.contains(collection) && (query["entity"] == nil || query["entity"] is NSNull || entity != nil)
+            && (entity == nil || entity == "" || Self.recordKey(entity!)))
+        let limit = try FleetProtocol.number(["limit": query["limit"] ?? 100], "limit", 100)
+        try Self.recordRequire(limit > 0 && query["expectedRevision"] != nil)
+        let expected: Int64? = query["expectedRevision"] is NSNull ? nil : try FleetProtocol.number(query, "expectedRevision")
+        let status = try recordStatus()
+        try FleetProtocol.require(status == nil || status?["format"] as? String == Self.recordFormat, "incompatible-local-data", "This profile uses an older format. Keep it or explicitly reset it before continuing.")
+        try FleetProtocol.require(status?["revision"] as? Int64 == expected, "stale-writer", "Local data changed while reading its records. Reload before continuing.")
+        var whereClause = "profile=? AND collection=?", parameters: [Any] = [profile, collection]
+        if let entity { whereClause += " AND entity=?"; parameters.append(entity) }
+        if query["after"] != nil && !(query["after"] is NSNull) {
+            guard let after = query["after"] as? [String: Any] else { throw FleetFailure("invalid-record-transaction", "The record cursor is invalid.") }
+            try Self.recordRequire(Set(after.keys) == ["ordinal", "key"])
+            let ordinal = try FleetProtocol.number(after, "ordinal"), id = try FleetProtocol.text(after, "key")
+            try Self.recordRequire(Self.recordKey(id)); whereClause += " AND (ordinal,id)<(?,?)"; parameters += [ordinal, id]
+        }
+        parameters.append(limit + 1)
+        let request = try statement("SELECT id,entity,ordinal,data FROM record_entries WHERE " + whereClause + " ORDER BY ordinal DESC,id DESC LIMIT ?", parameters)
+        defer { sqlite3_finalize(request) }
+        var rows: [[String: Any]] = [], size = 512, more = false
+        while true {
+            let step = sqlite3_step(request)
+            if step == SQLITE_DONE { break }
+            try FleetProtocol.require(step == SQLITE_ROW, "native-storage", "The local record read did not finish.")
+            let id = String(cString: sqlite3_column_text(request, 0)), storedEntity = String(cString: sqlite3_column_text(request, 1))
+            let encrypted = Data(bytes: sqlite3_column_blob(request, 3), count: Int(sqlite3_column_bytes(request, 3)))
+            let bytes = try open(encrypted, "entry:" + collection, id), row = try FleetProtocol.json(bytes)
+            try Self.recordRequire(row["collection"] as? String == collection && row["key"] as? String == id && row["entity"] as? String == storedEntity
+                && FleetProtocol.number(row, "ordinal") == sqlite3_column_int64(request, 2))
+            if rows.count >= Int(limit) || (!rows.isEmpty && size + bytes.count > Self.batchBytes) { more = true; break }
+            try Self.recordRequire(size + bytes.count <= Self.batchBytes); rows.append(row); size += bytes.count + 1
+        }
+        let next: Any = more && !rows.isEmpty ? ["ordinal": rows.last!["ordinal"]!, "key": rows.last!["key"]!] : NSNull()
+        return try FleetProtocol.encode(["revision": expected.map { $0 as Any } ?? NSNull(), "rows": rows, "next": next])
+    } }
+    func commitRecords(_ token: String, _ expected: Int64?, _ attachments: [String]) throws -> [String: Any] { try synchronized {
+        try Self.recordRequire(expected == nil || expected! >= 0 && expected! <= FleetProtocol.safeInteger)
+        try Self.recordRequire(attachments.count <= 512 && Set(attachments).count == attachments.count)
+        let bytes = try staged(token, "workspace")
+        try Self.recordRequire(bytes.count <= Self.batchBytes)
+        let value = try FleetProtocol.json(bytes), digest = FleetProtocol.digest(bytes)
+        try Self.recordRequire(Set(value.keys) == ["format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes"]
+            && value["format"] as? String == "work-fleet-record-transaction" && value["profileId"] as? String == profile
+            && FleetProtocol.number(value, "schemaVersion") == 1)
+        let revision = try FleetProtocol.number(value, "revision"), id = try FleetProtocol.text(value, "commitId")
+        try Self.recordRequire(FleetProtocol.isUUID(id) && id == id.lowercased())
+        guard let puts = value["puts"] as? [[String: Any]], let deletes = value["deletes"] as? [[String: Any]] else {
+            throw FleetFailure("invalid-record-transaction", "The record changes are invalid.")
+        }
+        try Self.recordRequire(puts.count + deletes.count <= 512)
+        var seen = Set<String>()
+        for row in puts + deletes {
+            let collection = try FleetProtocol.text(row, "collection"), key = try FleetProtocol.text(row, "key")
+            try Self.recordRequire(Self.collections.contains(collection) && Self.recordKey(key) && seen.insert(collection + "|" + key).inserted)
+        }
+        return try transaction {
+            var attachmentBytes: Int64 = 0
+            for staged in attachments {
+                guard let size = try scalar("SELECT size FROM staging WHERE profile=? AND token=? AND kind='attachment'", [profile, staged]) as? Int64 else {
+                    throw FleetFailure("transfer-missing", "The native attachment transfer has expired.")
+                }
+                try Self.recordRequire(size >= 0 && size <= Int64(FleetProtocol.attachment))
+                attachmentBytes += size; try Self.recordRequire(attachmentBytes <= 128 * 1024 * 1024)
+            }
+            let status = try recordStatus()
+            if status?["revision"] as? Int64 == revision && status?["commitId"] as? String == id && status?["digest"] as? String == digest {
+                for staged in [token] + attachments { try discard(staged) }
+                return status!
+            }
+            try FleetProtocol.require(status == nil || status?["format"] as? String == Self.recordFormat, "incompatible-local-data", "This profile uses an older format. Keep it or explicitly reset it before continuing.")
+            try FleetProtocol.require(status?["revision"] as? Int64 == expected, "stale-writer", "Another writer changed the local records. Keep your changes and reload.")
+            try Self.recordRequire(revision == (expected.map { $0 + 1 } ?? 0))
+            for row in puts {
+                try Self.recordRequire(Set(row.keys) == ["collection", "key", "entity", "ordinal", "value"])
+                try Self.recordRequire(FleetProtocol.encode(row).count <= Self.batchBytes - 1024)
+                let collection = try FleetProtocol.text(row, "collection"), key = try FleetProtocol.text(row, "key")
+                guard let entity = row["entity"] as? String else { throw FleetFailure("invalid-record-transaction", "The record entity is invalid.") }
+                try Self.recordRequire(entity == "" || Self.recordKey(entity))
+                let ordinal = try FleetProtocol.number(row, "ordinal", revision)
+                if collection == "history", let previous = try recordEntry(collection, key) {
+                    let old = try FleetProtocol.json(previous)
+                    try FleetProtocol.require(old["entity"] as? String == entity
+                        && FleetProtocol.encode(["value": old["value"]!]) == FleetProtocol.encode(["value": row["value"]!]),
+                        "revision-collision", "A revision ID has different content. Saved data is unchanged.")
+                    continue
+                }
+                try execute("INSERT INTO record_entries VALUES(?,?,?,?,?,?) ON CONFLICT(profile,collection,id) DO UPDATE SET entity=excluded.entity,ordinal=excluded.ordinal,data=excluded.data",
+                    [profile, collection, key, entity, ordinal, try seal(FleetProtocol.encode(row), "entry:" + collection, key)])
+            }
+            for row in deletes {
+                try Self.recordRequire(Set(row.keys) == ["collection", "key"])
+                try execute("DELETE FROM record_entries WHERE profile=? AND collection=? AND id=?", [profile, try FleetProtocol.text(row, "collection"), try FleetProtocol.text(row, "key")])
+            }
+            for attachment in attachments { _ = try commitAttachment(attachment) }
+            try execute("INSERT INTO record_heads VALUES(?,?,?,?) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,commit_id=excluded.commit_id,digest=excluded.digest", [profile, revision, id, digest])
+            try discard(token)
+            return ["format": Self.recordFormat, "schemaVersion": 1, "profileId": profile, "revision": revision, "commitId": id, "digest": digest]
+        }
+    } }
 }

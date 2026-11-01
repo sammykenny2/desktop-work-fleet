@@ -122,7 +122,7 @@ class Service:
                 return self.backup.invoke(method, args, self.upload, self.download)
             if method == "host.info":
                 return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": t(self.desktop_reason) if self.desktop_reason else None, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
-                        "capabilities": {"nativeStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
+                        "capabilities": {"nativeStorage": True, "recordStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
                                          "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True, "attachmentFiles": self.attachment_files is not None,
                                          "languagePreference": self.language is not None, "dataRecovery": self.reveal is not None},
                         "language": self.language() if self.language is not None else None}
@@ -180,6 +180,20 @@ class Service:
                 return {"profileId": self.database.profile}
             if method == "storage.load":
                 return self.download(self.database.record(p.text(args, "kind")))
+            if method == "storage.records.status":
+                return self.database.record_status()
+            if method == "storage.records.get":
+                return self.download(self.database.record_entry(p.text(args, "collection"), p.text(args, "key")))
+            if method == "storage.records.page":
+                return self.download(self.database.record_page(args))
+            if method == "storage.records.commit":
+                token, attachments = self.owned(args), args.get("attachments", [])
+                p.require("expectedRevision" in args and isinstance(attachments, list) and all(item in self.staged for item in attachments), "invalid-request", "The record condition or attachment IDs aren't valid.")
+                expected = None if args["expectedRevision"] is None else p.number(args, "expectedRevision")
+                result = self.database.commit_records(token, expected, attachments)
+                self.staged.discard(token)
+                self.staged.difference_update(attachments)
+                return result
             if method == "storage.attachment":
                 return self.download(self.database.attachment(p.text(args, "id")))
             if method == "storage.putAttachment":

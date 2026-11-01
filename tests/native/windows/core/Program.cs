@@ -222,6 +222,7 @@ Test("slow attachment previews do not hold the storage gate and cannot reply aft
 Console.WriteLine($"{count}/{count} native Windows core checks passed.");
 try
 {
+  var records = RecordStoreProbe.Run(root); Console.WriteLine($"{records}/{records} native Windows record storage checks passed.");
   var files = BackupFilesProbe.Run(root);
   Console.WriteLine($"{files}/{files} native Windows backup file checks passed.");
   var coordinator = BackupCoordinatorProbe.Run(root);

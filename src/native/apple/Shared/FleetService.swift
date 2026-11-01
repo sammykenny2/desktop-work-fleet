@@ -100,7 +100,7 @@ actor FleetService {
             return ["protocol": 1, "platform": platform, "profileId": database.profile, "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
                 "distribution": platform == "ios" ? "ios" : "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
-                "capabilities": ["nativeStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
+                "capabilities": ["nativeStorage": true, "recordStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
                                  "hostPreferences": shell != nil, "updates": updates, "attachmentFiles": attachmentFiles != nil, "languagePreference": language != nil,
                                  "dataRecovery": platform == "macos" && shell != nil],
                 "language": FleetText.describe()]
@@ -137,13 +137,20 @@ actor FleetService {
         case "storage.reset":
             transfers.removeAll(); staged.removeAll(); try database.reset(); return ["profileId": database.profile]
         case "storage.load": return try download(database.record(FleetProtocol.text(args, "kind")))
+        case "storage.records.status":
+            if let status = try database.recordStatus() { return status }; return NSNull()
+        case "storage.records.get": return try download(database.recordEntry(FleetProtocol.text(args, "collection"), FleetProtocol.text(args, "key")))
+        case "storage.records.page": return try download(database.recordPage(args))
         case "storage.attachment": return try download(database.attachment(FleetProtocol.text(args, "id")))
         case "storage.putAttachment":
             let id = try owned(args), digest = try database.putAttachment(id); staged.remove(id); return ["id": digest]
-        case "storage.commit":
+        case "storage.commit", "storage.records.commit":
             let id = try owned(args), attachments = args["attachments"] as? [String] ?? []
             try FleetProtocol.require(args["expectedRevision"] != nil && attachments.allSatisfy({ staged.contains($0) }), "invalid-request", "The commit conditions or attachment IDs aren't valid.")
             let expected = args["expectedRevision"] is NSNull ? nil : try FleetProtocol.number(args, "expectedRevision")
+            if method == "storage.records.commit" {
+                let result = try database.commitRecords(id, expected, attachments); staged.remove(id); for id in attachments { staged.remove(id) }; return result
+            }
             let replaceAttachments = args["replaceAttachments"] == nil ? false : try FleetProtocol.bool(args, "replaceAttachments")
             try database.commit(FleetProtocol.text(args, "kind"), id, expected, attachments, replaceAttachments: replaceAttachments); staged.remove(id); for id in attachments { staged.remove(id) }; return NSNull()
         default: throw FleetFailure("unsupported-method", "The native host does not support this operation.")

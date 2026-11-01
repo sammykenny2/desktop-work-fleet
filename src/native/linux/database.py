@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 import datafailure
 import protocol as p
+from record_store import RecordStore
 
 
 
@@ -561,7 +562,7 @@ def storage_key(directory, filename, legacy):
     return raw
 
 
-class Database:
+class Database(RecordStore):
     def __init__(self, directory, profile, vault):
         self.directory, self.profile = Path(directory), profile
         p.require(profile == "local" or profile.startswith("google:") and p.is_account(profile[7:]), "invalid-profile", "The account profile isn't valid.")
@@ -605,6 +606,7 @@ class Database:
                 PRAGMA user_version=2;
             """)
             self.connection.execute("DELETE FROM staging WHERE profile=?", (profile,))
+            self.initialize_records()
         except Exception as error:
             self.close()
             cause = None if isinstance(error, p.Failure) else datafailure.classify(error)
@@ -713,7 +715,7 @@ class Database:
         with self.lock:
             self.connection.execute("BEGIN IMMEDIATE")
             try:
-                for table in ("records", "attachments", "staging", "secrets"):
+                for table in ("records", "record_entries", "record_heads", "attachments", "staging", "secrets"):
                     self.connection.execute(f"DELETE FROM {table} WHERE profile=?", (self.profile,))
                 self.connection.execute("UPDATE secret_refs SET state='revoked' WHERE scope=? AND kind='backup-key'", (self.profile,))
                 self.connection.execute("COMMIT")

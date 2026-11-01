@@ -2,10 +2,11 @@
 
 ## Status
 
-Proposed, 2026-11-01; revised following external review. Implementation is not approved.
+Accepted direction, 2026-11-01; the maintainer authorized implementation after the review revisions were committed.
 [SPEC-010](../specs/010-dataset-checkpoints-and-deletable-history.md) contains the candidate protocol and examples;
 [PLAN-011](../plans/011-dataset-checkpoints-and-deletable-history.md) separates local work from remote proof work.
-This proposal authorizes no runtime changes, account reset, version bump or release.
+Remote acceptance remains conditional on Q01/Q02/Q07 evidence and independent review. Implementation approval
+does not authorize operations on a real account, a version bump or a release.
 
 ## Context
 
@@ -82,7 +83,7 @@ compactors cannot authorize deletion of each other's outputs merely by having st
 This is a candidate protocol with a stated safety argument, not a proof result. Phase 1 must model incomplete
 uploads, stale/paginated listing, lost acknowledgements, late duplicate receipts and concurrent retirement.
 Real Drive probes validate provider assumptions separately. Local record-level storage can proceed independently
-once its own scope is approved; it does not wait for Google authorization or this remote proof.
+under the implementation approval; it does not wait for Google authorization or this remote proof.
 
 ### 4. Record-level local persistence on every host
 
@@ -96,7 +97,7 @@ is not a dependency. The local track must handle an incompatible profile explici
 
 ### 5. Ship explicit whole-note purge first
 
-The minimum proposed scope is local record-level storage, checkpoint bootstrap, legacy reset, Delete forever
+The approved minimum scope is local record-level storage, checkpoint bootstrap, legacy reset, Delete forever
 for a trashed note, and Empty Trash. A remotely verified purge is terminal for that note identity. Offline edits
 or restores cannot resurrect it; distinct unpublished work remains available for explicit Save as copy.
 
@@ -152,13 +153,14 @@ ZIP limits, with explicit history coverage and an early, non-destructive capacit
 fetch all retained history; a current-state-only export is a separate explicit choice, never the automatic fallback.
 Automatic backup must report failure rather than silently narrowing scope. Supporting complete exports above
 those limits needs a separately reviewed streaming/container change. See SPEC-010 for the initial behavior and
-PLAN-011 for the capacity gate; this draft does not claim million-version complete backup support.
+PLAN-011 for the capacity gate; this decision does not claim million-version complete backup support.
 
 ### Relationship to existing decisions
 
-These are proposed replacement boundaries; implemented contracts remain in force.
+These are accepted replacement directions; existing implemented contracts remain in force until integration
+and the relevant acceptance gates pass.
 
-| Existing contract | Proposed replacement | Retained boundary |
+| Existing contract | Replacement direction | Retained boundary |
 |---|---|---|
 | ADR-011 / SPEC-004 | Current heads independent of complete historical ancestry | UUIDs, strict validation, explicit conflicts |
 | ADR-012 / SPEC-004 | Filtered checkpoint/tail discovery and collection | Account-bound transport, hashes, durable file reservations |
@@ -176,8 +178,8 @@ These are proposed replacement boundaries; implemented contracts remain in force
 - Checkpoints temporarily duplicate current content, and publication receipts add small metadata files and requests.
   Permanent deletion must account for those copies and receipt races.
 - History, purge evidence and attachment copies consume storage. No automatic version retention means no automatic
-  upper storage bound. Physical cleanup and complete export are cancellable/resumable background work; approval
-  of that qualification to the user's speed requirement remains explicit in SPEC-010 Q04.
+  upper storage bound. Physical cleanup and complete export are cancellable/resumable background work; the
+  accepted qualification to the user's speed requirement is recorded in SPEC-010 Q04.
 - The next format boundary is deliberately incompatible with old local/cloud test data. No migration or currently
   approved release version follows from this proposal.
 

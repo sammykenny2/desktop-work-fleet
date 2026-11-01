@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft revised after external review; implementation not started or approved |
+| Status | In progress: local transaction foundation; Workspace and remote integration pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -12,15 +12,15 @@
 
 ## Related Spec
 
-[SPEC-010](../specs/010-dataset-checkpoints-and-deletable-history.md), based on proposed
+[SPEC-010](../specs/010-dataset-checkpoints-and-deletable-history.md), based on accepted-direction
 [ADR-062](../decisions/062-dataset-checkpoints-and-deletable-history.md).
 The [research](../research/2026-11-01-drive-dataset-checkpoints-and-deletion.md) distinguishes code observations,
 reviewer-supplied JS timings, official API limits and untested assumptions.
 
 ## Overview and minimum delivery
 
-This task delivers revised documents for review, not implementation or permission to operate on account data.
-The minimum proposed delivery is record-level local persistence, current-checkpoint bootstrap, old-format reset,
+The maintainer authorized implementation after the review revisions were committed. This does not authorize
+operating on real account data. The minimum delivery is record-level local persistence, current-checkpoint bootstrap, old-format reset,
 Delete forever and Empty Trash. Lazy history, attachment ownership and purge-aware bounded backup/restore are
 necessary supporting work, not permission to narrow the existing recovery guarantees silently.
 
@@ -52,11 +52,11 @@ flowchart TD
 
 - [ ] 0.1 Review the revised ADR and the SPEC's file layout, queries, publication/retirement algorithm and four
   scenarios. Record independent-review outcome in the resulting commit body, not PROGRESS or a session log.
-- [ ] 0.2 Resolve SPEC Q03-Q05: terminal purge versus unseen restore, MVP manual commands, first-run/recovery
+- [x] 0.2 Resolve SPEC Q03-Q05: terminal purge versus unseen restore, MVP manual commands, first-run/recovery
   choices, background bulk completion and initial backup coverage/capacity. No Trash-days decision is needed now.
 - [ ] 0.3 Approve local-storage work separately from remote model/probe work. Identify named benchmark environments
   and, if wanted, separately authorize isolated Google test resources; this document does not authorize cloud writes.
-- [ ] 0.4 Mark only accepted decisions as accepted and authorize their implementation scope. Keep exact application
+- [x] 0.4 Mark only accepted decisions as accepted and authorize their implementation scope. Keep exact application
   release target and release dispatch separate. Do not weaken U03/U04 silently to fit an experiment.
 
 **Deliverable**: agreed MVP and approval boundaries. The existing external review is input; the revised protocol
@@ -68,6 +68,9 @@ Depends only on relevant Phase 0 approval, not Phase 1B or a Google grant.
 
 - [ ] 1A.1 Define typed bounded transactions/paged reads for current entities/heads, revisions, unsaved baselines,
   outbox, attachments and maintenance journals. Preserve one writer, account/session fencing, local CAS and durable ack.
+- [x] 1A.1a Add the shared record transaction, receipt, paging and attachment contract, with account-scoped
+  IndexedDB and native SQLite primitives. Verify rollback and exact acknowledgement replay. Inner entity/head,
+  unsaved-baseline and maintenance payload schemas remain part of 1A.1/1A.2; the application still uses its old store.
 - [ ] 1A.2 Refactor Workspace/projection so typing, save and search do not copy/rebuild all historical revisions.
   Embed the unsaved baseline needed for ADR-061 comparisons without old-history reads.
 - [ ] 1A.3 Implement IndexedDB and native SQLite/bridge semantics on Windows, macOS, Linux, iOS and Android.
@@ -216,8 +219,9 @@ container; a cache subset cannot pass as complete retained history.
 
 ## Testing strategy and risks
 
-For this documentation task: run `python3 scripts/testing/check_docs.py`, `git diff --check`, language guard and
-link/scope consistency checks. No new runtime/protocol/provider acceptance result is claimed.
+Run the record-store checks documented in [testing](../testing.md#dataset-checkpoint-and-deletion-verification),
+the shared JS/Python suites, applicable native builds, documentation checker and language guard. Storage primitive
+tests do not establish Workspace latency or any remote protocol/provider acceptance case.
 
 | Risk | Required evidence or mitigation |
 |---|---|
@@ -230,4 +234,5 @@ link/scope consistency checks. No new runtime/protocol/provider acceptance resul
 | Local speed improvement waits for Google | Independent Phase 1A with its own approval and benchmark |
 | One adapter keeps whole-workspace writes | Shared transaction fixtures plus actual native/IndexedDB instrumentation |
 
-All implementation tasks remain pending approval; reviewing these documents does not mark them complete.
+Only checked tasks are complete. Remote model/provider evidence, independent review and product integration remain
+required; implementation authorization is not a passing acceptance result.

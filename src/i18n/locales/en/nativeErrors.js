@@ -1,5 +1,8 @@
 // Keys are nativeErrors.<code> for the codes native hosts send (docs/i18n.md); tests/i18n.test.js checks coverage.
 export default {
+  'nativeErrors.invalid-record-transaction': 'The local record transaction is invalid. Your saved data is unchanged.',
+  'nativeErrors.incompatible-local-data': 'This profile uses an older format. Keep it or explicitly reset this local profile before continuing.',
+  'nativeErrors.revision-collision': 'A revision ID has different content. Your saved data is unchanged.',
   'nativeErrors.native-error': "The app couldn't finish this operation.",
   'nativeErrors.native-closed': 'The connection to the app has closed. Reopen Work Fleet.',
   'nativeErrors.native-busy': 'The app is busy saving. Try again in a moment.',

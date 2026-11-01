@@ -57,7 +57,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
-| [011-dataset-checkpoints-and-deletable-history](011-dataset-checkpoints-and-deletable-history.md) | Independent local/protocol tracks, checkpoint sync, reset and manual purge | Draft revised after external review; implementation not started or approved | [SPEC-010](../specs/010-dataset-checkpoints-and-deletable-history.md) |
+| [011-dataset-checkpoints-and-deletable-history](011-dataset-checkpoints-and-deletable-history.md) | Independent local/protocol tracks, checkpoint sync, reset and manual purge | In progress: local transaction foundation; product integration pending | [SPEC-010](../specs/010-dataset-checkpoints-and-deletable-history.md) |
 | [010-unsaved-changes](010-unsaved-changes.md) | Unsaved changes instead of drafts | Completed, 2026-11-01; Windows and real desktop hosts not verified | [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), [ADR-061](../decisions/061-unsaved-changes-instead-of-drafts.md) |
 | [009-desktop-presentation-lifecycle](009-desktop-presentation-lifecycle.md) | Nonvisual core, presentation isolation and native lifecycle recovery | Draft; implementation not started or approved | [SPEC-009](../specs/009-desktop-presentation-lifecycle.md) |
 | [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and resumable reset | Completed, 2026-10-17; real Google and native apps not verified | [SPEC-008](../specs/008-workspace-initialization.md) |

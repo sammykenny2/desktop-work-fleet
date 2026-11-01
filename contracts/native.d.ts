@@ -11,6 +11,7 @@ export interface NativeHostInfo {
   maxBackupBytes: 142610432;
   capabilities: {
     nativeStorage: boolean;
+    recordStorage?: boolean;
     automaticFiles: boolean;
     backupFiles: boolean;
     secureBackup: boolean;
@@ -41,6 +42,11 @@ export type NativeRequest = { v: 1; id: string } & (
   | { method: 'transfer.finish' | 'transfer.discard' | 'storage.putAttachment'; params: { token: string } }
   | { method: 'transfer.read'; params: { token: string; offset: number } }
   | { method: 'storage.load'; params: { kind: NativeRecordKind } }
+  | { method: 'storage.records.status'; params: Record<string, never> }
+  | { method: 'storage.records.get'; params: { collection: import('./storage.js').RecordCollection; key: string } }
+  | { method: 'storage.records.page'; params: import('./storage.js').RecordQuery }
+  /** Token contains a RecordTransaction; receipt, affected records and owned attachment tokens commit atomically. */
+  | { method: 'storage.records.commit'; params: { token: string; expectedRevision: number | null; attachments: string[] } }
   /**
    * SPEC-006 DO, after a load the page cannot use: data.location answers { path }, data.reveal opens that folder, and
    * data.setAside moves the database into a dated set-aside folder there and reopens the page on empty data.

@@ -1,5 +1,8 @@
 // Keys are nativeErrors.<code> for the codes native hosts send (docs/i18n.md); tests/i18n.test.js checks coverage.
 export default {
+  'nativeErrors.invalid-record-transaction': '本機逐筆儲存交易無效，已保存的資料未變更。',
+  'nativeErrors.incompatible-local-data': '此帳號資料使用舊格式。請保留原資料，或明確重設此本機帳號資料後繼續。',
+  'nativeErrors.revision-collision': '同一個版本識別碼出現不同內容，已保存的資料未變更。',
   'nativeErrors.native-error': '原生操作未完成。',
   'nativeErrors.native-closed': '原生連線已關閉，請重新開啟。',
   'nativeErrors.native-busy': '原生儲存忙碌，請稍後重試。',

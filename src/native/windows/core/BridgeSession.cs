@@ -40,7 +40,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   private object Info() => new { protocol = 1, platform = "windows", profileId = database.ProfileId,
     appVersion = (identity ?? HostIdentity.Default).AppVersion, distribution = (identity ?? HostIdentity.Default).Distribution, storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
-    capabilities = new { nativeStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
+    capabilities = new { nativeStorage = true, recordStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
       backupFiles = backupFiles is not null && chooseBackupDirectory is not null, secureBackup = true, google = googleAvailable, desktopPresentation = desktop is not null,
       hostPreferences = identity?.HostPreferences == true, updates = identity?.Updates == true, attachmentFiles = attachmentFiles is not null, languagePreference, dataRecovery },
     language = languagePreference ? HostText.Describe() : null };
@@ -170,6 +170,9 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         staged.Clear(); database.Reset(); resetDone = true; return new { profileId = database.ProfileId };
       }
       case "storage.load": return Download(database.ReadRecord(JsonRules.Text(args, "kind")));
+      case "storage.records.status": return database.RecordStatus();
+      case "storage.records.get": return Download(database.ReadEntry(JsonRules.Text(args, "collection"), JsonRules.Text(args, "key")));
+      case "storage.records.page": return Download(database.ReadEntryPage(args));
       case "storage.attachment": return Download(database.ReadAttachment(JsonRules.Text(args, "id")));
       case "transfer.read":
       {
@@ -179,6 +182,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         return new { base64 = Convert.ToBase64String(bytes, offset, length), offset, done = offset + length == transfer.Size };
       }
       case "storage.commit":
+      case "storage.records.commit":
       {
         var token = Owned(args); var tokens = new List<string>();
         if (args.TryGetProperty("attachments", out var attachments))
@@ -189,6 +193,11 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
             var value = item.GetString(); HostError.Require(value is not null && staged.Contains(value), "transfer-missing", "The attachment transfer doesn't belong to this window.");
             tokens.Add(value!);
           }
+        }
+        if (method == "storage.records.commit")
+        {
+          var result = database.CommitEntries(token, JsonRules.ExpectedRevision(args), tokens);
+          staged.Remove(token); foreach (var value in tokens) staged.Remove(value); return result;
         }
         var replaceAttachments = args.TryGetProperty("replaceAttachments", out var replace) && replace.GetBoolean();
         database.CommitRecord(JsonRules.Text(args, "kind"), token, JsonRules.ExpectedRevision(args), tokens, replaceAttachments);

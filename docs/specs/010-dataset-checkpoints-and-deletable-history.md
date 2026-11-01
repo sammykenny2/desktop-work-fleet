@@ -4,12 +4,12 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft revised after external review; implementation not approved |
+| Status | Approved for implementation; remote acceptance remains subject to proof gates |
 | Owner | Project maintainer |
 | Reviewer | Further review to be arranged by the maintainer |
 | Date | 2026-11-01 |
-| Decision | [ADR-062](../decisions/062-dataset-checkpoints-and-deletable-history.md), Proposed |
-| Plan | [PLAN-011](../plans/011-dataset-checkpoints-and-deletable-history.md), Draft |
+| Decision | [ADR-062](../decisions/062-dataset-checkpoints-and-deletable-history.md), Accepted direction |
+| Plan | [PLAN-011](../plans/011-dataset-checkpoints-and-deletable-history.md), In progress |
 
 ## Summary and scope
 
@@ -18,7 +18,7 @@ also serves as history in a per-note folder. Checkpointing removes the tail's sm
 history. UUID parents preserve known causality; unknown ancestry produces a conservative conflict. A permanent
 note deletion publishes a content-free barrier before cleaning up history, attachments and checkpoint copies.
 
-The minimum proposed delivery is record-level local storage, checkpoint bootstrap, explicit old-format reset,
+The approved minimum delivery is record-level local storage, checkpoint bootstrap, explicit old-format reset,
 Delete forever and Empty Trash, with backup/restore integration sufficient to keep those operations safe.
 Automatic Trash expiry, selective version deletion, packs and writer vectors are outside this delivery.
 Clear this note's history is the first follow-up capacity feature. No runtime behavior is implemented by this SPEC.
@@ -36,11 +36,11 @@ Clear this note's history is the first follow-up capacity feature. No runtime be
 
 These requirements do not imply unlimited Drive space or unlimited backup size. History of a retained note can
 keep growing. Full export, legacy enumeration and physical cleanup necessarily cost their bytes/items; proposing
-responsive foreground UI plus background completion is a qualification to U04, pending Q04 approval.
+responsive foreground UI plus background completion is the accepted qualification to U04 (Q04).
 
-### Proposed defaults
+### Accepted implementation defaults
 
-| ID | Choice for review |
+| ID | Choice |
 |---|---|
 | D01 | One full-value immutable revision body, a small current publication reference, and independent full current checkpoints |
 | D02 | UUID revisions and explicit parents; no DVV, writer incarnation or all-history ancestry traversal |
@@ -66,10 +66,38 @@ responsive foreground UI plus background completion is a qualification to U04, p
 - Native typed operations preserve protected storage, restricted bridges and durable acknowledgements on all five
   native hosts and the browser. Product wording uses the en/zh-TW catalogs, not protocol identifiers.
 
+## Local transaction boundary
+
+[The typed contract](../../contracts/storage.d.ts) separates seven indexed collections: `meta`, `current`,
+`history`, `draft`, `outbox`, `control` and `job`. Rows have an account-local key, optional entity index (empty
+string when not applicable), local commit ordinal and JSON value. The Workspace-specific value schemas and
+activation still belong to Phase 1A; a storage primitive accepting a row is not proof of a valid note or checkpoint.
+
+A `work-fleet-record-transaction` V1 envelope carries a random commit UUID, profile, next revision and at most
+512 distinct puts/deletes. It is at most 8 MiB; a row is at most 8 MiB minus 1 KiB for paging overhead. Revision
+zero requires an empty profile; later writes compare the expected local revision. History IDs cannot be replaced
+with different entity/content, and identical history replay preserves the original position. This local CAS is
+provided by IndexedDB/SQLite; it does not imply that Google Drive provides CAS.
+
+Changed rows, verified attachment bytes and the small `work-fleet-local-records` receipt commit together. Up to
+512 attachments, individually bounded by 25 MiB and totaling at most 128 MiB, may accompany a transaction; native staging also applies its
+existing aggregate capacity limit. The receipt contains the exact transaction digest and UUID. If an acknowledgement
+is lost, equality of the revision alone cannot establish success. Replaying the exact acknowledged transaction
+returns its receipt, consumes replay staging, and does not apply extra attachment uploads.
+
+Paged reads select a collection and optional entity, descend by `(ordinal, key)`, and return at most 100 rows and
+8 MiB. A cursor names the last returned row. Each page checks the caller's expected local revision, so a caller
+must restart a read if intervening work changes its boundary; there is no silently mixed snapshot.
+
+Native rows remain protected with the host's existing encryption and owner/session boundary. The browser uses a
+separate `work-fleet-records-v1` database, with entries, receipts and attachments in one transaction. Old workspace
+presence is detected through metadata only and initial creation is refused until an explicit discard flow has
+handled it. These primitives do not convert old data or activate themselves in the current application.
+
 ## Concrete candidate protocol
 
 This section is the object of Phase 1 proof work. It specifies a candidate, not a claim that provider races have
-already passed. All JSON envelopes use `schema: 1`. The new discriminator is `work-fleet-dataset`; legacy
+already passed. Cloud JSON envelopes use `schema: 1`. The new discriminator is `work-fleet-dataset`; legacy
 `work-fleet-file` is not interchangeable with it. Names below abbreviate UUIDs for readability; real identifiers
 are full random UUIDs and Drive file IDs. Names are labels, never unique lookup keys.
 
@@ -394,7 +422,7 @@ is intentionally not selected: absence cannot distinguish accident, deliberate r
 
 ## Backup and capacity contract
 
-The initial proposed export choices are **Complete retained history** (default) and an explicitly selected
+The initial export choices are **Complete retained history** (default) and an explicitly selected
 **Current state only**. The latter is self-contained for current notes/conflicts, referenced attachments, groups,
 unsaved work and layout; its manifest declares excluded history. A cached subset cannot claim complete history.
 Existing encrypted/automatic backup and atomic restore guarantees remain; automatic backup does not silently
@@ -502,9 +530,9 @@ These are required future cases, not passing tests.
 |---|---|---|
 | Q01 | Model and independently assess the concrete publication/discovery/retirement protocol above, especially partial uploads, coalesced removals, late replay, orphan cleanup and progress; then test Drive assumptions in an isolated authorized account | Remote implementation acceptance; not local record storage |
 | Q02 | Validate UUID-parent projection and acceptable conservative-conflict behavior with old/unknown ancestry; prove no silent branch loss | Conflict codec/behavior acceptance; no DVV proposal remains |
-| Q03 | Approve terminal purge versus unseen restore, exact MVP manual scope and explicit local recovery presentation | Enabling Delete forever / Empty Trash |
-| Q04 | Approve background completion for bulk work, complete/current-only export choices and the bounded initial backup capacity; otherwise expand large-container work before delivery | Complete performance/product claim and backup delivery |
-| Q05 | Approve the old-profile startup choices, all-device update warning, minor-release compatibility boundary and recovery-from-local confirmation | Destructive reset/recovery UI; no target version authorized |
+| Q03 | Resolved by implementation approval: terminal purge versus unseen restore, MVP manual scope and explicit local recovery presentation | Destructive operations still need implementation acceptance |
+| Q04 | Resolved by implementation approval: background bulk completion, complete/current-only export choices and initial bounded backup capacity | Measured performance and truthful backup coverage still require acceptance |
+| Q05 | Resolved by implementation approval: old-profile choices, all-device warning, minor-release boundary and confirmed recovery from local data | No real reset, target version or publication authorized |
 | Q06 | Later design only: Clear this note's history then selective deletion; separate ADR for automatic Trash expiry and any archive interaction change | Follow-up features only; not MVP |
 | Q07 | Validate candidate budgets/overshoot, folder/property/quota behavior including appData applicability, supported hot-note capacity, and measured latency on named devices/network | Production capacity and performance acceptance |
 

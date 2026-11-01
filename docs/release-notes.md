@@ -9,6 +9,22 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.4.5
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Drafts are now unsaved changes shown on the note itself with a dot, and the desktop in-place editor's buttons are icons.
+
+- Notes: a note is saved or has unsaved changes kept on this device, shown with a filled dot at the end of its title on the board, the list and desktop notes; in the main window, pointing at the dot explains it. Opening the note again, in the editor or in place on the desktop, continues the changes.
+- Notes: the "Unfinished drafts" list and "Keep draft" are gone. Close and Esc keep changed text, "Discard changes" returns the note to its saved version and the status line can undo it, and "Save note" saves.
+- Notes: a new note with text that was never saved stays in its group with the dot until it is saved or discarded; its group is chosen in its editor.
+- Notes: when the note changed on another device meanwhile, saving offers "Overwrite", which keeps the other version in history, or "Save as copy". A change elsewhere that only completed, archived or moved the note no longer refuses the save.
+- Notes: ticking a step on a note with unsaved changes ticks those changes. Moving such a note to Deleted asks first, and Undo brings back both.
+- Desktop: the in-place editor's buttons are icons named for screen readers, with no hover tooltip: a check mark (Save), a trash can (Discard changes, which replaces Cancel), outward arrows (Full editor) and a circular arrow (retry).
+- Share inbox: a share is added as a new note with unsaved changes and opens in the editor.
+- Unsaved changes never sync. Backups include them, and a restore keeps this device's own changes for a note that has some.
+- Note, sync and backup formats stay at V1.
+
 ## 0.4.4
 
 Platforms: Windows, Linux, macOS, Android.

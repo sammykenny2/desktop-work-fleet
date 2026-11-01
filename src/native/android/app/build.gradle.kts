@@ -43,8 +43,8 @@ android {
         applicationId = configuredId.ifEmpty { "app.workfleet.preview" }
         minSdk = 28
         targetSdk = 36
-        versionCode = 404
-        versionName = "0.4.4"
+        versionCode = 405
+        versionName = "0.4.5"
     }
     // host.info reports versionName, which Settings shows and backups record.
     buildFeatures { buildConfig = true }

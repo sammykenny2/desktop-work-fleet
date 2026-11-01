@@ -3,6 +3,7 @@ import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } fr
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
 import { canonicalJson } from '../sources/json.js';
 import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
+import { CurrentRevisions } from '../sources/current-revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { regionShortcuts } from './shortcuts.js';
 import { groupLayerOrder, groupLayersFromPapers } from '../layout/stages.js';
@@ -13,6 +14,8 @@ import { initialGroupRecord, resetFileIds } from '../sources/initial-group.js';
 import { encodeSourceRevision } from '../sources/source-revisions.js';
 import { initializationComplete, initializationId, validateInitialization } from '../sources/workspace-initialization.js';
 import { t } from '../i18n/index.js';
+
+export const CURRENT_WORKSPACE_FORMAT = 'work-fleet-workspace-current';
 
 function contentValue(content) {
   requireValue(content && typeof content.text === 'string' && typeof content.format === 'string',
@@ -40,7 +43,7 @@ export function unneededDraft(state, draft) {
   if (!card) return false;
   if (card.revision === draft.baseRevision) return card.groupId === draft.groupId && plainContent(card.content) === plainContent(draft.content);
   if (plainContent(card.content) === plainContent(draft.content)) return true;
-  const base = revisionContent(state, draft.baseRevision);
+  const base = Object.hasOwn(draft, 'baseContent') ? draft.baseContent : revisionContent(state, draft.baseRevision);
   return Boolean(base) && plainContent(base) === plainContent(draft.content);
 }
 
@@ -76,7 +79,7 @@ const workingSnapshot = (state, open = null) => ({ groups: copy(state.groups), c
 
 function loadRevisions(state) {
   const records = state.revisions || state.outbox.map(entry => revisionRecord(entry.kind, entry.value, entry.parents));
-  const graph = new RevisionGraph(records);
+  const graph = state.format === CURRENT_WORKSPACE_FORMAT ? new CurrentRevisions(records) : new RevisionGraph(records);
   for (const [kind, values] of [['group', state.groups], ['card', state.cards]]) {
     for (const value of values) {
       requireValue(graph.get(value.revision)?.entityId === value.id && graph.get(value.revision)?.kind === kind
@@ -94,6 +97,13 @@ export function rebaseDraft(state, draft) {
   if (state.groups.some(group => group.id === draft.groupId && group.deleted && group.redirectGroupId)) {
     try { draft.groupId = resolveGroupId(state, draft.groupId); }
     catch (error) { if (!['group-cycle', 'missing-group'].includes(error.code)) throw error; }
+  }
+  if (state.format === CURRENT_WORKSPACE_FORMAT) {
+    const current = state.cards.find(card => card.id === draft.cardId);
+    if (draft.baseRevision && current && draft.baseContent && plainContent(draft.baseContent) === plainContent(current.content)) {
+      draft.baseRevision = current.revision; draft.groupId = current.groupId;
+    }
+    return draft;
   }
   const seen = new Set();
   while (state.membershipRebases?.[draft.baseRevision]?.cardId === draft.cardId) {
@@ -116,24 +126,31 @@ export class Workspace {
   #runtimeId = crypto.randomUUID();
   #arrivalLayer = () => null;
   #open = () => null;
+  #history;
 
   static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, arrivalLayer = () => null,
-    uuid = () => crypto.randomUUID(), now = Date.now }) {
+    uuid = () => crypto.randomUUID(), now = Date.now, current = false, history = null }) {
     const groups = bootstrapGroup ? [{ id: uuid(), name: t('app.groups.defaultName'), revision: uuid(), deleted: false }] : [];
     const state = { schemaVersion: schemas.workspace, profileId, revision: 0, groups, cards: [],
       drafts: {}, membershipRebases: {}, outbox: groups.map(group => ({ operationId: group.revision, kind: 'group', entityId: group.id,
         parents: [], value: copy(group) })), revisions: groups.map(group => revisionRecord('group', group)),
       conflicts: [], sync: { sourceId: null, sessionId: null, cursor: null }, layout: createLayout(deviceId, groups, area) };
     state.layout.groupLayers = arrivalLayers(groups, arrivalLayer());
-    await persist(copy(state), null);
-    const workspace = new Workspace(state, persist, uuid, now);
+    if (current) {
+      state.format = CURRENT_WORKSPACE_FORMAT;
+      const pending = profileId.startsWith('google:') ? state.outbox : [];
+      state.outbox = []; state.sync.pendingCount = pending.length;
+      await persist(copy(state), null, { additions: state.revisions, pending });
+    } else await persist(copy(state), null);
+    const workspace = new Workspace(state, persist, uuid, now, { history });
     workspace.setArrivalLayer(arrivalLayer);
     return workspace;
   }
 
-  constructor(state, persist, uuid = () => crypto.randomUUID(), now = Date.now) {
+  constructor(state, persist, uuid = () => crypto.randomUUID(), now = Date.now, { history = null } = {}) {
     requireSchemaVersion(state, 'workspace');
     this.#state = copy(state); this.#persist = persist; this.#uuid = uuid; this.#now = now;
+    this.#history = history;
     this.#graph = loadRevisions(this.#state);
     this.#state.revisions = this.#graph.records;
     Object.assign(this.#state, projectRevisions(this.#graph, this.#state));
@@ -163,20 +180,30 @@ export class Workspace {
   get layout() { return this.#layout; }
   get syncState() { return copy(this.#state.sync); }
   get pendingOperations() { return copy(this.#state.outbox); }
+  get currentFormat() { return this.#state.format === CURRENT_WORKSPACE_FORMAT; }
+  get pendingCount() { return this.currentFormat ? this.#state.sync.pendingCount ?? 0 : this.#state.outbox.length; }
   /** Picks the layer a group new to this device, made here or first received from a source, starts on; null keeps the desktop layer. */
   setArrivalLayer(choose) { this.#arrivalLayer = choose; }
   assertSyncSession(session) { this.#session(this.#state, session); }
   uploadState(session, operation) { this.#session(this.#state, session); return copy(this.#state.sync.uploads?.[operation] || null); }
 
-  #commit(change, persist = this.#persist, replaceGraph = false) {
+  #commit(change, persist = this.#persist, replaceGraph = false, options = {}) {
     const operation = this.#tail.then(async () => {
-      const draft = copy(this.#state);
+      const draft = this.currentFormat && options.draftsOnly
+        ? { ...this.#state, drafts: { ...this.#state.drafts } } : copy(this.#state);
       const result = change(draft);
       const additions = draft.revisions.slice(this.#state.revisions.length);
-      const graph = replaceGraph ? new RevisionGraph(draft.revisions) : additions.length ? this.#graph.fork(additions) : this.#graph;
+      const Graph = this.currentFormat ? CurrentRevisions : RevisionGraph;
+      const graph = replaceGraph ? new Graph(draft.revisions) : additions.length ? this.#graph.fork(additions) : this.#graph;
       if (replaceGraph || additions.length) Object.assign(draft, projectRevisions(graph, draft));
       draft.revision++;
-      await persist(copy(draft), this.#state.revision);
+      if (this.currentFormat) {
+        const pending = draft.profileId.startsWith('google:') ? draft.outbox : [];
+        draft.outbox = []; draft.revisions = replaceGraph || additions.length ? graph.records : this.#state.revisions;
+        if (pending.length || options.removedOperations?.length) draft.sync = { ...draft.sync,
+          pendingCount: (draft.sync.pendingCount ?? 0) + pending.length - (options.removedOperations?.length ?? 0) };
+        await persist(draft, this.#state.revision, { previous: this.#state, additions, pending, ...options, replaceGraph });
+      } else await persist(copy(draft), this.#state.revision);
       this.#state = draft; this.#graph = graph;
       return result;
     });
@@ -250,9 +277,27 @@ export class Workspace {
     const seen = new Set(); const result = [];
     for (let index = 0; index < queue.length; index++) {
       const id = queue[index]; if (seen.has(id)) continue; seen.add(id);
-      const record = this.#graph.get(id); result.push(record); queue.push(...record.parents);
+      const record = this.#graph.get(id); if (!record) continue;
+      result.push(record); queue.push(...record.parents);
     }
     return result;
+  }
+
+  async historyPage(kind, entityId, options = {}) {
+    if (this.currentFormat) return this.#history.page(kind, entityId, options);
+    const records = this.revisionHistory(kind, entityId), start = options.after ?? 0, limit = options.limit ?? 50;
+    return { records: records.slice(start, start + limit), next: records.length > start + limit ? start + limit : null };
+  }
+  async historicalRevision(id) { return this.#graph.get(id) ?? (this.currentFormat ? this.#history.get(id) : null); }
+
+  async acknowledgeOperations(session, ids) {
+    requireValue(this.currentFormat && Array.isArray(ids) && new Set(ids).size === ids.length,
+      'invalid-command', t('errors.core.kindUnknown'));
+    ids = copy(ids);
+    return this.#commit(state => {
+      this.#session(state, session);
+      requireValue(ids.length <= state.sync.pendingCount, 'stale-writer', t('errors.storage.staleWriter'));
+    }, this.#persist, false, { removedOperations: ids });
   }
 
   async clearTransferIntent(intent) {
@@ -309,7 +354,7 @@ export class Workspace {
     session = copy(session);
     return this.#commit(state => {
       this.#session(state, session);
-      if (state.outbox.length) return false;
+      if (this.currentFormat ? state.sync.pendingCount > 0 : state.outbox.length) return false;
       state.sync.lastSuccessfulSyncAt = completedAt;
       return true;
     });
@@ -450,14 +495,15 @@ export class Workspace {
     requireValue(['card', 'group'].includes(kind), 'invalid-kind', t('errors.core.kindUnknown'));
     const allowed = kind === 'card' ? ['content', 'groupId', 'deleted', 'archived', 'completed'] : ['name', 'deleted', 'redirectGroupId'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-command', t('errors.core.resolutionForbidden'));
+    const historical = fromHistory && this.currentFormat ? await this.historicalRevision(selectedRevision) : null;
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
       requireValue(state.layout.revision === revision, 'stale-layout', t('errors.common.layoutChanged'));
       const current = this.#graph.heads(kind, entityId);
       requireValue(Array.isArray(heads) && new Set(heads).size === heads.length
         && JSON.stringify([...heads].sort()) === JSON.stringify(current.map(item => item.revisionId).sort()),
       'stale-resolution', t('errors.core.resolutionStale'));
-      const selected = fromHistory ? this.#graph.get(selectedRevision) : current.find(item => item.revisionId === selectedRevision);
-      requireValue(selected && selected.kind === kind && selected.entityId === entityId && this.#graph.isComplete(selected.revisionId),
+      const selected = fromHistory ? historical ?? this.#graph.get(selectedRevision) : current.find(item => item.revisionId === selectedRevision);
+      requireValue(selected && selected.kind === kind && selected.entityId === entityId && (historical || this.#graph.isComplete(selected.revisionId)),
         'missing-revision', t('errors.core.chosenRevisionMissing'));
       const value = { ...copy(selected.value), ...patch, revision: this.#uuid() };
       if (kind === 'card') {
@@ -557,7 +603,7 @@ export class Workspace {
         this.#resolved(state, 'card', card.id);
         const previous = card.revision;
         card.groupId = plan.targetId; card.revision = this.#uuid();
-        state.membershipRebases[previous] = { cardId: card.id, revision: card.revision };
+        if (!this.currentFormat) state.membershipRebases[previous] = { cardId: card.id, revision: card.revision };
         this.#record(state, 'card', card, [previous]);
       }
       const source = state.groups.find(group => group.id === plan.sourceId);
@@ -604,6 +650,7 @@ export class Workspace {
     this.#group(this.#state, card?.groupId || groupId);
     return { id: this.#uuid(), cardId: card?.id || this.#uuid(), groupId: card?.groupId || groupId,
       baseRevision: card?.revision ?? null,
+      ...(this.currentFormat ? { baseContent: card ? copy(card.content) : null } : {}),
       content: copy(card?.content || { format: 'markdown', text: '', attachments: [] }) };
   }
 
@@ -647,7 +694,8 @@ export class Workspace {
           return copy(current);
         }
         const sameContent = current && current.revision !== draft.baseRevision
-          && revisionContent(state, draft.baseRevision) && plainContent(revisionContent(state, draft.baseRevision)) === plainContent(current.content);
+          && (draft.baseContent ?? revisionContent(state, draft.baseRevision))
+          && plainContent(draft.baseContent ?? revisionContent(state, draft.baseRevision)) === plainContent(current.content);
         const base = overwrite || sameContent ? current?.revision : draft.baseRevision;
         card = this.#card(state, draft.cardId, base);
         card.content = copy(draft.content); card.revision = this.#uuid();
@@ -731,10 +779,15 @@ export class Workspace {
     draft = copy(draft);
     requireValue(safeKey(draft.id) && safeKey(draft.cardId), 'invalid-draft', t('errors.core.draftIdInvalid'));
     contentValue(draft.content);
+    if (this.currentFormat && !Object.hasOwn(draft, 'baseContent')) {
+      const base = draft.baseRevision ? this.#graph.get(draft.baseRevision) : null;
+      requireValue(!draft.baseRevision || base, 'missing-revision', t('errors.core.chosenRevisionMissing'));
+      draft.baseContent = base ? copy(base.value.content) : null;
+    }
     return this.#commit(state => {
       for (const [id, other] of Object.entries(state.drafts)) if (id !== draft.id && other.cardId === draft.cardId) delete state.drafts[id];
       state.drafts[draft.id] = rebaseDraft(state, copy(draft));
-    });
+    }, this.#persist, false, { draftsOnly: true });
   }
 
   /** Drops a note's unsaved changes, so it shows its saved revision again; an unsaved new note goes with them. */
@@ -745,7 +798,7 @@ export class Workspace {
       const ids = Object.keys(state.drafts).filter(id => state.drafts[id].cardId === cardId);
       for (const id of ids) delete state.drafts[id];
       return ids.length > 0;
-    });
+    }, this.#persist, false, { draftsOnly: true });
   }
 
   /** Drops unsaved changes that hold nothing to keep: blank, or the same as their note's current revision. */
@@ -756,6 +809,6 @@ export class Workspace {
       if (!unneededDraft(state, state.drafts[draftId])) return false;
       delete state.drafts[draftId];
       return true;
-    });
+    }, this.#persist, false, { draftsOnly: true });
   }
 }

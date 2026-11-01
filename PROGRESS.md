@@ -35,9 +35,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Main window: a board of paper tiles or a list, remembered per device; an optional title that search and sharing include;
   papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring.
 - Verified with model tests, Edge/Chromium browser and scene probes, and the Windows native UI probes.
-- Record-level storage primitives exist for IndexedDB and native SQLite, with bounded transactions, history paging
-  and exact commit receipts. The application still uses whole-workspace persistence; Workspace integration, the
-  incompatible-profile screen and local latency acceptance remain open under
+- Record-level storage primitives exist for IndexedDB and native SQLite. An explicit current-format Workspace
+  and record adapter keep only current heads, write draft deltas and page history/outbox. The application entry
+  point still uses whole-workspace persistence; UI/backup integration, the incompatible-profile screen and local latency remain open under
   [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md).
 - Languages: the UI is English-first with a Traditional Chinese catalog; Settings > General > Display language offers
   Auto-detect, English and Traditional Chinese and switches without a reload. Every host stores the choice per device and

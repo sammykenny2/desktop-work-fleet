@@ -10,7 +10,9 @@ const bundle = await build({ stdin: { contents: `
   import { IndexedDbRecordStore } from './src/storage/records-indexed-db.js';
   import { recordTransaction } from './src/storage/records.js';
   import { sha256 } from './src/sources/files.js';
-  window.recordProbe = { IndexedDbRecordStore, recordTransaction, sha256 };`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife' });
+  import { Workspace } from './src/core/workspace.js';
+  import { WorkspaceRecordStorage } from './src/storage/workspace-records.js';
+  window.recordProbe = { IndexedDbRecordStore, recordTransaction, sha256, Workspace, WorkspaceRecordStorage };`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife' });
 const browser = await ({ chromium, webkit })[name].launch();
 let phase = 'create isolated context';
 const deadline = setTimeout(() => { console.error(`${name}: timed out during ${phase}`); void browser.close(); }, 60_000);
@@ -23,7 +25,7 @@ try {
   phase = 'load test bundle';
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   const result = await page.evaluate(async () => {
-    const { IndexedDbRecordStore, recordTransaction, sha256 } = window.recordProbe;
+    const { IndexedDbRecordStore, recordTransaction, sha256, Workspace, WorkspaceRecordStorage } = window.recordProbe;
     const check = (value, message) => { if (!value) throw new Error(message); };
     const row = (collection, key, ordinal, text = key) => ({ collection, key, entity: 'card:one', ordinal, value: { text } });
     const name = `records-${crypto.randomUUID()}`;
@@ -65,6 +67,21 @@ try {
     const large = await store.page('local', { collection: 'history', expectedRevision: 5 });
     check(large.rows.length === 2 && new TextEncoder().encode(JSON.stringify(large)).length <= 8 * 1024 * 1024, 'page byte bound failed');
     await store.reset('local'); check(await store.status('local') === null && await store.getAttachment('local', id) === null, 'reset retained data'); store.close();
+    await window.recordPhase('current Workspace persistence and reopen');
+    const currentStore = await IndexedDbRecordStore.open(`current-${crypto.randomUUID()}`, { legacyName: null });
+    const storage = new WorkspaceRecordStorage(currentStore, 'local');
+    const workspace = await Workspace.create({ profileId: 'local', deviceId: 'device', area: { x: 0, y: 0, width: 1200, height: 900 },
+      persist: (...args) => storage.save(...args), current: true, history: storage });
+    let card = await workspace.createCard({ text: 'original', format: 'markdown' });
+    for (let i = 0; i < 25; i++) card = await workspace.updateCard(card.id, { content: { text: `edit ${i}`, format: 'markdown' } }, card.revision);
+    const draft = workspace.blankDraft(card.groupId, card); draft.content.text = 'unfinished'; await workspace.saveDraft(draft);
+    const saved = await storage.load('local');
+    const reopened = new Workspace(saved, (...args) => storage.save(...args), undefined, undefined, { history: storage });
+    check(saved.revisions.length === 2 && reopened.working.cards[0].content.text === 'unfinished', 'current state or draft lost on reopen');
+    const history = await reopened.historyPage('card', card.id, { limit: 10 });
+    check(history.records.length === 10 && history.next !== null, 'history was lost or read without paging');
+    check((await reopened.historyPage('card', card.id, { after: history.next, limit: 10 })).records.length === 10, 'history continuation lost');
+    await currentStore.reset('local'); currentStore.close();
     const legacy = `legacy-${crypto.randomUUID()}`;
     await window.recordPhase('legacy presence without conversion');
     await new Promise((resolve, reject) => {

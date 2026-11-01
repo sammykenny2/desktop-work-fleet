@@ -55,3 +55,16 @@ export interface RecordStore {
   commit(transaction: RecordTransaction, expectedRevision: number | null, options?: RecordCommitOptions): Promise<RecordReceipt>;
   getAttachment(profileId: string, id: string): Promise<Blob | null>;
 }
+
+/** WorkspaceRecordStorage layout within a profile. A logical Workspace revision is distinct from a store receipt. */
+export interface ActiveWorkspaceGeneration { generation: string; revision: number; }
+// meta/active atomically selects a generation. Other keys start with `<generation>:`.
+// meta: one row per non-derived Workspace field; current: full current revision envelopes only;
+// draft: one self-contained unsaved baseline/content per draft; outbox: one pending operation per revision;
+// history: immutable revision envelopes, indexed by `<generation>:<kind>:<entityId>`.
+// Bulk import stages rows in bounded transactions, then switches meta/active. Interrupted staging is not active.
+// Loading reads only the selected generation's meta/current/draft indexes. Outbox and history are paged on demand.
+export interface CurrentUnsavedBaseline {
+  baseRevision: string | null;
+  baseContent: { format: string; text: string; [extension: string]: unknown } | null;
+}

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: local transaction foundation; Workspace and remote integration pending |
+| Status | In progress: current Workspace and record adapter; application and remote integration pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -73,6 +73,10 @@ Depends only on relevant Phase 0 approval, not Phase 1B or a Google grant.
   unsaved-baseline and maintenance payload schemas remain part of 1A.1/1A.2; the application still uses its old store.
 - [ ] 1A.2 Refactor Workspace/projection so typing, save and search do not copy/rebuild all historical revisions.
   Embed the unsaved baseline needed for ADR-061 comparisons without old-history reads.
+- [x] 1A.2a Implement the explicit current-format Workspace, bounded current-head graph, self-contained draft
+  baselines and WorkspaceRecordStorage adapter. Load only current/meta/draft indexes, persist changed rows,
+  page pending uploads/history and atomically select staged bulk generations. The production entry point and
+  backup/history UI still need conversion before 1A.2 is complete; no old format is automatically converted.
 - [ ] 1A.3 Implement IndexedDB and native SQLite/bridge semantics on Windows, macOS, Linux, iOS and Android.
   A history table behind a whole-workspace JSON save API does not satisfy this task.
 - [ ] 1A.4 Implement incompatible-local-profile detection and the explicit preservation/discard/rejoin screen.

@@ -23,7 +23,8 @@ For documentation work, check_docs.py, git diff --check and a scope and semantic
 behavioral, failure and history-scaling acceptance; [PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md)
 starts approved local storage and remote proof independently, followed by sync, reset, manual purge
 and backup integration. The research records externally supplied JS timings, not reproduced acceptance results.
-The record transaction foundation is implemented, but the app still uses whole-workspace persistence. No complete
+The record transaction foundation and explicit current-format Workspace adapter are implemented, but the app
+entry point still uses whole-workspace persistence. No complete
 VC case, improved typing latency, new bootstrap or destructive cloud behavior is claimed from primitive tests.
 The implementation grant does not authorize live cloud resets, and old sync tests do not verify the new model.
 
@@ -31,6 +32,7 @@ Run the isolated foundation checks:
 
 ```bash
 node --test tests/record-storage.test.js tests/record-storage-native.test.js
+node --test tests/current-revisions.test.js tests/workspace-records.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
@@ -40,6 +42,11 @@ python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
 - Shared tests exercise closed transaction/reply validation, exact receipt recovery after a lost reply, account
   boundaries, immutable history, attachment integrity, byte-bounded paging, and a single draft-row write with
   20,000 pre-existing history rows. That last assertion measures records touched, not editor latency.
+- Current Workspace tests cover unknown ancestry as a conservative conflict, repeated saves with bounded heads,
+  self-contained unsaved baselines, two-row typing commits, startup without history/outbox reads, indexed history,
+  failed/double acknowledgement, competing writers and interrupted bulk generation activation. The browser probe
+  also saves/reopens this Workspace through actual IndexedDB and continues a history page. These are integration
+  checks of the new core, not evidence that the production entry point has switched or that native latency passed.
 - The browser probe uses a new Playwright context, a synthetic intercepted origin and fresh database names;
   it needs no server or account. It tests competing writer connections, real IndexedDB commit/abort behavior,
   attachment rollback, byte-bounded pages, reopen/reset and opaque legacy data preserved without parsing.
@@ -59,8 +66,8 @@ python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
   emulator verification. The adapter sizes record/staging cursor windows explicitly using Android's
   [SQLiteCursor window API](https://developer.android.com/reference/android/database/sqlite/SQLiteCursor#setWindow(android.database.CursorWindow)).
 
-The full shared suites and native build procedures below remain required. Workspace conversion to current-only
-state, explicit incompatible-profile UI, native bridge latency, process-death/power-loss acceptance, iOS runtime,
+The full shared suites and native build procedures below remain required. Production entry-point integration,
+explicit incompatible-profile UI, native bridge latency, process-death/power-loss acceptance, iOS runtime,
 remote protocol proof and real-provider checks remain open. Independent implementation review is still required.
 
 ## Proposed desktop presentation lifecycle verification

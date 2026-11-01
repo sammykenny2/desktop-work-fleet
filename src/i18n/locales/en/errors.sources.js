@@ -1,4 +1,8 @@
 export default {
+  'errors.sources.datasetInvalid': 'The sync dataset contains an invalid or incompatible record. Local notes are kept.',
+  'errors.sources.datasetBusy': 'Sync has more pending work than one pass can safely process. Local notes are kept; sync will continue.',
+  'errors.sources.datasetChanged': 'The Google dataset has changed or disappeared. Keep local work and choose how to recover before uploading.',
+  'errors.sources.datasetPurged': 'This note was permanently deleted. Unpublished changes can be saved as a new note.',
   // Source pages and cursors
   'errors.sources.cursorMissing': "The source didn't provide a valid sync cursor.",
   'errors.sources.cursorMixed': 'The source mixed an intermediate and a final cursor.',

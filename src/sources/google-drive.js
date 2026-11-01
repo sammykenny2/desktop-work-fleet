@@ -3,6 +3,8 @@ import { canonicalJson, parseJson } from './json.js';
 import { validFileId, validateFile, verifyFile } from './files.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
+import { DATASET_FIELDS, DATASET_FORMAT, datasetMetadata, datasetQuery, googleDatasetDescriptor,
+  validateDatasetFile, verifyDatasetBytes } from './dataset-codec.js';
 
 const FIELDS = 'id,size,spaces,trashed,appProperties,sha256Checksum';
 const JSON_BYTES = 2 * 1024 * 1024;
@@ -115,6 +117,73 @@ export class GoogleDriveFileStore {
     return token((await this.#json({ path: pathFor('/drive/v3/changes/startPageToken', { fields: 'startPageToken' }), signal })).startPageToken);
   }
 
+  async listObjects({ query, pageToken = null, signal }) {
+    const parameters = { spaces: 'appDataFolder', q: datasetQuery(query), pageSize: '100',
+      fields: `nextPageToken,incompleteSearch,files(${DATASET_FIELDS})` };
+    if (query.scope === 'history') parameters.orderBy = 'createdTime desc';
+    if (pageToken !== null) parameters.pageToken = token(pageToken);
+    const page = await this.#json({ path: pathFor('/drive/v3/files', parameters), signal, context: 'listing' });
+    requireValue(page.incompleteSearch === undefined || typeof page.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
+    return { files: items(page.files).map(file => {
+      if (['legacy', 'fences'].includes(query.scope)) {
+        requireValue(validFileId(file.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid'));
+        return { id: file.id, kind: file.appProperties?.wfKind ?? null };
+      }
+      return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
+    }), incomplete: page.incompleteSearch === true, nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
+  }
+  async getObject({ id, signal }) {
+    requireValue(validFileId(id), 'invalid-source-file', t('errors.sources.driveFileIdInvalid'));
+    const file = await this.#datasetDescriptor(await this.#json({ path: pathFor(`/drive/v3/files/${id}`, { fields: DATASET_FIELDS }), signal }), signal);
+    requireValue(file.id === id, 'file-integrity', t('errors.sources.fileIntegrity')); return file;
+  }
+  async #datasetDescriptor(metadata, signal) {
+    if (metadata.appProperties?.wfKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
+    const expected = googleDatasetDescriptor(metadata, { rootParentVerified: true });
+    let pageToken = null; const seen = new Set();
+    do {
+      const page = await this.listObjects({ query: { scope: 'roots', datasetId: expected.datasetId }, pageToken, signal });
+      requireValue(!page.incomplete, 'invalid-source-page', t('errors.sources.scanIncomplete'));
+      if (page.files.some(file => canonicalJson(file) === canonicalJson(expected))) return expected;
+      pageToken = page.nextPageToken;
+      requireValue(!pageToken || !seen.has(pageToken) && seen.size < 2, 'invalid-dataset', t('errors.sources.datasetInvalid'));
+      if (pageToken) seen.add(pageToken);
+    } while (pageToken);
+    throw new FleetError('invalid-dataset', t('errors.sources.datasetInvalid'));
+  }
+  async listDatasetChanges({ cursor, signal }) {
+    const page = await this.#json({ path: pathFor('/drive/v3/changes', { pageToken: token(cursor), spaces: 'appDataFolder',
+      pageSize: '100', includeRemoved: 'true', fields: `nextPageToken,newStartPageToken,changes(fileId,removed,file(${DATASET_FIELDS}))` }), signal, context: 'changes' });
+    requireValue(!(page.nextPageToken !== undefined && page.newStartPageToken !== undefined), 'invalid-source-page', t('errors.sources.driveChangesTwoEnds'));
+    const changes = await Promise.all(items(page.changes).map(async change => {
+      requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.sources.driveChangeIdInvalid'));
+      if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
+      if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false,
+        legacyReset: change.file?.appProperties?.wfKind === 'reset' };
+      const file = await this.#datasetDescriptor(change.file, signal);
+      requireValue(file.id === change.fileId, 'invalid-source-page', t('errors.sources.driveChangeFileMismatch'));
+      return { id: file.id, removed: false, file };
+    }));
+    return { changes, ...(page.nextPageToken === undefined ? { cursor: token(page.newStartPageToken) } : { nextCursor: token(page.nextPageToken) }) };
+  }
+  async readObject({ file, signal }) {
+    file = validateDatasetFile(file);
+    requireValue(canonicalJson(await this.getObject({ id: file.id, signal })) === canonicalJson(file), 'file-integrity', t('errors.sources.fileIntegrity'));
+    const response = await this.#http({ path: pathFor(`/drive/v3/files/${file.id}`, { alt: 'media' }), signal, maxResponseBytes: Math.max(file.size, 65536) });
+    return verifyDatasetBytes(file, response.body);
+  }
+  async createFolder({ file, signal }) {
+    file = validateDatasetFile(file);
+    requireValue(['folder', 'dataset-root'].includes(file.kind), 'invalid-dataset', t('errors.sources.datasetInvalid'));
+    const value = await this.#datasetDescriptor(await this.#json({ path: pathFor('/drive/v3/files', { fields: DATASET_FIELDS }), method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: encode(canonicalJson(datasetMetadata(file))), signal }), signal);
+    requireValue(canonicalJson(value) === canonicalJson(file), 'upload-mismatch', t('errors.sources.driveUploadMismatch')); return value;
+  }
+  async createObject({ file, bytes, signal }) {
+    file = validateDatasetFile(file); bytes = await verifyDatasetBytes(file, bytes);
+    return this.#create(file, bytes, datasetMetadata(file), signal, DATASET_FIELDS, googleDatasetDescriptor, value => this.readObject(value));
+  }
+
   async listFiles({ pageToken = null, signal } = {}) {
     const query = { spaces: 'appDataFolder', q: 'trashed = false', pageSize: '100', fields: `nextPageToken,incompleteSearch,files(${FIELDS})` };
     if (pageToken !== null) query.pageToken = token(pageToken);
@@ -174,10 +243,10 @@ export class GoogleDriveFileStore {
     return verifyFile(file, response.body);
   }
 
-  async #uploaded(response, file, signal) {
-    const metadata = parseJson(response.body); const received = descriptor(metadata);
+  async #uploaded(response, file, signal, convert, read) {
+    const metadata = parseJson(response.body); const received = convert(metadata);
     requireValue(canonicalJson(received) === canonicalJson(file), 'upload-mismatch', t('errors.sources.driveUploadMismatch'));
-    if (metadata.sha256Checksum === undefined) await this.readFile({ file, signal });
+    if (metadata.sha256Checksum === undefined) await read({ file, signal });
     this.#uploads.delete(file.id); return received;
   }
 
@@ -199,13 +268,18 @@ export class GoogleDriveFileStore {
       mimeType: 'application/octet-stream', parents: ['appDataFolder'], appProperties: {
         wfFormat: 'work-fleet-file', wfSchema: String(schemas.driveFile), wfKind: file.kind, wfSha256: file.sha256,
       } };
+    return this.#create(file, bytes, metadata, signal, FIELDS, descriptor, value => this.readFile(value));
+  }
+
+  async #create(file, bytes, metadata, signal, fields, convert, read) {
+    const complete = response => this.#uploaded(response, file, signal, convert, read);
     if (file.size === 0) {
       // Multipart represents an empty attachment unambiguously, without an invalid 0--1 Content-Range.
       const boundary = `wf_${crypto.randomUUID()}`;
       const body = encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`
         + `\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--${boundary}--\r\n`);
-      return this.#uploaded(await this.#http({ path: pathFor('/upload/drive/v3/files', { uploadType: 'multipart', fields: FIELDS }),
-        method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body, signal }), file, signal);
+      return complete(await this.#http({ path: pathFor('/upload/drive/v3/files', { uploadType: 'multipart', fields }),
+        method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body, signal }));
     }
     let session = this.#uploads.get(file.id); let offset = 0;
     try {
@@ -213,10 +287,10 @@ export class GoogleDriveFileStore {
         requireValue(canonicalJson(session.file) === canonicalJson(file), 'upload-mismatch', t('errors.sources.driveResumeMismatch'));
         const status = await this.#http({ path: session.path, method: 'PUT', headers: { 'Content-Range': `bytes */${file.size}` },
           body: new Uint8Array(), signal, allowed: [308], context: 'upload' });
-        if (status.status !== 308) return await this.#uploaded(status, file, signal);
+        if (status.status !== 308) return await complete(status);
         offset = this.#offset(status, file.size);
       } else {
-        const response = await this.#http({ path: pathFor('/upload/drive/v3/files', { uploadType: 'resumable', fields: FIELDS }), method: 'POST',
+        const response = await this.#http({ path: pathFor('/upload/drive/v3/files', { uploadType: 'resumable', fields }), method: 'POST',
           headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/octet-stream',
             'X-Upload-Content-Length': String(file.size) }, body: encode(JSON.stringify(metadata)), signal });
         session = { path: sessionPath(header(response, 'location')), file };
@@ -226,7 +300,7 @@ export class GoogleDriveFileStore {
         const end = Math.min(offset + CHUNK_BYTES, file.size);
         const response = await this.#http({ path: session.path, method: 'PUT', headers: { 'Content-Type': 'application/octet-stream',
           'Content-Range': `bytes ${offset}-${end - 1}/${file.size}` }, body: bytes.slice(offset, end), signal, allowed: [308], context: 'upload' });
-        if (response.status !== 308) return await this.#uploaded(response, file, signal);
+        if (response.status !== 308) return await complete(response);
         offset = this.#offset(response, end, offset);
       }
       throw new FleetError('service-unavailable', t('errors.sources.driveUploadUnconfirmed'));

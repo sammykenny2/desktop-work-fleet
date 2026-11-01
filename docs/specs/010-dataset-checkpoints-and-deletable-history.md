@@ -158,6 +158,12 @@ and escape all IDs. `D7`, `N42` and folder IDs stand for verified values, not us
 trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' }
   and appProperties has { key='wfKind' and value='dataset' }
 
+# Prove the declared dataset root is a direct app-data child, including when metadata returns a real parent ID:
+trashed = false and 'appDataFolder' in parents
+  and appProperties has { key='wfFormat' and value='work-fleet-dataset' }
+  and appProperties has { key='wfDataset' and value='D7' }
+  and appProperties has { key='wfKind' and value='dataset-root' }
+
 # Current discovery for D7; never lists the revision bodies used only as history:
 trashed = false and appProperties has { key='wfDataset' and value='D7' }
   and (appProperties has { key='wfKind' and value='checkpoint' }
@@ -474,7 +480,7 @@ Starting engineering budgets for model/benchmark work, **not measured production
 | Note shards | 16 plus one group shard, fixed by the dataset descriptor |
 | Checkpoint body | 8 MiB hard codec bound per shard, including conflict heads and coverage |
 | Tail admission | Consolidate at 64 current references/account or 4 MiB referenced revision bytes; pause new cloud publication at 128 / 8 MiB until maintenance makes progress |
-| Candidate admission | Consolidate when a shard has two incomparable checkpoints; pause new compactions/publications at eight until covered inputs retire |
+| Candidate admission | Consolidate when a shard has two incomparable checkpoints; pause ordinary publication at eight. Finish each client's one journaled compaction before starting another; allow a consolidation output at the ceiling so eight incomparable candidates cannot deadlock |
 | Feed catch-up | 1,000 events or 8 MiB metadata before switching to current reconciliation; no endless silent restart |
 | History page | At most 100 descriptors, on demand |
 | Supported-concurrency experiment | Up to eight simultaneous publishers; test late in-flight work above the admission threshold explicitly |
@@ -484,6 +490,15 @@ overshoot bound for its concurrency profile and maintain usable verified local s
 partial publications/failed cleanup consume capacity; stopping dependent publication is preferable to silently
 turning the current catalog into history. Hard decoder/allocation bounds must include the tested overshoot.
 Actual cold-bootstrap progress and absolute p50/p95 targets on named devices/network remain Q07 acceptance gates.
+
+The current model admits 135 change receipts (127 already present plus eight in-flight publishers) and 16 checkpoint
+candidates per shard (eight incomparable inputs plus eight simultaneous consolidation outputs), at most 151 captured
+inputs for one checkpoint. It reserves up to 64 MiB of referenced tail bytes for eight in-flight 8 MiB revisions.
+These are decoder ceilings for the stated experiment, not a real-Drive latency guarantee. In particular, repeated
+stale/incomplete provider discovery is not evidence that new publication is admissible. Unknown outcomes retain
+one exact journaled output; a missing output triggers current reconciliation, not deletion of its old inputs.
+If later coverage is no longer provable, its local journal values remain conservative branches in a new verified
+checkpoint, subject to terminal purge. An existing dirty output is sanitized before retirement can proceed.
 
 Test fixed N/current bytes/conflicts/P with H = 10,000 / 100,000 / 1,000,000 spread across note folders. Separately
 test a hot note and per-folder/account quota errors; a synthetic million-record fixture does not prove Drive can

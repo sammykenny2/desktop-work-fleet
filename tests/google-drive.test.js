@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { GoogleDriveFileStore } from '../src/sources/google-drive.js';
 import { NativeGoogleFileStore } from '../src/native/google.js';
 import { sha256 } from '../src/sources/files.js';
+import { datasetFile, datasetMetadata, datasetRecord } from '../src/sources/dataset-codec.js';
+import { revisionRecord } from '../src/sources/revisions.js';
 
 const encode = value => new TextEncoder().encode(value);
 const response = (value, status = 200, headers = {}) => ({ status, headers, body: encode(JSON.stringify(value)) });
@@ -11,6 +13,8 @@ const failCode = code => error => error.code === code;
 const location = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=private-session';
 const metadata = file => ({ id: file.id, size: String(file.size), spaces: ['appDataFolder'], trashed: false,
   sha256Checksum: file.sha256, appProperties: { wfFormat: 'work-fleet-file', wfSchema: '1', wfKind: file.kind, wfSha256: file.sha256 } });
+const datasetMeta = file => ({ ...datasetMetadata(file), spaces: ['appDataFolder'], trashed: false,
+  ...(file.sha256 ? { size: String(file.size), sha256Checksum: file.sha256 } : {}) });
 async function fixture(bytes = new Uint8Array([0, 255, 1, 3])) {
   const file = { id: 'allocated-id', kind: 'attachment', size: bytes.length, sha256: await sha256(bytes) };
   return { file, bytes, metadata: metadata(file) };
@@ -24,6 +28,49 @@ function scripted(steps) {
   return { store: new GoogleDriveFileStore({ accountId: 'verified-subject', request, now: () => Date.UTC(2026, 9, 4) }), calls,
     done: () => assert.equal(steps.length, 0) };
 }
+
+test('dataset Drive operations use typed filtered queries, verified folders, current descriptors and owned revision uploads', async () => {
+  const id = crypto.randomUUID();
+  const revision = revisionRecord('card', { id: 'note', revision: 'r1', groupId: 'group', content: { text: 'note', format: 'markdown' }, deleted: false, archived: false, completed: false });
+  const { file, bytes } = await datasetFile('revision-id', 'note-folder', datasetRecord(id, 'revision', { record: revision, attachments: [] }));
+  const folder = { id: 'note-folder', datasetId: id, kind: 'folder', role: 'note', parentId: 'notes-folder', entityId: 'note' };
+  const s = scripted([response({ files: [datasetMeta(file)] }), response(datasetMeta(folder)), response(datasetMeta(file)),
+    { status: 200, headers: {}, body: bytes }, input => {
+      const body = JSON.parse(new TextDecoder().decode(input.body));
+      assert.deepEqual(body.parents, ['note-folder']); assert.equal(body.appProperties.wfDataset, id);
+      assert.equal(body.appProperties.wfRevision, 'r1'); assert.equal(body.appProperties.wfEntity, 'note');
+      return empty(200, { location });
+    }, response(datasetMeta(file))]);
+  assert.deepEqual((await s.store.listObjects({ query: { scope: 'history', datasetId: id, parentId: 'note-folder' } })).files, [file]);
+  const url = new URL(s.calls[0].path, 'https://www.googleapis.com');
+  assert.match(url.searchParams.get('q'), /'note-folder' in parents/); assert.equal(url.searchParams.get('orderBy'), 'createdTime desc');
+  assert.deepEqual(await s.store.createFolder({ file: folder }), folder);
+  assert.deepEqual(await s.store.readObject({ file }), bytes);
+  assert.deepEqual(await s.store.createObject({ file, bytes }), file); s.done();
+});
+
+test('dataset change feed counts irrelevant history events and exposes legacy reset fences without downloading their bodies', async () => {
+  const id = crypto.randomUUID();
+  const folder = { id: 'note-folder', datasetId: id, kind: 'folder', role: 'note', parentId: 'notes-folder', entityId: 'note' };
+  const s = scripted([response({ changes: [{ fileId: 'old', file: { appProperties: { wfKind: 'revision' } } },
+    { fileId: 'fence', file: { appProperties: { wfKind: 'reset' } } }, { fileId: folder.id, file: datasetMeta(folder) },
+    { fileId: 'gone', removed: true }], newStartPageToken: 'end' })]);
+  assert.deepEqual(await s.store.listDatasetChanges({ cursor: 'start' }), { changes: [
+    { id: 'old', removed: false, legacyReset: false }, { id: 'fence', removed: false, legacyReset: true },
+    { id: folder.id, removed: false, file: folder }, { id: 'gone', removed: true },
+  ], cursor: 'end' }); s.done();
+  assert.match(s.calls[0].path, /parents/);
+});
+
+test('a real app-data parent ID is normalized only after a scoped direct-parent query proves root membership', async () => {
+  const file = { id: 'dataset-root-id', datasetId: crypto.randomUUID(), kind: 'dataset-root', role: 'root', parentId: 'appDataFolder' };
+  const meta = { ...datasetMeta(file), parents: ['actual-appdata-parent'] };
+  const s = scripted([response(meta), response({ files: [meta] })]);
+  assert.deepEqual(await s.store.getObject({ id: file.id }), file); s.done();
+  assert.match(new URL(s.calls[1].path, 'https://www.googleapis.com').searchParams.get('q'), /'appDataFolder' in parents/);
+  const invalid = scripted([response(meta), response({ files: [] })]);
+  await assert.rejects(invalid.store.getObject({ id: file.id }), { code: 'invalid-dataset' }); invalid.done();
+});
 
 test('Drive enumeration, changes and ID allocation use appDataFolder with exact field and token semantics', async () => {
   const f = await fixture();

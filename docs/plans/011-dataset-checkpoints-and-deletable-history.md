@@ -92,20 +92,26 @@ and landed without waiting for the cloud proof, while the incompatible-release p
 
 Starts alongside Phase 1A. Model work does not require real Google credentials.
 
-- [ ] 1B.1 Translate SPEC-010's concrete kinds/properties/queries and algorithms into strict V1 codecs and a
+- [x] 1B.1 Translate SPEC-010's concrete kinds/properties/queries and algorithms into strict V1 codecs and a
   deterministic state-machine model. Keep UUID parents; no writer incarnation or history-pack subsystem.
 - [ ] 1B.2 Exercise all four SPEC scenarios and every create/read/list/delete interruption: partial uploads,
   coalesced changes, stale pages, lost replies, concurrent checkpoints, late duplicate receipts and covered-input
   removal. Establish safe orphan handling; age alone cannot authorize deleting a possible live dependency
   (VC03-VC09, VC16, VC19, VC21, VC22).
-- [ ] 1B.3 Demonstrate that unknown ancestry preserves branches and classify conservative false conflicts.
+- [x] 1B.3 Demonstrate that unknown ancestry preserves branches and classify conservative false conflicts.
   Validate the proposed behavior rather than quietly restoring an unbounded ancestor walk (Q02, VC08, VC09).
 - [ ] 1B.4 Measure admitted tail/candidate size and derive finite in-flight overshoot for the supported concurrency
   profile. Test continuous writers, failed retirement, partial publications, many purge markers and group history.
   Show usable local state and progress under overload, not an endless bootstrap restart (VC07, VC19, VC26).
+- [x] 1B.4a Exercise eight simultaneous checkpoint publishers, bounded exact-journal retries and consolidation at
+  the admission ceiling. Fix the all-writers-at-eight deadlock; admit 16 transient candidates and 151 shard inputs.
+  Ordinary publication admission, sustained mixed writer/deletion load and real-provider progress remain open.
 - [ ] 1B.5 Use a lazy provider with H = 10k / 100k / 1m at fixed current state. Instrument forbidden history work.
   Separately test a hot note, folder/account capacity errors, property limits and bounded marker queries; a million
   synthetic files is not evidence of real app-data support (VC01, VC26; Q07).
+- [x] 1B.5a Verify identical cold-reconciliation operation counts at fixed current state with lazy H = 10k / 100k /
+  1m. Forbid any history body read after consolidation. These are synthetic dependency/count checks, not measured
+  provider performance, materialized million-file storage or acceptance of folder/account quotas.
 - [ ] 1B.6 With separately authorized isolated Google data, verify nested app-data folders, filtered discovery,
   paginated/changed results, publication visibility, checksum read-back, folder cascade and late uploads. Verify
   quota behavior through documentation/safe probes or error injection; do not create millions of real files merely

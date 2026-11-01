@@ -1,4 +1,8 @@
 export default {
+  'errors.sources.datasetInvalid': '同步資料集含有無效或不相容的紀錄，已保留本機便箋。',
+  'errors.sources.datasetBusy': '待同步工作超過單次可安全處理的範圍。本機便箋已保留，同步將繼續。',
+  'errors.sources.datasetChanged': 'Google 資料集已變更或消失。請保留本機工作並選擇復原方式，再繼續上傳。',
+  'errors.sources.datasetPurged': '這張便箋已永久刪除。尚未上傳的修改可另存為新便箋。',
   // Source pages and cursors
   'errors.sources.cursorMissing': '來源未提供有效的同步游標。',
   'errors.sources.cursorMixed': '來源混用了中間及完成游標。',

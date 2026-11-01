@@ -33,6 +33,7 @@ Run the isolated foundation checks:
 ```bash
 node --test tests/record-storage.test.js tests/record-storage-native.test.js
 node --test tests/current-revisions.test.js tests/workspace-records.test.js
+node --test tests/dataset-protocol.test.js tests/google-drive.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
@@ -47,6 +48,14 @@ python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
   failed/double acknowledgement, competing writers and interrupted bulk generation activation. The browser probe
   also saves/reopens this Workspace through actual IndexedDB and continues a history page. These are integration
   checks of the new core, not evidence that the production entry point has switched or that native latency passed.
+- Dataset model tests use an isolated provider with captured files and controllable publication/list/read/delete
+  boundaries. They cover concurrent checkpoints, token-before-list bootstrap, retirement during GET, exact retries,
+  partial cleanup, terminal purge including a missing history body, bad coverage, every publication/retirement
+  interruption in the fixture, eight simultaneous compactors, and bounded catch-up of irrelevant deletion events.
+  Lazy 10k/100k/1m history fixtures produce identical current-query/read counts and reject all historical body reads
+  after consolidation. This does not measure Google latency, create a million files or test an installed app.
+  The trusted JS Drive adapter has scripted typed-query/folder/upload/feed tests; native dataset methods and the
+  production sync controller are still pending. No live account or deletion experiment is part of these checks.
 - The browser probe uses a new Playwright context, a synthetic intercepted origin and fresh database names;
   it needs no server or account. It tests competing writer connections, real IndexedDB commit/abort behavior,
   attachment rollback, byte-bounded pages, reopen/reset and opaque legacy data preserved without parsing.
@@ -68,7 +77,8 @@ python3 -B -m unittest discover -s tests -p 'test_macos_record_storage.py' -v
 
 The full shared suites and native build procedures below remain required. Production entry-point integration,
 explicit incompatible-profile UI, native bridge latency, process-death/power-loss acceptance, iOS runtime,
-remote protocol proof and real-provider checks remain open. Independent implementation review is still required.
+full reset/purge/backup integration and real-provider checks remain open. The protocol model has executable
+evidence but still requires independent assessment; independent implementation review is also still required.
 
 ## Proposed desktop presentation lifecycle verification
 

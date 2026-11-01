@@ -94,7 +94,9 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
       if (query.scope === 'entity-data') return googleDatasetOwned(file, query);
       if (['legacy', 'fences'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.storage.googleFileIdInvalid'));
-        return { id: file.id, kind: file.appProperties?.wfKind ?? null };
+        requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
+        return { id: file.id, kind: file.appProperties?.wfKind ?? null,
+          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder' } : {}) };
       }
       return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
     }), incomplete: result.incompleteSearch === true, nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };

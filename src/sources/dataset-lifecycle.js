@@ -56,7 +56,9 @@ export class DatasetLifecycle {
     invalid(same(await this.#protocol.read(item.file, signal), item.value));
   }
 
-  async initialize({ fenceId = null, starter = true, signal, key = 'dataset-initialize', allowExisting = false } = {}) {
+  async initialize({ fenceId = null, starter = true, signal, key = 'dataset-initialize', allowExisting = false,
+    guard = async () => {} } = {}) {
+    await guard();
     let job = await this.#journal.getJob(key);
     if (!job) {
       if (!allowExisting) {
@@ -99,12 +101,18 @@ export class DatasetLifecycle {
     }
     invalid(job.kind === 'dataset-initialize' && job.sourceId === this.#store.sourceId && job.binding.plan.fenceId === fenceId);
     if (job.phase === 'ready') {
-      await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal); return copy(job.binding);
+      if (!allowExisting) await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
+      else {
+        invalid(same(await this.#protocol.read(job.binding.descriptor, signal), job.binding.plan));
+        invalid(same(await this.#protocol.read(job.objects.at(-1).file, signal), job.objects.at(-1).value));
+        invalid(same(await this.#store.getObject({ id: job.binding.plan.rootId, signal }), job.directories[0]));
+      }
+      await guard(); return copy(job.binding);
     }
     const ready = job.objects.at(-1);
     if (job.phase === 'prepare') {
-      for (const file of job.directories) { signal?.throwIfAborted(); await this.#folder(file, signal); }
-      for (const item of job.objects.slice(0, -1)) { signal?.throwIfAborted(); await this.#object(item, signal); }
+      for (const file of job.directories) { signal?.throwIfAborted(); await guard(); await this.#folder(file, signal); }
+      for (const item of job.objects.slice(0, -1)) { signal?.throwIfAborted(); await guard(); await this.#object(item, signal); }
       job = { ...job, phase: 'ready-pending' }; await this.#journal.putJob(key, job);
     }
     // Once readiness may have been observed, never recreate retired initial checkpoints or a deleted root.
@@ -112,10 +120,10 @@ export class DatasetLifecycle {
     catch (error) {
       if (!missing(error)) throw error;
       for (const item of job.objects.slice(0, -1)) invalid(same(await this.#protocol.read(item.file, signal), item.value));
-      await this.#object(ready, signal);
+      await guard(); await this.#object(ready, signal);
     }
     invalid(same(await this.#store.getObject({ id: job.binding.plan.rootId, signal }), job.directories[0]));
-    await this.#journal.putJob(key, { ...job, phase: 'ready' });
+    await guard(); await this.#journal.putJob(key, { ...job, phase: 'ready' });
     return copy(job.binding);
   }
 }

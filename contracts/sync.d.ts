@@ -143,13 +143,16 @@ export interface DatasetProvider {
   getStartCursor(input?: { signal?: AbortSignal }): Promise<string>;
   allocateFileId(input?: { signal?: AbortSignal }): Promise<string>;
   listObjects(input: { query: DatasetQuery; pageToken?: string | null; signal?: AbortSignal }): Promise<{
-    files: (DatasetFile | DatasetFolder | DatasetOwnedFile | { id: string; kind: string | null })[]; incomplete: boolean; nextPageToken: string | null;
+    files: (DatasetFile | DatasetFolder | DatasetOwnedFile | { id: string; kind: string | null; folder?: boolean })[]; incomplete: boolean; nextPageToken: string | null;
   }>;
   getObject(input: { id: string; signal?: AbortSignal }): Promise<DatasetFile | DatasetFolder>;
   readObject(input: { file: DatasetFile; signal?: AbortSignal }): Promise<Uint8Array>;
   createObject(input: { file: DatasetFile; bytes: Uint8Array; signal?: AbortSignal }): Promise<DatasetFile>;
   createFolder(input: { file: DatasetFolder; signal?: AbortSignal }): Promise<DatasetFolder>;
   deleteFile(input: { id: string; signal?: AbortSignal }): Promise<void>;
+  /** Only the V1 legacy reset fence uses the existing flat-file transport. */
+  readFile(input: { file: FileDescriptor; signal?: AbortSignal }): Promise<Uint8Array>;
+  createFile(input: { file: FileDescriptor; bytes: Uint8Array; signal?: AbortSignal }): Promise<FileDescriptor>;
   listDatasetChanges(input: { cursor: string; signal?: AbortSignal }): Promise<{
     changes: { id: string; removed: boolean; file?: DatasetFile | DatasetFolder | DatasetOwnedFile; legacyReset?: boolean }[];
     nextCursor?: string; cursor?: string;

@@ -437,6 +437,12 @@ old job. Two competing initializers do not elect a winner by clock; show an init
 both plans for a previewed resolution. Followers verify readiness and do not independently create starter groups.
 An initialized intentionally empty workspace remains empty. Old files created after the captured set are ignored
 as incompatible and reported as residual legacy writes; do not widen deletion scope automatically.
+The reset worker captures at most 100 metadata entries per durable page and deletes at most 20 captured leaf
+files per step. Captured old fences are retired first after new readiness, allowing the new dataset to become
+usable while content cleanup continues. Reset does not cascade-delete captured folders: a child can arrive after
+an empty-folder check and Drive has no conditional empty-folder delete. Retain/count those obsolete containers;
+all captured content files are still removed. The legacy flat layout has no such containers. Note purge has a
+different, explicitly terminal whole-identity scope and may delete its owned folders and late descendants.
 
 Old 0.4.x `resetSource` uses unfiltered `listFileIds`: it can delete **all** app data, not just old-format files.
 The compatibility fence reduces ordinary old-client writes but is not an access-control boundary and cannot

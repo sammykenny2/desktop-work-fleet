@@ -52,8 +52,9 @@ export class DatasetSync {
     try {
       this.#session ??= await this.#workspace.beginSync(this.#store.sourceId); this.#check();
       const reset = await this.#storage.getJob('dataset-reset');
-      requireValue(!reset || reset.phase === 'complete', 'source-reset-pending', t('errors.sources.resetPending'));
       const known = this.#workspace.syncState.dataset;
+      requireValue(!reset || reset.phase === 'complete' || reset.ready && known?.plan.datasetId === reset.binding?.plan.datasetId,
+        'source-reset-pending', t('errors.sources.resetPending'));
       if (known) {
         await this.#protocol.assertGeneration(known.descriptor, known.plan, this.#abort.signal); this.#binding = known;
       } else {

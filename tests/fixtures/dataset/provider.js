@@ -42,6 +42,15 @@ export class DatasetTestProvider {
     await this.hook('create-after', file.id); return copy(file);
   }
   async createFolder({ file }) { return this.createObject({ file }); }
+  async readFile({ file }) { return this.readObject({ file }); }
+  async createFile({ file, bytes }) {
+    await this.hook('create-before', file.id);
+    if (this.files.has(file.id)) throw Object.assign(new Error('exists'), { code: 'file-exists' });
+    if (bytes.length !== file.size || await sha256(bytes) !== file.sha256) throw new Error('bad bytes');
+    this.files.set(file.id, { file: copy(file), bytes: new Uint8Array(bytes) });
+    this.events.push({ id: file.id, file: copy(file), removed: false }); this.stats.creates++;
+    await this.hook('create-after', file.id); return copy(file);
+  }
   async deleteFile({ id }) {
     await this.hook('delete-before', id); const stored = this.files.get(id);
     if (!stored) return;
@@ -71,7 +80,9 @@ export class DatasetTestProvider {
     // Cursor uses an identity boundary so concurrent removal does not shift an offset.
     const remaining = files.filter(file => !pageToken || file.id.localeCompare(pageToken) > 0);
     const result = remaining.slice(0, 100);
-    return { files: copy(result), incomplete: false, nextPageToken: remaining.length > result.length ? result.at(-1).id : null };
+    return { files: copy(query.scope === 'legacy' ? result.map(file => ({ id: file.id, kind: file.kind,
+      folder: ['dataset-root', 'folder'].includes(file.kind) })) : result), incomplete: false,
+    nextPageToken: remaining.length > result.length ? result.at(-1).id : null };
   }
   async listDatasetChanges({ cursor }) {
     await this.hook('changes', cursor);

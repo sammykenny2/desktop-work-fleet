@@ -37,6 +37,7 @@ node --test tests/dataset-protocol.test.js tests/google-drive.test.js
 node --test tests/dataset-native.test.js
 node --test tests/dataset-sync.test.js
 node --test tests/dataset-history-purge.test.js
+node --test tests/dataset-reset.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
@@ -76,6 +77,11 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   They interrupt cleanup, inject late orphan uploads, invalidate one Empty Trash preview while allowing another
   to proceed, and purge hundreds of unpublished local versions in bounded pages. Shared attachment bytes remain
   until the last note/draft reference is removed. These tests use disposable providers, not real Drive deletion.
+- Reset tests capture paged metadata without reading legacy bytes, publish the compatible fence before the new
+  isolated dataset, and retain late uncaptured files/obsolete folder containers. They reopen the real record
+  adapter after capture, lose fence/deletion replies, inject a competing fence and simulate the old unfiltered
+  delete-all operation. The old FileSync fixture stops on the new fence. None uses an installed old client or
+  live Google account; first-run UI, seeded restore and explicit local cloud-loss recovery remain separate work.
 - `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
   Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
   identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a

@@ -203,6 +203,7 @@ export class WorkspaceRecordStorage {
   putJob(key, value) { return this.#putControl('job', key, value); }
   putJobs(values) {
     return this.#queue(async () => {
+      this.#receipt ??= await this.#status();
       for (let index = 0; index < values.length; index += 100) await this.#write(values.slice(index, index + 100).map(({ key, value }) =>
         ({ collection: 'job', key, entity: value.kind ?? '', ordinal: 0, value })));
     });

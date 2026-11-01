@@ -130,7 +130,9 @@ export class GoogleDriveFileStore {
       if (query.scope === 'entity-data') return googleDatasetOwned(file, query);
       if (['legacy', 'fences'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid'));
-        return { id: file.id, kind: file.appProperties?.wfKind ?? null };
+        requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
+        return { id: file.id, kind: file.appProperties?.wfKind ?? null,
+          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder' } : {}) };
       }
       return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
     }), incomplete: page.incompleteSearch === true, nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: record storage, sync, lazy history and purge workers; reset/backup and application UI pending |
+| Status | In progress: record storage, sync, lazy history, reset and purge workers; backup and application UI pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -154,6 +154,10 @@ Depends on the local transaction contract and reviewed remote candidate.
   remain separate. Keep old profiles/backups intact unless their exact deletion is confirmed (VC20).
 - [ ] 3.2 Persist the old file-ID capture, legacy-compatible reset fence, new isolated dataset plan, readiness and
   exact-ID cleanup stages. Never reuse the old unfiltered delete-all loop after new files exist (VC21, VC22).
+- [x] 3.2a Implement paged durable metadata capture, legacy fence read-back, guarded initialization and exact
+  leaf-ID cleanup with uncertain-reply recovery. Retain obsolete folder containers to avoid cascading into late
+  uncaptured children. Verify old FileSync fencing, competing fences, old delete-all interference, restart and
+  intentionally empty replacement. First-run/reset/recovery screens and seeded cloud restore remain open.
 - [ ] 3.3 Add localized all-device update/stop warning and test fixtures for 0.4.x normal sync, an in-flight old
   reset and a newly invoked old Reset all / overwrite-Google operation. The fence is mitigation, not revocation.
 - [ ] 3.4 Detect missing root/fence/ready state; preserve usable local data, inspect new generations and offer

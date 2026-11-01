@@ -1,6 +1,6 @@
 # Requirements and Version Scope
 
-Updated: 2026-10-12. The interaction contract is [SPEC-003](specs/003-desktop-cards-groups-and-formation.md).
+Updated: 2026-11-01. The interaction contract is [SPEC-003](specs/003-desktop-cards-groups-and-formation.md).
 That specification lists U (confirmed), D (authorized working defaults) and Q (open) items; research candidates must not
 be treated as approved features.
 
@@ -62,6 +62,12 @@ Store preparation does not equal store approval; external OAuth, formal signing 
 their own evidence.
 
 ## Status of Google and backup
+
+The revised deletion and history-scaling direction is recorded as confirmed U requirements in
+[SPEC-010](specs/010-vault-checkpoints-and-deletable-history.md). Its checkpoint, Trash expiration and reset design
+is proposed in [ADR-062](decisions/062-vault-checkpoints-and-deletable-history.md) for independent review;
+[PLAN-011](plans/011-vault-checkpoints-and-deletable-history.md) is not approved for implementation.
+The implemented contracts below remain in force pending that review and later implementation.
 
 The [Drive research](research/2026-10-03-google-drive-notes-mvp-feasibility.md) recommends Drive rather than Keep;
 the appDataFolder provider was adopted by ADR-012, and the protocol is in SPEC-004. Native OAuth and real Google

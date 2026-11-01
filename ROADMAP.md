@@ -1,6 +1,6 @@
 # Roadmap
 
-Updated: 2026-10-23. This document only sets the order of work and does not commit to release dates. It is not a status
+Updated: 2026-11-01. This document only sets the order of work and does not commit to release dates. It is not a status
 record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of each version in
 [docs/release-notes.md](docs/release-notes.md).
 
@@ -34,13 +34,10 @@ existing Mac experience; do not restart the paused exploration goal.
 
 Being scheduled for 0.4.x does not mean a design is approved.
 
-Needs an ADR first:
-
-- **Permanent deletion**: "Delete forever" and "Empty Deleted" in the Deleted filter, possibly with automatic emptying
-  after a set time, as Google Keep (7 days), Apple Notes and Notion (about 30 days) offer. Today a deleted note's text,
-  attachments and every revision stay in Google Drive, on every device and in every backup. Revisions are immutable and
-  each holds the full content, so the ADR first decides: whether a purge leaves an empty tombstone or removes the
-  history; how the purge syncs, and how devices that are offline or on an older version are kept from bringing the
-  content back; what happens to an edit made at the same time on another device; how restoring an older backup treats
-  purged notes; when an attachment's bytes can go; and which clock an automatic period follows. Unlike "Move to
-  Deleted", these actions cannot be undone and ask for confirmation. It changes SPEC-002 and SPEC-004.
+- **Permanent deletion and history scale**: first review
+  [ADR-062](docs/decisions/062-vault-checkpoints-and-deletable-history.md),
+  [SPEC-010](docs/specs/010-vault-checkpoints-and-deletable-history.md) and
+  [PLAN-011](docs/plans/011-vault-checkpoints-and-deletable-history.md). Prove bounded current-state synchronization
+  and indexed local persistence before enabling purge. Follow with explicit legacy-vault reset, manual deletion
+  scope, whole-note Trash expiration and purge-aware backups. Expiration concerns time in Trash, not retention of
+  each version; the detailed choices and approval gates are in SPEC-010.

@@ -39,6 +39,9 @@ Runtime selection, process grouping and session handover precede implementation 
 
 [SPEC-004](specs/004-revision-graph-and-file-sync.md)/[ADR-011](decisions/011-immutable-revision-graph.md)
 define the strict JSON of `src/sources`, the immutable revision graph, missing parents and multiple heads.
+The proposed replacement boundaries for current-state checkpoints and deletable history are in
+[ADR-062](decisions/062-vault-checkpoints-and-deletable-history.md)/[SPEC-010](specs/010-vault-checkpoints-and-deletable-history.md).
+They await independent review and implementation approval; this section describes the existing runtime.
 Workspace connects revisions, projections, conflicts, group layout references and the cursor at the atomic save
 boundary, and `src/app/conflicts.js` provides compare / adopt / history restore and group repair.
 The FileSync of [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) coordinates paging, durable

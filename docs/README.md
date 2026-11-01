@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-10-20. Read the latest specifications first; research, working defaults, completed implementation and
+Updated: 2026-11-01. Read the latest specifications first; research, working defaults, completed implementation and
 passed real-world tests are kept apart.
 
 During testing, the note, sync and backup JSON schemas all stay at V1; fields change V1 directly, and version bumps and
@@ -11,6 +11,7 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 
 | Document | Authority and purpose |
 |---|---|
+| [ADR-062](decisions/062-vault-checkpoints-and-deletable-history.md)/[SPEC-010](specs/010-vault-checkpoints-and-deletable-history.md)/[PLAN-011](plans/011-vault-checkpoints-and-deletable-history.md) | Proposed for independent review: incremental vault sync with bounded current checkpoints and separate deletable history, whole-note Trash expiration and explicit old-format reset; no per-version retention or migration; implementation not approved |
 | [ADR-058](decisions/058-desktop-presentation-lifecycle-and-core-isolation.md)/[SPEC-009](specs/009-desktop-presentation-lifecycle.md)/[PLAN-009](plans/009-desktop-presentation-lifecycle.md) | Proposed desktop lifecycle: a nonvisual resident core, isolated presentation, continuous readiness/recovery and permanent removal of whole-app reopen; implementation is not approved; Windows evidence and the uninspected Pi report are separate |
 | [Windows 11 compatibility handoff](handoff/2026-10-09-windows-11-compatibility-handoff.md) | The correct project for this round, 23H2 native and package-content verification; the entry point for continuing user-interaction and install acceptance |
 | [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md)/[SPEC-005](specs/005-windows-11-compatibility.md)/[PLAN-004](plans/004-windows-11-compatibility.md) | Confirmed targets for older and newer Windows 11 versions, Windows 10 install exclusion and the order of work; the MSIX floor is currently 22000, and other versions need their own real-device checks |

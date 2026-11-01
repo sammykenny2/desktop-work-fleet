@@ -17,6 +17,13 @@ A green result from old tests must not be listed as a pass for a new feature, an
 local and Google share the V1 ZIP, and unsupported formats are rejected with the data kept. There is no per-version migration or copy acceptance work.
 For documentation work, check_docs.py, git diff --check and a scope and semantic consistency check are enough.
 
+## Proposed vault checkpoint and deletion verification
+
+[SPEC-010 VC01-VC26](specs/010-vault-checkpoints-and-deletable-history.md#acceptance-cases) defines proposed
+behavioral, failure and history-scaling acceptance; [PLAN-011](plans/011-vault-checkpoints-and-deletable-history.md)
+orders review, protocol proof, native storage, sync, reset, deletion and backup work. None of these new cases has
+passed yet. The design package does not authorize live cloud resets or imply that old sync tests verify the new model.
+
 ## Proposed desktop presentation lifecycle verification
 
 [SPEC-009 L01-L18](specs/009-desktop-presentation-lifecycle.md#acceptance-cases) defines the proposed acceptance

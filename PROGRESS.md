@@ -50,6 +50,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 - Implemented on all five hosts: immutable revision graph, FileSync with outbox and conflicts, Drive appDataFolder adapter
   with resumable uploads, account-isolated workspaces, Google workspace reset with a marker file.
+- Proposed, not implemented: current-state checkpoints with lazy deletable history and whole-note Trash expiration;
+  [ADR-062](docs/decisions/062-vault-checkpoints-and-deletable-history.md)/[SPEC-010](docs/specs/010-vault-checkpoints-and-deletable-history.md)
+  are design proposals; implementation is not approved.
 - Initial groups are account-scoped and shared across devices ([ADR-053](docs/decisions/053-account-scoped-initial-group.md));
   workspace initialization is explicit and resets are resumable ([ADR-054](docs/decisions/054-explicit-workspace-initialization.md),
   [SPEC-008](docs/specs/008-workspace-initialization.md)).

@@ -13,11 +13,11 @@ const encoder = new TextEncoder();
 const invalid = condition => requireValue(condition, 'invalid-record-transaction', t('errors.storage.recordTransactionInvalid'));
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).sort().join(',') === [...keys].sort().join(',');
-export const recordKey = value => safeKey(value) && typeof value === 'string' && /^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/.test(value);
+export const recordKey = value => safeKey(value) && typeof value === 'string' && value.match(/^[A-Za-z0-9][A-Za-z0-9._:@-]{0,255}$/)?.[0] === value;
 export const recordCollection = value => RECORD_COLLECTIONS.includes(value);
 export const rowIdentity = row => JSON.stringify([row.collection, row.key]);
 const version = value => Number.isSafeInteger(value) && value >= 0;
-const commitId = value => typeof value === 'string' && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
+const commitId = value => typeof value === 'string' && value.length === 36 && /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/.test(value);
 
 export function validateLocalRecord(row) {
   invalid(exact(row, ['collection', 'key', 'entity', 'ordinal', 'value']) && recordCollection(row.collection)
@@ -44,8 +44,9 @@ export function validateRecordPage(page, input) {
     && Array.isArray(page.rows) && page.rows.length <= query.limit);
   let previous = query.after;
   for (const row of page.rows) {
-    validateLocalRecord(row);
-    invalid(row.collection === query.collection && (query.entity === null || row.entity === query.entity)
+    if (query.keysOnly) invalid(exact(row, ['collection', 'key', 'ordinal']) && recordKey(row.key) && version(row.ordinal));
+    else validateLocalRecord(row);
+    invalid(row.collection === query.collection && (query.keysOnly || query.entity === null || row.entity === query.entity)
       && page.revision !== null && row.ordinal <= page.revision
       && (!previous || (query.order === 'asc'
         ? row.ordinal > previous.ordinal || (row.ordinal === previous.ordinal && row.key > previous.key)
@@ -78,11 +79,14 @@ export function validateRecordTransaction(input) {
   const encoded = canonicalJson(input);
   requireValue(encoder.encode(encoded).length <= RECORD_LIMITS.transactionBytes, 'native-capacity', t('errors.storage.nativeCapacity'));
   const transaction = parseJson(encoded);
-  invalid(exact(transaction, ['format', 'schemaVersion', 'profileId', 'revision', 'commitId', 'puts', 'deletes'])
+  invalid(exact(transaction, ['format', 'schemaVersion', 'profileId', 'revision', 'commitId', 'puts', 'deletes',
+    ...(Object.hasOwn(transaction, 'attachmentDeletes') ? ['attachmentDeletes'] : [])])
     && transaction.format === TRANSACTION_FORMAT && transaction.schemaVersion === 1 && recordKey(transaction.profileId)
     && version(transaction.revision) && commitId(transaction.commitId));
   invalid(Array.isArray(transaction.puts) && Array.isArray(transaction.deletes)
-    && transaction.puts.length + transaction.deletes.length <= RECORD_LIMITS.rows);
+    && transaction.puts.length + transaction.deletes.length + (transaction.attachmentDeletes?.length ?? 0) <= RECORD_LIMITS.rows);
+  invalid(transaction.attachmentDeletes === undefined || Array.isArray(transaction.attachmentDeletes)
+    && transaction.attachmentDeletes.every(validDigest) && new Set(transaction.attachmentDeletes).size === transaction.attachmentDeletes.length);
   const seen = new Set();
   for (const row of transaction.puts) {
     validateLocalRecord(row); invalid(row.ordinal <= transaction.revision);
@@ -95,19 +99,19 @@ export function validateRecordTransaction(input) {
   return transaction;
 }
 
-export function recordTransaction(profileId, expectedRevision, puts = [], deletes = [], commitId = crypto.randomUUID()) {
+export function recordTransaction(profileId, expectedRevision, puts = [], deletes = [], commitId = crypto.randomUUID(), attachmentDeletes = []) {
   invalid(expectedRevision === null || version(expectedRevision));
   return validateRecordTransaction({ format: TRANSACTION_FORMAT, schemaVersion: 1, profileId,
-    revision: expectedRevision === null ? 0 : expectedRevision + 1, commitId, puts, deletes });
+    revision: expectedRevision === null ? 0 : expectedRevision + 1, commitId, puts, deletes, ...(attachmentDeletes.length ? { attachmentDeletes } : {}) });
 }
 
 export function validateRecordQuery(input) {
   const query = { collection: input?.collection, entity: input?.entity ?? null, after: input?.after ?? null,
-    limit: input?.limit ?? RECORD_LIMITS.pageRows, expectedRevision: input?.expectedRevision ?? null, order: input?.order ?? 'desc' };
+    limit: input?.limit ?? RECORD_LIMITS.pageRows, expectedRevision: input?.expectedRevision ?? null, order: input?.order ?? 'desc', keysOnly: input?.keysOnly ?? false };
   invalid(input && Object.keys(input).every(key => Object.hasOwn(query, key)) && recordCollection(query.collection)
     && (query.entity === null || query.entity === '' || recordKey(query.entity))
     && Number.isInteger(query.limit) && query.limit > 0 && query.limit <= RECORD_LIMITS.pageRows
-    && (query.expectedRevision === null || version(query.expectedRevision)) && ['asc', 'desc'].includes(query.order));
+    && (query.expectedRevision === null || version(query.expectedRevision)) && ['asc', 'desc'].includes(query.order) && typeof query.keysOnly === 'boolean');
   if (query.after !== null) invalid(exact(query.after, ['ordinal', 'key']) && version(query.after.ordinal) && recordKey(query.after.key));
   return copy(query);
 }
@@ -161,6 +165,7 @@ export class MemoryRecordStore {
         if (row.collection !== 'history' || !profile.rows.has(id)) { profile.rows.set(id, row); this.#stats.writes++; }
       }
       for (const row of transaction.deletes) { profile.rows.delete(rowIdentity(row)); this.#stats.writes++; }
+      for (const id of transaction.attachmentDeletes ?? []) profile.attachments.delete(id);
       for (const item of files) profile.attachments.set(item.id, item.bytes);
       profile.status = recordReceipt(transaction, digest); this.#profiles.set(transaction.profileId, profile);
       return copy(profile.status);
@@ -185,9 +190,10 @@ export class MemoryRecordStore {
       .sort((a, b) => (query.order === 'asc' ? -1 : 1) * (b.ordinal - a.ordinal || (a.key < b.key ? 1 : a.key > b.key ? -1 : 0)));
     const rows = []; let bytes = 512;
     for (const row of matches.slice(0, query.limit)) {
-      const size = encoder.encode(canonicalJson(row)).length;
+      const value = query.keysOnly ? { collection: row.collection, key: row.key, ordinal: row.ordinal } : row;
+      const size = encoder.encode(canonicalJson(value)).length;
       if (rows.length && bytes + size > RECORD_LIMITS.pageBytes) break;
-      rows.push(copy(row)); bytes += size + 1;
+      rows.push(copy(value)); bytes += size + 1;
     }
     this.#stats.reads += rows.length;
     const last = rows.at(-1);

@@ -55,6 +55,8 @@ static class RecordStoreProbe
         using var d = JsonDocument.Parse(db.ReadEntryPage(Json(oldest with { after = c.RootElement.GetProperty("next") })));
         Require(c.RootElement.GetProperty("rows")[0].GetProperty("key").GetString() == "r0");
         Require(d.RootElement.GetProperty("rows")[0].GetProperty("key").GetString() == "r1");
+        using var keys = JsonDocument.Parse(db.ReadEntryPage(Json(new { collection = "history", keysOnly = true, expectedRevision = 1 })));
+        Require(keys.RootElement.GetProperty("rows").EnumerateArray().All(row => !row.TryGetProperty("value", out _) && !row.TryGetProperty("entity", out _)));
       });
       Test("record receipt failure rolls back both rows and attachment bytes", () =>
       {
@@ -71,13 +73,23 @@ static class RecordStoreProbe
         db.CommitEntries(transaction, 1, [attachment]);
         Require(db.ReadAttachment(digest)!.SequenceEqual(bytes));
       });
+      Test("attachment deletion replays without applying extra staged bytes", () =>
+      {
+        var bytes = Encoding.UTF8.GetBytes("record-rollback-attachment"); var digest = LocalDatabase.Digest(bytes);
+        using var parsed = JsonDocument.Parse(Batch(3));
+        var fields = parsed.RootElement.EnumerateObject().ToDictionary(field => field.Name, field => (object)field.Value.Clone());
+        fields["attachmentDeletes"] = new[] { digest }; var deletion = JsonSerializer.SerializeToUtf8Bytes(fields);
+        Commit(deletion, 2); Require(db.ReadAttachment(digest) is null);
+        db.CommitEntries(Stage(deletion), 2, [db.Stage("attachment", bytes, digest)]);
+        Require(db.ReadAttachment(digest) is null);
+      });
     }
     Test("record reopen and reset retain account isolation", () =>
     {
       using (var other = new LocalDatabase(root, "google:other"))
         Require(other.RecordStatus() is null && other.ReadEntry("history", "r0") is null);
       using var db = new LocalDatabase(root, "local");
-      Require(Json(db.RecordStatus()!).GetProperty("revision").GetInt64() == 2 && db.ReadEntry("draft", "one") is not null);
+      Require(Json(db.RecordStatus()!).GetProperty("revision").GetInt64() == 3 && db.ReadEntry("draft", "one") is not null);
       db.Reset(); Require(db.RecordStatus() is null && db.ReadEntry("history", "r0") is null);
     });
     Test("record format detection preserves legacy bytes and refuses conversion", () =>

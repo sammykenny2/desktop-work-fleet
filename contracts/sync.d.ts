@@ -131,17 +131,19 @@ export interface DatasetFolder {
   id: string; datasetId: string; parentId: string; kind: 'dataset-root' | 'folder'; role: string; entityId?: string;
 }
 export interface DatasetHead { record: RevisionRecord; file: DatasetFile; attachments: DatasetFile[]; }
+/** A metadata-only cleanup target may have lost its parent; it is not a readable revision descriptor. */
+export interface DatasetOwnedFile { id: string; kind: 'revision' | 'attachment' | 'folder'; datasetId: string; entityId: string; parentId: string | null; }
 export type DatasetQuery = { scope: 'datasets' | 'fences' | 'legacy' }
   | { scope: 'ready' | 'roots' | 'current-all'; datasetId: string }
   | { scope: 'current'; datasetId: string; shard: string }
   | { scope: 'history' | 'children'; datasetId: string; parentId: string }
-  | { scope: 'purges' | 'entity-folders'; datasetId: string; entities: string[] };
+  | { scope: 'purges' | 'entity-folders' | 'entity-data'; datasetId: string; entities: string[] };
 export interface DatasetProvider {
   readonly sourceId: string;
   getStartCursor(input?: { signal?: AbortSignal }): Promise<string>;
   allocateFileId(input?: { signal?: AbortSignal }): Promise<string>;
   listObjects(input: { query: DatasetQuery; pageToken?: string | null; signal?: AbortSignal }): Promise<{
-    files: (DatasetFile | DatasetFolder | { id: string; kind: string | null })[]; incomplete: boolean; nextPageToken: string | null;
+    files: (DatasetFile | DatasetFolder | DatasetOwnedFile | { id: string; kind: string | null })[]; incomplete: boolean; nextPageToken: string | null;
   }>;
   getObject(input: { id: string; signal?: AbortSignal }): Promise<DatasetFile | DatasetFolder>;
   readObject(input: { file: DatasetFile; signal?: AbortSignal }): Promise<Uint8Array>;
@@ -149,7 +151,7 @@ export interface DatasetProvider {
   createFolder(input: { file: DatasetFolder; signal?: AbortSignal }): Promise<DatasetFolder>;
   deleteFile(input: { id: string; signal?: AbortSignal }): Promise<void>;
   listDatasetChanges(input: { cursor: string; signal?: AbortSignal }): Promise<{
-    changes: { id: string; removed: boolean; file?: DatasetFile | DatasetFolder; legacyReset?: boolean }[];
+    changes: { id: string; removed: boolean; file?: DatasetFile | DatasetFolder | DatasetOwnedFile; legacyReset?: boolean }[];
     nextCursor?: string; cursor?: string;
   }>;
 }

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: record storage and dataset sync controller; history/reset/purge/backup UI pending |
+| Status | In progress: record storage, sync, lazy history and purge workers; reset/backup and application UI pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -141,6 +141,8 @@ Depends on the local transaction contract and reviewed remote candidate.
   receipts/predecessor snapshots. Retain revisions as history and enforce admission/backpressure (VC04, VC05, VC19).
 - [ ] 2.4 Implement paged note-folder history and direct selected-version reads; restore via a new UUID and fresh
   head preview. Load attachments on demand, with truthful cache availability (VC08-VC10).
+- [x] 2.4a Implement DatasetHistory with cached/remote coverage, metadata-only remote pages, selected-body reads
+  and lazy verified attachment caching. Keep history UI and backup completeness integration open in 2.4/Phase 5.
 - [ ] 2.5 Verify every adapter, conflict behavior, group redirects and cloned/restored outbox replay. No shared
   checkpoint chunks, packs or separate complete history copy are introduced.
 
@@ -176,6 +178,10 @@ Depends on the local transaction contract and reviewed remote candidate.
   every historical tombstone. Do not garbage-collect the last barrier in a live dataset (VC19).
 - [ ] 4.5 Verify pending/committed/cloud-cleanup wording, worker interruption, foreground priority, account changes
   and resumes. No claim about erasing offline devices or previously exported files (VC14, VC25, VC26).
+- [x] 4.1a Implement exact preview and resumable per-note/Empty Trash queue, terminal publication, sanitized
+  checkpoints/current cache, metadata-only folder fallback, late orphan cleanup and indexed local history/outbox/
+  attachment collection. Exercise stale previews, lost deletion replies, shared bytes and retained unsaved work.
+  Production commands, worker scheduling, backup fencing and independent/provider checks remain open above.
 
 **Deliverable**: explicit whole-note permanent deletion. Automatic expiry and per-version deletion remain deferred.
 

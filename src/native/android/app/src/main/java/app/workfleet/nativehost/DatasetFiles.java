@@ -79,11 +79,12 @@ final class DatasetFiles {
             } else if (Arrays.asList("history", "children").contains(scope)) {
                 keys.add("parentId"); check(fileId(value.opt("parentId"))); clauses.add("'" + value.getString("parentId") + "' in parents");
                 if (scope.equals("history")) clauses.add(prop("wfKind", "revision"));
-            } else if (Arrays.asList("purges", "entity-folders").contains(scope)) {
+            } else if (Arrays.asList("purges", "entity-folders", "entity-data").contains(scope)) {
                 keys.add("entities"); JSONArray ids = value.getJSONArray("entities"); check(ids.length() > 0 && ids.length() <= 20);
                 Set<String> seen = new HashSet<>(); List<String> terms = new ArrayList<>();
                 for (int i = 0; i < ids.length(); i++) { String id = ids.getString(i); check(entityId(id) && seen.add(id)); terms.add(prop("wfEntity", id)); }
-                clauses.add(prop("wfKind", scope.equals("purges") ? "purge" : "folder")); clauses.add("(" + String.join(" or ", terms) + ")");
+                clauses.add(scope.equals("entity-data") ? "(" + prop("wfKind", "revision") + " or " + prop("wfKind", "attachment") + " or " + prop("wfKind", "folder") + ")"
+                    : prop("wfKind", scope.equals("purges") ? "purge" : "folder")); clauses.add("(" + String.join(" or ", terms) + ")");
             } else check(false);
         }
         check(keys(value).equals(keys)); return String.join(" and ", clauses);

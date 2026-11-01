@@ -1,7 +1,7 @@
 import { copy, requireValue, safeKey } from '../core/contracts.js';
 import { t } from '../i18n/index.js';
 
-export const validDigest = value => typeof value === 'string' && /^[0-9a-f]{64}$/.test(value);
+export const validDigest = value => typeof value === 'string' && value.length === 64 && /^[0-9a-f]{64}$/.test(value);
 export const validFileId = value => safeKey(value) && value.match(/^[A-Za-z0-9_-]{1,256}$/)?.[0] === value;
 // A reset marker is a small note that a device cleared the account's files; see resetSource.
 export const fileLimit = kind => ['revision', 'workspace'].includes(kind) ? 8 * 1024 * 1024 : kind === 'reset' ? 4096 : 25 * 1024 * 1024;

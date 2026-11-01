@@ -59,7 +59,8 @@ public sealed partial class LocalDatabase
   }
   public byte[] ReadEntryPage(JsonElement query)
   {
-    RecordRequire(query.EnumerateObject().All(field => new[] { "collection", "entity", "after", "limit", "expectedRevision", "order" }.Contains(field.Name)));
+    RecordRequire(query.EnumerateObject().All(field => new[] { "collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly" }.Contains(field.Name)));
+    var keysOnly = query.TryGetProperty("keysOnly", out var flag) && flag.GetBoolean();
     var order = query.TryGetProperty("order", out _) ? JsonRules.Text(query, "order") : "desc"; RecordRequire(order is "asc" or "desc");
     var collection = JsonRules.Text(query, "collection"); RecordRequire(RecordCollections.Contains(collection));
     var entity = query.TryGetProperty("entity", out var e) && e.ValueKind != JsonValueKind.Null ? e.GetString() : null;
@@ -81,16 +82,17 @@ public sealed partial class LocalDatabase
       HostError.Require(head is not null || !LegacyRecords(), "incompatible-local-data", "This profile uses an older format. Keep it or explicitly reset it before continuing.");
       HostError.Require(head?.Revision == expected, "stale-writer", "Local data changed while reading its records. Reload before continuing.");
       var sorting = order == "asc" ? "ASC" : "DESC";
-      using var command = Command("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT $limit;", null, parameters.ToArray());
+      using var command = Command("SELECT id,entity,ordinal," + (keysOnly ? "NULL" : "data") + " FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT $limit;", null, parameters.ToArray());
       using var reader = command.ExecuteReader(); var rows = new List<JsonElement>(); var size = 512; var more = false;
       while (reader.Read())
       {
-        var key = reader.GetString(0); var bytes = UserProtection.Unprotect((byte[])reader[3], Scope("entry:" + collection, key));
+        var key = reader.GetString(0); var bytes = keysOnly ? JsonSerializer.SerializeToUtf8Bytes(new { collection, key, ordinal = reader.GetInt64(2) })
+          : UserProtection.Unprotect((byte[])reader[3], Scope("entry:" + collection, key));
         try
         {
           using var parsed = JsonRules.Parse(bytes); var row = parsed.RootElement;
           RecordRequire(JsonRules.Text(row, "collection") == collection && JsonRules.Text(row, "key") == key
-            && row.GetProperty("entity").GetString() == reader.GetString(1) && JsonRules.Integer(row, "ordinal") == reader.GetInt64(2));
+            && (keysOnly || row.GetProperty("entity").GetString() == reader.GetString(1)) && JsonRules.Integer(row, "ordinal") == reader.GetInt64(2));
           var rowSize = JsonSerializer.SerializeToUtf8Bytes(row, new JsonSerializerOptions { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping }).Length;
           if (rows.Count >= limit || (rows.Count > 0 && size + rowSize > RecordBatchBytes)) { more = true; break; }
           RecordRequire(size + rowSize <= RecordBatchBytes); size += rowSize + 1; rows.Add(row.Clone());
@@ -112,13 +114,18 @@ public sealed partial class LocalDatabase
       {
         RecordRequire(bytes.Length <= RecordBatchBytes && Digest(bytes) == digest);
         using var parsed = JsonRules.Parse(bytes); var value = parsed.RootElement;
-        ExactKeys(value, "format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes");
+        ExactKeys(value, value.TryGetProperty("attachmentDeletes", out var removedAttachments)
+          ? ["format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes", "attachmentDeletes"]
+          : ["format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes"]);
+        var attachmentDeletes = removedAttachments.ValueKind == JsonValueKind.Undefined ? Array.Empty<string>() : removedAttachments.EnumerateArray().Select(item => item.GetString()!).ToArray();
+        RecordRequire(attachmentDeletes.All(id => id is not null && id.Length == 64 && System.Text.RegularExpressions.Regex.IsMatch(id, "^[0-9a-f]{64}$"))
+          && attachmentDeletes.Distinct(StringComparer.Ordinal).Count() == attachmentDeletes.Length);
         RecordRequire(JsonRules.Text(value, "format") == "work-fleet-record-transaction" && JsonRules.Integer(value, "schemaVersion") == 1
           && JsonRules.Text(value, "profileId") == ProfileId);
         var revision = JsonRules.Integer(value, "revision"); var commitId = JsonRules.Text(value, "commitId");
         RecordRequire(Guid.TryParseExact(commitId, "D", out _) && commitId == commitId.ToLowerInvariant());
         var puts = value.GetProperty("puts"); var deletes = value.GetProperty("deletes");
-        RecordRequire(puts.ValueKind == JsonValueKind.Array && deletes.ValueKind == JsonValueKind.Array && puts.GetArrayLength() + deletes.GetArrayLength() <= 512);
+        RecordRequire(puts.ValueKind == JsonValueKind.Array && deletes.ValueKind == JsonValueKind.Array && puts.GetArrayLength() + deletes.GetArrayLength() + attachmentDeletes.Length <= 512);
         var seen = new HashSet<(string, string)>();
         foreach (var row in puts.EnumerateArray().Concat(deletes.EnumerateArray()))
         {
@@ -176,6 +183,7 @@ public sealed partial class LocalDatabase
           Execute("DELETE FROM record_entries WHERE profile=$p AND collection=$c AND id=$id;", tx,
             ("$p", ProfileId), ("$c", JsonRules.Text(row, "collection")), ("$id", JsonRules.Text(row, "key")));
         }
+        foreach (var identity in attachmentDeletes) Execute("DELETE FROM attachments WHERE profile=$p AND id=$id;", tx, ("$p", ProfileId), ("$id", identity));
         foreach (var attachment in attachments) CommitAttachment(attachment, tx);
         Execute("INSERT INTO record_heads VALUES($p,$r,$id,$d) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,commit_id=excluded.commit_id,digest=excluded.digest;", tx,
           ("$p", ProfileId), ("$r", revision), ("$id", commitId), ("$d", digest));

@@ -62,6 +62,8 @@ try {
     const earliest = await store.page('local', { ...query, order: 'asc' });
     const following = await store.page('local', { ...query, order: 'asc', after: earliest.next });
     check(earliest.rows[0].key === 'r0' && following.rows[0].key === 'r1', 'ascending pending order failed');
+    const keys = await store.page('local', { ...query, keysOnly: true });
+    check(JSON.stringify(Object.keys(keys.rows[0]).sort()) === JSON.stringify(['collection', 'key', 'ordinal']), 'metadata page read values');
     await window.recordPhase('reopen and byte-bounded pages');
     check(await store.get('google:other', 'history', 'r0') === null, 'account leak');
     store.close(); store = await IndexedDbRecordStore.open(name, { legacyName: null });
@@ -69,6 +71,10 @@ try {
     for (let i = 0; i < 3; i++) await store.commit(recordTransaction('local', i + 2, [row('history', `large${i}`, i + 3, 'x'.repeat(3 * 1024 * 1024))]), i + 2);
     const large = await store.page('local', { collection: 'history', expectedRevision: 5 });
     check(large.rows.length === 2 && new TextEncoder().encode(JSON.stringify(large)).length <= 8 * 1024 * 1024, 'page byte bound failed');
+    const remove = recordTransaction('local', 5, [], [], undefined, [id]);
+    await store.commit(remove, 5); check(await store.getAttachment('local', id) === null, 'attachment deletion failed');
+    await store.commit(remove, 5, { attachments: [{ id, bytes }] });
+    check(await store.getAttachment('local', id) === null, 'replayed deletion applied extra upload bytes');
     await store.reset('local'); check(await store.status('local') === null && await store.getAttachment('local', id) === null, 'reset retained data'); store.close();
     await window.recordPhase('current Workspace persistence and reopen');
     const currentStore = await IndexedDbRecordStore.open(`current-${crypto.randomUUID()}`, { legacyName: null });

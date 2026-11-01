@@ -36,6 +36,7 @@ node --test tests/current-revisions.test.js tests/workspace-records.test.js
 node --test tests/dataset-protocol.test.js tests/google-drive.test.js
 node --test tests/dataset-native.test.js
 node --test tests/dataset-sync.test.js
+node --test tests/dataset-history-purge.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
@@ -47,6 +48,9 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
 - Shared tests exercise closed transaction/reply validation, exact receipt recovery after a lost reply, account
   boundaries, immutable history, attachment integrity, byte-bounded paging, and a single draft-row write with
   20,000 pre-existing history rows. That last assertion measures records touched, not editor latency.
+  Metadata-only pages omit values, and attachment deletion rolls back with failed row writes. Exact replay
+  cannot restore deleted bytes from extra staging. The Linux fixture also rejects any payload decryption during
+  a metadata-only read; browser and Apple/Windows probes cover the same projection and deletion receipt contract.
 - Current Workspace tests cover unknown ancestry as a conservative conflict, repeated saves with bounded heads,
   self-contained unsaved baselines, two-row typing commits, startup without history/outbox reads, indexed history,
   failed/double acknowledgement, competing writers and interrupted bulk generation activation. The browser probe
@@ -67,6 +71,11 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   check separate attachment ownership for copies, concurrent edit conflicts, purge-preserved unpublished work and
   cloud loss without automatic republishing. A steady-state refresh reads no checkpoint or historical bodies; a
   cold follower uses checkpoints with lazy million-history noise. These are isolated protocol integration checks.
+- History/purge tests verify zero historical body reads while listing remote versions, one selected-version GET,
+  lazy attachments, sanitized current copies, preserved neighboring notes and metadata-only folder fallback.
+  They interrupt cleanup, inject late orphan uploads, invalidate one Empty Trash preview while allowing another
+  to proceed, and purge hundreds of unpublished local versions in bounded pages. Shared attachment bytes remain
+  until the last note/draft reference is removed. These tests use disposable providers, not real Drive deletion.
 - `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
   Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
   identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a

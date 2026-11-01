@@ -296,6 +296,7 @@ export class DatasetProtocol {
     await this.assertGeneration(descriptor, plan, signal);
     const forbidden = new Set(purges.map(value => value.entityId));
     return { heads: heads.filter(head => head.record.kind !== 'card' || !forbidden.has(head.record.entityId)), purges,
+      dirtyEntities: [...new Set(heads.filter(head => head.record.kind === 'card' && forbidden.has(head.record.entityId)).map(head => head.record.entityId))],
       inputs: inputs.map(input => input.file), cursor: complete ? cursor : null, complete };
   }
 }

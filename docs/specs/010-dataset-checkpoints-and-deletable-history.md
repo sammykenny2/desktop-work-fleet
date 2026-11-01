@@ -74,7 +74,8 @@ string when not applicable), local commit ordinal and JSON value. The Workspace-
 activation still belong to Phase 1A; a storage primitive accepting a row is not proof of a valid note or checkpoint.
 
 A `work-fleet-record-transaction` V1 envelope carries a random commit UUID, profile, next revision and at most
-512 distinct puts/deletes. It is at most 8 MiB; a row is at most 8 MiB minus 1 KiB for paging overhead. Revision
+512 distinct puts/deletes/attachment deletions. Optional `attachmentDeletes` contains unique SHA-256 IDs;
+byte deletion shares the row transaction, rollback and exact-replay receipt. It is at most 8 MiB; a row is at most 8 MiB minus 1 KiB for paging overhead. Revision
 zero requires an empty profile; later writes compare the expected local revision. History IDs cannot be replaced
 with different entity/content, and identical history replay preserves the original position. This local CAS is
 provided by IndexedDB/SQLite; it does not imply that Google Drive provides CAS.
@@ -91,6 +92,11 @@ must restart a read if intervening work changes its boundary; there is no silent
 An explicit closed `order: asc` selector uses the same index in reverse to publish pending revisions oldest first.
 It does not accept caller-provided sorting expressions. Bulk current activation can retain the existing history
 namespace while staging current rows and the pending queue; it never copies historical bodies into the new view.
+The closed `keysOnly: true` projection returns only collection, key and ordinal. IndexedDB uses a key cursor;
+SQLite does not select or decrypt payloads. History cleanup and abandoned-generation collection use this projection
+in bounded pages. Indexed, content-free owner/reference rows protect attachment bytes still used by another note
+or a preserved unsaved draft. Current-view controls activate atomically with the Workspace pointer; replaced views
+and abandoned generations have durable cleanup jobs, rather than unbounded synchronous deletion during save.
 
 Native rows remain protected with the host's existing encryption and owner/session boundary. The browser uses a
 separate `work-fleet-records-v1` database, with entries, receipts and attachments in one transaction. Old workspace
@@ -355,6 +361,8 @@ this is why updating/stopping all old devices is required and cloud-loss recover
 History reads the selected entity's folder in pages. Deduplicate by revision ID and refresh an invalidated page
 cursor when files change; this is not a frozen transactional list. Once a selected file locator is known, its
 full revision body needs one media GET, plus any independently requested attachments and control checks.
+Cached local rows are labelled as cached coverage. Remote pages contain metadata entries, not eagerly fetched
+revision bodies; displaying a cached page never establishes that a complete backup is available offline.
 Restore creates a new UUID revision observing the previewed current heads; a stale preview must be refreshed.
 No text-patch chain, pack rewrite or all-account history index is required.
 
@@ -383,6 +391,13 @@ The durable cleanup procedure is:
 5. Invalidate this device's history, previews, undo/layout references and unreferenced attachment cache. Other
    devices do so when they reconnect. Keep purge markers for the dataset lifetime; do not compact away the last
    anti-resurrection evidence merely because every currently known device acknowledged.
+
+The provider's closed `entity-data` query selects only note revision, attachment and note-folder metadata for
+at most 20 identities in one dataset. Cleanup also accepts owned files with no remaining parent after a folder
+was removed; these metadata records are not usable revision locators. It deletes bounded batches and repeats
+from the first page, so deletion cannot invalidate a pagination cursor and skip remaining owned files. The
+change feed uses the same ownership checks for late orphan uploads and reopens their cleanup jobs. A stale
+uncommitted preview moves to review-needed state without blocking other confirmed notes in an Empty Trash job.
 
 The UI distinguishes request pending, logical deletion committed with cloud cleanup pending, and cloud cleanup
 verified through the last reconciled boundary. Those are necessary acknowledgements of a destructive operation,

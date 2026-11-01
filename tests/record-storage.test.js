@@ -108,3 +108,20 @@ test('attachment integrity and a stale writer never partially publish a transact
   await assert.rejects(recordAttachments(Array.from({ length: 6 }, (_, index) => ({ id: String(index).padStart(64, '0'), bytes: large }))),
     { code: 'native-capacity' });
 });
+
+test('metadata-only pages omit payloads and attachment deletion shares CAS, rollback and exact replay', async () => {
+  const store = new MemoryRecordStore(), bytes = new TextEncoder().encode('retained until committed'), id = await sha256(bytes);
+  await store.commit(recordTransaction('local', null, [row('history', 'r0', 0)]), null, { attachments: [{ id, bytes }] });
+  const query = { collection: 'history', keysOnly: true, expectedRevision: 0 };
+  const page = validateRecordPage(await store.page('local', query), query);
+  assert.deepEqual(page.rows, [{ collection: 'history', key: 'r0', ordinal: 0 }]);
+  assert.throws(() => validateRecordPage({ ...page, rows: [row('history', 'r0', 0)] }, query));
+  const invalid = recordTransaction('local', 0, [row('history', 'r0', 1, { text: 'collision' })], [], undefined, [id]);
+  await assert.rejects(store.commit(invalid, 0), { code: 'revision-collision' });
+  assert.ok(await store.getAttachment('local', id));
+  const remove = recordTransaction('local', 0, [], [], undefined, [id]);
+  const receipt = await store.commit(remove, 0); assert.equal(await store.getAttachment('local', id), null);
+  assert.deepEqual(await store.commit(remove, 0, { attachments: [{ id, bytes }] }), receipt);
+  assert.equal(await store.getAttachment('local', id), null, 'replay must not apply newly staged bytes');
+  assert.throws(() => validateRecordTransaction({ ...remove, attachmentDeletes: [id, id] }));
+});

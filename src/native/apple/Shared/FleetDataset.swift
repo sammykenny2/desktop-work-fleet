@@ -78,10 +78,11 @@ enum FleetDataset {
             } else if ["history", "children"].contains(scope) {
                 keys.insert("parentId"); try check(fileID(value["parentId"])); clauses.append("'" + (try FleetProtocol.text(value, "parentId")) + "' in parents")
                 if scope == "history" { clauses.append(prop("wfKind", "revision")) }
-            } else if ["purges", "entity-folders"].contains(scope) {
+            } else if ["purges", "entity-folders", "entity-data"].contains(scope) {
                 keys.insert("entities"); let ids = value["entities"] as? [String] ?? []
                 try check((1...20).contains(ids.count) && ids.allSatisfy { entityID($0) } && Set(ids).count == ids.count)
-                clauses += [prop("wfKind", scope == "purges" ? "purge" : "folder"), "(" + ids.map { prop("wfEntity", $0) }.joined(separator: " or ") + ")"]
+                clauses += [scope == "entity-data" ? "(" + ["revision", "attachment", "folder"].map { prop("wfKind", $0) }.joined(separator: " or ") + ")"
+                    : prop("wfKind", scope == "purges" ? "purge" : "folder"), "(" + ids.map { prop("wfEntity", $0) }.joined(separator: " or ") + ")"]
             } else { try check(false) }
         }
         try check(Set(value.keys) == keys); return clauses.joined(separator: " and ")

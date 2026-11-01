@@ -64,8 +64,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Initialization, reset fencing and shared initial groups are verified only with isolated fixtures and Chromium IndexedDB probes,
   not with real Google or the native apps. Builds without the source-generation fields must be updated before a reset.
 - The dataset checkpoint protocol has strict codecs, JS/native Drive adapters, a durable initializer and a bounded
-  incremental DatasetSync controller with exact publication/retirement and purge barriers. Application integration, full
-  deletion/reset workflows, independent assessment and real-provider verification remain open in PLAN-011.
+  incremental DatasetSync controller with exact publication/retirement and purge barriers. Lazy history and resumable
+  manual purge workers include metadata-only cleanup and shared local attachment ownership. Application integration,
+  reset/backup workflows, independent assessment and real-provider verification remain open in PLAN-011.
 - The OAuth consent screen is still in Testing: only listed test users can sign in, and refresh tokens expire after 7 days.
 
 ### Backup and restore

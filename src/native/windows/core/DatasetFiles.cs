@@ -91,11 +91,12 @@ public static class DatasetFiles
         keys.Add("parentId"); Check(FileId(Text(value, "parentId"))); clauses.Add("'" + Text(value, "parentId") + "' in parents");
         if (scope == "history") clauses.Add(Prop("wfKind", "revision"));
       }
-      else if (scope is "purges" or "entity-folders")
+      else if (scope is "purges" or "entity-folders" or "entity-data")
       {
         keys.Add("entities"); var ids = value.GetProperty("entities").EnumerateArray().Select(item => item.GetString()!).ToArray();
         Check(ids.Length is > 0 and <= 20 && ids.All(EntityId) && ids.Distinct(StringComparer.Ordinal).Count() == ids.Length);
-        clauses.Add(Prop("wfKind", scope == "purges" ? "purge" : "folder")); clauses.Add("(" + string.Join(" or ", ids.Select(id => Prop("wfEntity", id))) + ")");
+        clauses.Add(scope == "entity-data" ? "(" + string.Join(" or ", new[] { "revision", "attachment", "folder" }.Select(kind => Prop("wfKind", kind))) + ")"
+          : Prop("wfKind", scope == "purges" ? "purge" : "folder")); clauses.Add("(" + string.Join(" or ", ids.Select(id => Prop("wfEntity", id))) + ")");
       }
       else Check(false);
     }

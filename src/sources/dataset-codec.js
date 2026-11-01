@@ -81,6 +81,20 @@ export function googleDatasetDescriptor(metadata, { rootParentVerified = false }
   return file;
 }
 
+/** Cleanup identifies an owned orphan after its parent disappeared without reading any body. */
+export function googleDatasetOwned(metadata, query) {
+  const props = metadata?.appProperties;
+  invalid(validFileId(metadata?.id) && Array.isArray(metadata.spaces) && metadata.spaces.includes('appDataFolder')
+    && (metadata.trashed === undefined || metadata.trashed === false) && props?.wfFormat === DATASET_FORMAT && props.wfSchema === '1'
+    && datasetId(props.wfDataset) && validId(props.wfEntity)
+    && props.wfDataset === query.datasetId && query.entities.includes(props.wfEntity)
+    && ['revision', 'attachment', 'folder'].includes(props.wfKind));
+  invalid(props.wfKind !== 'folder' || props.wfRole === 'note');
+  invalid(props.wfKind !== 'revision' || DATASET_SHARDS.filter(id => id !== 'groups').includes(props.wfShard));
+  invalid(metadata.parents === undefined || Array.isArray(metadata.parents) && metadata.parents.length <= 1 && metadata.parents.every(validFileId));
+  return { id: metadata.id, kind: props.wfKind, datasetId: props.wfDataset, entityId: props.wfEntity, parentId: metadata.parents?.[0] ?? null };
+}
+
 /** A typed selector, never caller-provided Drive query text. Values cannot contain query punctuation. */
 export function datasetQuery(input) {
   const query = copy(input); invalid(query && typeof query.scope === 'string');
@@ -101,10 +115,11 @@ export function datasetQuery(input) {
     } else if (query.scope === 'history' || query.scope === 'children') {
       keys.push('parentId'); invalid(validFileId(query.parentId)); clauses.push(`'${query.parentId}' in parents`);
       if (query.scope === 'history') clauses.push(prop('wfKind', 'revision'));
-    } else if (query.scope === 'purges' || query.scope === 'entity-folders') {
+    } else if (['purges', 'entity-folders', 'entity-data'].includes(query.scope)) {
       keys.push('entities'); invalid(Array.isArray(query.entities) && query.entities.length > 0
         && query.entities.length <= DATASET_LIMITS.queryEntities && unique(query.entities) && query.entities.every(validId));
-      clauses.push(prop('wfKind', query.scope === 'purges' ? 'purge' : 'folder'));
+      clauses.push(query.scope === 'entity-data' ? `(${['revision', 'attachment', 'folder'].map(kind => prop('wfKind', kind)).join(' or ')})`
+        : prop('wfKind', query.scope === 'purges' ? 'purge' : 'folder'));
       clauses.push(`(${query.entities.map(id => prop('wfEntity', id)).join(' or ')})`);
     } else invalid(false);
   }

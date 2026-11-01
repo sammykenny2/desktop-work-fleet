@@ -232,7 +232,9 @@ extension FleetDatabase {
         return bytes
     } }
     func recordPage(_ query: [String: Any]) throws -> Data { try synchronized {
-        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision", "order"]))
+        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly"]))
+        let keysOnly = query["keysOnly"] as? Bool ?? false
+        if let flag = query["keysOnly"] { try Self.recordRequire(flag is NSNumber && CFGetTypeID(flag as CFTypeRef) == CFBooleanGetTypeID()) }
         let order = query["order"] as? String ?? "desc"
         try Self.recordRequire(query["order"] == nil || query["order"] is String); try Self.recordRequire(["asc", "desc"].contains(order))
         let collection = try FleetProtocol.text(query, "collection"), entity = query["entity"] is NSNull || query["entity"] == nil ? nil : query["entity"] as? String
@@ -254,7 +256,7 @@ extension FleetDatabase {
         }
         parameters.append(limit + 1)
         let sorting = order == "asc" ? "ASC" : "DESC"
-        let request = try statement("SELECT id,entity,ordinal,data FROM record_entries WHERE " + whereClause + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", parameters)
+        let request = try statement("SELECT id,entity,ordinal," + (keysOnly ? "NULL" : "data") + " FROM record_entries WHERE " + whereClause + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", parameters)
         defer { sqlite3_finalize(request) }
         var rows: [[String: Any]] = [], size = 512, more = false
         while true {
@@ -262,9 +264,10 @@ extension FleetDatabase {
             if step == SQLITE_DONE { break }
             try FleetProtocol.require(step == SQLITE_ROW, "native-storage", "The local record read did not finish.")
             let id = String(cString: sqlite3_column_text(request, 0)), storedEntity = String(cString: sqlite3_column_text(request, 1))
-            let encrypted = Data(bytes: sqlite3_column_blob(request, 3), count: Int(sqlite3_column_bytes(request, 3)))
-            let bytes = try open(encrypted, "entry:" + collection, id), row = try FleetProtocol.json(bytes)
-            try Self.recordRequire(row["collection"] as? String == collection && row["key"] as? String == id && row["entity"] as? String == storedEntity
+            let bytes = try keysOnly ? FleetProtocol.encode(["collection": collection, "key": id, "ordinal": sqlite3_column_int64(request, 2)])
+                : open(Data(bytes: sqlite3_column_blob(request, 3), count: Int(sqlite3_column_bytes(request, 3))), "entry:" + collection, id)
+            let row = try FleetProtocol.json(bytes)
+            try Self.recordRequire(row["collection"] as? String == collection && row["key"] as? String == id && (keysOnly || row["entity"] as? String == storedEntity)
                 && FleetProtocol.number(row, "ordinal") == sqlite3_column_int64(request, 2))
             if rows.count >= Int(limit) || (!rows.isEmpty && size + bytes.count > Self.batchBytes) { more = true; break }
             try Self.recordRequire(size + bytes.count <= Self.batchBytes); rows.append(row); size += bytes.count + 1
@@ -278,7 +281,8 @@ extension FleetDatabase {
         let bytes = try staged(token, "workspace")
         try Self.recordRequire(bytes.count <= Self.batchBytes)
         let value = try FleetProtocol.json(bytes), digest = FleetProtocol.digest(bytes)
-        try Self.recordRequire(Set(value.keys) == ["format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes"]
+        let expectedKeys: Set<String> = Set(["format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes"] + (value["attachmentDeletes"] == nil ? [] : ["attachmentDeletes"]))
+        try Self.recordRequire(Set(value.keys) == expectedKeys
             && value["format"] as? String == "work-fleet-record-transaction" && value["profileId"] as? String == profile
             && FleetProtocol.number(value, "schemaVersion") == 1)
         let revision = try FleetProtocol.number(value, "revision"), id = try FleetProtocol.text(value, "commitId")
@@ -286,7 +290,10 @@ extension FleetDatabase {
         guard let puts = value["puts"] as? [[String: Any]], let deletes = value["deletes"] as? [[String: Any]] else {
             throw FleetFailure("invalid-record-transaction", "The record changes are invalid.")
         }
-        try Self.recordRequire(puts.count + deletes.count <= 512)
+        let attachmentDeletes = value["attachmentDeletes"] as? [String] ?? []
+        try Self.recordRequire((value["attachmentDeletes"] == nil || value["attachmentDeletes"] is [String])
+            && attachmentDeletes.allSatisfy { $0.count == 64 && FleetProtocol.isDigest($0) } && Set(attachmentDeletes).count == attachmentDeletes.count
+            && puts.count + deletes.count + attachmentDeletes.count <= 512)
         var seen = Set<String>()
         for row in puts + deletes {
             let collection = try FleetProtocol.text(row, "collection"), key = try FleetProtocol.text(row, "key")
@@ -330,6 +337,7 @@ extension FleetDatabase {
                 try Self.recordRequire(Set(row.keys) == ["collection", "key"])
                 try execute("DELETE FROM record_entries WHERE profile=? AND collection=? AND id=?", [profile, try FleetProtocol.text(row, "collection"), try FleetProtocol.text(row, "key")])
             }
+            for identity in attachmentDeletes { try execute("DELETE FROM attachments WHERE profile=? AND id=?", [profile, identity]) }
             for attachment in attachments { _ = try commitAttachment(attachment) }
             try execute("INSERT INTO record_heads VALUES(?,?,?,?) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,commit_id=excluded.commit_id,digest=excluded.digest", [profile, revision, id, digest])
             try discard(token)

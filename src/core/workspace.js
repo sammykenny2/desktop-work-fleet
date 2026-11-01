@@ -181,6 +181,7 @@ export class Workspace {
   get syncState() { return copy(this.#state.sync); }
   get pendingOperations() { return copy(this.#state.outbox); }
   get currentFormat() { return this.#state.format === CURRENT_WORKSPACE_FORMAT; }
+  setHistory(history) { this.#history = history; }
   get pendingCount() { return this.currentFormat ? this.#state.sync.pendingCount ?? 0 : this.#state.outbox.length; }
   /** Picks the layer a group new to this device, made here or first received from a source, starts on; null keeps the desktop layer. */
   setArrivalLayer(choose) { this.#arrivalLayer = choose; }
@@ -292,7 +293,7 @@ export class Workspace {
     const records = this.revisionHistory(kind, entityId), start = options.after ?? 0, limit = options.limit ?? 50;
     return { records: records.slice(start, start + limit), next: records.length > start + limit ? start + limit : null };
   }
-  async historicalRevision(id) { return this.#graph.get(id) ?? (this.currentFormat ? this.#history.get(id) : null); }
+  async historicalRevision(id) { return this.currentFormat ? this.#history.get(id) : this.#graph.get(id); }
 
   async acknowledgeOperations(session, ids, { jobs = [] } = {}) {
     requireValue(this.currentFormat && Array.isArray(ids) && new Set(ids).size === ids.length,
@@ -308,7 +309,7 @@ export class Workspace {
   async receiveDataset(session, binding, result) {
     requireValue(this.currentFormat, 'incompatible-local-data', t('errors.storage.incompatibleLocalData'));
     session = copy(session); binding = copy(binding); result = copy(result);
-    const options = { additions: [] };
+    const options = { additions: [], controls: result.controls ?? [] };
     return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
       this.#session(state, session);
       requireValue(!state.sync.dataset || state.sync.dataset.plan.datasetId === binding.plan.datasetId,
@@ -322,8 +323,11 @@ export class Workspace {
       const graph = new CurrentRevisions(records);
       options.additions = graph.records.filter(record => !this.#graph.get(record.revisionId));
       // Preserve unsaved work against a terminal identity. It can only be saved with an explicit new identity.
-      for (const draft of Object.values(state.drafts)) if (forbidden.has(draft.cardId)) draft.purged = true;
+      for (const [id, draft] of Object.entries(state.drafts)) if (forbidden.has(draft.cardId)) {
+        if (unneededDraft(state, draft)) delete state.drafts[id]; else draft.purged = true;
+      }
       for (const record of state.revisions) if (record.kind === 'card' && forbidden.has(record.entityId) && local.has(record.revisionId)
+        && !(result.published ?? []).some(old => old.kind === 'card' && old.entityId === record.entityId && plainContent(old.value.content) === plainContent(record.value.content))
         && !Object.values(state.drafts).some(draft => draft.cardId === record.entityId && plainContent(draft.content) === plainContent(record.value.content))) {
         const id = this.#uuid();
         state.drafts[id] = { id, cardId: record.entityId, groupId: record.value.groupId, baseRevision: record.revisionId,
@@ -683,6 +687,7 @@ export class Workspace {
     }
     return this.#commit(state => {
       const card = this.#card(state, cardId, expectedRevision);
+      if (this.currentFormat && patch.deleted === true) { card.trashedAt = this.#createdAt(); card.trashEpisode = this.#uuid(); }
       Object.assign(card, copy(patch), { revision: this.#uuid() });
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);
@@ -762,10 +767,42 @@ export class Workspace {
       requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', t('errors.core.deletedNoteChanged'));
       this.#resolved(state, 'card', cardId);
       this.#group(state, card.groupId);
-      card.deleted = false; card.revision = this.#uuid();
+      card.deleted = false; card.revision = this.#uuid(); delete card.trashedAt; delete card.trashEpisode;
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);
     });
+  }
+
+  /** A durable terminal decision removes current identity; distinct unsaved text remains explicitly detached. */
+  async applyPermanentDeletion(items, { view = null, expectedView = null, controls: viewControls = [] } = {}) {
+    requireValue(this.currentFormat, 'incompatible-local-data', t('errors.storage.incompatibleLocalData'));
+    items = copy(items); const ids = new Set(items.map(item => item.entityId));
+    const controls = [...copy(viewControls), ...items.map(item => ({ key: `local-purge:${item.entityId}`, value: { entityId: item.entityId, operationId: item.operationId } }))];
+    return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
+      requireValue(state.layout.revision === revision, 'stale-layout', t('errors.common.layoutChanged'));
+      if (view) {
+        requireValue(canonicalJson(state.sync.datasetView) === canonicalJson(expectedView), 'stale-cursor', t('errors.core.cursorStale'));
+        state.sync.datasetView = copy(view);
+      }
+      for (const [id, draft] of Object.entries(state.drafts)) if (ids.has(draft.cardId)) {
+        if (unneededDraft(state, draft)) delete state.drafts[id]; else draft.purged = true;
+      }
+      state.revisions = state.revisions.filter(record => record.kind !== 'card' || !ids.has(record.entityId));
+      const graph = new CurrentRevisions(state.revisions); Object.assign(state, projectRevisions(graph, state));
+      const next = reconcileSourceLayout(layout, state);
+      for (const id of ids) delete next.placements[id];
+      next.history = next.history.filter(entry => !ids.has(entry.transfer?.cardId) && !Object.keys(entry.before ?? {}).some(id => ids.has(id)));
+      next.revision++; state.layout = next;
+      return { layout: next, value: { removed: [...ids] } };
+    }, this.#persist, true, { controls, additions: [] }));
+  }
+
+  async discardPurgedOperations(entityId, ids, jobs = []) {
+    ids = copy(ids); jobs = copy(jobs);
+    return this.#commit(state => {
+      requireValue(this.currentFormat && !state.cards.some(card => card.id === entityId) && new Set(ids).size === ids.length
+        && ids.length <= state.sync.pendingCount, 'stale-purge', t('errors.sources.purgeStale'));
+    }, this.#persist, false, { removedOperations: ids, removedJobs: jobs, purgeEntity: entityId });
   }
 
   async transferCard({ cardId, groupId, expectedRevision, position, expectedLayoutRevision }) {

@@ -1,4 +1,6 @@
 export default {
+  'errors.sources.purgeStale': 'This note or its Trash entry changed after the preview. Review it again before deleting it forever.',
+  'errors.sources.historyOffline': 'This history is not cached on this device. Connect to Google to load it.',
   'errors.sources.incompatibleCloudData': 'Google contains an older or unfinished data layout. Local notes are kept. Update every device before explicitly resetting the cloud data.',
   'errors.sources.driveItemLimit': 'This Google folder or account has reached its file limit. Local notes and pending changes are kept.',
   'errors.sources.datasetInvalid': 'The sync dataset contains an invalid or incompatible record. Local notes are kept.',

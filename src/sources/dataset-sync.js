@@ -4,6 +4,7 @@ import { revisionRecord } from './revisions.js';
 import { DATASET_LIMITS, DATASET_SHARDS, datasetFile, datasetRecord, encodeDatasetRecord, validateDatasetFile, verifyDatasetBytes } from './dataset-codec.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
 import { DatasetProtocol, listDatasetObjects, mergeDatasetInputs } from './dataset-protocol.js';
+import { purgeJobKey } from './dataset-purge.js';
 import { t } from '../i18n/index.js';
 
 const equal = (a, b) => canonicalJson(a) === canonicalJson(b);
@@ -102,9 +103,10 @@ export class DatasetSync {
   async #pull() {
     const { descriptor, plan } = this.#binding, state = this.#workspace.state;
     let result, previous = state.sync.datasetView, shards = new Map(), cursor = state.sync.cursor;
-    if (cursor && previous) for (const shard of DATASET_SHARDS) {
+    if (previous) for (const shard of DATASET_SHARDS) {
       const value = await this.#storage.getControl(previous[shard]); if (!value) { cursor = null; break; } shards.set(shard, value);
     }
+    const published = [...shards.values()].flatMap(value => value.heads.map(head => head.record)), dataEntities = new Set();
     const changedShards = new Set();
     if (cursor && shards.size === DATASET_SHARDS.length) {
       await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
@@ -124,6 +126,7 @@ export class DatasetSync {
               changed(!change.legacyReset && !(change.file?.kind === 'dataset' && change.file.datasetId !== plan.datasetId));
               if (change.file?.datasetId !== plan.datasetId) continue;
               if (['change', 'checkpoint'].includes(change.file.kind)) changedShards.add(change.file.shard);
+              if (['revision', 'attachment'].includes(change.file.kind) && change.file.shard !== 'groups') dataEntities.add(change.file.entityId);
               if (change.file.kind === 'purge') { purged.add(change.file.entityId); changedShards.add(change.file.shard); }
             }
           }
@@ -137,7 +140,7 @@ export class DatasetSync {
           catch (error) { if (!missing(error)) throw error; inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal); }
           shards.set(shard, { heads: mergeDatasetInputs(inputs), inputs: inputs.map(input => input.file) });
         }
-        const targets = [...purged, ...[...changedShards].flatMap(shard => shards.get(shard).heads.filter(head => head.record.kind === 'card').map(head => head.record.entityId)),
+        const targets = [...purged, ...dataEntities, ...[...changedShards].flatMap(shard => shards.get(shard).heads.filter(head => head.record.kind === 'card').map(head => head.record.entityId)),
           ...state.revisions.filter(record => record.kind === 'card' && state.sync.localHeads?.includes(record.revisionId)).map(record => record.entityId),
           ...Object.values(state.drafts).map(draft => draft.cardId)];
         result = { heads: [...shards.values()].flatMap(value => value.heads), inputs: [...shards.values()].flatMap(value => value.inputs),
@@ -153,18 +156,27 @@ export class DatasetSync {
     }
     await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
     const forbidden = new Set(result.purges.map(value => value.entityId));
-    for (const purge of result.purges) await this.#storage.putControl(`purge:${plan.datasetId}:${purge.entityId}`, purge);
+    const dirty = new Set([...(result.dirtyEntities ?? []), ...result.heads.filter(head => head.record.kind === 'card' && forbidden.has(head.record.entityId)).map(head => head.record.entityId),
+      ...[...dataEntities].filter(id => forbidden.has(id))]);
+    for (const purge of result.purges) {
+      await this.#storage.putControl(`purge:${plan.datasetId}:${purge.entityId}`, purge);
+      const key = purgeJobKey(plan.datasetId, purge.entityId);
+      if (!await this.#storage.getJob(key) && (dirty.has(purge.entityId) || !await this.#storage.getControl(`purge-cleaned:${plan.datasetId}:${purge.entityId}`))) {
+        await this.#storage.putJob(key, { kind: 'dataset-purge', profileId: state.profileId, binding: this.#binding, phase: 'committed',
+          item: { operationId: purge.operationId, entityId: purge.entityId, trashEpisode: purge.trashEpisode,
+            heads: purge.heads, remoteHeads: [], folderIds: purge.folderIds } });
+      }
+    }
     result.heads = result.heads.filter(head => head.record.kind !== 'card' || !forbidden.has(head.record.entityId));
-    const view = { ...previous };
+    const view = { ...previous }, controls = [];
     for (const [shard, value] of shards) {
       const heads = value.heads.filter(head => head.record.kind !== 'card' || !forbidden.has(head.record.entityId));
       if (!changedShards.has(shard) && heads.length === value.heads.length) continue;
       const key = `view:${plan.datasetId}:${crypto.randomUUID()}:${shard}`;
-      await this.#storage.putControl(key, { heads, inputs: value.inputs }); view[shard] = key;
+      controls.push({ key, value: { heads, inputs: value.inputs } }); view[shard] = key;
     }
-    this.#check(); result.view = view;
+    this.#check(); result.view = view; result.controls = controls; result.published = published;
     await this.#workspace.receiveDataset(this.#session, this.#binding, result); this.#latest = result;
-    for (const shard of DATASET_SHARDS) if (previous?.[shard] && previous[shard] !== view[shard]) await this.#storage.deleteControl(previous[shard]);
   }
 
   async #admit(incomingBytes) {

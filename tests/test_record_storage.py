@@ -91,6 +91,18 @@ class RecordStorageTests(unittest.TestCase):
         self.assertEqual(error.exception.code, "revision-collision")
         self.assertEqual(self.db.record_status()["revision"], 0)
 
+    def test_metadata_only_never_opens_payloads(self):
+        self.commit(self.batch(puts=[self.row("history", "r0")]), None)
+        original = self.db.open
+        def forbidden(*_args):
+            self.fail("metadata cleanup decrypted a history body")
+        self.db.open = forbidden
+        try:
+            page = json.loads(self.db.record_page(dict(collection="history", keysOnly=True, expectedRevision=0)))
+            self.assertEqual(page["rows"], [dict(collection="history", key="r0", ordinal=0)])
+        finally:
+            self.db.open = original
+
     def test_typing_updates_one_row_independently_of_history(self):
         self.commit(self.batch(puts=[self.row("history", f"r{i}") for i in range(500)]), None)
         updates = []
@@ -126,6 +138,23 @@ class RecordStorageTests(unittest.TestCase):
         self.db.commit_records(transaction, 0, [attachment])
         self.assertEqual(self.db.attachment(self.protocol.digest(data)), data)
         self.assertEqual(self.db.connection.execute("SELECT count(*) FROM staging").fetchone()[0], 0)
+
+    def test_attachment_delete_rolls_back_and_replay_ignores_extra_bytes(self):
+        self.commit(self.batch(), None)
+        data = b"delete with receipt"
+        identity = self.protocol.digest(data)
+        self.db.put_attachment(self.db.stage("attachment", data, identity))
+        deletion = self.batch(1)
+        deletion["attachmentDeletes"] = [identity]
+        self.db.connection.execute("CREATE TRIGGER fail_delete_receipt BEFORE UPDATE ON record_heads BEGIN SELECT RAISE(ABORT,'disk full'); END")
+        with self.assertRaises(sqlite3.IntegrityError):
+            self.commit(deletion, 0)
+        self.assertEqual(self.db.attachment(identity), data)
+        self.db.connection.execute("DROP TRIGGER fail_delete_receipt")
+        self.commit(deletion, 0)
+        self.assertIsNone(self.db.attachment(identity))
+        self.db.commit_records(self.stage(deletion), 0, [self.db.stage("attachment", data, identity)])
+        self.assertIsNone(self.db.attachment(identity))
 
     def test_attachment_budget_is_checked_from_metadata_before_row_writes(self):
         self.commit(self.batch(), None)

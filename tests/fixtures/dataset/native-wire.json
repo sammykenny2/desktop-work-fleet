@@ -91,6 +91,16 @@
         "datasetId": "11111111-2222-3333-4444-555555555555"
       },
       "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and (appProperties has { key='wfKind' and value='checkpoint' } or appProperties has { key='wfKind' and value='change' })"
+    },
+    {
+      "input": {
+        "scope": "entity-data",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "entities": [
+          "one"
+        ]
+      },
+      "expected": "trashed = false and appProperties has { key='wfFormat' and value='work-fleet-dataset' } and appProperties has { key='wfDataset' and value='11111111-2222-3333-4444-555555555555' } and (appProperties has { key='wfKind' and value='revision' } or appProperties has { key='wfKind' and value='attachment' } or appProperties has { key='wfKind' and value='folder' }) and (appProperties has { key='wfEntity' and value='one' })"
     }
   ],
   "files": [

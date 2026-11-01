@@ -19,6 +19,8 @@ export interface RecordTransaction {
   /** At most 512 total puts/deletes and 8 MiB encoded JSON. */
   puts: LocalRecord[];
   deletes: Pick<LocalRecord, 'collection' | 'key'>[];
+  /** Exact content IDs, counted in the 512-mutation ceiling. Deletion precedes any verified replacement bytes. */
+  attachmentDeletes?: string[];
 }
 export interface RecordReceipt {
   format: 'work-fleet-local-records';
@@ -31,6 +33,8 @@ export interface RecordReceipt {
 }
 export interface RecordQuery {
   order?: 'asc' | 'desc';
+  /** Return only collection/key/ordinal through the index, without reading/decrypting values. */
+  keysOnly?: boolean;
   collection: RecordCollection;
   entity: string | null;
   after: { ordinal: number; key: string } | null;
@@ -39,7 +43,7 @@ export interface RecordQuery {
 }
 export interface RecordPage {
   revision: number | null;
-  rows: LocalRecord[];
+  rows: (LocalRecord | Pick<LocalRecord, 'collection' | 'key' | 'ordinal'>)[];
   next: RecordQuery['after'];
 }
 export type RecordStatus = RecordReceipt | { format: 'legacy-workspace'; profileId: string } | null;
@@ -58,7 +62,7 @@ export interface RecordStore {
 }
 
 /** WorkspaceRecordStorage layout within a profile. A logical Workspace revision is distinct from a store receipt. */
-export interface ActiveWorkspaceGeneration { generation: string; revision: number; }
+export interface ActiveWorkspaceGeneration { generation: string; historyGeneration?: string; revision: number; }
 // meta/active atomically selects a generation. Other keys start with `<generation>:`.
 // meta: one row per non-derived Workspace field; current: full current revision envelopes only;
 // draft: one self-contained unsaved baseline/content per draft; outbox: one pending operation per revision;

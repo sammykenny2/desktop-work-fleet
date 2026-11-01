@@ -111,6 +111,7 @@ export class IndexedDbRecordStore {
             }
           }
           for (const row of transaction.deletes) entries.delete([transaction.profileId, row.collection, row.key]);
+          for (const id of transaction.attachmentDeletes ?? []) tx.objectStore('attachments').delete([transaction.profileId, id]);
           for (const file of files) tx.objectStore('attachments').put(file);
           const receipt = recordReceipt(transaction, digest); profiles.put(receipt); context.result(receipt);
         } catch (error) { context.fail(error); }
@@ -140,12 +141,14 @@ export class IndexedDbRecordStore {
           const ascending = query.order === 'asc';
           const range = ascending ? IDBKeyRange.bound(boundary ?? prefix, [...prefix, []], boundary !== null, false)
             : IDBKeyRange.bound(prefix, boundary ?? [...prefix, []], false, boundary !== null);
-          const request = tx.objectStore('entries').index(query.entity === null ? 'ordered' : 'entity').openCursor(range, ascending ? 'next' : 'prev');
+          const index = tx.objectStore('entries').index(query.entity === null ? 'ordered' : 'entity');
+          const request = query.keysOnly ? index.openKeyCursor(range, ascending ? 'next' : 'prev') : index.openCursor(range, ascending ? 'next' : 'prev');
           request.onsuccess = () => {
             try {
               const cursor = request.result;
               if (!cursor) return context.result({ revision: current.result?.revision ?? null, rows, next: null });
-              const { profileId: ignored, ...row } = cursor.value;
+              const value = query.keysOnly ? { collection: query.collection, key: cursor.primaryKey.at(-1), ordinal: cursor.key.at(-2) } : cursor.value;
+              const { profileId: ignored, ...row } = value;
               const size = encoder.encode(canonicalJson(row)).length;
               if (rows.length >= query.limit || (rows.length && bytes + size > RECORD_LIMITS.pageBytes)) {
                 const last = rows.at(-1);

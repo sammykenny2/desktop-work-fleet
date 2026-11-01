@@ -1,4 +1,6 @@
 export default {
+  'errors.sources.purgeStale': '此便箋或它的垃圾桶項目在預覽後已有變更。請重新確認後再永久刪除。',
+  'errors.sources.historyOffline': '此裝置尚未快取這段歷史。請連線至 Google 後載入。',
   'errors.sources.incompatibleCloudData': 'Google 中有舊格式或尚未完成的資料。本機便箋會保留。請先更新所有裝置，再明確選擇重置雲端資料。',
   'errors.sources.driveItemLimit': 'Google 資料夾或帳號已達檔案數量上限。本機便箋與待送修改仍保留。',
   'errors.sources.datasetInvalid': '同步資料集含有無效或不相容的紀錄，已保留本機便箋。',

@@ -122,11 +122,12 @@ def query(value):
             clauses.append("'" + value["parentId"] + "' in parents")
             if scope == "history":
                 clauses.append(prop("wfKind", "revision"))
-        elif scope in ("purges", "entity-folders"):
+        elif scope in ("purges", "entity-folders", "entity-data"):
             keys.add("entities")
             entities = value.get("entities")
             check(isinstance(entities, list) and 0 < len(entities) <= 20 and all(entity_id(item) for item in entities) and len(set(entities)) == len(entities))
-            clauses.extend((prop("wfKind", "purge" if scope == "purges" else "folder"), "(" + " or ".join(prop("wfEntity", item) for item in entities) + ")"))
+            kinds = "(" + " or ".join(prop("wfKind", kind) for kind in ("revision", "attachment", "folder")) + ")" if scope == "entity-data" else prop("wfKind", "purge" if scope == "purges" else "folder")
+            clauses.extend((kinds, "(" + " or ".join(prop("wfEntity", item) for item in entities) + ")"))
         else:
             check(False)
     check(set(value) == keys)

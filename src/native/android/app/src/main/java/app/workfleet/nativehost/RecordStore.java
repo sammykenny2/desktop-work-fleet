@@ -77,7 +77,8 @@ final class RecordStore {
         }
     }
     byte[] page(JSONObject query) throws Exception {
-        require(new HashSet<>(Arrays.asList("collection", "entity", "after", "limit", "expectedRevision", "order")).containsAll(keys(query)) && query.has("expectedRevision"));
+        require(new HashSet<>(Arrays.asList("collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly")).containsAll(keys(query)) && query.has("expectedRevision"));
+        require(!query.has("keysOnly") || query.get("keysOnly") instanceof Boolean); boolean keysOnly = query.optBoolean("keysOnly", false);
         String order = query.has("order") ? query.getString("order") : "desc"; require(Arrays.asList("asc", "desc").contains(order));
         String collection = Protocol.text(query, "collection", 32); require(COLLECTIONS.contains(collection));
         String entity = query.isNull("entity") ? null : query.getString("entity"); require(entity == null || entity.isEmpty() || key(entity));
@@ -95,11 +96,12 @@ final class RecordStore {
         }
         args.add(Integer.toString(limit + 1)); JSONArray rows = new JSONArray(); int size = 512; boolean more = false;
         String sorting = order.equals("asc") ? "ASC" : "DESC";
-        try (Cursor cursor = queryRows("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", args.toArray(new String[0]))) {
+        try (Cursor cursor = queryRows("SELECT id,entity,ordinal," + (keysOnly ? "NULL" : "data") + " FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", args.toArray(new String[0]))) {
             while (cursor.moveToNext()) {
-                String id = cursor.getString(0); byte[] data = owner.unprotect(cursor.getBlob(3), owner.scope("entry:" + collection, id));
+                String id = cursor.getString(0); byte[] data = keysOnly ? bytes(Protocol.object("collection", collection, "key", id, "ordinal", cursor.getLong(2)))
+                    : owner.unprotect(cursor.getBlob(3), owner.scope("entry:" + collection, id));
                 JSONObject row = Protocol.json(data);
-                require(collection.equals(row.getString("collection")) && id.equals(row.getString("key")) && cursor.getString(1).equals(row.getString("entity")) && cursor.getLong(2) == row.getLong("ordinal"));
+                require(collection.equals(row.getString("collection")) && id.equals(row.getString("key")) && (keysOnly || cursor.getString(1).equals(row.getString("entity"))) && cursor.getLong(2) == row.getLong("ordinal"));
                 if (rows.length() >= limit || (rows.length() > 0 && size + data.length > MAX_BYTES)) { more = true; break; }
                 require(size + data.length <= MAX_BYTES); rows.put(row); size += data.length + 1;
             }
@@ -115,11 +117,15 @@ final class RecordStore {
         byte[] data = owner.staged(token, "workspace");
         try {
             require(data.length <= MAX_BYTES); JSONObject value = Protocol.json(data); String digest = Protocol.digest(data);
-            exact(value, "format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes");
+            if (value.has("attachmentDeletes")) exact(value, "format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes", "attachmentDeletes");
+            else exact(value, "format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes");
+            JSONArray attachmentDeletes = value.has("attachmentDeletes") ? value.getJSONArray("attachmentDeletes") : new JSONArray();
+            Set<String> removeIds = new HashSet<>();
+            for (int i = 0; i < attachmentDeletes.length(); i++) { String identity = attachmentDeletes.getString(i); require(identity.matches("[0-9a-f]{64}") && removeIds.add(identity)); }
             require("work-fleet-record-transaction".equals(value.getString("format")) && Protocol.number(value, "schemaVersion", 1) == 1 && profile.equals(value.getString("profileId")));
             long revision = Protocol.number(value, "revision", Protocol.SAFE_INTEGER); String id = Protocol.text(value, "commitId", 36);
             require(id.matches("[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}"));
-            JSONArray puts = value.getJSONArray("puts"), deletes = value.getJSONArray("deletes"); require(puts.length() + deletes.length() <= 512);
+            JSONArray puts = value.getJSONArray("puts"), deletes = value.getJSONArray("deletes"); require(puts.length() + deletes.length() + removeIds.size() <= 512);
             Set<String> seen = new HashSet<>();
             for (JSONArray changes : new JSONArray[] { puts, deletes }) for (int i = 0; i < changes.length(); i++) {
                 JSONObject row = changes.getJSONObject(i); String c = Protocol.text(row, "collection", 32), key = Protocol.text(row, "key", 256);
@@ -161,6 +167,7 @@ final class RecordStore {
                     JSONObject row = deletes.getJSONObject(i); exact(row, "collection", "key");
                     db.delete("record_entries", "profile=? AND collection=? AND id=?", new String[] { profile, row.getString("collection"), row.getString("key") });
                 }
+                for (String identity : removeIds) db.delete("attachments", "profile=? AND id=?", new String[] { profile, identity });
                 for (String attachment : attachmentIds) owner.commitAttachment(attachment);
                 ContentValues head = new ContentValues(); head.put("profile", profile); head.put("revision", revision); head.put("commit_id", id); head.put("digest", digest);
                 Protocol.require(db.insertWithOnConflict("record_heads", null, head, SQLiteDatabase.CONFLICT_REPLACE) != -1,

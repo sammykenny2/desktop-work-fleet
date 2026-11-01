@@ -4,7 +4,7 @@ import { driveFolder, googleDescriptor } from '../sources/google-drive.js';
 import { validateFile, verifyFile, validFileId } from '../sources/files.js';
 import { t } from '../i18n/index.js';
 import { canonicalJson } from '../sources/json.js';
-import { DATASET_FORMAT, datasetQuery, googleDatasetDescriptor, validateDatasetFile, verifyDatasetBytes } from '../sources/dataset-codec.js';
+import { DATASET_FORMAT, datasetQuery, googleDatasetDescriptor, googleDatasetOwned, validateDatasetFile, verifyDatasetBytes } from '../sources/dataset-codec.js';
 
 const cursor = value => {
   requireValue(typeof value === 'string' && value.length > 0 && value.length <= 8192, 'invalid-source-page', t('errors.storage.googleCursorInvalid')); return value;
@@ -91,6 +91,7 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
     const result = await this.#call('list', { query, pageToken: pageToken === null ? null : cursor(pageToken) }, signal);
     requireValue(result.incompleteSearch === undefined || typeof result.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
     return { files: page(result.files ?? []).map(file => {
+      if (query.scope === 'entity-data') return googleDatasetOwned(file, query);
       if (['legacy', 'fences'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.storage.googleFileIdInvalid'));
         return { id: file.id, kind: file.appProperties?.wfKind ?? null };
@@ -144,7 +145,10 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.storage.googleChangeInvalid'));
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
       if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false, legacyReset: change.file?.appProperties?.wfKind === 'reset' };
-      const file = await this.#descriptor(change.file, signal);
+      const properties = change.file.appProperties;
+      const file = ['revision', 'attachment'].includes(properties.wfKind) && !change.file.parents?.length
+        ? googleDatasetOwned(change.file, { datasetId: properties.wfDataset, entities: [properties.wfEntity] })
+        : await this.#descriptor(change.file, signal);
       requireValue(file.id === change.fileId, 'invalid-source-page', t('errors.storage.googleFileMismatch'));
       return { id: file.id, removed: false, file };
     }));

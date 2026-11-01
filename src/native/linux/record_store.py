@@ -26,12 +26,15 @@ def encode(value):
 def validate(data, profile):
     require(len(data) <= MAX_BYTES)
     value = p.decode(data)
-    require(set(value) == {"format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes"}
+    require(set(value) == {"format", "schemaVersion", "profileId", "revision", "commitId", "puts", "deletes"} | ({"attachmentDeletes"} if "attachmentDeletes" in value else set())
             and value["format"] == TRANSACTION and type(value["schemaVersion"]) is int and value["schemaVersion"] == 1
             and value["profileId"] == profile and p.is_uuid(value["commitId"]) and value["commitId"] == value["commitId"].lower())
     revision = p.number(value, "revision")
+    attachment_deletes = value.get("attachmentDeletes", [])
+    require(isinstance(attachment_deletes, list) and all(p.is_digest(item) and len(item) == 64 for item in attachment_deletes)
+            and len(set(attachment_deletes)) == len(attachment_deletes))
     require(isinstance(value["puts"], list) and isinstance(value["deletes"], list)
-            and len(value["puts"]) + len(value["deletes"]) <= MAX_ROWS)
+            and len(value["puts"]) + len(value["deletes"]) + len(attachment_deletes) <= MAX_ROWS)
     seen = set()
     for row in value["puts"] + value["deletes"]:
         require(isinstance(row, dict) and row.get("collection") in COLLECTIONS and key(row.get("key")))
@@ -83,7 +86,9 @@ class RecordStore:
 
     def record_page(self, query):
         require(isinstance(query, dict) and "expectedRevision" in query
-                and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision", "order"})
+                and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly"})
+        keys_only = query.get("keysOnly", False)
+        require(type(keys_only) is bool)
         order = query.get("order", "desc")
         require(order in ("asc", "desc"))
         collection, entity, after = query.get("collection"), query.get("entity"), query.get("after")
@@ -110,11 +115,11 @@ class RecordStore:
             p.require((status or {}).get("revision") == expected, "stale-writer", "Local data changed while reading its records. Reload before continuing.")
             rows, size, more = [], 512, False
             sorting = "ASC" if order == "asc" else "DESC"
-            cursor = self.connection.execute("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", parameters)
+            cursor = self.connection.execute("SELECT id,entity,ordinal," + ("NULL" if keys_only else "data") + " FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", parameters)
             for identity, stored_entity, ordinal, ciphertext in cursor:
-                data = self.open("entry:" + collection, identity, ciphertext)
+                data = encode(dict(collection=collection, key=identity, ordinal=ordinal)) if keys_only else self.open("entry:" + collection, identity, ciphertext)
                 row = p.decode(data)
-                require(row["collection"] == collection and row["key"] == identity and row["entity"] == stored_entity and row["ordinal"] == ordinal)
+                require(row["collection"] == collection and row["key"] == identity and (keys_only or row["entity"] == stored_entity) and row["ordinal"] == ordinal)
                 if len(rows) >= limit or (rows and size + len(data) > MAX_BYTES):
                     more = True
                     break
@@ -162,6 +167,8 @@ class RecordStore:
                                             (self.profile, row["collection"], row["key"], row["entity"], row["ordinal"], encrypted))
                 for row in value["deletes"]:
                     self.connection.execute("DELETE FROM record_entries WHERE profile=? AND collection=? AND id=?", (self.profile, row["collection"], row["key"]))
+                for identity in value.get("attachmentDeletes", []):
+                    self.connection.execute("DELETE FROM attachments WHERE profile=? AND id=?", (self.profile, identity))
                 for attachment in attachments:
                     self.put_attachment(attachment)
                 self.connection.execute("INSERT INTO record_heads VALUES(?,?,?,?) ON CONFLICT(profile) DO UPDATE SET revision=excluded.revision,commit_id=excluded.commit_id,digest=excluded.digest",

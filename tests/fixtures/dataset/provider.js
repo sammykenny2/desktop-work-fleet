@@ -65,6 +65,7 @@ export class DatasetTestProvider {
       if (query.scope === 'children') return file.parentId === query.parentId;
       if (query.scope === 'purges') return file.kind === 'purge' && query.entities.includes(file.entityId);
       if (query.scope === 'entity-folders') return file.kind === 'folder' && query.entities.includes(file.entityId);
+      if (query.scope === 'entity-data') return ['revision', 'attachment', 'folder'].includes(file.kind) && query.entities.includes(file.entityId);
       return false;
     }).sort((a, b) => a.id.localeCompare(b.id));
     // Cursor uses an identity boundary so concurrent removal does not shift an offset.

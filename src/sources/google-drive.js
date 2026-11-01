@@ -3,7 +3,7 @@ import { canonicalJson, parseJson } from './json.js';
 import { validFileId, validateFile, verifyFile } from './files.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
-import { DATASET_FIELDS, DATASET_FORMAT, datasetMetadata, datasetQuery, googleDatasetDescriptor,
+import { DATASET_FIELDS, DATASET_FORMAT, datasetMetadata, datasetQuery, googleDatasetDescriptor, googleDatasetOwned,
   validateDatasetFile, verifyDatasetBytes } from './dataset-codec.js';
 
 const FIELDS = 'id,size,spaces,trashed,appProperties,sha256Checksum';
@@ -127,6 +127,7 @@ export class GoogleDriveFileStore {
     const page = await this.#json({ path: pathFor('/drive/v3/files', parameters), signal, context: 'listing' });
     requireValue(page.incompleteSearch === undefined || typeof page.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
     return { files: items(page.files).map(file => {
+      if (query.scope === 'entity-data') return googleDatasetOwned(file, query);
       if (['legacy', 'fences'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid'));
         return { id: file.id, kind: file.appProperties?.wfKind ?? null };
@@ -162,7 +163,10 @@ export class GoogleDriveFileStore {
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
       if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false,
         legacyReset: change.file?.appProperties?.wfKind === 'reset' };
-      const file = await this.#datasetDescriptor(change.file, signal);
+      const properties = change.file.appProperties;
+      const file = ['revision', 'attachment'].includes(properties.wfKind) && !change.file.parents?.length
+        ? googleDatasetOwned(change.file, { datasetId: properties.wfDataset, entities: [properties.wfEntity] })
+        : await this.#datasetDescriptor(change.file, signal);
       requireValue(file.id === change.fileId, 'invalid-source-page', t('errors.sources.driveChangeFileMismatch'));
       return { id: file.id, removed: false, file };
     }));

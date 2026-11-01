@@ -64,9 +64,10 @@ their own evidence.
 ## Status of Google and backup
 
 The revised deletion and history-scaling direction is recorded as confirmed U requirements in
-[SPEC-010](specs/010-vault-checkpoints-and-deletable-history.md). Its checkpoint, Trash expiration and reset design
-is proposed in [ADR-062](decisions/062-vault-checkpoints-and-deletable-history.md) for independent review;
-[PLAN-011](plans/011-vault-checkpoints-and-deletable-history.md) is not approved for implementation.
+[SPEC-010](specs/010-dataset-checkpoints-and-deletable-history.md). Its checkpoint, manual purge and reset design
+is proposed in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md) for independent review;
+[PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md) is not approved for implementation.
+Automatic whole-note Trash expiry is a later design, with no per-version retention.
 The implemented contracts below remain in force pending that review and later implementation.
 
 The [Drive research](research/2026-10-03-google-drive-notes-mvp-feasibility.md) recommends Drive rather than Keep;

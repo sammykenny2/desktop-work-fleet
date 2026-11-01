@@ -111,7 +111,7 @@ export class DesktopAuthority {
   }
 
   #card(cardId) {
-    const card = this.#workspace.snapshot.cards.find(card => card.id === cardId);
+    const card = this.#workspace.working.cards.find(card => card.id === cardId);
     requireValue(card && cardPolicy(card, this.#workspace.layout.state, this.#controller.state).draggable,
       'outside-scope', t('errors.desktop.outsideScope'));
     return card;
@@ -155,7 +155,7 @@ export class DesktopAuthority {
     }
     switch (method) {
       case 'attachment.preview': case 'attachment.open': {
-        const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId);
+        const card = this.#workspace.working.cards.find(value => value.id === args.cardId);
         requireValue(card && card.revision === args.revision, 'desktop-expired', t('errors.desktop.attachmentChanged'));
         const policy = cardPolicy(card, this.#workspace.layout.state, controller.state);
         requireValue(policy.visible && (method === 'attachment.preview' || this.#takesClicks(policy)), 'outside-scope', t('errors.desktop.cardUnavailable'));
@@ -177,7 +177,7 @@ export class DesktopAuthority {
         // A quick move starts on a resting paper that takes clicks as this host draws it, never on an adjusted one.
         const quick = args.quick === true; this.#dropped = null;
         if (quick) {
-          const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId && !value.deleted);
+          const card = this.#workspace.working.cards.find(value => value.id === args.cardId && !value.deleted);
           const policy = card && cardPolicy(card, this.#workspace.layout.state, controller.state);
           requireValue(policy && !policy.draggable && this.#takesClicks(policy), 'outside-scope', t('errors.desktop.cardUnavailable'));
         } else this.#card(args.cardId);
@@ -206,7 +206,7 @@ export class DesktopAuthority {
       case 'card.select': this.#card(args.cardId); return controller.select(args.cardId, { gesture: true });
       // Adjust mode only arranges (SPEC-003, 2026-10-24): a resting paper that takes clicks opens for a quick edit.
       case 'card.edit': {
-        const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId && !value.deleted);
+        const card = this.#workspace.working.cards.find(value => value.id === args.cardId && !value.deleted);
         const policy = card && cardPolicy(card, this.#workspace.layout.state, controller.state);
         requireValue(policy && controller.state.operationScope.kind === 'none' && !policy.draggable && this.#takesClicks(policy),
           'outside-scope', t('errors.desktop.cardUnavailable'));
@@ -215,7 +215,7 @@ export class DesktopAuthority {
       case 'card.transfer': this.#card(args.cardId); return controller.moveToGroup(args.cardId, args.groupId);
       // A checkbox on a paper that takes clicks ticks that step of the text it was drawn from, never a newer one.
       case 'card.check': {
-        const card = this.#workspace.snapshot.cards.find(value => value.id === args.cardId);
+        const card = this.#workspace.working.cards.find(value => value.id === args.cardId);
         requireValue(card && card.revision === args.revision, 'desktop-expired', t('errors.desktop.noteChanged'));
         const policy = cardPolicy(card, this.#workspace.layout.state, controller.state);
         requireValue(this.#takesClicks(policy) && !policy.editing && this.#check, 'outside-scope', t('errors.desktop.cardUnavailable'));

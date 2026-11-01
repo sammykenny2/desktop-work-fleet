@@ -20,7 +20,7 @@ export default {
   'settings.data.title': '資料與備份',
   'settings.data.finishInput': '請先完成目前的輸入。',
   'settings.data.automaticOff': '自動備份尚未開啟：{error}',
-  'settings.data.uninstallNotice': '使用 MSIX 時，解除安裝會清除這台裝置的便箋、草稿、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。',
+  'settings.data.uninstallNotice': '使用 MSIX 時，解除安裝會清除這台裝置的便箋、未保存的修改、設定與登入。請先匯出備份；已匯出的 ZIP 與 Google 雲端資料會保留。',
   'settings.data.target.device': '本機便箋（這台裝置）',
   'settings.data.target.browser': '本機便箋（這個瀏覽器）',
   'settings.data.target.google': '{account} 的 Google 工作空間',

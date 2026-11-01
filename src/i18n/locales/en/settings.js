@@ -20,7 +20,7 @@ export default {
   'settings.data.title': 'Data and backup',
   'settings.data.finishInput': 'Finish the current input first.',
   'settings.data.automaticOff': "Automatic backup isn't running: {error}",
-  'settings.data.uninstallNotice': 'With the MSIX package, uninstalling deletes the notes, drafts, settings and sign-in on this device. Export a backup first; exported ZIP files and Google cloud data are kept.',
+  'settings.data.uninstallNotice': 'With the MSIX package, uninstalling deletes the notes, unsaved changes, settings and sign-in on this device. Export a backup first; exported ZIP files and Google cloud data are kept.',
   'settings.data.target.device': 'Local notes (this device)',
   'settings.data.target.browser': 'Local notes (this browser)',
   'settings.data.target.google': "{account}'s Google workspace",

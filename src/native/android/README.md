@@ -144,8 +144,8 @@ ACTION_SEND/SEND_MULTIPLE receive text and content URI files; the title and body
 is downloaded.
 The content is first saved to the Keystore/AES-GCM encrypted Share inbox; it can be read after a restart, and the native
 intent keeps the same identity to avoid replays.
-It is received as a draft only after a group of the current account is chosen in the main window's "Share inbox" and
-"Accept as draft" is pressed, and the Share inbox item is removed only after the draft is saved.
+It becomes a new note with unsaved changes (ADR-061) only after a group of the current account is chosen in the main window's "Share inbox" and
+"Add as new note" is pressed, and the Share inbox item is removed only after the new note's unsaved changes are kept.
 At most 256 KiB of text, 16 files and 25 MiB of files in total per share; the Share inbox holds at most 64 items/512 MiB.
 Capacity, permission or save failures keep the original source; a retry recognizes the capture receipt in drafts and
 cards and avoids creating duplicates.

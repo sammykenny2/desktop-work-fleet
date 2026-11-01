@@ -79,7 +79,7 @@ addendum "adjust mode arranges, quick edit edits".
 | U20 | The card actions keep a "Move to group" entry |
 | U21 | Designed independently from scratch; no reuse of the auxiliary reference application's UI, assets, data contracts or large amounts of code |
 | U22 | Focus/Pomodoro and review features are not part of 1.0; the existing PM and architecture research is kept for later use |
-| U23 | When editing ends (close, keep draft, Esc, Done, selecting another card, formation, the card leaving the scope, and so on), blank drafts (no text, attachments or other content fields) and unmodified drafts identical to the note's current version are not kept; changed drafts are kept as usual (2026-10-06) |
+| U23 | When editing ends (close, Esc, Done, selecting another card, formation, the card leaving the scope, and so on), unsaved changes that hold nothing are not kept: blank (no text, attachments or other content fields), identical to the note's current version, or, once the note changed elsewhere, still identical to the version they began from. Changed text is kept as the note's unsaved changes, shown with a dot (2026-10-06; [ADR-061](../decisions/061-unsaved-changes-instead-of-drafts.md), 2026-11-01) |
 
 ### Working defaults (D)
 
@@ -88,8 +88,8 @@ addendum "adjust mode arranges, quick edit edits".
 - Use "rows × columns" and a left-to-right, top-to-bottom initial group layout.
 - In v1 each card has one primary group; shared identity and future extension points do not forbid multiple membership.
 - A device has only one operation scope at a time (one group or all), and at most one card edited in place on the
-  desktop. Drafts in other main-window or phone editors can coexist; desktop mode does not take a cross-device
-  exclusive lock.
+  desktop. A note has at most one set of unsaved changes on a device, which every editor there continues (ADR-061);
+  desktop mode does not take a cross-device exclusive lock.
 - While a native desktop adjust overlay is active, the main window accepts no input, even if restored from the
   taskbar or Dock. Its adjustment entries and arrangement dialogs cannot start another operation; finish through
   the overlay or a desktop shortcut first. The browser preview continues to adjust in the main window.
@@ -119,7 +119,7 @@ not forbidden forever either.
 | Active group | The group currently in attention or being operated; all-groups mode can also have an active group |
 | Operation scope | None, Group(id) or All; decides which cards can be operated at the moment |
 | Selected card | The frontmost card in the current group; selecting is not text editing |
-| Editing card | The single card explicitly in text editing; drafts have their own reliable save flow |
+| Editing card | The single card explicitly in text editing; its unsaved changes have their own reliable save flow |
 | Locked / click-through | A local guard against accidental input; not a permission, a read-only source or a write lock for other devices |
 
 ### Boundary between synced and device state (D)
@@ -129,7 +129,7 @@ not forbidden forever either.
 | Card ID / content / primary group ID | Card position, size, base stacking order | Operation scope, active group, selected card |
 | Group ID / name / semantic metadata | Grid, group-to-region mapping, local highlight | Drag start, candidate drop target, highlight |
 | Formally defined deletion/conflict data | Display set, resident system layer preference | Pointer capture, keyboard focus |
-| Shared appearance fields (if adopted) | Local undo records for formation and dragging | Editor UI state (text drafts are persisted separately) |
+| Shared appearance fields (if adopted) | Local undo records for formation and dragging | Editor UI state (unsaved text is persisted separately) |
 
 The active group, native window handles, OS layer numbers and Google tokens must not be written into shared cards.
 If per-device layout backups are synced in future, they stay partitioned by device; A's formation must not change B's
@@ -253,7 +253,7 @@ identical copies that have to be edited together.
 Approved by the user on 2026-10-17: the editor gets an optional title, stored as `title` in the content. When it is
 filled in, the summary uses the title; when it is left empty, it is not written and the summary falls back to the
 first line of the body. Search matches both the title and the body.
-Line breaks collapse to spaces and overlong text ends with an ellipsis; a blank draft shows a stable placeholder.
+Line breaks collapse to spaces and overlong text ends with an ellipsis; a blank note shows a stable placeholder.
 Summaries of checklists and other formats keep understandable text; the whole editor format is not decided here.
 The summary sits at a fixed position at the top edge of the card and must not be pushed to the middle of the paper by
 a centred layout. The strip a stack exposes shows the summary, while the body of a covered card is naturally hidden by
@@ -293,8 +293,8 @@ Cards of other groups inside the group region must not be moved along when this 
 
 The temporary group raise of a single-group formation only changes the relative order of notes. "Floating above
 ordinary apps" is still decided by whether an operation scope is active; the two kinds of raise must not be merged
-into one switch. If a card is being edited, its draft is reliably saved and editing ends before the formation is
-committed; if saving fails, no draft is lost and nothing is rearranged.
+into one switch. If a card is being edited, its unsaved changes are reliably kept and editing ends before the formation
+is committed; if keeping them fails, no text is lost and nothing is rearranged.
 
 ### Stack, spread and capacity (U11, U13 + D)
 
@@ -346,7 +346,7 @@ committed.
 | Resident system layer | Candidate capabilities such as Desktop, Wallpaper and resident floating; actual support must be reported per platform |
 | Operation scope | Which group, or all, can be dragged temporarily and floats above ordinary apps |
 | Read-only text selection | If offered, accepts mouse text selection without changing text; cannot be enabled together with full click-through |
-| Single-card editing | Explicit text-editing state, with a local draft and source permission checks |
+| Single-card editing | Explicit text-editing state, with local unsaved changes and source permission checks |
 
 These dimensions do not require six toggles to sit permanently in one panel.
 Keep the right responsibilities and state first, then design a clean settings page.
@@ -392,32 +392,33 @@ together. activeGroupId can be set by read-only cycling; by itself it does not g
 | ActivateGroup(A) | A exists and has presentable content | scope=A, activeGroup=A; selections outside A are cleared; A floats temporarily, without moving or resizing |
 | ActivateAll | There is presentable content | scope=All; every group can be operated; no formation runs |
 | Pressing the same scope shortcut again | No IME or child dialog is handling it | Safely ends editing and the operation, and restores the resident policy |
-| Activating another scope | The current draft can be saved | Ends the old scope, then starts the new one; switches do not accumulate |
+| Activating another scope | The current unsaved changes can be kept | Ends the old scope, then starts the new one; switches do not accumulate |
 | Single click on a card | The card is in scope, no drag | Selects the card and its group and raises them temporarily; does not enter editing |
 | Double click or Enter on an adjusted card | — | Nothing: adjust mode only arranges (2026-10-24) |
 | Key + double click on a resting card (quick edit) | The quick move switch is on, nothing is adjusted, the card takes clicks and is editable, no child-control gesture | Single-card editing on the Top layer; size unchanged (2026-10-24 addendum) |
-| Esc (while editing) | Not consumed first by the IME or a menu | Reliably keeps a changed draft locally (per U23), leaves editing, stays in that scope |
+| Esc (while editing) | Not consumed first by the IME or a menu | Reliably keeps changed text as unsaved changes (per U23), leaves editing, stays in that scope |
 | Esc (while dragging) | A dragSession exists | Cancels this drag and group transfer and restores the starting geometry; does not leave the whole scope |
 | Esc (scope only) | No inner operation | Ends the scope, keeping the moves and edits the user completed |
 | Cycle next/previous | A group was explicitly chosen | All participating cards of the logical group cycle in stable order; only the temporary stacking order changes |
-| App restart / sign-out | — | Operation scope, selection and highlight are not restored; persisted drafts and layout remain |
+| App restart / sign-out | — | Operation scope, selection and highlight are not restored; persisted unsaved changes and layout remain |
 
-Esc does not discard a changed draft; only drafts with nothing to keep under U23 are removed when editing ends.
+Esc does not discard changed text; only unsaved changes with nothing to keep under U23 are removed when editing ends.
 Handing editing to another editor (switching between the desktop editor and the main window, or opening the full
-editor) is not an end; the draft continues. Chinese IME candidate confirmation, Esc/Enter during composition, and menus
+editor) is not an end; the unsaved changes continue. Chinese IME candidate confirmation, Esc/Enter during composition, and menus
 and dialogs are handled by their controls first and must not be taken over by the desktop cycling or exit handlers.
 Ordinary editing shortcuts and arrow keys go to the editor first while text is being edited; global left/right keys
 must not take the text cursor away.
-When saving fails, the editor and the draft stay so that the user can retry. Once the save succeeds locally, editing
+When saving fails, the editor and its unsaved changes stay so that the user can retry. Once the save succeeds locally, editing
 can end without waiting for Google sync, but pending sync or conflicts must not be described as synced.
 Only changes that affect layout integrity need dragging or editing to end first; not every background text update
 takes over the operation.
 
-Known draft edge cases from the 2026-10-06 review, not fixed: if the card changes while it is being edited (marked
-complete, archived, moved or synced), an unchanged copy of the draft is kept as an old version; ending an edit through
-`#afterTransfer` skips the draft-release hook; with the drafts list open, "Continue editing" fails with "draft not
-found" when the desktop has removed that draft. On phones, whether a WebView double tap fires `dblclick` is unconfirmed
-(2026-10-06).
+Edge cases from the 2026-10-06 review: ADR-061 (2026-11-01) resolves the unchanged copy kept when the card changed
+while being edited (completing, archiving, moving or restoring it on this device carries its unsaved changes along, and
+changes still identical to the version they began from hold nothing) and removes the drafts list with its "Continue
+editing" failure. Ending an edit through `#afterTransfer` still skips the release hook; the stored changes then hold
+nothing, show no dot and are replaced by the note's next edit. On phones, whether a WebView double tap fires `dblclick`
+is unconfirmed (2026-10-06).
 
 ### Relative stacking order rules
 
@@ -508,7 +509,7 @@ In drag mode the card surface handles moving; in text-editing mode the body area
 input. A paper being edited does not move, and dragging to select text must not carry the whole card away.
 Child controls such as links, buttons, checkboxes and text selection do not bubble the same gesture up into a drag or a
 quick edit. Ticking checklist steps on desktop papers follows the 2026-10-23 addendum; exceptions must not
-let read-only cards change text. The draft is kept before leaving editing, switching groups, formation, hiding or switching accounts; a
+let read-only cards change text. Unsaved changes are kept before leaving editing, switching groups, formation, hiding or switching accounts; a
 failed local write to disk must be visible.
 A locked desktop does not block updates from phones; a source's read-only permission must not be bypassed by
 unlocking locally.
@@ -535,8 +536,8 @@ unlocking locally.
   B's region.
 - New cards that join the set during cycling do not take the selection; they are reachable later by navigating in
   stable order.
-- When the selected card is deleted, its stable neighbour takes over; if it has an unsaved draft, the draft is kept as a
-  recoverable draft first.
+- When the selected card is deleted, its stable neighbour takes over. Deleting a note with unsaved changes from this
+  device asks first and discards them with it; undoing the delete brings both back (ADR-061).
 - Unknown groups or dependencies not yet downloaded keep their data and are clearly marked as waiting for sync; a
   missing file does not make the app change groups or delete anything on its own.
 
@@ -558,7 +559,7 @@ single-display result cannot be claimed as done.
 
 ## Architecture dependencies
 
-The shared core must carry card and group commands, reliable drafts, conditional membership changes and sync; the
+The shared core must carry card and group commands, reliable unsaved changes, conditional membership changes and sync; the
 per-device LayoutStore/InteractionController carries geometry, formation, undo and operation state.
 The renderer receives the common semantic model; platform hosts report their desktop layer, floating layer, input
 region and shortcut capabilities. NoteSource and editing data must not be tied to the number of OS windows, and cards
@@ -607,7 +608,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C30 | Undoing a transfer when a newer change exists | Handled conditionally; the newer change is not blindly overwritten |
 | C31 | A phone adds a card in A | The new card is in A's region, old cards do not move, the editor does not lose focus |
 | C32 | A remote device moves a card that has a position to B | The local position stays; only a B formation recalls it |
-| C33 | Leaving editing / switching groups while editing, and the disk save fails | Text and draft are kept, the failure is visible, no false report of a successful save |
+| C33 | Leaving editing / switching groups while editing, and the disk save fails | The text and its unsaved changes are kept, the failure is visible, no false report of a successful save |
 | C34 | Esc handled during Chinese IME composition or candidate selection | Does not unexpectedly leave the whole operation mode |
 | C35 | Ending the floating operation / app restart | Resident layer and click-through return; temporary focus and highlight are not restored |
 | C36 | Background sync while typing continuously in another app | No automatic floating, focus change or rearrangement |
@@ -751,22 +752,25 @@ starts from the quick move key instead. This changes U17, U19, C18 and C20 above
 - **While editing.** The paper floats on the Top layer at its own position and size, opaque, and returns to its group's
   layer when editing ends, as an adjusted paper does (U18). No overlay appears and the main window stays where it is.
   The editor takes the keyboard where the host allows; on layer-shell desktops a click into the text may be needed
-  first. Its actions are Save, Cancel and Full editor, besides retrying a failed save. They are icon buttons (a check
-  mark, a cross, outward arrows and a circular arrow) named for screen readers; they show no hover tooltip, because the
+  first. It continues the note's unsaved changes (ADR-061). Its actions are Save, Discard changes and Full editor,
+  besides retrying text that could not be kept. They are icon buttons (a check mark, a trash can, outward arrows and a
+  circular arrow) named for screen readers; they show no hover tooltip, because the
   macOS scene receives no mouse movement (see the Apple README). The paper being edited does not
   move; other papers keep their resting behaviour and can still be moved with the key. Clicking another app or the
   desktop does not end editing: the paper stays open on the Top layer until one of the ends below.
 - **End.**
   - Save commits the text as a new revision and closes.
-  - Cancel discards the changes made since this edit began and closes. The note stays as it was, and a draft kept
-    from an earlier edit stays as it was; with no changes it only closes.
-  - Esc, when the input method does not consume it, keeps a changed draft and closes (U23), as the main window's close
-    does.
-  - Full editor hands the draft to the main window's editor.
-  - Double-clicking another paper with the key keeps the current paper's changed draft, closes it and opens the other.
+  - Discard changes drops the note's unsaved changes, so it shows its saved revision again, or removes a note never
+    saved, and closes; the main window's status line offers to undo it (ADR-061). It replaced Cancel, which undid only
+    the changes since the quick edit began.
+  - Esc, when the input method does not consume it, keeps changed text unsaved and closes (U23), as the main window's
+    close does.
+  - Full editor continues the unsaved changes in the main window's editor.
+  - Double-clicking another paper with the key keeps the current paper's changed text unsaved, closes it and opens the
+    other.
   - Entering adjust mode, the paper leaving the desktop (deleted, archived, hidden, or completed while this device
-    hides completed notes), a display change, turning the switch off, signing out or quitting keep a changed draft and
-    close.
+    hides completed notes), a display change, turning the switch off, signing out or quitting keep changed text unsaved
+    and close.
 
 Acceptance cases:
 
@@ -775,12 +779,12 @@ Acceptance cases:
 | C58 | Adjust mode on the desktop or the browser preview's Desktop canvas | Papers show no Edit or "⋯"; double click and Enter do not edit; a single click selects and raises |
 | C59 | The switch is off; hold the key and double-click a resting paper | No editing; the double click behaves as before |
 | C60 | The switch is on; hold the key and double-click a Desktop- or Top-layer paper | It floats opaque on the Top layer at the same position and size and opens for editing; no overlay, the main window does not move |
-| C61 | Type, then Cancel | The note is unchanged, no new draft is kept, an earlier kept draft is unchanged, and the paper is back on its layer |
-| C62 | Type, then Esc | The changed draft is kept and the paper is back on its layer; Save instead commits a new revision |
-| C63 | While editing, hold the key and double-click another paper | The first keeps its changed draft and closes; the second opens |
+| C61 | Type, then Discard changes | The note shows its saved revision with no dot, no unsaved changes are kept, and the paper is back on its layer (ADR-061) |
+| C62 | Type, then Esc | The changed text is kept as unsaved changes, the paper shows it with a dot and is back on its layer; Save instead commits a new revision |
+| C63 | While editing, hold the key and double-click another paper | The first keeps its changed text unsaved and closes; the second opens |
 | C63b | While editing, hold the key and drag the edited paper, then another paper | The edited paper does not move; the other paper moves and editing goes on |
 | C64 | While editing, click another app or the desktop | The editor stays open on the Top layer |
-| C65 | While editing, enter adjust mode, delete the note from another device, change displays or turn the switch off | The changed draft is kept and the editor closes |
+| C65 | While editing, enter adjust mode, delete the note from another device, change displays or turn the switch off | The changed text is kept as unsaved changes and the editor closes |
 | C66 | Hold the key and double-click a checkbox, attachment or link; or a paper from a read-only source | That control's behaviour; a read-only paper does not open for editing |
 
 ## References

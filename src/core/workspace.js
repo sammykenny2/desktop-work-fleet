@@ -1,7 +1,7 @@
 import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
 import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
-import { canonicalJson, parseJson } from '../sources/json.js';
+import { canonicalJson } from '../sources/json.js';
 import { revisionRecord, RevisionGraph, validateRevision } from '../sources/revisions.js';
 import { projectRevisions, reconcileSourceLayout } from '../sources/projection.js';
 import { regionShortcuts } from './shortcuts.js';
@@ -28,15 +28,51 @@ function blankContent(content) {
     && !content.text.trim() && !content.attachments?.length;
 }
 
-// A draft has nothing to keep when it is blank or still an exact copy of its card's current revision.
-function unneededDraft(state, draft) {
+const plainContent = content => canonicalJson({ ...content, attachments: content.attachments || [] });
+const revisionContent = (state, revisionId) => state.revisions.find(item => item.revisionId === revisionId)?.value.content;
+
+// Unsaved changes hold nothing when they are blank or the same as their note's current revision, or, once the note has
+// changed since they began, still the same as the revision they began from (ADR-061).
+export function unneededDraft(state, draft) {
   if (!draft) return false;
   if (blankContent(draft.content)) return true;
   const card = draft.baseRevision ? state.cards.find(card => card.id === draft.cardId) : null;
-  const plain = content => canonicalJson({ ...content, attachments: content.attachments || [] });
-  return Boolean(card) && card.revision === draft.baseRevision && card.groupId === draft.groupId
-    && plain(card.content) === plain(draft.content);
+  if (!card) return false;
+  if (card.revision === draft.baseRevision) return card.groupId === draft.groupId && plainContent(card.content) === plainContent(draft.content);
+  if (plainContent(card.content) === plainContent(draft.content)) return true;
+  const base = revisionContent(state, draft.baseRevision);
+  return Boolean(base) && plainContent(base) === plainContent(draft.content);
 }
+
+// Each note's unsaved changes worth keeping. Data from before ADR-061 can hold several for one note; the first counts.
+// The note open in a quick edit (`open`) keeps its place even while it holds nothing, so a new note whose text is being
+// cleared does not vanish from under its editor; ending the edit then drops it.
+export function unsavedByCard(state, open = null) {
+  const unsaved = new Map(); const saved = new Set(state.cards.map(card => card.id));
+  for (const draft of Object.values(state.drafts || {})) {
+    if (unsaved.has(draft.cardId)) continue;
+    if (!unneededDraft(state, draft) || (draft.cardId === open && !saved.has(open))) unsaved.set(draft.cardId, draft);
+  }
+  return unsaved;
+}
+
+/**
+ * The notes as this device shows them (ADR-061). A note with unsaved changes shows them and carries `unsaved`; unsaved
+ * changes whose note does not exist, such as a new note never saved, are a note of their own with no revision, after
+ * the saved ones. Commands that write a revision read the saved snapshot instead.
+ */
+export function workingCards(state, open = null) {
+  const unsaved = unsavedByCard(state, open);
+  const cards = state.cards.map(card => unsaved.has(card.id) ? { ...copy(card), content: copy(unsaved.get(card.id).content), unsaved: true } : copy(card));
+  const saved = new Set(state.cards.map(card => card.id));
+  for (const draft of unsaved.values()) {
+    if (!saved.has(draft.cardId)) cards.push({ id: draft.cardId, revision: null, groupId: draft.groupId, content: copy(draft.content),
+      deleted: false, archived: false, completed: false, unsaved: true });
+  }
+  return cards;
+}
+const workingSnapshot = (state, open = null) => ({ groups: copy(state.groups), cards: workingCards(state, open), writable: true,
+  conflicts: copy(state.conflicts) });
 
 function loadRevisions(state) {
   const records = state.revisions || state.outbox.map(entry => revisionRecord(entry.kind, entry.value, entry.parents));
@@ -53,13 +89,8 @@ function loadRevisions(state) {
 // Groups this device takes in for the first time, each on the layer chosen for new groups; none when no layer is chosen.
 const arrivalLayers = (groups, layer) => groupLayerOrder.includes(layer) ? Object.fromEntries(groups.map(group => [group.id, layer])) : {};
 
-function draftBaseline(draft) {
-  if (!draft) return null;
-  const value = copy(draft); delete value.recoveredFrom;
-  return canonicalJson(value);
-}
-
-function rebaseMembership(state, draft) {
+// Carries unsaved changes to the group a retired group redirects to, and past local membership-only revisions.
+export function rebaseDraft(state, draft) {
   if (state.groups.some(group => group.id === draft.groupId && group.deleted && group.redirectGroupId)) {
     try { draft.groupId = resolveGroupId(state, draft.groupId); }
     catch (error) { if (!['group-cycle', 'missing-group'].includes(error.code)) throw error; }
@@ -73,13 +104,7 @@ function rebaseMembership(state, draft) {
   return draft;
 }
 
-function rebaseDraft(state, draft) {
-  rebaseMembership(state, draft);
-  for (const origin of draft.recoveredFrom || []) origin.baseline = draftBaseline(rebaseMembership(state, JSON.parse(origin.baseline)));
-  return draft;
-}
-
-/** Account-scoped local journal. The persistence boundary includes content, outbox, drafts and layout. */
+/** Account-scoped local journal. The persistence boundary includes content, outbox, unsaved changes and layout. */
 export class Workspace {
   #state;
   #persist;
@@ -90,6 +115,7 @@ export class Workspace {
   #now;
   #runtimeId = crypto.randomUUID();
   #arrivalLayer = () => null;
+  #open = () => null;
 
   static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, arrivalLayer = () => null,
     uuid = () => crypto.randomUUID(), now = Date.now }) {
@@ -119,7 +145,7 @@ export class Workspace {
     this.#state.layout.shortcuts = regionShortcuts(this.#state.layout.shortcuts, this.#state.layout.grid.slots);
     this.#layout = new LayoutStore(this.#state.layout, (layout, revision, validation) => this.#commit(draft => {
       requireValue(draft.layout.revision === revision, 'stale-layout', t('errors.core.layoutChangedByOther'));
-      if (validation?.membership) requireValue(validation.membership === membershipKey(draft, draft.layout),
+      if (validation?.membership) requireValue(validation.membership === membershipKey(workingSnapshot(draft, this.#open()), draft.layout),
         'stale-plan', t('errors.common.previewStale'));
       if (validation?.groups) requireValue(validation.groups === groupKey(draft),
         'stale-groups', t('errors.core.groupsChanged'));
@@ -129,6 +155,10 @@ export class Workspace {
 
   get snapshot() { return { groups: copy(this.#state.groups), cards: copy(this.#state.cards), writable: true,
     conflicts: copy(this.#state.conflicts) }; }
+  /** The snapshot as this device shows it: notes carry their unsaved changes, and unsaved new notes are included. */
+  get working() { return workingSnapshot(this.#state, this.#open()); }
+  /** Names the note a quick edit has open, which the working snapshot keeps while it holds nothing. */
+  setOpenNote(open) { this.#open = open; }
   get state() { return copy(this.#state); }
   get layout() { return this.#layout; }
   get syncState() { return copy(this.#state.sync); }
@@ -203,6 +233,14 @@ export class Workspace {
       && item.kind === kind && item.entityId === value.id)), 'missing-parent', t('errors.core.parentMissing'));
     state.revisions.push(record);
     state.outbox.push({ operationId: value.revision, kind, entityId: value.id, parents, value: copy(value) });
+    // A local revision that keeps the content, such as completing, archiving, deleting, restoring or moving the note,
+    // carries the note's unsaved changes along, so saving them later is not refused as a change made elsewhere.
+    if (kind !== 'card' || parents.length !== 1) return;
+    const parent = state.revisions.find(item => item.revisionId === parents[0]);
+    if (!parent || canonicalJson(parent.value.content) !== canonicalJson(value.content)) return;
+    for (const draft of Object.values(state.drafts)) {
+      if (draft.cardId === value.id && draft.baseRevision === parents[0]) { draft.baseRevision = value.revision; draft.groupId = value.groupId; }
+    }
   }
 
   revisionHeads(kind, entityId) { return this.#graph.heads(kind, entityId); }
@@ -377,6 +415,8 @@ export class Workspace {
       }
       const result = { added: graph.size - this.#graph.size, pending: graph.pending, missing: graph.missing };
       Object.assign(state, projectRevisions(graph, state));
+      // A group merged on another device takes this device's unsaved changes and never-saved notes along (ADR-061).
+      for (const draft of Object.values(state.drafts)) rebaseDraft(state, draft);
       const arrived = arrivalLayers(activeGroups(state).filter(group => !seenGroups.has(group.id)), this.#arrivalLayer());
       state.layout = reconcileSourceLayout(layout, state, arrived); state.sync.cursor = cursor;
       if (cursor !== null) state.sync.sourceResetIds = resetFileIds(state.sync.files);
@@ -432,6 +472,7 @@ export class Workspace {
       this.#record(state, kind, value, heads);
       const graph = this.#graph.fork([state.revisions.at(-1)]);
       Object.assign(state, projectRevisions(graph, state));
+      for (const draft of Object.values(state.drafts)) rebaseDraft(state, draft);
       state.layout = reconcileSourceLayout(layout, state);
       return { layout: state.layout, value: copy(value) };
     }));
@@ -496,7 +537,12 @@ export class Workspace {
     });
   }
 
-  previewGroupMerge(sourceId, targetId) { return planGroupMerge(this.#state, sourceId, targetId); }
+  /** Notes never saved move with the group like its notes, so the preview counts them as notes (ADR-061). */
+  previewGroupMerge(sourceId, targetId) {
+    const plan = planGroupMerge(this.#state, sourceId, targetId); const saved = new Set(this.#state.cards.map(card => card.id));
+    plan.unsavedNotes = [...unsavedByCard(this.#state).values()].filter(draft => draft.groupId === sourceId && !saved.has(draft.cardId)).length;
+    return plan;
+  }
 
   async mergeGroup(plan) {
     plan = copy(plan);
@@ -561,24 +607,51 @@ export class Workspace {
       content: copy(card?.content || { format: 'markdown', text: '', attachments: [] }) };
   }
 
-  recoverDraft(draftId) {
-    const original = this.#state.drafts[draftId];
-    requireValue(original, 'missing-draft', t('errors.core.draftMissing'));
-    return { ...copy(original), id: this.#uuid(), recoveredFrom: [
-      ...(original.recoveredFrom || []), { id: original.id, baseline: draftBaseline(original) },
-    ] };
+  /**
+   * What a new editor of the note starts from (ADR-061): its unsaved changes under the new editor's ID, which replace
+   * them once saved, or else a copy of the note. Without a note it is a blank new note.
+   */
+  openDraft(groupId, card = null) {
+    const kept = card && unsavedByCard(this.#state).get(card.id);
+    if (!kept) return this.blankDraft(groupId, card && this.#state.cards.find(item => item.id === card.id));
+    // A group retired since the changes were kept redirects them; one gone without a redirect gives way to `groupId`.
+    const draft = rebaseDraft(this.#state, { ...copy(kept), id: this.#uuid() });
+    if (!this.#state.groups.some(group => group.id === draft.groupId && !group.deleted)) draft.groupId = groupId;
+    this.#group(this.#state, draft.groupId);
+    return draft;
   }
 
-  async commitDraft(draftId, { asCopy = false } = {}) {
+  /** The note's unsaved changes, or null when it has none worth keeping. */
+  unsavedChanges(cardId) {
+    const draft = unsavedByCard(this.#state).get(cardId);
+    return draft ? copy(draft) : null;
+  }
+
+  /**
+   * Saves a note's unsaved changes as its next revision and drops them. A save is refused when the note's content
+   * changed elsewhere meanwhile; `overwrite` then makes them the next revision of the note as it is now, keeping the
+   * other revision in history, and `asCopy` saves them as a new note. When only the note's flags or group changed, the
+   * changes apply to its current revision without asking.
+   */
+  async commitDraft(draftId, { asCopy = false, overwrite = false } = {}) {
     return this.#commit(state => {
       const draft = state.drafts[draftId];
       requireValue(draft, 'missing-draft', t('errors.core.savedDraftMissing'));
       this.#group(state, draft.groupId);
       let card;
       if (draft.baseRevision && !asCopy) {
-        card = this.#card(state, draft.cardId, draft.baseRevision);
+        const current = state.cards.find(item => item.id === draft.cardId && !item.deleted);
+        // Changes the note's current revision already holds, saved elsewhere too, add nothing: they go, and the note stays.
+        if (current && plainContent(current.content) === plainContent(draft.content)) {
+          for (const [id, other] of Object.entries(state.drafts)) if (other.cardId === draft.cardId) delete state.drafts[id];
+          return copy(current);
+        }
+        const sameContent = current && current.revision !== draft.baseRevision
+          && revisionContent(state, draft.baseRevision) && plainContent(revisionContent(state, draft.baseRevision)) === plainContent(current.content);
+        const base = overwrite || sameContent ? current?.revision : draft.baseRevision;
+        card = this.#card(state, draft.cardId, base);
         card.content = copy(draft.content); card.revision = this.#uuid();
-        this.#record(state, 'card', card, [draft.baseRevision]);
+        this.#record(state, 'card', card, [base]);
       } else {
         const id = asCopy ? this.#uuid() : draft.cardId;
         requireValue(!state.cards.some(existing => existing.id === id), 'duplicate-card', t('errors.core.noteDuplicate'));
@@ -586,12 +659,7 @@ export class Workspace {
           deleted: false, archived: false, completed: false, createdAt: this.#createdAt() };
         state.cards.push(card); this.#record(state, 'card', card, []);
       }
-      for (const origin of draft.recoveredFrom || []) {
-        if (origin.id !== draftId && draftBaseline(state.drafts[origin.id]) === canonicalJson(parseJson(origin.baseline))) {
-          delete state.drafts[origin.id];
-        }
-      }
-      delete state.drafts[draftId];
+      for (const [id, other] of Object.entries(state.drafts)) if (other.cardId === draft.cardId) delete state.drafts[id];
       return copy(card);
     });
   }
@@ -610,6 +678,14 @@ export class Workspace {
 
   async transferCard({ cardId, groupId, expectedRevision, position, expectedLayoutRevision }) {
     try {
+      // An unsaved new note has no revision to move yet (ADR-061): it moves within its group, and changes group in its
+      // editor or once saved.
+      const unsaved = !this.#state.cards.some(card => card.id === cardId) && Object.values(this.#state.drafts).find(draft => draft.cardId === cardId);
+      if (unsaved) {
+        requireValue(unsaved.groupId === groupId, 'unsaved-note', t('errors.core.unsavedNoteMove'));
+        if (position) await this.#layout.move(cardId, position, expectedLayoutRevision);
+        return;
+      }
       const current = this.#card(this.#state, cardId, expectedRevision);
       this.#group(this.#state, groupId);
       if (current.groupId === groupId) {
@@ -637,7 +713,7 @@ export class Workspace {
 
   async undo(workAreas) {
     const undoRevision = this.#uuid();
-    return this.#layout.undo(() => this.snapshot, workAreas, (layout, layoutRevision, result) => this.#commit(state => {
+    return this.#layout.undo(() => this.working, workAreas, (layout, layoutRevision, result) => this.#commit(state => {
       requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.core.layoutChangedPlain'));
       if (result.transfer) {
         const { cardId, fromGroupId, expectedRevision } = result.transfer;
@@ -650,36 +726,34 @@ export class Workspace {
     }), undoRevision);
   }
 
+  /** Keeps a note's unsaved changes on this device. A note has one set, so these replace any it had (ADR-061). */
   async saveDraft(draft) {
     draft = copy(draft);
     requireValue(safeKey(draft.id) && safeKey(draft.cardId), 'invalid-draft', t('errors.core.draftIdInvalid'));
     contentValue(draft.content);
-    return this.#commit(state => { state.drafts[draft.id] = rebaseDraft(state, copy(draft)); });
-  }
-
-  /** Drops a draft outright: Cancel on a quick edit throws away the draft that edit began (SPEC-003, 2026-10-24). */
-  async discardDraft(draftId) {
-    requireValue(safeKey(draftId), 'invalid-draft', t('errors.core.draftIdInvalid'));
-    await this.#tail;
     return this.#commit(state => {
-      if (!state.drafts[draftId]) return false;
-      delete state.drafts[draftId];
-      return true;
+      for (const [id, other] of Object.entries(state.drafts)) if (id !== draft.id && other.cardId === draft.cardId) delete state.drafts[id];
+      state.drafts[draft.id] = rebaseDraft(state, copy(draft));
     });
   }
 
-  /** Drops a draft with nothing to keep, and such drafts it was recovered from that have not changed since. */
+  /** Drops a note's unsaved changes, so it shows its saved revision again; an unsaved new note goes with them. */
+  async discardChanges(cardId) {
+    requireValue(safeKey(cardId), 'invalid-draft', t('errors.core.draftIdInvalid'));
+    await this.#tail;
+    return this.#commit(state => {
+      const ids = Object.keys(state.drafts).filter(id => state.drafts[id].cardId === cardId);
+      for (const id of ids) delete state.drafts[id];
+      return ids.length > 0;
+    });
+  }
+
+  /** Drops unsaved changes that hold nothing to keep: blank, or the same as their note's current revision. */
   async discardUnneededDraft(draftId) {
     await this.#tail;
     if (!unneededDraft(this.#state, this.#state.drafts[draftId])) return false;
     return this.#commit(state => {
-      const draft = state.drafts[draftId];
-      if (!unneededDraft(state, draft)) return false;
-      for (const origin of draft.recoveredFrom || []) {
-        const original = state.drafts[origin.id];
-        if (origin.id !== draftId && unneededDraft(state, original)
-          && draftBaseline(original) === canonicalJson(parseJson(origin.baseline))) delete state.drafts[origin.id];
-      }
+      if (!unneededDraft(state, state.drafts[draftId])) return false;
       delete state.drafts[draftId];
       return true;
     });

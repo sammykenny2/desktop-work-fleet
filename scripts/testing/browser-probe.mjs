@@ -31,7 +31,7 @@ try {
   await page.locator('body').click({ position: { x: 700, y: 20 } }); await page.keyboard.press('Control+Shift+N');
   await expect(page.locator('#editor-dialog')).toBeVisible(); await expect(page.locator('[data-view="board"]')).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('textbox', { name: t('app.editor.textLabel'), exact: true }).fill('# First thing\n\nNotes to keep.\n\n- [ ] First step\n- [x] Finished step');
-  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.getByRole('button', { name: t('app.editor.previewTab'), exact: true }).click();
   await expect(page.locator('#editor-preview h1')).toHaveText('First thing');
   await page.getByRole('checkbox', { name: t('notes.checklist.step', { number: 1 }), exact: true }).check();
@@ -72,8 +72,8 @@ try {
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await expect(page.locator('.card-summary')).toHaveText('First thing');
-  // The canvas stands in for the desktop: a paper that takes clicks ticks a step in place and keeps it, while a kept
-  // draft of the note holds ticking until the draft is saved or dropped.
+  // The canvas stands in for the desktop: a paper that takes clicks ticks a step in place and keeps it; a note with
+  // unsaved changes ticks those instead (ADR-061).
   const firstStep = () => page.locator('#stage .card-body input').first();
   await expect(firstStep()).toBeChecked(); await expect(firstStep()).toBeEnabled();
   await firstStep().click();
@@ -101,16 +101,29 @@ try {
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   const savedText = await page.locator('#editor-text').inputValue();
   await page.locator('#editor-text').fill(`${savedText}\n\nKept for later`);
-  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
-  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.draftKept'));
-  await canvas(); await firstStep().click();
-  await expect(page.locator('#status')).toHaveText(t('errors.desktop.noteHasDraft')); await expect(firstStep()).not.toBeChecked();
-  await page.locator('#drafts-button').click(); await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
+  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.unsavedKept'));
+  // ADR-061: the paper keeps showing the typed text, with a dot, and a tick changes that unsaved text.
+  await expect(boardPaper.locator('.note-title .unsaved-dot')).toBeVisible(); await expect(boardPaper.locator('.note-body')).toContainText('Kept for later');
+  await canvas(); await expect(page.locator('#stage .card-summary .unsaved-dot')).toBeVisible(); await firstStep().click();
+  await expect(page.locator('#status')).toHaveText(t('app.status.tickedUnsaved')); await expect(firstStep()).toBeChecked();
+  // Opening the note again continues its unsaved changes.
+  await page.locator('[data-view="board"]').click(); await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
+  await expect(page.locator('#editor-text')).toHaveValue(`${savedText.replace('- [ ] First step', '- [x] First step')}\n\nKept for later`);
   // The text changes only in the main window's editor: adjust mode arranges notes and opens none (SPEC-003, 2026-10-24).
   assert.match(savedText, /^# First thing\n/);
-  await page.locator('#editor-text').fill('# First thing\n\nSaved in place\n\n- [x] First step'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  await page.locator('#editor-text').fill('# First thing\n\nSaved in place\n\n- [x] First step'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#status')).toHaveText(t('app.status.noteSaved'));
-  await expect(page.locator('#draft-count')).toHaveText('0');
+  await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
+  // "Discard changes" returns the note to its saved text, and the status line can bring the changes back.
+  await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
+  await page.locator('#editor-text').fill('# First thing\n\nThrown away'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
+  await page.getByRole('button', { name: t('app.editor.discard'), exact: true }).click(); await expect(page.locator('#status')).toHaveText(t('app.status.changesDiscarded'));
+  await expect(boardPaper.locator('.note-body')).toContainText('Saved in place'); await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
+  await page.locator('#status-action').click(); await expect(page.locator('#status')).toHaveText(t('app.status.changesRestored'));
+  await expect(boardPaper.locator('.note-body')).toContainText('Thrown away'); await expect(boardPaper.locator('.unsaved-dot')).toBeVisible();
+  await boardPaper.locator('.note-title').dblclick(); await page.getByRole('button', { name: t('app.editor.discard'), exact: true }).click();
+  await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
   await canvas(); await expect(page.locator('.card-summary')).toHaveText('First thing');
   // Adjust position sits at the foot of the sidebar; the view bar holds only filters and views, and search ends the top bar.
   assert.equal(await page.locator('#sidebar .adjust-entry').count(), 1);
@@ -180,8 +193,10 @@ try {
   for (const width of [390, 900, 1440]) {
     await page.setViewportSize({ width, height: width < 640 ? 844 : 1050 });
     if (width > 640) await expect.poll(() => tile.evaluate(node => [node.offsetWidth, node.offsetHeight]), { message: `board paper at ${width} px` }).toEqual([240, 240]);
+    // The row's height reaches Capture through a ResizeObserver, so the measurement waits for it to settle.
+    await expect.poll(async () => { const { compose, footer } = await foot(); return Math.abs(footer.top - compose.bottom - 16) <= 1; },
+      { message: `Capture sits 16 px above the status row at ${width} px` }).toBe(true);
     const { compose, footer, status } = await foot();
-    assert.ok(Math.abs(footer.top - compose.bottom - 16) <= 1, `Capture sits 16 px above the status row at ${width} px (${footer.top - compose.bottom} px apart)`);
     assert.ok(Math.abs(status.right - footer.right) <= 1 && Math.abs(compose.right - footer.right) <= 1,
       `the status and Capture end at the right edge of the status row at ${width} px`);
   }
@@ -217,19 +232,19 @@ try {
   await page.locator('#stop-operation').click(); await page.locator('#groups .group-row').first().locator('button').first().click();
   await page.locator('[data-view="board"]').click();
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
-  await page.locator('#editor-text').fill('Saved draft not yet committed'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  await page.locator('#editor-text').fill('Unsaved text kept over a reload'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  await page.locator('#drafts-button').click();
-  await expect(page.locator('#draft-list')).toContainText('Saved draft not yet committed');
-  await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
+  await page.locator('[data-view="board"]').click(); await expect(boardPaper.locator('.unsaved-dot')).toBeVisible();
+  await expect(boardPaper.locator('.note-body')).toContainText('Unsaved text kept over a reload');
+  await boardPaper.locator('.note-title').dblclick(); await expect(page.locator('#editor-text')).toHaveValue('Unsaved text kept over a reload');
   await expect(page.locator('#attachments a')).toHaveText('proof.txt');
   const downloadPromise = page.waitForEvent('download'); await page.locator('#attachments a').click();
   const download = await downloadPromise; const stream = await download.createReadStream();
   let downloaded = ''; for await (const chunk of stream) downloaded += chunk.toString();
   assert.equal(downloaded, 'retained attachment');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
-  await expect(page.locator('#draft-count')).toHaveText('0');
+  await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
   await capture();
   await page.locator('#editor-text').fill('Second thing');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
@@ -244,7 +259,7 @@ try {
   await page.locator('#stop-operation').click();
 
   // An optional title heads the paper and is searchable, while the body still starts from its first line. A cleared title
-  // is left out: the paper falls back to that line, and an editor holding nothing else keeps no draft.
+  // is left out: the paper falls back to that line, and an editor holding nothing else keeps nothing.
   await capture();
   await page.locator('#editor-heading').fill('Weekly report'); await page.locator('#editor-text').fill('Sum up this week\n\nHand in on Monday');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await canvas();
@@ -265,8 +280,8 @@ try {
   await expect(titled.locator('.card-summary')).toHaveText('Sum up this week');
   await capture();
   await page.locator('#editor-heading').fill('Title typed, then deleted'); await page.locator('#editor-heading').fill('');
-  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
-  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.closedNoDraft'));
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
+  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.closed'));
   // On the board a long paper ends its text with "…", and its attachments are one row below the text.
   await capture();
   await page.locator('#editor-text').fill(Array.from({ length: 40 }, (_, n) => `Paragraph ${n + 1} of a long text.`).join('\n\n'));
@@ -295,8 +310,8 @@ try {
   await attachmentDownload; await attachmentTab.close();
   assert.equal(await page.evaluate(() => localStorage.getItem('attachment-script-ran')), null);
 
-  // Keep the workspace store busy to prove that pending drafts warn before navigation.
-  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
+  // Keep the workspace store busy to prove that changes still being written warn before navigation.
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.evaluate(() => new Promise((resolve, reject) => {
     const open = indexedDB.open('work-fleet-v1'); open.onerror = () => reject(open.error);
     open.onsuccess = () => {
@@ -306,16 +321,16 @@ try {
       tx.oncomplete = () => db.close(); again(); resolve();
     };
   }));
-  await page.locator('#editor-text').fill('Important draft still being written');
-  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saving'));
+  await page.locator('#editor-text').fill('Important text still being written');
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.writing'));
   const unloadDialog = page.waitForEvent('dialog');
   page.once('dialog', dialog => dialog.dismiss());
   await page.evaluate(() => { location.reload(); });
   const warning = await unloadDialog; assert.equal(warning.type(), 'beforeunload');
-  await expect(page.locator('#editor-text')).toHaveValue('Important draft still being written');
+  await expect(page.locator('#editor-text')).toHaveValue('Important text still being written');
   await page.evaluate(() => window.releaseProbeWrite());
-  await expect(page.locator('#draft-status')).toHaveText(t('desktop.draft.saved'));
-  await page.locator('#keep-draft').click();
+  await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
+  await page.locator('#close-editor-button').click();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   // The view bar gives way by measuring its row: from the desktop apps' default 1180 px down, nothing overlaps and no
   // filter is cut off, and search stays in the top bar.
@@ -331,8 +346,8 @@ try {
   await expect(page.locator('.topbar .search')).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   // Phones keep the sidebar in a drawer that opens only from the app bar button.
-  await expect(page.locator('#drafts-button')).not.toBeInViewport(); await page.locator('#drawer-toggle').click();
-  await expect(page.locator('#drafts-button')).toBeVisible();
+  await expect(page.locator('#add-group')).not.toBeInViewport(); await page.locator('#drawer-toggle').click();
+  await expect(page.locator('#add-group')).toBeVisible();
   await expect(page.locator('#settings-button')).toBeVisible();
   // Adjust position lives in the drawer on phones; choosing it closes the drawer onto the canvas and its adjust bar.
   await page.locator('#operate-group').click(); await expect(page.locator('#adjust-bar')).toBeVisible();
@@ -340,10 +355,8 @@ try {
   await expect(page.locator('#search-toggle')).toBeDisabled();
   await page.locator('#stop-operation').click(); await expect(page.locator('#adjust-bar')).toBeHidden();
   await expect(page.locator('.view-switch [aria-pressed="true"]')).toBeFocused();
-  await page.locator('#drawer-toggle').click();
-  await page.locator('#drafts-button').click();
-  await expect(page.locator('#draft-list')).toContainText('Important draft still being written');
-  await page.locator('#close-drafts').click();
+  // The new note left unsaved before the reload is a paper of its group on the canvas, with a dot (ADR-061).
+  await expect(page.locator('#stage .card').filter({ hasText: 'Important text still being written' }).locator('.unsaved-dot')).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1050 });
   const other = await context.newPage(); await other.goto(base.href);
   await expect(other.locator('#status')).toContainText(t('app.errors.openElsewhere')); await other.close();
@@ -384,7 +397,7 @@ try {
   await mkdir('build', { recursive: true });
   await page.screenshot({ path: 'build/browser-probe.png', fullPage: true });
   assert.deepEqual(errors, []);
-  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas and board steps and the kept-draft hold, opening board notes by double-click, tap or Edit, adjusted papers opening no editor, optional title and its search, board/list views, drag/undo, hidden-stage geometry, draft recovery, pending-write warning, mobile access, single writer and CAS');
+  console.log('PASS: capture and where it shows, quick capture from the canvas, the search title, Markdown/checklist, pasted and dropped attachments, attachment isolation, reload, ticking canvas and board steps and unsaved text, opening board notes by double-click, tap or Edit, adjusted papers opening no editor, optional title and its search, board/list views, drag/undo, hidden-stage geometry, unsaved changes with a dot, continued, discarded and brought back, pending-write warning, mobile access, single writer and CAS');
 } catch (error) {
   await mkdir('build', { recursive: true }); await page.screenshot({ path: 'build/browser-probe-failure.png', fullPage: true });
   if (errors.length) console.error('Browser page errors:', errors);

@@ -39,7 +39,7 @@ struct FleetSceneFrame {
         }
         var ids = Set<String>(); var output: [Card] = []
         for card in cards {
-            try fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity")
+            try fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity unsaved")
             if let raw = card["attachments"] {
                 guard let files = raw as? [[String: Any]], files.count <= 20000 else { throw FleetFailure("scene-frame", "The attachment list isn't valid.") }
                 for file in files { try fields(file, "id name"); _ = try FleetProtocol.text(file, "id", 128); _ = try FleetProtocol.text(file, "name", FleetProtocol.record) }
@@ -54,6 +54,8 @@ struct FleetSceneFrame {
             }
             guard let text = card["text"] as? String, text.utf16.count <= 8 * 1024 * 1024 else { throw FleetFailure("scene-frame", "The desktop note text is too large.") }
             for flag in ["interactive", "draggable", "editing", "selected", "completed", "mine"] { _ = try FleetProtocol.bool(card, flag) }
+            // A paper showing unsaved changes carries a dot (ADR-061); frames from before it leave the flag out.
+            if card["unsaved"] != nil { _ = try FleetProtocol.bool(card, "unsaved") }
             if layer == "wallpaper" {
                 try FleetProtocol.require(!FleetProtocol.bool(card, "interactive") && !FleetProtocol.bool(card, "draggable") && !FleetProtocol.bool(card, "editing"), "scene-frame", "Notes on the wallpaper layer must let clicks through.")
             }

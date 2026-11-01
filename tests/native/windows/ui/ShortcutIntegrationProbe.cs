@@ -57,14 +57,13 @@ internal static class ShortcutIntegrationProbe
     await Task.Delay(200);
     if (!await Check(scene, "Boolean(document.querySelector('textarea'))")) throw new Exception("Composing shortcut closed the editor.");
     await scene.ExecuteScriptAsync("document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new KeyboardEvent('keydown',{key:'F24',code:'F24',ctrlKey:true,altKey:true,shiftKey:true,bubbles:true,cancelable:true}))");
-    // The all-groups chord closes the quick edit, keeping its draft, and starts adjusting; Done ends that again.
+    // The all-groups chord closes the quick edit, keeping its unsaved changes, and starts adjusting; Done ends that again.
     await Wait(() => Check(web, "!document.querySelector('#stop-operation').hidden"), "local scene scope chord closes the quick edit and adjusts");
     await Wait(() => Check(scene, "!document.querySelector('textarea') && Boolean(document.querySelector('.adjust-tools'))"), "adjust overlay after the chord");
     await scene.ExecuteScriptAsync("document.querySelector('.adjust-tools button.primary').click()");
     await Wait(() => Check(web, "document.querySelector('#stop-operation').hidden"), "Done after the chord");
-    await web.ExecuteScriptAsync("document.querySelector('#drafts-button').click()");
-    await Wait(() => Check(web, "document.querySelector('#draft-list').textContent.includes('Draft before the shortcut exit')"), "scope chord kept exact durable draft");
-    await web.ExecuteScriptAsync("document.querySelector('#close-drafts').click()");
+    // The paper rests again showing the exact text it kept, with the unsaved dot (ADR-061).
+    await Wait(() => Check(resident, "[...document.querySelectorAll('.card.unsaved')].some(card => card.textContent.includes('Draft before the shortcut exit'))"), "scope chord kept exact unsaved changes");
     // Blocked close / initialization cannot be undone by a concurrent settings refresh.
     using (var block = JsonDocument.Parse("{\"blocked\":true}")) coordinator.Invoke("desktop.shortcuts.block", block.RootElement);
     using (var config = JsonDocument.Parse(JsonSerializer.Serialize(new { bindings = native.Registrations.Select(r => new { key = r.Key, target = r.Target }).ToArray() })))

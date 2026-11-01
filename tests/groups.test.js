@@ -67,19 +67,17 @@ test('group merge refuses stale source membership, content, draft and destinatio
   }
 });
 
-test('group merge rebases unchanged draft revisions and every lineage baseline without losing separate edits', async () => {
+test('group merge carries unsaved changes and notes never saved to the receiving group (ADR-061)', async () => {
   const f = await fixture();
-  const original = f.workspace.blankDraft(f.a.id, f.cards[0]); original.content.text = 'first draft';
-  await f.workspace.saveDraft(original);
-  const first = f.workspace.recoverDraft(original.id); first.content.text = 'second draft'; await f.workspace.saveDraft(first);
-  const second = f.workspace.recoverDraft(first.id); second.content.text = 'final draft'; await f.workspace.saveDraft(second);
-  original.content.text = 'independent draft'; await f.workspace.saveDraft(original);
-  await f.workspace.mergeGroup(f.workspace.previewGroupMerge(f.a.id, f.b.id));
-  const saved = await f.workspace.commitDraft(second.id);
-  assert.equal(saved.groupId, f.b.id); assert.equal(saved.content.text, 'final draft');
-  assert.deepEqual(Object.keys(f.workspace.state.drafts), [original.id]);
-  assert.equal(f.workspace.state.drafts[original.id].groupId, f.b.id);
-  assert.equal(f.workspace.state.drafts[original.id].content.text, 'independent draft');
+  const edit = f.workspace.openDraft(f.a.id, f.cards[0]); edit.content.text = 'unsaved edit'; await f.workspace.saveDraft(edit);
+  const note = f.workspace.openDraft(f.a.id); note.content.text = 'never saved'; await f.workspace.saveDraft(note);
+  const plan = f.workspace.previewGroupMerge(f.a.id, f.b.id); assert.equal(plan.unsavedNotes, 1);
+  await f.workspace.mergeGroup(plan);
+  assert.equal(f.workspace.state.drafts[note.id].groupId, f.b.id); assert.equal(f.workspace.unsavedChanges(f.cards[0].id).groupId, f.b.id);
+  const saved = await f.workspace.commitDraft(edit.id);
+  assert.equal(saved.groupId, f.b.id); assert.equal(saved.content.text, 'unsaved edit');
+  const created = await f.workspace.commitDraft(note.id); assert.equal(created.groupId, f.b.id);
+  assert.deepEqual(f.workspace.state.drafts, {});
 });
 
 test('retired groups clear only incompatible transfer undo and preserve later geometry undo', async () => {

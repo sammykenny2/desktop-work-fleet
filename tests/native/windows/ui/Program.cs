@@ -125,7 +125,7 @@ internal static class Program
     await Eval(window, "document.querySelector('#compose').click()");
     await Wait(window, "document.querySelector('#editor-dialog').open", "open editor");
     await Eval(window, "document.querySelector('#editor-text').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(window, "document.querySelector('#draft-status').textContent === 'Draft saved locally'", "durable draft");
+    await Wait(window, "document.querySelector('#draft-status').textContent === 'Kept on this device, not saved yet'", "durable unsaved changes");
     // The attachment text carries escaped CJK characters, so the native attachment path keeps multi-byte UTF-8 exactly.
     await Eval(window, "const files=new DataTransfer();files.items.add(new File(['native attachment \u4E2D\u6587'],'proof.txt',{type:'text/plain'}));document.querySelector('#attachment-input').files=files.files;document.querySelector('#attachment-input').dispatchEvent(new Event('change',{bubbles:true}))");
     await Wait(window, "document.querySelector('#attachments a')?.textContent === 'proof.txt'", "native attachment");
@@ -155,19 +155,15 @@ internal static class Program
     using (var screenshot = File.Create(Path.Combine(directory, "native-ui.png")))
       await window.WebView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, screenshot);
     await Eval(window, "document.querySelector('#compose').click()");
-    await Wait(window, "document.querySelector('#editor-dialog').open", "second draft");
-    await Eval(window, "document.querySelector('#editor-text').value='Draft still unsaved at the moment of closing';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Wait(window, "document.querySelector('#editor-dialog').open", "second editor");
+    await Eval(window, "document.querySelector('#editor-text').value='Still unsaved at the moment of closing';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
     await Close(window); window = Open(directory);
     await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native restart");
-    await Wait(window, "document.querySelector('.note-title')?.textContent === 'Native note' && Number(document.querySelector('#draft-count').textContent) >= 1", "card and draft retained after native reopen");
-    await Eval(window, "document.querySelector('#drafts-button').click()");
-    await Wait(window, "document.querySelector('dialog[open]')?.textContent.includes('Draft still unsaved at the moment of closing')", "exact saved draft text");
-    await Eval(window, "document.querySelector('dialog[open]').close()");
+    // A new note left unsaved at close is a note with a dot after reopening (ADR-061).
+    await Wait(window, "document.querySelector('.note-title')?.textContent === 'Native note' && [...document.querySelectorAll('#list article')].some(note => note.textContent.includes('Still unsaved at the moment of closing') && note.querySelector('.unsaved-dot'))", "card and exact unsaved note retained after native reopen");
     await DesktopIntegrationProbe.CloseWithDraft(window); window = Open(directory);
     await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "reopen after scene close");
-    await Eval(window, "document.querySelector('#drafts-button').click()");
-    await Wait(window, "document.querySelector('#draft-list').textContent.includes('Desktop draft that must reach the disk at close')", "exact desktop final draft survived close");
-    await Eval(window, "document.querySelector('dialog[open]').close()");
+    await Wait(window, "[...document.querySelectorAll('#list article')].some(note => note.textContent.includes('Desktop text that must reach the disk at close') && note.querySelector('.unsaved-dot'))", "exact desktop final text survived close as unsaved changes");
     // Hold the real host.ready request on the next document. Resizing must not install
     // a live group menu or card action before the native close handshake is ready.
     await window.WebView.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync("""

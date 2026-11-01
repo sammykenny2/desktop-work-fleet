@@ -34,7 +34,7 @@ await page.addInitScript(() => {
       { ...paper('c1', 24, 'Quarterly report', `# Quarterly report\n\n- [x] Collect the numbers\n- [ ] Draw the charts\n- [${sequence > 1 ? 'x' : ' '}] Write the summary`, '#fff6cc'),
         interactive: !window.probeClickThrough },
       { ...paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'), editing: Boolean(window.probeEditing) },
-      paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'),
+      { ...paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'), unsaved: true },
     ], editor: window.probeEditing ? { cardId: 'c2', draftId: 'd1', viewId: 'v1', text: 'Buy milk, eggs and coffee beans', sequence: 0 } : null,
     dropTarget: null, fallbacks: [], notice: null, quickMove: window.probeQuick || null });
   window.probeApplied = 0; window.probeCommands = []; window.probeChecks = []; window.probePointer = []; window.probeEditor = [];
@@ -270,19 +270,24 @@ try {
   await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'card.edit').length > count, editsBefore);
   assert.equal(await page.evaluate(() => window.probeEditor.filter(entry => entry.method === 'card.edit').at(-1).args.cardId), 'c1',
     'a slower double click opens the paper under the pointer');
+  // A paper showing unsaved changes ends its title band with a dot and says so in its name (ADR-061).
+  const dotted = page.locator('.card[data-card-id="c3"]'); const dottedTitle = await dotted.locator('.card-summary').textContent();
+  assert.equal(await dotted.getAttribute('aria-label'), t('desktop.paper.unsaved', { note: dottedTitle }));
+  assert.deepEqual(await page.locator('#scene .card').evaluateAll(nodes => nodes.map(node => [node.dataset.cardId, node.classList.contains('unsaved'),
+    getComputedStyle(node.querySelector('.card-summary'), '::after').content])), [['c1', false, 'none'], ['c2', false, 'none'], ['c3', true, '""']]);
   const appliedEdit = await page.evaluate(() => window.probeApplied);
   await page.evaluate(() => { window.probeEditing = true; window.probeNextFrame(); });
   await page.waitForFunction(count => window.probeApplied > count && document.querySelector('.card[data-card-id="c2"] textarea'), appliedEdit);
   // The editor's actions are icon buttons: each is named by its aria-label and shows only its icon.
   const editorButtons = page.locator('.card[data-card-id="c2"] .card-actions button');
   assert.deepEqual(await editorButtons.evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))),
-    [t('desktop.editor.retrySave'), t('desktop.editor.full'), t('common.cancel'), t('common.save')]);
+    [t('desktop.editor.retrySave'), t('desktop.editor.full'), t('desktop.editor.discard'), t('common.save')]);
   assert.deepEqual(await editorButtons.evaluateAll(nodes => nodes.map(node => node.textContent.trim() === '' && Boolean(node.querySelector('svg[aria-hidden="true"] path')))),
     [true, true, true, true], 'the editor buttons show icons instead of text');
   const downsBefore = (await quickState()).downs.length;
   await drag('.card[data-card-id="c2"] .card-summary', quickModifier);
   assert.equal((await quickState()).downs.length, downsBefore, 'the paper being edited does not move');
-  await page.locator('.card[data-card-id="c2"] .card-actions').getByRole('button', { name: t('common.cancel'), exact: true }).click();
+  await page.locator('.card[data-card-id="c2"] .card-actions').getByRole('button', { name: t('desktop.editor.discard'), exact: true }).click();
   await page.waitForFunction(() => window.probeEditor.some(entry => entry.method === 'editor.cancel'));
   assert.equal(await page.evaluate(() => window.probeEditor.find(entry => entry.method === 'editor.cancel').args.draftId), 'd1');
   await page.evaluate(() => { window.probeEditing = false; window.probeQuick = null; window.probeNextFrame(); });

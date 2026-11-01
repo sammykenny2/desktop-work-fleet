@@ -94,7 +94,7 @@ internal static class DesktopIntegrationProbe
     await QuickEdit(resident, floating, main, "scene inline editor");
     // The draft carries escaped CJK characters: a repeated edit must keep non-ASCII text exactly.
     await Eval(floating, "document.querySelector('textarea').value='Desktop draft \u4E2D\u6587 text';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Kept on this device, not saved yet'")).ValueKind == JsonValueKind.True,
       "scene draft acknowledged by native owner", main);
     using (var preview = File.Create(Path.Combine(directory, "native-desktop.png")))
       await floating.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, preview);
@@ -105,7 +105,7 @@ internal static class DesktopIntegrationProbe
     // Larger than the 1 MiB message ceiling (an escaped three-byte CJK character): exercises chunked view -> owner command
     // and owner -> view projection.
     await Eval(floating, "document.querySelector('textarea').value='\u9577'.repeat(400000);document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Kept on this device, not saved yet'")).ValueKind == JsonValueKind.True,
       "large scene draft chunk transport", main);
     // Entering adjust mode closes a quick edit, so the owner's flush barrier waits for the input method first.
     await Eval(floating, "document.querySelector('textarea').value='Last desktop text before closing';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))");
@@ -114,7 +114,7 @@ internal static class DesktopIntegrationProbe
       "IME prevents entering adjust mode through the owner flush barrier", main);
     if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind != JsonValueKind.True) throw new Exception("IME editor was destroyed.");
     await Eval(floating, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Kept on this device, not saved yet' && !document.querySelector('textarea').readOnly")).ValueKind == JsonValueKind.True,
       "failed exit resumes editing after composition", main);
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.getAttribute('aria-label')==='Save').click()");
     // A one-line note shows in the title band and again in the body, which always starts from the first line; saved, the
@@ -125,7 +125,7 @@ internal static class DesktopIntegrationProbe
     // Restore the fixture's original title, preserving its attachment and the subsequent existing regression assertions.
     await QuickEdit(resident, floating, main, "reopen desktop editor");
     await Eval(floating, "document.querySelector('textarea').value='# Native note\\n\\n- [ ] Saved across processes';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
-    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Draft saved locally'")).ValueKind == JsonValueKind.True, "restore fixture text", main);
+    await Wait(async () => (await Eval(floating, "document.querySelector('.draft-state')?.textContent==='Kept on this device, not saved yet'")).ValueKind == JsonValueKind.True, "restore fixture text", main);
     await Eval(floating, "[...document.querySelectorAll('.card-actions button')].find(b=>b.getAttribute('aria-label')==='Save').click()");
     await Wait(async () => (await Eval(floating, "!document.querySelector('textarea')")).ValueKind == JsonValueKind.True
       && (await Eval(resident, "document.querySelector('.card-summary')?.textContent==='Native note' && !document.querySelector('.card.operable')")).ValueKind == JsonValueKind.True,
@@ -243,7 +243,7 @@ internal static class DesktopIntegrationProbe
     scene.WebMessageReceived += (_, e) => { if (e.WebMessageAsJson.Contains("probe-unfreeze")) released = true; };
     await Eval(scene, "chrome.webview.addEventListener('message',e=>{if(e.data.event==='desktop-unfreeze')chrome.webview.postMessage({v:1,id:crypto.randomUUID(),method:'probe-unfreeze',params:{}})})");
     await Eval(main.WebView.CoreWebView2, "window.realNativePost=chrome.webview.postMessage.bind(chrome.webview);chrome.webview.postMessage=m=>{if(m.method==='storage.commit')setTimeout(()=>window.realNativePost(m),150);else window.realNativePost(m)}");
-    await Eval(scene, "document.querySelector('textarea').value='Desktop draft that must reach the disk at close';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
+    await Eval(scene, "document.querySelector('textarea').value='Desktop text that must reach the disk at close';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}))");
     var closed = new TaskCompletionSource(); main.Closed += (_, _) => closed.TrySetResult(); main.Close();
     await closed.Task.WaitAsync(TimeSpan.FromSeconds(45));
     if (released) throw new Exception("Close released the scene editor before destroying the view.");

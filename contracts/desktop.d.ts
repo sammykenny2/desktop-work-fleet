@@ -24,7 +24,8 @@ export interface GroupMergePlan {
   targetName: string;
   fingerprint: string;
   cards: { id: Id; summary: string; deleted: boolean; archived: boolean; completed: boolean }[];
-  draftCount: number;
+  /** Notes never saved in the merged group; they move with it like its notes (ADR-061). */
+  unsavedNotes: number;
 }
 export interface Card {
   id: Id;
@@ -122,13 +123,16 @@ export interface MoveCardToGroup {
   position?: Point;
   expectedLayoutRevision?: number;
 }
+/**
+ * A note's unsaved changes, kept only on this device (ADR-061). A note has at most one set; `id` names the edit that
+ * wrote it, and a new edit's first write replaces the set. `baseRevision` is null for a note never saved.
+ */
 export interface Draft {
   id: Id;
   cardId: Id;
   groupId: Id;
   content: Content;
   baseRevision: Revision | null;
-  recoveredFrom?: { id: Id; baseline: string }[];
 }
 export interface OutboxEntry {
   operationId: Id;

@@ -85,6 +85,20 @@ class LinuxSceneTests(unittest.TestCase):
                     with self.assertRaises(protocol.Failure):
                         self.parse(value)
 
+    def test_unsaved_papers_carry_an_optional_flag_and_may_have_no_revision(self):
+        # ADR-061: a paper showing unsaved changes carries a dot; a note never saved has no revision.
+        for flag, valid in ((True, True), (False, True), (None, True), ("yes", False), (1, False)):
+            with self.subTest(flag=flag):
+                value = projection()
+                value["cards"][0]["revision"] = None
+                if flag is not None:
+                    value["cards"][0]["unsaved"] = flag
+                if valid:
+                    self.assertEqual(self.parse(value), value)
+                else:
+                    with self.assertRaises(protocol.Failure):
+                        self.parse(value)
+
     def test_wallpaper_rejects_each_input_flag(self):
         for flag in ("interactive", "draggable", "editing"):
             with self.subTest(flag=flag):

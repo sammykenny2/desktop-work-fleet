@@ -42,7 +42,9 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,
       color: groupColors[colors[card.groupId] ?? 0],
       // Only a paper resting on the Top layer is see-through; one being adjusted or edited stays opaque.
-      opacity: layer === 'floating' && !draggable && !editing ? groupOpacity(layout, card.groupId) : 1 });
+      opacity: layer === 'floating' && !draggable && !editing ? groupOpacity(layout, card.groupId) : 1,
+      // The snapshot is the working one: a paper showing unsaved changes carries a dot (ADR-061).
+      unsaved: card.unsaved === true });
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;

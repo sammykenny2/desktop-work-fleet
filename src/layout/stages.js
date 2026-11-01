@@ -34,7 +34,7 @@ export function nextGroupStage(layer, { adjusting = false, wallpaper = true, des
 /** Moves the group one stage on and returns the stage it reached. */
 export async function stepGroup({ workspace, controller, groupId, wallpaper, desktop = true, floating = true }) {
   const layout = workspace.layout.state; const scope = controller.state.operationScope;
-  requireValue(workspace.snapshot.cards.some(card => card.groupId === groupId && eligible(card, layout) && layout.placements[card.id]),
+  requireValue(workspace.working.cards.some(card => card.groupId === groupId && eligible(card, layout) && layout.placements[card.id]),
     'empty-scope', t('errors.core.groupNoDesktopNotes'));
   const stage = nextGroupStage(groupLayer(layout, groupId), { adjusting: scope.kind === 'group' && scope.groupId === groupId, wallpaper, desktop, floating });
   // The layer changes before adjust mode does, so leaving adjust mode drops papers straight onto their new layer.

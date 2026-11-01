@@ -45,7 +45,8 @@ test('remote data, conflict projection, device references and cursor commit toge
   assert.equal(after.cards[0].content.text, 'new text'); assert.equal(after.cards[0].groupId, f.b.id);
   assert.equal(after.layout.myGroupId, f.b.id); assert.equal(after.layout.mainGroupId, f.b.id); assert.equal(after.layout.shortcuts['Ctrl+1'], f.b.id);
   assert.deepEqual(after.layout.placements, before.layout.placements);
-  assert.deepEqual(after.drafts, before.drafts); assert.deepEqual(after.outbox, before.outbox);
+  // Unsaved changes keep their text and base, and follow the retired group's redirect (ADR-061).
+  assert.deepEqual(after.drafts, { [draft.id]: { ...before.drafts[draft.id], groupId: f.b.id } }); assert.deepEqual(after.outbox, before.outbox);
   assert.notEqual(after.sync.cursor, before.sync.cursor); assert.deepEqual(f.workspace.layout.state, after.layout);
   const reopened = new Workspace(after, f.persist);
   assert.deepEqual(reopened.snapshot, f.workspace.snapshot);

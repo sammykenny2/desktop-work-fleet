@@ -26,9 +26,10 @@ const button = (text, action) => { const node = make('button', text); node.type 
 // The in-place editor's actions are icons named by their aria-label, with no hover tooltip: the macOS host passes no
 // mouse movement to the scene and a quick edit leaves the app inactive, so a tooltip could not appear there.
 const svgNs = 'http://www.w3.org/2000/svg';
+// Discarding unsaved changes is a trash can rather than a cross, so it does not read as closing (ADR-061).
 const editorIcons = {
   retry: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.3 3.2v3.5h-3.5', full: 'M14 4h6v6M20 4l-6 6M10 20H4v-6M4 20l6-6',
-  cancel: 'M6.5 6.5l11 11M17.5 6.5l-11 11', save: 'M5 12.5l4.5 4.5L19 7.5',
+  discard: 'M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 10.5v6', save: 'M5 12.5l4.5 4.5L19 7.5',
 };
 function iconButton(label, path, action) {
   const node = button('', action); node.setAttribute('aria-label', label);
@@ -42,7 +43,7 @@ function captureIntent() {
 }
 async function saveDraft() {
   if (!editor || composing) return;
-  const current = editor; draftStatus(t('desktop.draft.saving')); await current.flush(); if (editor === current) draftStatus(t('desktop.draft.saved'));
+  const current = editor; draftStatus(t('desktop.unsaved.writing')); await current.flush(); if (editor === current) draftStatus(t('desktop.unsaved.kept'));
 }
 async function editAction(method) {
   if (!editor || composing) return;
@@ -88,10 +89,11 @@ function render(next) {
       fitter.observe(body); fitter.observe(files);
     }
     const { paper, summary, body, actions } = item;
-    paper.className = `card${card.interactive ? ' interactive' : ''}${card.draggable ? ' operable' : ' selectable'}${card.selected ? ' selected' : ''}${card.mine ? ' mine' : ''}${card.completed ? ' completed' : ''}`;
+    paper.className = `card${card.interactive ? ' interactive' : ''}${card.draggable ? ' operable' : ' selectable'}${card.selected ? ' selected' : ''}${card.mine ? ' mine' : ''}${card.completed ? ' completed' : ''}${card.unsaved ? ' unsaved' : ''}`;
     // Topmost papers resting outside the adjusted scope stay under the overlay's tint, like the papers on lower layers.
     paper.style.setProperty('--paper', translucent(card.color, card.opacity ?? 1)); paper.style.zIndex = String(overlay && !card.draggable ? -1 : index + 5); paper.tabIndex = card.draggable ? 0 : -1;
-    paper.setAttribute('aria-label', card.summary); summary.textContent = card.summary; rect(paper, card.rect);
+    // The dot has no hover tooltip here (see iconButton), so the paper's accessible name says it.
+    paper.setAttribute('aria-label', card.unsaved ? t('desktop.paper.unsaved', { note: card.summary }) : card.summary); summary.textContent = card.summary; rect(paper, card.rect);
     if (editor?.cardId === card.id) {
       if (item.editorId !== editor.draftId) {
         item.disposeAttachments?.(); item.disposeAttachments = null; item.filesKey = null; item.files.hidden = true;
@@ -105,13 +107,13 @@ function render(next) {
             event.preventDefault(); event.stopPropagation(); void run(() => editAction(event.key === 'Escape' ? 'editor.end' : 'editor.save'));
           }
         };
-        body.replaceChildren(input, make('div', t('desktop.draft.saved'), 'draft-state'));
+        body.replaceChildren(input, make('div', t('desktop.unsaved.kept'), 'draft-state'));
         queueMicrotask(() => { if (input.isConnected) input.focus(); });
       }
       updateFrozen();
       actions.replaceChildren(iconButton(t('desktop.editor.retrySave'), editorIcons.retry, saveDraft),
         iconButton(t('desktop.editor.full'), editorIcons.full, () => editAction('editor.full')),
-        iconButton(t('common.cancel'), editorIcons.cancel, () => editAction('editor.cancel')),
+        iconButton(t('desktop.editor.discard'), editorIcons.discard, () => editAction('editor.cancel')),
         iconButton(t('common.save'), editorIcons.save, () => editAction('editor.save')));
     } else {
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);

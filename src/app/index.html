@@ -17,7 +17,6 @@
     <div class="section-label"><span data-i18n="app.sidebar.groups"></span> <button id="add-group" data-i18n-attr="aria-label:app.sidebar.addGroup">&#xFF0B;</button></div>
     <nav id="groups" data-i18n-attr="aria-label:app.sidebar.groupsLabel"></nav>
     <nav class="sidebar-links" data-i18n-attr="aria-label:app.sidebar.linksLabel">
-      <button id="drafts-button" hidden><bdi data-i18n="app.drafts.title"></bdi> <span id="draft-count">0</span></button>
       <button id="capture-inbox-button" hidden><bdi data-i18n="app.shareInbox.title"></bdi> <span id="capture-count">0</span></button>
     </nav>
     <!-- Adjusting moves desktop papers whatever the view shows; This group is the group selected above. -->
@@ -92,7 +91,7 @@
       <div id="editor-preview" class="markdown" hidden></div>
       <ul id="attachments"></ul>
       <div class="editor-bottom"><label class="file-button"><span data-i18n="app.editor.attach"></span><input id="attachment-input" type="file" multiple hidden></label><span id="draft-status" role="status"></span></div>
-      <div class="dialog-actions"><button type="button" id="save-copy" hidden data-i18n="app.editor.saveCopy"></button><button type="button" id="keep-draft" data-i18n="app.editor.keepDraft"></button><button type="submit" class="primary" data-i18n="app.editor.save"></button></div>
+      <div class="dialog-actions"><button type="button" id="discard-changes" class="leading" data-i18n="app.editor.discard"></button><button type="button" id="save-copy" hidden data-i18n="app.editor.saveCopy"></button><button type="button" id="overwrite" hidden data-i18n="app.editor.overwrite"></button><button type="button" id="close-editor-button" data-i18n="common.close"></button><button type="submit" class="primary" data-i18n="app.editor.save"></button></div>
     </form>
   </dialog>
   <dialog id="formation-dialog">
@@ -201,6 +200,5 @@
     <div class="dialog-actions"><button id="cancel-reset-layout" data-i18n="common.cancel"></button><button id="confirm-reset-layout" class="danger" data-i18n="settings.desktop.resetLayout.confirm"></button></div>
   </dialog>
   <dialog id="data-failure-dialog" aria-labelledby="data-failure-title"><h2 id="data-failure-title" data-i18n="app.dataFailure.title"></h2><div id="data-failure-body"></div><div id="data-failure-actions" class="dialog-actions"></div></dialog>
-  <dialog id="drafts-dialog"><h2 data-i18n="app.drafts.title"></h2><div id="draft-list"></div><div class="dialog-actions"><button id="close-drafts" data-i18n="common.close"></button></div></dialog>
 </body>
 </html>

@@ -188,14 +188,15 @@ try {
   await row.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
-  await page.locator('#compose').click(); await page.locator('#editor-text').fill('Draft that survives the merge');
-  await page.locator('#keep-draft').click();
+  await page.locator('#compose').click(); await page.locator('#editor-text').fill('Unsaved note that survives the merge');
+  await page.locator('#close-editor-button').click(); await expect(page.locator('#status')).toHaveText(t('app.status.unsavedKept'));
   const before = await read();
   await groupRow(b.id).locator('.group-menu').click();
   await page.getByRole('button', { name: t('app.groupEditor.merge'), exact: true }).click();
   await expect(page.getByRole('button', { name: t('app.merge.confirm'), exact: true })).toBeDisabled();
   await page.locator('#merge-target').selectOption(a.id);
-  await expect(page.locator('#merge-message')).toContainText(t('app.merge.summary', { notes: plural('app.count.notes', 1), drafts: plural('app.count.drafts', 1),
+  // The new note left unsaved counts as one of the notes that move (ADR-061).
+  await expect(page.locator('#merge-message')).toContainText(t('app.merge.summary', { notes: plural('app.count.notes', 2),
     group: t('app.groups.defaultName') }));
   await expect(page.locator('.merge-preview')).toContainText(t('app.merge.itemArchived', { note: 'Research note' }));
   await page.locator('#merge-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
@@ -214,9 +215,11 @@ try {
   await page.locator('#settings-button').click();
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   assert.deepEqual((await read()).layout.shortcuts, state.layout.shortcuts, 'settings must retain all inherited bindings');
-  await page.locator('#drafts-button').click(); await page.getByRole('button', { name: t('app.drafts.resume'), exact: true }).click();
+  // The unsaved note moved with its group; its editor shows the receiving group, and saving it removes the dot.
+  const unsavedRow = page.locator('.note-row').filter({ hasText: 'Unsaved note that survives the merge' });
+  await expect(unsavedRow.locator('.unsaved-dot')).toBeVisible(); await unsavedRow.locator('.note-title').dblclick();
   await expect(page.locator('#editor-group')).toHaveValue(a.id);
-  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#draft-count')).toHaveText('0');
+  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('.unsaved-dot')).toHaveCount(0);
 
   // A completed paper leaves the desktop until this device shows completed papers, and comes back to the same place.
   await page.locator('[data-view="list"]').click();
@@ -245,7 +248,7 @@ try {
 
   // Deleting asks nothing; the status line offers to undo it, also in a phone-sized window, until the next status.
   await page.locator('[data-view="list"]').click();
-  const survivor = page.locator('.note-row').filter({ hasText: 'Draft that survives the merge' });
+  const survivor = page.locator('.note-row').filter({ hasText: 'Unsaved note that survives the merge' });
   await survivor.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click();
   await expect(page.locator('#status')).toHaveText(t('app.status.deleted')); await expect(survivor).toHaveCount(0);
@@ -268,7 +271,7 @@ try {
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1050 });
   await expect(survivor).toHaveCount(1);
-  assert.equal((await read()).cards.find(card => card.content.text.startsWith('Draft that survives')).deleted, false);
+  assert.equal((await read()).cards.find(card => card.content.text.startsWith('Unsaved note that survives')).deleted, false);
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
   // On a phone a finger drags a group row held still for a moment, and the grip at once; a finger that moves at once
@@ -307,5 +310,5 @@ try {
   await slide(await centre(rows.nth(1).locator('.group-grip')), await top(0), 0);
   await expect.poll(order, { message: 'the grip drags at once' }).toEqual([first, second]);
   await phone.close(); assert.deepEqual(errors, []);
-  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, draft recovery, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, holding or gripping a group row to drag it on a phone, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
+  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, an unsaved new note moving with its group, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, holding or gripping a group row to drag it on a phone, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

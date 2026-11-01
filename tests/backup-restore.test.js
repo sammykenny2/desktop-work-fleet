@@ -45,9 +45,11 @@ async function source(profileId) {
   await f.workspace.updateCard(deleted.id, { deleted: true }, deleted.revision);
   await f.workspace.layout.placeNew(f.workspace.snapshot, [area]);
   await f.workspace.layout.setGroupLayer(a.id, 'wallpaper', f.workspace.snapshot);
-  const draft = f.workspace.blankDraft(a.id, card); draft.content.text = 'Unsaved draft'; await f.workspace.saveDraft(draft);
-  const recovered = f.workspace.recoverDraft(draft.id); recovered.content.text = 'Recovered draft'; await f.workspace.saveDraft(recovered);
-  return { ...f, a, b, card, deleted, draft, recovered, id, bytes };
+  const draft = f.workspace.blankDraft(a.id, card); draft.content.text = 'Unsaved changes'; await f.workspace.saveDraft(draft);
+  // A note never saved, with a desktop place that backups leave out (ADR-061).
+  const unsavedNote = f.workspace.blankDraft(b.id); unsavedNote.content.text = 'Unsaved new note'; await f.workspace.saveDraft(unsavedNote);
+  await f.workspace.layout.placeNew(f.workspace.working, [area]);
+  return { ...f, a, b, card, deleted, draft, unsavedNote, id, bytes };
 }
 
 test('full local replacement needs no safety backup and removes old history, drafts, graph and attachment bytes in one commit', async () => {
@@ -63,7 +65,8 @@ test('full local replacement needs no safety backup and removes old history, dra
   assert.equal(target.workspace.revisionHeads('card', target.card.id).length, 0);
   assert.equal(target.workspace.revisionHeads('card', s.card.id).length, 1); assert.equal(target.blobs.has(orphanId), false);
   assert.deepEqual([...target.blobs.keys()], [s.id]); assert.equal(after.revision, before.revision + 1);
-  assert.deepEqual(target.workspace.layout.state, after.layout); assert.deepEqual(after.layout.placements, s.disk().layout.placements);
+  const { [s.unsavedNote.cardId]: unsavedPlace, ...savedPlaces } = s.disk().layout.placements; assert.ok(unsavedPlace);
+  assert.deepEqual(target.workspace.layout.state, after.layout); assert.deepEqual(after.layout.placements, savedPlaces);
   const reopened = new Workspace(after, target.persist);
   assert.deepEqual(await reopened.applyRestore(plan, { persist: target.atomic }), receipts[0]); assert.equal(target.writes(), writes + 1);
   const updated = await reopened.updateCard(s.card.id, { content: text('edit after replacement') }, s.card.revision);
@@ -127,9 +130,13 @@ test('import preview is read-only; commit maps complete identities and atomicall
   assert.deepEqual(after.layout.placements[imported.id], s.disk().layout.placements[s.card.id]);
   assert.equal(after.outbox.length, before.outbox.length + s.disk().revisions.length);
   assert.deepEqual(after.restoreReceipts[receipt.jobId], receipt); assert.deepEqual(after.sync, before.sync);
-  const recoveredId = receipt.mappings.draft[s.recovered.id]; const originalId = receipt.mappings.draft[s.draft.id];
-  assert.equal(after.drafts[recoveredId].recoveredFrom[0].id, originalId);
-  await target.workspace.commitDraft(recoveredId); assert.equal(target.workspace.state.drafts[originalId], undefined);
+  const draftId = receipt.mappings.draft[s.draft.id]; assert.equal(after.drafts[draftId].cardId, imported.id);
+  assert.equal(after.drafts[draftId].content.text, s.draft.content.text);
+  const note = after.drafts[receipt.mappings.draft[s.unsavedNote.id]];
+  assert.equal(note.cardId, receipt.mappings.card[s.unsavedNote.cardId]); assert.equal(note.baseRevision, null);
+  assert.equal(after.layout.placements[note.cardId], undefined, 'a note never saved takes a new place after a restore');
+  await target.workspace.commitDraft(draftId);
+  assert.equal(Object.values(target.workspace.state.drafts).some(draft => draft.cardId === imported.id), false);
 });
 
 test('restore receipts make concurrent retry and reopening idempotent; an explicit repeat creates another import', async () => {
@@ -168,10 +175,12 @@ test('stale plans, changed profiles, cancelled work and caller-created plans can
   await assert.rejects(target.workspace.applyRestore(plan, { persist: target.atomic, signal: controller.signal }), fails('backup-cancelled'));
 });
 
-test('merge keeps concurrent revision heads and separate draft edits, deduplicates immutable history and preserves current geometry', async () => {
+test('merge keeps concurrent revision heads and this device\'s unsaved changes per note, deduplicates immutable history and preserves current geometry', async () => {
   const s = await source(); const target = await fixture(s.disk(), s.blobs);
   const local = await target.workspace.updateCard(s.card.id, { content: { ...s.card.content, text: 'local branch' } }, s.card.revision);
-  const changed = copy(s.draft); changed.content.text = 'target independent draft'; await target.workspace.saveDraft(changed);
+  // This device drops the never-saved note and changes the other note under the edit ID the backup's never-saved note uses.
+  await target.workspace.discardChanges(s.unsavedNote.cardId);
+  const changed = { ...copy(s.draft), id: s.unsavedNote.id }; changed.content.text = 'target independent changes'; await target.workspace.saveDraft(changed);
   await target.workspace.layout.move(s.card.id, { x: 500, y: 250 }, target.workspace.layout.state.revision);
   await s.workspace.updateCard(s.card.id, { content: { ...s.card.content, text: 'backup branch' } }, s.card.revision);
   const document = await s.export(); const before = target.disk();
@@ -181,12 +190,27 @@ test('merge keeps concurrent revision heads and separate draft edits, deduplicat
   assert.equal(after.revisions.length, before.revisions.length + 1); assert.equal(after.outbox.length, before.outbox.length + 1);
   assert.deepEqual(after.layout.placements, before.layout.placements); assert.equal(after.cards.find(card => card.id === s.card.id).revision, local.revision);
   assert.equal(target.workspace.revisionHeads('card', s.card.id).length, 2);
-  assert.equal(after.drafts[s.draft.id].content.text, changed.content.text);
-  const restoredId = plan.receipt.mappings.restoredDrafts[s.draft.id]; assert.notEqual(restoredId, s.draft.id);
-  const recoveredId = plan.receipt.mappings.restoredDrafts[s.recovered.id]; assert.notEqual(recoveredId, s.recovered.id);
-  assert.equal(after.drafts[recoveredId].recoveredFrom[0].id, restoredId);
-  assert.equal(parseJson(after.drafts[recoveredId].recoveredFrom[0].baseline).id, restoredId);
-  assert.equal(after.drafts[restoredId].content.text, s.draft.content.text);
+  // One set per note (ADR-061): the note keeps this device's set, and the never-saved note comes back under a new ID.
+  assert.equal(after.drafts[s.unsavedNote.id].content.text, changed.content.text);
+  assert.equal(Object.values(after.drafts).filter(draft => draft.cardId === s.card.id).length, 1);
+  assert.equal(plan.receipt.mappings.restoredDrafts[s.draft.id], undefined); assert.equal(plan.preview.addedDrafts, 1);
+  const restoredId = plan.receipt.mappings.restoredDrafts[s.unsavedNote.id]; assert.notEqual(restoredId, s.unsavedNote.id);
+  assert.equal(after.drafts[restoredId].cardId, s.unsavedNote.cardId); assert.equal(after.drafts[restoredId].content.text, s.unsavedNote.content.text);
+});
+
+test('a merge restore adds no never-saved text for a note saved since and replaces stored sets that hold nothing (ADR-061)', async () => {
+  const s = await source(); const document = await s.export(); const target = await fixture(s.disk(), s.blobs);
+  // The never-saved note was saved here after the backup; the other note keeps only a set that holds nothing.
+  const saved = await target.workspace.commitDraft(s.unsavedNote.id); assert.equal(saved.id, s.unsavedNote.cardId);
+  await target.workspace.discardChanges(s.card.id);
+  const leftover = target.workspace.openDraft(s.a.id, target.workspace.snapshot.cards.find(card => card.id === s.card.id));
+  await target.workspace.saveDraft(leftover); assert.equal(target.workspace.unsavedChanges(s.card.id), null);
+  const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'merge', workAreas: [area] });
+  await target.workspace.applyRestore(plan, { persist: target.atomic }); const after = target.disk();
+  assert.equal(Object.values(after.drafts).some(draft => draft.cardId === s.unsavedNote.cardId), false);
+  assert.deepEqual(Object.values(after.drafts).map(draft => [draft.id, draft.cardId, draft.content.text]), [[s.draft.id, s.card.id, s.draft.content.text]]);
+  assert.equal(plan.preview.addedDrafts, 1);
+  assert.equal(target.workspace.working.cards.find(card => card.id === saved.id).content.text, saved.content.text);
 });
 
 test('same revision ID with different bytes rejects merge before any writes', async () => {
@@ -197,12 +221,14 @@ test('same revision ID with different bytes rejects merge before any writes', as
   assert.deepEqual(target.disk(), before);
 });
 
-test('replace needs a saved safety backup, appends all-head revisions, retires extra groups and preserves later history and both drafts', async () => {
+test('replace needs a saved safety backup, appends all-head revisions, retires extra groups and preserves later history and unsaved changes', async () => {
   const s = await source(); await s.workspace.layout.setMainGroup(s.b.id, s.workspace.snapshot);
   const document = await s.export(); const target = await fixture(s.disk(), s.blobs);
   await target.workspace.layout.setMainGroup(s.a.id, target.workspace.snapshot);
   const later = await target.workspace.updateCard(s.card.id, { content: { ...s.card.content, text: 'later target text' } }, s.card.revision);
   const extraGroup = await target.workspace.createGroup('extra'); const extra = await target.workspace.createCard(text('extra card'), extraGroup.id);
+  // The note's unsaved changes come from the backup; the never-saved note keeps this device's own.
+  await target.workspace.discardChanges(s.card.id);
   const before = target.disk(); const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'replace', layout: 'backup', workAreas: [area] });
   await assert.rejects(target.workspace.applyRestore(plan, { persist: target.atomic }), fails('missing-safety-backup'));
   await assert.rejects(target.workspace.applyRestore(plan, { persist: target.atomic, safetyBackup: { binding: { profileId: before.profileId, revision: before.revision } } }), fails('missing-safety-backup'));
@@ -220,8 +246,8 @@ test('replace needs a saved safety backup, appends all-head revisions, retires e
   assert.equal(after.cards.find(card => card.id === extra.id).deleted, true);
   assert.equal(after.groups.find(group => group.id === extraGroup.id).deleted, true);
   assert.equal(after.layout.mainGroupId, s.b.id, 'the restored layout brings the group its main window showed');
-  assert.deepEqual(after.drafts[s.draft.id], before.drafts[s.draft.id]);
-  assert.equal(after.drafts[plan.receipt.mappings.restoredDrafts[s.draft.id]].baseRevision, restored.revision);
+  assert.deepEqual(after.drafts[s.unsavedNote.id], before.drafts[s.unsavedNote.id]);
+  assert.equal(plan.receipt.mappings.restoredDrafts[s.draft.id], s.draft.id); assert.equal(after.drafts[s.draft.id].baseRevision, restored.revision);
   // The next backup must still pass all rebase and reference proofs after replacement.
   await target.export();
 });

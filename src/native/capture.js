@@ -25,11 +25,15 @@ export class NativeCaptureInbox {
     requireValue(total <= 25 * 1024 * 1024, 'capture-capacity', t('errors.storage.captureAttachmentsTooLarge')); return item;
   }
   async discard(item) { await this.#native.bridge.request('capture.ack', { id: item.id, receipt: item.receipt }); }
+  // A share becomes a new note with unsaved changes in the chosen group (ADR-061); `unsaved` says the note is not saved yet.
   async accept(item, groupId) {
     const matches = value => value.content?.nativeCapture?.id === item.id && value.content.nativeCapture.receipt === item.receipt && value.content.nativeCapture.platform === this.#native.info.platform;
     const previousDraft = Object.values(this.#workspace.state.drafts).find(matches);
     const previousCard = this.#workspace.snapshot.cards.find(matches);
-    if (previousDraft || previousCard) { await this.discard(item); return { draftId: previousDraft?.id, cardId: previousCard?.id, alreadyReceived: true }; }
+    if (previousDraft || previousCard) {
+      await this.discard(item);
+      return { cardId: previousCard?.id ?? previousDraft.cardId, unsaved: !previousCard, alreadyReceived: true };
+    }
     const draft = this.#workspace.blankDraft(groupId); draft.content.text = item.text;
     draft.content.nativeCapture = { id: item.id, receipt: item.receipt, platform: this.#native.info.platform };
     for (const file of item.attachments) {
@@ -39,6 +43,6 @@ export class NativeCaptureInbox {
       if (!draft.content.attachments.some(value => value.id === file.id)) draft.content.attachments.push({ id: file.id, name: file.name, type: file.type, size: file.size });
     }
     await this.#workspace.saveDraft(draft);
-    await this.discard(item); return { draftId: draft.id, alreadyReceived: false };
+    await this.discard(item); return { cardId: draft.cardId, unsaved: true, alreadyReceived: false };
   }
 }

@@ -45,8 +45,8 @@ const capture = async text => {
 try {
   await page.goto(base.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await capture('original backup note 中文💡');
-  await openCapture(); await page.locator('#editor-text').fill('draft kept after restore');
-  await page.locator('#keep-draft').click();
+  await openCapture(); await page.locator('#editor-text').fill('unsaved note kept after restore');
+  await page.locator('#close-editor-button').click(); await expect(page.locator('#status')).toHaveText(t('app.status.unsavedKept'));
   await openDialog(); const before = await read();
   await page.locator('#backup-encrypt').uncheck(); await page.locator('#export-backup').click();
   await expect(page.locator('#backup-status')).toContainText(t('backup.export.saved')); const plain = await savedBytes();
@@ -110,7 +110,7 @@ try {
   assert.equal(await page.evaluate(() => window.probeFiles.length), savesBefore, 'old backup is optional');
   await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.deepEqual((await read()).revisions, before.revisions); assert.deepEqual(errors, []);
-  console.log('PASS: full app OPFS export/import/repeat, safety-gated replace, retained drafts/history, restart receipts, 390px UI and atomic local full restore without an old backup');
+  console.log('PASS: full app OPFS export/import/repeat, safety-gated replace, retained unsaved changes/history, restart receipts, 390px UI and atomic local full restore without an old backup');
 } catch (error) {
   console.error('Browser errors:', errors);
   await page.screenshot({ path: 'build/restore-ui-probe-failure.png' }); throw error;

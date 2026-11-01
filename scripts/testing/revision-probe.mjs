@@ -92,7 +92,8 @@ try {
   // The button that opened Settings is gone with the last conflict, so closing hands focus to the gear.
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-button')).toBeFocused();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  await expect(page.locator('.card-summary')).toHaveText('local edit');
+  // The note still has the unsaved changes seeded above, so its paper shows them, with a dot, over the restored version (ADR-061).
+  await expect(page.locator('.card-summary')).toHaveText('draft not committed yet'); await expect(page.locator('.card-summary .unsaved-dot')).toBeVisible();
   // Version history stays in Settings without conflicts.
   await page.locator('#settings-button').click(); await page.locator('#settings-dialog [data-page="revisions"]').click();
   await expect(page.locator('#revision-panel')).toBeVisible();
@@ -108,7 +109,8 @@ try {
   await expect(page.locator('#conflicts-button')).toBeHidden();
   const repaired = await read(); assert.equal(repaired.cards[0].groupId, cyclic.b.id);
   assert.deepEqual(repaired.layout.placements, cyclic.state.layout.placements);
-  assert.deepEqual(repaired.drafts, cyclic.state.drafts);
+  // The note's unsaved changes keep their text and follow its group out of the repaired cycle (ADR-061).
+  assert.deepEqual(repaired.drafts, Object.fromEntries(Object.entries(cyclic.state.drafts).map(([id, draft]) => [id, { ...draft, groupId: cyclic.b.id }])));
   await page.screenshot({ path: 'build/revision-probe.png', fullPage: true });
 
   // A note whose group is missing is moved with a picker that lists groups in the sidebar's order.
@@ -124,5 +126,5 @@ try {
   await expect(page.locator('#conflicts-button')).toBeHidden();
   const moved = await read(); assert.equal(moved.cards[0].groupId, moved.layout.grid.slots[0]);
   assert.deepEqual(errors, []);
-  console.log('PASS: real-browser conflicts, HTML/attachments, delete/edit resolution, history restore, drafts/IME, status-bar entry into Settings, mobile group-cycle recovery, missing-group picker in sidebar order.');
+  console.log('PASS: real-browser conflicts, HTML/attachments, delete/edit resolution, history restore, unsaved changes/IME, status-bar entry into Settings, mobile group-cycle recovery, missing-group picker in sidebar order.');
 } finally { await context.close(); await browser.close(); }

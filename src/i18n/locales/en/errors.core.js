@@ -16,7 +16,7 @@ export default {
   'errors.core.groupRedirectSelf': "A receiving group can't point back to itself.",
   'errors.core.mergeSameGroup': 'Choose a different receiving group.',
   'errors.core.mergeGroupsMissing': 'Choose source and receiving groups that still exist.',
-  'errors.core.mergePlanStale': 'Groups, notes or drafts changed after the preview. Preview again before merging.',
+  'errors.core.mergePlanStale': 'Groups, notes or unsaved changes changed after the preview. Preview again before merging.',
 
   // Shortcuts
   'errors.core.shortcutNotText': 'A shortcut must be text.',
@@ -30,19 +30,19 @@ export default {
 
   // Notes
   'errors.core.contentInvalid': 'A note needs text and a format.',
-  'errors.core.noteUpdatedElsewhere': 'Another action updated this note. Your draft and pending group move are kept.',
-  'errors.core.conflictUnresolved': 'This item has several versions. Resolve the conflict first; your draft is kept.',
+  'errors.core.noteUpdatedElsewhere': 'Another action updated this note. Your changes and pending group move are kept.',
+  'errors.core.conflictUnresolved': 'This item has several versions. Resolve the conflict first; your changes are kept.',
   'errors.core.noteUpdateForbidden': "A note update can't change its ID, version or group.",
   'errors.core.noteFlagInvalid': "A note's status must be true or false.",
   'errors.core.noteDuplicate': 'A note with this ID already exists. Save it as a copy.',
   'errors.core.deletedNoteChanged': 'This note in Deleted changed. Reload.',
   'errors.core.moveIntentHandled': 'This group move was already handled.',
 
-  // Drafts
-  'errors.core.draftRevisionCycle': "The group's version history is invalid. The draft wasn't submitted.",
-  'errors.core.draftMissing': "This draft can't be found.",
-  'errors.core.savedDraftMissing': "The saved draft can't be found.",
-  'errors.core.draftIdInvalid': 'The draft ID is invalid.',
+  // Unsaved changes
+  'errors.core.draftRevisionCycle': "The group's version history is invalid. Your changes weren't kept.",
+  'errors.core.savedDraftMissing': "The unsaved changes to save can't be found.",
+  'errors.core.draftIdInvalid': 'The edit ID is invalid.',
+  'errors.core.unsavedNoteMove': "This note isn't saved yet. Save it first, or choose its group in its editor.",
 
   // Versions and conflicts
   'errors.core.localHistoryIncomplete': 'The version history on this device is incomplete. Your data is kept; recover the source first.',

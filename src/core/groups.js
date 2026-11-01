@@ -48,7 +48,6 @@ export function planGroupMerge(state, sourceId, targetId) {
     fingerprint: JSON.stringify([source.revision, target.revision, cards.map(card => [card.id, card.revision]), drafts]),
     cards: cards.map(card => ({ id: card.id, summary: summaryText(card), deleted: card.deleted,
       archived: card.archived, completed: card.completed })),
-    draftCount: drafts.length,
   };
 }
 

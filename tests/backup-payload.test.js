@@ -41,12 +41,13 @@ async function fixture() {
   await workspace.layout.setMainGroup(a.id, workspace.snapshot);
   const draft = workspace.blankDraft(a.id, workspace.snapshot.cards.find(item => item.id === card.id));
   draft.content.text = 'Unsaved original'; await workspace.saveDraft(draft);
-  const recovered = { ...copy(draft), id: 'recovered-draft', content: { ...content, text: 'Recovered branch' },
-    recoveredFrom: [{ id: draft.id, baseline: JSON.stringify(draft) }] };
-  await workspace.saveDraft(recovered);
+  // A later edit of the same note replaces its unsaved changes (ADR-061).
+  await workspace.saveDraft({ ...copy(draft), id: 'later-edit', content: { ...content, text: 'Later unsaved changes' } });
   const blank = workspace.blankDraft(b.id); blank.content.text = 'Never became a note'; await workspace.saveDraft(blank);
   await workspace.mergeGroup(workspace.previewGroupMerge(a.id, b.id));
-  return { workspace, storage, blobs, bytes, id, card, a, b, reads, disk: () => copy(disk), writes: () => writes,
+  // The never-saved note takes a desktop place, which backups leave out.
+  await workspace.layout.placeNew(workspace.working, [area]);
+  return { workspace, storage, blobs, bytes, id, card, a, b, unsaved: blank, reads, disk: () => copy(disk), writes: () => writes,
     export: overrides => createBackup({ workspace, storage, ...options, ...overrides }) };
 }
 
@@ -61,15 +62,18 @@ async function change(zip, mutate, { rehash = true } = {}) {
 }
 const edit = (files, name, mutate) => { const value = parseJson(files.get(name)); mutate(value); files.set(name, encode(value)); };
 
-test('full local snapshot retains history, all card/group states, drafts, attachment bytes, lineage and layout without writing', async () => {
+test('full local snapshot retains history, all card/group states, unsaved changes, attachment bytes and layout without writing', async () => {
   const f = await fixture(); const before = f.disk(); const writes = f.writes();
   const { bytes, manifest } = await f.export(); const document = await openBackup(bytes);
   assert.ok(document instanceof BackupDocument); assert.deepEqual(document.manifest, manifest);
   assert.deepEqual(document.data.records, before.revisions); assert.deepEqual(document.data.drafts, Object.values(before.drafts));
-  assert.deepEqual(document.data.layout, before.layout); assert.deepEqual(document.data.local.membershipRebases, before.membershipRebases);
+  assert.deepEqual(document.data.drafts.filter(draft => draft.cardId === f.card.id).map(draft => draft.id), ['later-edit']);
+  const saved = copy(before.layout); assert.ok(saved.placements[f.unsaved.cardId]); delete saved.placements[f.unsaved.cardId];
+  assert.deepEqual(document.data.layout, saved, 'a note never saved has no place in a backup');
+  assert.deepEqual(document.data.local.membershipRebases, before.membershipRebases);
   assert.deepEqual(document.data.local.cards, before.cards.map(({ id, revision }) => ({ id, revision })));
   assert.deepEqual(document.attachment(f.id), f.bytes); assert.equal(document.attachment('missing'), null);
-  assert.equal(manifest.counts.cards, 2); assert.equal(manifest.counts.groups, 2); assert.equal(manifest.counts.drafts, 3);
+  assert.equal(manifest.counts.cards, 2); assert.equal(manifest.counts.groups, 2); assert.equal(manifest.counts.drafts, 2);
   assert.equal(manifest.counts.attachments, 1); assert.equal(manifest.pendingOperations, before.outbox.length);
   assert.equal(manifest.scope, 'known-local-data'); assert.equal(manifest.lastSuccessfulSyncAt, null);
   assert.deepEqual(f.reads, [['private-profile-a', f.id]]); assert.deepEqual(f.disk(), before); assert.equal(f.writes(), writes);
@@ -107,23 +111,6 @@ test('attachment lookup remains bound to the captured profile and concurrent edi
   const result = await f.export({ storage }); const document = await openBackup(result.bytes);
   assert.equal(captured, before.profileId); assert.deepEqual(document.data.records, before.revisions);
   assert.equal(f.workspace.snapshot.cards.length, before.cards.length + 1);
-});
-
-test('draft lineage compares JSON values across key ordering while preserving separately edited ancestors', async () => {
-  const f = await fixture(); const { bytes } = await f.export(); const document = await openBackup(bytes);
-  for (const changed of [false, true]) {
-    const state = f.workspace.state; state.drafts = Object.fromEntries(document.data.drafts.map(draft => [draft.id, draft]));
-    const recovered = state.drafts['recovered-draft']; const origin = recovered.recoveredFrom[0];
-    // Legacy local baselines used insertion-order JSON.stringify; imported JSON has canonical key order.
-    const prior = parseJson(origin.baseline);
-    origin.baseline = JSON.stringify(Object.fromEntries(Object.entries(prior).reverse()));
-    if (changed) state.drafts[origin.id].content.text = 'independent later edit';
-    let disk; const restored = new Workspace(state, async value => { disk = copy(value); });
-    await restored.commitDraft(recovered.id);
-    assert.equal(Object.hasOwn(disk.drafts, origin.id), changed);
-    assert.equal(Object.hasOwn(disk.drafts, recovered.id), false);
-    if (changed) assert.equal(disk.drafts[origin.id].content.text, 'independent later edit');
-  }
 });
 
 test('missing, mismatched and corrupt historical attachments refuse a complete export without any data writes', async () => {
@@ -173,7 +160,6 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'layout.json', value => { value.placements['unknown-card'] = Object.values(value.placements)[0]; }),
     files => edit(files, 'local.json', value => { Object.values(value.membershipRebases)[0].revision = value.groups[0].revision; }),
     files => edit(files, 'drafts/00000000.json', value => { value.baseRevision = parseJson(files.get('local.json')).groups[0].revision; }),
-    files => edit(files, 'drafts/00000001.json', value => { value.recoveredFrom[0].baseline = '{"id":"wrong-id"}'; }),
   ]) await assert.rejects(openBackup(await change(bytes, mutate)));
 });
 

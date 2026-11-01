@@ -5,7 +5,7 @@ export default {
   'errors.storage.lockUnavailable': '此瀏覽器不支援安全的單一寫入者鎖，請使用原生 App 或新版瀏覽器。',
   'errors.storage.profileInvalid': '無效的帳號分區。',
   'errors.storage.workspaceInvalid': '本機資料身分或版本無效。',
-  'errors.storage.staleWriter': '資料已在另一個視窗變更；保留草稿，重新載入後再保存。',
+  'errors.storage.staleWriter': '資料已在另一個視窗變更；修改已保留，重新載入後再保存。',
   'errors.storage.revisionGap': '本機保存版本不連續。',
 
   // Attachments

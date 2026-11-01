@@ -43,7 +43,7 @@ public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<Presented
     var cards = new List<PresentedCard>(); var ids = new HashSet<string>(StringComparer.Ordinal);
     foreach (var card in values.EnumerateArray())
     {
-      Fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity");
+      Fields(card, "id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity unsaved");
       if (card.TryGetProperty("attachments", out var attachments))
       {
         HostError.Require(attachments.ValueKind == JsonValueKind.Array && attachments.GetArrayLength() <= 20000, "scene-frame", "The attachment list is malformed.");
@@ -59,6 +59,8 @@ public sealed partial record DesktopFrame(long Sequence, IReadOnlyList<Presented
       HostError.Require(card.GetProperty("text").ValueKind == JsonValueKind.String && card.GetProperty("text").GetString()!.Length <= 8 * 1024 * 1024,
         "scene-frame", "The desktop note text is too large.");
       foreach (var flag in new[] { "interactive", "draggable", "editing", "selected", "completed", "mine" }) _ = Boolean(card, flag);
+      // A paper showing unsaved changes carries a dot (ADR-061); frames from before it leave the flag out.
+      if (card.TryGetProperty("unsaved", out _)) _ = Boolean(card, "unsaved");
       HostError.Require(layer != "wallpaper" || !Boolean(card, "interactive") && !Boolean(card, "draggable") && !Boolean(card, "editing"),
         "scene-frame", "Wallpaper layer notes must let the mouse pass through. Adjust this group before editing.");
       cards.Add(new(id, layer, Rect(card.GetProperty("rect")), Boolean(card, "interactive"), Boolean(card, "draggable")));

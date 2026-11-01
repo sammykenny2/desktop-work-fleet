@@ -1,9 +1,10 @@
 # Decision index
 
-Updated: 2026-10-31.
+Updated: 2026-11-01.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-061](061-unsaved-changes-instead-of-drafts.md) | Accepted (unsaved changes, 2026-11-01) | One set of unsaved changes per note, kept on this device and shown with a filled dot; no drafts list; Discard changes, Overwrite and Save as copy; supersedes ADR-009's draft lineage |
 | [ADR-060](060-explorer-redraws-the-wallpaper-a-scene-leaves.md) | Accepted (wallpaper remnants, 2026-10-31) | The wallpaper host keeps a scene's old pixels and ignores invalidation; wallpaper scenes ask Explorer to redraw with 0x052C (13, 1); a host-pixel probe catches black remnants on black wallpapers |
 | [ADR-059](059-settings-pages-and-entry-points.md) | Accepted (settings layout, 2026-10-24) | The account chip opens Account and sync, the gear General; Settings pages in two groups under an account card |
 | [ADR-058](058-desktop-presentation-lifecycle-and-core-isolation.md) | Proposed | Nonvisual resident core, disposable graphical clients, continuous presentation readiness/recovery and permanent removal of whole-app crash reopen |
@@ -20,7 +21,7 @@ Updated: 2026-10-31.
 | [ADR-006](006-card-group-and-formation-semantics.md) | Accepted (product semantics) | One card per thing, groups/formation/operations and the gestures for moving between groups |
 | [ADR-007](007-desktop-scene-and-platform-host.md) | Proposed | Scene renderer / platform host, controllable stacking order and input responsibility |
 | [ADR-008](008-portable-interaction-core.md) | Accepted (shared core) | ES module semantics, atomic local commands, full five-platform 1.0 scope |
-| [ADR-009](009-local-renderer-and-persistence.md) | Accepted (local UI) | Packaged renderer, IndexedDB transactions/drafts/attachments, Markdown sanitizing |
+| [ADR-009](009-local-renderer-and-persistence.md) | Accepted (local UI); draft rules superseded by ADR-061 | Packaged renderer, IndexedDB transactions/drafts/attachments, Markdown sanitizing |
 | [ADR-010](010-group-retirement-and-device-settings.md) | Accepted (local commands) | Previewed group merge, draft membership baseline and stable device settings |
 | [ADR-011](011-immutable-revision-graph.md) | Accepted (sync format) | Immutable revisions, strict JSON, pending and multiple heads; Google integration accepted separately |
 | [ADR-012](012-durable-file-store-and-drive-adapter.md) | Accepted (file transfer) | Durable reservations, paging/retries, Drive appDataFolder/resumable; native authorization accepted separately |

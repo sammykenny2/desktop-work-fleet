@@ -57,6 +57,7 @@ Use [000-template.md](./000-template.md) as the starting point for new plans.
 
 | Plan | Title | Status | Related Spec |
 |------|-------|--------|--------------|
+| [010-unsaved-changes](010-unsaved-changes.md) | Unsaved changes instead of drafts | Completed, 2026-11-01; Windows and real desktop hosts not verified | [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), [ADR-061](../decisions/061-unsaved-changes-instead-of-drafts.md) |
 | [009-desktop-presentation-lifecycle](009-desktop-presentation-lifecycle.md) | Nonvisual core, presentation isolation and native lifecycle recovery | Draft; implementation not started or approved | [SPEC-009](../specs/009-desktop-presentation-lifecycle.md) |
 | [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and resumable reset | Completed, 2026-10-17; real Google and native apps not verified | [SPEC-008](../specs/008-workspace-initialization.md) |
 | [004-windows-11-compatibility](004-windows-11-compatibility.md) | 23H2 native baseline, minimal fixes and Windows 11 package floor | In Progress: Phases 1–2 done, Phase 3 partly done, Phase 4 not started | [SPEC-005](../specs/005-windows-11-compatibility.md) |

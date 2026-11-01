@@ -6,6 +6,7 @@ import { planFormation } from '../src/layout/formation.js';
 import { createLayout, LayoutStore, mainGroup, mainView, reachable } from '../src/layout/store.js';
 import { cardPolicy, InteractionController, resolveDropTarget, sceneOrder } from '../src/interaction/controller.js';
 import { stepGroup } from '../src/layout/stages.js';
+import { revisionRecord } from '../src/sources/revisions.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 };
 const workAreas = [area];
@@ -733,7 +734,7 @@ test('atomic persistence failure leaves membership, geometry, undo and outbox un
   assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.a1.id).groupId, f.b.id);
 });
 
-test('serialized operations and independent draft IDs survive reopening', async () => {
+test('serialized operations survive reopening, and a later edit of a note replaces its earlier unsaved changes', async () => {
   const f = await fixture();
   await Promise.all([
     f.workspace.saveDraft({ id: 'editor-one', cardId: f.a1.id, content: markdown('first') }),
@@ -741,7 +742,7 @@ test('serialized operations and independent draft IDs survive reopening', async 
     f.workspace.layout.move(f.b1.id, { x: 900, y: 600 }),
   ]);
   const reopened = new Workspace(f.disk(), f.persist);
-  assert.deepEqual(Object.values(reopened.state.drafts).map(draft => draft.content.text), ['first', 'second']);
+  assert.deepEqual(Object.values(reopened.state.drafts).map(draft => [draft.id, draft.content.text]), [['editor-two', 'second']]);
   assert.equal(reopened.layout.state.placements[f.b1.id].x, 900);
 });
 
@@ -890,43 +891,140 @@ test('conflicted drafts stay durable and can become independent copies', async (
 
 function currentText(workspace, cardId) { return workspace.snapshot.cards.find(card => card.id === cardId).content.text; }
 
-test('saving a recovered draft clears its unchanged original but retains an independently updated original', async () => {
-  for (const changed of [false, true]) {
-    const f = await fixture(); const original = f.workspace.blankDraft(f.a.id); original.content.text = 'original';
-    await f.workspace.saveDraft(original);
-    const recovered = f.workspace.recoverDraft(original.id); recovered.content.text = 'recovered edit';
-    await f.workspace.saveDraft(recovered);
-    if (changed) await f.workspace.saveDraft({ ...original, content: markdown('independent edit') });
-    await f.workspace.commitDraft(recovered.id);
-    assert.equal(Object.keys(f.workspace.state.drafts).length, changed ? 1 : 0);
-    if (changed) assert.equal(f.workspace.state.drafts[original.id].content.text, 'independent edit');
-  }
+test('ADR-061: a note keeps one set of unsaved changes, which the next edit continues and its first write replaces', async () => {
+  const f = await fixture();
+  const first = f.workspace.openDraft(f.a.id, f.a1); first.content.text = 'first edit'; await f.workspace.saveDraft(first);
+  const second = f.workspace.openDraft(f.a.id, f.a1);
+  assert.notEqual(second.id, first.id); assert.equal(second.content.text, 'first edit'); assert.equal(second.baseRevision, f.a1.revision);
+  second.content.text = 'second edit'; await f.workspace.saveDraft(second);
+  assert.deepEqual(Object.values(f.workspace.state.drafts).map(draft => [draft.id, draft.content.text]), [[second.id, 'second edit']]);
+  assert.equal(f.workspace.unsavedChanges(f.a1.id).content.text, 'second edit'); assert.equal(f.workspace.unsavedChanges(f.a2.id), null);
+  const fresh = f.workspace.openDraft(f.a.id); assert.equal(fresh.baseRevision, null); assert.equal(fresh.content.text, '');
+  // Changes that hold nothing are not continued: the next edit starts from the note as saved.
+  const unchanged = f.workspace.openDraft(f.a.id, f.a2); await f.workspace.saveDraft(unchanged);
+  const again = f.workspace.openDraft(f.a.id, f.a2); assert.notEqual(again.id, unchanged.id); assert.equal(again.content.text, 'Second task');
+  // Data from before ADR-061 can hold several sets for a note: the views show one, and the next write leaves one.
+  const legacy = f.workspace.state; legacy.drafts.legacy = { ...copy(legacy.drafts[second.id]), id: 'legacy', content: markdown('older set') };
+  const reopened = new Workspace(legacy, f.persist);
+  assert.equal(reopened.working.cards.filter(card => card.id === f.a1.id).length, 1);
+  await reopened.saveDraft({ ...reopened.openDraft(f.a.id, f.a1), content: markdown('one set again') });
+  assert.deepEqual(Object.values(reopened.state.drafts).filter(draft => draft.cardId === f.a1.id).map(draft => draft.content.text), ['one set again']);
+  const saved = await reopened.commitDraft(Object.values(reopened.state.drafts).find(draft => draft.cardId === f.a1.id).id);
+  assert.equal(saved.content.text, 'one set again'); assert.equal(reopened.unsavedChanges(f.a1.id), null);
+  assert.equal(Object.values(reopened.state.drafts).some(draft => draft.cardId === f.a1.id), false);
 });
 
-test('repeated draft recovery consumes unchanged ancestors with linear lineage and preserves changed ones', async () => {
-  for (const changed of [false, true]) {
-    const f = await fixture(); let draft = f.workspace.blankDraft(f.a.id); draft.content.text = 'first';
-    await f.workspace.saveDraft(draft); const ancestors = [copy(draft)];
-    for (let i = 0; i < 12; i++) {
-      draft = f.workspace.recoverDraft(draft.id); draft.content.text = `session ${i}`;
-      await f.workspace.saveDraft(draft);
-      if (i < 11) ancestors.push(copy(draft));
-    }
-    assert.equal(draft.recoveredFrom.length, 12);
-    assert.ok(JSON.stringify(draft.recoveredFrom).length < 12 * 1000, 'lineage must not recursively embed prior lineage');
-    if (changed) {
-      for (const origin of [ancestors[0], ancestors[6]]) await f.workspace.saveDraft({ ...origin, content: markdown('independent') });
-    }
-    const before = f.disk(); f.fail(true);
-    await assert.rejects(f.workspace.commitDraft(draft.id), /disk full/); assert.deepEqual(f.disk(), before);
-    f.fail(false); const saved = await f.workspace.commitDraft(draft.id);
-    assert.equal(saved.content.text, 'session 11');
-    assert.equal(Object.keys(f.workspace.state.drafts).length, changed ? 2 : 0);
-    assert.ok(Object.values(f.workspace.state.drafts).every(item => item.content.text === 'independent'));
-  }
+test('ADR-061: the working snapshot shows unsaved changes and adds notes never saved, which stay in their group until saved', async () => {
+  const f = await fixture();
+  const edit = f.workspace.openDraft(f.a.id, f.a1); edit.content.text = 'typed, not saved'; await f.workspace.saveDraft(edit);
+  const note = f.workspace.openDraft(f.b.id); note.content.text = 'new note'; await f.workspace.saveDraft(note);
+  const blank = f.workspace.openDraft(f.b.id); await f.workspace.saveDraft(blank);
+  const working = f.workspace.working;
+  assert.equal(currentText(f.workspace, f.a1.id), 'First task', 'the saved snapshot is unchanged');
+  const shown = working.cards.find(card => card.id === f.a1.id);
+  assert.equal(shown.content.text, 'typed, not saved'); assert.equal(shown.unsaved, true); assert.equal(shown.revision, f.a1.revision);
+  assert.equal(working.cards.find(card => card.id === f.a2.id).unsaved, undefined);
+  assert.deepEqual(working.cards.at(-1), { id: note.cardId, revision: null, groupId: f.b.id, content: note.content,
+    deleted: false, archived: false, completed: false, unsaved: true });
+  assert.equal(working.cards.some(card => card.id === blank.cardId), false, 'a blank new note is not a note');
+  await f.workspace.layout.placeNew(working, workAreas);
+  const place = f.workspace.layout.state.placements[note.cardId]; assert.ok(place);
+  await f.workspace.transferCard({ cardId: note.cardId, groupId: f.b.id, expectedRevision: null, position: { x: place.x + 10, y: place.y },
+    expectedLayoutRevision: f.workspace.layout.state.revision });
+  assert.equal(f.workspace.layout.state.placements[note.cardId].x, place.x + 10);
+  await rejectsCode(f.workspace.transferCard({ cardId: note.cardId, groupId: f.a.id, expectedRevision: null }), 'unsaved-note');
+  assert.equal(f.workspace.state.conflicts.length, 0);
+  // Formation and its membership check read the same working snapshot.
+  const controller = new InteractionController({ getSnapshot: () => f.workspace.working, layout: f.workspace.layout,
+    commands: f.workspace, saveDraft: async () => {} });
+  const groupPlan = planFormation({ snapshot: f.workspace.working, layout: f.workspace.layout.state, scope: { kind: 'group', groupId: f.b.id },
+    mode: 'stack', workAreas, summaryBands: Object.fromEntries(f.workspace.working.cards.map(card => [card.id, 32])) });
+  assert.ok(Object.hasOwn(groupPlan.changes, note.cardId)); await controller.applyFormation(groupPlan);
+  const merge = f.workspace.previewGroupMerge(f.b.id, f.a.id); assert.equal(merge.unsavedNotes, 1); assert.equal(merge.cards.length, 1);
+  await f.workspace.mergeGroup(merge);
+  assert.equal(f.workspace.working.cards.find(card => card.id === note.cardId).groupId, f.a.id, 'a never-saved note follows its group');
 });
 
-test('ending an edit discards a blank draft and blank unchanged ancestors but keeps any content', async () => {
+test('ADR-061: a save refused after an edit elsewhere can overwrite, and changes elsewhere that keep the content do not refuse it', async () => {
+  const f = await fixture();
+  const draft = f.workspace.openDraft(f.a.id, f.a1); draft.content.text = 'my edit'; await f.workspace.saveDraft(draft);
+  const newer = await f.workspace.updateCard(f.a1.id, { content: markdown('newer edit') }, f.a1.revision);
+  const error = await f.workspace.commitDraft(draft.id).catch(value => value);
+  assert.equal(error.code, 'conflict'); assert.equal(error.details.actualRevision, newer.revision);
+  const saved = await f.workspace.commitDraft(draft.id, { overwrite: true });
+  assert.equal(saved.content.text, 'my edit'); assert.deepEqual(f.workspace.revisionHistory('card', f.a1.id)[0].parents, [newer.revision]);
+  assert.ok(f.workspace.revisionHistory('card', f.a1.id).some(record => record.value.content.text === 'newer edit'));
+  // Completing the note here carries its unsaved changes along; a flag change from elsewhere leaves them on the older
+  // revision, and saving then applies them to the current one.
+  const g = await fixture();
+  const edit = g.workspace.openDraft(g.a.id, g.a2); edit.content.text = 'typed'; await g.workspace.saveDraft(edit);
+  const completed = await g.workspace.updateCard(g.a2.id, { completed: true }, g.a2.revision);
+  assert.equal(g.workspace.state.drafts[edit.id].baseRevision, completed.revision);
+  const state = g.workspace.state; state.drafts[edit.id].baseRevision = g.a2.revision;
+  const reopened = new Workspace(state, g.persist);
+  assert.equal(reopened.unsavedChanges(g.a2.id).content.text, 'typed');
+  const result = await reopened.commitDraft(edit.id);
+  assert.equal(result.content.text, 'typed'); assert.equal(result.completed, true);
+  assert.deepEqual(reopened.revisionHistory('card', g.a2.id)[0].parents, [completed.revision]);
+  // A note deleted meanwhile can only be saved as a copy.
+  const h = await fixture();
+  const gone = h.workspace.openDraft(h.a.id, h.b1); gone.content.text = 'mine'; await h.workspace.saveDraft(gone);
+  await h.workspace.updateCard(h.b1.id, { deleted: true }, h.b1.revision);
+  await rejectsCode(h.workspace.commitDraft(gone.id), 'missing-card'); await rejectsCode(h.workspace.commitDraft(gone.id, { overwrite: true }), 'missing-card');
+  const copied = await h.workspace.commitDraft(gone.id, { asCopy: true }); assert.equal(copied.content.text, 'mine'); assert.notEqual(copied.id, h.b1.id);
+});
+
+test('ADR-061: a group merged on another device carries unsaved changes and never-saved notes, which still open', async () => {
+  const f = await fixture();
+  const edit = f.workspace.openDraft(f.b.id, f.b1); edit.content.text = 'unsaved in B'; await f.workspace.saveDraft(edit);
+  const note = f.workspace.openDraft(f.b.id); note.content.text = 'never saved in B'; await f.workspace.saveDraft(note);
+  const session = await f.workspace.beginSync('synthetic-source');
+  await f.workspace.receiveRevisions([
+    revisionRecord('group', { ...f.b, revision: 'retired-elsewhere', deleted: true, redirectGroupId: f.a.id }, [f.b.revision]),
+    revisionRecord('card', { ...f.b1, revision: 'moved-elsewhere', groupId: f.a.id }, [f.b1.revision]),
+  ], { session, expectedCursor: null, cursor: 'page-1' });
+  assert.equal(f.workspace.state.drafts[note.id].groupId, f.a.id);
+  assert.equal(f.workspace.working.cards.find(card => card.id === note.cardId).groupId, f.a.id);
+  assert.equal(f.workspace.openDraft(f.a.id, f.workspace.working.cards.find(card => card.id === note.cardId)).groupId, f.a.id);
+  const reopened = f.workspace.openDraft(f.a.id, f.workspace.working.cards.find(card => card.id === f.b1.id));
+  assert.equal(reopened.content.text, 'unsaved in B');
+  // Only the group changed elsewhere, so saving applies the changes to the moved revision without asking.
+  await f.workspace.saveDraft(reopened); const saved = await f.workspace.commitDraft(reopened.id);
+  assert.equal(saved.groupId, f.a.id); assert.equal(saved.content.text, 'unsaved in B');
+  // Changes that another device saved too hold nothing any more.
+  const g = await fixture();
+  const same = g.workspace.openDraft(g.a.id, g.a1); same.content.text = 'Buy milk'; await g.workspace.saveDraft(same);
+  await g.workspace.updateCard(g.a1.id, { content: markdown('Buy milk') }, g.a1.revision);
+  assert.equal(g.workspace.unsavedChanges(g.a1.id), null);
+  assert.equal(g.workspace.working.cards.find(card => card.id === g.a1.id).unsaved, undefined);
+  const revisions = g.workspace.state.revisions.length; const kept = await g.workspace.commitDraft(same.id);
+  assert.equal(kept.content.text, 'Buy milk'); assert.equal(g.workspace.state.revisions.length, revisions, 'saving the same text adds no revision');
+  assert.deepEqual(g.workspace.state.drafts, {});
+});
+
+test('ADR-061: a new note open in a quick edit stays in the working snapshot while its text is cleared', async () => {
+  const f = await fixture(); let open = null; f.workspace.setOpenNote(() => open);
+  const note = f.workspace.openDraft(f.a.id); note.content.text = 'x'; await f.workspace.saveDraft(note);
+  await f.workspace.saveDraft({ ...note, content: markdown('') });
+  assert.equal(f.workspace.working.cards.some(card => card.id === note.cardId), false);
+  open = note.cardId;
+  assert.deepEqual(f.workspace.working.cards.filter(card => card.id === note.cardId).map(card => [card.content.text, card.unsaved]), [['', true]]);
+  assert.equal(f.workspace.unsavedChanges(note.cardId), null, 'it still holds nothing to keep');
+  open = null; assert.equal(await f.workspace.discardUnneededDraft(note.id), true);
+});
+
+test('ADR-061: discarding returns a note to its saved revision and removes a note never saved', async () => {
+  const f = await fixture();
+  const edit = f.workspace.openDraft(f.a.id, f.a1); edit.content.text = 'typed'; await f.workspace.saveDraft(edit);
+  const note = f.workspace.openDraft(f.a.id); note.content.text = 'new'; await f.workspace.saveDraft(note);
+  assert.equal(await f.workspace.discardChanges(f.a1.id), true); assert.equal(await f.workspace.discardChanges(f.a1.id), false);
+  assert.equal(f.workspace.working.cards.find(card => card.id === f.a1.id).content.text, 'First task');
+  assert.equal(await f.workspace.discardChanges(note.cardId), true);
+  assert.equal(f.workspace.working.cards.some(card => card.id === note.cardId), false);
+  assert.deepEqual(f.disk().drafts, {});
+});
+
+test('ending an edit discards blank unsaved changes but keeps any content', async () => {
   const f = await fixture();
   const blank = f.workspace.blankDraft(f.a.id); blank.content.text = ' \n\t';
   await f.workspace.saveDraft(blank);
@@ -939,39 +1037,37 @@ test('ending an edit discards a blank draft and blank unchanged ancestors but ke
   }
   const revision = f.disk().revision;
   for (const id of kept) assert.equal(await f.workspace.discardUnneededDraft(id), false);
-  assert.equal(f.disk().revision, revision, 'kept drafts must not cause another write');
+  assert.equal(f.disk().revision, revision, 'kept changes must not cause another write');
   assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [...kept].sort());
   const late = f.workspace.blankDraft(f.a.id); await f.workspace.saveDraft(late);
   const typing = f.workspace.saveDraft({ ...late, content: markdown('Just typed') });
   assert.equal(await f.workspace.discardUnneededDraft(late.id), false, 'a queued text save wins over the discard');
   await typing; assert.equal(f.workspace.state.drafts[late.id].content.text, 'Just typed');
-  for (const originalText of ['', 'Original content']) {
-    const g = await fixture(); const original = g.workspace.blankDraft(g.a.id); original.content.text = originalText;
-    await g.workspace.saveDraft(original);
-    const recovered = g.workspace.recoverDraft(original.id); recovered.content.text = '';
-    await g.workspace.saveDraft(recovered);
-    assert.equal(await g.workspace.discardUnneededDraft(recovered.id), true);
-    assert.deepEqual(Object.keys(g.workspace.state.drafts), originalText ? [original.id] : []);
-  }
 });
 
-test('ending an edit discards an unchanged copy of its card but keeps edits and copies of an older revision', async () => {
+test('ending an edit discards changes that match the note or the revision they began from, and keeps real edits', async () => {
   const f = await fixture();
   const unchanged = f.workspace.blankDraft(f.a.id, f.a1); await f.workspace.saveDraft(unchanged);
   const edited = f.workspace.blankDraft(f.a.id, f.a2); edited.content.text = 'Edited content'; await f.workspace.saveDraft(edited);
   assert.equal(await f.workspace.discardUnneededDraft(unchanged.id), true);
   assert.equal(await f.workspace.discardUnneededDraft(edited.id), false);
+  // The note changed elsewhere meanwhile: a copy of the revision the changes began from changes nothing (ADR-061).
   const stale = f.workspace.blankDraft(f.b.id, f.b1); await f.workspace.saveDraft(stale);
   await f.workspace.updateCard(f.b1.id, { content: markdown('Edited on another device') }, f.b1.revision);
-  assert.equal(await f.workspace.discardUnneededDraft(stale.id), false, 'a copy of an older revision is kept');
+  assert.equal(f.workspace.unsavedChanges(f.b1.id), null);
+  assert.equal(f.workspace.working.cards.find(card => card.id === f.b1.id).content.text, 'Edited on another device');
+  assert.equal(await f.workspace.discardUnneededDraft(stale.id), true);
+  const staleEdit = f.workspace.blankDraft(f.b.id, f.b1); staleEdit.content = markdown('My older edit'); await f.workspace.saveDraft(staleEdit);
+  assert.equal(await f.workspace.discardUnneededDraft(staleEdit.id), false, 'a real edit of an older revision is kept');
+  assert.equal(f.workspace.working.cards.find(card => card.id === f.b1.id).content.text, 'My older edit');
   const bare = await f.workspace.createCard({ format: 'markdown', text: 'No attachments field' }, f.a.id);
   const opened = f.workspace.blankDraft(f.a.id, bare); opened.content.attachments ||= []; await f.workspace.saveDraft(opened);
   assert.equal(await f.workspace.discardUnneededDraft(opened.id), true, 'a missing attachments list equals an empty one');
-  assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [edited.id, stale.id].sort());
+  assert.deepEqual(Object.keys(f.workspace.state.drafts).sort(), [edited.id, staleEdit.id].sort());
   const first = f.workspace.blankDraft(f.a.id, bare); first.content.attachments = []; await f.workspace.saveDraft(first);
-  const resumed = f.workspace.recoverDraft(first.id); await f.workspace.saveDraft(resumed);
+  const resumed = f.workspace.openDraft(f.a.id, bare); await f.workspace.saveDraft(resumed);
+  assert.equal(f.workspace.state.drafts[first.id], undefined, 'the new edit replaced the earlier one');
   assert.equal(await f.workspace.discardUnneededDraft(resumed.id), true);
-  assert.equal(f.workspace.state.drafts[first.id], undefined, 'an unchanged ancestor copy goes with it');
 });
 
 test('every way out of editing releases the draft unless the edit is handed to another editor', async () => {

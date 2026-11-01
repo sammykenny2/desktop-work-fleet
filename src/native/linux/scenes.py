@@ -44,7 +44,7 @@ def frame(data, session, previous):
             rect(group["region"])
     ids = set()
     for card in cards:
-        p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity".split()), "scene-frame", "A desktop card's format isn't valid.")
+        p.require(isinstance(card, dict) and set(card) <= set("id groupId revision summary text format attachmentCount attachments rect layer interactive draggable editing selected completed mine color opacity unsaved".split()), "scene-frame", "A desktop card's format isn't valid.")
         files = card.get("attachments", [])
         p.require(isinstance(files, list) and len(files) <= 20000, "scene-frame", "An attachment list's format isn't valid.")
         for file in files:
@@ -62,6 +62,9 @@ def frame(data, session, previous):
         p.require(type(opacity) in (int, float) and 0.3 <= opacity <= 1 and (card["layer"] == "floating" or opacity == 1), "scene-frame", "A desktop card's opacity isn't valid.")
         for flag in ("interactive", "draggable", "editing", "selected", "completed", "mine"):
             p.boolean(card, flag)
+        # A paper showing unsaved changes carries a dot (ADR-061); frames from before it leave the flag out.
+        if "unsaved" in card:
+            p.boolean(card, "unsaved")
         p.require(card["layer"] != "wallpaper" or not any(card[flag] for flag in ("interactive", "draggable", "editing")), "scene-frame", "The wallpaper layer must let the pointer pass through.")
     # A stage notice only keeps the topmost scene on screen; it never becomes an input region.
     notice = value.get("notice")

@@ -1,11 +1,11 @@
 import { copy, requireValue, validRect } from '../core/contracts.js';
-import { canonicalJson, parseJson } from '../sources/json.js';
+import { canonicalJson } from '../sources/json.js';
 import { revisionRecord, RevisionGraph, validId } from '../sources/revisions.js';
 import { projectRevisionsAsync, reconcileSourceLayout } from '../sources/projection.js';
 import { LayoutStore, rescueRect } from '../layout/store.js';
 import { regionShortcuts } from '../core/shortcuts.js';
 import { groupLayersFromPapers } from '../layout/stages.js';
-import { Workspace } from '../core/workspace.js';
+import { rebaseDraft, unneededDraft, unsavedByCard, Workspace } from '../core/workspace.js';
 import { BackupDocument, createBackup } from './payload.js';
 import { backupScheduler, checkCancelled } from './archive.js';
 import { t } from '../i18n/index.js';
@@ -15,10 +15,7 @@ const equal = (a, b) => canonicalJson(a) === canonicalJson(b);
 
 function allocator(state, data, uuid) {
   const used = new Set();
-  const rememberDraft = draft => {
-    [draft.id, draft.cardId, draft.groupId, draft.baseRevision].forEach(id => { if (id) used.add(id); });
-    for (const origin of draft.recoveredFrom || []) { used.add(origin.id); rememberDraft(parseJson(origin.baseline)); }
-  };
+  const rememberDraft = draft => { [draft.id, draft.cardId, draft.groupId, draft.baseRevision].forEach(id => { if (id) used.add(id); }); };
   for (const record of [...state.revisions, ...data.records]) {
     [record.entityId, record.revisionId, record.value.groupId, record.value.redirectGroupId, ...record.parents]
       .forEach(id => { if (id) used.add(id); });
@@ -35,9 +32,8 @@ function remapDraft(draft, ids) {
   const result = copy(draft);
   result.id = ids.draft(result.id); result.cardId = ids.card(result.cardId); result.groupId = ids.group(result.groupId);
   if (result.baseRevision !== null) result.baseRevision = ids.revision(result.baseRevision);
-  for (const origin of result.recoveredFrom || []) {
-    origin.id = ids.draft(origin.id); origin.baseline = canonicalJson(remapDraft(parseJson(origin.baseline), ids));
-  }
+  // Unsaved changes no longer record what they were continued from (ADR-061).
+  delete result.recoveredFrom;
   return result;
 }
 
@@ -215,26 +211,6 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   const intents = new Map([...state.conflicts, ...data.local.transferIntents].map(item => [canonicalJson(item), item]));
   Object.assign(next, await projectRevisionsAsync(graph, { groups: prefer(state.groups, preferences.groups),
     cards: prefer(state.cards, preferences.cards), conflicts: [...intents.values()] }, checkpoint));
-  const draftMap = new Map(data.drafts.map(draft => [draft.id, draft.id]));
-  const dependents = new Map(); const draftById = new Map(data.drafts.map(draft => [draft.id, draft]));
-  for (const draft of data.drafts) for (const origin of draft.recoveredFrom || []) {
-    if (!dependents.has(origin.id)) dependents.set(origin.id, []); dependents.get(origin.id).push(draft.id);
-  }
-  const ids = { draft: id => draftMap.get(id) || id, card: id => id, group: id => id, revision: id => restoredHeads.get(id) || id };
-  const queue = [...draftById.keys()];
-  for (let index = 0; index < queue.length; index++) {
-    const id = queue[index];
-    if (draftMap.get(id) === id && Object.hasOwn(next.drafts, id) && !equal(next.drafts[id], remapDraft(draftById.get(id), ids))) {
-      draftMap.set(id, fresh()); queue.push(...(dependents.get(id) || []));
-    }
-    await checkpoint();
-  }
-  let addedDrafts = 0;
-  for (const draft of data.drafts) {
-    const restored = remapDraft(draft, ids);
-    if (!Object.hasOwn(next.drafts, restored.id)) { next.drafts[restored.id] = restored; addedDrafts++; }
-    await checkpoint();
-  }
   next.membershipRebases ||= {}; const ambiguousRebases = [];
   const rebases = copy(data.local.membershipRebases);
   if (mode === 'replace') for (const [before, after] of restoredHeads) {
@@ -245,6 +221,21 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     if (next.membershipRebases[before] && !equal(next.membershipRebases[before], edge)) {
       ambiguousRebases.push(before); delete next.membershipRebases[before];
     } else next.membershipRebases[before] = edge;
+  }
+  // A note keeps one set of unsaved changes (ADR-061). This device's own stay; a backup's set is added only where the
+  // note has none worth keeping, holds something itself, and is not a never-saved note's text for a note saved since.
+  // Stored sets holding nothing for that note go, and an added set whose ID another note's set uses takes a new ID.
+  const ids = { draft: id => id, card: id => id, group: id => id, revision: id => restoredHeads.get(id) || id };
+  const kept = unsavedByCard(next); const savedCards = new Set(next.cards.map(card => card.id)); const draftMap = {};
+  let addedDrafts = 0;
+  for (const draft of data.drafts) {
+    const restored = rebaseDraft(next, remapDraft(draft, ids));
+    if (!kept.has(restored.cardId) && !(restored.baseRevision === null && savedCards.has(restored.cardId)) && !unneededDraft(next, restored)) {
+      for (const [id, other] of Object.entries(next.drafts)) if (other.cardId === restored.cardId) delete next.drafts[id];
+      if (Object.hasOwn(next.drafts, restored.id)) restored.id = fresh();
+      next.drafts[restored.id] = restored; kept.set(restored.cardId, restored); draftMap[draft.id] = restored.id; addedDrafts++;
+    }
+    await checkpoint();
   }
   const restoredLayout = remapLayout(data.layout, ids); const existingCards = new Set(state.cards.map(card => card.id));
   if (layout === 'backup') {
@@ -268,7 +259,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   next.layout.shortcuts = regionShortcuts(next.layout.shortcuts, next.layout.grid.slots);
   next.layout = groupLayersFromPapers(next.layout, next.cards);
   const receipt = { jobId, fingerprint: document.fingerprint, mode, layout, profileId: state.profileId,
-    baseRevision: state.revision, committedRevision: state.revision + 1, mappings: { ...imported.mappings, restoredDrafts: Object.fromEntries(draftMap) },
+    baseRevision: state.revision, committedRevision: state.revision + 1, mappings: { ...imported.mappings, restoredDrafts: draftMap },
     addedRevisions: additions.length, addedDrafts, extraCards, retiredGroups, ambiguousRebases };
   next.restoreReceipts ||= {}; next.restoreReceipts[jobId] = receipt;
   const preview = { jobId, profileId: state.profileId, revision: state.revision, mode, layout, fingerprint: document.fingerprint,

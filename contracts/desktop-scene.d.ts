@@ -1,5 +1,6 @@
 import type { Rect, Scope, ResidentLayer } from './desktop.js';
 /** Presentation-only protocol; these documents never receive NativeRequest storage or backup capabilities. */
+/** `draftId` names the edit session, whose writes are the note's unsaved changes (ADR-061). */
 export interface DesktopEditor {
   cardId: string; draftId: string; viewId: string; text: string; sequence: number;
 }
@@ -11,11 +12,12 @@ export interface DesktopFrame {
   locale: 'en' | 'zh-TW';
   groups: { id: string; name: string; color: string; region: (Rect & { groupId: string | null }) | null }[];
   operationScope: Scope; activeGroupId: string | null;
-  cards: { id: string; groupId: string; revision: string; summary: string; text: string; format: string;
+  /** `revision` is null for a note never saved; `unsaved` marks a paper showing unsaved changes (ADR-061). */
+  cards: { id: string; groupId: string; revision: string | null; summary: string; text: string; format: string;
     attachmentCount: number; attachments?: { id: string; name: string }[]; rect: Rect; layer: ResidentLayer; interactive: boolean; draggable: boolean;
     editing: boolean; selected: boolean; completed: boolean; mine: boolean; color: string;
     /** From 0.3 to 1: below 1 only for a paper resting on the Top layer, whose background then lets the work show through. */
-    opacity: number }[];
+    opacity: number; unsaved?: boolean }[];
   editor: DesktopEditor | null;
   dropTarget: { groupId: string; kind: 'label' | 'region' } | null;
   fallbacks: { cardId: string; requested: ResidentLayer; effective: ResidentLayer }[];
@@ -28,7 +30,7 @@ export interface DesktopCommand {
   sessionId: string; id: string; serial: number;
   method: 'pointer.down' | 'pointer.move' | 'pointer.up' | 'pointer.cancel' | 'card.select' | 'card.edit' | 'card.transfer'
     | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut'
-    /** Closes the quick edit and discards the changes made since it began (SPEC-003, 2026-10-24). */
+    /** Discards the note's unsaved changes, returning it to its saved revision, and closes the quick edit (ADR-061). */
     | 'editor.cancel'
     /** Adjust overlay controls: end adjust mode, or arrange the adjusted scope with args.kind stack, spread or undo. */
     | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open'

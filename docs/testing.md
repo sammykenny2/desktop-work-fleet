@@ -55,7 +55,7 @@ lost with a renderer. Add exact native commands only when their probes exist; un
 - `node --test tests/rich-content.test.js tests/desktop-authority.test.js tests/desktop-transport.test.js`: code colouring and escaping, bounded PNG, the preview cache, ownership of the current attachments, stale versions, click-through, and slow previews not blocking save or close.
 - After a build, `node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT` verifies the actual font sizes of the six heading levels, colouring and long-content budgets, ticking checklist steps only on papers that take clicks (a `card.check` with the drawn revision, boxes held until the next frame, a refused tick put back, read-only boxes on a click-through paper), thumbnails, retry after sync, that double-click and keyboard open do not trigger a drag or edit by mistake, and that a `zh-TW` frame switches the scene's own text to Traditional Chinese and the next English frame switches it back; it uses only a synthetic host and is not a real test of opening files with OS applications.
   `browser-probe.mjs` also verifies the download fallback of attachment tiles in the main window, that they do not open the editor by mistake, and that the list creates no hidden tiles.
-  It also ticks a step on a canvas paper, keeps it across a reload and refuses a tick while the note has a kept draft.
+  It also ticks a step on a canvas paper and keeps it across a reload; on a note with unsaved changes the tick changes them and the dot stays (ADR-061).
   The Windows UI probe also waits for a desktop-layer paper's attachment thumbnail through the real native owner; until 2026-10-23 every host's scene command allowlist refused `attachment.preview` and `attachment.open`, which the synthetic scene host never showed.
   The Windows UI probe ticks and unticks a desktop-layer step through the real native owner with DOM clicks; a real mouse click through native hit-testing has not been checked on any platform (2026-10-23).
   It also checks that files pasted or dropped into the editor become attachments, with a dated name for a pasted picture named only `image.png`, while text pastes and drops are left alone; the events are synthetic in Chromium. A real paste or drop from the system clipboard or file manager has not been checked in WebView2, WKWebView or WebKitGTK (2026-10-23).
@@ -114,22 +114,35 @@ lost with a renderer. Add exact native commands only when their probes exist; un
 ## Adjust mode arranging and quick edit
 
 - `node --test tests/desktop-core.test.js`: a quick edit needs the switch, floats only its paper to the Top layer with
-  nothing adjusted, keeps the paper being edited from moving while another one still moves, saves the first paper's
-  draft when another one opens, survives `reconcile` while it holds and closes when the switch goes off, adjust mode
+  nothing adjusted, keeps the paper being edited from moving while another one still moves, keeps the first paper's
+  unsaved changes when another one opens, survives `reconcile` while it holds and closes when the switch goes off, adjust mode
   starts, Esc is pressed or the paper leaves the desktop (C60, C63, C63b, C65).
 - `node --test tests/desktop-authority.test.js`: `card.edit` is refused for an adjusted paper, without the switch and
-  where papers rest on the wallpaper; the edited paper is drawn opaque on the Top layer, and `editor.cancel` drops the
-  edit's draft and leaves the note and the see-through opacity as they were (C58, C60, C61). The draft, flush and
-  checkbox tests now open their editor with a quick edit.
+  where papers rest on the wallpaper; the edited paper is drawn opaque on the Top layer, and `editor.cancel` discards the
+  note's unsaved changes and leaves the note and the see-through opacity as they were (C58, C60, C61). The unsaved-text,
+  flush and checkbox tests open their editor with a quick edit. Frames carry `unsaved` on papers showing unsaved changes
+  and a null revision for notes never saved, which open, tick and refuse another group (ADR-061).
 - `scene-probe`: adjusted papers carry no buttons and a double click or Enter on one sends no `card.edit`; with the key,
   a double click on a resting paper sends `card.edit` only after its release reached the owner, also at a human pace
   where the second press starts its own captured gesture (which failed before the paper was looked up under the
-  pointer), the editor shows icon buttons named (aria-label) Retry save, Full editor, Cancel and Save with no text, Cancel
-  sends `editor.cancel`, and a press with the key on the edited paper sends no
+  pointer), the editor shows icon buttons named (aria-label) Retry save, Full editor, Discard changes and Save with no
+  text, Discard changes sends `editor.cancel`, a paper with `unsaved` ends its title band with a dot and names it in its
+  accessible label, and a press with the key on the edited paper sends no
   quick move. `group-probe`, `browser-probe` and `revision-probe` check that adjusted papers open no editor and edit
   through the main window's editor. On 2026-10-24 these passed on macOS, `browser-probe` with its 390 px Capture-gap
-  check skipped locally (it fails on unchanged main there too).
-- The Windows UI probes open their in-place drafts, the IME barrier, the scope chord and the close test through a quick
+  check skipped locally (it fails on unchanged main there too). Since 2026-11-01 that check waits for the
+  ResizeObserver that carries the status row's height to Capture, and it passes on macOS.
+- Unsaved changes (ADR-061): `tests/desktop-core.test.js` covers one set per note, continuing it, the working snapshot
+  with notes never saved, overwrite and saves after content-preserving changes elsewhere, discarding, placing, moving
+  and arranging never-saved notes, a group merged on another device carrying them, changes another device saved too,
+  and a new note kept in view while a quick edit clears it. `tests/backup-payload.test.js` and
+  `tests/backup-restore.test.js` check that backups leave out never-saved notes' positions and that a restore keeps
+  this device's set per note, adds no never-saved text for a note saved since and replaces sets that hold nothing.
+  `tests/test_linux_scenes.py` checks the Linux frame validator's optional `unsaved` flag and null revision; on
+  2026-11-01 the macOS validator was checked only with `swiftc` and a small parse harness (no Xcode build), and the
+  Windows frame validator and the Windows UI probes' unsaved-changes checks were changed without building or running
+  on Windows.
+- The Windows UI probes open their in-place edits, the IME barrier, the scope chord and the close test through a quick
   edit with a synthetic Ctrl double click on the paper's title band. Until 2026-10-24 that double click carried no
   coordinates, so the scene found no paper under it and the main Windows UI probe timed out at "scene inline editor";
   the adjust-mode checks now also hold Ctrl and aim at the paper.
@@ -499,11 +512,11 @@ It reads no Keychain and does not connect to real Google, and it is not acceptan
 
 `tests/backup-archive.test.js` verifies ZIP paths, directories, CRC, capacity, malicious DEFLATE, cancellation and encryption,
 and reads the ZIP independently through a fixed Python standard-library fixture (on Windows it supports pyenv's python.bat).
-`tests/backup-payload.test.js` verifies complete history, groups, draft lineage, attachments and layout, hashes, references and counts,
+`tests/backup-payload.test.js` verifies complete history, groups, unsaved changes, attachments and layout, hashes, references and counts,
 profile binding, concurrent snapshots, rejection of unknown conflicts, encryption and cancellation with many images. File verification is never treated as a completed restore.
 `tests/backup-capacity.test.js` fully generates and reopens 20,000 entries and verifies that one more is rejected;
 it contains many individual ZIP and SHA operations, so it runs longer than ordinary small fixtures; it is not a benchmark for the lowest-end phone.
-`tests/backup-restore.test.js` verifies the three restores, complete ID and draft-lineage mapping, missing parents, stale plans,
+`tests/backup-restore.test.js` verifies the three restores, complete ID mapping and one set of unsaved changes per note, missing parents, stale plans,
 safety-backup binding, transaction failure, restart receipts and explicit duplicates, and that the queue stays usable after placing many new cards is cancelled.
 It also verifies that a local complete restore needs no safety backup, clearing of the old graph, drafts and attachments, stale, cancelled and rolled-back transactions,
 and same-format round trips in all four directions between local and Google. `tests/backup-export.test.js` uses MemoryFileStore to verify exporting new remote content after a sync,
@@ -555,12 +568,12 @@ Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which 
 `npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
 The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, adjusted papers carrying no Edit or "⋯" and opening no editor on a double click or Enter (C58),
 plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers 240 px wide at 900 and 1440 px, no repeated titles, the selection kept after reopening), Capture floating 16 px above the status row and both ending at its right edge at those widths and at 390 px, where Capture rises with a status that wraps,
-multi-step draft operations, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
+unsaved changes shown with a dot, continued, ticked, discarded and brought back, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
 Keep this wait if the probe is edited.
 The group probe verifies that the gear opens Settings on General and the account chip on Account and sync with the
-account card selected (at 390 px the gear shows the list of pages with the card on top), group preview, cancel and merge, archived data and draft integrity, the browser's Reset desktop
+account card selected (at 390 px the gear shows the list of pages with the card on top), group preview, cancel and merge (a never-saved note counting as a note that moves), archived data and unsaved-note integrity, the browser's Reset desktop
 layout hint naming no main window, region swaps not moving cards,
 the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, a board
 paper dragged onto another sidebar group (Esc and the note's own group moving nothing; one new version of the same note
@@ -727,7 +740,7 @@ Compiling on Linux is not a Windows run.
 
 The same script runs `--adjust-overlay OUTPUT_DIRECTORY`: after the first scene handshake with no display update it enters adjust mode,
 and confirms that the toolbar is visible, inside the viewport and hittable, that Stack, Spread and Undo write back through the owner, and that Done removes the mask and the operation state;
-Adjust this group reuses the same toolbar and can be left with Esc. A synthetic CompositionEvent blocks Done, and after Done the text can be recovered from Unfinished drafts;
+Adjust this group reuses the same toolbar and can be left with Esc. A synthetic CompositionEvent blocks Done, and after Done the paper shows the kept text with the unsaved dot;
 an already minimized main window stays minimized, and leaving and re-entering keeps the arrangement. The screenshot is `adjust-overlay/adjust-toolbar.png`.
 The probe also submits duplicate entry and dialog-opening clicks before the first activation renders, restores the main window during adjustment,
 and checks that it stays inert: focus, repeated adjustment, arrangement and dialog-opening actions are blocked, including

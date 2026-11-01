@@ -22,7 +22,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 ### Shared core and interaction
 
-- Implemented: cards, groups, formation (stack, spread, undo), adjust mode, drafts, Markdown with checklists and attachments,
+- Implemented: cards, groups, formation (stack, spread, undo), adjust mode, unsaved changes per note shown with a dot
+  (ADR-061), Markdown with checklists and attachments,
   complete/archive/delete, group merge, region shortcuts that step a group through its desktop layers, one settings window;
   checklist steps ticked on desktop papers that take clicks, a per-device Top-layer opacity per group, ranked search,
   an opt-in quick move and quick edit of one resting paper with ⌘ or Ctrl held, adjust mode only arranging (not yet
@@ -31,7 +32,7 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   opened.
 - Papers: new papers are 240×240 squares that shrink to fit a short group region (minimum 160×160); placed papers keep their
   size until "reset desktop layout". One group palette serves desktop and main window; group regions follow the primary display.
-- Main window: a board of paper tiles or a list, remembered per device; an optional title that search, drafts and sharing include;
+- Main window: a board of paper tiles or a list, remembered per device; an optional title that search and sharing include;
   papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring.
 - Verified with model tests, Edge/Chromium browser and scene probes, and the Windows native UI probes.
 - Languages: the UI is English-first with a Traditional Chinese catalog; Settings > General > Display language offers
@@ -174,8 +175,6 @@ Known issues not yet fixed:
 
 - Restoring a backup's layout keeps the backup's grid area until the next start or display change, and uses the first
   work area, which is not always the primary display.
-- Draft edge cases from a read-only review: an unchanged copy is kept when the card changes during editing
-  (complete, archive, move or sync); "Continue editing" from an open drafts list fails after the desktop removed that draft.
 - iOS: a WebContent crash during scene disconnection leaves a blank screen; a folder picker that is open when its scene
   goes away blocks later folder picks until restart. Android: the page stays scrolled after the keyboard closes.
 

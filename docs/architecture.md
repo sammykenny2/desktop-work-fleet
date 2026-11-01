@@ -5,7 +5,7 @@ and [ADR-006](decisions/006-card-group-and-formation-semantics.md); the Windows 
 accepted by ADR-015, and other platforms and the desktop presentation are still being integrated.
 
 [ADR-008](decisions/008-portable-interaction-core.md) settled the shared ES modules semantic core:
-`src/core` stores cards / groups / drafts / outbox, `src/layout` computes and stores each device's arrangement, and
+`src/core` stores cards / groups / unsaved changes (`drafts`) / outbox, `src/layout` computes and stores each device's arrangement, and
 `src/interaction` controls operation scope and gestures. The shared command and the geometry of a group transfer commit
 in the same local transaction.
 `contracts/desktop.d.ts` defines the boundary for replaceable persistence / source / host;
@@ -21,8 +21,10 @@ Windows scenes connect to the same Workspace / InteractionController through
 `src/desktop` publishes pure presentation projections and controlled commands; on Windows each display has a desktop
 surface and a floating surface; there is no second Workspace.
 The native memory mailbox carries only frames and commands and cannot access the database, attachments or vault.
-Drafts have their own sequence that supports an exit save barrier: switching views, a disconnection or closing first
+Unsaved changes have their own sequence that supports an exit save barrier: switching views, a disconnection or closing first
 completes the writes already accepted; resizing the management window no longer triggers a desktop rescue.
+Every view reads `Workspace.working`, which shows each note's unsaved changes and adds notes never saved; commands
+that write revisions read the saved snapshot ([ADR-061](decisions/061-unsaved-changes-instead-of-drafts.md)).
 Global shortcuts and the tray enter the same command sequence according to
 [ADR-019](decisions/019-windows-shortcuts-and-tray.md).
 While native focus is held, the OS registration is released and local handlers keep IME / editor priority; hiding the

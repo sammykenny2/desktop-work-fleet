@@ -19,7 +19,7 @@ async function fixture(attachments, { check, residentLayers, liftQuickMove } = {
   const card = await workspace.createCard({ format: 'markdown', text: '# First thing', attachments: [] }, a.id);
   const other = await workspace.createCard({ format: 'markdown', text: 'Second thing', attachments: [] }, b.id);
   await workspace.layout.placeNew(workspace.snapshot, [area]);
-  const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace,
+  const controller = new InteractionController({ getSnapshot: () => workspace.working, layout: workspace.layout, commands: workspace,
     saveDraft: () => flush() });
   const sessionId = uuid(); const view = uuid(); const foreign = uuid();
   const authority = new DesktopAuthority({ workspace, controller, sessionId, attachments, check, residentLayers, liftQuickMove,
@@ -28,8 +28,8 @@ async function fixture(attachments, { check, residentLayers, liftQuickMove } = {
     current: () => editor && structuredClone(editor),
     begin: async (id, viewId) => {
       if (!await controller.beginEdit(id, { gesture: true })) return null;
-      const current = workspace.snapshot.cards.find(value => value.id === id);
-      const draft = workspace.blankDraft(current.groupId, current); await workspace.saveDraft(draft);
+      const current = workspace.working.cards.find(value => value.id === id);
+      const draft = workspace.openDraft(current.groupId, current); await workspace.saveDraft(draft);
       editor = { cardId: id, draftId: draft.id, viewId, text: draft.content.text, sequence: 0 }; return structuredClone(editor);
     },
     change: async value => {
@@ -38,14 +38,14 @@ async function fixture(attachments, { check, residentLayers, liftQuickMove } = {
     },
     save: async () => { await workspace.commitDraft(editor.draftId); await controller.endEdit(); editor = null; },
     end: async () => { await controller.endEdit(); editor = null; },
-    cancel: async () => { const id = editor.draftId; editor = null; await workspace.discardDraft(id); await controller.endEdit(); },
+    cancel: async () => { const { cardId } = editor; editor = null; await workspace.discardChanges(cardId); await controller.endEdit(); },
     full: async () => ({ draftId: editor.draftId }),
   } });
   authority.addView(view); authority.addView(foreign);
   let serial = 0;
   const envelope = (method, args = {}) => ({ sessionId, id: uuid(), serial: ++serial, method, args });
   const command = (method, args = {}, source = view) => authority.request(source, envelope(method, args));
-  const frame = () => projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
+  const frame = () => projectDesktop({ snapshot: workspace.working, layout: workspace.layout.state, interaction: controller.state,
     sessionId, sequence: 1, workspaceRevision: workspace.state.revision, editor });
   return { workspace, controller, authority, card, other, a, b, view, foreign, sessionId, command, envelope, frame,
     editor: () => editor, shortcutIntent: () => shortcutIntent, arranged, durable: () => durable, fail: value => { fail = value; }, flush: value => { flush = value; } };
@@ -244,7 +244,7 @@ test('a quick move the owner ends mid-drag answers its scene quietly instead of 
   await rejects(f.command('pointer.up', { ...args, point: { x: 1, y: 1 } }), 'desktop-gesture');
 });
 
-test('C58/C60/C61: card.edit opens only a resting paper, opaque on the Top layer, and editor.cancel drops the edit', async () => {
+test('C58/C60/C61: card.edit opens only a resting paper, opaque on the Top layer, and editor.cancel discards its unsaved changes', async () => {
   const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
   await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
   await f.workspace.layout.setGroupOpacity(f.a.id, 0.5, f.workspace.snapshot);
@@ -256,15 +256,36 @@ test('C58/C60/C61: card.edit opens only a resting paper, opaque on the Top layer
   const drawn = f.frame().cards.find(c => c.id === f.card.id);
   assert.deepEqual([drawn.layer, drawn.editing, drawn.draggable, drawn.opacity], ['floating', true, false, 1]);
   assert.equal(f.frame().operationScope.kind, 'none');
-  await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'typed, then cancelled' });
+  await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'typed, then discarded' });
+  const typed = f.frame().cards.find(c => c.id === f.card.id); assert.deepEqual([typed.text, typed.unsaved], ['typed, then discarded', true]);
   await f.command('editor.cancel', { draftId: draft.draftId, sequence: 1 });
-  assert.equal(f.editor(), null); assert.equal(f.workspace.state.drafts[draft.draftId], undefined);
+  assert.equal(f.editor(), null); assert.deepEqual(f.workspace.state.drafts, {});
+  assert.equal(f.frame().cards.find(c => c.id === f.card.id).unsaved, false);
   assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.card.id).content.text, '# First thing');
   assert.equal(f.frame().cards.find(c => c.id === f.card.id).opacity, 0.5, 'the paper rests see-through again');
   // A host whose papers rest only on the wallpaper never opens one.
   const wallpaper = await fixture(undefined, { residentLayers: () => ['wallpaper'] });
   await wallpaper.workspace.layout.configure({ quickMove: true }, wallpaper.workspace.snapshot);
   await rejects(wallpaper.command('card.edit', { cardId: wallpaper.card.id }), 'outside-scope');
+});
+
+test('ADR-061: frames dot papers with unsaved changes, a quick edit continues them, and notes never saved open and tick without a revision', async () => {
+  const checks = []; const f = await fixture(undefined, { check: async (...args) => { checks.push(args); } });
+  await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  const kept = f.workspace.openDraft(f.a.id, f.card); kept.content.text = '- [ ] kept, not saved'; await f.workspace.saveDraft(kept);
+  const note = f.workspace.openDraft(f.b.id); note.content.text = '- [ ] never saved'; await f.workspace.saveDraft(note);
+  await f.workspace.layout.placeNew(f.workspace.working, [area]);
+  const drawn = f.frame().cards;
+  assert.deepEqual(Object.fromEntries(drawn.map(card => [card.id, [card.revision, card.unsaved]])),
+    { [f.card.id]: [f.card.revision, true], [f.other.id]: [f.other.revision, false], [note.cardId]: [null, true] });
+  assert.equal(drawn.find(card => card.id === f.card.id).text, '- [ ] kept, not saved');
+  await f.command('card.check', { cardId: note.cardId, revision: null, task: 0 });
+  assert.deepEqual(checks, [[note.cardId, null, 0]]);
+  const opened = await f.command('card.edit', { cardId: f.card.id });
+  assert.equal(f.editor().text, '- [ ] kept, not saved'); assert.notEqual(opened.draftId, kept.id);
+  await f.command('editor.end', { draftId: opened.draftId, sequence: 0 });
+  await f.controller.activate({ kind: 'all' });
+  await rejects(f.command('card.transfer', { cardId: note.cardId, groupId: f.a.id }), 'unsaved-note');
 });
 
 test('quick move frames carry the key only while nothing is adjusted, and wallpaper papers never start one', async () => {

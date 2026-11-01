@@ -16,7 +16,7 @@ export default {
   'errors.core.groupRedirectSelf': '接收群組不能再導回自己。',
   'errors.core.mergeSameGroup': '請選擇另一個接收群組。',
   'errors.core.mergeGroupsMissing': '請選擇仍存在的來源與接收群組。',
-  'errors.core.mergePlanStale': '預覽後群組、便箋或草稿已變更，請重新預覽再合併。',
+  'errors.core.mergePlanStale': '預覽後群組、便箋或未保存的修改已變更，請重新預覽再合併。',
 
   // Shortcuts
   'errors.core.shortcutNotText': '快捷鍵必須是文字。',
@@ -30,8 +30,8 @@ export default {
 
   // Notes
   'errors.core.contentInvalid': '便箋需要文字及格式。',
-  'errors.core.noteUpdatedElsewhere': '卡片已由另一個操作更新；保留目前草稿與轉組意圖。',
-  'errors.core.conflictUnresolved': '這筆資料有多個版本，請先處理衝突；目前草稿仍保留。',
+  'errors.core.noteUpdatedElsewhere': '卡片已由另一個操作更新；保留目前修改與轉組意圖。',
+  'errors.core.conflictUnresolved': '這筆資料有多個版本，請先處理衝突；目前修改仍保留。',
   'errors.core.noteUpdateForbidden': '卡片更新不可修改身分、版本或群組。',
   'errors.core.noteFlagInvalid': '卡片狀態必須是布林值。',
   'errors.core.noteDuplicate': '卡片身分已存在，請另存副本。',
@@ -39,10 +39,10 @@ export default {
   'errors.core.moveIntentHandled': '這筆轉組意圖已處理。',
 
   // Drafts
-  'errors.core.draftRevisionCycle': '群組版本關係無效，草稿尚未提交。',
-  'errors.core.draftMissing': '找不到這份草稿。',
-  'errors.core.savedDraftMissing': '找不到已保存的草稿。',
-  'errors.core.draftIdInvalid': '草稿身分無效。',
+  'errors.core.draftRevisionCycle': '群組版本關係無效，修改尚未保留。',
+  'errors.core.savedDraftMissing': '找不到要保存的修改。',
+  'errors.core.draftIdInvalid': '編輯身分無效。',
+  'errors.core.unsavedNoteMove': '這張便箋尚未保存。請先保存，或在編輯器裡選擇群組。',
 
   // Versions and conflicts
   'errors.core.localHistoryIncomplete': '本機版本歷史不完整，資料保留，請先恢復來源。',

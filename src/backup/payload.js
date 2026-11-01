@@ -22,7 +22,8 @@ const date = value => typeof value === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\
   && new Date(value).toISOString() === value;
 const filename = (kind, index) => `${kind}/${String(index).padStart(8, '0')}.json`;
 
-function validateDraft(draft, graph, references, baseline = false) {
+// A note's unsaved changes (ADR-061): the revision they began from, if any, must be one of that note's.
+function validateDraft(draft, graph, references) {
   fail(object(draft) && validId(draft.id) && validId(draft.cardId) && validId(draft.groupId)
     && (draft.baseRevision === null || validId(draft.baseRevision)));
   const known = draft.baseRevision === null ? null : graph.get(draft.baseRevision);
@@ -30,15 +31,16 @@ function validateDraft(draft, graph, references, baseline = false) {
   revisionRecord('card', { id: draft.cardId, revision: draft.baseRevision || 'backup-draft', groupId: draft.groupId,
     content: draft.content, deleted: false, archived: false, completed: false });
   references.push(...(draft.content.attachments || []));
-  if (baseline) fail(draft.recoveredFrom === undefined);
-  else if (draft.recoveredFrom !== undefined) {
-    fail(Array.isArray(draft.recoveredFrom)); const seen = new Set([draft.id]);
-    for (const origin of draft.recoveredFrom) {
-      fail(object(origin) && validId(origin.id) && !seen.has(origin.id) && typeof origin.baseline === 'string'); seen.add(origin.id);
-      const previous = parseJson(origin.baseline); fail(previous.id === origin.id);
-      validateDraft(previous, graph, references, true);
-    }
-  }
+}
+
+// Where this device placed notes never saved is not part of a backup (ADR-061): only saved notes can be validated
+// against the backup's revisions, and such notes take a new place after a restore.
+function savedLayout(layout, cards) {
+  const saved = new Set(cards.map(card => card.id)); const result = copy(layout);
+  const keep = rects => Object.fromEntries(Object.entries(rects).filter(([id]) => saved.has(id)));
+  result.placements = keep(result.placements);
+  for (const undo of result.history) undo.before = keep(undo.before);
+  return result;
 }
 
 function validateGrid(grid, groups) {
@@ -207,7 +209,7 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   checkCancelled(signal); const state = workspace.state; const profileId = state.profileId;
   requireValue(state.conflicts.every(item => item.kind === 'transfer' || projectionConflictKinds.has(item.kind)),
     'unsupported-backup-data', t('errors.backup.dataUnsupported'));
-  const data = { records: state.revisions, drafts: Object.values(state.drafts), layout: state.layout,
+  const data = { records: state.revisions, drafts: Object.values(state.drafts), layout: savedLayout(state.layout, state.cards),
     local: { cards: state.cards.map(({ id, revision }) => ({ id, revision })), groups: state.groups.map(({ id, revision }) => ({ id, revision })),
       membershipRebases: state.membershipRebases || {}, transferIntents: state.conflicts.filter(item => item.kind === 'transfer') } };
   const checkpoint = backupScheduler(signal);

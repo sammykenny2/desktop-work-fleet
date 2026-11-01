@@ -22,7 +22,8 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 | [ADR-008](decisions/008-portable-interaction-core.md) | Accepted: shared semantic core, atomic saves and the complete 1.0 scope of this round |
 | [ADR-052](decisions/052-rich-papers-and-native-attachments.md) | Accepted: six heading levels, code colouring, native attachment thumbnails and opening a copy; no migration and no desktop checklist operation |
 | [ADR-056](decisions/056-english-first-ui-and-locale-catalogs.md) | Accepted: English-first UI with English and Traditional Chinese locale catalogs, a per-device Display language setting that follows the system language by default, and native host string tables; details in [i18n](i18n.md) |
-| [ADR-009](decisions/009-local-renderer-and-persistence.md) | Accepted: local renderer, IndexedDB / drafts / attachments, safe Markdown |
+| [ADR-009](decisions/009-local-renderer-and-persistence.md) | Accepted: local renderer, IndexedDB / drafts / attachments, safe Markdown; its draft rules are superseded by ADR-061 |
+| [ADR-061](decisions/061-unsaved-changes-instead-of-drafts.md)/[PLAN-010](plans/010-unsaved-changes.md) | Accepted: one set of unsaved changes per note, kept on this device and shown with a filled dot, instead of drafts and their list |
 | [ADR-010](decisions/010-group-retirement-and-device-settings.md) | Accepted: group merge / draft baseline, region and shortcut settings |
 | [SPEC-004](specs/004-revision-graph-and-file-sync.md)/[ADR-011](decisions/011-immutable-revision-graph.md) | Accepted: immutable revisions, strict JSON, rules for missing parents and multiple branches; the current status is in PROGRESS and verification procedures in [testing](testing.md) |
 | [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) | Accepted: resumable FileStore, Drive appDataFolder and resumable uploads; native authorization is accepted separately |

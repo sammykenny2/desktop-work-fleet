@@ -199,7 +199,7 @@ complete file protection.
 The extension only saves received items; it never reads the main app's workspace or Google credentials and never forces
 the main app to open.
 The main app refreshes the Share inbox when it comes to the foreground or restarts, and removes the original item only
-after the user chooses a group and the draft is saved; failures and retries keep the receipt.
+after the user chooses a group and the new note's unsaved changes are kept; failures and retries keep the receipt.
 At most 256 KiB of text, 16 files and 25 MiB of files in total per share; the Share inbox holds at most 64 items/512 MiB.
 Without configured App Groups the main app can still edit notes, but the Share inbox is unavailable; the native extension
 and file providers have not yet been run.

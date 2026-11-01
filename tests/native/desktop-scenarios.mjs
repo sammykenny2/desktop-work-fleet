@@ -15,10 +15,10 @@ await workspace.layout.move(card.id, { x: 100, y: 100 });
 await workspace.layout.move(second.id, { x: 500, y: 100 });
 await workspace.layout.setGroupLayer(group.id, 'wallpaper', workspace.snapshot);
 await workspace.layout.setGroupLayer(other.id, 'wallpaper', workspace.snapshot);
-const controller = new InteractionController({ getSnapshot: () => workspace.snapshot, layout: workspace.layout, commands: workspace, saveDraft: async () => {} });
+const controller = new InteractionController({ getSnapshot: () => workspace.working, layout: workspace.layout, commands: workspace, saveDraft: async () => {} });
 const scenarios = []; const sessionId = crypto.randomUUID();
 const capture = (name, notice = null) => scenarios.push({ name, primary: card.id, secondary: second.id,
-  frame: projectDesktop({ snapshot: workspace.snapshot, layout: workspace.layout.state, interaction: controller.state,
+  frame: projectDesktop({ snapshot: workspace.working, layout: workspace.layout.state, interaction: controller.state,
     sessionId, sequence: scenarios.length + 1, workspaceRevision: workspace.state.revision, layers: ['desktop', 'floating', 'wallpaper'], notice }) });
 capture('wallpaper');
 await controller.activate({ kind: 'group', groupId: group.id }); capture('operate-group');

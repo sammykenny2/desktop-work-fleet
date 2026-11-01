@@ -34,13 +34,25 @@ interface. To switch, see [Settings](#settings).
 - "Title (optional)" can stay empty. With a title, the top of the paper shows it; without one, the paper shows the
   first line of the body. The body is always shown from its first line.
 - Attachments can only be downloaded; HTML and SVG attachments are never run directly.
-- "Save note" saves and removes the matching draft. "Keep draft" keeps the draft instead, and you continue it later
-  from "Unfinished drafts" in the sidebar.
-- Ctrl+Enter or Command+Enter saves. Esc keeps the draft and ends editing; blank or unchanged content keeps no draft.
-  The full editor manages attachments and the preview.
-- On the desktop you can edit a paper in place: Ctrl+Enter saves, and Esc keeps the draft and leaves editing (blank
-  or unchanged content keeps no draft). For attachments and other content, Full editor (the outward arrows) goes back
-  to the editor in the main window.
+- A note is saved, or it has unsaved changes kept on this device, as in a text editor. A note with unsaved changes
+  shows them, with a filled dot at the end of its title; in the main window, pointing at the dot says "Unsaved
+  changes, kept on this device". They are not synced and are included in backups. Opening the note again, in the
+  editor or on the desktop, continues them.
+- "Save note" saves the changes and removes the dot. "Close", the ✕ and Esc keep changed text unsaved; blank or
+  unchanged content keeps nothing. "Discard changes" returns the note to its saved version, or throws away a new note
+  that was never saved; the status line offers to undo that while the note has no newer unsaved changes.
+- A new note with text that was never saved is a note too: it appears in its group with the dot and can be opened,
+  ticked and moved within its group. Choose another group for it in its editor; moving it to another group otherwise
+  waits until it is saved.
+- If the note was changed on another device meanwhile, "Save note" is refused and the editor offers "Overwrite",
+  which makes your text the next version (the other version stays in history), and "Save as copy". A note deleted
+  elsewhere can only be saved as a copy. A change elsewhere that only completed, archived or moved the note does not
+  refuse the save.
+- Ctrl+Enter or Command+Enter saves. The full editor manages attachments and the preview.
+- On the desktop you can edit a paper in place: Ctrl+Enter saves, and Esc keeps changed text unsaved and leaves
+  editing. For attachments and other content, Full editor (the outward arrows) goes back to the editor in the main
+  window.
+- Moving a note with unsaved changes to Deleted asks first, as its changes go with it; Undo brings back both.
 - New notes are 240×240 squares. Where a group region is short, a new note shrinks to a square that fits (at least
   160×160). Notes already on the desktop keep their size until you use Reset desktop layout.
 - A new note, including one that arrives from sync, takes the first free place in its group's region, row by row from
@@ -52,8 +64,9 @@ interface. To switch, see [Settings](#settings).
   are not shown. Double-click a thumbnail to open the attachment.
 - On notes that take clicks (the Desktop and Top layers, and notes being adjusted), click a checklist box to tick or
   untick that step. It is saved and synced like any edit, without selecting, moving or opening the note. Notes on the
-  Wallpaper layer let clicks through, so their boxes cannot be ticked there; a note with a kept draft waits until the
-  draft is saved or dropped. The browser preview's canvas works the same way.
+  Wallpaper layer let clicks through, so their boxes cannot be ticked there. On a note with unsaved changes the tick
+  changes them and the note stays unsaved; a note open in an editor is ticked in the editor. The browser preview's
+  canvas works the same way.
 
 ### Versions and conflicts
 
@@ -64,8 +77,8 @@ interface. To switch, see [Settings](#settings).
   select it to open that page. With nothing to resolve it does not appear.
 - Moving a note to another group adds a version of the same note rather than deleting it and adding a copy, so its
   history goes on; that version reads "Moved from …".
-- Restoring creates a new version and keeps the later content; unfinished drafts can still be recovered. While
-  several branches are unresolved, an ordinary save keeps the draft and tells you so.
+- Restoring creates a new version and keeps the later content; unsaved changes stay as they are. While several
+  branches are unresolved, an ordinary save keeps your changes and tells you so.
 - When a group has no receiving target or there are more than nine groups, the data is kept and the app explains how
   to sort it out. An unfinished group transfer can be retried ("Retry the move with the current version") or
   cancelled ("Cancel this move").
@@ -80,7 +93,7 @@ interface. To switch, see [Settings](#settings).
   receiving group; if the group no longer exists, the first group is chosen. "Adjust all" and clicking notes on the
   desktop do not change the remembered group.
 - The "⋯" next to a group opens "Group settings", where you can rename the group, or merge it into another group with
-  "Merge or remove group". First choose a receiving group and preview all of the notes and drafts that move; then
+  "Merge or remove group". First choose a receiving group and preview all of the notes that move, unsaved ones too; then
   "Merge and remove the original group" confirms. The content and desktop positions are kept and the source group is
   removed; Undo can't bring back a merged group.
 - To move a note to another group, drag it there in adjust mode (see
@@ -167,12 +180,13 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   XWayland keeps notes on the Wallpaper layer only, so it does not offer this
   ([SPEC-003](specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-quick-move)).
 - With the same switch on, hold Ctrl (⌘ on macOS) and double-click such a note to edit it in place: it rises to the Top
-  layer, opaque, where it is, with no overlay, and the main window stays where it is. Below the text, the check mark
-  (Save) keeps the text, the cross (Cancel) discards what you changed since you opened it, the outward arrows (Full
-  editor) move the draft to the main window, and the circular arrow retries a save that failed. Esc keeps a changed
-  draft and closes. Clicking another app leaves it open; double-clicking another note with the key closes it,
-  keeping its draft, and opens that one. Entering adjust mode, a change of displays, the note leaving the desktop or
-  turning the switch off also close it and keep a changed draft. While one note is open the others can still be moved
+  layer, opaque, where it is, with no overlay, and the main window stays where it is. It continues the note's unsaved
+  changes. Below the text, the check mark (Save) saves the text, the trash can (Discard changes) returns the note to its
+  saved version, the outward arrows (Full editor) continue in the main window, and the circular arrow retries keeping
+  text that could not be kept. Esc keeps changed text unsaved and closes. Clicking another app leaves it open;
+  double-clicking another note with the key closes it, keeping its changes, and opens that one. Entering adjust mode,
+  a change of displays, the note leaving the desktop or turning the switch off also close it and keep changed text
+  unsaved. While one note is open the others can still be moved
   with the key; the open one stays put. On Raspberry Pi OS and other layer-shell desktops, click into the text once if
   typing does not reach it
   ([SPEC-003](specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-adjust-mode-arranges-quick-edit-edits)).
@@ -294,8 +308,8 @@ At the bottom of Settings > Desktop notes, "Reset desktop layout…" asks for co
 computer's notes back into their group regions, restores their default size and display, and moves every group to
 the back layer (the Wallpaper layer, or the Desktop layer where the desktop has no Wallpaper layer); it does not touch
 content, group names and contents, or shortcuts. In the desktop apps it also returns the main window to its default
-size, centered on the primary display. Drafts stay on this device. Whether a restore applies a backup's layout is chosen
-separately ("Also restore desktop positions"), and importing new data does not move existing notes.
+size, centered on the primary display. Unsaved changes stay on this device. Whether a restore applies a backup's
+layout is chosen separately ("Also restore desktop positions"), and importing new data does not move existing notes.
 
 ## Google sign-in and sync
 
@@ -342,8 +356,8 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - The local workspace also has the restore method "Clear this device, then restore from the backup": check the ZIP
   with "Check file", verify the number of items that will be cleared, tick "I understand the current local content
   will be permanently replaced by the backup", then press "Confirm restore".
-- You do not have to reset first or be forced to back up the old content. Notes, history, drafts, attachments and
-  layout are replaced in one transaction; if it fails, the original data is kept.
+- You do not have to reset first or be forced to back up the old content. Notes, history, unsaved changes, attachments
+  and layout are replaced in one transaction; if it fails, the original data is kept.
 - The old content does not stay in Deleted. The automatic backup settings and other workspaces are kept. You can
   still choose "Back up current data first".
 - In a Google workspace, "Clear Google, then restore from the backup" overwrites everything; see
@@ -366,7 +380,7 @@ separately ("Also restore desktop positions"), and importing new data does not m
 
 ### Reset all data
 
-- At the bottom of Data and backup, "Reset all data…" deletes the current workspace's notes, groups, drafts,
+- At the bottom of Data and backup, "Reset all data…" deletes the current workspace's notes, groups, unsaved changes,
   attachments, history, layout, shortcuts and automatic backup settings on this device. "Export a backup first" is
   next to it. In the "Reset all data?" dialog you must tick "I understand this cannot be undone" before "Delete
   permanently and reset" runs it. Saved backup ZIPs, shares not yet accepted in the Share inbox and other workspaces
@@ -384,7 +398,7 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - For damaged data or data that can't be decrypted, "Set aside and start again…" asks first, then moves the database
   (on Linux with its local key) into a dated `set-aside-…` folder inside the data folder and opens empty data. Nothing
   is deleted. A Google workspace gets its notes, groups and attachments back from Drive after you sign in again; this
-  device's desktop positions, colours, shortcuts and drafts not yet synced stay in the set-aside copy. The local
+  device's desktop positions, colours, shortcuts and unsaved changes stay in the set-aside copy. The local
   workspace comes back only by restoring a backup ZIP. Preferences such as the display language stay as they were.
 - A full disk, data another program holds, a folder Work Fleet may not open, or a cause it can't tell is not offered
   setting aside: free space, close that program or check the folder's permissions, then start Work Fleet again.
@@ -436,8 +450,8 @@ separately ("Also restore desktop positions"), and importing new data does not m
 
 ### Windows
 
-- Without a Google ID you can still record offline. Content, attachments, drafts, layout and the backup journal are
-  stored in `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3` for the ZIP and Debug builds, or in
+- Without a Google ID you can still record offline. Content, attachments, unsaved changes, layout and the backup
+  journal are stored in `%LOCALAPPDATA%\WorkFleet\fleet.sqlite3` for the ZIP and Debug builds, or in
   `LocalCache\Local\WorkFleet\fleet.sqlite3` in the MSIX package's private data area. The payload is protected with
   DPAPI for the current Windows user.
 - An MSIX update keeps the data. Uninstalling removes all local and Google account data, settings, credentials and
@@ -445,8 +459,9 @@ separately ("Also restore desktop positions"), and importing new data does not m
 - Data in an old standalone directory has to be exported as a ZIP with the old version and imported in the MSIX; it
   is not moved or deleted automatically.
 - Only one app may run per data path; another window tells you to use the original window.
-- Closing first waits for drafts to be saved and an automatic backup to finish. If a dialog or IME input is still
-  open, finish it first. When a save fails, the window and the draft are kept; reopening reads the committed content.
+- Closing first waits for unsaved changes to be kept on the device and an automatic backup to finish. If a dialog or
+  IME input is still open, finish it first. When a write fails, the window and your text are kept; reopening reads the
+  committed content.
 
 ### macOS
 

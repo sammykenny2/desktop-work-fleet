@@ -5,7 +5,7 @@ export default {
   'errors.storage.lockUnavailable': "This browser doesn't support a safe single-writer lock. Use the native app or a newer browser.",
   'errors.storage.profileInvalid': 'Invalid account partition.',
   'errors.storage.workspaceInvalid': "The local data's ID or version is invalid.",
-  'errors.storage.staleWriter': 'The data changed in another window. Your draft is kept; reload, then save again.',
+  'errors.storage.staleWriter': 'The data changed in another window. Your changes are kept; reload, then save again.',
   'errors.storage.revisionGap': "The versions saved on this device aren't consecutive.",
 
   // Attachments

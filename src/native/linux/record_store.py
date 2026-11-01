@@ -83,7 +83,9 @@ class RecordStore:
 
     def record_page(self, query):
         require(isinstance(query, dict) and "expectedRevision" in query
-                and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision"})
+                and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision", "order"})
+        order = query.get("order", "desc")
+        require(order in ("asc", "desc"))
         collection, entity, after = query.get("collection"), query.get("entity"), query.get("after")
         require(collection in COLLECTIONS and (entity is None or entity == "" or key(entity)))
         limit = p.number({"limit": query.get("limit", 100)}, "limit", 100)
@@ -99,7 +101,7 @@ class RecordStore:
         if after is not None:
             require(isinstance(after, dict) and set(after) == {"ordinal", "key"} and key(after["key"]))
             ordinal = p.number(after, "ordinal")
-            where += " AND (ordinal,id)<(?,?)"
+            where += " AND (ordinal,id)" + (">" if order == "asc" else "<") + "(?,?)"
             parameters.extend((ordinal, after["key"]))
         parameters.append(limit + 1)
         with self.lock:
@@ -107,7 +109,8 @@ class RecordStore:
             p.require(not status or status["format"] == FORMAT, "incompatible-local-data", "This profile uses an older format. Keep it or explicitly reset it before continuing.")
             p.require((status or {}).get("revision") == expected, "stale-writer", "Local data changed while reading its records. Reload before continuing.")
             rows, size, more = [], 512, False
-            cursor = self.connection.execute("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal DESC,id DESC LIMIT ?", parameters)
+            sorting = "ASC" if order == "asc" else "DESC"
+            cursor = self.connection.execute("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", parameters)
             for identity, stored_entity, ordinal, ciphertext in cursor:
                 data = self.open("entry:" + collection, identity, ciphertext)
                 row = p.decode(data)

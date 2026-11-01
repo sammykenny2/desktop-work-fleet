@@ -81,9 +81,9 @@ public static class DatasetFiles
         clauses.Add(Prop("wfKind", scope == "datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"));
         if (scope == "roots") clauses.Add("'appDataFolder' in parents");
       }
-      else if (scope == "current")
+      else if (scope is "current" or "current-all")
       {
-        keys.Add("shard"); var shard = Text(value, "shard"); Check(Shards.Contains(shard)); clauses.Add(Prop("wfShard", shard));
+        if (scope == "current") { keys.Add("shard"); var shard = Text(value, "shard"); Check(Shards.Contains(shard)); clauses.Add(Prop("wfShard", shard)); }
         clauses.Add("(" + Prop("wfKind", "checkpoint") + " or " + Prop("wfKind", "change") + ")");
       }
       else if (scope is "history" or "children")

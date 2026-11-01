@@ -19,13 +19,15 @@ export class WorkspaceRecordStorage {
   #check(profileId) { requireValue(profileId === this.#profile, 'invalid-profile', t('errors.storage.profileMismatch')); }
   #queue(work) { const result = this.#tail.then(work); this.#tail = result.catch(() => {}); return result; }
   #key(id, generation = this.#active.generation) { return `${generation}:${id}`; }
+  #historyGeneration() { return this.#active.historyGeneration ?? this.#active.generation; }
   #row(collection, id, value, entity = this.#active.generation, generation = this.#active.generation) {
-    return { collection, key: this.#key(id, generation), entity, ordinal: (this.#receipt?.revision ?? -1) + 1, value };
+    const revision = (this.#receipt?.revision ?? -1) + 1;
+    return { collection, key: this.#key(id, generation), entity, ordinal: revision, value };
   }
   async #write(puts, deletes = [], attachments = []) {
     const expected = this.#receipt?.revision ?? null;
     const transaction = recordTransaction(this.#profile, expected,
-      puts.map(row => ({ ...row, ordinal: (expected ?? -1) + 1 })), deletes);
+      puts.map(row => ({ ...row, ordinal: row.collection === 'outbox' ? row.ordinal : (expected ?? -1) + 1 })), deletes);
     this.#receipt = await this.#store.commit(transaction, expected, { attachments });
   }
   async #status() {
@@ -88,24 +90,34 @@ export class WorkspaceRecordStorage {
     }
     for (const [id, draft] of Object.entries(state.drafts)) if (!equal(draft, previous.drafts[id])) puts.push(this.#row('draft', id, draft));
     for (const id of Object.keys(previous.drafts)) if (!Object.hasOwn(state.drafts, id)) deletes.push({ collection: 'draft', key: this.#key(id) });
-    for (const record of detail.additions ?? []) puts.push(this.#row('history', record.revisionId, record, this.#key(`${record.kind}:${record.entityId}`)));
+    for (const record of detail.additions ?? []) puts.push(this.#row('history', record.revisionId, record,
+      this.#key(`${record.kind}:${record.entityId}`, this.#historyGeneration()), this.#historyGeneration()));
     for (const operation of detail.pending ?? []) puts.push(this.#row('outbox', operation.operationId, operation));
     for (const id of detail.removedOperations ?? []) {
       stale(await this.#store.get(this.#profile, 'outbox', this.#key(id)) !== null);
       deletes.push({ collection: 'outbox', key: this.#key(id) });
     }
-    const active = { generation, revision: state.revision };
+    for (const key of detail.removedJobs ?? []) deletes.push({ collection: 'job', key });
+    const active = { ...this.#active, revision: state.revision };
     puts.push({ collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active });
+    if (puts.length + deletes.length > RECORD_LIMITS.rows
+      || encoder.encode(canonicalJson({ puts, deletes })).length > RECORD_LIMITS.transactionBytes - 2048) return this.#stage(state, detail);
     await this.#write(puts, deletes, detail.attachments); this.#active = active;
   }
   /** Bulk replacement builds an isolated generation; a single pointer publishes it after every chunk is durable. */
   async #stage(state, detail) {
     const generation = crypto.randomUUID();
+    const keepHistory = Boolean(this.#active && !detail.replaceGeneration);
+    const historyGeneration = keepHistory ? this.#historyGeneration() : generation;
+    const oldPending = keepHistory ? (await this.#rows('outbox', this.#active.generation, this.#receipt.revision))
+      .filter(row => !detail.removedOperations?.includes(row.value.operationId)) : [];
     const row = (collection, id, value, entity = generation) => this.#row(collection, id, value, entity, generation);
     const rows = Object.entries(state).filter(([key]) => !omitted.has(key)).map(([key, value]) => row('meta', key, value));
     rows.push(...state.revisions.map(record => row('current', record.revisionId, record)),
       ...Object.values(state.drafts).map(draft => row('draft', draft.id, draft)),
-      ...(detail.history ?? detail.additions ?? state.revisions).map(record => row('history', record.revisionId, record, `${generation}:${record.kind}:${record.entityId}`)),
+      ...(detail.history ?? detail.additions ?? (keepHistory ? [] : state.revisions)).map(record => this.#row('history', record.revisionId, record,
+        `${historyGeneration}:${record.kind}:${record.entityId}`, historyGeneration)),
+      ...oldPending.map(item => ({ ...row('outbox', item.value.operationId, item.value), ordinal: item.ordinal })),
       ...(detail.pending ?? []).map(operation => row('outbox', operation.operationId, operation)));
     let chunk = [], bytes = 1024;
     for (const item of rows) {
@@ -117,25 +129,44 @@ export class WorkspaceRecordStorage {
     }
     if (chunk.length) await this.#write(chunk);
     for (const attachment of detail.attachments ?? []) await this.#write([], [], [attachment]);
-    const active = { generation, revision: state.revision };
-    await this.#write([{ collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active }]);
+    const active = { generation, historyGeneration, revision: state.revision };
+    await this.#write([{ collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active }],
+      (detail.removedJobs ?? []).map(key => ({ collection: 'job', key })));
     this.#active = active;
   }
   async page(kind, entityId, { after = null, limit = 50 } = {}) {
-    const generation = this.#active.generation;
+    const generation = this.#historyGeneration();
     stale(!after || after.generation === generation);
     const status = await this.#status();
     const result = await this.#store.page(this.#profile, { collection: 'history', entity: `${generation}:${kind}:${entityId}`,
       after: after?.position ?? null, limit, expectedRevision: status.revision });
-    stale(this.#active.generation === generation);
+    stale(this.#historyGeneration() === generation);
     return { records: result.rows.map(row => row.value), next: result.next ? { generation, position: result.next } : null };
   }
-  async get(id) { return (await this.#store.get(this.#profile, 'history', this.#key(id)))?.value ?? null; }
+  async get(id) { return (await this.#store.get(this.#profile, 'history', this.#key(id, this.#historyGeneration())))?.value ?? null; }
+  async #control(collection, key) { return (await this.#store.get(this.#profile, collection, key))?.value ?? null; }
+  #putControl(collection, key, value) {
+    return this.#queue(async () => {
+      this.#receipt ??= await this.#status();
+      await this.#write([{ collection, key, entity: '', ordinal: 0, value: copy(value) }]);
+    });
+  }
+  #deleteControl(collection, key) { return this.#queue(() => this.#write([], [{ collection, key }])); }
+  getJob(key) { return this.#control('job', key); }
+  putJob(key, value) { return this.#putControl('job', key, value); }
+  deleteJob(key) { return this.#deleteControl('job', key); }
+  getControl(key) { return this.#control('control', key); }
+  putControl(key, value) { return this.#putControl('control', key, value); }
+  deleteControl(key) { return this.#deleteControl('control', key); }
+  cacheHistory(records) {
+    return this.#queue(() => this.#write(records.map(record => this.#row('history', record.revisionId, record,
+      this.#key(`${record.kind}:${record.entityId}`, this.#historyGeneration()), this.#historyGeneration()))));
+  }
   async pendingPage({ after = null, limit = 50 } = {}) {
     const generation = this.#active.generation; stale(!after || after.generation === generation);
     const status = await this.#status();
     const result = await this.#store.page(this.#profile, { collection: 'outbox', entity: generation, after: after?.position ?? null,
-      limit, expectedRevision: status.revision });
+      limit, order: 'asc', expectedRevision: status.revision });
     return { operations: result.rows.map(row => row.value), next: result.next ? { generation, position: result.next } : null };
   }
   async completeHistory(state) {

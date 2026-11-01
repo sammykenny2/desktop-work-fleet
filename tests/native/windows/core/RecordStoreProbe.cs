@@ -50,6 +50,11 @@ static class RecordStoreProbe
         using var b = JsonDocument.Parse(db.ReadEntryPage(Json(query with { after = a.RootElement.GetProperty("next") })));
         Require(a.RootElement.GetProperty("rows")[0].GetProperty("key").GetString() == "r2");
         Require(b.RootElement.GetProperty("rows")[0].GetProperty("key").GetString() == "r1");
+        var oldest = new { collection = "history", entity = "card:one", order = "asc", after = (object?)null, limit = 1, expectedRevision = 1 };
+        using var c = JsonDocument.Parse(db.ReadEntryPage(Json(oldest)));
+        using var d = JsonDocument.Parse(db.ReadEntryPage(Json(oldest with { after = c.RootElement.GetProperty("next") })));
+        Require(c.RootElement.GetProperty("rows")[0].GetProperty("key").GetString() == "r0");
+        Require(d.RootElement.GetProperty("rows")[0].GetProperty("key").GetString() == "r1");
       });
       Test("record receipt failure rolls back both rows and attachment bytes", () =>
       {

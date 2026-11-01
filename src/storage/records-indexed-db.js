@@ -136,9 +136,11 @@ export class IndexedDbRecordStore {
           checkRecordRevision(current.result, query.expectedRevision);
           const rows = []; let bytes = 512;
           const prefix = [profileId, query.collection]; if (query.entity !== null) prefix.push(query.entity);
-          const end = query.after ? [...prefix, query.after.ordinal, query.after.key] : [...prefix, []];
-          const range = IDBKeyRange.bound(prefix, end, false, query.after !== null);
-          const request = tx.objectStore('entries').index(query.entity === null ? 'ordered' : 'entity').openCursor(range, 'prev');
+          const boundary = query.after ? [...prefix, query.after.ordinal, query.after.key] : null;
+          const ascending = query.order === 'asc';
+          const range = ascending ? IDBKeyRange.bound(boundary ?? prefix, [...prefix, []], boundary !== null, false)
+            : IDBKeyRange.bound(prefix, boundary ?? [...prefix, []], false, boundary !== null);
+          const request = tx.objectStore('entries').index(query.entity === null ? 'ordered' : 'entity').openCursor(range, ascending ? 'next' : 'prev');
           request.onsuccess = () => {
             try {
               const cursor = request.result;

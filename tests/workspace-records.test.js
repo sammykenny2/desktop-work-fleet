@@ -102,3 +102,20 @@ test('large initial current state is staged and an interrupted replacement leave
   await reopened.save(state, original.revision, { replaceGeneration: true, history });
   assert.equal((await reopened.completeHistory(await reopened.load(f.profileId))).length, 700);
 });
+
+test('durable jobs share the receipt queue and bulk current replacement preserves history and pending order', async () => {
+  const f = await fixture('google:account');
+  const card = await f.workspace.createCard(content('original'));
+  await f.storage.putJob('test-job', { kind: 'test', fileId: 'fixed-id' });
+  await f.workspace.updateCard(card.id, { content: content('new') }, card.revision);
+  const state = f.workspace.state, before = await f.storage.pendingPage(); state.revision++;
+  const additions = Array.from({ length: 600 }, (_, i) => ({ ...state.revisions[0], revisionId: `bulk-${i}`,
+    entityId: `entity-${i}`, parents: [], value: { ...state.revisions[0].value, id: `entity-${i}`, revision: `bulk-${i}` } }));
+  state.revisions.push(...additions);
+  await f.storage.save(state, state.revision - 1, { previous: f.workspace.state, additions });
+  assert.deepEqual((await f.storage.pendingPage()).operations, before.operations);
+  assert.equal((await f.storage.page('card', card.id)).records.length, 2);
+  const reopened = new WorkspaceRecordStorage(f.records, f.profileId); await reopened.load(f.profileId);
+  assert.deepEqual(await reopened.getJob('test-job'), { kind: 'test', fileId: 'fixed-id' });
+  assert.equal((await reopened.get(card.revision)).value.content.text, 'original');
+});

@@ -95,8 +95,8 @@ export function datasetQuery(input) {
     if (query.scope === 'datasets') clauses.push(prop('wfKind', 'dataset'));
     else if (query.scope === 'ready') clauses.push(prop('wfKind', 'ready'));
     else if (query.scope === 'roots') { clauses.push(prop('wfKind', 'dataset-root')); clauses.push("'appDataFolder' in parents"); }
-    else if (query.scope === 'current') {
-      keys.push('shard'); invalid(DATASET_SHARDS.includes(query.shard)); clauses.push(prop('wfShard', query.shard));
+    else if (query.scope === 'current' || query.scope === 'current-all') {
+      if (query.scope === 'current') { keys.push('shard'); invalid(DATASET_SHARDS.includes(query.shard)); clauses.push(prop('wfShard', query.shard)); }
       clauses.push(`(${prop('wfKind', 'checkpoint')} or ${prop('wfKind', 'change')})`);
     } else if (query.scope === 'history' || query.scope === 'children') {
       keys.push('parentId'); invalid(validFileId(query.parentId)); clauses.push(`'${query.parentId}' in parents`);

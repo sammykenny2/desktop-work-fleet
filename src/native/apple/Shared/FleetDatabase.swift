@@ -232,7 +232,9 @@ extension FleetDatabase {
         return bytes
     } }
     func recordPage(_ query: [String: Any]) throws -> Data { try synchronized {
-        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision"]))
+        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision", "order"]))
+        let order = query["order"] as? String ?? "desc"
+        try Self.recordRequire(query["order"] == nil || query["order"] is String); try Self.recordRequire(["asc", "desc"].contains(order))
         let collection = try FleetProtocol.text(query, "collection"), entity = query["entity"] is NSNull || query["entity"] == nil ? nil : query["entity"] as? String
         try Self.recordRequire(Self.collections.contains(collection) && (query["entity"] == nil || query["entity"] is NSNull || entity != nil)
             && (entity == nil || entity == "" || Self.recordKey(entity!)))
@@ -248,10 +250,11 @@ extension FleetDatabase {
             guard let after = query["after"] as? [String: Any] else { throw FleetFailure("invalid-record-transaction", "The record cursor is invalid.") }
             try Self.recordRequire(Set(after.keys) == ["ordinal", "key"])
             let ordinal = try FleetProtocol.number(after, "ordinal"), id = try FleetProtocol.text(after, "key")
-            try Self.recordRequire(Self.recordKey(id)); whereClause += " AND (ordinal,id)<(?,?)"; parameters += [ordinal, id]
+            try Self.recordRequire(Self.recordKey(id)); whereClause += " AND (ordinal,id)" + (order == "asc" ? ">" : "<") + "(?,?)"; parameters += [ordinal, id]
         }
         parameters.append(limit + 1)
-        let request = try statement("SELECT id,entity,ordinal,data FROM record_entries WHERE " + whereClause + " ORDER BY ordinal DESC,id DESC LIMIT ?", parameters)
+        let sorting = order == "asc" ? "ASC" : "DESC"
+        let request = try statement("SELECT id,entity,ordinal,data FROM record_entries WHERE " + whereClause + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", parameters)
         defer { sqlite3_finalize(request) }
         var rows: [[String: Any]] = [], size = 512, more = false
         while true {

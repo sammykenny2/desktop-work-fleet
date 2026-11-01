@@ -139,7 +139,7 @@ export class Workspace {
     if (current) {
       state.format = CURRENT_WORKSPACE_FORMAT;
       const pending = profileId.startsWith('google:') ? state.outbox : [];
-      state.outbox = []; state.sync.pendingCount = pending.length;
+      state.outbox = []; state.sync.pendingCount = pending.length; state.sync.localHeads = pending.map(item => item.operationId);
       await persist(copy(state), null, { additions: state.revisions, pending });
     } else await persist(copy(state), null);
     const workspace = new Workspace(state, persist, uuid, now, { history });
@@ -202,6 +202,10 @@ export class Workspace {
         draft.outbox = []; draft.revisions = replaceGraph || additions.length ? graph.records : this.#state.revisions;
         if (pending.length || options.removedOperations?.length) draft.sync = { ...draft.sync,
           pendingCount: (draft.sync.pendingCount ?? 0) + pending.length - (options.removedOperations?.length ?? 0) };
+        if (pending.length || options.removedOperations?.length || replaceGraph) {
+          const localHeads = new Set([...(draft.sync.localHeads ?? []), ...pending.map(item => item.operationId)]);
+          draft.sync.localHeads = draft.revisions.filter(record => localHeads.has(record.revisionId)).map(record => record.revisionId);
+        }
         await persist(draft, this.#state.revision, { previous: this.#state, additions, pending, ...options, replaceGraph });
       } else await persist(copy(draft), this.#state.revision);
       this.#state = draft; this.#graph = graph;
@@ -290,14 +294,53 @@ export class Workspace {
   }
   async historicalRevision(id) { return this.#graph.get(id) ?? (this.currentFormat ? this.#history.get(id) : null); }
 
-  async acknowledgeOperations(session, ids) {
+  async acknowledgeOperations(session, ids, { jobs = [] } = {}) {
     requireValue(this.currentFormat && Array.isArray(ids) && new Set(ids).size === ids.length,
       'invalid-command', t('errors.core.kindUnknown'));
     ids = copy(ids);
     return this.#commit(state => {
       this.#session(state, session);
       requireValue(ids.length <= state.sync.pendingCount, 'stale-writer', t('errors.storage.staleWriter'));
-    }, this.#persist, false, { removedOperations: ids });
+    }, this.#persist, false, { removedOperations: ids, removedJobs: copy(jobs) });
+  }
+
+  /** A verified current view replaces previously received heads while unpublished local heads remain branches. */
+  async receiveDataset(session, binding, result) {
+    requireValue(this.currentFormat, 'incompatible-local-data', t('errors.storage.incompatibleLocalData'));
+    session = copy(session); binding = copy(binding); result = copy(result);
+    const options = { additions: [] };
+    return this.#layout.integrateSource((layout, revision) => this.#commit(state => {
+      this.#session(state, session);
+      requireValue(!state.sync.dataset || state.sync.dataset.plan.datasetId === binding.plan.datasetId,
+        'dataset-changed', t('errors.sources.datasetChanged'));
+      requireValue(state.layout.revision === revision, 'stale-layout', t('errors.common.layoutChanged'));
+      const oldGroups = new Set(state.groups.map(group => group.id));
+      const forbidden = new Set(result.purges.map(value => value.entityId));
+      const local = new Set(state.sync.localHeads ?? []);
+      const records = [...result.heads.map(head => head.record), ...state.revisions.filter(record => local.has(record.revisionId))]
+        .filter(record => record.kind !== 'card' || !forbidden.has(record.entityId));
+      const graph = new CurrentRevisions(records);
+      options.additions = graph.records.filter(record => !this.#graph.get(record.revisionId));
+      // Preserve unsaved work against a terminal identity. It can only be saved with an explicit new identity.
+      for (const draft of Object.values(state.drafts)) if (forbidden.has(draft.cardId)) draft.purged = true;
+      for (const record of state.revisions) if (record.kind === 'card' && forbidden.has(record.entityId) && local.has(record.revisionId)
+        && !Object.values(state.drafts).some(draft => draft.cardId === record.entityId && plainContent(draft.content) === plainContent(record.value.content))) {
+        const id = this.#uuid();
+        state.drafts[id] = { id, cardId: record.entityId, groupId: record.value.groupId, baseRevision: record.revisionId,
+          baseContent: copy(record.value.content), content: copy(record.value.content), purged: true };
+      }
+      state.revisions = graph.records; Object.assign(state, projectRevisions(graph, state));
+      // A successful upload stays locally protected until a verified current view actually observes it.
+      const observed = new Set(result.heads.map(head => head.record.revisionId));
+      state.sync.localHeads = (state.sync.localHeads ?? []).filter(id => !observed.has(id));
+      state.sync.dataset = binding; state.sync.cursor = result.cursor;
+      if (result.view) state.sync.datasetView = copy(result.view);
+      for (const draft of Object.values(state.drafts)) rebaseDraft(state, draft);
+      state.layout = reconcileSourceLayout(layout, state,
+        arrivalLayers(activeGroups(state).filter(group => !oldGroups.has(group.id)), this.#arrivalLayer()));
+      state.layout.history = state.layout.history.filter(entry => !forbidden.has(entry.cardId) && !forbidden.has(entry.transfer?.cardId));
+      return { layout: state.layout, value: { complete: result.complete } };
+    }, this.#persist, true, options));
   }
 
   async clearTransferIntent(intent) {
@@ -685,6 +728,7 @@ export class Workspace {
       const draft = state.drafts[draftId];
       requireValue(draft, 'missing-draft', t('errors.core.savedDraftMissing'));
       this.#group(state, draft.groupId);
+      requireValue(!draft.purged || asCopy, 'dataset-purged', t('errors.sources.datasetPurged'));
       let card;
       if (draft.baseRevision && !asCopy) {
         const current = state.cards.find(item => item.id === draft.cardId && !item.deleted);

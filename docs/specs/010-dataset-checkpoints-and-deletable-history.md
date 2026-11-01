@@ -85,9 +85,12 @@ existing aggregate capacity limit. The receipt contains the exact transaction di
 is lost, equality of the revision alone cannot establish success. Replaying the exact acknowledged transaction
 returns its receipt, consumes replay staging, and does not apply extra attachment uploads.
 
-Paged reads select a collection and optional entity, descend by `(ordinal, key)`, and return at most 100 rows and
+Paged reads select a collection and optional entity, default to descending `(ordinal, key)` order, and return at most 100 rows and
 8 MiB. A cursor names the last returned row. Each page checks the caller's expected local revision, so a caller
 must restart a read if intervening work changes its boundary; there is no silently mixed snapshot.
+An explicit closed `order: asc` selector uses the same index in reverse to publish pending revisions oldest first.
+It does not accept caller-provided sorting expressions. Bulk current activation can retain the existing history
+namespace while staging current rows and the pending queue; it never copies historical bodies into the new view.
 
 Native rows remain protected with the host's existing encryption and owner/session boundary. The browser uses a
 separate `work-fleet-records-v1` database, with entries, receipts and attachments in one transaction. Old workspace
@@ -97,7 +100,7 @@ handled it. These primitives do not convert old data or activate themselves in t
 ## Concrete candidate protocol
 
 This section is the object of Phase 1 proof work. It specifies a candidate, not a claim that provider races have
-already passed. Cloud JSON envelopes use `schema: 1`. The new discriminator is `work-fleet-dataset`; legacy
+already passed. Dataset JSON envelopes use `schemaVersion: 1`; the legacy reset fence retains `schema: 1`. The new discriminator is `work-fleet-dataset`; legacy
 `work-fleet-file` is not interchangeable with it. Names below abbreviate UUIDs for readability; real identifiers
 are full random UUIDs and Drive file IDs. Names are labels, never unique lookup keys.
 
@@ -126,8 +129,12 @@ appDataFolder/
 ```
 
 The initializer reserves the dataset root and fixed folder IDs in its durable prepare plan. New notes reserve
-one folder ID before upload; retries/cloned outboxes reuse it, not another folder found by name. A genuinely new
+one folder ID before upload; retries/clones made after that reservation reuse it, not another folder found by name. A genuinely new
 note/copy gets a new UUID. All later creates verify the active dataset and use those recorded parents.
+Offline edits cannot reserve Drive IDs. Clones made before reservation may independently reserve duplicate
+folders for the same entity; all verified owned folders remain discoverable by entity, with a bounded ceiling of
+32. Identical revision UUIDs deduplicate by verified content, history includes every owned folder, and purge captures
+all of them. Exceeding this ceiling preserves local work and pauses publication; no folder is discarded by age.
 
 Every new-format object has `wfFormat=work-fleet-dataset`, `wfSchema=1`, `wfDataset=<UUID>` and `wfKind`.
 Additional private properties are bounded strings, not lists of revisions or heads:
@@ -195,7 +202,8 @@ unexpected fence pauses publication for reset reconciliation.
 ### Save and publish
 
 1. Atomically commit changed local records and a durable outbox entry containing new revision/operation UUIDs,
-   observed parents, the full value and reserved remote IDs. Unsaved changes include their own baseline content.
+   observed parents and the full value. Before any remote create, durably reserve the exact folder, attachment,
+   revision and receipt IDs in the publication job. Unsaved changes include their own baseline content.
 2. Confirm the account, generation/fence, current heads and absence of a purge for the target. On a new/conflicting
    head, preserve the existing conflict barrier; on purge, keep distinct unpublished work for Save as copy.
 3. Upload required note-owned attachments, then the revision in the note folder. Verify identity, size and digest.

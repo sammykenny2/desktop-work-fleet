@@ -59,7 +59,8 @@ public sealed partial class LocalDatabase
   }
   public byte[] ReadEntryPage(JsonElement query)
   {
-    RecordRequire(query.EnumerateObject().All(field => new[] { "collection", "entity", "after", "limit", "expectedRevision" }.Contains(field.Name)));
+    RecordRequire(query.EnumerateObject().All(field => new[] { "collection", "entity", "after", "limit", "expectedRevision", "order" }.Contains(field.Name)));
+    var order = query.TryGetProperty("order", out _) ? JsonRules.Text(query, "order") : "desc"; RecordRequire(order is "asc" or "desc");
     var collection = JsonRules.Text(query, "collection"); RecordRequire(RecordCollections.Contains(collection));
     var entity = query.TryGetProperty("entity", out var e) && e.ValueKind != JsonValueKind.Null ? e.GetString() : null;
     RecordRequire(entity is null || entity == "" || RecordKey(entity));
@@ -71,7 +72,7 @@ public sealed partial class LocalDatabase
     if (query.TryGetProperty("after", out var after) && after.ValueKind != JsonValueKind.Null)
     {
       ExactKeys(after, "ordinal", "key"); var key = JsonRules.Text(after, "key"); RecordRequire(RecordKey(key));
-      where += " AND (ordinal,id)<($o,$id)";
+      where += " AND (ordinal,id)" + (order == "asc" ? ">" : "<") + "($o,$id)";
       parameters.Add(("$o", JsonRules.Integer(after, "ordinal"))); parameters.Add(("$id", key));
     }
     lock (gate)
@@ -79,7 +80,8 @@ public sealed partial class LocalDatabase
       var head = RecordHead();
       HostError.Require(head is not null || !LegacyRecords(), "incompatible-local-data", "This profile uses an older format. Keep it or explicitly reset it before continuing.");
       HostError.Require(head?.Revision == expected, "stale-writer", "Local data changed while reading its records. Reload before continuing.");
-      using var command = Command("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal DESC,id DESC LIMIT $limit;", null, parameters.ToArray());
+      var sorting = order == "asc" ? "ASC" : "DESC";
+      using var command = Command("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT $limit;", null, parameters.ToArray());
       using var reader = command.ExecuteReader(); var rows = new List<JsonElement>(); var size = 512; var more = false;
       while (reader.Read())
       {

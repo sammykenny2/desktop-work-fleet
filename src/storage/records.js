@@ -47,7 +47,9 @@ export function validateRecordPage(page, input) {
     validateLocalRecord(row);
     invalid(row.collection === query.collection && (query.entity === null || row.entity === query.entity)
       && page.revision !== null && row.ordinal <= page.revision
-      && (!previous || row.ordinal < previous.ordinal || (row.ordinal === previous.ordinal && row.key < previous.key)));
+      && (!previous || (query.order === 'asc'
+        ? row.ordinal > previous.ordinal || (row.ordinal === previous.ordinal && row.key > previous.key)
+        : row.ordinal < previous.ordinal || (row.ordinal === previous.ordinal && row.key < previous.key))));
     previous = row;
   }
   if (page.next !== null) {
@@ -101,11 +103,11 @@ export function recordTransaction(profileId, expectedRevision, puts = [], delete
 
 export function validateRecordQuery(input) {
   const query = { collection: input?.collection, entity: input?.entity ?? null, after: input?.after ?? null,
-    limit: input?.limit ?? RECORD_LIMITS.pageRows, expectedRevision: input?.expectedRevision ?? null };
+    limit: input?.limit ?? RECORD_LIMITS.pageRows, expectedRevision: input?.expectedRevision ?? null, order: input?.order ?? 'desc' };
   invalid(input && Object.keys(input).every(key => Object.hasOwn(query, key)) && recordCollection(query.collection)
     && (query.entity === null || query.entity === '' || recordKey(query.entity))
     && Number.isInteger(query.limit) && query.limit > 0 && query.limit <= RECORD_LIMITS.pageRows
-    && (query.expectedRevision === null || version(query.expectedRevision)));
+    && (query.expectedRevision === null || version(query.expectedRevision)) && ['asc', 'desc'].includes(query.order));
   if (query.after !== null) invalid(exact(query.after, ['ordinal', 'key']) && version(query.after.ordinal) && recordKey(query.after.key));
   return copy(query);
 }
@@ -177,8 +179,10 @@ export class MemoryRecordStore {
     // Only the reference adapter sorts in memory. Persistent adapters use the entity/ordinal index.
     const matches = [...(profile?.rows.values() ?? [])].filter(row => row.collection === query.collection
       && (query.entity === null || row.entity === query.entity)
-      && (!query.after || row.ordinal < query.after.ordinal || (row.ordinal === query.after.ordinal && row.key < query.after.key)))
-      .sort((a, b) => b.ordinal - a.ordinal || (a.key < b.key ? 1 : a.key > b.key ? -1 : 0));
+      && (!query.after || (query.order === 'asc'
+        ? row.ordinal > query.after.ordinal || (row.ordinal === query.after.ordinal && row.key > query.after.key)
+        : row.ordinal < query.after.ordinal || (row.ordinal === query.after.ordinal && row.key < query.after.key))))
+      .sort((a, b) => (query.order === 'asc' ? -1 : 1) * (b.ordinal - a.ordinal || (a.key < b.key ? 1 : a.key > b.key ? -1 : 0)));
     const rows = []; let bytes = 512;
     for (const row of matches.slice(0, query.limit)) {
       const size = encoder.encode(canonicalJson(row)).length;

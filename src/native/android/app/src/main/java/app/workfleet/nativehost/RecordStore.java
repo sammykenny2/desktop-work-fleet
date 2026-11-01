@@ -77,7 +77,8 @@ final class RecordStore {
         }
     }
     byte[] page(JSONObject query) throws Exception {
-        require(new HashSet<>(Arrays.asList("collection", "entity", "after", "limit", "expectedRevision")).containsAll(keys(query)) && query.has("expectedRevision"));
+        require(new HashSet<>(Arrays.asList("collection", "entity", "after", "limit", "expectedRevision", "order")).containsAll(keys(query)) && query.has("expectedRevision"));
+        String order = query.has("order") ? query.getString("order") : "desc"; require(Arrays.asList("asc", "desc").contains(order));
         String collection = Protocol.text(query, "collection", 32); require(COLLECTIONS.contains(collection));
         String entity = query.isNull("entity") ? null : query.getString("entity"); require(entity == null || entity.isEmpty() || key(entity));
         int limit = query.has("limit") ? (int) Protocol.number(query, "limit", 100) : 100; require(limit > 0);
@@ -90,10 +91,11 @@ final class RecordStore {
         if (!query.isNull("after")) {
             JSONObject after = query.getJSONObject("after"); exact(after, "ordinal", "key"); String id = Protocol.text(after, "key", 256); require(key(id));
             String ordinal = Long.toString(Protocol.number(after, "ordinal", Protocol.SAFE_INTEGER));
-            where += " AND (ordinal,id)<(?,?)"; args.add(ordinal); args.add(id);
+            where += " AND (ordinal,id)" + (order.equals("asc") ? ">" : "<") + "(?,?)"; args.add(ordinal); args.add(id);
         }
         args.add(Integer.toString(limit + 1)); JSONArray rows = new JSONArray(); int size = 512; boolean more = false;
-        try (Cursor cursor = queryRows("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal DESC,id DESC LIMIT ?", args.toArray(new String[0]))) {
+        String sorting = order.equals("asc") ? "ASC" : "DESC";
+        try (Cursor cursor = queryRows("SELECT id,entity,ordinal,data FROM record_entries WHERE " + where + " ORDER BY ordinal " + sorting + ",id " + sorting + " LIMIT ?", args.toArray(new String[0]))) {
             while (cursor.moveToNext()) {
                 String id = cursor.getString(0); byte[] data = owner.unprotect(cursor.getBlob(3), owner.scope("entry:" + collection, id));
                 JSONObject row = Protocol.json(data);

@@ -73,8 +73,8 @@ final class DatasetFiles {
             if (Arrays.asList("datasets", "ready", "roots").contains(scope)) {
                 clauses.add(prop("wfKind", scope.equals("datasets") ? "dataset" : scope.equals("roots") ? "dataset-root" : "ready"));
                 if (scope.equals("roots")) clauses.add("'appDataFolder' in parents");
-            } else if (scope.equals("current")) {
-                keys.add("shard"); check(SHARDS.contains(value.optString("shard"))); clauses.add(prop("wfShard", value.getString("shard")));
+            } else if (Arrays.asList("current", "current-all").contains(scope)) {
+                if (scope.equals("current")) { keys.add("shard"); check(SHARDS.contains(value.optString("shard"))); clauses.add(prop("wfShard", value.getString("shard"))); }
                 clauses.add("(" + prop("wfKind", "checkpoint") + " or " + prop("wfKind", "change") + ")");
             } else if (Arrays.asList("history", "children").contains(scope)) {
                 keys.add("parentId"); check(fileId(value.opt("parentId"))); clauses.add("'" + value.getString("parentId") + "' in parents");

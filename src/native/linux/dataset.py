@@ -110,10 +110,12 @@ def query(value):
             clauses.append(prop("wfKind", {"datasets": "dataset", "ready": "ready", "roots": "dataset-root"}[scope]))
             if scope == "roots":
                 clauses.append("'appDataFolder' in parents")
-        elif scope == "current":
-            keys.add("shard")
-            check(value.get("shard") in SHARDS)
-            clauses.extend((prop("wfShard", value["shard"]), "(" + prop("wfKind", "checkpoint") + " or " + prop("wfKind", "change") + ")"))
+        elif scope in ("current", "current-all"):
+            if scope == "current":
+                keys.add("shard")
+                check(value.get("shard") in SHARDS)
+                clauses.append(prop("wfShard", value["shard"]))
+            clauses.append("(" + prop("wfKind", "checkpoint") + " or " + prop("wfKind", "change") + ")")
         elif scope in ("history", "children"):
             keys.add("parentId")
             check(file_id(value.get("parentId")))

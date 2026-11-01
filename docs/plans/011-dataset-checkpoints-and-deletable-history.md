@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: local record core and dataset adapters; production workflows pending |
+| Status | In progress: record storage and dataset sync controller; history/reset/purge/backup UI pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -133,6 +133,10 @@ Depends on the local transaction contract and reviewed remote candidate.
   credentials native. Shared wire fixtures and isolated adapter checks do not complete initialization or 2.1.
 - [ ] 2.2 Implement token-before-list bootstrap, bounded catch-up, current reconciliation, relevant purge checks
   and atomic activation. Preserve local outbox/unsaved work and generation isolation (VC01, VC03, VC06, VC07).
+- [x] 2.2a Implement durable prepare/ready initialization and the DatasetSync controller, resumable publication
+  reservations, current-view activation, indexed oldest-first uploads, bounded incremental refresh and admission/
+  compaction. Exercise restart, lost replies consumed by checkpoints, competing initialization, concurrent edits,
+  note-owned attachments and purge/cloud-loss barriers. Application activation and lazy history remain in 2.4/2.5.
 - [ ] 2.3 Implement one history-body upload plus small current receipt; checkpoint exact inputs before retiring
   receipts/predecessor snapshots. Retain revisions as history and enforce admission/backpressure (VC04, VC05, VC19).
 - [ ] 2.4 Implement paged note-folder history and direct selected-version reads; restore via a new UUID and fresh

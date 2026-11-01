@@ -90,11 +90,16 @@ export class DatasetProtocol {
   async assertGeneration(descriptor, plan, signal) {
     validateDatasetRecord(plan); invalid(plan.kind === 'dataset' && descriptor.datasetId === plan.datasetId);
     try {
-      const [root, actual, ready, fences, actualPlan] = await Promise.all([
+      const [root, actual, ready, fences, actualPlan, descriptors] = await Promise.all([
         this.#store.getObject({ id: plan.rootId, signal }), this.#store.getObject({ id: descriptor.id, signal }),
         this.#store.getObject({ id: plan.readyId, signal }), listDatasetObjects(this.#store, { scope: 'fences' }, { signal, limit: 16 }),
         this.read(descriptor, signal),
+        listDatasetObjects(this.#store, { scope: 'datasets' }, { signal, limit: 16 }),
       ]);
+      changed(descriptors.some(file => equal(file, descriptor)));
+      for (const file of descriptors) if (file.datasetId !== plan.datasetId) {
+        const other = await this.read(file, signal); changed(other.fenceId !== plan.fenceId);
+      }
       changed(equal(actualPlan, plan) && descriptor.kind === 'dataset' && descriptor.parentId === plan.rootId
         && root.id === plan.rootId && root.kind === 'dataset-root' && root.datasetId === plan.datasetId && equal(actual, descriptor)
         && ready.kind === 'ready' && ready.datasetId === plan.datasetId && ready.parentId === plan.rootId

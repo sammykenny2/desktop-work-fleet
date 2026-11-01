@@ -30,6 +30,7 @@ export interface RecordReceipt {
   digest: string;
 }
 export interface RecordQuery {
+  order?: 'asc' | 'desc';
   collection: RecordCollection;
   entity: string | null;
   after: { ordinal: number; key: string } | null;

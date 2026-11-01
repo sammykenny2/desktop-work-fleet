@@ -63,8 +63,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   in use on Windows, macOS and Linux installs, six devices on one account. Phones: see their sections.
 - Initialization, reset fencing and shared initial groups are verified only with isolated fixtures and Chromium IndexedDB probes,
   not with real Google or the native apps. Builds without the source-generation fields must be updated before a reset.
-- The dataset checkpoint protocol has strict codecs, typed queries, JS/native Drive adapters and a fault-injected
-  model for bounded current reconciliation, exact retirement and terminal purge. Application integration, full
+- The dataset checkpoint protocol has strict codecs, JS/native Drive adapters, a durable initializer and a bounded
+  incremental DatasetSync controller with exact publication/retirement and purge barriers. Application integration, full
   deletion/reset workflows, independent assessment and real-provider verification remain open in PLAN-011.
 - The OAuth consent screen is still in Testing: only listed test users can sign in, and refresh tokens expire after 7 days.
 

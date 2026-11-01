@@ -59,6 +59,9 @@ try {
     const query = { collection: 'history', entity: 'card:one', limit: 1, expectedRevision: 2 };
     const a = await store.page('local', query), b = await store.page('local', { ...query, after: a.next });
     check(a.rows[0].key === 'r2' && b.rows[0].key === 'r1', 'page ordering failed');
+    const earliest = await store.page('local', { ...query, order: 'asc' });
+    const following = await store.page('local', { ...query, order: 'asc', after: earliest.next });
+    check(earliest.rows[0].key === 'r0' && following.rows[0].key === 'r1', 'ascending pending order failed');
     await window.recordPhase('reopen and byte-bounded pages');
     check(await store.get('google:other', 'history', 'r0') === null, 'account leak');
     store.close(); store = await IndexedDbRecordStore.open(name, { legacyName: null });

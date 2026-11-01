@@ -28,7 +28,7 @@ enum FleetKeychain {
         try require(database.commitRecords(replayToken, nil, [])["commitId"] as? String == first["commitId"] as? String, "exact replay failed")
         do { _ = try database.staged(replayToken, "workspace"); throw FleetFailure("probe", "replay kept its staged upload") }
         catch let failure as FleetFailure { try require(failure.code == "transfer-missing", "unexpected replay cleanup error") }
-        let second = try batch(1, [row("draft", "one", 1, "new local text")])
+        let second = try batch(1, [row("draft", "one", 1, "new local text"), row("history", "r1", 1, "second")])
         _ = try commit(second, 0)
         do { _ = try commit(batch(1, []), 0); throw FleetFailure("probe", "stale commit accepted") }
         catch let failure as FleetFailure { try require(failure.code == "stale-writer", "unexpected stale commit error") }
@@ -42,6 +42,10 @@ enum FleetKeychain {
         try require(database.recordEntry("current", "one") == FleetProtocol.encode(current), "attachment failure left partial records")
         let page = try FleetProtocol.json(database.recordPage(["collection": "history", "entity": "card:one", "after": NSNull(), "limit": 1, "expectedRevision": 1]))
         try require((page["rows"] as? [[String: Any]])?.count == 1, "indexed page failed")
+        let ascending = try FleetProtocol.json(database.recordPage(["collection": "history", "entity": "card:one", "order": "asc", "limit": 1, "expectedRevision": 1]))
+        try require((ascending["rows"] as? [[String: Any]])?.first?["key"] as? String == "r0", "oldest pending page failed")
+        let following = try FleetProtocol.json(database.recordPage(["collection": "history", "entity": "card:one", "order": "asc", "after": ascending["next"]!, "limit": 1, "expectedRevision": 1]))
+        try require((following["rows"] as? [[String: Any]])?.first?["key"] as? String == "r1", "ascending continuation failed")
         database.close()
         database = try FleetDatabase(directory: directory, profile: "local")
         try require(recordRevision(database) == 1 && database.recordEntry("draft", "one") != nil, "reopen lost committed records")

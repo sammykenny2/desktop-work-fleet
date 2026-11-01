@@ -132,7 +132,7 @@ export interface DatasetFolder {
 }
 export interface DatasetHead { record: RevisionRecord; file: DatasetFile; attachments: DatasetFile[]; }
 export type DatasetQuery = { scope: 'datasets' | 'fences' | 'legacy' }
-  | { scope: 'ready' | 'roots'; datasetId: string }
+  | { scope: 'ready' | 'roots' | 'current-all'; datasetId: string }
   | { scope: 'current'; datasetId: string; shard: string }
   | { scope: 'history' | 'children'; datasetId: string; parentId: string }
   | { scope: 'purges' | 'entity-folders'; datasetId: string; entities: string[] };

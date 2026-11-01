@@ -72,9 +72,9 @@ enum FleetDataset {
             if ["datasets", "ready", "roots"].contains(scope) {
                 clauses.append(prop("wfKind", scope == "datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"))
                 if scope == "roots" { clauses.append("'appDataFolder' in parents") }
-            } else if scope == "current" {
-                keys.insert("shard"); let shard = try FleetProtocol.text(value, "shard"); try check(shards.contains(shard))
-                clauses += [prop("wfShard", shard), "(" + prop("wfKind", "checkpoint") + " or " + prop("wfKind", "change") + ")"]
+            } else if ["current", "current-all"].contains(scope) {
+                if scope == "current" { keys.insert("shard"); let shard = try FleetProtocol.text(value, "shard"); try check(shards.contains(shard)); clauses.append(prop("wfShard", shard)) }
+                clauses.append("(" + prop("wfKind", "checkpoint") + " or " + prop("wfKind", "change") + ")")
             } else if ["history", "children"].contains(scope) {
                 keys.insert("parentId"); try check(fileID(value["parentId"])); clauses.append("'" + (try FleetProtocol.text(value, "parentId")) + "' in parents")
                 if scope == "history" { clauses.append(prop("wfKind", "revision")) }

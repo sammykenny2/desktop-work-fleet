@@ -29,6 +29,11 @@ test('history pages are entity-scoped, bounded, ordered and reject a changed rea
   assert.deepEqual(first.rows.map(row => row.key), ['b']);
   const last = await store.page('local', { collection: 'history', entity: 'card:one', limit: 1, after: first.next, expectedRevision: 0 });
   assert.deepEqual(last.rows.map(row => row.key), ['a']); assert.equal(last.next, null);
+  const ascending = { collection: 'history', entity: 'card:one', limit: 1, expectedRevision: 0, order: 'asc' };
+  const earliest = validateRecordPage(await store.page('local', ascending), ascending);
+  assert.equal(earliest.rows[0].key, 'a');
+  assert.equal((await store.page('local', { ...ascending, after: earliest.next })).rows[0].key, 'b');
+  assert.throws(() => validateRecordQuery({ ...ascending, order: 'arbitrary SQL' }), { code: 'invalid-record-transaction' });
   await store.commit(recordTransaction('local', 0), 0);
   await assert.rejects(store.page('local', { collection: 'history', expectedRevision: 0 }), { code: 'stale-writer' });
   assert.equal(await store.get('google:other', 'history', 'a'), null);

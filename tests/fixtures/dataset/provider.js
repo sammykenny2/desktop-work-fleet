@@ -60,6 +60,7 @@ export class DatasetTestProvider {
       if (query.scope === 'ready') return file.kind === 'ready';
       if (query.scope === 'roots') return file.kind === 'dataset-root' && file.parentId === 'appDataFolder';
       if (query.scope === 'current') return ['change', 'checkpoint'].includes(file.kind) && file.shard === query.shard;
+      if (query.scope === 'current-all') return ['change', 'checkpoint'].includes(file.kind);
       if (query.scope === 'history') return file.kind === 'revision' && file.parentId === query.parentId;
       if (query.scope === 'children') return file.parentId === query.parentId;
       if (query.scope === 'purges') return file.kind === 'purge' && query.entities.includes(file.entityId);

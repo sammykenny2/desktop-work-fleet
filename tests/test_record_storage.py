@@ -74,6 +74,11 @@ class RecordStorageTests(unittest.TestCase):
                 break
             query["after"] = page["next"]
         self.assertEqual(seen, [f"r{i:03}" for i in range(119, -1, -2)])
+        ascending = dict(collection="history", entity="card:1", limit=7, expectedRevision=0, order="asc")
+        first = json.loads(self.db.record_page(ascending))
+        self.assertEqual([row["key"] for row in first["rows"]], [f"r{i:03}" for i in range(1, 14, 2)])
+        following = json.loads(self.db.record_page(dict(ascending, after=first["next"])))
+        self.assertEqual(following["rows"][0]["key"], "r015")
         plan = self.db.connection.execute("EXPLAIN QUERY PLAN SELECT * FROM record_entries WHERE profile=? AND collection=? AND entity=? ORDER BY ordinal DESC,id DESC LIMIT 8", ("local", "history", "card:1")).fetchall()
         self.assertIn("record_entity", str(plan))
         self.assertNotIn("TEMP B-TREE", str(plan))

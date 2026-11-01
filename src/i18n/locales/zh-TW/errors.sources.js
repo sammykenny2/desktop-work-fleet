@@ -1,4 +1,5 @@
 export default {
+  'errors.sources.incompatibleCloudData': 'Google 中有舊格式或尚未完成的資料。本機便箋會保留。請先更新所有裝置，再明確選擇重置雲端資料。',
   'errors.sources.driveItemLimit': 'Google 資料夾或帳號已達檔案數量上限。本機便箋與待送修改仍保留。',
   'errors.sources.datasetInvalid': '同步資料集含有無效或不相容的紀錄，已保留本機便箋。',
   'errors.sources.datasetBusy': '待同步工作超過單次可安全處理的範圍。本機便箋已保留，同步將繼續。',

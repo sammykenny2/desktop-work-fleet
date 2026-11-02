@@ -19,7 +19,7 @@ Summary: Fix reset and sync rejecting verified ordinary files solely because the
 - Uploads: use `application/json` for dataset JSON metadata, resumable initiation and content chunks. Attachments and legacy opaque files retain their binary upload type.
 - Pending reset: read an already-created valid file under its reserved ID even when its ordinary MIME label differs. No replacement, additional data reset, migration or broader deletion scope is required.
 - Platform parity: apply the same media classification to JavaScript, macOS/iOS, Windows, Linux and Android. Sparse empty initialization from 0.5.7 remains unchanged.
-- Verification limits: the published 0.5.7 validator reproduces `dataset-response-type` with valid unchanged metadata labeled as JSON. Native transport and shared fixtures verify the correction, but the actual media label from the reported live account and authenticated reset completion remain unobserved.
+- Verification limits: the 0.5.7 validator reproduces `dataset-response-type` with valid unchanged metadata labeled as JSON. Native transport and shared fixtures verify the correction, but the actual media label from the reported live account and authenticated reset completion remain unobserved.
 
 ## 0.5.7
 

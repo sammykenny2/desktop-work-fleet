@@ -7,6 +7,7 @@ import { Workspace } from '../../src/core/workspace.js';
 import { WorkspaceRecordStorage } from '../../src/storage/workspace-records.js';
 import { MemoryRecordStore } from '../../src/storage/records.js';
 import { DatasetSync } from '../../src/sources/dataset-sync.js';
+import { driveBatchResponse } from '../../tests/fixtures/dataset/drive-batch.js';
 import { t } from '../../src/i18n/index.js';
 
 if (process.argv.includes('--help')) {
@@ -80,6 +81,7 @@ export class NativeStorage {
   }
 }`;
 const googleModule = `
+import { deleteBatchResult } from '/sources/drive-batch.js';
 export class NativeGoogleDatasetStore {
   get sourceId() { return 'google-drive:test:appdata-v1'; }
   constructor() {
@@ -89,6 +91,7 @@ export class NativeGoogleDatasetStore {
       if (args.bytes) args.bytes = Array.from(args.bytes);
       const result = await window.fixtureDrive(method, args); signal?.throwIfAborted();
       if (!result.ok) throw Object.assign(new Error(result.message), { code: result.code });
+      if (method === 'deleteFiles') return deleteBatchResult(args.ids, Uint8Array.from(result.value));
       return ['readObject', 'readFile'].includes(method) ? Uint8Array.from(result.value) : result.value;
     };
   }
@@ -139,8 +142,11 @@ try {
     await context.exposeFunction('fixtureDrive', async (method, args) => {
       try {
         if (args.bytes) args.bytes = Uint8Array.from(args.bytes);
+        const missing = method === 'deleteFiles' ? new Set(args.ids.filter(id => !provider.files.has(id))) : null;
         const result = await provider[method](args);
-        return { ok: true, value: result instanceof Uint8Array ? Array.from(result) : result };
+        const value = method === 'deleteFiles' ? driveBatchResponse(result.map((item, index) =>
+          [index, item.code ? 503 : missing.has(item.id) ? 404 : 204])) : result;
+        return { ok: true, value: value instanceof Uint8Array ? Array.from(value) : value };
       } catch (error) { return { ok: false, code: error.code, message: error.message }; }
     });
     for (const [path, body] of [['native/bridge', bridgeModule], ['storage/records-native', recordsModule],

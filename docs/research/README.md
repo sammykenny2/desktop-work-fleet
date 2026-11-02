@@ -1,9 +1,10 @@
 # Research index
 
-Updated: 2026-11-01.
+Updated: 2026-11-03.
 
 ## Latest design: read first
 
+- [Drive batch response framing](2026-11-03-drive-batch-response-framing.md): a public unauthenticated read-only response reproduces the reset parser failure; MIME framing, fixture coverage and authenticated-deletion limits.
 - [Drive dataset checkpoints and deletion](2026-11-01-drive-dataset-checkpoints-and-deletion.md): current history dependencies, supplied JS-only baseline, legacy destructive-reset behavior, Drive capacity limits and unverified protocol assumptions; supports proposed ADR-062/SPEC-010/PLAN-011.
 - [Mobile Google sign-in](2026-10-17-mobile-google-sign-in.md): OAuth clients, the Android Web audience / local account selection state, Apple cancellation that keeps the existing sign-in, and the limits of simulated testing.
 - [Linux Secret Service without active prompts](2026-10-15-linux-secret-service-without-prompts.md): persistent collection, immediate locking / secret reads, provider search prompts and the limits of private keyring validation; decision in ADR-048.

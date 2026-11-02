@@ -1,14 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { deleteBatchIds, deleteBatchRequest, deleteBatchResult } from '../src/sources/drive-batch.js';
+import { DELETE_BATCH_BYTES, deleteBatchIds, deleteBatchRequest, deleteBatchResult } from '../src/sources/drive-batch.js';
 import { GoogleDriveFileStore } from '../src/sources/google-drive.js';
 import { NativeGoogleDatasetStore } from '../src/native/google.js';
 import { DatasetReset } from '../src/sources/dataset-reset.js';
 import { sha256 } from '../src/sources/files.js';
+import { driveBatchResponse as response } from './fixtures/dataset/drive-batch.js';
 
 const encode = value => new TextEncoder().encode(value);
-const response = statuses => encode(statuses.map(([index, status]) => `--reply_boundary\r\nContent-Type: application/http\r\nContent-ID: <response-wf-${index}>\r\n\r\nHTTP/1.1 ${status} Result\r\nContent-Type: application/json\r\n\r\n${status === 403 ? '{"error":{"errors":[{"reason":"rateLimitExceeded"}]}}' : ''}\r\n`).join('') + '--reply_boundary--\r\n');
+
+test('the real unauthenticated Drive response parses its leading CRLF and per-request status', () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/dataset/drive-batch-response.json', import.meta.url)));
+  assert.equal(fixture.authenticated, false); assert.equal(fixture.status, 200);
+  assert.ok(fixture.body.startsWith('\r\n--'));
+  assert.deepEqual(deleteBatchResult(['probe-only'], encode(fixture.body)), [{ id: 'probe-only', code: 'unauthorized' }]);
+});
+
+test('multipart framing accepts preamble, epilogue and padding without splitting inline boundary text', () => {
+  const statuses = [[0, 204], [1, 404]], expected = [{ id: 'one', code: null }, { id: 'two', code: null }];
+  for (const options of [{ preamble: '' }, { preamble: '\r\n\r\n' }, { preamble: 'MIME preamble\r\n' },
+    { padding: ' \t', epilogue: 'MIME epilogue\r\n' }, { boundary: "batch_()'+,./:=?- with space" }]) {
+    assert.deepEqual(deleteBatchResult(['one', 'two'], response(statuses, options)), expected);
+  }
+  const body = new TextDecoder().decode(response(statuses));
+  assert.deepEqual(deleteBatchResult(['one', 'two'], encode(body.replaceAll('\r\n', '\n'))), expected);
+  assert.deepEqual(deleteBatchResult(['one', 'two'], encode(body.slice(0, -2))), expected);
+  const error = new TextDecoder().decode(response([[0, 403]]))
+    .replace('"reason":', '"message":"inline --batch_fixture is not a delimiter","reason":');
+  assert.deepEqual(deleteBatchResult(['one'], encode(error)), [{ id: 'one', code: 'rate-limit' }]);
+});
 
 test('batch deletion matches every native request fixture and rejects injected, duplicate or excessive IDs', () => {
   const fixture = JSON.parse(readFileSync(new URL('./fixtures/dataset/native-wire.json', import.meta.url)));
@@ -20,7 +41,11 @@ test('batch replies correlate out-of-order results and retain failures without l
   assert.deepEqual(deleteBatchResult(['one', 'two', 'three', 'four'], response([[3, 503], [1, 404], [2, 403], [0, 204]])),
     [{ id: 'one', code: null }, { id: 'two', code: null }, { id: 'three', code: 'rate-limit' }, { id: 'four', code: 'service-unavailable' }]);
   for (const body of [response([[0, 204]]), response([[0, 204], [0, 204]]), response([[0, 204], [3, 204]]),
-    response([[0, 204], [1, 204]]).slice(0, -10), encode('not a multipart reply')]) {
+    response([[0, 204], [1, 204]]).slice(0, -10), encode('not a multipart reply'), new Uint8Array([255]),
+    new Uint8Array(DELETE_BATCH_BYTES + 1),
+    encode(new TextDecoder().decode(response([[0, 204], [1, 204]])).replace('application/http', 'text/plain')),
+    encode(new TextDecoder().decode(response([[0, 204], [1, 204]])).replace('response-wf-0', 'unrecognized-id')),
+    encode(new TextDecoder().decode(response([[0, 204], [1, 204]])).replace('--batch_fixture--', 'inline --batch_fixture--'))]) {
     assert.throws(() => deleteBatchResult(['one', 'two'], body), { code: 'invalid-source-response' });
   }
 });

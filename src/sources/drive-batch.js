@@ -18,13 +18,24 @@ export function deleteBatchRequest(ids) {
 /** Only acknowledged IDs leave the durable journal. A malformed/lost reply can safely retry those same IDs. */
 export function deleteBatchResult(ids, bytes) {
   deleteBatchIds(ids);
-  const valid = condition => requireValue(condition, 'invalid-source-response', t('errors.sources.driveResponseInvalid'));
+  const valid = condition => requireValue(condition, 'invalid-source-response', t('errors.sources.driveBatchResponseInvalid'));
   valid(bytes instanceof Uint8Array && bytes.length <= DELETE_BATCH_BYTES);
   let body;
   try { body = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { valid(false); }
-  const boundary = /^--([A-Za-z0-9_.=-]{1,200})\r?\n/.exec(body)?.[1]; valid(boundary);
-  const parts = body.split(`--${boundary}`); valid(parts.shift() === '' && /^--\s*$/.test(parts.pop()));
-  valid(parts.length === ids.length);
+  // Drive starts real replies with CRLF. MIME permits a preamble/epilogue and padding on delimiter lines.
+  // Match whole delimiter lines so a boundary mentioned inside an error body cannot split a result.
+  const first = /(?:^|\r?\n)--([0-9A-Za-z'()+_,./:=? -]{0,69}[0-9A-Za-z'()+_,./:=?-])[ \t]*(?=\r?\n)/.exec(body);
+  valid(first);
+  const boundary = first[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const delimiters = new RegExp(`\\r?\\n--${boundary}(--)?[ \\t]*(?=\\r?\\n|$)`, 'g');
+  const parts = []; let start = first.index + first[0].length, delimiter;
+  delimiters.lastIndex = start;
+  while ((delimiter = delimiters.exec(body))) {
+    parts.push(body.slice(start, delimiter.index)); valid(parts.length <= ids.length);
+    if (delimiter[1]) break;
+    start = delimiters.lastIndex;
+  }
+  valid(delimiter?.[1] && parts.length === ids.length);
   const results = new Map();
   for (const part of parts) {
     const match = /^\r?\n([\s\S]*?)\r?\n\r?\nHTTP\/1\.[01] (\d{3})[^\r\n]*\r?\n([\s\S]*)$/.exec(part);

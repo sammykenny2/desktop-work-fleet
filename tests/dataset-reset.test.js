@@ -10,6 +10,9 @@ import { DatasetTestProvider } from './fixtures/dataset/provider.js';
 import { sha256 } from '../src/sources/files.js';
 import { FileSync } from '../src/sources/file-sync.js';
 import { MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.js';
+import { GoogleDriveFileStore } from '../src/sources/google-drive.js';
+import { NativeGoogleDatasetStore } from '../src/native/google.js';
+import { driveBatchResponse } from './fixtures/dataset/drive-batch.js';
 
 async function local(records = new MemoryRecordStore()) {
   const storage = new WorkspaceRecordStorage(records, 'google:test');
@@ -86,6 +89,58 @@ test('106 legacy files are acknowledged in two batches before separately reporte
   assert.ok(counts.every(value => value.total !== 106));
   assert.equal(initialized.at(-1).phase, 'activate');
   assert.equal((await run(reset)).phase, 'complete');
+});
+
+test('106-file reset resumes after an unrecognized deletion reply through both production batch adapters', async () => {
+  for (const native of [false, true]) {
+    const provider = new DatasetTestProvider(), first = await local(); legacy(provider, 106);
+    const batches = [], replies = []; let transfer;
+    const send = async ids => {
+      batches.push([...ids]);
+      const statuses = [];
+      for (const [index, id] of ids.entries()) {
+        statuses.push([index, provider.files.has(id) ? 204 : 404]);
+        await provider.deleteFile({ id });
+      }
+      replies.push(statuses.map(([, status]) => status));
+      const body = driveBatchResponse(statuses);
+      // The remote action finished, but no result may be acknowledged from an incomplete reply.
+      return batches.length === 1 ? body.slice(0, -16) : body;
+    };
+    const transport = native ? new NativeGoogleDatasetStore({ request: async (method, args) => {
+      if (method === 'google.deleteBatch') {
+        assert.equal(args.accountId, 'test'); transfer = await send(args.fileIds);
+        return { token: 'reply', size: transfer.length, sha256: await sha256(transfer) };
+      }
+      assert.equal(args.token, 'reply');
+      if (method === 'transfer.read') return { offset: 0, done: true, base64: Buffer.from(transfer).toString('base64') };
+      assert.equal(method, 'transfer.discard'); transfer = null; return {};
+    } }, { profileId: 'google:test' }, 'test') : new GoogleDriveFileStore({ accountId: 'test', request: async input => {
+      assert.equal(input.path, '/batch/drive/v3'); assert.equal(input.method, 'POST');
+      const ids = [...new TextDecoder().decode(input.body).matchAll(/DELETE \/drive\/v3\/files\/([A-Za-z0-9_-]+) HTTP\/1\.1/g)].map(match => match[1]);
+      return { status: 200, headers: {}, body: await send(ids) };
+    } });
+    provider.deleteFiles = args => transport.deleteFiles(args);
+    provider.hook = async (point, id) => {
+      if (point === 'read' && id.startsWith('old-')) throw new Error('Legacy contents must not be read');
+    };
+    const reset = new DatasetReset(provider, first.storage);
+    await reset.begin(await reset.preview()); await run(reset, 'clearing');
+    const before = await reset.status();
+    provider.files.set('late-legacy', { file: { id: 'late-legacy', kind: 'revision' }, bytes: new Uint8Array([255]) });
+    await assert.rejects(reset.step(), { code: 'invalid-source-response' });
+    assert.equal((await reset.status()).deleted, 0);
+    assert.equal(provider.stats.deletes, batches[0].length);
+    const reopened = new DatasetReset(provider, (await local(first.records)).storage);
+    const complete = await run(reopened);
+    assert.equal(complete.operationId, before.operationId); assert.equal(complete.marker.id, before.marker.id);
+    assert.equal(complete.deleted, 106); assert.equal(complete.residualLegacy, true);
+    assert.ok(provider.files.has('late-legacy'));
+    assert.equal(batches.length, 3); assert.deepEqual(batches[0], batches[1]);
+    assert.deepEqual([batches[0].length, batches[2].length].sort((a, b) => a - b), [6, 100]);
+    assert.ok(replies[0].every(status => status === 204)); assert.ok(replies[1].every(status => status === 404));
+    assert.ok(replies[2].every(status => status === 204));
+  }
 });
 
 test('an unfinished earlier reset clears unreadable dataset descriptors before retrying initialization', async () => {

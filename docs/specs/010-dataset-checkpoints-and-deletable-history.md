@@ -488,6 +488,9 @@ The reset worker captures at most 100 metadata entries per durable page and send
 IDs in one Drive `multipart/mixed` deletion request per step. Each part is matched by Content-ID; only 204 and
 404 acknowledge removal. Persist every acknowledged ID before surfacing a failed part; malformed/lost replies
 retry the same IDs, without widening the deletion set. A newer fence or missing own fence stops the next batch.
+Response parsing accepts MIME preambles (including Drive's leading CRLF), epilogues and delimiter padding;
+only delimiter lines separate parts. A complete closing delimiter and one uniquely correlated result per captured
+ID are still required. An unverified batch result reports continuation of the saved operation, not a storage-capacity failure.
 Drive [batch requests](https://developers.google.com/workspace/drive/api/guides/performance#batch_requests)
 reduce HTTP round trips, not per-file quota accounting. Fresh initialization reserves its bounded set of file IDs
 in one request. Root-parent proof uses the same retryable listing-visibility rule as descriptors/fences. Reset does not cascade-delete captured folders: a child can arrive after

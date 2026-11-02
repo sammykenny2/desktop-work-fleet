@@ -1,0 +1,9 @@
+{
+  "description": "Unauthenticated read-only Drive batch response observed on 2026-11-03; only the random boundary was normalized.",
+  "method": "GET",
+  "path": "/drive/v3/about?fields=kind",
+  "authenticated": false,
+  "status": 200,
+  "contentType": "multipart/mixed; boundary=batch_public_probe",
+  "body": "\r\n--batch_public_probe\r\nContent-Type: application/http\r\nContent-ID: response-wf-0\r\n\r\nHTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Bearer realm=\"https://accounts.google.com/\"\r\nContent-Type: application/json; charset=UTF-8\r\nContent-Length: 822\r\n\r\n{\n  \"error\": {\n    \"code\": 401,\n    \"message\": \"Request is missing required authentication credential. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.\",\n    \"errors\": [\n      {\n        \"message\": \"Login Required.\",\n        \"domain\": \"global\",\n        \"reason\": \"required\",\n        \"location\": \"Authorization\",\n        \"locationType\": \"header\"\n      }\n    ],\n    \"status\": \"UNAUTHENTICATED\",\n    \"details\": [\n      {\n        \"@type\": \"type.googleapis.com/google.rpc.ErrorInfo\",\n        \"reason\": \"CREDENTIALS_MISSING\",\n        \"domain\": \"googleapis.com\",\n        \"metadata\": {\n          \"method\": \"google.apps.drive.v3.DriveAbout.Get\",\n          \"service\": \"drive.googleapis.com\"\n        }\n      }\n    ]\n  }\n}\n\r\n--batch_public_probe--\r\n"
+}

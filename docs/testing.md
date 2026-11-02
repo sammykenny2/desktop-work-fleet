@@ -8,12 +8,19 @@ Evidence for the existing 0.1.0 prototype is in the [validation report](validati
 
 `node --test tests/drive-batch.test.js tests/dataset-reset.test.js tests/dataset-native.test.js tests/google-drive.test.js`
 checks metadata-only reset discovery against incompatible descriptors, 106 captured files in two deletion batches,
-partial acknowledgements, lost replies, and continuation of an earlier pending initialization. It also checks strict
-multipart response correlation and retryable root-list visibility. Normal synchronization remains strict.
+partial acknowledgements, lost replies, and continuation of an earlier pending initialization. Both production batch
+adapters also resume a 106-file reset after a rejected reply, accept 404 for already removed files, and finish the same
+operation without deleting a late file. Multipart tests replay the normalized response from an unauthenticated
+read-only [Drive probe](research/2026-11-03-drive-batch-response-framing.md), including its leading CRLF, plus
+preamble/epilogue, padding, inline boundary text, invalid correlation, truncation and size limits.
+`legacy-google-reset-ui-probe.mjs` passes synthetic multipart bytes through the production parser in Chromium and
+WebKit, including handheld modes; it no longer replaces batch parsing with successful result objects.
+The adapter tests also check retryable root-list visibility. Normal synchronization remains strict.
 `test_dataset_native.py` checks the same request fixture on Linux and Apple; the Windows core probe consumes that
 fixture in CI. `test_macos_google_drive.py` runs the production Apple batch transport with synthetic HTTP.
 Android's `DatasetFilesTest` checks bounded IDs, request construction and injection rejection with `testDebugUnitTest`.
-These are isolated adapter/renderer regressions, not live Drive or installed-phone acceptance.
+The public probe verifies real response framing only; authenticated deletion and installed-phone acceptance remain
+separate from these isolated adapter/renderer regressions.
 
 ## Acceptance routing for the new interaction
 

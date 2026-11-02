@@ -88,6 +88,7 @@ export default {
   'errors.sources.drivePermission': '目前 Google 授權無法存取 App 資料。',
   'errors.sources.driveError': 'Google Drive 未完成請求，本機資料保留。',
   'errors.sources.driveResponseInvalid': 'Google Drive 回應格式或容量無效。',
+  'errors.sources.driveBatchResponseInvalid': '無法確認 Google Drive 的批次處理結果。請繼續原有工作，重新確認並重試。',
   'errors.sources.driveResponseTooLarge': 'Google Drive 回應超過允許容量。',
   'errors.sources.driveResponseNotObject': 'Google Drive 回應需要 JSON object。',
   'errors.sources.driveCursorInvalid': 'Google Drive 回傳了無效游標。',

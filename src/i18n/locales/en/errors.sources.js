@@ -88,6 +88,7 @@ export default {
   'errors.sources.drivePermission': "The current Google permission can't access the app's data.",
   'errors.sources.driveError': "Google Drive didn't complete the request. Local data is kept.",
   'errors.sources.driveResponseInvalid': 'The Google Drive response format or size is invalid.',
+  'errors.sources.driveBatchResponseInvalid': 'The Google Drive batch results could not be verified. Continue the saved operation to check and retry them.',
   'errors.sources.driveResponseTooLarge': 'The Google Drive response is larger than allowed.',
   'errors.sources.driveResponseNotObject': 'The Google Drive response must be a JSON object.',
   'errors.sources.driveCursorInvalid': 'Google Drive returned an invalid cursor.',

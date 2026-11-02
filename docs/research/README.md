@@ -4,6 +4,7 @@ Updated: 2026-11-03.
 
 ## Latest design: read first
 
+- [Idle sync request cost](2026-11-03-idle-sync-request-cost.md): reproduced production-JS provider counts, source-derived native HTTP amplification, Apple session lifetime, primary sources and unmeasured real-account latency; supports proposed ADR-063/SPEC-011/PLAN-012.
 - [Drive batch response framing](2026-11-03-drive-batch-response-framing.md): a public unauthenticated read-only response reproduces the reset parser failure; MIME framing, fixture coverage and authenticated-deletion limits.
 - [Drive dataset checkpoints and deletion](2026-11-01-drive-dataset-checkpoints-and-deletion.md): current history dependencies, supplied JS-only baseline, legacy destructive-reset behavior, Drive capacity limits and unverified protocol assumptions; supports proposed ADR-062/SPEC-010/PLAN-011.
 - [Mobile Google sign-in](2026-10-17-mobile-google-sign-in.md): OAuth clients, the Android Web audience / local account selection state, Apple cancellation that keeps the existing sign-in, and the limits of simulated testing.

@@ -1,9 +1,10 @@
 # Decision index
 
-Updated: 2026-11-01.
+Updated: 2026-11-03.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-063](063-efficient-idle-sync.md) | Proposed; review pending | One-request idle checks, bounded local metadata commits, native connection reuse and quiet background status; no persisted format change |
 | [ADR-062](062-dataset-checkpoints-and-deletable-history.md) | Accepted direction; remote proof gates remain | Dataset checkpoints, UUID parents, single revision bodies, manual note purge and explicit legacy reset/recovery; independent local storage work; expiry deferred |
 | [ADR-061](061-unsaved-changes-instead-of-drafts.md) | Accepted (unsaved changes, 2026-11-01) | One set of unsaved changes per note, kept on this device and shown with a filled dot; no drafts list; Discard changes, Overwrite and Save as copy; supersedes ADR-009's draft lineage |
 | [ADR-060](060-explorer-redraws-the-wallpaper-a-scene-leaves.md) | Accepted (wallpaper remnants, 2026-10-31) | The wallpaper host keeps a scene's old pixels and ignores invalidation; wallpaper scenes ask Explorer to redraw with 0x052C (13, 1); a host-pixel probe catches black remnants on black wallpapers |

@@ -1,6 +1,6 @@
 # Roadmap
 
-Updated: 2026-11-01. This document only sets the order of work and does not commit to release dates. It is not a status
+Updated: 2026-11-03. This document only sets the order of work and does not commit to release dates. It is not a status
 record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of each version in
 [docs/release-notes.md](docs/release-notes.md).
 
@@ -29,6 +29,15 @@ source and Google work continues in [PLAN-002](docs/plans/002-google-drive-notes
 This 1.0 includes the Windows, macOS and Linux and the iOS and Android native apps, plus store submission preparation;
 the scope is in the answered Q items of SPEC-003. Integrating one host first does not cancel the other platforms. Use the
 existing Mac experience; do not restart the paused exploration goal.
+
+## Next sync performance work
+
+Review [ADR-063](docs/decisions/063-efficient-idle-sync.md),
+[SPEC-011](docs/specs/011-efficient-idle-sync.md) and
+[PLAN-012](docs/plans/012-efficient-idle-sync.md) before further history-capacity
+extensions. The proposal reduces unchanged checks using existing formats, adds native
+connection reuse and requires measured authenticated results. It does not authorize
+implementation, another schema change, reset or release.
 
 ## Next data-format boundary
 

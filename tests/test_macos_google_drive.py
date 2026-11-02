@@ -37,6 +37,9 @@ class MacOSGoogleDriveTests(unittest.TestCase):
     def test_literal_commas_in_echoed_fields_are_accepted(self):
         self.run_probe("literal-fields")
 
+    def test_batch_deletion_uses_the_native_authenticated_transport(self):
+        self.run_probe("delete-batch")
+
     def test_dataset_upload_readback_and_parent_validation(self):
         self.run_probe("dataset")
 

@@ -102,12 +102,12 @@ def query(value):
         clauses.append(prop("wfKind", "reset"))
     elif scope != "legacy":
         clauses.append(prop("wfFormat", FORMAT))
-        if scope != "datasets":
+        if scope not in ("datasets", "reset-datasets"):
             keys.add("datasetId")
             check(dataset_id(value.get("datasetId")))
             clauses.append(prop("wfDataset", value["datasetId"]))
-        if scope in ("datasets", "ready", "roots"):
-            clauses.append(prop("wfKind", {"datasets": "dataset", "ready": "ready", "roots": "dataset-root"}[scope]))
+        if scope in ("datasets", "reset-datasets", "ready", "roots"):
+            clauses.append(prop("wfKind", {"datasets": "dataset", "reset-datasets": "dataset", "ready": "ready", "roots": "dataset-root"}[scope]))
             if scope == "roots":
                 clauses.append("'appDataFolder' in parents")
         elif scope in ("current", "current-all"):
@@ -132,3 +132,10 @@ def query(value):
             check(False)
     check(set(value) == keys)
     return " and ".join(clauses)
+
+
+def delete_batch(ids):
+    check(isinstance(ids, list) and 1 <= len(ids) <= 100
+          and all(file_id(key) and key not in ("root", "appDataFolder") for key in ids) and len(set(ids)) == len(ids))
+    return ("".join(f"--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-{index}\r\n\r\nDELETE /drive/v3/files/{key} HTTP/1.1\r\n\r\n"
+                    for index, key in enumerate(ids)) + "--work_fleet_delete--\r\n").encode("ascii")

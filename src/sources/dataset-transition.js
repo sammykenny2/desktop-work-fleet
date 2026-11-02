@@ -75,7 +75,7 @@ export async function stagePendingDatasetReset(state, storage) {
     requireValue(state.format === 'work-fleet-workspace-current' && state.profileId.startsWith('google:')
       && job.kind === 'dataset-reset' && job.sourceId === `google-drive:${state.profileId.slice(7)}:appdata-v1`
       && /^[0-9a-f-]{36}$/.test(job.operationId) && job.preview?.sourceId === job.sourceId
-      && ['capture', 'fence', 'initialize', 'cleanup', 'journal-cleanup'].includes(job.phase),
+      && ['capture', 'capture-restart', 'fence', 'clearing', 'initialize', 'activate', 'cleanup', 'residual-audit', 'audit-restart', 'journal-cleanup'].includes(job.phase),
     'invalid-reset-job', t('errors.sources.resetJobInvalid'));
     return emptyCurrent(state, storage, job.sourceId, { resetOperation: job.operationId });
   }

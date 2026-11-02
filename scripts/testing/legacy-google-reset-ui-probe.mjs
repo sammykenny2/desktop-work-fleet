@@ -84,7 +84,7 @@ export class NativeGoogleDatasetStore {
   get sourceId() { return 'google-drive:test:appdata-v1'; }
   constructor() {
     for (const method of ['allocateFileId', 'getStartCursor', 'getObject', 'readObject', 'createObject', 'createFolder',
-      'readFile', 'createFile', 'deleteFile', 'listObjects', 'listDatasetChanges']) this[method] = async (input = {}) => {
+      'readFile', 'createFile', 'deleteFile', 'deleteFiles', 'listObjects', 'listDatasetChanges']) this[method] = async (input = {}) => {
       const { signal, ...args } = input; signal?.throwIfAborted();
       if (args.bytes) args.bytes = Array.from(args.bytes);
       const result = await window.fixtureDrive(method, args); signal?.throwIfAborted();

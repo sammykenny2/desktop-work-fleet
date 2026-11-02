@@ -69,7 +69,9 @@ export class DatasetLifecycle {
           t(found.phase === 'conflict' ? 'errors.sources.initializationConflict' : 'errors.sources.incompatibleCloudData'));
       }
       const datasetId = crypto.randomUUID();
-      const allocate = () => this.#store.allocateFileId({ signal });
+      const reserved = this.#store.allocateFileIds
+        ? await this.#store.allocateFileIds(7 + 3 * DATASET_SHARDS.length - 1 + (starter ? 2 : 0), { signal }) : null;
+      const allocate = () => reserved ? Promise.resolve(reserved.shift()) : this.#store.allocateFileId({ signal });
       const rootId = await allocate(), readyId = await allocate();
       const folders = { notes: await allocate(), groups: await allocate(), current: await allocate(), purges: await allocate(), shards: {}, buckets: {} };
       for (const shard of DATASET_SHARDS) folders.shards[shard] = await allocate();

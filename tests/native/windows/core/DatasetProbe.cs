@@ -20,6 +20,13 @@ static class DatasetProbe
       catch { rejected = true; }
       if (!rejected) throw new Exception("Invalid dataset fixture was accepted"); count++;
     }
+    var deletion = root.GetProperty("deletion");
+    if (System.Text.Encoding.UTF8.GetString(DatasetFiles.DeleteBatch(deletion.GetProperty("ids"))) != deletion.GetProperty("body").GetString()) throw new Exception("Deletion request differs from shared fixture");
+    foreach (var ids in root.GetProperty("badDeletionIds").EnumerateArray())
+    {
+      var rejected = false; try { _ = DatasetFiles.DeleteBatch(ids); } catch { rejected = true; }
+      if (!rejected) throw new Exception("Invalid deletion IDs accepted"); count++;
+    }
     Console.WriteLine("PASS dataset wire"); return count;
   }
 }

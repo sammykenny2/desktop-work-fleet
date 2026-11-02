@@ -15,6 +15,13 @@ import Foundation
                 try FleetDataset.check(rejected)
             }
         }
+        let deletion = fixture["deletion"] as! [String: Any]
+        try FleetDataset.check(FleetDataset.deleteBatch(deletion["ids"]) == Data((deletion["body"] as! String).utf8))
+        for ids in fixture["badDeletionIds"] as! [Any] {
+            var rejected = false
+            do { _ = try FleetDataset.deleteBatch(ids) } catch { rejected = true }
+            try FleetDataset.check(rejected)
+        }
         print("PASS dataset wire")
     }
 }

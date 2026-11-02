@@ -43,3 +43,11 @@ test('native root descriptors require direct-parent proof before the app-data al
   } }, { profileId: 'google:account' }, 'account');
   assert.deepEqual(await store.getObject({ id: root.input.id }), root.input); assert.equal(calls, 2);
 });
+
+test('a newly created root missing from two index observations remains retryable and is eventually verified', async () => {
+  const root = fixture.files.find(item => item.input.kind === 'dataset-root');
+  const metadata = { ...root.metadata, parents: ['real-app-data-id'] }; let lists = 0;
+  const store = new NativeGoogleDatasetStore({ request: async method => method === 'google.dataset.get' ? metadata
+    : { files: ++lists <= 2 ? [] : [metadata] } }, { profileId: 'google:account' }, 'account');
+  assert.deepEqual(await store.getObject({ id: root.input.id }), root.input); assert.equal(lists, 3);
+});

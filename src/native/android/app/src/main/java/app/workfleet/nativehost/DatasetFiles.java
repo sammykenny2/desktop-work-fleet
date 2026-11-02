@@ -63,15 +63,31 @@ final class DatasetFiles {
         if (expected.has("sha256")) check(value.getString("size").equals(Long.toString(expected.getLong("size"))) && value.optString("sha256Checksum", expected.getString("sha256")).equals(expected.getString("sha256")));
     }
     private static String prop(String key, String value) { return "appProperties has { key='" + key + "' and value='" + value + "' }"; }
+    static byte[] deleteBatch(Object value) throws Exception {
+        check(value instanceof JSONArray); JSONArray input = (JSONArray) value;
+        List<String> ids = new ArrayList<>();
+        for (int i = 0; i < input.length(); i++) { check(fileId(input.get(i))); ids.add((String) input.get(i)); }
+        return deleteBatchIds(ids);
+    }
+    static byte[] deleteBatchIds(List<String> input) throws Exception {
+        check(input != null && input.size() >= 1 && input.size() <= 100);
+        Set<String> ids = new HashSet<>(); StringBuilder body = new StringBuilder();
+        for (int i = 0; i < input.size(); i++) {
+            String id = input.get(i); check(fileId(id) && !Arrays.asList("root", "appDataFolder").contains(id) && ids.add(id));
+            body.append("--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-").append(i)
+                .append("\r\n\r\nDELETE /drive/v3/files/").append(id).append(" HTTP/1.1\r\n\r\n");
+        }
+        return body.append("--work_fleet_delete--\r\n").toString().getBytes(StandardCharsets.US_ASCII);
+    }
     static String query(JSONObject value) throws Exception {
         String scope = Protocol.text(value, "scope", 32); Set<String> keys = new HashSet<>(Arrays.asList("scope"));
         List<String> clauses = new ArrayList<>(Arrays.asList("trashed = false"));
         if (scope.equals("fences")) clauses.add(prop("wfKind", "reset"));
         else if (!scope.equals("legacy")) {
             clauses.add(prop("wfFormat", FORMAT));
-            if (!scope.equals("datasets")) { keys.add("datasetId"); check(datasetId(value.opt("datasetId"))); clauses.add(prop("wfDataset", value.getString("datasetId"))); }
-            if (Arrays.asList("datasets", "ready", "roots").contains(scope)) {
-                clauses.add(prop("wfKind", scope.equals("datasets") ? "dataset" : scope.equals("roots") ? "dataset-root" : "ready"));
+            if (!Arrays.asList("datasets", "reset-datasets").contains(scope)) { keys.add("datasetId"); check(datasetId(value.opt("datasetId"))); clauses.add(prop("wfDataset", value.getString("datasetId"))); }
+            if (Arrays.asList("datasets", "reset-datasets", "ready", "roots").contains(scope)) {
+                clauses.add(prop("wfKind", Arrays.asList("datasets", "reset-datasets").contains(scope) ? "dataset" : scope.equals("roots") ? "dataset-root" : "ready"));
                 if (scope.equals("roots")) clauses.add("'appDataFolder' in parents");
             } else if (Arrays.asList("current", "current-all").contains(scope)) {
                 if (scope.equals("current")) { keys.add("shard"); check(SHARDS.contains(value.optString("shard"))); clauses.add(prop("wfShard", value.getString("shard"))); }

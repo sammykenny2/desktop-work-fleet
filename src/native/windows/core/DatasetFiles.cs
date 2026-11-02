@@ -67,6 +67,14 @@ public static class DatasetFiles
       && (!value.TryGetProperty("sha256Checksum", out _) || Text(value, "sha256Checksum") == Text(expected, "sha256")));
   }
   private static string Prop(string key, string value) => "appProperties has { key='" + key + "' and value='" + value + "' }";
+  public static byte[] DeleteBatch(JsonElement value)
+  {
+    Check(value.ValueKind == JsonValueKind.Array && value.GetArrayLength() is >= 1 and <= 100);
+    var ids = value.EnumerateArray().Select(item => item.ValueKind == JsonValueKind.String ? item.GetString()! : "").ToArray();
+    Check(ids.Distinct(StringComparer.Ordinal).Count() == ids.Length && ids.All(id => FileId(id) && id is not ("root" or "appDataFolder")));
+    var body = string.Concat(ids.Select((id, index) => $"--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-{index}\r\n\r\nDELETE /drive/v3/files/{id} HTTP/1.1\r\n\r\n")) + "--work_fleet_delete--\r\n";
+    return Encoding.UTF8.GetBytes(body);
+  }
   public static string Query(JsonElement value)
   {
     Check(value.ValueKind == JsonValueKind.Object); var scope = Text(value, "scope"); var keys = new HashSet<string>(["scope"], StringComparer.Ordinal);
@@ -75,10 +83,10 @@ public static class DatasetFiles
     else if (scope != "legacy")
     {
       clauses.Add(Prop("wfFormat", Format));
-      if (scope != "datasets") { keys.Add("datasetId"); Check(DatasetId(Text(value, "datasetId"))); clauses.Add(Prop("wfDataset", Text(value, "datasetId"))); }
-      if (scope is "datasets" or "ready" or "roots")
+      if (scope is not ("datasets" or "reset-datasets")) { keys.Add("datasetId"); Check(DatasetId(Text(value, "datasetId"))); clauses.Add(Prop("wfDataset", Text(value, "datasetId"))); }
+      if (scope is "datasets" or "reset-datasets" or "ready" or "roots")
       {
-        clauses.Add(Prop("wfKind", scope == "datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"));
+        clauses.Add(Prop("wfKind", scope is "datasets" or "reset-datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"));
         if (scope == "roots") clauses.Add("'appDataFolder' in parents");
       }
       else if (scope is "current" or "current-all")

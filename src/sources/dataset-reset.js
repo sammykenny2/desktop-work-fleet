@@ -1,4 +1,4 @@
-import { copy, requireValue } from '../core/contracts.js';
+import { copy, requireValue, FleetError } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
 import { sha256, validFileId, validateFile, verifyFile } from './files.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
@@ -19,7 +19,7 @@ export class DatasetReset {
   async preview(signal) {
     const [fences, datasets] = await Promise.all([
       listDatasetObjects(this.#store, { scope: 'fences' }, { signal, limit: 16 }),
-      listDatasetObjects(this.#store, { scope: 'datasets' }, { signal, limit: 16 }),
+      listDatasetObjects(this.#store, { scope: 'reset-datasets' }, { signal, limit: 1024 }),
     ]);
     return { sourceId: this.#store.sourceId, fences: idsOf(fences), datasets: idsOf(datasets) };
   }
@@ -67,7 +67,7 @@ export class DatasetReset {
           superseded(fences.every(file => file.id === job.marker.id || job.preview.fences.includes(file.id)));
         }
       } else superseded(job.preview.fences.every(id => remote.fences.includes(id)));
-      if (job.binding) {
+      if (job.binding && (job.ready || job.seeded)) {
         try {
           const { descriptor, plan } = job.binding;
           superseded(same(await this.#protocol.read(descriptor, signal), plan));
@@ -125,15 +125,62 @@ export class DatasetReset {
       try { await this.#store.createFile({ file: job.marker, bytes, signal }); }
       catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
       await verifyFile(job.marker, await this.#store.readFile({ file: job.marker, signal }));
-      await save({ markerPublished: true, phase: 'initialize' }); return copy(job);
+      await save({ markerPublished: true, phase: job.seeded ? 'initialize' : 'clearing' }); return copy(job);
+    }
+    // Existing unfinished jobs retain the original confirmation and captured IDs. They do not have to
+    // understand a new or damaged dataset before retiring the old content the user chose to discard.
+    if (!job.seeded && !job.ready && !job.cleared && ['initialize', 'cleanup'].includes(job.phase)) {
+      await save({ phase: 'clearing' }); return copy(job);
+    }
+    const clearPage = async () => {
+      const [row] = (await this.#journal.jobs(pageKind, { limit: 1 })).rows;
+      if (!row) return false;
+      const ids = row.value.files.map(file => file.id);
+      invalid(ids.length <= 100 && ids.every(validFileId) && !ids.includes(job.marker.id));
+      let results = [];
+      if (ids.length) {
+        await guard();
+        if (this.#store.deleteFiles) results = await this.#store.deleteFiles({ ids, signal });
+        else {
+          for (const id of ids) {
+            signal?.throwIfAborted();
+            try { await this.#store.deleteFile({ id, signal }); results.push({ id, code: null }); }
+            catch (error) { results.push({ id, code: error.code ?? 'network' }); break; }
+          }
+        }
+      }
+      invalid(Array.isArray(results) && new Set(results.map(item => item.id)).size === results.length
+        && results.every(item => ids.includes(item.id) && (item.code === null || typeof item.code === 'string')));
+      const acknowledged = new Set(results.filter(item => item.code === null).map(item => item.id));
+      const files = row.value.files.filter(file => !acknowledged.has(file.id));
+      job = { ...job, deleted: job.deleted + acknowledged.size };
+      await this.#journal.putJobs([{ key: row.key, value: { ...row.value, files } }, { key: 'dataset-reset', value: job }]);
+      if (!files.length) await this.#journal.deleteJob(row.key);
+      report(job);
+      if (files.length) {
+        const failure = results.find(item => item.code)?.code ?? 'network';
+        const messages = { unauthorized: 'errors.sources.driveUnauthorized', 'rate-limit': 'errors.sources.driveRateLimit',
+          'service-unavailable': 'errors.sources.driveUnavailable', 'source-permission': 'errors.sources.drivePermission' };
+        throw new FleetError(failure, t(messages[failure] ?? 'errors.sources.driveNetwork'));
+      }
+      return true;
+    };
+    if (job.phase === 'clearing') {
+      if (await clearPage()) return copy(job);
+      await save({ cleared: true, phase: 'initialize' }); return copy(job);
     }
     if (job.phase === 'initialize') {
       invalid(!job.seeded || typeof seed === 'function');
       const binding = await new DatasetLifecycle(this.#store, this.#journal).initialize({ key: initializeKey,
         fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard, progress, seed: job.seeded ? seed : null });
       if (binding === null) return copy(job);
-      await save({ binding, phase: 'cleanup' }); return copy(job);
+      await save({ binding, phase: job.seeded ? 'cleanup' : 'activate' }); return copy(job);
     }
+    if (job.phase === 'activate') {
+      await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
+      await save({ ready: true, phase: 'residual-audit', pageToken: null, residualLegacy: false }); return copy(job);
+    }
+    // A ready job from an earlier preview may still have captured cleanup pages. Never rebuild its active data.
     if (job.phase === 'cleanup') {
       if (!job.ready) {
         const old = (await this.preview(signal)).fences.find(id => job.seenFences.includes(id));
@@ -141,21 +188,8 @@ export class DatasetReset {
         await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
         await save({ ready: true }); return copy(job);
       }
-      const [row] = (await this.#journal.jobs(pageKind, { limit: 1 })).rows;
-      if (row) {
-        const targets = row.value.files.slice(0, 20);
-        for (const [index, file] of targets.entries()) {
-          await guard(); await this.#store.deleteFile({ id: file.id, signal });
-          report({ ...job, deleted: job.deleted + index + 1 });
-        }
-        const files = row.value.files.slice(targets.length);
-        job = { ...job, deleted: job.deleted + targets.length };
-        // An empty page is retained until its receipt commits, so lost replies never skip captured IDs.
-        await this.#journal.putJobs([{ key: row.key, value: { ...row.value, files } }, { key: 'dataset-reset', value: job }]);
-        if (!files.length) await this.#journal.deleteJob(row.key);
-        return copy(job);
-      }
-      await guard(); await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
+      if (await clearPage()) return copy(job);
+      await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
       await save({ phase: 'residual-audit', pageToken: null, residualLegacy: false }); return copy(job);
     }
     if (job.phase === 'residual-audit') {

@@ -831,8 +831,8 @@ function datasetProgressText({ phase, completed = 0, total = 0, ready = false, f
     : phase === 'fence' ? 'sync.reset.marking'
     : phase === 'initialize' ? 'sync.reset.preparing'
     : phase === 'initialize-progress' ? 'sync.reset.initializing'
-    : phase === 'initialize-verify' || phase === 'cleanup' && !ready ? 'sync.reset.activating'
-    : phase === 'cleanup' ? 'sync.reset.cleanup'
+    : phase === 'initialize-verify' || phase === 'activate' || phase === 'cleanup' && !ready ? 'sync.reset.activating'
+    : ['clearing', 'cleanup'].includes(phase) ? 'sync.reset.cleanup'
     : ['residual-audit', 'audit-restart', 'journal-cleanup'].includes(phase) ? 'sync.reset.verifying'
     : phase === 'complete' ? 'sync.reset.cleaned' : 'sync.recovery.working';
   return t(key, { done: completed, total, folders });

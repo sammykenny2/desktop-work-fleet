@@ -16,6 +16,10 @@ import protocol
 class LinuxDatasetTests(unittest.TestCase):
     def test_shared_wire_fixtures(self):
         fixture = json.loads(FIXTURE.read_text())
+        self.assertEqual(dataset.delete_batch(fixture["deletion"]["ids"]).decode("ascii"), fixture["deletion"]["body"])
+        for ids in fixture["badDeletionIds"]:
+            with self.assertRaises(protocol.Failure):
+                dataset.delete_batch(ids)
         for item in fixture["queries"]:
             self.assertEqual(dataset.query(item["input"]), item["expected"])
         for item in fixture["files"]:
@@ -49,6 +53,27 @@ class LinuxDatasetTests(unittest.TestCase):
         with self.assertRaises(protocol.Failure):
             service.invoke("google.dataset.get", {"accountId": "account", "fileId": "bad\n"})
         self.assertEqual(len(calls), 1)
+
+    def test_batch_dispatch_and_bulk_id_allocation(self):
+        import google
+        import threading
+        service = google.Google.__new__(google.Google)
+        service.account = "account"
+        service.closed = threading.Event()
+        calls = []
+        service.request = lambda path, **options: calls.append((path, options)) or (200, b"batch-reply", {})
+        ids = ["old-one", "old-two"]
+        self.assertEqual(service.invoke("google.deleteBatch", {"accountId": "account", "fileIds": ids}), b"batch-reply")
+        self.assertEqual(calls[0][0], "/batch/drive/v3")
+        self.assertEqual(calls[0][1]["data"], dataset.delete_batch(ids))
+        self.assertEqual(calls[0][1]["method"], "POST")
+        self.assertIn("multipart/mixed", calls[0][1]["headers"]["Content-Type"])
+        with self.assertRaises(protocol.Failure):
+            service.invoke("google.deleteBatch", {"accountId": "account", "fileIds": ["root"]})
+        self.assertEqual(len(calls), 1)
+        service.json = lambda path, **options: calls.append((path, options)) or {"ids": ["one", "two"]}
+        service.invoke("google.allocate", {"accountId": "account", "count": 2})
+        self.assertIn("count=2", calls[-1][0])
 
     def test_dataset_upload_readback_and_parent_validation(self):
         import google

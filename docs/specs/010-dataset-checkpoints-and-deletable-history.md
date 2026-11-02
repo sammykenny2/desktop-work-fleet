@@ -444,8 +444,12 @@ needing a Workspace. An in-progress, explicitly requested discard/set-aside fini
 Desktop record status/get/page read failures retain SPEC-006 cause classification and recovery actions. An old local
 profile on a second device can be discarded separately, then join an already-current cloud without resetting it.
 
-Cloud reset stages are `capture exact old IDs -> publish legacy fence -> initialize isolated dataset -> ready ->
-clean captured old IDs -> complete`. The capture is a streamed, durable metadata-only journal; it may take time
+Empty cloud reset stages are `capture exact old IDs -> publish legacy fence -> clear captured old IDs ->
+initialize isolated dataset -> ready -> audit -> complete`. Reset discovery validates identities only, so malformed
+or incompatible old dataset descriptors cannot prevent an authorized clear. No old body is fetched or decoded.
+An unfinished earlier reset retains its operation and captured pages, clears them before retrying initialization,
+and does not require another confirmation. A previously ready dataset is never rebuilt by cleanup. Seeded backup
+replacement keeps its existing seed-before-readiness ordering and clears old files afterwards. The capture is a streamed, durable metadata-only journal; it may take time
 but does not block editing an already usable local view. The reset confirmation warns to update/stop every old
 device, including devices with reset/Google-overwrite jobs. No compatible safety export is falsely required for
 unreadable legacy data; for readable current data, existing safety-backup requirements still apply.
@@ -456,7 +460,7 @@ active backup captures and version choices still exclude maintenance. Continue r
 captured targets, without another destructive confirmation or another reset. Blocking failures survive a renderer
 reload and remain visible until a retry; starting the retry disables the duplicate action. Initialization counts
 new-data preparation independently of old-file deletion, reports verified objects during the long initialization
-step, and reports each acknowledged old-file deletion. Activating the new data and auditing cleanup are named stages,
+step, and reports each durably acknowledged deletion batch. Activating the new data and auditing cleanup are named stages,
 not a misleading zero-deleted progress counter. A failed cleanup after readiness does not block ordinary sync.
 
 An expired capture page token restarts metadata capture before fence publication: discard only that attempt's local
@@ -469,8 +473,7 @@ journal. Absence alone is not an initialization conflict or superseding reset. A
 observed foreign fence still stops the affected operation. This bounded retry does not prove arbitrary stale-list
 safety; real-provider publication and concurrent-writer acceptance remains open.
 
-New data is never created below an old captured folder. Every deletion revalidates account, expected fence and
-dataset, and is limited to the captured IDs. On a new fence/generation or loss of the reset's own marker, stop the
+New data is never created below an old captured folder. Each deletion batch revalidates account and the expected fence/generation, and is limited to the captured IDs. On a new fence/generation or loss of the reset's own marker, stop the
 old job. Two competing initializers do not elect a winner by clock; show an initialization conflict and preserve
 both plans for a previewed resolution. Followers verify readiness and do not independently create starter groups.
 An initialized intentionally empty workspace remains empty. Old files created after the captured set are ignored
@@ -478,9 +481,13 @@ as incompatible and reported as residual legacy writes; do not widen deletion sc
 cleanup, a resumable metadata audit reads at most 100 entries per step, excludes new-format files/folders and the
 active fence, and retains a warning when legacy leaves remain. Later bounded changes-feed observations persist
 the same warning without downloading old bodies or starting a global scan.
-The reset worker captures at most 100 metadata entries per durable page and deletes at most 20 captured leaf
-files per step. Captured old fences are retired first after new readiness, allowing the new dataset to become
-usable while content cleanup continues. Reset does not cascade-delete captured folders: a child can arrive after
+The reset worker captures at most 100 metadata entries per durable page and sends at most 100 captured leaf
+IDs in one Drive `multipart/mixed` deletion request per step. Each part is matched by Content-ID; only 204 and
+404 acknowledge removal. Persist every acknowledged ID before surfacing a failed part; malformed/lost replies
+retry the same IDs, without widening the deletion set. A newer fence or missing own fence stops the next batch.
+Drive [batch requests](https://developers.google.com/workspace/drive/api/guides/performance#batch_requests)
+reduce HTTP round trips, not per-file quota accounting. Fresh initialization reserves its bounded set of file IDs
+in one request. Root-parent proof uses the same retryable listing-visibility rule as descriptors/fences. Reset does not cascade-delete captured folders: a child can arrive after
 an empty-folder check and Drive has no conditional empty-folder delete. Retain/count those obsolete containers;
 all captured content files are still removed. The legacy flat layout has no such containers. Note purge has a
 different, explicitly terminal whole-identity scope and may delete its owned folders and late descendants.

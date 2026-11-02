@@ -107,13 +107,20 @@ actor FleetDrive {
             if args["pageToken"] != nil && !(args["pageToken"] is NSNull) { fields.append(("pageToken", try FleetProtocol.text(args, "pageToken", 8192))) }
             return try await json(path("/drive/v3/files", fields), context: "listing")
         case "google.changes": return try await json(path("/drive/v3/changes", [("pageToken", FleetProtocol.text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(Self.fields),mimeType))")]), context: "changes")
-        case "google.allocate": return try await json(path("/drive/v3/files/generateIds", [("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")]))
+        case "google.allocate":
+            let count = try FleetProtocol.number(["count": args["count"] ?? 1], "count", 100)
+            try FleetDataset.check(count > 0)
+            return try await json(path("/drive/v3/files/generateIds", [("count", String(count)), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")]))
         case "google.profile": return try await profile()
         case "google.read":
             let file = try self.file(args), id = try FleetProtocol.text(file, "id"), size = Int(try FleetProtocol.number(file, "size"))
             try metadata(await json(path("/drive/v3/files/" + id, [("fields", Self.fields)])), file)
             let data = try await request(path("/drive/v3/files/" + id, [("alt", "media")]), maximum: max(size, 65536)).0
             try FleetProtocol.require(data.count == size && FleetProtocol.digest(data) == FleetProtocol.text(file, "sha256"), "file-integrity", "The Google file failed its checksum."); return data
+        case "google.deleteBatch":
+            let body = try FleetDataset.deleteBatch(args["fileIds"])
+            return try await request("/batch/drive/v3", method: "POST", body: body,
+                headers: ["Content-Type": "multipart/mixed; boundary=work_fleet_delete"]).0
         case "google.delete":
             // Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
             let id = try FleetProtocol.text(args, "fileId")

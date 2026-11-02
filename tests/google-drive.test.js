@@ -68,8 +68,8 @@ test('a real app-data parent ID is normalized only after a scoped direct-parent 
   const s = scripted([response(meta), response({ files: [meta] })]);
   assert.deepEqual(await s.store.getObject({ id: file.id }), file); s.done();
   assert.match(new URL(s.calls[1].path, 'https://www.googleapis.com').searchParams.get('q'), /'appDataFolder' in parents/);
-  const invalid = scripted([response(meta), response({ files: [] })]);
-  await assert.rejects(invalid.store.getObject({ id: file.id }), { code: 'invalid-dataset' }); invalid.done();
+  const invalid = scripted([response(meta), ...Array.from({ length: 4 }, () => response({ files: [] }))]);
+  await assert.rejects(invalid.store.getObject({ id: file.id }), { code: 'dataset-visibility' }); invalid.done();
 });
 
 test('Drive enumeration, changes and ID allocation use appDataFolder with exact field and token semantics', async () => {

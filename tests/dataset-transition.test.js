@@ -20,20 +20,22 @@ async function client(provider, records = new MemoryRecordStore()) {
   return { workspace, storage, records, fileStore: provider, sync: new DatasetSync({ workspace, storage, fileStore: provider }) };
 }
 
-test('confirmed reset switches local generation once, becomes usable before old history cleanup and resumes', async () => {
+test('confirmed reset clears captured history before readiness, switches generation once and resumes without erasing new edits', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
   let card = await a.workspace.createCard(content('old'));
   for (let i = 0; i < 80; i++) card = await a.workspace.updateCard(card.id, { content: content(`old ${i}`) }, card.revision);
   while (a.workspace.pendingCount) await a.sync.sync();
   await a.sync.stop({ endSession: false });
   const reset = new DatasetReset(provider, a.storage), preview = await reset.preview();
+  const oldLeaves = [...provider.files.values()].filter(item => !['folder', 'dataset-root'].includes(item.file.kind)).map(item => item.file.id);
   const oldDataset = a.workspace.syncState.dataset.plan.datasetId, read = provider.readObject.bind(provider);
   provider.readObject = async args => {
     assert.ok(args.file.kind !== 'revision' || args.file.datasetId !== oldDataset, 'reset downloaded old history'); return read(args);
   };
   const state = await resumeDatasetReset({ ...a, state: a.workspace.state, preview });
   assert.equal(state.cards.length, 0); assert.equal(state.groups.length, 1);
-  assert.equal((await reset.status()).phase, 'cleanup');
+  assert.equal((await reset.status()).phase, 'residual-audit');
+  assert.ok(oldLeaves.every(id => !provider.files.has(id)), 'readiness preceded captured history deletion');
   const reopened = await client(provider, a.records), fresh = await reopened.workspace.createCard(content('new after readiness'));
   const again = await resumeDatasetReset({ ...reopened, state: reopened.workspace.state });
   assert.equal(again.cards[0].id, fresh.id, 'resume erased post-reset work');

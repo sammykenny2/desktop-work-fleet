@@ -1,3 +1,5 @@
+import { visibleDatasetObjects } from '../sources/dataset-protocol.js';
+import { DELETE_BATCH_BYTES, deleteBatchIds, deleteBatchResult } from '../sources/drive-batch.js';
 import { FleetError, requireValue } from '../core/contracts.js';
 import { NativeTransfers } from '../storage/native.js';
 import { driveFolder, googleDescriptor } from '../sources/google-drive.js';
@@ -53,14 +55,22 @@ export class NativeGoogleFileStore {
       resetIds: (result.files || []).filter(file => file.appProperties?.wfKind === 'reset').map(file => file.id),
       nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };
   }
+  async deleteFiles({ ids, signal }) {
+    deleteBatchIds(ids); signal?.throwIfAborted();
+    const bytes = await this.#transfers.download('google.deleteBatch', { accountId: this.#account, fileIds: ids }, DELETE_BATCH_BYTES);
+    signal?.throwIfAborted(); return deleteBatchResult(ids, bytes);
+  }
   async deleteFile({ id, signal }) {
     requireValue(validFileId(id), 'invalid-source-file', t('errors.storage.googleFileIdInvalid'));
     await this.#call('google.delete', { fileId: id }, signal);
   }
-  async allocateFileId({ signal } = {}) {
-    const result = await this.#call('google.allocate', {}, signal);
-    requireValue(Array.isArray(result.ids) && result.ids.length === 1 && validFileId(result.ids[0]), 'invalid-source-file', t('errors.storage.googleFileIdInvalid')); return result.ids[0];
+  async allocateFileIds(count, { signal } = {}) {
+    requireValue(Number.isSafeInteger(count) && count > 0 && count <= 100, 'invalid-source-file', t('errors.storage.googleFileIdInvalid'));
+    const result = await this.#call('google.allocate', { count }, signal);
+    requireValue(Array.isArray(result.ids) && result.ids.length === count && new Set(result.ids).size === count && result.ids.every(validFileId),
+      'invalid-source-file', t('errors.storage.googleFileIdInvalid')); return result.ids;
   }
+  async allocateFileId(options = {}) { return (await this.allocateFileIds(1, options))[0]; }
   async readFile({ file, signal }) {
     file = validateFile(file); signal?.throwIfAborted();
     const bytes = await this.#transfers.download('google.read', { accountId: this.#account, file }, Math.max(file.size, 65536));
@@ -92,7 +102,7 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
     requireValue(result.incompleteSearch === undefined || typeof result.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
     return { files: page(result.files ?? []).map(file => {
       if (query.scope === 'entity-data') return googleDatasetOwned(file, query);
-      if (['legacy', 'fences'].includes(query.scope)) {
+      if (['legacy', 'fences', 'reset-datasets'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.storage.googleFileIdInvalid'));
         requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
         return { id: file.id, kind: file.appProperties?.wfKind ?? null,
@@ -104,16 +114,9 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
   async #descriptor(metadata, signal) {
     if (metadata.appProperties?.wfKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
     const expected = googleDatasetDescriptor(metadata, { rootParentVerified: true });
-    let pageToken = null; const seen = new Set();
-    do {
-      const result = await this.listObjects({ query: { scope: 'roots', datasetId: expected.datasetId }, pageToken, signal });
-      requireValue(!result.incomplete, 'invalid-source-page', t('errors.sources.scanIncomplete'));
-      if (result.files.some(file => canonicalJson(file) === canonicalJson(expected))) return expected;
-      pageToken = result.nextPageToken;
-      requireValue(!pageToken || !seen.has(pageToken) && seen.size < 2, 'invalid-dataset', t('errors.sources.datasetInvalid'));
-      if (pageToken) seen.add(pageToken);
-    } while (pageToken);
-    throw new FleetError('invalid-dataset', t('errors.sources.datasetInvalid'));
+    const files = await visibleDatasetObjects(this, { scope: 'roots', datasetId: expected.datasetId }, [expected.id], { signal, limit: 16 });
+    requireValue(files.some(file => canonicalJson(file) === canonicalJson(expected)), 'invalid-dataset', t('errors.sources.datasetInvalid'));
+    return expected;
   }
   async getObject({ id, signal }) {
     requireValue(validFileId(id), 'invalid-source-file', t('errors.storage.googleFileIdInvalid'));

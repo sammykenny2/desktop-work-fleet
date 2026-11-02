@@ -51,6 +51,16 @@ export class DatasetTestProvider {
     this.events.push({ id: file.id, file: copy(file), removed: false }); this.stats.creates++;
     await this.hook('create-after', file.id); return copy(file);
   }
+  async deleteFiles({ ids, signal }) {
+    this.stats.deleteBatches = (this.stats.deleteBatches ?? 0) + 1;
+    const results = [];
+    for (const id of ids) {
+      signal?.throwIfAborted();
+      try { await this.deleteFile({ id }); results.push({ id, code: null }); }
+      catch (error) { if (!error.code) throw error; results.push({ id, code: error.code }); }
+    }
+    return results;
+  }
   async deleteFile({ id }) {
     await this.hook('delete-before', id); const stored = this.files.get(id);
     if (!stored) return;
@@ -64,7 +74,7 @@ export class DatasetTestProvider {
     const files = [...this.files.values()].map(item => item.file).filter(file => {
       if (query.scope === 'legacy') return true;
       if (query.scope === 'fences') return file.kind === 'reset';
-      if (query.scope === 'datasets') return file.kind === 'dataset';
+      if (['datasets', 'reset-datasets'].includes(query.scope)) return file.kind === 'dataset';
       if (file.datasetId !== query.datasetId) return false;
       if (query.scope === 'ready') return file.kind === 'ready';
       if (query.scope === 'roots') return file.kind === 'dataset-root' && file.parentId === 'appDataFolder';

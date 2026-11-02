@@ -274,7 +274,12 @@ public sealed class NativeGoogle : IDisposable
           return await Json(path, "listing");
         }
         case "google.changes": return await Json(PathQuery("/drive/v3/changes", ("pageToken", JsonRules.Text(args, "cursor", 8192)), ("spaces", "appDataFolder"), ("pageSize", "100"), ("includeRemoved", "true"), ("fields", $"nextPageToken,newStartPageToken,changes(fileId,removed,file({Fields},mimeType))")), "changes");
-        case "google.allocate": return await Json(PathQuery("/drive/v3/files/generateIds", ("count", "1"), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")));
+        case "google.allocate":
+        {
+          var count = args.TryGetProperty("count", out _) ? JsonRules.Integer(args, "count", 100) : 1;
+          DatasetFiles.Check(count > 0);
+          return await Json(PathQuery("/drive/v3/files/generateIds", ("count", count.ToString(System.Globalization.CultureInfo.InvariantCulture)), ("space", "appDataFolder"), ("type", "files"), ("fields", "ids")));
+        }
         case "google.profile": return await Profile();
         case "google.read":
         {
@@ -284,6 +289,13 @@ public sealed class NativeGoogle : IDisposable
           ValidateMetadata(metadata, file, args.GetProperty("file").TryGetProperty("datasetId", out _) ? args.GetProperty("file") : null);
           var response = await Request(PathQuery("/drive/v3/files/" + file.Id, ("alt", "media")), maximum: Math.Max(file.Size, 65536));
           HostError.Require(response.Body.Length == file.Size && LocalDatabase.Digest(response.Body) == file.Digest, "file-integrity", "The Google file failed its integrity check.");
+          return bridge.DownloadBytes(response.Body);
+        }
+        case "google.deleteBatch":
+        {
+          var body = DatasetFiles.DeleteBatch(args.GetProperty("fileIds"));
+          var response = await Request("/batch/drive/v3", HttpMethod.Post, body,
+            new() { ["Content-Type"] = "multipart/mixed; boundary=work_fleet_delete" });
           return bridge.DownloadBytes(response.Body);
         }
         case "google.delete":

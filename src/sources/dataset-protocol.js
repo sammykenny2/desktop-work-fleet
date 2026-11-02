@@ -19,7 +19,7 @@ export async function listDatasetObjects(store, query, { signal, limit = DATASET
     const page = await store.listObjects({ query, pageToken, signal });
     invalid(Array.isArray(page.files) && page.files.length <= 100 && !page.incomplete);
     for (const file of page.files) {
-      if (query.scope !== 'fences' && query.scope !== 'legacy') validateDatasetFile(file);
+      if (!['fences', 'legacy', 'reset-datasets'].includes(query.scope)) validateDatasetFile(file);
       invalid(!files.some(previous => previous.id === file.id)); files.push(file); capacity(files.length <= limit);
     }
     pageToken = page.nextPageToken ?? null;

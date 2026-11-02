@@ -131,8 +131,13 @@ new-format backup may be restored through the normal validated flow; this app do
 old backups. The SPEC defines the first-run choices and the separate local/cloud scopes.
 
 Before cloud reset, warn that every device must update or stop using the old app. Publish and verify a reset
-marker that existing 0.4.x clients recognize, then create the new isolated dataset and initialize it. Persist exact
-old file IDs for cleanup; never run an unfiltered delete-all loop after new data exists. A legacy marker stops
+marker that existing 0.4.x clients recognize. An explicitly confirmed empty reset first clears its captured old
+content IDs, then creates and verifies the new empty dataset; failure to initialize must not prevent the chosen
+clear. Discovery for reset reads identities, not current-format descriptors or old bodies. Delete up to 100
+captured leaves in one Drive batch, persist successful replies even when another part fails, and retry only the
+remaining IDs. Guard each batch against a foreign fence/generation. Existing unfinished resets resume the same
+captured set. Backup replacement retains its seed-before-readiness contract and clears old content afterwards.
+Never run an unfiltered delete-all loop after new data exists. A legacy marker stops
 normal old-client sync, but does **not** prevent an old client from explicitly running its own reset/overwrite
 command, nor revoke a deletion request already in flight.
 

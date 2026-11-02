@@ -44,7 +44,7 @@ actor ScriptedHTTP {
         try GoogleDriveProbe.check(request.value(forHTTPHeaderField: "Authorization") == "Bearer fixture-token", "Missing fixture token")
         if let body = step.body { try GoogleDriveProbe.check(request.httpBody == body, "Upload bytes changed") }
         if let range = step.range { try GoogleDriveProbe.check(request.value(forHTTPHeaderField: "Content-Range") == range, "Unexpected upload range") }
-        if step.method == "POST" {
+        if step.method == "POST" && request.url?.path != "/batch/drive/v3" {
             let metadata = try FleetProtocol.json(request.httpBody ?? Data())
             try GoogleDriveProbe.check(metadata["id"] as? String == step.expectedFileId, "Reserved file ID changed")
             try GoogleDriveProbe.check(metadata["parents"] as? [String] == step.expectedParents, "Wrong Drive parent")
@@ -90,6 +90,16 @@ actor ScriptedHTTP {
     }
     static func fixture(_ name: String) async throws {
         switch name {
+        case "delete-batch":
+            let ids = ["old-one", "old-two"], body = try FleetDataset.deleteBatch(ids)
+            let reply = Data("--reply\r\nContent-Type: application/http\r\nContent-ID: response-wf-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--reply--\r\n".utf8)
+            try await ScriptedHTTP.shared.prepare([ScriptedHTTP.Step(method: "POST", url: "https://www.googleapis.com/batch/drive/v3", response: reply, body: body)])
+            let result = try await adapter().invoke("google.deleteBatch", ["accountId": "fixture-account", "fileIds": ids]) as! Data
+            try check(result == reply, "Batch response changed")
+            var rejected = false
+            do { _ = try await adapter().invoke("google.deleteBatch", ["accountId": "fixture-account", "fileIds": ["root"]]) }
+            catch let error as FleetFailure { rejected = error.code == "invalid-source-file" }
+            try check(rejected, "Root deletion must fail before HTTP")
         case "dataset":
             let content = Data([0, 255, 1, 3])
             let file: [String: Any] = ["id": "fixture-file", "kind": "revision", "datasetId": "11111111-2222-3333-4444-555555555555",

@@ -60,17 +60,26 @@ enum FleetDataset {
                 && (value["sha256Checksum"] == nil || FleetProtocol.text(value, "sha256Checksum") == FleetProtocol.text(expected, "sha256")))
         }
     }
+    static func deleteBatch(_ value: Any?) throws -> Data {
+        guard let ids = value as? [String] else { throw FleetFailure("invalid-source-file", "The deletion IDs are invalid.") }
+        try check((1...100).contains(ids.count) && Set(ids).count == ids.count
+            && ids.allSatisfy { fileID($0) && !["root", "appDataFolder"].contains($0) })
+        let body = ids.enumerated().map { index, id in
+            "--work_fleet_delete\r\nContent-Type: application/http\r\nContent-ID: wf-\(index)\r\n\r\nDELETE /drive/v3/files/\(id) HTTP/1.1\r\n\r\n"
+        }.joined() + "--work_fleet_delete--\r\n"
+        return Data(body.utf8)
+    }
     static func query(_ value: [String: Any]) throws -> String {
         let scope = try FleetProtocol.text(value, "scope"); var keys: Set<String> = ["scope"], clauses = ["trashed = false"]
         func prop(_ key: String, _ item: String) -> String { "appProperties has { key='" + key + "' and value='" + item + "' }" }
         if scope == "fences" { clauses.append(prop("wfKind", "reset")) }
         else if scope != "legacy" {
             clauses.append(prop("wfFormat", format))
-            if scope != "datasets" {
+            if !["datasets", "reset-datasets"].contains(scope) {
                 keys.insert("datasetId"); try check(datasetID(value["datasetId"])); clauses.append(prop("wfDataset", try FleetProtocol.text(value, "datasetId")))
             }
-            if ["datasets", "ready", "roots"].contains(scope) {
-                clauses.append(prop("wfKind", scope == "datasets" ? "dataset" : scope == "roots" ? "dataset-root" : "ready"))
+            if ["datasets", "reset-datasets", "ready", "roots"].contains(scope) {
+                clauses.append(prop("wfKind", ["datasets", "reset-datasets"].contains(scope) ? "dataset" : scope == "roots" ? "dataset-root" : "ready"))
                 if scope == "roots" { clauses.append("'appDataFolder' in parents") }
             } else if ["current", "current-all"].contains(scope) {
                 if scope == "current" { keys.insert("shard"); let shard = try FleetProtocol.text(value, "shard"); try check(shards.contains(shard)); clauses.append(prop("wfShard", shard)) }

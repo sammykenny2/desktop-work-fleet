@@ -1,8 +1,19 @@
 # Builds, tests and evidence
 
-Updated: 2026-11-02. This document holds the verification procedures and the verified and unverified boundaries.
+Updated: 2026-11-03. This document holds the verification procedures and the verified and unverified boundaries.
 Current status is in [PROGRESS.md](../PROGRESS.md); the history and the evidence of individual runs are in the git history.
 Evidence for the existing 0.1.0 prototype is in the [validation report](validation/2026-10-03-validation-report.md).
+
+## Reset deletion and native batch transport
+
+`node --test tests/drive-batch.test.js tests/dataset-reset.test.js tests/dataset-native.test.js tests/google-drive.test.js`
+checks metadata-only reset discovery against incompatible descriptors, 106 captured files in two deletion batches,
+partial acknowledgements, lost replies, and continuation of an earlier pending initialization. It also checks strict
+multipart response correlation and retryable root-list visibility. Normal synchronization remains strict.
+`test_dataset_native.py` checks the same request fixture on Linux and Apple; the Windows core probe consumes that
+fixture in CI. `test_macos_google_drive.py` runs the production Apple batch transport with synthetic HTTP.
+Android's `DatasetFilesTest` checks bounded IDs, request construction and injection rejection with `testDebugUnitTest`.
+These are isolated adapter/renderer regressions, not live Drive or installed-phone acceptance.
 
 ## Acceptance routing for the new interaction
 

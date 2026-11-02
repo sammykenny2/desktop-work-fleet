@@ -1,3 +1,5 @@
+import { visibleDatasetObjects } from './dataset-protocol.js';
+import { DELETE_BATCH_BOUNDARY, DELETE_BATCH_BYTES, deleteBatchRequest, deleteBatchResult } from './drive-batch.js';
 import { FleetError, requireValue } from '../core/contracts.js';
 import { canonicalJson, parseJson } from './json.js';
 import { validFileId, validateFile, verifyFile } from './files.js';
@@ -128,7 +130,7 @@ export class GoogleDriveFileStore {
     requireValue(page.incompleteSearch === undefined || typeof page.incompleteSearch === 'boolean', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
     return { files: items(page.files).map(file => {
       if (query.scope === 'entity-data') return googleDatasetOwned(file, query);
-      if (['legacy', 'fences'].includes(query.scope)) {
+      if (['legacy', 'fences', 'reset-datasets'].includes(query.scope)) {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid'));
         requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
         return { id: file.id, kind: file.appProperties?.wfKind ?? null,
@@ -145,16 +147,9 @@ export class GoogleDriveFileStore {
   async #datasetDescriptor(metadata, signal) {
     if (metadata.appProperties?.wfKind !== 'dataset-root' || metadata.parents?.[0] === 'appDataFolder') return googleDatasetDescriptor(metadata);
     const expected = googleDatasetDescriptor(metadata, { rootParentVerified: true });
-    let pageToken = null; const seen = new Set();
-    do {
-      const page = await this.listObjects({ query: { scope: 'roots', datasetId: expected.datasetId }, pageToken, signal });
-      requireValue(!page.incomplete, 'invalid-source-page', t('errors.sources.scanIncomplete'));
-      if (page.files.some(file => canonicalJson(file) === canonicalJson(expected))) return expected;
-      pageToken = page.nextPageToken;
-      requireValue(!pageToken || !seen.has(pageToken) && seen.size < 2, 'invalid-dataset', t('errors.sources.datasetInvalid'));
-      if (pageToken) seen.add(pageToken);
-    } while (pageToken);
-    throw new FleetError('invalid-dataset', t('errors.sources.datasetInvalid'));
+    const files = await visibleDatasetObjects(this, { scope: 'roots', datasetId: expected.datasetId }, [expected.id], { signal, limit: 16 });
+    requireValue(files.some(file => canonicalJson(file) === canonicalJson(expected)), 'invalid-dataset', t('errors.sources.datasetInvalid'));
+    return expected;
   }
   async listDatasetChanges({ cursor, signal }) {
     const page = await this.#json({ path: pathFor('/drive/v3/changes', { pageToken: token(cursor), spaces: 'appDataFolder',
@@ -215,6 +210,12 @@ export class GoogleDriveFileStore {
       nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
   }
 
+  async deleteFiles({ ids, signal }) {
+    const body = deleteBatchRequest(ids);
+    const response = await this.#http({ path: '/batch/drive/v3', method: 'POST', body, signal,
+      headers: { 'Content-Type': `multipart/mixed; boundary=${DELETE_BATCH_BOUNDARY}` }, maxResponseBytes: DELETE_BATCH_BYTES });
+    return deleteBatchResult(ids, response.body);
+  }
   async deleteFile({ id, signal }) {
     requireValue(validFileId(id), 'invalid-source-file', t('errors.sources.driveFileIdInvalid'));
     // A file that is already gone counts as deleted.
@@ -240,12 +241,13 @@ export class GoogleDriveFileStore {
       : { nextCursor: token(page.nextPageToken) }) };
   }
 
-  async allocateFileId({ signal } = {}) {
-    const value = await this.#json({ path: pathFor('/drive/v3/files/generateIds', { count: '1', space: 'appDataFolder', type: 'files', fields: 'ids' }), signal });
-    requireValue(Array.isArray(value.ids) && value.ids.length === 1 && validFileId(value.ids[0]), 'invalid-source-file', t('errors.sources.driveFileIdMissing'));
-    return value.ids[0];
+  async allocateFileIds(count, { signal } = {}) {
+    requireValue(Number.isSafeInteger(count) && count > 0 && count <= 100, 'invalid-source-file', t('errors.sources.driveFileIdInvalid'));
+    const result = await this.#json({ path: pathFor('/drive/v3/files/generateIds', { count: String(count), space: 'appDataFolder', type: 'files', fields: 'ids' }), signal });
+    requireValue(Array.isArray(result.ids) && result.ids.length === count && new Set(result.ids).size === count && result.ids.every(validFileId),
+      'invalid-source-file', t('errors.sources.driveFileIdInvalid')); return result.ids;
   }
-
+  async allocateFileId(options = {}) { return (await this.allocateFileIds(1, options))[0]; }
   async readFile({ file, signal }) {
     file = validateFile(file);
     const response = await this.#http({ path: pathFor(`/drive/v3/files/${file.id}`, { alt: 'media' }), signal,

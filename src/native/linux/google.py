@@ -440,9 +440,15 @@ class Google:
         if method == "google.changes":
             return self.json(self.path("/drive/v3/changes", pageToken=p.text(args, "cursor", 8192), spaces="appDataFolder", pageSize="100", includeRemoved="true", fields=f"nextPageToken,newStartPageToken,changes(fileId,removed,file({FIELDS},mimeType))"), context="changes")
         if method == "google.allocate":
-            return self.json(self.path("/drive/v3/files/generateIds", count="1", space="appDataFolder", type="files", fields="ids"))
+            count = p.number({"count": args.get("count", 1)}, "count", 100)
+            dataset.check(count > 0)
+            return self.json(self.path("/drive/v3/files/generateIds", count=str(count), space="appDataFolder", type="files", fields="ids"))
         if method == "google.profile":
             return self.account_details()
+        if method == "google.deleteBatch":
+            body = dataset.delete_batch(args.get("fileIds"))
+            return self.request("/batch/drive/v3", method="POST", data=body,
+                                headers={"Content-Type": "multipart/mixed; boundary=work_fleet_delete"})[1]
         if method == "google.delete":
             # Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.
             file_id = p.text(args, "fileId", 256)

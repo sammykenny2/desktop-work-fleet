@@ -211,12 +211,21 @@ final class GoogleFiles implements AutoCloseable {
                 return Protocol.json(request(path, "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "listing").bytes);
             }
             case "google.changes": return Protocol.json(request(path("/drive/v3/changes", "pageToken", Protocol.text(args, "cursor", 8192), "spaces", "appDataFolder", "includeRemoved", "true", "pageSize", "100", "fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(" + FIELDS + ",mimeType))"), "GET", null, Collections.emptyMap(), 2 * 1024 * 1024, false, "changes").bytes);
-            case "google.allocate": return Protocol.json(request(path("/drive/v3/files/generateIds", "count", "1", "space", "appDataFolder", "type", "files", "fields", "ids")).bytes);
+            case "google.allocate": {
+                long count = args.has("count") ? Protocol.number(args, "count", 100) : 1;
+                DatasetFiles.check(count > 0);
+                return Protocol.json(request(path("/drive/v3/files/generateIds", "count", Long.toString(count), "space", "appDataFolder", "type", "files", "fields", "ids")).bytes);
+            }
             case "google.profile": return profile();
             case "google.read": {
                 JSONObject file = file(args.getJSONObject("file")); metadata(Protocol.json(request(path("/drive/v3/files/" + file.getString("id"), "fields", FIELDS)).bytes), file);
                 Response response = request(path("/drive/v3/files/" + file.getString("id"), "alt", "media"), "GET", null, Collections.emptyMap(), Math.max(file.getInt("size"), 65536), false, "");
                 Protocol.require(response.bytes.length == file.getInt("size") && Protocol.digest(response.bytes).equals(file.getString("sha256")), "file-integrity", "The Google file's contents failed verification."); return bridge.download(response.bytes);
+            }
+            case "google.deleteBatch": {
+                byte[] body = DatasetFiles.deleteBatch(args.opt("fileIds"));
+                return bridge.download(request("/batch/drive/v3", "POST", body,
+                    headers("Content-Type", "multipart/mixed; boundary=work_fleet_delete"), 2 * 1024 * 1024, false, "").bytes);
             }
             case "google.delete": {
                 // Reset only: files in the app data folder are removed one by one; one that is already gone counts as deleted.

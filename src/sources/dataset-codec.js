@@ -108,10 +108,10 @@ export function datasetQuery(input) {
   if (query.scope === 'fences') clauses.push(prop('wfKind', 'reset'));
   else if (query.scope !== 'legacy') {
     clauses.push(prop('wfFormat', DATASET_FORMAT));
-    if (query.scope !== 'datasets') {
+    if (!['datasets', 'reset-datasets'].includes(query.scope)) {
       keys.push('datasetId'); invalid(datasetId(query.datasetId)); clauses.push(prop('wfDataset', query.datasetId));
     }
-    if (query.scope === 'datasets') clauses.push(prop('wfKind', 'dataset'));
+    if (['datasets', 'reset-datasets'].includes(query.scope)) clauses.push(prop('wfKind', 'dataset'));
     else if (query.scope === 'ready') clauses.push(prop('wfKind', 'ready'));
     else if (query.scope === 'roots') { clauses.push(prop('wfKind', 'dataset-root')); clauses.push("'appDataFolder' in parents"); }
     else if (query.scope === 'current' || query.scope === 'current-all') {

@@ -26,7 +26,7 @@ async function run(reset, phase = 'complete') {
   throw new Error('reset did not make bounded progress');
 }
 
-test('legacy reset captures metadata before publication and only deletes exact captured leaves after readiness', async () => {
+test('legacy reset captures metadata before publication and clears exact captured leaves before creating a new dataset', async () => {
   const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider, 253);
   const reset = new DatasetReset(provider, storage), preview = await reset.preview();
   await reset.begin(preview);
@@ -35,7 +35,7 @@ test('legacy reset captures metadata before publication and only deletes exact c
   let ready = false;
   provider.hook = async (point, id) => {
     if (point === 'create-after' && provider.files.get(id)?.file.kind === 'ready') ready = true;
-    if (point === 'delete-before') assert.equal(ready, true, 'old files survive until the new dataset is ready');
+    if (point === 'delete-before') assert.equal(ready, false, 'confirmed old content is deleted without requiring a new dataset');
     if (point === 'read' && id.startsWith('old-')) throw new Error('legacy body must never be read');
   };
   const complete = await run(reset);
@@ -56,8 +56,8 @@ test('reset resumes exact capture pages, uncertain fence creation and lost delet
   provider.hook = async (point, id) => {
     if (point === 'create-after' && id === marker.id && !lostFence) { lostFence = true; throw Object.assign(new Error('lost reply'), { code: 'network' }); }
   };
-  await reset.step(); assert.equal((await reset.status()).phase, 'initialize');
-  provider.hook = async () => {}; await run(reset, 'cleanup'); await reset.step();
+  await reset.step(); assert.equal((await reset.status()).phase, 'clearing');
+  provider.hook = async () => {}; await run(reset, 'clearing');
   let failed = false;
   provider.hook = async point => { if (point === 'delete-after' && !failed) { failed = true; throw new Error('process died'); } };
   await assert.rejects(reset.step(), /process died/);
@@ -67,30 +67,71 @@ test('reset resumes exact capture pages, uncertain fence creation and lost delet
   assert.ok(![...provider.files.keys()].some(id => id.startsWith('old-')));
 });
 
-test('reset reports new-data initialization separately from captured old files and reports each acknowledged deletion', async () => {
+test('106 legacy files are acknowledged in two batches before separately reported initialization', async () => {
   const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider, 106);
   const reset = new DatasetReset(provider, storage); await reset.begin(await reset.preview());
+  await run(reset, 'clearing');
+  const progress = [];
+  await reset.step({ progress: value => progress.push(value) });
+  await reset.step({ progress: value => progress.push(value) });
+  assert.equal(provider.stats.deleteBatches, 2);
+  assert.equal((await reset.status()).deleted, 106);
+  assert.equal(provider.stats.creates, 1, 'only the fence exists while old content is cleared');
+  assert.ok(progress.some(value => value.phase === 'clearing' && value.completed > 0 && !value.ready));
   await run(reset, 'initialize');
   const initialized = [];
-  await reset.step({ progress: value => {
-    initialized.push(value);
-    assert.equal(provider.stats.deletes, 0, 'initialization progress must precede any old-file deletion');
-  } });
+  await reset.step({ progress: value => initialized.push(value) });
   const counts = initialized.filter(value => value.phase === 'initialize-progress');
-  assert.ok(counts.length > 1);
-  assert.equal(counts[0].completed, 0);
-  assert.ok(counts.at(-1).completed > 0);
-  assert.ok(counts.every((value, index) => value.total !== 106 && value.completed < value.total
-    && (!index || value.completed >= counts[index - 1].completed)));
-  assert.ok(initialized.some(value => value.phase === 'initialize-verify'));
-  assert.deepEqual(initialized.at(-1), { phase: 'cleanup', completed: 0, total: 106, ready: false, folders: 0 });
-  await reset.step();
-  const deleted = [];
-  await reset.step({ progress: value => { if (value.phase === 'cleanup' && value.completed) deleted.push(value); } });
-  assert.ok(deleted.some(value => value.completed === 1), 'a deletion slice reports progress before its final receipt');
-  assert.ok(deleted.at(-1).completed > 1 && deleted.at(-1).completed <= 20);
-  assert.equal(deleted.at(-1).completed, (await reset.status()).deleted);
-  assert.ok(deleted.every(value => value.ready && value.total === 106));
+  assert.ok(counts.length > 1 && counts[0].completed === 0 && counts.at(-1).completed > 0);
+  assert.ok(counts.every(value => value.total !== 106));
+  assert.equal(initialized.at(-1).phase, 'activate');
+  assert.equal((await run(reset)).phase, 'complete');
+});
+
+test('an unfinished earlier reset clears unreadable dataset descriptors before retrying initialization', async () => {
+  const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider, 106);
+  provider.files.set('broken-dataset', { file: { id: 'broken-dataset', kind: 'dataset' }, bytes: new Uint8Array([255]) });
+  const reset = new DatasetReset(provider, storage); await reset.begin(await reset.preview()); await run(reset, 'clearing');
+  const before = await reset.status();
+  await storage.putJob('dataset-reset', { ...before, phase: 'initialize' }); // The phase persisted by 0.5.0–0.5.3.
+  let fail = true;
+  provider.hook = async (point, id) => {
+    if (point === 'read' && (id.startsWith('old-') || id === 'broken-dataset')) throw new Error('Old contents must not be decoded');
+    if (point === 'create-before' && fail) { fail = false; throw Object.assign(new Error('New initialization failed'), { code: 'invalid-dataset' }); }
+  };
+  await reset.step(); assert.equal((await reset.status()).phase, 'clearing');
+  await run(reset, 'initialize');
+  assert.equal((await reset.status()).deleted, 107); assert.equal(provider.files.has('broken-dataset'), false);
+  await assert.rejects(reset.step(), { code: 'invalid-dataset' });
+  const deletions = provider.stats.deletes;
+  const complete = await run(new DatasetReset(provider, storage));
+  assert.equal(complete.operationId, before.operationId); assert.equal(complete.deleted, 107);
+  assert.equal(provider.stats.deletes, deletions, 'retrying initialization does not repeat acknowledged cleanup');
+});
+
+test('partial batch failures persist successful IDs and retry only the remainder after reopen', async () => {
+  const provider = new DatasetTestProvider(), first = await local(); legacy(provider, 100);
+  const reset = new DatasetReset(provider, first.storage); await reset.begin(await reset.preview()); await run(reset, 'clearing');
+  const batches = [], send = provider.deleteFiles.bind(provider); let fail = true;
+  provider.deleteFiles = args => { batches.push([...args.ids]); return send(args); };
+  provider.hook = async (point, id) => {
+    if (point === 'delete-before' && id === 'old-000031' && fail) { fail = false; throw Object.assign(new Error('Limited'), { code: 'rate-limit' }); }
+  };
+  await assert.rejects(reset.step(), { code: 'rate-limit' }); assert.equal((await reset.status()).deleted, 99);
+  const reopened = new DatasetReset(provider, (await local(first.records)).storage);
+  await reopened.step(); assert.deepEqual(batches.map(ids => ids.length), [100, 1]);
+  assert.deepEqual(batches[1], ['old-000031']); assert.equal((await run(reopened)).deleted, 100);
+});
+
+test('empty initialization reserves exactly its bounded IDs in one allocation call', async () => {
+  for (const starter of [true, false]) {
+    const provider = new DatasetTestProvider(), { storage } = await local(); let calls = 0, count = 0;
+    const allocate = provider.allocateFileId.bind(provider);
+    provider.allocateFileIds = async requested => { calls++; count = requested; return Promise.all(Array.from({ length: requested }, allocate)); };
+    provider.allocateFileId = () => { throw new Error('Individual allocation defeats the bootstrap batch'); };
+    await new DatasetLifecycle(provider, storage).initialize({ starter });
+    assert.equal(calls, 1); assert.equal(provider.files.size, count);
+  }
 });
 
 test('expired capture and audit tokens restart only their own enumeration after reopen', async () => {
@@ -128,7 +169,7 @@ test('reset tolerates delayed listing of its verified fence without accepting a 
 test('a competing fence or destructive old-client reset stops cleanup without recreating the new generation', async () => {
   for (const action of ['foreign-fence', 'delete-all']) {
     const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider, 3);
-    const reset = new DatasetReset(provider, storage); await reset.begin(await reset.preview()); await run(reset, 'cleanup');
+    const reset = new DatasetReset(provider, storage); await reset.begin(await reset.preview()); await run(reset, 'clearing');
     const before = provider.stats.creates;
     if (action === 'foreign-fence') {
       const bytes = new TextEncoder().encode('{}'); provider.files.set('foreign-fence', { file: { id: 'foreign-fence', kind: 'reset',

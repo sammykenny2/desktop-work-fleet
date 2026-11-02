@@ -409,10 +409,10 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   are not affected.
 - In a Google workspace it also clears the data on Drive, and every device that uses the account is affected (see
   [Google setup](google-setup.md)). Update or stop every older client first, including unfinished reset/overwrite jobs:
-  an older delete-all can also destroy the new dataset. The app records old file IDs using metadata before creating
-  the new dataset, then cleans only those captured leaf files. It retains obsolete folder containers to avoid
-  deleting late, uncaptured children. New data can be used while this old-data cleanup continues. Later legacy
-  writes are retained and reported; removing them requires a new explicit reset preview.
+  an older delete-all can also destroy the new dataset. The app records old file IDs using metadata, clears those
+  captured leaf files in batches, then creates an empty dataset without reading or converting old contents. It retains obsolete folder containers to avoid
+  deleting late, uncaptured children. Clearing and initialization show separate progress and resume unfinished work.
+  Later legacy writes are retained and reported; removing them requires a new explicit reset preview.
 - If the expected cloud dataset disappears or changes, local notes stay usable and sync pauses. The recovery dialog
   offers retaining/exporting this copy, previewing a rejoin of the verified cloud (with counts of local changes to
   discard), or recovering the current local data to a new Google generation. Recovery requires a saved encrypted

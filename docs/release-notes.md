@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.4
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Cloud reset clears old files in resumable batches before initializing empty data. Incompatible old metadata no longer blocks clearing, and delayed Drive listings remain retryable.
+
+- Empty cloud reset: after confirmation, capture old file IDs from metadata, publish the reset marker, clear captured files and then initialize empty data. Reset discovery does not decode old contents or require old dataset descriptors to match the current format.
+- Clearing progress: delete up to 100 captured files per Drive request on every platform. Save successful deletions even when another file fails; reopening or continuing retries only unfinished work. Already-confirmed unfinished resets keep their original operation and captured scope.
+- Initialization: reserve the bounded initial file IDs in one request. A newly created root missing temporarily from a Drive listing waits and retries instead of being classified as invalid data. Clearing, initialization and activation retain separate progress stages.
+- Compatibility: the dataset format is unchanged from 0.5.0 through 0.5.3. Already-ready datasets and seeded backup replacement keep their existing behavior. This update requires no additional reset; earlier whole-workspace formats remain incompatible with no migration. Note, sync and backup schema labels stay at V1.
+- Preview limits: adapter, native transport and interrupted-reset renderer tests use isolated providers. Live Google Drive and installed-phone reset/restore acceptance remain unverified.
+
 ## 0.5.3
 
 Platforms: Windows, Linux, macOS, Android.

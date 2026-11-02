@@ -109,6 +109,7 @@ export class LayoutStore {
   #state;
   #persist;
   #tail = Promise.resolve();
+  whenIdle() { return this.#tail; }
 
   constructor(state, persist) {
     requireValue(typeof persist === 'function', 'missing-storage', t('errors.core.layoutStorageRequired'));

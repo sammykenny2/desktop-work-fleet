@@ -250,7 +250,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   renderReceipts(); refresh();
   return {
     element: panel,
-    busy: () => busy,
+    busy: () => busy || automaticSection.busy(),
     blocksSync: () => mode.value === 'cloud-replace' && Boolean(plan),
     abort: () => { if (!committing) abort?.abort(); },
     dispose: () => { password.value = ''; readPassword.value = ''; loaded = null; plan = null; safety = null; automaticSection.dispose(); panel.remove(); },

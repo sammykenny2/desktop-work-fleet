@@ -168,6 +168,12 @@ showing the recovery dialog. After Later, Open cloud reset and Export a backup f
 multiple sync intervals and native foreground/background ticks, visibility changes and network reconnection fire;
 the notice must stay closed, sync must stay paused and the provider call counters must not change. Explicit recovery
 options remain reachable, and a confirmed reset must still finish and sync a new note.
+The desktop modes also request native close with Settings plus recovery open and with an unconfirmed reset:
+both acknowledge closure without cloud mutation. An active backup picker instead refuses close with a visible reason.
+They hold an in-flight sync and a draft write, verify that close
+waits, inject a disk-write failure and verify visible cancellation, retained text and a successful retry. After
+acknowledgement, duplicate close requests, timers and foreground/online events must cause no further writes or
+Drive calls. A closed fixture renderer is reloaded before testing additional recovery choices.
 `node scripts/testing/test-dataset-recovery.mjs` starts/stops a disposable preview and
 runs all four renderer modes; CI runs it after installing Playwright Chromium/WebKit.
 The old-local case disables browser local/session storage, as native recovery
@@ -512,6 +518,11 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
 This probe creates a source copy with a unique bundle ID in `build/apple/native-startup-<id>/` and uses the official FleetKeychain,
 FleetDatabase, FleetWebHost and FleetDesktop with the bundled renderer; the original Xcode project and the user's workspace are not changed.
 The test creates, updates and reads the Keychain, reopens the encrypted SQLite and waits for the main window to finish native initialization.
+It then exercises AppKit's real deferred-termination run loop: unfinished composition returns a nonempty cancellation
+reason without stopping the host; a retry with an unsaved draft and idle Settings open stops the native host, unlocks
+the database and permits draft readback before AppKit receives permission to exit. It runs with a prohibited activation
+policy and never opens the user's workspace. This covers the renderer/native quit handshake, not a live Sparkle
+download/install/relaunch or the visual stacking of its failure alert; those still require an installed update test.
 It removes only the probe's own Keychain service and temporary data; the build, results and signing evidence stay in that directory.
 A signed probe run on 2026-10-05 verified Keychain, SQLite and main-window native initialization; the evidence of the as-is ESM loading failure
 and the packaging fix are in [ADR-033](decisions/033-apple-local-script-bundles.md).

@@ -282,7 +282,8 @@ export default {
 
   // Closing the app
   'app.close.finishInput': 'Finish the current input before closing the app.',
-  'app.close.finishDialog': 'Finish or close the current dialog before closing the app.',
+  'app.close.finishOperation': 'An account, recovery, backup or version operation is still running. Finish or cancel it, then try quitting or installing the update again.',
+  'app.close.cancelled': 'Work Fleet could not quit',
   'app.close.unsavedDrafts': "Some changes couldn't be kept on this device yet. Save the note or copy its text before closing the app.",
   'app.close.failed': 'Not closed: {error}',
 

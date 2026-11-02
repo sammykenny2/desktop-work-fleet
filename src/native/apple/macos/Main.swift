@@ -50,7 +50,17 @@ import AppKit
             }
             host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil; self?.attachmentFiles.close() }
             host.finished = { [weak self] in guard let self else { return }; self.terminating = true; NSApplication.shared.reply(toApplicationShouldTerminate: true) }
-            host.cancelled = { NSApplication.shared.reply(toApplicationShouldTerminate: false) }
+            host.cancelled = { message in
+                NSApplication.shared.reply(toApplicationShouldTerminate: false)
+                guard let message, !message.isEmpty else { return }
+                // The update window can cover the renderer. Explain a refused quit above Sparkle, after cancelling termination.
+                DispatchQueue.main.async {
+                    let alert = NSAlert(); alert.alertStyle = .warning
+                    alert.messageText = FleetText.text("dialog.quitCancelled"); alert.informativeText = message
+                    alert.addButton(withTitle: FleetText.text("dialog.ok")); NSApp.activate(ignoringOtherApps: true)
+                    alert.runModal()
+                }
+            }
             // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Work Fleet") { statusItem?.button?.image = image } else { statusItem?.button?.title = "w." }

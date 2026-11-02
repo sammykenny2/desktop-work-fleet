@@ -125,6 +125,24 @@ test('native close retains the editor freeze until destruction, seals new comman
   await owner.cancelClose(); assert.equal(transport.requests.at(-1).method, 'desktop.flush.release'); owner.close();
 });
 
+test('sealed close stops late presentation work and draining includes an admitted view-loss draft save', async () => {
+  const transport = bridge(), saved = deferred(); let lost = 0, dismissed = 0, drained = false;
+  const owner = new DesktopOwner({ bridge: transport,
+    authority: { removeView() {}, whenIdle: async () => {}, close() {} }, editor: () => null,
+    project: () => { throw new Error('A sealed close must not publish'); }, changed() {}, error() {},
+    lost: async () => { lost++; await saved.promise; }, dismiss: () => { dismissed++; } });
+  transport.event('desktop-view-lost', { viewId: 'view', message: 'lost' });
+  owner.beginClose();
+  const drain = owner.whenIdle().then(() => { drained = true; });
+  await tick(); assert.equal(lost, 1); assert.equal(drained, false);
+  saved.resolve(); await drain; owner.sealClose();
+  transport.event('desktop-view-lost', { viewId: 'late-view', message: 'teardown' });
+  transport.event('desktop-dismiss'); owner.publish(); await tick(); await owner.whenIdle();
+  assert.equal(lost, 1); assert.equal(dismissed, 0); assert.deepEqual(transport.requests, []);
+  await owner.cancelClose(); transport.event('desktop-dismiss'); await owner.whenIdle();
+  assert.equal(dismissed, 1); owner.close();
+});
+
 test('scene chunks authenticate the complete UTF-8 payload and reject wrong offsets or digest without parsing', async () => {
   // Three-byte UTF-8 characters, so chunk boundaries fall inside characters.
   const value = { text: '中文'.repeat(200000) }; const bytes = encode(value); const descriptor = { size: bytes.length, sha256: await sha256(bytes) };

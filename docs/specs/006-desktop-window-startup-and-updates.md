@@ -106,7 +106,7 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 | UP-F06 | Build the URL of that release's `work-fleet-update-<platform>.json` (`work-fleet-update.json` until 2026-10-23) from the configured repo and the validated tag; check the platform, version, tag and single-level file name, and verify the actual download size and SHA-256 against the manifest; reject on any mismatch |
 | UP-F07 | Downloads use HTTPS only and send no credentials; redirects are allowed only to the GitHub release asset host; the size is capped and verified while downloading |
 | UP-F08 | Check again before downloading; when the downloaded version is no longer the latest, download again; only the last check time is persisted |
-| UP-F09 | Before installing, run the existing save-and-quit flow so that drafts are saved, scenes are taken down and data is closed |
+| UP-F09 | Before installing, run the save-and-quit flow: stop admitting input and background work, stop and drain sync/maintenance, finish admitted writes, persist drafts and layout, then acknowledge closure so the host tears down scenes/transfers and closes data. An idle Settings page, recovery notice or unconfirmed reset is not a reason to cancel; quitting never confirms a destructive choice. Remain stopped after acknowledgement. |
 | UP-F10 | Windows checks the MSIX Name, Publisher, architecture and version, installs with `PackageManager` and reopens; on failure it reopens and shows the error |
 | UP-F11 | macOS downloads, verifies and installs the signed and notarized new version with the standard Sparkle 2.10.0 dialog; this project only finds the release and provides the check entry |
 | UP-F12 | Linux checks the DEB name, architecture and version, installs with `pkexec` and runs again; when authorization is cancelled, it keeps running and shows the reason |
@@ -144,6 +144,15 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 - Security: the renderer cannot make network requests or choose URLs; update URLs are decided only by the host from
   `Config/public.json`, the Atom tag and the manifest.
 - Data: drafts are saved before any update, quit or restart; a failure must not lose saved data.
+- Quit refusal: unfinished IME composition or an active account/recovery/manual-backup/version operation may require
+  the user to finish or cancel it first. Report that reason visibly. A draft write failure cancels termination,
+  preserves the editable text and permits retry; it must not acknowledge closure. macOS sends the reason in the
+  optional `host.closeCancel.message` field and shows a native alert above the updater after replying `false` to
+  AppKit; other hosts show a top-layer renderer explanation. Android Back still dismisses the top layer first.
+- macOS termination: use AppKit's [`terminateLater`](https://developer.apple.com/documentation/appkit/nsapplication/terminatereply/terminatelater)
+  and [`reply(toApplicationShouldTerminate:)`](https://developer.apple.com/documentation/appkit/nsapplication/reply(toapplicationshouldterminate:))
+  handshake for both ordinary Quit and Sparkle installation. Only successful persistence and native teardown permit
+  a positive reply; an open idle renderer dialog does not justify a negative reply.
 - Privacy: GitHub is contacted only on a user action; no account, device identity or usage data is sent.
 - Usability: platforms and install forms without update capability explain why clearly, and no button that cannot
   complete is shown.

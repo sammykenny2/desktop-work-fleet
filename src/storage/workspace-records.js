@@ -18,6 +18,7 @@ export class WorkspaceRecordStorage {
   }
   #check(profileId) { requireValue(profileId === this.#profile, 'invalid-profile', t('errors.storage.profileMismatch')); }
   #queue(work) { const result = this.#tail.then(work); this.#tail = result.catch(() => {}); return result; }
+  whenIdle() { return this.#tail; }
   #key(id, generation = this.#active.generation) { return `${generation}:${id}`; }
   #historyGeneration() { return this.#active.historyGeneration ?? this.#active.generation; }
   #row(collection, id, value, entity = this.#active.generation, generation = this.#active.generation) {

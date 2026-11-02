@@ -40,9 +40,9 @@ def main():
     shutil.copytree(root / "src/native/apple", fixture / "src/native/apple",
                     ignore=shutil.ignore_patterns(".generated", "xcuserdata", "Local.xcconfig"))
     files = ["LICENSE", "THIRD-PARTY-NOTICES.md", "package.json", "package-lock.json", "config/startup.json",
-             "scripts/build-web.mjs", "scripts/config.mjs", "scripts/prepare-apple-build.mjs",
+             "scripts/build-web.mjs", "scripts/config.mjs", "scripts/prepare-apple-build.mjs", "scripts/platform-version.mjs",
              "scripts/macos/prepare-apple-assets.sh", "scripts/macos/copy-native-notices.sh"]
-    files += ["src/native/" + name + ".js" for name in ["bridge", "files", "capture", "shortcuts", "google"]]
+    files += ["src/native/" + name + ".js" for name in ["bridge", "files", "capture", "shortcuts", "google", "attachments"]]
     for relative in files:
         target = fixture / relative
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -81,7 +81,7 @@ def main():
         raise SystemExit("FAIL signed startup or probe-owned Keychain cleanup; see the evidence directory.")
     (output / "verification.json").write_text(json.dumps({
         "bundleId": identity, "team": args.team,
-        "keychainAndSqlite": "passed", "nativeRendererStartup": "passed", "keychainCleanup": "passed",
+        "keychainAndSqlite": "passed", "nativeRendererStartup": "passed", "nativeGracefulTermination": "passed", "keychainCleanup": "passed",
         "architecture": platform.machine(), "userWorkspaceAccessed": False,
     }, indent=2) + "\n")
 

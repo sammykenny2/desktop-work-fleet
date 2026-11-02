@@ -19,7 +19,7 @@ import UIKit
     private let exports = FleetExports()
     private var directoryContinuation: CheckedContinuation<URL, Error>?
     var finished: (() -> Void)?
-    var cancelled: (() -> Void)?
+    var cancelled: ((String?) -> Void)?
     var configure: (@MainActor (FleetService) async throws -> Void)?
     var stopped: (() -> Void)?
     var backgroundFinished: ((String) -> Void)?
@@ -107,7 +107,10 @@ import UIKit
                 }
                 admitted -= 1; guard current == epoch else { return }; reply(response)
                 if let next { await switchProfile(next, setAside: setAside) }
-                else if method == "host.closeCancel" { closing = false; cancelled?() }
+                else if method == "host.closeCancel", closing {
+                    closing = false
+                    cancelled?((args["message"] as? String).map { String($0.prefix(4096)) })
+                }
                 else if method == "host.backgroundReady", let id = args["id"] as? String { backgroundFinished?(id) }
                 else if closing { if await service.closeReady { await stop(); finished?() } }
             }

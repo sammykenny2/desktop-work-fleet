@@ -281,7 +281,8 @@ export default {
 
   // Closing the app
   'app.close.finishInput': '請先完成目前輸入，再關閉 App。',
-  'app.close.finishDialog': '請先完成或關閉目前對話框，再關閉 App。',
+  'app.close.finishOperation': '帳號、復原、備份或版本操作仍在進行。請先完成或取消該操作，再嘗試退出或安裝更新。',
+  'app.close.cancelled': 'Work Fleet 無法退出',
   'app.close.unsavedDrafts': '仍有修改尚未保留到這台裝置；請先保存便箋或複製文字，再關閉 App。',
   'app.close.failed': '尚未關閉：{error}',
 

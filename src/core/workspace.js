@@ -179,6 +179,8 @@ export class Workspace {
   setOpenNote(open) { this.#open = open; }
   get state() { return copy(this.#state); }
   get layout() { return this.#layout; }
+  /** Drain admitted edits and their layout writes after the caller has stopped new work. */
+  async whenIdle() { await this.#tail; await this.#layout.whenIdle(); await this.#tail; }
   get syncState() { return copy(this.#state.sync); }
   get pendingOperations() { return copy(this.#state.outbox); }
   get currentFormat() { return this.#state.format === CURRENT_WORKSPACE_FORMAT; }

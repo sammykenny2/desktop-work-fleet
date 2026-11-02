@@ -27,14 +27,15 @@ export class DesktopOwner {
       else pending.reject(new FleetError('desktop-flush', t('errors.desktop.flushFailed')));
     }));
     this.#unsub.push(bridge.onEvent('desktop-view-lost', message => {
+      if (this.#sealed || this.#closed) return;
       authority.removeView(message.viewId);
       for (const [id, pending] of this.#flushes) if (pending.viewId === message.viewId) {
         clearTimeout(pending.timer); this.#flushes.delete(id); pending.reject(new FleetError('desktop-view', t('errors.desktop.editorLost')));
       }
-      void Promise.resolve(this.#lost(message.viewId)).then(this.#changed).catch(this.#error);
+      void this.perform(async () => { await this.#lost(message.viewId); this.#changed(); }).catch(this.#error);
       this.#error(new FleetError('desktop-view', message.message));
     }));
-    this.#unsub.push(bridge.onEvent('desktop-dismiss', () => { void this.perform(dismiss).catch(this.#error); }));
+    this.#unsub.push(bridge.onEvent('desktop-dismiss', () => { if (!this.#closing && !this.#closed) void this.perform(dismiss).catch(this.#error); }));
     this.#unsub.push(bridge.onEvent('desktop-error', message => this.#error(new FleetError('desktop-view', message.message))));
     this.#unsub.push(bridge.onEvent('desktop-displays-changing', () => authority.invalidateDisplays()));
     this.#unsub.push(bridge.onEvent('desktop-displays', message => {
@@ -75,11 +76,11 @@ export class DesktopOwner {
     } catch (error) { if (!this.#closed) { this.#error(error); await this.#reply(message.ticket, false, error).catch(this.#error); } }
   }
   publish() {
-    if (this.#closed) return;
+    if (this.#sealed || this.#closed) return;
     this.#dirty = true;
     if (this.#publishing) return;
     this.#publishing = (async () => {
-      while (this.#dirty && !this.#closed) {
+      while (this.#dirty && !this.#sealed && !this.#closed) {
         this.#dirty = false;
         const bytes = encode(this.#project(++this.#sequence)); let token;
         try {
@@ -114,7 +115,7 @@ export class DesktopOwner {
   }
   async whenIdle() { await this.#incoming; await this.#authority.whenIdle(); await this.#actions; await this.#publishing; }
   beginClose() { this.#closing = true; }
-  sealClose() { this.#sealed = true; }
+  sealClose() { this.#sealed = true; this.#dirty = false; }
   async cancelClose() { this.#closing = false; this.#sealed = false; await this.#release(); }
   close() {
     this.#closed = true; for (const unsubscribe of this.#unsub) unsubscribe(); this.#authority.close();

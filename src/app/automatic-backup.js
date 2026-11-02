@@ -9,7 +9,7 @@ export function automaticBackupSection(automatic, unavailable = null) {
   const section = node('section', undefined, 'settings-block'); section.id = 'automatic-backup'; section.append(node('h4', t('backup.automatic.title'), 'settings-heading'));
   if (!automatic) {
     section.append(node('p', unavailable || t('backup.automatic.unsupported'), 'hint'));
-    return { element: section, dispose: () => {} };
+    return { element: section, busy: () => false, dispose: () => {} };
   }
   const { service, files, vault } = automatic;
   const status = node('p', '', 'auto-backup-state'); status.id = 'auto-backup-status'; status.setAttribute('role', 'status');
@@ -20,7 +20,7 @@ export function automaticBackupSection(automatic, unavailable = null) {
   const keep = node('input'); keep.id = 'auto-backup-keep'; keep.type = 'number'; keep.min = '1'; keep.max = '90';
   const encrypted = node('input'); encrypted.id = 'auto-backup-encrypt'; encrypted.type = 'checkbox';
   const password = node('input'); password.id = 'auto-backup-password'; password.type = 'password'; password.autocomplete = 'new-password'; password.maxLength = 1024;
-  const cryptoInfo = node('p', '', 'hint'); let current = service.status; let chosen; let busy = false; let dirty = false;
+  const cryptoInfo = node('p', '', 'hint'); let current = service.status; let chosen; let busy = false; let disabling = false; let dirty = false;
   const retentionInfo = node('p', '', 'hint'); retentionInfo.id = 'auto-backup-retention';
   keep.value = String(current.settings?.keep || 7); encrypted.checked = current.settings?.encrypted ?? true;
   const buttons = [];
@@ -64,18 +64,18 @@ export function automaticBackupSection(automatic, unavailable = null) {
   });
   const disable = button('auto-backup-disable', t('backup.automatic.disable'), async () => {});
   disable.onclick = async () => {
-    if (!current.enabled) return;
+    if (disabling || !current.enabled) return; disabling = true; refresh();
     try { await service.disable(); message.textContent = t('backup.automatic.disabledKept'); }
     catch (error) { message.textContent = error.message; }
-    refresh();
+    finally { disabling = false; refresh(); }
   };
   function refresh() {
     const running = current.phase !== 'idle';
-    for (const value of [...buttons, keep, encrypted, password]) value.disabled = busy || running;
+    for (const value of [...buttons, keep, encrypted, password]) value.disabled = busy || disabling || running;
     choose.disabled ||= !files.available || !current.canCreate; enable.disabled ||= !current.canCreate;
     keep.disabled ||= !current.canPrune;
     password.disabled ||= !encrypted.checked || !current.canEncrypt;
-    run.disabled ||= !current.enabled || !current.canCreate; disable.disabled = !current.enabled; disable.hidden = !current.enabled;
+    run.disabled ||= !current.enabled || !current.canCreate; disable.disabled = disabling || !current.enabled; disable.hidden = !current.enabled;
     destination.textContent = chosen?.destinationName || current.settings?.destinationName || t('backup.automatic.noFolder');
     const last = current.lastSuccess ? formatDate(current.lastSuccess.savedAt) : null;
     const state = !current.enabled ? (current.settings ? t('backup.automatic.state.off') : t('backup.automatic.state.notSet'))
@@ -102,5 +102,5 @@ export function automaticBackupSection(automatic, unavailable = null) {
     if (!dirty && current.settings) { keep.value = String(current.settings.keep); encrypted.checked = current.settings.encrypted; }
     refresh();
   });
-  return { element: section, dispose: () => { password.value = ''; unsubscribe(); } };
+  return { element: section, busy: () => busy || disabling, dispose: () => { password.value = ''; unsubscribe(); } };
 }

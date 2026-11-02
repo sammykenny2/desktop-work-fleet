@@ -70,7 +70,7 @@ let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
 let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null;
-let recoveryWork = null;
+let recoveryWork = null; let recoveryBusy = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
@@ -164,6 +164,12 @@ async function initialize() {
   native = await connectNative();
   // Register before storage can return into a recovery screen. No Workspace exists there to flush.
   native?.bridge.onCloseRequested(() => { void prepareNativeClose(); });
+  // Modal dialogs escape their parent's inert state. Also stop their input, including recovery before Workspace exists.
+  for (const type of ['click', 'dblclick', 'pointerdown', 'keydown', 'beforeinput', 'input', 'change', 'submit', 'cancel']) {
+    document.addEventListener(type, event => {
+      if (nativeClosing) { event.preventDefault(); event.stopImmediatePropagation(); }
+    }, true);
+  }
   adoptHostLanguage(native);
   // A host's stored language can differ from the browser's, so the loading texts are shown again in it.
   if (native) { status(t('app.status.loading')); setSync('off', () => t('sync.status.opening')); renderAccount(); }
@@ -831,7 +837,7 @@ function askResumeCloudRestore() {
 
 // Missing data is never deletion authority. Every replacement below has its own explicit scope and fresh remote checks.
 async function askDatasetRecovery() {
-  if (sourceResetAsked || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
+  if (nativeClosing || sourceResetAsked || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
   sourceResetAsked = true;
   const dialog = element('dialog'); dialog.id = 'source-reset-dialog';
   const message = element('p', '', 'backup-message'); message.setAttribute('role', 'status');
@@ -840,9 +846,9 @@ async function askDatasetRecovery() {
   const action = (label, work, className) => {
     const control = element('button', label, className); control.type = 'button';
     control.onclick = async () => {
-      if (busy) return; busy = true; actions.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      if (busy || nativeClosing) return; busy = true; recoveryBusy = true; actions.querySelectorAll('button').forEach(button => { button.disabled = true; });
       try { await work(); } catch (error) { message.textContent = error.message; }
-      finally { busy = false; actions.querySelectorAll('button').forEach(button => { button.disabled = ready.has(button) && !ready.get(button)(); }); }
+      finally { busy = false; recoveryBusy = false; actions.querySelectorAll('button').forEach(button => { button.disabled = ready.has(button) && !ready.get(button)(); }); }
     }; return control;
   };
   const exportFirst = action(t('sync.sourceReset.exportFirst'), async () => { dialog.close(); await openSettings('data'); });
@@ -883,9 +889,10 @@ async function askDatasetRecovery() {
       });
       // A disabled confirmation is also guarded by the opaque safety receipt in plan.stage().
       confirm.onclick = async () => {
-        if (busy || !safety) return; busy = true;
+        if (busy || nativeClosing || !safety) return; busy = true; recoveryBusy = true;
         try { await runCloudRestore(text => { message.textContent = text; }, { plan, safety }); }
         catch (error) { message.textContent = error.message; busy = false; }
+        finally { recoveryBusy = false; }
       };
       actions.replaceChildren(later, save, confirm);
     }));
@@ -1151,33 +1158,59 @@ function dismissTopLayer() {
 }
 async function prepareNativeClose() {
   if (nativeClosing) return;
-  if (!workspace) {
-    await recoveryWork?.catch(() => {});
-    await native.bridge.request('host.closeReady').catch(error => status(error.message, true)); return;
-  }
-  if (native.info.platform === 'android' && dismissTopLayer()) { await native.bridge.request('host.closeCancel').catch(() => {}); return; }
-  if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
-    await native.bridge.request('host.closeCancel').catch(() => {});
-    status(composing ? t('app.close.finishInput') : t('app.close.finishDialog'), true); return;
-  }
+  if (workspace && native.info.platform === 'android' && dismissTopLayer()) { await native.bridge.request('host.closeCancel').catch(() => {}); return; }
+  // Idle Settings, recovery notices and unconfirmed destructive choices own no work and must not veto Quit.
+  // User operations that can need consent or replace the writer must finish/cancel before a close can start.
+  if (composing) { await cancelNativeClose(t('app.close.finishInput')); return; }
+  if (accountBusy || recoveryBusy || dataPanel?.busy() || revisions?.busy()) { await cancelNativeClose(t('app.close.finishOperation')); return; }
+  const dialogs = [...document.querySelectorAll('dialog[open]')].map(dialog => [dialog, dialog.inert]);
+  const stoppedSync = syncService;
   nativeClosing = true; document.body.inert = true; desktop?.beginClose();
+  for (const [dialog] of dialogs) dialog.inert = true;
+  clearInterval(syncTimer); stopAutomatic?.();
   try {
-    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
-    await stopMaintenance();
-    await Promise.allSettled([...activeActions]);
-    stopAutomatic?.(); await automatic?.service.whenIdle();
-    if (desktop) { await desktop.whenIdle(); await desktop.perform(flushDraft); } else await flushDraft();
-    if (desktop) { desktop.sealClose(); await desktop.whenIdle(); }
-    if (unsavedDrafts.size) throw new Error(t('app.close.unsavedDrafts'));
+    if (!workspace) await recoveryWork?.catch(() => {});
+    else {
+      if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
+      await stopMaintenance();
+      await stoppedSync?.stop({ endSession: false }); await stoppedSync?.whenIdle();
+      await Promise.allSettled([...activeActions]);
+      await automatic?.service.whenIdle();
+      if (desktop) { await desktop.whenIdle(); await desktop.perform(flushDraft); } else await flushDraft();
+      if (desktop) { desktop.sealClose(); await desktop.whenIdle(); }
+      await workspace.whenIdle(); await storage.whenIdle();
+      if (unsavedDrafts.size) throw new Error(t('app.close.unsavedDrafts'));
+    }
     await native.bridge.request('host.closeReady');
+    // Acknowledgement is terminal: the native host is tearing down scenes, transfers and the database.
+    // Keep input and background producers stopped even if the host takes time to exit.
   } catch (error) {
     await desktop?.cancelClose();
-    await native.bridge.request('host.closeCancel').catch(() => {});
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
-    if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
-    status(t('app.close.failed', { error: error.message }), true);
+    nativeClosing = false; document.body.inert = false;
+    for (const [dialog, inert] of dialogs) dialog.inert = inert;
+    if (workspace) {
+      if (stoppedSync && syncService === stoppedSync) {
+        syncService = new DatasetSync({ workspace, storage, fileStore: datasetStore });
+        syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
+      }
+      if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+      maintenanceAbort = new AbortController(); scheduleMaintenance();
+    }
+    await cancelNativeClose(t('app.close.failed', { error: error.message }));
   }
-  finally { nativeClosing = false; document.body.inert = false; maintenanceAbort = new AbortController(); scheduleMaintenance(); }
+}
+async function cancelNativeClose(message) {
+  status(message, true);
+  // macOS presents the reason natively above Sparkle. Other hosts need a top-layer explanation, not a hidden status line.
+  if (native.info.platform !== 'macos') {
+    $('#close-error-dialog')?.remove();
+    const dialog = element('dialog'); dialog.id = 'close-error-dialog';
+    const close = element('button', t('common.close')); close.type = 'button'; close.onclick = () => dialog.close();
+    dialog.append(element('h2', t('app.close.cancelled')), element('p', message), close);
+    dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
+  }
+  await native.bridge.request('host.closeCancel', { message }).catch(() => {});
 }
 
 function renderGroupList(snapshot, layout, groups) {
@@ -2204,7 +2237,7 @@ function renderUpdate() {
 function runUpdateAction() {
   const action = updateActions[updateState?.nextAction]; if (!action) return;
   return run(async () => {
-    // Installing closes Work Fleet through the usual close, which waits for open dialogs, so settings closes first.
+    // Leave Settings for the native installation UI; the save-and-quit handshake owns final draft persistence.
     if (action === 'update.install') {
       if (dataPanel?.busy()) throw new Error(t('settings.errors.backupBusyInstall'));
       $('#settings-dialog').close();

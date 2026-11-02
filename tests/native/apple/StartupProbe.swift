@@ -5,6 +5,9 @@ import WebKit
     private var host: FleetWebHost?
     private var window: NSWindow?
     private var desktop: FleetDesktop?
+    private var closeReason: String?
+    private var closeFinished = false
+    private var hostStopped = false
 
     static func main() {
         if CommandLine.arguments.contains("--cleanup") {
@@ -33,9 +36,65 @@ import WebKit
             exit(1)
         }
         Task {
-            do { try await run(); print("PASS signed Keychain create/update/read, encrypted SQLite reopen, native bridge and renderer startup"); exit(0) }
+            do {
+                try await run()
+                print("PASS signed Keychain, encrypted SQLite, native renderer startup and graceful AppKit termination")
+                NSApp.reply(toApplicationShouldTerminate: true)
+            }
             catch { fputs("FAIL \((error as? FleetFailure)?.message ?? String(describing: error))\n", stderr); exit(1) }
         }
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { await host?.prepareClose() }
+        return .terminateLater
+    }
+
+    private func waitFor(_ condition: () -> Bool) async throws {
+        for _ in 0..<100 {
+            if condition() { return }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        throw FleetFailure("startup-probe", "The native close handshake did not finish")
+    }
+
+    private func verifyClose(_ host: FleetWebHost, directory: URL) async throws {
+        host.cancelled = { [weak self] reason in
+            self?.closeReason = reason
+            NSApp.reply(toApplicationShouldTerminate: false)
+        }
+        host.finished = { [weak self] in self?.closeFinished = true }
+        // A native Quit must visibly refuse unfinished IME input and keep the host alive for another attempt.
+        _ = try await host.web.evaluateJavaScript("document.querySelector('#compose').click()")
+        for _ in 0..<50 {
+            if try await host.web.evaluateJavaScript("document.querySelector('#editor-dialog').open") as? Bool == true { break }
+            try await Task.sleep(nanoseconds: 100_000_000)
+        }
+        _ = try await host.web.evaluateJavaScript("document.querySelector('#editor-text').dispatchEvent(new CompositionEvent('compositionstart'))")
+        NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
+        try await waitFor { self.closeReason != nil }
+        try check(!hostStopped && !closeFinished, "Rejected close tore down the native host")
+        try check(closeReason?.isEmpty == false, "Rejected close omitted its visible reason")
+        // Keep an unsaved draft and idle Settings open, as when an update is installed from Settings.
+        _ = try await host.web.evaluateJavaScript("""
+            (() => {
+                const input = document.querySelector('#editor-text');
+                input.dispatchEvent(new CompositionEvent('compositionend'));
+                input.value = 'Native quit keeps this unsaved draft';
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+                document.querySelector('#settings-dialog').showModal();
+            })()
+            """)
+        NSApp.perform(#selector(NSApplication.terminate(_:)), with: nil, afterDelay: 0)
+        try await waitFor { self.closeFinished }
+        try check(hostStopped, "Close acknowledged before native resources stopped")
+        // The real database must be unlocked and contain the draft before AppKit is told it may terminate.
+        let database = try FleetDatabase(directory: directory, profile: "local")
+        defer { database.close() }
+        let receipt = try database.recordStatus()
+        let page = try database.recordPage(["collection": "draft", "expectedRevision": receipt?["revision"] ?? NSNull()])
+        try check(String(decoding: page, as: UTF8.self).contains("Native quit keeps this unsaved draft"), "The final draft was not durably saved")
+        print("PASS native close cancellation reason, retry with idle Settings, draft readback and database release")
     }
 
     private func run() async throws {
@@ -80,7 +139,7 @@ import WebKit
             // host.info then reports the pinned preference, so the renderer starts in English on any system language.
             await service.setLanguage { preference in FleetText.apply(preference) }
         }
-        host.stopped = { [weak self] in self?.desktop?.close() }
+        host.stopped = { [weak self] in self?.desktop?.close(); self?.hostStopped = true }
         var lastState = "No renderer response"
         for _ in 0..<200 {
             do {
@@ -91,7 +150,7 @@ import WebKit
                     if (state["status"] as? String)?.isEmpty == false, state["error"] as? Bool == false, state["lang"] as? String == "en",
                         state["chinese"] as? Bool == false, (state["storage"] as? String)?.isEmpty == false, state["bridge"] as? String == "function",
                         (state["groups"] as? Int ?? 0) > 0 {
-                        await host.stop()
+                        try await verifyClose(host, directory: root.appendingPathComponent("renderer", isDirectory: true))
                         return
                     }
                 }

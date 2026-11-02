@@ -25,7 +25,7 @@ const profileId = 'google:test', email = 'old-notes@example.invalid';
 // Replace only host/provider boundaries. The UI, WorkspaceRecordStorage, DatasetSync and DatasetReset are real.
 const bridgeModule = `
 export async function connectNative() {
-  window.fixtureCloseHandlers = []; window.fixtureCloseReady = 0;
+  window.fixtureCloseHandlers = []; window.fixtureCloseReady = 0; window.fixtureCloseCancelled = [];
   const events = new Map();
   window.fixtureHostEvent = type => { for (const callback of events.get(type) ?? []) callback({}); };
   return { info: { profileId: 'google:test', platform: '${platform}', appVersion: '0.4.0',
@@ -34,11 +34,15 @@ export async function connectNative() {
         if (!events.has(type)) events.set(type, new Set());
         events.get(type).add(callback); return () => events.get(type).delete(callback);
       }, onCloseRequested(callback) { window.fixtureCloseHandlers.push(callback); return () => {}; },
-      async request(method) {
+      async request(method, params = {}) {
         if (method === 'google.status') return { connected: true, configured: true, accountId: 'test', email: '${email}' };
         if (method === 'google.profile' || method === 'host.ready') return {};
         if (method === 'host.closeReady') { window.fixtureCloseReady++; return {}; }
-        if (method === 'host.closeCancel' || method === 'data.reveal') return {};
+        if (method === 'host.closeCancel') { window.fixtureCloseCancelled.push(params.message); return {}; }
+        if (method === 'backup.manual.choose') return new Promise((resolve, reject) => {
+          window.fixtureCancelPicker = () => reject(Object.assign(new Error('Synthetic picker cancelled'), { code: 'backup-cancelled' }));
+        });
+        if (method === 'data.reveal') return {};
         if (method === 'data.location') return { path: '/synthetic-data' };
         throw new Error('Unexpected synthetic host call: ' + method);
       } } };
@@ -49,8 +53,13 @@ const store = await IndexedDbRecordStore.open();
 export class NativeRecordStore {
   constructor() {
     // Native reset is owned by storage.reset, not by the record adapter.
-    return Object.fromEntries(['status', 'get', 'page', 'commit', 'getAttachment', 'close'].map(key => [key, (...args) => {
+    return Object.fromEntries(['status', 'get', 'page', 'commit', 'getAttachment', 'close'].map(key => [key, async (...args) => {
       if (key === window.fixtureReadFailure) throw Object.assign(new Error('Synthetic unreadable database'), { code: 'data-unreadable' });
+      if (key === 'commit') {
+        window.fixtureCommits = (window.fixtureCommits || 0) + 1;
+        await window.fixtureCommitGate;
+        if (window.fixtureWriteFailure) throw new Error('Synthetic disk full');
+      }
       return store[key](...args);
     }]));
   }
@@ -136,6 +145,19 @@ try {
       assert.deepEqual([...provider.files.keys()], originalFiles); assert.equal(provider.stats.creates, originalCreates);
       assert.equal(provider.stats.deletes, 0); assert.deepEqual(oldReads, []);
     };
+    const requestClose = () => page.evaluate(() => window.fixtureCloseHandlers[0]());
+    const terminalClose = async () => {
+      await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(1);
+      assert.deepEqual(await page.evaluate(() => window.fixtureCloseCancelled), []);
+      assert.equal(await page.evaluate(() => document.body.inert), true);
+      const stats = { ...provider.stats }, commits = await page.evaluate(() => window.fixtureCommits);
+      await requestClose();
+      await page.evaluate(() => { window.fixtureHostEvent('host-tick'); window.fixtureHostEvent('host-foreground'); dispatchEvent(new Event('online')); });
+      await page.clock.fastForward(65000);
+      assert.equal(await page.evaluate(() => window.fixtureCloseReady), 1, 'duplicate close requests coalesce');
+      assert.equal(await page.evaluate(() => window.fixtureCommits), commits, 'no writes resume after close acknowledgement');
+      assert.deepEqual(provider.stats, stats, 'no Drive work resumes after close acknowledgement');
+    };
     const read = () => page.evaluate(async profile => {
       const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
       const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
@@ -175,6 +197,8 @@ try {
         await page.evaluate(() => window.fixtureCloseHandlers[0]());
         await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(1);
         assert.deepEqual(await legacy(), before); unchangedCloud();
+        // A real close tears down this renderer. Start a new one before testing recovery choices.
+        await page.reload(); await expect(page.locator('#data-failure-dialog')).toBeVisible();
         await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
         await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
         await expect(page.locator('#settings-dialog')).toContainText(t('app.incompatible.googleReset'));
@@ -198,12 +222,15 @@ try {
         await page.locator('#discard-old-local-agree').check(); await page.locator('#discard-old-local').click();
         await expect.poll(() => Boolean(releaseFailedReset)).toBe(true);
         await page.evaluate(() => window.fixtureCloseHandlers[0]());
-        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 1, 'close waits for an in-flight local discard');
+        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0, 'close waits for an in-flight local discard');
         releaseFailedReset();
         await expect(page.locator('#data-host [role="status"]')).toContainText('Synthetic local reset unavailable');
-        await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(2);
+        await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(1);
         await expect(page.locator('#discard-old-local')).toBeEnabled();
         assert.deepEqual(await legacy(), before); unchangedCloud(); assert.deepEqual(localResets, []);
+        await page.reload(); await expect(page.locator('#data-failure-dialog')).toBeVisible();
+        await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
+        await page.locator('#discard-old-local-agree').check();
         await page.locator('#discard-old-local').click();
         if (oldCloud) await expect(page.locator('#source-reset-dialog')).toBeVisible({ timeout: 15000 });
         else await expect.poll(async () => (await read()).state?.cards[0]?.content.text, { timeout: 15000 }).toBe('Existing new cloud note');
@@ -246,15 +273,39 @@ try {
       await page.locator('#settings-dialog [data-page="account"]').click();
       await page.locator('#google-sync').click();
       await expect(page.locator('#source-reset-dialog')).toBeVisible();
+      if (!handheld) {
+        // The reported update failure: Settings and a cloud recovery notice are both open, with no operation running.
+        await requestClose(); await terminalClose(); unchangedCloud();
+        await page.reload(); await expect(page.locator('#source-reset-dialog')).toBeVisible();
+        console.log(`PASS ${engine}/${platform}: Settings plus recovery notice permits terminal native close without cloud changes.`);
+      }
       await page.getByRole('button', { name: t('sync.recovery.reset'), exact: true }).click();
       await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
       await expect(page.locator('#settings-account-name')).toHaveText(email);
       await assertRecoveryPaused();
       unchangedCloud(); assert.deepEqual((await legacy()).local, before.local);
+      if (!handheld) {
+        await page.locator('#backup-encrypt').uncheck(); await page.locator('#export-backup').click();
+        await expect.poll(() => page.evaluate(() => typeof window.fixtureCancelPicker)).toBe('function');
+        await requestClose();
+        await expect(page.locator('#close-error-dialog')).toContainText(t('app.close.finishOperation'));
+        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0);
+        assert.equal(await page.evaluate(() => document.body.inert), false);
+        await page.evaluate(() => { window.fixtureCancelPicker(); window.fixtureCloseCancelled = []; });
+        await page.locator('#close-error-dialog button').click();
+        await expect(page.locator('#export-backup')).toBeEnabled(); unchangedCloud();
+      }
       await page.locator('#reset-data').click();
       await expect(page.locator('#reset-data-dialog')).toContainText(email);
       await expect(page.locator('#reset-data-dialog')).toContainText(t('backup.reset.updateDevices'));
       await expect(page.locator('#confirm-reset-data')).toBeDisabled();
+      if (!handheld) {
+        await requestClose(); await terminalClose(); unchangedCloud();
+        await page.reload(); await expect(page.locator('#source-reset-dialog')).toBeVisible();
+        await page.getByRole('button', { name: t('sync.recovery.reset'), exact: true }).click();
+        await page.locator('#reset-data').click();
+        console.log(`PASS ${engine}/${platform}: unconfirmed reset permits native close without implying consent.`);
+      }
       await page.locator('#reset-data-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
       unchangedCloud();
       // The other navigation action shares the same paused recovery state.
@@ -282,6 +333,54 @@ try {
       await page.locator('#google-sync').click();
       await expect.poll(() => [...provider.files.values()].some(item => item.file.kind === 'revision'
         && new TextDecoder().decode(item.bytes).includes('First new note after reset')), { timeout: 15000 }).toBe(true);
+      if (!handheld) {
+        await expect(page.locator('#google-sync')).toBeEnabled();
+        const previousHook = provider.hook; let releaseSync = null;
+        provider.hook = async (method, id) => {
+          await previousHook(method, id);
+          if (method === 'changes') await new Promise(resolve => { releaseSync = resolve; });
+        };
+        await page.locator('#google-sync').click();
+        await expect.poll(() => Boolean(releaseSync)).toBe(true);
+        await requestClose(); await expect.poll(() => page.evaluate(() => document.body.inert)).toBe(true);
+        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0, 'in-flight sync must settle before native close');
+        provider.hook = previousHook; releaseSync();
+        await terminalClose();
+        await page.reload(); await expect(page.locator('#groups .group-row').first()).toBeVisible();
+        await page.locator('[data-view="board"]').click();
+        await page.locator('#settings-button').click();
+        await page.locator('#close-settings').click(); await page.locator('#compose').click();
+        // An admitted local write must finish before acknowledgement; new input is no longer admitted.
+        await page.evaluate(() => { window.fixtureCommitGate = new Promise(resolve => { window.fixtureReleaseCommit = resolve; }); });
+        const commits = await page.evaluate(() => window.fixtureCommits);
+        await page.locator('#editor-text').fill('Draft kept through graceful quit');
+        await expect.poll(() => page.evaluate(() => window.fixtureCommits)).toBeGreaterThan(commits);
+        await requestClose();
+        await expect.poll(() => page.evaluate(() => document.body.inert)).toBe(true);
+        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0);
+        await page.evaluate(() => {
+          document.querySelector('#editor-text').dispatchEvent(new Event('input', { bubbles: true }));
+          window.fixtureReleaseCommit(); window.fixtureCommitGate = null;
+        });
+        await terminalClose();
+        assert.ok(Object.values((await read()).state.drafts).some(draft => draft.content.text === 'Draft kept through graceful quit'));
+        await page.reload(); await expect(page.locator('#groups .group-row').first()).toBeVisible();
+        await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
+        await page.evaluate(() => { window.fixtureWriteFailure = true; });
+        await page.locator('#editor-text').fill('Keep this text when saving fails');
+        await expect(page.locator('#draft-status')).toContainText('Synthetic disk full');
+        await requestClose();
+        await expect(page.locator('#close-error-dialog')).toContainText('Synthetic disk full');
+        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0);
+        assert.equal(await page.evaluate(() => document.body.inert), false);
+        assert.ok(await page.evaluate(() => window.fixtureCloseCancelled[0].includes('Synthetic disk full')));
+        await page.locator('#close-error-dialog button').click();
+        await expect(page.locator('#editor-text')).toHaveValue('Keep this text when saving fails');
+        await page.evaluate(() => { window.fixtureWriteFailure = false; window.fixtureCloseCancelled = []; });
+        await requestClose(); await terminalClose();
+        assert.ok(Object.values((await read()).state.drafts).some(draft => draft.content.text === 'Keep this text when saving fails'));
+        console.log(`PASS ${engine}/${platform}: close stops sync and drains draft writes; a write failure visibly cancels, preserves text and permits retry.`);
+      }
       assert.deepEqual(errors, []); assert.deepEqual(oldReads, []);
       console.log(`PASS ${engine}/${platform}: ${oldLocal ? 'legacy' : 'empty'} local profile + signed-in legacy Google, Settings consent/cancel, metadata-only reset, zero notes and new note sync.`);
     } finally { await context.close(); }

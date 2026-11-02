@@ -9,6 +9,20 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.7
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Empty cloud reset creates only the three required dataset objects. Unused folders, snapshots and the default group are created only when needed.
+
+- Empty initialization: replace the 59-object scaffold with a root, descriptor and ready receipt. Reset retains its separate legacy fence; no notes, starter group or empty snapshots are uploaded.
+- First capture: create only the used folders and derive the default group from the account and dataset so simultaneous first captures do not create competing starter groups. Backup replacement creates initial checkpoints only for populated shards.
+- Pending reset: reuse the saved operation and reserved IDs while omitting uncreated empty scaffolding. An acknowledged generation root is never silently rebuilt; already-ready datasets and their retired snapshots are not replayed.
+- First-login failure: preserve the numeric batch-ID allocation argument through the sync cancellation wrapper instead of passing an object and rejecting it as an invalid file identity.
+- Apple diagnostics: identify the failing Drive metadata field instead of collapsing identity, parent, type, ownership, state, size and checksum errors into one generic format error. Validation remains strict; the original live-account failure has not been attributed to a particular field.
+- Compatibility: update all devices before joining a newly empty dataset. Sparse ready receipts change the pre-store V1 test format without migration; this version still reads existing full checkpoint receipts. Shared changes also apply to local iOS builds.
+- Verification limits: empty login/reopen/second-device, concurrent first capture, reset continuation and desktop/handheld renderer regressions use isolated providers. Authenticated Drive reset completion, installed-phone acceptance and independent review remain unverified.
+
 ## 0.5.6
 
 Platforms: Windows, Linux, macOS, Android.

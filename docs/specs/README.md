@@ -53,7 +53,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
-| [011-efficient-idle-sync](011-efficient-idle-sync.md) | Efficient idle checks with existing dataset and record formats | Draft; review and implementation approval pending | [PLAN-012](../plans/012-efficient-idle-sync.md) |
+| [011-efficient-idle-sync](011-efficient-idle-sync.md) | Efficient idle checks with existing dataset and record formats | Approved for implementation; native/provider proof and review pending | [PLAN-012](../plans/012-efficient-idle-sync.md) |
 | [010-dataset-checkpoints-and-deletable-history](010-dataset-checkpoints-and-deletable-history.md) | Dataset checkpoints, manual note purge and explicit reset/recovery | Approved for implementation; remote proof gates remain | [PLAN-011](../plans/011-dataset-checkpoints-and-deletable-history.md) |
 | [009-desktop-presentation-lifecycle](009-desktop-presentation-lifecycle.md) | Desktop presentation availability and recovery | Draft; implementation approval pending | [PLAN-009](../plans/009-desktop-presentation-lifecycle.md) |
 | [008-workspace-initialization](008-workspace-initialization.md) | Workspace initialization and proof of reset completion | Approved; status in PROGRESS | [PLAN-008](../plans/008-workspace-initialization.md) |

@@ -193,6 +193,14 @@ export class Workspace {
 
   #commit(change, persist = this.#persist, replaceGraph = false, options = {}) {
     const operation = this.#tail.then(async () => {
+      if (options.guard && !options.guard(this.#state)) return false;
+      if (options.syncOnly) {
+        const draft = { ...this.#state, sync: { ...this.#state.sync }, revision: this.#state.revision + 1 };
+        const result = change(draft);
+        await persist(draft, this.#state.revision, { previous: this.#state, syncOnly: true, guard: options.guard });
+        this.#state = draft;
+        return result;
+      }
       const draft = this.currentFormat && options.draftsOnly
         ? { ...this.#state, drafts: { ...this.#state.drafts } } : copy(this.#state);
       const result = change(draft);
@@ -425,6 +433,26 @@ export class Workspace {
       state.sync.lastSuccessfulSyncAt = completedAt;
       return true;
     });
+  }
+
+  /** Commit an empty, terminal feed response without visiting note bodies or acknowledging pending work. */
+  completeEmptySync(session, expected, cursor, completedAt, isCurrent = () => true) {
+    requireValue(this.currentFormat && typeof cursor === 'string' && cursor.length > 0 && cursor.length <= 8192,
+      'invalid-source-page', t('errors.storage.googlePageEndInvalid'));
+    requireValue(typeof completedAt === 'string' && Number.isFinite(Date.parse(completedAt)) && new Date(completedAt).toISOString() === completedAt,
+      'invalid-sync-time', t('errors.core.syncTimeInvalid'));
+    session = copy(session); expected = copy(expected);
+    const guard = state => {
+      this.#session(state, session);
+      return isCurrent() && !state.cloudRestore && !state.sync.pendingCount && !state.sync.localHeads?.length
+        && Boolean(expected.cursor && expected.dataset && expected.datasetView)
+        && state.sync.cursor === expected.cursor
+        && canonicalJson(state.sync.dataset) === canonicalJson(expected.dataset)
+        && canonicalJson(state.sync.datasetView) === canonicalJson(expected.datasetView);
+    };
+    return this.#commit(state => {
+      state.sync.cursor = cursor; state.sync.lastSuccessfulSyncAt = completedAt; return true;
+    }, this.#persist, false, { syncOnly: true, guard });
   }
 
   #file(state, file) {

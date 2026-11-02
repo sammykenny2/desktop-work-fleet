@@ -106,6 +106,16 @@ export class WorkspaceRecordStorage {
     if (!this.#active || detail.replaceGeneration) return this.#stage(state, detail);
     const generation = this.#active.generation, previous = detail.previous;
     requireValue(previous, 'invalid-record-transaction', t('errors.storage.recordTransactionInvalid'));
+    if (detail.syncOnly) {
+      // The core retains every other field by reference. Do not enumerate current notes, drafts or history here.
+      const unchanged = Object.keys(state).length === Object.keys(previous).length
+        && Object.keys(state).every(key => ['sync', 'revision'].includes(key) || state[key] === previous[key]);
+      requireValue(unchanged && !detail.attachments?.length, 'invalid-record-transaction', t('errors.storage.recordTransactionInvalid'));
+      stale(!detail.guard || detail.guard(previous));
+      const active = { ...this.#active, revision: state.revision };
+      await this.#write([this.#row('meta', 'sync', state.sync), { collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active }]);
+      this.#active = active; return;
+    }
     const puts = [], deletes = [];
     if (!detail.draftsOnly) {
       for (const [key, value] of Object.entries(state)) if (!omitted.has(key) && !equal(value, previous[key])) puts.push(this.#row('meta', key, value));

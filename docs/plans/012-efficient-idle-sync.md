@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft for review; implementation not started or approved |
+| Status | In progress; implementation authorized 2026-11-03; native/provider acceptance and independent review pending |
 | Owner | Maintainer |
 | Reviewer | Independent review pending |
 | Related specification | [SPEC-011](../specs/011-efficient-idle-sync.md) |
@@ -15,7 +15,8 @@
 Implement the specified empty-feed shortcut and local metadata transaction without
 changing persisted formats. Improve native connection lifetime and background status
 in separately testable slices. Each implementation slice includes its relevant tests
-and owning documentation in the same commit. This plan does not authorize a version
+and owning documentation in the same commit. The maintainer approved implementation;
+this plan does not authorize a version
 bump, release, reset or operations on a real account.
 
 ## Implementation phases
@@ -23,8 +24,8 @@ bump, release, reset or operations on a real account.
 ### 0. Review and reproducible evidence
 
 - [ ] Obtain review of eligibility/invalidation, the empty-page transaction, audit policy
-  and the unchanged write/purge boundaries; resolve design findings before implementing.
-- [ ] Turn the [baseline procedure](../research/2026-11-03-idle-sync-request-cost.md)
+  and the unchanged write/purge boundaries; resolve findings before claiming acceptance.
+- [x] Turn the [baseline procedure](../research/2026-11-03-idle-sync-request-cost.md)
   into deterministic provider-call and local-record counters. Keep HTTP counts distinct
   from bridge/provider counts; identify cold, ordinary idle, audit and changed-data runs.
 - [ ] Add an opt-in native diagnostic route using the app's own account context and
@@ -40,12 +41,12 @@ baseline evidence where authorized. Only that evidence can substantiate elapsed-
 
 ### 1. Empty-result local commit
 
-- [ ] Add a serialized workspace operation for SPEC-011's cursor/time-only update,
+- [x] Add a serialized workspace operation for SPEC-011's cursor/time-only update,
   checking session, binding, cursor, view, pending heads and maintenance epoch.
-- [ ] Add a narrow WorkspaceRecordStorage write using the existing sync/active rows
+- [x] Add a narrow WorkspaceRecordStorage write using the existing sync/active rows
   and revision guard. Avoid generic current/draft enumeration and whole-state cloning.
-- [ ] Test persisted reopen, failure before/after commit, stale storage receipts,
-  concurrent typing/layout changes, a new save and a queued purge/account switch.
+- [x] Test persisted reopen, failure before/after commit, stale storage receipts,
+  concurrent unsaved text, a new save and invalidated sessions. Maintenance races are covered in Phase 2.
 - [ ] Exercise the unchanged native record transaction on macOS, Windows, Linux,
   Android and iOS; retain separate evidence for JS fixtures and native databases.
 
@@ -129,7 +130,7 @@ to the existing full path, with no data conversion or reset.
 | Status / scheduling | `src/app/main.js`, locale catalogs, renderer probes |
 | Evidence and acceptance procedures | `scripts/testing/`, `docs/testing.md`, affected platform READMEs and this plan's checkboxes |
 
-No code files in this table are changed by the proposal commit. Do not alter JSON
+Do not alter JSON
 schemas, native DB schemas, package versions or release notes for these slices.
 
 ## Testing strategy and risks

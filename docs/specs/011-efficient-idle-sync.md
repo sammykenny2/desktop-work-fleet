@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Draft for review; implementation not approved |
+| Status | Approved for implementation, 2026-11-03; independent review and native/provider acceptance pending |
 | Owner | Maintainer |
 | Reviewer | Independent review pending |
 | Related decision / plan | [ADR-063](../decisions/063-efficient-idle-sync.md) / [PLAN-012](../plans/012-efficient-idle-sync.md) |

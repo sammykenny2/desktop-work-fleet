@@ -2,9 +2,10 @@
 
 ## Status
 
-Proposed, 2026-11-03. The maintainer requested ADR/SPEC/PLAN before implementation.
+Accepted direction, 2026-11-03. The maintainer authorized implementation after the
+ADR/SPEC/PLAN proposal. Independent review and real-provider acceptance remain open.
 This proposal supplements ADR-062; it does not replace its publication, checkpoint,
-purge or explicit legacy-reset protocol. Implementation and release are not approved by this document.
+purge or explicit legacy-reset protocol. Publication requires separate authorization.
 
 ## Context
 

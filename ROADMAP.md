@@ -32,12 +32,12 @@ existing Mac experience; do not restart the paused exploration goal.
 
 ## Next sync performance work
 
-Review [ADR-063](docs/decisions/063-efficient-idle-sync.md),
+Implement [ADR-063](docs/decisions/063-efficient-idle-sync.md),
 [SPEC-011](docs/specs/011-efficient-idle-sync.md) and
 [PLAN-012](docs/plans/012-efficient-idle-sync.md) before further history-capacity
-extensions. The proposal reduces unchanged checks using existing formats, adds native
-connection reuse and requires measured authenticated results. It does not authorize
-implementation, another schema change, reset or release.
+extensions. Reduce unchanged checks using existing formats, add native connection reuse
+and require measured authenticated results. This work does not authorize another schema
+change, reset or release.
 
 ## Next data-format boundary
 

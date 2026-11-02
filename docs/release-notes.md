@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.5
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Fix an Apple Google sign-in restoration race that could leave cloud reset waiting until timeout. Reset errors now explain how to continue saved work, and clearing progress reflects the actual order.
+
+- Apple Google access: concurrent requests after reopening share one SDK sign-in restoration and account verification, preventing a lost completion callback and a stalled reset. A replacement host joins an unfinished restoration; closed hosts stop before further requests.
+- Apple network efficiency: reuse an unchanged token's verified account identity in memory, while checking a changed token again. Account mismatches and authorization failures still stop the affected request.
+- Reset recovery: an unconfirmed native result explains that the saved operation can be checked and continued instead of asking to preserve note text. Older saved timeout messages use the corrected explanation when reopened.
+- Reset progress: clearing old files before initialization no longer claims that new data is already usable. Initialization text works for both empty reset and seeded backup replacement.
+- Compatibility: data formats are unchanged from 0.5.0 through 0.5.4. Pending resets keep their original operation and captured file IDs; no additional reset or migration is required.
+- Preview limits: the lost Apple authorization continuation was observed in the installed macOS app and reproduced with a deferred SDK fixture. Live Drive reset completion and installed-phone acceptance of the correction remain unverified.
+
 ## 0.5.4
 
 Platforms: Windows, Linux, macOS, Android.

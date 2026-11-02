@@ -43,8 +43,8 @@ android {
         applicationId = configuredId.ifEmpty { "app.workfleet.preview" }
         minSdk = 28
         targetSdk = 36
-        versionCode = 504
-        versionName = "0.5.4"
+        versionCode = 505
+        versionName = "0.5.5"
         testInstrumentationRunner = "app.workfleet.nativehost.StorageProbe"
     }
     // host.info reports versionName, which Settings shows and backups record.

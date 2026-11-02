@@ -215,6 +215,8 @@ Drive calls. A closed fixture renderer is reloaded before testing additional rec
 runs all four renderer modes; CI runs it after installing Playwright Chromium/WebKit.
 The old-local case disables browser local/session storage, as native recovery
 cannot depend on either. This does not verify real Google authorization or installed native reset/reload behavior.
+After local discard, the probe waits for the same-URL replacement document before inspecting its records, including
+when joining a current cloud. It must not poll the outgoing renderer while its context is being destroyed.
 The `ios`/`android` modes set the synthetic host platform and a touch-enabled 390 x 844 viewport. They exercise the
 handheld branches, hidden desktop settings, non-zooming viewport and reset controls, and save recovery screenshots
 under `build/mobile-reset/`. WebKit/Chromium phone emulation is not an installed iOS/Android runtime result.

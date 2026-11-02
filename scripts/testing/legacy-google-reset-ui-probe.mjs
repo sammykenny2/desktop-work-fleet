@@ -252,7 +252,11 @@ try {
         await page.reload(); await expect(page.locator('#data-failure-dialog')).toBeVisible();
         await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
         await page.locator('#discard-old-local-agree').check();
-        await page.locator('#discard-old-local').click();
+        // Discard reloads the same URL. Subscribe before clicking so state reads use the replacement renderer.
+        await Promise.all([
+          page.waitForEvent('domcontentloaded', { timeout: 15000 }),
+          page.locator('#discard-old-local').click(),
+        ]);
         if (oldCloud) await expect(page.locator('#source-reset-dialog')).toBeVisible({ timeout: 15000 });
         else await expect.poll(async () => (await read()).state?.cards[0]?.content.text, { timeout: 15000 }).toBe('Existing new cloud note');
         assert.deepEqual(localResets, [profileId]);

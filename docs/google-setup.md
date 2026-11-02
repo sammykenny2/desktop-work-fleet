@@ -144,27 +144,21 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
   again within about an hour, because their tokens become invalid. Do not sign out on such builds; a device that lost
   access only needs to sign in again ("Sign in to Google again"), which does not affect other devices (2026-10-15).
 - Content, groups and attachments are shared across devices; each device keeps its own layout.
-- "Reset all data" in a Google workspace also clears the app data in Drive: it first saves the resumable job and a reset
-  marker, deletes the other files one by one,
-  then the initiating device publishes the initialization plan, the default group and the completion record, and finally
-  clears this device's copy.
-  Other devices that see the marker on their next sync stop syncing and ask ("The cloud data was reset"): "Clear this
-  device's copy" and sync again, "Export a backup first", or "Later"; their data is never deleted automatically.
-  A working Google sign-in is required; after an interruption, reopen the app and resume the same reset in Data and
-  backup ("Continue the data reset" in Account and sync opens that page). Once initialization has started, a retry no
-  longer clears anything.
-  Other devices that have cleared their copy show "Waiting for the workspace to initialize" until the initiating device
-  finishes; they only wait for the download and do not upload a default group themselves.
-- A brand-new account first reads the whole source, then any device completes the same replayable initialization plan;
-  if one device is interrupted, another device with a new version can continue it.
-  After the copy is cleared, the device reads the current workspace and checks the completion record and the actual data
-  before publishing remote groups and notes. An initialized empty workspace never gets a default group added again.
-  When groups already exist, offline editing still works. This fix requires every device to update; older versions may
-  keep creating different default groups.
-  Groups with the same name that were already created keep their data and can be merged explicitly in "Group settings";
-  they are never removed by name automatically.
-  If an old reset or overwrite job has been superseded by another reset, press "Get the cloud copy again": it can export
-  the known copy first, then clears the local copy and syncs again; the old cloud clearing is not resumed.
+- "Reset all data" in a Google workspace needs explicit confirmation and a working Google sign-in. Update or stop
+  every older device first: older destructive commands can still delete the new data. The app captures old leaf IDs
+  from metadata, publishes a legacy-compatible fence, and prepares a new dataset. Once the new current checkpoints
+  are ready, ordinary work resumes while captured old files are removed in bounded background steps. Old folder
+  containers and late uncaptured files are retained; late legacy writes are reported without expanding deletion.
+- On first use, new-format clients discover a verified dataset/ready descriptor and current checkpoints. They do not
+  download retained history. Conflicting initializers pause for an explicit choice instead of selecting a timestamp
+  winner. An initialized empty workspace never gets a default group added again.
+- Old local data is preserved until you explicitly discard this device's incompatible copy. Old Google data requires
+  a separate cloud-reset confirmation; local discard does not clear Google. No migration runs. Use a compatible app
+  to preserve earlier data and backups before changing formats.
+- Missing or replaced cloud data pauses sync and preserves the local copy. Recovery offers export, a preview of
+  replacing this device's copy with the verified cloud, or explicitly replacing Google with current local data under
+  new identities after saving a safety backup. Uncached history cannot be recovered from a current-only copy.
+  No cloud-loss handler automatically republishes old note identities.
 
 ## Overwrite Google completely from a local backup
 
@@ -177,16 +171,13 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
 3. Check the target account and the counts, press "Back up current data first", choose a safe place for the ZIP and wait
    until the check succeeds.
    Then tick "I understand this permanently clears the Work Fleet data in Google" and press "Confirm restore".
-4. The app first saves the complete restore data, then clears all Work Fleet appDataFolder data of the current Google
-   project,
-   and then uploads the backup's notes, groups, full history and attachments. Drafts from the backup return only to this
-   device and are not published automatically. Layouts stay per device: unless "Also restore desktop positions" is
-   ticked, this device keeps its own positions, regions, shortcuts and other device settings for the notes and groups
-   in the backup; with it, the backup's layout applies.
-5. If it is interrupted or fails, reopen the app and press "Continue overwriting Google" in Account and sync. A retry of
-   the upload stage never clears again;
-   it needs the network and sign-in permission back. On other older devices that show the cloud reset prompt, back up
-   content that has not synced yet, then clear the copy and sync again.
+4. The app stages the restore locally, records exact old cloud targets, publishes the reset fence and uploads a
+   new dataset. Receiving devices activate it only after the archive's declared history and attachments have been
+   seeded and current checkpoints are ready. Captured old files are cleaned in the background. Drafts stay on the
+   restoring device and are not published. Layout stays per device unless "Also restore desktop positions" is chosen.
+5. After interruption, reopen the app with the same account and let the durable job continue. Network and sign-in
+   failures pause it with a retry action. On other devices, preserve unpublished work before choosing to replace
+   the local copy with the new verified cloud. Update older devices before reconnecting them.
 
 This is a permanent full overwrite. Google cannot perform multi-file operations atomically, so after an interruption the
 cloud may hold some of the files. New receiving devices activate the workspace only after the whole restore request and
@@ -195,7 +186,8 @@ and never show a partial workspace as a successful sync; all syncing devices mus
 The safe ZIP saved before clearing can be restored separately. The reset control marker is kept to notify old devices;
 ordinary Drive files are not affected.
 The existing "Add as new notes", "Merge with current notes" and "Replace current notes" keep their original history
-semantics; the last one does not clear the old history or Deleted.
+semantics; the last one does not clear retained history or Trash. Purged note identities recover as explicitly
+previewed new notes. Only new-format archives are accepted; earlier ZIPs require a compatible app.
 A local package without a configured Google client offers no sign-in or cloud overwrite; fill in `.env` and rebuild.
 Backups carry no sign-in credentials.
 
@@ -205,7 +197,10 @@ Local and Google workspaces use the same optionally encrypted ZIP format, which 
 is not bound to a source account or Drive file ID.
 
 1. In the Google workspace, press "Export backup" in Settings → Data and backup and choose where to save it.
-   The app syncs first, then exports the notes, groups, history and attachments from that sync plus this device's drafts.
+   Choose Complete retained history (the default) or Current state only. Complete coverage syncs first and
+   downloads uncached retained history and attachments, while current-only coverage captures this device without requiring sync and excludes old versions. Both
+   include this device's drafts. Complete export fails intact above the initial 20,000-entry / 128 MiB expanded ZIP
+   limit; the app never silently switches coverage. Earlier-format archives cannot be imported into this format.
    If the sync fails, nothing is saved by default; you can explicitly choose "Back up only what this device knows" after
    checking the last successful sync time and the number of pending changes in the message.
 2. Confirm the ZIP was saved. Content and drafts that other devices have not uploaded are not in this backup; if needed,
@@ -217,7 +212,7 @@ is not bound to a source account or Drive file ID.
 4. Press "Check file", check the clearing scope and the restore counts, tick "I understand the current local content
    will be permanently replaced by the backup", then press "Confirm restore".
    A backup of the old local data is optional, and no reset is needed first; a failed restore keeps the original data.
-   After success, the old history, drafts and attachments are not kept in Deleted.
+   After success, old local history, drafts and attachments are scheduled for background collection and are not kept in Trash.
 
 From then on the local workspace can be used for offline-only editing and never writes back to the original Google
 workspace; the cloud notes and other account workspaces are kept.

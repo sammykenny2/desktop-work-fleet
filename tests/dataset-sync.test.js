@@ -6,6 +6,7 @@ import { WorkspaceRecordStorage } from '../src/storage/workspace-records.js';
 import { DatasetLifecycle } from '../src/sources/dataset-lifecycle.js';
 import { DatasetSync } from '../src/sources/dataset-sync.js';
 import { DatasetProtocol } from '../src/sources/dataset-protocol.js';
+import { DatasetPurge } from '../src/sources/dataset-purge.js';
 import { datasetRecord, datasetShard } from '../src/sources/dataset-codec.js';
 import { sha256 } from '../src/sources/files.js';
 import { DatasetTestJournal, DatasetTestProvider } from './fixtures/dataset/provider.js';
@@ -194,4 +195,98 @@ test('late legacy writes are reported durably without importing or deleting thei
   assert.equal(provider.stats.historyReads, reads); assert.equal(provider.stats.deletes, deletes);
   const reopened = await client(provider, c.records);
   assert.deepEqual(await reopened.storage.getControl(`legacy-residual:${datasetId}`), { observed: true });
+});
+
+test('eight active writers make bounded progress across repeated save and retirement rounds', async () => {
+  const provider = new DatasetTestProvider();
+  const first = await client(provider); await first.sync.sync();
+  const clients = [first];
+  for (let i = 1; i < 8; i++) { const next = await client(provider); await next.sync.sync(); clients.push(next); }
+  let peakCurrent = 0;
+  provider.hook = async point => {
+    if (point === 'create-after') peakCurrent = Math.max(peakCurrent,
+      [...provider.files.values()].filter(item => ['checkpoint', 'change'].includes(item.file.kind)).length);
+  };
+  for (let round = 0; round < 4; round++) {
+    await Promise.all(clients.map((c, writer) => c.workspace.createCard(content(`writer ${writer} round ${round}`))));
+    for (let retry = 0; retry < 8; retry++) {
+      const results = await Promise.allSettled(clients.map(c => c.sync.sync({ force: true })));
+      for (const result of results) if (result.status === 'rejected') assert.ok(
+        ['dataset-busy', 'source-file-missing', 'file-missing'].includes(result.reason.code), result.reason.stack);
+      if (clients.every(c => c.workspace.pendingCount === 0)) break;
+    }
+    assert.ok(clients.every(c => c.workspace.pendingCount === 0), 'supported writers drain their acknowledged local queues');
+    const follower = await client(provider); await follower.sync.sync();
+    assert.equal(follower.workspace.snapshot.cards.length, (round + 1) * 8);
+    assert.equal(new Set(follower.workspace.snapshot.cards.map(card => card.content.text)).size, (round + 1) * 8);
+  }
+  assert.ok(peakCurrent <= 17 * 16 + 136, `bounded transient current set: ${peakCurrent}`);
+});
+
+test('folder and storage capacity failures keep local edits and exact publication journals for retry', async () => {
+  for (const [code, kind] of [['source-item-limit', 'folder'], ['storage-quota', 'revision'], ['source-item-limit', 'change']]) {
+    const provider = new DatasetTestProvider(), c = await client(provider); await c.sync.sync();
+    const card = await c.workspace.createCard(content(`${code} ${kind}`));
+    const create = provider.createObject.bind(provider);
+    provider.createObject = async args => {
+      if (args.file.kind === kind) throw Object.assign(new Error('synthetic provider capacity'), { code });
+      return create(args);
+    };
+    await assert.rejects(c.sync.sync({ force: true }), { code });
+    assert.equal(c.sync.status.phase, 'needs-attention'); assert.equal(c.workspace.pendingCount, 1);
+    assert.equal(c.workspace.snapshot.cards.find(item => item.id === card.id).content.text, `${code} ${kind}`);
+    provider.createObject = create;
+    const reopened = await client(provider, c.records); await reopened.sync.sync();
+    assert.equal(reopened.workspace.pendingCount, 0);
+    const follower = await client(provider); await follower.sync.sync();
+    assert.equal(follower.workspace.snapshot.cards.length, 1);
+    assert.equal([...provider.files.values()].filter(item => item.file.kind === 'revision' && item.file.entityId === card.id).length, 1);
+  }
+});
+
+
+test('a cloned pending queue replays one logical edit and later independent edits keep both UUID branches', async () => {
+  const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
+  const card = await a.workspace.createCard(content('queued before cloning'));
+  const clonedRecords = new MemoryRecordStore(), clonedStorage = new WorkspaceRecordStorage(clonedRecords, 'google:test');
+  const state = a.workspace.state; state.revision = 0;
+  await clonedStorage.save(state, null, { history: await a.storage.completeHistory(state), pending: (await a.storage.pendingPage()).operations });
+  const b = await client(provider, clonedRecords);
+  await Promise.all([a.sync.sync({ force: true }), b.sync.sync({ force: true })]);
+  const follower = await client(provider); await follower.sync.sync();
+  assert.equal(follower.workspace.snapshot.cards.length, 1);
+  assert.equal(follower.workspace.revisionHeads('card', card.id).length, 1);
+  assert.equal(a.workspace.pendingCount, 0); assert.equal(b.workspace.pendingCount, 0);
+  const left = await a.workspace.updateCard(card.id, { content: content('left after clone') }, card.revision);
+  const right = await b.workspace.updateCard(card.id, { content: content('right after clone') }, card.revision);
+  assert.notEqual(left.revision, right.revision);
+  await Promise.all([a.sync.sync({ force: true }), b.sync.sync({ force: true })]);
+  await follower.sync.sync({ force: true });
+  assert.deepEqual(new Set(follower.workspace.revisionHeads('card', card.id).map(record => record.value.content.text)),
+    new Set(['left after clone', 'right after clone']));
+});
+
+test('foreground writers retain new notes while another device drains permanent deletion cleanup', async () => {
+  const provider = new DatasetTestProvider(), owner = await client(provider); await owner.sync.sync();
+  const writers = [];
+  for (let i = 0; i < 7; i++) { const writer = await client(provider); await writer.sync.sync(); writers.push(writer); }
+  const purge = new DatasetPurge({ workspace: owner.workspace, storage: owner.storage, fileStore: provider });
+  for (let round = 0; round < 3; round++) {
+    const card = await owner.workspace.createCard(content(`purge round ${round}`));
+    await owner.workspace.updateCard(card.id, { deleted: true }, card.revision); await owner.sync.sync({ force: true });
+    await purge.enqueue(await purge.preview([card.id]));
+    let cleaned = false;
+    for (let pass = 0; pass < 80; pass++) {
+      if (pass < 3) await Promise.all(writers.map((writer, i) => writer.workspace.createCard(content(`kept ${round} ${pass} ${i}`))));
+      const results = await Promise.allSettled([purge.step(), ...writers.map(writer => writer.sync.sync({ force: true }))]);
+      for (const result of results) if (result.status === 'rejected') assert.ok(
+        ['dataset-busy', 'source-file-missing', 'file-missing'].includes(result.reason.code), result.reason.stack);
+      if (pass >= 3 && results[0].status === 'fulfilled' && !results[0].value && writers.every(writer => writer.workspace.pendingCount === 0)) { cleaned = true; break; }
+    }
+    assert.equal(cleaned, true, 'cleanup and writers finish within the bounded fixture');
+    const follower = await client(provider); await follower.sync.sync();
+    assert.equal(follower.workspace.snapshot.cards.length, (round + 1) * 21);
+    assert.ok(follower.workspace.snapshot.cards.every(item => item.content.text.startsWith('kept')));
+    assert.ok(![...provider.files.values()].some(item => ['revision', 'attachment', 'folder'].includes(item.file.kind) && item.file.entityId === card.id));
+  }
 });

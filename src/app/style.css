@@ -16,3 +16,5 @@ dialog{border:1px solid var(--line);border-radius:14px;padding:28px;width:min(61
 
 
 .cleanup-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px;padding:0 24px 8px}.cleanup-status:has(#cleanup-status:empty):has(#retry-cleanup[hidden]){display:none}#purge-dialog li{overflow-wrap:anywhere}#empty-trash{white-space:nowrap;font-size:12px}.view-tools{flex-wrap:wrap}
+
+@media(max-width:640px){.view-bar.trash-visible{flex-wrap:wrap}.view-bar.trash-visible .view-filters{flex:1 0 100%}.view-bar.trash-visible .view-tools{width:100%;justify-content:space-between}}

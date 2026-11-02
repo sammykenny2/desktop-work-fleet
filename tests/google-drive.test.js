@@ -56,7 +56,7 @@ test('dataset change feed counts irrelevant history events and exposes legacy re
     { fileId: 'fence', file: { appProperties: { wfKind: 'reset' } } }, { fileId: folder.id, file: datasetMeta(folder) },
     { fileId: 'gone', removed: true }], newStartPageToken: 'end' })]);
   assert.deepEqual(await s.store.listDatasetChanges({ cursor: 'start' }), { changes: [
-    { id: 'old', removed: false, legacyReset: false }, { id: 'fence', removed: false, legacyReset: true },
+    { id: 'old', removed: false, legacyReset: false, legacyWrite: true }, { id: 'fence', removed: false, legacyReset: true, legacyWrite: false },
     { id: folder.id, removed: false, file: folder }, { id: 'gone', removed: true },
   ], cursor: 'end' }); s.done();
   assert.match(s.calls[0].path, /parents/);

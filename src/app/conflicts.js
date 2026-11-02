@@ -33,15 +33,17 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
   const changed = async () => { try { await onChanged(); } finally { render(); } };
   const groupLabel = id => groupName(workspace.snapshot.groups.find(group => group.id === id)) || t('conflicts.version.groupPending');
   const headsFor = (kind, id) => workspace.revisionHeads(kind, id).map(record => record.revisionId);
-  // A note's version whose earlier versions all sit in one other group was moved from there. A note's versions are
-  // read again only when one of them is new to this render.
+  // Use already loaded parent metadata only; a move label never triggers an ancestor download.
   let groupsBefore = new Map();
-  const movedFrom = record => {
-    let known = groupsBefore.get(record.entityId);
-    if (!known || record.parents.some(id => !known.has(id))) {
-        known = new Map(workspace.revisionHeads('card', record.entityId).map(item => [item.revisionId, item.value.groupId]));
-      groupsBefore.set(record.entityId, known);
+  const rememberGroups = records => {
+    for (const record of records) if (record.kind === 'card') {
+      if (!groupsBefore.has(record.entityId)) groupsBefore.set(record.entityId, new Map());
+      groupsBefore.get(record.entityId).set(record.revisionId, record.value.groupId);
     }
+  };
+  const movedFrom = record => {
+    rememberGroups(workspace.revisionHeads('card', record.entityId));
+    const known = groupsBefore.get(record.entityId) ?? new Map();
     const groups = new Set(record.parents.map(id => known.get(id))); const [from] = groups;
     return groups.size === 1 && from && from !== record.value.groupId ? from : null;
   };
@@ -176,7 +178,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
         try {
           const page = await workspace.historyPage(entity.kind, entity.id, { after, limit: 20 });
           if (!current()) return;
-          more.remove(); after = page.next;
+          more.remove(); after = page.next; rememberGroups(page.records);
           for (const record of page.records) if (!seen.has(record.revisionId)) {
             seen.add(record.revisionId); records.append(renderValue(record, { heads, fromHistory: true }));
           }
@@ -185,7 +187,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
             const row = element('article', undefined, 'revision-option'); row.dataset.revisionId = entry.revisionId;
             row.append(element('code', entry.revisionId), action(t('conflicts.history.open'), async () => {
               const record = await workspace.historicalRevision(entry.revisionId, { file: entry.file });
-              if (current()) row.replaceWith(renderValue(record, { heads, fromHistory: true }));
+              if (current()) { rememberGroups([record]); row.replaceWith(renderValue(record, { heads, fromHistory: true })); }
             })); records.append(row);
           }
           coverage.textContent = t(page.coverage === 'cached' ? 'conflicts.history.cached' : after ? 'conflicts.history.partial' : 'conflicts.history.complete', { count: seen.size });

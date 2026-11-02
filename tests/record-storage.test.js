@@ -125,3 +125,19 @@ test('metadata-only pages omit payloads and attachment deletion shares CAS, roll
   assert.equal(await store.getAttachment('local', id), null, 'replay must not apply newly staged bytes');
   assert.throws(() => validateRecordTransaction({ ...remove, attachmentDeletes: [id, id] }));
 });
+
+
+test('IndexedDB quota failures have a stable localized recovery message', async () => {
+  const { IndexedDbRecordStore } = await import('../src/storage/records-indexed-db.js');
+  for (const late of [false, true]) {
+    const failure = new DOMException('', 'QuotaExceededError');
+    const database = { transaction() {
+      if (!late) throw failure;
+      const tx = { error: failure, objectStore: () => ({ get: () => ({}) }) };
+      queueMicrotask(() => tx.onabort()); return tx;
+    } };
+    const store = new IndexedDbRecordStore(database, null);
+    await assert.rejects(store.get('local', 'draft', 'one'), error =>
+      error.code === 'local-storage-quota' && error.message.includes('save did not finish'));
+  }
+});

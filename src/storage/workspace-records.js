@@ -335,7 +335,12 @@ export class WorkspaceRecordStorage {
     return { id, size: file.size, name: file.name || 'attachment', mediaType: file.type || 'application/octet-stream' };
   }
   putAttachmentBytes(profileId, id, bytes) {
-    this.#check(profileId); return this.#queue(() => this.#write([], [], [{ id, bytes }]));
+    this.#check(profileId); return this.#queue(() => {
+      stale(Boolean(this.#active));
+      // Track cached bytes even before a draft owns them, so replacement can collect interrupted attachments.
+      const generation = this.#historyGeneration();
+      return this.#write([this.#row('control', `cached-attachment:${id}`, {}, `${generation}:cached-attachments`, generation)], [], [{ id, bytes }]);
+    });
   }
   setAttachmentLoader(loader) { this.#attachmentLoader = loader; }
   async getAttachment(profileId, id) { this.#check(profileId); return await this.#store.getAttachment(profileId, id) ?? this.#attachmentLoader?.(id) ?? null; }

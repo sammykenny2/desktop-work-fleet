@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: production dataset UI and background recovery connected; performance and platform acceptance pending |
+| Status | Implementation complete; available automated checks recorded; provider/device acceptance and independent review pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -54,8 +54,9 @@ flowchart TD
   scenarios. Record independent-review outcome in the resulting commit body, not PROGRESS or a session log.
 - [x] 0.2 Resolve SPEC Q03-Q05: terminal purge versus unseen restore, MVP manual commands, first-run/recovery
   choices, background bulk completion and initial backup coverage/capacity. No Trash-days decision is needed now.
-- [ ] 0.3 Approve local-storage work separately from remote model/probe work. Identify named benchmark environments
-  and, if wanted, separately authorize isolated Google test resources; this document does not authorize cloud writes.
+- [x] 0.3 Approve local-storage work separately from remote model/probe work. Identify named benchmark environments
+  and, if wanted, separately authorize isolated Google test resources. Implementation/model work is authorized;
+  named component environments are recorded in research. No isolated or real-account Google writes are authorized.
 - [x] 0.4 Mark only accepted decisions as accepted and authorize their implementation scope. Keep exact application
   release target and release dispatch separate. Do not weaken U03/U04 silently to fit an experiment.
 
@@ -83,6 +84,10 @@ Depends only on relevant Phase 0 approval, not Phase 1B or a Google grant.
   sizes and methodology; then measure native storage/bridge separately. Cover rollback, uncertain ack, restart,
   account switch, clones and large histories (VC02, VC09, VC12, VC20, VC25).
 
+- [x] 1A.5a Record repeatable current Workspace/IndexedDB measurements at fixed C with 20k/100k materialized H
+  in Chromium/WebKit and separate production Apple SQLite/AES-GCM component timings. Preserve the million-row
+  browser quota failure as a limitation. Installed bridge latency remains in 1A.5/6.2.
+
 **Deliverable**: independently usable record-level storage and measured local benefit. Changes can be reviewed
 and landed without waiting for the cloud proof, while the incompatible-release policy remains enforced.
 
@@ -103,13 +108,16 @@ Starts alongside Phase 1A. Model work does not require real Google credentials.
   Show usable local state and progress under overload, not an endless bootstrap restart (VC07, VC19, VC26).
 - [x] 1B.4a Exercise eight simultaneous checkpoint publishers, bounded exact-journal retries and consolidation at
   the admission ceiling. Fix the all-writers-at-eight deadlock; admit 16 transient candidates and 151 shard inputs.
-  Ordinary publication admission, sustained mixed writer/deletion load and real-provider progress remain open.
+  Eight controller writers also drain four repeated publication rounds and preserve every acknowledged note.
+  Seven writers continue saving through three concurrent purge/cleanup cycles, and cloned queued revisions replay
+  as one logical edit before independent UUID branches diverge. Real-provider sustained progress remains open.
 - [ ] 1B.5 Use a lazy provider with H = 10k / 100k / 1m at fixed current state. Instrument forbidden history work.
   Separately test a hot note, folder/account capacity errors, property limits and bounded marker queries; a million
   synthetic files is not evidence of real app-data support (VC01, VC26; Q07).
 - [x] 1B.5a Verify identical cold-reconciliation operation counts at fixed current state with lazy H = 10k / 100k /
   1m. Forbid any history body read after consolidation. These are synthetic dependency/count checks, not measured
-  provider performance, materialized million-file storage or acceptance of folder/account quotas.
+  provider performance, materialized million-file storage or acceptance of folder/account quotas. Injected folder,
+  revision and receipt capacity failures preserve local edits/journals and recover after reopen; real limits remain Q07.
 - [ ] 1B.6 With separately authorized isolated Google data, verify nested app-data folders, filtered discovery,
   paginated/changed results, publication visibility, checksum read-back, folder cascade and late uploads. Verify
   quota behavior through documentation/safe probes or error injection; do not create millions of real files merely
@@ -219,10 +227,15 @@ container; a cache subset cannot pass as complete retained history.
   background maintenance contention, folder/marker capacity and supported concurrent writers.
 - [ ] 6.3 Obtain independent read-only protocol, destructive-operation and implementation review; fix findings with
   focused regression coverage before enabling destructive commands against real user data.
-- [ ] 6.4 Update owning ADR/SPEC supersession, this plan's status/tasks, architecture/testing/native contracts and
+- [x] 6.4 Update owning ADR/SPEC supersession, this plan's status/tasks, architecture/testing/native contracts and
   both user-guide editions as approved behavior lands. Change PROGRESS only for actual project-level state.
-- [ ] 6.5 Confirm the incompatible minor-release boundary in deployment guidance; ask for a target version only
+- [x] 6.5 Confirm the incompatible minor-release boundary in deployment guidance; ask for a target version only
   when release work is requested. Do not bump, dispatch or add release bookkeeping as part of feature acceptance.
+
+- [x] 6.1a Run available shared suites, Chromium/WebKit record and dataset UI probes, current-format group/history/
+  local/cloud restore panel probes, macOS universal build and Android compile/unit checks. CI covers the Windows
+  build/core and Linux host fixtures. Map remaining VC boundaries in testing; do not claim live Google, installed
+  native destructive flows, iOS runtime or independent review passed.
 
 **Deliverable**: reviewed MVP with explicit verified/unverified boundaries and no automatic migration.
 
@@ -267,5 +280,5 @@ tests do not establish Workspace latency or any remote protocol/provider accepta
 | Local speed improvement waits for Google | Independent Phase 1A with its own approval and benchmark |
 | One adapter keeps whole-workspace writes | Shared transaction fixtures plus actual native/IndexedDB instrumentation |
 
-Only checked tasks are complete. Remote model/provider evidence, independent review and product integration remain
-required; implementation authorization is not a passing acceptance result.
+Only checked tasks are complete. Product integration is implemented; uncompleted acceptance includes broader
+provider/device/load evidence and independent review; implementation authorization is not a passing acceptance result.

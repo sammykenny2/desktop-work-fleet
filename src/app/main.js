@@ -1310,6 +1310,7 @@ function render() {
   // filter, a search or the canvas and layout map of every group.
   $('#compose').hidden = filter !== 'active' || Boolean(query) || view === 'desktop';
   $('#empty-trash').hidden = filter !== 'deleted';
+  $('.view-bar').classList.toggle('trash-visible', filter === 'deleted');
   $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted);
   renderCounts();
   // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.

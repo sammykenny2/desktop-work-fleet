@@ -110,6 +110,11 @@ try {
   const recovered = (await read()).cards.find(card => card.content.text === 'unpublished recovery content');
   assert.ok(recovered && recovered.id !== deleted); await page.locator('#close-settings').click();
   await page.setViewportSize({ width: 390, height: 844 }); await page.locator('[data-filter="deleted"]').click();
+  const trashVisible = await page.locator('[data-filter=deleted]').evaluate(element => {
+    const button = element.getBoundingClientRect(), strip = element.parentElement.getBoundingClientRect();
+    return button.left >= strip.left && button.right <= strip.right;
+  });
+  assert.equal(trashVisible, true, 'the selected Trash filter must remain visible beside its actions on mobile');
   await mkdir('build/dataset-ui', { recursive: true }); await page.screenshot({ path: `build/dataset-ui/${engine}-trash.png`, fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile layout overflows');
   assert.deepEqual(errors, []);

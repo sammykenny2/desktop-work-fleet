@@ -17,8 +17,13 @@ const page = await context.newPage(); const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 let profile;
 const read = () => page.evaluate(async profileId => {
-  const { IndexedDbStorage } = await import('/storage/indexed-db.js');
-  const storage = await IndexedDbStorage.open(); const result = await storage.load(profileId); storage.close(); return result;
+  const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+  const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
+  const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profileId);
+  try { for (let attempt = 0; attempt < 20; attempt++) {
+    try { const { Workspace } = await import('/core/workspace.js'); return new Workspace(await storage.load(profileId), async () => {}).state; }
+    catch (error) { if (error.code !== 'stale-writer' || attempt === 19) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+  } } finally { storage.close(); }
 }, profile);
 const open = async () => {
   const url = new URL('/app/index.html', base); url.searchParams.set('profile', profile);
@@ -28,13 +33,15 @@ const seed = async kind => {
   // A static resource page has no active Workspace writer. The fixture owns this new profile.
   await page.goto(new URL('/app/style.css', base).href); profile = `revisions-${crypto.randomUUID()}`;
   return page.evaluate(async ({ profileId, kind }) => {
-    const { IndexedDbStorage } = await import('/storage/indexed-db.js');
+    const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+  const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
     const { Workspace } = await import('/core/workspace.js');
     const { revisionRecord } = await import('/sources/revisions.js');
     const { reorderSlots } = await import('/layout/order.js');
-    const storage = await IndexedDbStorage.open(); const workspace = await Workspace.create({
+    const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profileId); const workspace = await Workspace.create({
+      current: true, history: storage,
       profileId, deviceId: 'test-device', area: { x: 0, y: 0, width: 1100, height: 650 },
-      persist: (state, revision) => storage.save(state, revision),
+      persist: (...args) => storage.save(...args),
     });
     const a = workspace.snapshot.groups[0]; const b = await workspace.createGroup('Second group');
     const attachment = await storage.putAttachment(profileId, new File(['<h1>download only</h1>'], 'retained.html', { type: 'text/html' }));
@@ -88,7 +95,7 @@ try {
   await dialog.locator(`[data-revision-id="${localRevision}"]`).getByRole('button', { name: t('conflicts.version.restore') }).click();
   const restored = await read(); assert.equal(restored.cards[0].content.text, 'local edit'); assert.equal(restored.cards[0].deleted, false);
   assert.deepEqual(restored.cards[0].content.extension, { keep: true });
-  assert.deepEqual(restored.drafts, initial.drafts); assert.ok(restored.revisions.length > resolved.revisions.length);
+  assert.deepEqual(restored.drafts, initial.drafts); assert.notEqual(restored.cards[0].revision, resolved.cards[0].revision);
   // The button that opened Settings is gone with the last conflict, so closing hands focus to the gear.
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-button')).toBeFocused();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));

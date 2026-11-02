@@ -12,9 +12,7 @@ const index = process.argv.indexOf('--url'); assert.ok(index >= 0 && process.arg
 const base = new URL(process.argv[index + 1]); assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname));
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
 const context = await browser.newContext({ locale: 'en-US' });
-const fixture = (await readFile(new URL('../../tests/fixtures/file-store.js', import.meta.url), 'utf8'))
-  .replace("import assert from 'node:assert/strict';", "const assert = { equal: (a, b) => { if (a !== b) throw new Error('fixture integrity'); } };")
-  .replaceAll('../../src/', '/');
+const fixture = (await readFile(new URL('../../tests/fixtures/dataset/provider.js', import.meta.url), 'utf8')).replaceAll('../../../src/', '/');
 await context.route('**/fixtures/file-store.js', route => route.fulfill({ contentType: 'text/javascript', body: fixture }));
 await context.route('**/app/main.js', route => route.fulfill({ contentType: 'text/javascript', body: '' }));
 const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
@@ -22,34 +20,39 @@ try {
   await page.goto(new URL('/app/index.html', base).href);
   const backupBytes = await page.evaluate(async () => {
     const { Workspace } = await import('/core/workspace.js');
-    const { IndexedDbStorage } = await import('/storage/indexed-db.js');
+    const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+    const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
     const { createBackup, openBackup } = await import('/backup/payload.js');
     const { backupPanel } = await import('/app/backup.js');
-    const { FileSync } = await import('/sources/file-sync.js');
-    const { MemoryFileStore } = await import('/fixtures/file-store.js');
-    const storage = await IndexedDbStorage.open(`local-replace-ui-${crypto.randomUUID()}`);
+    const { DatasetSync } = await import('/sources/dataset-sync.js');
+    const { DatasetHistory } = await import('/sources/dataset-history.js');
+    const { DatasetTestProvider } = await import('/fixtures/file-store.js');
+    const records = await IndexedDbRecordStore.open(`local-replace-ui-${crypto.randomUUID()}`);
+    const storage = new WorkspaceRecordStorage(records, 'local'), cloudStorage = new WorkspaceRecordStorage(records, 'google:fixture');
     const area = { x: 0, y: 0, width: 1400, height: 900 };
-    const create = profileId => Workspace.create({ profileId, deviceId: crypto.randomUUID(), area, persist: (s, r) => storage.save(s, r) });
+    const create = profileId => { const target = profileId === 'local' ? storage : cloudStorage; return Workspace.create({ profileId, current: true, history: target, deviceId: crypto.randomUUID(), area, persist: (...args) => target.save(...args) }); };
     const local = await create('local'); const old = await local.createCard({ format: 'markdown', text: 'old local note' });
     const oldDraft = local.blankDraft(old.groupId); oldDraft.content.text = 'old local draft'; await local.saveDraft(oldDraft);
     const metadata = await storage.putAttachment('local', new Blob(['old attachment']));
     const cloud = await create('google:fixture'); await cloud.createCard({ format: 'markdown', text: 'cloud backup note' });
     const draft = cloud.blankDraft(cloud.snapshot.groups[0].id); draft.content.text = 'backup draft'; await cloud.saveDraft(draft);
-    const backup = await createBackup({ workspace: cloud, storage });
-    const sync = new FileSync({ workspace: cloud, storage, fileStore: new MemoryFileStore() });
+    const backup = await createBackup({ workspace: cloud, storage: cloudStorage, coverage: 'current-state-only' });
+    const provider = new DatasetTestProvider(), sync = new DatasetSync({ workspace: cloud, storage: cloudStorage, fileStore: provider });
+    cloud.setHistory(new DatasetHistory({ workspace: cloud, storage: cloudStorage, fileStore: provider }));
     let saves = 0; let syncs = 0; const exported = [];
     const files = { canConfirmSave: false, chooseDestination: async () => ({ save: async value => {
       exported.push((await openBackup(value.bytes)).data); saves++; return { saved: false };
     } }) };
     const mount = (workspace, source) => {
       window.probePanel?.dispose();
-      window.probePanel = backupPanel({ workspace, storage, files, getWorkAreas: () => [area], flush: async () => {},
+      window.probePanel = backupPanel({ workspace, storage: workspace === local ? storage : cloudStorage, files, getWorkAreas: () => [area], flush: async () => {},
         backupSource: source, onChanged: async () => {} }); document.body.replaceChildren(window.probePanel.element);
     };
     mount(local);
+    window.probeStorage = storage;
     window.mountLocal = () => mount(local);
     window.probeResult = async () => ({ state: await storage.load('local'), oldBlob: Boolean(await storage.getAttachment('local', metadata.id)),
-      cloud: await storage.load('google:fixture'), saves, syncs });
+      cloud: await cloudStorage.load('google:fixture'), saves, syncs });
     window.mountCloud = (fail = false) => mount(cloud, { target: 'Google workspace of synthetic@example.invalid', sync: async () => {
       syncs++; if (fail) throw new Error('synthetic network failure');
       await cloud.createCard({ format: 'markdown', text: 'latest synchronized note' });
@@ -70,6 +73,7 @@ try {
   await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.ready'));
   await page.locator('#restore-local-agree').check(); await page.locator('#confirm-restore').click();
   await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.done'));
+  await page.evaluate(async () => { while (await window.probeStorage.maintenance()) {} });
   const result = await page.evaluate(() => window.probeResult());
   assert.deepEqual(result.state.cards.map(card => card.content.text), ['cloud backup note']);
   assert.deepEqual(Object.values(result.state.drafts).map(draft => draft.content.text), ['backup draft']);
@@ -81,11 +85,11 @@ try {
   await page.locator('#backup-known-data-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
   await expect(page.locator('#backup-status')).toHaveText(t('errors.backup.exportCancelled')); assert.equal((await page.evaluate(() => window.probeResult())).saves, 0);
   await page.locator('#export-backup').click(); await page.locator('#export-known-data').click();
-  await expect(page.locator('#backup-status')).toContainText(t('backup.export.scopeKnownOnly'));
+  await expect(page.locator('#backup-status')).toContainText(t('backup.coverage.current'));
   assert.equal((await page.evaluate(() => window.probeResult())).saves, 1);
   await page.evaluate(() => window.mountCloud()); await page.locator('#backup-encrypt').uncheck();
   await page.locator('#export-backup').click();
-  await expect(page.locator('#backup-status')).toContainText(t('backup.export.scopeGoogle'));
+  await expect(page.locator('#backup-status')).toContainText(t('backup.coverage.complete'));
   await expect(page.locator('#backup-known-data-dialog')).toHaveCount(0);
   const success = await page.evaluate(() => window.probeResult());
   assert.equal(success.saves, 2); assert.ok(success.cloud.sync.lastSuccessfulSyncAt); assert.equal(success.cloud.outbox.length, 0);

@@ -130,3 +130,15 @@ test('durable jobs share the receipt queue and bulk current replacement preserve
   assert.deepEqual(await reopened.getJob('test-job'), { kind: 'test', fileId: 'fixed-id' });
   assert.equal((await reopened.get(card.revision)).value.content.text, 'original');
 });
+
+
+test('generation replacement collects attachment bytes saved before a draft acquired ownership', async () => {
+  const f = await fixture();
+  const file = await f.storage.putAttachment('local', new Blob(['interrupted attachment']));
+  assert.ok(await f.storage.getAttachment('local', file.id));
+  const before = f.workspace.state, replacement = { ...before, revision: before.revision + 1 };
+  await f.storage.save(replacement, before.revision, { replaceGeneration: true });
+  let passes = 0;
+  while (await f.storage.maintenance()) assert.ok(++passes < 100, 'bounded fixture cleanup must finish');
+  assert.equal(await f.storage.getAttachment('local', file.id), null);
+});

@@ -18,8 +18,18 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 1050
 const page = await context.newPage(); const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 const read = () => page.evaluate(async profile => {
-  const { IndexedDbStorage } = await import('../storage/indexed-db.js');
-  const storage = await IndexedDbStorage.open(); const state = await storage.load(profile); storage.close(); return state;
+  const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+  const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
+  const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profile);
+  try { for (let attempt = 0; attempt < 20; attempt++) {
+    try {
+      const { Workspace } = await import('/core/workspace.js');
+      const { orderedGroups } = await import('/layout/order.js');
+      const state = new Workspace(await storage.load(profile), async () => {}).state;
+      state.groups = orderedGroups(state.layout, state.groups); return state;
+    }
+    catch (error) { if (error.code !== 'stale-writer' || attempt === 19) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+  } } finally { storage.close(); }
 }, profile);
 // Capture floats over a group's board or list, not over the canvas of every group.
 const capture = async text => {
@@ -138,7 +148,8 @@ try {
   const afterMove = await read(); const versions = state => state.revisions.filter(record => record.entityId === moving.id);
   assert.equal(afterMove.cards.length, beforeMove.cards.length, 'a move adds no note');
   assert.equal(afterMove.cards.find(card => card.id === moving.id).groupId, b.id);
-  assert.equal(versions(afterMove).length, versions(beforeMove).length + 1);
+  assert.equal(versions(afterMove).length, 1, 'only the current head belongs in the active state');
+  assert.notEqual(versions(afterMove)[0].revisionId, moving.revision);
   assert.deepEqual(versions(afterMove).at(-1).parents, [moving.revision], 'a move is one new version of the same note');
   assert.deepEqual(afterMove.layout.placements[moving.id], beforeMove.layout.placements[moving.id], 'the desktop paper stays where it was');
   await page.locator('#status-action').click(); await expect(page.locator('#status')).toHaveText(t('app.status.undone'));

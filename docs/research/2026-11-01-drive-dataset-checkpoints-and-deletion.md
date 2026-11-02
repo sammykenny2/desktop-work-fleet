@@ -8,7 +8,7 @@ Repository code and public documentation were inspected. The timings below came 
 by the maintainer; they were not independently rerun here. No live account or deletion experiment was performed.
 Confirmed product requirements belong to SPEC-010; this document distinguishes evidence from design inference.
 
-## Repository evidence
+## Pre-change repository evidence
 
 | Location | Observed behavior | Implication |
 |---|---|---|
@@ -42,6 +42,59 @@ between the two fixtures, so the table does **not** isolate history as the only 
 Reproduce with a recorded harness, then fix current note count/bytes while varying history and report p50/p95,
 records touched, allocations, serialization/bridge bytes and native I/O separately. Do not use these observations
 as production performance targets or as evidence for the new implementation.
+
+## Implementation component measurements, 2026-11-02
+
+These author-run measurements replace the missing reproducible baseline for the current implementation; they do
+not reproduce the external review's unknown machine or justify a direct speedup ratio. The host reports Apple M6,
+12 CPU cores, 16 GiB memory, macOS 27.0.1 / Darwin 27.0.0 arm64. Node is 26.13.0. Browser engines are Chromium
+153.0.8010.12 and WebKit 26.6. Builds/tests were not run concurrently with the timed component passes.
+
+[The browser harness](../../scripts/testing/dataset-performance-probe.mjs) creates isolated actual IndexedDB
+records, seeds full current envelopes and materialized note history, and uses the production current Workspace
+and record adapter. Current text is 128 ASCII characters plus a note number, with no attachments. Each fixture
+gets two warmups followed by 12 samples. Timings include record serialization and strict durable IndexedDB
+transactions; open includes current loading/projection. Typing times `saveDraft` after constructing the changed
+draft; saving times `commitDraft`; search includes the current working snapshot. Fixture setup, application DOM,
+layout rendering, network and native WebView dispatch are excluded. Twelve samples are a small component sample,
+not a production latency SLA; p95 is the slowest measured sample.
+
+| Engine | Current notes | Retained note versions | Open p50/p95 ms | Type p50/p95 ms | Save p50/p95 ms | Search p50/p95 ms |
+|---|---:|---:|---:|---:|---:|---:|
+| chromium | 2,000 | 20,000 | 106.6 / 113.9 | 0.6 / 0.7 | 13.1 / 13.9 | 2 / 2.1 |
+| chromium | 2,000 | 100,000 | 102.9 / 107.9 | 0.8 / 9 | 13.4 / 24.1 | 2 / 2.4 |
+| chromium | 5,000 | 100,000 | 269.4 / 274.2 | 0.7 / 0.7 | 32.7 / 33.4 | 4.9 / 5.1 |
+| webkit | 2,000 | 20,000 | 149 / 152 | 2 / 4 | 22 / 23 | 4 / 4 |
+| webkit | 2,000 | 100,000 | 151 / 152 | 2 / 4 | 21 / 23 | 4 / 4 |
+| webkit | 5,000 | 100,000 | 378 / 383 | 5 / 6 | 53 / 58 | 9 / 11 |
+
+All measured operations read **zero history records**. Open reads 2,008 or 5,008 current/meta rows. Typing writes
+two rows with at most 1,188 serialized transaction bytes; save touches five rows with at most 2,342 bytes. Those
+counts stay fixed when only H grows. An additional one-row maintenance journal commit queued with typing gives
+p50/p95 of 0.8/6.9 ms in Chromium and 1/2 ms in WebKit at 2,000 current notes / 100,000 versions. This measures
+local journal contention only, not a slow Google request or full purge worker.
+
+A separate attempt to materialize **1,000,000 local note versions** in the isolated Chromium context failed with
+`QuotaExceededError` during setup. There is no passing million-row local timing claim or inferred universal quota
+threshold. The harness retains partial reports on failure. The application now translates storage quota failures
+into a specific recovery message; it does not delete histories automatically. Synthetic million-history protocol
+tests establish bounded dependency/query counts, not actual local or Drive storage capacity.
+
+[The Apple component harness](../../scripts/testing/record_performance_probe.py) compiles the production
+`FleetDatabase`/`FleetProtocol` with Swift 6.4.2, Swift 5 language mode and `-O`. It uses disposable profiles and a
+synthetic AES-GCM key, 2,000 current rows, 128-character text values, two warmups and 12 samples. It measures JSON
+encoding, transfer staging, encryption and SQLite separately from JS/WebKit. Open closes/reopens the database and
+pages all 2,000 current rows. Draft/save are two/four-row storage transactions, not full Workspace operations.
+
+| Native retained rows | Current open p50/p95 ms | Two-row draft commit p50/p95 ms | Four-row save commit p50/p95 ms |
+|---|---:|---:|---:|
+| 20,000 | 38.80 / 39.26 | 0.33 / 0.43 | 0.38 / 0.41 |
+| 100,000 | 39.04 / 39.62 | 0.34 / 0.37 | 0.39 / 0.53 |
+
+Native current loading returns approximately 561 KiB. Draft/save transaction envelopes remain below 731 / 1,353
+bytes for these fixtures. Installed WebView bridge latency, native UI interaction, real-device power-loss recovery
+and Google latency remain unmeasured. JSON outputs belong in ignored `build/`, while this section owns the durable
+method and results. Re-run with the documented commands rather than treating these figures as targets.
 
 ## Official provider evidence
 
@@ -114,5 +167,5 @@ note-owned attachments also duplicate bytes when a note is copied. These are pro
 
 The legacy fence mitigates old normal sync but cannot revoke old destructive commands sharing the same grant.
 Likewise, disappearing cloud files do not prove accidental loss: automatic republishing could reverse a reset or
-purge from a more current device. Explicit coverage-aware recovery is the selected proposal. No new protocol,
-latency target, cascade behavior or real-account deletion has been validated by this documentation revision.
+purge from a more current device. Explicit coverage-aware recovery is the selected proposal. Documentation alone does not validate protocol safety. The isolated implementation measurements above do not
+validate provider latency, cascade behavior or real-account deletion.

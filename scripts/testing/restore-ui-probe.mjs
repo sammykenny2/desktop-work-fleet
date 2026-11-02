@@ -26,9 +26,21 @@ await context.addInitScript(() => {
 const page = await context.newPage(); const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 const read = () => page.evaluate(async profileId => {
-  const { IndexedDbStorage } = await import('/storage/indexed-db.js');
-  const storage = await IndexedDbStorage.open(); const result = await storage.load(profileId); storage.close(); return result;
+  const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+  const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
+  const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profileId);
+  try { for (let attempt = 0; attempt < 20; attempt++) {
+    try { const { Workspace } = await import('/core/workspace.js'); return new Workspace(await storage.load(profileId), async () => {}).state; }
+    catch (error) { if (error.code !== 'stale-writer' || attempt === 19) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
+  } } finally { storage.close(); }
 }, profile);
+const history = () => page.evaluate(async profileId => {
+  const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+  const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
+  const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profileId);
+  try { return await storage.completeHistory(await storage.load(profileId)); } finally { storage.close(); }
+}, profile);
+const byRevision = records => records.toSorted((a, b) => a.revisionId.localeCompare(b.revisionId));
 const savedBytes = async () => Buffer.from(await page.evaluate(async () => Array.from(new Uint8Array(await (await window.probeFiles.at(-1).getFile()).arrayBuffer()))));
 // Backup is the Data and backup page of settings; narrow viewports reach the gear through the drawer.
 const openDialog = async () => { if (await page.locator('#drawer-toggle').isVisible()) await page.locator('#drawer-toggle').click();
@@ -50,7 +62,7 @@ try {
   await openDialog(); const before = await read();
   await page.locator('#backup-encrypt').uncheck(); await page.locator('#export-backup').click();
   await expect(page.locator('#backup-status')).toContainText(t('backup.export.saved')); const plain = await savedBytes();
-  await expect(page.locator('#backup-status')).toContainText(t('backup.export.scopeLocal'));
+  await expect(page.locator('#backup-status')).toContainText(t('backup.coverage.complete'));
   await page.locator('#backup-encrypt').check(); await page.locator('#backup-password').fill('long password 中文💡');
   await page.locator('#export-backup').click(); await expect(page.locator('#backup-status')).toContainText(t('backup.export.saved'));
   const encrypted = await savedBytes(); await expect(page.locator('#backup-password')).toHaveValue('');
@@ -71,7 +83,7 @@ try {
   await moreOptions(); await page.locator('#restore-repeat').check(); await preview(); await page.locator('#close-settings').click();
   await capture('extra note moved to Deleted by replace');
   await openDialog(); await choose(plain); await page.locator('#restore-mode').selectOption('replace');
-  await moreOptions(); await page.locator('#restore-layout').check(); await preview(); const beforeReplace = await read();
+  await moreOptions(); await page.locator('#restore-layout').check(); await preview(); const beforeReplace = await read(), historyBeforeReplace = await history();
   await expect(page.locator('#restore-preview')).toContainText(plural('backup.preview.extraNotes', 2));
   await expect(page.locator('#confirm-restore')).toBeDisabled();
   await page.locator('#save-safety-backup').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.errors.passwordTooShort'));
@@ -82,12 +94,12 @@ try {
     const { openBackup } = await import('/backup/payload.js');
     return (await openBackup(new Uint8Array(await (await window.probeFiles.at(-1).getFile()).arrayBuffer()), { password: 'safety password 中文💡' })).data;
   });
-  assert.deepEqual(safety.records, beforeReplace.revisions); assert.deepEqual(await read(), beforeReplace);
+  assert.deepEqual(byRevision(safety.records), byRevision(historyBeforeReplace)); assert.deepEqual(await read(), beforeReplace);
   await page.locator('#confirm-restore').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.done'));
   state = await read(); assert.equal(state.cards.filter(card => !card.deleted).length, 1);
   assert.equal(state.cards.filter(card => card.deleted).length, 2); assert.equal(Object.keys(state.restoreReceipts).length, 2);
   for (const [id, draft] of Object.entries(beforeReplace.drafts)) assert.deepEqual(state.drafts[id], draft);
-  assert.ok(state.revisions.length > beforeReplace.revisions.length, 'replace appends history');
+  assert.ok((await history()).length > historyBeforeReplace.length, 'replace appends retained history outside current heads');
   await choose(Buffer.from('not a backup')); await page.locator('#preview-restore').click();
   await expect(page.locator('#backup-status')).toHaveClass(/error/); assert.deepEqual(await read(), state, 'invalid input has no writes');
   assert.ok((await page.evaluate(() => window.probePickers)).every(item => item.activated), 'picker must retain click activation');
@@ -106,10 +118,12 @@ try {
   await page.locator('#restore-local-agree').check(); await expect(page.locator('#confirm-restore')).toBeEnabled();
   await page.locator('#confirm-restore').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.done'));
   const full = await read(); assert.equal(full.cards.length, 1); assert.equal(Object.keys(full.drafts).length, 1);
-  assert.deepEqual(full.revisions, before.revisions); assert.equal(full.layout.deviceId, before.layout.deviceId);
+  assert.deepEqual(full.cards.map(card => card.content), before.cards.map(card => card.content));
+  assert.ok(full.cards.every(card => !before.cards.some(old => old.id === card.id)), 'full replacement uses fresh identities');
+  assert.equal((await history()).length, before.revisions.length); assert.equal(full.layout.deviceId, before.layout.deviceId);
   assert.equal(await page.evaluate(() => window.probeFiles.length), savesBefore, 'old backup is optional');
   await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  assert.deepEqual((await read()).revisions, before.revisions); assert.deepEqual(errors, []);
+  assert.deepEqual(byRevision((await read()).revisions), byRevision(full.revisions)); assert.deepEqual(errors, []);
   console.log('PASS: full app OPFS export/import/repeat, safety-gated replace, retained unsaved changes/history, restart receipts, 390px UI and atomic local full restore without an old backup');
 } catch (error) {
   console.error('Browser errors:', errors);

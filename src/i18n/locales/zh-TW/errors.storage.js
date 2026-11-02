@@ -1,4 +1,5 @@
 export default {
+  'errors.storage.localQuota': "這個瀏覽器已沒有足夠空間儲存 Work Fleet。此次保存尚未完成。請釋出空間，或先匯出可用資料再重試；沒有可用備份時，請勿清除網站資料。",
   'errors.storage.recordTransactionInvalid': '本機逐筆儲存交易無效，已保存的資料未變更。',
   'errors.storage.incompatibleLocalData': '此裝置仍有舊格式資料。請保留原資料，或明確重設此本機帳號資料後繼續。',
   // Local storage

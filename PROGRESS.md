@@ -38,8 +38,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - The application uses record-level IndexedDB/native SQLite persistence, bounded current heads, draft deltas and
   paged history/outbox. Older local formats require an explicit local discard; no migration runs. Versions loads
   remote bodies on selection. Trash offers Delete forever and Empty Trash with resumable cleanup; unpublished
-  edits from a purged identity are kept in Versions for Save as copy. Local latency and installed-host acceptance
-  remain open under [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md).
+  edits from a purged identity are kept in Versions for Save as copy. Component benchmarks confirm bounded ordinary record work within measured storage capacity; installed-host
+  latency and acceptance remain open under [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md).
 - Languages: the UI is English-first with a Traditional Chinese catalog; Settings > General > Display language offers
   Auto-detect, English and Traditional Chinese and switches without a reload. Every host stores the choice per device and
   draws its tray, menus and dialogs in it; host errors arrive in English and are shown through the catalogs
@@ -56,10 +56,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - The production entry point uses DatasetSync and account-bound native Drive adapters. Fixed current checkpoints,
   bounded receipts and relevant purge barriers replace history-wide bootstrap. Reset captures exact old leaf IDs,
   publishes a legacy-compatible fence and initializes an isolated dataset; obsolete folder containers are retained.
-  Current readiness and background old-data cleanup are separate. The older FileSync remains in compatibility fixtures.
+  Current readiness and background old-data cleanup are separate; late legacy writes are retained and reported. The older FileSync remains in compatibility fixtures.
 - Sign-out removes only this device's credentials and no longer revokes the grant
   ([ADR-021](docs/decisions/021-windows-google-account-and-sync.md)). Installed builds up to 0.2.3 still revoke on sign-out.
-- Verified: real Windows sign-in, upload, resumable upload and changes feed on Drive. User reports show real sign-in and sync
+- Earlier flat-file transport evidence: real Windows sign-in, upload, resumable upload and changes feed on Drive. User reports show real sign-in and sync
   in use on Windows, macOS and Linux installs, six devices on one account. Phones: see their sections.
 - Initialization, reset fencing and shared initial groups are verified only with isolated fixtures and Chromium IndexedDB probes,
   not with real Google or the native apps. Builds without the source-generation fields must be updated before a reset.

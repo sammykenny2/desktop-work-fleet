@@ -14,6 +14,12 @@ and release procedure. Current status is in [PROGRESS](../PROGRESS.md), version 
 
 ## Versions and release file names
 
+The dataset/current-record change in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md) is an
+incompatible persistence boundary for the next maintainer-approved **minor** release. The exact target version
+requires separate approval. Keep the unreleased JSON contracts at V1; do not add migration jobs. Before shipping,
+require the PLAN-011 provider and independent-review gates, tell users to update every device, and retain explicit
+local/cloud reset choices. Earlier full-workspace backups are not silently converted by the new format.
+
 Windows support follows [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md): the target covers early
 Windows 11/23H2 and 24H2+, and Windows 10 is excluded from installation.
 The MSIX generator and the earlier local 0.1.1 package were verified with `Windows.Desktop MinVersion=10.0.22000.0` and

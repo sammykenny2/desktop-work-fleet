@@ -1,4 +1,5 @@
 export default {
+  'errors.storage.localQuota': "This browser has no storage space left for Work Fleet. The save did not finish. Free up space or export your available data before retrying; do not clear site data unless you have a usable backup.",
   // Local storage
   'errors.storage.storageBlocked': 'Another window is using an older data version. Close it and try again.',
   'errors.storage.storageAborted': 'Saving on this device was interrupted.',

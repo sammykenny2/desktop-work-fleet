@@ -7,6 +7,8 @@ import { RECORD_LIMITS, checkImmutableRecord, checkRecordRevision, recordCollect
 
 const encoder = new TextEncoder();
 const invalid = condition => requireValue(condition, 'invalid-record-transaction', t('errors.storage.recordTransactionInvalid'));
+const transactionFailure = error => error?.name === 'QuotaExceededError'
+  ? new FleetError('local-storage-quota', t('errors.storage.localQuota')) : error;
 
 function openDatabase(name, create) {
   return new Promise((resolve, reject) => {
@@ -40,9 +42,9 @@ export class IndexedDbRecordStore {
     return new Promise((resolve, reject) => {
       let tx; let result; let failure;
       try { tx = this.#db.transaction(['profiles', 'entries', 'attachments'], mode, { durability: 'strict' }); }
-      catch (error) { reject(error); return; }
+      catch (error) { reject(transactionFailure(error)); return; }
       tx.oncomplete = () => resolve(result);
-      tx.onabort = () => reject(failure || tx.error || new FleetError('storage-aborted', t('errors.storage.storageAborted')));
+      tx.onabort = () => reject(transactionFailure(failure || tx.error || new FleetError('storage-aborted', t('errors.storage.storageAborted'))));
       const context = { result: value => { result = value; }, fail: error => { failure = error; tx.abort(); } };
       try { work(tx, context); } catch (error) { context.fail(error); }
     });

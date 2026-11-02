@@ -22,7 +22,8 @@ For documentation work, check_docs.py, git diff --check and a scope and semantic
 [SPEC-010 VC01-VC26](specs/010-dataset-checkpoints-and-deletable-history.md#acceptance-cases) defines
 behavioral, failure and history-scaling acceptance; [PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md)
 starts approved local storage and remote proof independently, followed by sync, reset, manual purge
-and backup integration. The research records externally supplied JS timings, not reproduced acceptance results.
+and backup integration. The research distinguishes externally supplied JS timings from reproducible current
+Workspace/IndexedDB and Apple database component measurements; neither establishes real-provider acceptance.
 The production entry point uses the current-format record adapter and dataset controller. Protocol, transition and
 UI fixtures are separate from native/provider acceptance. Primitive tests alone do not establish a complete VC case
 or measured typing latency.
@@ -72,7 +73,10 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   bounded uploads, one revision body per save, and an uncertain receipt already consumed before restart. They also
   check separate attachment ownership for copies, concurrent edit conflicts, purge-preserved unpublished work and
   cloud loss without automatic republishing. A steady-state refresh reads no checkpoint or historical bodies; a
-  cold follower uses checkpoints with lazy million-history noise. These are isolated protocol integration checks.
+  cold follower uses checkpoints with lazy million-history noise. Eight writers drain repeated publication rounds;
+  seven foreground writers also make progress while another device completes three purge cycles. Cloned pending
+  queues replay one logical revision and later independent edits retain both UUID branches. Injected folder/item/
+  storage capacity failures preserve edits/journals across reopen and retry. These are isolated integration checks.
 - History/purge tests verify zero historical body reads while listing remote versions, one selected-version GET,
   lazy attachments, sanitized current copies, preserved neighboring notes and metadata-only folder fallback.
   They interrupt cleanup, inject late orphan uploads, invalidate one Empty Trash preview while allowing another
@@ -128,7 +132,35 @@ node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser 
 
 The isolated UI probe verifies old local data kept until consent, paged history/restore, Trash confirmation and
 physical cleanup, current-only export, explicit Save as copy for unpublished purged-note edits and mobile layout.
-The ordinary browser interaction probe also runs against record storage. Neither touches an account or existing profile.
+The ordinary browser, group, conflict/history and backup/restore probes also use current-format record storage.
+History move labels use already loaded parent metadata without fetching ancestors. Local replacement includes
+background cleanup of attachments staged before a draft acquired ownership. None touches an account or existing profile.
+
+Run component benchmarks separately from builds/tests to avoid concurrent load:
+
+```bash
+node scripts/testing/dataset-performance-probe.mjs --url http://127.0.0.1:PORT --browser chromium
+node scripts/testing/dataset-performance-probe.mjs --url http://127.0.0.1:PORT --browser webkit
+python3 scripts/testing/record_performance_probe.py
+```
+
+The browser harness materializes 20k/100k histories, measures two warmups and 12 samples, and asserts no historical
+reads and two-row draft commits. `--million` adds a million-row local setup: it can exceed the disposable browser's
+quota and must not be counted as a passing timing result if setup fails. Reports go to ignored `build/`; named
+hardware, p50/p95 results, transaction bytes and the observed quota failure are recorded in
+[the research](research/2026-11-01-drive-dataset-checkpoints-and-deletion.md#implementation-component-measurements-2026-11-02).
+The Apple harness needs macOS/Swift and uses production SQLite/AES-GCM with a synthetic key in a temporary directory.
+Its timings exclude WebView dispatch. A concurrent one-row journal write is the browser contention fixture; it is
+not a full slow-provider/cleanup benchmark.
+
+| Acceptance area | Automated evidence | Remaining boundary |
+|---|---|---|
+| VC01-VC02 | Fixed-current lazy million-history provider counts; materialized browser and Apple component timings | Million local rows hit browser quota; installed bridge/UI and provider latency unmeasured |
+| VC03-VC09, VC22 | Concurrent checkpoint publishers, token-before-list races, lost replies, exact retries, unknown parents, eight active writers and conflicting initializers | Provider listing/feed consistency and independent protocol assessment |
+| VC10-VC11, VC13-VC14 | Paged history/direct selection, fresh Trash episode, no automatic/selective retention, Chromium/WebKit UI | Installed native history/Trash interaction |
+| VC12, VC15-VC19 | Terminal purge, interrupted cleanup, late uploads, unsaved new-identity recovery, shared/owned attachments, targeted barriers | Real folder cascade, marker/folder limits and offline device reconnection |
+| VC20-VC24 | Explicit local discard/reset/rejoin, old destructive client, archive coverage/capacity, seeded Google replacement, actual IndexedDB/OPFS panel probes | Live Google reset/restore and installed app data handoff |
+| VC25-VC26 | Atomic row/attachment rollback, durable jobs, account/session fencing, foreground edits between seed units, quota backpressure | Installed process death/power loss, real network/cleanup load and all-device acceptance |
 
 The full shared suites and native build procedures below remain required. Native bridge latency,
 process-death/power-loss acceptance, installed native reset/purge/backup flows, iOS runtime and real-provider checks

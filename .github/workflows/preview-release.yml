@@ -150,9 +150,9 @@ jobs:
              \`Import-Certificate -FilePath .\\WorkFleet-preview.cer -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople\`.
           2. Double-click \`WorkFleet-${VERSION}-x64.msix\` to install it.
 
-          A version higher than the installed one installs as an upgrade and keeps your data; the same version must be uninstalled first.
+          A version higher than the installed one installs as an upgrade and preserves the package's local files; the same version must be uninstalled first. Check the changes above for data-format compatibility and any required reset before upgrading.
           Uninstalling removes all local data inside the package (including drafts, settings and the Google sign-in); export a ZIP from Settings > Data and backup first.
-          Exported ZIPs and Google cloud data are not affected. Data from an older ZIP or Debug build must be exported with that version first and then imported into the MSIX.
+          Uninstalling does not affect exported ZIPs or Google cloud data. Moving data from a ZIP or Debug build requires a backup format supported by the target version; keep the earlier version available to read an incompatible backup.
 
           ## macOS
           Signed with Developer ID and notarized by Apple. Requires macOS 13 or later.
@@ -164,7 +164,7 @@ jobs:
 
           ## Android
           Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\`.
-          The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and keeps your data; a build signed with another key cannot.
+          The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and preserves its local files; a build signed with another key cannot. Check the changes above for data-format compatibility and any required reset before upgrading.
 
           ## Updates
           On Windows, macOS and Linux, check for and install updates from the tray (the menu bar on macOS) or Settings > Desktop > Version and updates. Installing on Linux asks for the system password; on macOS, Sparkle downloads, verifies and reopens the app.

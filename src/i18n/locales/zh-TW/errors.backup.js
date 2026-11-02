@@ -1,4 +1,6 @@
 export default {
+  'errors.backup.historyIncomplete': '無法取得完整保留歷史。請重新連線後重試，或明確選擇「僅目前狀態」。',
+  'errors.backup.legacyFormat': '這份備份使用舊的工作區格式。請保留它，並使用相容的舊版應用程式開啟；此版本不會轉換舊格式。',
   // Backup files and archives
   'errors.backup.cancelled': '備份工作已取消，現有資料未變更。',
   'errors.backup.zipInvalid': '備份 ZIP 結構無效或包含不支援的檔案。',

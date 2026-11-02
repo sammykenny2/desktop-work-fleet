@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: record storage, sync, lazy history, reset and purge workers; backup and application UI pending |
+| Status | In progress: storage/sync/reset/purge and portable backup core; seeded cloud recovery and application UI pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -201,6 +201,11 @@ Depends on the local transaction contract and reviewed remote candidate.
   full Google replacement is a new-generation reset, not a bypass of deletion knowledge (VC24).
 - [ ] 5.4 Test purge/reset during capture, uncached history/attachments, oversized notes/archives, encryption,
   cancellation, stale previews and process death on all hosts (VC12, VC23-VC26).
+- [x] 5.1a Implement explicit V1 coverage, complete remote history/attachment hydration, metadata entry preflight,
+  capture/purge revalidation, current-only offline fallback and new-identity recovery of purged backup notes.
+  Wire record-based local restore and test interrupted bulk activation, incompatible earlier archives and last-good
+  automatic backup preservation. Verify the shared path in Chromium/WebKit IndexedDB. Coverage UI, seeded cloud
+  replacement/recovery and remaining platform/provider acceptance remain open in 5.1-5.4.
 
 **Deliverable**: truthful bounded backup/restore. Million-version complete exports are not claimed under the initial
 container; a cache subset cannot pass as complete retained history.

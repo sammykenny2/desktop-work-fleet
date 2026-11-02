@@ -12,7 +12,10 @@ const bundle = await build({ stdin: { contents: `
   import { sha256 } from './src/sources/files.js';
   import { Workspace } from './src/core/workspace.js';
   import { WorkspaceRecordStorage } from './src/storage/workspace-records.js';
-  window.recordProbe = { IndexedDbRecordStore, recordTransaction, sha256, Workspace, WorkspaceRecordStorage };`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife' });
+  import { createBackup, openBackup } from './src/backup/payload.js';
+  import { prepareLocalRestore } from './src/backup/restore.js';
+  window.recordProbe = { IndexedDbRecordStore, recordTransaction, sha256, Workspace, WorkspaceRecordStorage,
+    createBackup, openBackup, prepareLocalRestore };`, resolveDir: process.cwd() }, bundle: true, write: false, format: 'iife' });
 const browser = await ({ chromium, webkit })[name].launch();
 let phase = 'create isolated context';
 const deadline = setTimeout(() => { console.error(`${name}: timed out during ${phase}`); void browser.close(); }, 60_000);
@@ -25,7 +28,8 @@ try {
   phase = 'load test bundle';
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   const result = await page.evaluate(async () => {
-    const { IndexedDbRecordStore, recordTransaction, sha256, Workspace, WorkspaceRecordStorage } = window.recordProbe;
+    const { IndexedDbRecordStore, recordTransaction, sha256, Workspace, WorkspaceRecordStorage,
+      createBackup, openBackup, prepareLocalRestore } = window.recordProbe;
     const check = (value, message) => { if (!value) throw new Error(message); };
     const row = (collection, key, ordinal, text = key) => ({ collection, key, entity: 'card:one', ordinal, value: { text } });
     const name = `records-${crypto.randomUUID()}`;
@@ -90,6 +94,16 @@ try {
     const history = await reopened.historyPage('card', card.id, { limit: 10 });
     check(history.records.length === 10 && history.next !== null, 'history was lost or read without paging');
     check((await reopened.historyPage('card', card.id, { after: history.next, limit: 10 })).records.length === 10, 'history continuation lost');
+    await window.recordPhase('complete/current-only backup and staged replacement');
+    const backup = await createBackup({ workspace: reopened, storage });
+    check(backup.manifest.counts.revisions === 27 && backup.manifest.coverage.mode === 'complete-retained-history', 'complete history lost');
+    const partial = await createBackup({ workspace: reopened, storage, coverage: 'current-state-only' });
+    const portable = await openBackup(partial.bytes, { requireCurrent: true });
+    check(portable.manifest.counts.revisions === 2 && portable.manifest.counts.pendingRevisions === 0, 'unknown parents became missing dependencies');
+    const plan = await prepareLocalRestore({ workspace: reopened, document: portable, workAreas: [{ x: 0, y: 0, width: 1200, height: 900 }] });
+    await reopened.applyRestore(plan, { persist: (...args) => storage.saveWithAttachments(...args) });
+    check(reopened.working.cards[0].content.text === 'unfinished' && reopened.snapshot.cards[0].id !== card.id, 'replacement lost draft or reused identity');
+    check((await storage.load('local')).revisions.length === 2, 'replacement did not atomically activate current heads');
     await currentStore.reset('local'); currentStore.close();
     const legacy = `legacy-${crypto.randomUUID()}`;
     await window.recordPhase('legacy presence without conversion');

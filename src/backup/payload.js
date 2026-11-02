@@ -10,6 +10,8 @@ import { validColor } from '../layout/colors.js';
 import { validOpacity } from '../layout/opacity.js';
 import { BACKUP_LIMITS, backupScheduler, checkCancelled, entryLimit, packZip, unpackZip } from './archive.js';
 import { decryptBackup, encryptBackup } from './encryption.js';
+import { CURRENT_WORKSPACE_FORMAT } from '../core/workspace.js';
+import { captureDataset, DATASET_BACKUP_COVERAGE } from './dataset-capture.js';
 import { t } from '../i18n/index.js';
 
 const encoder = new TextEncoder();
@@ -31,6 +33,10 @@ function validateDraft(draft, graph, references) {
   revisionRecord('card', { id: draft.cardId, revision: draft.baseRevision || 'backup-draft', groupId: draft.groupId,
     content: draft.content, deleted: false, archived: false, completed: false });
   references.push(...(draft.content.attachments || []));
+  if (draft.baseContent !== undefined && draft.baseContent !== null) {
+    revisionRecord('card', { id: draft.cardId, revision: draft.baseRevision || 'backup-baseline', groupId: draft.groupId,
+      content: draft.baseContent, deleted: false, archived: false, completed: false });
+  }
 }
 
 // Where this device placed notes never saved is not part of a backup (ADR-061): only saved notes can be validated
@@ -92,10 +98,10 @@ function validateLayout(layout, snapshot, graph) {
   }
 }
 
-async function validateData(data, checkpoint) {
+async function validateData(data, checkpoint, current = false) {
   const { records, drafts, local, layout } = data;
   fail(Array.isArray(records) && Array.isArray(drafts) && new Set(records.map(item => item.revisionId)).size === records.length);
-  const graph = await RevisionGraph.create(records, checkpoint); const references = [];
+  const graph = await RevisionGraph.create(records, checkpoint, { allowMissingParents: current }); const references = [];
   exact(local, ['cards', 'groups', 'membershipRebases', 'transferIntents']);
   const selected = {};
   for (const [kind, values] of [['card', local.cards], ['group', local.groups]]) {
@@ -161,7 +167,12 @@ export class BackupDocument {
 
 function validateManifest(manifest) {
   requireSchemaVersion(manifest, 'backup', { code: 'unsupported-backup-schema' });
-  exact(manifest, ['format', 'schemaVersion', 'backupId', 'createdAt', 'appVersion', 'scope', 'pendingOperations', 'lastSuccessfulSyncAt', 'counts', 'files']);
+  exact(manifest, ['format', 'schemaVersion', 'backupId', 'createdAt', 'appVersion', 'scope', 'pendingOperations', 'lastSuccessfulSyncAt', 'counts', 'files',
+    ...manifest.coverage === undefined ? [] : ['coverage']]);
+  if (manifest.coverage !== undefined) {
+    exact(manifest.coverage, ['workspaceFormat', 'mode']);
+    fail(manifest.coverage.workspaceFormat === CURRENT_WORKSPACE_FORMAT && DATASET_BACKUP_COVERAGE.includes(manifest.coverage.mode));
+  }
   fail(manifest.format === 'work-fleet-backup' && validId(manifest.backupId)
     && date(manifest.createdAt) && typeof manifest.appVersion === 'string' && manifest.appVersion.length > 0 && manifest.appVersion.length <= 64
     && manifest.scope === 'known-local-data' && count(manifest.pendingOperations)
@@ -176,11 +187,13 @@ function validateManifest(manifest) {
   }
 }
 
-export async function openBackup(bytes, { password, ...options } = {}) {
+export async function openBackup(bytes, { password, requireCurrent = false, ...options } = {}) {
   let files = await unpackZip(bytes, options);
   if (files.has('encryption.json')) files = await decryptBackup(files, password, options);
   fail(files.has('manifest.json') && files.has('local.json') && files.has('layout.json'));
   const manifest = parseJson(files.get('manifest.json')); validateManifest(manifest);
+  requireValue(!requireCurrent || manifest.coverage?.workspaceFormat === CURRENT_WORKSPACE_FORMAT,
+    'unsupported-backup-schema', t('errors.backup.legacyFormat'));
   fail(files.size === manifest.files.length + 1); const checkpoint = backupScheduler(options.signal);
   for (const entry of manifest.files) {
     const content = files.get(entry.name); fail(content?.length === entry.size && await sha256(content) === entry.sha256);
@@ -196,7 +209,7 @@ export async function openBackup(bytes, { password, ...options } = {}) {
     }
     await checkpoint();
   }
-  const validated = await validateData(data, checkpoint); fail(canonicalJson(validated.counts) === canonicalJson(manifest.counts));
+  const validated = await validateData(data, checkpoint, Boolean(manifest.coverage)); fail(canonicalJson(validated.counts) === canonicalJson(manifest.counts));
   fail(attachments.size === validated.attachments.size);
   for (const [id, sizes] of validated.attachments) fail(attachments.has(id) && (!sizes.size || sizes.has(attachments.get(id).length)));
   const fingerprint = await sha256(encode(manifest)); checkCancelled(options.signal);
@@ -205,15 +218,23 @@ export async function openBackup(bytes, { password, ...options } = {}) {
 
 /** Capture one committed Workspace state, then resolve immutable attachment hashes from that profile only. */
 export async function createBackup({ workspace, storage, appVersion = '0.1.0', password,
-  now = () => new Date(), uuid = () => crypto.randomUUID(), signal, progress = () => {} }) {
-  checkCancelled(signal); const state = workspace.state; const profileId = state.profileId;
+  now = () => new Date(), uuid = () => crypto.randomUUID(), signal, progress = () => {}, snapshot = null,
+  coverage = 'complete-retained-history' }) {
+  checkCancelled(signal); const state = snapshot ?? workspace.state; const profileId = state.profileId;
+  const current = state.format === CURRENT_WORKSPACE_FORMAT;
+  const captured = current ? await captureDataset({ workspace, state, coverage, signal, progress }) : null;
   requireValue(state.conflicts.every(item => item.kind === 'transfer' || projectionConflictKinds.has(item.kind)),
     'unsupported-backup-data', t('errors.backup.dataUnsupported'));
-  const data = { records: state.revisions, drafts: Object.values(state.drafts), layout: savedLayout(state.layout, state.cards),
+  const data = { records: captured?.records ?? state.revisions, drafts: Object.values(state.drafts), layout: savedLayout(state.layout, state.cards),
     local: { cards: state.cards.map(({ id, revision }) => ({ id, revision })), groups: state.groups.map(({ id, revision }) => ({ id, revision })),
       membershipRebases: state.membershipRebases || {}, transferIntents: state.conflicts.filter(item => item.kind === 'transfer') } };
+  if (current) {
+    const known = new Set(data.records.map(record => record.revisionId));
+    data.local.membershipRebases = Object.fromEntries(Object.entries(data.local.membershipRebases).filter(([before, edge]) => known.has(before) && known.has(edge.revision)));
+    data.layout.history = data.layout.history.filter(undo => !undo.transfer || [undo.transfer.previousRevision, undo.transfer.expectedRevision].every(id => known.has(id)));
+  }
   const checkpoint = backupScheduler(signal);
-  const validated = await validateData(data, checkpoint); const files = new Map(); let expanded = 0;
+  const validated = await validateData(data, checkpoint, current); const files = new Map(); let expanded = 0;
   const add = (name, bytes) => {
     expanded += bytes.length;
     requireValue(files.size + 1 + (name === 'manifest.json' ? 0 : 1) <= BACKUP_LIMITS.entries && expanded <= BACKUP_LIMITS.expandedBytes,
@@ -236,12 +257,16 @@ export async function createBackup({ workspace, storage, appVersion = '0.1.0', p
   const entries = [];
   for (const [name, bytes] of files) { entries.push({ name, size: bytes.length, sha256: await sha256(bytes) }); await checkpoint(); }
   const manifest = { format: 'work-fleet-backup', schemaVersion: schemas.backup, backupId: uuid(), createdAt: now().toISOString(),
-    appVersion, scope: 'known-local-data', pendingOperations: state.outbox.length,
+    appVersion, scope: 'known-local-data', pendingOperations: current ? state.sync.pendingCount ?? 0 : state.outbox.length,
+    ...current ? { coverage: { workspaceFormat: CURRENT_WORKSPACE_FORMAT, mode: coverage } } : {},
     lastSuccessfulSyncAt: state.sync?.lastSuccessfulSyncAt || null, counts: validated.counts, files: entries };
   validateManifest(manifest); add('manifest.json', encode(manifest));
+  await captured?.verify();
   const options = { signal, progress }; let result = await packZip(files, options);
   // A successful export has passed the same parser, hashes and domain validation as an import.
   await openBackup(result, options);
   if (password !== undefined) result = await encryptBackup(result, password, options);
-  checkCancelled(signal); return { bytes: result, manifest: copy(manifest), encrypted: password !== undefined };
+  await captured?.verify();
+  checkCancelled(signal); return { bytes: result, manifest: copy(manifest), encrypted: password !== undefined,
+    ...captured ? { verify: captured.verify } : {} };
 }

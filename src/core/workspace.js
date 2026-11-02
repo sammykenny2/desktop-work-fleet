@@ -222,7 +222,7 @@ export class Workspace {
     requireValue(plan instanceof RestorePlan && typeof persist === 'function', 'invalid-restore-plan', t('errors.core.restorePlanRequired'));
     const replaceGraph = plan.preview.mode === 'local-replace';
     const cancelled = () => requireValue(!signal?.aborted, 'backup-cancelled', t('errors.core.restoreCancelled'));
-    cancelled();
+    cancelled(); await plan.verify();
     return this.#layout.integrateSource(() => {
       cancelled(); const existing = plan.existing(this.#state);
       if (existing) return { layout: this.#state.layout, value: existing };
@@ -231,8 +231,9 @@ export class Workspace {
         if (replaceGraph) for (const key of Object.keys(state)) delete state[key];
         Object.assign(state, next);
         return { layout: state.layout, value: plan.receipt };
-      }, (state, revision) => persist(state, revision, plan.attachments,
-        { replaceAttachments: replaceGraph }), replaceGraph);
+      }, (state, revision, detail) => persist(state, revision, plan.attachments,
+        { ...detail, replaceAttachments: replaceGraph, replaceGeneration: replaceGraph,
+          ...this.currentFormat && replaceGraph ? { history: plan.history } : {} }), replaceGraph);
     });
   }
 
@@ -293,7 +294,16 @@ export class Workspace {
     const records = this.revisionHistory(kind, entityId), start = options.after ?? 0, limit = options.limit ?? 50;
     return { records: records.slice(start, start + limit), next: records.length > start + limit ? start + limit : null };
   }
-  async historicalRevision(id) { return this.currentFormat ? this.#history.get(id) : this.#graph.get(id); }
+  async historicalRevision(id, options) { return this.currentFormat ? this.#history.get(id, options) : this.#graph.get(id); }
+  async restorationBarriers(ids, options) {
+    if (!this.currentFormat) return [];
+    requireValue(typeof this.#history?.purgedEntities === 'function', 'history-offline', t('errors.sources.historyOffline'));
+    return this.#history.purgedEntities(ids, options);
+  }
+  async verifyHistorySnapshot(state, options) {
+    requireValue(typeof this.#history?.verifySnapshot === 'function', 'history-offline', t('errors.sources.historyOffline'));
+    return this.#history.verifySnapshot(state, options);
+  }
 
   async acknowledgeOperations(session, ids, { jobs = [] } = {}) {
     requireValue(this.currentFormat && Array.isArray(ids) && new Set(ids).size === ids.length,

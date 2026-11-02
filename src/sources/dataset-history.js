@@ -1,6 +1,7 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { datasetShard, verifyDatasetBytes } from './dataset-codec.js';
 import { DatasetProtocol, listDatasetObjects } from './dataset-protocol.js';
+import { canonicalJson } from './json.js';
 import { t } from '../i18n/index.js';
 
 const invalid = condition => requireValue(condition, 'invalid-dataset', t('errors.sources.datasetInvalid'));
@@ -13,6 +14,28 @@ export class DatasetHistory {
     this.#workspace = workspace; this.#storage = storage; this.#provider = typeof fileStore === 'function' ? fileStore : () => fileStore;
   }
   #binding() { return this.#workspace.syncState.dataset ?? null; }
+  async purgedEntities(ids, { remote = true } = {}) {
+    ids = [...new Set(ids)]; const binding = this.#binding(), found = new Set();
+    for (const id of ids) if (await this.#storage.getControl(`local-purge:${id}`)
+      || binding && await this.#storage.getControl(`purge:${binding.plan.datasetId}:${id}`)) found.add(id);
+    if (remote && this.#workspace.state.profileId.startsWith('google:')) {
+      const store = this.#provider(); requireValue(store && binding, 'history-offline', t('errors.sources.historyOffline'));
+      const protocol = new DatasetProtocol(store, this.#storage);
+      await protocol.assertGeneration(binding.descriptor, binding.plan);
+      for (const marker of await protocol.purges(binding.plan, ids)) {
+        found.add(marker.entityId); await this.#storage.putControl(`purge:${binding.plan.datasetId}:${marker.entityId}`, marker);
+      }
+      requireValue(this.#binding()?.plan.datasetId === binding.plan.datasetId, 'dataset-changed', t('errors.sources.datasetChanged'));
+    }
+    return [...found].sort();
+  }
+  async verifySnapshot(state, { remote = true } = {}) {
+    const current = this.#workspace.state;
+    requireValue(current.profileId === state.profileId && current.revision === state.revision
+      && canonicalJson(current.sync.dataset ?? null) === canonicalJson(state.sync.dataset ?? null),
+    'backup-snapshot-changed', t('errors.backup.exportWorkspaceChanged'));
+    purged(!(await this.purgedEntities(state.cards.map(card => card.id), { remote })).length);
+  }
   async assertAvailable(kind, entityId, { remote = true, binding = this.#binding() } = {}) {
     if (kind !== 'card') return;
     purged(!await this.#storage.getControl(`local-purge:${entityId}`));
@@ -76,16 +99,18 @@ export class DatasetHistory {
     await this.#storage.putControls(entries.map(({ file }) => ({ key: `history:${file.datasetId}:${file.revisionId}`, value: { file, attachments: null } })));
     return { records: [], entries, next: cursor.index < cursor.folders.length ? cursor : null, coverage: 'retained' };
   }
-  async get(id) {
+  async get(id, { file = null } = {}) {
     const local = await this.#storage.get(id);
-    if (local) { await this.assertAvailable(local.kind, local.entityId); return local; }
+    if (local && !file) { await this.assertAvailable(local.kind, local.entityId); return local; }
     const binding = this.#binding(), store = this.#provider();
     requireValue(binding && store, 'history-offline', t('errors.sources.historyOffline'));
-    const location = await this.#storage.getControl(`history:${binding.plan.datasetId}:${id}`);
+    const location = file ? { file } : await this.#storage.getControl(`history:${binding.plan.datasetId}:${id}`);
     if (!location) return null;
+    invalid(location.file.datasetId === binding.plan.datasetId && location.file.revisionId === id && location.file.kind === 'revision');
     const kind = location.file.shard === 'groups' ? 'group' : 'card';
     await this.assertAvailable(kind, location.file.entityId, { binding });
     const value = await new DatasetProtocol(store, this.#storage).read(location.file);
+    invalid(!local || canonicalJson(local) === canonicalJson(value.record));
     await this.assertAvailable(kind, location.file.entityId, { binding }); await this.#remember(value, location.file);
     return value.record;
   }

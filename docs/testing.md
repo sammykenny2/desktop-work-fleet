@@ -38,6 +38,7 @@ node --test tests/dataset-native.test.js
 node --test tests/dataset-sync.test.js
 node --test tests/dataset-history-purge.test.js
 node --test tests/dataset-reset.test.js
+node --test tests/backup-dataset.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
@@ -82,6 +83,11 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   adapter after capture, lose fence/deletion replies, inject a competing fence and simulate the old unfiltered
   delete-all operation. The old FileSync fixture stops on the new fence. None uses an installed old client or
   live Google account; first-run UI, seeded restore and explicit local cloud-loss recovery remain separate work.
+- Dataset backup tests distinguish complete/current-only manifests, hydrate cold remote history and old attachments,
+  reject an oversized history inventory before uncached body reads, abort capture on purge and preserve the last
+  successful automatic artifact after failure. Restore tests remap purged identities, reject stale previews and
+  earlier archives, and keep the old generation active after interrupted bulk replacement. The isolated Chromium/
+  WebKit probe also exports both modes and activates a replacement with unsaved work through real IndexedDB.
 - `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
   Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
   identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a

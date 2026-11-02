@@ -463,6 +463,14 @@ unsaved work and layout; its manifest declares excluded history. A cached subset
 Existing encrypted/automatic backup and atomic restore guarantees remain; automatic backup does not silently
 switch to the smaller mode. Backups are independent artifacts, not checkpoint chains.
 
+The V1 manifest adds `coverage: { workspaceFormat: "work-fleet-workspace-current", mode }`, where `mode` is
+`complete-retained-history` or `current-state-only`. The dataset application rejects archives without this
+discriminator instead of converting them. The retained-record validator accepts unknown historical parent IDs
+as ancestry boundaries, while still rejecting cycles, cross-entity parents and conflicting UUID contents.
+Current-only exports omit undo/rebase edges that need excluded historical values; unsaved baseline content is
+self-contained, and current note/conflict/draft attachment bytes remain required. Complete capture verifies every
+owned history locator, including duplicate UUID copies, before deduplicating record contents.
+
 For the initial container, keep the existing 20,000-entry / 128 MiB expanded-data limits and all other SPEC-002
 validation limits. Preflight metadata/counts and enforce running byte limits during staging. On overflow, stop
 without creating a valid-looking truncated backup, leave source data intact, and report which capacity was hit.
@@ -475,6 +483,12 @@ complete ZIP; Q04 must approve that boundary or expand the implementation scope 
 A complete export enumerates/fetches all retained history for a declared capture boundary in a background job.
 Concurrent purge/reset cancels or restarts the affected capture; it cannot produce an artifact claiming a later
 complete state with silently missing data. Ordinary merge/replace/history restore respects current purge markers.
+Capture checks the local revision/generation and targeted purge decisions before hydration, after archive/encryption
+validation, and immediately before publishing the artifact. Local typing during capture invalidates that attempt;
+it does not freeze the editor or produce a mixed snapshot. An offline current-only export declares its restricted
+coverage and checks known local barriers; it cannot establish fresh remote deletion knowledge. Restore rechecks the
+previewed barriers and remaps purged identities and their revision/draft references to new UUIDs. Bulk local
+replacement stages history and attachments under a new generation before one atomic activation pointer changes.
 Explicit recovery of purged content is previewed as new identities, with attachment copies. Full cloud replacement
 is an explicit generation reset. Previously exported backups are not rewritten by purge.
 

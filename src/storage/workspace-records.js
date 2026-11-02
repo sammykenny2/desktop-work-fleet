@@ -78,6 +78,9 @@ export class WorkspaceRecordStorage {
   save(state, expectedRevision, detail = {}) {
     return this.#queue(() => this.#save(state, expectedRevision, detail));
   }
+  saveWithAttachments(state, expectedRevision, attachments, detail = {}) {
+    return this.#queue(() => this.#save(state, expectedRevision, { ...detail, attachments }));
+  }
   async #save(state, expectedRevision, detail) {
     this.#check(state.profileId); stale((this.#active?.revision ?? null) === expectedRevision);
     stale(state.revision === (expectedRevision === null ? 0 : expectedRevision + 1));
@@ -191,6 +194,17 @@ export class WorkspaceRecordStorage {
     return { records: result.rows.map(row => row.value), next: result.next ? { generation, position: result.next } : null };
   }
   async get(id) { return (await this.#store.get(this.#profile, 'history', this.#key(id, this.#historyGeneration())))?.value ?? null; }
+  async purgedEntities(ids, { remote = true } = {}) {
+    requireValue(!remote || !this.#profile.startsWith('google:'), 'history-offline', t('errors.sources.historyOffline'));
+    const found = [];
+    for (const id of new Set(ids)) if (await this.getControl(`local-purge:${id}`)) found.push(id);
+    return found.sort();
+  }
+  async verifySnapshot(state, options) {
+    stale(state.profileId === this.#profile && state.revision === this.#active.revision);
+    requireValue(!(await this.purgedEntities(state.cards.map(card => card.id), options)).length,
+      'dataset-purged', t('errors.sources.datasetPurged'));
+  }
   async #control(collection, key) { return (await this.#store.get(this.#profile, collection, key))?.value ?? null; }
   #putControl(collection, key, value) {
     return this.#queue(async () => {

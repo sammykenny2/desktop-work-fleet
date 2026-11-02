@@ -225,7 +225,7 @@ export class AutomaticBackup {
     await this.#flush(); checkCancelled(signal);
     const settings = copy(this.#state.settings); const snapshot = this.#workspace.state;
     requireValue(snapshot.profileId === this.#state.profileId, 'backup-profile', t('errors.common.backupProfileChanged'));
-    const id = this.#fresh(); const backup = await createBackup({ workspace: { state: snapshot }, storage: this.#storage, appVersion: this.#appVersion,
+    const id = this.#fresh(); const backup = await createBackup({ workspace: this.#workspace, snapshot, storage: this.#storage, appVersion: this.#appVersion,
       uuid: () => id, now: () => new Date(now), signal });
     if (settings.encrypted) {
       requireValue(this.#vault?.available === true && typeof this.#vault.encrypt === 'function',
@@ -239,7 +239,7 @@ export class AutomaticBackup {
     const job = { id, scheduleId: settings.scheduleId, policyId: settings.policyId, destinationId: settings.destinationId,
       name: `work-fleet-auto-${id}.zip`, sourceRevision: snapshot.revision, createdAt: now,
       encrypted: backup.encrypted, sha256: await sha256(backup.bytes), size: backup.bytes.length };
-    checkCancelled(signal); await this.#save({ pending: job });
+    checkCancelled(signal); await backup.verify?.(); await this.#save({ pending: job });
     const result = await this.#files.create({ ...copy(job), profileId: snapshot.profileId, bytes: backup.bytes, signal });
     requireValue(result?.saved === true && typeof result.receipt === 'string' && result.receipt.length > 0,
       'backup-not-saved', t('errors.backup.automaticNotSaved'));

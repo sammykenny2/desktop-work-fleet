@@ -148,6 +148,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     if (google) say(t('backup.export.syncing'));
     const result = await createSourceBackup({ workspace, storage, appVersion, source: backupSource, password: secret, signal, progress,
       confirmKnownData: (error, signal) => confirmKnownData(target, error, signal) });
+    await result.verify?.();
     const saved = await destination.save({ ...result, signal, progress }); password.value = '';
     say(t('backup.export.result', { saved: saved.saved ? t('backup.export.saved') : t('backup.export.downloaded'), target,
       scope: google ? result.knownDataOnly ? t('backup.export.scopeKnownOnly') : t('backup.export.scopeGoogle') : t('backup.export.scopeLocal'),
@@ -183,6 +184,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
       const secret = exportPassword(); const destination = await files.chooseDestination();
       await flush(); checkCancelled(signal);
       const result = await createSourceBackup({ workspace, storage, appVersion, password: secret, signal, progress });
+      await result.verify?.();
       await destination.save({ ...result, signal, progress }); password.value = '';
       say(t('backup.restore.safetyDownloaded')); return;
     }

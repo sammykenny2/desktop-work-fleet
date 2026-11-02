@@ -5,7 +5,7 @@ import { projectRevisionsAsync, reconcileSourceLayout } from '../sources/project
 import { LayoutStore, rescueRect } from '../layout/store.js';
 import { regionShortcuts } from '../core/shortcuts.js';
 import { groupLayersFromPapers } from '../layout/stages.js';
-import { rebaseDraft, unneededDraft, unsavedByCard, Workspace } from '../core/workspace.js';
+import { CURRENT_WORKSPACE_FORMAT, rebaseDraft, unneededDraft, unsavedByCard, Workspace } from '../core/workspace.js';
 import { BackupDocument, createBackup } from './payload.js';
 import { backupScheduler, checkCancelled } from './archive.js';
 import { t } from '../i18n/index.js';
@@ -31,6 +31,7 @@ function allocator(state, data, uuid) {
 function remapDraft(draft, ids) {
   const result = copy(draft);
   result.id = ids.draft(result.id); result.cardId = ids.card(result.cardId); result.groupId = ids.group(result.groupId);
+  if (result.cardId !== draft.cardId) delete result.purged;
   if (result.baseRevision !== null) result.baseRevision = ids.revision(result.baseRevision);
   // Unsaved changes no longer record what they were continued from (ADR-061).
   delete result.recoveredFrom;
@@ -60,9 +61,10 @@ function remapLayout(layout, ids) {
   return result;
 }
 
-async function importData(data, fresh, checkpoint) {
+async function importData(data, fresh, checkpoint, selected = null) {
   const maps = { card: new Map(), group: new Map(), revision: new Map(), draft: new Map() };
   const ids = Object.fromEntries(Object.entries(maps).map(([kind, map]) => [kind, id => {
+    if (selected && !selected[kind].has(id)) return id;
     if (!map.has(id)) map.set(id, fresh()); return map.get(id);
   }]));
   const records = [];
@@ -94,7 +96,8 @@ export class SafetyBackupReceipt {
 export async function saveSafetyBackup({ workspace, storage, save, ...options }) {
   requireValue(typeof save === 'function', 'missing-backup-host', t('errors.backup.saveHostRequired'));
   const state = workspace.state;
-  const backup = await createBackup({ ...options, workspace: { state }, storage }); checkCancelled(options.signal);
+  const backup = await createBackup({ ...options, workspace, snapshot: state, storage }); checkCancelled(options.signal);
+  await backup.verify?.();
   const result = await save({ bytes: backup.bytes, manifest: backup.manifest, encrypted: backup.encrypted, signal: options.signal });
   requireValue(result?.saved === true && typeof result.receipt === 'string' && result.receipt.length > 0 && result.receipt.length <= 4096,
     'backup-not-saved', t('errors.backup.safetyBackupNotSaved'));
@@ -105,14 +108,16 @@ export async function saveSafetyBackup({ workspace, storage, save, ...options })
 
 /** Opaque immutable plan. Getters expose copies; only a verified BackupDocument can produce a plan. */
 export class RestorePlan {
-  #state; #document; #preview; #receipt;
-  constructor(key, state, document, preview, receipt) {
+  #state; #document; #preview; #receipt; #verify;
+  constructor(key, state, document, preview, receipt, verify = async () => {}) {
     requireValue(key === planKey, 'invalid-restore-plan', t('errors.backup.restorePlanRequired'));
-    this.#state = state; this.#document = document; this.#preview = preview; this.#receipt = receipt;
+    this.#state = state; this.#document = document; this.#preview = preview; this.#receipt = receipt; this.#verify = verify;
   }
   get preview() { return copy(this.#preview); }
   get receipt() { return copy(this.#receipt); }
   get attachments() { return this.#document.attachmentIds.map(id => ({ id, bytes: this.#document.attachment(id) })); }
+  get history() { return copy(this.#state.revisions); }
+  async verify() { await this.#verify(); }
   existing(state) {
     requireValue(state.profileId === this.#preview.profileId, 'restore-profile', t('errors.backup.restoreAccountChanged'));
     const found = state.restoreReceipts?.[this.#receipt.jobId];
@@ -139,8 +144,8 @@ export async function prepareLocalRestore({ workspace, document, ...options }) {
   requireValue(options.repeat || !Object.values(current.restoreReceipts || {}).some(item => item.fingerprint === document.fingerprint),
     'already-restored', t('errors.backup.alreadyRestored'));
   const empty = await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
-    area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {} });
-  const restore = await prepareRestore({ ...options, workspace: empty, document, mode: 'merge', layout: 'backup' });
+    area: options.workAreas?.[0], bootstrapGroup: false, persist: async () => {}, current: workspace.currentFormat });
+  const restore = await prepareRestore({ ...options, workspace: empty, document, mode: workspace.currentFormat ? 'import' : 'merge', layout: 'backup' });
   const next = restore.materialize(empty.state);
   next.revision = current.revision;
   next.layout.revision = current.layout.revision + 1;
@@ -160,10 +165,27 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   requireValue(Array.isArray(workAreas) && workAreas.length > 0 && workAreas.every(validRect), 'invalid-area', t('errors.backup.displayAreaRequired'));
   workAreas = copy(workAreas); checkCancelled(signal);
   const state = workspace.state; const original = document.data; const checkpoint = backupScheduler(signal);
+  const current = state.format === CURRENT_WORKSPACE_FORMAT;
+  requireValue(!current || document.manifest.coverage?.workspaceFormat === CURRENT_WORKSPACE_FORMAT,
+    'unsupported-backup-schema', t('errors.backup.legacyFormat'));
+  const graphOptions = { allowMissingParents: current };
+  const guarded = [...new Set([...original.local.cards.map(card => card.id), ...state.cards.map(card => card.id)])];
+  const purged = current && mode !== 'import' ? await workspace.restorationBarriers(guarded) : [];
+  const verify = async () => {
+    checkCancelled(signal);
+    if (current && mode !== 'import') requireValue(equal(purged, await workspace.restorationBarriers(guarded)),
+      'stale-restore-plan', t('errors.common.previewStale'));
+  };
   const prior = Object.values(state.restoreReceipts || {}).find(item => item.fingerprint === document.fingerprint);
   requireValue(!prior || repeat, 'already-restored', t('errors.backup.alreadyRestored'), { receipt: prior });
   const fresh = allocator(state, original, uuid); const jobId = fresh();
-  const imported = mode === 'import' ? await importData(original, fresh, checkpoint) : { data: original, mappings: {} };
+  const affected = new Set(purged), selected = { card: affected, group: new Set(), revision: new Set(), draft: new Set() };
+  for (const record of original.records) if (record.kind === 'card' && affected.has(record.entityId))
+    for (const id of [record.revisionId, ...record.parents]) selected.revision.add(id);
+  for (const draft of original.drafts) if (affected.has(draft.cardId)) {
+    selected.draft.add(draft.id); if (draft.baseRevision) selected.revision.add(draft.baseRevision);
+  }
+  const imported = mode === 'import' || purged.length ? await importData(original, fresh, checkpoint, mode === 'import' ? null : selected) : { data: original, mappings: {} };
   const data = imported.data; const next = copy(state); const additions = [];
   const known = new Map(state.revisions.map(record => [record.revisionId, record]));
   const append = record => { additions.push(record); known.set(record.revisionId, record); };
@@ -172,8 +194,8 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     requireValue(!previous || equal(previous, record), 'revision-collision', t('errors.backup.revisionCollision'));
     if (!previous) append(record); await checkpoint();
   }
-  let graph = await RevisionGraph.create([...state.revisions, ...additions], checkpoint);
-  const backupGraph = await RevisionGraph.create(data.records, checkpoint); const restoredHeads = new Map();
+  let graph = await RevisionGraph.create([...state.revisions, ...additions], checkpoint, graphOptions);
+  const backupGraph = await RevisionGraph.create(data.records, checkpoint, graphOptions); const restoredHeads = new Map();
   const preferences = copy(data.local); let extraCards = 0; let retiredGroups = 0; let recoveryGroup = null;
   if (mode === 'replace') {
     const backupSnapshot = await projectRevisionsAsync(backupGraph, { ...data.local, conflicts: data.local.transferIntents }, checkpoint);
@@ -193,13 +215,14 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     for (const { kind, entityId, heads } of backupGraph.iterateEntities()) { restoreHeads(kind, entityId, heads); await checkpoint(); }
     const backupCards = new Set(data.local.cards.map(item => item.id)); const backupGroups = new Set(data.local.groups.map(item => item.id));
     for (const card of state.cards) if (!backupCards.has(card.id)) {
-      restoreHeads('card', card.id, graph.heads('card', card.id), { deleted: true }); extraCards++; await checkpoint();
+      restoreHeads('card', card.id, graph.heads('card', card.id), { deleted: true,
+        ...current && !card.deleted ? { trashedAt: new Date().toISOString(), trashEpisode: fresh() } : {} }); extraCards++; await checkpoint();
     }
     for (const group of state.groups) if (!backupGroups.has(group.id)) {
       restoreHeads('group', group.id, graph.heads('group', group.id), { deleted: true, redirectGroupId: recipient }); retiredGroups++; await checkpoint();
     }
     for (const values of [preferences.cards, preferences.groups]) for (const value of values) value.revision = restoredHeads.get(value.revision) || value.revision;
-    graph = await RevisionGraph.create([...state.revisions, ...additions], checkpoint);
+    graph = await RevisionGraph.create([...state.revisions, ...additions], checkpoint, graphOptions);
   }
   next.revisions.push(...additions);
   for (const record of additions) next.outbox.push({ operationId: record.revisionId, kind: record.kind,
@@ -268,6 +291,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
     deferredPlacements: placement.deferred.length,
     result: { cards: next.cards.length, groups: next.groups.length, conflicts: next.conflicts.length, pendingRevisions: graph.pending.length },
     requiresSafetyBackup: mode === 'replace' };
+  if (current) preview.recoveredAsNew = Object.keys(imported.mappings.card ?? {}).filter(id => affected.has(id)).length;
   await checkpoint(); checkCancelled(signal);
-  return new RestorePlan(planKey, next, document, preview, receipt);
+  return new RestorePlan(planKey, next, document, preview, receipt, verify);
 }

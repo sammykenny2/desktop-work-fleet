@@ -5,6 +5,8 @@ export interface BackupManifest {
   format: 'work-fleet-backup'; schemaVersion: 1;
   backupId: Id; createdAt: string; appVersion: string; scope: 'known-local-data';
   pendingOperations: number; lastSuccessfulSyncAt: string | null;
+  /** Required by the dataset application; missing coverage identifies an incompatible earlier archive. */
+  coverage?: { workspaceFormat: 'work-fleet-workspace-current'; mode: 'complete-retained-history' | 'current-state-only' };
   counts: { cards: number; groups: number; revisions: number; drafts: number; attachments: number; conflicts: number; pendingRevisions: number };
   files: { name: string; size: number; sha256: string }[];
 }
@@ -20,6 +22,7 @@ export interface RestorePreview {
   jobId: Id; profileId: Id; revision: number; mode: RestoreMode; layout: RestoreLayout; fingerprint: string;
   backup: BackupManifest; addedRevisions: number; addedDrafts: number; extraCards: number; retiredGroups: number;
   recoveryGroup: string | null; ambiguousRebases: number; deferredPlacements: number; requiresSafetyBackup: boolean;
+  recoveredAsNew?: number;
   result: { cards: number; groups: number; conflicts: number; pendingRevisions: number };
   removed?: { cards: number; groups: number; drafts: number; revisions: number };
 }

@@ -22,6 +22,8 @@ export default {
   'errors.backup.dataInvalid': "The backup data's format, references or counts don't match. Nothing was imported.",
   'errors.backup.dataUnsupported': "This device has conflict data that backups don't support yet. A backup can't leave it out and still claim to be complete.",
   'errors.backup.dataLimit': 'The data exceeds the backup size or item limit. Nothing was left out.',
+  'errors.backup.historyIncomplete': 'Complete retained history is unavailable. Reconnect and retry, or explicitly choose Current state only.',
+  'errors.backup.legacyFormat': 'This backup uses the earlier workspace format. Keep it and open it with a compatible earlier app; this app does not convert it.',
   'errors.backup.attachmentsIncomplete': "Attachments are missing or their sizes don't match, so the backup isn't complete. The original data is kept.",
   'errors.backup.attachmentsTooLarge': "The backup's attachments exceed the total size limit. Nothing was truncated.",
   'errors.backup.attachmentChecksum': 'An attachment on this device failed its checksum. No backup was written.',

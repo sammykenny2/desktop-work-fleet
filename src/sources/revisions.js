@@ -55,7 +55,7 @@ export function revisionRecord(kind, value, parents = []) {
 export const encodeRevision = record => new TextEncoder().encode(canonicalJson(validateRevision(record)));
 export const decodeRevision = bytes => validateRevision(parseJson(bytes));
 
-function* analysisSteps(records) {
+function* analysisSteps(records, allowMissingParents = false) {
   const remaining = new Map(); const children = new Map(); const missing = new Set();
   let work = 0;
   for (const [id, record] of records) {
@@ -78,7 +78,7 @@ function* analysisSteps(records) {
   // A topological walk also rejects cycles through records whose other parents are still missing.
   for (let index = 0; index < queue.length; index++) {
     const id = queue[index]; const record = records.get(id);
-    if (record.parents.every(parent => complete.has(parent))) complete.add(id);
+    if (record.parents.every(parent => complete.has(parent) || allowMissingParents && !records.has(parent))) complete.add(id);
     for (const child of children.get(id) || []) {
       const count = remaining.get(child) - 1; remaining.set(child, count);
       if (count === 0) queue.push(child);
@@ -97,17 +97,17 @@ function* analysisSteps(records) {
   for (const id of complete) {
     const record = records.get(id);
     for (const parent of record.parents) {
-      heads.get(identity(record)).delete(parent);
+      if (records.has(parent)) heads.get(identity(record)).delete(parent);
       if (++work % 128 === 0) yield;
     }
     if (++work % 128 === 0) yield;
   }
-  return { complete, heads, missing: [...missing].sort(compareId),
+  return { complete, heads, missing: allowMissingParents ? [] : [...missing].sort(compareId),
     pending: [...records.keys()].filter(id => !complete.has(id)).sort(compareId) };
 }
 
-function analyze(records) {
-  const steps = analysisSteps(records); let result;
+function analyze(records, allowMissingParents = false) {
+  const steps = analysisSteps(records, allowMissingParents); let result;
   do { result = steps.next(); } while (!result.done);
   return result.value;
 }
@@ -117,12 +117,14 @@ export class RevisionGraph {
   #records = new Map();
   #canonical = new Map();
   #analysis = analyze(new Map());
+  #allowMissingParents = false;
 
   constructor(records = []) { this.ingest(records); }
 
   /** Isolated bulk reader: the same graph rules, with cancellable checkpoints before publication. */
-  static async create(batch, checkpoint) {
+  static async create(batch, checkpoint, { allowMissingParents = false } = {}) {
     invalid(Array.isArray(batch)); batch = copy(batch); const graph = new RevisionGraph();
+    graph.#allowMissingParents = allowMissingParents;
     for (const input of batch) {
       const record = validateRevision(input); const bytes = canonicalJson(record);
       if (graph.#records.has(record.revisionId)) {
@@ -133,7 +135,7 @@ export class RevisionGraph {
       }
       await checkpoint();
     }
-    const steps = analysisSteps(graph.#records); let result;
+    const steps = analysisSteps(graph.#records, allowMissingParents); let result;
     do { result = steps.next(); if (!result.done) await checkpoint(); } while (!result.done);
     graph.#analysis = result.value; await checkpoint(); return graph;
   }
@@ -148,6 +150,7 @@ export class RevisionGraph {
   fork(batch = []) {
     const graph = new RevisionGraph();
     graph.#records = this.#records; graph.#canonical = this.#canonical; graph.#analysis = this.#analysis;
+    graph.#allowMissingParents = this.#allowMissingParents;
     graph.ingest(batch);
     return graph;
   }
@@ -179,7 +182,7 @@ export class RevisionGraph {
         records.set(record.revisionId, record); canonical.set(record.revisionId, bytes); added++;
       }
     }
-    const analysis = analyze(records);
+    const analysis = analyze(records, this.#allowMissingParents);
     this.#records = records; this.#canonical = canonical; this.#analysis = analysis;
     return { added, pending: this.pending, missing: this.missing };
   }

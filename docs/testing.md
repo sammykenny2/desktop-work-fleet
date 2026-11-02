@@ -58,6 +58,14 @@ fixture: a save arriving during a quiet check gets one immediate follow-up, pend
 shows activity, and empty checks never flush drafts or rebuild notes. Controller tests
 cover long-resume invalidation separately.
 These checks neither use a native phone host nor measure the real Drive round trip.
+
+The same runner also starts `group-dialog-sync-probe.mjs` in Chromium and WebKit. It gives the production renderer a
+synthetic desktop host, so the real `DesktopOwner` queue exists, and holds a synthetic Drive request so a real
+`DatasetSync` pass keeps that queue. Clicks on the add-group and group-settings buttons must open one dialog at once,
+without overtaking an earlier Adjust click; repeated Save and Merge presses must count once, and Cancel must answer
+during the sync and withdraw a waiting save but not interrupt one already writing. A rename and a dataset failure landing
+under the dialog must leave a working retry and a recovery question on close. It does not run a native host, real scenes
+or a real Drive connection, so `AdjustOverlayProbe` on Windows remains the check of the real overlay.
 No window activation call is introduced by the shared status path. Full native/provider
 acceptance and independent review remain open in PLAN-012.
 
@@ -849,6 +857,7 @@ python scripts/testing/serve_preview.py --port 0
 # In another terminal, replace PORT with the actual port printed above
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/group-dialog-sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/backup-probe.mjs --url http://127.0.0.1:PORT

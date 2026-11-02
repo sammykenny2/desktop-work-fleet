@@ -156,6 +156,12 @@ because A is "me".
   none); it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
   that order. While more than nine groups exist the regions cannot hold them all, so the order cannot change until
   groups are merged.
+- The new-group and group-settings dialog opens at once, also during a sync, unless an earlier click is still waiting,
+  such as Adjust, which then goes first; repeated clicks open one dialog. On a desktop host Save and Merge still wait
+  for a running sync to finish: a press counts once, the pressed button stays disabled meanwhile, and closing the dialog
+  before its turn withdraws the press. Once the save is writing, the dialog stays until the outcome is known. A sync that
+  renames the group under the dialog refuses the rename once and the retry succeeds; a recovery question raised while
+  the dialog is open is asked when it closes (since 2026-11-03).
 - Each device stores which of the nine palette colours each group wears. A group without a stored colour takes the
   colour of its place in the workspace list when no other group wears it, otherwise the first free colour; a retired
   group frees its colour; choosing a colour another group wears swaps the two. Colours never sync, and reordering

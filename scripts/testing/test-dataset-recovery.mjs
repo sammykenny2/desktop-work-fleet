@@ -22,12 +22,15 @@ try {
       if (match) resolve(stop(match[0]));
     });
   });
-  for (const [browser, platform] of [['chromium', 'linux'], ['webkit', 'linux'], ['webkit', 'ios'], ['chromium', 'android']]) {
-    const child = spawn(process.execPath, ['scripts/testing/legacy-google-reset-ui-probe.mjs', '--url', url,
-      '--browser', browser, '--platform', platform], { cwd, stdio: 'inherit', timeout: 120000 });
+  const probe = async (script, ...args) => {
+    const child = spawn(process.execPath, [`scripts/testing/${script}`, '--url', url, ...args], { cwd, stdio: 'inherit', timeout: 120000 });
     const [code, signal] = await once(child, 'exit');
-    if (code !== 0) throw new Error(`Recovery probe failed: ${browser}/${platform}, ${signal ?? code}`);
+    if (code !== 0) throw new Error(`Probe failed: ${script} ${args.join(' ')}, ${signal ?? code}`);
+  };
+  for (const [browser, platform] of [['chromium', 'linux'], ['webkit', 'linux'], ['webkit', 'ios'], ['chromium', 'android']]) {
+    await probe('legacy-google-reset-ui-probe.mjs', '--browser', browser, '--platform', platform);
   }
+  for (const browser of ['chromium', 'webkit']) await probe('group-dialog-sync-probe.mjs', '--browser', browser);
 } finally {
   if (server.exitCode === null) { server.kill(); await once(server, 'exit'); }
 }

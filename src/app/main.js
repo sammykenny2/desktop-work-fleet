@@ -85,10 +85,12 @@ function element(tag, text, className) {
   if (className) node.className = className;
   return node;
 }
-function button(text, action, className) {
+// A button whose handler decides for itself what waits in the action queue, which a running sync holds until Drive answers.
+function immediateButton(text, handler, className) {
   const node = element('button', text, className); node.type = 'button';
-  node.addEventListener('click', event => { event.stopPropagation(); run(action); }); return node;
+  node.addEventListener('click', event => { event.stopPropagation(); handler(); }); return node;
 }
+function button(text, action, className) { return immediateButton(text, () => run(action), className); }
 // A status can offer one follow-up, such as undoing a delete, which runs once; the next status takes it away.
 // Phones arrange no desktop, so "My group" means nothing there, even when a restored computer layout carries one.
 const myGroupOf = layout => handheld ? null : layout.myGroupId;
@@ -1313,7 +1315,7 @@ function renderGroupList(snapshot, layout, groups) {
       const grip = element('span', undefined, 'group-grip'); grip.setAttribute('aria-hidden', 'true');
       grip.append(icon('M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01')); row.append(grip);
     }
-    row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
+    row.append(choose, immediateButton('⋯', () => openGroupEditor(group), 'group-menu')); $('#groups').append(row);
   }
 }
 
@@ -1739,8 +1741,17 @@ async function moveNoteToGroup(id, groupId) {
   } });
 }
 
+// Opening writes nothing, so a click answers at once instead of waiting behind a running sync. An earlier click still
+// goes first: its action may start adjusting, or need no dialog in its way, and the editor then decides on its own turn.
+function openGroupEditor(group) {
+  if (activeActions.size) run(() => groupEditor(group)); else groupEditor(group);
+}
+// Called outside the queue, this keeps the queue's admission rules; an open dialog also means repeated clicks open one.
 function groupEditor(group) {
+  if (nativeClosing || adjustOverlayActive() || document.querySelector('dialog[open]')) return;
   const dialog = element('dialog'); const form = element('form');
+  // A sync can now land under this dialog; a recovery question it could not ask over the dialog is asked when it closes.
+  const problemAtOpen = datasetProblem;
   const title = element('h2', group ? t('app.groupEditor.editTitle') : t('app.groupEditor.newTitle'));
   const label = element('label', t('app.groupEditor.name'), 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = groupName(group); label.append(input);
   // Which desktop layer the group sits on belongs to this computer; phones and the browser preview have no desktop layers.
@@ -1785,19 +1796,38 @@ function groupEditor(group) {
   if (opacityField) { const row = element('span', undefined, 'opacity-row'); row.append(opacity, opacityValue); opacityField.append(row); }
   const actions = element('div', undefined, 'dialog-actions');
   const save = element('button', t('common.save'), 'primary'); save.type = 'submit';
+  // Saving and merging do write, so they wait their turn in the queue. One press counts, and closing the dialog while it
+  // waits withdraws it; once it is writing, the dialog stays until the outcome is known.
+  let merge = null; let writing = false;
+  const press = action => {
+    if (save.disabled) return;
+    const held = [save, merge].filter(control => control && !control.disabled);
+    for (const control of held) control.disabled = true;
+    void run(async () => {
+      if (!dialog.open) return;
+      writing = true;
+      try { await action(); } finally { writing = false; }
+    }).finally(() => { for (const control of held) control.disabled = false; });
+  };
   if (group) {
-    const merge = button(t('app.groupEditor.merge'), () => { dialog.close(); return openGroupMerge(group); });
+    merge = immediateButton(t('app.groupEditor.merge'), () => press(() => { dialog.close(); return openGroupMerge(group); }));
     merge.disabled = activeGroups(workspace.snapshot).length < 2; actions.append(merge);
   }
-  actions.append(button(t('common.cancel'), () => dialog.close()), save);
+  actions.append(immediateButton(t('common.cancel'), () => { if (!writing) dialog.close(); }), save);
+  dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
   form.append(title, label, colorField, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
     ...opacityField ? [opacityField, element('p', t('app.groupEditor.opacityHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
-  dialog.addEventListener('close', () => dialog.remove());
-  form.addEventListener('submit', event => { event.preventDefault(); run(async () => {
+  dialog.addEventListener('close', () => { dialog.remove(); if (datasetProblem && !problemAtOpen) void askDatasetRecovery(); });
+  form.addEventListener('submit', event => { event.preventDefault(); press(async () => {
     let groupId = group?.id;
     // A name left as shown is not renamed: a default name keeps following the UI language, and changing only this
-    // device's layer neither syncs a group revision nor fails on a group that is in conflict.
-    if (group) { if (input.value.trim() !== groupName(group)) await workspace.renameGroup(group.id, input.value, group.revision); }
+    // device's layer neither syncs a group revision nor fails on a group that is in conflict. When a sync renamed the
+    // group under this dialog, the refusal tells the user to try again, so the retry answers the version it reported.
+    if (group) {
+      if (input.value.trim() !== groupName(group)) await workspace.renameGroup(group.id, input.value, group.revision).catch(error => {
+        group = activeGroups(workspace.snapshot).find(item => item.id === group.id) ?? group; throw error;
+      });
+    }
     else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; await rememberGroup(); }
     // A new group already took a layer and a colour when it was created; the dialog only guessed them at opening. Only
     // a choice the user changed is applied, so a sync landing meanwhile cannot make an untouched guess repaint a group.
@@ -2570,7 +2600,7 @@ function bindEvents() {
   $('#show-desktop').onclick = () => run(async () => {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
-  $('#add-group').onclick = () => run(() => groupEditor());
+  $('#add-group').onclick = () => openGroupEditor();
   $('#toast').onclick = closeToast;
   const groupList = $('#groups');
   groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', moveGroupDrag);

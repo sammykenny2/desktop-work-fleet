@@ -67,8 +67,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   incremental DatasetSync controller with exact publication/retirement and purge barriers. Lazy history and resumable
   manual purge workers include metadata-only cleanup and shared local attachment ownership. The reset worker captures
   exact old leaf IDs before guarded new-generation initialization. Portable backup core declares coverage and supports
-  history hydration and purge-aware local restore. Application/reset/recovery UI, seeded cloud replacement,
-  independent assessment and real-provider verification remain open in PLAN-011.
+  history hydration and purge-aware local restore. Seeded cloud replacement publishes captured history before
+  current-checkpoint readiness. Application/reset/recovery UI, independent assessment and real-provider verification
+  remain open in PLAN-011.
 - The OAuth consent screen is still in Testing: only listed test users can sign in, and refresh tokens expire after 7 days.
 
 ### Backup and restore

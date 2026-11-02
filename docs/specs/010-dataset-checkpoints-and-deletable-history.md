@@ -489,6 +489,15 @@ it does not freeze the editor or produce a mixed snapshot. An offline current-on
 coverage and checks known local barriers; it cannot establish fresh remote deletion knowledge. Restore rechecks the
 previewed barriers and remaps purged identities and their revision/draft references to new UUIDs. Bulk local
 replacement stages history and attachments under a new generation before one atomic activation pointer changes.
+Cloud replacement stages the verified replacement locally first, with a saved safety-backup receipt, fresh entity/
+revision identities and a captured outbox boundary. It uploads those immutable revision/attachment bodies before
+publishing readiness, then places only the captured current heads in the 17 initial checkpoints. It creates no
+per-history current receipt tail. Per-upload journals contain reserved file locators rather than another content
+copy. The final seed acknowledgement and its completion control commit with outbox removal; a lost reply cannot
+restart all history uploads. Edits made after the captured boundary stay queued for normal sync. Missing prepared
+directories stop initialization after seeding begins; they are not recreated as an empty namespace. Large seeded
+checkpoint bodies have separate temporary local rows, removed after durable readiness. Old-content cleanup then
+continues independently of usable new current state.
 Explicit recovery of purged content is previewed as new identities, with attachment copies. Full cloud replacement
 is an explicit generation reset. Previously exported backups are not rewritten by purge.
 

@@ -10,7 +10,7 @@ export interface BackupManifest {
   counts: { cards: number; groups: number; revisions: number; drafts: number; attachments: number; conflicts: number; pendingRevisions: number };
   files: { name: string; size: number; sha256: string }[];
 }
-export type RestoreMode = 'import' | 'merge' | 'replace' | 'local-replace';
+export type RestoreMode = 'import' | 'merge' | 'replace' | 'local-replace' | 'cloud-replace';
 export type RestoreLayout = 'preserve' | 'backup';
 export interface RestoreReceipt {
   jobId: Id; fingerprint: string; mode: RestoreMode; layout: RestoreLayout; profileId: Id;

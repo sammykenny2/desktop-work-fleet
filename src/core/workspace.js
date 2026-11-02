@@ -305,14 +305,21 @@ export class Workspace {
     return this.#history.verifySnapshot(state, options);
   }
 
-  async acknowledgeOperations(session, ids, { jobs = [] } = {}) {
+  async acknowledgeOperations(session, ids, { jobs = [], controls = [] } = {}) {
     requireValue(this.currentFormat && Array.isArray(ids) && new Set(ids).size === ids.length,
       'invalid-command', t('errors.core.kindUnknown'));
     ids = copy(ids);
     return this.#commit(state => {
       this.#session(state, session);
       requireValue(ids.length <= state.sync.pendingCount, 'stale-writer', t('errors.storage.staleWriter'));
-    }, this.#persist, false, { removedOperations: ids, removedJobs: copy(jobs) });
+    }, this.#persist, false, { removedOperations: ids, removedJobs: copy(jobs), controls: copy(controls) });
+  }
+  async finishDatasetRestore(operationId, datasetId) {
+    return this.#commit(state => {
+      requireValue(state.cloudRestore?.operationId === operationId && state.sync.dataset?.plan.datasetId === datasetId,
+        'stale-restore-plan', t('errors.common.previewStale'));
+      delete state.cloudRestore;
+    });
   }
 
   /** A verified current view replaces previously received heads while unpublished local heads remain branches. */

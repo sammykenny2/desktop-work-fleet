@@ -86,6 +86,20 @@ test('current sync reopens from records, preserves unsent edits and publishes on
   assert.equal(follower.workspace.state.revisions.length, 2);
 });
 
+test('publication journals retain locators without another copy of note contents', async () => {
+  const provider = new DatasetTestProvider(), c = await client(provider); await c.sync.sync();
+  const card = await c.workspace.createCard(content('unique unpublished private body'));
+  provider.hook = async (point, id) => {
+    if (point === 'create-after' && provider.files.get(id)?.file.kind === 'revision') throw Object.assign(new Error('offline'), { code: 'service-unavailable' });
+  };
+  await assert.rejects(c.sync.sync(), { code: 'service-unavailable' });
+  const job = await c.storage.getJob(`upload:${c.sync.binding.plan.datasetId}:${card.revision}`);
+  assert.ok(job.revision.sha256); assert.equal(JSON.stringify(job).includes('unique unpublished private body'), false);
+  provider.hook = async () => {}; await c.sync.sync({ force: true });
+  assert.equal(c.workspace.pendingCount, 0);
+  assert.equal([...provider.files.values()].filter(item => item.file.revisionId === card.revision && item.file.kind === 'revision').length, 1);
+});
+
 test('steady sync and cold checkpoint login never fetch retained bodies, at fixed current state', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
   await a.workspace.createCard(content('only')); await a.sync.sync();

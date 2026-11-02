@@ -38,7 +38,7 @@ function remapDraft(draft, ids) {
   return result;
 }
 
-function remapLayout(layout, ids) {
+export function remapLayout(layout, ids) {
   const result = copy(layout);
   const grid = value => { value.slots = value.slots.map(id => id === null ? null : ids.group(id)); };
   const geometry = value => Object.fromEntries(Object.entries(value).map(([id, rect]) => [ids.card(id), rect]));

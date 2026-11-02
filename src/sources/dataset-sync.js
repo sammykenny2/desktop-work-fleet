@@ -1,8 +1,8 @@
 import { copy, FleetError, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
-import { revisionRecord } from './revisions.js';
-import { DATASET_LIMITS, DATASET_SHARDS, datasetFile, datasetRecord, encodeDatasetRecord, validateDatasetFile, verifyDatasetBytes } from './dataset-codec.js';
+import { DATASET_LIMITS, DATASET_SHARDS } from './dataset-codec.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
+import { DatasetPublisher, datasetUploadKey } from './dataset-publisher.js';
 import { DatasetProtocol, listDatasetObjects, mergeDatasetInputs } from './dataset-protocol.js';
 import { purgeJobKey } from './dataset-purge.js';
 import { t } from '../i18n/index.js';
@@ -12,7 +12,7 @@ const invalid = condition => requireValue(condition, 'invalid-dataset', t('error
 const changed = condition => requireValue(condition, 'dataset-changed', t('errors.sources.datasetChanged'));
 const missing = error => ['file-missing', 'source-file-missing'].includes(error.code);
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
-const publicationKey = (dataset, operation) => `upload:${dataset}:${operation}`;
+const publicationKey = datasetUploadKey;
 
 /** Account-bound current sync. Retained history never participates in discovery, admission or normal refresh. */
 export class DatasetSync {
@@ -53,7 +53,7 @@ export class DatasetSync {
       this.#session ??= await this.#workspace.beginSync(this.#store.sourceId); this.#check();
       const reset = await this.#storage.getJob('dataset-reset');
       const known = this.#workspace.syncState.dataset;
-      requireValue(!reset || reset.phase === 'complete' || reset.ready && known?.plan.datasetId === reset.binding?.plan.datasetId,
+      requireValue(!reset || reset.phase === 'complete' || reset.ready && (!known || known.plan.datasetId === reset.binding?.plan.datasetId),
         'source-reset-pending', t('errors.sources.resetPending'));
       if (known) {
         await this.#protocol.assertGeneration(known.descriptor, known.plan, this.#abort.signal); this.#binding = known;
@@ -227,78 +227,11 @@ export class DatasetSync {
   async #push(operation) {
     const { plan } = this.#binding, key = publicationKey(plan.datasetId, operation.operationId);
     await this.#barrier(operation.entityId, operation.kind);
-    let job = await this.#storage.getJob(key);
-    if (!job) {
-      const folderKey = `folder:${plan.datasetId}:${operation.kind}:${operation.entityId}`;
-      let folder = await this.#storage.getControl(folderKey);
-      if (!folder) {
-        const existing = await listDatasetObjects(this.#store, { scope: 'entity-folders', datasetId: plan.datasetId, entities: [operation.entityId] }, { limit: 32, signal: this.#abort.signal });
-        const parentId = plan.folders[operation.kind === 'card' ? 'notes' : 'groups'];
-        for (const file of existing) invalid(file.parentId === parentId && file.role === (operation.kind === 'card' ? 'note' : 'group'));
-        folder = existing.sort((a, b) => a.id.localeCompare(b.id))[0] ?? { id: await this.#store.allocateFileId(), kind: 'folder',
-          datasetId: plan.datasetId, parentId, role: operation.kind === 'card' ? 'note' : 'group', entityId: operation.entityId };
-        await this.#storage.putControl(folderKey, { ...folder, reserved: !existing.length });
-        folder = { ...folder, reserved: !existing.length };
-      }
-      const { reserved = false, ...directory } = folder; validateDatasetFile(directory);
-      const attachments = [];
-      for (const attachment of operation.value.content?.attachments ?? []) {
-        if (attachments.some(file => file.sha256 === attachment.id)) continue;
-        const fileKey = `attachment:${plan.datasetId}:${operation.entityId}:${attachment.id}`;
-        let file = await this.#storage.getControl(fileKey);
-        if (!file) {
-          file = validateDatasetFile({ id: await this.#store.allocateFileId(), kind: 'attachment', datasetId: plan.datasetId,
-            parentId: directory.id, entityId: operation.entityId, sha256: attachment.id, size: attachment.size });
-          await this.#storage.putControl(fileKey, file);
-        }
-        invalid(file.parentId === directory.id); attachments.push(file);
-      }
-      const record = revisionRecord(operation.kind, operation.value, operation.parents);
-      const value = datasetRecord(plan.datasetId, 'revision', { record, attachments });
-      const revision = await datasetFile(await this.#store.allocateFileId(), directory.id, value);
-      const receipt = datasetRecord(plan.datasetId, 'change', { revision: revision.file });
-      const change = await datasetFile(await this.#store.allocateFileId(), plan.folders.shards[revision.file.shard], receipt);
-      job = { kind: 'dataset-upload', operation, folder: directory, newFolder: reserved, attachments, revision: { file: revision.file, value },
-        change: { file: change.file, value: receipt }, phase: 'reserved' };
-      await this.#storage.putJob(key, job);
-    }
-    invalid(job.kind === 'dataset-upload' && equal(job.operation, operation) && job.folder.datasetId === plan.datasetId);
-    await this.#admit(job.revision.file.size + job.change.file.size);
-    try { invalid(equal(await this.#store.getObject({ id: job.folder.id }), job.folder)); }
-    catch (error) {
-      if (!missing(error)) throw error;
-      changed(job.newFolder && job.phase === 'reserved');
-      await this.#barrier(operation.entityId, operation.kind);
-      try { await this.#store.createFolder({ file: job.folder }); }
-      catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
-      invalid(equal(await this.#store.getObject({ id: job.folder.id }), job.folder));
-    }
-    if (job.phase === 'reserved') {
-      await this.#storage.putControl(`folder:${plan.datasetId}:${operation.kind}:${operation.entityId}`, { ...job.folder, reserved: false });
-      job = { ...job, phase: 'body' }; await this.#storage.putJob(key, job);
-    }
-    for (const file of job.attachments) {
-      let present = false;
-      try { invalid(equal(await this.#store.getObject({ id: file.id }), file)); present = true; }
-      catch (error) { if (!missing(error)) throw error; }
-      if (present) continue;
-      const blob = await this.#storage.getAttachment(this.#session.profileId, file.sha256);
-      requireValue(blob instanceof Blob, 'missing-attachment', t('errors.sources.attachmentMissing'));
-      const bytes = new Uint8Array(await blob.arrayBuffer()); await verifyDatasetBytes(file, bytes);
-      await this.#barrier(operation.entityId, operation.kind);
-      try { await this.#store.createObject({ file, bytes }); }
-      catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
-      await verifyDatasetBytes(file, await this.#store.readObject({ file }));
-    }
-    const publish = async item => {
-      try { invalid(equal(await this.#protocol.read(item.file, this.#abort.signal), item.value)); return; }
-      catch (error) { if (!missing(error)) throw error; }
-      await this.#barrier(operation.entityId, operation.kind);
-      try { await this.#store.createObject({ file: item.file, bytes: encodeDatasetRecord(item.value) }); }
-      catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
-      invalid(equal(await this.#protocol.read(item.file, this.#abort.signal), item.value));
-    };
-    await publish(job.revision);
+    const publisher = new DatasetPublisher({ store: this.#store, storage: this.#storage, profileId: this.#session.profileId,
+      guard: (id, kind) => this.#barrier(id, kind), signal: this.#abort.signal });
+    let job = await publisher.reserve(plan, operation);
+    await this.#admit(job.revision.size + job.change.size);
+    job = await publisher.body(plan, operation, job);
     // A receipt can already have been consumed by a checkpoint after a lost reply. Reconcile first; a late replay
     // is only allowed as a conservative branch when coverage can no longer be proved from the bounded current set.
     if (job.phase === 'receipt') {
@@ -310,7 +243,7 @@ export class DatasetSync {
         await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] }); return;
       }
     } else { job = { ...job, phase: 'receipt' }; await this.#storage.putJob(key, job); }
-    await publish(job.change); await this.#barrier(operation.entityId, operation.kind);
+    await publisher.publish(publisher.change(job)); await this.#barrier(operation.entityId, operation.kind);
     await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] });
   }
 }

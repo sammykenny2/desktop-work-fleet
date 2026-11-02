@@ -135,6 +135,7 @@ function attachmentLocations(record, files, dataset, parentId) {
   }
   const expected = [...new Set((record.value.content?.attachments ?? []).map(item => item.id))].sort();
   invalid(canonicalJson(files.map(file => file.sha256).sort()) === canonicalJson(expected));
+  for (const item of record.value.content?.attachments ?? []) invalid(item.size === undefined || files.find(file => file.sha256 === item.id).size === item.size);
 }
 function head(value, dataset, shard) {
   invalid(exact(value, ['record', 'file', 'attachments']));

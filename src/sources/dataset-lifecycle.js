@@ -1,6 +1,6 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
-import { datasetFile, datasetRecord, DATASET_SHARDS, encodeDatasetRecord, validateDatasetFile } from './dataset-codec.js';
+import { datasetFile, datasetRecord, datasetShard, DATASET_SHARDS, encodeDatasetRecord, validateDatasetFile } from './dataset-codec.js';
 import { DatasetProtocol, listDatasetObjects } from './dataset-protocol.js';
 import { revisionRecord } from './revisions.js';
 import { t } from '../i18n/index.js';
@@ -57,7 +57,8 @@ export class DatasetLifecycle {
   }
 
   async initialize({ fenceId = null, starter = true, signal, key = 'dataset-initialize', allowExisting = false,
-    guard = async () => {} } = {}) {
+    guard = async () => {}, seed = null } = {}) {
+    invalid(seed === null || typeof seed === 'function' && !starter);
     await guard();
     let job = await this.#journal.getJob(key);
     if (!job) {
@@ -96,10 +97,18 @@ export class DatasetLifecycle {
         operationId: crypto.randomUUID(), shard, inputs: [], heads: shard === 'groups' ? heads : [],
       }))).file);
       await object(rootId, datasetRecord(datasetId, 'ready', { descriptor: { id: descriptor.id, sha256: descriptor.sha256 }, initial }), readyId);
-      job = { kind: 'dataset-initialize', sourceId: this.#store.sourceId, binding: { descriptor, plan }, directories, objects, phase: 'prepare' };
+      job = { kind: 'dataset-initialize', sourceId: this.#store.sourceId, binding: { descriptor, plan }, directories, objects,
+        seedMode: Boolean(seed), seeded: false, phase: 'prepare' };
       await this.#journal.putJob(key, job);
     }
-    invalid(job.kind === 'dataset-initialize' && job.sourceId === this.#store.sourceId && job.binding.plan.fenceId === fenceId);
+    invalid(job.kind === 'dataset-initialize' && job.sourceId === this.#store.sourceId && job.binding.plan.fenceId === fenceId
+      && job.seedMode === Boolean(seed));
+    const materialize = async item => {
+      if (item.value) return item;
+      const stored = await this.#journal.getJob(item.key); invalid(stored && same(stored.file, item.file));
+      return { file: item.file, value: stored.value };
+    };
+    const clean = async () => { for (const item of job.objects) if (item.key) await this.#journal.deleteJob(item.key); };
     if (job.phase === 'ready') {
       if (!allowExisting) await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
       else {
@@ -107,23 +116,47 @@ export class DatasetLifecycle {
         invalid(same(await this.#protocol.read(job.objects.at(-1).file, signal), job.objects.at(-1).value));
         invalid(same(await this.#store.getObject({ id: job.binding.plan.rootId, signal }), job.directories[0]));
       }
-      await guard(); return copy(job.binding);
+      await guard(); await clean(); return copy(job.binding);
     }
-    const ready = job.objects.at(-1);
     if (job.phase === 'prepare') {
       for (const file of job.directories) { signal?.throwIfAborted(); await guard(); await this.#folder(file, signal); }
-      for (const item of job.objects.slice(0, -1)) { signal?.throwIfAborted(); await guard(); await this.#object(item, signal); }
+      await this.#object(job.objects[0], signal);
+      job = { ...job, phase: 'objects' }; await this.#journal.putJob(key, job);
+    }
+    if (job.phase === 'objects') {
+      // Once seeded uploads may have been acknowledged, a lost root cannot be recreated as an empty namespace.
+      for (const file of job.directories) invalid(same(await this.#store.getObject({ id: file.id, signal }), file));
+      invalid(same(await this.#protocol.read(job.binding.descriptor, signal), job.binding.plan));
+      if (seed && !job.seeded) {
+        const heads = await seed(job.binding, guard), shards = new Map(DATASET_SHARDS.map(shard => [shard, []]));
+        for (const head of heads) shards.get(await datasetShard(head.record.kind, head.record.entityId)).push(head);
+        const objects = [], initial = [];
+        for (const item of job.objects.slice(0, -1)) {
+          if (item.value.kind !== 'checkpoint') { objects.push(item); continue; }
+          const value = { ...item.value, heads: shards.get(item.value.shard) };
+          const file = (await datasetFile(item.file.id, item.file.parentId, value)).file;
+          const objectKey = `dataset-initial:${file.datasetId}:${value.operationId}`;
+          await this.#journal.putJob(objectKey, { kind: 'dataset-initial', file, value });
+          objects.push({ file, key: objectKey }); initial.push(file);
+        }
+        const old = job.objects.at(-1), value = { ...old.value, initial };
+        objects.push({ file: (await datasetFile(old.file.id, old.file.parentId, value)).file, value });
+        job = { ...job, objects, seeded: true }; await this.#journal.putJob(key, job);
+      }
+      for (const item of job.objects.slice(1, -1)) { signal?.throwIfAborted(); await guard(); await this.#object(await materialize(item), signal); }
       job = { ...job, phase: 'ready-pending' }; await this.#journal.putJob(key, job);
     }
+    const ready = job.objects.at(-1);
     // Once readiness may have been observed, never recreate retired initial checkpoints or a deleted root.
     try { invalid(same(await this.#protocol.read(ready.file, signal), ready.value)); }
     catch (error) {
       if (!missing(error)) throw error;
-      for (const item of job.objects.slice(0, -1)) invalid(same(await this.#protocol.read(item.file, signal), item.value));
+      for (const item of job.objects.slice(0, -1)) invalid(same(await this.#protocol.read(item.file, signal), (await materialize(item)).value));
       await guard(); await this.#object(ready, signal);
     }
     invalid(same(await this.#store.getObject({ id: job.binding.plan.rootId, signal }), job.directories[0]));
     await guard(); await this.#journal.putJob(key, { ...job, phase: 'ready' });
+    await clean();
     return copy(job.binding);
   }
 }

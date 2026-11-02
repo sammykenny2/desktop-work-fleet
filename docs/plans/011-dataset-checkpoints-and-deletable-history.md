@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: storage/sync/reset/purge and portable backup core; seeded cloud recovery and application UI pending |
+| Status | In progress: dataset and portable/cloud restore core; application activation, recovery UI and acceptance pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -206,6 +206,10 @@ Depends on the local transaction contract and reviewed remote candidate.
   Wire record-based local restore and test interrupted bulk activation, incompatible earlier archives and last-good
   automatic backup preservation. Verify the shared path in Chromium/WebKit IndexedDB. Coverage UI, seeded cloud
   replacement/recovery and remaining platform/provider acceptance remain open in 5.1-5.4.
+- [x] 5.3a Implement locally staged, safety-receipt-bound cloud replacement with fresh identities, resumable history
+  seeding before readiness and current-only initial checkpoints. Share the locator-only publisher with ordinary
+  sync. Verify interrupted uploads, final-ack loss, old-client interference, preserved device layout and cold
+  follower startup without history reads. Application recovery controls and platform/provider checks remain open.
 
 **Deliverable**: truthful bounded backup/restore. Million-version complete exports are not claimed under the initial
 container; a cache subset cannot pass as complete retained history.

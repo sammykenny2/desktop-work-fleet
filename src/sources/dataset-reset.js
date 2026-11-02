@@ -23,8 +23,9 @@ export class DatasetReset {
     ]);
     return { sourceId: this.#store.sourceId, fences: idsOf(fences), datasets: idsOf(datasets) };
   }
-  async begin(preview, { starter = true, signal } = {}) {
-    invalid(preview?.sourceId === this.#store.sourceId && typeof starter === 'boolean');
+  async begin(preview, { starter = true, seeded = false, restoreOperation = null, signal } = {}) {
+    invalid(preview?.sourceId === this.#store.sourceId && typeof starter === 'boolean' && typeof seeded === 'boolean' && (!seeded || !starter)
+      && (restoreOperation === null || typeof restoreOperation === 'string' && restoreOperation.length === 36));
     superseded(same(preview, await this.preview(signal)));
     const pending = await this.#journal.getJob('dataset-reset');
     requireValue(!pending || pending.phase === 'complete', 'source-reset-pending', t('errors.sources.resetPending'));
@@ -32,16 +33,16 @@ export class DatasetReset {
     const bytes = bytesOf(markerValue), marker = validateFile({ id: await this.#store.allocateFileId({ signal }),
       kind: 'reset', sha256: await sha256(bytes), size: bytes.length });
     const job = { kind: 'dataset-reset', operationId: crypto.randomUUID(), sourceId: this.#store.sourceId,
-      phase: 'capture', starter, preview: copy(preview), marker, markerValue, markerPublished: false,
+      phase: 'capture', starter, seeded, restoreOperation, preview: copy(preview), marker, markerValue, markerPublished: false,
       pageToken: null, pageIndex: 0, captured: 0, deleted: 0, retainedFolders: 0, seenFences: [], binding: null, ready: false };
     await this.#journal.putJob('dataset-reset', job); return copy(job);
   }
   status() { return this.#journal.getJob('dataset-reset'); }
-  step({ signal } = {}) {
+  step({ signal, seed = null } = {}) {
     if (this.#running) return this.#running;
-    this.#running = this.#step(signal).finally(() => { this.#running = null; }); return this.#running;
+    this.#running = this.#step(signal, seed).finally(() => { this.#running = null; }); return this.#running;
   }
-  async #step(signal) {
+  async #step(signal, seed) {
     let job = await this.status();
     if (!job || job.phase === 'complete') return job;
     invalid(job.kind === 'dataset-reset' && job.sourceId === this.#store.sourceId);
@@ -101,8 +102,9 @@ export class DatasetReset {
       await save({ markerPublished: true, phase: 'initialize' }); return copy(job);
     }
     if (job.phase === 'initialize') {
+      invalid(!job.seeded || typeof seed === 'function');
       const binding = await new DatasetLifecycle(this.#store, this.#journal).initialize({ key: initializeKey,
-        fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard });
+        fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard, seed: job.seeded ? seed : null });
       await save({ binding, phase: 'cleanup' }); return copy(job);
     }
     if (job.phase === 'cleanup') {

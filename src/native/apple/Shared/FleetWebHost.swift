@@ -57,6 +57,14 @@ import UIKit
             service = FleetService(database: database, google: google, platform: platform, choose: { [weak self] in
                 guard let self else { throw FleetFailure("native-closed", "The native session has ended.") }; return try await self.chooseDirectory()
             })
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--drive-read-probe"), let service {
+                let report = await service.readOnlyDriveProbe()
+                try FleetProtocol.encode(report).write(to: directory.appendingPathComponent("drive-read-probe.json"), options: .atomic)
+                await service.close(); self.service = nil; self.google = nil
+                return
+            }
+            #endif
             if let service { try await configure?(service) }
             #if os(iOS)
             if let inbox = try? FleetCaptureInbox() { await service?.setCapture { method, args in try await inbox.invoke(method, args) } }

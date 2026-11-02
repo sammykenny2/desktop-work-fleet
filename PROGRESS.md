@@ -61,6 +61,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   local commit; a five-minute audit and every nonempty feed retain full generation checks.
   Automatic empty checks keep the completed status. Shared/controller and renderer fixtures
   cover this path; authenticated timing and all-platform acceptance remain open in PLAN-012.
+- Apple Drive sessions and direct Linux Drive HTTPS connections persist within the account
+  context, with request-local bounds and cancellation. Apple Debug has a read-only,
+  redacted transport probe. Loopback/native component checks and Apple builds pass;
+  live Google connection reuse and latency remain unverified.
 - Sign-out removes only this device's credentials and no longer revokes the grant
   ([ADR-021](docs/decisions/021-windows-google-account-and-sync.md)). Installed builds up to 0.2.3 still revoke on sign-out.
 - Earlier flat-file transport evidence: real Windows sign-in, upload, resumable upload and changes feed on Drive. User reports show real sign-in and sync

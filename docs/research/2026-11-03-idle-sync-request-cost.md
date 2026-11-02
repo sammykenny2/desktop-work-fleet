@@ -75,13 +75,37 @@ implementation or proof of all provider behaviors.
   efficient desktop/mobile read path.
   [Push notifications](https://developers.google.com/workspace/drive/api/guides/push).
 
+## Implementation evidence and transport audit
+
+The shared idle regression now observes one provider feed call, zero local record reads
+and two payload-row writes. The due audit observes eight provider calls. The history
+fixture is lazy, as in the baseline; this is not an authenticated HTTP timing result.
+
+| Host | Transport evidence and implementation |
+|---|---|
+| macOS / iOS | FleetDrive now owns one BoundedHTTPSession per account context. The macOS loopback probe observes reused URLSession transactions and exercises response bounds, cancellation, redirects and parallel tasks. Both app targets build. This is not evidence of live Google reuse on iOS. |
+| Linux | The previous helper used urllib for every request. Python explicitly documents its `Connection: close` behavior. Drive now retains drained direct HTTPS connections with request-local headers; OAuth/avatar requests keep their original helper. A configured HTTPS proxy retains the urllib path, so proxy routing is never silently bypassed. Loopback checks confirm reuse and isolation; real Linux/Google timing remains unverified. |
+| Windows | NativeGoogle owns one HttpClient and lifetime cancellation source, disposing both at context retirement. No per-request client replacement was found; no networking change was made. |
+| Android | GoogleFiles creates one HttpURLConnection wrapper per request, drains/closes the bounded stream and calls disconnect. Android documents that disconnect can return the underlying socket to its pool. This is not the Apple session-lifetime defect, and no transport rewrite was justified. Actual device/server reuse still needs measurement. |
+
+Primary sources for the additional audit:
+[Python urllib.request](https://docs.python.org/3/library/urllib.request.html),
+[Python http.client](https://docs.python.org/3/library/http.client.html),
+[Android HttpURLConnection](https://developer.android.com/reference/java/net/HttpURLConnection).
+
+The Apple Debug `--drive-read-probe` route uses FleetGoogle and FleetDrive before
+loading the renderer. It compares per-request sessions with the account session using
+the same fixed read-only feed, and emits only aggregate counts, times and connection
+metrics. It is a native transport measurement, not a complete sync round or control-event
+test. See [the procedure](../testing.md#idle-sync-verification).
+
 ## Unverified boundaries
 
-No authenticated per-request timing, native connection-reuse measurement or real
-multi-device control-event experiment was performed for this proposal. The maintainer
+No authenticated per-request timing, live Google connection-reuse measurement or real
+multi-device control-event experiment has been captured for this change. The maintainer
 reported that reset completed and synchronization now succeeds; that observation does
-not establish these performance properties. Windows/Linux/Android transport lifetime
-also needs separate inspection before attributing Apple's issue to those hosts.
+not establish these performance properties. Transport inspection and isolated checks
+above do not establish authenticated timing or native UI acceptance on those hosts.
 
 The proposed audit interval and one-request fast path are design choices. The primary
 sources do not promise a visibility deadline, atomic snapshot across separate requests,

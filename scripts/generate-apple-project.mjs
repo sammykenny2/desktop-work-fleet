@@ -30,6 +30,7 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
   const settings = (platform, mode) => ({
     SWIFT_VERSION: '5.0', SWIFT_STRICT_CONCURRENCY: 'minimal', CLANG_ENABLE_MODULES: 'YES',
     SWIFT_OPTIMIZATION_LEVEL: mode === 'Release' ? '-O' : '-Onone', DEBUG_INFORMATION_FORMAT: 'dwarf-with-dsym',
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: mode === 'Debug' ? '$(inherited) DEBUG' : '$(inherited)',
     PRODUCT_NAME: '$(TARGET_NAME)', PRODUCT_BUNDLE_IDENTIFIER: '$(WORK_FLEET_APP_ID)', CODE_SIGN_STYLE: 'Automatic',
     CODE_SIGN_ENTITLEMENTS: `$(SRCROOT)/${platform}/WorkFleet.entitlements`,
     INFOPLIST_FILE: '$(SRCROOT)/.generated/$(TARGET_NAME)/Info.plist', GENERATE_INFOPLIST_FILE: 'NO',

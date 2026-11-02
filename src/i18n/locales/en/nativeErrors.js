@@ -89,6 +89,7 @@ export default {
   'nativeErrors.invalid-revision': "Local save versions aren't continuous. Keep your text and reopen Work Fleet.",
   'nativeErrors.invalid-secret': 'The secure storage item is too large or not valid.',
   'nativeErrors.invalid-source': "The Google transfer address isn't valid.",
+  'nativeErrors.invalid-source-page': 'Google Drive returned an invalid change page. Local data is kept.',
   'nativeErrors.dataset-response-id': 'Google Drive returned a different file ID. Retry has stopped (dataset-response-id).',
   'nativeErrors.dataset-response-type': 'Google Drive returned an unexpected file type (dataset-response-type).',
   'nativeErrors.dataset-response-parent': 'Google Drive returned an unexpected parent folder (dataset-response-parent).',

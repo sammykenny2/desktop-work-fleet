@@ -8,8 +8,11 @@ actor FleetGoogle {
     }
 }
 
+final class BoundedHTTPSession { func close() {} }
 final class BoundedHTTP {
-    init(maximum: Int) { }
+    struct Metrics { let duration = 0.01; let transactions = 1; let reusedConnections = 1 }
+    var metrics: Metrics? { Metrics() }
+    init(maximum: Int, session: BoundedHTTPSession? = nil) { }
     func cancel() { }
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         try await ScriptedHTTP.shared.send(request)
@@ -98,6 +101,29 @@ actor ScriptedHTTP {
     }
     static func fixture(_ name: String) async throws {
         switch name {
+        case "read-probe", "read-probe-invalid":
+            var components = URLComponents(string: "https://www.googleapis.com/drive/v3/changes")!
+            components.queryItems = [URLQueryItem(name: "pageToken", value: "fixture-private-cursor"), URLQueryItem(name: "spaces", value: "appDataFolder"),
+                URLQueryItem(name: "pageSize", value: "100"), URLQueryItem(name: "includeRemoved", value: "true"),
+                URLQueryItem(name: "fields", value: "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(FleetDataset.fields),mimeType))")]
+            let start = ScriptedHTTP.Step(method: "GET", url: "https://www.googleapis.com/drive/v3/changes/startPageToken?fields=startPageToken",
+                                          response: Data("{\"startPageToken\":\"fixture-private-cursor\"}".utf8))
+            let feed = ScriptedHTTP.Step(method: "GET", url: components.url!.absoluteString,
+                response: Data((name == "read-probe" ? "{\"newStartPageToken\":\"fixture-private-cursor\"}" : "{\"changes\":null,\"newStartPageToken\":\"fixture-private-cursor\"}").utf8))
+            try await ScriptedHTTP.shared.prepare(name == "read-probe" ? Array(repeating: [start] + Array(repeating: feed, count: 31), count: 2).flatMap { $0 } : [start, feed])
+            let drive = adapter(), report = await drive.readOnlyProbe(intervalNanoseconds: 0)
+            let modes = report["modes"] as! [[String: Any]]
+            try check(modes.count == (name == "read-probe" ? 2 : 1), "Unexpected probe modes")
+            if name == "read-probe" {
+                for mode in modes {
+                    try check(mode["requests"] as? Int == 32, "Probe read budget changed")
+                    let groups = mode["groups"] as! [String: [String: Any]]
+                    try check(groups["empty"]?["samples"] as? Int == 30, "Warm samples were not separated")
+                }
+            } else { try check(modes[0]["errorCode"] as? String == "invalid-source-page", "Invalid page was accepted as empty") }
+            let encoded = String(data: try FleetProtocol.encode(report), encoding: .utf8)!
+            try check(!encoded.contains("fixture-") && !encoded.contains("Bearer") && !encoded.contains("googleapis.com"), "Probe leaked private identifiers")
+            await drive.close()
         case "delete-batch":
             let ids = ["old-one", "old-two"], body = try FleetDataset.deleteBatch(ids)
             let reply = Data("--reply\r\nContent-Type: application/http\r\nContent-ID: response-wf-0\r\n\r\nHTTP/1.1 204 No Content\r\n\r\n--reply--\r\n".utf8)

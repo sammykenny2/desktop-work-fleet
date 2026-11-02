@@ -104,13 +104,14 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     native: { info: { capabilities: { vaultUnlock: capability } }, bridge: { request: async method => {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
     } } },
-    syncService: { sync: async options => { calls.push(['sync', options.force]); if (sync) await sync(); } },
+    syncService: { sync: async options => { await options.onActivity(); calls.push(['sync', options.force]); if (sync) await sync(); return { phase: 'idle' }; } },
     syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null,
     document: { querySelectorAll: () => [] },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
     flushDraft: async () => calls.push('flush'),
-    workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingCount: 0, layout: { placeNew: async () => {} } },
+    workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingCount: 0, layout: { placeNew: async () => {} },
+      syncState: { lastSuccessfulSyncAt: '2026-11-03T01:00:00.000Z' } },
     activeGroups: snapshot => snapshot.groups, activeGroupId: 'group',
     controller: { reconcile: async () => {} }, workAreas: () => [], render() {},
   });
@@ -134,6 +135,38 @@ test('background sync never requests unlock even when the vault is locked', asyn
   await f.invoke(false);
   assert.deepEqual(f.calls, ['flush', ['sync', false]]);
   assert.equal(textOf(f.states.at(-1)[1]), t('sync.status.paused'));
+});
+
+test('quiet empty results retain the displayed completion time and skip draft/projection work', async () => {
+  for (const force of [false, true]) {
+    const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false;
+    f.context.syncService.sync = async () => ({ phase: 'idle', unchanged: true });
+    f.context.controller.reconcile = () => assert.fail('An empty result must not rebuild the projection');
+    f.context.render = () => assert.fail('An empty result must not redraw notes');
+    await f.invoke(force);
+    assert.deepEqual(f.calls, []);
+    assert.equal(f.states.some(state => state[0] === 'busy'), force);
+    assert.equal(textOf(f.states.at(-1)[1]), t('sync.status.syncedAt', {
+      time: formatDate(f.context.workspace.syncState.lastSuccessfulSyncAt, { hour: '2-digit', minute: '2-digit' }),
+    }));
+  }
+});
+
+test('new work during a quiet check gets one immediate follow-up; pending uploads show activity', async () => {
+  const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false;
+  let release, count = 0; const queued = [];
+  f.context.queueMicrotask = callback => queued.push(callback);
+  f.context.syncService.sync = async options => {
+    if (++count === 1) { await new Promise(resolve => { release = resolve; }); return { phase: 'idle', unchanged: true }; }
+    await options.onActivity(); f.context.workspace.pendingCount = 0; return { phase: 'idle' };
+  };
+  const checking = f.invoke(false);
+  assert.equal(f.states.some(state => state[0] === 'busy'), false);
+  f.context.workspace.pendingCount = 1; release(); await checking;
+  assert.equal(f.states.at(-1)[0], 'pending'); assert.equal(queued.length, 1);
+  queued[0](); assert.equal(f.states.at(-1)[0], 'busy');
+  await new Promise(setImmediate);
+  assert.equal(count, 2); assert.equal(f.states.at(-1)[0], 'ok'); assert.equal(queued.length, 1);
 });
 
 test('an open versions page holds syncing, because its choices name the versions it shows', async () => {

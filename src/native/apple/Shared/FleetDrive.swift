@@ -7,8 +7,12 @@ actor FleetDrive {
     private var closed = false
     private var uploads: [String: (path: String, digest: String, size: Int)] = [:]
     private var clients: [UUID: BoundedHTTP] = [:]
+    private let transport = BoundedHTTPSession()
+    private var probeRequests: [[String: Any]]?
+    private var isolatedProbe = false
     init(google: FleetGoogle, profile: String) { self.google = google; account = profile.hasPrefix("google:") ? String(profile.dropFirst(7)) : "" }
-    func close() { closed = true; for client in clients.values { client.cancel() }; clients.removeAll(); uploads.removeAll() }
+    deinit { transport.close() }
+    func close() { closed = true; transport.close(); for client in clients.values { client.cancel() }; clients.removeAll(); uploads.removeAll() }
     private func path(_ base: String, _ fields: [(String, String)]) -> String {
         var query = URLComponents(); query.queryItems = fields.map { URLQueryItem(name: $0.0, value: $0.1) }; return base + (query.percentEncodedQuery.map { "?" + $0 } ?? "")
     }
@@ -16,15 +20,26 @@ actor FleetDrive {
         try FleetProtocol.require(!closed && !account.isEmpty, "stale-session", "The Google session has ended.")
         guard let url = URL(string: "https://www.googleapis.com" + path), url.scheme == "https", url.host == "www.googleapis.com", url.user == nil, url.password == nil, url.fragment == nil, url.port == nil || url.port == 443 else { throw FleetFailure("invalid-source", "The Google transfer address isn't valid.") }
         var request = URLRequest(url: url); request.httpMethod = method; request.httpBody = body
+        let started = ProcessInfo.processInfo.systemUptime
         request.setValue("Bearer " + (try await google.token(account)), forHTTPHeaderField: "Authorization")
+        let authenticated = ProcessInfo.processInfo.systemUptime
+        try FleetProtocol.require(!closed, "stale-session", "The Google session has ended.")
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
-        let id = UUID(), client = BoundedHTTP(maximum: maximum); clients[id] = client; defer { clients.removeValue(forKey: id) }
+        let id = UUID(), client = BoundedHTTP(maximum: maximum, session: isolatedProbe ? nil : transport); clients[id] = client; defer { clients.removeValue(forKey: id) }
         let bytes: Data, response: HTTPURLResponse
         do { (bytes, response) = try await client.send(request) }
         catch let failure as FleetFailure { throw failure }
         catch { throw FleetFailure("network", "Couldn't connect to Google Drive. Pending changes are kept.") }
         try FleetProtocol.require(!closed, "stale-session", "The Google session has ended.")
         let status = response.statusCode
+        if probeRequests != nil {
+            let metrics = client.metrics
+            probeRequests?.append(["kind": context == "changes" ? "changes" : "start-token", "status": status,
+                                   "responseBytes": bytes.count, "authMs": (authenticated - started) * 1000,
+                                   "wallMs": (ProcessInfo.processInfo.systemUptime - started) * 1000,
+                                   "httpMs": (metrics?.duration ?? 0) * 1000,
+                                   "transactions": metrics?.transactions ?? 0, "reusedConnections": metrics?.reusedConnections ?? 0])
+        }
         if (200..<300).contains(status) || allow308 && status == 308 { return (bytes, response) }
         let error = try? FleetProtocol.json(bytes); let reasons = (error?["error"] as? [String: Any])?["errors"] as? [[String: Any]]; let reason = reasons?.first?["reason"] as? String ?? ""
         let code = status == 401 ? "unauthorized" : status == 409 ? "file-exists" : status == 429 || ["rateLimitExceeded", "userRateLimitExceeded"].contains(reason) ? "rate-limit"
@@ -36,6 +51,51 @@ actor FleetDrive {
         throw FleetFailure(code, "Google Drive didn't finish syncing (\(code)). Local data and pending changes are kept.")
     }
     private func json(_ path: String, context: String = "") async throws -> [String: Any] { try FleetProtocol.json((try await request(path, context: context)).0) }
+    /// Debug launch only: fixed read operations in this app's OAuth context, with no renderer or cloud writes.
+    func readOnlyProbe(rounds: Int = 30, intervalNanoseconds: UInt64 = 1_000_000_000) async -> [String: Any] {
+        guard (1...60).contains(rounds), intervalNanoseconds <= 20_000_000_000, probeRequests == nil else { return ["errorCode": "invalid-request"] }
+        var modes: [[String: Any]] = []
+        probeRequests = []; defer { probeRequests = nil; isolatedProbe = false }
+        for isolated in [true, false] {
+            isolatedProbe = isolated; probeRequests = []
+            var categories: [String] = [], errorCode: String?
+            do {
+                let start = try await json(path("/drive/v3/changes/startPageToken", [("fields", "startPageToken")]))
+                var cursor = try FleetProtocol.text(start, "startPageToken", 8192)
+                for index in 0...rounds {
+                    let value = try await json(path("/drive/v3/changes", [("pageToken", cursor), ("spaces", "appDataFolder"),
+                        ("pageSize", "100"), ("includeRemoved", "true"), ("fields", "nextPageToken,newStartPageToken,changes(fileId,removed,file(\(Self.fields),mimeType))")]), context: "changes")
+                    let changes = value["changes"] ?? []
+                    guard let changes = changes as? [Any], changes.count <= 100,
+                          (value["nextPageToken"] != nil) != (value["newStartPageToken"] != nil) else {
+                        throw FleetFailure("invalid-source-page", "Google returned an invalid change page.")
+                    }
+                    cursor = try FleetProtocol.text(value, value["nextPageToken"] != nil ? "nextPageToken" : "newStartPageToken", 8192)
+                    categories.append(index == 0 ? "cold" : changes.isEmpty && value["nextPageToken"] == nil ? "empty" : "changed")
+                    if index < rounds { try await Task.sleep(nanoseconds: intervalNanoseconds) }
+                }
+            } catch { errorCode = (error as? FleetFailure)?.code ?? (closed ? "stale-session" : "network") }
+            let samples = probeRequests ?? [], feeds = samples.filter { $0["kind"] as? String == "changes" }
+            var groups: [String: Any] = [:]
+            for category in ["start", "cold", "empty", "changed"] {
+                let selected = category == "start" ? samples.filter { $0["kind"] as? String == "start-token" }
+                    : zip(categories, feeds).filter { $0.0 == category }.map { $0.1 }
+                var summary: [String: Any] = ["samples": selected.count]
+                for key in ["authMs", "httpMs", "wallMs"] {
+                    let sorted = selected.compactMap { $0[key] as? Double }.sorted()
+                    if !sorted.isEmpty { summary[key] = ["median": sorted[(sorted.count - 1) / 2], "p95": sorted[Int(ceil(Double(sorted.count) * 0.95)) - 1]] }
+                }
+                for key in ["responseBytes", "transactions", "reusedConnections"] { summary[key] = selected.compactMap { $0[key] as? Int }.reduce(0, +) }
+                groups[category] = summary
+            }
+            modes.append(["transport": isolated ? "per-request-session" : "account-session", "requests": samples.count,
+                          "startTokenRequests": samples.filter { $0["kind"] as? String == "start-token" }.count,
+                          "groups": groups, "errorCode": errorCode as Any? ?? NSNull()])
+            if errorCode != nil { break }
+        }
+        return ["format": "work-fleet-drive-read-probe", "schemaVersion": 1, "readOnly": true,
+                "intervalMs": intervalNanoseconds / 1_000_000, "modes": modes]
+    }
     // The account chip's name and photo: Drive's about.user needs no scope beyond app data. The photo is a public
     // googleusercontent address, fetched without the access token; an unusable photo leaves only the name.
     private func profile() async throws -> [String: Any] {

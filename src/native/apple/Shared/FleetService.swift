@@ -34,6 +34,9 @@ actor FleetService {
     func setUpdates(_ available: Bool) { updates = available }
     func setAttachmentFiles(_ handler: @escaping @MainActor (Data, String, Bool) async throws -> Any) { attachmentFiles = handler }
     func setLanguage(_ handler: @escaping @MainActor (String) throws -> Void) { language = handler }
+    #if DEBUG
+    func readOnlyDriveProbe() async -> [String: Any] { await drive.readOnlyProbe() }
+    #endif
     private func add(_ value: Transfer) throws -> String {
         try FleetProtocol.require(!closed && transfers.count < 8 && transfers.values.reduce(value.size, { $0 + $1.size }) <= 256 * 1024 * 1024, "transfer-busy", "Native transfers are busy.")
         let id = FleetProtocol.uuid(); transfers[id] = value; return id

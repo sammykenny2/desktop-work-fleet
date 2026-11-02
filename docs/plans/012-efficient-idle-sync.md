@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress; implementation authorized 2026-11-03; native/provider acceptance and independent review pending |
+| Status | Core, UI and transport implemented; authenticated/all-platform acceptance and independent review pending |
 | Owner | Maintainer |
 | Reviewer | Independent review pending |
 | Related specification | [SPEC-011](../specs/011-efficient-idle-sync.md) |
@@ -28,9 +28,10 @@ bump, release, reset or operations on a real account.
 - [x] Turn the [baseline procedure](../research/2026-11-03-idle-sync-request-cost.md)
   into deterministic provider-call and local-record counters. Keep HTTP counts distinct
   from bridge/provider counts; identify cold, ordinary idle, audit and changed-data runs.
-- [ ] Add an opt-in native diagnostic route using the app's own account context and
+- [x] Add an opt-in native diagnostic route using the app's own account context and
   Drive transport. Produce aggregate request kinds/counts, bytes, durations and reuse
   metrics, never tokens, raw cursors, account/file IDs, note content or request headers.
+  Apple Debug implements this route; it measures native transport separately from the full sync round.
 - [ ] Establish an authenticated read-only baseline before optimizing the native path.
   Use a legitimate in-app sign-in, not extraction from a protected app container or a
   connector with a different OAuth application. Missing authorization remains an explicit
@@ -76,13 +77,13 @@ as real Drive proof until Phase 5.
 This slice is independent of the JS shortcut and can be developed after Phase 0;
 it does not wait for the large-history fixture work.
 
-- [ ] Give Apple Drive traffic an account-context transport lifetime and bounded
+- [x] Give Apple Drive traffic an account-context transport lifetime and bounded
   per-task state. Preserve individual cancellation, redirects, timeouts and integrity.
-- [ ] Test registration/cancellation races, exactly-once completion, parallel bounded
+- [x] Test registration/cancellation races, exactly-once completion, parallel bounded
   responses, oversized responses, sign-out/account switch and host shutdown.
 - [ ] Use URLSession task metrics to verify reuse on macOS and iOS where the server
   permits it. A test server proves client behavior, not live Google reuse.
-- [ ] Audit Windows/Linux/Android HTTP client lifetimes; record evidence and fix only
+- [x] Audit Windows/Linux/Android HTTP client lifetimes; record evidence and fix only
   demonstrated recreation problems without broad unrelated networking changes.
 
 Deliverable: native transport improvements with account isolation and measured lifetime.
@@ -94,8 +95,9 @@ Deliverable: native transport improvements with account isolation and measured l
 - [x] Coalesce timer/online/visibility/host events and handle one resume check. Preserve
   immediate follow-up for newly saved work without back-to-back idle polling loops.
 - [x] Reuse existing English and Traditional Chinese status entries; no new text is needed.
-- [ ] Cover background empty/audit, delayed/error, manual refresh, incoming change,
-  pending upload and resume cases in renderer tests. Check no window activation is added.
+- [x] Cover background empty/audit, delayed/error, manual refresh and incoming changes
+  in production renderer probes; cover pending-upload follow-up in presenter tests and
+  resume invalidation in controller tests. No window activation is added.
 
 Deliverable: status that follows actual work, without using UI changes to mask cost.
 
@@ -112,8 +114,9 @@ Deliverable: status that follows actual work, without using UI changes to mask c
 - [ ] Complete macOS/Windows/Linux/Android/iOS native checks, separating emulator,
   physical-device, renderer and authenticated-Drive results. An unavailable environment
   stays unverified and prevents an all-platform acceptance claim.
-- [ ] Run the documented full regression suite and obtain independent review of the
-  implementation. Update owning testing/behavior documents with verified boundaries.
+- [ ] Obtain independent review of the implementation. The documented regression suite,
+  Apple builds, native component checks and renderer probes run during implementation;
+  owning testing/behavior documents distinguish them from unavailable device/provider evidence.
 
 Deliverable: evidence for the SPEC's budgets and safety cases. Only then mark the plan
 complete; publication remains a separate authorized task. Rollback is a code rollback

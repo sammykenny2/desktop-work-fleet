@@ -115,7 +115,7 @@ try {
       });
     });
     const provider = new DatasetTestProvider(), localResets = [], errors = [], oldReads = [], driveCalls = [];
-    let holdChanges = false, releaseChanges = null, failChanges = false;
+    let holdChanges = false, releaseChanges = null, failChanges = false, holdRead = false, releaseRead = null;
     let failLocalReset = oldLocal, releaseFailedReset = null;
     const resetInterruption = oldCloud && !oldLocal;
     let releaseReset = null, interruptReset = resetInterruption;
@@ -157,6 +157,9 @@ try {
         }
         if (method === 'listDatasetChanges' && holdChanges) {
           holdChanges = false; await new Promise(resolve => { releaseChanges = resolve; });
+        }
+        if (method === 'readObject' && holdRead) {
+          holdRead = false; await new Promise(resolve => { releaseRead = resolve; });
         }
         if (args.bytes) args.bytes = Uint8Array.from(args.bytes);
         const missing = method === 'deleteFiles' ? new Set(args.ids.filter(id => !provider.files.has(id))) : null;
@@ -303,6 +306,15 @@ try {
         assert.ok(await page.evaluate(() => window.fixtureListChildren.every((node, i) => node === document.querySelector('#list').childNodes[i])),
           'empty checks keep the note DOM rather than rebuilding it');
         assert.deepEqual(driveCalls, ['listDatasetChanges']); unchangedCloud();
+        driveCalls.length = 0; holdChanges = true;
+        await page.clock.fastForward(300000);
+        await expect.poll(() => typeof releaseChanges).toBe('function');
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
+        releaseChanges(); releaseChanges = null;
+        await expect(page.locator('#google-sync')).toBeEnabled();
+        assert.equal(driveCalls.filter(method => method === 'listDatasetChanges').length, 1);
+        assert.equal(driveCalls.length, 8, 'a due audit adds one generation validation');
+        assert.ok(!(await page.evaluate(() => window.fixtureBusyStates)).includes('busy'), 'an empty audit stays quiet');
         if (handheld) await page.locator('#drawer-toggle').click();
         await page.locator('#settings-button').click();
         await page.locator('#settings-dialog [data-page="account"]').click();
@@ -319,7 +331,21 @@ try {
         await expect(page.locator('#account')).toHaveAttribute('data-sync', 'error');
         await expect(page.locator('#account-detail')).toHaveText('Synthetic idle network unavailable');
         assert.equal((await read()).state.sync.lastSuccessfulSyncAt, successfulAt, 'failed checks do not report a new successful time');
-        console.log(`PASS ${engine}/${platform}: idle checks are quiet/coalesced, preserve note DOM, show failures and keep manual refresh visible.`);
+        await page.locator('#google-sync').click();
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
+        const peerStorage = new WorkspaceRecordStorage(new MemoryRecordStore(), profileId);
+        const peer = await Workspace.create({ profileId, deviceId: 'idle-peer', current: true, bootstrapGroup: false,
+          area: { x: 0, y: 0, width: 1200, height: 900 }, persist: (...args) => peerStorage.save(...args) });
+        const peerSync = new DatasetSync({ workspace: peer, storage: peerStorage, fileStore: provider });
+        await peerSync.sync(); await peer.createCard({ format: 'markdown', text: 'Incoming while idle', attachments: [] });
+        await peerSync.sync(); await peerSync.stop();
+        holdRead = true; await page.clock.fastForward(21000);
+        await expect.poll(() => typeof releaseRead).toBe('function');
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'busy');
+        releaseRead(); releaseRead = null;
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
+        assert.ok((await read()).state.cards.some(card => card.content.text === 'Incoming while idle'));
+        console.log(`PASS ${engine}/${platform}: idle/audit checks stay quiet, incoming changes/manual refresh show activity, errors stay visible and triggers coalesce.`);
         console.log(`PASS ${engine}/${platform}: legacy local second device joins current cloud without cloud reset.`);
         continue;
       }

@@ -27,6 +27,13 @@ completion or after a 110-second timeout.
 After sign-in the account workspace is created from the HTTPS userinfo sub; the system Secret Service stores the access
 and refresh credentials, and the renderer never reads credentials.
 Drive uses only fixed appDataFolder FileStore operations, with SHA-256/metadata checks and 1 MiB resumable chunks.
+Direct Drive requests reuse drained HTTPS connections within their account context;
+headers and response byte limits remain request-local. Failed transfers retire their
+connection and rely on sync's existing retry policy, without silently replaying writes.
+When an HTTPS proxy is configured and not bypassed, the original urllib transport is
+retained to preserve its routing/authentication behavior; this fallback does not pool
+connections. OAuth and avatar traffic are unchanged. Loopback pool tests pass, but real
+Linux/Google latency remains unverified; see [idle sync verification](../../../docs/testing.md#idle-sync-verification).
 
 Data is in `$XDG_DATA_HOME/WorkFleet` by default (usually `~/.local/share/WorkFleet`); `--data PATH` selects a new
 directory with the same protection. [ADR-047](../../../docs/decisions/047-linux-local-key-without-keyring-prompts.md) and

@@ -51,10 +51,56 @@ backoff and lost commit acknowledgements retain the existing safety boundaries.
 entry point with real IndexedDB and synthetic account/Drive boundaries in Chromium,
 WebKit and handheld layouts. It checks that delayed automatic empty checks stay quiet,
 coalesced triggers issue one feed read, note DOM stays intact, manual refresh shows
-activity, and failed checks expose an error without changing the completion time.
+activity, due audits stay quiet, incoming changes show activity before being applied,
+and failed checks expose an error without changing the completion time.
+`tests/google-vault-pause.test.js` also runs the actual coordinator with a bounded presenter
+fixture: a save arriving during a quiet check gets one immediate follow-up, pending work
+shows activity, and empty checks never flush drafts or rebuild notes. Controller tests
+cover long-resume invalidation separately.
 These checks neither use a native phone host nor measure the real Drive round trip.
 No window activation call is introduced by the shared status path. Full native/provider
 acceptance and independent review remain open in PLAN-012.
+
+Native connection checks:
+
+```bash
+python3 -B -m unittest discover -s tests -p 'test_apple_bounded_http.py' -v
+python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
+python3 -B -m unittest discover -s tests -p 'test_linux_drive_http.py' -v
+```
+
+The Apple transport probe uses real URLSession against an OS-assigned loopback port;
+it asserts task-metric reuse, header isolation, bounds, redirects, cancellation before
+registration/during transfer, parallel completion and context retirement. The Linux
+probe uses the production pool with only its endpoint replaced by loopback HTTP. It
+checks reuse, proxy fallback, bounds, parallel requests and retirement. These servers
+do not test live TLS negotiation or Google behavior. The platform source audit and
+primary references are in the [research](research/2026-11-03-idle-sync-request-cost.md).
+
+For authenticated Apple measurements, first finish editing and close the app normally.
+Use a signed Debug build with the same configured app identity and an already signed-in
+Google profile, then pass `--drive-read-probe` as a launch argument (Xcode scheme arguments,
+or `devicectl device process launch --device DEVICE APP_ID --drive-read-probe` on iOS).
+Do not extract credentials, bypass container permissions or use another OAuth application.
+The route runs before the renderer loads, so it does not start normal synchronization.
+It reads a start token and 31 change pages per transport mode, with one second between
+pages: one cold check and 30 warm samples. The first mode reconstructs the prior
+per-request URLSession behavior; the second uses the production account session.
+It stops on failure, never retries a malformed response as empty, and writes
+`drive-read-probe.json` in the app's `Library/Application Support/WorkFleet` directory.
+The window stays blank during this deliberate diagnostic launch; quit and reopen without
+the argument to return to the app. Release builds ignore the argument.
+
+The report contains only aggregate request/response-byte counts, task transactions,
+reused connections, median/p95 native wall/HTTP/authentication time, sample categories
+and stable error codes. It contains no tokens, cursors, URLs, account/file IDs, headers
+or note text. SDK authorization time is separate from Drive HTTP; the report does not
+count the SDK's internal authentication requests. Changed/paged responses are separated
+from ordinary empty samples. Do not label this one-second-cadence transport probe as
+the full 20-second scheduler, bridge/local-commit timing, due-audit or control-event
+acceptance. Those SPEC-011 checks still need a running app and an authorized test dataset.
+The route's request budget and redaction are covered by synthetic native adapter tests;
+no authenticated timing has yet been captured for this implementation.
 
 ## Dataset checkpoint and deletion verification
 

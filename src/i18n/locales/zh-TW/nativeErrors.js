@@ -89,6 +89,7 @@ export default {
   'nativeErrors.invalid-revision': '本機保存版本不連續，請保留文字並重新開啟。',
   'nativeErrors.invalid-secret': '安全儲存內容過大或無效。',
   'nativeErrors.invalid-source': 'Google 傳輸位置無效。',
+  'nativeErrors.invalid-source-page': 'Google Drive 回傳的變更清單無效，已保留本機資料。',
   'nativeErrors.dataset-response-id': 'Google Drive 回傳的檔案 ID 不符，已停止重試（dataset-response-id）。',
   'nativeErrors.dataset-response-type': 'Google Drive 回傳的檔案類型不符（dataset-response-type）。',
   'nativeErrors.dataset-response-parent': 'Google Drive 回傳的上層資料夾不符（dataset-response-parent）。',

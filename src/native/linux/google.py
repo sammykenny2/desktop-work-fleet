@@ -14,6 +14,7 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 import protocol as p
 import dataset
+from drive_http import DriveHTTP
 from text import t
 
 SCOPE = "https://www.googleapis.com/auth/drive.appdata"
@@ -104,6 +105,7 @@ class Google:
         self.vault_error = None
         self.rejected_access = None
         self.uploads = {}
+        self.transport = DriveHTTP(lambda *args: http(*args))
 
     @property
     def available(self):
@@ -273,7 +275,7 @@ class Google:
         return base + "?" + urlencode(query)
 
     def request(self, path, method="GET", data=None, headers=None, maximum=2 * 1024 * 1024, context="", allow308=False):
-        status, body, response = http("https://www.googleapis.com" + path, method, data, {**(headers or {}), "Authorization": "Bearer " + self.token()}, maximum)
+        status, body, response = self.transport.request("https://www.googleapis.com" + path, method, data, {**(headers or {}), "Authorization": "Bearer " + self.token()}, maximum)
         p.require(not self.closed.is_set(), "stale-session", "The Google session has ended.")
         if 200 <= status < 300 or allow308 and status == 308:
             return status, body, response
@@ -470,5 +472,6 @@ class Google:
 
     def close(self):
         self.closed.set()
+        self.transport.close()
         self.cancel_unlock()
         self.uploads.clear()

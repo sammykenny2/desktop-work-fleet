@@ -4,6 +4,14 @@ macOS 13+/iOS 16+; needs a full Xcode (Swift 5.10+) and Node 22+. This directory
 use the historical Python server. The main window and the phone editor share the packaged assets; macOS also connects the
 desktop and floating scenes.
 
+Drive traffic uses an ephemeral URLSession owned by the account context, with bounded
+per-task responses and cancellation. Account retirement closes that session. OAuth and
+avatar helpers retain their individual lifetimes. Debug builds offer the opt-in
+`--drive-read-probe` launch argument; it suppresses renderer startup and produces a
+redacted read-only transport report. Follow the [measurement procedure](../../../docs/testing.md#idle-sync-verification)
+and reopen normally afterwards. Compilation and loopback reuse do not establish real
+Google timing on macOS or iOS.
+
 ## Open directly after cloning on a Mac
 
 `WorkFleet.xcodeproj`, the workspace, two shared schemes, the default xcconfig and the icons are all in Git.

@@ -293,7 +293,7 @@ class VaultPause(unittest.TestCase):
                 return 200, b'{"sub":"fixture"}', {}
             reads.append(headers["Authorization"])
             return (401, b"{}", {}) if headers["Authorization"] == "Bearer synthetic-access" else (200, b"{}", {})
-        with patch.object(google, "http", http):
+        with patch.object(google, "http", http), patch.object(g.transport, "request", http):
             with self.assertRaises(p.Failure) as error:
                 g.request("/drive/v3/files")
             self.assertEqual(error.exception.code, "unauthorized")
@@ -327,7 +327,7 @@ class AccountDetails(unittest.TestCase):
             if isinstance(photo_response, Exception):
                 raise photo_response
             return photo_response
-        with patch.object(google, "http", http):
+        with patch.object(google, "http", http), patch.object(g.transport, "request", http):
             return g.invoke("google.profile", {"accountId": "fixture"}), calls
 
     def test_name_and_photo_are_read_without_sending_the_token_to_the_photo_host(self):

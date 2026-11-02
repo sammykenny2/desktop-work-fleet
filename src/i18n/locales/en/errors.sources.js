@@ -6,6 +6,7 @@ export default {
   'errors.sources.datasetInvalid': 'The sync dataset contains an invalid or incompatible record. Local notes are kept.',
   'errors.sources.datasetBusy': 'Sync has more pending work than one pass can safely process. Local notes are kept; sync will continue.',
   'errors.sources.datasetVisibility': 'Google has not listed the verified new files yet. Your data is kept; sync will retry.',
+  'errors.sources.datasetCapacity': 'A part of the current notes exceeds sync snapshot capacity. Unsynced changes are kept on this device. Other notes can still sync within the overall sync limit.',
   'errors.sources.datasetChanged': 'The Google dataset has changed or disappeared. Keep local work and choose how to recover before uploading.',
   'errors.sources.datasetPurged': 'This note was permanently deleted. Unpublished changes can be saved as a new note.',
   // Source pages and cursors

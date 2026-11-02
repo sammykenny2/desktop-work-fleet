@@ -89,6 +89,9 @@ This component check does not verify native sign-in, renderer transfers or real 
   seven foreground writers also make progress while another device completes three purge cycles. Cloned pending
   queues replay one logical revision and later independent edits retain both UUID branches. Injected folder/item/
   storage capacity failures preserve edits/journals across reopen and retry. These are isolated integration checks.
+  Byte-heavy cold-login/cursor-expiry fixtures cover 3 x 1 MiB, 10 x 300 KiB, 100 x 30 KiB and 150 x 20 KiB notes.
+  A 4 x 2 MiB merged shard remains readable; oversized edits retain their outbox entries while another shard syncs.
+  Per-head local cache rows and bounded garbage collection do not change the remote single-checkpoint protocol.
 - History/purge tests verify zero historical body reads while listing remote versions, one selected-version GET,
   lazy attachments, sanitized current copies, preserved neighboring notes and metadata-only folder fallback.
   They interrupt cleanup, inject late orphan uploads, invalidate one Empty Trash preview while allowing another

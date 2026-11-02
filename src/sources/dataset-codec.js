@@ -21,6 +21,11 @@ export const datasetId = value => typeof value === 'string' && value.length === 
 export const datasetFileLimit = kind => kind === 'attachment' ? 25 * 1024 * 1024
   : ['change', 'purge', 'dataset', 'ready'].includes(kind) ? 64 * 1024 : DATASET_LIMITS.checkpointBytes;
 export const datasetShard = async (kind, id) => kind === 'group' ? 'groups' : (await sha256(encoder.encode(id)))[0];
+// Leave space for the maximum captured input references, envelope, and local publication journal wrapper.
+export function requireCheckpointCapacity(heads) {
+  const size = heads.reduce((bytes, head) => bytes + encoder.encode(canonicalJson(head)).length + 1, 128 * 1024);
+  requireValue(size <= DATASET_LIMITS.checkpointBytes, 'dataset-capacity', t('errors.sources.datasetCapacity'));
+}
 
 export function validateDatasetFile(input) {
   const file = copy(input);
@@ -183,7 +188,10 @@ export function validateDatasetRecord(input) {
   invalid(exact(value, keys)); return value;
 }
 
-export const datasetRecord = (dataset, kind, fields) => validateDatasetRecord({ format: DATASET_FORMAT, schemaVersion: 1, datasetId: dataset, kind, ...fields });
+export function datasetRecord(dataset, kind, fields) {
+  if (kind === 'checkpoint' && Array.isArray(fields.heads)) requireCheckpointCapacity(fields.heads);
+  return validateDatasetRecord({ format: DATASET_FORMAT, schemaVersion: 1, datasetId: dataset, kind, ...fields });
+}
 export const encodeDatasetRecord = value => encoder.encode(canonicalJson(validateDatasetRecord(value)));
 
 export async function datasetFile(id, parentId, value) {

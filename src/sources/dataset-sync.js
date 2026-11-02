@@ -1,6 +1,7 @@
 import { copy, FleetError, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
-import { DATASET_LIMITS, DATASET_SHARDS } from './dataset-codec.js';
+import { DATASET_LIMITS, DATASET_SHARDS, requireCheckpointCapacity } from './dataset-codec.js';
+import { CurrentRevisions } from './current-revisions.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
 import { DatasetPublisher, datasetUploadKey } from './dataset-publisher.js';
 import { DatasetProtocol, listDatasetObjects, mergeDatasetInputs } from './dataset-protocol.js';
@@ -19,6 +20,7 @@ export class DatasetSync {
   #workspace; #storage; #store; #protocol; #lifecycle; #session; #binding; #latest;
   #running = null; #closed = false; #abort = new AbortController(); #now; #random; #failures = 0;
   #tailSizes = new Map();
+  #uploadAfter = null;
   #status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null };
   constructor({ workspace, storage, fileStore, now = Date.now, random = Math.random }) {
     requireValue(workspace.currentFormat && typeof fileStore.sourceId === 'string', 'invalid-source', t('errors.sources.sourceIdRequired'));
@@ -75,18 +77,23 @@ export class DatasetSync {
       await this.#pull();
       await this.#storage.deleteJob('dataset-initialize');
       // A pass is bounded even after months offline; the UI stays usable and schedules another pass.
-      const page = await this.#storage.pendingPage({ limit: 32 });
+      let page, capacityError = null;
+      try { page = await this.#storage.pendingPage({ limit: 32, after: this.#uploadAfter }); }
+      catch (error) { if (error.code !== 'stale-writer') throw error; page = await this.#storage.pendingPage({ limit: 32 }); }
       for (const operation of page.operations) {
         this.#check();
         try { await this.#push(operation); }
         catch (error) {
+          if (error.code === 'dataset-capacity') { capacityError = error; continue; }
           if (error.code !== 'dataset-purged') throw error;
           await this.#pull();
           await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId],
             { jobs: [publicationKey(this.#binding.plan.datasetId, operation.operationId)] });
         }
       }
+      this.#uploadAfter = page.next;
       await this.#pull();
+      if (capacityError) throw capacityError;
       if (this.#latest.complete && !this.#workspace.pendingCount) await this.#workspace.completeSync(this.#session, new Date(this.#now()).toISOString());
       this.#failures = 0;
       this.#status = { phase: this.#latest.complete ? 'idle' : 'syncing', pending: this.#workspace.pendingCount, nextAttemptAt: 0, error: null };
@@ -201,13 +208,18 @@ export class DatasetSync {
     const pending = await this.#storage.getJob(`checkpoint:${plan.datasetId}`);
     if (pending || tail.length >= DATASET_LIMITS.tailSoft || tailBytes + incomingBytes > 4 * 1024 * 1024
       || [...candidates.values()].some(count => count >= DATASET_LIMITS.candidates)) {
-      const shard = pending?.file.shard ?? [...DATASET_SHARDS].sort((a, b) =>
+      const ordered = pending ? [pending.file.shard] : [...DATASET_SHARDS].sort((a, b) =>
         (candidates.get(b) >= DATASET_LIMITS.candidates ? 1e12 : 0) - (candidates.get(a) >= DATASET_LIMITS.candidates ? 1e12 : 0)
         || files.filter(file => file.shard === b).reduce((sum, file) => sum + (this.#tailSizes.get(file.id) ?? 1), 0)
-        - files.filter(file => file.shard === a).reduce((sum, file) => sum + (this.#tailSizes.get(file.id) ?? 1), 0))[0];
-      const inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal);
-      const successor = await this.#protocol.checkpoint(plan, shard, inputs, this.#abort.signal);
-      capacity(await this.#protocol.retire(descriptor, plan, successor, this.#abort.signal));
+        - files.filter(file => file.shard === a).reduce((sum, file) => sum + (this.#tailSizes.get(file.id) ?? 1), 0));
+      for (const shard of ordered) {
+        if (!pending && !tail.some(file => file.shard === shard) && candidates.get(shard) < DATASET_LIMITS.candidates) continue;
+        try {
+          const inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal);
+          const successor = await this.#protocol.checkpoint(plan, shard, inputs, this.#abort.signal);
+          capacity(await this.#protocol.retire(descriptor, plan, successor, this.#abort.signal)); break;
+        } catch (error) { if (error.code !== 'dataset-capacity' || pending) throw error; }
+      }
       files = await listDatasetObjects(this.#store, { scope: 'current-all', datasetId: plan.datasetId },
         { signal: this.#abort.signal, limit: DATASET_SHARDS.length * 16 + DATASET_LIMITS.tailHard + DATASET_LIMITS.writers });
     }
@@ -232,6 +244,10 @@ export class DatasetSync {
     const publisher = new DatasetPublisher({ store: this.#store, storage: this.#storage, profileId: this.#session.profileId,
       guard: (id, kind) => this.#barrier(id, kind), signal: this.#abort.signal });
     let job = await publisher.reserve(plan, operation);
+    const incoming = { record: publisher.revision(job, operation).value.record, file: job.revision, attachments: job.attachments };
+    const locations = new Map([...this.#latest.heads, incoming].map(head => [head.record.revisionId, head]));
+    const heads = new CurrentRevisions([...locations.values()].map(head => head.record)).records.map(record => locations.get(record.revisionId));
+    requireCheckpointCapacity(heads.filter(head => head.file.shard === job.revision.shard));
     await this.#admit(job.revision.size + job.change.size);
     job = await publisher.body(plan, operation, job);
     // A receipt can already have been consumed by a checkpoint after a lost reply. Reconcile first; a late replay
@@ -247,5 +263,6 @@ export class DatasetSync {
     } else { job = { ...job, phase: 'receipt' }; await this.#storage.putJob(key, job); }
     await publisher.publish(publisher.change(job)); await this.#barrier(operation.entityId, operation.kind);
     await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] });
+    this.#latest.heads = heads;
   }
 }

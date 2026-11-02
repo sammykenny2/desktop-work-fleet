@@ -159,6 +159,13 @@ The largest row uses eight properties; no property holds plaintext note data. En
 in codecs. Metadata routes a read; strict envelope, identity, size and checksum validation establish usable content.
 A checkpoint is one bounded payload, not a manifest over shared chunks. If it cannot fit the shard limit, keep
 local changes and report capacity; do not silently split it using an unspecified reference/collection protocol.
+Local current-view caches store each head in its own row under an immutable manifest, activated with the workspace
+pointer and collected in bounded pages when obsolete. Thus merging concurrent checkpoints beyond 8 MiB does not
+prevent reading current state. Before publishing a new revision receipt, account for that shard's prospective heads;
+reserve 128 KiB for maximal coverage references, the envelope and the local publication journal within the 8 MiB
+checkpoint bound. Report `dataset-capacity` and retain affected outbox entries. Continue scanning bounded outbox
+pages so one blocked shard does not starve other shards. Consolidation can skip oversized shards, while the global
+tail/candidate ceilings still apply; reaching a global ceiling pauses publication, never current reads or local edits.
 
 ### Concrete discovery queries
 

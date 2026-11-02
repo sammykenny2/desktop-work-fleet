@@ -55,6 +55,12 @@ export class WorkspaceRecordStorage {
     return [this.#row('draft', draft.id, edit, generation, generation),
       this.#row('draft', `${draft.id}:base`, baseContent ?? null, generation, generation)];
   }
+  #controlRows(key, value) {
+    const row = (id, contents, entity = '') => ({ collection: 'control', key: id, entity, ordinal: 0, value: contents });
+    if (!key.startsWith('view:') || !Array.isArray(value.heads)) return [row(key, value)];
+    const { heads, ...metadata } = value, headKeys = heads.map(head => `${key}:${head.record.revisionId}`);
+    return [row(key, { ...metadata, headKeys }), ...heads.map((head, index) => row(headKeys[index], head, key))];
+  }
   #viewGarbage(previous, state) {
     const active = new Set(Object.values(state.sync.datasetView ?? {}));
     return Object.values(previous?.sync.datasetView ?? {}).filter(key => !active.has(key)).map(key => ({ collection: 'job',
@@ -134,7 +140,7 @@ export class WorkspaceRecordStorage {
       puts.push(...this.#owners(record.kind, record.entityId, record.value.content).filter(row => !known.has(row.key.split(':').at(-1))));
     }
     puts.push(...this.#viewGarbage(previous, state));
-    for (const { key, value } of detail.controls ?? []) puts.push({ collection: 'control', key, entity: '', ordinal: 0, value });
+    for (const { key, value } of detail.controls ?? []) puts.push(...this.#controlRows(key, value));
     for (const operation of detail.pending ?? []) puts.push(this.#row('outbox', operation.operationId, operation),
       this.#row('control', `pending:${operation.operationId}`, {}, this.#key(`pending:${operation.kind}:${operation.entityId}`)));
     for (const id of detail.removedOperations ?? []) {
@@ -177,7 +183,7 @@ export class WorkspaceRecordStorage {
     const history = detail.history ?? detail.additions ?? (keepHistory ? [] : state.revisions);
     for (const record of history) rows.push(...this.#owners(record.kind, record.entityId, record.value.content, historyGeneration));
     for (const draft of Object.values(state.drafts)) rows.push(...this.#owners('draft', draft.id, draft.content, historyGeneration));
-    for (const { key, value } of detail.controls ?? []) rows.push({ collection: 'control', key, entity: '', ordinal: 0, value });
+    for (const { key, value } of detail.controls ?? []) rows.push(...this.#controlRows(key, value));
     let chunk = [], bytes = 1024;
     for (const item of this.#unique(rows)) {
       const size = encoder.encode(canonicalJson(item)).length + 1;
@@ -219,7 +225,17 @@ export class WorkspaceRecordStorage {
     requireValue(!(await this.purgedEntities(state.cards.map(card => card.id), options)).length,
       'dataset-purged', t('errors.sources.datasetPurged'));
   }
-  async #control(collection, key) { return (await this.#store.get(this.#profile, collection, key))?.value ?? null; }
+  async #control(collection, key) {
+    const value = (await this.#store.get(this.#profile, collection, key))?.value ?? null;
+    if (collection !== 'control' || !key.startsWith('view:') || !value?.headKeys) return value;
+    const { headKeys, ...metadata } = value, heads = [];
+    for (const id of headKeys) {
+      const head = await this.#store.get(this.#profile, 'control', id);
+      if (!head || head.entity !== key) return null; // Reconcile again; never activate an incomplete cached view.
+      heads.push(head.value);
+    }
+    return { ...metadata, heads };
+  }
   #putControl(collection, key, value) {
     return this.#queue(async () => {
       this.#receipt ??= await this.#status();
@@ -295,7 +311,9 @@ export class WorkspaceRecordStorage {
         if (job.phase === collections.length) {
           const sync = (await this.#store.get(this.#profile, 'meta', this.#key('sync')))?.value;
           const activeViews = new Set(Object.values(sync?.datasetView ?? {}));
-          deletes.push({ collection: 'job', key: row.key }, ...(job.viewKeys ?? []).filter(key => !activeViews.has(key)).map(key => ({ collection: 'control', key })));
+          deletes.push({ collection: 'job', key: row.key });
+          garbage.push(...(job.viewKeys ?? []).filter(key => !activeViews.has(key)).map(key => ({ collection: 'job',
+            key: `gc:${key}`, entity: 'view-gc', ordinal: 0, value: { key } })));
         }
         await this.#write([...garbage, ...(job.phase === collections.length ? [] : [{ ...row, value: job }])], deletes);
         return true;
@@ -304,6 +322,13 @@ export class WorkspaceRecordStorage {
       if (views.rows.length) {
         const row = views.rows[0], sync = (await this.#store.get(this.#profile, 'meta', this.#key('sync')))?.value;
         const activeViews = new Set(Object.values(sync?.datasetView ?? {}));
+        if (!activeViews.has(row.value.key)) {
+          const children = await this.#store.page(this.#profile, { collection: 'control', entity: row.value.key,
+            keysOnly: true, limit: 100, expectedRevision: this.#receipt.revision });
+          if (children.rows.length) {
+            await this.#write([], children.rows.map(({ collection, key }) => ({ collection, key }))); return true;
+          }
+        }
         await this.#write([], [{ collection: 'job', key: row.key }, ...activeViews.has(row.value.key) ? [] : [{ collection: 'control', key: row.value.key }]]); return true;
       }
       const garbage = await this.#store.page(this.#profile, { collection: 'job', entity: 'attachment-gc', limit: 1, expectedRevision: this.#receipt.revision });

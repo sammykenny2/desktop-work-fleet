@@ -7,7 +7,8 @@ import { DatasetLifecycle } from '../src/sources/dataset-lifecycle.js';
 import { DatasetSync } from '../src/sources/dataset-sync.js';
 import { DatasetProtocol } from '../src/sources/dataset-protocol.js';
 import { DatasetPurge } from '../src/sources/dataset-purge.js';
-import { datasetRecord, datasetShard } from '../src/sources/dataset-codec.js';
+import { datasetFile, datasetRecord, datasetShard } from '../src/sources/dataset-codec.js';
+import { revisionRecord } from '../src/sources/revisions.js';
 import { sha256 } from '../src/sources/files.js';
 import { DatasetTestJournal, DatasetTestProvider } from './fixtures/dataset/provider.js';
 
@@ -20,6 +21,83 @@ async function client(provider, records = new MemoryRecordStore()) {
     : await Workspace.create({ profileId, deviceId: crypto.randomUUID(), area, persist, current: true, bootstrapGroup: false, history: storage });
   return { records, storage, workspace, sync: new DatasetSync({ workspace, storage, fileStore: provider }) };
 }
+
+async function checkpointFixture(count, size, sameShard = false) {
+  const provider = new DatasetTestProvider(), journal = new DatasetTestJournal();
+  const binding = await new DatasetLifecycle(provider, journal).initialize(), protocol = new DatasetProtocol(provider, journal);
+  const groupId = (await protocol.reconcile(binding.descriptor, binding.plan)).heads[0].record.entityId;
+  const shards = new Map(); let candidate = 0;
+  for (let index = 0; index < count; index++) {
+    let id, shard;
+    do { id = `fixture-note-${candidate++}`; shard = await datasetShard('card', id); } while (sameShard && shard !== 'a');
+    const record = revisionRecord('card', { id, revision: crypto.randomUUID(), groupId, deleted: false,
+      archived: false, completed: false, content: content('x'.repeat(size)) });
+    const { file } = await datasetFile(`fixture-body-${index}`, `fixture-folder-${index}`,
+      datasetRecord(binding.plan.datasetId, 'revision', { record, attachments: [] }));
+    if (!shards.has(shard)) shards.set(shard, []);
+    shards.get(shard).push({ record, file, attachments: [] });
+  }
+  for (const [shard, heads] of shards) {
+    // Separate concurrent snapshots model a shard whose merged heads exceed one checkpoint's capacity.
+    const width = sameShard ? 2 : heads.length;
+    for (let offset = 0; offset < heads.length; offset += width) await protocol.publish(`fixture-${shard}-${offset}`, binding.plan.folders.shards[shard],
+      datasetRecord(binding.plan.datasetId, 'checkpoint', { operationId: crypto.randomUUID(), shard, inputs: [], heads: heads.slice(offset, offset + width) }));
+  }
+  return { provider, binding, protocol };
+}
+
+test('cold login and expired-cursor reconciliation stage byte-heavy current state at different note counts', async () => {
+  for (const [count, size] of [[3, 1024 * 1024], [10, 300 * 1024], [100, 30 * 1024], [150, 20 * 1024]]) {
+    const { provider } = await checkpointFixture(count, size), c = await client(provider);
+    provider.forbiddenHistory = true;
+    await c.sync.sync(); assert.equal(c.workspace.snapshot.cards.length, count);
+    assert.equal(c.workspace.snapshot.groups.length, 1);
+    const changes = provider.listDatasetChanges.bind(provider); let expired = false;
+    provider.listDatasetChanges = async args => {
+      if (!expired) { expired = true; throw Object.assign(new Error('expired cursor'), { code: 'cursor-expired' }); }
+      return changes(args);
+    };
+    await c.sync.sync({ force: true }); assert.equal(c.workspace.snapshot.cards.length, count);
+    assert.equal((await (await client(provider, c.records)).storage.load('google:test')).cards.length, count);
+  }
+});
+
+test('oversized merged shards remain readable and blocked edits do not starve other shards', async () => {
+  const { provider } = await checkpointFixture(4, 2 * 1024 * 1024, true), c = await client(provider);
+  await c.sync.sync(); assert.equal(c.workspace.snapshot.cards.length, 4);
+  const large = c.workspace.snapshot.cards[0];
+  await c.workspace.updateCard(large.id, { content: content(large.content.text + ' retained locally') }, large.revision);
+  let other, blocked = 0;
+  do { other = await c.workspace.createCard(content('unrelated note')); blocked++; } while (await datasetShard('card', other.id) === 'a');
+  await assert.rejects(c.sync.sync(), { code: 'dataset-capacity' });
+  assert.ok(c.workspace.snapshot.cards.find(card => card.id === large.id).content.text.endsWith(' retained locally'));
+  assert.equal(c.workspace.pendingCount, blocked);
+  const follower = await client(provider); await follower.sync.sync();
+  assert.ok(follower.workspace.snapshot.cards.some(card => card.id === other.id));
+  assert.equal(follower.workspace.snapshot.cards.find(card => card.id === large.id).content.text.length, 2 * 1024 * 1024);
+  const reopened = await client(provider, c.records);
+  assert.equal(reopened.workspace.pendingCount, blocked);
+  // Superseded local view children are collected in bounded pages, without touching the active projection.
+  for (let i = 0; i < 200 && await reopened.storage.maintenance(); i++);
+  assert.equal((await reopened.storage.load('google:test')).cards.length, c.workspace.snapshot.cards.length);
+});
+
+test('capacity-blocked entries do not pin the bounded upload scan to its first page', async () => {
+  const provider = new DatasetTestProvider(), c = await client(provider); await c.sync.sync();
+  const blocked = new Set();
+  for (let i = 0; i < 40; i++) blocked.add((await c.workspace.createCard(content(`blocked ${i}`))).id);
+  const healthy = await c.workspace.createCard(content('after forty blocked entries'));
+  const create = provider.createObject.bind(provider);
+  provider.createObject = async args => {
+    if (args.file.kind === 'revision' && blocked.has(args.file.entityId)) throw Object.assign(new Error('capacity'), { code: 'dataset-capacity' });
+    return create(args);
+  };
+  await assert.rejects(c.sync.sync(), { code: 'dataset-capacity' });
+  await assert.rejects(c.sync.sync({ force: true }), { code: 'dataset-capacity' });
+  assert.equal(c.workspace.pendingCount, 40);
+  const follower = await client(provider); await follower.sync.sync();
+  assert.ok(follower.workspace.snapshot.cards.some(card => card.id === healthy.id));
+});
 
 test('initialization durably reserves exact IDs and a follower sees only a verified ready dataset', async () => {
   const provider = new DatasetTestProvider(), journal = new DatasetTestJournal(), lifecycle = new DatasetLifecycle(provider, journal);

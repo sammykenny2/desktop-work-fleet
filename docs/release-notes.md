@@ -9,6 +9,16 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.1
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Cloud recovery stays paused so Settings and cloud reset remain usable without repeated dialogs.
+
+- Google sync: after a cloud-format or generation error, periodic sync, returning to the app and reconnecting the network no longer retry the blocked dataset or reopen its recovery notice over Settings.
+- Recovery: "Later", "Open cloud reset" and "Export a backup first" keep syncing paused. Recovery options remain available in Account and sync, and a confirmed reset, rejoin or restore resumes normal work after loading the new state.
+- Compatibility: the dataset format is unchanged from 0.5.0. Earlier whole-workspace data and backup ZIPs remain incompatible, with no migration; update or stop every older client before explicitly resetting old Google data. Note, sync and backup schema labels stay at V1.
+
 ## 0.5.0
 
 Platforms: Windows, Linux, macOS, Android.

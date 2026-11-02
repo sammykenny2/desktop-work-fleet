@@ -433,7 +433,12 @@ local/cloud scope; default to keeping data intact:
 | Dataset/fence disappeared unexpectedly | Keep local data usable with sync paused; inspect reset/generation controls and show recovery choices, not an unrecoverable corruption screen |
 
 Recovery navigation must work when the native host recreates its WebView or disables browser storage. Opening or
-closing Settings grants no deletion authority. A local-discard failure keeps the recovery controls available for retry.
+closing Settings grants no deletion authority. Once a cloud-format/generation error requires recovery, periodic sync,
+foreground/visibility changes, native background ticks and network reconnection must leave sync and cleanup paused.
+Later, Open cloud reset and Export a backup first dismiss the notice without clearing that pause; Settings stays usable
+without the same notice reopening automatically. Account and sync retains an explicit recovery-options entry, and a
+confirmed reset/rejoin/restore resumes normal work after loading the new state. A local-discard failure keeps the
+recovery controls available for retry.
 Native close/back requests are registered before local loading and acknowledged on either recovery screen without
 needing a Workspace. An in-progress, explicitly requested discard/set-aside finishes before close acknowledgement.
 Desktop record status/get/page read failures retain SPEC-006 cause classification and recovery actions. An old local

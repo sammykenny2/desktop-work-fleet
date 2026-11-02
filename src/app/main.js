@@ -531,6 +531,9 @@ function updateAttention() {
   $('#attention-dot').hidden = !(captureCount || ['error', 'attention'].includes(syncState));
 }
 async function syncGoogle(force = false) {
+  // Recovery is an explicit user choice. Timers and foreground/online events must not retry the
+  // blocked dataset and reopen its prompt over Settings while the user reads the reset controls.
+  if (datasetProblem) return;
   // Settings edits nothing a sync could overwrite and holds Sync now, so it does not hold syncing; a running backup or
   // restore on its data page does, and so does the versions page, whose choices name the versions it shows.
   const settings = $('#settings-dialog');
@@ -601,7 +604,7 @@ async function stopMaintenance() {
   clearTimeout(maintenanceTimer); maintenanceAbort.abort(); await maintenanceWork?.catch(() => {});
 }
 async function maintainDataset() {
-  if (maintenanceWork || maintenancePaused || accountBusy || syncBusy || nativeClosing || editorBusy || composing
+  if (datasetProblem || maintenanceWork || maintenancePaused || accountBusy || syncBusy || nativeClosing || editorBusy || composing
     || dataPanel?.busy() || dataPanel?.blocksSync() || revisions || document.querySelector('dialog[open]')
     || profileId.startsWith('google:') && (!googleAccount?.connected || !workspace.syncState.dataset && !workspace.state.cloudRestore && !pendingReset)) {
     scheduleMaintenance(); return;
@@ -739,7 +742,7 @@ function backupSourceOptions() {
   return { target: google ? t('settings.data.target.google', { account: googleAccount?.email || t('sync.account.current') })
     : native ? t('settings.data.target.device') : t('settings.data.target.browser'),
     sync: async () => {
-      if (!googleAccount?.connected || !syncService || workspace.state.cloudRestore || nativeClosing || accountBusy)
+      if (datasetProblem || !googleAccount?.connected || !syncService || workspace.state.cloudRestore || nativeClosing || accountBusy)
         throw new Error(t('sync.errors.cannotSync'));
       syncBusy = true; $('#google-sync').disabled = true; setSync('busy', () => t('sync.status.syncing'));
       try {

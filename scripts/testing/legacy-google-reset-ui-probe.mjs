@@ -26,9 +26,14 @@ const profileId = 'google:test', email = 'old-notes@example.invalid';
 const bridgeModule = `
 export async function connectNative() {
   window.fixtureCloseHandlers = []; window.fixtureCloseReady = 0;
+  const events = new Map();
+  window.fixtureHostEvent = type => { for (const callback of events.get(type) ?? []) callback({}); };
   return { info: { profileId: 'google:test', platform: '${platform}', appVersion: '0.4.0',
     capabilities: { recordStorage: true, googleFiles: true, dataRecovery: ${!handheld} } },
-    bridge: { onEvent() { return () => {}; }, onCloseRequested(callback) { window.fixtureCloseHandlers.push(callback); return () => {}; },
+    bridge: { onEvent(type, callback) {
+        if (!events.has(type)) events.set(type, new Set());
+        events.get(type).add(callback); return () => events.get(type).delete(callback);
+      }, onCloseRequested(callback) { window.fixtureCloseHandlers.push(callback); return () => {}; },
       async request(method) {
         if (method === 'google.status') return { connected: true, configured: true, accountId: 'test', email: '${email}' };
         if (method === 'google.profile' || method === 'host.ready') return {};
@@ -126,6 +131,7 @@ try {
       await context.route(new RegExp(`/${path}\\.js$`), route => route.fulfill({ contentType: 'text/javascript', body }));
     }
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+    await page.clock.install();
     const unchangedCloud = () => {
       assert.deepEqual([...provider.files.keys()], originalFiles); assert.equal(provider.stats.creates, originalCreates);
       assert.equal(provider.stats.deletes, 0); assert.deepEqual(oldReads, []);
@@ -212,9 +218,38 @@ try {
         console.log(`PASS ${engine}/${platform}: legacy local second device joins current cloud without cloud reset.`);
         continue;
       }
+      const assertRecoveryPaused = async () => {
+        await expect(page.locator('#source-reset-dialog')).toHaveCount(0);
+        const pausedStats = { ...provider.stats };
+        // A user can read Settings for more than one sync interval or leave and return to the app.
+        // Neither may retry the incompatible dataset or put its prompt above the reset controls.
+        await page.clock.fastForward(41000);
+        await expect(page.locator('#settings-account-status')).toHaveText(t('sync.recovery.paused'));
+        await expect(page.locator('#source-reset-dialog')).toHaveCount(0);
+        await page.evaluate(() => {
+          window.fixtureHostEvent('host-foreground');
+          document.dispatchEvent(new Event('visibilitychange'));
+          dispatchEvent(new Event('online'));
+          Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+          try { window.fixtureHostEvent('host-tick'); } finally { delete document.visibilityState; }
+        });
+        await page.clock.fastForward(21000);
+        await expect(page.locator('#settings-account-status')).toHaveText(t('sync.recovery.paused'));
+        await expect(page.locator('#source-reset-dialog')).toHaveCount(0);
+        assert.deepEqual(provider.stats, pausedStats, 'paused recovery must not make background Drive calls');
+      };
+      // Dismissing a notice must keep syncing paused, while the explicit recovery entry stays usable.
+      await page.locator('#source-reset-dialog').getByRole('button', { name: t('common.later'), exact: true }).click();
+      await assertRecoveryPaused();
+      if (handheld) await page.locator('#drawer-toggle').click();
+      await page.locator('#settings-button').click();
+      await page.locator('#settings-dialog [data-page="account"]').click();
+      await page.locator('#google-sync').click();
+      await expect(page.locator('#source-reset-dialog')).toBeVisible();
       await page.getByRole('button', { name: t('sync.recovery.reset'), exact: true }).click();
       await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
       await expect(page.locator('#settings-account-name')).toHaveText(email);
+      await assertRecoveryPaused();
       unchangedCloud(); assert.deepEqual((await legacy()).local, before.local);
       await page.locator('#reset-data').click();
       await expect(page.locator('#reset-data-dialog')).toContainText(email);
@@ -222,6 +257,13 @@ try {
       await expect(page.locator('#confirm-reset-data')).toBeDisabled();
       await page.locator('#reset-data-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
       unchangedCloud();
+      // The other navigation action shares the same paused recovery state.
+      if (handheld) await page.locator('#settings-back').click();
+      await page.locator('#settings-dialog [data-page="account"]').click();
+      await page.locator('#google-sync').click();
+      await page.locator('#source-reset-dialog').getByRole('button', { name: t('sync.sourceReset.exportFirst'), exact: true }).click();
+      await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
+      await assertRecoveryPaused(); unchangedCloud();
       await page.locator('#reset-data').click(); await page.locator('#reset-agree').check();
       await page.locator('#confirm-reset-data').click();
       await expect(page.locator('#reset-data-dialog')).toHaveCount(0, { timeout: 15000 });

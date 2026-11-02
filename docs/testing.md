@@ -164,7 +164,11 @@ either empty or incompatible local storage, Settings access before loading old n
 cancel without mutation, another local profile preserved, metadata-only old-file deletion, zero notes after reset
 and a new note syncing afterwards. It also covers a second device with old local data joining a current cloud without
 cloud reset, native close acknowledgement before Workspace creation, and desktop status/get/page read failures
-showing the recovery dialog. `node scripts/testing/test-dataset-recovery.mjs` starts/stops a disposable preview and
+showing the recovery dialog. After Later, Open cloud reset and Export a backup first, a controlled clock advances past
+multiple sync intervals and native foreground/background ticks, visibility changes and network reconnection fire;
+the notice must stay closed, sync must stay paused and the provider call counters must not change. Explicit recovery
+options remain reachable, and a confirmed reset must still finish and sync a new note.
+`node scripts/testing/test-dataset-recovery.mjs` starts/stops a disposable preview and
 runs all four renderer modes; CI runs it after installing Playwright Chromium/WebKit.
 The old-local case disables browser local/session storage, as native recovery
 cannot depend on either. This does not verify real Google authorization or installed native reset/reload behavior.

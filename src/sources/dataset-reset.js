@@ -105,6 +105,7 @@ export class DatasetReset {
       invalid(!job.seeded || typeof seed === 'function');
       const binding = await new DatasetLifecycle(this.#store, this.#journal).initialize({ key: initializeKey,
         fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard, seed: job.seeded ? seed : null });
+      if (binding === null) return copy(job);
       await save({ binding, phase: 'cleanup' }); return copy(job);
     }
     if (job.phase === 'cleanup') {

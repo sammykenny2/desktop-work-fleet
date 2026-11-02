@@ -31,6 +31,10 @@ export function validateRevision(input) {
     invalid(!value.deleted || validId(value.redirectGroupId));
   } else {
     invalid(validId(value.groupId) && typeof value.archived === 'boolean' && typeof value.completed === 'boolean');
+    if (value.trashedAt !== undefined || value.trashEpisode !== undefined) {
+      invalid(value.deleted && validId(value.trashEpisode) && typeof value.trashedAt === 'string'
+        && Number.isFinite(Date.parse(value.trashedAt)) && new Date(value.trashedAt).toISOString() === value.trashedAt);
+    }
     const content = value.content;
     invalid(content && typeof content === 'object' && !Array.isArray(content)
       && typeof content.text === 'string' && typeof content.format === 'string' && content.format.length > 0);

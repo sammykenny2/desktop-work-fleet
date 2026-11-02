@@ -4,6 +4,7 @@ import { RevisionGraph } from '../sources/revisions.js';
 import { DatasetReset } from '../sources/dataset-reset.js';
 import { DatasetSeed } from '../sources/dataset-seed.js';
 import { DatasetSync } from '../sources/dataset-sync.js';
+import { abandonedDatasetReset } from '../sources/dataset-transition.js';
 import { BackupDocument } from './payload.js';
 import { prepareRestore, remapLayout, SafetyBackupReceipt } from './restore.js';
 import { backupScheduler, checkCancelled } from './archive.js';
@@ -15,11 +16,12 @@ import { t } from '../i18n/index.js';
 const key = Symbol('dataset-restore-plan');
 
 export class DatasetRestorePlan {
-  #current; #restore; #empty; #source; #remote; #layout; #deferred;
-  constructor(token, current, restore, empty, source, remote, layout, deferred) {
+  #current; #restore; #empty; #source; #remote; #layout; #deferred; #resetOperation;
+  constructor(token, current, restore, empty, source, remote, layout, deferred, resetOperation) {
     requireValue(token === key, 'invalid-restore-plan', t('errors.backup.cloudPlanRequired'));
     this.#current = current; this.#restore = restore; this.#empty = empty; this.#source = source; this.#remote = remote;
     this.#layout = layout; this.#deferred = deferred;
+    this.#resetOperation = resetOperation;
   }
   get attachments() { return this.#restore.attachments; }
   get preview() { return { ...this.#restore.preview, mode: 'cloud-replace', profileId: this.#current.profileId,
@@ -33,6 +35,8 @@ export class DatasetRestorePlan {
       'missing-safety-backup', t('errors.backup.cloudSafetyBackupRequired'));
     const remote = await new DatasetReset(fileStore, storage).preview(signal);
     requireValue(JSON.stringify(remote) === JSON.stringify(this.#remote), 'stale-restore-plan', t('errors.common.previewStale'));
+    requireValue(((await storage.getJob('dataset-reset'))?.operationId ?? null) === this.#resetOperation,
+      'stale-restore-plan', t('errors.common.previewStale'));
     const next = this.#restore.materialize(this.#empty), history = next.revisions;
     if (this.#layout) next.layout = copy(this.#layout);
     const graph = await RevisionGraph.create(history, backupScheduler(signal), { allowMissingParents: true });
@@ -49,20 +53,22 @@ export class DatasetRestorePlan {
       seed: { operationId, sourceId: this.#source, profileId: current.profileId, total: pending.length,
         lastOperation: pending.map(operation => operation.operationId).sort().at(-1) ?? null, heads: next.sync.localHeads } };
     checkCancelled(signal);
+    const retired = await abandonedDatasetReset(storage);
+    if (current.sync.dataset) retired.removedJobs.push(`checkpoint:${current.sync.dataset.plan.datasetId}`);
     await storage.saveWithAttachments(next, current.revision, this.attachments, { previous: current,
-      replaceGeneration: true, history, pending, removedJobs: current.sync.dataset ? [`checkpoint:${current.sync.dataset.plan.datasetId}`, 'dataset-initialize'] : ['dataset-initialize'] });
+      replaceGeneration: true, history, pending, ...retired });
     return next;
   }
 }
 
-export async function prepareDatasetRestore({ workspace, storage, fileStore, document, ...options }) {
+export async function prepareDatasetRestore({ workspace, storage, fileStore, document, recovery = false, ...options }) {
   const current = workspace.state;
-  requireValue(current.format === CURRENT_WORKSPACE_FORMAT && current.profileId.startsWith('google:') && !current.cloudRestore,
+  requireValue(current.format === CURRENT_WORKSPACE_FORMAT && current.profileId.startsWith('google:') && (!current.cloudRestore || recovery),
     'restore-profile', t('errors.backup.cloudSignInRequired'));
   requireValue(document instanceof BackupDocument && document.manifest.coverage?.workspaceFormat === CURRENT_WORKSPACE_FORMAT,
     'unsupported-backup-schema', t('errors.backup.legacyFormat'));
   const pending = await storage.getJob('dataset-reset');
-  requireValue(!pending || pending.phase === 'complete', 'source-reset-pending', t('errors.sources.resetPending'));
+  requireValue(!pending || pending.phase === 'complete' || recovery, 'source-reset-pending', t('errors.sources.resetPending'));
   const empty = await Workspace.create({ profileId: current.profileId, deviceId: current.layout.deviceId,
     area: options.workAreas?.[0], bootstrapGroup: false, current: true, persist: async () => {} });
   const restore = await prepareRestore({ ...options, workspace: empty, document, mode: 'import' });
@@ -76,32 +82,40 @@ export async function prepareDatasetRestore({ workspace, storage, fileStore, doc
     layout = next.layout; deferred = placement.deferred.length;
   }
   const remote = await new DatasetReset(fileStore, storage).preview(options.signal);
-  return new DatasetRestorePlan(key, current, restore, empty.state, fileStore.sourceId, remote, layout, deferred);
+  return new DatasetRestorePlan(key, current, restore, empty.state, fileStore.sourceId, remote, layout, deferred, pending?.operationId ?? null);
 }
 
-/** Restarts seed upload from the staged outbox. Readiness precedes old-data cleanup, which stays a background job. */
-export async function resumeDatasetRestore({ state, storage, fileStore, progress = () => {}, signal }) {
-  const workspace = new Workspace(state, (...args) => storage.save(...args), undefined, undefined, { history: storage });
-  const header = copy(state.cloudRestore);
+/** One background unit. The active Workspace stays editable between seed slices. */
+export async function advanceDatasetRestore({ workspace, storage, fileStore, progress = () => {}, signal, limit = 4 }) {
+  const state = workspace.state, header = copy(state.cloudRestore);
   requireValue(state.format === CURRENT_WORKSPACE_FORMAT && header?.sourceId === fileStore.sourceId,
     'restore-profile', t('errors.backup.cloudJobMismatch'));
   const reset = new DatasetReset(fileStore, storage), seed = new DatasetSeed({ workspace, storage, fileStore, header: header.seed, progress });
   let job = await reset.status();
   if (!job || job.phase === 'complete' && job.restoreOperation !== header.operationId) {
-    await reset.begin(header.remote, { starter: false, seeded: true, restoreOperation: header.operationId, signal });
-    job = await reset.status();
+    job = await reset.begin(header.remote, { starter: false, seeded: true, restoreOperation: header.operationId, signal });
+    return { phase: job.phase, complete: false };
   }
   requireValue(job.restoreOperation === header.operationId, 'source-reset-pending', t('errors.sources.resetPending'));
-  while (!job.ready) {
-    checkCancelled(signal); job = await reset.step({ signal, seed: (binding, guard) => seed.initialize(binding, guard, signal) });
+  if (!job.ready) {
+    checkCancelled(signal); job = await reset.step({ signal, seed: (binding, guard) => seed.initialize(binding, guard, signal, { limit }) });
     progress({ phase: job.phase, completed: job.deleted, total: job.captured });
-    await new Promise(resolve => setTimeout(resolve, 0));
+    if (!job.ready) return { phase: job.phase, complete: false };
   }
   const sync = new DatasetSync({ workspace, storage, fileStore });
   try {
     await sync.sync({ force: true });
     await seed.cleanup();
     await workspace.finishDatasetRestore(header.operationId, job.binding.plan.datasetId);
-    return workspace.state;
+    return { phase: 'ready', complete: true };
   } finally { await sync.stop({ endSession: false }); }
+}
+
+/** Headless resume helper; the application schedules advanceDatasetRestore between foreground actions. */
+export async function resumeDatasetRestore({ state, storage, fileStore, progress = () => {}, signal }) {
+  const workspace = new Workspace(state, (...args) => storage.save(...args), undefined, undefined, { history: storage });
+  while (!(await advanceDatasetRestore({ workspace, storage, fileStore, progress, signal, limit: 20 })).complete) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+  }
+  return workspace.state;
 }

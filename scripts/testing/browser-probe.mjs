@@ -313,11 +313,11 @@ try {
   // Keep the workspace store busy to prove that changes still being written warn before navigation.
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.evaluate(() => new Promise((resolve, reject) => {
-    const open = indexedDB.open('work-fleet-v1'); open.onerror = () => reject(open.error);
+    const open = indexedDB.open('work-fleet-records-v1'); open.onerror = () => reject(open.error);
     open.onsuccess = () => {
-      const db = open.result; const tx = db.transaction('workspaces', 'readwrite');
+      const db = open.result; const tx = db.transaction('entries', 'readwrite');
       let hold = true; window.releaseProbeWrite = () => { hold = false; };
-      const again = () => { const request = tx.objectStore('workspaces').get('probe-busy'); request.onsuccess = () => { if (hold) again(); }; };
+      const again = () => { const request = tx.objectStore('entries').get(['probe-busy', 'draft', 'held']); request.onsuccess = () => { if (hold) again(); }; };
       tx.oncomplete = () => db.close(); again(); resolve();
     };
   }));

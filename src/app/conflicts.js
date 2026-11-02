@@ -16,7 +16,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
   const message = element('p', '', 'revision-message'); message.setAttribute('role', 'status');
   const navigation = element('div', undefined, 'editor-tabs revision-tabs');
   const body = element('div', undefined, 'revision-body');
-  let busy = false; let view = 'conflicts'; let historyKey; const urls = [];
+  let busy = false; let view = 'conflicts'; let historyKey; let epoch = 0; let disposed = false; const urls = [];
 
   const action = (label, callback, className) => {
     const button = element('button', label, className); button.type = 'button';
@@ -39,7 +39,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
   const movedFrom = record => {
     let known = groupsBefore.get(record.entityId);
     if (!known || record.parents.some(id => !known.has(id))) {
-      known = new Map(workspace.revisionHistory('card', record.entityId).map(item => [item.revisionId, item.value.groupId]));
+        known = new Map(workspace.revisionHeads('card', record.entityId).map(item => [item.revisionId, item.value.groupId]));
       groupsBefore.set(record.entityId, known);
     }
     const groups = new Set(record.parents.map(id => known.get(id))); const [from] = groups;
@@ -94,7 +94,24 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
 
   function renderConflicts() {
     const conflicts = workspace.state.conflicts;
-    if (!conflicts.length) { body.append(element('p', t('conflicts.list.none'))); return; }
+    const recovery = Object.values(workspace.state.drafts).filter(draft => draft.purged);
+    if (!conflicts.length && !recovery.length) { body.append(element('p', t('conflicts.list.none'))); return; }
+    for (const draft of recovery) {
+      const section = element('section', undefined, 'revision-conflict'); section.dataset.recoveryDraft = draft.id;
+      section.append(element('h3', t('conflicts.recovery.title')), element('p', t('conflicts.recovery.hint')),
+        renderValue({ kind: 'card', entityId: draft.cardId, revisionId: draft.baseRevision ?? draft.id, parents: [],
+          value: { content: draft.content, groupId: draft.groupId } }));
+      const group = element('select');
+      for (const item of orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot))) group.append(new Option(groupName(item), item.id));
+      if ([...group.options].some(option => option.value === draft.groupId)) group.value = draft.groupId;
+      const label = element('label', t('conflicts.version.moveToGroup'), 'field'); label.append(group);
+      section.append(label, action(t('app.editor.saveCopy'), async () => {
+        if (!group.value) throw new Error(t('conflicts.errors.noGroup'));
+        if (group.value !== draft.groupId) await workspace.saveDraft({ ...draft, groupId: group.value });
+        await workspace.commitDraft(draft.id, { asCopy: true }); await changed();
+      }, 'primary'), action(t('app.editor.discard'), async () => { await workspace.discardChanges(draft.cardId); await changed(); }));
+      body.append(section);
+    }
     body.append(element('p', t('conflicts.list.hint'), 'hint'));
     for (const conflict of conflicts) {
       const section = element('section', undefined, 'revision-conflict');
@@ -146,23 +163,44 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
     if (remembered >= 0) select.value = String(remembered);
     label.append(select); body.append(label);
     const records = element('div'); body.append(records);
-    const choose = () => {
+    const choose = async () => {
+      const selected = ++epoch;
       records.replaceChildren(); const entity = entities[Number(select.value)]; if (!entity) return;
       historyKey = `${entity.kind}:${entity.id}`;
-      const history = workspace.revisionHistory(entity.kind, entity.id); const heads = headsFor(entity.kind, entity.id);
-      let shown = 0;
-      const more = action(t('conflicts.history.more'), async () => append());
-      const append = () => {
-        more.remove();
-        for (const record of history.slice(shown, shown + 20)) records.append(renderValue(record, { heads, fromHistory: true }));
-        shown += 20; if (shown < history.length) records.append(more);
+      const heads = headsFor(entity.kind, entity.id), seen = new Set();
+      let after = null, loading = false;
+      const coverage = element('p', t('conflicts.history.loading'), 'hint'); records.append(coverage);
+      const current = () => !disposed && selected === epoch;
+      const append = async () => {
+        if (loading) return; loading = true; more.disabled = true;
+        try {
+          const page = await workspace.historyPage(entity.kind, entity.id, { after, limit: 20 });
+          if (!current()) return;
+          more.remove(); after = page.next;
+          for (const record of page.records) if (!seen.has(record.revisionId)) {
+            seen.add(record.revisionId); records.append(renderValue(record, { heads, fromHistory: true }));
+          }
+          for (const entry of page.entries ?? []) if (!seen.has(entry.revisionId)) {
+            seen.add(entry.revisionId);
+            const row = element('article', undefined, 'revision-option'); row.dataset.revisionId = entry.revisionId;
+            row.append(element('code', entry.revisionId), action(t('conflicts.history.open'), async () => {
+              const record = await workspace.historicalRevision(entry.revisionId, { file: entry.file });
+              if (current()) row.replaceWith(renderValue(record, { heads, fromHistory: true }));
+            })); records.append(row);
+          }
+          coverage.textContent = t(page.coverage === 'cached' ? 'conflicts.history.cached' : after ? 'conflicts.history.partial' : 'conflicts.history.complete', { count: seen.size });
+          if (after) records.append(more);
+        } catch (error) { if (current()) { coverage.textContent = error.message; records.append(more); } }
+        finally { loading = false; more.disabled = false; }
       };
-      records.append(element('p', plural('conflicts.history.count', history.length))); append();
+      const more = action(t('conflicts.history.more'), append);
+      await append();
     };
-    select.onchange = choose; choose();
+    select.onchange = () => { void choose(); }; void choose();
   }
 
   function render() {
+    if (disposed) return; epoch++;
     for (const url of urls.splice(0)) URL.revokeObjectURL(url);
     body.replaceChildren(); navigation.replaceChildren(); groupsBefore = new Map();
     const conflictTab = action(t('conflicts.tab.conflicts'), async () => { view = 'conflicts'; render(); });
@@ -174,5 +212,5 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
   }
   root.append(navigation, message, body); render();
   // Settings keeps the page while a choice is being saved, and disposing frees downloaded attachments.
-  return { element: root, busy: () => busy, dispose() { for (const url of urls.splice(0)) URL.revokeObjectURL(url); } };
+  return { element: root, busy: () => busy, dispose() { disposed = true; epoch++; for (const url of urls.splice(0)) URL.revokeObjectURL(url); } };
 }

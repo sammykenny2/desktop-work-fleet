@@ -6,6 +6,7 @@ import { t } from '../i18n/index.js';
 
 const invalid = condition => requireValue(condition, 'invalid-dataset', t('errors.sources.datasetInvalid'));
 const purged = condition => requireValue(condition, 'dataset-purged', t('errors.sources.datasetPurged'));
+const offline = error => ['network', 'unauthorized', 'service-unavailable', 'rate-limit', 'vault-locked', 'vault-unavailable'].includes(error.code);
 
 /** Selected-entity history is paged independently of current sync. Cached coverage is always explicit. */
 export class DatasetHistory {
@@ -68,7 +69,8 @@ export class DatasetHistory {
   async page(kind, entityId, { after = null, limit = 20 } = {}) {
     invalid(['card', 'group'].includes(kind) && Number.isInteger(limit) && limit > 0 && limit <= 50);
     const binding = this.#binding(), store = this.#provider();
-    await this.assertAvailable(kind, entityId, { binding });
+    // Cached pages remain browsable without a network round trip; selection and remote pages recheck available barriers.
+    await this.assertAvailable(kind, entityId, { binding, remote: after?.phase === 'remote' });
     const cloud = Boolean(binding && store);
     invalid(!after || after.kind === kind && after.entityId === entityId && after.datasetId === (binding?.plan.datasetId ?? null));
     const cursor = after ? copy(after) : { kind, entityId, datasetId: binding?.plan.datasetId ?? null, phase: 'local', position: null };
@@ -101,7 +103,11 @@ export class DatasetHistory {
   }
   async get(id, { file = null } = {}) {
     const local = await this.#storage.get(id);
-    if (local && !file) { await this.assertAvailable(local.kind, local.entityId); return local; }
+    if (local && !file) {
+      try { await this.assertAvailable(local.kind, local.entityId); }
+      catch (error) { if (!offline(error)) throw error; await this.assertAvailable(local.kind, local.entityId, { remote: false }); }
+      return local;
+    }
     const binding = this.#binding(), store = this.#provider();
     requireValue(binding && store, 'history-offline', t('errors.sources.historyOffline'));
     const location = file ? { file } : await this.#storage.getControl(`history:${binding.plan.datasetId}:${id}`);

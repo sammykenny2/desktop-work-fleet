@@ -35,10 +35,11 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Main window: a board of paper tiles or a list, remembered per device; an optional title that search and sharing include;
   papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring.
 - Verified with model tests, Edge/Chromium browser and scene probes, and the Windows native UI probes.
-- Record-level storage primitives exist for IndexedDB and native SQLite. An explicit current-format Workspace
-  and record adapter keep only current heads, write draft deltas and page history/outbox. The application entry
-  point still uses whole-workspace persistence; UI/backup integration, the incompatible-profile screen and local latency remain open under
-  [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md).
+- The application uses record-level IndexedDB/native SQLite persistence, bounded current heads, draft deltas and
+  paged history/outbox. Older local formats require an explicit local discard; no migration runs. Versions loads
+  remote bodies on selection. Trash offers Delete forever and Empty Trash with resumable cleanup; unpublished
+  edits from a purged identity are kept in Versions for Save as copy. Local latency and installed-host acceptance
+  remain open under [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md).
 - Languages: the UI is English-first with a Traditional Chinese catalog; Settings > General > Display language offers
   Auto-detect, English and Traditional Chinese and switches without a reload. Every host stores the choice per device and
   draws its tray, menus and dialogs in it; host errors arrive in English and are shown through the catalogs
@@ -52,24 +53,21 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 ### Sync and Google
 
-- Implemented on all five hosts: immutable revision graph, FileSync with outbox and conflicts, Drive appDataFolder adapter
-  with resumable uploads, account-isolated workspaces, Google workspace reset with a marker file.
-- Initial groups are account-scoped and shared across devices ([ADR-053](docs/decisions/053-account-scoped-initial-group.md));
-  workspace initialization is explicit and resets are resumable ([ADR-054](docs/decisions/054-explicit-workspace-initialization.md),
-  [SPEC-008](docs/specs/008-workspace-initialization.md)).
+- The production entry point uses DatasetSync and account-bound native Drive adapters. Fixed current checkpoints,
+  bounded receipts and relevant purge barriers replace history-wide bootstrap. Reset captures exact old leaf IDs,
+  publishes a legacy-compatible fence and initializes an isolated dataset; obsolete folder containers are retained.
+  Current readiness and background old-data cleanup are separate. The older FileSync remains in compatibility fixtures.
 - Sign-out removes only this device's credentials and no longer revokes the grant
   ([ADR-021](docs/decisions/021-windows-google-account-and-sync.md)). Installed builds up to 0.2.3 still revoke on sign-out.
 - Verified: real Windows sign-in, upload, resumable upload and changes feed on Drive. User reports show real sign-in and sync
   in use on Windows, macOS and Linux installs, six devices on one account. Phones: see their sections.
 - Initialization, reset fencing and shared initial groups are verified only with isolated fixtures and Chromium IndexedDB probes,
   not with real Google or the native apps. Builds without the source-generation fields must be updated before a reset.
-- The dataset checkpoint protocol has strict codecs, JS/native Drive adapters, a durable initializer and a bounded
-  incremental DatasetSync controller with exact publication/retirement and purge barriers. Lazy history and resumable
-  manual purge workers include metadata-only cleanup and shared local attachment ownership. The reset worker captures
-  exact old leaf IDs before guarded new-generation initialization. Portable backup core declares coverage and supports
-  history hydration and purge-aware local restore. Seeded cloud replacement publishes captured history before
-  current-checkpoint readiness. Application/reset/recovery UI, independent assessment and real-provider verification
-  remain open in PLAN-011.
+- Dataset/reset/recovery UI is connected: loss of the expected cloud generation pauses sync and keeps local notes;
+  explicit choices rejoin a verified dataset, export, or recover current local data under fresh identities with a
+  confirmed safety backup. Seeded cloud replacement uploads retained history before readiness in bounded background
+  units; new edits follow afterwards. Portable backups declare complete or current-only coverage. Protocol and
+  Chromium/WebKit UI fixtures pass; independent assessment and real-provider verification remain open in PLAN-011.
 - The OAuth consent screen is still in Testing: only listed test users can sign in, and refresh tokens expire after 7 days.
 
 ### Backup and restore

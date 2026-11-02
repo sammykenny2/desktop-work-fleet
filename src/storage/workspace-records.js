@@ -134,6 +134,7 @@ export class WorkspaceRecordStorage {
       deletes.push({ collection: 'outbox', key: this.#key(id) }, { collection: 'control', key: this.#key(`pending:${id}`) });
     }
     for (const key of detail.removedJobs ?? []) deletes.push({ collection: 'job', key });
+    for (const { key, value } of detail.jobs ?? []) puts.push({ collection: 'job', key, entity: value.kind ?? '', ordinal: 0, value });
     const active = { ...this.#active, revision: state.revision };
     puts.push({ collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active });
     const uniquePuts = this.#unique(puts);
@@ -178,13 +179,15 @@ export class WorkspaceRecordStorage {
     for (const attachment of detail.attachments ?? []) await this.#write([], [], [attachment]);
     const active = { generation, historyGeneration, revision: state.revision };
     const final = [{ collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active }];
+    for (const { key, value } of detail.jobs ?? []) final.push({ collection: 'job', key, entity: value.kind ?? '', ordinal: 0, value });
     final.push(...this.#viewGarbage(detail.previous, state));
     if (this.#active) final.push({ collection: 'job', key: `local-generation:${this.#active.generation}`, entity: 'local-generation', ordinal: 0,
       value: { generation: this.#active.generation, historyGeneration: keepHistory ? null : this.#historyGeneration(), phase: 0, after: null } });
     await this.#write(final, [{ collection: 'job', key: stageKey }, ...(detail.removedJobs ?? []).map(key => ({ collection: 'job', key }))]);
     this.#active = active;
   }
-  async page(kind, entityId, { after = null, limit = 50 } = {}) {
+  page(kind, entityId, options = {}) { return this.#queue(() => this.#page(kind, entityId, options)); }
+  async #page(kind, entityId, { after = null, limit = 50 } = {}) {
     const generation = this.#historyGeneration();
     stale(!after || after.generation === generation);
     const status = await this.#status();
@@ -223,9 +226,11 @@ export class WorkspaceRecordStorage {
     });
   }
   deleteJob(key) { return this.#deleteControl('job', key); }
-  async jobs(kind, { after = null, limit = 20 } = {}) {
-    const status = await this.#status();
-    return this.#store.page(this.#profile, { collection: 'job', entity: kind, after, limit, expectedRevision: status.revision });
+  jobs(kind, { after = null, limit = 20 } = {}) {
+    return this.#queue(async () => {
+      const status = await this.#status();
+      return this.#store.page(this.#profile, { collection: 'job', entity: kind, after, limit, expectedRevision: status.revision });
+    });
   }
   getControl(key) { return this.#control('control', key); }
   putControl(key, value) { return this.#putControl('control', key, value); }
@@ -298,14 +303,16 @@ export class WorkspaceRecordStorage {
       await this.#write([], [{ collection: 'job', key: row.key }], [], references.rows.length ? [] : [id]); return true;
     });
   }
-  async pendingPage({ after = null, limit = 50 } = {}) {
+  pendingPage(options = {}) { return this.#queue(() => this.#pendingPage(options)); }
+  async #pendingPage({ after = null, limit = 50 } = {}) {
     const generation = this.#active.generation; stale(!after || after.generation === generation);
     const status = await this.#status();
     const result = await this.#store.page(this.#profile, { collection: 'outbox', entity: generation, after: after?.position ?? null,
       limit, order: 'asc', expectedRevision: status.revision });
     return { operations: result.rows.map(row => row.value), next: result.next ? { generation, position: result.next } : null };
   }
-  async pendingForEntity(kind, entityId) {
+  pendingForEntity(kind, entityId) { return this.#queue(() => this.#pendingForEntity(kind, entityId)); }
+  async #pendingForEntity(kind, entityId) {
     const status = await this.#status();
     const page = await this.#store.page(this.#profile, { collection: 'control', entity: this.#key(`pending:${kind}:${entityId}`),
       keysOnly: true, limit: 100, expectedRevision: status.revision });

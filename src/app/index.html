@@ -43,6 +43,7 @@
     <div class="view-bar">
       <div class="view-filters"><button data-filter="active" class="active" data-i18n="app.filters.active"></button><button data-filter="completed" data-i18n="app.filters.completed"></button><button data-filter="archived" data-i18n="app.filters.archived"></button><button data-filter="deleted" data-i18n="app.filters.deleted"></button></div>
       <div class="view-tools">
+      <button id="empty-trash" type="button" class="danger" hidden data-i18n="app.purge.emptyTitle"></button>
       <div class="view-switch" role="group" data-i18n-attr="aria-label:app.views.label">
         <button type="button" data-view="board" aria-pressed="true" data-i18n-attr="title:app.views.board"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span data-i18n="app.views.board"></span></button>
         <button type="button" data-view="list" aria-pressed="false" data-i18n-attr="title:app.views.list"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="4" height="4" rx=".8"/><rect x="4" y="15" width="4" height="4" rx=".8"/><path d="M11 7h9M11 17h9"/></svg><span data-i18n="app.views.list"></span></button>
@@ -56,6 +57,7 @@
         <button id="stop-operation" type="button" class="primary" hidden data-i18n="common.done"></button>
       </div>
     </div>
+    <div class="cleanup-status"><span id="cleanup-status" role="status" aria-live="polite"></span><button id="retry-cleanup" type="button" hidden data-i18n="app.purge.retry"></button></div>
     <!-- Capture floats over the group's notes and shows only while they are what is shown; see render(). It follows the
          view bar in the tab order, ahead of the notes. It sits over the status row, which keeps the whole width, on
          phones too. -->

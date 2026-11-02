@@ -10,6 +10,9 @@ import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity, MIN_OPACITY } from '../layout/opacity.js';
 import { InteractionController, cardPolicy, quickMoveKey, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
+import { IndexedDbRecordStore } from '../storage/records-indexed-db.js';
+import { NativeRecordStore } from '../storage/records-native.js';
+import { WorkspaceRecordStorage } from '../storage/workspace-records.js';
 import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
 import { rankSearch } from './search.js';
@@ -32,9 +35,15 @@ import { overlayMainStep } from '../desktop/overlay.js';
 import { DesktopOwner } from '../desktop/owner.js';
 import { projectDesktop } from '../desktop/projection.js';
 import { NativeShortcutSettings } from '../native/shortcuts.js';
-import { NativeGoogleFileStore } from '../native/google.js';
-import { FileSync, resetSource } from '../sources/file-sync.js';
-import { prepareCloudRestore, stageCloudRestore, resumeCloudRestore } from '../backup/cloud-restore.js';
+import { NativeGoogleDatasetStore } from '../native/google.js';
+import { DatasetSync } from '../sources/dataset-sync.js';
+import { DatasetHistory } from '../sources/dataset-history.js';
+import { DatasetPurge } from '../sources/dataset-purge.js';
+import { DatasetReset } from '../sources/dataset-reset.js';
+import { cleanupDatasetTransition, previewDatasetRejoin, stageDatasetRejoin, startDatasetReset, stagePendingDatasetReset } from '../sources/dataset-transition.js';
+import { prepareDatasetRestore, advanceDatasetRestore } from '../backup/dataset-restore.js';
+import { createBackup, openBackup } from '../backup/payload.js';
+import { saveSafetyBackup } from '../backup/restore.js';
 import { formatDate, localizeDocument, onLocaleChange, plural, t } from '../i18n/index.js';
 import { groupName } from '../core/group-name.js';
 import { adoptHostLanguage, changeLanguage, languageOptions, languagePreference, startLanguage } from './language.js';
@@ -59,6 +68,8 @@ let desktop; let desktopInfo; let remoteEditor = null;
 let editorHidesMain = false;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
+let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
+let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
@@ -154,7 +165,9 @@ async function initialize() {
   // A host's stored language can differ from the browser's, so the loading texts are shown again in it.
   if (native) { status(t('app.status.loading')); setSync('off', () => t('sync.status.opening')); renderAccount(); }
   if (native) {
-    profileId = native.info.profileId; storage = new NativeStorage(native.bridge, native.info);
+    profileId = native.info.profileId;
+    storage = new WorkspaceRecordStorage(new NativeRecordStore(native.bridge, native.info), profileId,
+      { legacy: new NativeStorage(native.bridge, native.info) });
     nativeBackups = nativeBackupAdapters(native.bridge, native.info);
     if (native.info.capabilities.attachmentFiles) attachmentFiles = new NativeAttachments(native.bridge);
     if (native.info.capabilities.fileExport) {
@@ -174,7 +187,10 @@ async function initialize() {
       gear.title = t('app.sidebar.settingsTitleMac');
     }
     lease = { acquired: true, release() {} };
-  } else { storage = await IndexedDbStorage.open(); lease = await acquireProfile(profileId); }
+  } else {
+    lease = await acquireProfile(profileId);
+    storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profileId, { legacy: await IndexedDbStorage.open() });
+  }
   if (!lease.acquired) throw new Error(t('app.errors.openElsewhere'));
   addEventListener('pagehide', () => { lease.release(); storage.close(); });
   addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
@@ -185,14 +201,22 @@ async function initialize() {
   const recovery = native?.info.capabilities.dataRecovery === true;
   let saved;
   try { saved = await storage.load(profileId); }
-  catch (error) { if (recovery && loadFailureCause(error)) return showDataFailure(loadFailureCause(error)); throw error; }
-  const persist = (state, revision) => storage.save(state, revision);
+  catch (error) {
+    if (error.code === 'incompatible-local-data') return showIncompatibleLocal();
+    if (recovery && loadFailureCause(error)) return showDataFailure(loadFailureCause(error)); throw error;
+  }
+  const persist = (...args) => storage.save(...args);
+  if (saved) saved = await stagePendingDatasetReset(saved, storage);
   // Groups new to this computer, made here or brought by sign-in or sync, start at the back of its desktop.
   const backLayer = () => arrivalLayer(residentLayers());
   try { if (saved) workspace = new Workspace(saved, persist); }
   catch (error) { if (recovery && workspaceFailureCause(error, saved)) return showDataFailure(workspaceFailureCause(error, saved)); throw error; }
   workspace ||= await Workspace.create({ profileId,
-    deviceId: crypto.randomUUID(), area: screenArea(), persist, bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
+    deviceId: crypto.randomUUID(), area: screenArea(), persist, current: true,
+    bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
+  const history = new DatasetHistory({ workspace, storage, fileStore: () => datasetStore });
+  workspace.setHistory(history); storage.setAttachmentLoader(id => history.attachment(id));
+  purge = new DatasetPurge({ workspace, storage, fileStore: () => datasetStore });
   workspace.setArrivalLayer(backLayer);
   // A new note open in a quick edit stays on the desktop while its text is cleared (ADR-061).
   workspace.setOpenNote(() => remoteEditor?.cardId ?? null);
@@ -256,6 +280,8 @@ async function initialize() {
   bindEvents(); render(); status(reason ? displayHint ? t('app.status.desktopReasonXwayland', { reason }) : reason : t('app.status.opened'));
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
+  scheduleMaintenance();
+  addEventListener('pagehide', () => { clearTimeout(maintenanceTimer); maintenanceAbort.abort(); }, { once: true });
   if (native?.info.capabilities.shareInbox) {
     captureInbox = new NativeCaptureInbox(native, workspace, storage);
     native.bridge.onEvent('host-capture', () => { void refreshCaptures().catch(error => status(error.message, true)); });
@@ -280,6 +306,26 @@ async function initialize() {
       });
     }, 250);
   }).observe($('#stage-shell'));
+}
+
+async function showIncompatibleLocal() {
+  const dialog = $('#data-failure-dialog'), body = $('#data-failure-body'), actions = $('#data-failure-actions');
+  dialog.querySelector('h2').textContent = t('app.incompatible.title');
+  body.replaceChildren(element('p', t(profileId.startsWith('google:') ? 'app.incompatible.google' : 'app.incompatible.local')),
+    element('p', t('app.incompatible.keep')));
+  const agree = element('input'); agree.type = 'checkbox'; agree.id = 'discard-old-local-agree';
+  const label = element('label', undefined, 'check'); label.append(agree, document.createTextNode(t('app.incompatible.agree'))); body.append(label);
+  const discard = element('button', t('app.incompatible.discard'), 'danger'); discard.id = 'discard-old-local'; discard.disabled = true;
+  agree.onchange = () => { discard.disabled = !agree.checked; };
+  discard.onclick = async () => {
+    discard.disabled = true; agree.disabled = true;
+    try { await storage.reset(profileId); if (!native) { lease.release(); location.reload(); } }
+    catch (error) { status(error.message, true); discard.disabled = false; agree.disabled = false; }
+  };
+  actions.replaceChildren();
+  if (native?.info.capabilities.dataRecovery) actions.append(button(t('app.dataFailure.openFolder'), () => native.bridge.request('data.reveal')));
+  actions.append(discard); dialog.oncancel = event => event.preventDefault(); dialog.showModal();
+  status(t('app.incompatible.keep')); await native?.bridge.request('host.ready');
 }
 
 // SPEC-006 DO: the notes on this device could not be read. The window says why and shows the data folder; where it can
@@ -317,43 +363,50 @@ async function showDataFailure(cause) {
 async function initializeGoogle() {
   clearInterval(syncTimer);
   googleAccount = await native.bridge.request('google.status');
-  const google = profileId.startsWith('google:'); const connected = googleAccount.connected;
+  const google = profileId.startsWith('google:'), connected = googleAccount.connected;
   const paused = google && googleAccount.paused === true;
-  renderGoogleAccess();
+  datasetStore = google && (connected || paused) ? new NativeGoogleDatasetStore(native.bridge, native.info, googleAccount.accountId) : null;
+  pendingReset = await storage.getJob('dataset-reset');
+  if (pendingReset && !pendingReset.seeded && !pendingReset.localSettingsCleared) {
+    if (!automatic) throw automaticError ?? new Error(t('sync.errors.cannotSync'));
+    await automatic.service.clearSettings();
+    pendingReset = { ...pendingReset, localSettingsCleared: true }; await storage.putJob('dataset-reset', pendingReset);
+  }
+  const transitionError = await storage.getJob('dataset-ui-error');
+  if (['dataset-changed', 'source-reset-superseded', 'initialization-conflict'].includes(transitionError?.code)) {
+    datasetProblem = transitionError; maintenancePaused = true;
+  }
+  renderGoogleAccess(); renderAccount();
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
   setText('#google-sync', workspace.state.cloudRestore ? () => t('sync.actions.resumeOverwrite') : () => t('sync.actions.syncNow'));
   $('#google-sync').onclick = () => {
-    if (workspace.state.sourceReset?.superseded || workspace.state.cloudRestore?.resetJob?.superseded) { sourceResetAsked = false; askAfterSourceReset(); }
-    else if (workspace.state.sourceReset) void openSettings('data');
-    else if (workspace.state.cloudRestore) askResumeCloudRestore(); else void syncGoogle(true);
+    if (datasetProblem) { sourceResetAsked = false; void askDatasetRecovery(); }
+    else if (workspace.state.cloudRestore) askResumeCloudRestore();
+    else if (pendingReset && !pendingReset.ready && pendingReset.phase !== 'complete') { maintenancePaused = false; scheduleMaintenance(0); }
+    else { maintenancePaused = false; scheduleMaintenance(); void syncGoogle(true); }
   };
-  if (workspace.state.sourceReset) {
-    syncService = null;
-    if (workspace.state.sourceReset.superseded) {
-      setText('#google-sync', () => t('sync.actions.refetch'));
-      setSync('attention', () => t('sync.status.resetAgain'), () => t('sync.detail.resetStopped')); return;
-    }
-    setText('#google-sync', () => t('sync.actions.resumeReset'));
-    setSync('attention', () => t('sync.status.resetUnfinished'), () => t('sync.detail.resetUnfinished')); return;
+  if (datasetProblem) {
+    syncService = null; setText('#google-sync', () => t('sync.recovery.options'));
+    setSync('attention', () => t('sync.recovery.paused'), datasetProblem.message); return;
   }
   if (workspace.state.cloudRestore) {
-    clearInterval(syncTimer); syncService = null;
-    if (workspace.state.cloudRestore.resetJob?.superseded) {
-      setText('#google-sync', () => t('sync.actions.refetch'));
-      setSync('attention', () => t('sync.status.resetAgain'), () => t('sync.detail.overwriteStopped')); return;
-    }
+    syncService = null; stopAutomatic?.();
     setSync('attention', () => t('sync.status.overwriteUnfinished'), workspace.state.cloudRestore.error || (() => t('sync.detail.overwriteSaved')));
     return;
   }
-  renderAccount();
-  if (connected || paused) {
+  if (pendingReset && !pendingReset.ready && pendingReset.phase !== 'complete') {
+    syncService = null; stopAutomatic?.();
+    setText('#google-sync', () => t('sync.actions.resumeReset'));
+    setSync('attention', () => t('sync.status.resetUnfinished'), () => t('sync.detail.resetUnfinished')); return;
+  }
+  if (datasetStore) {
     setText('#storage-note', paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
     setSync(paused ? 'attention' : 'off', paused ? () => t('sync.status.paused') : () => t('sync.status.waiting'), paused ? googleAccount.pauseReason : '');
-    syncService = new FileSync({ workspace, storage, fileStore: new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId), bootstrapGroup: true });
+    syncService = new DatasetSync({ workspace, storage, fileStore: datasetStore });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
-    addEventListener('online', () => { void syncGoogle(); });
+    addEventListener('online', () => { maintenancePaused = false; scheduleMaintenance(); void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
     if (!paused) void syncGoogle();
   } else if (google) {
@@ -364,6 +417,7 @@ async function initializeGoogle() {
       googleAccount.configured ? () => t('sync.detail.signInSwitches') : '');
   }
 }
+
 function renderGoogleAccess() {
   const google = profileId.startsWith('google:');
   const connected = Boolean(googleAccount?.connected);
@@ -434,6 +488,7 @@ async function syncGoogle(force = false) {
   // Settings edits nothing a sync could overwrite and holds Sync now, so it does not hold syncing; a running backup or
   // restore on its data page does, and so does the versions page, whose choices name the versions it shows.
   const settings = $('#settings-dialog');
+  if (maintenanceWork) { syncRequested = true; return; }
   if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync() || revisions
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
   const sourceSync = syncService; const sourceProfile = profileId;
@@ -468,13 +523,17 @@ async function syncGoogle(force = false) {
         setText('#storage-note', googleAccount.paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
         if (googleAccount.paused) { setSync('attention', () => t('sync.status.paused'), googleAccount.pauseReason); return; }
       }
-      const pending = workspace.pendingOperations.length; const at = new Date();
+      const pending = workspace.pendingCount; const at = new Date();
       if (pending) setSync('pending', () => plural('sync.status.pending', pending));
       else setSync('ok', () => t('sync.status.syncedAt', { time: formatDate(at, { hour: '2-digit', minute: '2-digit' }) }));
     }
   } catch (error) {
     if (!current()) return;
-    if (error.code === 'source-reset') { setSync('attention', () => t('sync.status.cloudReset'), error.message); void run(askAfterSourceReset); return; }
+    if (['dataset-changed', 'incompatible-cloud-data', 'initialization-conflict', 'source-reset-superseded'].includes(error.code)) {
+      datasetProblem = error; maintenancePaused = true;
+      setSync('attention', () => t('sync.recovery.paused'), error.message);
+      setText('#google-sync', () => t('sync.recovery.options')); void askDatasetRecovery(); return;
+    }
     const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup', 'vault-unlock-cancelled', 'vault-unlock-timeout'].includes(error.code);
     if (vaultPaused) {
       googleAccount = { ...googleAccount, connected: false, paused: true, pauseReason: error.message };
@@ -485,11 +544,98 @@ async function syncGoogle(force = false) {
   }
   finally { syncBusy = false; $('#google-sync').disabled = false; }
 }
+
+// Each turn performs one bounded cleanup unit. Normal sync gets priority, and dialogs/backup captures keep their view.
+function scheduleMaintenance(delay = 1500) {
+  clearTimeout(maintenanceTimer);
+  if (nativeClosing || maintenanceAbort.signal.aborted) return;
+  maintenanceTimer = setTimeout(() => { void maintainDataset(); }, delay);
+}
+async function stopMaintenance() {
+  clearTimeout(maintenanceTimer); maintenanceAbort.abort(); await maintenanceWork?.catch(() => {});
+}
+async function maintainDataset() {
+  if (maintenanceWork || maintenancePaused || accountBusy || syncBusy || nativeClosing || editorBusy || composing
+    || dataPanel?.busy() || dataPanel?.blocksSync() || revisions || document.querySelector('dialog[open]')
+    || profileId.startsWith('google:') && (!googleAccount?.connected || !workspace.syncState.dataset && !workspace.state.cloudRestore && !pendingReset)) {
+    scheduleMaintenance(); return;
+  }
+  let more = false;
+  maintenanceWork = (async () => {
+    if (workspace.state.cloudRestore) {
+      const result = await advanceDatasetRestore({ workspace, storage, fileStore: datasetStore, signal: maintenanceAbort.signal,
+        progress: datasetProgress(text => { $('#cleanup-status').textContent = text; }) });
+      more = true;
+      if (result.complete) {
+        await initializeGoogle(); if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+        await controller.reconcile(); render();
+      }
+      return;
+    }
+    const reset = datasetStore ? new DatasetReset(datasetStore, storage) : null;
+    pendingReset = await reset?.status();
+    if (pendingReset && pendingReset.phase !== 'complete') {
+      const wasReady = pendingReset.ready;
+      pendingReset = await reset.step({ signal: maintenanceAbort.signal }); more = pendingReset.phase !== 'complete';
+      if (pendingReset.ready) $('#cleanup-status').textContent = t(more ? 'sync.reset.cleanup' : 'sync.reset.cleaned',
+        { done: pendingReset.deleted, total: pendingReset.captured, folders: pendingReset.retainedFolders });
+      else datasetProgress(text => { $('#cleanup-status').textContent = text; })({ phase: pendingReset.phase, completed: pendingReset.deleted, total: pendingReset.captured });
+      if (!wasReady && pendingReset.ready) { await initializeGoogle(); if (automatic) stopAutomatic = startAutomaticBackup(automatic.service); }
+      return;
+    }
+    const result = await purge.step({ signal: maintenanceAbort.signal });
+    if (result) {
+      more = true;
+      const key = { pending: 'app.purge.pending', committed: 'app.purge.committed', 'cloud-cleanup': 'app.purge.committed',
+        'local-cleanup': 'app.purge.local', complete: 'app.purge.complete', 'needs-preview': 'app.purge.review' }[result.phase];
+      if (key) $('#cleanup-status').textContent = t(key);
+      await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
+    } else more = await cleanupDatasetTransition(storage) || await storage.maintenance();
+  })();
+  try { await maintenanceWork; }
+  catch (error) {
+    if (!maintenanceAbort.signal.aborted) {
+      maintenancePaused = true;
+      $('#cleanup-status').textContent = t('app.purge.paused', { error: error.message });
+      $('#retry-cleanup').hidden = false;
+      if (['dataset-changed', 'source-reset-superseded'].includes(error.code)) {
+        await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: error.code, message: error.message });
+        datasetProblem = error; setSync('attention', () => t('sync.recovery.paused'), error.message);
+        setText('#google-sync', () => t('sync.recovery.options'));
+      }
+    }
+  } finally {
+    maintenanceWork = null;
+    if (syncRequested) { syncRequested = false; void syncGoogle(); }
+    scheduleMaintenance(more ? 250 : 2500);
+  }
+}
+
+async function confirmPurge(ids) {
+  if (!ids.length) return;
+  const preview = await purge.preview(ids);
+  const dialog = element('dialog'); dialog.id = 'purge-dialog';
+  dialog.append(element('h2', t(ids.length === 1 ? 'app.purge.title' : 'app.purge.emptyTitle')),
+    element('p', t('app.purge.warning', { count: ids.length })),
+    element('p', t(profileId.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device')));
+  const list = element('ul');
+  for (const id of ids.slice(0, 10)) list.append(element('li', summaryText(workspace.snapshot.cards.find(card => card.id === id))));
+  dialog.append(list);
+  const cancel = button(t('common.cancel'), () => dialog.close());
+  const confirm = button(t('app.purge.confirm'), async () => {
+    confirm.disabled = true;
+    try { await purge.enqueue(preview); dialog.close(); maintenancePaused = false; $('#cleanup-status').textContent = t('app.purge.pending'); scheduleMaintenance(0); }
+    finally { confirm.disabled = false; }
+  }, 'danger'); confirm.id = 'confirm-purge';
+  const actions = element('div', undefined, 'dialog-actions'); actions.append(cancel, confirm); dialog.append(actions);
+  dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
+}
+
 async function changeGoogleAccount(action) {
   if (accountBusy || nativeClosing || dataPanel?.busy()) return; accountBusy = true;
   const oldSync = syncService; clearInterval(syncTimer); stopAutomatic?.();
   try {
-    await automatic?.service.whenIdle(); await oldSync?.stop(); syncService = null;
+    await stopMaintenance(); await automatic?.service.whenIdle(); await oldSync?.stop(); await oldSync?.whenIdle(); syncService = null; datasetStore = null;
     desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
     await (desktop ? desktop.perform(flushDraft) : flushDraft()); await desktop?.whenIdle(); desktop?.sealClose();
     document.body.inert = true;
@@ -502,7 +648,7 @@ async function changeGoogleAccount(action) {
     document.body.inert = false; status(error.message, error.code !== 'google-cancelled'); await desktop?.cancelClose();
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
-    accountBusy = false; await initializeGoogle();
+    accountBusy = false; maintenanceAbort = new AbortController(); await initializeGoogle(); scheduleMaintenance();
   }
 }
 
@@ -525,15 +671,16 @@ function requireConnected() {
 
 function cloudRestoreOptions() {
   if (!native || !googleAccount?.connected || !profileId.startsWith('google:') || workspace.state.cloudRestore) return null;
-  const fileStore = new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId);
   return { target: googleAccount.email || t('sync.account.current'),
     prepare: async options => {
-      requireConnected();
-      const result = await syncService?.sync({ force: true });
-      if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingRestore'));
-      return prepareCloudRestore({ ...options, workspace, sourceId: fileStore.sourceId });
+      requireConnected(); await maintenanceWork;
+      if (!datasetProblem) {
+        const result = await syncService?.sync({ force: true });
+        if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingRestore'));
+      }
+      return prepareDatasetRestore({ ...options, workspace, storage, fileStore: datasetStore, recovery: Boolean(datasetProblem) });
     },
-    run: (plan, safety, say) => runCloudRestore(say, { plan, safety, fileStore }) };
+    run: (plan, safety, say) => runCloudRestore(say, { plan, safety }) };
 }
 
 function backupSourceOptions() {
@@ -568,124 +715,144 @@ async function applyLocalRestore(plan, signal) {
   } finally { if (automatic) stopAutomatic = startAutomaticBackup(automatic.service); }
 }
 
-async function runCloudRestore(say, { plan, safety, fileStore } = {}) {
+function datasetProgress(say) {
+  return ({ phase, completed = 0, total = 0 }) => say(t(phase === 'capture' ? 'sync.reset.capturing'
+    : phase === 'cleanup' || phase === 'journal-cleanup' ? 'sync.reset.deletingCloud' : 'sync.recovery.working', { done: completed, total }));
+}
+
+// The transition owns the writer until it reloads. Plan validation still uses the revision shown in its preview.
+async function runDatasetChange(work) {
   if (accountBusy || nativeClosing) throw new Error(t('sync.errors.accountBusy'));
-  requireConnected(); accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
-  let durable = false;
+  accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
+  const before = workspace.state, oldReset = await storage.getJob('dataset-reset');
   try {
-    await automatic?.service.whenIdle();
+    await stopMaintenance(); await automatic?.service.whenIdle();
+    await syncService?.stop({ endSession: false }); await syncService?.whenIdle(); syncService = null;
     desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
     await desktop?.whenIdle(); desktop?.sealClose();
     await Promise.allSettled([...activeActions, draftPending]);
-    await syncService?.stop({ endSession: false }); await syncService?.whenIdle(); syncService = null;
     document.body.inert = true;
-    fileStore ||= new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId);
-    let state;
-    if (plan) state = await stageCloudRestore({ workspace, storage, fileStore, plan, safetyBackup: safety });
-    else state = await storage.load(profileId);
-    durable = Boolean(state?.cloudRestore);
-    await resumeCloudRestore({ state, storage, fileStore, progress: say });
-    location.reload();
+    const cleared = await work();
+    if (!cleared?.localReset) await storage.deleteJob('dataset-ui-error');
+    currentDraft = null; unsavedDrafts.clear(); lease.release(); location.reload();
   } catch (error) {
-    // A lost save acknowledgement or a failed remote step must reopen the durable job, never the old writer.
-    const saved = await storage.load(profileId).catch(() => null);
-    durable ||= Boolean(saved?.cloudRestore);
-    if (durable) {
-      if (saved?.cloudRestore) {
-        if (['source-reset-superseded', 'source-reset'].includes(error.code) && saved.cloudRestore.resetJob) saved.cloudRestore.resetJob.superseded = true;
-        saved.cloudRestore.error = String(error.message || t('sync.cloudRestore.incomplete')).slice(0, 2048);
-        const revision = saved.revision; saved.revision++;
-        await storage.save(saved, revision).catch(() => {});
-      }
-      location.reload(); return;
+    const saved = await storage.load(profileId).catch(() => null), job = await storage.getJob('dataset-reset').catch(() => null);
+    // A committed generation or reset journal survives a missing acknowledgement. Never resume the old in-memory writer.
+    if (saved && saved.revision !== before.revision || job?.operationId !== oldReset?.operationId || before.cloudRestore || oldReset && oldReset.phase !== 'complete') {
+      await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: error.code ?? 'storage-error', message: error.message }).catch(() => {});
+      currentDraft = null; unsavedDrafts.clear(); lease.release(); location.reload(); return;
     }
     document.body.inert = false; await desktop?.cancelClose();
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
-    accountBusy = false;
+    accountBusy = false; maintenanceAbort = new AbortController();
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
-    await initializeGoogle(); throw error;
+    if (native) await initializeGoogle(); scheduleMaintenance(); throw error;
   }
+}
+
+async function runCloudRestore(say, { plan, safety } = {}) {
+  requireConnected();
+  if (!plan) { maintenancePaused = false; scheduleMaintenance(0); say(t('sync.status.overwriteUnfinished')); return; }
+  await runDatasetChange(async () => {
+    await plan.stage(workspace, storage, datasetStore, safety);
+  });
 }
 
 function askResumeCloudRestore() {
   if ([...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
-  const dialog = element('dialog'); const state = element('p', '', 'backup-message');
+  const dialog = element('dialog'), state = element('p', '', 'backup-message');
   const resume = element('button', t('sync.actions.resumeOverwrite'), 'danger'); resume.type = 'button';
   const cancel = element('button', t('common.later')); cancel.type = 'button'; cancel.onclick = () => dialog.close();
   resume.onclick = async () => {
     resume.disabled = true; cancel.disabled = true;
-    try { await runCloudRestore(text => { state.textContent = text; }); }
+    try { await runCloudRestore(text => { state.textContent = text; }); dialog.close(); }
     catch (error) { state.textContent = error.message; resume.disabled = false; cancel.disabled = false; }
   };
   dialog.append(element('h2', t('sync.cloudRestore.title')),
-    element('p', workspace.state.cloudRestore.phase === 'reset'
-      ? t('sync.cloudRestore.resumeReset', { account: googleAccount.email || t('sync.account.current') })
-      : t('sync.cloudRestore.resumeUpload')), state, cancel, resume);
+    element('p', t('sync.cloudRestore.resumeReset', { account: googleAccount.email || t('sync.account.current') })),
+    element('p', t('backup.reset.updateDevices')), state, cancel, resume);
   dialog.oncancel = event => { if (resume.disabled) event.preventDefault(); };
   dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
 }
-// Another device cleared this account's Drive data. This device keeps its copy until the user chooses.
-function askAfterSourceReset() {
-  if (sourceResetAsked || document.querySelector('dialog[open]')) return; sourceResetAsked = true;
+
+// Missing data is never deletion authority. Every replacement below has its own explicit scope and fresh remote checks.
+async function askDatasetRecovery() {
+  if (sourceResetAsked || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
+  sourceResetAsked = true;
   const dialog = element('dialog'); dialog.id = 'source-reset-dialog';
-  const state = element('p', '', 'backup-message'); state.setAttribute('role', 'status');
-  // Not through run(): the reset waits for the desktop owner's queue to empty, so it cannot run inside it.
-  const clear = element('button', t('sync.sourceReset.clear'), 'danger'); clear.type = 'button';
-  clear.onclick = async () => {
-    for (const control of dialog.querySelectorAll('button')) control.disabled = true;
-    try { await resetWorkspace(text => { state.textContent = text; }, { cloud: false }); }
-    catch (error) { state.textContent = error.message; for (const control of dialog.querySelectorAll('button')) control.disabled = false; }
+  const message = element('p', '', 'backup-message'); message.setAttribute('role', 'status');
+  const body = element('div'), actions = element('div', undefined, 'dialog-actions'); let busy = false;
+  const action = (label, work, className) => {
+    const control = element('button', label, className); control.type = 'button';
+    control.onclick = async () => {
+      if (busy) return; busy = true; actions.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      try { await work(); } catch (error) { message.textContent = error.message; }
+      finally { busy = false; actions.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
+    }; return control;
   };
-  dialog.append(element('h2', t('sync.sourceReset.title')),
-    element('p', t('sync.sourceReset.body', { account: googleAccount?.email || t('sync.account.this') })),
-    element('p', t('sync.sourceReset.clearHint')), state);
-  const actions = element('div', undefined, 'dialog-actions');
-  actions.append(button(t('sync.sourceReset.exportFirst'), () => { dialog.close(); return openSettings('data'); }), button(t('common.later'), () => dialog.close()), clear);
-  dialog.append(actions); dialog.oncancel = event => { if ([...dialog.querySelectorAll('button')].some(control => control.disabled)) event.preventDefault(); };
-  dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); dialog.showModal();
-}
-// Deletes the current workspace on this device and reopens it empty, stopping everything that could write it back.
-async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } = {}) {
-  if (accountBusy || nativeClosing) throw new Error(t('sync.errors.accountBusy'));
-  accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
-  let resetAttempted = false;
-  try {
-    await automatic?.service.whenIdle(); await syncService?.stop(); syncService = null;
-    desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
-    await desktop?.whenIdle(); desktop?.sealClose();
-    await Promise.allSettled([...activeActions, draftPending]);
-    // Nothing of this workspace is kept, so its unsaved drafts must not hold the page open.
-    currentDraft = null; unsavedDrafts.clear(); document.body.inert = true;
-    if (cloud) {
-      requireConnected();
-      say(t('sync.reset.marking'));
-      resetAttempted = true;
-      await resetSource(new NativeGoogleFileStore(native.bridge, native.info, googleAccount.accountId),
-        { job: workspace.state.sourceReset, saveJob: job => workspace.saveSourceReset(job),
-          progress: (done, total) => say(t('sync.reset.deletingCloud', { done, total })) });
-    }
-    say(t('sync.reset.deletingDevice'));
-    await storage.reset(profileId);
-    // Native hosts reopen the document on the emptied profile after replying; the browser reloads itself.
-    if (!native) { await browserJournal?.reset(profileId); lease.release(); location.reload(); }
-  } catch (error) {
-    // A save may have succeeded before its reply was lost. Reopen the journal instead of restarting an old writer.
-    const saved = await storage.load(profileId).catch(() => null);
-    if (saved?.sourceReset) {
-      if (error.code === 'source-reset-superseded') {
-        saved.sourceReset.superseded = true;
-        const revision = saved.revision; saved.revision++;
-        await storage.save(saved, revision).catch(() => {});
-      }
-      location.reload(); return;
-    }
-    if (resetAttempted && !saved) { location.reload(); return; }
-    document.body.inert = false; await desktop?.cancelClose();
-    if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
-    if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
-    accountBusy = false; if (native) await initializeGoogle();
-    throw error;
+  const exportFirst = action(t('sync.sourceReset.exportFirst'), async () => { dialog.close(); await openSettings('data'); });
+  const later = action(t('common.later'), async () => dialog.close());
+  const account = googleAccount?.email || t('sync.account.current');
+  body.append(element('p', t('sync.recovery.kept', { account })), element('p', datasetProblem?.message ?? ''), element('p', t('backup.reset.updateDevices')));
+  actions.append(exportFirst, later);
+  if (datasetProblem?.code === 'incompatible-cloud-data' || datasetProblem?.code === 'initialization-conflict') {
+    body.append(element('p', t('sync.recovery.legacy')));
+    actions.append(action(t('sync.recovery.reset'), async () => { dialog.close(); await openSettings('data'); }, 'danger'));
+  } else {
+    actions.append(action(t('sync.recovery.rejoin'), async () => {
+      requireConnected(); await flushDraft();
+      const preview = await previewDatasetRejoin({ workspace, storage, fileStore: datasetStore });
+      body.replaceChildren(element('p', t('sync.recovery.rejoinPreview', { account, pending: preview.pending, drafts: preview.drafts, cards: preview.cards })));
+      actions.replaceChildren(exportFirst, later, action(t('sync.recovery.confirmRejoin'), async () => runDatasetChange(() =>
+        stageDatasetRejoin({ workspace, storage, fileStore: datasetStore, preview })), 'danger'));
+    }));
+    actions.append(action(t('sync.recovery.recover'), async () => {
+      requireConnected(); await flushDraft();
+      // Only current content and locally available attachments may be promised after loss. The safety archive uses that same explicit coverage.
+      const backup = await createBackup({ workspace, storage, coverage: 'current-state-only', appVersion: native?.info.appVersion });
+      const document = await openBackup(backup.bytes, { requireCurrent: true });
+      const plan = await prepareDatasetRestore({ workspace, storage, fileStore: datasetStore, document, workAreas: workAreas(), recovery: true });
+      let safety = null;
+      const confirm = action(t('sync.recovery.confirmRecover'), async () => runCloudRestore(text => { message.textContent = text; }, { plan, safety }), 'danger');
+      confirm.disabled = true;
+      body.replaceChildren(element('p', t('sync.recovery.recoverPreview', { account, cards: backup.manifest.counts.cards, drafts: backup.manifest.counts.drafts })),
+        element('p', t('backup.coverage.currentHint')), element('p', t('backup.reset.updateDevices')));
+      const password = element('input'); password.type = 'password'; password.autocomplete = 'new-password'; password.maxLength = 1024;
+      const passwordLabel = element('label', t('backup.export.password'), 'field'); passwordLabel.append(password); body.append(passwordLabel);
+      const save = action(t('backup.restore.saveSafety'), async () => {
+        if ([...password.value].length < 12) throw new Error(t('backup.errors.passwordTooShort'));
+        const destination = await nativeBackups.manual.chooseDestination({ requireConfirmed: true });
+        safety = await saveSafetyBackup({ workspace, storage, password: password.value, coverage: 'current-state-only', appVersion: native.info.appVersion, save: value => destination.save(value) });
+        password.value = '';
+        confirm.disabled = false; message.textContent = t('backup.restore.safetySaved');
+      });
+      // A disabled confirmation is also guarded by the opaque safety receipt in plan.stage().
+      confirm.onclick = async () => {
+        if (busy || !safety) return; busy = true;
+        try { await runCloudRestore(text => { message.textContent = text; }, { plan, safety }); }
+        catch (error) { message.textContent = error.message; busy = false; }
+      };
+      actions.replaceChildren(later, save, confirm);
+    }));
   }
+  dialog.append(element('h2', t('sync.recovery.title')), body, message, actions);
+  dialog.oncancel = event => { if (busy) event.preventDefault(); };
+  dialog.onclose = () => { dialog.remove(); sourceResetAsked = false; }; document.body.append(dialog); dialog.showModal();
+}
+
+async function resetWorkspace(say, { cloud = profileId.startsWith('google:') } = {}) {
+  if (cloud) {
+    requireConnected();
+    return runDatasetChange(async () => {
+      const reset = new DatasetReset(datasetStore, storage), pending = await reset.status();
+      const preview = !pending || pending.phase === 'complete' ? await reset.preview() : null;
+      say(t('sync.reset.marking'));
+      await startDatasetReset({ state: workspace.state, storage, fileStore: datasetStore, preview });
+    });
+  }
+  return runDatasetChange(async () => {
+    say(t('sync.reset.deletingDevice')); await browserJournal?.reset(profileId); await storage.reset(profileId); return { localReset: true };
+  });
 }
 
 // A quick edit opens in the Top-layer view of the display that shows most of the paper (SPEC-003, 2026-10-24).
@@ -937,6 +1104,7 @@ async function prepareNativeClose() {
   nativeClosing = true; document.body.inert = true; desktop?.beginClose();
   try {
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
+    await stopMaintenance();
     await Promise.allSettled([...activeActions]);
     stopAutomatic?.(); await automatic?.service.whenIdle();
     if (desktop) { await desktop.whenIdle(); await desktop.perform(flushDraft); } else await flushDraft();
@@ -950,7 +1118,7 @@ async function prepareNativeClose() {
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
     status(t('app.close.failed', { error: error.message }), true);
   }
-  finally { nativeClosing = false; document.body.inert = false; }
+  finally { nativeClosing = false; document.body.inert = false; maintenanceAbort = new AbortController(); scheduleMaintenance(); }
 }
 
 function renderGroupList(snapshot, layout, groups) {
@@ -1135,6 +1303,8 @@ function render() {
   // Capture adds to the selected group's To do, so it shows only while that is what is shown: not under another
   // filter, a search or the canvas and layout map of every group.
   $('#compose').hidden = filter !== 'active' || Boolean(query) || view === 'desktop';
+  $('#empty-trash').hidden = filter !== 'deleted';
+  $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted);
   renderCounts();
   // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.
   const scope = controller.state.operationScope; const adjusting = scope.kind !== 'none';
@@ -1200,7 +1370,8 @@ async function arrangeDesktop(kind) {
 // Conflicts show in the status bar only while there are some; version history stays in Settings. Unsaved changes show
 // on their notes (ADR-061).
 function renderCounts() {
-  const conflictCount = workspace.state.conflicts.length;
+  const state = workspace.state;
+  const conflictCount = state.conflicts.length + Object.values(state.drafts).filter(draft => draft.purged).length;
   $('#conflict-count').textContent = plural('app.conflicts.count', conflictCount); $('#conflicts-button').hidden = !conflictCount;
   $('#settings-conflict-count').textContent = String(conflictCount); $('#settings-conflict-count').hidden = !conflictCount;
 }
@@ -1290,7 +1461,8 @@ function renderNotes(cards, view, acrossGroups) {
     if (files) meta.append(element('span', plural('app.count.attachments', files)));
     if (acrossGroups) meta.append(element('span', groupName(groups.find(group => group.id === card.groupId)) || t('app.groups.pendingSync')));
     const actions = element('div', undefined, 'note-actions');
-    if (card.deleted) actions.append(button(t('app.notes.restore'), async () => { await workspace.restoreCard(card.id, card.revision); render(); status(t('app.status.restored')); }));
+    if (card.deleted) actions.append(button(t('app.notes.restore'), async () => { await workspace.restoreCard(card.id, card.revision); render(); status(t('app.status.restored')); }),
+      button(t('app.purge.title'), () => confirmPurge([card.id]), 'danger'));
     else {
       // A note never saved has no revision to complete, move or delete yet (ADR-061); its editor saves or discards it.
       if (card.revision) {
@@ -1653,7 +1825,7 @@ async function discardEditor() {
 // changes began from, and Save as a copy also when it was deleted, has unresolved versions or already exists (ADR-061).
 function showConflictActions(error) {
   const changed = error?.code === 'conflict' && Boolean(error.details?.actualRevision);
-  $('#overwrite').hidden = !changed; $('#save-copy').hidden = !changed && !['conflict', 'missing-card', 'duplicate-card'].includes(error?.code);
+  $('#overwrite').hidden = !changed; $('#save-copy').hidden = !currentDraft?.purged && !changed && !['conflict', 'missing-card', 'duplicate-card', 'dataset-purged'].includes(error?.code);
 }
 // The tray may have gone since; the window then simply stays open.
 async function returnHiddenMain() {
@@ -2153,6 +2325,8 @@ function setSearching(on) {
   else if ($('#search').value) { $('#search').value = ''; render(); }
 }
 function bindEvents() {
+  $('#empty-trash').onclick = () => run(() => confirmPurge(workspace.snapshot.cards.filter(card => card.deleted).map(card => card.id)));
+  $('#retry-cleanup').onclick = () => { maintenancePaused = false; $('#retry-cleanup').hidden = true; scheduleMaintenance(0); };
   // Inert blocks real input and focus; capture also rejects synthetic or already dispatched owner input.
   for (const type of ['click', 'dblclick', 'pointerdown', 'keydown', 'submit']) document.addEventListener(type, event => {
     if (!adjustOverlayActive()) return;

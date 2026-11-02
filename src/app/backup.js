@@ -60,7 +60,7 @@ function confirmReset(reset, goExport) {
   dialog.onclose = () => dialog.remove();
   dialog.append(node('h2', t('backup.reset.confirmTitle')), node('p', reset.target, 'reset-target'),
     node('p', reset.cloud ? t('backup.reset.deletesCloud') : t('backup.reset.deletesLocal')),
-    ...reset.cloud ? [node('p', t('backup.reset.otherDevices'))] : [],
+    ...reset.cloud ? [node('p', t('backup.reset.otherDevices')), node('p', t('backup.reset.updateDevices'))] : [],
     node('p', t('backup.reset.keeps', { items: reset.keeps.join(t('backup.reset.keepsSeparator')) })),
     check(t('backup.reset.agree'), agree), state);
   const actions = node('div', undefined, 'dialog-actions'); actions.append(backup, cancel, confirm); dialog.append(actions);
@@ -78,6 +78,8 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const message = node('p', '', 'backup-message');
   message.id = 'backup-status'; message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
   const encrypt = input('backup-encrypt', 'checkbox'); encrypt.checked = true;
+  const coverage = node('select'); coverage.id = 'backup-coverage';
+  coverage.append(new Option(t('backup.coverage.complete'), 'complete-retained-history'), new Option(t('backup.coverage.current'), 'current-state-only'));
   const password = input('backup-password', 'password'); password.autocomplete = 'new-password'; password.maxLength = 1024; password.placeholder = t('backup.export.passwordPlaceholder');
   const fileInput = input('restore-file', 'file'); fileInput.accept = '.zip,application/zip';
   const readPassword = input('restore-password', 'password'); readPassword.autocomplete = 'current-password'; readPassword.maxLength = 1024; readPassword.placeholder = t('backup.restore.passwordPlaceholder');
@@ -116,7 +118,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   };
   const resetPlan = () => { plan = null; safety = null; cloudAgree.checked = false; localAgree.checked = false; preview.replaceChildren(); refresh(); };
   function refresh() {
-    for (const control of [...controls, encrypt, password, fileInput, readPassword, mode, layout, repeat, cloudAgree, localAgree]) control.disabled = busy;
+    for (const control of [...controls, coverage, encrypt, password, fileInput, readPassword, mode, layout, repeat, cloudAgree, localAgree]) control.disabled = busy;
     password.disabled = busy || !encrypt.checked;
     const destructive = ['replace', 'cloud-replace'].includes(mode.value);
     cloudWarning.hidden = mode.value !== 'cloud-replace';
@@ -146,18 +148,18 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     const secret = exportPassword(); const destination = await files.chooseDestination();
     await flush(); checkCancelled(signal);
     if (google) say(t('backup.export.syncing'));
-    const result = await createSourceBackup({ workspace, storage, appVersion, source: backupSource, password: secret, signal, progress,
+    const result = await createSourceBackup({ workspace, storage, appVersion, coverage: coverage.value, source: backupSource, password: secret, signal, progress,
       confirmKnownData: (error, signal) => confirmKnownData(target, error, signal) });
     await result.verify?.();
     const saved = await destination.save({ ...result, signal, progress }); password.value = '';
     say(t('backup.export.result', { saved: saved.saved ? t('backup.export.saved') : t('backup.export.downloaded'), target,
-      scope: google ? result.knownDataOnly ? t('backup.export.scopeKnownOnly') : t('backup.export.scopeGoogle') : t('backup.export.scopeLocal'),
+      scope: t(result.manifest.coverage?.mode === 'current-state-only' ? 'backup.coverage.current' : 'backup.coverage.complete'),
       summary: syncSummary(result.manifest) }));
   }, 'primary');
   const readButton = action('preview-restore', t('backup.restore.check'), async signal => {
     resetPlan(); await flush(); const file = fileInput.files[0];
     requireValue(file && file.size <= BACKUP_LIMITS.encryptedBytes, 'backup-limit', t('backup.errors.fileTooLarge'));
-    loaded = await openBackup(new Uint8Array(await file.arrayBuffer()), { password: readPassword.value, signal, progress });
+    loaded = await openBackup(new Uint8Array(await file.arrayBuffer()), { password: readPassword.value, signal, progress, requireCurrent: true });
     const options = { document: loaded, layout: layout.checked || mode.value === 'local-replace' ? 'backup' : 'preserve', repeat: repeat.checked, workAreas: getWorkAreas(), signal };
     plan = mode.value === 'cloud-replace' ? await cloudRestore.prepare(options)
       : mode.value === 'local-replace' ? await prepareLocalRestore({ ...options, workspace })
@@ -168,6 +170,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
       notes: plural('backup.count.notes', counts.cards), groups: plural('backup.count.groups', counts.groups),
       drafts: plural('backup.count.drafts', counts.drafts), attachments: plural('backup.count.attachments', counts.attachments) })),
       node('p', syncSummary(value.backup)),
+      node('p', t(value.backup.coverage?.mode === 'current-state-only' ? 'backup.coverage.currentHint' : 'backup.coverage.completeHint')),
       node('p', value.mode === 'cloud-replace' ? t('backup.preview.resultCloud', after) : value.mode === 'local-replace' ? t('backup.preview.resultLocal', after)
         : t('backup.preview.resultKeepDrafts', after)));
     if (value.mode === 'local-replace') preview.append(node('p', t('backup.preview.removed', { notes: plural('backup.count.notes', value.removed.cards),
@@ -176,6 +179,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     if (value.mode === 'replace') preview.append(node('p', plural('backup.preview.extraNotes', value.extraCards)));
     if (value.result.conflicts || value.result.pendingRevisions) preview.append(node('p', plural('backup.preview.versionsToResolve', value.result.conflicts + value.result.pendingRevisions)));
     if (value.recoveryGroup) preview.append(node('p', t('backup.preview.recoveryGroup', { group: value.recoveryGroup })));
+    if (value.recoveredAsNew) preview.append(node('p', t('backup.preview.recoveredAsNew', { count: value.recoveredAsNew })));
     if (value.deferredPlacements) preview.append(node('p', plural('backup.preview.deferredPlacements', value.deferredPlacements)));
     say(t('backup.restore.ready'));
   });
@@ -183,14 +187,14 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     if (mode.value === 'local-replace' && !files.canConfirmSave) {
       const secret = exportPassword(); const destination = await files.chooseDestination();
       await flush(); checkCancelled(signal);
-      const result = await createSourceBackup({ workspace, storage, appVersion, password: secret, signal, progress });
+      const result = await createSourceBackup({ workspace, storage, appVersion, password: secret, coverage: coverage.value, signal, progress });
       await result.verify?.();
       await destination.save({ ...result, signal, progress }); password.value = '';
       say(t('backup.restore.safetyDownloaded')); return;
     }
     const secret = exportPassword(); const destination = await files.chooseDestination({ requireConfirmed: true });
     await flush(); safety = await saveSafetyBackup({ workspace, storage, appVersion, save: value => destination.save({ ...value, progress }),
-      password: secret, signal, progress }); password.value = '';
+      password: secret, coverage: coverage.value, signal, progress }); password.value = '';
     requireValue(safety.binding.revision === plan.preview.revision, 'stale-restore-plan', t('backup.errors.changedDuringBackup'));
     say(t('backup.restore.safetySaved'));
   });
@@ -214,6 +218,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   exportSection.append(exportHeading, node('p', t('backup.export.source', { target }), 'hint'),
     node('p', t('backup.export.hint'), 'hint'),
     ...google ? [node('p', t('backup.export.googleHint'), 'hint')] : [],
+    field(t('backup.coverage.label'), coverage), node('p', t('backup.coverage.choiceHint'), 'hint'),
     check(t('backup.export.encrypt'), encrypt), field(t('backup.export.password'), password), exportButton);
   if (uninstallNotice) exportSection.append(node('p', uninstallNotice, 'hint'));
   const options = node('details', undefined, 'restore-options');

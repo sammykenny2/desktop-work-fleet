@@ -9,7 +9,7 @@ import { DatasetReset } from '../src/sources/dataset-reset.js';
 import { DatasetTestProvider } from './fixtures/dataset/provider.js';
 import { createBackup, openBackup } from '../src/backup/payload.js';
 import { saveSafetyBackup } from '../src/backup/restore.js';
-import { prepareDatasetRestore, resumeDatasetRestore } from '../src/backup/dataset-restore.js';
+import { prepareDatasetRestore, resumeDatasetRestore, advanceDatasetRestore } from '../src/backup/dataset-restore.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 }, content = text => ({ text, format: 'markdown', attachments: [] });
 async function client(provider = null, records = new MemoryRecordStore()) {
@@ -34,6 +34,27 @@ async function stage(provider, document) {
   const state = await plan.stage(target.workspace, target.storage, provider, safety);
   return { ...target, state, plan };
 }
+
+test('background seed slices return before readiness and accept foreground edits between slices', async () => {
+  const provider = new DatasetTestProvider(), target = await stage(provider, await backup(10));
+  const reopened = await client(provider, target.records); let edited = false, done = false;
+  for (let attempt = 0; attempt < 30 && !done; attempt++) {
+    let uploaded = 0;
+    const result = await advanceDatasetRestore({ ...reopened, limit: 2, progress: event => { if (event.phase === 'seed') uploaded++; } });
+    assert.ok(uploaded <= 2, 'a background slice uploaded more than its admission limit');
+    if (uploaded && !edited) {
+      const job = await reopened.storage.getJob('dataset-reset');
+      const init = await reopened.storage.getJob(`dataset-reset-initialize:${job.operationId}`);
+      assert.equal(provider.files.has(init.binding.plan.readyId), false);
+      const card = reopened.workspace.snapshot.cards[0];
+      await reopened.workspace.updateCard(card.id, { content: content('edited between seed slices') }, card.revision); edited = true;
+    }
+    done = result.complete;
+  }
+  assert.ok(edited && done); assert.equal(reopened.workspace.snapshot.cards[0].content.text, 'edited between seed slices');
+  const follower = await client(provider); await follower.sync.sync();
+  assert.equal(follower.workspace.snapshot.cards[0].content.text, 'edited between seed slices');
+});
 
 test('seeded cloud replacement publishes history before ready and exposes a fixed current checkpoint set', async () => {
   const provider = new DatasetTestProvider(), document = await backup(145), target = await stage(provider, document);

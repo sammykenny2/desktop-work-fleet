@@ -52,7 +52,7 @@ interface. To switch, see [Settings](#settings).
 - On the desktop you can edit a paper in place: Ctrl+Enter saves, and Esc keeps changed text unsaved and leaves
   editing. For attachments and other content, Full editor (the outward arrows) goes back to the editor in the main
   window.
-- Moving a note with unsaved changes to Deleted asks first, as its changes go with it; Undo brings back both.
+- Moving a note with unsaved changes to Trash asks first, as its changes go with it; Undo brings back both.
 - New notes are 240×240 squares. Where a group region is short, a new note shrinks to a square that fits (at least
   160×160). Notes already on the desktop keep their size until you use Reset desktop layout.
 - A new note, including one that arrives from sync, takes the first free place in its group's region, row by row from
@@ -137,7 +137,7 @@ interface. To switch, see [Settings](#settings).
   - Browser preview: "Desktop", a canvas inside the page that shows the To do notes in their group regions; you
     arrange them there (see [Browser preview](#browser-preview)).
   - Phones have no third view.
-- The filters "To do", "Completed", "Archived" and "Deleted" show the notes in each state, and you can restore notes
+- The filters "To do", "Completed", "Archived" and "Trash" show the notes in each state, and you can restore notes
   from them. Search covers titles and the full text in every group: while it has text the title reads "Search results
   in all groups", and on the board each result names its group. Its field ends the top bar; on phones it opens from the magnifier
   at the top right.
@@ -145,8 +145,14 @@ interface. To switch, see [Settings](#settings).
   matching in the first five lines of their text; then the rest. Within a tier the notes keep their usual order.
 - Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
   are marked as completed. Archiving or deleting takes a note off the desktop on every device.
-- "Move to Deleted" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
-  next message, and the note stays in Deleted until you restore it there.
+- "Move to Trash" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
+  next message. In Trash, "Delete forever" permanently removes the note, all retained versions and its owned
+  attachments after confirmation. "Empty Trash" covers the previewed trashed notes across every group, not just the
+  selected group. Cleanup resumes in bounded background steps; its status distinguishes a committed deletion from
+  pending cloud/device cleanup. Offline devices and already exported backups cannot be erased remotely.
+- Distinct unpublished changes from a note permanently deleted elsewhere appear in Settings > Versions and conflicts,
+  under Needs attention. "Save as copy" creates a new identity; the deleted original does not return. Archived notes
+  remain editable. Trash has no automatic expiry yet, and saved versions have no individual retention timer.
 
 ## Desktop notes and layers
 
@@ -338,18 +344,27 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
 - An encrypted export needs a password of at least 12 characters. The password of a manual export is not stored and
   cannot be recovered; restoring needs the original password.
 - "Add as new notes" creates separate data; "Merge with current notes" keeps branches by their original identity;
-  "Replace current notes" keeps history and moves extra notes to Deleted.
+  "Replace current notes" keeps history and moves extra notes to Trash.
 - "Replace current notes" needs a successfully saved safety backup of the current data first ("Back up current data
   first"). Browsers that only download, and cannot confirm that the file was saved, disable this step.
 - In the native apps, a manual export uses the system folder picker, creates a new `work-fleet-backup-UUID.zip` file
   each time and reads it back to verify it. Reading a portable backup can still use the normal file picker.
 - Local and Google backups have the same format. A Google export syncs first; if the sync fails you must explicitly
-  choose "Back up only what this device knows".
+  choose a current-only export if sync fails. The coverage selector defaults to "Complete retained history" and also
+  applies to safety backups. "Current state only" includes current conflicts and unsaved changes, but excludes older
+  versions. The manifest and restore preview identify that limited scope. Complete export reads retained remote
+  history on demand; it fails intact if the 20,000-entry or 128 MiB expanded ZIP limit is exceeded.
+- History lists are paged, and remote version contents download only when opened. Offline cached history can be
+  incomplete. Notes retain versions until whole-note permanent deletion; copies own their cloud attachments, so
+  saving a copy can consume additional Drive space. A future "clear this note's history" operation is not implemented.
 - To work offline, download a Google ZIP, switch to Local notes and restore it. The detailed procedures in both
   directions are in [Google setup](google-setup.md).
 - During the test phase the data formats of notes and backups stay at V1; updated fields do not start a schema
   upgrade or create extra copies. The data version policy is
-  [SPEC-007](specs/007-schema-evolution-and-migrations.md); existing ZIP backups keep working as usual.
+  [SPEC-007](specs/007-schema-evolution-and-migrations.md). The dataset format is incompatible with the older
+  whole-workspace format and its ZIPs. There is no automatic conversion: the first-start screen keeps old data and
+  offers an explicit local discard. Use a compatible older app to inspect/export old data. Local discard never
+  authorizes deleting Google data; that is a separate confirmation.
 
 ### Restore into a cleared workspace
 
@@ -358,7 +373,7 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   will be permanently replaced by the backup", then press "Confirm restore".
 - You do not have to reset first or be forced to back up the old content. Notes, history, unsaved changes, attachments
   and layout are replaced in one transaction; if it fails, the original data is kept.
-- The old content does not stay in Deleted. The automatic backup settings and other workspaces are kept. You can
+- The old content does not stay in Trash. The automatic backup settings and other workspaces are kept. You can
   still choose "Back up current data first".
 - In a Google workspace, "Clear Google, then restore from the backup" overwrites everything; see
   [Google setup](google-setup.md). Unless "Also restore desktop positions" is ticked, this device keeps its own layout
@@ -372,6 +387,8 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   since the last successful one; a missed backup runs when the app opens or resumes. "Back up now" runs one at once.
 - On Windows the password is saved with DPAPI in the current Windows account, and the renderer only gets a key ID.
   To restore on another device you still need the password, so keep it yourself.
+- Automatic backups require complete retained history. Missing remote history, concurrent changes or a size limit
+  fail the run and keep the last verified backup; they never silently switch to current-only coverage.
 - Turning automatic backups off ("Turn off") or changing the location keeps the old files. Unfinished, modified or
   replaced files are kept and the problem is shown.
 - On Windows, saving supports only local NTFS folders; network drives, FAT/exFAT, symlinks and junctions are refused.
@@ -386,7 +403,16 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   permanently and reset" runs it. Saved backup ZIPs, shares not yet accepted in the Share inbox and other workspaces
   are not affected.
 - In a Google workspace it also clears the data on Drive, and every device that uses the account is affected (see
-  [Google setup](google-setup.md)).
+  [Google setup](google-setup.md)). Update or stop every older client first, including unfinished reset/overwrite jobs:
+  an older delete-all can also destroy the new dataset. The app records old file IDs using metadata before creating
+  the new dataset, then cleans only those captured leaf files. It retains obsolete folder containers to avoid
+  deleting late, uncaptured children. New data can be used while this old-data cleanup continues.
+- If the expected cloud dataset disappears or changes, local notes stay usable and sync pauses. The recovery dialog
+  offers retaining/exporting this copy, previewing a rejoin of the verified cloud (with counts of local changes to
+  discard), or recovering the current local data to a new Google generation. Recovery requires a saved encrypted
+  safety backup and fresh note identities; uncached history and unavailable attachments are not promised.
+- Cloud reset/restore resumes in background units after confirmation. A seeded restore publishes readiness only after
+  all captured history uploads; edits made in the meantime remain queued for normal sync afterwards.
 
 ### When Work Fleet can't open your notes
 

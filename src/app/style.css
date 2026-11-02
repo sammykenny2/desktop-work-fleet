@@ -14,3 +14,5 @@ dialog{border:1px solid var(--line);border-radius:14px;padding:28px;width:min(61
 .backup-message.error{color:var(--danger)}
 .opacity-row{display:flex;align-items:center;gap:10px}.opacity-row input{flex:1}.opacity-row output{min-width:3.5em;text-align:right;font-variant-numeric:tabular-nums}#data-failure-dialog{max-width:560px}.data-failure-path{display:block;padding:8px 10px;border-radius:6px;background:var(--hover);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 
+
+.cleanup-status{display:flex;align-items:center;gap:12px;flex-wrap:wrap;color:var(--muted);font-size:12px;padding:0 24px 8px}.cleanup-status:has(#cleanup-status:empty):has(#retry-cleanup[hidden]){display:none}#purge-dialog li{overflow-wrap:anywhere}#empty-trash{white-space:nowrap;font-size:12px}.view-tools{flex-wrap:wrap}

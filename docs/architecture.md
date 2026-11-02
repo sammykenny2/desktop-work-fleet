@@ -37,25 +37,26 @@ This is a proposed boundary, not the current implementation; the main WebView st
 Runtime selection, process grouping and session handover precede implementation in
 [PLAN-009](plans/009-desktop-presentation-lifecycle.md).
 
-[SPEC-004](specs/004-revision-graph-and-file-sync.md)/[ADR-011](decisions/011-immutable-revision-graph.md)
-define the strict JSON of `src/sources`, the immutable revision graph, missing parents and multiple heads.
-The approved replacement direction for current-state checkpoints and deletable history is in
-[ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md)/[SPEC-010](specs/010-dataset-checkpoints-and-deletable-history.md).
-Its remote protocol still requires proof and independent review. `contracts/storage.d.ts` and `src/storage/records*.js`
-provide bounded record transactions, indexed paging and exact receipts with native SQLite counterparts. They do not
-yet replace the application's whole-workspace storage; the following describes the existing runtime.
-Workspace connects revisions, projections, conflicts, group layout references and the cursor at the atomic save
-boundary, and `src/app/conflicts.js` provides compare / adopt / history restore and group repair.
-The FileSync of [ADR-012](decisions/012-durable-file-store-and-drive-adapter.md) coordinates paging, durable
-reservations, attachments, acks and backoff; GoogleDriveFileStore implements REST and resumable uploads. Native
-authorization, protected HTTP and the renderer connection still need integration.
-[ADR-054](decisions/054-explicit-workspace-initialization.md) adds V1 workspace prepare / ready control files:
-the device that starts a reset clears the workspace with a durable journal and then initializes it, while the other
-replicas wait; new accounts can complete the same deterministic plan together.
-Workspace stages incoming data, checks the required bytes and attachments, then activates them atomically; the rescan
-requirement after ready is persisted in the same transaction as the cursor.
+[ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md)/[SPEC-010](specs/010-dataset-checkpoints-and-deletable-history.md)
+define the active dataset runtime. `contracts/storage.d.ts`, `src/storage/records*.js` and native SQLite provide
+bounded transactions, indexed paging and exact receipts. `WorkspaceRecordStorage` loads only current/meta/draft
+records, stores immutable history separately and atomically activates staged bulk generations. Typing persists
+only the draft and receipt; history is not copied, encrypted or transferred through the bridge per keystroke.
+`DatasetSync` reconciles the fixed checkpoint shards, bounded receipt tail and targeted purge markers, preserving
+unknown ancestry as conservative conflicts. Native hosts own OAuth and typed Drive operations. `DatasetHistory`
+lists only a selected entity's metadata and hydrates the selected body or attachment. `DatasetPurge` commits a
+terminal identity barrier, sanitizes current copies, then cleans owned cloud data and indexed local caches.
+`src/app/main.js` schedules one cleanup/seed unit between foreground operations; `src/app/conflicts.js` handles
+paged history, conflict resolution and explicit new-identity recovery of unpublished purged-note edits.
 
-The `src/backup` of [ADR-013](decisions/013-complete-portable-backup.md) captures a complete local snapshot,
+`DatasetReset` captures old leaf IDs before publishing its old-format fence and new dataset. Readiness releases
+normal sync before exact-ID background cleanup finishes. The incompatible-local screen keeps old profiles intact
+until local discard is confirmed separately from Google reset. Missing cloud roots/fences/readiness pause uploads;
+rejoin or current-only recovery requires an explicit preview. No migration or automatic resurrection runs.
+Legacy FileSync/graph code remains for old-format fixtures and fence verification, not application bootstrap.
+Independent protocol review, installed-host and real-Drive acceptance are still required.
+
+The `src/backup` of [ADR-013](decisions/013-complete-portable-backup.md) captures explicitly selected complete retained history or current-only coverage,
 validates ZIP / manifest / graph / references / attachments and provides a WebCrypto encrypted container; validation
 does not write to the target.
 Large revision graphs and projections have a cancellable batch reader that shares the graph rules with daily sync.
@@ -64,8 +65,7 @@ vault are in ADR-016, and other platforms are integrated separately.
 
 On Windows, `src/native/windows/app` packages the management and editing WebView2; the virtual host maps only Assets and
 starts no listener.
-`src/native/windows/core` owns the single SQLite / DPAPI coordinator, and `src/storage/native.js` adapts the shared
-persistence.
+`src/native/windows/core` owns the single SQLite / DPAPI coordinator, and `src/storage/records-native.js` adapts shared record persistence; `src/storage/native.js` supplies transfers and the backup journal.
 The bridge accepts only fixed data methods, restricted chunks and opaque transfer identities; the profile is assigned by
 the host.
 Workspace, receipts and attachments commit together, and the journal has its own CAS; the OS vault has no entry point

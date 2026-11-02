@@ -8,24 +8,25 @@ import { formatDate, plural, t } from '../src/i18n/index.js';
 const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'utf8');
 const initialize = source.slice(source.indexOf('async function initializeGoogle()'), source.indexOf('function renderGoogleAccess()'));
 const presenter = source.slice(source.indexOf('function renderGoogleAccess()'), source.indexOf('// The account chip'));
-const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('async function changeGoogleAccount('));
+const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('// Each turn performs one bounded cleanup unit.'));
 const changeAccount = source.slice(source.indexOf('async function changeGoogleAccount('), source.indexOf('function resetPlan()'));
 // main.js passes status text as a string or as a function that builds it in the current language.
 const textOf = value => typeof value === 'function' ? value() : value;
 
-async function fixture(profileId, account, state = {}) {
+async function fixture(profileId, account, state = {}, jobs = {}) {
   const nodes = new Map(); const timers = []; const syncs = []; const connections = []; let immediate = 0;
   const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
   const context = vm.createContext({
     profileId, googleAccount: null, syncTimer: null, syncService: null, t,
     native: { info: { profileId }, bridge: { request: async method => { assert.equal(method, 'google.status'); return account; } } },
-    workspace: { state }, storage: {}, sourceResetAsked: true,
+    workspace: { state }, storage: { getJob: async key => jobs[key] ?? null, putJob: async (key, value) => { jobs[key] = value; } }, sourceResetAsked: true,
+    datasetStore: null, pendingReset: null, datasetProblem: null, maintenancePaused: false, scheduleMaintenance() {}, stopAutomatic: null, automatic: { service: { clearSettings: async () => {} } },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     clearInterval() {}, setInterval: (callback, delay) => { timers.push({ callback, delay }); return 1; }, addEventListener() {},
     renderAccount() {}, setSync: (...args) => syncs.push(args), syncGoogle: async () => { immediate++; },
-    changeGoogleAccount() {}, askResumeCloudRestore() {}, askAfterSourceReset() { connections.push('recover-local-copy'); }, openSettings() {},
-    NativeGoogleFileStore: class { constructor(bridge, info, accountId) { assert.equal(info.profileId, `google:${accountId}`); } },
-    FileSync: class { constructor(options) { connections.push(options); } },
+    changeGoogleAccount() {}, askResumeCloudRestore() {}, askDatasetRecovery() { connections.push('recover-local-copy'); }, openSettings() {},
+    NativeGoogleDatasetStore: class { constructor(bridge, info, accountId) { assert.equal(info.profileId, `google:${accountId}`); } },
+    DatasetSync: class { constructor(options) { connections.push(options); } },
   });
   await vm.runInContext(`${presenter}\n${initialize}\ninitializeGoogle()`, context);
   return { nodes, timers, syncs, immediate, connections, context };
@@ -46,15 +47,14 @@ test('locked vault keeps offline Google notes and a retry route without suggesti
   assert.equal(f.context.googleAccount.accountId, 'fixture');
 });
 
-test('pending reset journals pause automatic sync and superseded reset or restore jobs expose local-copy recovery', async () => {
-  for (const state of [{ sourceReset: {} }, { sourceReset: { superseded: true } }, { cloudRestore: { resetJob: { superseded: true } } }]) {
-    const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, state);
+test('pending reset journals pause sync and a superseded transition exposes explicit recovery', async () => {
+  for (const failed of [false, true]) {
+    const jobs = { 'dataset-reset': { phase: 'capture', ready: false },
+      ...failed ? { 'dataset-ui-error': { code: 'source-reset-superseded', message: 'Another reset won' } } : {} };
+    const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, {}, jobs);
     assert.equal(f.immediate, 0); assert.equal(f.timers.length, 0); assert.equal(f.connections.length, 0);
-    if (state.sourceReset?.superseded || state.cloudRestore) {
-      assert.equal(f.nodes.get('#google-sync').textContent, t('sync.actions.refetch'));
-      await f.nodes.get('#google-sync').onclick();
-      assert.deepEqual(f.connections, ['recover-local-copy']);
-    } else assert.equal(f.nodes.get('#google-sync').textContent, t('sync.actions.resumeReset'));
+    assert.equal(f.nodes.get('#google-sync').textContent, t(failed ? 'sync.recovery.options' : 'sync.actions.resumeReset'));
+    if (failed) { await f.nodes.get('#google-sync').onclick(); assert.deepEqual(f.connections, ['recover-local-copy']); }
   }
 });
 
@@ -70,7 +70,7 @@ test('unlock status updates the same account controls without starting OAuth', a
 test('hosts without optional vault pause fields retain connected and signed-out behaviour', async () => {
   const connected = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture', email: 'synthetic@example.test' });
   assert.equal(connected.immediate, 1);
-  assert.equal(connected.connections[0].bootstrapGroup, true, 'the app delegates initial group creation to the sync coordinator');
+  assert.ok(connected.connections[0].fileStore, 'the app uses the dataset coordinator with an account-bound store');
   const local = await fixture('local', { configured: true, connected: false });
   assert.equal(local.nodes.get('#google-value').textContent, t('sync.google.signedOut'));
   assert.equal(local.nodes.get('#sync-row').hidden, true);
@@ -82,6 +82,8 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
   const account = { configured: true, connected: true, paused: false, accountId: 'fixture', email: 'synthetic@example.test' };
   const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
   const context = vm.createContext({
+    AbortController, maintenanceWork: null, syncRequested: false, datasetProblem: null, maintenancePaused: false,
+    stopMaintenance: async () => {}, scheduleMaintenance() {}, datasetStore: null,
     profileId: 'google:fixture', googleAccount: { ...account, connected: false, paused: true }, t, plural, formatDate,
     native: { info: { capabilities: { vaultUnlock: capability } }, bridge: { request: async method => {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
@@ -92,7 +94,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
     flushDraft: async () => calls.push('flush'),
-    workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingOperations: [], layout: { placeNew: async () => {} } },
+    workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingCount: 0, layout: { placeNew: async () => {} } },
     activeGroups: snapshot => snapshot.groups, activeGroupId: 'group',
     controller: { reconcile: async () => {} }, workAreas: () => [], render() {},
   });
@@ -208,7 +210,7 @@ test('cancelled account change or close leaves an immediately usable manual-sync
     const first = f.invoke(true);
     if (action === 'local') {
       const oldSync = f.context.syncService;
-      oldSync.stop = async () => {};
+      oldSync.stop = async () => {}; oldSync.whenIdle = async () => {};
       Object.assign(f.context, { syncTimer: null, clearInterval() {}, stopAutomatic: null, automatic: null,
         status() {}, initializeGoogle: async () => { f.context.syncService = oldSync; } });
       f.context.document.body = {};
@@ -243,7 +245,7 @@ test('cancelled Google sign-in preserves the workspace and restores editing, syn
     f.context.googleAccount = { ...f.context.googleAccount, connected: true, paused: false };
     const calls = [], notices = [];
     const oldSync = f.context.syncService;
-    oldSync.stop = async () => calls.push('stop-sync');
+    oldSync.stop = async () => calls.push('stop-sync'); oldSync.whenIdle = async () => {};
     const workspace = f.context.workspace;
     Object.assign(f.context, {
       syncTimer: null, clearInterval() {}, stopAutomatic: () => calls.push('stop-backups'),

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress: dataset and portable/cloud restore core; application activation, recovery UI and acceptance pending |
+| Status | In progress: production dataset UI and background recovery connected; performance and platform acceptance pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Further review to be arranged by the maintainer |
@@ -66,20 +66,18 @@ still needs its own review. Author checks are not independent review.
 
 Depends only on relevant Phase 0 approval, not Phase 1B or a Google grant.
 
-- [ ] 1A.1 Define typed bounded transactions/paged reads for current entities/heads, revisions, unsaved baselines,
+- [x] 1A.1 Define typed bounded transactions/paged reads for current entities/heads, revisions, unsaved baselines,
   outbox, attachments and maintenance journals. Preserve one writer, account/session fencing, local CAS and durable ack.
 - [x] 1A.1a Add the shared record transaction, receipt, paging and attachment contract, with account-scoped
-  IndexedDB and native SQLite primitives. Verify rollback and exact acknowledgement replay. Inner entity/head,
-  unsaved-baseline and maintenance payload schemas remain part of 1A.1/1A.2; the application still uses its old store.
-- [ ] 1A.2 Refactor Workspace/projection so typing, save and search do not copy/rebuild all historical revisions.
+  IndexedDB and native SQLite primitives. Verify rollback and exact acknowledgement replay. Current entity/head, unsaved-baseline and maintenance payloads are integrated in the record adapter.
+- [x] 1A.2 Refactor Workspace/projection so typing, save and search do not copy/rebuild all historical revisions.
   Embed the unsaved baseline needed for ADR-061 comparisons without old-history reads.
 - [x] 1A.2a Implement the explicit current-format Workspace, bounded current-head graph, self-contained draft
   baselines and WorkspaceRecordStorage adapter. Load only current/meta/draft indexes, persist changed rows,
-  page pending uploads/history and atomically select staged bulk generations. The production entry point and
-  backup/history UI still need conversion before 1A.2 is complete; no old format is automatically converted.
-- [ ] 1A.3 Implement IndexedDB and native SQLite/bridge semantics on Windows, macOS, Linux, iOS and Android.
+  page pending uploads/history and atomically select staged bulk generations. The production entry point, backup and history UI use this adapter; no old format is automatically converted.
+- [x] 1A.3 Implement IndexedDB and native SQLite/bridge semantics on Windows, macOS, Linux, iOS and Android.
   A history table behind a whole-workspace JSON save API does not satisfy this task.
-- [ ] 1A.4 Implement incompatible-local-profile detection and the explicit preservation/discard/rejoin screen.
+- [x] 1A.4 Implement incompatible-local-profile detection and the explicit preservation/discard/rejoin screen.
   Do not convert or silently delete old local data to exercise the new store.
 - [ ] 1A.5 Reproduce or replace the supplied JS-only baseline with a recorded harness, hardware/runtime, fixture
   sizes and methodology; then measure native storage/bridge separately. Cover rollback, uncertain ack, restart,
@@ -126,90 +124,89 @@ is necessary for proof, but is not itself a proof or a passing real-provider tes
 
 Depends on the local transaction contract and reviewed remote candidate.
 
-- [ ] 2.1 Implement the dataset/ready descriptor, folder reservations, immutable revision/change/checkpoint kinds
+- [x] 2.1 Implement the dataset/ready descriptor, folder reservations, immutable revision/change/checkpoint kinds
   and typed provider queries. Keep OAuth tokens, upload URLs and arbitrary HTTP/SQL unavailable to the renderer.
 - [x] 2.1a Implement closed dataset descriptors and typed Drive list/get/changes/folder/read/create RPCs across
   Windows, Apple, Linux and Android. Reuse bounded resumable transfers, validate parent/dataset ownership and keep
-  credentials native. Shared wire fixtures and isolated adapter checks do not complete initialization or 2.1.
-- [ ] 2.2 Implement token-before-list bootstrap, bounded catch-up, current reconciliation, relevant purge checks
+  credentials native. Shared wire fixtures and isolated adapter checks do not prove installed-host or provider behavior.
+- [x] 2.2 Implement token-before-list bootstrap, bounded catch-up, current reconciliation, relevant purge checks
   and atomic activation. Preserve local outbox/unsaved work and generation isolation (VC01, VC03, VC06, VC07).
 - [x] 2.2a Implement durable prepare/ready initialization and the DatasetSync controller, resumable publication
   reservations, current-view activation, indexed oldest-first uploads, bounded incremental refresh and admission/
   compaction. Exercise restart, lost replies consumed by checkpoints, competing initialization, concurrent edits,
-  note-owned attachments and purge/cloud-loss barriers. Application activation and lazy history remain in 2.4/2.5.
-- [ ] 2.3 Implement one history-body upload plus small current receipt; checkpoint exact inputs before retiring
+  note-owned attachments and purge/cloud-loss barriers. The production entry point and lazy history now use the controller; remaining adapter acceptance is in 2.5.
+- [x] 2.3 Implement one history-body upload plus small current receipt; checkpoint exact inputs before retiring
   receipts/predecessor snapshots. Retain revisions as history and enforce admission/backpressure (VC04, VC05, VC19).
-- [ ] 2.4 Implement paged note-folder history and direct selected-version reads; restore via a new UUID and fresh
+- [x] 2.4 Implement paged note-folder history and direct selected-version reads; restore via a new UUID and fresh
   head preview. Load attachments on demand, with truthful cache availability (VC08-VC10).
 - [x] 2.4a Implement DatasetHistory with cached/remote coverage, metadata-only remote pages, selected-body reads
-  and lazy verified attachment caching. Keep history UI and backup completeness integration open in 2.4/Phase 5.
+  and lazy verified attachment caching. History UI and explicit backup completeness are integrated; platform/provider acceptance remains open.
 - [ ] 2.5 Verify every adapter, conflict behavior, group redirects and cloned/restored outbox replay. No shared
   checkpoint chunks, packs or separate complete history copy are introduced.
 
-**Deliverable**: normal current operations independent of H. Destructive UI remains disabled until its own gates pass.
+**Deliverable**: normal current operations independent of H. Destructive operations require explicit previews and consent; real-provider acceptance remains separate.
 
 ### Phase 3: Legacy reset, first-run choices and cloud-loss recovery
 
-- [ ] 3.1 Detect unsupported local/cloud layout with bounded metadata/header reads; local and cloud discard choices
+- [x] 3.1 Detect unsupported local/cloud layout with bounded metadata/header reads; local and cloud discard choices
   remain separate. Keep old profiles/backups intact unless their exact deletion is confirmed (VC20).
-- [ ] 3.2 Persist the old file-ID capture, legacy-compatible reset fence, new isolated dataset plan, readiness and
+- [x] 3.2 Persist the old file-ID capture, legacy-compatible reset fence, new isolated dataset plan, readiness and
   exact-ID cleanup stages. Never reuse the old unfiltered delete-all loop after new files exist (VC21, VC22).
 - [x] 3.2a Implement paged durable metadata capture, legacy fence read-back, guarded initialization and exact
   leaf-ID cleanup with uncertain-reply recovery. Retain obsolete folder containers to avoid cascading into late
   uncaptured children. Verify old FileSync fencing, competing fences, old delete-all interference, restart and
-  intentionally empty replacement. First-run/reset/recovery screens and seeded cloud restore remain open.
-- [ ] 3.3 Add localized all-device update/stop warning and test fixtures for 0.4.x normal sync, an in-flight old
+  intentionally empty replacement. First-run/reset/recovery screens and background seeded cloud restore are connected.
+- [x] 3.3 Add localized all-device update/stop warning and test fixtures for 0.4.x normal sync, an in-flight old
   reset and a newly invoked old Reset all / overwrite-Google operation. The fence is mitigation, not revocation.
-- [ ] 3.4 Detect missing root/fence/ready state; preserve usable local data, inspect new generations and offer
+- [x] 3.4 Detect missing root/fence/ready state; preserve usable local data, inspect new generations and offer
   explicit rejoin/recovery/export. Preview missing history/attachments and require confirmation before a new
   generation is republished from local data. No automatic resurrection (VC21, VC24, VC25).
-- [ ] 3.5 Exercise interrupted/competing initializers, intentionally empty workspaces and follower activation.
+- [x] 3.5 Exercise interrupted/competing initializers, intentionally empty workspaces and follower activation.
   Keep new-state readiness distinct from old-data cleanup completion (VC22, VC26).
 
 **Deliverable**: recoverable no-migration reset and first-run UX, including the old client's destructive behavior.
 
 ### Phase 4: Manual permanent note deletion and Empty Trash
 
-- [ ] 4.1 Implement the approved terminal identity barrier, exact note/episode preview and idempotent purge journal.
+- [x] 4.1 Implement the approved terminal identity barrier, exact note/episode preview and idempotent purge journal.
   Implement only Delete forever and Empty Trash; retain `trashedAt` / `trashEpisode` without expiry machinery
   (VC11-VC15, VC18).
-- [ ] 4.2 Sanitize current/redundant checkpoint copies before deleting them; remove the exact note-owned folder,
+- [x] 4.2 Sanitize current/redundant checkpoint copies before deleting them; remove the exact note-owned folder,
   history and attachments with verified cascade or metadata-only fallback. Reconcile late publications and leave
   ambiguous cleanup pending, preserving every neighboring head (VC05, VC16, VC17).
-- [ ] 4.3 Revalidate uploads/restore/export; preserve distinct unpublished work for explicit Save as copy with new
+- [x] 4.3 Revalidate uploads/restore/export; preserve distinct unpublished work for explicit Save as copy with new
   identity and remote attachment ownership. Invalidate cached history/previews/undo on reconnect (VC12, VC17, VC18).
-- [ ] 4.4 Implement targeted purge queries and durable device cleanup acknowledgements, not startup loading of
+- [x] 4.4 Implement targeted purge queries and durable device cleanup acknowledgements, not startup loading of
   every historical tombstone. Do not garbage-collect the last barrier in a live dataset (VC19).
 - [ ] 4.5 Verify pending/committed/cloud-cleanup wording, worker interruption, foreground priority, account changes
   and resumes. No claim about erasing offline devices or previously exported files (VC14, VC25, VC26).
 - [x] 4.1a Implement exact preview and resumable per-note/Empty Trash queue, terminal publication, sanitized
   checkpoints/current cache, metadata-only folder fallback, late orphan cleanup and indexed local history/outbox/
   attachment collection. Exercise stale previews, lost deletion replies, shared bytes and retained unsaved work.
-  Production commands, worker scheduling, backup fencing and independent/provider checks remain open above.
+  Production commands, bounded worker scheduling and backup fencing are connected. Independent/provider checks remain open.
 
 **Deliverable**: explicit whole-note permanent deletion. Automatic expiry and per-version deletion remain deferred.
 
 ### Phase 5: Bounded backup and purge-aware restore
 
-- [ ] 5.1 Implement explicit Complete retained history / Current state only coverage in the V1 manifest, capture
+- [x] 5.1 Implement explicit Complete retained history / Current state only coverage in the V1 manifest, capture
   revalidation and hydration of declared bytes. Preserve self-contained recovery, unsaved work/layout, encryption,
   existing grants and durable save receipts (VC12, VC23).
-- [ ] 5.2 Preflight and enforce existing ZIP entry/byte limits; fail intact without a valid-looking partial export.
+- [x] 5.2 Preflight and enforce existing ZIP entry/byte limits; fail intact without a valid-looking partial export.
   Keep automatic backup's last good artifact and report failure instead of silently reducing scope. If Q04 rejects
   the initial capacity boundary, design/review the larger streaming/container path before calling this phase done.
-- [ ] 5.3 Enforce purge barriers during merge/replace/history restore. Preview explicit recovery as new identities;
+- [x] 5.3 Enforce purge barriers during merge/replace/history restore. Preview explicit recovery as new identities;
   full Google replacement is a new-generation reset, not a bypass of deletion knowledge (VC24).
 - [ ] 5.4 Test purge/reset during capture, uncached history/attachments, oversized notes/archives, encryption,
   cancellation, stale previews and process death on all hosts (VC12, VC23-VC26).
 - [x] 5.1a Implement explicit V1 coverage, complete remote history/attachment hydration, metadata entry preflight,
   capture/purge revalidation, current-only offline fallback and new-identity recovery of purged backup notes.
   Wire record-based local restore and test interrupted bulk activation, incompatible earlier archives and last-good
-  automatic backup preservation. Verify the shared path in Chromium/WebKit IndexedDB. Coverage UI, seeded cloud
-  replacement/recovery and remaining platform/provider acceptance remain open in 5.1-5.4.
+  automatic backup preservation. Verify the shared path in Chromium/WebKit IndexedDB. Coverage UI and seeded cloud replacement/recovery are connected. Remaining platform/provider acceptance is in 5.4.
 - [x] 5.3a Implement locally staged, safety-receipt-bound cloud replacement with fresh identities, resumable history
   seeding before readiness and current-only initial checkpoints. Share the locator-only publisher with ordinary
   sync. Verify interrupted uploads, final-ack loss, old-client interference, preserved device layout and cold
-  follower startup without history reads. Application recovery controls and platform/provider checks remain open.
+  follower startup without history reads. Application recovery controls are connected. Platform/provider checks remain open.
 
 **Deliverable**: truthful bounded backup/restore. Million-version complete exports are not claimed under the initial
 container; a cache subset cannot pass as complete retained history.

@@ -129,6 +129,15 @@ export class AutomaticBackup {
     this.cancel();
     return this.#queue(async () => { await this.#save({ enabled: false }); this.#phase = 'idle'; this.#announce(); return this.status; });
   }
+  /** A confirmed workspace reset forgets scheduling/ownership; already exported files are never removed. */
+  clearSettings() {
+    this.cancel();
+    return this.#queue(async () => {
+      await this.#save({ enabled: false, paused: false, settings: null, inventory: [], pending: null,
+        lastSuccess: null, lastFailure: null, failures: 0, nextAttemptAt: 0 });
+      this.#phase = 'idle'; this.#announce(); return this.status;
+    });
+  }
   cancel() { this.#controller?.abort(); }
   whenIdle() { return this.#tail; }
 

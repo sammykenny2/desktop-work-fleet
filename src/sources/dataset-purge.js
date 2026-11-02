@@ -90,7 +90,10 @@ export class DatasetPurge {
       const [queue] = (await this.#storage.jobs('dataset-purge-queue', { limit: 1 })).rows;
       if (!queue) return null;
       const jobs = [], { profileId, binding, items } = queue.value;
-      stale(profileId === this.#workspace.state.profileId && (binding?.plan.datasetId ?? null) === (this.#workspace.syncState.dataset?.plan.datasetId ?? null));
+      stale(profileId === this.#workspace.state.profileId);
+      if ((binding?.plan.datasetId ?? null) !== (this.#workspace.syncState.dataset?.plan.datasetId ?? null)) {
+        await this.#storage.deleteJob(queue.key); return { phase: 'retired' };
+      }
       for (const item of items) {
         const key = purgeJobKey(binding?.plan.datasetId, item.entityId), local = await this.#storage.getControl(`local-purge:${item.entityId}`);
         const existing = await this.#storage.getJob(key);
@@ -102,7 +105,10 @@ export class DatasetPurge {
     this.#activeJob = entry.key;
     let job = entry.value;
     const { item, binding } = job, store = this.#provider();
-    stale(job.profileId === this.#workspace.state.profileId && (binding?.plan.datasetId ?? null) === (this.#workspace.syncState.dataset?.plan.datasetId ?? null));
+    stale(job.profileId === this.#workspace.state.profileId);
+    if ((binding?.plan.datasetId ?? null) !== (this.#workspace.syncState.dataset?.plan.datasetId ?? null)) {
+      await this.#storage.deleteJob(entry.key); return { phase: 'retired' };
+    }
     requireValue(!binding || store, 'history-offline', t('errors.sources.historyOffline'));
     const protocol = binding ? new DatasetProtocol(store, this.#storage) : null;
     const save = async patch => { job = { ...job, ...patch }; await this.#storage.putJob(entry.key, job); };

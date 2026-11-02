@@ -125,10 +125,12 @@ export class DatasetLifecycle {
     }
     if (job.phase === 'objects') {
       // Once seeded uploads may have been acknowledged, a lost root cannot be recreated as an empty namespace.
-      for (const file of job.directories) invalid(same(await this.#store.getObject({ id: file.id, signal }), file));
+      invalid(same(await this.#store.getObject({ id: job.binding.plan.rootId, signal }), job.directories[0]));
       invalid(same(await this.#protocol.read(job.binding.descriptor, signal), job.binding.plan));
       if (seed && !job.seeded) {
-        const heads = await seed(job.binding, guard), shards = new Map(DATASET_SHARDS.map(shard => [shard, []]));
+        const heads = await seed(job.binding, guard);
+        if (heads === null) return null; // A bounded seed slice is durable but cannot activate an incomplete dataset.
+        const shards = new Map(DATASET_SHARDS.map(shard => [shard, []]));
         for (const head of heads) shards.get(await datasetShard(head.record.kind, head.record.entityId)).push(head);
         const objects = [], initial = [];
         for (const item of job.objects.slice(0, -1)) {
@@ -143,6 +145,7 @@ export class DatasetLifecycle {
         objects.push({ file: (await datasetFile(old.file.id, old.file.parentId, value)).file, value });
         job = { ...job, objects, seeded: true }; await this.#journal.putJob(key, job);
       }
+      for (const file of job.directories) invalid(same(await this.#store.getObject({ id: file.id, signal }), file));
       for (const item of job.objects.slice(1, -1)) { signal?.throwIfAborted(); await guard(); await this.#object(await materialize(item), signal); }
       job = { ...job, phase: 'ready-pending' }; await this.#journal.putJob(key, job);
     }

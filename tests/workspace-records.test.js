@@ -14,6 +14,17 @@ async function fixture(profileId = 'local') {
   return { records, storage, workspace, persist, profileId };
 }
 
+test('indexed reads serialize with this writer while retaining competing-writer revision fences', async () => {
+  const f = await fixture('google:account');
+  const card = await f.workspace.createCard(content('same writer'));
+  const page = f.records.page.bind(f.records);
+  f.records.page = async (...args) => { await new Promise(resolve => setTimeout(resolve, 1)); return page(...args); };
+  const draft = f.workspace.blankDraft(card.groupId, card); draft.content.text = 'foreground edit';
+  await Promise.all([f.storage.pendingPage(), f.storage.jobs('dataset-purge'), f.storage.page('card', card.id),
+    f.storage.pendingForEntity('card', card.id), f.storage.putJob('background', { kind: 'background' }), f.workspace.saveDraft(draft)]);
+  assert.equal(f.workspace.state.drafts[draft.id].content.text, 'foreground edit');
+});
+
 test('typing writes only the draft and active revision; startup never reads retained history or pending uploads', async () => {
   const f = await fixture('google:account');
   let card = await f.workspace.createCard(content('initial'));

@@ -35,6 +35,28 @@ async function consolidate(provider, binding) {
   }
 }
 
+test('cached history remains available offline, while a known purge still blocks cached selection', async () => {
+  const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
+  const card = await a.workspace.createCard(content('cached')); await a.sync.sync();
+  provider.getObject = async () => { throw Object.assign(new Error('offline'), { code: 'network' }); };
+  assert.equal((await a.history.page('card', card.id)).coverage, 'cached');
+  assert.equal((await a.history.get(card.revision)).value.content.text, 'cached');
+  await a.storage.putControl(`local-purge:${card.id}`, { operationId: 'known' });
+  await assert.rejects(a.history.get(card.revision), { code: 'dataset-purged' });
+});
+
+test('historical restoration never reuses an earlier Trash episode or carries Trash fields onto an active note', async () => {
+  const a = await client(); const original = await a.workspace.createCard(content('active'));
+  const trashed = await a.workspace.updateCard(original.id, { deleted: true }, original.revision);
+  const active = await a.workspace.restoreCard(original.id, trashed.revision);
+  const restored = await a.workspace.resolveRevisions({ kind: 'card', entityId: original.id, heads: [active.revision],
+    selectedRevision: trashed.revision, fromHistory: true });
+  assert.notEqual(restored.trashEpisode, trashed.trashEpisode);
+  const final = await a.workspace.resolveRevisions({ kind: 'card', entityId: original.id, heads: [restored.revision],
+    selectedRevision: restored.revision, patch: { deleted: false } });
+  assert.equal(final.trashedAt, undefined); assert.equal(final.trashEpisode, undefined);
+});
+
 test('remote history pages use metadata and selected old versions fetch one body; attachments hydrate on demand', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
   const bytes = new TextEncoder().encode('lazy attachment'), id = await sha256(bytes);

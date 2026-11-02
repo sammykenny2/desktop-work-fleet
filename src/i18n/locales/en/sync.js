@@ -1,5 +1,21 @@
 // The Google account, sync status and the cloud reset and overwrite flows of the main window.
 export default {
+  'sync.reset.capturing': "Recording old cloud file targets: {total} found…",
+  'sync.reset.cleanup': "New data is ready. Cleaning captured old files: {done} / {total}.",
+  'sync.reset.cleaned': "Captured old file cleanup finished. {folders} old folder containers were retained to protect files added after capture.",
+  'sync.recovery.paused': "Sync paused; local data kept",
+  'sync.recovery.options': "Review recovery choices",
+  'sync.recovery.title': "Choose how to continue with Google",
+  'sync.recovery.kept': "The cloud data for {account} is missing, changed or incompatible. Your local notes and unsaved changes are still here. No local copy will be uploaded automatically.",
+  'sync.recovery.legacy': "You can keep the old data and use a compatible app, or open Data and backup to explicitly reset this account’s Work Fleet Google data. No historical bodies need to be downloaded for the reset.",
+  'sync.recovery.reset': "Open cloud reset",
+  'sync.recovery.rejoin': "Preview joining the current cloud",
+  'sync.recovery.rejoinPreview': "Join the verified current dataset of {account}? This replaces this device’s {cards} notes and discards {pending} pending saves and {drafts} drafts here. Export first if you need this local copy. Google data will not be deleted.",
+  'sync.recovery.confirmRejoin': "Replace this copy and join Google",
+  'sync.recovery.recover': "Preview recovering local data to Google",
+  'sync.recovery.recoverPreview': "Replace the Work Fleet cloud data of {account} with this device’s {cards} current notes and {drafts} drafts, using new note identities? Save the safety backup before confirming. Uncached history and missing attachments cannot be recovered.",
+  'sync.recovery.confirmRecover': "Replace Google with this local data",
+  'sync.recovery.working': "Preparing cloud data: {done} / {total}…",
   // Where the notes live: the account chip and the identity on the Account and sync page
   'sync.account.localNotes': 'Local notes',
   'sync.account.google': 'Google account',

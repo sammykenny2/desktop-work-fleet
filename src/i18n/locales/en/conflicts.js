@@ -1,4 +1,11 @@
 export default {
+  'conflicts.recovery.title': "Unpublished edits from a permanently deleted note",
+  'conflicts.recovery.hint': "The original note is gone. These distinct edits are kept only on this device. Save them as a new note or discard them.",
+  'conflicts.history.loading': "Loading a page of versions…",
+  'conflicts.history.open': "Open this version",
+  'conflicts.history.cached': "{count} cached versions shown. Offline caches may contain only part of this note’s history.",
+  'conflicts.history.partial': "{count} versions shown. Load another page to continue.",
+  'conflicts.history.complete': "{count} retained versions shown.",
   'conflicts.tab.conflicts': 'Needs attention',
   'conflicts.tab.history': 'Version history',
 
@@ -28,7 +35,7 @@ export default {
   'conflicts.version.toDo': 'To do',
   'conflicts.version.completed': 'Completed',
   'conflicts.version.archived': 'Archived',
-  'conflicts.version.deleted': 'Deleted',
+  'conflicts.version.deleted': 'Trash',
   'conflicts.version.movedFrom': 'Moved from "{group}"',
   'conflicts.version.downloadAttachment': 'Download attachment: {name}',
   'conflicts.version.mergedInto': 'Merged into "{group}"',

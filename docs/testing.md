@@ -23,9 +23,9 @@ For documentation work, check_docs.py, git diff --check and a scope and semantic
 behavioral, failure and history-scaling acceptance; [PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md)
 starts approved local storage and remote proof independently, followed by sync, reset, manual purge
 and backup integration. The research records externally supplied JS timings, not reproduced acceptance results.
-The record transaction foundation and explicit current-format Workspace adapter are implemented, but the app
-entry point still uses whole-workspace persistence. No complete
-VC case, improved typing latency, new bootstrap or destructive cloud behavior is claimed from primitive tests.
+The production entry point uses the current-format record adapter and dataset controller. Protocol, transition and
+UI fixtures are separate from native/provider acceptance. Primitive tests alone do not establish a complete VC case
+or measured typing latency.
 The implementation grant does not authorize live cloud resets, and old sync tests do not verify the new model.
 
 Run the isolated foundation checks:
@@ -39,7 +39,7 @@ node --test tests/dataset-sync.test.js
 node --test tests/dataset-history-purge.test.js
 node --test tests/dataset-reset.test.js
 node --test tests/backup-dataset.test.js
-node --test tests/dataset-restore.test.js
+node --test tests/dataset-restore.test.js tests/dataset-transition.test.js
 node tests/record-storage.browser.mjs chromium
 node tests/record-storage.browser.mjs webkit
 python3 -B -m unittest discover -s tests -p 'test_record_storage.py' -v
@@ -58,7 +58,7 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   self-contained unsaved baselines, two-row typing commits, startup without history/outbox reads, indexed history,
   failed/double acknowledgement, competing writers and interrupted bulk generation activation. The browser probe
   also saves/reopens this Workspace through actual IndexedDB and continues a history page. These are integration
-  checks of the new core, not evidence that the production entry point has switched or that native latency passed.
+  checks of the active core; they do not establish native latency.
 - Dataset model tests use an isolated provider with captured files and controllable publication/list/read/delete
   boundaries. They cover concurrent checkpoints, token-before-list bootstrap, retirement during GET, exact retries,
   partial cleanup, terminal purge including a missing history body, bad coverage, every publication/retirement
@@ -66,8 +66,7 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   Lazy 10k/100k/1m history fixtures produce identical current-query/read counts and reject all historical body reads
   after consolidation. This does not measure Google latency, create a million files or test an installed app.
   The trusted JS Drive adapter has scripted typed-query/folder/upload/feed tests. Native dataset methods and the
-  DatasetSync controller now exist; the production entry point still uses FileSync. No live account or deletion
-  experiment is part of these checks.
+  DatasetSync controller serve the production entry point. No live account or deletion experiment is part of these checks.
 - Controller tests cover durable prepare/ready initialization, an interrupted readiness acknowledgement after a
   follower has retired the initial checkpoint, competing initializers, incremental refresh after reopen, oldest-first
   bounded uploads, one revision body per save, and an uncertain receipt already consumed before restart. They also
@@ -83,7 +82,8 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   isolated dataset, and retain late uncaptured files/obsolete folder containers. They reopen the real record
   adapter after capture, lose fence/deletion replies, inject a competing fence and simulate the old unfiltered
   delete-all operation. The old FileSync fixture stops on the new fence. None uses an installed old client or
-  live Google account; first-run UI, seeded restore and explicit local cloud-loss recovery remain separate work.
+  live Google account. Transition tests separately check rejoin previews, stale previews, reset restart and local-only
+  retirement of superseded journals; no discarded local identity is uploaded to the joined generation.
 - Dataset backup tests distinguish complete/current-only manifests, hydrate cold remote history and old attachments,
   reject an oversized history inventory before uncached body reads, abort capture on purge and preserve the last
   successful automatic artifact after failure. Restore tests remap purged identities, reject stale previews and
@@ -92,7 +92,8 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
 - Seeded cloud restore tests stage the replacement locally, interrupt/resume uploads, lose the final local
   acknowledgement and inject old-client deletion. New readiness appears only after the captured history is uploaded;
   cold followers read the fixed checkpoint set with historical-body reads forbidden. The device-layout choice is
-  preserved across new identities. These are provider-model checks, not native UI or live Google restore results.
+  preserved across new identities. Seed units yield while incomplete and keep readiness absent; post-capture edits
+  remain in the normal outbox. These are provider-model checks, not native UI or live Google restore results.
 - `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
   Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
   identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a
@@ -118,10 +119,21 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   emulator verification. The adapter sizes record/staging cursor windows explicitly using Android's
   [SQLiteCursor window API](https://developer.android.com/reference/android/database/sqlite/SQLiteCursor#setWindow(android.database.CursorWindow)).
 
-The full shared suites and native build procedures below remain required. Production entry-point integration,
-explicit incompatible-profile UI, native bridge latency, process-death/power-loss acceptance, iOS runtime,
-full reset/purge/backup integration and real-provider checks remain open. The protocol model has executable
-evidence but still requires independent assessment; independent implementation review is also still required.
+Run `npm run build` and `python3 scripts/testing/serve_preview.py --port 0`, then use the printed loopback origin:
+
+```bash
+node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser chromium
+node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser webkit
+```
+
+The isolated UI probe verifies old local data kept until consent, paged history/restore, Trash confirmation and
+physical cleanup, current-only export, explicit Save as copy for unpublished purged-note edits and mobile layout.
+The ordinary browser interaction probe also runs against record storage. Neither touches an account or existing profile.
+
+The full shared suites and native build procedures below remain required. Native bridge latency,
+process-death/power-loss acceptance, installed native reset/purge/backup flows, iOS runtime and real-provider checks
+remain open. The protocol model has executable evidence but still requires independent assessment; independent
+implementation review is also still required.
 
 ## Proposed desktop presentation lifecycle verification
 

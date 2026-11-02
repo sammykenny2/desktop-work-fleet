@@ -12,6 +12,15 @@ const DAY = 86400000;
 const text = value => ({ format: 'markdown', text: value, attachments: [] });
 const policy = { destinationId: 'chosen-directory', destinationName: 'Test backups', encrypted: false, keep: 2 };
 const fails = code => error => error.code === code;
+
+test('an explicit workspace reset forgets automatic settings and ownership without deleting saved archives', async () => {
+  const f = await fixture(); await f.service.load(); await f.service.configure(policy); await f.service.run({ force: true });
+  const files = [...f.entries.keys()]; assert.equal(files.length, 1);
+  await f.service.clearSettings();
+  assert.equal(f.service.state.enabled, false); assert.equal(f.service.state.settings, null);
+  assert.deepEqual(f.service.state.inventory, []); assert.deepEqual([...f.entries.keys()], files);
+  assert.deepEqual(f.removals, []); assert.equal((await f.service.run({ force: true })).kind, 'disabled');
+});
 async function fixture(options = {}) {
   let content; let disk = null; let now = 1800000000000; let fault; let flush = async () => {};
   const entries = new Map(); const creates = []; const removals = [];

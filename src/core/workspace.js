@@ -69,6 +69,7 @@ export function workingCards(state, open = null) {
   const cards = state.cards.map(card => unsaved.has(card.id) ? { ...copy(card), content: copy(unsaved.get(card.id).content), unsaved: true } : copy(card));
   const saved = new Set(state.cards.map(card => card.id));
   for (const draft of unsaved.values()) {
+    if (draft.purged) continue; // Recovery is explicit in Versions; the deleted identity never returns to the board.
     if (!saved.has(draft.cardId)) cards.push({ id: draft.cardId, revision: null, groupId: draft.groupId, content: copy(draft.content),
       deleted: false, archived: false, completed: false, unsaved: true });
   }
@@ -572,6 +573,12 @@ export class Workspace {
       const value = { ...copy(selected.value), ...patch, revision: this.#uuid() };
       if (kind === 'card') {
         value.groupId = resolveGroupId(state, value.groupId); this.#group(state, value.groupId);
+        if (this.currentFormat) {
+          const sameEpisode = value.deleted && current.length && current.every(head => head.value.deleted
+            && head.value.trashEpisode === value.trashEpisode);
+          if (value.deleted && !sameEpisode) { value.trashedAt = this.#createdAt(); value.trashEpisode = this.#uuid(); }
+          if (!value.deleted) { delete value.trashedAt; delete value.trashEpisode; }
+        }
       } else if (!value.deleted) {
         delete value.redirectGroupId;
         if (!state.groups.some(group => group.id === value.id && !group.deleted)) validateNewGroup(state);
@@ -704,7 +711,7 @@ export class Workspace {
     }
     return this.#commit(state => {
       const card = this.#card(state, cardId, expectedRevision);
-      if (this.currentFormat && patch.deleted === true) { card.trashedAt = this.#createdAt(); card.trashEpisode = this.#uuid(); }
+      if (this.currentFormat && patch.deleted === true && !card.trashedAt) { card.trashedAt = this.#createdAt(); card.trashEpisode = this.#uuid(); }
       Object.assign(card, copy(patch), { revision: this.#uuid() });
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);

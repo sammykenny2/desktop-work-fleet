@@ -214,21 +214,21 @@ test('a malformed restore manifest or account-mismatched reset journal fails bef
   assert.equal(store.calls.slice(count).some(call => ['createFile', 'deleteFile'].includes(call.method)), false);
 });
 
-test('a reset save acknowledgement loss reloads the durable journal, and superseded jobs expose the local-copy recovery route', async () => {
+test('a dataset transition reloads its durable journal after a missing save reply or superseding reset', async () => {
   const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'utf8');
-  const reset = source.slice(source.indexOf('async function resetWorkspace('), source.indexOf('function currentDesktopEditor()'));
-  for (const errorCode of ['lost-save', 'source-reset-superseded']) {
-    let loaded = { revision: 4, sourceReset: { sourceId: 'fixture' } }; let reloads = 0;
+  const run = source.slice(source.indexOf('async function runDatasetChange('), source.indexOf('async function runCloudRestore('));
+  for (const code of ['lost-save', 'source-reset-superseded']) {
+    let saved = { revision: 4 }; let reloads = 0; const jobs = new Map();
     const context = vm.createContext({ accountBusy: false, nativeClosing: false, clearInterval() {}, syncTimer: null,
       stopAutomatic: null, automatic: null, syncService: null, desktop: null, activeActions: [], draftPending: null,
       currentDraft: null, unsavedDrafts: new Set(), document: { body: {} }, profileId: 'google:fixture',
-      native: { bridge: {}, info: {} }, googleAccount: { accountId: 'fixture' }, workspace: { state: {}, saveSourceReset() {} },
-      requireConnected() {}, NativeGoogleFileStore: class {}, t,
-      resetSource: async () => { throw Object.assign(new Error(errorCode), { code: errorCode }); },
-      storage: { load: async () => copy(loaded), save: async value => { loaded = value; } },
-      location: { reload: () => { reloads++; } }, initializeGoogle: () => assert.fail('must not restart the old writer'),
+      native: { bridge: {}, info: {} }, workspace: { state: copy(saved) }, stopMaintenance: async () => {}, t,
+      storage: { load: async () => copy(saved), getJob: async key => jobs.get(key) ?? null, putJob: async (key, value) => jobs.set(key, value) },
+      location: { reload: () => { reloads++; } }, lease: { release() {} },
+      initializeGoogle: () => assert.fail('must not restart the old writer'),
+      work: async () => { saved = { revision: 5 }; jobs.set('dataset-reset', { operationId: 'new', phase: 'capture' }); throw Object.assign(new Error(code), { code }); },
     });
-    await vm.runInContext(`${reset}\nresetWorkspace(() => {})`, context);
-    assert.equal(reloads, 1); assert.equal(Boolean(loaded.sourceReset.superseded), errorCode === 'source-reset-superseded');
+    await vm.runInContext(`${run}\nrunDatasetChange(work)`, context);
+    assert.equal(reloads, 1); assert.equal(jobs.get('dataset-ui-error').code, code);
   }
 });

@@ -1,4 +1,11 @@
 export default {
+  'conflicts.recovery.title': "已永久刪除便箋的未發布修改",
+  'conflicts.recovery.hint': "原便箋已刪除。這些不同的修改只保留在此裝置上，可另存為新便箋或捨棄。",
+  'conflicts.history.loading': "正在載入一頁版本…",
+  'conflicts.history.open': "開啟此版本",
+  'conflicts.history.cached': "已顯示 {count} 個快取版本。離線快取可能只包含此便箋的部分歷史。",
+  'conflicts.history.partial': "已顯示 {count} 個版本。載入下一頁以繼續查看。",
+  'conflicts.history.complete': "已顯示 {count} 個保留版本。",
   'conflicts.tab.conflicts': '需要處理',
   'conflicts.tab.history': '版本歷史',
 
@@ -28,7 +35,7 @@ export default {
   'conflicts.version.toDo': '待處理',
   'conflicts.version.completed': '已完成',
   'conflicts.version.archived': '封存',
-  'conflicts.version.deleted': '刪除區',
+  'conflicts.version.deleted': '垃圾桶',
   'conflicts.version.movedFrom': '從「{group}」移來',
   'conflicts.version.downloadAttachment': '下載附件：{name}',
   'conflicts.version.mergedInto': '已合併至「{group}」',

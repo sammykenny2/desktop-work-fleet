@@ -12,13 +12,14 @@ export class DatasetSeed {
   constructor({ workspace, storage, fileStore, header, progress = () => {} }) {
     this.#workspace = workspace; this.#storage = storage; this.#store = fileStore; this.#header = header; this.#progress = progress;
   }
-  async initialize(binding, guard, signal) {
+  async initialize(binding, guard, signal, { limit = Infinity } = {}) {
     const header = this.#header, progressKey = `seed-progress:${header.operationId}`, headIds = new Set(header.heads);
     invalid(this.#workspace.state.profileId === header.profileId && this.#store.sourceId === header.sourceId);
     const session = await this.#workspace.beginSync(this.#store.sourceId);
     const check = async () => { signal?.throwIfAborted(); this.#workspace.assertSyncSession(session); await guard(); };
     const publisher = new DatasetPublisher({ store: this.#store, storage: this.#storage, profileId: header.profileId, guard: check, signal });
     let progress = await this.#storage.getControl(progressKey) ?? { done: 0, complete: header.lastOperation === null };
+    let published = 0;
     try {
       while (!progress.complete) {
         await check();
@@ -36,6 +37,7 @@ export class DatasetSeed {
             jobs: [datasetUploadKey(binding.plan.datasetId, operation.operationId, false)], controls });
           this.#progress({ phase: 'seed', completed: progress.done, total: header.total });
           if (progress.complete) break;
+          if (++published >= limit) return null;
         }
         // Seed work yields between bounded pages so cancellation and foreground events can run.
         await new Promise(resolve => setTimeout(resolve, 0));

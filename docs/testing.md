@@ -203,7 +203,10 @@ An additional 106-file case interrupts initialization with a synthetic provider 
 It verifies that Account and sync shows the actual error, the error survives a reload and remains visible in
 Data and backup, and Continue finishes the same operation while Settings stays open. Initialization progress
 counts new objects rather than reusing the 106 old-file deletion targets. The reset worker tests also verify
-progress after individual acknowledged deletions inside a bounded slice. These cases exercise the production
+progress after individual acknowledged deletions inside a bounded slice. Completed reset cases with zero or one
+retained folder clear the main-window maintenance notice and retry action, while keeping the result in Data and
+backup across reload. Zero-folder results omit the folder explanation; reset failures still appear on the main window.
+These cases exercise the production
 renderer and worker with fixture storage/provider boundaries; they do not establish a real Google reset result.
 The desktop modes also request native close with Settings plus recovery open and with an unconfirmed reset:
 both acknowledge closure without cloud mutation. An active backup picker instead refuses close with a visible reason.

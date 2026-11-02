@@ -432,8 +432,8 @@ async function initializeGoogle() {
   if (transitionError && (workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete')) {
     const failure = resetFailure(transitionError); maintenanceFailure = failure; maintenancePaused = true;
     showMaintenance(() => t('sync.reset.paused', { error: failure.message }), { retry: !datasetProblem, error: true });
-  } else if (pendingReset && pendingReset.phase !== 'complete') {
-    showMaintenance(() => datasetProgressText(resetProgress(pendingReset)));
+  } else if (pendingReset) {
+    showMaintenance(() => datasetProgressText(resetProgress(pendingReset)), { completed: pendingReset.phase === 'complete' });
   }
   renderGoogleAccess(); renderAccount();
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
@@ -614,9 +614,9 @@ function resetFailure(error) {
   return { kind: 'dataset-ui-error', code: error.code ?? 'storage-error',
     message: error.code === 'native-outcome-unknown' ? t('sync.reset.unconfirmed') : error.message };
 }
-function showMaintenance(text, { retry = false, error = false } = {}) {
-  maintenanceNotice = { text, retry, error };
-  setText('#cleanup-status', text); $('#retry-cleanup').hidden = !retry;
+function showMaintenance(text, { retry = false, error = false, completed = false } = {}) {
+  maintenanceNotice = { text, retry, error, completed };
+  setText('#cleanup-status', completed ? '' : text); $('#retry-cleanup').hidden = completed || !retry;
   setText('#dataset-maintenance-status', text);
   $('#dataset-maintenance-status').classList.toggle('error', error);
   $('#dataset-maintenance').hidden = !textOf(text);
@@ -629,7 +629,7 @@ function resetProgress(job) {
   return { phase: job.phase, completed: job.deleted, total: job.captured, ready: job.ready, folders: job.retainedFolders };
 }
 function reportDatasetProgress(value) {
-  const text = () => datasetProgressText(value); showMaintenance(text);
+  const text = () => datasetProgressText(value); showMaintenance(text, { completed: value.phase === 'complete' });
   if (pendingReset && !pendingReset.ready && !workspace.state.cloudRestore) {
     setSync('busy', () => t('sync.status.resetting'), text);
     setText('#google-sync', () => t('sync.status.resetting')); $('#google-sync').disabled = true;
@@ -639,7 +639,7 @@ function resumeMaintenance() {
   if (nativeClosing || maintenanceWork || datasetProblem) return;
   maintenancePaused = false;
   if (pendingReset && pendingReset.phase !== 'complete') reportDatasetProgress(resetProgress(pendingReset));
-  else if (maintenanceNotice) showMaintenance(maintenanceNotice.text);
+  else if (maintenanceNotice) showMaintenance(maintenanceNotice.text, { completed: maintenanceNotice.completed });
   scheduleMaintenance(0);
 }
 
@@ -839,7 +839,7 @@ function datasetProgressText({ phase, completed = 0, total = 0, ready = false, f
     : phase === 'clearing' ? 'sync.reset.clearing'
     : phase === 'cleanup' ? 'sync.reset.cleanup'
     : ['residual-audit', 'audit-restart', 'journal-cleanup'].includes(phase) ? 'sync.reset.verifying'
-    : phase === 'complete' ? 'sync.reset.cleaned' : 'sync.recovery.working';
+    : phase === 'complete' ? folders > 0 ? 'sync.reset.cleanedWithFolders' : 'sync.reset.cleaned' : 'sync.recovery.working';
   return t(key, { done: completed, total, folders });
 }
 

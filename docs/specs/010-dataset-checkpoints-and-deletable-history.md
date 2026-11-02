@@ -514,6 +514,9 @@ Root-parent proof uses the same retryable listing-visibility rule as descriptors
 an empty-folder check and Drive has no conditional empty-folder delete. Retain/count those obsolete containers;
 all captured content files are still removed. The legacy flat layout has no such containers. Note purge has a
 different, explicitly terminal whole-identity scope and may delete its owned folders and late descendants.
+Completed reset cleanup clears the main-window maintenance notice and retry action. Its result remains in
+Settings > Data and backup, including after reopening; mention retained folders only when their count is positive.
+Active progress, errors and residual legacy-file warnings remain visible and keep their existing recovery actions.
 
 Old 0.4.x `resetSource` uses unfiltered `listFileIds`: it can delete **all** app data, not just old-format files.
 The compatibility fence reduces ordinary old-client writes but is not an access-control boundary and cannot

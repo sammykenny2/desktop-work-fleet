@@ -121,6 +121,8 @@ try {
     const oldIds = oldCloud ? ['old-note-1', 'old-note-2', 'old-layout',
       ...resetInterruption ? Array.from({ length: 103 }, (_, i) => `old-history-${i}`) : []] : [];
     for (const id of oldIds) provider.files.set(id, { file: { id, kind: 'revision' }, bytes: new Uint8Array([255, 0, 128]) });
+    const retainedFolder = oldLocal && oldCloud ? 'old-folder' : null;
+    if (retainedFolder) provider.files.set(retainedFolder, { file: { id: retainedFolder, kind: 'folder' }, bytes: new Uint8Array() });
     if (!oldCloud) {
       const storage = new WorkspaceRecordStorage(new MemoryRecordStore(), profileId);
       const workspace = await Workspace.create({ profileId, deviceId: 'first-device', current: true, bootstrapGroup: false,
@@ -355,6 +357,7 @@ try {
         await expect(page.locator('#google-sync')).toBeDisabled();
         releaseReset();
         await expect(page.locator('#account-detail')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('#cleanup-status')).toContainText(t('sync.reset.unconfirmed'));
         await expect(page.locator('#account-detail')).not.toContainText('Keep your text');
         await expect(page.locator('#google-sync')).toBeEnabled();
         // An earlier preview may have persisted the generic draft-save hint. Reopening must reinterpret its code.
@@ -393,11 +396,29 @@ try {
       const after = await read();
       assert.equal(after.state.format, 'work-fleet-workspace-current'); assert.equal(after.state.cards.length, 0);
       assert.equal(after.state.groups.length, 0);
-      assert.deepEqual([...provider.files.values()].map(item => item.file.kind).sort(), ['dataset', 'dataset-root', 'ready', 'reset']);
+      assert.deepEqual([...provider.files.values()].map(item => item.file.kind).sort(),
+        ['dataset', 'dataset-root', 'ready', 'reset', ...retainedFolder ? ['folder'] : []].sort());
       assert.ok(oldIds.every(id => !provider.files.has(id))); assert.deepEqual(oldReads, []);
       assert.deepEqual((await legacy()).local, before.local);
       assert.equal(localResets.length, oldLocal ? 1 : 0);
+      assert.equal(after.reset.retainedFolders, retainedFolder ? 1 : 0);
+      if (retainedFolder) assert.ok(provider.files.has(retainedFolder));
+      const cleanupResult = retainedFolder ? t('sync.reset.cleanedWithFolders', { folders: 1 }) : t('sync.reset.cleaned');
+      await expect(page.locator('#dataset-maintenance-status')).toHaveText(cleanupResult);
+      await expect(page.locator('#cleanup-status')).toHaveText('');
+      await expect(page.locator('#retry-cleanup')).toBeHidden();
+      await page.reload();
       await expect(page.locator('#account-name')).toHaveText(email);
+      if (handheld) await page.locator('#drawer-toggle').click();
+      await page.locator('#settings-button').click();
+      await page.locator('#settings-dialog [data-page="data"]').click();
+      await expect(page.locator('#dataset-maintenance-status')).toBeVisible();
+      await expect(page.locator('#dataset-maintenance-status')).toHaveText(cleanupResult);
+      await expect(page.locator('#retry-dataset-maintenance')).toBeHidden();
+      await page.locator('#close-settings').click();
+      await expect(page.locator('#cleanup-status')).toHaveText('');
+      await expect(page.locator('#retry-cleanup')).toBeHidden();
+      console.log(`PASS ${engine}/${platform}: completed reset stays in Settings after reload, with ${after.reset.retainedFolders} retained folders and no main-window notice.`);
       await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
       await page.locator('#editor-text').fill('First new note after reset');
       await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();

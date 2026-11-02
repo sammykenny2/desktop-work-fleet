@@ -404,6 +404,117 @@
         ],
         "trashed": false
       }
+    },
+    {
+      "input": {
+        "id": "revision-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "revision",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one",
+        "revisionId": "revision-one",
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "revision-id",
+        "name": "revision-revision-one.json",
+        "mimeType": "application/json",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "revision",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one",
+          "wfRevision": "revision-one",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "revision-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "revision",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one",
+        "revisionId": "revision-one",
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "revision-id",
+        "name": "revision-revision-one.json",
+        "mimeType": "text/plain",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "revision",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one",
+          "wfRevision": "revision-one",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
+    },
+    {
+      "input": {
+        "id": "revision-id",
+        "datasetId": "11111111-2222-3333-4444-555555555555",
+        "kind": "revision",
+        "parentId": "parent-id",
+        "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "size": 10,
+        "entityId": "one",
+        "revisionId": "revision-one",
+        "shard": "a"
+      },
+      "metadata": {
+        "id": "revision-id",
+        "name": "revision-revision-one.json",
+        "mimeType": "image/png",
+        "parents": [
+          "parent-id"
+        ],
+        "appProperties": {
+          "wfFormat": "work-fleet-dataset",
+          "wfSchema": "1",
+          "wfDataset": "11111111-2222-3333-4444-555555555555",
+          "wfKind": "revision",
+          "wfSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+          "wfEntity": "one",
+          "wfRevision": "revision-one",
+          "wfShard": "a"
+        },
+        "spaces": [
+          "appDataFolder"
+        ],
+        "trashed": false,
+        "size": "10",
+        "sha256Checksum": "1111111111111111111111111111111111111111111111111111111111111111"
+      }
     }
   ],
   "badQueries": [
@@ -706,5 +817,26 @@
       "f99",
       "f100"
     ]
-  ]
+  ],
+  "mediaTypes": {
+    "accepted": [
+      "application/octet-stream",
+      "application/json",
+      "text/plain",
+      "image/png",
+      "application/vnd.vendor.binary",
+      "Application/JSON"
+    ],
+    "rejected": [
+      "",
+      "text",
+      "text/plain\n",
+      "application/vnd.google-apps.document",
+      "application/vnd.google-apps.folder",
+      "application/vnd.google-apps.shortcut",
+      "application/vnd.google-apps.spreadsheet",
+      "APPLICATION/VND.GOOGLE-APPS.DOCUMENT",
+      "application/json; charset=utf-8"
+    ]
+  }
 }

@@ -15,6 +15,15 @@ public final class DatasetFilesTest {
             catch (Protocol.Failure expected) { assertEquals("invalid-source-file", expected.code); }
         }
     }
+    @Test public void ordinaryMediaLabelsAreNotProtocolIdentity() {
+        for (String mime : new String[] {"application/json", "application/octet-stream", "text/plain", "image/png", "Application/JSON"}) {
+            assertTrue(DatasetFiles.mediaType("revision", mime)); assertFalse(DatasetFiles.mediaType("folder", mime));
+        }
+        for (Object mime : new Object[] {null, "", "text", "text/plain\n", "application/vnd.google-apps.document",
+                "application/vnd.google-apps.folder", "application/vnd.google-apps.shortcut", "APPLICATION/VND.GOOGLE-APPS.DOCUMENT"})
+            assertFalse(DatasetFiles.mediaType("revision", mime));
+        assertTrue(DatasetFiles.mediaType("folder", "application/vnd.google-apps.folder"));
+    }
     @Test public void identitiesCannotChangePathsOrTypedQueryStructure() {
         assertTrue(DatasetFiles.fileId("reserved-file_1"));
         assertTrue(DatasetFiles.datasetId("11111111-2222-3333-4444-555555555555"));

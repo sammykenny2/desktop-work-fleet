@@ -46,12 +46,16 @@ public static class DatasetFiles
     }
     Check(keys.SetEquals(Keys(value))); _ = Properties(value); return value.Clone();
   }
+  public static bool MediaType(string kind, string? value) => value is not null && value.Length <= 256
+    && (kind is "folder" or "dataset-root" ? value == "application/vnd.google-apps.folder"
+      : Match(value, "[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*")
+        && !value.StartsWith("application/vnd.google-apps.", StringComparison.OrdinalIgnoreCase));
   public static JsonElement Metadata(JsonElement input)
   {
     var value = File(input); var kind = Text(value, "kind"); var id = Text(value, "id"); var folder = kind is "folder" or "dataset-root";
     var suffix = folder ? "" : kind == "attachment" ? ".bin" : ".json";
     var identity = value.TryGetProperty("revisionId", out var revision) ? revision.GetString()! : value.TryGetProperty("entityId", out var entity) ? entity.GetString()! : id;
-    return JsonSerializer.SerializeToElement(new { id, name = kind + "-" + identity + suffix, mimeType = folder ? "application/vnd.google-apps.folder" : "application/octet-stream",
+    return JsonSerializer.SerializeToElement(new { id, name = kind + "-" + identity + suffix, mimeType = folder ? "application/vnd.google-apps.folder" : kind == "attachment" ? "application/octet-stream" : "application/json",
       parents = new[] { Text(value, "parentId") }, appProperties = Properties(value) });
   }
   public static void Verify(JsonElement value, JsonElement expected)
@@ -59,7 +63,7 @@ public static class DatasetFiles
     var desired = Metadata(expected); var parents = value.GetProperty("parents").EnumerateArray().Select(item => item.GetString()!).ToArray();
     var properties = Properties(expected); var actual = value.GetProperty("appProperties");
     Check(Keys(actual).SetEquals(properties.Keys) && properties.All(item => Text(actual, item.Key) == item.Value));
-    Check(Text(value, "id") == Text(expected, "id") && Text(value, "mimeType") == Text(desired, "mimeType") && parents.Length == 1
+    Check(Text(value, "id") == Text(expected, "id") && MediaType(Text(expected, "kind"), Text(value, "mimeType")) && parents.Length == 1
       && (parents[0] == Text(expected, "parentId") || Text(expected, "kind") == "dataset-root" && FileId(parents[0]))
       && value.GetProperty("spaces").EnumerateArray().Any(item => item.GetString() == "appDataFolder")
       && (!value.TryGetProperty("trashed", out var trashed) || trashed.ValueKind == JsonValueKind.False));

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { datasetQuery, googleDatasetDescriptor, validateDatasetFile } from '../src/sources/dataset-codec.js';
+import { datasetQuery, googleDatasetDescriptor, validateDatasetFile, datasetMetadata } from '../src/sources/dataset-codec.js';
 import { NativeGoogleDatasetStore } from '../src/native/google.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/dataset/native-wire.json', import.meta.url), 'utf8'));
@@ -50,4 +50,19 @@ test('a newly created root missing from two index observations remains retryable
   const store = new NativeGoogleDatasetStore({ request: async method => method === 'google.dataset.get' ? metadata
     : { files: ++lists <= 2 ? [] : [metadata] } }, { profileId: 'google:account' }, 'account');
   assert.deepEqual(await store.getObject({ id: root.input.id }), root.input); assert.equal(lists, 3);
+});
+
+
+test('ordinary MIME labels do not replace byte identity, while folders and Google document types stay distinct', () => {
+  const revision = fixture.files.find(item => item.input.kind === 'revision');
+  const folder = fixture.files.find(item => item.input.kind === 'folder');
+  assert.equal(datasetMetadata(revision.input).mimeType, 'application/json');
+  for (const mimeType of fixture.mediaTypes.accepted) {
+    assert.deepEqual(googleDatasetDescriptor({ ...revision.metadata, mimeType }), revision.input);
+    assert.throws(() => googleDatasetDescriptor({ ...folder.metadata, mimeType }));
+  }
+  for (const mimeType of [...fixture.mediaTypes.rejected, null, ['application/json']])
+    assert.throws(() => googleDatasetDescriptor({ ...revision.metadata, mimeType }));
+  assert.throws(() => googleDatasetDescriptor({ ...revision.metadata, mimeType: 'application/json', sha256Checksum: '0'.repeat(64) }));
+  assert.throws(() => googleDatasetDescriptor({ ...revision.metadata, mimeType: 'application/json', spaces: ['drive'] }));
 });

@@ -369,13 +369,14 @@ public sealed class NativeGoogle : IDisposable
   {
     var metadata = dataset.HasValue ? JsonSerializer.SerializeToUtf8Bytes(DatasetFiles.Metadata(dataset.Value)) : JsonSerializer.SerializeToUtf8Bytes(new { id = file.Id, name = $"work-fleet-v1-{file.Kind}-{file.Digest}.bin", mimeType = "application/octet-stream", parents = new[] { "appDataFolder" },
       appProperties = new { wfFormat = "work-fleet-file", wfSchema = "1", wfKind = file.Kind, wfSha256 = file.Digest } });
+    var mime = dataset.HasValue && file.Kind != "attachment" ? "application/json" : "application/octet-stream";
     (int Status, byte[] Body, string? Location, string? Range) response;
     try
     {
       if (file.Size == 0)
       {
         var boundary = "wf_" + Guid.NewGuid().ToString("N");
-        var multipart = Encoding.UTF8.GetBytes($"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{Encoding.UTF8.GetString(metadata)}\r\n--{boundary}\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--{boundary}--\r\n");
+        var multipart = Encoding.UTF8.GetBytes($"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n{Encoding.UTF8.GetString(metadata)}\r\n--{boundary}\r\nContent-Type: {mime}\r\n\r\n\r\n--{boundary}--\r\n");
         response = await Request(PathQuery("/upload/drive/v3/files", ("uploadType", "multipart"), ("fields", Fields)), HttpMethod.Post, multipart, new() { ["Content-Type"] = "multipart/related; boundary=" + boundary });
       }
       else
@@ -391,7 +392,7 @@ public sealed class NativeGoogle : IDisposable
         else
         {
           response = await Request(PathQuery("/upload/drive/v3/files", ("uploadType", "resumable"), ("fields", Fields)), HttpMethod.Post, metadata,
-            new() { ["Content-Type"] = "application/json; charset=UTF-8", ["X-Upload-Content-Type"] = "application/octet-stream", ["X-Upload-Content-Length"] = file.Size.ToString(System.Globalization.CultureInfo.InvariantCulture) });
+            new() { ["Content-Type"] = "application/json; charset=UTF-8", ["X-Upload-Content-Type"] = mime, ["X-Upload-Content-Length"] = file.Size.ToString(System.Globalization.CultureInfo.InvariantCulture) });
           // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
           // distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
           var pairs = Uri.TryCreate(response.Location, UriKind.Absolute, out var location) ? location.Query.TrimStart('?').Split('&') : Array.Empty<string>();
@@ -403,7 +404,7 @@ public sealed class NativeGoogle : IDisposable
         while (offset < file.Size)
         {
           var end = Math.Min(offset + 1024 * 1024, file.Size);
-          response = await Request(session.Path, HttpMethod.Put, bytes[offset..end], new() { ["Content-Type"] = "application/octet-stream", ["Content-Range"] = $"bytes {offset}-{end - 1}/{file.Size}" }, allow308: true, context: "upload");
+          response = await Request(session.Path, HttpMethod.Put, bytes[offset..end], new() { ["Content-Type"] = mime, ["Content-Range"] = $"bytes {offset}-{end - 1}/{file.Size}" }, allow308: true, context: "upload");
           if (response.Status != 308) return await Completed(response.Body, file, dataset);
           offset = Offset(response.Range, end, offset);
         }

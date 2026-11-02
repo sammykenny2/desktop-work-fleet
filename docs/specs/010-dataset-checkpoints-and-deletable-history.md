@@ -165,6 +165,11 @@ Additional private properties are bounded strings, not lists of revisions or hea
 
 The largest row uses eight properties; no property holds plaintext note data. Enforce Drive's property-size limits
 in codecs. Metadata routes a read; strict envelope, identity, size and checksum validation establish usable content.
+JSON records use `application/json` in metadata and upload headers. Ordinary file MIME labels are presentation
+metadata, not protocol identity: accept bounded valid ordinary media labels while retaining all byte/ownership
+checks. Folder metadata must use the exact Drive folder type; Google-native document/shortcut types are never
+accepted as byte files. A different ordinary label on an already-uploaded file needs no rewrite or migration.
+See the [MIME validation evidence](../research/2026-11-03-drive-dataset-media-types.md).
 A checkpoint is one bounded payload, not a manifest over shared chunks. If it cannot fit the shard limit, keep
 local changes and report capacity; do not silently split it using an unspecified reference/collection protocol.
 Local current-view caches store each head in its own row under an immutable manifest, activated with the workspace

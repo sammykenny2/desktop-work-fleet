@@ -154,10 +154,10 @@ actor FleetDrive {
     private func create(_ file: [String: Any], _ bytes: Data) async throws -> [String: Any] {
         let id = try FleetProtocol.text(file, "id"), digest = try FleetProtocol.text(file, "sha256"), kind = try FleetProtocol.text(file, "kind"), size = Int(try FleetProtocol.number(file, "size"))
         let metadata: [String: Any] = file["datasetId"] != nil ? try FleetDataset.metadata(file) : ["id": id, "name": "work-fleet-v1-\(kind)-\(digest).bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": ["wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": kind, "wfSha256": digest]]
-        let json = try FleetProtocol.encode(metadata)
+        let json = try FleetProtocol.encode(metadata), mime = try FleetProtocol.text(metadata, "mimeType")
         do {
             if size == 0 {
-                let boundary = "wf_" + FleetProtocol.uuid(); let body = Data("--\(boundary)\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n\(String(data: json, encoding: .utf8)!)\r\n--\(boundary)\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--\(boundary)--\r\n".utf8)
+                let boundary = "wf_" + FleetProtocol.uuid(); let body = Data("--\(boundary)\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n\(String(data: json, encoding: .utf8)!)\r\n--\(boundary)\r\nContent-Type: \(mime)\r\n\r\n\r\n--\(boundary)--\r\n".utf8)
                 return try await completed(request(path("/upload/drive/v3/files", [("uploadType", "multipart"), ("fields", Self.fields)]), method: "POST", body: body, headers: ["Content-Type": "multipart/related; boundary=" + boundary]).0, file)
             }
             var position = 0, session = uploads[id]
@@ -166,7 +166,7 @@ actor FleetDrive {
                 let (data, response) = try await request(saved.path, method: "PUT", body: Data(), headers: ["Content-Range": "bytes */\(size)"], allow308: true, context: "upload")
                 if response.statusCode != 308 { return try await completed(data, file) }; position = try offset(response, maximum: size, previous: -1)
             } else {
-                let (_, response) = try await request(path("/upload/drive/v3/files", [("uploadType", "resumable"), ("fields", Self.fields)]), method: "POST", body: json, headers: ["Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": "application/octet-stream", "X-Upload-Content-Length": String(size)])
+                let (_, response) = try await request(path("/upload/drive/v3/files", [("uploadType", "resumable"), ("fields", Self.fields)]), method: "POST", body: json, headers: ["Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": mime, "X-Upload-Content-Length": String(size)])
                 guard let location = response.value(forHTTPHeaderField: "Location"), location.utf8.count <= 8192, let uri = URLComponents(string: location), uri.scheme == "https", uri.host == "www.googleapis.com", uri.port == nil || uri.port == 443,
                     uri.path == "/upload/drive/v3/files", uri.user == nil, uri.password == nil, uri.fragment == nil, let query = uri.percentEncodedQuery else { throw FleetFailure("invalid-upload-session", "Google's resumable upload address isn't valid.") }
                 // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
@@ -180,7 +180,7 @@ actor FleetDrive {
             }
             while position < size {
                 let end = min(position + 1024 * 1024, size)
-                let (data, response) = try await request(session!.path, method: "PUT", body: bytes.subdata(in: position..<end), headers: ["Content-Type": "application/octet-stream", "Content-Range": "bytes \(position)-\(end - 1)/\(size)"], allow308: true, context: "upload")
+                let (data, response) = try await request(session!.path, method: "PUT", body: bytes.subdata(in: position..<end), headers: ["Content-Type": mime, "Content-Range": "bytes \(position)-\(end - 1)/\(size)"], allow308: true, context: "upload")
                 if response.statusCode != 308 { return try await completed(data, file) }; position = try offset(response, maximum: end, previous: position)
             }
             throw FleetFailure("service-unavailable", "Google hasn't confirmed the upload. Pending changes are kept.")

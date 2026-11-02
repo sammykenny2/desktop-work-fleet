@@ -40,12 +40,18 @@ enum FleetDataset {
         }
         try check(Set(value.keys) == keys); _ = try properties(value); return value
     }
+    static func mediaType(_ kind: String, _ value: Any?) -> Bool {
+        guard let mime = value as? String, mime.utf8.count <= 256 else { return false }
+        if ["folder", "dataset-root"].contains(kind) { return mime == "application/vnd.google-apps.folder" }
+        return matches(mime, "^[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*$")
+            && !mime.lowercased().hasPrefix("application/vnd.google-apps.")
+    }
     static func metadata(_ input: [String: Any]) throws -> [String: Any] {
         let value = try file(input), kind = try FleetProtocol.text(value, "kind"), id = try FleetProtocol.text(value, "id")
         let folder = ["folder", "dataset-root"].contains(kind)
         let suffix = folder ? "" : kind == "attachment" ? ".bin" : ".json"
         return ["id": id, "name": kind + "-" + (value["revisionId"] as? String ?? value["entityId"] as? String ?? id) + suffix,
-                "mimeType": folder ? "application/vnd.google-apps.folder" : "application/octet-stream",
+                "mimeType": folder ? "application/vnd.google-apps.folder" : kind == "attachment" ? "application/octet-stream" : "application/json",
                 "parents": [try FleetProtocol.text(value, "parentId")], "appProperties": try properties(value)]
     }
     static func verify(_ value: [String: Any], _ expected: [String: Any]) throws {
@@ -55,7 +61,7 @@ enum FleetDataset {
             try FleetProtocol.require(condition, "dataset-response-" + field, "Google Drive returned mismatched dataset metadata (" + field + ").")
         }
         try verifyField(value["id"] as? String == expected["id"] as? String, "id")
-        try verifyField(value["mimeType"] as? String == desired["mimeType"] as? String, "type")
+        try verifyField(mediaType(try FleetProtocol.text(expected, "kind"), value["mimeType"]), "type")
         try verifyField(parents == desired["parents"] as? [String] || rootAlias, "parent")
         try verifyField(value["appProperties"] as? [String: String] == desired["appProperties"] as? [String: String], "properties")
         try verifyField((value["spaces"] as? [String] ?? []).contains("appDataFolder"), "space")

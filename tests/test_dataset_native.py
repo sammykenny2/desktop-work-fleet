@@ -20,6 +20,11 @@ class LinuxDatasetTests(unittest.TestCase):
         for ids in fixture["badDeletionIds"]:
             with self.assertRaises(protocol.Failure):
                 dataset.delete_batch(ids)
+        for mime in fixture["mediaTypes"]["accepted"]:
+            self.assertTrue(dataset.media_type("revision", mime))
+            self.assertFalse(dataset.media_type("folder", mime))
+        for mime in fixture["mediaTypes"]["rejected"]:
+            self.assertFalse(dataset.media_type("revision", mime))
         for item in fixture["queries"]:
             self.assertEqual(dataset.query(item["input"]), item["expected"])
         for item in fixture["files"]:
@@ -92,10 +97,13 @@ class LinuxDatasetTests(unittest.TestCase):
             calls.append((path, method))
             if method == "POST":
                 self.assertEqual(protocol.decode(data)["parents"], ["note-folder"])
+                self.assertEqual(protocol.decode(data)["mimeType"], "application/json")
+                self.assertEqual(headers["X-Upload-Content-Type"], "application/json")
                 self.assertEqual(protocol.decode(data)["appProperties"]["wfDataset"], descriptor["datasetId"])
                 return 200, b"", {"Location": "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&upload_id=fixture"}
             if method == "PUT":
                 self.assertEqual(data, content)
+                self.assertEqual(headers["Content-Type"], "application/json")
             if "alt=media" in path:
                 return 200, content, {}
             return 200, protocol.encode(metadata), {}

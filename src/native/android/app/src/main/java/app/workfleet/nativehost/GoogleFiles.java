@@ -260,10 +260,11 @@ final class GoogleFiles implements AutoCloseable {
         String id = file.getString("id"), digest = file.getString("sha256"), kind = file.getString("kind"); int size = file.getInt("size");
         JSONObject metadata = file.has("datasetId") ? DatasetFiles.metadata(file) : Protocol.object("id", id, "name", "work-fleet-v1-" + kind + "-" + digest + ".bin", "mimeType", "application/octet-stream", "parents", new JSONArray().put("appDataFolder"),
             "appProperties", Protocol.object("wfFormat", "work-fleet-file", "wfSchema", "1", "wfKind", kind, "wfSha256", digest));
+        String mime = metadata.getString("mimeType");
         byte[] json = metadata.toString().getBytes(StandardCharsets.UTF_8);
         try {
             if (size == 0) {
-                String boundary = "wf_" + Protocol.uuid(); byte[] body = ("--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + metadata + "\r\n--" + boundary + "\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
+                String boundary = "wf_" + Protocol.uuid(); byte[] body = ("--" + boundary + "\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + metadata + "\r\n--" + boundary + "\r\nContent-Type: " + mime + "\r\n\r\n\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8);
                 return completed(request(path("/upload/drive/v3/files", "uploadType", "multipart", "fields", FIELDS), "POST", body, headers("Content-Type", "multipart/related; boundary=" + boundary), 2 * 1024 * 1024, false, "upload"), file);
             }
             int offset = 0; Upload upload = uploads.get(id);
@@ -272,7 +273,7 @@ final class GoogleFiles implements AutoCloseable {
                 Response status = request(upload.path, "PUT", new byte[0], headers("Content-Range", "bytes */" + size), 2 * 1024 * 1024, true, "upload");
                 if (status.status != 308) return completed(status, file); offset = offset(status.range, size, -1);
             } else {
-                Response start = request(path("/upload/drive/v3/files", "uploadType", "resumable", "fields", FIELDS), "POST", json, headers("Content-Type", "application/json; charset=UTF-8", "X-Upload-Content-Type", "application/octet-stream", "X-Upload-Content-Length", Integer.toString(size)), 2 * 1024 * 1024, false, "upload");
+                Response start = request(path("/upload/drive/v3/files", "uploadType", "resumable", "fields", FIELDS), "POST", json, headers("Content-Type", "application/json; charset=UTF-8", "X-Upload-Content-Type", mime, "X-Upload-Content-Length", Integer.toString(size)), 2 * 1024 * 1024, false, "upload");
                 Protocol.require(start.location != null && start.location.length() <= 8192, "invalid-upload-session", "The Google resumable upload address is invalid."); URI uri = new URI(start.location);
                 // Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
                 // distinct plain parameters are accepted; where the contents and the token go is what stays fixed.
@@ -283,7 +284,7 @@ final class GoogleFiles implements AutoCloseable {
                 upload = new Upload(uri.getRawPath() + "?" + uri.getRawQuery(), digest, size); uploads.put(id, upload);
             }
             while (offset < size) {
-                int end = Math.min(offset + 1024 * 1024, size); Response chunk = request(upload.path, "PUT", Arrays.copyOfRange(bytes, offset, end), headers("Content-Type", "application/octet-stream", "Content-Range", "bytes " + offset + "-" + (end - 1) + "/" + size), 2 * 1024 * 1024, true, "upload");
+                int end = Math.min(offset + 1024 * 1024, size); Response chunk = request(upload.path, "PUT", Arrays.copyOfRange(bytes, offset, end), headers("Content-Type", mime, "Content-Range", "bytes " + offset + "-" + (end - 1) + "/" + size), 2 * 1024 * 1024, true, "upload");
                 if (chunk.status != 308) return completed(chunk, file); offset = offset(chunk.range, end, offset);
             }
             throw new Protocol.Failure("service-unavailable", "Google hasn't confirmed the upload. Pending changes are kept.");

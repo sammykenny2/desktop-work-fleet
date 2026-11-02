@@ -69,12 +69,20 @@ def file(value):
     return dict(value)
 
 
+def media_type(kind, value):
+    if not isinstance(value, str) or len(value) > 256:
+        return False
+    if kind in ("folder", "dataset-root"):
+        return value == "application/vnd.google-apps.folder"
+    return re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*", value) is not None and not value.lower().startswith("application/vnd.google-apps.")
+
+
 def metadata(value):
     value = file(value)
     folder = value["kind"] in ("folder", "dataset-root")
     suffix = "" if folder else ".bin" if value["kind"] == "attachment" else ".json"
     return {"id": value["id"], "name": value["kind"] + "-" + value.get("revisionId", value.get("entityId", value["id"])) + suffix,
-            "mimeType": "application/vnd.google-apps.folder" if folder else "application/octet-stream",
+            "mimeType": "application/vnd.google-apps.folder" if folder else "application/octet-stream" if value["kind"] == "attachment" else "application/json",
             "parents": [value["parentId"]], "appProperties": properties(value)}
 
 
@@ -83,7 +91,7 @@ def verify(value, expected):
     parents = value.get("parents")
     # Root creation sends the documented alias; the renderer also proves direct membership with a scoped parent query.
     parent_ok = parents == desired["parents"] or expected["kind"] == "dataset-root" and isinstance(parents, list) and len(parents) == 1 and file_id(parents[0])
-    check(value.get("id") == expected["id"] and value.get("mimeType") == desired["mimeType"] and parent_ok
+    check(value.get("id") == expected["id"] and media_type(expected["kind"], value.get("mimeType")) and parent_ok
           and value.get("appProperties") == desired["appProperties"] and isinstance(value.get("spaces"), list)
           and "appDataFolder" in value["spaces"] and value.get("trashed", False) is False)
     if "sha256" in expected:

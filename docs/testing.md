@@ -140,6 +140,12 @@ This component check does not verify native sign-in, renderer transfers or real 
 - Apple metadata verification reports separate identity, type, parent, properties, app-data space, deletion state,
   size and checksum failures; the Swift probe injects each mismatch without exposing account IDs or contents.
   These diagnostics do not establish which field caused an unobserved live-provider failure.
+- MIME regressions accept JSON/plain-text/image labels for verified ordinary bytes and reject Google-native
+  documents, shortcuts, malformed labels and folder confusion. Apple/Linux transport probes check that dataset
+  JSON metadata and upload headers agree; JavaScript also checks a resumed read without another upload and rejects
+  corrupt bytes under an accepted label. Android unit tests and Windows core fixtures enforce the same boundary.
+  [Evidence and limits](research/2026-11-03-drive-dataset-media-types.md) separate the reported MIME rejection from
+  the unobserved actual provider label.
 - `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
   Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
   identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a

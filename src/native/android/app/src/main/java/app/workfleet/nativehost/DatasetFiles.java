@@ -45,12 +45,19 @@ final class DatasetFiles {
         }
         check(keys(value).equals(keys)); properties(value); return value;
     }
+    static boolean mediaType(String kind, Object value) {
+        if (!(value instanceof String) || ((String) value).length() > 256) return false;
+        String mime = (String) value;
+        if (kind.equals("folder") || kind.equals("dataset-root")) return mime.equals("application/vnd.google-apps.folder");
+        return matches(mime, "[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*/[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]*")
+            && !mime.toLowerCase(java.util.Locale.ROOT).startsWith("application/vnd.google-apps.");
+    }
     static JSONObject metadata(JSONObject input) throws Exception {
         JSONObject value = file(input); String kind = value.getString("kind"), id = value.getString("id");
         boolean folder = kind.equals("folder") || kind.equals("dataset-root");
         String suffix = folder ? "" : kind.equals("attachment") ? ".bin" : ".json";
         return Protocol.object("id", id, "name", kind + "-" + value.optString("revisionId", value.optString("entityId", id)) + suffix,
-            "mimeType", folder ? "application/vnd.google-apps.folder" : "application/octet-stream", "parents", new JSONArray().put(value.getString("parentId")), "appProperties", properties(value));
+            "mimeType", folder ? "application/vnd.google-apps.folder" : kind.equals("attachment") ? "application/octet-stream" : "application/json", "parents", new JSONArray().put(value.getString("parentId")), "appProperties", properties(value));
     }
     static void verify(JSONObject value, JSONObject expected) throws Exception {
         JSONObject desired = metadata(expected); JSONArray parents = value.optJSONArray("parents"), spaces = value.optJSONArray("spaces"); boolean appdata = false;
@@ -59,7 +66,7 @@ final class DatasetFiles {
         JSONObject properties = value.optJSONObject("appProperties"), desiredProperties = desired.getJSONObject("appProperties");
         check(properties != null && keys(properties).equals(keys(desiredProperties)));
         for (String key : keys(desiredProperties)) check(properties.getString(key).equals(desiredProperties.getString(key)));
-        check(value.getString("id").equals(expected.getString("id")) && value.getString("mimeType").equals(desired.getString("mimeType")) && parent && appdata && (!value.has("trashed") || Boolean.FALSE.equals(value.opt("trashed"))));
+        check(value.getString("id").equals(expected.getString("id")) && mediaType(expected.getString("kind"), value.opt("mimeType")) && parent && appdata && (!value.has("trashed") || Boolean.FALSE.equals(value.opt("trashed"))));
         if (expected.has("sha256")) check(value.getString("size").equals(Long.toString(expected.getLong("size"))) && value.optString("sha256Checksum", expected.getString("sha256")).equals(expected.getString("sha256")));
     }
     private static String prop(String key, String value) { return "appProperties has { key='" + key + "' and value='" + value + "' }"; }

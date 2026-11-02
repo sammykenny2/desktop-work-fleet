@@ -28,6 +28,7 @@ actor ScriptedHTTP {
         var fail = false
         var expectedFileId = "fixture-file"
         var expectedParents = ["appDataFolder"]
+        var expectedMime: String?
     }
     static let shared = ScriptedHTTP()
     private var steps: [Step] = []
@@ -48,6 +49,13 @@ actor ScriptedHTTP {
             let metadata = try FleetProtocol.json(request.httpBody ?? Data())
             try GoogleDriveProbe.check(metadata["id"] as? String == step.expectedFileId, "Reserved file ID changed")
             try GoogleDriveProbe.check(metadata["parents"] as? [String] == step.expectedParents, "Wrong Drive parent")
+        }
+        if let mime = step.expectedMime {
+            let header = step.method == "POST" ? "X-Upload-Content-Type" : "Content-Type"
+            try GoogleDriveProbe.check(request.value(forHTTPHeaderField: header) == mime, "Unexpected media Content-Type")
+            if step.method == "POST" {
+                try GoogleDriveProbe.check(FleetProtocol.json(request.httpBody ?? Data())["mimeType"] as? String == mime, "Unexpected metadata MIME type")
+            }
         }
         if step.fail { throw URLError(.networkConnectionLost) }
         return (step.response, HTTPURLResponse(url: request.url!, statusCode: step.status, httpVersion: "HTTP/1.1", headerFields: step.headers)!)
@@ -105,9 +113,10 @@ actor ScriptedHTTP {
             let file: [String: Any] = ["id": "fixture-file", "kind": "revision", "datasetId": "11111111-2222-3333-4444-555555555555",
                 "parentId": "note-folder", "entityId": "one", "revisionId": "r1", "shard": "a", "sha256": FleetProtocol.digest(content), "size": 4]
             var metadata = try FleetDataset.metadata(file)
+            metadata["mimeType"] = "text/plain"
             metadata["spaces"] = ["appDataFolder"]; metadata["size"] = "4"; metadata["sha256Checksum"] = FleetProtocol.digest(content)
-            var startStep = begin(location); startStep.expectedParents = ["note-folder"]
-            let uploaded = ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try FleetProtocol.encode(metadata), body: content, range: "bytes 0-3/4")
+            var startStep = begin(location); startStep.expectedParents = ["note-folder"]; startStep.expectedMime = "application/json"
+            let uploaded = ScriptedHTTP.Step(method: "PUT", url: location, status: 201, response: try FleetProtocol.encode(metadata), body: content, range: "bytes 0-3/4", expectedMime: "application/json")
             let media = "https://www.googleapis.com/drive/v3/files/fixture-file"
             try await ScriptedHTTP.shared.prepare([startStep, uploaded,
                 ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + FleetDataset.fields, response: try FleetProtocol.encode(metadata)),

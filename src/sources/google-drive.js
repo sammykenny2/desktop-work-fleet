@@ -289,7 +289,7 @@ export class GoogleDriveFileStore {
       // Multipart represents an empty attachment unambiguously, without an invalid 0--1 Content-Range.
       const boundary = `wf_${crypto.randomUUID()}`;
       const body = encode(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}`
-        + `\r\n--${boundary}\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--${boundary}--\r\n`);
+        + `\r\n--${boundary}\r\nContent-Type: ${metadata.mimeType}\r\n\r\n\r\n--${boundary}--\r\n`);
       return complete(await this.#http({ path: pathFor('/upload/drive/v3/files', { uploadType: 'multipart', fields }),
         method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body, signal }));
     }
@@ -303,14 +303,14 @@ export class GoogleDriveFileStore {
         offset = this.#offset(status, file.size);
       } else {
         const response = await this.#http({ path: pathFor('/upload/drive/v3/files', { uploadType: 'resumable', fields }), method: 'POST',
-          headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': 'application/octet-stream',
+          headers: { 'Content-Type': 'application/json; charset=UTF-8', 'X-Upload-Content-Type': metadata.mimeType,
             'X-Upload-Content-Length': String(file.size) }, body: encode(JSON.stringify(metadata)), signal });
         session = { path: sessionPath(header(response, 'location')), file };
         this.#uploads.set(file.id, session);
       }
       while (offset < file.size) {
         const end = Math.min(offset + CHUNK_BYTES, file.size);
-        const response = await this.#http({ path: session.path, method: 'PUT', headers: { 'Content-Type': 'application/octet-stream',
+        const response = await this.#http({ path: session.path, method: 'PUT', headers: { 'Content-Type': metadata.mimeType,
           'Content-Range': `bytes ${offset}-${end - 1}/${file.size}` }, body: bytes.slice(offset, end), signal, allowed: [308], context: 'upload' });
         if (response.status !== 308) return await complete(response);
         offset = this.#offset(response, end, offset);

@@ -352,10 +352,11 @@ class Google:
     def create_file(self, file, data):
         key, size = file["id"], file["size"]
         metadata = p.encode(dataset.metadata(file) if "datasetId" in file else {"id": key, "name": f"work-fleet-v1-{file['kind']}-{file['sha256']}.bin", "mimeType": "application/octet-stream", "parents": ["appDataFolder"], "appProperties": {"wfFormat": "work-fleet-file", "wfSchema": "1", "wfKind": file["kind"], "wfSha256": file["sha256"]}})
+        mime = "application/json" if "datasetId" in file and file["kind"] != "attachment" else "application/octet-stream"
         try:
             if not data:
                 boundary = "wf_" + p.identifier()
-                body = b"--" + boundary.encode() + b"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + metadata + b"\r\n--" + boundary.encode() + b"\r\nContent-Type: application/octet-stream\r\n\r\n\r\n--" + boundary.encode() + b"--\r\n"
+                body = b"--" + boundary.encode() + b"\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" + metadata + b"\r\n--" + boundary.encode() + b"\r\nContent-Type: " + mime.encode("ascii") + b"\r\n\r\n\r\n--" + boundary.encode() + b"--\r\n"
                 return self.completed(self.request(self.path("/upload/drive/v3/files", uploadType="multipart", fields=FIELDS), "POST", body, {"Content-Type": "multipart/related; boundary=" + boundary})[1], file)
             saved, position = self.uploads.get(key), 0
             if saved is not None:
@@ -365,7 +366,7 @@ class Google:
                     return self.completed(body, file)
                 position = self.offset(headers, size, -1)
             else:
-                _, _, headers = self.request(self.path("/upload/drive/v3/files", uploadType="resumable", fields=FIELDS), "POST", metadata, {"Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": "application/octet-stream", "X-Upload-Content-Length": str(size)})
+                _, _, headers = self.request(self.path("/upload/drive/v3/files", uploadType="resumable", fields=FIELDS), "POST", metadata, {"Content-Type": "application/json; charset=UTF-8", "X-Upload-Content-Type": mime, "X-Upload-Content-Length": str(size)})
                 location = headers.get("Location", "")
                 uri = urlsplit(location)
                 # Google echoes the request's own parameters (fields) and adds its own (session_crd) beside upload_id, so any
@@ -378,7 +379,7 @@ class Google:
                 self.uploads[key] = saved
             while position < size:
                 end = min(size, position + 1024 * 1024)
-                status, body, headers = self.request(saved[0], "PUT", data[position:end], {"Content-Type": "application/octet-stream", "Content-Range": f"bytes {position}-{end - 1}/{size}"}, context="upload", allow308=True)
+                status, body, headers = self.request(saved[0], "PUT", data[position:end], {"Content-Type": mime, "Content-Range": f"bytes {position}-{end - 1}/{size}"}, context="upload", allow308=True)
                 if status != 308:
                     return self.completed(body, file)
                 position = self.offset(headers, end, position)

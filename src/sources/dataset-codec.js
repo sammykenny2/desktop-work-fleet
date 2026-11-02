@@ -54,10 +54,18 @@ function datasetProperties(file) {
     ...(file.shard ? { wfShard: file.shard } : {}) };
 }
 
+// Drive media labels do not establish protocol identity; owned bytes still require size, digest and envelope validation.
+export function datasetMimeType(kind, mimeType) {
+  if (typeof mimeType !== 'string' || mimeType.length > 256) return false;
+  if (folders.has(kind)) return mimeType === 'application/vnd.google-apps.folder';
+  return /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(mimeType)
+    && !mimeType.toLowerCase().startsWith('application/vnd.google-apps.');
+}
+
 export function datasetMetadata(input) {
   const file = validateDatasetFile(input);
   return { id: file.id, name: `${file.kind}-${file.revisionId ?? file.entityId ?? file.id}${folders.has(file.kind) ? '' : file.kind === 'attachment' ? '.bin' : '.json'}`,
-    mimeType: folders.has(file.kind) ? 'application/vnd.google-apps.folder' : 'application/octet-stream',
+    mimeType: folders.has(file.kind) ? 'application/vnd.google-apps.folder' : file.kind === 'attachment' ? 'application/octet-stream' : 'application/json',
     parents: [file.parentId], appProperties: datasetProperties(file) };
 }
 
@@ -82,7 +90,7 @@ export function googleDatasetDescriptor(metadata, { rootParentVerified = false }
     if (properties[property] !== undefined) file[key] = properties[property];
   }
   validateDatasetFile(file);
-  invalid(metadata.mimeType === datasetMetadata(file).mimeType && canonicalJson(properties) === canonicalJson(datasetProperties(file)));
+  invalid(datasetMimeType(file.kind, metadata.mimeType) && canonicalJson(properties) === canonicalJson(datasetProperties(file)));
   return file;
 }
 

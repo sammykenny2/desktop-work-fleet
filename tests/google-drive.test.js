@@ -37,10 +37,11 @@ test('dataset Drive operations use typed filtered queries, verified folders, cur
   const s = scripted([response({ files: [datasetMeta(file)] }), response(datasetMeta(folder)), response(datasetMeta(file)),
     { status: 200, headers: {}, body: bytes }, input => {
       const body = JSON.parse(new TextDecoder().decode(input.body));
+      assert.equal(body.mimeType, 'application/json'); assert.equal(input.headers['X-Upload-Content-Type'], 'application/json');
       assert.deepEqual(body.parents, ['note-folder']); assert.equal(body.appProperties.wfDataset, id);
       assert.equal(body.appProperties.wfRevision, 'r1'); assert.equal(body.appProperties.wfEntity, 'note');
       return empty(200, { location });
-    }, response(datasetMeta(file))]);
+    }, input => { assert.equal(input.headers['Content-Type'], 'application/json'); return response({ ...datasetMeta(file), mimeType: 'text/plain' }); }]);
   assert.deepEqual((await s.store.listObjects({ query: { scope: 'history', datasetId: id, parentId: 'note-folder' } })).files, [file]);
   const url = new URL(s.calls[0].path, 'https://www.googleapis.com');
   assert.match(url.searchParams.get('q'), /'note-folder' in parents/); assert.equal(url.searchParams.get('orderBy'), 'createdTime desc');
@@ -286,4 +287,19 @@ test('oversized and duplicate JSON responses fail before interpretation; aborted
   const controller = new AbortController();
   const stop = scripted([() => { controller.abort(); return response({ startPageToken: 'never accepted' }); }]);
   await assert.rejects(stop.store.getStartCursor({ signal: controller.signal }), failCode('stale-session'));
+});
+
+
+test('a stored JSON record with a different ordinary media label resumes without re-upload but still verifies bytes', async () => {
+  const record = datasetRecord(crypto.randomUUID(), 'ready', {
+    descriptor: { id: 'descriptor-id', sha256: 'a'.repeat(64) }, initial: [],
+  });
+  const { file, bytes } = await datasetFile('reserved-ready', 'dataset-root', record);
+  const meta = { ...datasetMeta(file), mimeType: 'text/plain' };
+  const s = scripted([response(meta), { status: 200, headers: {}, body: bytes }]);
+  assert.deepEqual(await s.store.readObject({ file }), bytes); s.done();
+  assert.ok(s.calls.every(call => call.method === 'GET'));
+  const corrupt = Uint8Array.from(bytes); corrupt[corrupt.length - 1] ^= 1;
+  const bad = scripted([response(meta), { status: 200, headers: {}, body: corrupt }]);
+  await assert.rejects(bad.store.readObject({ file }), { code: 'file-integrity' }); bad.done();
 });

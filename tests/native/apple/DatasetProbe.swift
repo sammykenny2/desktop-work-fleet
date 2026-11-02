@@ -7,9 +7,15 @@ import Foundation
             try FleetDataset.check(FleetDataset.query(item["input"] as! [String: Any]) == item["expected"] as! String)
         }
         for item in fixture["files"] as! [[String: Any]] { try FleetDataset.verify(item["metadata"] as! [String: Any], FleetDataset.file(item["input"] as! [String: Any])) }
+        let media = fixture["mediaTypes"] as! [String: [String]]
+        for mime in media["accepted"]! {
+            try FleetDataset.check(FleetDataset.mediaType("revision", mime))
+            try FleetDataset.check(!FleetDataset.mediaType("folder", mime))
+        }
+        for mime in media["rejected"]! { try FleetDataset.check(!FleetDataset.mediaType("revision", mime)) }
         let sample = (fixture["files"] as! [[String: Any]]).first { ($0["input"] as? [String: Any])?["kind"] as? String == "revision" }!
         let expected = sample["input"] as! [String: Any], valid = sample["metadata"] as! [String: Any]
-        for (field, key, bad) in [("id", "id", "other" as Any), ("type", "mimeType", "text/plain"),
+        for (field, key, bad) in [("id", "id", "other" as Any), ("type", "mimeType", "application/vnd.google-apps.document"),
             ("parent", "parents", ["other"]), ("properties", "appProperties", [String: String]()),
             ("space", "spaces", ["drive"]), ("state", "trashed", true), ("size", "size", "99999"),
             ("checksum", "sha256Checksum", "bad")] {

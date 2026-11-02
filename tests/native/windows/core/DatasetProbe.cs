@@ -13,6 +13,10 @@ static class DatasetProbe
       if (DatasetFiles.Query(item.GetProperty("input")) != item.GetProperty("expected").GetString()) throw new Exception("Dataset query differs from shared fixture"); count++;
     }
     foreach (var item in root.GetProperty("files").EnumerateArray()) { DatasetFiles.Verify(item.GetProperty("metadata"), DatasetFiles.File(item.GetProperty("input"))); count++; }
+    foreach (var mime in root.GetProperty("mediaTypes").GetProperty("accepted").EnumerateArray())
+      if (!DatasetFiles.MediaType("revision", mime.GetString()) || DatasetFiles.MediaType("folder", mime.GetString())) throw new Exception("Media classification differs");
+    foreach (var mime in root.GetProperty("mediaTypes").GetProperty("rejected").EnumerateArray())
+      if (DatasetFiles.MediaType("revision", mime.GetString())) throw new Exception("Native Google type accepted as binary media");
     foreach (var key in new[] { "badQueries", "badFiles" }) foreach (var item in root.GetProperty(key).EnumerateArray())
     {
       var rejected = false;

@@ -185,7 +185,8 @@ test('empty initialization reserves exactly its bounded IDs in one allocation ca
     provider.allocateFileIds = async requested => { calls++; count = requested; return Promise.all(Array.from({ length: requested }, allocate)); };
     provider.allocateFileId = () => { throw new Error('Individual allocation defeats the bootstrap batch'); };
     await new DatasetLifecycle(provider, storage).initialize({ starter });
-    assert.equal(calls, 1); assert.equal(provider.files.size, count);
+    assert.equal(calls, 1); assert.equal(count, starter ? 43 : 40);
+    assert.equal(provider.files.size, starter ? 9 : 3);
   }
 });
 

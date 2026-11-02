@@ -75,6 +75,11 @@ checkpoint, verifies it, and only then deletes the covered change references and
 Revision bodies remain in the note folders. A reader activates its verified projection and changes cursor in
 one local transaction.
 
+An empty dataset publishes only a root, descriptor and ready receipt. Structural folders have reserved IDs but
+are created on first use; empty shards need no checkpoint. Reset adds the legacy fence, not a default group or
+a prebuilt partition tree. The first capture derives a shared default-group identity from the source/generation
+after discovery completes. Seeded restore creates initial checkpoints only for populated shards.
+
 Concurrent checkpoints are combined, not elected by timestamp. Inputs explicitly covered by another visible
 checkpoint can be omitted; incomparable candidates and uncovered references remain. A successor can retire only
 inputs named in its own verified coverage. Since it cannot cover an unpublished future checkpoint, two concurrent

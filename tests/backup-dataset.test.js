@@ -6,6 +6,7 @@ import { WorkspaceRecordStorage } from '../src/storage/workspace-records.js';
 import { DatasetHistory } from '../src/sources/dataset-history.js';
 import { DatasetSync } from '../src/sources/dataset-sync.js';
 import { DatasetPurge } from '../src/sources/dataset-purge.js';
+import { ensureDatasetDirectory } from '../src/sources/dataset-folders.js';
 import { DatasetProtocol } from '../src/sources/dataset-protocol.js';
 import { DATASET_SHARDS, datasetRecord, datasetShard } from '../src/sources/dataset-codec.js';
 import { DatasetTestProvider } from './fixtures/dataset/provider.js';
@@ -88,6 +89,7 @@ test('a purge during history hydration aborts export instead of returning a vali
     triggered = true; const binding = a.sync.binding;
     const marker = datasetRecord(binding.plan.datasetId, 'purge', { operationId: crypto.randomUUID(), entityId: card.id,
       folderIds: [], trashEpisode: crypto.randomUUID(), heads: [card.revision] });
+    await ensureDatasetDirectory(provider, binding.plan, binding.plan.folders.buckets[await datasetShard('card', card.id)]);
     await new DatasetProtocol(provider, a.storage).publish('test-purge', binding.plan.folders.buckets[await datasetShard('card', card.id)], marker);
   };
   await assert.rejects(createBackup(a), { code: 'dataset-purged' }); assert.equal(triggered, true);

@@ -4,6 +4,7 @@ import { CurrentRevisions } from './current-revisions.js';
 import { DATASET_LIMITS, DATASET_SHARDS, datasetFile, datasetRecord, decodeDatasetRecord, encodeDatasetRecord,
   validateDatasetFile, validateDatasetRecord } from './dataset-codec.js';
 import { t } from '../i18n/index.js';
+import { ensureDatasetDirectory } from './dataset-folders.js';
 
 const invalid = condition => requireValue(condition, 'invalid-dataset', t('errors.sources.datasetInvalid'));
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
@@ -188,6 +189,7 @@ export class DatasetProtocol {
     return copy(job.file);
   }
   async checkpoint(plan, shard, inputs, signal) {
+    await ensureDatasetDirectory(this.#store, plan, plan.folders.shards[shard], { signal });
     // One unfinished checkpoint per client/dataset. A retry completes it before planning another output.
     const key = `checkpoint:${plan.datasetId}`;
     const pending = await this.#journal.getJob(key);

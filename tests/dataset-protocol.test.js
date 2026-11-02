@@ -18,8 +18,8 @@ async function fixture() {
   const folders = { notes: await folder('notes', rootId), groups: await folder('groups', rootId), current: await folder('current', rootId),
     purges: await folder('purges', rootId), shards: {}, buckets: {} };
   for (const shard of DATASET_SHARDS) {
-    folders.shards[shard] = await folder(`current-${shard}`, folders.current);
-    if (shard !== 'groups') folders.buckets[shard] = await folder(`purges-${shard}`, folders.purges);
+    folders.shards[shard] = await folder(`shard-${shard}`, folders.current);
+    if (shard !== 'groups') folders.buckets[shard] = await folder(`bucket-${shard}`, folders.purges);
   }
   const plan = datasetRecord(id, 'dataset', { rootId, readyId, fenceId: null, folders });
   const descriptor = await protocol.publish('descriptor', rootId, plan);

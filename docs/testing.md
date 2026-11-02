@@ -90,6 +90,10 @@ or AndroidKeyStore. Build `:app:assembleDebug :app:assembleDebugAndroidTest`, in
 then run `adb -s SERIAL shell am instrument -w app.workfleet.preview.test/app.workfleet.nativehost.StorageProbe`
 (replace the test package if the configured application ID differs). Require the explicit `PASS Android` result.
 This component check does not verify native sign-in, renderer transfers or real Drive sync.
+- Empty dataset tests assert exactly three remote objects across initialization, idle sync, reopen and a second
+  device; reset adds only its legacy fence. They exercise the numeric bulk allocator, concurrent first capture,
+  lazy folder creation/lost replies, lost roots and interrupted eager initialization. The reset UI probe also
+  exposes bulk allocation and asserts no group/checkpoint scaffolding after cleanup.
 - Dataset model tests use an isolated provider with captured files and controllable publication/list/read/delete
   boundaries. They cover concurrent checkpoints, token-before-list bootstrap, retirement during GET, exact retries,
   partial cleanup, terminal purge including a missing history body, bad coverage, every publication/retirement
@@ -133,6 +137,9 @@ This component check does not verify native sign-in, renderer transfers or real 
   cold followers read the fixed checkpoint set with historical-body reads forbidden. The device-layout choice is
   preserved across new identities. Seed units yield while incomplete and keep readiness absent; post-capture edits
   remain in the normal outbox. These are provider-model checks, not native UI or live Google restore results.
+- Apple metadata verification reports separate identity, type, parent, properties, app-data space, deletion state,
+  size and checksum failures; the Swift probe injects each mismatch without exposing account IDs or contents.
+  These diagnostics do not establish which field caused an unobserved live-provider failure.
 - `native-wire.json` is a shared closed-descriptor/query fixture checked by JS, Linux Python, Apple Swift and the
   Windows core probe. It includes unknown fields, invalid identity/path syntax, property limits, duplicate query
   identities and oversized records. Apple/Linux scripted transports exercise dataset upload/readback and reject a

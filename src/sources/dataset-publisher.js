@@ -4,6 +4,7 @@ import { revisionRecord } from './revisions.js';
 import { datasetFile, datasetRecord, encodeDatasetRecord, validateDatasetFile, verifyDatasetBytes } from './dataset-codec.js';
 import { DatasetProtocol, listDatasetObjects } from './dataset-protocol.js';
 import { t } from '../i18n/index.js';
+import { ensureDatasetDirectory } from './dataset-folders.js';
 
 const equal = (a, b) => canonicalJson(a) === canonicalJson(b);
 const invalid = condition => requireValue(condition, 'invalid-dataset', t('errors.sources.datasetInvalid'));
@@ -66,10 +67,12 @@ export class DatasetPublisher {
       record: revisionRecord(operation.kind, operation.value, operation.parents), attachments: job.attachments }) };
   }
   change(job) { return { file: job.change, value: datasetRecord(job.revision.datasetId, 'change', { revision: job.revision }) }; }
-  async publish(item) {
+  async publish(item, plan) {
     try { invalid(equal(await this.#protocol.read(item.file, this.#signal), item.value)); return; }
     catch (error) { if (!missing(error)) throw error; }
     await this.#guard(item.file.entityId, item.file.shard === 'groups' ? 'group' : 'card');
+    if (item.file.kind === 'change') await ensureDatasetDirectory(this.#store, plan, item.file.parentId,
+      { signal: this.#signal, guard: () => this.#guard(item.file.entityId, item.file.shard === 'groups' ? 'group' : 'card') });
     try { await this.#store.createObject({ file: item.file, bytes: encodeDatasetRecord(item.value), signal: this.#signal }); }
     catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
     invalid(equal(await this.#protocol.read(item.file, this.#signal), item.value));
@@ -81,6 +84,8 @@ export class DatasetPublisher {
       if (!missing(error)) throw error;
       requireValue(job.newFolder && job.phase === 'reserved', 'dataset-changed', t('errors.sources.datasetChanged'));
       await this.#guard(operation.entityId, operation.kind);
+      await ensureDatasetDirectory(this.#store, plan, job.folder.parentId,
+        { signal: this.#signal, guard: () => this.#guard(operation.entityId, operation.kind) });
       try { await this.#store.createFolder({ file: job.folder, signal: this.#signal }); }
       catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
       invalid(equal(await this.#store.getObject({ id: job.folder.id, signal: this.#signal }), job.folder));
@@ -102,6 +107,6 @@ export class DatasetPublisher {
       catch (error) { if (!['file-exists', 'network', 'native-outcome-unknown'].includes(error.code)) throw error; }
       await verifyDatasetBytes(file, await this.#store.readObject({ file, signal: this.#signal }));
     }
-    await this.publish(this.revision(job, operation)); return job;
+    await this.publish(this.revision(job, operation), plan); return job;
   }
 }

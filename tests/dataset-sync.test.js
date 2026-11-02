@@ -6,6 +6,7 @@ import { WorkspaceRecordStorage } from '../src/storage/workspace-records.js';
 import { DatasetLifecycle } from '../src/sources/dataset-lifecycle.js';
 import { DatasetSync } from '../src/sources/dataset-sync.js';
 import { DatasetProtocol } from '../src/sources/dataset-protocol.js';
+import { ensureDatasetDirectory } from '../src/sources/dataset-folders.js';
 import { DatasetPurge } from '../src/sources/dataset-purge.js';
 import { datasetFile, datasetRecord, datasetShard } from '../src/sources/dataset-codec.js';
 import { revisionRecord } from '../src/sources/revisions.js';
@@ -24,7 +25,7 @@ async function client(provider, records = new MemoryRecordStore()) {
 
 async function checkpointFixture(count, size, sameShard = false) {
   const provider = new DatasetTestProvider(), journal = new DatasetTestJournal();
-  const binding = await new DatasetLifecycle(provider, journal).initialize(), protocol = new DatasetProtocol(provider, journal);
+  const binding = await new DatasetLifecycle(provider, journal).initialize({ starter: true }), protocol = new DatasetProtocol(provider, journal);
   const groupId = (await protocol.reconcile(binding.descriptor, binding.plan)).heads[0].record.entityId;
   const shards = new Map(); let candidate = 0;
   for (let index = 0; index < count; index++) {
@@ -38,6 +39,7 @@ async function checkpointFixture(count, size, sameShard = false) {
     shards.get(shard).push({ record, file, attachments: [] });
   }
   for (const [shard, heads] of shards) {
+    await ensureDatasetDirectory(provider, binding.plan, binding.plan.folders.shards[shard]);
     // Separate concurrent snapshots model a shard whose merged heads exceed one checkpoint's capacity.
     const width = sameShard ? 2 : heads.length;
     for (let offset = 0; offset < heads.length; offset += width) await protocol.publish(`fixture-${shard}-${offset}`, binding.plan.folders.shards[shard],
@@ -104,7 +106,7 @@ test('initialization durably reserves exact IDs and a follower sees only a verif
   assert.equal((await lifecycle.inspect()).phase, 'empty');
   let failed = false;
   provider.hook = async (point, id) => {
-    if (point === 'create-after' && provider.files.get(id)?.file.kind === 'folder' && !failed) { failed = true; throw Object.assign(new Error('offline'), { code: 'service-unavailable' }); }
+    if (point === 'create-after' && provider.files.get(id)?.file.kind === 'dataset-root' && !failed) { failed = true; throw Object.assign(new Error('offline'), { code: 'service-unavailable' }); }
   };
   await assert.rejects(lifecycle.initialize(), { code: 'service-unavailable' });
   const reserved = provider.counter;
@@ -114,7 +116,7 @@ test('initialization durably reserves exact IDs and a follower sees only a verif
   assert.deepEqual((await lifecycle.inspect()).binding, binding);
   const protocol = new DatasetProtocol(provider, journal);
   const result = await protocol.reconcile(binding.descriptor, binding.plan);
-  assert.equal(result.heads.length, 1); assert.equal(result.heads[0].record.kind, 'group');
+  assert.equal(result.heads.length, 0); assert.equal(provider.files.size, 3);
 });
 
 test('readiness acknowledgement loss never recreates initial checkpoints consumed by another client', async () => {
@@ -122,14 +124,14 @@ test('readiness acknowledgement loss never recreates initial checkpoints consume
   const original = journal.putJob.bind(journal); let failed = false;
   journal.putJob = async (key, value) => { if (value.phase === 'ready' && !failed) { failed = true; throw new Error('disk full'); } return original(key, value); };
   const lifecycle = new DatasetLifecycle(provider, journal);
-  await assert.rejects(lifecycle.initialize(), /disk full/);
+  await assert.rejects(lifecycle.initialize({ starter: true }), /disk full/);
   const binding = (await lifecycle.inspect()).binding;
   const protocol = new DatasetProtocol(provider, new DatasetTestJournal());
   const inputs = await protocol.captureShard(binding.plan, 'groups');
   const successor = await protocol.checkpoint(binding.plan, 'groups', inputs);
   await protocol.retire(binding.descriptor, binding.plan, successor);
   const creates = provider.stats.creates;
-  assert.deepEqual(await lifecycle.initialize(), binding);
+  assert.deepEqual(await lifecycle.initialize({ starter: true }), binding);
   assert.equal(provider.stats.creates, creates);
   assert.equal(provider.files.has(inputs[0].file.id), false);
 });
@@ -157,7 +159,7 @@ test('initial publication list lag retries instead of offering a destructive res
       await assert.rejects(c.sync.sync(), { code: 'dataset-visibility' }); assert.equal(c.sync.status.phase, 'backoff');
       hidden = 0; await c.sync.sync({ force: true });
     }
-    assert.equal(c.workspace.snapshot.groups.length, 1);
+    assert.equal(c.workspace.snapshot.groups.length, 0);
     assert.equal([...provider.files.values()].filter(item => item.file.kind === 'dataset').length, 1);
   }
 });
@@ -167,8 +169,8 @@ test('current sync reopens from records, preserves unsent edits and publishes on
   await a.sync.sync();
   let card = await a.workspace.createCard(content('first'));
   for (let i = 0; i < 75; i++) card = await a.workspace.updateCard(card.id, { content: content(`edit ${i}`) }, card.revision);
-  assert.equal(a.workspace.pendingCount, 76);
-  await a.sync.sync(); assert.equal(a.workspace.pendingCount, 44);
+  assert.equal(a.workspace.pendingCount, 77);
+  await a.sync.sync(); assert.equal(a.workspace.pendingCount, 45);
   assert.ok(a.workspace.snapshot.cards.some(value => value.content.text === 'edit 74'));
   await a.sync.stop();
   const reopened = await client(provider, a.records);
@@ -187,7 +189,7 @@ test('publication journals retain locators without another copy of note contents
   const provider = new DatasetTestProvider(), c = await client(provider); await c.sync.sync();
   const card = await c.workspace.createCard(content('unique unpublished private body'));
   provider.hook = async (point, id) => {
-    if (point === 'create-after' && provider.files.get(id)?.file.kind === 'revision') throw Object.assign(new Error('offline'), { code: 'service-unavailable' });
+    if (point === 'create-after' && provider.files.get(id)?.file.revisionId === card.revision) throw Object.assign(new Error('offline'), { code: 'service-unavailable' });
   };
   await assert.rejects(c.sync.sync(), { code: 'service-unavailable' });
   const job = await c.storage.getJob(`upload:${c.sync.binding.plan.datasetId}:${card.revision}`);
@@ -202,8 +204,10 @@ test('steady sync and cold checkpoint login never fetch retained bodies, at fixe
   await a.workspace.createCard(content('only')); await a.sync.sync();
   const binding = a.sync.binding, protocol = new DatasetProtocol(provider, new DatasetTestJournal());
   const shard = await datasetShard('card', a.workspace.snapshot.cards[0].id);
-  const inputs = await protocol.captureShard(binding.plan, shard);
-  await protocol.retire(binding.descriptor, binding.plan, await protocol.checkpoint(binding.plan, shard, inputs));
+  for (const current of [shard, 'groups']) {
+    const inputs = await protocol.captureShard(binding.plan, current);
+    await protocol.retire(binding.descriptor, binding.plan, await protocol.checkpoint(binding.plan, current, inputs));
+  }
   await a.sync.sync(); provider.forbiddenHistory = true; provider.unrelatedHistory = 1_000_000;
   const before = { ...provider.stats }; let checkpointReads = 0;
   provider.hook = async (point, id) => { if (point === 'read' && provider.files.get(id)?.file.kind === 'checkpoint') checkpointReads++; };
@@ -223,6 +227,7 @@ test('purge blocks offline publication and preserves distinct unpublished text f
   const shard = await datasetShard('card', card.id);
   const marker = datasetRecord(binding.plan.datasetId, 'purge', { operationId: crypto.randomUUID(), entityId: card.id,
     folderIds: [], trashEpisode: crypto.randomUUID(), heads: [card.revision] });
+  await ensureDatasetDirectory(provider, binding.plan, binding.plan.folders.buckets[shard]);
   await protocol.publish('purge', binding.plan.folders.buckets[shard], marker);
   await a.sync.sync();
   assert.equal(a.workspace.snapshot.cards.length, 0); assert.equal(a.workspace.pendingCount, 0);
@@ -246,7 +251,7 @@ test('an uncertain receipt consumed before restart is acknowledged without uploa
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
   const card = await a.workspace.createCard(content('once')); let failed = false;
   provider.hook = async (point, id) => {
-    if (point === 'create-after' && provider.files.get(id)?.file.kind === 'change' && !failed) {
+    if (point === 'create-after' && provider.files.get(id)?.file.kind === 'change' && provider.files.get(id)?.file.entityId === card.id && !failed) {
       failed = true; throw Object.assign(new Error('reply lost'), { code: 'service-unavailable' });
     }
   };
@@ -322,6 +327,7 @@ test('eight active writers make bounded progress across repeated save and retire
 test('folder and storage capacity failures keep local edits and exact publication journals for retry', async () => {
   for (const [code, kind] of [['source-item-limit', 'folder'], ['storage-quota', 'revision'], ['source-item-limit', 'change']]) {
     const provider = new DatasetTestProvider(), c = await client(provider); await c.sync.sync();
+    await c.workspace.ensureCaptureGroup(); await c.sync.sync();
     const card = await c.workspace.createCard(content(`${code} ${kind}`));
     const create = provider.createObject.bind(provider);
     provider.createObject = async args => {

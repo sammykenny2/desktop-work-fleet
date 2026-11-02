@@ -25,7 +25,10 @@ export class DatasetSync {
   constructor({ workspace, storage, fileStore, now = Date.now, random = Math.random }) {
     requireValue(workspace.currentFormat && typeof fileStore.sourceId === 'string', 'invalid-source', t('errors.sources.sourceIdRequired'));
     this.#workspace = workspace; this.#storage = storage; this.#now = now; this.#random = random;
-    this.#store = new Proxy(fileStore, { get: (target, key) => typeof target[key] !== 'function' ? target[key] : async (input = {}) => {
+    this.#store = new Proxy(fileStore, { get: (target, key) => typeof target[key] !== 'function' ? target[key]
+      : key === 'allocateFileIds' ? async (count, options = {}) => {
+        this.#check(); const result = await target[key](count, { ...options, signal: this.#abort.signal }); this.#check(); return result;
+      } : async (input = {}) => {
       this.#check(); const result = await target[key]({ ...input, signal: this.#abort.signal }); this.#check(); return result;
     } });
     this.#protocol = new DatasetProtocol(this.#store, storage); this.#lifecycle = new DatasetLifecycle(this.#store, storage);
@@ -61,13 +64,13 @@ export class DatasetSync {
         await this.#protocol.assertGeneration(known.descriptor, known.plan, this.#abort.signal); this.#binding = known;
       } else {
         const pending = await this.#storage.getJob('dataset-initialize');
-        if (pending) this.#binding = await this.#lifecycle.initialize({ starter: true, signal: this.#abort.signal });
+        if (pending) this.#binding = await this.#lifecycle.initialize({ signal: this.#abort.signal });
         else {
           const found = await this.#lifecycle.inspect(this.#abort.signal);
           if (found.phase === 'preparing') { this.#status.phase = 'waiting-initialization'; return this.status; }
           requireValue(found.phase !== 'conflict', 'initialization-conflict', t('errors.sources.initializationConflict'));
           requireValue(found.phase !== 'incompatible', 'incompatible-cloud-data', t('errors.sources.incompatibleCloudData'));
-          this.#binding = found.binding ?? await this.#lifecycle.initialize({ starter: this.#workspace.state.groups.length === 0, signal: this.#abort.signal });
+          this.#binding = found.binding ?? await this.#lifecycle.initialize({ signal: this.#abort.signal });
         }
         // A second prepare appearing during our initialization is a conflict, including before either is ready.
         const discovery = await this.#lifecycle.inspect(this.#abort.signal, this.#binding);
@@ -261,7 +264,7 @@ export class DatasetSync {
         await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] }); return;
       }
     } else { job = { ...job, phase: 'receipt' }; await this.#storage.putJob(key, job); }
-    await publisher.publish(publisher.change(job)); await this.#barrier(operation.entityId, operation.kind);
+    await publisher.publish(publisher.change(job), plan); await this.#barrier(operation.entityId, operation.kind);
     await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] });
     this.#latest.heads = heads;
   }

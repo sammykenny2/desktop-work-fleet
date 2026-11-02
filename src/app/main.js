@@ -1873,9 +1873,7 @@ async function ensureCaptureGroup() {
     if (!groups.some(group => group.id === activeGroupId)) activeGroupId = rememberedGroup();
     return;
   }
-  // A new or cleared account must receive its existing groups before choosing an initial group.
-  if (profileId.startsWith('google:')) throw new FleetError('initial-sync-required', t('sync.errors.initialSyncRequired'));
-  const group = await workspace.createGroup(t('app.groups.defaultName')); activeGroupId = group.id; render();
+  const group = await workspace.ensureCaptureGroup(); activeGroupId = group.id; render();
 }
 
 // The editor continues the note's unsaved changes, or starts from the note as saved; without a note it starts a new one

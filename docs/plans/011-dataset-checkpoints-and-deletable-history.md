@@ -143,6 +143,9 @@ Depends on the local transaction contract and reviewed remote candidate.
   reservations, current-view activation, indexed oldest-first uploads, bounded incremental refresh and admission/
   compaction. Exercise restart, lost replies consumed by checkpoints, competing initialization, concurrent edits,
   note-owned attachments and purge/cloud-loss barriers. The production entry point and lazy history now use the controller; remaining adapter acceptance is in 2.5.
+- [x] 2.2b Keep empty initialization/reset to root, descriptor and ready; reserve structural IDs without
+  creating empty folders/checkpoints. Materialize used branches and a deterministic first-capture group lazily.
+  Cover empty rejoin/reopen, concurrent first capture, interrupted eager jobs, reset progress and bulk allocation.
 - [x] 2.3 Implement one history-body upload plus small current receipt; checkpoint exact inputs before retiring
   receipts/predecessor snapshots. Retain revisions as history and enforce admission/backpressure (VC04, VC05, VC19).
 - [x] 2.4 Implement paged note-folder history and direct selected-version reads; restore via a new UUID and fresh

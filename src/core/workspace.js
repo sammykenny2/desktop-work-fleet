@@ -620,6 +620,23 @@ export class Workspace {
     });
   }
 
+  /** An empty cloud stays empty until capture starts; concurrent first captures share one group identity. */
+  async ensureCaptureGroup() {
+    const existing = activeGroups(this.#state)[0]; if (existing) return copy(existing);
+    if (!this.currentFormat || !this.#state.profileId.startsWith('google:')) return this.createGroup(t('app.groups.defaultName'));
+    const binding = this.#state.sync.dataset, sourceId = this.#state.sync.sourceId;
+    requireValue(binding && typeof this.#state.sync.cursor === 'string', 'initial-sync-required', t('errors.common.initialSyncRequired'));
+    const record = await initialGroupRecord(sourceId, [binding.plan.datasetId]);
+    return this.#addGroup(state => {
+      requireValue(state.sync.dataset?.plan.datasetId === binding.plan.datasetId && typeof state.sync.cursor === 'string',
+        'initial-sync-required', t('errors.common.initialSyncRequired'));
+      const present = activeGroups(state)[0]; if (present) return copy(present);
+      validateNewGroup(state);
+      const group = state.groups.length ? { id: this.#uuid(), revision: this.#uuid(), name: t('app.groups.defaultName'), deleted: false } : record.value;
+      state.groups.push(group); this.#record(state, 'group', group, []); return copy(group);
+    });
+  }
+
   /** After a complete pull, every device derives the same initial root for this account and reset generation. */
   async ensureInitialGroup(session, planId = null) {
     session = copy(session); this.#session(this.#state, session);
@@ -693,6 +710,7 @@ export class Workspace {
 
   async createCard(content, groupId = activeGroups(this.#state)[0]?.id) {
     const value = contentValue(content);
+    if (groupId === undefined && this.currentFormat && this.#state.profileId.startsWith('google:')) groupId = (await this.ensureCaptureGroup()).id;
     return this.#commit(state => {
       groupId = resolveGroupId(state, groupId);
       this.#group(state, groupId);

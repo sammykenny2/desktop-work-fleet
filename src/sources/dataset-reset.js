@@ -23,7 +23,7 @@ export class DatasetReset {
     ]);
     return { sourceId: this.#store.sourceId, fences: idsOf(fences), datasets: idsOf(datasets) };
   }
-  async begin(preview, { starter = true, seeded = false, restoreOperation = null, signal } = {}) {
+  async begin(preview, { starter = false, seeded = false, restoreOperation = null, signal } = {}) {
     invalid(preview?.sourceId === this.#store.sourceId && typeof starter === 'boolean' && typeof seeded === 'boolean' && (!seeded || !starter)
       && (restoreOperation === null || typeof restoreOperation === 'string' && restoreOperation.length === 36));
     superseded(same(preview, await this.preview(signal)));
@@ -172,7 +172,7 @@ export class DatasetReset {
     if (job.phase === 'initialize') {
       invalid(!job.seeded || typeof seed === 'function');
       const binding = await new DatasetLifecycle(this.#store, this.#journal).initialize({ key: initializeKey,
-        fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard, progress, seed: job.seeded ? seed : null });
+        fenceId: job.marker.id, starter: false, allowExisting: true, signal, guard, progress, seed: job.seeded ? seed : null });
       if (binding === null) return copy(job);
       await save({ binding, phase: job.seeded ? 'cleanup' : 'activate' }); return copy(job);
     }

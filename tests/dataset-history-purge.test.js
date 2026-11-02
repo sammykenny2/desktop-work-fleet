@@ -116,6 +116,7 @@ test('Trash episodes reject stale previews and local deletion preserves shared a
 
 test('a confirmed purge drops a large unsent queue in bounded pages without uploading its history', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
+  await a.workspace.ensureCaptureGroup(); await a.sync.sync();
   let card = await a.workspace.createCard(content('queued'));
   for (let i = 0; i < 240; i++) card = await a.workspace.updateCard(card.id, { content: content(`queued ${i}`) }, card.revision);
   card = await a.workspace.updateCard(card.id, { deleted: true }, card.revision);

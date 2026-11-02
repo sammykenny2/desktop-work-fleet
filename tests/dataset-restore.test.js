@@ -56,7 +56,7 @@ test('background seed slices return before readiness and accept foreground edits
   assert.equal(follower.workspace.snapshot.cards[0].content.text, 'edited between seed slices');
 });
 
-test('seeded cloud replacement publishes history before ready and exposes a fixed current checkpoint set', async () => {
+test('seeded cloud replacement publishes history before ready and creates checkpoints only for populated shards', async () => {
   const provider = new DatasetTestProvider(), document = await backup(145), target = await stage(provider, document);
   assert.equal(target.state.format, 'work-fleet-workspace-current'); assert.equal(target.state.revisions.length, 2);
   let seeded = null;
@@ -74,7 +74,7 @@ test('seeded cloud replacement publishes history before ready and exposes a fixe
   assert.equal((await reset.status()).phase, 'cleanup', 'old content cleanup remains a background task');
   provider.forbiddenHistory = true;
   const follower = await client(provider); await follower.sync.sync(); assert.equal(follower.workspace.snapshot.cards[0].content.text, 'restored 144');
-  assert.equal([...provider.files.values()].filter(item => item.file.datasetId === seeded && item.file.kind === 'checkpoint').length, 17);
+  assert.equal([...provider.files.values()].filter(item => item.file.datasetId === seeded && item.file.kind === 'checkpoint').length, 2);
 });
 
 test('an interrupted seed resumes its outbox and never publishes an empty ready marker or duplicate history', async () => {

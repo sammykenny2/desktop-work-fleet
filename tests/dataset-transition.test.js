@@ -33,7 +33,7 @@ test('confirmed reset clears captured history before readiness, switches generat
     assert.ok(args.file.kind !== 'revision' || args.file.datasetId !== oldDataset, 'reset downloaded old history'); return read(args);
   };
   const state = await resumeDatasetReset({ ...a, state: a.workspace.state, preview });
-  assert.equal(state.cards.length, 0); assert.equal(state.groups.length, 1);
+  assert.equal(state.cards.length, 0); assert.equal(state.groups.length, 0);
   assert.equal((await reset.status()).phase, 'residual-audit');
   assert.ok(oldLeaves.every(id => !provider.files.has(id)), 'readiness preceded captured history deletion');
   const reopened = await client(provider, a.records), fresh = await reopened.workspace.createCard(content('new after readiness'));
@@ -62,7 +62,7 @@ test('rejoin requires a ready generation and an unchanged preview, and never upl
   const b = await client(provider); await b.sync.sync(); await b.sync.stop({ endSession: false });
   const reset = new DatasetReset(provider, b.storage);
   await resumeDatasetReset({ ...b, state: b.workspace.state, preview: await reset.preview() });
-  const preview = await previewDatasetRejoin(a); assert.equal(preview.pending, 1);
+  const preview = await previewDatasetRejoin(a); assert.equal(preview.pending, 2);
   const draft = a.workspace.blankDraft(old.groupId, old); draft.content.text = 'newer'; await a.workspace.saveDraft(draft);
   await assert.rejects(stageDatasetRejoin({ ...a, preview }), { code: 'stale-restore-plan' });
   await a.sync.stop({ endSession: false });

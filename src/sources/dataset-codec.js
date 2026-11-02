@@ -182,7 +182,7 @@ export function validateDatasetRecord(input) {
     invalid(ids.every(validFileId) && unique(ids));
   } else if (value.kind === 'ready') {
     keys.push('descriptor', 'initial'); invalid(reference(value.descriptor) && Array.isArray(value.initial)
-      && value.initial.length === DATASET_SHARDS.length && unique(value.initial.map(file => file.shard)));
+      && value.initial.length <= DATASET_SHARDS.length && unique(value.initial.map(file => file.shard)));
     for (const file of value.initial) { validateDatasetFile(file); invalid(file.kind === 'checkpoint' && file.datasetId === value.datasetId); }
   } else invalid(false);
   invalid(exact(value, keys)); return value;

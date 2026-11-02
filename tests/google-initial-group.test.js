@@ -14,29 +14,32 @@ import { MemoryAttachmentStorage, MemoryFileStore } from './fixtures/file-store.
 const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'utf8');
 const guard = source.slice(source.indexOf('async function ensureCaptureGroup()'), source.indexOf('async function openEditor('));
 
-function fixture(profileId, groups = []) {
+async function fixture(profileId, groups = []) {
   const calls = [];
+  const workspace = await Workspace.create({ profileId, current: true, bootstrapGroup: false, deviceId: 'fixture',
+    area: { x: 0, y: 0, width: 1200, height: 900 }, persist: async () => {} });
+  for (const group of groups) await workspace.createGroup(group.name);
+  const capture = workspace.ensureCaptureGroup.bind(workspace);
+  workspace.ensureCaptureGroup = async () => { const group = await capture(); calls.push(group.name); return group; };
   const context = vm.createContext({ profileId, activeGroups, FleetError, t, activeGroupId: null, shownGroups: () => activeGroups(context.workspace.snapshot),
     rememberedGroup: () => mainGroup(context.workspace.layout?.state ?? {}, context.shownGroups()),
-    workspace: { snapshot: { groups }, createGroup: async name => {
-      calls.push(name); const group = { id: 'new-local-group', name, deleted: false }; groups.push(group); return group;
-    } }, render: () => calls.push('render') });
+    workspace, render: () => calls.push('render') });
   vm.runInContext(guard, context);
   return { context, calls, invoke: () => vm.runInContext('ensureCaptureGroup()', context) };
 }
 
 test('a new or cleared Google copy cannot create a random initial group from the editor or share inbox before sync', async () => {
-  const f = fixture('google:account');
+  const f = await fixture('google:account');
   await assert.rejects(f.invoke(), error => error.code === 'initial-sync-required');
   assert.deepEqual(f.calls, []);
   assert.deepEqual(f.context.workspace.snapshot.groups, []);
 });
 
 test('Google notes with an existing group remain available offline and local capture can still create its first group', async () => {
-  const google = fixture('google:account', [{ id: 'existing', name: INITIAL_GROUP_NAME, deleted: false }]);
-  await google.invoke(); assert.deepEqual(google.calls, []); assert.equal(google.context.activeGroupId, 'existing');
-  const local = fixture('local'); await local.invoke(); await local.invoke();
-  assert.deepEqual(local.calls, [t('app.groups.defaultName'), 'render']); assert.equal(local.context.activeGroupId, 'new-local-group');
+  const google = await fixture('google:account', [{ id: 'existing', name: INITIAL_GROUP_NAME, deleted: false }]);
+  await google.invoke(); assert.deepEqual(google.calls, []); assert.equal(google.context.activeGroupId, google.context.workspace.snapshot.groups[0].id);
+  const local = await fixture('local'); await local.invoke(); await local.invoke();
+  assert.deepEqual(local.calls, [t('app.groups.defaultName'), 'render']); assert.equal(local.context.activeGroupId, local.context.workspace.snapshot.groups[0].id);
 });
 
 test('the starter group a computer makes for an empty account starts on its back layer', async () => {
@@ -58,7 +61,7 @@ test('a persisted initial group stays usable offline when its first upload fails
   store.hooks.createFile = ({ file }) => { if (file.kind === 'revision') throw new FleetError('network', 'offline'); };
   const sync = new FileSync({ workspace, storage: new MemoryAttachmentStorage(), fileStore: store, bootstrapGroup: true });
   await assert.rejects(sync.sync(), error => error.code === 'network');
-  const f = fixture('google:account'); f.context.workspace = workspace;
+  const f = await fixture('google:account'); f.context.workspace = workspace;
   await f.invoke();
   const draft = workspace.blankDraft(f.context.activeGroupId); draft.content.text = 'Offline idea';
   await workspace.saveDraft(draft); await workspace.commitDraft(draft.id);

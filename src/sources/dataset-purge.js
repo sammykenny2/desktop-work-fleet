@@ -3,6 +3,7 @@ import { canonicalJson } from './json.js';
 import { datasetRecord, datasetShard } from './dataset-codec.js';
 import { DatasetProtocol, listDatasetObjects, mergeDatasetInputs } from './dataset-protocol.js';
 import { t } from '../i18n/index.js';
+import { ensureDatasetDirectory } from './dataset-folders.js';
 
 const same = (a, b) => canonicalJson(a) === canonicalJson(b);
 const stale = condition => requireValue(condition, 'stale-purge', t('errors.sources.purgeStale'));
@@ -141,6 +142,7 @@ export class DatasetPurge {
           item.folderIds = folders.map(file => file.id).sort(); await save({ item });
           const marker = datasetRecord(binding.plan.datasetId, 'purge', { operationId: item.operationId, entityId: item.entityId,
             trashEpisode: item.trashEpisode, heads: [...new Set([...item.heads, ...item.remoteHeads])], folderIds: item.folderIds });
+          await ensureDatasetDirectory(store, binding.plan, binding.plan.folders.buckets[shard], { signal, guard });
           await protocol.publish(publication, binding.plan.folders.buckets[shard], marker, signal);
           await this.#storage.putControl(`purge:${binding.plan.datasetId}:${item.entityId}`, marker);
         }

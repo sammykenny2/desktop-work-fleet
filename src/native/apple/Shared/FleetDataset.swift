@@ -51,15 +51,21 @@ enum FleetDataset {
     static func verify(_ value: [String: Any], _ expected: [String: Any]) throws {
         let desired = try metadata(expected), parents = value["parents"] as? [String] ?? []
         let rootAlias = expected["kind"] as? String == "dataset-root" && parents.count == 1 && fileID(parents.first)
-        try check(value["id"] as? String == expected["id"] as? String && value["mimeType"] as? String == desired["mimeType"] as? String
-            && (parents == desired["parents"] as? [String] || rootAlias)
-            && value["appProperties"] as? [String: String] == desired["appProperties"] as? [String: String]
-            && (value["spaces"] as? [String] ?? []).contains("appDataFolder") && (value["trashed"] == nil || FleetProtocol.bool(value, "trashed") == false))
+        func verifyField(_ condition: Bool, _ field: String) throws {
+            try FleetProtocol.require(condition, "dataset-response-" + field, "Google Drive returned mismatched dataset metadata (" + field + ").")
+        }
+        try verifyField(value["id"] as? String == expected["id"] as? String, "id")
+        try verifyField(value["mimeType"] as? String == desired["mimeType"] as? String, "type")
+        try verifyField(parents == desired["parents"] as? [String] || rootAlias, "parent")
+        try verifyField(value["appProperties"] as? [String: String] == desired["appProperties"] as? [String: String], "properties")
+        try verifyField((value["spaces"] as? [String] ?? []).contains("appDataFolder"), "space")
+        try verifyField(value["trashed"] == nil || ((try? FleetProtocol.bool(value, "trashed")) == false), "state")
         if expected["sha256"] != nil {
-            try check(FleetProtocol.text(value, "size") == String(FleetProtocol.number(expected, "size"))
-                && (value["sha256Checksum"] == nil || FleetProtocol.text(value, "sha256Checksum") == FleetProtocol.text(expected, "sha256")))
+            try verifyField(value["size"] as? String == String(FleetProtocol.number(expected, "size")), "size")
+            try verifyField(value["sha256Checksum"] == nil || value["sha256Checksum"] as? String == expected["sha256"] as? String, "checksum")
         }
     }
+
     static func deleteBatch(_ value: Any?) throws -> Data {
         guard let ids = value as? [String] else { throw FleetFailure("invalid-source-file", "The deletion IDs are invalid.") }
         try check((1...100).contains(ids.count) && Set(ids).count == ids.count

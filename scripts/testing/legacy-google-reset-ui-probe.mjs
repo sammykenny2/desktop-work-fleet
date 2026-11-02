@@ -84,6 +84,13 @@ const googleModule = `
 import { deleteBatchResult } from '/sources/drive-batch.js';
 export class NativeGoogleDatasetStore {
   get sourceId() { return 'google-drive:test:appdata-v1'; }
+  async allocateFileIds(count, { signal } = {}) {
+    if (!Number.isSafeInteger(count) || count < 1 || count > 100) throw new Error('Invalid bulk allocation count');
+    signal?.throwIfAborted();
+    const result = await window.fixtureDrive('allocateFileIds', { count });
+    if (!result.ok) throw Object.assign(new Error(result.message), { code: result.code });
+    signal?.throwIfAborted(); return result.value;
+  }
   constructor() {
     for (const method of ['allocateFileId', 'getStartCursor', 'getObject', 'readObject', 'createObject', 'createFolder',
       'readFile', 'createFile', 'deleteFile', 'deleteFiles', 'listObjects', 'listDatasetChanges']) this[method] = async (input = {}) => {
@@ -143,7 +150,7 @@ try {
       try {
         if (args.bytes) args.bytes = Uint8Array.from(args.bytes);
         const missing = method === 'deleteFiles' ? new Set(args.ids.filter(id => !provider.files.has(id))) : null;
-        const result = await provider[method](args);
+        const result = method === 'allocateFileIds' ? await Promise.all(Array.from({ length: args.count }, () => provider.allocateFileId())) : await provider[method](args);
         const value = method === 'deleteFiles' ? driveBatchResponse(result.map((item, index) =>
           [index, item.code ? 503 : missing.has(item.id) ? 404 : 204])) : result;
         return { ok: true, value: value instanceof Uint8Array ? Array.from(value) : value };
@@ -381,6 +388,8 @@ try {
       await expect.poll(async () => (await read()).reset?.phase, { timeout: 30000 }).toBe('complete');
       const after = await read();
       assert.equal(after.state.format, 'work-fleet-workspace-current'); assert.equal(after.state.cards.length, 0);
+      assert.equal(after.state.groups.length, 0);
+      assert.deepEqual([...provider.files.values()].map(item => item.file.kind).sort(), ['dataset', 'dataset-root', 'ready', 'reset']);
       assert.ok(oldIds.every(id => !provider.files.has(id))); assert.deepEqual(oldReads, []);
       assert.deepEqual((await legacy()).local, before.local);
       assert.equal(localResets.length, oldLocal ? 1 : 0);

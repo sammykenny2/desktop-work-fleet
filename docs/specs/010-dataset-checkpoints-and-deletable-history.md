@@ -134,7 +134,15 @@ appDataFolder/
         purge-n42-p8.json              identity/episode/operation only; no note content
 ```
 
-The initializer reserves the dataset root and fixed folder IDs in its durable prepare plan. New notes reserve
+The initializer reserves the dataset root and fixed folder IDs in its durable prepare plan. Reservations do not
+create Drive files. An empty account creates exactly three objects: its root, descriptor and ready receipt, with
+no groups, revisions, checkpoints or structural child folders. The ready receipt may contain zero initial
+checkpoints. All devices must support this sparse readiness before joining a newly empty generation;
+this remains a V1 test-format change with no automatic conversion of existing data. A reset adds its legacy fence separately. First use materializes only the required category/shard/
+bucket parents at their reserved IDs; concurrent creation verifies the same metadata and accepts a verified 409.
+Never recreate a lost generation root. First capture after completed discovery creates the default group with
+an identity derived from the source and dataset, so simultaneous first captures share one group.
+New notes reserve
 one folder ID before upload; retries/clones made after that reservation reuse it, not another folder found by name. A genuinely new
 note/copy gets a new UUID. All later creates verify the active dataset and use those recorded parents.
 Offline edits cannot reserve Drive IDs. Clones made before reservation may independently reserve duplicate
@@ -350,8 +358,9 @@ outside the deleted folder. No UI claims disconnected devices or already exporte
 
 The reset journal first captures old app-data file IDs, including `work-fleet-v1-revision-OLD.json`, through
 metadata-only pages. It reserves a legacy-compatible marker and new dataset `d8`. It publishes
-`work-fleet-v1-reset-NEW.json` with the exact old envelope below, then creates `dataset-d8/`, `dataset-d8.json`,
-the deterministic initial group/checkpoint, and `ready-d8.json`. Cleanup deletes only the captured old IDs,
+`work-fleet-v1-reset-NEW.json` with the exact old envelope below, clears the captured old content, then creates
+only `dataset-d8/`, `dataset-d8.json`, and `ready-d8.json`. No starter group or empty checkpoint is uploaded.
+Cleanup deletes only the captured old IDs,
 never a newly listed "everything except my marker" set.
 
 ```json
@@ -493,7 +502,10 @@ only delimiter lines separate parts. A complete closing delimiter and one unique
 ID are still required. An unverified batch result reports continuation of the saved operation, not a storage-capacity failure.
 Drive [batch requests](https://developers.google.com/workspace/drive/api/guides/performance#batch_requests)
 reduce HTTP round trips, not per-file quota accounting. Fresh initialization reserves its bounded set of file IDs
-in one request. Root-parent proof uses the same retryable listing-visibility rule as descriptors/fences. Reset does not cascade-delete captured folders: a child can arrive after
+in one request. The synchronization wrapper preserves the allocator's numeric count and separate abort options.
+An unfinished unseeded initializer can omit uncreated empty scaffolding while retaining its original IDs; an
+already published ready receipt is final, and retired initial checkpoints are never recreated.
+Root-parent proof uses the same retryable listing-visibility rule as descriptors/fences. Reset does not cascade-delete captured folders: a child can arrive after
 an empty-folder check and Drive has no conditional empty-folder delete. Retain/count those obsolete containers;
 all captured content files are still removed. The legacy flat layout has no such containers. Note purge has a
 different, explicitly terminal whole-identity scope and may delete its owned folders and late descendants.
@@ -545,7 +557,7 @@ previewed barriers and remaps purged identities and their revision/draft referen
 replacement stages history and attachments under a new generation before one atomic activation pointer changes.
 Cloud replacement stages the verified replacement locally first, with a saved safety-backup receipt, fresh entity/
 revision identities and a captured outbox boundary. It uploads those immutable revision/attachment bodies before
-publishing readiness, then places only the captured current heads in the 17 initial checkpoints. It creates no
+publishing readiness, then places only the captured current heads in checkpoints for populated shards (at most 17). It creates no
 per-history current receipt tail. Per-upload journals contain reserved file locators rather than another content
 copy. The final seed acknowledgement and its completion control commit with outbox removal; a lost reply cannot
 restart all history uploads. Edits made after the captured boundary stay queued for normal sync. Missing prepared
@@ -639,7 +651,7 @@ These are required future cases, not passing tests.
 | VC19 | Many purge markers, redundant snapshots, group history | Targeted/bounded startup; no substitute all-history metadata scan |
 | VC20 | Old local/cloud format on first launch | Explicit choices and separate scopes; no automatic conversion, deletion or upload |
 | VC21 | Legacy reset, old-client destructive reset, scenario D | Fence plus exact-ID cleanup; detect loss of new data, preserve local data and require previewed recovery |
-| VC22 | Concurrent initialization, empty dataset, followers | Verified prepare/ready, deterministic starter; conflicting generations not arbitrarily elected |
+| VC22 | Concurrent initialization, empty dataset, followers | Three-object empty initialization; deterministic group on first capture; conflicting generations not arbitrarily elected |
 | VC23 | Cold client complete/current-only export; capacity overflow | Honest coverage; hydrate declared data or fail intact, no silent fallback or partial valid artifact |
 | VC24 | Purged identities in old backup / cloud disappearance | No implicit restoration; explicit new-identity/new-generation recovery with coverage preview |
 | VC25 | Account switch, native commit failure, restart | Atomic local reconciliation, durable journals and account/session fencing |

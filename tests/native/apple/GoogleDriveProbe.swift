@@ -120,7 +120,7 @@ actor ScriptedHTTP {
             try await ScriptedHTTP.shared.prepare([ScriptedHTTP.Step(method: "GET", url: media + "?fields=" + FleetDataset.fields, response: try FleetProtocol.encode(metadata))])
             var rejected = false
             do { _ = try await drive.invoke("google.dataset.read", args) }
-            catch let error as FleetFailure { rejected = error.code == "invalid-source-file" }
+            catch let error as FleetFailure { rejected = error.code == "dataset-response-parent" }
             try check(rejected, "Cross-note dataset file was accepted")
         case "literal-fields", "encoded-fields":
             let target = name == "literal-fields" ? location : location.replacingOccurrences(of: ",", with: "%2C")

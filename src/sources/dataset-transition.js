@@ -86,8 +86,7 @@ export async function resumeDatasetReset({ state, storage, fileStore, preview = 
   state = await startDatasetReset({ state, storage, fileStore, preview, signal });
   const reset = new DatasetReset(fileStore, storage); let job = await reset.status();
   while (!job.ready) {
-    signal?.throwIfAborted(); job = await reset.step({ signal });
-    progress({ phase: job.phase, completed: job.deleted, total: job.captured });
+    signal?.throwIfAborted(); job = await reset.step({ signal, progress });
     await new Promise(resolve => setTimeout(resolve, 0));
   }
   const workspace = new Workspace(state, (...args) => storage.save(...args));

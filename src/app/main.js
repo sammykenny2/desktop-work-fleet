@@ -70,6 +70,7 @@ let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
 let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null;
+let maintenanceNotice = null; let maintenanceFailure = null;
 let recoveryWork = null; let recoveryBusy = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
@@ -428,15 +429,22 @@ async function initializeGoogle() {
   if (['dataset-changed', 'source-reset-superseded', 'initialization-conflict'].includes(transitionError?.code)) {
     datasetProblem = transitionError; maintenancePaused = true;
   }
+  if (transitionError && (workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete')) {
+    maintenanceFailure = transitionError; maintenancePaused = true;
+    showMaintenance(() => t('sync.reset.paused', { error: transitionError.message }), { retry: !datasetProblem, error: true });
+  } else if (pendingReset && pendingReset.phase !== 'complete') {
+    showMaintenance(() => datasetProgressText(resetProgress(pendingReset)));
+  }
   renderGoogleAccess(); renderAccount();
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
   $('#google-sign-out').onclick = () => { void changeGoogleAccount('signOut'); };
   $('#google-local').onclick = () => { void changeGoogleAccount('local'); };
+  $('#google-sync').disabled = false;
   setText('#google-sync', workspace.state.cloudRestore ? () => t('sync.actions.resumeOverwrite') : () => t('sync.actions.syncNow'));
   $('#google-sync').onclick = () => {
     if (datasetProblem) { sourceResetAsked = false; void askDatasetRecovery(); }
     else if (workspace.state.cloudRestore) askResumeCloudRestore();
-    else if (pendingReset && !pendingReset.ready && pendingReset.phase !== 'complete') { maintenancePaused = false; scheduleMaintenance(0); }
+    else if (pendingReset && !pendingReset.ready && pendingReset.phase !== 'complete') resumeMaintenance();
     else { maintenancePaused = false; scheduleMaintenance(); void syncGoogle(true); }
   };
   if (datasetProblem) {
@@ -445,13 +453,15 @@ async function initializeGoogle() {
   }
   if (workspace.state.cloudRestore) {
     syncService = null; stopAutomatic?.();
-    setSync('attention', () => t('sync.status.overwriteUnfinished'), workspace.state.cloudRestore.error || (() => t('sync.detail.overwriteSaved')));
+    setSync('attention', () => t('sync.status.overwriteUnfinished'), maintenanceFailure?.message || workspace.state.cloudRestore.error || (() => t('sync.detail.overwriteSaved')));
     return;
   }
   if (pendingReset && !pendingReset.ready && pendingReset.phase !== 'complete') {
     syncService = null; stopAutomatic?.();
-    setText('#google-sync', () => t('sync.actions.resumeReset'));
-    setSync('attention', () => t('sync.status.resetUnfinished'), () => t('sync.detail.resetUnfinished')); return;
+    setText('#google-sync', () => t(maintenancePaused ? 'sync.actions.resumeReset' : 'sync.status.resetting'));
+    $('#google-sync').disabled = !maintenancePaused;
+    setSync(maintenancePaused ? 'error' : 'busy', () => t(maintenancePaused ? 'sync.status.resetUnfinished' : 'sync.status.resetting'),
+      maintenanceFailure?.message || (() => datasetProgressText(resetProgress(pendingReset)))); return;
   }
   if (datasetStore) {
     setText('#storage-note', paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
@@ -600,7 +610,36 @@ async function syncGoogle(force = false) {
   finally { syncBusy = false; $('#google-sync').disabled = false; }
 }
 
-// Each turn performs one bounded cleanup unit. Normal sync gets priority, and dialogs/backup captures keep their view.
+function showMaintenance(text, { retry = false, error = false } = {}) {
+  maintenanceNotice = { text, retry, error };
+  setText('#cleanup-status', text); $('#retry-cleanup').hidden = !retry;
+  setText('#dataset-maintenance-status', text);
+  $('#dataset-maintenance-status').classList.toggle('error', error);
+  $('#dataset-maintenance').hidden = !textOf(text);
+  $('#retry-dataset-maintenance').hidden = !retry;
+  const action = () => t(workspace.state.cloudRestore ? 'sync.actions.resumeOverwrite'
+    : pendingReset && !pendingReset.ready ? 'sync.actions.resumeReset' : 'app.purge.retry');
+  setText('#retry-cleanup', action); setText('#retry-dataset-maintenance', action);
+}
+function resetProgress(job) {
+  return { phase: job.phase, completed: job.deleted, total: job.captured, ready: job.ready, folders: job.retainedFolders };
+}
+function reportDatasetProgress(value) {
+  const text = () => datasetProgressText(value); showMaintenance(text);
+  if (pendingReset && !pendingReset.ready && !workspace.state.cloudRestore) {
+    setSync('busy', () => t('sync.status.resetting'), text);
+    setText('#google-sync', () => t('sync.status.resetting')); $('#google-sync').disabled = true;
+  }
+}
+function resumeMaintenance() {
+  if (nativeClosing || maintenanceWork || datasetProblem) return;
+  maintenancePaused = false;
+  if (pendingReset && pendingReset.phase !== 'complete') reportDatasetProgress(resetProgress(pendingReset));
+  else if (maintenanceNotice) showMaintenance(maintenanceNotice.text);
+  scheduleMaintenance(0);
+}
+
+// Each turn performs one cleanup unit. Settings can observe a confirmed reset; other dialogs and captures still wait.
 function scheduleMaintenance(delay = 1500) {
   clearTimeout(maintenanceTimer);
   if (nativeClosing || maintenanceAbort.signal.aborted) return;
@@ -610,16 +649,19 @@ async function stopMaintenance() {
   clearTimeout(maintenanceTimer); maintenanceAbort.abort(); await maintenanceWork?.catch(() => {});
 }
 async function maintainDataset() {
+  const resetPending = workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete';
   if (datasetProblem || maintenanceWork || maintenancePaused || accountBusy || syncBusy || nativeClosing || editorBusy || composing
-    || dataPanel?.busy() || dataPanel?.blocksSync() || revisions || document.querySelector('dialog[open]')
+    || dataPanel?.busy() || dataPanel?.blocksSync() || revisions
+    || [...document.querySelectorAll('dialog[open]')].some(dialog => !resetPending || dialog !== $('#settings-dialog'))
     || profileId.startsWith('google:') && (!googleAccount?.connected || !workspace.syncState.dataset && !workspace.state.cloudRestore && !pendingReset)) {
     scheduleMaintenance(); return;
   }
   let more = false;
   maintenanceWork = (async () => {
+    if (maintenanceFailure) { await storage.deleteJob('dataset-ui-error'); maintenanceFailure = null; }
     if (workspace.state.cloudRestore) {
       const result = await advanceDatasetRestore({ workspace, storage, fileStore: datasetStore, signal: maintenanceAbort.signal,
-        progress: datasetProgress(text => { $('#cleanup-status').textContent = text; }) });
+        progress: reportDatasetProgress });
       more = true;
       if (result.complete) {
         await initializeGoogle(); if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
@@ -631,10 +673,7 @@ async function maintainDataset() {
     pendingReset = await reset?.status();
     if (pendingReset && pendingReset.phase !== 'complete') {
       const wasReady = pendingReset.ready;
-      pendingReset = await reset.step({ signal: maintenanceAbort.signal }); more = pendingReset.phase !== 'complete';
-      if (pendingReset.ready) $('#cleanup-status').textContent = t(more ? 'sync.reset.cleanup' : 'sync.reset.cleaned',
-        { done: pendingReset.deleted, total: pendingReset.captured, folders: pendingReset.retainedFolders });
-      else datasetProgress(text => { $('#cleanup-status').textContent = text; })({ phase: pendingReset.phase, completed: pendingReset.deleted, total: pendingReset.captured });
+      pendingReset = await reset.step({ signal: maintenanceAbort.signal, progress: reportDatasetProgress }); more = pendingReset.phase !== 'complete';
       if (!wasReady && pendingReset.ready) { await initializeGoogle(); if (automatic) stopAutomatic = startAutomaticBackup(automatic.service); }
       return;
     }
@@ -643,29 +682,41 @@ async function maintainDataset() {
       more = true;
       const key = { pending: 'app.purge.pending', committed: 'app.purge.committed', 'cloud-cleanup': 'app.purge.committed',
         'local-cleanup': 'app.purge.local', complete: 'app.purge.complete', 'needs-preview': 'app.purge.review' }[result.phase];
-      if (key) $('#cleanup-status').textContent = t(key);
+      if (key) showMaintenance(() => t(key));
       await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
     } else {
       more = await cleanupDatasetTransition(storage) || await storage.maintenance();
       const datasetId = workspace.syncState.dataset?.plan.datasetId;
       if (pendingReset?.residualLegacy || datasetId && await storage.getControl(`legacy-residual:${datasetId}`))
-        $('#cleanup-status').textContent = t('sync.reset.residual');
+        showMaintenance(() => t('sync.reset.residual'));
     }
   })();
   try { await maintenanceWork; }
   catch (error) {
     if (!maintenanceAbort.signal.aborted) {
       maintenancePaused = error.code !== 'dataset-visibility';
-      $('#cleanup-status').textContent = t('app.purge.paused', { error: error.message });
-      $('#retry-cleanup').hidden = !maintenancePaused;
+      const failure = { kind: 'dataset-ui-error', code: error.code ?? 'storage-error', message: error.message };
+      if (resetPending && maintenancePaused) {
+        maintenanceFailure = failure;
+        await storage.putJob('dataset-ui-error', failure).catch(() => {});
+        if (workspace.state.cloudRestore || !pendingReset?.ready) setSync('error',
+          () => t(workspace.state.cloudRestore ? 'sync.status.overwriteUnfinished' : 'sync.status.resetUnfinished'), error.message);
+      }
+      const message = () => t(resetPending ? 'sync.reset.paused' : 'app.purge.paused', { error: error.message });
+      showMaintenance(message, { retry: maintenancePaused, error: true });
       if (['dataset-changed', 'source-reset-superseded'].includes(error.code)) {
         await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: error.code, message: error.message });
         datasetProblem = error; setSync('attention', () => t('sync.recovery.paused'), error.message);
         setText('#google-sync', () => t('sync.recovery.options'));
+        showMaintenance(message, { error: true });
       }
     }
   } finally {
     maintenanceWork = null;
+    if (pendingReset && !pendingReset.ready && pendingReset.phase !== 'complete') {
+      $('#google-sync').disabled = !maintenancePaused && !datasetProblem;
+      if (!datasetProblem) setText('#google-sync', () => t(maintenancePaused ? 'sync.actions.resumeReset' : 'sync.status.resetting'));
+    }
     if (syncRequested) { syncRequested = false; void syncGoogle(); }
     scheduleMaintenance(more ? 250 : 2500);
   }
@@ -684,7 +735,7 @@ async function confirmPurge(ids) {
   const cancel = button(t('common.cancel'), () => dialog.close());
   const confirm = button(t('app.purge.confirm'), async () => {
     confirm.disabled = true;
-    try { await purge.enqueue(preview); dialog.close(); maintenancePaused = false; $('#cleanup-status').textContent = t('app.purge.pending'); scheduleMaintenance(0); }
+    try { await purge.enqueue(preview); dialog.close(); maintenancePaused = false; showMaintenance(() => t('app.purge.pending')); scheduleMaintenance(0); }
     finally { confirm.disabled = false; }
   }, 'danger'); confirm.id = 'confirm-purge';
   const actions = element('div', undefined, 'dialog-actions'); actions.append(cancel, confirm); dialog.append(actions);
@@ -775,9 +826,16 @@ async function applyLocalRestore(plan, signal) {
   } finally { if (automatic) stopAutomatic = startAutomaticBackup(automatic.service); }
 }
 
-function datasetProgress(say) {
-  return ({ phase, completed = 0, total = 0 }) => say(t(phase === 'capture' ? 'sync.reset.capturing'
-    : phase === 'cleanup' || phase === 'journal-cleanup' ? 'sync.reset.deletingCloud' : 'sync.recovery.working', { done: completed, total }));
+function datasetProgressText({ phase, completed = 0, total = 0, ready = false, folders = 0 }) {
+  const key = ['capture', 'capture-restart'].includes(phase) ? 'sync.reset.capturing'
+    : phase === 'fence' ? 'sync.reset.marking'
+    : phase === 'initialize' ? 'sync.reset.preparing'
+    : phase === 'initialize-progress' ? 'sync.reset.initializing'
+    : phase === 'initialize-verify' || phase === 'cleanup' && !ready ? 'sync.reset.activating'
+    : phase === 'cleanup' ? 'sync.reset.cleanup'
+    : ['residual-audit', 'audit-restart', 'journal-cleanup'].includes(phase) ? 'sync.reset.verifying'
+    : phase === 'complete' ? 'sync.reset.cleaned' : 'sync.recovery.working';
+  return t(key, { done: completed, total, folders });
 }
 
 // The transition owns the writer until it reloads. Plan validation still uses the revision shown in its preview.
@@ -812,7 +870,7 @@ async function runDatasetChange(work) {
 
 async function runCloudRestore(say, { plan, safety } = {}) {
   requireConnected();
-  if (!plan) { maintenancePaused = false; scheduleMaintenance(0); say(t('sync.status.overwriteUnfinished')); return; }
+  if (!plan) { resumeMaintenance(); say(t('sync.status.overwriteUnfinished')); return; }
   await runDatasetChange(async () => {
     await plan.stage(workspace, storage, datasetStore, safety);
   });
@@ -2419,7 +2477,8 @@ function setSearching(on) {
 }
 function bindEvents() {
   $('#empty-trash').onclick = () => run(() => confirmPurge(workspace.snapshot.cards.filter(card => card.deleted).map(card => card.id)));
-  $('#retry-cleanup').onclick = () => { maintenancePaused = false; $('#retry-cleanup').hidden = true; scheduleMaintenance(0); };
+  $('#retry-cleanup').onclick = resumeMaintenance;
+  $('#retry-dataset-maintenance').onclick = resumeMaintenance;
   // Inert blocks real input and focus; capture also rejects synthetic or already dispatched owner input.
   for (const type of ['click', 'dblclick', 'pointerdown', 'keydown', 'submit']) document.addEventListener(type, event => {
     if (!adjustOverlayActive()) return;

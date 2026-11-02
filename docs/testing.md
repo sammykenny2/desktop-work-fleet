@@ -168,6 +168,12 @@ showing the recovery dialog. After Later, Open cloud reset and Export a backup f
 multiple sync intervals and native foreground/background ticks, visibility changes and network reconnection fire;
 the notice must stay closed, sync must stay paused and the provider call counters must not change. Explicit recovery
 options remain reachable, and a confirmed reset must still finish and sync a new note.
+An additional 106-file case interrupts initialization with a synthetic provider error while Settings is open.
+It verifies that Account and sync shows the actual error, the error survives a reload and remains visible in
+Data and backup, and Continue finishes the same operation while Settings stays open. Initialization progress
+counts new objects rather than reusing the 106 old-file deletion targets. The reset worker tests also verify
+progress after individual acknowledged deletions inside a bounded slice. These cases exercise the production
+renderer and worker with fixture storage/provider boundaries; they do not establish a real Google reset result.
 The desktop modes also request native close with Settings plus recovery open and with an unconfirmed reset:
 both acknowledge closure without cloud mutation. An active backup picker instead refuses close with a visible reason.
 They hold an in-flight sync and a draft write, verify that close

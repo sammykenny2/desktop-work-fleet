@@ -98,8 +98,7 @@ export async function advanceDatasetRestore({ workspace, storage, fileStore, pro
   }
   requireValue(job.restoreOperation === header.operationId, 'source-reset-pending', t('errors.sources.resetPending'));
   if (!job.ready) {
-    checkCancelled(signal); job = await reset.step({ signal, seed: (binding, guard) => seed.initialize(binding, guard, signal, { limit }) });
-    progress({ phase: job.phase, completed: job.deleted, total: job.captured });
+    checkCancelled(signal); job = await reset.step({ signal, progress, seed: (binding, guard) => seed.initialize(binding, guard, signal, { limit }) });
     if (!job.ready) return { phase: job.phase, complete: false };
   }
   const sync = new DatasetSync({ workspace, storage, fileStore });

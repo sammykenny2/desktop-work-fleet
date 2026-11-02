@@ -67,6 +67,32 @@ test('reset resumes exact capture pages, uncertain fence creation and lost delet
   assert.ok(![...provider.files.keys()].some(id => id.startsWith('old-')));
 });
 
+test('reset reports new-data initialization separately from captured old files and reports each acknowledged deletion', async () => {
+  const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider, 106);
+  const reset = new DatasetReset(provider, storage); await reset.begin(await reset.preview());
+  await run(reset, 'initialize');
+  const initialized = [];
+  await reset.step({ progress: value => {
+    initialized.push(value);
+    assert.equal(provider.stats.deletes, 0, 'initialization progress must precede any old-file deletion');
+  } });
+  const counts = initialized.filter(value => value.phase === 'initialize-progress');
+  assert.ok(counts.length > 1);
+  assert.equal(counts[0].completed, 0);
+  assert.ok(counts.at(-1).completed > 0);
+  assert.ok(counts.every((value, index) => value.total !== 106 && value.completed < value.total
+    && (!index || value.completed >= counts[index - 1].completed)));
+  assert.ok(initialized.some(value => value.phase === 'initialize-verify'));
+  assert.deepEqual(initialized.at(-1), { phase: 'cleanup', completed: 0, total: 106, ready: false, folders: 0 });
+  await reset.step();
+  const deleted = [];
+  await reset.step({ progress: value => { if (value.phase === 'cleanup' && value.completed) deleted.push(value); } });
+  assert.ok(deleted.some(value => value.completed === 1), 'a deletion slice reports progress before its final receipt');
+  assert.ok(deleted.at(-1).completed > 1 && deleted.at(-1).completed <= 20);
+  assert.equal(deleted.at(-1).completed, (await reset.status()).deleted);
+  assert.ok(deleted.every(value => value.ready && value.total === 106));
+});
+
 test('expired capture and audit tokens restart only their own enumeration after reopen', async () => {
   const provider = new DatasetTestProvider(), first = await local(); legacy(provider, 205);
   let reset = new DatasetReset(provider, first.storage); await reset.begin(await reset.preview()); await reset.step();

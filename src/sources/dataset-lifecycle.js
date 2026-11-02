@@ -57,7 +57,7 @@ export class DatasetLifecycle {
   }
 
   async initialize({ fenceId = null, starter = true, signal, key = 'dataset-initialize', allowExisting = false,
-    guard = async () => {}, seed = null } = {}) {
+    guard = async () => {}, seed = null, progress = () => {} } = {}) {
     invalid(seed === null || typeof seed === 'function' && !starter);
     await guard();
     let job = await this.#journal.getJob(key);
@@ -103,6 +103,9 @@ export class DatasetLifecycle {
     }
     invalid(job.kind === 'dataset-initialize' && job.sourceId === this.#store.sourceId && job.binding.plan.fenceId === fenceId
       && job.seedMode === Boolean(seed));
+    let completed = job.phase === 'prepare' ? 0 : job.directories.length + 1;
+    const total = job.directories.length + job.objects.length;
+    const report = () => progress({ phase: 'initialize-progress', completed, total });
     const materialize = async item => {
       if (item.value) return item;
       const stored = await this.#journal.getJob(item.key); invalid(stored && same(stored.file, item.file));
@@ -110,6 +113,7 @@ export class DatasetLifecycle {
     };
     const clean = async () => { for (const item of job.objects) if (item.key) await this.#journal.deleteJob(item.key); };
     if (job.phase === 'ready') {
+      progress({ phase: 'initialize-verify' });
       if (!allowExisting) await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
       else {
         invalid(same(await this.#protocol.read(job.binding.descriptor, signal), job.binding.plan));
@@ -119,8 +123,9 @@ export class DatasetLifecycle {
       await guard(); await clean(); return copy(job.binding);
     }
     if (job.phase === 'prepare') {
-      for (const file of job.directories) { signal?.throwIfAborted(); await guard(); await this.#folder(file, signal); }
-      await this.#object(job.objects[0], signal);
+      report();
+      for (const file of job.directories) { signal?.throwIfAborted(); await guard(); await this.#folder(file, signal); completed++; report(); }
+      await this.#object(job.objects[0], signal); completed++; report();
       job = { ...job, phase: 'objects' }; await this.#journal.putJob(key, job);
     }
     if (job.phase === 'objects') {
@@ -146,10 +151,14 @@ export class DatasetLifecycle {
         job = { ...job, objects, seeded: true }; await this.#journal.putJob(key, job);
       }
       for (const file of job.directories) invalid(same(await this.#store.getObject({ id: file.id, signal }), file));
-      for (const item of job.objects.slice(1, -1)) { signal?.throwIfAborted(); await guard(); await this.#object(await materialize(item), signal); }
+      report();
+      for (const item of job.objects.slice(1, -1)) {
+        signal?.throwIfAborted(); await guard(); await this.#object(await materialize(item), signal); completed++; report();
+      }
       job = { ...job, phase: 'ready-pending' }; await this.#journal.putJob(key, job);
     }
     const ready = job.objects.at(-1);
+    progress({ phase: 'initialize-verify' });
     // Once readiness may have been observed, never recreate retired initial checkpoints or a deleted root.
     try { invalid(same(await this.#protocol.read(ready.file, signal), ready.value)); }
     catch (error) {

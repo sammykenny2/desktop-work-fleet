@@ -2,6 +2,11 @@
 export default {
   'sync.reset.residual': "Files from an older app were detected after capture and kept. Update or stop the older devices. Removing these files requires a new explicit reset preview.",
   'sync.reset.capturing': "Recording old cloud file targets: {total} found…",
+  'sync.reset.preparing': 'Preparing the new cloud data… Old-file cleanup starts after the new data is ready.',
+  'sync.reset.initializing': 'Creating the new cloud data: {done} / {total}. Old-file cleanup has not started yet.',
+  'sync.reset.activating': 'Verifying and activating the new cloud data…',
+  'sync.reset.verifying': 'Checking that the captured old-file cleanup is complete…',
+  'sync.reset.paused': 'Data reset paused: {error}',
   'sync.reset.cleanup': "New data is ready. Cleaning captured old files: {done} / {total}.",
   'sync.reset.cleaned': "Captured old file cleanup finished. {folders} old folder containers were retained to protect files added after capture.",
   'sync.recovery.paused': "Sync paused; local data kept",
@@ -47,6 +52,7 @@ export default {
   'sync.status.cloudReset': 'The cloud was reset',
   'sync.status.resetAgain': 'Another device reset the cloud again',
   'sync.status.resetUnfinished': "The data reset isn't finished",
+  'sync.status.resetting': 'Resetting data…',
   'sync.status.overwriteUnfinished': "The Google overwrite isn't finished",
   'sync.detail.signInSwitches': "Signing in switches to that account's notes. The local notes here stay on this device.",
   'sync.detail.notesKept': "The notes on this device and the changes that haven't synced are all still here.",
@@ -54,7 +60,7 @@ export default {
   'sync.detail.waitingInitialization': 'Another device is creating or restoring the data. Sync continues on its own when that finishes.',
   'sync.detail.resetStopped': 'This earlier reset has stopped. You can export a backup first, then clear this copy and sync again.',
   'sync.detail.overwriteStopped': 'This overwrite has stopped. You can export a backup first, then clear this copy and sync again.',
-  'sync.detail.resetUnfinished': 'Continue the reset in Data and backup. Other devices wait until initialization finishes.',
+  'sync.detail.resetUnfinished': 'Continue the saved reset here. Other devices wait until the new cloud data is ready.',
   'sync.detail.overwriteSaved': 'The restore data is saved on this device. Select "Continue overwriting Google".',
 
   // Rows on the Account and sync page

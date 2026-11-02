@@ -2,6 +2,11 @@
 export default {
   'sync.reset.residual': "偵測到記錄完成後才寫入的舊版檔案，已保留。請更新或停止舊版裝置。若要移除這些檔案，必須重新預覽並明確確認重置。",
   'sync.reset.capturing': "正在記錄舊雲端檔案目標：已找到 {total} 個…",
+  'sync.reset.preparing': '正在準備新的雲端資料… 新資料就緒後才會開始清理舊檔案。',
+  'sync.reset.initializing': '正在建立新的雲端資料：{done} / {total}。尚未開始清理舊檔案。',
+  'sync.reset.activating': '正在驗證並啟用新的雲端資料…',
+  'sync.reset.verifying': '正在確認已記錄的舊檔案已清理完成…',
+  'sync.reset.paused': '資料重設已暫停：{error}',
   'sync.reset.cleanup': "新資料已可使用。正在清理已記錄的舊檔案：{done} / {total}。",
   'sync.reset.cleaned': "已記錄的舊檔案清理完成。保留了 {folders} 個舊資料夾容器，以保護記錄完成後才新增的檔案。",
   'sync.recovery.paused': "同步已暫停；本機資料保留",
@@ -47,6 +52,7 @@ export default {
   'sync.status.cloudReset': '雲端已重設',
   'sync.status.resetAgain': '雲端已由其他裝置再次重設',
   'sync.status.resetUnfinished': '資料重設尚未完成',
+  'sync.status.resetting': '正在重設資料…',
   'sync.status.overwriteUnfinished': 'Google 覆蓋尚未完成',
   'sync.detail.signInSwitches': '登入後會改用該帳號的便箋；這裡的本機便箋會留在這台裝置。',
   'sync.detail.notesKept': '這台裝置上的便箋和還沒同步的修改都還在。',
@@ -54,7 +60,7 @@ export default {
   'sync.detail.waitingInitialization': '其他裝置正在建立或還原資料，完成後會自動接續同步。',
   'sync.detail.resetStopped': '這份舊重設工作已停止；可先匯出備份，再清除這台副本並重新同步。',
   'sync.detail.overwriteStopped': '這份覆蓋工作已停止；可先匯出備份，再清除這台副本並重新同步。',
-  'sync.detail.resetUnfinished': '請在「資料與備份」繼續重設；其他裝置會等待初始化完成。',
+  'sync.detail.resetUnfinished': '可在此繼續已保存的重設工作；其他裝置會等待新的雲端資料就緒。',
   'sync.detail.overwriteSaved': '還原資料已保存在這台裝置；請按「繼續覆蓋 Google」。',
 
   // Rows on the Account and sync page

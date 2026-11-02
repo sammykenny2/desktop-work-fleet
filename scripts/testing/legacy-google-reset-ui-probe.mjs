@@ -106,7 +106,10 @@ try {
     });
     const provider = new DatasetTestProvider(), localResets = [], errors = [], oldReads = [];
     let failLocalReset = oldLocal, releaseFailedReset = null;
-    const oldIds = oldCloud ? ['old-note-1', 'old-note-2', 'old-layout'] : [];
+    const resetInterruption = oldCloud && !oldLocal;
+    let releaseReset = null, interruptReset = resetInterruption;
+    const oldIds = oldCloud ? ['old-note-1', 'old-note-2', 'old-layout',
+      ...resetInterruption ? Array.from({ length: 103 }, (_, i) => `old-history-${i}`) : []] : [];
     for (const id of oldIds) provider.files.set(id, { file: { id, kind: 'revision' }, bytes: new Uint8Array([255, 0, 128]) });
     if (!oldCloud) {
       const storage = new WorkspaceRecordStorage(new MemoryRecordStore(), profileId);
@@ -119,6 +122,11 @@ try {
     const originalFiles = [...provider.files.keys()], originalCreates = provider.stats.creates;
     provider.hook = async (method, id) => {
       if (method === 'read' && oldIds.includes(id)) { oldReads.push(id); throw new Error('Legacy contents must not be read'); }
+      if (interruptReset && method === 'create-before' && [...provider.files.values()].some(item => item.file.kind === 'reset')) {
+        interruptReset = false;
+        await new Promise(resolve => { releaseReset = resolve; });
+        throw Object.assign(new Error('Synthetic reset rate limit'), { code: 'rate-limit' });
+      }
     };
     await context.exposeFunction('fixtureLocalReset', async profile => {
       assert.equal(profile, profileId);
@@ -318,6 +326,40 @@ try {
       await page.locator('#reset-data').click(); await page.locator('#reset-agree').check();
       await page.locator('#confirm-reset-data').click();
       await expect(page.locator('#reset-data-dialog')).toHaveCount(0, { timeout: 15000 });
+      if (resetInterruption) {
+        await expect.poll(() => Boolean(releaseReset), { timeout: 15000 }).toBe(true);
+        const operation = (await read()).reset.operationId;
+        if (handheld) await page.locator('#drawer-toggle').click();
+        await page.locator('#settings-button').click();
+        await page.locator('#settings-dialog [data-page="account"]').click();
+        await expect(page.locator('#account-detail')).toContainText('Creating the new cloud data:');
+        await expect(page.locator('#account-detail')).not.toContainText('/ 106');
+        await expect(page.locator('#google-sync')).toBeDisabled();
+        releaseReset();
+        await expect(page.locator('#account-detail')).toContainText('Synthetic reset rate limit');
+        await expect(page.locator('#google-sync')).toBeEnabled();
+        await page.reload();
+        if (handheld) await page.locator('#drawer-toggle').click();
+        await page.locator('#settings-button').click();
+        await page.locator('#settings-dialog [data-page="account"]').click();
+        await expect(page.locator('#account-detail')).toContainText('Synthetic reset rate limit');
+        if (handheld) await page.locator('#settings-back').click();
+        await page.locator('#settings-dialog [data-page="data"]').click();
+        await expect(page.locator('#dataset-maintenance-status')).toContainText('Synthetic reset rate limit');
+        await expect(page.locator('#retry-dataset-maintenance')).toBeEnabled();
+        await mkdir('build/reset-settings', { recursive: true });
+        await page.screenshot({ path: `build/reset-settings/${platform}-${engine}-error.png`, animations: 'disabled' });
+        if (handheld) await page.locator('#settings-back').click();
+        await page.locator('#settings-dialog [data-page="account"]').click();
+        await page.locator('#google-sync').click();
+        // Settings itself must not prevent a confirmed reset from continuing. No second reset confirmation or
+        // renderer reload is needed, and the original operation/fence remains the only deletion authority.
+        await expect(page.locator('#settings-dialog')).toBeVisible();
+        await expect.poll(async () => (await read()).reset?.phase, { timeout: 30000 }).toBe('complete');
+        assert.equal((await read()).reset.operationId, operation);
+        await page.locator('#close-settings').click();
+        console.log(`PASS ${engine}/${platform}: interrupted 106-file reset keeps its error across reload and resumes inside Settings.`);
+      }
       await expect.poll(async () => (await read()).reset?.phase, { timeout: 30000 }).toBe('complete');
       const after = await read();
       assert.equal(after.state.format, 'work-fleet-workspace-current'); assert.equal(after.state.cards.length, 0);

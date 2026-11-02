@@ -38,12 +38,16 @@ export class DatasetReset {
     await this.#journal.putJob('dataset-reset', job); return copy(job);
   }
   status() { return this.#journal.getJob('dataset-reset'); }
-  step({ signal, seed = null } = {}) {
+  step({ signal, seed = null, progress = () => {} } = {}) {
     if (this.#running) return this.#running;
-    this.#running = this.#step(signal, seed).finally(() => { this.#running = null; }); return this.#running;
+    const report = job => {
+      if (job) progress({ phase: job.phase, completed: job.deleted, total: job.captured, ready: job.ready, folders: job.retainedFolders });
+      return job;
+    };
+    this.#running = this.#step(signal, seed, progress, report).then(report).finally(() => { this.#running = null; }); return this.#running;
   }
-  async #step(signal, seed) {
-    let job = await this.status();
+  async #step(signal, seed, progress, report) {
+    let job = report(await this.status());
     if (!job || job.phase === 'complete') return job;
     invalid(job.kind === 'dataset-reset' && job.sourceId === this.#store.sourceId);
     validateFile(job.marker); await verifyFile(job.marker, bytesOf(job.markerValue));
@@ -126,7 +130,7 @@ export class DatasetReset {
     if (job.phase === 'initialize') {
       invalid(!job.seeded || typeof seed === 'function');
       const binding = await new DatasetLifecycle(this.#store, this.#journal).initialize({ key: initializeKey,
-        fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard, seed: job.seeded ? seed : null });
+        fenceId: job.marker.id, starter: job.starter, allowExisting: true, signal, guard, progress, seed: job.seeded ? seed : null });
       if (binding === null) return copy(job);
       await save({ binding, phase: 'cleanup' }); return copy(job);
     }
@@ -140,7 +144,10 @@ export class DatasetReset {
       const [row] = (await this.#journal.jobs(pageKind, { limit: 1 })).rows;
       if (row) {
         const targets = row.value.files.slice(0, 20);
-        for (const file of targets) { await guard(); await this.#store.deleteFile({ id: file.id, signal }); }
+        for (const [index, file] of targets.entries()) {
+          await guard(); await this.#store.deleteFile({ id: file.id, signal });
+          report({ ...job, deleted: job.deleted + index + 1 });
+        }
         const files = row.value.files.slice(targets.length);
         job = { ...job, deleted: job.deleted + targets.length };
         // An empty page is retained until its receipt commits, so lost replies never skip captured IDs.

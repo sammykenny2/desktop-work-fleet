@@ -158,7 +158,10 @@
             </div>
             <p class="settings-note" id="account-detail" hidden></p>
           </section>
-          <section class="settings-page" data-panel="data" hidden><div id="data-host"></div></section>
+          <section class="settings-page" data-panel="data" hidden>
+            <div id="dataset-maintenance" class="settings-list" hidden><div class="settings-row"><span class="row-text"><span id="dataset-maintenance-status" class="row-value" role="status" aria-live="polite"></span></span><button id="retry-dataset-maintenance" type="button" hidden data-i18n="app.purge.retry"></button></div></div>
+            <div id="data-host"></div>
+          </section>
           <section class="settings-page" data-panel="revisions" hidden><div id="revisions-host"></div></section>
           <section class="settings-page" data-panel="desktop" hidden>
             <p class="settings-note warn" id="desktop-note" hidden></p>

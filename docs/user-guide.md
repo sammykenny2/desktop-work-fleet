@@ -419,6 +419,10 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   safety backup and fresh note identities; uncached history and unavailable attachments are not promised.
 - Cloud reset/restore resumes in background units after confirmation. A seeded restore publishes readiness only after
   all captured history uploads; edits made in the meantime remain queued for normal sync afterwards.
+- Settings can stay open during a confirmed cloud reset. Account and sync shows preparation progress and any
+  error; Data and backup also shows the current stage and retry action. If the reset stops, Continue resumes the
+  saved job, including after reopening the app. Creating new cloud data and cleaning old files have separate
+  progress counts. A running backup or another confirmation can temporarily pause the background work.
 
 ### When Work Fleet can't open your notes
 

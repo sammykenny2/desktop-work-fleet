@@ -450,6 +450,15 @@ but does not block editing an already usable local view. The reset confirmation 
 device, including devices with reset/Google-overwrite jobs. No compatible safety export is falsely required for
 unreadable legacy data; for readable current data, existing safety-backup requirements still apply.
 
+Settings does not suspend an already confirmed cloud reset/restore. Account and sync shows initialization progress
+and any blocking error; Data and backup shows the current cleanup stage and a retry action. Other open dialogs,
+active backup captures and version choices still exclude maintenance. Continue resumes the same durable job and
+captured targets, without another destructive confirmation or another reset. Blocking failures survive a renderer
+reload and remain visible until a retry; starting the retry disables the duplicate action. Initialization counts
+new-data preparation independently of old-file deletion, reports verified objects during the long initialization
+step, and reports each acknowledged old-file deletion. Activating the new data and auditing cleanup are named stages,
+not a misleading zero-deleted progress counter. A failed cleanup after readiness does not block ordinary sync.
+
 An expired capture page token restarts metadata capture before fence publication: discard only that attempt's local
 page/token journals in bounded steps, then enumerate from the first page. No new dataset exists yet. An expired
 post-cleanup audit token restarts only the audit and retains any observed residual warning; it never adds deletion

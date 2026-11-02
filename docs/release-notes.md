@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.2
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Quit and update installation no longer stop at idle Settings or recovery dialogs. Drafts are saved before exit, and a refused quit explains why.
+
+- Quit and updates: idle Settings, cloud recovery notices and unconfirmed reset dialogs no longer cancel quitting or installing an update. Quitting never confirms a reset or deletes data.
+- Data safety: quitting stops background sync and maintenance, finishes admitted writes and saves drafts and layout before closing native resources. Input, background jobs and desktop presentation stay stopped after closure is acknowledged.
+- Recovery: unfinished input or active account, recovery, backup or version operations explain why quitting must wait. A failed draft write keeps the app and editable text available for retry. On macOS, a refused quit presents a native explanation so an updater window cannot hide the reason in the app's status bar.
+- Upgrading from 0.5.0 or 0.5.1: if installing an update appears to do nothing, dismiss the recovery notice with "Later", close Settings and retry "Install and Relaunch". The running older version still owns that quit attempt.
+- Compatibility: the dataset format is unchanged from 0.5.0 and 0.5.1. Earlier whole-workspace data and backup ZIPs remain incompatible, with no migration; update or stop every older client before explicitly resetting old Google data. Note, sync and backup schema labels stay at V1.
+
 ## 0.5.1
 
 Platforms: Windows, Linux, macOS, Android.

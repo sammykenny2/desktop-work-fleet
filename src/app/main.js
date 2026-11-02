@@ -70,6 +70,7 @@ let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
 let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null;
+let recoveryWork = null;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
@@ -161,6 +162,8 @@ async function initialize() {
   status(t('app.status.loading')); setSync('off', () => t('sync.status.opening'));
   setText('#storage-note', () => t('sync.status.opening')); renderAccount();
   native = await connectNative();
+  // Register before storage can return into a recovery screen. No Workspace exists there to flush.
+  native?.bridge.onCloseRequested(() => { void prepareNativeClose(); });
   adoptHostLanguage(native);
   // A host's stored language can differ from the browser's, so the loading texts are shown again in it.
   if (native) { status(t('app.status.loading')); setSync('off', () => t('sync.status.opening')); renderAccount(); }
@@ -245,7 +248,6 @@ async function initialize() {
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
   } catch (error) { automaticError = error; }
   if (native) {
-    native.bridge.onCloseRequested(() => { void prepareNativeClose(); });
     native.bridge.onEvent('update-state', message => { updateState = message.state; if ($('#settings-dialog').open) renderUpdate(); });
     native.bridge.onEvent('host-background', message => {
       stopAutomatic?.(); void run(async () => {
@@ -331,12 +333,12 @@ async function showIncompatibleLocal() {
     busy = true; discard.disabled = true; agree.disabled = true;
     try {
       // Native reset reopens the same signed-in profile; only the local copy is cleared in this step.
-      await storage.reset(profileId);
+      recoveryWork = storage.reset(profileId); await recoveryWork;
       if (!native) { lease.release(); location.reload(); }
     } catch (error) {
       busy = false; discard.disabled = false; agree.disabled = false;
       throw error;
-    }
+    } finally { recoveryWork = null; }
   }, 'danger');
   discard.id = 'discard-old-local'; discard.disabled = true;
   agree.onchange = () => { discard.disabled = !agree.checked; };
@@ -396,10 +398,12 @@ async function showDataFailure(cause) {
     actions.replaceChildren(button(t('common.cancel'), explain), button(t('app.dataFailure.confirm'), async () => {
       for (const control of actions.querySelectorAll('button')) control.disabled = true;
       body.append(element('p', t('app.dataFailure.settingAside')));
-      await native.bridge.request('data.setAside');
+      try { recoveryWork = native.bridge.request('data.setAside'); await recoveryWork; }
+      finally { recoveryWork = null; }
     }, 'danger'));
   };
   explain(); status(t(causeKey(cause)), true); dialog.showModal();
+  await native.bridge.request('host.ready');
 }
 
 async function initializeGoogle() {
@@ -642,9 +646,9 @@ async function maintainDataset() {
   try { await maintenanceWork; }
   catch (error) {
     if (!maintenanceAbort.signal.aborted) {
-      maintenancePaused = true;
+      maintenancePaused = error.code !== 'dataset-visibility';
       $('#cleanup-status').textContent = t('app.purge.paused', { error: error.message });
-      $('#retry-cleanup').hidden = false;
+      $('#retry-cleanup').hidden = !maintenancePaused;
       if (['dataset-changed', 'source-reset-superseded'].includes(error.code)) {
         await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: error.code, message: error.message });
         datasetProblem = error; setSync('attention', () => t('sync.recovery.paused'), error.message);
@@ -1144,6 +1148,10 @@ function dismissTopLayer() {
 }
 async function prepareNativeClose() {
   if (nativeClosing) return;
+  if (!workspace) {
+    await recoveryWork?.catch(() => {});
+    await native.bridge.request('host.closeReady').catch(error => status(error.message, true)); return;
+  }
   if (native.info.platform === 'android' && dismissTopLayer()) { await native.bridge.request('host.closeCancel').catch(() => {}); return; }
   if (composing || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog.id !== 'editor-dialog')) {
     await native.bridge.request('host.closeCancel').catch(() => {});

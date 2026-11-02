@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { chromium, webkit, expect } from '@playwright/test';
 import { DatasetTestProvider } from '../../tests/fixtures/dataset/provider.js';
+import { Workspace } from '../../src/core/workspace.js';
+import { WorkspaceRecordStorage } from '../../src/storage/workspace-records.js';
+import { MemoryRecordStore } from '../../src/storage/records.js';
+import { DatasetSync } from '../../src/sources/dataset-sync.js';
 import { t } from '../../src/i18n/index.js';
 
 if (process.argv.includes('--help')) {
@@ -21,12 +25,16 @@ const profileId = 'google:test', email = 'old-notes@example.invalid';
 // Replace only host/provider boundaries. The UI, WorkspaceRecordStorage, DatasetSync and DatasetReset are real.
 const bridgeModule = `
 export async function connectNative() {
+  window.fixtureCloseHandlers = []; window.fixtureCloseReady = 0;
   return { info: { profileId: 'google:test', platform: '${platform}', appVersion: '0.4.0',
-    capabilities: { recordStorage: true, googleFiles: true } },
-    bridge: { onEvent() { return () => {}; }, onCloseRequested() { return () => {}; },
+    capabilities: { recordStorage: true, googleFiles: true, dataRecovery: ${!handheld} } },
+    bridge: { onEvent() { return () => {}; }, onCloseRequested(callback) { window.fixtureCloseHandlers.push(callback); return () => {}; },
       async request(method) {
         if (method === 'google.status') return { connected: true, configured: true, accountId: 'test', email: '${email}' };
         if (method === 'google.profile' || method === 'host.ready') return {};
+        if (method === 'host.closeReady') { window.fixtureCloseReady++; return {}; }
+        if (method === 'host.closeCancel' || method === 'data.reveal') return {};
+        if (method === 'data.location') return { path: '/synthetic-data' };
         throw new Error('Unexpected synthetic host call: ' + method);
       } } };
 }`;
@@ -36,7 +44,10 @@ const store = await IndexedDbRecordStore.open();
 export class NativeRecordStore {
   constructor() {
     // Native reset is owned by storage.reset, not by the record adapter.
-    return Object.fromEntries(['status', 'get', 'page', 'commit', 'getAttachment', 'close'].map(key => [key, store[key].bind(store)]));
+    return Object.fromEntries(['status', 'get', 'page', 'commit', 'getAttachment', 'close'].map(key => [key, (...args) => {
+      if (key === window.fixtureReadFailure) throw Object.assign(new Error('Synthetic unreadable database'), { code: 'data-unreadable' });
+      return store[key](...args);
+    }]));
   }
 }`;
 const storageModule = `
@@ -70,7 +81,7 @@ export class NativeGoogleDatasetStore {
 }`;
 
 try {
-  for (const oldLocal of [false, true]) {
+  for (const [oldLocal, oldCloud] of [[false, true], [true, true], [true, false]]) {
     const context = await browser.newContext({ viewport: handheld ? { width: 390, height: 844 } : { width: 1200, height: 900 },
       locale: 'en-US', hasTouch: handheld, isMobile: handheld });
     if (oldLocal) await context.addInitScript(() => {
@@ -80,15 +91,27 @@ try {
       });
     });
     const provider = new DatasetTestProvider(), localResets = [], errors = [], oldReads = [];
-    let failLocalReset = oldLocal;
-    const oldIds = ['old-note-1', 'old-note-2', 'old-layout'];
+    let failLocalReset = oldLocal, releaseFailedReset = null;
+    const oldIds = oldCloud ? ['old-note-1', 'old-note-2', 'old-layout'] : [];
     for (const id of oldIds) provider.files.set(id, { file: { id, kind: 'revision' }, bytes: new Uint8Array([255, 0, 128]) });
+    if (!oldCloud) {
+      const storage = new WorkspaceRecordStorage(new MemoryRecordStore(), profileId);
+      const workspace = await Workspace.create({ profileId, deviceId: 'first-device', current: true, bootstrapGroup: false,
+        area: { x: 0, y: 0, width: 1200, height: 900 }, persist: (...args) => storage.save(...args) });
+      const sync = new DatasetSync({ workspace, storage, fileStore: provider }); await sync.sync();
+      await workspace.createCard({ format: 'markdown', text: 'Existing new cloud note', attachments: [] }); await sync.sync();
+      await sync.stop();
+    }
+    const originalFiles = [...provider.files.keys()], originalCreates = provider.stats.creates;
     provider.hook = async (method, id) => {
       if (method === 'read' && oldIds.includes(id)) { oldReads.push(id); throw new Error('Legacy contents must not be read'); }
     };
-    await context.exposeFunction('fixtureLocalReset', profile => {
+    await context.exposeFunction('fixtureLocalReset', async profile => {
       assert.equal(profile, profileId);
-      if (failLocalReset) { failLocalReset = false; throw new Error('Synthetic local reset unavailable'); }
+      if (failLocalReset) {
+        failLocalReset = false; await new Promise(resolve => { releaseFailedReset = resolve; });
+        throw new Error('Synthetic local reset unavailable');
+      }
       localResets.push(profile);
     });
     await context.exposeFunction('fixtureDrive', async (method, args) => {
@@ -104,7 +127,7 @@ try {
     }
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
     const unchangedCloud = () => {
-      assert.deepEqual([...provider.files.keys()], oldIds); assert.equal(provider.stats.creates, 0);
+      assert.deepEqual([...provider.files.keys()], originalFiles); assert.equal(provider.stats.creates, originalCreates);
       assert.equal(provider.stats.deletes, 0); assert.deepEqual(oldReads, []);
     };
     const read = () => page.evaluate(async profile => {
@@ -142,6 +165,10 @@ try {
       await page.goto(new URL('/app/index.html', base).href);
       if (oldLocal) {
         await expect(page.locator('#data-failure-dialog')).toBeVisible();
+        assert.equal(await page.evaluate(() => window.fixtureCloseHandlers.length), 1);
+        await page.evaluate(() => window.fixtureCloseHandlers[0]());
+        await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(1);
+        assert.deepEqual(await legacy(), before); unchangedCloud();
         await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
         await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
         await expect(page.locator('#settings-dialog')).toContainText(t('app.incompatible.googleReset'));
@@ -163,15 +190,27 @@ try {
         assert.deepEqual(await legacy(), before); unchangedCloud(); assert.deepEqual(localResets, []);
         await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
         await page.locator('#discard-old-local-agree').check(); await page.locator('#discard-old-local').click();
+        await expect.poll(() => Boolean(releaseFailedReset)).toBe(true);
+        await page.evaluate(() => window.fixtureCloseHandlers[0]());
+        assert.equal(await page.evaluate(() => window.fixtureCloseReady), 1, 'close waits for an in-flight local discard');
+        releaseFailedReset();
         await expect(page.locator('#data-host [role="status"]')).toContainText('Synthetic local reset unavailable');
+        await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(2);
         await expect(page.locator('#discard-old-local')).toBeEnabled();
         assert.deepEqual(await legacy(), before); unchangedCloud(); assert.deepEqual(localResets, []);
         await page.locator('#discard-old-local').click();
-        await expect(page.locator('#source-reset-dialog')).toBeVisible({ timeout: 15000 });
+        if (oldCloud) await expect(page.locator('#source-reset-dialog')).toBeVisible({ timeout: 15000 });
+        else await expect.poll(async () => (await read()).state?.cards[0]?.content.text, { timeout: 15000 }).toBe('Existing new cloud note');
         assert.deepEqual(localResets, [profileId]);
         assert.equal((await legacy()).google, null);
       } else {
         await expect(page.locator('#source-reset-dialog')).toBeVisible();
+      }
+      if (!oldCloud) {
+        await expect(page.locator('#source-reset-dialog')).toBeHidden(); unchangedCloud();
+        assert.deepEqual((await legacy()).local, before.local); assert.deepEqual(errors, []);
+        console.log(`PASS ${engine}/${platform}: legacy local second device joins current cloud without cloud reset.`);
+        continue;
       }
       await page.getByRole('button', { name: t('sync.recovery.reset'), exact: true }).click();
       await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
@@ -203,6 +242,33 @@ try {
         && new TextDecoder().decode(item.bytes).includes('First new note after reset')), { timeout: 15000 }).toBe(true);
       assert.deepEqual(errors, []); assert.deepEqual(oldReads, []);
       console.log(`PASS ${engine}/${platform}: ${oldLocal ? 'legacy' : 'empty'} local profile + signed-in legacy Google, Settings consent/cancel, metadata-only reset, zero notes and new note sync.`);
+    } finally { await context.close(); }
+  }
+  if (!handheld) for (const failure of ['status', 'get', 'page']) {
+    const context = await browser.newContext({ locale: 'en-US' });
+    await context.addInitScript(method => { window.fixtureReadFailure = method; }, failure);
+    for (const [path, body] of [['native/bridge', bridgeModule], ['storage/records-native', recordsModule], ['storage/native', storageModule]])
+      await context.route(new RegExp(`/${path}\\.js$`), route => route.fulfill({ contentType: 'text/javascript', body }));
+    const page = await context.newPage();
+    try {
+      // Page failures need an active current generation so startup actually requests a page.
+      await page.goto(new URL('/app/style.css', base).href);
+      await page.evaluate(async profileId => {
+        const { Workspace } = await import('/core/workspace.js');
+        const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
+        const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+        const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profileId);
+        await Workspace.create({ profileId, current: true, deviceId: 'read-failure', area: { x: 0, y: 0, width: 1000, height: 800 }, persist: (...args) => storage.save(...args) });
+        storage.close();
+      }, profileId);
+      await page.goto(new URL('/app/index.html', base).href);
+      await expect(page.locator('#data-failure-dialog')).toBeVisible();
+      await expect(page.locator('#data-failure-body')).toContainText(t('app.dataFailure.unreadable'));
+      await expect(page.getByRole('button', { name: t('app.dataFailure.openFolder'), exact: true })).toBeVisible();
+      assert.equal(await page.evaluate(() => window.fixtureCloseHandlers.length), 1);
+      await page.evaluate(() => window.fixtureCloseHandlers[0]());
+      await expect.poll(() => page.evaluate(() => window.fixtureCloseReady)).toBe(1);
+      console.log(`PASS ${engine}/${platform}: ${failure} read failure shows recovery and acknowledges native close.`);
     } finally { await context.close(); }
   }
 } finally { await browser.close(); }

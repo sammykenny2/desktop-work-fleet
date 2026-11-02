@@ -11,6 +11,7 @@ const causes = new Set(['data-damaged', 'data-full', 'data-in-use', 'data-denied
 export function loadFailureCause(error) {
   if (causes.has(error?.code)) return error.code;
   if (['vault-unavailable', 'storage-integrity'].includes(error?.code)) return 'data-key';
+  if (['invalid-json', 'invalid-record-transaction'].includes(error?.code)) return 'data-damaged';
   return error instanceof SyntaxError ? 'data-damaged' : null;
 }
 

@@ -434,6 +434,10 @@ local/cloud scope; default to keeping data intact:
 
 Recovery navigation must work when the native host recreates its WebView or disables browser storage. Opening or
 closing Settings grants no deletion authority. A local-discard failure keeps the recovery controls available for retry.
+Native close/back requests are registered before local loading and acknowledged on either recovery screen without
+needing a Workspace. An in-progress, explicitly requested discard/set-aside finishes before close acknowledgement.
+Desktop record status/get/page read failures retain SPEC-006 cause classification and recovery actions. An old local
+profile on a second device can be discarded separately, then join an already-current cloud without resetting it.
 
 Cloud reset stages are `capture exact old IDs -> publish legacy fence -> initialize isolated dataset -> ready ->
 clean captured old IDs -> complete`. The capture is a streamed, durable metadata-only journal; it may take time

@@ -111,11 +111,17 @@ static class RecordStoreProbe
       command.CommandText = "DROP TABLE record_heads; DROP TABLE record_entries;"; command.ExecuteNonQuery();
       foreach (var method in new[] { "storage.records.status", "storage.records.get", "storage.records.page" })
       {
+        object args = method switch {
+          "storage.records.get" => new { collection = "current", key = "one" },
+          "storage.records.page" => new { collection = "current", expectedRevision = (long?)null },
+          _ => new { },
+        };
         var request = JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid().ToString("D"), method,
-          @params = new { collection = "current", key = "one", expectedRevision = (long?)null } });
+          @params = args });
         using var response = JsonDocument.Parse(bridge.Dispatch(request));
         Require(!response.RootElement.GetProperty("ok").GetBoolean());
-        Require(response.RootElement.GetProperty("error").GetProperty("code").GetString() == "data-unreadable");
+        var code = response.RootElement.GetProperty("error").GetProperty("code").GetString();
+        if (code != "data-unreadable") throw new Exception($"{method}: expected data-unreadable, got {code}");
       }
     });
     return count;

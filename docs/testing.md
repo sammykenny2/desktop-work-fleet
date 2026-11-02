@@ -162,7 +162,11 @@ The legacy Google reset probe runs the production entry point, recovery Settings
 IndexedDB, replacing native/account/Drive adapters with isolated fixtures. It covers a signed-in old cloud with
 either empty or incompatible local storage, Settings access before loading old notes, separate local/cloud consent,
 cancel without mutation, another local profile preserved, metadata-only old-file deletion, zero notes after reset
-and a new note syncing afterwards. The old-local case disables browser local/session storage, as native recovery
+and a new note syncing afterwards. It also covers a second device with old local data joining a current cloud without
+cloud reset, native close acknowledgement before Workspace creation, and desktop status/get/page read failures
+showing the recovery dialog. `node scripts/testing/test-dataset-recovery.mjs` starts/stops a disposable preview and
+runs all four renderer modes; CI runs it after installing Playwright Chromium/WebKit.
+The old-local case disables browser local/session storage, as native recovery
 cannot depend on either. This does not verify real Google authorization or installed native reset/reload behavior.
 The `ios`/`android` modes set the synthetic host platform and a touch-enabled 390 x 844 viewport. They exercise the
 handheld branches, hidden desktop settings, non-zooming viewport and reset controls, and save recovery screenshots

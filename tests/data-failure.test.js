@@ -10,6 +10,7 @@ test('a failed load names a data cause, and other failures keep their own messag
   for (const cause of causes) assert.equal(loadFailureCause(new FleetError(cause, 'host')), cause);
   assert.equal(loadFailureCause(new FleetError('vault-unavailable', 'DPAPI')), 'data-key');
   assert.equal(loadFailureCause(new FleetError('storage-integrity', 'AES-GCM')), 'data-key');
+  for (const code of ['invalid-json', 'invalid-record-transaction']) assert.equal(loadFailureCause(new FleetError(code, 'record read')), 'data-damaged');
   let syntax; try { JSON.parse('{not json'); } catch (error) { syntax = error; }
   assert.equal(loadFailureCause(syntax), 'data-damaged');
   for (const code of ['native-closed', 'native-timeout', 'message-size', 'invalid-request']) assert.equal(loadFailureCause(new FleetError(code, 'bridge')), null);

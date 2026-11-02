@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.3
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Cloud resets continue while Settings is open, with persistent errors and clearer progress. macOS update dialogs coordinate focus and screen placement.
+
+- Cloud reset and restore: confirmed work continues while Settings is open. Continue resumes the saved operation instead of scheduling work that Settings itself prevents from running. Other confirmations, active backups and version choices still hold background maintenance.
+- Reset progress: Account and sync shows preparation and blocking errors; Data and backup shows the current stage and retry action. Blocking errors survive reopening the app. New-data preparation and old-file deletion have separate counts, and progress advances within initialization and deletion batches.
+- macOS updates: manual checks prepare focus without restoring the main window, keep update dialogs above floating notes while the app is active, and position them within the invoking display. Later update stages preserve the window position, screen changes clamp it into view, and switching apps restores its normal level. Repeated checks reopen an existing update session; quitting cancels pending presentation.
+- Compatibility: the dataset format is unchanged from 0.5.0 through 0.5.2. Existing profiles and pending reset jobs are retained; this upgrade does not require another reset. Earlier whole-workspace data and backup ZIPs remain incompatible, with no migration. Note, sync and backup schema labels stay at V1.
+- Preview limits: real Google Drive and installed mobile reset/restore acceptance, and graphical macOS update behavior across Spaces and physical displays, still need manual verification.
+
 ## 0.5.2
 
 Platforms: Windows, Linux, macOS, Android.

@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-11-01. Read the latest specifications first; research, working defaults, completed implementation and
+Updated: 2026-11-03. Read the latest specifications first; research, working defaults, completed implementation and
 passed real-world tests are kept apart.
 
 During testing, the note, sync and backup JSON schemas all stay at V1; fields change V1 directly, and version bumps and
@@ -11,6 +11,7 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 
 | Document | Authority and purpose |
 |---|---|
+| [Google Drive reset diagnostics handoff](handoff/2026-11-03-google-drive-reset-diagnostics.md) | Maintainer-requested investigation handoff: observed reset failures, evidence and test limitations, correction to the prior check report, and the unfinished authenticated-probe route |
 | [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md)/[SPEC-010](specs/010-dataset-checkpoints-and-deletable-history.md)/[PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md) | Implementation approved: local record storage and remote proof proceed independently; checkpoint protocol acceptance remains gated; whole-note purge and legacy reset are planned, expiry is deferred |
 | [ADR-058](decisions/058-desktop-presentation-lifecycle-and-core-isolation.md)/[SPEC-009](specs/009-desktop-presentation-lifecycle.md)/[PLAN-009](plans/009-desktop-presentation-lifecycle.md) | Proposed desktop lifecycle: a nonvisual resident core, isolated presentation, continuous readiness/recovery and permanent removal of whole-app reopen; implementation is not approved; Windows evidence and the uninspected Pi report are separate |
 | [Windows 11 compatibility handoff](handoff/2026-10-09-windows-11-compatibility-handoff.md) | The correct project for this round, 23H2 native and package-content verification; the entry point for continuing user-interaction and install acceptance |

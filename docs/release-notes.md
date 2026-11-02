@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.9
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Reduce idle Google sync to one changes check, keep routine background checks quiet, and reuse Apple/Linux connections. Completed reset details stay in Settings.
+
+- Idle sync: after a complete verified reconciliation, an empty terminal changes page updates only the existing local cursor and completion metadata. Routine checks avoid reloading notes, drafts, shard bodies and retained history. A five-minute generation audit and every nonempty feed retain the guarded reconciliation path.
+- Background status: keep the completed display during routine empty checks and audits. Manual refresh, incoming changes and pending uploads show activity; failures remain visible. Overlapping triggers share one attempt, and newly saved work receives an immediate follow-up.
+- Native networking: reuse an account-owned Apple URLSession and drained direct Linux HTTPS connections while retaining per-request authorization, response bounds and cancellation. Linux proxy routing retains its existing transport. Windows and Android retain their existing reusable client/system-pool behavior.
+- Reset notices: keep completed old-file cleanup details in Settings instead of leaving a completion message on the main workspace. Pending work and failures remain visible.
+- Diagnostics: Apple Debug builds provide an opt-in read-only Drive probe with aggregate request counts, latency and connection metrics. Failed request attempts remain distinct from completed responses; reports omit credentials, identifiers and note contents.
+- Compatibility and verification: existing note, sync and backup formats are unchanged; no reset or migration is required. Shared, renderer and native component regressions and macOS/iOS builds pass. Authenticated Drive latency, installed-phone acceptance and independent review remain unverified.
+
 ## 0.5.8
 
 Platforms: Windows, Linux, macOS, Android.

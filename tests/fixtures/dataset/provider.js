@@ -81,7 +81,7 @@ export class DatasetTestProvider {
     const remaining = files.filter(file => !pageToken || file.id.localeCompare(pageToken) > 0);
     const result = remaining.slice(0, 100);
     return { files: copy(query.scope === 'legacy' ? result.map(file => ({ id: file.id, kind: file.kind,
-      folder: ['dataset-root', 'folder'].includes(file.kind) })) : result), incomplete: false,
+      folder: ['dataset-root', 'folder'].includes(file.kind), dataset: Boolean(file.datasetId) })) : result), incomplete: false,
     nextPageToken: remaining.length > result.length ? result.at(-1).id : null };
   }
   async listDatasetChanges({ cursor }) {

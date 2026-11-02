@@ -96,7 +96,7 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.storage.googleFileIdInvalid'));
         requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.storage.googleListingStateInvalid'));
         return { id: file.id, kind: file.appProperties?.wfKind ?? null,
-          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder' } : {}) };
+          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder', dataset: file.appProperties?.wfFormat === DATASET_FORMAT } : {}) };
       }
       return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
     }), incomplete: result.incompleteSearch === true, nextPageToken: result.nextPageToken === undefined ? null : cursor(result.nextPageToken) };
@@ -146,7 +146,8 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
     const changes = await Promise.all(page(result.changes ?? []).map(async change => {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.storage.googleChangeInvalid'));
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
-      if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false, legacyReset: change.file?.appProperties?.wfKind === 'reset' };
+      if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false, legacyReset: change.file?.appProperties?.wfKind === 'reset',
+        legacyWrite: change.file?.appProperties?.wfKind !== 'reset' && change.file?.mimeType !== 'application/vnd.google-apps.folder' };
       const properties = change.file.appProperties;
       const file = ['revision', 'attachment'].includes(properties.wfKind) && !change.file.parents?.length
         ? googleDatasetOwned(change.file, { datasetId: properties.wfDataset, entities: [properties.wfEntity] })

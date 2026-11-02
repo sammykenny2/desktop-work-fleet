@@ -132,7 +132,7 @@ export class GoogleDriveFileStore {
         requireValue(validFileId(file.id), 'invalid-source-page', t('errors.sources.driveFileIdInvalid'));
         requireValue(query.scope !== 'legacy' || typeof file.mimeType === 'string', 'invalid-source-page', t('errors.sources.driveListingStateInvalid'));
         return { id: file.id, kind: file.appProperties?.wfKind ?? null,
-          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder' } : {}) };
+          ...(query.scope === 'legacy' ? { folder: file.mimeType === 'application/vnd.google-apps.folder', dataset: file.appProperties?.wfFormat === DATASET_FORMAT } : {}) };
       }
       return googleDatasetDescriptor(file, { rootParentVerified: query.scope === 'roots' });
     }), incomplete: page.incompleteSearch === true, nextPageToken: page.nextPageToken === undefined ? null : token(page.nextPageToken) };
@@ -164,7 +164,8 @@ export class GoogleDriveFileStore {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.sources.driveChangeIdInvalid'));
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
       if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false,
-        legacyReset: change.file?.appProperties?.wfKind === 'reset' };
+        legacyReset: change.file?.appProperties?.wfKind === 'reset',
+        legacyWrite: change.file?.appProperties?.wfKind !== 'reset' && change.file?.mimeType !== 'application/vnd.google-apps.folder' };
       const properties = change.file.appProperties;
       const file = ['revision', 'attachment'].includes(properties.wfKind) && !change.file.parents?.length
         ? googleDatasetOwned(change.file, { datasetId: properties.wfDataset, entities: [properties.wfEntity] })

@@ -1,5 +1,6 @@
 // The Google account, sync status and the cloud reset and overwrite flows of the main window.
 export default {
+  'sync.reset.residual': "偵測到記錄完成後才寫入的舊版檔案，已保留。請更新或停止舊版裝置。若要移除這些檔案，必須重新預覽並明確確認重置。",
   'sync.reset.capturing': "正在記錄舊雲端檔案目標：已找到 {total} 個…",
   'sync.reset.cleanup': "新資料已可使用。正在清理已記錄的舊檔案：{done} / {total}。",
   'sync.reset.cleaned': "已記錄的舊檔案清理完成。保留了 {folders} 個舊資料夾容器，以保護記錄完成後才新增的檔案。",

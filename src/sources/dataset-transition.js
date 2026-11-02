@@ -17,7 +17,7 @@ export async function abandonedDatasetReset(storage) {
 export async function cleanupDatasetTransition(storage) {
   const [row] = (await storage.jobs('retired-reset', { limit: 1 })).rows;
   if (!row) return false;
-  for (const kind of [`reset-page:${row.value.operationId}`, `reset-token:${row.value.operationId}`]) {
+  for (const kind of [`reset-page:${row.value.operationId}`, `reset-token:${row.value.operationId}`, `reset-audit-token:${row.value.operationId}`]) {
     const page = await storage.jobs(kind, { limit: 20 });
     if (page.rows.length) { for (const item of page.rows) await storage.deleteJob(item.key); return true; }
   }

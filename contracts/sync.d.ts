@@ -143,7 +143,7 @@ export interface DatasetProvider {
   getStartCursor(input?: { signal?: AbortSignal }): Promise<string>;
   allocateFileId(input?: { signal?: AbortSignal }): Promise<string>;
   listObjects(input: { query: DatasetQuery; pageToken?: string | null; signal?: AbortSignal }): Promise<{
-    files: (DatasetFile | DatasetFolder | DatasetOwnedFile | { id: string; kind: string | null; folder?: boolean })[]; incomplete: boolean; nextPageToken: string | null;
+    files: (DatasetFile | DatasetFolder | DatasetOwnedFile | { id: string; kind: string | null; folder?: boolean; dataset?: boolean })[]; incomplete: boolean; nextPageToken: string | null;
   }>;
   getObject(input: { id: string; signal?: AbortSignal }): Promise<DatasetFile | DatasetFolder>;
   readObject(input: { file: DatasetFile; signal?: AbortSignal }): Promise<Uint8Array>;
@@ -154,7 +154,7 @@ export interface DatasetProvider {
   readFile(input: { file: FileDescriptor; signal?: AbortSignal }): Promise<Uint8Array>;
   createFile(input: { file: FileDescriptor; bytes: Uint8Array; signal?: AbortSignal }): Promise<FileDescriptor>;
   listDatasetChanges(input: { cursor: string; signal?: AbortSignal }): Promise<{
-    changes: { id: string; removed: boolean; file?: DatasetFile | DatasetFolder | DatasetOwnedFile; legacyReset?: boolean }[];
+    changes: { id: string; removed: boolean; file?: DatasetFile | DatasetFolder | DatasetOwnedFile; legacyReset?: boolean; legacyWrite?: boolean }[];
     nextCursor?: string; cursor?: string;
   }>;
 }

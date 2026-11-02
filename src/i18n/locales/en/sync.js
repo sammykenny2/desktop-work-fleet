@@ -1,5 +1,6 @@
 // The Google account, sync status and the cloud reset and overwrite flows of the main window.
 export default {
+  'sync.reset.residual': "Files from an older app were detected after capture and kept. Update or stop the older devices. Removing these files requires a new explicit reset preview.",
   'sync.reset.capturing': "Recording old cloud file targets: {total} found…",
   'sync.reset.cleanup': "New data is ready. Cleaning captured old files: {done} / {total}.",
   'sync.reset.cleaned': "Captured old file cleanup finished. {folders} old folder containers were retained to protect files added after capture.",

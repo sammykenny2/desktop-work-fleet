@@ -255,7 +255,7 @@ export class DatasetProtocol {
     await this.assertGeneration(descriptor, plan, signal);
     let cursor = await this.#store.getStartCursor({ signal });
     const shards = new Map(); let requested = new Set(DATASET_SHARDS), events = 0, bytes = 0;
-    const seenCursors = new Set(); let complete = false;
+    const seenCursors = new Set(); let complete = false, residualLegacy = false;
     for (let pass = 0; pass < 3; pass++) {
       for (const shard of requested) {
         try { shards.set(shard, await this.captureShard(plan, shard, signal)); }
@@ -276,6 +276,7 @@ export class DatasetProtocol {
         invalid(Array.isArray(page.changes) && page.changes.length <= 100 && Boolean(page.nextCursor) !== Boolean(page.cursor));
         events += page.changes.length; bytes += new TextEncoder().encode(canonicalJson(page)).length;
         for (const change of page.changes) {
+          if (change.legacyWrite && !change.removed) residualLegacy = true;
           if (change.removed) { if (known.has(change.id)) requested.add(known.get(change.id));
             if ([plan.rootId, plan.readyId, descriptor.id, plan.fenceId].includes(change.id)) changed(false); }
           else if (change.file?.datasetId === plan.datasetId && ['change', 'checkpoint'].includes(change.file.kind)) requested.add(change.file.shard);
@@ -297,6 +298,6 @@ export class DatasetProtocol {
     const forbidden = new Set(purges.map(value => value.entityId));
     return { heads: heads.filter(head => head.record.kind !== 'card' || !forbidden.has(head.record.entityId)), purges,
       dirtyEntities: [...new Set(heads.filter(head => head.record.kind === 'card' && forbidden.has(head.record.entityId)).map(head => head.record.entityId))],
-      inputs: inputs.map(input => input.file), cursor: complete ? cursor : null, complete };
+      inputs: inputs.map(input => input.file), cursor: complete ? cursor : null, complete, residualLegacy };
   }
 }

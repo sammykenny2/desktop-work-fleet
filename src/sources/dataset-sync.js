@@ -112,7 +112,7 @@ export class DatasetSync {
     if (cursor && shards.size === DATASET_SHARDS.length) {
       await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
       const known = new Map([...shards].flatMap(([shard, value]) => value.inputs.map(file => [file.id, shard])));
-      const purged = new Set(), seen = new Set(); let events = 0, bytes = 0, complete = false;
+      const purged = new Set(), seen = new Set(); let events = 0, bytes = 0, complete = false, residualLegacy = false;
       try {
         do {
           invalid(!seen.has(cursor)); seen.add(cursor);
@@ -120,6 +120,7 @@ export class DatasetSync {
           invalid(Array.isArray(page.changes) && page.changes.length <= 100 && Boolean(page.nextCursor) !== Boolean(page.cursor));
           events += page.changes.length; bytes += new TextEncoder().encode(canonicalJson(page)).length;
           for (const change of page.changes) {
+            if (change.legacyWrite && !change.removed) residualLegacy = true;
             if (change.removed) {
               changed(![plan.rootId, plan.readyId, descriptor.id, plan.fenceId].includes(change.id));
               if (known.has(change.id)) changedShards.add(known.get(change.id));
@@ -145,7 +146,7 @@ export class DatasetSync {
           ...state.revisions.filter(record => record.kind === 'card' && state.sync.localHeads?.includes(record.revisionId)).map(record => record.entityId),
           ...Object.values(state.drafts).map(draft => draft.cardId)];
         result = { heads: [...shards.values()].flatMap(value => value.heads), inputs: [...shards.values()].flatMap(value => value.inputs),
-          purges: await this.#protocol.purges(plan, targets, this.#abort.signal), cursor: complete ? cursor : null, complete };
+          purges: await this.#protocol.purges(plan, targets, this.#abort.signal), cursor: complete ? cursor : null, complete, residualLegacy };
       } catch (error) { if (error.code !== 'cursor-expired') throw error; }
     }
     if (!result) {
@@ -170,6 +171,7 @@ export class DatasetSync {
     }
     result.heads = result.heads.filter(head => head.record.kind !== 'card' || !forbidden.has(head.record.entityId));
     const view = { ...previous }, controls = [];
+    if (result.residualLegacy) controls.push({ key: `legacy-residual:${plan.datasetId}`, value: { observed: true } });
     for (const [shard, value] of shards) {
       const heads = value.heads.filter(head => head.record.kind !== 'card' || !forbidden.has(head.record.entityId));
       if (!changedShards.has(shard) && heads.length === value.heads.length) continue;

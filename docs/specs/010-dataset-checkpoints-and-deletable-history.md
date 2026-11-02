@@ -436,7 +436,10 @@ dataset, and is limited to the captured IDs. On a new fence/generation or loss o
 old job. Two competing initializers do not elect a winner by clock; show an initialization conflict and preserve
 both plans for a previewed resolution. Followers verify readiness and do not independently create starter groups.
 An initialized intentionally empty workspace remains empty. Old files created after the captured set are ignored
-as incompatible and reported as residual legacy writes; do not widen deletion scope automatically.
+as incompatible and reported as residual legacy writes; do not widen deletion scope automatically. After captured
+cleanup, a resumable metadata audit reads at most 100 entries per step, excludes new-format files/folders and the
+active fence, and retains a warning when legacy leaves remain. Later bounded changes-feed observations persist
+the same warning without downloading old bodies or starting a global scan.
 The reset worker captures at most 100 metadata entries per durable page and deletes at most 20 captured leaf
 files per step. Captured old fences are retired first after new readiness, allowing the new dataset to become
 usable while content cleanup continues. Reset does not cascade-delete captured folders: a child can arrive after

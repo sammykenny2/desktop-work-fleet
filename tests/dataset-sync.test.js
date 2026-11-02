@@ -180,3 +180,18 @@ test('note copies own separate remote attachments and concurrent edits remain ex
   assert.equal(a.workspace.revisionHeads('card', card.id).length, 2);
   assert.equal(b.workspace.revisionHeads('card', card.id).length, 2);
 });
+
+test('late legacy writes are reported durably without importing or deleting their bodies', async () => {
+  const provider = new DatasetTestProvider(), c = await client(provider);
+  await c.sync.sync();
+  const before = c.workspace.snapshot.cards;
+  provider.events.push({ id: 'late-old-save', removed: false, legacyWrite: true });
+  const reads = provider.stats.historyReads, deletes = provider.stats.deletes;
+  await c.sync.sync({ force: true });
+  const datasetId = c.workspace.syncState.dataset.plan.datasetId;
+  assert.deepEqual(await c.storage.getControl(`legacy-residual:${datasetId}`), { observed: true });
+  assert.deepEqual(c.workspace.snapshot.cards, before);
+  assert.equal(provider.stats.historyReads, reads); assert.equal(provider.stats.deletes, deletes);
+  const reopened = await client(provider, c.records);
+  assert.deepEqual(await reopened.storage.getControl(`legacy-residual:${datasetId}`), { observed: true });
+});

@@ -127,9 +127,29 @@ export class DatasetReset {
         return copy(job);
       }
       await guard(); await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);
-      await save({ phase: 'journal-cleanup' }); return copy(job);
+      await save({ phase: 'residual-audit', pageToken: null, residualLegacy: false }); return copy(job);
+    }
+    if (job.phase === 'residual-audit') {
+      // Report late files without widening the captured deletion set. This paged audit runs only for an explicit reset.
+      const page = await this.#store.listObjects({ query: { scope: 'legacy' }, pageToken: job.pageToken, signal });
+      invalid(Array.isArray(page.files) && page.files.length <= 100 && !page.incomplete
+        && page.files.every(file => validFileId(file.id) && typeof file.folder === 'boolean' && typeof file.dataset === 'boolean'));
+      const next = page.nextPageToken ?? null;
+      invalid(next === null || typeof next === 'string' && next.length > 0 && next.length <= 8192 && next !== job.pageToken);
+      const writes = [];
+      if (next) {
+        const key = `reset-audit-token:${job.operationId}:${await sha256(new TextEncoder().encode(next))}`;
+        invalid(!await this.#journal.getJob(key)); writes.push({ key, value: { kind: `reset-audit-token:${job.operationId}` } });
+      }
+      job = { ...job, pageToken: next, residualLegacy: job.residualLegacy || page.files.some(file => !file.folder && !file.dataset && file.id !== job.marker.id),
+        phase: next ? 'residual-audit' : 'journal-cleanup' };
+      writes.push({ key: 'dataset-reset', value: job }); await this.#journal.putJobs(writes);
+      return copy(job);
     }
     if (job.phase === 'journal-cleanup') {
+      const auditKind = `reset-audit-token:${job.operationId}`;
+      for (const row of (await this.#journal.jobs(auditKind, { limit: 100 })).rows) await this.#journal.deleteJob(row.key);
+      if ((await this.#journal.jobs(auditKind, { limit: 1 })).rows.length) return copy(job);
       for (const row of (await this.#journal.jobs(tokenKind, { limit: 100 })).rows) await this.#journal.deleteJob(row.key);
       if ((await this.#journal.jobs(tokenKind, { limit: 1 })).rows.length) return copy(job);
       await guard(); await this.#protocol.assertGeneration(job.binding.descriptor, job.binding.plan, signal);

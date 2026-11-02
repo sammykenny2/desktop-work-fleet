@@ -39,7 +39,7 @@ test('legacy reset captures metadata before publication and only deletes exact c
     if (point === 'read' && id.startsWith('old-')) throw new Error('legacy body must never be read');
   };
   const complete = await run(reset);
-  assert.equal(complete.deleted, 253); assert.equal(complete.captured, 253); assert.ok(provider.files.has('late-legacy'));
+  assert.equal(complete.residualLegacy, true); assert.equal(complete.deleted, 253); assert.equal(complete.captured, 253); assert.ok(provider.files.has('late-legacy'));
   assert.ok(![...provider.files.keys()].some(id => id.startsWith('old-')));
   assert.deepEqual((await new DatasetLifecycle(provider, storage).inspect()).binding, complete.binding);
   const marker = JSON.parse(new TextDecoder().decode(provider.files.get(complete.marker.id).bytes));

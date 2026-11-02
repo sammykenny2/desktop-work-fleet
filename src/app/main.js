@@ -590,7 +590,12 @@ async function maintainDataset() {
         'local-cleanup': 'app.purge.local', complete: 'app.purge.complete', 'needs-preview': 'app.purge.review' }[result.phase];
       if (key) $('#cleanup-status').textContent = t(key);
       await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
-    } else more = await cleanupDatasetTransition(storage) || await storage.maintenance();
+    } else {
+      more = await cleanupDatasetTransition(storage) || await storage.maintenance();
+      const datasetId = workspace.syncState.dataset?.plan.datasetId;
+      if (pendingReset?.residualLegacy || datasetId && await storage.getControl(`legacy-residual:${datasetId}`))
+        $('#cleanup-status').textContent = t('sync.reset.residual');
+    }
   })();
   try { await maintenanceWork; }
   catch (error) {
@@ -782,12 +787,13 @@ async function askDatasetRecovery() {
   const dialog = element('dialog'); dialog.id = 'source-reset-dialog';
   const message = element('p', '', 'backup-message'); message.setAttribute('role', 'status');
   const body = element('div'), actions = element('div', undefined, 'dialog-actions'); let busy = false;
+  const ready = new WeakMap();
   const action = (label, work, className) => {
     const control = element('button', label, className); control.type = 'button';
     control.onclick = async () => {
       if (busy) return; busy = true; actions.querySelectorAll('button').forEach(button => { button.disabled = true; });
       try { await work(); } catch (error) { message.textContent = error.message; }
-      finally { busy = false; actions.querySelectorAll('button').forEach(button => { button.disabled = false; }); }
+      finally { busy = false; actions.querySelectorAll('button').forEach(button => { button.disabled = ready.has(button) && !ready.get(button)(); }); }
     }; return control;
   };
   const exportFirst = action(t('sync.sourceReset.exportFirst'), async () => { dialog.close(); await openSettings('data'); });
@@ -814,7 +820,7 @@ async function askDatasetRecovery() {
       const plan = await prepareDatasetRestore({ workspace, storage, fileStore: datasetStore, document, workAreas: workAreas(), recovery: true });
       let safety = null;
       const confirm = action(t('sync.recovery.confirmRecover'), async () => runCloudRestore(text => { message.textContent = text; }, { plan, safety }), 'danger');
-      confirm.disabled = true;
+      confirm.disabled = true; ready.set(confirm, () => Boolean(safety));
       body.replaceChildren(element('p', t('sync.recovery.recoverPreview', { account, cards: backup.manifest.counts.cards, drafts: backup.manifest.counts.drafts })),
         element('p', t('backup.coverage.currentHint')), element('p', t('backup.reset.updateDevices')));
       const password = element('input'); password.type = 'password'; password.autocomplete = 'new-password'; password.maxLength = 1024;

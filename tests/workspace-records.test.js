@@ -39,7 +39,10 @@ test('typing writes only the draft and active revision; startup never reads reta
   const before = f.records.stats;
   await f.workspace.saveDraft(draft);
   assert.equal(f.records.stats.reads - before.reads, 0);
-  assert.equal(f.records.stats.writes - before.writes, 2);
+  assert.equal(f.records.stats.writes - before.writes, 3, 'first edit also persists its independent baseline');
+  const typed = f.records.stats.writes;
+  await f.workspace.saveDraft(draft);
+  assert.equal(f.records.stats.writes - typed, 1, 'unchanged baseline is not rewritten');
   const reads = f.records.stats.reads;
   const storage = new WorkspaceRecordStorage(f.records, f.profileId);
   const saved = await storage.load(f.profileId);
@@ -141,4 +144,41 @@ test('generation replacement collects attachment bytes saved before a draft acqu
   let passes = 0;
   while (await f.storage.maintenance()) assert.ok(++passes < 100, 'bounded fixture cleanup must finish');
   assert.equal(await f.storage.getAttachment('local', file.id), null);
+});
+
+test('byte-heavy saves stage before encoding a transaction and retain large unsaved baselines', async () => {
+  for (const profile of ['local', 'google:large']) {
+    const f = await fixture(profile);
+    const original = 'x'.repeat(5 * 1024 * 1024);
+    const card = await f.workspace.createCard(content(original));
+    const draft = f.workspace.blankDraft(card.groupId, card); draft.content.text += ' edited';
+    await f.workspace.saveDraft(draft);
+    draft.content.text += ' again'; await f.workspace.saveDraft(draft);
+    const reopened = new WorkspaceRecordStorage(f.records, profile), saved = await reopened.load(profile);
+    assert.equal(saved.drafts[draft.id].baseContent.text, original);
+    assert.equal(saved.drafts[draft.id].content.text, draft.content.text);
+    const workspace = new Workspace(saved, (...args) => reopened.save(...args), undefined, undefined, { history: reopened });
+    assert.equal((await workspace.commitDraft(draft.id)).content.text, draft.content.text);
+    assert.equal((await reopened.load(profile)).drafts[draft.id], undefined);
+    assert.equal((await reopened.page('card', card.id)).records.length, 1, 'byte-bounded history page');
+    if (profile.startsWith('google:')) assert.equal(workspace.pendingCount, 3);
+  }
+});
+
+test('bulk updates below the row-count threshold stage by summed row bytes, including rollback', async () => {
+  const f = await fixture('google:bulk'), before = f.workspace.state;
+  const record = before.revisions[0];
+  const additions = Array.from({ length: 10 }, (_, i) => ({ ...record, revisionId: `large-${i}`, entityId: `group-${i}`,
+    value: { ...record.value, id: `group-${i}`, revision: `large-${i}`, name: 'x'.repeat(300 * 1024) } }));
+  const state = { ...before, revision: before.revision + 1, revisions: [...before.revisions, ...additions] };
+  const pending = additions.map(row => ({ operationId: row.revisionId, kind: row.kind, entityId: row.entityId, record: row }));
+  const commit = f.records.commit.bind(f.records); let calls = 0;
+  f.records.commit = async (...args) => { if (++calls === 3) throw new Error('interrupted bulk save'); return commit(...args); };
+  await assert.rejects(f.storage.save(state, before.revision, { previous: before, additions, pending }), /interrupted bulk save/);
+  const reopened = new WorkspaceRecordStorage(f.records, f.profileId);
+  assert.deepEqual(await reopened.load(f.profileId), before);
+  f.records.commit = commit;
+  await reopened.save(state, before.revision, { previous: before, additions, pending });
+  assert.equal((await reopened.load(f.profileId)).revisions.length, 11);
+  assert.equal((await reopened.pendingPage()).operations.length, 11);
 });

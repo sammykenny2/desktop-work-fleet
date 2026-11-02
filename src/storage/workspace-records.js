@@ -50,6 +50,11 @@ export class WorkspaceRecordStorage {
     ]);
   }
   #unique(rows) { return [...new Map(rows.map(row => [`${row.collection}:${row.key}`, row])).values()]; }
+  #draftRows(draft, generation = this.#active.generation) {
+    const { baseContent, ...edit } = draft;
+    return [this.#row('draft', draft.id, edit, generation, generation),
+      this.#row('draft', `${draft.id}:base`, baseContent ?? null, generation, generation)];
+  }
   #viewGarbage(previous, state) {
     const active = new Set(Object.values(state.sync.datasetView ?? {}));
     return Object.values(previous?.sync.datasetView ?? {}).filter(key => !active.has(key)).map(key => ({ collection: 'job',
@@ -68,8 +73,10 @@ export class WorkspaceRecordStorage {
       const state = Object.fromEntries(results[0].map(row => [row.key.slice(generation.length + 1), row.value]));
       requireValue(state.format === CURRENT_WORKSPACE_FORMAT && state.profileId === profileId,
         'incompatible-local-data', t('errors.storage.incompatibleLocalData'));
+      const baselines = new Map(results[2].filter(row => row.key.endsWith(':base')).map(row => [row.key.slice(0, -5), row.value]));
       Object.assign(state, { revision, groups: [], cards: [], conflicts: [], outbox: [],
-        revisions: results[1].map(row => row.value), drafts: Object.fromEntries(results[2].map(row => [row.value.id, row.value])) });
+        revisions: results[1].map(row => row.value), drafts: Object.fromEntries(results[2].filter(row => !row.key.endsWith(':base'))
+          .map(row => [row.value.id, { ...row.value, ...(baselines.has(row.key) ? { baseContent: baselines.get(row.key) } : {}) }])) });
       // Workspace derives groups/cards/conflicts from the current revision envelopes.
       for (const record of state.revisions) state[record.kind === 'card' ? 'cards' : 'groups'].push(record.value);
       this.#active = active.value; return state;
@@ -103,11 +110,14 @@ export class WorkspaceRecordStorage {
       }
       for (const id of old.keys()) deletes.push({ collection: 'current', key: this.#key(id) });
     }
-    for (const [id, draft] of Object.entries(state.drafts)) if (!equal(draft, previous.drafts[id])) {
+    for (const [id, draft] of Object.entries(state.drafts)) {
       const known = new Set((previous.drafts[id]?.content.attachments ?? []).map(file => file.id));
-      puts.push(this.#row('draft', id, draft), ...this.#owners('draft', id, draft.content).filter(row => !known.has(row.key.split(':').at(-1))));
+      const old = previous.drafts[id] ? this.#draftRows(previous.drafts[id]) : [];
+      puts.push(...this.#draftRows(draft).filter((row, index) => !equal(row.value, old[index]?.value)),
+        ...this.#owners('draft', id, draft.content).filter(row => !known.has(row.key.split(':').at(-1))));
     }
-    for (const id of Object.keys(previous.drafts)) if (!Object.hasOwn(state.drafts, id)) deletes.push({ collection: 'draft', key: this.#key(id) });
+    for (const id of Object.keys(previous.drafts)) if (!Object.hasOwn(state.drafts, id)) deletes.push(
+      { collection: 'draft', key: this.#key(id) }, { collection: 'draft', key: this.#key(`${id}:base`) });
     for (const [id, draft] of Object.entries(previous.drafts)) {
       const kept = new Set((state.drafts[id]?.content.attachments ?? []).map(file => file.id));
       for (const row of this.#owners('draft', id, draft.content)) if (!kept.has(row.key.split(':').at(-1))) {
@@ -139,7 +149,8 @@ export class WorkspaceRecordStorage {
     puts.push({ collection: 'meta', key: 'active', entity: '', ordinal: 0, value: active });
     const uniquePuts = this.#unique(puts);
     if (uniquePuts.length + deletes.length > RECORD_LIMITS.rows
-      || encoder.encode(canonicalJson({ puts, deletes })).length > RECORD_LIMITS.transactionBytes - 2048) return this.#stage(state, detail);
+      || [...uniquePuts, ...deletes].reduce((sum, row) => sum + encoder.encode(canonicalJson(row)).length + 1, 0)
+        > RECORD_LIMITS.transactionBytes - 2048) return this.#stage(state, detail);
     await this.#write(uniquePuts, deletes, detail.attachments); this.#active = active;
   }
   /** Bulk replacement builds an isolated generation; a single pointer publishes it after every chunk is durable. */
@@ -156,7 +167,7 @@ export class WorkspaceRecordStorage {
     const row = (collection, id, value, entity = generation) => this.#row(collection, id, value, entity, generation);
     const rows = Object.entries(state).filter(([key]) => !omitted.has(key)).map(([key, value]) => row('meta', key, value));
     rows.push(...state.revisions.map(record => row('current', record.revisionId, record)),
-      ...Object.values(state.drafts).map(draft => row('draft', draft.id, draft)),
+      ...Object.values(state.drafts).flatMap(draft => this.#draftRows(draft, generation)),
       ...(detail.history ?? detail.additions ?? (keepHistory ? [] : state.revisions)).map(record => this.#row('history', record.revisionId, record,
         `${historyGeneration}:${record.kind}:${record.entityId}`, historyGeneration)),
       ...oldPending.map(item => ({ ...row('outbox', item.value.operationId, item.value), ordinal: item.ordinal })),

@@ -56,7 +56,9 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   cannot restore deleted bytes from extra staging. The Linux fixture also rejects any payload decryption during
   a metadata-only read; browser and Apple/Windows probes cover the same projection and deletion receipt contract.
 - Current Workspace tests cover unknown ancestry as a conservative conflict, repeated saves with bounded heads,
-  self-contained unsaved baselines, two-row typing commits, startup without history/outbox reads, indexed history,
+  self-contained unsaved baselines stored separately from edited content, two-row subsequent typing commits,
+  5 MiB note save/edit/reopen in local and Google profiles, byte-heavy bulk rollback below the row-count threshold,
+  startup without history/outbox reads, indexed history,
   failed/double acknowledgement, competing writers and interrupted bulk generation activation. The browser probe
   also saves/reopens this Workspace through actual IndexedDB and continues a history page. These are integration
   checks of the active core; they do not establish native latency.

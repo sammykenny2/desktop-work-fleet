@@ -91,7 +91,8 @@ It stops on failure, never retries a malformed response as empty, and writes
 The window stays blank during this deliberate diagnostic launch; quit and reopen without
 the argument to return to the app. Release builds ignore the argument.
 
-The report contains only aggregate request/response-byte counts, task transactions,
+The report separates attempted requests from completed responses. It contains only
+aggregate counts, completed-response bytes, task transactions,
 reused connections, median/p95 native wall/HTTP/authentication time, sample categories
 and stable error codes. It contains no tokens, cursors, URLs, account/file IDs, headers
 or note text. SDK authorization time is separate from Drive HTTP; the report does not

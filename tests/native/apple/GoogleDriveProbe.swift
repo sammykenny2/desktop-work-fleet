@@ -101,7 +101,7 @@ actor ScriptedHTTP {
     }
     static func fixture(_ name: String) async throws {
         switch name {
-        case "read-probe", "read-probe-invalid":
+        case "read-probe", "read-probe-invalid", "read-probe-network":
             var components = URLComponents(string: "https://www.googleapis.com/drive/v3/changes")!
             components.queryItems = [URLQueryItem(name: "pageToken", value: "fixture-private-cursor"), URLQueryItem(name: "spaces", value: "appDataFolder"),
                 URLQueryItem(name: "pageSize", value: "100"), URLQueryItem(name: "includeRemoved", value: "true"),
@@ -109,7 +109,7 @@ actor ScriptedHTTP {
             let start = ScriptedHTTP.Step(method: "GET", url: "https://www.googleapis.com/drive/v3/changes/startPageToken?fields=startPageToken",
                                           response: Data("{\"startPageToken\":\"fixture-private-cursor\"}".utf8))
             let feed = ScriptedHTTP.Step(method: "GET", url: components.url!.absoluteString,
-                response: Data((name == "read-probe" ? "{\"newStartPageToken\":\"fixture-private-cursor\"}" : "{\"changes\":null,\"newStartPageToken\":\"fixture-private-cursor\"}").utf8))
+                response: Data((name == "read-probe" ? "{\"newStartPageToken\":\"fixture-private-cursor\"}" : "{\"changes\":null,\"newStartPageToken\":\"fixture-private-cursor\"}").utf8), fail: name == "read-probe-network")
             try await ScriptedHTTP.shared.prepare(name == "read-probe" ? Array(repeating: [start] + Array(repeating: feed, count: 31), count: 2).flatMap { $0 } : [start, feed])
             let drive = adapter(), report = await drive.readOnlyProbe(intervalNanoseconds: 0)
             let modes = report["modes"] as! [[String: Any]]
@@ -120,6 +120,9 @@ actor ScriptedHTTP {
                     let groups = mode["groups"] as! [String: [String: Any]]
                     try check(groups["empty"]?["samples"] as? Int == 30, "Warm samples were not separated")
                 }
+            } else if name == "read-probe-network" {
+                try check(modes[0]["errorCode"] as? String == "network", "Network failure was hidden")
+                try check(modes[0]["requests"] as? Int == 2 && modes[0]["completedResponses"] as? Int == 1, "Failed request disappeared from the probe count")
             } else { try check(modes[0]["errorCode"] as? String == "invalid-source-page", "Invalid page was accepted as empty") }
             let encoded = String(data: try FleetProtocol.encode(report), encoding: .utf8)!
             try check(!encoded.contains("fixture-") && !encoded.contains("Bearer") && !encoded.contains("googleapis.com"), "Probe leaked private identifiers")

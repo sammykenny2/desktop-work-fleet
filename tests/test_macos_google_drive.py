@@ -46,6 +46,9 @@ class MacOSGoogleDriveTests(unittest.TestCase):
     def test_read_probe_does_not_treat_invalid_changes_as_empty(self):
         self.run_probe("read-probe-invalid")
 
+    def test_read_probe_counts_failed_request_attempts_separately(self):
+        self.run_probe("read-probe-network")
+
     def test_dataset_upload_readback_and_parent_validation(self):
         self.run_probe("dataset")
 

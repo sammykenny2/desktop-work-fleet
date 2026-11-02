@@ -9,6 +9,7 @@ actor FleetDrive {
     private var clients: [UUID: BoundedHTTP] = [:]
     private let transport = BoundedHTTPSession()
     private var probeRequests: [[String: Any]]?
+    private var probeAttempts = 0
     private var isolatedProbe = false
     init(google: FleetGoogle, profile: String) { self.google = google; account = profile.hasPrefix("google:") ? String(profile.dropFirst(7)) : "" }
     deinit { transport.close() }
@@ -27,6 +28,7 @@ actor FleetDrive {
         for (key, value) in headers { request.setValue(value, forHTTPHeaderField: key) }
         let id = UUID(), client = BoundedHTTP(maximum: maximum, session: isolatedProbe ? nil : transport); clients[id] = client; defer { clients.removeValue(forKey: id) }
         let bytes: Data, response: HTTPURLResponse
+        if probeRequests != nil { probeAttempts += 1 }
         do { (bytes, response) = try await client.send(request) }
         catch let failure as FleetFailure { throw failure }
         catch { throw FleetFailure("network", "Couldn't connect to Google Drive. Pending changes are kept.") }
@@ -57,7 +59,7 @@ actor FleetDrive {
         var modes: [[String: Any]] = []
         probeRequests = []; defer { probeRequests = nil; isolatedProbe = false }
         for isolated in [true, false] {
-            isolatedProbe = isolated; probeRequests = []
+            isolatedProbe = isolated; probeRequests = []; probeAttempts = 0
             var categories: [String] = [], errorCode: String?
             do {
                 let start = try await json(path("/drive/v3/changes/startPageToken", [("fields", "startPageToken")]))
@@ -88,7 +90,7 @@ actor FleetDrive {
                 for key in ["responseBytes", "transactions", "reusedConnections"] { summary[key] = selected.compactMap { $0[key] as? Int }.reduce(0, +) }
                 groups[category] = summary
             }
-            modes.append(["transport": isolated ? "per-request-session" : "account-session", "requests": samples.count,
+            modes.append(["transport": isolated ? "per-request-session" : "account-session", "requests": probeAttempts, "completedResponses": samples.count,
                           "startTokenRequests": samples.filter { $0["kind"] as? String == "start-token" }.count,
                           "groups": groups, "errorCode": errorCode as Any? ?? NSNull()])
             if errorCode != nil { break }

@@ -1,24 +1,27 @@
 /** Full app recovery navigation with synthetic Google data. No credentials or installed app data are used. */
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
 import { chromium, webkit, expect } from '@playwright/test';
 import { DatasetTestProvider } from '../../tests/fixtures/dataset/provider.js';
 import { t } from '../../src/i18n/index.js';
 
 if (process.argv.includes('--help')) {
-  console.log('Usage: node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT [--browser chromium|webkit]\nRuns the production app with real IndexedDB and synthetic native/account/Drive adapters in isolated browser profiles.');
+  console.log('Usage: node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT [--browser chromium|webkit] [--platform linux|ios|android]\nRuns the production app with real IndexedDB and synthetic native/account/Drive adapters in isolated browser profiles. Phone modes also check the handheld UI at 390 x 844; they do not run a native host.');
   process.exit(0);
 }
 const value = name => process.argv[process.argv.indexOf(name) + 1];
 assert.ok(process.argv.includes('--url'), '--url is required');
 const base = new URL(value('--url')), engine = process.argv.includes('--browser') ? value('--browser') : 'chromium';
+const platform = process.argv.includes('--platform') ? value('--platform') : 'linux', handheld = platform !== 'linux';
 assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname)); assert.ok(['chromium', 'webkit'].includes(engine));
+assert.ok(['linux', 'ios', 'android'].includes(platform));
 const browser = await ({ chromium, webkit })[engine].launch();
 const profileId = 'google:test', email = 'old-notes@example.invalid';
 
 // Replace only host/provider boundaries. The UI, WorkspaceRecordStorage, DatasetSync and DatasetReset are real.
 const bridgeModule = `
 export async function connectNative() {
-  return { info: { profileId: 'google:test', platform: 'linux', appVersion: '0.4.0',
+  return { info: { profileId: 'google:test', platform: '${platform}', appVersion: '0.4.0',
     capabilities: { recordStorage: true, googleFiles: true } },
     bridge: { onEvent() { return () => {}; }, onCloseRequested() { return () => {}; },
       async request(method) {
@@ -68,7 +71,8 @@ export class NativeGoogleDatasetStore {
 
 try {
   for (const oldLocal of [false, true]) {
-    const context = await browser.newContext({ viewport: { width: 1200, height: 900 }, locale: 'en-US' });
+    const context = await browser.newContext({ viewport: handheld ? { width: 390, height: 844 } : { width: 1200, height: 900 },
+      locale: 'en-US', hasTouch: handheld, isMobile: handheld });
     if (oldLocal) await context.addInitScript(() => {
       // Linux's native WebView disables browser storage. Recovery navigation must not depend on it.
       for (const name of ['localStorage', 'sessionStorage']) Object.defineProperty(window, name, {
@@ -143,6 +147,17 @@ try {
         await expect(page.locator('#settings-dialog')).toContainText(t('app.incompatible.googleReset'));
         await expect(page.locator('#settings-account-name')).toHaveText(email);
         await expect(page.locator('#discard-old-local')).toBeDisabled();
+        if (handheld) {
+          await expect(page.locator('#settings-dialog [data-page="desktop"]')).toBeHidden();
+          await expect(page.locator('#settings-dialog [data-page="shortcuts"]')).toBeHidden();
+          await expect(page.locator('meta[name="viewport"]')).toHaveAttribute('content', /maximum-scale=1, user-scalable=no/);
+          await mkdir('build/mobile-reset', { recursive: true });
+          await page.screenshot({ path: `build/mobile-reset/${platform}-${engine}.png`, fullPage: true, animations: 'disabled' });
+          assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'recovery Settings overflows the phone viewport');
+          assert.ok(await page.locator('#close-settings').evaluate(control => {
+            const bounds = control.getBoundingClientRect(); return bounds.left >= 0 && bounds.right <= innerWidth;
+          }), 'the recovery Settings close button is outside the phone viewport');
+        }
         await page.locator('#close-settings').click();
         await expect(page.locator('#data-failure-dialog')).toBeVisible();
         assert.deepEqual(await legacy(), before); unchangedCloud(); assert.deepEqual(localResets, []);
@@ -181,12 +196,13 @@ try {
       await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
       await page.locator('#editor-text').fill('First new note after reset');
       await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
+      if (handheld) await page.locator('#drawer-toggle').click();
       await page.locator('#settings-button').click(); await page.locator('#settings-dialog [data-page="account"]').click();
       await page.locator('#google-sync').click();
       await expect.poll(() => [...provider.files.values()].some(item => item.file.kind === 'revision'
         && new TextDecoder().decode(item.bytes).includes('First new note after reset')), { timeout: 15000 }).toBe(true);
       assert.deepEqual(errors, []); assert.deepEqual(oldReads, []);
-      console.log(`PASS ${engine}: ${oldLocal ? 'legacy' : 'empty'} local profile + signed-in legacy Google, Settings consent/cancel, metadata-only reset, zero notes and new note sync.`);
+      console.log(`PASS ${engine}/${platform}: ${oldLocal ? 'legacy' : 'empty'} local profile + signed-in legacy Google, Settings consent/cancel, metadata-only reset, zero notes and new note sync.`);
     } finally { await context.close(); }
   }
 } finally { await browser.close(); }

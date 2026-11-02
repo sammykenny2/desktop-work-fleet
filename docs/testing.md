@@ -130,6 +130,8 @@ node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser 
 node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser webkit
 node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT --browser chromium
 node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT --browser webkit
+node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT --browser webkit --platform ios
+node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT --browser chromium --platform android
 ```
 
 The isolated UI probe verifies old local data kept until consent, paged history/restore, Trash confirmation and
@@ -144,6 +146,9 @@ either empty or incompatible local storage, Settings access before loading old n
 cancel without mutation, another local profile preserved, metadata-only old-file deletion, zero notes after reset
 and a new note syncing afterwards. The old-local case disables browser local/session storage, as native recovery
 cannot depend on either. This does not verify real Google authorization or installed native reset/reload behavior.
+The `ios`/`android` modes set the synthetic host platform and a touch-enabled 390 x 844 viewport. They exercise the
+handheld branches, hidden desktop settings, non-zooming viewport and reset controls, and save recovery screenshots
+under `build/mobile-reset/`. WebKit/Chromium phone emulation is not an installed iOS/Android runtime result.
 
 Run component benchmarks separately from builds/tests to avoid concurrent load:
 

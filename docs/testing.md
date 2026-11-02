@@ -1,6 +1,6 @@
 # Builds, tests and evidence
 
-Updated: 2026-10-17. This document holds the verification procedures and the verified and unverified boundaries.
+Updated: 2026-11-02. This document holds the verification procedures and the verified and unverified boundaries.
 Current status is in [PROGRESS.md](../PROGRESS.md); the history and the evidence of individual runs are in the git history.
 Evidence for the existing 0.1.0 prototype is in the [validation report](validation/2026-10-03-validation-report.md).
 
@@ -842,6 +842,41 @@ interrupted restore, restore flush failure and retry, pairing races, expiry/reus
 The WebKit tests go through the real DOM and server; transport disconnects and response loss are injected in a controlled way.
 The Node model tests cover cross-tab drafts and recovery, and local write failures.
 
+## Native menu outside-click acceptance
+
+The [Cats Bot focus investigation](https://github.com/cats-inc/cats-bot/blob/44b52dd4f03341ea68d0416fe848fe3a163a8fdb/docs/research/2026-11-02-avatar-menu-focus.md)
+provides a regression case for menus owned by non-activating windows. In an isolated Electron 41.2.0 Windows fixture,
+an unfocusable avatar opened a native menu while an external application's window remained foreground. A real left-click
+on that same external window left the menu open: there was no foreground transition to trigger dismissal. Temporarily
+making the owner focusable and focusing it before opening the menu, then restoring it on close or cancellation, passed
+that fixture's native acceptance. This finding does not establish a defect or an acceptance pass in Work Fleet.
+
+Work Fleet uses different native menu paths: Windows already calls `SetForegroundWindow` on the notification owner
+before opening its WPF `ContextMenu`; macOS attaches an `NSMenu` to its status item; Linux uses GTK menus through
+AppIndicator or `Gtk.StatusIcon`. Keep those platform boundaries when investigating a failure. The Electron fix is
+reference evidence, not a patch to transplant into these hosts.
+
+The Windows `--tray-menu` probe posts `WM_ACTIVATEAPP` to simulate another app taking the foreground. This checks how
+the menu reacts to deactivation, but cannot prove that opening it established the required native focus or that a real
+outside click dismisses it. Renderer/CDP clicks alone cannot establish that OS behavior either.
+
+For real-input acceptance, use an isolated profile and each platform's normal tray or menu-bar entry:
+
+1. Put an external application's window in the foreground, then open Work Fleet's menu. Observe the native menu and
+   actual foreground/key-window state; a renderer screenshot alone is insufficient.
+2. Left-click that same external window, including a case where it remained foreground while the menu opened.
+   Confirm that the menu closes and no Work Fleet action runs. Once the external app has focus, menu cleanup must
+   leave it there.
+3. Repeat with a different external window and empty desktop space. Check dismissal, then repeat after hiding and
+   showing Work Fleet's main window.
+4. Reopen and dismiss with Escape; reopen and choose an item. Escape runs no action, and a chosen action runs once
+   after the menu closes. Verify that shortcut suspension is released and that reopening/cancelling repeatedly leaves
+   no stale menu or invisible input blocker. A chosen action may focus its intended Work Fleet view.
+
+Record the OS/window-system version, native menu path, actual foreground/key-window observations, input method and
+result for each case. Linux X11 and native Wayland sessions need separate observations where supported. These steps
+are an acceptance procedure; no Work Fleet real-input Windows, macOS or Linux pass was performed for this feedback.
+
 ## Windows native main window and storage
 
 `node --test tests/cloud-restore.test.js` uses a synthetic FileStore to verify that a full clear leaves only the backup content,
@@ -964,9 +999,11 @@ without which Windows draws the update, data and startup message boxes with clas
 `--tray-menu` opens the tray menu through its own notification-icon callback, posted to the tray's window, and checks the rows, separators, shortcuts and bold default item;
 that it uses the Fluent theme for the Windows mode, is drawn by the Fluent template and shows whole at once, with nothing animated; and that it opens inside the work area at the anchor moved off the taskbar
 (it saves `tray-menu.png`). Keys posted to the tray's window choose an item (Down past a separator, then Enter), as UI Automation does; the item runs once, after the menu has closed.
-Esc, an app-deactivation message to the menu's window (what a click on another app sends) and a second right-click close it without running anything,
+Esc, a posted app-deactivation message to the menu's window and a second right-click close it without running anything,
 and shortcuts are held while it is open and released each time. Whether Windows let the probe come to the front is reported, and SKIPped when it did not;
 the shell gives that permission to the icon's owner, and a menu that closed itself when its own window came to the front was found this way on 2026-10-23.
+For real-input coverage, see [native menu outside-click acceptance](#native-menu-outside-click-acceptance).
+
 Known one-off native probe failures that passed on rerun: the composition probe's "Reopened scene lost input policy" (2026-10-14), the composition cross-process hit tests (2026-10-06 and 2026-10-09),
 and `--wallpaper` desktop-layer step 4 not showing the paper on the first run (2026-10-15). Rerun the single probe before investigating.
 

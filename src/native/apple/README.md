@@ -71,6 +71,10 @@ The Apple version is recorded as `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` i
 be overridden in Local.xcconfig;
 macOS command-line builds always include arm64/x86_64, and the PKG/DMG file names are
 `WorkFleet-<version>-macos-universal`.
+macOS manual update prompts use a bounded activation step without revealing the main window. The host coordinates
+Sparkle's standard windows with the invoking display and floating notes; activation timeout still shows the prompt
+but cannot guarantee focus. Real multi-display, minimized-window and full-screen Spaces acceptance remains manual;
+the isolated presenter checks and their boundaries are in [testing](../../../docs/testing.md).
 `--method app-store-connect` keeps the export local, with no automatic upload; Developer ID can notarize and staple with
 an existing installer identity
 and a Keychain notary profile. Notarizing a DMG also requires the application identity; the scripts contain no private

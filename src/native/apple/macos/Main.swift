@@ -50,15 +50,14 @@ import AppKit
             }
             host.stopped = { [weak self] in self?.desktop?.close(); self?.desktop = nil; self?.attachmentFiles.close() }
             host.finished = { [weak self] in guard let self else { return }; self.terminating = true; NSApplication.shared.reply(toApplicationShouldTerminate: true) }
-            host.cancelled = { message in
+            host.cancelled = { [weak self] message in
                 NSApplication.shared.reply(toApplicationShouldTerminate: false)
+                self?.updates?.resumePresentation()
                 guard let message, !message.isEmpty else { return }
                 // The update window can cover the renderer. Explain a refused quit above Sparkle, after cancelling termination.
-                DispatchQueue.main.async {
-                    let alert = NSAlert(); alert.alertStyle = .warning
-                    alert.messageText = FleetText.text("dialog.quitCancelled"); alert.informativeText = message
-                    alert.addButton(withTitle: FleetText.text("dialog.ok")); NSApp.activate(ignoringOtherApps: true)
-                    alert.runModal()
+                let area = FleetUpdatePresentation.requestedArea()
+                Task { [weak self] in
+                    await self?.updates?.showMessage(title: FleetText.text("dialog.quitCancelled"), message: message, warning: true, on: area)
                 }
             }
             // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.
@@ -113,7 +112,8 @@ import AppKit
         case "data.reveal": NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: try FleetProtocol.text(args, "path", 4096), isDirectory: true)]); return NSNull()
         case "update.state": return updates?.snapshot() ?? [:]
         case "update.check":
-            if let updates { Task { await updates.check() } }
+            let area = FleetUpdatePresentation.requestedArea(owner: window)
+            if let updates { Task { await updates.check(on: area) } }
             return updates?.snapshot() ?? [:]
         // Sparkle's own dialogs download and install, so the page never asks for these on macOS.
         default: throw FleetFailure("unsupported-method", "The native host does not support this operation.")
@@ -122,14 +122,8 @@ import AppKit
     /// The menu bar asks once: no newer release gets a short answer here; a newer one opens Sparkle's update dialog.
     @objc private func checkUpdates() {
         guard let updates else { return }
-        Task {
-            await updates.check()
-            guard updates.status == "up_to_date" || updates.status == "failed" else { return }
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            let alert = NSAlert(); alert.messageText = FleetText.text("dialog.updateTitle")
-            alert.informativeText = updates.status == "up_to_date" ? FleetText.text("dialog.upToDate", ["version": updates.currentText]) : updates.error?.message ?? FleetText.text("dialog.updateFailed")
-            alert.addButton(withTitle: FleetText.text("dialog.ok")); alert.runModal()
-        }
+        let area = FleetUpdatePresentation.requestedArea()
+        Task { await updates.check(on: area, showResult: true) }
     }
     func windowDidMove(_ notification: Notification) { shell?.observe(window) }
     func windowDidResize(_ notification: Notification) { shell?.observe(window) }
@@ -153,6 +147,7 @@ import AppKit
     }
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         shell?.flush()
+        updates?.suspendPresentation()
         if terminating || host == nil { return .terminateNow }; Task { await host?.prepareClose() }; return .terminateLater
     }
     func application(_ application: NSApplication, open urls: [URL]) { for url in urls { _ = FleetGoogle.handle(url) } }

@@ -1238,6 +1238,18 @@ and verifies version selection that ignores older per-platform tags, no downgrad
 platforms without the Swift SDK skip it. The Mac job of `macos-package.yml` runs it before signing; it does not go online or use the real app or user data.
 Sparkle's sandboxed install, `feedURLString` and EdDSA key can be verified only on a Mac, by updating a Developer ID notarized old version to a new one.
 
+`python3 -B -m unittest tests.test_macos_update_presentation -v` compiles the production AppKit update presenter.
+It checks activation ordering with synchronous and delayed focus signals, timeout and cancellation cleanup,
+negative monitor coordinates, work-area edges, display removal and center continuity between update stages.
+The window checks create real, never-shown AppKit windows in a separate process: update levels rise above floating
+notes only while active, return to their originals on deactivation/session completion, and leave the hidden main
+window's visibility and frame unchanged. They never open the installed app, read its data or automate the desktop.
+The macOS packaging workflow runs these checks before signing. They do not establish actual WindowServer focus,
+minimization, full-screen Spaces behavior or live Sparkle window discovery. Graphical acceptance still needs manual
+checks from the menu bar and Settings with the main window hidden/minimized, another app active, floating notes
+covering the intended location, and multiple displays including a disconnection during download. Confirm no main
+window restoration, no retained always-on-top window after switching apps, and no late dialog after Quit.
+
 Inspecting the Debug app with CDP during development (it uses the official data directory; close the installed app first):
 
 ```powershell

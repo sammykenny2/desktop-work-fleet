@@ -58,9 +58,11 @@ prefix and numeric version, with no REST API.
   capability it shows only the version and the reason.
 - On Windows, macOS and Linux, the tray gains "Check for updates…" when updates are possible. The native host handles
   it directly, not through `desktop-action`.
-  A click always checks again, then answers in a native dialog: up to date, a new version (version, summary, "Update
+  A click checks again, then answers in a native dialog: up to date, a new version (version, summary, "Update
   and restart"/"Later") or an error. On macOS the dialog activates the app first so it does not open behind other
-  windows. Download progress shows in the tray tooltip. The tray update dialog is untested (2026-10-14).
+  windows. If a macOS Sparkle session is already running, an explicit click presents that session instead of
+  changing its feed during download or installation. Download progress shows in the tray tooltip. See
+  [testing](../testing.md) for the remaining installed-update and graphical validation boundaries.
 - This batch has no automatic check, periodic check or skip-this-version; whether to add them is a SPEC-006 question.
 
 ### Capability gates
@@ -147,6 +149,23 @@ prefix and numeric version, with no REST API.
   save-and-exit path. A future Mac App Store build must not contain Sparkle; a build without Sparkle will be split off
   at store submission (the user agreed). Third-party licenses go into THIRD-PARTY-NOTICES.
   A Sparkle update between two Developer ID notarized macOS versions is not recorded (as of 2026-10-17).
+  - **Presentation (2026-11-02)**: retain the standard user driver and add a host-owned presentation coordinator.
+    The behavioral reference is the maintainer-selected Cats Platform and Cats Bot tray presenters: obtain focus
+    without revealing the main window, release the transient activation window before a parentless native alert,
+    and cancel pending presentation when quitting. The AppKit implementation is independent; no Electron code,
+    UI or assets are imported. Activation is bounded to one second; if macOS refuses focus, still show the requested
+    UI rather than waiting indefinitely. This fallback cannot guarantee foreground ownership.
+  - The invoking work area is captured before the network request. Standard Sparkle windows keep their native
+    sizes, while the coordinator places them on that display, preserves the chosen center between stages and
+    clamps after display removal. It recognizes framework-owned window controllers by bundle identity through
+    public AppKit APIs, not private Sparkle class names or KVC. Sparkle's public
+    [standard-user-driver delegate](https://sparkle-project.org/documentation/api-reference/Protocols/SPUStandardUserDriverDelegate.html)
+    scopes native modal alerts and session cleanup.
+  - Update windows are temporarily above this app's floating notes while it is active. Leaving the app restores
+    the original levels; ending the update restores the original collection behavior too. Only an explicit request
+    performs activation. Native progress and display-change notifications never request focus, reveal the main
+    window or deminiaturize anything. A generation check discards a feed response after a quit request, even if
+    quitting is subsequently refused; a later explicit check is allowed.
 - **Linux (DEB)**: read the package with `dpkg-deb` and check the package name, architecture (`all` or the local
   architecture) and a higher version, then install while the app runs with `pkexec apt-get install -y <local DEB>`, so
   apt adds any new system dependencies; without apt-get, use `pkexec dpkg -i`.

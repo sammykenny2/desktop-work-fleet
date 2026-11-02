@@ -5,8 +5,11 @@ import Sparkle
 /// ADR-044 on macOS. Work Fleet picks the newest `vX.Y.Z` release with the same rules as Windows and Linux, then
 /// hands that release's appcast.xml to Sparkle, whose standard dialogs download, verify (EdDSA and Apple code signing),
 /// install and relaunch. Installing quits through applicationShouldTerminate, which saves drafts first.
-@MainActor final class FleetUpdates: NSObject, SPUUpdaterDelegate {
+@MainActor final class FleetUpdates: NSObject, SPUUpdaterDelegate, SPUStandardUserDriverDelegate {
     private var controller: SPUStandardUpdaterController?
+    private let presentation = FleetUpdatePresentation()
+    private var checking = false
+    private var requestGeneration = 0
     // Read by Sparkle's delegate callback on the main thread right after check() sets it.
     nonisolated(unsafe) private var feed: String?
     private let repository: String, channel: String
@@ -36,7 +39,7 @@ import Sparkle
         status = reasonKey.isEmpty ? "idle" : "unavailable"
         self.lastChecked = lastChecked
         super.init()
-        if reasonKey.isEmpty { controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: nil) }
+        if reasonKey.isEmpty { controller = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: self, userDriverDelegate: self) }
     }
     /// The signing team of the running app; an ad-hoc or unsigned build has none and cannot update itself.
     nonisolated private static func teamIdentifier() -> String? {
@@ -65,27 +68,64 @@ import Sparkle
     private func set(_ next: String) { status = next; publish?(snapshot()) }
 
     /// Resolves the release on GitHub, then lets Sparkle show the update; no newer release means up to date.
-    func check() async {
-        guard capable, let controller, status != "checking" else { return }
+    func check(on area: NSRect?, showResult: Bool = false) async {
+        guard capable, let controller, !checking, !presentation.stopping else { return }
+        checking = true; requestGeneration += 1; let generation = requestGeneration
+        defer { if generation == requestGeneration { checking = false } }
+        // A repeated explicit request reopens Sparkle's existing session, including a minimized download.
+        // It must not replace the feed underneath an update that is already being installed.
+        if controller.updater.sessionInProgress {
+            if await presentation.prepare(on: area) { controller.checkForUpdates(nil) }
+            return
+        }
         error = nil; set("checking")
         do {
             var request = URLRequest(url: URL(string: "https://github.com/\(repository)/releases.atom")!)
             request.setValue("application/atom+xml", forHTTPHeaderField: "Accept")
             request.setValue("WorkFleet/\(currentText)", forHTTPHeaderField: "User-Agent")
             let (data, response) = try await BoundedHTTP(maximum: 2 * 1024 * 1024).send(request)
+            guard generation == requestGeneration, !presentation.stopping else { return }
             if response.statusCode == 429 || (response.statusCode == 403 && response.value(forHTTPHeaderField: "Retry-After") != nil) {
                 throw FleetFailure("rate_limited", FleetText.text("update.rateLimited"))
             }
             guard (200..<300).contains(response.statusCode) else { throw FleetFailure("provider_rejected", FleetText.text("update.providerRejected", ["status": String(response.statusCode)])) }
             let release = try FleetReleaseFeed.latest(data, repository: repository, channel: channel, current: current)
             let now = ISO8601DateFormatter().string(from: Date()); lastChecked = now; recordCheck?(now)
-            guard let release else { set("up_to_date"); return }
-            feed = release.appcast
-            set("update_available")
-            controller.checkForUpdates(nil)
-        } catch let failure as FleetFailure { error = failure; set("failed") }
-        catch { self.error = FleetFailure("offline", FleetText.text("update.offline")); set("failed") }
+            if let release {
+                feed = release.appcast
+                set("update_available")
+                if await presentation.prepare(on: area) { controller.checkForUpdates(nil) }
+                return
+            }
+            set("up_to_date")
+        } catch let failure as FleetFailure {
+            guard generation == requestGeneration, !presentation.stopping else { return }
+            error = failure; set("failed")
+        } catch {
+            guard generation == requestGeneration, !presentation.stopping else { return }
+            self.error = FleetFailure("offline", FleetText.text("update.offline")); set("failed")
+        }
+        guard generation == requestGeneration, showResult else { return }
+        await showMessage(title: FleetText.text("dialog.updateTitle"),
+            message: status == "up_to_date" ? FleetText.text("dialog.upToDate", ["version": currentText]) : error?.message ?? FleetText.text("dialog.updateFailed"), on: area)
     }
+    func showMessage(title: String, message: String, warning: Bool = false, on area: NSRect?) async {
+        guard await presentation.prepare(on: area) else { return }
+        let alert = NSAlert(); alert.messageText = title; alert.informativeText = message
+        if warning { alert.alertStyle = .warning }
+        alert.addButton(withTitle: FleetText.text("dialog.ok")); presentation.show(alert)
+        if controller?.updater.sessionInProgress != true { presentation.endSession() }
+    }
+    func suspendPresentation() {
+        requestGeneration += 1; checking = false; presentation.suspend()
+        if status == "checking" { set("idle") }
+    }
+    func resumePresentation() { presentation.resume() }
+    // Sparkle invokes its user-driver callbacks synchronously on the main thread. Its alerts are parentless;
+    // observe only their modal interval, never another feature's dialogs or private Sparkle class names.
+    nonisolated func standardUserDriverWillShowModalAlert() { MainActor.assumeIsolated { presentation.beginModal() } }
+    nonisolated func standardUserDriverDidShowModalAlert() { MainActor.assumeIsolated { presentation.endModal() } }
+    nonisolated func standardUserDriverWillFinishUpdateSession() { MainActor.assumeIsolated { presentation.endSession() } }
     nonisolated func feedURLString(for updater: SPUUpdater) -> String? { feed }
     nonisolated func updaterDidNotFindUpdate(_ updater: SPUUpdater) { Task { @MainActor in self.set("up_to_date") } }
     nonisolated func updater(_ updater: SPUUpdater, didAbortWithError error: Error) {

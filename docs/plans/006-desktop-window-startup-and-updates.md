@@ -98,8 +98,9 @@ the Pi.
 
 ### Phase 6: macOS updates
 
-- [x] 6.1 Following Q02, add Sparkle 2 (Swift Package) and a custom user driver; update `generate-apple-project.mjs` and THIRD-PARTY-NOTICES.
+- [x] 6.1 Following Q02, add Sparkle 2 (Swift Package) and its standard user driver; update `generate-apple-project.mjs` and THIRD-PARTY-NOTICES.
 - [x] 6.2 macOS updater, status bar item and NSAlert; the Developer ID notarized release flow and manifest.
+- [x] 6.3 Coordinate manual macOS update activation, independent dialog placement and floating-note levels; cover bounded activation, quit cancellation, display removal and property restoration with isolated native checks.
 
 **Deliverables**: C12 and C14 (macOS).
 

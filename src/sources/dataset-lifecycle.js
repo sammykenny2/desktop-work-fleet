@@ -1,7 +1,7 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
 import { datasetFile, datasetRecord, datasetShard, DATASET_SHARDS, encodeDatasetRecord, validateDatasetFile } from './dataset-codec.js';
-import { DatasetProtocol, listDatasetObjects } from './dataset-protocol.js';
+import { DatasetProtocol, listDatasetObjects, visibleDatasetObjects } from './dataset-protocol.js';
 import { revisionRecord } from './revisions.js';
 import { t } from '../i18n/index.js';
 
@@ -14,10 +14,10 @@ export class DatasetLifecycle {
   #store; #journal; #protocol;
   constructor(store, journal) { this.#store = store; this.#journal = journal; this.#protocol = new DatasetProtocol(store, journal); }
 
-  async inspect(signal) {
+  async inspect(signal, expected = null) {
     const [files, fences] = await Promise.all([
-      listDatasetObjects(this.#store, { scope: 'datasets' }, { signal, limit: 16 }),
-      listDatasetObjects(this.#store, { scope: 'fences' }, { signal, limit: 16 }),
+      visibleDatasetObjects(this.#store, { scope: 'datasets' }, expected ? [expected.descriptor.id] : [], { signal, limit: 16 }),
+      visibleDatasetObjects(this.#store, { scope: 'fences' }, expected?.plan.fenceId ? [expected.plan.fenceId] : [], { signal, limit: 16 }),
     ]);
     const candidates = [];
     for (const descriptor of files) {

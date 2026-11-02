@@ -68,7 +68,7 @@ export class DatasetSync {
           this.#binding = found.binding ?? await this.#lifecycle.initialize({ starter: this.#workspace.state.groups.length === 0, signal: this.#abort.signal });
         }
         // A second prepare appearing during our initialization is a conflict, including before either is ready.
-        const discovery = await this.#lifecycle.inspect(this.#abort.signal);
+        const discovery = await this.#lifecycle.inspect(this.#abort.signal, this.#binding);
         requireValue(discovery.phase === 'ready' && discovery.binding.plan.datasetId === this.#binding.plan.datasetId,
           'initialization-conflict', t('errors.sources.initializationConflict'));
       }
@@ -92,7 +92,7 @@ export class DatasetSync {
       this.#status = { phase: this.#latest.complete ? 'idle' : 'syncing', pending: this.#workspace.pendingCount, nextAttemptAt: 0, error: null };
       return this.status;
     } catch (error) {
-      const retryable = ['network', 'rate-limit', 'service-unavailable', 'page-expired', 'upload-session-expired', 'dataset-busy', 'file-missing', 'source-file-missing'].includes(error.code);
+      const retryable = ['network', 'rate-limit', 'service-unavailable', 'page-expired', 'upload-session-expired', 'dataset-busy', 'dataset-visibility', 'file-missing', 'source-file-missing'].includes(error.code);
       const delay = retryable ? Math.max(Math.min(60000, 1000 * 2 ** Math.min(this.#failures++, 6)) * (0.5 + this.#random() * 0.5), error.details?.retryAfterMs ?? 0) : 0;
       this.#status = { phase: this.#closed ? 'stopped' : error.code === 'unauthorized' ? 'needs-login' : retryable ? 'backoff' : 'needs-attention',
         pending: this.#workspace.pendingCount, nextAttemptAt: retryable ? this.#now() + delay : 0,

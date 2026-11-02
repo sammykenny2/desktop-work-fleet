@@ -2,7 +2,7 @@ import { copy, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
 import { sha256, validFileId, validateFile, verifyFile } from './files.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
-import { DatasetProtocol, listDatasetObjects } from './dataset-protocol.js';
+import { DatasetProtocol, listDatasetObjects, visibleDatasetObjects } from './dataset-protocol.js';
 import { t } from '../i18n/index.js';
 
 const same = (a, b) => canonicalJson(a) === canonicalJson(b);
@@ -56,9 +56,12 @@ export class DatasetReset {
       superseded(remote.fences.every(id => id === job.marker.id || job.preview.fences.includes(id))
         && remote.datasets.every(id => job.preview.datasets.includes(id) || id === (own?.binding ?? job.binding)?.descriptor.id));
       if (job.markerPublished) {
-        superseded(remote.fences.includes(job.marker.id));
         try { await verifyFile(job.marker, await this.#store.readFile({ file: job.marker, signal })); }
         catch (error) { if (missing(error)) superseded(false); throw error; }
+        if (!remote.fences.includes(job.marker.id)) {
+          const fences = await visibleDatasetObjects(this.#store, { scope: 'fences' }, [job.marker.id], { signal, limit: 16 });
+          superseded(fences.every(file => file.id === job.marker.id || job.preview.fences.includes(file.id)));
+        }
       } else superseded(job.preview.fences.every(id => remote.fences.includes(id)));
       if (job.binding) {
         try {
@@ -74,8 +77,27 @@ export class DatasetReset {
       }
     };
     await guard();
+    if (['capture-restart', 'audit-restart'].includes(job.phase)) {
+      const capturing = job.phase === 'capture-restart';
+      for (const kind of capturing ? [pageKind, tokenKind] : [`reset-audit-token:${job.operationId}`]) {
+        const rows = (await this.#journal.jobs(kind, { limit: 100 })).rows;
+        for (const row of rows) await this.#journal.deleteJob(row.key);
+        if (rows.length) return copy(job);
+      }
+      await save(capturing ? { phase: 'capture', pageToken: null, pageIndex: 0, captured: 0, retainedFolders: 0, seenFences: [] }
+        : { phase: 'residual-audit', pageToken: null });
+      return copy(job);
+    }
+    const pageOfLegacy = async restart => {
+      try { return await this.#store.listObjects({ query: { scope: 'legacy' }, pageToken: job.pageToken, signal }); }
+      catch (error) {
+        if (error.code !== 'page-expired' || !job.pageToken) throw error;
+        // Capture can restart only before publication. A post-publication audit never adds deletion targets.
+        await save({ phase: restart, pageToken: null }); return null;
+      }
+    };
     if (job.phase === 'capture') {
-      const page = await this.#store.listObjects({ query: { scope: 'legacy' }, pageToken: job.pageToken, signal });
+      const page = await pageOfLegacy('capture-restart'); if (!page) return copy(job);
       invalid(Array.isArray(page.files) && page.files.length <= 100 && !page.incomplete
         && page.files.every(file => validFileId(file.id) && typeof file.folder === 'boolean' && file.id !== job.marker.id));
       const next = page.nextPageToken ?? null;
@@ -131,7 +153,7 @@ export class DatasetReset {
     }
     if (job.phase === 'residual-audit') {
       // Report late files without widening the captured deletion set. This paged audit runs only for an explicit reset.
-      const page = await this.#store.listObjects({ query: { scope: 'legacy' }, pageToken: job.pageToken, signal });
+      const page = await pageOfLegacy('audit-restart'); if (!page) return copy(job);
       invalid(Array.isArray(page.files) && page.files.length <= 100 && !page.incomplete
         && page.files.every(file => validFileId(file.id) && typeof file.folder === 'boolean' && typeof file.dataset === 'boolean'));
       const next = page.nextPageToken ?? null;

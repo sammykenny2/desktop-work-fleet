@@ -29,6 +29,18 @@ export async function listDatasetObjects(store, query, { signal, limit = DATASET
   return files;
 }
 
+/** A verified create can precede its appearance in a filtered list. Missing expected IDs are retryable, not conflicts. */
+export async function visibleDatasetObjects(store, query, expected, options = {}) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const files = await listDatasetObjects(store, query, options);
+    if (expected.every(id => files.some(file => file.id === id))) return files;
+    if (attempt < 3) {
+      await new Promise(resolve => setTimeout(resolve, 50 * 2 ** attempt)); options.signal?.throwIfAborted();
+    }
+  }
+  requireValue(false, 'dataset-visibility', t('errors.sources.datasetVisibility'));
+}
+
 /** Coverage is exact and only applies to captured immutable inputs. No ancestry or timestamp winner is inferred. */
 export function mergeDatasetInputs(inputs, purges = []) {
   capacity(inputs.length <= DATASET_LIMITS.inputs);
@@ -92,9 +104,9 @@ export class DatasetProtocol {
     try {
       const [root, actual, ready, fences, actualPlan, descriptors] = await Promise.all([
         this.#store.getObject({ id: plan.rootId, signal }), this.#store.getObject({ id: descriptor.id, signal }),
-        this.#store.getObject({ id: plan.readyId, signal }), listDatasetObjects(this.#store, { scope: 'fences' }, { signal, limit: 16 }),
+        this.#store.getObject({ id: plan.readyId, signal }), visibleDatasetObjects(this.#store, { scope: 'fences' }, plan.fenceId ? [plan.fenceId] : [], { signal, limit: 16 }),
         this.read(descriptor, signal),
-        listDatasetObjects(this.#store, { scope: 'datasets' }, { signal, limit: 16 }),
+        visibleDatasetObjects(this.#store, { scope: 'datasets' }, [descriptor.id], { signal, limit: 16 }),
       ]);
       changed(descriptors.some(file => equal(file, descriptor)));
       for (const file of descriptors) if (file.datasetId !== plan.datasetId) {

@@ -67,6 +67,38 @@ test('reset resumes exact capture pages, uncertain fence creation and lost delet
   assert.ok(![...provider.files.keys()].some(id => id.startsWith('old-')));
 });
 
+test('expired capture and audit tokens restart only their own enumeration after reopen', async () => {
+  const provider = new DatasetTestProvider(), first = await local(); legacy(provider, 205);
+  let reset = new DatasetReset(provider, first.storage); await reset.begin(await reset.preview()); await reset.step();
+  const listing = provider.listObjects.bind(provider); let expire = true;
+  provider.listObjects = async args => {
+    if (expire && args.query.scope === 'legacy' && args.pageToken) { expire = false; throw Object.assign(new Error('expired'), { code: 'page-expired' }); }
+    return listing(args);
+  };
+  reset = new DatasetReset(provider, (await local(first.records)).storage);
+  await reset.step(); assert.equal((await reset.status()).phase, 'capture-restart');
+  assert.equal(provider.stats.creates, 0);
+  const captured = await run(reset, 'fence'); assert.equal(captured.captured, 205);
+  await run(reset, 'residual-audit');
+  legacy(provider, 220); // Late old-client writes may be reported, but never join the deletion journal.
+  const deleted = provider.stats.deletes; await reset.step(); expire = true;
+  await reset.step(); assert.equal((await reset.status()).phase, 'audit-restart');
+  const completed = await run(new DatasetReset(provider, (await local(first.records)).storage));
+  assert.equal(completed.residualLegacy, true); assert.equal(completed.deleted, 205);
+  assert.equal(provider.stats.deletes, deleted); assert.ok(provider.files.has('old-000219'));
+});
+
+test('reset tolerates delayed listing of its verified fence without accepting a foreign fence', async () => {
+  const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider);
+  const reset = new DatasetReset(provider, storage); await reset.begin(await reset.preview()); await run(reset, 'initialize');
+  const marker = (await reset.status()).marker.id, listing = provider.listObjects.bind(provider); let hidden = 2;
+  provider.listObjects = async args => {
+    const page = await listing(args);
+    return args.query.scope === 'fences' && hidden-- > 0 ? { ...page, files: page.files.filter(file => file.id !== marker) } : page;
+  };
+  assert.equal((await run(reset)).phase, 'complete');
+});
+
 test('a competing fence or destructive old-client reset stops cleanup without recreating the new generation', async () => {
   for (const action of ['foreign-fence', 'delete-all']) {
     const provider = new DatasetTestProvider(), { storage } = await local(); legacy(provider, 3);

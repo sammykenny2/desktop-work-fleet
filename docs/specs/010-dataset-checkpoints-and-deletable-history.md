@@ -434,6 +434,16 @@ but does not block editing an already usable local view. The reset confirmation 
 device, including devices with reset/Google-overwrite jobs. No compatible safety export is falsely required for
 unreadable legacy data; for readable current data, existing safety-backup requirements still apply.
 
+An expired capture page token restarts metadata capture before fence publication: discard only that attempt's local
+page/token journals in bounded steps, then enumerate from the first page. No new dataset exists yet. An expired
+post-cleanup audit token restarts only the audit and retains any observed residual warning; it never adds deletion
+targets. This follows Drive's [files.list continuation contract](https://developers.google.com/workspace/drive/api/reference/rest/v3/files/list).
+Exact-ID read-back and filtered-list visibility are separate. If a verified new descriptor/fence is absent from a
+list, retry up to four observations (50/100/200 ms delays), then return retryable `dataset-visibility` and retain the
+journal. Absence alone is not an initialization conflict or superseding reset. A verified missing root/marker or an
+observed foreign fence still stops the affected operation. This bounded retry does not prove arbitrary stale-list
+safety; real-provider publication and concurrent-writer acceptance remains open.
+
 New data is never created below an old captured folder. Every deletion revalidates account, expected fence and
 dataset, and is limited to the captured IDs. On a new fence/generation or loss of the reset's own marker, stop the
 old job. Two competing initializers do not elect a winner by clock; show an initialization conflict and preserve

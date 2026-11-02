@@ -66,6 +66,24 @@ test('concurrent independent initialization plans stay a conflict; no timestamp 
   assert.equal(c.workspace.snapshot.groups.length, 0);
 });
 
+test('initial publication list lag retries instead of offering a destructive reset', async () => {
+  for (const lag of [2, 20]) {
+    const provider = new DatasetTestProvider(), c = await client(provider), listing = provider.listObjects.bind(provider);
+    let hidden = lag;
+    provider.listObjects = async args => {
+      const page = await listing(args);
+      return args.query.scope === 'datasets' && page.files.length && hidden-- > 0 ? { ...page, files: [] } : page;
+    };
+    if (lag === 2) await c.sync.sync();
+    else {
+      await assert.rejects(c.sync.sync(), { code: 'dataset-visibility' }); assert.equal(c.sync.status.phase, 'backoff');
+      hidden = 0; await c.sync.sync({ force: true });
+    }
+    assert.equal(c.workspace.snapshot.groups.length, 1);
+    assert.equal([...provider.files.values()].filter(item => item.file.kind === 'dataset').length, 1);
+  }
+});
+
 test('current sync reopens from records, preserves unsent edits and publishes one history body per save', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider);
   await a.sync.sync();

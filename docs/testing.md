@@ -98,7 +98,9 @@ This component check does not verify native sign-in, renderer transfers or real 
   isolated dataset, and retain late uncaptured files/obsolete folder containers. They reopen the real record
   adapter after capture, lose fence/deletion replies, inject a competing fence and simulate the old unfiltered
   delete-all operation. The old FileSync fixture stops on the new fence. None uses an installed old client or
-  live Google account. Transition tests separately check rejoin previews, stale previews, reset restart and local-only
+  live Google account. Expired capture/audit tokens restart after reopen without widening post-publication deletion;
+  delayed descriptor/fence listings retry, sustained absence backs off, and real competing plans remain conflicts.
+  Transition tests separately check rejoin previews, stale previews, reset restart and local-only
   retirement of superseded journals; no discarded local identity is uploaded to the joined generation.
 - Dataset backup tests distinguish complete/current-only manifests, hydrate cold remote history and old attachments,
   reject an oversized history inventory before uncached body reads, abort capture on purge and preserve the last

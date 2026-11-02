@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.8
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Fix reset and sync rejecting verified ordinary files solely because their Google Drive MIME label differs. Dataset JSON now uses consistent JSON upload types on every platform.
+
+- Dataset verification: accept ordinary media labels independently of protocol identity. Continue checking file ID, parent, application-data ownership, private properties, size, SHA-256 and decoded contents. Folders retain exact typing, and Google-native documents and shortcuts cannot stand in for uploaded byte files.
+- Uploads: use `application/json` for dataset JSON metadata, resumable initiation and content chunks. Attachments and legacy opaque files retain their binary upload type.
+- Pending reset: read an already-created valid file under its reserved ID even when its ordinary MIME label differs. No replacement, additional data reset, migration or broader deletion scope is required.
+- Platform parity: apply the same media classification to JavaScript, macOS/iOS, Windows, Linux and Android. Sparse empty initialization from 0.5.7 remains unchanged.
+- Verification limits: the published 0.5.7 validator reproduces `dataset-response-type` with valid unchanged metadata labeled as JSON. Native transport and shared fixtures verify the correction, but the actual media label from the reported live account and authenticated reset completion remain unobserved.
+
 ## 0.5.7
 
 Platforms: Windows, Linux, macOS, Android.

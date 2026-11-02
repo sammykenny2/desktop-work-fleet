@@ -1,7 +1,10 @@
 """Bounded account-scoped record transactions; no conversion of old workspace blobs."""
 import json
 import re
+import sqlite3
+from functools import wraps
 
+import datafailure
 import protocol as p
 
 FORMAT = "work-fleet-local-records"
@@ -21,6 +24,16 @@ def require(condition):
 
 def encode(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"), sort_keys=True, allow_nan=False).encode("utf-8")
+
+
+def read_failure(action):
+    @wraps(action)
+    def read(*args, **kwargs):
+        try:
+            return action(*args, **kwargs)
+        except sqlite3.DatabaseError as error:
+            raise datafailure.failure(datafailure.classify(error)) from error
+    return read
 
 
 def validate(data, profile):
@@ -61,6 +74,7 @@ class RecordStore:
             CREATE INDEX IF NOT EXISTS record_entity ON record_entries(profile,collection,entity,ordinal DESC,id DESC);
         """)
 
+    @read_failure
     def record_status(self):
         with self.lock:
             row = self.connection.execute("SELECT revision,commit_id,digest FROM record_heads WHERE profile=?", (self.profile,)).fetchone()
@@ -72,6 +86,7 @@ class RecordStore:
                 return {"format": "legacy-workspace", "profileId": self.profile}
             return None
 
+    @read_failure
     def record_entry(self, collection, identity):
         require(collection in COLLECTIONS and key(identity))
         with self.lock:
@@ -84,6 +99,7 @@ class RecordStore:
             require(value.get("collection") == collection and value.get("key") == identity)
             return data
 
+    @read_failure
     def record_page(self, query):
         require(isinstance(query, dict) and "expectedRevision" in query
                 and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly"})

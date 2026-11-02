@@ -124,6 +124,22 @@ class RecordStorageTests(unittest.TestCase):
         self.assertEqual(error.exception.code, "incompatible-local-data")
         self.assertEqual(self.db.connection.execute("SELECT data FROM records").fetchone()[0], old)
 
+    def test_record_reads_classify_database_failures_after_open(self):
+        original = self.db.connection
+        for message, cause in [("database disk image is malformed", "data-damaged"), ("database is locked", "data-in-use"),
+                               ("database or disk is full", "data-full"), ("unable to open database file", "data-denied")]:
+            def execute(*_args):
+                raise sqlite3.DatabaseError(message)
+            self.db.connection = types.SimpleNamespace(execute=execute)
+            try:
+                for read in [self.db.record_status, lambda: self.db.record_entry("current", "one"),
+                             lambda: self.db.record_page(dict(collection="current", expectedRevision=None))]:
+                    with self.assertRaises(self.protocol.Failure) as error:
+                        read()
+                    self.assertEqual(error.exception.code, cause)
+            finally:
+                self.db.connection = original
+
     def test_attachment_failure_rolls_back_records_and_receipt(self):
         self.commit(self.batch(), None)
         data = b"atomic attachment"

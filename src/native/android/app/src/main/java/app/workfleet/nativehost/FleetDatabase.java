@@ -31,18 +31,15 @@ final class FleetDatabase implements AutoCloseable {
     private final RecordStore records;
     final String profile;
     FleetDatabase(Context context, String profile) throws Exception {
+        this(context, profile, null);
+    }
+    // Instrumented storage probes supply a synthetic key and isolated Context; production uses AndroidKeyStore.
+    FleetDatabase(Context context, String profile, SecretKey testKey) throws Exception {
         this.profile = profile;
         Protocol.require(profile.equals("local") || profile.matches("google:[A-Za-z0-9_-]{1,255}"), "invalid-profile", "The workspace ID is invalid.");
         owner = new RandomAccessFile(new File(context.getFilesDir(), "owner.lock"), "rw"); lock = owner.getChannel().tryLock();
         Protocol.require(lock != null, "native-already-open", "The workspace is already open in another window.");
-        KeyStore vault = KeyStore.getInstance("AndroidKeyStore"); vault.load(null); String alias = "work-fleet-storage-v1";
-        if (!vault.containsAlias(alias)) {
-            KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
-            generator.init(new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
-                .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build());
-            generator.generateKey();
-        }
-        key = (SecretKey) vault.getKey(alias, null);
+        key = testKey == null ? storageKey() : testKey;
         helper = new SQLiteOpenHelper(context, "fleet.sqlite3", null, 1) {
             @Override public void onConfigure(SQLiteDatabase database) { database.enableWriteAheadLogging(); database.execSQL("PRAGMA synchronous=FULL"); }
             @Override public void onCreate(SQLiteDatabase database) {
@@ -54,6 +51,16 @@ final class FleetDatabase implements AutoCloseable {
             @Override public void onUpgrade(SQLiteDatabase database, int oldVersion, int newVersion) { throw new IllegalStateException("Unsupported schema"); }
         };
         db = helper.getWritableDatabase(); db.delete("staging", null, null); records = new RecordStore(this, db, profile);
+    }
+    private static SecretKey storageKey() throws Exception {
+        KeyStore vault = KeyStore.getInstance("AndroidKeyStore"); vault.load(null); String alias = "work-fleet-storage-v1";
+        if (!vault.containsAlias(alias)) {
+            KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
+            generator.init(new KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM).setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE).setKeySize(256).build());
+            generator.generateKey();
+        }
+        return (SecretKey) vault.getKey(alias, null);
     }
     String scope(String kind, String id) { return profile.length() + ":" + profile + "|" + kind + "|" + id; }
     byte[] protect(byte[] bytes, String scope) throws Exception {
@@ -68,7 +75,16 @@ final class FleetDatabase implements AutoCloseable {
     private byte[] read(String table, String field, String kind, String id) throws Exception {
         String where = "profile=? AND " + field + "=?"; String[] args = { profile, id };
         if (kind != null) { where += " AND kind=?"; args = new String[] { profile, id, kind }; }
+        long size;
+        try (Cursor metadata = db.query(table, new String[] { "length(data)" }, where, args, null, null, null)) {
+            if (!metadata.moveToFirst()) return null;
+            size = metadata.getLong(0);
+            int maximum = table.equals("attachments") ? Protocol.ATTACHMENT : table.equals("records") ? Protocol.RECORD : 65536;
+            Protocol.require(size >= 28 && size <= (long) maximum + 28, "storage-integrity", "The encrypted local item has an invalid size.");
+        }
         try (Cursor cursor = db.query(table, new String[] { "data" }, where, args, null, null, null)) {
+            Protocol.require(cursor instanceof SQLiteCursor, "native-storage", "The local item read did not finish.");
+            ((SQLiteCursor) cursor).setWindow(new CursorWindow("work-fleet-item", size + 4096));
             return cursor.moveToFirst() ? unprotect(cursor.getBlob(0), scope(table.equals("records") ? id : table.equals("attachments") ? "attachment" : "secret:" + kind, table.equals("records") ? "record" : id)) : null;
         }
     }

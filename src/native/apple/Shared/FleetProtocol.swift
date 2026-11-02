@@ -26,8 +26,8 @@ enum FleetProtocol {
     }
     static func encode(_ value: Any) throws -> Data { try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .withoutEscapingSlashes]) }
     static func json(_ bytes: Data) throws -> [String: Any] {
-        var guardParser = JsonGuard(bytes: Array(bytes)); try guardParser.validate()
-        guard let value = try JSONSerialization.jsonObject(with: bytes) as? [String: Any] else { throw FleetFailure("invalid-json", "The JSON must be a single object.") }; return value
+        var parser = JsonGuard(bytes: Array(bytes))
+        guard let value = try parser.parse() as? [String: Any] else { throw FleetFailure("invalid-json", "The JSON must be a single object.") }; return value
     }
     static func digest(_ bytes: Data) -> String { SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined() }
     static func isDigest(_ text: String) -> Bool { text.range(of: "^[0-9a-f]{64}$", options: .regularExpression) != nil }
@@ -41,35 +41,43 @@ enum FleetProtocol {
             while position < bytes.count {
                 let byte = bytes[position]; position += 1
                 if byte == 34 {
-                    guard let value = try JSONSerialization.jsonObject(with: Data(bytes[start..<position]), options: .fragmentsAllowed) as? String else { throw FleetFailure("invalid-json", "A JSON string isn't valid.") }; return value
+                    // Foundation strips an initial U+FEFF from decoded JSON strings, even when escaped.
+                    // Prefix inside the JSON string, then remove only our prefix after decoding.
+                    let prefixed = Data([34, 120] + bytes[(start + 1)..<position])
+                    guard let value = try JSONSerialization.jsonObject(with: prefixed, options: .fragmentsAllowed) as? String else { throw FleetFailure("invalid-json", "A JSON string isn't valid.") }
+                    return String(value.unicodeScalars.dropFirst())
                 }
                 if byte == 92 { try FleetProtocol.require(position < bytes.count, "invalid-json", "A JSON string isn't finished."); position += 1 }
                 else { try FleetProtocol.require(byte >= 32, "invalid-json", "A JSON string contains an invalid character.") }
             }
             throw FleetFailure("invalid-json", "A JSON string isn't finished.")
         }
-        mutating func value(_ depth: Int) throws {
+        mutating func value(_ depth: Int) throws -> Any {
             whitespace(); try FleetProtocol.require(depth <= 128 && position < bytes.count, "invalid-json", "The JSON is nested too deeply or isn't valid.")
             switch bytes[position] {
             case 123:
-                position += 1; whitespace(); var names = Set<String>()
-                if position < bytes.count && bytes[position] == 125 { position += 1; return }
+                position += 1; whitespace(); var names = Set<String>(), object: [String: Any] = [:]
+                if position < bytes.count && bytes[position] == 125 { position += 1; return object }
                 while true {
                     let name = try string(); try FleetProtocol.require(names.insert(name).inserted, "invalid-json", "A JSON field appears twice.")
-                    try take(58); try value(depth + 1); whitespace()
-                    if position < bytes.count && bytes[position] == 125 { position += 1; return }; try take(44)
+                    try take(58); object[name] = try value(depth + 1); whitespace()
+                    if position < bytes.count && bytes[position] == 125 { position += 1; return object }; try take(44)
                 }
             case 91:
-                position += 1; whitespace(); if position < bytes.count && bytes[position] == 93 { position += 1; return }
-                while true { try value(depth + 1); whitespace(); if position < bytes.count && bytes[position] == 93 { position += 1; return }; try take(44) }
-            case 34: _ = try string()
+                position += 1; whitespace(); var array: [Any] = []
+                if position < bytes.count && bytes[position] == 93 { position += 1; return array }
+                while true { array.append(try value(depth + 1)); whitespace(); if position < bytes.count && bytes[position] == 93 { position += 1; return array }; try take(44) }
+            case 34: return try string()
             default:
                 let start = position
                 while position < bytes.count && ![9, 10, 13, 32, 44, 93, 125].contains(bytes[position]) { position += 1 }
                 try FleetProtocol.require(position > start, "invalid-json", "A JSON value isn't valid.")
-                _ = try JSONSerialization.jsonObject(with: Data(bytes[start..<position]), options: .fragmentsAllowed)
+                return try JSONSerialization.jsonObject(with: Data(bytes[start..<position]), options: .fragmentsAllowed)
             }
         }
-        mutating func validate() throws { try value(0); whitespace(); try FleetProtocol.require(position == bytes.count, "invalid-json", "The JSON has extra data at the end.") }
+        mutating func parse() throws -> Any {
+            let result = try value(0); whitespace()
+            try FleetProtocol.require(position == bytes.count, "invalid-json", "The JSON has extra data at the end."); return result
+        }
     }
 }

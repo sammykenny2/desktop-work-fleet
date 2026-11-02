@@ -45,6 +45,7 @@ android {
         targetSdk = 36
         versionCode = 405
         versionName = "0.4.5"
+        testInstrumentationRunner = "app.workfleet.nativehost.StorageProbe"
     }
     // host.info reports versionName, which Settings shows and backups record.
     buildFeatures { buildConfig = true }

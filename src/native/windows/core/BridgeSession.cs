@@ -98,7 +98,8 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         {
           HostError specific => (specific.Code, specific.Message),
           // SPEC-006 DO: a database that opened but cannot be read names its cause, which the page explains.
-          SqliteException when method == "storage.load" && DataFailure.Classify(error) is { } cause => (cause, DataFailure.Describe(cause).Message),
+          SqliteException when method is "storage.load" or "storage.records.status" or "storage.records.get" or "storage.records.page"
+            && DataFailure.Classify(error) is { } cause => (cause, DataFailure.Describe(cause).Message),
           CryptographicException => (method?.StartsWith("backup.", StringComparison.Ordinal) == true ? "backup-vault-unavailable" : "vault-unavailable",
             "Windows secure storage couldn't decrypt this. Try again with the original Windows account."),
           ObjectDisposedException => ("native-closed", "The native workspace is closed. Reopen it."),

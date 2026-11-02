@@ -196,6 +196,9 @@ final class FleetDatabase {
 }
 
 extension FleetDatabase {
+    private func readingRecords<T>(_ action: () throws -> T) throws -> T { try synchronized {
+        do { return try action() } catch { throw Self.classified(database, error) }
+    } }
     private static let recordFormat = "work-fleet-local-records", batchBytes = 8 * 1024 * 1024
     private static let collections: Set<String> = ["meta", "current", "history", "draft", "outbox", "control", "job"]
     private static func recordRequire(_ condition: Bool) throws {
@@ -210,7 +213,7 @@ extension FleetDatabase {
         try execute("CREATE TABLE IF NOT EXISTS record_entries(profile TEXT NOT NULL,collection TEXT NOT NULL,id TEXT NOT NULL,entity TEXT NOT NULL,ordinal INTEGER NOT NULL,data BLOB NOT NULL,PRIMARY KEY(profile,collection,id));")
         try execute("CREATE INDEX IF NOT EXISTS record_order ON record_entries(profile,collection,ordinal DESC,id DESC); CREATE INDEX IF NOT EXISTS record_entity ON record_entries(profile,collection,entity,ordinal DESC,id DESC);")
     }
-    func recordStatus() throws -> [String: Any]? { try synchronized {
+    func recordStatus() throws -> [String: Any]? { try readingRecords {
         if let revision = try scalar("SELECT revision FROM record_heads WHERE profile=?", [profile]) as? Int64 {
             guard let id = try scalar("SELECT commit_id FROM record_heads WHERE profile=?", [profile]) as? String,
                 let digest = try scalar("SELECT digest FROM record_heads WHERE profile=?", [profile]) as? String else {
@@ -224,14 +227,14 @@ extension FleetDatabase {
         }
         return nil
     } }
-    func recordEntry(_ collection: String, _ id: String) throws -> Data? { try synchronized {
+    func recordEntry(_ collection: String, _ id: String) throws -> Data? { try readingRecords {
         try Self.recordRequire(Self.collections.contains(collection) && Self.recordKey(id))
         guard let encrypted = try scalar("SELECT data FROM record_entries WHERE profile=? AND collection=? AND id=?", [profile, collection, id]) as? Data else { return nil }
         let bytes = try open(encrypted, "entry:" + collection, id), value = try FleetProtocol.json(bytes)
         try Self.recordRequire(value["collection"] as? String == collection && value["key"] as? String == id)
         return bytes
     } }
-    func recordPage(_ query: [String: Any]) throws -> Data { try synchronized {
+    func recordPage(_ query: [String: Any]) throws -> Data { try readingRecords {
         try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly"]))
         let keysOnly = query["keysOnly"] as? Bool ?? false
         if let flag = query["keysOnly"] { try Self.recordRequire(flag is NSNumber && CFGetTypeID(flag as CFTypeRef) == CFBooleanGetTypeID()) }

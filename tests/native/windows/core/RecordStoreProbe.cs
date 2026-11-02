@@ -102,6 +102,22 @@ static class RecordStoreProbe
       Fails(() => db.CommitEntries(db.Stage("workspace", transaction, LocalDatabase.Digest(transaction)), null, []), "incompatible-local-data");
       Require(db.ReadRecord("workspace")!.SequenceEqual(bytes));
     });
+    Test("record read failures retain the desktop recovery classification", () =>
+    {
+      var isolated = Path.Combine(parent, "record-read-failure");
+      using var db = new LocalDatabase(isolated, "local"); using var bridge = new BridgeSession(db);
+      using var connection = new SqliteConnection($"Data Source={Path.Combine(isolated, "fleet.sqlite3")};Pooling=False"); connection.Open();
+      using var command = connection.CreateCommand();
+      command.CommandText = "DROP TABLE record_heads; DROP TABLE record_entries;"; command.ExecuteNonQuery();
+      foreach (var method in new[] { "storage.records.status", "storage.records.get", "storage.records.page" })
+      {
+        var request = JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid().ToString("D"), method,
+          @params = new { collection = "current", key = "one", expectedRevision = (long?)null } });
+        using var response = JsonDocument.Parse(bridge.Dispatch(request));
+        Require(!response.RootElement.GetProperty("ok").GetBoolean());
+        Require(response.RootElement.GetProperty("error").GetProperty("code").GetString() == "data-unreadable");
+      }
+    });
     return count;
   }
 }

@@ -55,6 +55,9 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   Metadata-only pages omit values, and attachment deletion rolls back with failed row writes. Exact replay
   cannot restore deleted bytes from extra staging. The Linux fixture also rejects any payload decryption during
   a metadata-only read; browser and Apple/Windows probes cover the same projection and deletion receipt contract.
+  Apple round trips preserve leading literal/escaped U+FEFF and combining scalars through encrypted SQLite and
+  reopen. Linux/Apple read-failure fixtures and the Windows core bridge probe cover SPEC-006 classification for
+  record status/get/page after a database opened. Windows execution requires its CI/native runner.
 - Current Workspace tests cover unknown ancestry as a conservative conflict, repeated saves with bounded heads,
   self-contained unsaved baselines stored separately from edited content, two-row subsequent typing commits,
   5 MiB note save/edit/reopen in local and Google profiles, byte-heavy bulk rollback below the row-count threshold,
@@ -62,6 +65,13 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
   failed/double acknowledgement, competing writers and interrupted bulk generation activation. The browser probe
   also saves/reopens this Workspace through actual IndexedDB and continues a history page. These are integration
   checks of the active core; they do not establish native latency.
+
+Android's `StorageProbe` instrumentation exercises production SQLite, AES-GCM and CursorWindow with 3 MiB and
+25 MiB attachments before/after reopen. It uses a new cache directory and a synthetic key, never the account database
+or AndroidKeyStore. Build `:app:assembleDebug :app:assembleDebugAndroidTest`, install both APKs on a disposable emulator,
+then run `adb -s SERIAL shell am instrument -w app.workfleet.preview.test/app.workfleet.nativehost.StorageProbe`
+(replace the test package if the configured application ID differs). Require the explicit `PASS Android` result.
+This component check does not verify native sign-in, renderer transfers or real Drive sync.
 - Dataset model tests use an isolated provider with captured files and controllable publication/list/read/delete
   boundaries. They cover concurrent checkpoints, token-before-list bootstrap, retirement during GET, exact retries,
   partial cleanup, terminal purge including a missing history body, bad coverage, every publication/retirement
@@ -120,9 +130,10 @@ python3 -B -m unittest discover -s tests -p 'test_macos_google_drive.py' -v
 - `RecordStoreProbe` is included in the existing Windows core test executable. It adds actual SQLite/DPAPI
   transactions, injected receipt failure, attachment rollback, staging cleanup, paging and profile isolation.
   It requires Windows; adding the probe is not evidence that it ran on this Mac.
-- Android's `:app:compileDebugJavaWithJavac :app:testDebugUnitTest` checks the new adapter compiles and existing
-  host tests pass. New SQLite/Keystore transaction behavior and near-limit cursor windows still need device or
-  emulator verification. The adapter sizes record/staging cursor windows explicitly using Android's
+- Android's `:app:compileDebugJavaWithJavac :app:testDebugUnitTest` checks the adapter compiles and existing
+  host tests pass. `StorageProbe` additionally verifies 3 MiB and maximum-size attachment reads on a disposable
+  emulator with a synthetic key. Production Keystore/bridge/lifecycle integration still needs device verification.
+  The adapter sizes item/record/staging cursor windows explicitly using Android's
   [SQLiteCursor window API](https://developer.android.com/reference/android/database/sqlite/SQLiteCursor#setWindow(android.database.CursorWindow)).
 
 Run `npm run build` and `python3 scripts/testing/serve_preview.py --port 0`, then use the printed loopback origin:

@@ -62,12 +62,40 @@ enum FleetKeychain {
         try require(database.attachment(attachmentID) == nil, "exact replay applied extra attachment bytes")
         try database.reset()
         try require(database.recordStatus() == nil && database.recordEntry("history", "r0") == nil, "reset kept records")
+        let leadingBOM = "\u{FEFF}hello\u{FEFF}"
+        for text in ["", "\u{0301}hello", "\u{FEFF}\u{FEFF}hello", "\u{0000}hello", "e\u{0301}"] {
+            let decoded = try FleetProtocol.json(FleetProtocol.encode(["text": text]))["text"] as? String
+            try require(decoded.map { Array($0.utf8) } == Array(text.utf8), "JSON changed Unicode scalars")
+        }
+        for source in ["{\"text\":\"\\uFEFFhello\\uFEFF\"}", "{\"text\":\"" + leadingBOM + "\"}"] {
+            let decoded = try FleetProtocol.json(Data(source.utf8))["text"] as? String
+            try require(decoded.map { Array($0.utf8) } == Array(leadingBOM.utf8), "JSON changed literal or escaped U+FEFF")
+        }
+        let unicode = try batch(0, [row("current", "bom", 0, leadingBOM), row("history", "bom", 0, leadingBOM)])
+        _ = try commit(unicode, nil)
+        database.close(); database = try FleetDatabase(directory: directory, profile: "local")
+        for collection in ["current", "history"] {
+            let saved = try FleetProtocol.json(database.recordEntry(collection, "bom")!)
+            try require(((saved["value"] as? [String: Any])?["text"] as? String).map { Array($0.utf8) } == Array(leadingBOM.utf8), "SQLite changed U+FEFF")
+        }
+        _ = try commit(batch(1, [row("history", "bom", 1, leadingBOM)]), 0)
+        try database.reset()
         let legacy = try FleetProtocol.encode(["profileId": "local", "revision": 0, "text": "old data retained"])
         try database.commit("workspace", database.stage("workspace", legacy, FleetProtocol.digest(legacy)), nil, [])
         try require(database.recordStatus()?["format"] as? String == "legacy-workspace", "legacy presence not detected")
         do { _ = try commit(batch(0, []), nil); throw FleetFailure("probe", "legacy profile was converted") }
         catch let failure as FleetFailure { try require(failure.code == "incompatible-local-data", "unexpected legacy error") }
         try require(database.record("workspace") == legacy, "legacy data changed")
+        var sabotage: OpaquePointer?
+        try require(sqlite3_open(directory.appendingPathComponent("fleet.sqlite3").path, &sabotage) == SQLITE_OK, "cannot open isolated fault connection")
+        try require(sqlite3_exec(sabotage, "DROP TABLE record_heads; DROP TABLE record_entries;", nil, nil, nil) == SQLITE_OK, "cannot inject read failure")
+        sqlite3_close(sabotage)
+        let reads: [() throws -> Void] = [{ _ = try database.recordStatus() }, { _ = try database.recordEntry("current", "one") },
+            { _ = try database.recordPage(["collection": "current", "expectedRevision": NSNull()]) }]
+        for read in reads {
+            do { try read(); throw FleetFailure("probe", "read failure was accepted") }
+            catch let failure as FleetFailure { try require(failure.code == "data-unreadable", "record read omitted recovery classification") }
+        }
         database.close()
         print("PASS record CAS, replay, immutable history, rollback, paging, reopen, reset and legacy preservation")
     }

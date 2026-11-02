@@ -9,6 +9,18 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.6
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Fix cloud reset rejecting valid Google Drive batch replies. Continuing a saved reset recognizes already removed files and resumes the remaining work.
+
+- Cloud reset: accept the leading line break in real Google Drive multipart responses, along with MIME preambles, epilogues and delimiter padding. Complete results, unique request identities and per-file status checks are still required.
+- Reset recovery: an unverifiable batch reply explains how to continue the saved operation. A retry recognizes files that were already removed and retains the original captured deletion scope.
+- Regression coverage: replay a response captured from a public unauthenticated read-only Google request. Both batch adapters cover a 106-file reset with a rejected reply and reopening; desktop and handheld renderer probes exercise the production multipart parser.
+- Compatibility: data formats are unchanged from 0.5.0 through 0.5.5. Existing pending resets continue without another reset or migration. The shared parser correction also applies to local iOS builds.
+- Preview limits: the live probe verifies response framing without accessing account data. Authenticated Drive reset completion and installed-phone acceptance remain unverified.
+
 ## 0.5.5
 
 Platforms: Windows, Linux, macOS, Android.

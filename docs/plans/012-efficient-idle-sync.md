@@ -54,18 +54,18 @@ Deliverable: bounded metadata persistence with no schema or record-shape changes
 
 ### 2. Bounded idle request path
 
-- [ ] Implement runtime validation eligibility, maintenance exclusion and invalidation
+- [x] Implement runtime validation eligibility, maintenance exclusion and invalidation
   exactly as SPEC-011; warm only after a complete verified reconciliation.
-- [ ] Make one existing changes request; accept only a valid empty terminal page.
+- [x] Make one existing changes request; accept only a valid empty terminal page.
   Replay every other valid page from its original committed cursor through the existing
   guarded path. Preserve existing error, backoff and cursor-recovery behavior.
-- [ ] Add the five-minute full audit and resume handling. Keep write-time validation
+- [x] Add the five-minute full audit and resume handling. Keep write-time validation
   independent of the idle record; do not expand caching to mutation authorization.
-- [ ] Remove the unnecessary second pull in a pass with no publication or required
+- [x] Remove the unnecessary second pull in a pass with no publication or required
   follow-up reconciliation; retain post-publication observation.
-- [ ] Add regression coverage for every fallback and concrete scenario in SPEC-011,
+- [x] Add regression coverage for every fallback and concrete scenario in SPEC-011,
   including old compatible full/sparse fixtures, critical removals and legacy reset events.
-- [ ] Assert the one-request ordinary budget, explicit audit budget and constant local
+- [x] Assert the one-request ordinary budget, explicit audit budget and constant local
   work with fixed current data and 0 / 10,000 / 1,000,000 historical fixture revisions.
 
 Deliverable: the fast path with deterministic safety and cost checks. It is not accepted
@@ -89,11 +89,11 @@ Deliverable: native transport improvements with account isolation and measured l
 
 ### 4. Quiet background checks
 
-- [ ] Separate automatic check activity from applying/downloading/uploading data and
+- [x] Separate automatic check activity from applying/downloading/uploading data and
   manual refresh. Preserve previous completion time; expose failures/pending work.
-- [ ] Coalesce timer/online/visibility/host events and handle one resume check. Preserve
+- [x] Coalesce timer/online/visibility/host events and handle one resume check. Preserve
   immediate follow-up for newly saved work without back-to-back idle polling loops.
-- [ ] Add English and Traditional Chinese catalog entries only where new text is needed.
+- [x] Reuse existing English and Traditional Chinese status entries; no new text is needed.
 - [ ] Cover background empty/audit, delayed/error, manual refresh, incoming change,
   pending upload and resume cases in renderer tests. Check no window activation is added.
 

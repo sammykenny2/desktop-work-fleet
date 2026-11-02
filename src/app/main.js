@@ -113,12 +113,18 @@ const shownText = new Map();
 function setText(selector, text) { shownText.set(selector, text); $(selector).textContent = textOf(text); }
 async function run(action, { duringAdjust = false } = {}) {
   if (nativeClosing) return;
+  const pendingBefore = workspace?.pendingCount ?? 0;
   // A click can enter the queue before adjustment starts; admit owner UI again when its turn actually runs.
   const invoke = () => { if (duringAdjust || !adjustOverlayActive()) return action(); };
   const pending = desktop ? desktop.perform(invoke) : Promise.resolve().then(invoke); activeActions.add(pending);
   try { await pending; }
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
-  finally { activeActions.delete(pending); }
+  finally {
+    activeActions.delete(pending);
+    if (workspace?.pendingCount > pendingBefore) {
+      if (syncBusy || maintenanceWork) syncRequested = true; else void syncGoogle();
+    }
+  }
 }
 function primaryArea(workAreas) { const { x, y, width, height } = workAreas.find(area => area.primary) || workAreas[0]; return { x, y, width, height }; }
 function screenArea() {
@@ -264,6 +270,7 @@ async function initialize() {
     });
     native.bridge.onEvent('host-foreground', () => {
       stopAutomatic?.(); if (automatic && !nativeClosing && !accountBusy) stopAutomatic = startAutomaticBackup(automatic.service);
+      syncService?.resume();
       void syncGoogle();
     });
     await native.bridge.request('host.ready');
@@ -281,7 +288,7 @@ async function initialize() {
   // A hidden page runs its timers only once a minute (WebView2, after one to two minutes in the tray), so the desktop hosts
   // tick every 20 seconds and sync follows that tick while the main window is hidden. Showing it again syncs at once.
   native?.bridge.onEvent('host-tick', () => { if (document.visibilityState === 'hidden') void syncGoogle(); });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void syncGoogle(); });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { syncService?.resume(); void syncGoogle(); } });
   displayBackend = native?.info.displayBackend ?? null;
   // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
   const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed; const reason = native?.info.desktopReason;
@@ -557,8 +564,14 @@ async function syncGoogle(force = false) {
   if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync() || revisions
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
   const sourceSync = syncService; const sourceProfile = profileId;
+  let completed = false;
   const current = () => !nativeClosing && !accountBusy && syncService === sourceSync && profileId === sourceProfile;
-  syncBusy = true; $('#google-sync').disabled = true; setSync('busy', () => t('sync.status.syncing'));
+  syncBusy = true; $('#google-sync').disabled = true;
+  const activity = async () => {
+    if (!current()) return;
+    setSync('busy', () => t('sync.status.syncing')); await flushDraft();
+  };
+  if (force || workspace.pendingCount) setSync('busy', () => t('sync.status.syncing'));
   try {
     if (force && native?.info.capabilities?.vaultUnlock) {
       setSync('busy', () => t('sync.status.preparing'), () => t('sync.detail.unlockKeyring'));
@@ -572,15 +585,16 @@ async function syncGoogle(force = false) {
     await (desktop ? desktop.perform(sync) : sync());
     async function sync() {
       if (!current()) return;
-      await flushDraft();
+      const result = await sourceSync.sync({ force, onActivity: activity });
       if (!current()) return;
-      const result = await sourceSync.sync({ force });
-      if (!current()) return;
+      completed = result?.phase === 'idle';
       if (result?.phase === 'waiting-initialization') {
         setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
       }
-      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
-      await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
+      if (!result?.unchanged) {
+        activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
+        await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
+      }
       if (googleAccount?.paused) {
         const account = await native.bridge.request('google.status');
         if (!current()) return;
@@ -588,8 +602,9 @@ async function syncGoogle(force = false) {
         setText('#storage-note', googleAccount.paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
         if (googleAccount.paused) { setSync('attention', () => t('sync.status.paused'), googleAccount.pauseReason); return; }
       }
-      const pending = workspace.pendingCount; const at = new Date();
+      const pending = workspace.pendingCount; const at = workspace.syncState.lastSuccessfulSyncAt;
       if (pending) setSync('pending', () => plural('sync.status.pending', pending));
+      else if (result?.phase !== 'idle') setSync('busy', () => t('sync.status.syncing'));
       else setSync('ok', () => t('sync.status.syncedAt', { time: formatDate(at, { hour: '2-digit', minute: '2-digit' }) }));
     }
   } catch (error) {
@@ -607,7 +622,11 @@ async function syncGoogle(force = false) {
     setSync(vaultPaused ? 'attention' : 'error', vaultPaused ? () => t('sync.status.paused') : () => t('sync.status.failed'), error.message);
     if (error.code === 'unauthorized' || error.code === 'source-permission') setText('#google-sign-in', () => t('sync.google.signInGoogleAgain'));
   }
-  finally { syncBusy = false; $('#google-sync').disabled = false; }
+  finally {
+    syncBusy = false; $('#google-sync').disabled = false;
+    const again = syncRequested || completed && workspace.pendingCount > 0; syncRequested = false;
+    if (again && current()) queueMicrotask(() => { void syncGoogle(); });
+  }
 }
 
 function resetFailure(error) {

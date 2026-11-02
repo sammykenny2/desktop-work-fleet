@@ -14,6 +14,13 @@ const changed = condition => requireValue(condition, 'dataset-changed', t('error
 const missing = error => ['file-missing', 'source-file-missing'].includes(error.code);
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
 const publicationKey = datasetUploadKey;
+const AUDIT_MS = 5 * 60 * 1000;
+const token = value => typeof value === 'string' && value.length > 0 && value.length <= 8192;
+function changePage(page) {
+  invalid(page && Array.isArray(page.changes) && page.changes.length <= 100
+    && (token(page.nextCursor) && page.cursor === undefined || token(page.cursor) && page.nextCursor === undefined));
+  return page;
+}
 
 /** Account-bound current sync. Retained history never participates in discovery, admission or normal refresh. */
 export class DatasetSync {
@@ -21,10 +28,11 @@ export class DatasetSync {
   #running = null; #closed = false; #abort = new AbortController(); #now; #random; #failures = 0;
   #tailSizes = new Map();
   #uploadAfter = null;
+  #idle = null; #elapsed; #validatedAt = null; #activity = () => {};
   #status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null };
-  constructor({ workspace, storage, fileStore, now = Date.now, random = Math.random }) {
+  constructor({ workspace, storage, fileStore, now = Date.now, elapsed = () => performance.now(), random = Math.random }) {
     requireValue(workspace.currentFormat && typeof fileStore.sourceId === 'string', 'invalid-source', t('errors.sources.sourceIdRequired'));
-    this.#workspace = workspace; this.#storage = storage; this.#now = now; this.#random = random;
+    this.#workspace = workspace; this.#storage = storage; this.#now = now; this.#elapsed = elapsed; this.#random = random;
     this.#store = new Proxy(fileStore, { get: (target, key) => typeof target[key] !== 'function' ? target[key]
       : key === 'allocateFileIds' ? async (count, options = {}) => {
         this.#check(); const result = await target[key](count, { ...options, signal: this.#abort.signal }); this.#check(); return result;
@@ -35,27 +43,72 @@ export class DatasetSync {
   }
   get status() { return copy(this.#status); }
   get binding() { return copy(this.#binding ?? this.#workspace.syncState.dataset ?? null); }
+  invalidateIdle() { this.#idle = null; }
+  resume() {
+    if (this.#idle && (this.#now() < this.#idle.checkedAt || this.#now() - this.#idle.checkedAt >= AUDIT_MS)) this.invalidateIdle();
+  }
   #check() {
     requireValue(!this.#closed && this.#session, 'stale-session', t('errors.sources.sessionEnded'));
     this.#workspace.assertSyncSession(this.#session);
   }
   async stop({ endSession = true } = {}) {
-    this.#closed = true; this.#abort.abort();
+    this.invalidateIdle(); this.#closed = true; this.#abort.abort();
     if (this.#session && endSession) try { await this.#workspace.endSync(this.#session); }
     catch (error) { if (error.code !== 'stale-session') throw error; }
     this.#status.phase = 'stopped';
   }
   async whenIdle() { await this.#running?.catch(() => {}); }
-  sync({ force = false } = {}) {
+  sync({ force = false, onActivity = () => {} } = {}) {
     if (this.#running) return this.#running;
     if (this.#closed) return Promise.reject(new FleetError('stale-session', t('errors.sources.sessionEnded')));
     if (!force && this.#now() < this.#status.nextAttemptAt) return Promise.reject(new FleetError('sync-backoff', t('errors.sources.backoff')));
-    this.#running = this.#run().finally(() => { this.#running = null; }); return this.#running;
+    this.#activity = onActivity;
+    this.#running = this.#run().finally(() => { this.#running = null; this.#activity = () => {}; }); return this.#running;
+  }
+  async #warmIdle() {
+    this.#idle = null;
+    const expected = this.#workspace.syncState, epoch = this.#storage.syncEpoch;
+    if (!this.#latest?.complete || !expected.cursor || expected.pendingCount || expected.localHeads?.length
+      || !DATASET_SHARDS.every(shard => expected.datasetView?.[shard])) return;
+    const reset = await this.#storage.getJob('dataset-reset');
+    if (reset && reset.phase !== 'complete' || await this.#storage.getJob('dataset-initialize')) return;
+    for (const kind of ['dataset-upload', 'dataset-seed-upload', 'dataset-publication', 'dataset-purge', 'dataset-purge-queue'])
+      if ((await this.#storage.jobs(kind, { limit: 1 })).rows.length) return;
+    this.#check();
+    if (epoch === this.#storage.syncEpoch) this.#idle = { expected, epoch, validatedAt: this.#validatedAt, checkedAt: this.#now() };
+  }
+  async #checkIdle() {
+    const cached = this.#idle, state = this.#workspace.syncState;
+    if (!cached || cached.epoch !== this.#storage.syncEpoch || state.pendingCount || state.localHeads?.length
+      || state.cursor !== cached.expected.cursor || !equal(state.dataset, cached.expected.dataset)
+      || !equal(state.datasetView, cached.expected.datasetView)) return false;
+    let page;
+    try { page = changePage(await this.#store.listDatasetChanges({ cursor: state.cursor })); }
+    catch (error) { if (error.code === 'cursor-expired') return false; throw error; }
+    if (page.changes.length || page.nextCursor) return false;
+    const elapsed = this.#elapsed();
+    if (elapsed < cached.validatedAt || elapsed - cached.validatedAt >= AUDIT_MS) {
+      await this.#protocol.assertGeneration(state.dataset.descriptor, state.dataset.plan, this.#abort.signal);
+      cached.validatedAt = this.#elapsed();
+    }
+    this.#check();
+    const committed = await this.#workspace.completeEmptySync(this.#session, state, page.cursor, new Date(this.#now()).toISOString(),
+      () => !this.#closed && this.#idle === cached && this.#storage.syncEpoch === cached.epoch);
+    if (!committed) return false;
+    cached.expected = this.#workspace.syncState; cached.checkedAt = this.#now();
+    this.#latest.cursor = page.cursor;
+    return true;
   }
   async #run() {
-    this.#status = { phase: 'syncing', pending: this.#workspace.pendingCount, nextAttemptAt: 0, error: null };
+    this.#status = { phase: 'checking', pending: this.#workspace.pendingCount, nextAttemptAt: 0, error: null };
     try {
       this.#session ??= await this.#workspace.beginSync(this.#store.sourceId); this.#check();
+      if (await this.#checkIdle()) {
+        this.#failures = 0;
+        this.#status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null, unchanged: true };
+        return this.status;
+      }
+      this.invalidateIdle(); this.#status.phase = 'syncing'; await this.#activity(); this.#check();
       const reset = await this.#storage.getJob('dataset-reset');
       const known = this.#workspace.syncState.dataset;
       requireValue(!reset || reset.phase === 'complete' || reset.ready && (!known || known.plan.datasetId === reset.binding?.plan.datasetId),
@@ -95,13 +148,15 @@ export class DatasetSync {
         }
       }
       this.#uploadAfter = page.next;
-      await this.#pull();
+      if (page.operations.length) await this.#pull();
       if (capacityError) throw capacityError;
       if (this.#latest.complete && !this.#workspace.pendingCount) await this.#workspace.completeSync(this.#session, new Date(this.#now()).toISOString());
+      await this.#warmIdle();
       this.#failures = 0;
       this.#status = { phase: this.#latest.complete ? 'idle' : 'syncing', pending: this.#workspace.pendingCount, nextAttemptAt: 0, error: null };
       return this.status;
     } catch (error) {
+      this.invalidateIdle();
       const retryable = ['network', 'rate-limit', 'service-unavailable', 'page-expired', 'upload-session-expired', 'dataset-busy', 'dataset-visibility', 'file-missing', 'source-file-missing'].includes(error.code);
       const delay = retryable ? Math.max(Math.min(60000, 1000 * 2 ** Math.min(this.#failures++, 6)) * (0.5 + this.#random() * 0.5), error.details?.retryAfterMs ?? 0) : 0;
       this.#status = { phase: this.#closed ? 'stopped' : error.code === 'unauthorized' ? 'needs-login' : retryable ? 'backoff' : 'needs-attention',
@@ -126,8 +181,7 @@ export class DatasetSync {
       try {
         do {
           invalid(!seen.has(cursor)); seen.add(cursor);
-          const page = await this.#store.listDatasetChanges({ cursor });
-          invalid(Array.isArray(page.changes) && page.changes.length <= 100 && Boolean(page.nextCursor) !== Boolean(page.cursor));
+          const page = changePage(await this.#store.listDatasetChanges({ cursor }));
           events += page.changes.length; bytes += new TextEncoder().encode(canonicalJson(page)).length;
           for (const change of page.changes) {
             if (change.legacyWrite && !change.removed) residualLegacy = true;
@@ -167,6 +221,7 @@ export class DatasetSync {
       }
     }
     await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
+    this.#validatedAt = this.#elapsed();
     const forbidden = new Set(result.purges.map(value => value.entityId));
     const dirty = new Set([...(result.dirtyEntities ?? []), ...result.heads.filter(head => head.record.kind === 'card' && forbidden.has(head.record.entityId)).map(head => head.record.entityId),
       ...[...dataEntities].filter(id => forbidden.has(id))]);

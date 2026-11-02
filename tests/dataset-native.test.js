@@ -5,6 +5,18 @@ import { datasetQuery, googleDatasetDescriptor, validateDatasetFile, datasetMeta
 import { NativeGoogleDatasetStore } from '../src/native/google.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/dataset/native-wire.json', import.meta.url), 'utf8'));
+test('empty native feed pages require a terminal token and never normalize malformed changes', async () => {
+  let response;
+  const store = new NativeGoogleDatasetStore({ request: async () => response }, { profileId: 'google:account' }, 'account');
+  for (const changes of [null, {}, '', false]) {
+    response = { changes, newStartPageToken: 'same' };
+    await assert.rejects(store.listDatasetChanges({ cursor: 'same' }), { code: 'invalid-source-page' });
+  }
+  for (response of [{}, { changes: [] }, { changes: [], nextPageToken: 'next', newStartPageToken: 'end' }])
+    await assert.rejects(store.listDatasetChanges({ cursor: 'same' }), { code: 'invalid-source-page' });
+  response = { newStartPageToken: 'same' };
+  assert.deepEqual(await store.listDatasetChanges({ cursor: 'same' }), { changes: [], cursor: 'same' });
+});
 test('the shared dataset wire fixture defines identical closed descriptors and typed query behavior', () => {
   for (const { input, expected } of fixture.queries) assert.equal(datasetQuery(input), expected);
   for (const { input, metadata } of fixture.files) { assert.deepEqual(validateDatasetFile(input), input); assert.deepEqual(googleDatasetDescriptor(metadata), input); }

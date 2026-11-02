@@ -146,7 +146,7 @@ export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
   async listDatasetChanges({ cursor: current, signal }) {
     const result = await this.#call('changes', { cursor: cursor(current) }, signal);
     requireValue(!(result.nextPageToken !== undefined && result.newStartPageToken !== undefined), 'invalid-source-page', t('errors.storage.googlePageEndInvalid'));
-    const changes = await Promise.all(page(result.changes ?? []).map(async change => {
+    const changes = await Promise.all(page(result.changes === undefined ? [] : result.changes).map(async change => {
       requireValue(validFileId(change?.fileId) && (change.removed === undefined || typeof change.removed === 'boolean'), 'invalid-source-page', t('errors.storage.googleChangeInvalid'));
       if (change.removed || change.file?.trashed) return { id: change.fileId, removed: true };
       if (change.file?.appProperties?.wfFormat !== DATASET_FORMAT) return { id: change.fileId, removed: false, legacyReset: change.file?.appProperties?.wfKind === 'reset',

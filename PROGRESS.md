@@ -57,6 +57,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   bounded receipts and relevant purge barriers replace history-wide bootstrap. Reset captures exact old leaf IDs,
   publishes a legacy-compatible fence and initializes an isolated dataset; obsolete folder containers are retained.
   Current readiness and background old-data cleanup are separate; late legacy writes are retained and reported. The older FileSync remains in compatibility fixtures.
+- Validated idle sessions use one empty changes-feed request and a guarded metadata-only
+  local commit; a five-minute audit and every nonempty feed retain full generation checks.
+  Automatic empty checks keep the completed status. Shared/controller and renderer fixtures
+  cover this path; authenticated timing and all-platform acceptance remain open in PLAN-012.
 - Sign-out removes only this device's credentials and no longer revokes the grant
   ([ADR-021](docs/decisions/021-windows-google-account-and-sync.md)). Installed builds up to 0.2.3 still revoke on sign-out.
 - Earlier flat-file transport evidence: real Windows sign-in, upload, resumable upload and changes feed on Drive. User reports show real sign-in and sync

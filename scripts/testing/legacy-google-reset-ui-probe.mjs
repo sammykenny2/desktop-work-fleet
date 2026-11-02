@@ -114,7 +114,8 @@ try {
         get() { throw new DOMException('Synthetic browser storage unavailable', 'SecurityError'); },
       });
     });
-    const provider = new DatasetTestProvider(), localResets = [], errors = [], oldReads = [];
+    const provider = new DatasetTestProvider(), localResets = [], errors = [], oldReads = [], driveCalls = [];
+    let holdChanges = false, releaseChanges = null, failChanges = false;
     let failLocalReset = oldLocal, releaseFailedReset = null;
     const resetInterruption = oldCloud && !oldLocal;
     let releaseReset = null, interruptReset = resetInterruption;
@@ -150,6 +151,13 @@ try {
     });
     await context.exposeFunction('fixtureDrive', async (method, args) => {
       try {
+        driveCalls.push(method);
+        if (method === 'listDatasetChanges' && failChanges) {
+          failChanges = false; throw Object.assign(new Error('Synthetic idle network unavailable'), { code: 'network' });
+        }
+        if (method === 'listDatasetChanges' && holdChanges) {
+          holdChanges = false; await new Promise(resolve => { releaseChanges = resolve; });
+        }
         if (args.bytes) args.bytes = Uint8Array.from(args.bytes);
         const missing = method === 'deleteFiles' ? new Set(args.ids.filter(id => !provider.files.has(id))) : null;
         const result = method === 'allocateFileIds' ? await Promise.all(Array.from({ length: args.count }, () => provider.allocateFileId())) : await provider[method](args);
@@ -269,6 +277,49 @@ try {
       if (!oldCloud) {
         await expect(page.locator('#source-reset-dialog')).toBeHidden(); unchangedCloud();
         assert.deepEqual((await legacy()).local, before.local); assert.deepEqual(errors, []);
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
+        await expect(page.locator('#google-sync')).toBeEnabled();
+        const beforeCheck = (await read()).state.sync.lastSuccessfulSyncAt;
+        await page.evaluate(() => {
+          window.fixtureBusyStates = [];
+          const account = document.querySelector('#account');
+          new MutationObserver(() => window.fixtureBusyStates.push(account.dataset.sync))
+            .observe(account, { attributes: true, attributeFilter: ['data-sync'] });
+          window.fixtureListChildren = [...document.querySelector('#list').childNodes];
+        });
+        driveCalls.length = 0; holdChanges = true;
+        await page.clock.fastForward(21000);
+        await expect.poll(() => typeof releaseChanges).toBe('function');
+        await page.evaluate(() => {
+          window.fixtureHostEvent('host-tick'); dispatchEvent(new Event('online'));
+          document.dispatchEvent(new Event('visibilitychange'));
+        });
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
+        assert.deepEqual(driveCalls, ['listDatasetChanges'], 'overlapping idle triggers share one native request');
+        releaseChanges(); releaseChanges = null;
+        await expect(page.locator('#google-sync')).toBeEnabled();
+        await expect.poll(async () => (await read()).state.sync.lastSuccessfulSyncAt).not.toBe(beforeCheck);
+        assert.ok(!(await page.evaluate(() => window.fixtureBusyStates)).includes('busy'), 'idle checks never flash busy');
+        assert.ok(await page.evaluate(() => window.fixtureListChildren.every((node, i) => node === document.querySelector('#list').childNodes[i])),
+          'empty checks keep the note DOM rather than rebuilding it');
+        assert.deepEqual(driveCalls, ['listDatasetChanges']); unchangedCloud();
+        if (handheld) await page.locator('#drawer-toggle').click();
+        await page.locator('#settings-button').click();
+        await page.locator('#settings-dialog [data-page="account"]').click();
+        holdChanges = true; driveCalls.length = 0;
+        await page.locator('#google-sync').click();
+        await expect.poll(() => typeof releaseChanges).toBe('function');
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'busy');
+        releaseChanges(); releaseChanges = null;
+        await expect(page.locator('#google-sync')).toBeEnabled();
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
+        assert.deepEqual(driveCalls, ['listDatasetChanges'], 'manual refresh shows activity without forcing a redundant audit');
+        const successfulAt = (await read()).state.sync.lastSuccessfulSyncAt;
+        failChanges = true; await page.clock.fastForward(21000);
+        await expect(page.locator('#account')).toHaveAttribute('data-sync', 'error');
+        await expect(page.locator('#account-detail')).toHaveText('Synthetic idle network unavailable');
+        assert.equal((await read()).state.sync.lastSuccessfulSyncAt, successfulAt, 'failed checks do not report a new successful time');
+        console.log(`PASS ${engine}/${platform}: idle checks are quiet/coalesced, preserve note DOM, show failures and keep manual refresh visible.`);
         console.log(`PASS ${engine}/${platform}: legacy local second device joins current cloud without cloud reset.`);
         continue;
       }

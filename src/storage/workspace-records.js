@@ -13,12 +13,17 @@ const encoder = new TextEncoder();
 /** Current state is a small independently loadable view. History and pending uploads are indexed records. */
 export class WorkspaceRecordStorage {
   #store; #legacy; #profile; #receipt = null; #active = null; #tail = Promise.resolve(); #attachmentLoader = null;
+  #syncEpoch = 0;
   constructor(store, profileId, { legacy = null } = {}) {
     this.#store = store; this.#profile = profileId; this.#legacy = legacy;
   }
   #check(profileId) { requireValue(profileId === this.#profile, 'invalid-profile', t('errors.storage.profileMismatch')); }
   #queue(work) { const result = this.#tail.then(work); this.#tail = result.catch(() => {}); return result; }
   whenIdle() { return this.#tail; }
+  get syncEpoch() { return this.#syncEpoch; }
+  #invalidateSync(key, value) {
+    if (value?.kind?.startsWith('dataset-') || /^(dataset-|checkpoint:|upload:|seed-upload:|purge-)/.test(key)) this.#syncEpoch++;
+  }
   #key(id, generation = this.#active.generation) { return `${generation}:${id}`; }
   #historyGeneration() { return this.#active.historyGeneration ?? this.#active.generation; }
   #row(collection, id, value, entity = this.#active.generation, generation = this.#active.generation) {
@@ -255,15 +260,16 @@ export class WorkspaceRecordStorage {
   }
   #deleteControl(collection, key) { return this.#queue(() => this.#write([], [{ collection, key }])); }
   getJob(key) { return this.#control('job', key); }
-  putJob(key, value) { return this.#putControl('job', key, value); }
+  putJob(key, value) { this.#invalidateSync(key, value); return this.#putControl('job', key, value); }
   putJobs(values) {
+    for (const { key, value } of values) this.#invalidateSync(key, value);
     return this.#queue(async () => {
       this.#receipt ??= await this.#status();
       for (let index = 0; index < values.length; index += 100) await this.#write(values.slice(index, index + 100).map(({ key, value }) =>
         ({ collection: 'job', key, entity: value.kind ?? '', ordinal: 0, value })));
     });
   }
-  deleteJob(key) { return this.#deleteControl('job', key); }
+  deleteJob(key) { this.#invalidateSync(key); return this.#deleteControl('job', key); }
   jobs(kind, { after = null, limit = 20 } = {}) {
     return this.#queue(async () => {
       const status = await this.#status();

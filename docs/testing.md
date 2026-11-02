@@ -35,6 +35,27 @@ A green result from old tests must not be listed as a pass for a new feature, an
 local and Google share the V1 ZIP, and unsupported formats are rejected with the data kept. There is no per-version migration or copy acceptance work.
 For documentation work, check_docs.py, git diff --check and a scope and semantic consistency check are enough.
 
+## Idle sync verification
+
+[SPEC-011](specs/011-efficient-idle-sync.md) and [PLAN-012](plans/012-efficient-idle-sync.md)
+separate deterministic cost/safety checks from authenticated performance acceptance.
+Run `node --test tests/idle-sync.test.js tests/dataset-native.test.js tests/dataset-sync.test.js
+tests/dataset-empty.test.js tests/dataset-history-purge.test.js` for the shared controller.
+The ordinary empty fixture uses one provider call, zero record reads and two payload writes;
+the due audit uses eight provider calls. Provider calls are not HTTP counts. Lazy 0/10k/1m
+history fixtures reject body reads and do not materialize a million records. Concurrent
+edits, saves, purge admission, session replacement, reset fences, critical removals,
+backoff and lost commit acknowledgements retain the existing safety boundaries.
+
+`npm run build && node scripts/testing/test-dataset-recovery.mjs` exercises the production
+entry point with real IndexedDB and synthetic account/Drive boundaries in Chromium,
+WebKit and handheld layouts. It checks that delayed automatic empty checks stay quiet,
+coalesced triggers issue one feed read, note DOM stays intact, manual refresh shows
+activity, and failed checks expose an error without changing the completion time.
+These checks neither use a native phone host nor measure the real Drive round trip.
+No window activation call is introduced by the shared status path. Full native/provider
+acceptance and independent review remain open in PLAN-012.
+
 ## Dataset checkpoint and deletion verification
 
 [SPEC-010 VC01-VC26](specs/010-dataset-checkpoints-and-deletable-history.md#acceptance-cases) defines

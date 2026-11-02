@@ -13,6 +13,10 @@ import UIKit
     private var account: [String: Any]?
     private var prepared: String?
     private var closed = false
+    private var authorization: (id: UUID, task: Task<String, Error>)?
+    private var verifiedToken: String?
+    // The SDK owns one current-options callback during a cold restore, including across host instances.
+    private static var restoration: (id: UUID, task: Task<GIDGoogleUser, Error>)?
     #if os(macOS)
     var presenting: (() -> NSWindow?)?
     #else
@@ -38,7 +42,7 @@ import UIKit
         try FleetProtocol.require(!closed && available, "google-config", "Set the Apple Google client ID and rebuild the app.")
         guard let presenter = presenting?() else { throw FleetFailure("google-unavailable", "The sign-in screen isn't available right now.") }
         // Interactive sign-in already opens the account chooser. Keep the existing SDK session if the user cancels.
-        prepared = nil
+        prepared = nil; verifiedToken = nil
         let result: GIDSignInResult = try await withCheckedThrowingContinuation { continuation in
             GIDSignIn.sharedInstance.signIn(withPresenting: presenter, hint: nil, additionalScopes: [Self.scope]) { result, error in
                 if let error { continuation.resume(throwing: Self.failure(error)) }
@@ -64,30 +68,62 @@ import UIKit
         try FleetProtocol.require(!closed && id == prepared && FleetKeychain.read("google-account:" + id) != nil, "google-account", "Finish signing in to this account first."); prepared = nil; return "google:" + id
     }
     func token(_ expected: String) async throws -> String {
-        try FleetProtocol.require(!closed && available && profile == "google:" + expected && account?["accountId"] as? String == expected, "stale-session", "The Google account doesn't match the workspace.")
+        try checkAccount(expected)
+        if authorization == nil {
+            authorization = (UUID(), Task { try await self.prepareToken(expected) })
+        }
+        let pending = authorization!
+        defer { if authorization?.id == pending.id { authorization = nil } }
+        let value = try await pending.task.value
+        try checkAccount(expected); return value
+    }
+    private func checkAccount(_ expected: String) throws {
+        try FleetProtocol.require(!closed && available && profile == "google:" + expected && account?["accountId"] as? String == expected,
+            "stale-session", "The Google account doesn't match the workspace.")
+    }
+    private static func restoreUser() async throws -> GIDGoogleUser {
+        if restoration == nil {
+            restoration = (UUID(), Task {
+                try await withCheckedThrowingContinuation { continuation in
+                    GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+                        if let error { continuation.resume(throwing: Self.failure(error)) }
+                        else if let user { continuation.resume(returning: user) }
+                        else { continuation.resume(throwing: FleetFailure("unauthorized", "Sign in to Google again.")) }
+                    }
+                }
+            })
+        }
+        let pending = restoration!
+        defer { if restoration?.id == pending.id { restoration = nil } }
+        return try await pending.task.value
+    }
+    private func prepareToken(_ expected: String) async throws -> String {
+        try checkAccount(expected)
         let restored: GIDGoogleUser
         if let current = GIDSignIn.sharedInstance.currentUser { restored = current }
-        else {
-            restored = try await withCheckedThrowingContinuation { continuation in GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
-                if let error { continuation.resume(throwing: Self.failure(error)) }
-                else if let user { continuation.resume(returning: user) }
-                else { continuation.resume(throwing: FleetFailure("unauthorized", "Sign in to Google again.")) }
-            } }
-        }
+        else { restored = try await Self.restoreUser() }
+        try checkAccount(expected)
         let user: GIDGoogleUser = try await withCheckedThrowingContinuation { continuation in restored.refreshTokensIfNeeded { user, error in
             if let error { continuation.resume(throwing: Self.failure(error)) }
             else if let user { continuation.resume(returning: user) }
             else { continuation.resume(throwing: FleetFailure("unauthorized", "Google access needs to be renewed.")) }
         } }
-        try FleetProtocol.require(!closed && user.grantedScopes?.contains(Self.scope) == true, "unauthorized", "Access to Google app data needs to be confirmed again.")
-        let identity = try await identify(user.accessToken.tokenString)
-        try FleetProtocol.require(FleetProtocol.text(identity, "sub", 255) == expected, "stale-session", "The Google SDK returned another account. No notes were sent."); return user.accessToken.tokenString
+        try checkAccount(expected)
+        try FleetProtocol.require(user.grantedScopes?.contains(Self.scope) == true, "unauthorized", "Access to Google app data needs to be confirmed again.")
+        let token = user.accessToken.tokenString
+        if verifiedToken != token {
+            let identity = try await identify(token)
+            try checkAccount(expected)
+            try FleetProtocol.require(FleetProtocol.text(identity, "sub", 255) == expected, "stale-session", "The Google SDK returned another account. No notes were sent.")
+            verifiedToken = token
+        }
+        return token
     }
     // Only this device signs out: the SDK's disconnect revokes the project's grant for every client, so every other device
     // signed in to this account would lose sync within the hour (ADR-021, amended 2026-10-15).
     func signOut() async throws {
         if let id = account?["accountId"] as? String { try FleetKeychain.remove("google-account:" + id) }; account = nil
-        prepared = nil
+        prepared = nil; verifiedToken = nil
         GIDSignIn.sharedInstance.signOut()
     }
     nonisolated private static func failure(_ error: Error) -> FleetFailure {
@@ -104,6 +140,6 @@ import UIKit
         }
         return FleetFailure("google-unavailable", "Google sign-in didn't finish. Try again later.")
     }
-    func close() { closed = true; prepared = nil }
+    func close() { closed = true; prepared = nil; verifiedToken = nil }
     static func handle(_ url: URL) -> Bool { GIDSignIn.sharedInstance.handle(url) }
 }

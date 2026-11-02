@@ -430,8 +430,8 @@ async function initializeGoogle() {
     datasetProblem = transitionError; maintenancePaused = true;
   }
   if (transitionError && (workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete')) {
-    maintenanceFailure = transitionError; maintenancePaused = true;
-    showMaintenance(() => t('sync.reset.paused', { error: transitionError.message }), { retry: !datasetProblem, error: true });
+    const failure = resetFailure(transitionError); maintenanceFailure = failure; maintenancePaused = true;
+    showMaintenance(() => t('sync.reset.paused', { error: failure.message }), { retry: !datasetProblem, error: true });
   } else if (pendingReset && pendingReset.phase !== 'complete') {
     showMaintenance(() => datasetProgressText(resetProgress(pendingReset)));
   }
@@ -610,6 +610,10 @@ async function syncGoogle(force = false) {
   finally { syncBusy = false; $('#google-sync').disabled = false; }
 }
 
+function resetFailure(error) {
+  return { kind: 'dataset-ui-error', code: error.code ?? 'storage-error',
+    message: error.code === 'native-outcome-unknown' ? t('sync.reset.unconfirmed') : error.message };
+}
 function showMaintenance(text, { retry = false, error = false } = {}) {
   maintenanceNotice = { text, retry, error };
   setText('#cleanup-status', text); $('#retry-cleanup').hidden = !retry;
@@ -695,14 +699,14 @@ async function maintainDataset() {
   catch (error) {
     if (!maintenanceAbort.signal.aborted) {
       maintenancePaused = error.code !== 'dataset-visibility';
-      const failure = { kind: 'dataset-ui-error', code: error.code ?? 'storage-error', message: error.message };
+      const failure = resetPending ? resetFailure(error) : { kind: 'dataset-ui-error', code: error.code ?? 'storage-error', message: error.message };
       if (resetPending && maintenancePaused) {
         maintenanceFailure = failure;
         await storage.putJob('dataset-ui-error', failure).catch(() => {});
         if (workspace.state.cloudRestore || !pendingReset?.ready) setSync('error',
-          () => t(workspace.state.cloudRestore ? 'sync.status.overwriteUnfinished' : 'sync.status.resetUnfinished'), error.message);
+          () => t(workspace.state.cloudRestore ? 'sync.status.overwriteUnfinished' : 'sync.status.resetUnfinished'), failure.message);
       }
-      const message = () => t(resetPending ? 'sync.reset.paused' : 'app.purge.paused', { error: error.message });
+      const message = () => t(resetPending ? 'sync.reset.paused' : 'app.purge.paused', { error: failure.message });
       showMaintenance(message, { retry: maintenancePaused, error: true });
       if (['dataset-changed', 'source-reset-superseded'].includes(error.code)) {
         await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: error.code, message: error.message });
@@ -832,7 +836,8 @@ function datasetProgressText({ phase, completed = 0, total = 0, ready = false, f
     : phase === 'initialize' ? 'sync.reset.preparing'
     : phase === 'initialize-progress' ? 'sync.reset.initializing'
     : phase === 'initialize-verify' || phase === 'activate' || phase === 'cleanup' && !ready ? 'sync.reset.activating'
-    : ['clearing', 'cleanup'].includes(phase) ? 'sync.reset.cleanup'
+    : phase === 'clearing' ? 'sync.reset.clearing'
+    : phase === 'cleanup' ? 'sync.reset.cleanup'
     : ['residual-audit', 'audit-restart', 'journal-cleanup'].includes(phase) ? 'sync.reset.verifying'
     : phase === 'complete' ? 'sync.reset.cleaned' : 'sync.recovery.working';
   return t(key, { done: completed, total, folders });

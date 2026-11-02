@@ -122,10 +122,10 @@ try {
     const originalFiles = [...provider.files.keys()], originalCreates = provider.stats.creates;
     provider.hook = async (method, id) => {
       if (method === 'read' && oldIds.includes(id)) { oldReads.push(id); throw new Error('Legacy contents must not be read'); }
-      if (interruptReset && method === 'create-before' && [...provider.files.values()].some(item => item.file.kind === 'reset')) {
+      if (interruptReset && method === 'get' && !provider.files.has(id) && [...provider.files.values()].some(item => item.file.kind === 'reset')) {
         interruptReset = false;
         await new Promise(resolve => { releaseReset = resolve; });
-        throw Object.assign(new Error('Synthetic reset rate limit'), { code: 'rate-limit' });
+        throw Object.assign(new Error(t('nativeErrors.native-outcome-unknown')), { code: 'native-outcome-unknown' });
       }
     };
     await context.exposeFunction('fixtureLocalReset', async profile => {
@@ -334,18 +334,30 @@ try {
         await page.locator('#settings-dialog [data-page="account"]').click();
         await expect(page.locator('#account-detail')).toContainText('Creating the new cloud data:');
         await expect(page.locator('#account-detail')).not.toContainText('/ 106');
+        await expect(page.locator('#account-detail')).not.toContainText('Old-file cleanup has not started yet.');
         await expect(page.locator('#google-sync')).toBeDisabled();
         releaseReset();
-        await expect(page.locator('#account-detail')).toContainText('Synthetic reset rate limit');
+        await expect(page.locator('#account-detail')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('#account-detail')).not.toContainText('Keep your text');
         await expect(page.locator('#google-sync')).toBeEnabled();
+        // An earlier preview may have persisted the generic draft-save hint. Reopening must reinterpret its code.
+        await page.evaluate(async profile => {
+          const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
+          const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
+          const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profile);
+          try {
+            await storage.putJob('dataset-ui-error', { kind: 'dataset-ui-error', code: 'native-outcome-unknown', message: 'Keep your text and reopen Work Fleet to check.' });
+          } finally { storage.close(); }
+        }, profileId);
         await page.reload();
         if (handheld) await page.locator('#drawer-toggle').click();
         await page.locator('#settings-button').click();
         await page.locator('#settings-dialog [data-page="account"]').click();
-        await expect(page.locator('#account-detail')).toContainText('Synthetic reset rate limit');
+        await expect(page.locator('#account-detail')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('#account-detail')).not.toContainText('Keep your text');
         if (handheld) await page.locator('#settings-back').click();
         await page.locator('#settings-dialog [data-page="data"]').click();
-        await expect(page.locator('#dataset-maintenance-status')).toContainText('Synthetic reset rate limit');
+        await expect(page.locator('#dataset-maintenance-status')).toContainText(t('sync.reset.unconfirmed'));
         await expect(page.locator('#retry-dataset-maintenance')).toBeEnabled();
         await mkdir('build/reset-settings', { recursive: true });
         await page.screenshot({ path: `build/reset-settings/${platform}-${engine}-error.png`, animations: 'disabled' });

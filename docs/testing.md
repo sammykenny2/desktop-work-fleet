@@ -609,7 +609,11 @@ Phone authorization also has the following author-run regressions, none of which
   editing, automatic backups and the original account's sync resume, and that a cancel does not use the error style.
 - `python3 -B -m unittest discover -s tests -p 'test_macos_google_sign_in.py' -v` compiles the official `FleetGoogle.swift`
   and, with fake SDK, AppKit, Keychain and HTTP, verifies that cancel keeps the existing sign-in, that success opens once, insufficient Drive permission, late replies after close,
-  rejection of a different sub, and classification of SDK and network errors. The real SDK interface is confirmed separately by the Xcode iOS and macOS builds; the fake SDK is not treated as a real sign-in.
+  rejection of a different sub, and classification of SDK and network errors. Deferred cold restoration models the
+  SDK's single current-options callback: concurrent callers share one restore and verification, failures reach all
+  waiters and permit retry, and a replacement host joins the same restore while a closed host stops. Reusing a verified
+  token avoids another userinfo request; a changed token must verify its identity again. The real SDK interface is
+  confirmed separately by the Xcode iOS and macOS builds; the fake SDK is not treated as a real sign-in.
 - When the Android SDK and JDK are available, run `bash ./gradlew testDebugUnitTest assembleDebug` in `src/native/android`.
   JUnit uses the official `GoogleAccessToken` and `GoogleSignInErrors` with real SDK exception types
   to verify that switching accounts never uses another account's token, expiry and clearing, and that Credential Manager and Play Services errors do not leak raw messages.

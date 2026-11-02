@@ -8,8 +8,8 @@ import { formatDate, plural, t } from '../src/i18n/index.js';
 const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'utf8');
 const initialize = source.slice(source.indexOf('async function initializeGoogle()'), source.indexOf('function renderGoogleAccess()'));
 const presenter = source.slice(source.indexOf('function renderGoogleAccess()'), source.indexOf('// The account chip'));
-const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('function showMaintenance('));
-const maintenance = source.slice(source.indexOf('function showMaintenance('), source.indexOf('function scheduleMaintenance('));
+const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('function resetFailure('));
+const maintenance = source.slice(source.indexOf('function resetFailure('), source.indexOf('function scheduleMaintenance('));
 const progress = source.slice(source.indexOf('function datasetProgressText('), source.indexOf('async function runDatasetChange('));
 assert.ok(synchronize.length > 0 && !synchronize.includes('run(initialize)'), 'sync fixture must not include the app bootstrap');
 const changeAccount = source.slice(source.indexOf('async function changeGoogleAccount('), source.indexOf('function resetPlan()'));
@@ -61,6 +61,17 @@ test('pending reset journals pause sync and a superseded transition exposes expl
     assert.equal(f.nodes.get('#google-sync').disabled, !failed);
     if (failed) { await f.nodes.get('#google-sync').onclick(); assert.deepEqual(f.connections, ['recover-local-copy']); }
   }
+});
+
+test('saved reset timeout uses continuation guidance and clearing does not claim readiness', async () => {
+  const jobs = { 'dataset-reset': { phase: 'clearing', ready: false, deleted: 100, captured: 106 },
+    'dataset-ui-error': { code: 'native-outcome-unknown', message: 'Keep your text and reopen Work Fleet to check.' } };
+  const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, {}, jobs);
+  assert.equal(f.nodes.get('#dataset-maintenance-status').textContent, t('sync.reset.paused', { error: t('sync.reset.unconfirmed') }));
+  assert.equal(f.nodes.get('#retry-dataset-maintenance').hidden, false);
+  assert.equal(f.context.maintenanceFailure.code, 'native-outcome-unknown');
+  const text = vm.runInContext('datasetProgressText({ phase: "clearing", completed: 100, total: 106, ready: false })', f.context);
+  assert.ok(text.includes('100 / 106')); assert.ok(!text.includes('New data is ready'));
 });
 
 test('unlock status updates the same account controls without starting OAuth', async () => {

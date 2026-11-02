@@ -462,6 +462,9 @@ reload and remain visible until a retry; starting the retry disables the duplica
 new-data preparation independently of old-file deletion, reports verified objects during the long initialization
 step, and reports each durably acknowledged deletion batch. Activating the new data and auditing cleanup are named stages,
 not a misleading zero-deleted progress counter. A failed cleanup after readiness does not block ordinary sync.
+Clearing before readiness must not claim the new data is already usable. An unknown native outcome during reset
+explains that the existing operation remains saved and Continue checks/resumes it; it must not display a draft-save
+instruction. Reopening also maps an earlier saved `native-outcome-unknown` error to this reset-specific explanation.
 
 An expired capture page token restarts metadata capture before fence publication: discard only that attempt's local
 page/token journals in bounded steps, then enumerate from the first page. No new dataset exists yet. An expired

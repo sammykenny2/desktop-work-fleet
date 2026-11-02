@@ -11,11 +11,14 @@ import GoogleSignIn
 @MainActor final class BoundedHTTP {
     static var failure: Error?
     static var sub = "account"
+    static var calls = 0
+    static var expectedToken = "synthetic-token"
     init(maximum: Int) {}
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        Self.calls += 1
         if let failure = Self.failure { throw failure }
         precondition(request.url?.absoluteString == "https://openidconnect.googleapis.com/v1/userinfo")
-        precondition(request.value(forHTTPHeaderField: "Authorization") == "Bearer synthetic-token")
+        precondition(request.value(forHTTPHeaderField: "Authorization") == "Bearer " + Self.expectedToken)
         return (try FleetProtocol.encode(["sub": Self.sub, "email": "synthetic@example.test"]), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
     }
 }
@@ -37,6 +40,54 @@ import GoogleSignIn
         let previous = GIDGoogleUser(token: "synthetic-token", scopes: [FleetGoogle.scope])
         sdk.currentUser = previous
         switch name {
+        case "cold-concurrent":
+            try FleetKeychain.save("google-account:account", FleetProtocol.encode(["clientID": client, "accountId": "account"]))
+            sdk.currentUser = nil; sdk.nextUser = previous; sdk.deferRestore = true
+            let host = try google("google:account")
+            let first = Task { try await host.token("account") }, second = Task { try await host.token("account") }
+            for _ in 0..<20 { await Task.yield() }
+            precondition(sdk.restoreCalls == 1, "Concurrent cold requests started overlapping SDK restores")
+            sdk.completeRestore()
+            let values = try await [first.value, second.value]
+            precondition(values == ["synthetic-token", "synthetic-token"])
+            precondition(previous.refreshCalls == 1 && BoundedHTTP.calls == 1, "Concurrent requests duplicated token verification")
+            _ = try await host.token("account")
+            precondition(BoundedHTTP.calls == 1, "An unchanged verified token repeated the identity request")
+            sdk.currentUser = GIDGoogleUser(token: "synthetic-next-token", scopes: [FleetGoogle.scope])
+            BoundedHTTP.expectedToken = "synthetic-next-token"; BoundedHTTP.sub = "other-account"
+            try await reject("stale-session") { _ = try await host.token("account") }
+            precondition(BoundedHTTP.calls == 2, "A changed token skipped identity verification")
+        case "cold-retry":
+            try FleetKeychain.save("google-account:account", FleetProtocol.encode(["clientID": client, "accountId": "account"]))
+            sdk.currentUser = nil; sdk.nextUser = previous; sdk.deferRestore = true
+            sdk.nextError = URLError(.notConnectedToInternet)
+            let host = try google("google:account")
+            let first = Task { try await host.token("account") }, second = Task { try await host.token("account") }
+            for _ in 0..<20 { await Task.yield() }
+            precondition(sdk.restoreCalls == 1)
+            sdk.completeRestore()
+            try await reject("network") { _ = try await first.value }
+            try await reject("network") { _ = try await second.value }
+            sdk.nextError = nil
+            let retry = Task { try await host.token("account") }
+            for _ in 0..<20 { await Task.yield() }
+            precondition(sdk.restoreCalls == 2)
+            sdk.completeRestore()
+            let token = try await retry.value; precondition(token == "synthetic-token")
+        case "cold-host-replacement":
+            try FleetKeychain.save("google-account:account", FleetProtocol.encode(["clientID": client, "accountId": "account"]))
+            sdk.currentUser = nil; sdk.nextUser = previous; sdk.deferRestore = true
+            let old = try google("google:account"), next = try google("google:account")
+            let first = Task { try await old.token("account") }
+            for _ in 0..<20 { await Task.yield() }
+            old.close()
+            let second = Task { try await next.token("account") }
+            for _ in 0..<20 { await Task.yield() }
+            precondition(sdk.restoreCalls == 1, "Replacing the host overlapped SDK restoration")
+            sdk.completeRestore()
+            try await reject("stale-session") { _ = try await first.value }
+            let token = try await second.value; precondition(token == "synthetic-token")
+            precondition(BoundedHTTP.calls == 1, "A closed host continued with network authorization")
         case "cancel":
             try FleetKeychain.save("google-account:account", FleetProtocol.encode(["clientID": client, "accountId": "account", "email": "synthetic@example.test"]))
             let host = try google("google:account")

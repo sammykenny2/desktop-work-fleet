@@ -23,6 +23,10 @@ used to shrink the delivery scope.
   The SDK handles system authorization and Keychain credentials; native code checks the stable identity with the HTTPS
   userinfo sub. The renderer only gets public account metadata and fixed FileStore operations; resumable upload URLs and
   tokens stay native.
+- Concurrent native requests share the in-flight token preparation and account verification. Cold SDK restoration is
+  shared across host instances because the SDK has a single current-options completion; overlapping restores can lose
+  a caller's completion. Closing/replacing a host rechecks account ownership after each suspension before any further
+  request. A verified token's identity is cached only in that host's memory; a changed token must verify its sub again.
 - Native backups use a user-selected folder bookmark and security scope, directory and file identities, new-file creation,
   fsync and read-back verification, and journal-safe cleanup; portable encryption keeps the SPEC-002 PBKDF2/AES-GCM format.
 - On macOS, each display has shared desktop/floating visual surfaces; only the main window saves content.

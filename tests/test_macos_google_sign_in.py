@@ -30,7 +30,7 @@ class AppleGoogleSignInTests(unittest.TestCase):
         cls.executable = folder / "GoogleSignInProbe"
 
     def test_authorization_contract(self):
-        for name in ("cancel", "success", "scope-denied", "closed", "wrong-account", "errors"):
+        for name in ("cold-concurrent", "cold-retry", "cold-host-replacement", "cancel", "success", "scope-denied", "closed", "wrong-account", "errors"):
             with self.subTest(name=name):
                 result = subprocess.run([str(self.executable), name], text=True, capture_output=True, timeout=30)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

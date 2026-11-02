@@ -363,7 +363,8 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
   upgrade or create extra copies. The data version policy is
   [SPEC-007](specs/007-schema-evolution-and-migrations.md). The dataset format is incompatible with the older
   whole-workspace format and its ZIPs. There is no automatic conversion: the first-start screen keeps old data and
-  offers an explicit local discard. Use a compatible older app to inspect/export old data. Local discard never
+  offers Open Settings to reach Data and backup, where you can explicitly discard the old local copy. Closing
+  Settings leaves it untouched. Use a compatible older app to inspect/export old data. Local discard never
   authorizes deleting Google data; that is a separate confirmation.
 
 ### Restore into a cleared workspace
@@ -397,6 +398,10 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
 
 ### Reset all data
 
+- Already signed in with old Google notes: choose Open cloud reset in the old-data notice to reach Settings /
+  Data and backup. If this device also has an old local copy, first choose Open Settings in the incompatibility
+  notice and confirm discarding that copy. Google sign-in is kept; after reopening, the old-cloud notice leads
+  back to Settings. Reset does not require reading or converting old notes.
 - At the bottom of Data and backup, "Reset all data…" deletes the current workspace's notes, groups, unsaved changes,
   attachments, history, layout, shortcuts and automatic backup settings on this device. "Export a backup first" is
   next to it. In the "Reset all data?" dialog you must tick "I understand this cannot be undone" before "Delete

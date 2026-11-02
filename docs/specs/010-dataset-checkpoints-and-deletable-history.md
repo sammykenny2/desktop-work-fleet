@@ -418,12 +418,15 @@ local/cloud scope; default to keeping data intact:
 
 | Situation | Screen and available choices |
 |---|---|
-| Old local profile detected | Explain incompatibility and keep the profile unopened. Leave unchanged/close; open a compatible old app to export; or explicitly discard this local profile and start/rejoin with the new app |
+| Old local profile detected | Explain incompatibility and keep the profile unopened. Open Settings leads to Data and backup without constructing a Workspace or reading old note contents. Close Settings to leave unchanged; open a compatible old app to export; or explicitly discard this local profile and start/rejoin with the new app |
 | Old local profile, compatible new cloud dataset | After explicit local discard, join current cloud state; warn that unsynced old local edits are lost. Do not relabel the old outbox |
-| Old local profile, old cloud data too | Local discard and cloud reset are separate confirmations. A compatible old app can export before either; this app cannot promise to read that old backup |
+| Old local profile, old cloud data too | Local discard in Settings keeps the Google sign-in. After reopening, the old-cloud notice offers Open cloud reset, returning to Data and backup / Reset all data. Local discard and cloud reset are separate confirmations; neither requires migration or successful old-note loading. A compatible old app can export before either; this app cannot promise to read that old backup |
 | Empty local profile, legacy cloud files | Offer Cancel/use compatible old app, or preview Reset old Google data. Do not download history to show this screen |
 | Compatible new-format backup | Offer validated restore with coverage preview; unsupported old-format backup is preserved and rejected without conversion |
 | Dataset/fence disappeared unexpectedly | Keep local data usable with sync paused; inspect reset/generation controls and show recovery choices, not an unrecoverable corruption screen |
+
+Recovery navigation must work when the native host recreates its WebView or disables browser storage. Opening or
+closing Settings grants no deletion authority. A local-discard failure keeps the recovery controls available for retry.
 
 Cloud reset stages are `capture exact old IDs -> publish legacy fence -> initialize isolated dataset -> ready ->
 clean captured old IDs -> complete`. The capture is a streamed, durable metadata-only journal; it may take time

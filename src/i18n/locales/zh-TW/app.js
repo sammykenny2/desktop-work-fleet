@@ -1,4 +1,6 @@
 export default {
+  'app.incompatible.openSettings': "開啟設定",
+  'app.incompatible.googleReset': "若要清除舊 Google 便箋並從零開始，請先在此捨棄這台裝置的舊副本，Google 登入狀態會保留。重新開啟後，請在舊資料提示中選「開啟雲端重設」，回到「資料與備份」，再透過「重設所有資料」另外確認清除舊 Google 資料並重新建立。",
   'app.incompatible.title': "這部裝置使用舊版資料格式",
   'app.incompatible.google': "只有這個 Google 帳號的本機副本格式不相容。清除它不會刪除 Google Drive 或其他工作區的資料。",
   'app.incompatible.local': "這些本機便箋使用舊版格式。此版本不會轉換資料，也無法讀取舊格式備份。",

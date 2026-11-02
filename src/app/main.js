@@ -310,22 +310,64 @@ async function initialize() {
 
 async function showIncompatibleLocal() {
   const dialog = $('#data-failure-dialog'), body = $('#data-failure-body'), actions = $('#data-failure-actions');
+  const settings = $('#settings-dialog'), host = $('#data-host'), google = profileId.startsWith('google:');
+  const note = element('p', '', 'backup-message'); note.setAttribute('role', 'status');
+  // There is no Workspace/controller yet. Recovery Settings must not call their ordinary event handlers.
+  let busy = false;
+  const action = (label, work, className) => {
+    const control = element('button', label, className); control.type = 'button';
+    control.onclick = async () => {
+      if (busy) return;
+      try { await work(); } catch (error) { note.textContent = error.message; }
+    }; return control;
+  };
   dialog.querySelector('h2').textContent = t('app.incompatible.title');
-  body.replaceChildren(element('p', t(profileId.startsWith('google:') ? 'app.incompatible.google' : 'app.incompatible.local')),
+  body.replaceChildren(element('p', t(google ? 'app.incompatible.google' : 'app.incompatible.local')),
     element('p', t('app.incompatible.keep')));
   const agree = element('input'); agree.type = 'checkbox'; agree.id = 'discard-old-local-agree';
-  const label = element('label', undefined, 'check'); label.append(agree, document.createTextNode(t('app.incompatible.agree'))); body.append(label);
-  const discard = element('button', t('app.incompatible.discard'), 'danger'); discard.id = 'discard-old-local'; discard.disabled = true;
+  const label = element('label', undefined, 'check'); label.append(agree, document.createTextNode(t('app.incompatible.agree')));
+  const discard = action(t('app.incompatible.discard'), async () => {
+    if (!agree.checked) return;
+    busy = true; discard.disabled = true; agree.disabled = true;
+    try {
+      // Native reset reopens the same signed-in profile; only the local copy is cleared in this step.
+      await storage.reset(profileId);
+      if (!native) { lease.release(); location.reload(); }
+    } catch (error) {
+      busy = false; discard.disabled = false; agree.disabled = false;
+      throw error;
+    }
+  }, 'danger');
+  discard.id = 'discard-old-local'; discard.disabled = true;
   agree.onchange = () => { discard.disabled = !agree.checked; };
-  discard.onclick = async () => {
-    discard.disabled = true; agree.disabled = true;
-    try { await storage.reset(profileId); if (!native) { lease.release(); location.reload(); } }
-    catch (error) { status(error.message, true); discard.disabled = false; agree.disabled = false; }
+  host.replaceChildren(element('h3', t('app.incompatible.title')),
+    element('p', t(google ? 'app.incompatible.google' : 'app.incompatible.local')), element('p', t('app.incompatible.keep')));
+  if (google) host.append(element('p', t('app.incompatible.googleReset')));
+  host.append(label, discard, note);
+  if (native?.info.capabilities.dataRecovery) host.append(action(t('app.dataFailure.openFolder'), () => native.bridge.request('data.reveal')));
+  const open = () => {
+    dialog.close(); agree.checked = false; discard.disabled = true; note.textContent = '';
+    settings.classList.remove('listing');
+    for (const panel of settings.querySelectorAll('[data-panel]')) panel.hidden = panel.dataset.panel !== 'data';
+    for (const item of settings.querySelectorAll('[data-page]')) {
+      item.disabled = item.dataset.page !== 'data';
+      if (item.dataset.page === 'data') item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
+    }
+    $('#settings-page-title').textContent = t('settings.data.title'); $('#settings-back').hidden = true;
+    settings.showModal();
   };
-  actions.replaceChildren();
-  if (native?.info.capabilities.dataRecovery) actions.append(button(t('app.dataFailure.openFolder'), () => native.bridge.request('data.reveal')));
-  actions.append(discard); dialog.oncancel = event => event.preventDefault(); dialog.showModal();
-  status(t('app.incompatible.keep')); await native?.bridge.request('host.ready');
+  const close = () => { if (!busy) settings.close(); };
+  $('#close-settings').onclick = close; $('#close-settings-list').onclick = close;
+  settings.oncancel = event => { if (busy) event.preventDefault(); };
+  settings.onclose = () => { if (!dialog.open) dialog.showModal(); };
+  $('#settings-button').onclick = open; $('#account-button').onclick = open;
+  actions.replaceChildren(action(t('app.incompatible.openSettings'), open));
+  dialog.oncancel = event => event.preventDefault(); dialog.showModal(); status(t('app.incompatible.keep'));
+  if (native) {
+    await native.bridge.request('host.ready');
+    try { googleAccount = await native.bridge.request('google.status'); renderAccount(); }
+    catch (error) { note.textContent = error.message; }
+  }
 }
 
 // SPEC-006 DO: the notes on this device could not be read. The window says why and shows the data folder; where it can

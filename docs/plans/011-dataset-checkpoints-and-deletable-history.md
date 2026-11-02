@@ -157,7 +157,8 @@ Depends on the local transaction contract and reviewed remote candidate.
 ### Phase 3: Legacy reset, first-run choices and cloud-loss recovery
 
 - [x] 3.1 Detect unsupported local/cloud layout with bounded metadata/header reads; local and cloud discard choices
-  remain separate. Keep old profiles/backups intact unless their exact deletion is confirmed (VC20).
+  remain separate. Keep old profiles/backups intact unless their exact deletion is confirmed (VC20). Recovery
+  Settings is reachable before loading old local notes; local discard retains Google sign-in and the cloud reset entry.
 - [x] 3.2 Persist the old file-ID capture, legacy-compatible reset fence, new isolated dataset plan, readiness and
   exact-ID cleanup stages. Never reuse the old unfiltered delete-all loop after new files exist (VC21, VC22).
 - [x] 3.2a Implement paged durable metadata capture, legacy fence read-back, guarded initialization and exact

@@ -1,4 +1,6 @@
 export default {
+  'app.incompatible.openSettings': "Open Settings",
+  'app.incompatible.googleReset': "To start over with old Google notes, first discard this device’s old copy here. Your Google sign-in is kept. After reopening, choose Open cloud reset in the old-data notice to return to Data and backup, then use Reset all data to separately confirm clearing the old Google data and rebuilding from zero.",
   'app.incompatible.title': "This device has an older data format",
   'app.incompatible.google': "Only this Google account’s local copy is incompatible. Clearing it does not delete anything on Google Drive or in your other profiles.",
   'app.incompatible.local': "These local notes use an older format. This version cannot convert them or read their old backups.",

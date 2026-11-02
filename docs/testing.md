@@ -128,6 +128,8 @@ Run `npm run build` and `python3 scripts/testing/serve_preview.py --port 0`, the
 ```bash
 node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser chromium
 node scripts/testing/dataset-ui-probe.mjs --url http://127.0.0.1:PORT --browser webkit
+node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT --browser chromium
+node scripts/testing/legacy-google-reset-ui-probe.mjs --url http://127.0.0.1:PORT --browser webkit
 ```
 
 The isolated UI probe verifies old local data kept until consent, paged history/restore, Trash confirmation and
@@ -135,6 +137,13 @@ physical cleanup, current-only export, explicit Save as copy for unpublished pur
 The ordinary browser, group, conflict/history and backup/restore probes also use current-format record storage.
 History move labels use already loaded parent metadata without fetching ancestors. Local replacement includes
 background cleanup of attachments staged before a draft acquired ownership. None touches an account or existing profile.
+
+The legacy Google reset probe runs the production entry point, recovery Settings and reset/sync workers with real
+IndexedDB, replacing native/account/Drive adapters with isolated fixtures. It covers a signed-in old cloud with
+either empty or incompatible local storage, Settings access before loading old notes, separate local/cloud consent,
+cancel without mutation, another local profile preserved, metadata-only old-file deletion, zero notes after reset
+and a new note syncing afterwards. The old-local case disables browser local/session storage, as native recovery
+cannot depend on either. This does not verify real Google authorization or installed native reset/reload behavior.
 
 Run component benchmarks separately from builds/tests to avoid concurrent load:
 

@@ -45,8 +45,11 @@ try {
     await old.createCard({ format: 'markdown', text: 'old-format data must stay until consent', attachments: [] }); storage.close();
   }, profileId);
   await page.goto(url.href); await expect(page.locator('#data-failure-dialog')).toBeVisible();
+  await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
+  await expect(page.locator('#settings-page-title')).toHaveText(t('settings.data.title'));
   await expect(page.locator('#discard-old-local')).toBeDisabled(); await page.reload();
   await expect(page.locator('#data-failure-dialog')).toContainText(t('app.incompatible.keep'));
+  await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
   await page.locator('#discard-old-local-agree').check(); await page.locator('#discard-old-local').click();
   await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.equal((await read()).format, 'work-fleet-workspace-current');

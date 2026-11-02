@@ -9,6 +9,22 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.0
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Faster note storage and Google sync, lazy version history and permanent deletion. Earlier note data and backups are incompatible; update every device and explicitly reset to start fresh.
+
+- Upgrade: the new dataset format cannot open the earlier whole-workspace data or its backup ZIPs. There is no migration. Keep the earlier app available if you need to read or export old content; an old-format backup cannot be imported here. The JSON schema labels remain V1 during testing.
+- Reset: even with an old local database or an already signed-in Google account containing old notes, the recovery screen reaches Settings > Data and backup. Explicitly discard the old local copy and confirm the cloud reset to start empty while retaining the Google sign-in. Update or stop every older client first, including unfinished reset or overwrite jobs. A reset resumes after interruption and deletes only its captured cloud targets.
+- Notes: typing and saving update individual records instead of rewriting all retained history. Unsaved changes retain their own baseline, and large transaction batches and draft baselines no longer reduce the note-size limit by storing multiple copies in one record.
+- Google sync: a new device loads current checkpoints and recent changes without downloading all historical content. History lists load in pages and version contents download when opened. Conflicts remain explicit, and capacity errors keep local changes for retry while allowing other shards to progress.
+- Deleted notes: "Delete forever" and "Empty Trash" remove a note and its retained history and attachments. Permanent deletion wins over an older device's unsynced restore; surviving unsaved content can be saved as a new note. Automatic expiry and deletion of individual versions are not included.
+- Backups: choose "Complete retained history" or "Current state only". Missing history and the existing 20,000-entry / 128 MiB expanded ZIP limits are reported instead of silently producing an incomplete full backup. Automatic backups keep the last verified backup when complete export fails.
+- Recovery: the old-data and storage-recovery screens can close normally. Desktop record-read errors reach database recovery, expired reset listing tokens restart safely, and delayed Drive listings retry before reporting a publication problem.
+- Native storage: Android can reopen large encrypted attachments, and Apple platforms preserve leading Unicode byte-order-mark characters in note text.
+- Preview limits: real Google Drive and installed mobile reset/restore acceptance, and independent review of the latest fixes, remain outstanding. The 8 MiB checkpoint and global sync metadata limits still apply; history growth is not unlimited.
+
 ## 0.4.5
 
 Platforms: Windows, Linux, macOS, Android.

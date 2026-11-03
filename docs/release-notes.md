@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.11
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Saving and other desktop actions no longer wait for a sync, so you can keep adding groups and notes while Google Drive answers. Changes from other devices appear as soon as they arrive.
+
+- Desktop during a sync: saving groups and notes, moving papers, Adjust and quick edits no longer wait for Google Drive to answer. A second group can be added and saved while the first one is still uploading, and a quick edit's text box stays editable for the whole sync. A save made during a sync goes up right after it when no dialog is open.
+- Incoming changes: changes from other devices appear when they arrive, before a slow upload ends, and stay shown if that upload then fails.
+- Attachments: a note opens and saves without waiting for attachments that are only on Drive; its list fills in when they arrive.
+- Cloud recovery: a dataset failure during a sync, under any open dialog, asks its recovery question when that dialog closes.
+- Known limits: a save's sync makes the same number of Drive requests as 0.5.10, so "Syncing" shows for as long, and far more than 0.4.x. A quiet check during an automatic backup can still make that backup retry later, and import, merge and replace previews of a Google workspace can still expire before you confirm them.
+- Compatibility and verification: existing note, sync and backup formats are unchanged; no reset or migration is required. Shared tests, Chromium and WebKit renderer probes and CI pass with a synthetic desktop host and Drive, and an independent agent reviewed the change in two rounds. Real Drive latency, the Windows Adjust overlay probe and installed-app acceptance remain unverified.
+
 ## 0.5.10
 
 Platforms: Windows, Linux, macOS, Android.

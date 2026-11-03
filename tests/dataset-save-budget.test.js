@@ -206,12 +206,13 @@ test('reads run at most four at a time, and none outlives a failed capture', asy
 
 /** Another device's work, with this device's listings still answering from before it. */
 async function lagging(options = {}) {
-  const f = await steady(), frozen = new Map(), lag = { on: false, rounds: Infinity };
+  const f = await steady(), frozen = new Map(), lag = { on: false, rounds: Infinity, markers: true };
   const behind = new Proxy(f.provider, { get(target, key) {
     const value = Reflect.get(target, key, target);
     if (key !== 'listObjects') return typeof value === 'function' ? value.bind(target) : value;
     return async input => {
       const query = JSON.stringify(input.query);
+      if (!lag.markers && input.query.scope === 'purges') return { files: [], incomplete: false, nextPageToken: null };
       if (lag.on && lag.rounds > 0 && frozen.has(query) && ['current', 'purges'].includes(input.query.scope)) {
         if (input.query.scope === 'current') lag.rounds--;
         return structuredClone(frozen.get(query));
@@ -222,7 +223,7 @@ async function lagging(options = {}) {
   const other = await deviceOn(f, behind, options); await other.sync.sync(); await other.sync.sync();
   await edit(f); await f.sync.sync(); await f.sync.sync();
   await other.sync.sync(); await other.sync.sync();
-  return { f, other, lag };
+  return { f, other, lag, behind };
 }
 const edited = (d, id) => d.workspace.snapshot.cards.find(card => card.id === id)?.content.text ?? null;
 
@@ -264,29 +265,6 @@ test('a file the feed removed and then added again is expected, not refused', as
   assert.equal(edited(other, f.card.id), 'edited');
 });
 
-test('a marker the feed added and then removed is not expected', async () => {
-  const { f, other } = await lagging(), parent = f.plan.folders.buckets[await datasetShard('card', f.card.id)];
-  await ensureDatasetDirectory(f.provider, f.plan, parent);
-  const marker = await new DatasetProtocol(f.provider, new DatasetTestJournal()).publish('purge', parent, datasetRecord(f.plan.datasetId, 'purge', { operationId: crypto.randomUUID(), entityId: f.card.id,
-    folderIds: [], trashEpisode: crypto.randomUUID(), heads: [f.card.revision] }));
-  await f.provider.deleteFile({ id: marker.id });
-  await other.sync.sync({ force: true });
-  assert.equal(other.sync.status.phase, 'idle');
-});
-
-test('an unfinished feed does not hold a listing to what it has read so far', async () => {
-  const { f, other, lag } = await lagging(), parent = f.plan.folders.buckets[await datasetShard('card', f.card.id)];
-  await ensureDatasetDirectory(f.provider, f.plan, parent);
-  lag.on = true;
-  await new DatasetProtocol(f.provider, new DatasetTestJournal()).publish('purge', parent, datasetRecord(f.plan.datasetId, 'purge', { operationId: crypto.randomUUID(), entityId: f.card.id,
-    folderIds: [], trashEpisode: crypto.randomUUID(), heads: [f.card.revision] }));
-  f.provider.events.push(...Array.from({ length: DATASET_LIMITS.feedEvents }, (_, at) => ({ id: `noise-${at}`, removed: true })));
-  await other.sync.sync({ force: true });
-  lag.on = false;
-  await other.sync.sync({ force: true });
-  assert.equal(edited(other, f.card.id), null, 'the next pass reads the rest');
-});
-
 test('an unfinished feed does not refuse a listing for naming what it removed', async () => {
   const { f, other, lag } = await lagging(), receipt = f.calls.findLast(isReceipt).args[0].file.id;
   await f.provider.deleteFile({ id: receipt });
@@ -294,62 +272,6 @@ test('an unfinished feed does not refuse a listing for naming what it removed', 
   lag.on = true;
   await other.sync.sync({ force: true });
   assert.equal(other.workspace.syncState.cursor, null, 'an unfinished feed leaves the next pull to reconcile');
-});
-
-test('a listing that never agrees holds uploads for 30 seconds, however many passes ask', async () => {
-  let clock = 1000;
-  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
-  const editFrom = text => f.workspace.updateCard(id, { content: content(text) }, f.workspace.snapshot.cards.find(card => card.id === id).revision);
-  await editFrom('never listed'); await f.sync.sync();
-  await other.workspace.createCard(content('waiting to upload'));
-  lag.on = true;
-  for (let i = 0; i < 8; i++) await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' }, `hold ${i}`);
-  clock += 29_999;
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
-  assert.equal(other.workspace.pendingCount, 1, 'held before any upload');
-  clock += 1;
-  // A pull after the upload can still meet the same listing. What matters is that the upload went.
-  await other.sync.sync({ force: true }).catch(error => assert.equal(error.code, 'dataset-visibility'));
-  assert.equal(other.workspace.pendingCount, 0, 'a full reconciliation lets the upload go');
-});
-
-test('after a reconciliation that stopped holding, another one corrects what the listing left out', async () => {
-  let clock = 1000;
-  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
-  const editFrom = text => f.workspace.updateCard(id, { content: content(text) }, f.workspace.snapshot.cards.find(card => card.id === id).revision);
-  await editFrom('left out at first'); await f.sync.sync();
-  lag.on = true;
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
-  clock += 30_000;
-  await other.sync.sync({ force: true });
-  lag.on = false;
-  assert.notEqual(edited(other, id), 'left out at first', 'it landed what the listing showed');
-  await assert.rejects(other.sync.syncWaiting({ force: true }), { code: 'dataset-visibility' }, 'and nobody waiting takes that as current');
-  clock += 5 * 60 * 1000;
-  await other.sync.sync();
-  assert.equal(edited(other, id), 'left out at first');
-  assert.equal((await other.sync.syncWaiting({ force: true })).phase, 'idle');
-  other.calls.length = 0; await other.sync.sync();
-  assert.ok(!other.calls.some(call => call.method === 'getStartCursor'), 'one follow-up is enough');
-});
-
-test('a follow-up that lands during a new hold is still owed', async () => {
-  let clock = 1000;
-  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
-  const editFrom = text => f.workspace.updateCard(id, { content: content(text) }, f.workspace.snapshot.cards.find(card => card.id === id).revision);
-  await editFrom('first'); await f.sync.sync();
-  lag.on = true;
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
-  clock += 30_000; await other.sync.sync({ force: true });
-  lag.on = false; clock += 5 * 60 * 1000 - 10_000;
-  await editFrom('second'); await f.sync.sync();
-  lag.on = true;
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
-  clock += 10_000; await other.sync.sync({ force: true });
-  lag.on = false;
-  assert.notEqual(edited(other, id), 'second', 'this follow-up met the same lag');
-  clock += 5 * 60 * 1000; await other.sync.sync();
-  assert.equal(edited(other, id), 'second');
 });
 
 test('an old hold or one followed by another failure does not end the next one early', async () => {
@@ -370,15 +292,178 @@ test('an old hold or one followed by another failure does not end the next one e
   assert.equal((await other.sync.syncWaiting({ force: true })).phase, 'idle', 'no follow-up is owed, because nothing stopped holding');
 });
 
+const publishMarker = async (f, id, heads) => {
+  const parent = f.plan.folders.buckets[await datasetShard('card', id)];
+  await ensureDatasetDirectory(f.provider, f.plan, parent);
+  return new DatasetProtocol(f.provider, new DatasetTestJournal()).publish(`purge-${id}`, parent, datasetRecord(f.plan.datasetId, 'purge', { operationId: crypto.randomUUID(),
+    entityId: id, folderIds: [], trashEpisode: crypto.randomUUID(), heads }));
+};
+const currentOf = (d, id) => d.workspace.snapshot.cards.find(card => card.id === id);
+const receiptsOf = (f, id) => [...f.provider.files.values()].filter(item => item.file.kind === 'change' && item.file.entityId === id).length;
+const savedForCopy = d => Object.values(d.workspace.state.drafts).filter(draft => draft.purged).map(draft => draft.content.text);
+
+test('a permanent deletion the feed reported counts at once, whatever the listing shows, and unsent work is kept for a copy', async () => {
+  const { f, other, lag } = await lagging(), id = f.card.id;
+  await other.workspace.updateCard(id, { content: content('restored offline') }, currentOf(other, id).revision);
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  const receipts = receiptsOf(f, id);
+  lag.markers = false;
+  await other.sync.sync({ force: true });
+  assert.equal(edited(other, id), null);
+  assert.deepEqual(savedForCopy(other), ['restored offline']);
+  assert.equal(other.workspace.pendingCount, 0);
+  assert.equal(receiptsOf(f, id), receipts, 'the restored version must not reach Drive');
+  assert.ok(await other.storage.getControl(`purge:${f.plan.datasetId}:${id}`), 'and this device remembers the deletion');
+});
+
+test('a marker seen during a hold still stops the upload behind it, and the work survives until the pull can land', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  await other.workspace.updateCard(id, { content: content('restored offline') }, currentOf(other, id).revision);
+  await f.workspace.updateCard(id, { content: content('edited before the deletion') }, currentOf(f, id).revision); await f.sync.sync();
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  const receipts = receiptsOf(f, id);
+  lag.on = true; lag.markers = false;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(receiptsOf(f, id), receipts, 'the upload goes ahead only for what no marker forbids');
+  assert.equal(other.workspace.pendingCount, 1, 'and this one stays pending');
+  lag.on = false; lag.markers = true;
+  await other.sync.sync({ force: true });
+  assert.equal(edited(other, id), null);
+  assert.deepEqual(savedForCopy(other), ['restored offline']);
+  assert.equal(other.workspace.pendingCount, 0);
+});
+
+test('a marker already read keeps its note away while the listing is still behind it', async () => {
+  const { f, other, lag } = await lagging(), id = f.card.id, shard = await datasetShard('card', id);
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  lag.markers = false;
+  await other.sync.sync({ force: true });
+  assert.equal(edited(other, id), null);
+  let sibling; do sibling = await f.workspace.createCard(content('same shard')); while (await datasetShard('card', sibling.id) !== shard);
+  while (f.workspace.pendingCount) await f.sync.sync({ force: true });
+  await other.sync.sync({ force: true });
+  assert.equal(edited(other, sibling.id), 'same shard', 'the pull really captured that shard again');
+  assert.equal(edited(other, id), null, 'and the deleted note did not come back with it');
+});
+
+test('a marker read only by its ID is still checked, and one already gone says nothing', async () => {
+  const f = await steady(), protocol = new DatasetProtocol(f.provider, new DatasetTestJournal()), id = f.card.id;
+  const marker = await publishMarker(f, id, [f.card.revision]);
+  assert.equal((await protocol.readPurges(f.plan, [marker]))[0].entityId, id);
+  await assert.rejects(protocol.readPurges(f.plan, [{ ...marker, parentId: f.plan.folders.notes }]), { code: 'invalid-dataset' });
+  await f.provider.deleteFile({ id: marker.id });
+  assert.deepEqual(await protocol.readPurges(f.plan, [marker]), []);
+});
+
+test('a marker the feed added and then removed is not read', async () => {
+  const { f, other } = await lagging();
+  const marker = await publishMarker(f, f.card.id, [f.card.revision]);
+  await f.provider.deleteFile({ id: marker.id });
+  other.calls.length = 0;
+  await other.sync.sync({ force: true });
+  assert.equal(other.sync.status.phase, 'idle');
+  assert.ok(!other.calls.some(call => call.method === 'readObject' && call.args[0].file.id === marker.id));
+  assert.equal(edited(other, f.card.id), 'edited');
+});
+
+test('a marker counts even from a feed this pass did not finish', async () => {
+  const { f, other } = await lagging(), id = f.card.id;
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  f.provider.events.push(...Array.from({ length: DATASET_LIMITS.feedEvents }, (_, at) => ({ id: `noise-${at}`, removed: true })));
+  await other.sync.sync({ force: true });
+  assert.equal(edited(other, id), null);
+});
+
+test('a listing that stays behind lets uploads go after 30 seconds, and holds the cursor however long it takes', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  await f.workspace.updateCard(id, { content: content('not listed yet') }, currentOf(f, id).revision); await f.sync.sync();
+  const mine = await other.workspace.createCard(content('waiting to upload'));
+  const before = other.workspace.syncState;
+  lag.on = true;
+  for (let i = 0; i < 8; i++) await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' }, `hold ${i}`);
+  clock += 29_999;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.workspace.pendingCount, 1, 'held before any upload');
+  clock += 1; other.calls.length = 0;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' }, 'the pass does not report success');
+  assert.equal(other.workspace.pendingCount, 0, 'the upload went');
+  assert.equal(receiptsOf(f, mine.id), 1);
+  assert.ok(!other.calls.some(call => call.method === 'getStartCursor'), 'no full reconciliation');
+  assert.equal(other.workspace.syncState.cursor, before.cursor, 'the cursor stays');
+  assert.deepEqual(other.workspace.syncState.datasetView, before.datasetView, 'and nothing landed');
+  assert.equal(other.sync.status.phase, 'backoff');
+  clock += 60 * 60 * 1000;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.workspace.syncState.cursor, before.cursor, 'an hour later it still has not moved past what it never saw');
+  lag.on = false;
+  await other.sync.sync({ force: true });
+  assert.equal(edited(other, id), 'not listed yet');
+  assert.equal(other.sync.status.phase, 'idle');
+});
+
+test('a restart while behind loses nothing, because the cursor is what remembers', async () => {
+  let clock = 1000;
+  const elapsed = () => clock;
+  const { f, other, lag, behind } = await lagging({ elapsed }), id = f.card.id;
+  await f.workspace.updateCard(id, { content: content('not listed yet') }, currentOf(f, id).revision); await f.sync.sync();
+  await other.workspace.createCard(content('waiting to upload'));
+  lag.on = true;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  await other.sync.stop({ endSession: false });
+  // A new session has no heads of its own yet, and its first pull cannot land.
+  const restarted = new DatasetSync({ workspace: other.workspace, storage: other.storage, fileStore: behind, elapsed });
+  await assert.rejects(restarted.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000;
+  await assert.rejects(restarted.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.workspace.pendingCount, 0, 'uploads still go');
+  lag.on = false;
+  await restarted.sync({ force: true });
+  assert.equal(edited(other, id), 'not listed yet');
+  await restarted.stop();
+});
+
+test('an operation whose own pull cannot land stays pending, and the ones after it still go', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  // The first save's receipt outcome stays uncertain, so its retry starts with a pull.
+  const hook = f.provider.hook; let once = true;
+  await other.workspace.updateCard(id, { content: content('uncertain') }, currentOf(other, id).revision);
+  const start = other.calls.length;
+  f.provider.hook = async (point, ...rest) => {
+    const write = other.calls.slice(start).findLast(call => call.method === 'createObject');
+    if (point === 'create-before' && once && write?.args[0].file.kind === 'change') { once = false; throw Object.assign(new Error('down'), { code: 'service-unavailable' }); }
+    return hook(point, ...rest);
+  };
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'service-unavailable' });
+  f.provider.hook = hook;
+  const later = await other.workspace.createCard(content('saved after it'));
+  await f.workspace.updateCard(id, { content: content('not listed yet') }, currentOf(f, id).revision); await f.sync.sync();
+  lag.on = true;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.workspace.pendingCount, 1, 'the uncertain save waits for its pull');
+  assert.equal(receiptsOf(f, later.id), 1, 'the next one went');
+  lag.on = false;
+  await other.sync.sync({ force: true });
+  assert.equal(other.workspace.pendingCount, 0);
+});
+
 test('a pull that gets through starts the 30 seconds again', async () => {
   let clock = 1000;
   const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
-  const editFrom = text => f.workspace.updateCard(id, { content: content(text) }, f.workspace.snapshot.cards.find(card => card.id === id).revision);
+  const editFrom = text => f.workspace.updateCard(id, { content: content(text) }, currentOf(f, id).revision);
   const hold = async () => { lag.on = true; await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' }); lag.on = false; };
   await editFrom('one'); await f.sync.sync(); await hold(); clock += 20_000; await other.sync.sync({ force: true });
   assert.equal(edited(other, id), 'one');
+  await other.workspace.createCard(content('waiting'));
   await editFrom('two'); await f.sync.sync(); await hold(); clock += 20_000; lag.on = true;
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' }, 'only 20 seconds into this hold');
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.workspace.pendingCount, 1, 'only 20 seconds into this hold, so the upload still waits');
 });
 
 test('a pass someone is waiting on waits out a short lag, and gives up after three waits', async () => {
@@ -394,22 +479,6 @@ test('a pass someone is waiting on waits out a short lag, and gives up after thr
   other.sync.sync = options => { passes++; return sync(options); };
   await assert.rejects(other.sync.syncWaiting({ force: true }), { code: 'dataset-visibility' });
   assert.equal(passes, 4);
-});
-
-test('a purge the feed reported waits for the listing to show it', async () => {
-  const { f, other, lag } = await lagging(), id = f.card.id, shard = await datasetShard('card', id), parent = f.plan.folders.buckets[shard];
-  await ensureDatasetDirectory(f.provider, f.plan, parent);
-  const reader = new DatasetProtocol(f.provider, new DatasetTestJournal());
-  await other.sync.sync({ force: true });
-  lag.on = true;
-  await reader.publish('purge', parent, datasetRecord(f.plan.datasetId, 'purge', { operationId: crypto.randomUUID(), entityId: id,
-    folderIds: [], trashEpisode: crypto.randomUUID(), heads: [f.workspace.snapshot.cards.find(card => card.id === id).revision] }));
-  const cursor = other.workspace.syncState.cursor;
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
-  assert.equal(other.workspace.syncState.cursor, cursor);
-  lag.on = false;
-  await other.sync.sync({ force: true });
-  assert.equal(edited(other, id), null, 'the note is gone once the listing caught up');
 });
 
 test('a listing that catches up within its retries costs the pass nothing', async () => {

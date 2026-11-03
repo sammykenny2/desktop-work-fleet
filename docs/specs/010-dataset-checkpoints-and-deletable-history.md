@@ -488,9 +488,10 @@ Exact-ID read-back and filtered-list visibility are separate. If a verified new 
 list, retry up to four observations (50/100/200 ms delays), then return retryable `dataset-visibility` and retain the
 journal. Absence alone is not an initialization conflict or superseding reset. A verified missing root/marker or an
 observed foreign fence still stops the affected operation. This bounded retry does not prove arbitrary stale-list
-safety; real-provider publication and concurrent-writer acceptance remains open. An incremental pull also holds its capture and
-purge listings to the feed it just read to its end, with the same retry and error, and keeps its cursor until they agree or 30
-seconds of holding lead to a full reconciliation ([ADR-065](../decisions/065-reuse-verified-records-to-cut-sync-round-trips.md)).
+safety; real-provider publication and concurrent-writer acceptance remains open. An incremental pull also holds its capture
+listing to the feed it just read to its end, with the same retry and error, and keeps its cursor until they agree. After 30 seconds
+of holding, uploads go on without that pull landing. A purge marker the feed reports is read by its exact ID and applies at once
+([ADR-065](../decisions/065-reuse-verified-records-to-cut-sync-round-trips.md)).
 
 New data is never created below an old captured folder. Each deletion batch revalidates account and the expected fence/generation, and is limited to the captured IDs. On a new fence/generation or loss of the reset's own marker, stop the
 old job. Two competing initializers do not elect a winner by clock; show an initialization conflict and preserve

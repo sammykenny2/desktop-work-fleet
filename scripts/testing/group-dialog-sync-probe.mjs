@@ -297,6 +297,17 @@ try {
   await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
   await expect.poll(adjusting).toBe(false);
 
+  // So does a shortcut from a desktop window, which never passes through the main window: the dialog must not refuse it.
+  await settled(); await holdSync(); await holdLanding('Landing under a shortcut');
+  await command('queued-shortcut', 'interaction.shortcut', 3, { key: 'Ctrl+Shift+0' });
+  await press('#add-group');
+  assert.equal(await open(), 0, 'a click after a shortcut already in the queue must not open a dialog ahead of it');
+  await finishLanding(); await accepted('queued-shortcut');
+  await expect.poll(adjusting).toBe(true);
+  assert.equal(await open(), 0, 'the editor behind a shortcut that started adjusting must not open under the overlay');
+  await page.evaluate(() => document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+  await expect.poll(adjusting).toBe(false);
+
   // A sync renaming the group under the dialog refuses the rename once; trying again, as the refusal says, succeeds.
   await settled(); await peerPull();
   const renamed = peer.workspace.snapshot.groups.find(group => group.name === 'First during sync');

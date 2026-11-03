@@ -29,7 +29,7 @@ function changePage(page) {
 export class DatasetSync {
   #workspace; #storage; #store; #protocol; #lifecycle; #session; #binding; #latest;
   #running = null; #closed = false; #abort = new AbortController(); #now; #random; #failures = 0;
-  #tailSizes = new Map(); #records = new VerifiedRecords(); #hold = null; #recheckAt = null;
+  #tailSizes = new Map(); #records = new VerifiedRecords(); #hold = null; #seenPurges = new Map();
   #uploadAfter = null;
   #idle = null; #elapsed; #validatedAt = null; #activity = () => {}; #land = landDirectly;
   #generationProven = false;
@@ -72,23 +72,18 @@ export class DatasetSync {
     this.#activity = onActivity; this.#land = land;
     this.#running = this.#run().finally(() => { this.#running = null; this.#activity = () => {}; }); return this.#running;
   }
-  /**
-   * A forced pass someone is waiting on. A listing behind the feed normally clears within seconds, so this waits that out briefly.
-   * A pull that stopped waiting may have landed what its listing left out, which is not a result to present as current.
-   */
+  /** A forced pass someone is waiting on. A listing behind the feed normally clears within seconds, so this waits that out briefly. */
   async syncWaiting(options) {
     for (let waits = 0; ; waits++) {
-      try {
-        const result = await this.sync(options);
-        requireValue(this.#recheckAt === null, 'dataset-visibility', t('errors.sources.datasetVisibility'));
-        return result;
-      } catch (error) {
+      try { return await this.sync(options); }
+      catch (error) {
         if (error.code !== 'dataset-visibility' || waits >= 3) throw error;
         await new Promise(resolve => setTimeout(resolve, 500 * 2 ** waits));
       }
     }
   }
-  #recheckDue() { return this.#recheckAt !== null && this.#elapsed() >= this.#recheckAt; }
+  /** Whether this failure is a pull's hold that has gone on long enough to stop holding back uploads. */
+  #heldTooLong(error) { return this.#hold?.error === error && this.#elapsed() - this.#hold.since >= LISTING_HOLD_MS; }
   async #warmIdle() {
     this.#idle = null;
     const expected = this.#workspace.syncState, epoch = this.#storage.syncEpoch;
@@ -103,7 +98,6 @@ export class DatasetSync {
   }
   async #checkIdle() {
     const cached = this.#idle, state = this.#workspace.syncState;
-    if (this.#recheckDue()) return false;
     if (!cached || cached.epoch !== this.#storage.syncEpoch || state.pendingCount || state.localHeads?.length
       || state.cursor !== cached.expected.cursor || !equal(state.dataset, cached.expected.dataset)
       || !equal(state.datasetView, cached.expected.datasetView)) return false;
@@ -156,7 +150,11 @@ export class DatasetSync {
         requireValue(discovery.phase === 'ready' && discovery.binding.plan.datasetId === this.#binding.plan.datasetId,
           'initialization-conflict', t('errors.sources.initializationConflict'));
       }
-      await this.#pull();
+      // The first pull comes before any upload, so a listing that stays behind must not hold them for good. What it holds
+      // back is the cursor: nothing lands, the next pass replays the same events, and this pass does not report success.
+      let behind = null;
+      try { await this.#pull(); }
+      catch (error) { if (!this.#heldTooLong(error)) throw error; behind = error; }
       await this.#storage.deleteJob('dataset-initialize');
       // A pass is bounded even after months offline; the UI stays usable and schedules another pass.
       let page, capacityError = null;
@@ -164,16 +162,23 @@ export class DatasetSync {
       catch (error) { if (error.code !== 'stale-writer') throw error; page = await this.#storage.pendingPage({ limit: 32 }); }
       for (const operation of page.operations) {
         this.#check();
-        try { await this.#push(operation); }
-        catch (error) {
+        try {
+          try { await this.#push(operation); }
+          catch (error) {
+            if (error.code !== 'dataset-purged') throw error;
+            await this.#pull();
+            await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId],
+              { jobs: [publicationKey(this.#binding.plan.datasetId, operation.operationId)] });
+          }
+        } catch (error) {
           if (error.code === 'dataset-capacity') { capacityError = error; continue; }
-          if (error.code !== 'dataset-purged') throw error;
-          await this.#pull();
-          await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId],
-            { jobs: [publicationKey(this.#binding.plan.datasetId, operation.operationId)] });
+          // This operation needs a pull that cannot land yet, so it stays pending. The others need not wait with it.
+          if (!this.#heldTooLong(error)) throw error;
+          behind = error;
         }
       }
       this.#uploadAfter = page.next;
+      if (behind) throw capacityError ?? behind;
       if (page.operations.length) await this.#pull();
       if (capacityError) throw capacityError;
       if (this.#latest.complete && !this.#workspace.pendingCount) await this.#workspace.completeSync(this.#session, new Date(this.#now()).toISOString());
@@ -201,12 +206,9 @@ export class DatasetSync {
     }
     const published = [...shards.values()].flatMap(value => value.heads.map(head => head.record)), dataEntities = new Set();
     const changedShards = new Set();
-    // The first pull comes before any upload, so a listing that never agrees must not hold them forever. A full reconciliation
-    // lands what the listing shows, which can leave things out, so another one follows once the listing has had time.
     // A hold longer ago than any backoff says nothing about this listing.
     if (this.#hold && this.#elapsed() - this.#hold.last > LISTING_HOLD_GAP_MS) this.#hold = null;
-    const held = this.#hold !== null, heldTooLong = held && this.#elapsed() - this.#hold.since >= LISTING_HOLD_MS, recheck = this.#recheckDue();
-    if (cursor && shards.size === DATASET_SHARDS.length && !heldTooLong && !recheck) {
+    if (cursor && shards.size === DATASET_SHARDS.length) {
       await this.#proveGeneration();
       const known = new Map([...shards].flatMap(([shard, value]) => value.inputs.map(file => [file.id, shard])));
       const purged = new Set(), seen = new Set(); let events = 0, bytes = 0, complete = false, residualLegacy = false;
@@ -229,7 +231,7 @@ export class DatasetSync {
               removed.delete(change.id);
               if (['change', 'checkpoint'].includes(change.file.kind)) { changedShards.add(change.file.shard); added.set(change.id, change.file.shard); }
               if (['revision', 'attachment'].includes(change.file.kind) && change.file.shard !== 'groups') dataEntities.add(change.file.entityId);
-              if (change.file.kind === 'purge') { purged.add(change.file.entityId); changedShards.add(change.file.shard); markers.set(change.id, change.file.entityId); }
+              if (change.file.kind === 'purge') { purged.add(change.file.entityId); changedShards.add(change.file.shard); markers.set(change.id, change.file); }
             }
           }
           cursor = page.nextCursor ?? page.cursor;
@@ -237,7 +239,12 @@ export class DatasetSync {
           if (events >= DATASET_LIMITS.feedEvents || bytes >= DATASET_LIMITS.feedBytes) break;
         } while (true);
         for (const shard of changedShards) {
-          // An unread later page could still change any of this, so only a finished feed can hold a listing to it.
+          // A marker counts as soon as the feed reports it, before any hold, so an upload behind it stops whatever the listings show.
+        for (const marker of await this.#protocol.readPurges(plan, [...markers.values()], this.#abort.signal)) {
+          await this.#storage.putControl(`purge:${plan.datasetId}:${marker.entityId}`, marker);
+          this.#seenPurges.set(marker.entityId, marker);
+        }
+        // An unread later page could still change any of this, so only a finished feed can hold a listing to it.
           const options = complete ? { reuse: true, removed, added: [...added].filter(([, home]) => home === shard).map(([id]) => id) } : { reuse: true };
           let inputs;
           try { inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal, options); }
@@ -248,9 +255,13 @@ export class DatasetSync {
           ...state.revisions.filter(record => record.kind === 'card' && state.sync.localHeads?.includes(record.revisionId)).map(record => record.entityId),
           ...Object.values(state.drafts).map(draft => draft.cardId)];
         result = { heads: [...shards.values()].flatMap(value => value.heads), inputs: [...shards.values()].flatMap(value => value.inputs),
-          purges: await this.#protocol.visiblePurges(plan, targets, complete ? [...markers.values()] : [], this.#abort.signal), cursor: complete ? cursor : null, complete, residualLegacy };
+          purges: await this.#protocol.purges(plan, targets, this.#abort.signal), cursor: complete ? cursor : null, complete, residualLegacy };
       } catch (error) {
-        if (error.code === 'dataset-visibility') this.#hold = { since: this.#hold?.since ?? this.#elapsed(), last: this.#elapsed() };
+        if (error.code === 'dataset-visibility') {
+          this.#hold = { since: this.#hold?.since ?? this.#elapsed(), last: this.#elapsed(), error };
+          // Uploads can go on without this pull, and after a restart nothing else says what the current heads are.
+          this.#latest ??= { heads: [...shards.values()].flatMap(value => value.heads), complete: false };
+        }
         if (error.code !== 'cursor-expired') throw error;
       }
     }
@@ -261,6 +272,9 @@ export class DatasetSync {
         changedShards.add(shard); shards.set(shard, { heads: result.heads.filter(head => head.file.shard === shard), inputs: result.inputs.filter(file => file.shard === shard) });
       }
     }
+    // A listing can still lag behind a marker this session already read, so what the marker forbids stays forbidden.
+    const listedPurges = new Set(result.purges.map(value => value.entityId));
+    result.purges.push(...[...this.#seenPurges.values()].filter(value => !listedPurges.has(value.entityId)));
     await this.#proveGeneration();
     this.#validatedAt = this.#elapsed();
     const forbidden = new Set(result.purges.map(value => value.entityId));
@@ -288,7 +302,6 @@ export class DatasetSync {
     // The turn can come after this pass was stopped, and a stop that keeps the session leaves only the check here to see it.
     await this.#land(() => { this.#check(); return this.#workspace.receiveDataset(this.#session, this.#binding, result); });
     this.#latest = result; this.#hold = null;
-    if (heldTooLong || recheck && held) this.#recheckAt = this.#elapsed() + AUDIT_MS; else if (recheck) this.#recheckAt = null;
   }
 
   async #admit(incomingBytes) {

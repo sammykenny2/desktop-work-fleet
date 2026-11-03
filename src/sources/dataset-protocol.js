@@ -153,9 +153,14 @@ export class DatasetProtocol {
       return receipt;
     } catch (error) { if (missing(error)) changed(false); throw error; }
   }
-  /** The markers `purges` finds, once a listing shows those the changes feed already reported. */
-  visiblePurges(plan, entityIds, expected, signal) {
-    return untilVisible(() => this.purges(plan, entityIds, signal), markers => expected.every(id => markers.some(marker => marker.entityId === id)), signal);
+  /** Markers the changes feed reported, read by their exact IDs, which needs no listing to have caught up. One already gone says nothing. */
+  async readPurges(plan, files, signal) {
+    const markers = await eachRead(files, async file => {
+      invalid(file.datasetId === plan.datasetId && file.kind === 'purge' && file.parentId === plan.folders.buckets[file.shard]);
+      try { return await this.recall(file, signal); }
+      catch (error) { if (missing(error)) return null; throw error; }
+    }, this.#store.readWidth);
+    return markers.filter(Boolean);
   }
   async purges(plan, entityIds, signal) {
     const ids = [...new Set(entityIds)], result = [];

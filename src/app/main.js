@@ -619,7 +619,7 @@ async function syncGoogle(force = false) {
       setText('#google-sync', () => t('sync.recovery.options')); void askDatasetRecovery(); return;
     }
     // Drive's filtered lists can lag its feed for a moment. Nothing failed and the cursor held, so this is only "not yet".
-    // Six doubling backoffs always outlast the 30 seconds a pull holds out, so the pass that stops holding runs before any report.
+    // Six doubling backoffs always outlast the 30 seconds before uploads go ahead, so those run before any report.
     if (error.code === 'dataset-visibility' && listingLagWaits < 6) {
       listingLagWaits++;
       setSync('busy', () => t('sync.status.syncing'));
@@ -1348,7 +1348,7 @@ function renderGroupList(snapshot, layout, groups) {
       const grip = element('span', undefined, 'group-grip'); grip.setAttribute('aria-hidden', 'true');
       grip.append(icon('M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01')); row.append(grip);
     }
-    row.append(choose, immediateButton('⋯', () => openGroupEditor(group), 'group-menu')); $('#groups').append(row);
+    row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
 }
 
@@ -1774,14 +1774,10 @@ async function moveNoteToGroup(id, groupId) {
   } });
 }
 
-// Opening writes nothing, so a click answers at once. An earlier click still goes first: its action may start adjusting,
-// or need no dialog in its way, and the editor then decides on its own turn.
-function openGroupEditor(group) {
-  if (activeActions.size) run(() => groupEditor(group)); else groupEditor(group);
-}
-// Called outside the queue, this keeps the queue's admission rules; an open dialog also means repeated clicks open one.
+// Takes its turn in the queue, so an action from any window that came first can start adjusting or need no dialog in its
+// way. The queue holds no Drive request, so that turn comes at once. An open dialog means repeated clicks open one.
 function groupEditor(group) {
-  if (nativeClosing || adjustOverlayActive() || document.querySelector('dialog[open]')) return;
+  if (nativeClosing || document.querySelector('dialog[open]')) return;
   const dialog = element('dialog'); const form = element('form');
   const title = element('h2', group ? t('app.groupEditor.editTitle') : t('app.groupEditor.newTitle'));
   const label = element('label', t('app.groupEditor.name'), 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = groupName(group); label.append(input);
@@ -2641,7 +2637,7 @@ function bindEvents() {
   $('#show-desktop').onclick = () => run(async () => {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
-  $('#add-group').onclick = () => openGroupEditor();
+  $('#add-group').onclick = () => run(() => groupEditor());
   $('#toast').onclick = closeToast;
   const groupList = $('#groups');
   groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', moveGroupDrag);

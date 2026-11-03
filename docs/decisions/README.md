@@ -4,7 +4,7 @@ Updated: 2026-11-03.
 
 | Record | Status | Scope |
 |---|---|---|
-| [ADR-065](065-reuse-verified-records-to-cut-sync-round-trips.md) | Accepted (2026-11-04); real Drive acceptance pending | A session reuses immutable records it verified, while every request about what exists stays fresh and a pull holds its listings to the feed. Fewer ID requests and lookups, parallel reads on macOS and iOS, batched retirement, and a quiet check no longer voids a backup |
+| [ADR-065](065-reuse-verified-records-to-cut-sync-round-trips.md) | Accepted (2026-11-04); real Drive acceptance pending | A session reuses immutable records it verified, while every request about what exists stays fresh, a pull holds its listing and cursor to the feed, and a reported purge marker applies at once. Fewer ID requests and lookups, parallel reads on macOS and iOS, batched retirement, and a quiet check no longer voids a backup |
 | [ADR-064](064-sync-talks-to-drive-outside-the-action-queue.md) | Accepted (2026-11-03); real desktop host and Drive acceptance pending | A pass talks to Drive outside the desktop action queue and lands what it pulled inside it, so saving and the desktop stay usable during a sync |
 | [ADR-063](063-efficient-idle-sync.md) | Accepted direction; native/provider proof and independent review pending | One-request idle checks, bounded local metadata commits, native connection reuse and quiet background status; no persisted format change |
 | [ADR-062](062-dataset-checkpoints-and-deletable-history.md) | Accepted direction; remote proof gates remain | Dataset checkpoints, UUID parents, single revision bodies, manual note purge and explicit legacy reset/recovery; independent local storage work; expiry deferred |

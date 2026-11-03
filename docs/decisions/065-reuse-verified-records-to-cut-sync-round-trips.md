@@ -3,7 +3,8 @@
 ## Status
 
 Accepted, 2026-11-04, at the maintainer's request to refine 0.5.x without leaving its architecture or removing version
-control. Acceptance on real Drive remains open. This supplements [ADR-062](062-dataset-checkpoints-and-deletable-history.md),
+control. Decisions 3 and 9 changed the same day after a review of what 0.5.12 shipped (see Alternative 6). Acceptance on
+real Drive remains open. This supplements [ADR-062](062-dataset-checkpoints-and-deletable-history.md),
 [ADR-063](063-efficient-idle-sync.md) and [ADR-064](064-sync-talks-to-drive-outside-the-action-queue.md): no persisted
 format changes, no write guard is removed and no reset is needed.
 
@@ -35,19 +36,17 @@ compares, so a capture running longer than that refused itself and retried with 
      ADR-063's rule that a cached result cannot authorize a write: nothing about the generation is cached. Exactly one
      `assertGeneration` per audit and per guard stays true.
    - A pull's capture still lists its shard and purge markers. It reuses the bytes of what the listing returned.
-3. **An incremental pull holds its listings to the feed it just read.** Drive's filtered lists can lag the feed, and a verified
-   record has no download left to fail, so the disagreement has to be noticed directly. Once a feed is read to its end, a
-   capture must not list a file it removed and must list every receipt and checkpoint it added, and a purge listing must
-   show every marker it reported. A listing that does not looks again, up to four times over 350 ms. After that the pass fails with
-   the retryable `dataset-visibility` and the cursor stays, so the next pass replays the same events. This needs no
-   extra request while they agree. Once a pull has been held for 30 seconds the next one reconciles from scratch instead, because
-   this pull comes before any upload and must not hold them for good. That lands what the listing shows, which can leave things
-   out, so one more full reconciliation follows five minutes later.
+3. **An incremental pull holds its capture listing and its cursor to the feed it just read.** Drive's filtered lists can lag the
+   feed, and a verified record has no download left to fail, so the disagreement has to be noticed directly. Once a feed is
+   read to its end, a capture must not list a file it removed and must list every receipt and checkpoint it added. A listing that
+   does not looks again, up to four times over 350 ms. After that the pass fails with the retryable `dataset-visibility`, nothing
+   lands and the cursor stays, so the next pass replays the same events. This needs no extra request while they agree. The
+   first pull comes before any upload, so after 30 seconds of holding the pass goes on to its uploads without landing, and still
+   fails at the end. The cursor is what remembers: a restart loses nothing, and a device behind its listing never reports success.
 4. **A lag is not reported as a failure at first.** The status stays on syncing and the pass runs again when its backoff ends.
    A timer tick during that wait starts nothing, and Sync now still does. After six such waits without a pass completing, the
    lag is reported as an error. A forced pass someone is waiting on, for an export or a restore preview, waits out three lags
-   of up to 3.5 seconds in all. It also refuses a result while that follow-up is owed, so an export asks its question about
-   backing up only what this device knows rather than calling that view current.
+   of up to 3.5 seconds in all and then fails, so an export asks its question about backing up only what this device knows.
 5. **A checkpoint reads what it captures again:** every listed file and the body of every uncovered receipt. It seals them, so
    a body that vanished must stop it there rather than leave a dangling head in a file other devices trust. Bodies named
    only by an input checkpoint's heads are not read, as before. Attachment bytes and history reads are not reused either.
@@ -58,9 +57,13 @@ compares, so a capture running longer than that refused itself and retried with 
    every host, so reads leave room for the rest of the app, and `transfer-busy` is retried. The other hosts keep reading one at a
    time, because reads queued behind their one worker would only spend their bridge timeout waiting. Every read that started
    ends before its caller continues, so none outlives a pass. An unreadable batch reply falls back to deleting one by one.
-9. **Workspace tracks a content revision.** Every commit moves it except a quiet check's. A backup's snapshot check compares
-   it instead of the revision, and a backup's journal records it as its source. A save or a landing during a capture still
-   refuses the capture.
+9. **A permanent deletion the feed reports counts at once.** A pull reads each reported marker by its exact ID, which needs no
+   listing to have caught up, and stores it before anything can hold. The check before every upload already consults that
+   record, so an unsent edit of the note stops there and is kept for Save as copy instead of reaching Drive. Later pulls of the
+   session apply the marker too, even if the purge listing is still behind.
+10. **Workspace tracks a content revision.** Every commit moves it except a quiet check's. A backup's snapshot check compares
+    it instead of the revision, and a backup's journal records it as its source. A save or a landing during a capture still
+    refuses the capture.
 
 History uses the same reuse for its generation proofs, which also shortens backup captures and the versions page. Reset,
 initialization and restore keep reading everything.
@@ -88,25 +91,27 @@ are ratios, not times. macOS and iOS can overlap requests. The other hosts run t
   pass, such as after a resume or a failed check, still counts as a change.
 - On an incremental pull, a listing behind the feed no longer moves the cursor past what it left out. Before, a device could
   stay on old text or miss a note until the next event in that shard, reporting idle.
+- A deletion the feed reports no longer waits for the purge listing. Before, a lagging listing let an offline edit of a deleted
+  note upload, after which it counted as published and was not kept for Save as copy when the deletion took effect.
 
 ### Negative
 
 - A body lost without a purge marker is noticed later: an ordinary pull answers from memory, and the next checkpoint that
   reads it or another device reports it. Bodies are only deleted after their purge marker, so this needs outside damage.
-- A purged note's records can stay in memory until evicted or the session ends. They are not returned for it, because the
-  purge listing comes first and a pull holds that listing to the feed. The workspace held the same text before the purge.
+- A purged note's records can stay in memory until evicted or the session ends. They are not returned for it, because a
+  capture's purge listing comes first and a reported marker applies however that listing lags. The workspace held the same text.
 - The limit counts file bytes, which came to about 50 MiB of heap when full in the shapes measured. Each signed-in session can
   hold that much on top of the workspace, which holds much of the same text.
 - A batch reply that cannot be parsed costs one extra pass through the inputs.
 - How long Drive's listings really lag has never been measured. A lag beyond the retries delays that pass by its backoff, and
   a lag right after every upload would add that delay to every save. A lag at the first pull also holds that pass's uploads
-  for up to 30 seconds. Beyond that, a listing that still names deleted files fails its reads and keeps holding them until it
-  catches up, as before this decision. Real-Drive acceptance has to look for all of this.
-- A device whose listing stayed behind for over 30 seconds can show old text or miss a note, reporting idle, until the follow-up
-  five minutes later. Drive keeps everything. The follow-up is memory only and there is one, so a restart in those minutes, or a
-  listing still behind then with no hold open, leaves that view until the next event in the shard, which is where it always
-  ended before this decision. An automatic backup of that view can leave out a missing note or fail on an old head. A full
-  reconciliation after an expired cursor can land the same view with no follow-up, as it always could.
+  for up to 30 seconds. Real-Drive acceptance has to look for this.
+- A device whose listing stays behind receives nothing from other devices until it catches up, however long that takes, and
+  reports it after six waits. Nothing frees it automatically, because every way of moving the cursor could skip what the listing
+  left out. If Drive could leave a listing behind for good, that device would need a reset to recover.
+- A full reconciliation after an expired cursor has no hold, so it can land what a lagging listing shows, as it always could.
+- After a restart, a pull relies on the purge listing again for a marker it read before the cursor moved. The check before an
+  upload still has the stored record, so only the view can be wrong, and only until that listing catches up.
 
 ### Neutral
 
@@ -149,6 +154,14 @@ are ratios, not times. macOS and iOS can overlap requests. The other hosts run t
 - **Pros**: No new Workspace field.
 - **Cons**: A long capture would hold every device's changes back for its whole length.
 - **Why rejected**: A quiet check changes nothing a backup holds, so it need not stop.
+
+### Alternative 6: Reconcile after 30 seconds of holding, with a follow-up five minutes later
+
+- **Pros**: Frees the receiving side as well as uploads. This is what 0.5.12 shipped.
+- **Cons**: It lands what the listing shows and moves the cursor past what it left out, knowing the listing is behind. The
+  follow-up lived in memory, so a restart lost it. It also dropped a marker the feed had reported, so an offline edit of a deleted
+  note uploaded, and its text was gone when the follow-up applied the deletion.
+- **Why rejected**: A review reproduced both. Holding the cursor needs no follow-up and no new stored state.
 
 ## References
 

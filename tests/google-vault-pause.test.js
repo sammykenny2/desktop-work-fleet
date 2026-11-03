@@ -105,7 +105,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
     } } },
     syncService: { sync: async options => { await options.onActivity(); calls.push(['sync', options.force]); if (sync) await sync(); return { phase: 'idle' }; } },
-    syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null,
+    syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null, landingFailed: false,
     document: { querySelectorAll: () => [] },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
@@ -167,6 +167,168 @@ test('new work during a quiet check gets one immediate follow-up; pending upload
   queued[0](); assert.equal(f.states.at(-1)[0], 'busy');
   await new Promise(setImmediate);
   assert.equal(count, 2); assert.equal(f.states.at(-1)[0], 'ok'); assert.equal(queued.length, 1);
+});
+
+// ADR-064: DesktopOwner.perform runs one action at a time; this stands in for it and records what ran inside a turn.
+function desktopQueue(f) {
+  const queue = { turns: 0, depth: 0, ran: [], tail: Promise.resolve() };
+  queue.perform = action => {
+    const next = queue.tail.then(async () => {
+      queue.turns++; queue.depth++;
+      try { return await action(); } finally { queue.depth--; }
+    });
+    queue.tail = next.catch(() => {}); return next;
+  };
+  f.context.desktop = { perform: queue.perform };
+  const record = (name, value) => (...args) => { queue.ran.push([name, queue.depth > 0]); return value?.(...args); };
+  f.context.flushDraft = record('flush');
+  f.context.controller.reconcile = record('reconcile');
+  f.context.workspace.layout.placeNew = record('place');
+  f.context.render = record('render');
+  return queue;
+}
+
+test('on a desktop host the Drive pass runs outside the action queue; its flush and landing run inside', async () => {
+  const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false; const queue = desktopQueue(f);
+  let held; const answered = new Promise(resolve => { held = resolve; });
+  f.context.syncService.sync = async options => {
+    assert.equal(queue.depth, 0, 'the pass must start outside the queue');
+    await options.onActivity();
+    assert.equal(queue.depth, 0, 'the flush must end its turn before Drive is asked anything');
+    await answered;
+    assert.equal(queue.depth, 0, 'waiting for Drive must not hold the queue');
+    const received = await options.land(async () => { queue.ran.push(['receive', queue.depth > 0]); return 'received'; });
+    assert.equal(received, 'received');
+    return { phase: 'idle' };
+  };
+  const passing = f.invoke(false);
+  await new Promise(setImmediate);
+  let actionRan = false; await queue.perform(() => { actionRan = true; });
+  assert.equal(actionRan, true, 'an action runs while Drive has not answered');
+  held(); await passing;
+  assert.deepEqual(queue.ran, [['flush', true], ['receive', true], ['reconcile', true], ['place', true], ['render', true]]);
+  assert.equal(queue.turns, 3, 'flush, the action and the landing each take one turn');
+  assert.equal(f.states.at(-1)[0], 'ok');
+});
+
+test('a landing depends on nothing after it, so a pass failing later still leaves its landing applied and shown', async () => {
+  const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false; const queue = desktopQueue(f);
+  f.context.syncService.sync = async options => {
+    await options.land(async () => { queue.ran.push(['receive', queue.depth > 0]); });
+    throw Object.assign(new Error('Upload failed'), { code: 'network' });
+  };
+  await f.invoke(false);
+  assert.deepEqual(queue.ran.map(([name]) => name), ['receive', 'reconcile', 'place', 'render']);
+  assert.equal(f.states.at(-1)[0], 'error');
+});
+
+test('a pass landing as the app closes or changes account changes nothing on the screen', async () => {
+  for (const flag of ['nativeClosing', 'accountBusy']) {
+    const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false; const queue = desktopQueue(f);
+    f.context.syncService.sync = async options => {
+      f.context[flag] = true;
+      await options.land(async () => { queue.ran.push(['receive', true]); });
+      return { phase: 'idle' };
+    };
+    await f.invoke(false);
+    assert.deepEqual(queue.ran, [['receive', true]]);
+  }
+});
+
+test('a flush whose turn comes after the account changed or the app began closing does not run', async () => {
+  for (const flag of ['nativeClosing', 'accountBusy']) {
+    const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false; const queue = desktopQueue(f);
+    let open; const holding = queue.perform(() => new Promise(resolve => { open = resolve; }));
+    f.context.syncService.sync = async options => { const flushed = options.onActivity(); f.context[flag] = true; open(); await flushed; return { phase: 'idle' }; };
+    await new Promise(setImmediate); await f.invoke(false); await holding;
+    assert.deepEqual(queue.ran, []);
+  }
+});
+
+test('a failure to show what landed is reported and leaves the pass going, so uploads still run', async () => {
+  const f = syncFixture({ capability: false }); f.context.googleAccount.paused = false; const queue = desktopQueue(f);
+  const shown = []; f.context.status = (text, error) => shown.push([text, error]);
+  f.context.controller.reconcile = async () => { throw new Error('Reconcile failed'); };
+  let continued = false;
+  let invalidated = 0; f.context.syncService.invalidateIdle = () => { invalidated++; };
+  f.context.syncService.sync = async options => {
+    assert.equal(await options.land(async () => 'received'), 'received');
+    continued = true; return { phase: 'idle' };
+  };
+  await f.invoke(false);
+  assert.equal(continued, true); assert.deepEqual(shown, [['Reconcile failed', true]]);
+  assert.equal(f.states.at(-1)[0], 'ok'); assert.equal(queue.depth, 0);
+  assert.deepEqual(queue.ran, [['render', true]], 'what did land is drawn anyway');
+  assert.equal(invalidated, 1, 'a quiet check lands nothing, so the next pass must take the full path to retry');
+  f.context.syncService.sync = async () => ({ phase: 'idle', unchanged: true });
+  await f.invoke(false);
+  assert.equal(invalidated, 1, 'the retry is asked for once per failure');
+});
+
+// Nothing holding the queue may wait for a pass, because the pass waits for the queue to land.
+const exportSource = source.slice(source.indexOf('function backupSourceOptions()'), source.indexOf('async function applyLocalRestore('));
+const prepareSource = source.slice(source.indexOf('function cloudRestoreOptions()'), source.indexOf('function backupSourceOptions()'));
+const flushSource = source.slice(source.indexOf('async function flushForBackup('), source.indexOf('function resetFailure('));
+function dataFixture() {
+  const calls = []; const queue = { depth: 0 };
+  const perform = async action => { queue.depth++; try { return await action(); } finally { queue.depth--; } };
+  const service = { whenIdle: async () => { calls.push(['whenIdle', queue.depth]); }, sync: async options => { calls.push(['sync', queue.depth, options.force, options.land === context.landSync]); return { phase: 'idle' }; } };
+  const context = vm.createContext({ profileId: 'google:fixture', googleAccount: { connected: true, email: 'synthetic@example.test' }, native: {}, t, datasetProblem: null,
+    syncService: service, workspace: { state: {} }, storage: {}, nativeClosing: false, accountBusy: false, maintenanceWork: null,
+    syncBusy: false, $: () => ({}), setSync() {}, desktop: { perform }, landSync: receive => receive(), requireConnected() {}, datasetStore: {},
+    prepareDatasetRestore: async () => 'plan', flushDraft: async () => { calls.push(['flush', queue.depth]); } });
+  vm.runInContext(`${exportSource}\n${prepareSource}\n${flushSource}`, context);
+  return { calls, context };
+}
+
+test('an export waits for a running pass outside the queue, then runs its own pass through the landing', async () => {
+  const f = dataFixture();
+  await vm.runInContext('backupSourceOptions()', f.context).sync();
+  assert.deepEqual(f.calls, [['whenIdle', 0], ['sync', 0, true, true]]);
+  assert.equal(f.context.syncBusy, false);
+});
+
+test('preparing a cloud restore runs its pass outside the queue and lands through it', async () => {
+  const f = dataFixture();
+  assert.equal(await vm.runInContext('cloudRestoreOptions()', f.context).prepare({}), 'plan');
+  assert.deepEqual(f.calls, [['sync', 0, true, true]]);
+});
+
+test('an automatic backup waits for a running pass outside the queue before its flush, whose commits would void its snapshot', async () => {
+  const f = dataFixture();
+  await vm.runInContext('flushForBackup()', f.context);
+  assert.deepEqual(f.calls, [['whenIdle', 0], ['flush', 1]]);
+  f.context.syncService = null; f.calls.length = 0;
+  await vm.runInContext('flushForBackup()', f.context);
+  assert.deepEqual(f.calls, [['flush', 1]], 'a workspace without a sync service flushes at once');
+});
+
+const runner = source.slice(source.indexOf('async function run(action'), source.indexOf('function primaryArea('));
+function runFixture({ syncBusy = false, pendingBefore = 0, action }) {
+  let started = 0;
+  const context = vm.createContext({ nativeClosing: false, syncBusy, maintenanceWork: null, syncRequested: false, activeActions: new Set(), desktop: null,
+    workspace: { pendingCount: pendingBefore }, adjustOverlayActive: () => false, status() {}, currentDraft: null, syncGoogle: () => { started++; } });
+  vm.runInContext(runner, context);
+  return { context, started: () => started, invoke: () => context.run(() => action(context)) };
+}
+
+test('a save during a running pass asks for one more pass after it', async () => {
+  const f = runFixture({ syncBusy: true, pendingBefore: 1, action: context => { context.workspace.pendingCount = 2; } });
+  await f.invoke();
+  assert.equal(f.context.syncRequested, true); assert.equal(f.started(), 0);
+});
+
+test('an action that saves nothing during a pass costs no extra Drive request', async () => {
+  const f = runFixture({ syncBusy: true, pendingBefore: 1, action: () => {} });
+  await f.invoke();
+  assert.equal(f.context.syncRequested, false); assert.equal(f.started(), 0);
+});
+
+test('with no pass running, only an action that adds an upload starts one', async () => {
+  const quiet = runFixture({ pendingBefore: 2, action: () => {} });
+  await quiet.invoke(); assert.equal(quiet.started(), 0);
+  const saved = runFixture({ pendingBefore: 2, action: context => { context.workspace.pendingCount = 3; } });
+  await saved.invoke(); assert.equal(saved.started(), 1);
 });
 
 test('an open versions page holds syncing, because its choices name the versions it shows', async () => {

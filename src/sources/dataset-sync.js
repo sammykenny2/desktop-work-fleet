@@ -15,6 +15,7 @@ const missing = error => ['file-missing', 'source-file-missing'].includes(error.
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
 const publicationKey = datasetUploadKey;
 const AUDIT_MS = 5 * 60 * 1000;
+const landDirectly = receive => receive();
 const token = value => typeof value === 'string' && value.length > 0 && value.length <= 8192;
 function changePage(page) {
   invalid(page && Array.isArray(page.changes) && page.changes.length <= 100
@@ -28,7 +29,7 @@ export class DatasetSync {
   #running = null; #closed = false; #abort = new AbortController(); #now; #random; #failures = 0;
   #tailSizes = new Map();
   #uploadAfter = null;
-  #idle = null; #elapsed; #validatedAt = null; #activity = () => {};
+  #idle = null; #elapsed; #validatedAt = null; #activity = () => {}; #land = landDirectly;
   #generationProven = false;
   #status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null };
   constructor({ workspace, storage, fileStore, now = Date.now, elapsed = () => performance.now(), random = Math.random }) {
@@ -61,11 +62,12 @@ export class DatasetSync {
     this.#status.phase = 'stopped';
   }
   async whenIdle() { await this.#running?.catch(() => {}); }
-  sync({ force = false, onActivity = () => {} } = {}) {
+  /** `land` runs each local activation of pulled data, and never a provider request; the app uses it to take its action queue's turn (ADR-064). Nothing holding that turn may wait for a pass. */
+  sync({ force = false, onActivity = () => {}, land = landDirectly } = {}) {
     if (this.#running) return this.#running;
     if (this.#closed) return Promise.reject(new FleetError('stale-session', t('errors.sources.sessionEnded')));
     if (!force && this.#now() < this.#status.nextAttemptAt) return Promise.reject(new FleetError('sync-backoff', t('errors.sources.backoff')));
-    this.#activity = onActivity;
+    this.#activity = onActivity; this.#land = land;
     this.#running = this.#run().finally(() => { this.#running = null; this.#activity = () => {}; }); return this.#running;
   }
   async #warmIdle() {
@@ -248,7 +250,9 @@ export class DatasetSync {
       controls.push({ key, value: { heads, inputs: value.inputs } }); view[shard] = key;
     }
     this.#check(); result.view = view; result.controls = controls; result.published = published;
-    await this.#workspace.receiveDataset(this.#session, this.#binding, result); this.#latest = result;
+    // The turn can come after this pass was stopped, and a stop that keeps the session leaves only the check here to see it.
+    await this.#land(() => { this.#check(); return this.#workspace.receiveDataset(this.#session, this.#binding, result); });
+    this.#latest = result;
   }
 
   async #admit(incomingBytes) {

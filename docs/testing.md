@@ -67,12 +67,26 @@ cover long-resume invalidation separately.
 These checks neither use a native phone host nor measure the real Drive round trip.
 
 The same runner also starts `group-dialog-sync-probe.mjs` in Chromium and WebKit. It gives the production renderer a
-synthetic desktop host, so the real `DesktopOwner` queue exists, and holds a synthetic Drive request so a real
-`DatasetSync` pass keeps that queue. Clicks on the add-group and group-settings buttons must open one dialog at once,
-without overtaking an earlier Adjust click; repeated Save and Merge presses must count once, and Cancel must answer
-during the sync and withdraw a waiting save but not interrupt one already writing. A rename and a dataset failure landing
-under the dialog must leave a working retry and a recovery question on close. It does not run a native host, real scenes
-or a real Drive connection, so `AdjustOverlayProbe` on Windows remains the check of the real overlay.
+synthetic desktop host, so the real `DesktopOwner` queue exists, and holds a synthetic Drive request inside a real
+`DatasetSync` pass ([ADR-064](decisions/064-sync-talks-to-drive-outside-the-action-queue.md)). While Drive has not
+answered, two groups in a row and a note must save and close, Adjust must start, Merge must open, a desktop command must
+answer and a quick edit's text box must already be released. The reported sequence, a second group saved while the
+first group's own upload is held, must finish the same way, and with attachment reads held a note must open and save and
+an attachment added meanwhile must leave the list holding what the note holds. Those groups and the note written during a
+sync must then reach a second synthetic device without waiting for the timer. Holding a landing holds the queue instead: repeated Save presses must count once, Cancel must withdraw a waiting save but not interrupt one already writing,
+and a click must not overtake an earlier Adjust click. A landing under an open editor must leave its text alone, a rename
+landing under a dialog must leave a working retry, a dataset failure under a group dialog or the main editor must ask its
+recovery question when that dialog closes, and closing the app during a sync must reach the host's close acknowledgement.
+It does not run a native host, real scenes or a real Drive connection, so `AdjustOverlayProbe` on Windows remains the check
+of the real overlay.
+
+`node --test tests/sync-action-queue.test.js` runs the same division against the real `DatasetSync` and `Workspace` on a
+synthetic provider: no provider request runs inside a queue turn, each pull lands inside one and an empty check takes
+none, a held queue keeps a landing out, a note added and a note edited during an upload survive its landings and reach a
+second device without a conflict, and a pass stopped while waiting for its turn lands nothing and still ends.
+`tests/google-vault-pause.test.js` runs the production `syncGoogle`, `landSync`, export, restore preparation and backup
+flush functions with a stand-in queue, so a change holding the queue around a pass, or waiting for a pass inside it, fails
+there too. It also runs `run` without a queue, for when an action asks for another pass.
 No window activation call is introduced by the shared status path. Full native/provider
 acceptance and independent review remain open in PLAN-012.
 

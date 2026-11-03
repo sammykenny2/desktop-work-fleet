@@ -69,13 +69,13 @@ let editorHidesMain = false;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
 let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
-let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null;
+let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null; let recoveryOwed = false; let landingFailed = false;
 let maintenanceNotice = null; let maintenanceFailure = null;
 let recoveryWork = null; let recoveryBusy = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
-const attachmentUrls = new Map();
+const attachmentUrls = new Map(); let attachmentRender = 0;
 const unsavedDrafts = new Map();
 let profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
 
@@ -85,7 +85,7 @@ function element(tag, text, className) {
   if (className) node.className = className;
   return node;
 }
-// A button whose handler decides for itself what waits in the action queue, which a running sync holds until Drive answers.
+// A button whose handler decides for itself what waits in the action queue, which earlier actions and a landing sync hold.
 function immediateButton(text, handler, className) {
   const node = element('button', text, className); node.type = 'button';
   node.addEventListener('click', event => { event.stopPropagation(); handler(); }); return node;
@@ -258,7 +258,7 @@ async function initialize() {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); if (!native) browserJournal = journal;
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
     const service = new AutomaticBackup({ workspace, storage, journal, files, vault, appVersion: native?.info.appVersion,
-      flush: () => desktop ? desktop.perform(flushDraft) : flushDraft() }); await service.load();
+      flush: flushForBackup }); await service.load();
     automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
   } catch (error) { automaticError = error; }
@@ -290,6 +290,8 @@ async function initialize() {
   // A hidden page runs its timers only once a minute (WebView2, after one to two minutes in the tray), so the desktop hosts
   // tick every 20 seconds and sync follows that tick while the main window is hidden. Showing it again syncs at once.
   native?.bridge.onEvent('host-tick', () => { if (document.visibilityState === 'hidden') void syncGoogle(); });
+  // A dialog's close event does not bubble, so one listener for all of them has to capture it.
+  document.addEventListener('close', () => { if (recoveryOwed && datasetProblem) void askDatasetRecovery(); }, true);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { syncService?.resume(); void syncGoogle(); } });
   displayBackend = native?.info.displayBackend ?? null;
   // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
@@ -571,7 +573,9 @@ async function syncGoogle(force = false) {
   syncBusy = true; $('#google-sync').disabled = true;
   const activity = async () => {
     if (!current()) return;
-    setSync('busy', () => t('sync.status.syncing')); await flushDraft();
+    setSync('busy', () => t('sync.status.syncing'));
+    const flush = () => current() ? flushDraft() : undefined;
+    await (desktop ? desktop.perform(flush) : flush());
   };
   if (force || workspace.pendingCount) setSync('busy', () => t('sync.status.syncing'));
   try {
@@ -584,31 +588,26 @@ async function syncGoogle(force = false) {
       setText('#storage-note', googleAccount.connected ? () => t('sync.storage.google') : () => t('sync.storage.signInAgain'));
       setSync('busy', () => t('sync.status.syncing'));
     }
-    await (desktop ? desktop.perform(sync) : sync());
-    async function sync() {
-      if (!current()) return;
-      const result = await sourceSync.sync({ force, onActivity: activity });
-      if (!current()) return;
-      completed = result?.phase === 'idle';
-      if (result?.phase === 'waiting-initialization') {
-        setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
-      }
-      if (!result?.unchanged) {
-        activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
-        await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
-      }
-      if (googleAccount?.paused) {
-        const account = await native.bridge.request('google.status');
-        if (!current()) return;
-        googleAccount = account; renderGoogleAccess(); renderAccount();
-        setText('#storage-note', googleAccount.paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
-        if (googleAccount.paused) { setSync('attention', () => t('sync.status.paused'), googleAccount.pauseReason); return; }
-      }
-      const pending = workspace.pendingCount; const at = workspace.syncState.lastSuccessfulSyncAt;
-      if (pending) setSync('pending', () => plural('sync.status.pending', pending));
-      else if (result?.phase !== 'idle') setSync('busy', () => t('sync.status.syncing'));
-      else setSync('ok', () => t('sync.status.syncedAt', { time: formatDate(at, { hour: '2-digit', minute: '2-digit' }) }));
+    // Drive answers outside the action queue, so local work and the desktop stay usable during a sync (ADR-064).
+    if (!current()) return;
+    const result = await sourceSync.sync({ force, onActivity: activity, land: landSync });
+    if (landingFailed) { landingFailed = false; sourceSync.invalidateIdle(); }
+    if (!current()) return;
+    completed = result?.phase === 'idle';
+    if (result?.phase === 'waiting-initialization') {
+      setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
     }
+    if (googleAccount?.paused) {
+      const account = await native.bridge.request('google.status');
+      if (!current()) return;
+      googleAccount = account; renderGoogleAccess(); renderAccount();
+      setText('#storage-note', googleAccount.paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
+      if (googleAccount.paused) { setSync('attention', () => t('sync.status.paused'), googleAccount.pauseReason); return; }
+    }
+    const pending = workspace.pendingCount; const at = workspace.syncState.lastSuccessfulSyncAt;
+    if (pending) setSync('pending', () => plural('sync.status.pending', pending));
+    else if (result?.phase !== 'idle') setSync('busy', () => t('sync.status.syncing'));
+    else setSync('ok', () => t('sync.status.syncedAt', { time: formatDate(at, { hour: '2-digit', minute: '2-digit' }) }));
   } catch (error) {
     if (!current()) return;
     if (['dataset-changed', 'incompatible-cloud-data', 'initialization-conflict', 'source-reset-superseded'].includes(error.code)) {
@@ -629,6 +628,27 @@ async function syncGoogle(force = false) {
     const again = syncRequested || completed && workspace.pendingCount > 0; syncRequested = false;
     if (again && current()) queueMicrotask(() => { void syncGoogle(); });
   }
+}
+// What a pass pulled lands in one queue turn with everything that depends on it, so no action sees one without the other.
+// A sync therefore waits for the queue here, and nothing holding the queue may wait for a sync.
+function landSync(receive) {
+  const land = async () => {
+    const received = await receive();
+    if (nativeClosing || accountBusy) return received;
+    // The data is stored by now. Failing to show it must not stop uploads, and the next pass lands again to retry.
+    try {
+      activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
+      try { await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); } finally { render(); }
+    } catch (error) { landingFailed = true; status(error.message, true); }
+    return received;
+  };
+  return desktop ? desktop.perform(land) : land();
+}
+
+// A backup refuses a snapshot whose workspace changed while it was read, and any commit of a running pass changes it.
+async function flushForBackup() {
+  await syncService?.whenIdle();
+  await (desktop ? desktop.perform(flushDraft) : flushDraft());
 }
 
 function resetFailure(error) {
@@ -811,7 +831,7 @@ function cloudRestoreOptions() {
     prepare: async options => {
       requireConnected(); await maintenanceWork;
       if (!datasetProblem) {
-        const result = await syncService?.sync({ force: true });
+        const result = await syncService?.sync({ force: true, land: landSync });
         if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingRestore'));
       }
       return prepareDatasetRestore({ ...options, workspace, storage, fileStore: datasetStore, recovery: Boolean(datasetProblem) });
@@ -828,13 +848,10 @@ function backupSourceOptions() {
         throw new Error(t('sync.errors.cannotSync'));
       syncBusy = true; $('#google-sync').disabled = true; setSync('busy', () => t('sync.status.syncing'));
       try {
-        const sync = async () => {
-          const result = await syncService.sync({ force: true });
-          if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingExport'));
-          await controller.reconcile();
-          await workspace.layout.placeNew(workspace.working, workAreas()); render();
-        };
-        await (desktop ? desktop.perform(sync) : sync());
+        // A pass already running can predate what this export covers, so the export has its own pass after it.
+        const service = syncService; await service.whenIdle();
+        const result = await service.sync({ force: true, land: landSync });
+        if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingExport'));
         setSync('ok', () => t('sync.status.synced'));
       } catch (error) { setSync('error', () => t('sync.status.failed'), error.message); throw error; }
       finally { syncBusy = false; $('#google-sync').disabled = false; }
@@ -921,7 +938,10 @@ function askResumeCloudRestore() {
 
 // Missing data is never deletion authority. Every replacement below has its own explicit scope and fresh remote checks.
 async function askDatasetRecovery() {
-  if (nativeClosing || sourceResetAsked || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'))) return;
+  if (nativeClosing || sourceResetAsked) return;
+  // A pass can fail under any dialog; the question it could not ask over one is asked when the dialog closes.
+  recoveryOwed = [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== $('#settings-dialog'));
+  if (recoveryOwed) return;
   sourceResetAsked = true;
   const dialog = element('dialog'); dialog.id = 'source-reset-dialog';
   const message = element('p', '', 'backup-message'); message.setAttribute('role', 'status');
@@ -1741,8 +1761,8 @@ async function moveNoteToGroup(id, groupId) {
   } });
 }
 
-// Opening writes nothing, so a click answers at once instead of waiting behind a running sync. An earlier click still
-// goes first: its action may start adjusting, or need no dialog in its way, and the editor then decides on its own turn.
+// Opening writes nothing, so a click answers at once. An earlier click still goes first: its action may start adjusting,
+// or need no dialog in its way, and the editor then decides on its own turn.
 function openGroupEditor(group) {
   if (activeActions.size) run(() => groupEditor(group)); else groupEditor(group);
 }
@@ -1750,8 +1770,6 @@ function openGroupEditor(group) {
 function groupEditor(group) {
   if (nativeClosing || adjustOverlayActive() || document.querySelector('dialog[open]')) return;
   const dialog = element('dialog'); const form = element('form');
-  // A sync can now land under this dialog; a recovery question it could not ask over the dialog is asked when it closes.
-  const problemAtOpen = datasetProblem;
   const title = element('h2', group ? t('app.groupEditor.editTitle') : t('app.groupEditor.newTitle'));
   const label = element('label', t('app.groupEditor.name'), 'field'); const input = element('input'); input.required = true; input.maxLength = 80; input.value = groupName(group); label.append(input);
   // Which desktop layer the group sits on belongs to this computer; phones and the browser preview have no desktop layers.
@@ -1796,7 +1814,7 @@ function groupEditor(group) {
   if (opacityField) { const row = element('span', undefined, 'opacity-row'); row.append(opacity, opacityValue); opacityField.append(row); }
   const actions = element('div', undefined, 'dialog-actions');
   const save = element('button', t('common.save'), 'primary'); save.type = 'submit';
-  // Saving and merging do write, so they wait their turn in the queue. One press counts, and closing the dialog while it
+  // Saving and merging do write, so they take their turn in the queue. One press counts, and closing the dialog while it
   // waits withdraws it; once it is writing, the dialog stays until the outcome is known.
   let merge = null; let writing = false;
   const press = action => {
@@ -1817,7 +1835,7 @@ function groupEditor(group) {
   dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
   form.append(title, label, colorField, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
     ...opacityField ? [opacityField, element('p', t('app.groupEditor.opacityHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
-  dialog.addEventListener('close', () => { dialog.remove(); if (datasetProblem && !problemAtOpen) void askDatasetRecovery(); });
+  dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); press(async () => {
     let groupId = group?.id;
     // A name left as shown is not renamed: a default name keeps following the UI language, and changing only this
@@ -1939,7 +1957,8 @@ async function openEditor(card = null) {
   $('#editor-heading').value = currentDraft.content.title || '';
   $('#editor-text').value = currentDraft.content.text; fillGroups($('#editor-group'), currentDraft.groupId);
   $('#editor-group').disabled = Boolean(currentDraft.baseRevision); showConflictActions(null);
-  $('#editor-dialog').showModal(); showEditorTab(false); await renderAttachments(); queueDraft(); $('#editor-text').focus();
+  $('#editor-dialog').showModal(); showEditorTab(false); queueDraft(); $('#editor-text').focus();
+  showAttachments();
 }
 
 function renderSelection() {
@@ -2069,7 +2088,7 @@ async function addAttachments(files) {
       const metadata = await storage.putAttachment(profileId, file);
       if (!currentDraft.content.attachments.some(item => item.id === metadata.id)) currentDraft.content.attachments.push(metadata);
     }
-    await queueDraft(); await renderAttachments();
+    await queueDraft(); showAttachments();
   } finally { setEditorBusy(false); }
 }
 // A picture pasted from a screenshot or another app arrives as "image.png"; a dated name tells several apart.
@@ -2105,13 +2124,22 @@ function attachmentStrip(files, cleanups, fitter) {
   cleanups.push(renderAttachmentTiles(strip, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true) }));
   return strip;
 }
+// An attachment not on this device comes from Drive, which no queue turn may wait for (ADR-064).
+function showAttachments() {
+  const shown = attachmentRender + 1;
+  void renderAttachments().catch(error => { if (shown === attachmentRender && currentDraft) status(error.message, true); });
+}
 async function renderAttachments() {
+  // Drive can answer after the editor closed or another render began; only the latest render may touch the list.
+  const latest = ++attachmentRender, shown = currentDraft?.id;
   for (const close of editorAttachmentCleanup.splice(0)) close();
   for (const url of attachmentUrls.values()) URL.revokeObjectURL(url); attachmentUrls.clear();
   const list = $('#attachments'); list.replaceChildren();
   if (!currentDraft) return;
   for (const attachment of currentDraft.content.attachments || []) {
-    const row = element('li'); appendAttachmentTiles(row, [attachment], editorAttachmentCleanup); const blob = await storage.getAttachment(profileId, attachment.id);
+    const blob = await storage.getAttachment(profileId, attachment.id);
+    if (latest !== attachmentRender || shown !== currentDraft?.id) return;
+    const row = element('li'); appendAttachmentTiles(row, [attachment], editorAttachmentCleanup);
     if (blob) {
       // Download-only bytes: HTML/SVG attachments must never become same-origin executable documents.
       const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); attachmentUrls.set(attachment.id, url);
@@ -2128,7 +2156,7 @@ async function renderAttachments() {
     row.append(element('span', `${Math.ceil(attachment.size / 1024)} KiB`), button(t('app.editor.removeAttachment'), async () => {
       if (editorBusy) return;
       currentDraft.content.attachments = currentDraft.content.attachments.filter(item => item.id !== attachment.id);
-      await queueDraft(); await renderAttachments();
+      await queueDraft(); showAttachments();
     })); list.append(row);
   }
 }
@@ -2176,7 +2204,7 @@ function relocalize() {
   if (shownSync) setSync(...shownSync);
   render(); renderAccount();
   if ($('#editor-dialog').open && currentDraft) {
-    fillGroups($('#editor-group'), currentDraft.groupId); void run(renderAttachments);
+    fillGroups($('#editor-group'), currentDraft.groupId); showAttachments();
     if (!$('#editor-preview').hidden) showEditorTab(true);
   }
   if ($('#formation-dialog').open) updateFormation();

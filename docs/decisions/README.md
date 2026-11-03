@@ -4,6 +4,7 @@ Updated: 2026-11-03.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-064](064-sync-talks-to-drive-outside-the-action-queue.md) | Accepted (2026-11-03); real desktop host and Drive acceptance pending | A pass talks to Drive outside the desktop action queue and lands what it pulled inside it, so saving and the desktop stay usable during a sync |
 | [ADR-063](063-efficient-idle-sync.md) | Accepted direction; native/provider proof and independent review pending | One-request idle checks, bounded local metadata commits, native connection reuse and quiet background status; no persisted format change |
 | [ADR-062](062-dataset-checkpoints-and-deletable-history.md) | Accepted direction; remote proof gates remain | Dataset checkpoints, UUID parents, single revision bodies, manual note purge and explicit legacy reset/recovery; independent local storage work; expiry deferred |
 | [ADR-061](061-unsaved-changes-instead-of-drafts.md) | Accepted (unsaved changes, 2026-11-01) | One set of unsaved changes per note, kept on this device and shown with a filled dot; no drafts list; Discard changes, Overwrite and Save as copy; supersedes ADR-009's draft lineage |

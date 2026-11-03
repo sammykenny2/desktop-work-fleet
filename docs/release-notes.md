@@ -9,6 +9,17 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.10
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Open group dialogs immediately during a sync instead of stacking them afterwards, and remove repeated cloud checks from each save.
+
+- Group dialogs: during a sync, adding a group and the group menu open one dialog at once instead of stacking identical dialogs after the sync. Saving or merging from that dialog still waits its turn, so repeated clicks count once and Cancel withdraws a waiting save. A save refused because the group changed remotely can be retried.
+- Sync cost: one ordinary save repeats fewer generation checks, from ten to seven for a new note and from nine to six for an edit. That is about a fifth to a quarter fewer provider calls in the test fixture. Every check around a cloud write stays, and a checkpoint now has its own check after capturing its inputs.
+- Known limit: other desktop actions still wait for a running sync, and a save's sync still makes far more Drive requests than 0.4.x did.
+- Compatibility and verification: existing note, sync and backup formats are unchanged; no reset or migration is required. Shared tests, Chromium and WebKit renderer probes and CI pass, including faults injected at each request of a save on a synthetic provider. An independent agent reviewed the sync change, and its findings were fixed. Real Drive latency, the Windows Adjust overlay probe and installed-app acceptance remain unverified.
+
 ## 0.5.9
 
 Platforms: Windows, Linux, macOS, Android.

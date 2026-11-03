@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.12
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Google Drive sync makes about half as many network round trips per save, and repeated edits of one note no longer slow it down. Automatic backups can finish while the app sits idle.
+
+- Sync speed: a save takes about half as many network round trips, and a long run of edits no longer adds to each later save. Receiving one change from another device takes about a third as many, and a sync after opening the app fewer as well. These ratios come from a simulated Drive; real times are not measured. macOS and iOS also read several files at once, and the versions page and backups make fewer requests.
+- Consolidation: removing the files a consolidation replaced now uses batches, so the save that triggers it finishes sooner, most of all on macOS and iOS.
+- Lists behind the feed: when Drive's filtered lists lag behind its feed of changes, a sync now waits instead of moving past what a list left out, which could leave a device on old text until the next change. The status stays on Syncing during the wait, and an export or restore preview waits briefly. After 30 seconds a full check lets uploads go, and another follows five minutes later.
+- Automatic backups: a quiet sync check no longer makes a running backup refuse its snapshot and retry later, and an unbroken idle stretch no longer causes another backup.
+- Known limits: an edit still makes about 48 Drive calls, far more than 0.4.x. How long Drive's lists really lag is unmeasured; a lag right after each upload would add its wait to each save. A list behind for over 30 seconds can leave a device showing old text or missing a note until the later check, or the next change if the app restarts first, though Drive keeps everything. Import, merge and replace previews of a Google workspace can still expire before you confirm them.
+- Compatibility and verification: existing note, sync and backup formats are unchanged; no reset or migration is required. Shared tests, Chromium and WebKit renderer probes and CI pass with a synthetic Drive, and an independent agent reviewed the change in four rounds, with two small fixes after the last. Real Drive behavior, native hosts and installed-app acceptance remain unverified.
+
 ## 0.5.11
 
 Platforms: Windows, Linux, macOS, Android.

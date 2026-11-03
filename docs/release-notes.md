@@ -9,6 +9,19 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.5.13
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: When Google Drive's lists fall behind, a device no longer skips changes or uploads an edit of a note deleted elsewhere. Group dialogs no longer jump ahead of desktop actions already waiting.
+
+- Lists behind the feed: a sync no longer moves past what a list left out, as the full check 0.5.12 ran after 30 seconds could, leaving a device on old text or missing a note while reporting success. Now uploads go on after 30 seconds, nothing changes on this device until the list catches up, and the sync does not report success. A restart loses nothing.
+- Permanent deletions: a deletion reported by Drive's feed counts as soon as it is seen, whatever the lists show. An unsent edit of that note stays off Drive and is kept for Save as copy, and the note no longer comes back after a restart or into a consolidation.
+- Cleanup: cleanup waiting for a list retries every 20 seconds and no longer puts the device into dataset recovery.
+- Group dialogs: opening one now takes its turn behind actions already waiting, so a shortcut from a desktop note is no longer refused because of a dialog opened after it.
+- Known limits: how long Drive's lists really lag is unmeasured. A device whose list stays behind receives nothing from other devices until it catches up, and reports that after a while. One held long enough on a busy account can still leave its hold through a full check, which may land an incomplete view. Import, merge and replace previews of a Google workspace can still expire before you confirm them.
+- Compatibility and verification: existing note, sync and backup formats are unchanged; no reset or migration is required. Shared tests, Chromium and WebKit renderer probes and CI pass with a synthetic Drive, and independent reviews covered the change, with some small fixes after the last. Real Drive behavior, native hosts and installed-app acceptance remain unverified.
+
 ## 0.5.12
 
 Platforms: Windows, Linux, macOS, Android.

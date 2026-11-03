@@ -6,6 +6,7 @@ import { WorkspaceRecordStorage } from '../src/storage/workspace-records.js';
 import { DatasetSync } from '../src/sources/dataset-sync.js';
 import { DatasetProtocol } from '../src/sources/dataset-protocol.js';
 import { VerifiedRecords } from '../src/sources/dataset-records.js';
+import { DatasetPurge } from '../src/sources/dataset-purge.js';
 import { ensureDatasetDirectory } from '../src/sources/dataset-folders.js';
 import { DATASET_LIMITS, DATASET_SHARDS, datasetRecord, datasetShard } from '../src/sources/dataset-codec.js';
 import { sha256 } from '../src/sources/files.js';
@@ -274,24 +275,6 @@ test('an unfinished feed does not refuse a listing for naming what it removed', 
   assert.equal(other.workspace.syncState.cursor, null, 'an unfinished feed leaves the next pull to reconcile');
 });
 
-test('an old hold or one followed by another failure does not end the next one early', async () => {
-  let clock = 1000;
-  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
-  await f.workspace.updateCard(id, { content: content('later') }, f.workspace.snapshot.cards.find(card => card.id === id).revision); await f.sync.sync();
-  const hold = async () => { lag.on = true; await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' }); lag.on = false; };
-  await hold(); clock += 90_001;
-  await hold();
-  const hook = f.provider.hook; let once = true;
-  f.provider.hook = async (point, ...rest) => { if (point === 'changes' && once) { once = false; throw Object.assign(new Error('offline'), { code: 'network' }); } return hook(point, ...rest); };
-  await assert.rejects(other.sync.sync({ force: true }), { code: 'network' });
-  clock += 40_000;
-  await hold();
-  assert.equal(other.sync.status.phase, 'backoff');
-  await other.sync.sync({ force: true });
-  assert.equal(edited(other, id), 'later');
-  assert.equal((await other.sync.syncWaiting({ force: true })).phase, 'idle', 'no follow-up is owed, because nothing stopped holding');
-});
-
 const publishMarker = async (f, id, heads) => {
   const parent = f.plan.folders.buckets[await datasetShard('card', id)];
   await ensureDatasetDirectory(f.provider, f.plan, parent);
@@ -399,6 +382,9 @@ test('a listing that stays behind lets uploads go after 30 seconds, and holds th
   clock += 60 * 60 * 1000;
   await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
   assert.equal(other.workspace.syncState.cursor, before.cursor, 'an hour later it still has not moved past what it never saw');
+  const late = await other.workspace.createCard(content('saved while still behind'));
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(receiptsOf(f, late.id), 1, 'a save made this late needs no second 30 seconds');
   lag.on = false;
   await other.sync.sync({ force: true });
   assert.equal(edited(other, id), 'not listed yet');
@@ -426,6 +412,120 @@ test('a restart while behind loses nothing, because the cursor is what remembers
   await restarted.stop();
 });
 
+test('a pass with nothing to upload still does not report success while it is behind', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  await f.workspace.updateCard(id, { content: content('not listed yet') }, currentOf(f, id).revision); await f.sync.sync();
+  lag.on = true;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.sync.status.phase, 'backoff');
+});
+
+test('during a long hold any other failure still stops the pass, whatever operations remain', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  await f.workspace.updateCard(id, { content: content('not listed yet') }, currentOf(f, id).revision); await f.sync.sync();
+  const first = await other.workspace.createCard(content('first')), second = await other.workspace.createCard(content('second'));
+  lag.on = true;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000;
+  const hook = f.provider.hook; let once = true;
+  f.provider.hook = async (point, ...rest) => { if (point === 'create-before' && once) { once = false; throw Object.assign(new Error('down'), { code: 'service-unavailable' }); } return hook(point, ...rest); };
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'service-unavailable' });
+  assert.equal(receiptsOf(f, first.id) + receiptsOf(f, second.id), 0, 'no later operation went on');
+  assert.equal(other.workspace.pendingCount, 2);
+});
+
+test('unsent edits of a deleted note cost no pull each while the device is behind', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  let card = currentOf(other, id);
+  for (let i = 0; i < 3; i++) card = await other.workspace.updateCard(id, { content: content(`offline ${i}`) }, card.revision);
+  await f.workspace.updateCard(id, { content: content('edited before the deletion') }, currentOf(f, id).revision); await f.sync.sync();
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  lag.on = true; lag.markers = false;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000; other.calls.length = 0;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(other.calls.filter(call => call.method === 'listDatasetChanges').length, 1, 'the first pull only');
+  const listings = other.calls.filter(call => call.method === 'listObjects' && call.args[0].query.scope === 'current').length;
+  assert.equal(other.calls.filter(call => call.method === 'getObject').length, 3, 'the one proof, with nothing asked for each edit');
+  assert.ok(listings <= 4, 'and only the first pull looks at the listing');
+  assert.equal(other.workspace.pendingCount, 3);
+});
+
+test('a marker stored before a restart still keeps its note away while the listing is behind', async () => {
+  const { f, other, lag, behind } = await lagging(), id = f.card.id, shard = await datasetShard('card', id);
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  lag.markers = false;
+  await other.sync.sync({ force: true });
+  await other.sync.stop({ endSession: false });
+  const restarted = new DatasetSync({ workspace: other.workspace, storage: other.storage, fileStore: behind });
+  let sibling; do sibling = await f.workspace.createCard(content('same shard')); while (await datasetShard('card', sibling.id) !== shard);
+  while (f.workspace.pendingCount) await f.sync.sync({ force: true });
+  await restarted.sync({ force: true });
+  assert.equal(edited(other, sibling.id), 'same shard', 'the pull really captured that shard again');
+  assert.equal(edited(other, id), null);
+  lag.markers = true;
+  for (let i = 0; i < 3; i++) await restarted.sync({ force: true });
+  assert.equal(edited(other, id), null, 'and it stays away once the listing has caught up');
+  await restarted.stop();
+});
+
+test('finished deletions add nothing to a later save', async () => {
+  const measure = async deletions => {
+    const f = await steady(), cleanup = new DatasetPurge({ workspace: f.workspace, storage: f.storage, fileStore: f.provider });
+    const notes = [];
+    for (let i = 0; i < deletions; i++) notes.push(await f.workspace.createCard(content(`deleted ${i}`)));
+    while (f.workspace.pendingCount) await f.sync.sync({ force: true });
+    for (const note of notes) await f.workspace.updateCard(note.id, { deleted: true }, currentOf(f, note.id).revision);
+    while (f.workspace.pendingCount) await f.sync.sync({ force: true });
+    if (deletions) { await cleanup.enqueue(await cleanup.preview(notes.map(note => note.id))); while (await cleanup.step()); }
+    await f.sync.sync({ force: true }); await f.sync.sync({ force: true });
+    const counts = { writes: 0, lookups: 0 }, putControl = f.storage.putControl.bind(f.storage), getJob = f.storage.getJob.bind(f.storage);
+    f.storage.putControl = (key, value) => { if (key.startsWith('purge:')) counts.writes++; return putControl(key, value); };
+    f.storage.getJob = key => { if (key.includes('purge')) counts.lookups++; return getJob(key); };
+    await f.workspace.updateCard(f.card.id, { content: content('edited') }, currentOf(f, f.card.id).revision);
+    await f.sync.sync({ force: true });
+    return counts;
+  };
+  assert.deepEqual(await measure(8), await measure(0));
+  assert.deepEqual(await measure(8), { writes: 0, lookups: 0 });
+});
+
+test('consolidating while the listing is behind does not write a stored marker\'s note into a checkpoint', async () => {
+  const { f, other, lag, behind } = await lagging(), id = f.card.id, shard = await datasetShard('card', id);
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  lag.markers = false;
+  await other.sync.sync({ force: true });
+  const protocol = new DatasetProtocol(behind, other.storage);
+  const { value } = await protocol.checkpoint(f.plan, shard, await protocol.captureShard(f.plan, shard));
+  assert.ok(!value.heads.some(head => head.record.entityId === id));
+});
+
+test('cleanup behind a lagging purge listing waits, and does not call the dataset changed', async () => {
+  const { f, other, lag, behind } = await lagging(), id = f.card.id;
+  await publishMarker(f, id, [currentOf(f, id).revision]);
+  lag.markers = false;
+  await other.sync.sync({ force: true });
+  const cleanup = new DatasetPurge({ workspace: other.workspace, storage: other.storage, fileStore: behind });
+  await assert.rejects(cleanup.step(), { code: 'dataset-visibility' });
+  lag.markers = true;
+  for (let i = 0; i < 200 && await cleanup.step(); i++);
+  assert.ok(await other.storage.getControl(`purge-cleaned:${f.plan.datasetId}:${id}`), 'it finishes once the listing shows the marker');
+});
+
+test('cleanup whose marker this device never saw still reports the dataset changed', async () => {
+  const f = await steady(), id = f.card.id, marker = await publishMarker(f, id, [f.card.revision]);
+  await f.sync.sync({ force: true });
+  const cleanup = new DatasetPurge({ workspace: f.workspace, storage: f.storage, fileStore: f.provider });
+  await f.storage.deleteControl(`purge:${f.plan.datasetId}:${id}`);
+  await f.provider.deleteFile({ id: marker.id });
+  await assert.rejects(cleanup.step(), { code: 'dataset-changed' });
+});
+
 test('an operation whose own pull cannot land stays pending, and the ones after it still go', async () => {
   let clock = 1000;
   const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
@@ -451,6 +551,41 @@ test('an operation whose own pull cannot land stays pending, and the ones after 
   lag.on = false;
   await other.sync.sync({ force: true });
   assert.equal(other.workspace.pendingCount, 0);
+});
+
+test('a nested pull that lands ends the hold, so the pass goes on to report success', async () => {
+  let clock = 1000;
+  const { f, other, lag } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  const hook = f.provider.hook; let once = true;
+  await other.workspace.updateCard(id, { content: content('uncertain') }, currentOf(other, id).revision);
+  const start = other.calls.length;
+  f.provider.hook = async (point, ...rest) => {
+    const write = other.calls.slice(start).findLast(call => call.method === 'createObject');
+    if (point === 'create-before' && once && write?.args[0].file.kind === 'change') { once = false; throw Object.assign(new Error('down'), { code: 'service-unavailable' }); }
+    return hook(point, ...rest);
+  };
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'service-unavailable' });
+  f.provider.hook = hook;
+  await f.workspace.updateCard(id, { content: content('not listed yet') }, currentOf(f, id).revision); await f.sync.sync();
+  lag.on = true;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000; lag.rounds = 4;
+  assert.equal((await other.sync.sync({ force: true })).phase, 'idle', 'the first pull used up the lag and the retried operation landed');
+  assert.equal(other.workspace.pendingCount, 0);
+});
+
+test('a failure reading the feed itself does not count as a listing behind it', async () => {
+  let clock = 1000;
+  const { f, other } = await lagging({ elapsed: () => clock }), id = f.card.id;
+  const mine = await other.workspace.createCard(content('waiting'));
+  await f.workspace.updateCard(id, { content: content('later') }, currentOf(f, id).revision); await f.sync.sync();
+  const hook = f.provider.hook;
+  f.provider.hook = async (point, ...rest) => { if (point === 'changes') throw Object.assign(new Error('not listed'), { code: 'dataset-visibility' }); return hook(point, ...rest); };
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  clock += 30_000;
+  await assert.rejects(other.sync.sync({ force: true }), { code: 'dataset-visibility' });
+  assert.equal(receiptsOf(f, mine.id), 0, 'nothing went up past an unread feed');
+  assert.equal(other.workspace.pendingCount, 1);
 });
 
 test('a pull that gets through starts the 30 seconds again', async () => {

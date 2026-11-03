@@ -16,7 +16,7 @@ const missing = error => ['file-missing', 'source-file-missing'].includes(error.
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
 const publicationKey = datasetUploadKey;
 const AUDIT_MS = 5 * 60 * 1000;
-const LISTING_HOLD_MS = 30 * 1000, LISTING_HOLD_GAP_MS = 90 * 1000;
+const LISTING_HOLD_MS = 30 * 1000;
 const landDirectly = receive => receive();
 const token = value => typeof value === 'string' && value.length > 0 && value.length <= 8192;
 function changePage(page) {
@@ -29,7 +29,7 @@ function changePage(page) {
 export class DatasetSync {
   #workspace; #storage; #store; #protocol; #lifecycle; #session; #binding; #latest;
   #running = null; #closed = false; #abort = new AbortController(); #now; #random; #failures = 0;
-  #tailSizes = new Map(); #records = new VerifiedRecords(); #hold = null; #seenPurges = new Map();
+  #tailSizes = new Map(); #records = new VerifiedRecords(); #hold = null;
   #uploadAfter = null;
   #idle = null; #elapsed; #validatedAt = null; #activity = () => {}; #land = landDirectly;
   #generationProven = false;
@@ -166,6 +166,8 @@ export class DatasetSync {
           try { await this.#push(operation); }
           catch (error) {
             if (error.code !== 'dataset-purged') throw error;
+            // Its pull could only hold again, and the marker already stops this upload, so it just waits.
+            if (behind) continue;
             await this.#pull();
             await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId],
               { jobs: [publicationKey(this.#binding.plan.datasetId, operation.operationId)] });
@@ -178,7 +180,7 @@ export class DatasetSync {
         }
       }
       this.#uploadAfter = page.next;
-      if (behind) throw capacityError ?? behind;
+      if (behind && this.#hold) throw capacityError ?? behind;
       if (page.operations.length) await this.#pull();
       if (capacityError) throw capacityError;
       if (this.#latest.complete && !this.#workspace.pendingCount) await this.#workspace.completeSync(this.#session, new Date(this.#now()).toISOString());
@@ -188,7 +190,6 @@ export class DatasetSync {
       return this.status;
     } catch (error) {
       this.invalidateIdle();
-      if (error.code !== 'dataset-visibility') this.#hold = null;
       const retryable = ['network', 'rate-limit', 'service-unavailable', 'page-expired', 'upload-session-expired', 'dataset-busy', 'dataset-visibility', 'file-missing', 'source-file-missing', 'transfer-busy'].includes(error.code);
       const delay = retryable ? Math.max(Math.min(60000, 1000 * 2 ** Math.min(this.#failures++, 6)) * (0.5 + this.#random() * 0.5), error.details?.retryAfterMs ?? 0) : 0;
       this.#status = { phase: this.#closed ? 'stopped' : error.code === 'unauthorized' ? 'needs-login' : retryable ? 'backoff' : 'needs-attention',
@@ -206,14 +207,12 @@ export class DatasetSync {
     }
     const published = [...shards.values()].flatMap(value => value.heads.map(head => head.record)), dataEntities = new Set();
     const changedShards = new Set();
-    // A hold longer ago than any backoff says nothing about this listing.
-    if (this.#hold && this.#elapsed() - this.#hold.last > LISTING_HOLD_GAP_MS) this.#hold = null;
     if (cursor && shards.size === DATASET_SHARDS.length) {
       await this.#proveGeneration();
       const known = new Map([...shards].flatMap(([shard, value]) => value.inputs.map(file => [file.id, shard])));
       const purged = new Set(), seen = new Set(); let events = 0, bytes = 0, complete = false, residualLegacy = false;
       // What the feed said, to hold each listing to. Later events replace earlier ones for the same file.
-      const added = new Map(), removed = new Set(), markers = new Map();
+      const added = new Map(), removed = new Set(), markers = new Map(); let feedRead = false;
       try {
         do {
           invalid(!seen.has(cursor)); seen.add(cursor);
@@ -238,13 +237,12 @@ export class DatasetSync {
           if (!page.nextCursor) { complete = true; break; }
           if (events >= DATASET_LIMITS.feedEvents || bytes >= DATASET_LIMITS.feedBytes) break;
         } while (true);
-        for (const shard of changedShards) {
-          // A marker counts as soon as the feed reports it, before any hold, so an upload behind it stops whatever the listings show.
-        for (const marker of await this.#protocol.readPurges(plan, [...markers.values()], this.#abort.signal)) {
+        feedRead = true;
+        // A marker counts as soon as the feed reports it, before any hold, so an upload behind it stops whatever the listings show.
+        for (const marker of await this.#protocol.readPurges(plan, [...markers.values()], this.#abort.signal))
           await this.#storage.putControl(`purge:${plan.datasetId}:${marker.entityId}`, marker);
-          this.#seenPurges.set(marker.entityId, marker);
-        }
-        // An unread later page could still change any of this, so only a finished feed can hold a listing to it.
+        for (const shard of changedShards) {
+          // An unread later page could still change any of this, so only a finished feed can hold a listing to it.
           const options = complete ? { reuse: true, removed, added: [...added].filter(([, home]) => home === shard).map(([id]) => id) } : { reuse: true };
           let inputs;
           try { inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal, options); }
@@ -257,8 +255,9 @@ export class DatasetSync {
         result = { heads: [...shards.values()].flatMap(value => value.heads), inputs: [...shards.values()].flatMap(value => value.inputs),
           purges: await this.#protocol.purges(plan, targets, this.#abort.signal), cursor: complete ? cursor : null, complete, residualLegacy };
       } catch (error) {
-        if (error.code === 'dataset-visibility') {
-          this.#hold = { since: this.#hold?.since ?? this.#elapsed(), last: this.#elapsed(), error };
+        // A failure reading the feed itself is not a listing behind the feed, and this pull has read no marker yet.
+        if (error.code === 'dataset-visibility' && feedRead) {
+          this.#hold = { since: this.#hold?.since ?? this.#elapsed(), error };
           // Uploads can go on without this pull, and after a restart nothing else says what the current heads are.
           this.#latest ??= { heads: [...shards.values()].flatMap(value => value.heads), complete: false };
         }
@@ -272,9 +271,6 @@ export class DatasetSync {
         changedShards.add(shard); shards.set(shard, { heads: result.heads.filter(head => head.file.shard === shard), inputs: result.inputs.filter(file => file.shard === shard) });
       }
     }
-    // A listing can still lag behind a marker this session already read, so what the marker forbids stays forbidden.
-    const listedPurges = new Set(result.purges.map(value => value.entityId));
-    result.purges.push(...[...this.#seenPurges.values()].filter(value => !listedPurges.has(value.entityId)));
     await this.#proveGeneration();
     this.#validatedAt = this.#elapsed();
     const forbidden = new Set(result.purges.map(value => value.entityId));
@@ -354,13 +350,15 @@ export class DatasetSync {
 
   /** `proofLast` leaves a proof the next operation or pull can reuse. */
   async #barrier(entityId, kind, { proofLast = false } = {}) {
-    const { plan } = this.#binding;
+    const { plan } = this.#binding, refused = () => requireValue(false, 'dataset-purged', t('errors.sources.datasetPurged'));
+    // A marker this device holds decides this before Drive is asked anything.
+    if (kind === 'card' && await this.#storage.getControl(`purge:${plan.datasetId}:${entityId}`)) refused();
     if (!proofLast) await this.#proveGeneration();
     const purges = kind === 'card' ? await this.#protocol.purges(plan, [entityId], this.#abort.signal) : [];
     if (proofLast) await this.#proveGeneration();
-    if (kind === 'card') {
+    if (purges.length) {
       for (const purge of purges) await this.#storage.putControl(`purge:${plan.datasetId}:${entityId}`, purge);
-      requireValue(!purges.length && !await this.#storage.getControl(`purge:${plan.datasetId}:${entityId}`), 'dataset-purged', t('errors.sources.datasetPurged'));
+      refused();
     }
   }
 

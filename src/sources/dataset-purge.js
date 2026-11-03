@@ -117,8 +117,11 @@ export class DatasetPurge {
       signal?.throwIfAborted();
       if (binding) {
         await protocol.assertGeneration(binding.descriptor, binding.plan, signal);
-        if (job.phase !== 'pending') requireValue((await protocol.purges(binding.plan, [item.entityId], signal)).length > 0,
-          'dataset-changed', t('errors.sources.datasetChanged'));
+        if (job.phase !== 'pending' && !(await protocol.listedPurges(binding.plan, [item.entityId], signal)).length) {
+          // A marker this device has already seen is only missing from a listing that has not caught up.
+          requireValue(!await this.#storage.getControl(`purge:${binding.plan.datasetId}:${item.entityId}`), 'dataset-visibility', t('errors.sources.datasetVisibility'));
+          requireValue(false, 'dataset-changed', t('errors.sources.datasetChanged'));
+        }
       }
     };
     const publication = `purge-marker:${item.operationId}:${item.entityId}`;

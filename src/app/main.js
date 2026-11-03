@@ -714,7 +714,7 @@ async function maintainDataset() {
     || profileId.startsWith('google:') && (!googleAccount?.connected || !workspace.syncState.dataset && !workspace.state.cloudRestore && !pendingReset)) {
     scheduleMaintenance(); return;
   }
-  let more = false;
+  let more = false; let listingBehind = false;
   maintenanceWork = (async () => {
     if (maintenanceFailure) { await storage.deleteJob('dataset-ui-error'); maintenanceFailure = null; }
     if (workspace.state.cloudRestore) {
@@ -753,6 +753,8 @@ async function maintainDataset() {
   catch (error) {
     if (!maintenanceAbort.signal.aborted) {
       maintenancePaused = error.code !== 'dataset-visibility';
+      // Cleanup waiting for a listing asks Drive each time, so it asks no more often than a sync does. A reset keeps its pace.
+      listingBehind = !resetPending && error.code === 'dataset-visibility';
       const failure = resetPending ? resetFailure(error) : { kind: 'dataset-ui-error', code: error.code ?? 'storage-error', message: error.message };
       if (resetPending && maintenancePaused) {
         maintenanceFailure = failure;
@@ -776,7 +778,7 @@ async function maintainDataset() {
       if (!datasetProblem) setText('#google-sync', () => t(maintenancePaused ? 'sync.actions.resumeReset' : 'sync.status.resetting'));
     }
     if (syncRequested) { syncRequested = false; void syncGoogle(); }
-    scheduleMaintenance(more ? 250 : 2500);
+    scheduleMaintenance(listingBehind ? 20000 : more ? 250 : 2500);
   }
 }
 

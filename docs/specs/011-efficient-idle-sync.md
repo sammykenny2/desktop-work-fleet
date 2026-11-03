@@ -194,7 +194,7 @@ the existing file IDs, parents and appProperties.
 | Dataset root lost at any request of an edit | As above, except that the loss can first surface as retryable `dataset-visibility` or `source-file-missing`. The next pass reports `dataset-changed`. |
 | Purge of the edited note at any request of its save | The pass completes, at most one further write happens, and the note does not return after the next pass. |
 | Capture listing behind a feed read to its end, on an incremental pull | Up to four looks over 350 ms. If still behind, the pass fails with retryable `dataset-visibility`, the cursor and view stay, and the next pass replays the same events. The status stays on syncing for up to six such waits. After 30 seconds of holding, the pass goes on to its uploads without landing and still fails at the end. |
-| Purge marker in the feed, purge listing behind | The marker is read by its exact ID and stored at once. The note leaves the view, an unsent edit is kept for Save as copy, and nothing of it reaches Drive. |
+| Purge marker in the feed, purge listing behind | The marker is read by its exact ID and stored at once, so nothing of an unsent edit reaches Drive and no checkpoint carries the note. When a pull lands, the note leaves the view and the edit is kept for Save as copy. Cleanup waits for the listing and does not report the dataset changed. |
 | Authenticated timing | Record at least 30 ordinary warm checks per tested host/network, plus due audits separately: median/p95 wall time, auth time, native HTTP time, bridge/local commit time, request/byte counts and connection reuse. |
 
 Performance target: p95 application overhead outside authentication and the one HTTP

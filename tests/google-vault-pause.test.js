@@ -120,6 +120,28 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
   return { nodes, calls, states, retries, context, invoke: force => vm.runInContext(`syncGoogle(${force})`, context) };
 }
 
+// One turn of the real maintenance loop, with the cleanup step's outcome supplied.
+const maintain = source.slice(source.indexOf('async function maintainDataset('), source.indexOf('async function confirmPurge('));
+async function maintenanceDelay({ step, resetPending = false }) {
+  const delays = []; const nothing = () => {};
+  const context = vm.createContext({ workspace: { state: { cloudRestore: resetPending ? {} : null }, syncState: {} }, pendingReset: null, datasetProblem: null, maintenanceWork: null,
+    maintenancePaused: false, accountBusy: false, syncBusy: false, nativeClosing: false, editorBusy: false, composing: false, dataPanel: null, revisions: null,
+    document: { querySelectorAll: () => [] }, profileId: 'local', googleAccount: null, maintenanceAbort: { signal: { aborted: false } }, maintenanceFailure: null, datasetStore: null,
+    purge: { step }, advanceDatasetRestore: step, resetFailure: error => ({ code: error.code, message: error.message }), storage: { putJob: async () => {}, deleteJob: async () => {}, getControl: async () => null, maintenance: async () => false },
+    cleanupDatasetTransition: async () => false, setSync: nothing, showMaintenance: nothing, setText: nothing, syncRequested: false, syncGoogle: nothing, render: nothing, t,
+    scheduleMaintenance: delay => delays.push(delay), $: () => ({}), reportDatasetProgress: nothing, controller: { reconcile: async () => {} }, workAreas: () => [], automatic: null });
+  await vm.runInContext(`${maintain}\nmaintainDataset()`, context);
+  return delays.at(-1);
+}
+const visibility = async () => { throw Object.assign(new Error('Not listed yet'), { code: 'dataset-visibility' }); };
+
+test('cleanup waiting for a listing asks Drive no more often than a sync does, while a reset keeps its pace', async () => {
+  assert.equal(await maintenanceDelay({ step: visibility }), 20000);
+  assert.equal(await maintenanceDelay({ step: visibility, resetPending: true }), 2500);
+  assert.equal(await maintenanceDelay({ step: async () => null }), 2500);
+  assert.equal(await maintenanceDelay({ step: async () => ({ phase: 'committed' }) }), 250);
+});
+
 const lagError = () => Object.assign(new Error('Not visible yet'), { code: 'dataset-visibility' });
 const settle = () => new Promise(resolve => setImmediate(resolve));
 

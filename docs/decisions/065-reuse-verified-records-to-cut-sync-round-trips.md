@@ -42,7 +42,7 @@ compares, so a capture running longer than that refused itself and retried with 
    does not looks again, up to four times over 350 ms. After that the pass fails with the retryable `dataset-visibility`, nothing
    lands and the cursor stays, so the next pass replays the same events. This needs no extra request while they agree. The
    first pull comes before any upload, so after 30 seconds of holding the pass goes on to its uploads without landing, and still
-   fails at the end. The cursor is what remembers: a restart loses nothing, and a device behind its listing never reports success.
+   fails at the end. The cursor is what remembers: a restart loses nothing, and a device behind its listing does not report success.
 4. **A lag is not reported as a failure at first.** The status stays on syncing and the pass runs again when its backoff ends.
    A timer tick during that wait starts nothing, and Sync now still does. After six such waits without a pass completing, the
    lag is reported as an error. A forced pass someone is waiting on, for an export or a restore preview, waits out three lags
@@ -58,9 +58,11 @@ compares, so a capture running longer than that refused itself and retried with 
    time, because reads queued behind their one worker would only spend their bridge timeout waiting. Every read that started
    ends before its caller continues, so none outlives a pass. An unreadable batch reply falls back to deleting one by one.
 9. **A permanent deletion the feed reports counts at once.** A pull reads each reported marker by its exact ID, which needs no
-   listing to have caught up, and stores it before anything can hold. The check before every upload already consults that
-   record, so an unsent edit of the note stops there and is kept for Save as copy instead of reaching Drive. Later pulls of the
-   session apply the marker too, even if the purge listing is still behind.
+   listing to have caught up, and stores it before anything can hold. Every purge check then answers from the listing and from
+   stored markers, so an unsent edit stops before it reaches Drive, a checkpoint leaves the note out, and a later pull does not
+   bring it back, also after a restart. The note leaves the view and the edit becomes a draft for Save as copy when a pull lands.
+   Cleanup alone asks the listing by itself, so a marker it cannot find there means retry when this device has stored
+   it, every 20 seconds, and that the dataset changed when it has not.
 10. **Workspace tracks a content revision.** Every commit moves it except a quiet check's. A backup's snapshot check compares
     it instead of the revision, and a backup's journal records it as its source. A save or a landing during a capture still
     refuses the capture.
@@ -107,11 +109,16 @@ are ratios, not times. macOS and iOS can overlap requests. The other hosts run t
   a lag right after every upload would add that delay to every save. A lag at the first pull also holds that pass's uploads
   for up to 30 seconds. Real-Drive acceptance has to look for this.
 - A device whose listing stays behind receives nothing from other devices until it catches up, however long that takes, and
-  reports it after six waits. Nothing frees it automatically, because every way of moving the cursor could skip what the listing
-  left out. If Drive could leave a listing behind for good, that device would need a reset to recover.
-- A full reconciliation after an expired cursor has no hold, so it can land what a lagging listing shows, as it always could.
-- After a restart, a pull relies on the purge listing again for a marker it read before the cursor moved. The check before an
-  upload still has the stored record, so only the view can be wrong, and only until that listing catches up.
+  reports it after six waits. Nothing frees it automatically on a short feed, because moving the cursor could skip what the
+  listing left out. If Drive could leave a listing behind for good, that device would need a reset to recover.
+- Cleanup cannot tell a lagging listing from a marker that is really gone once this device has stored it, so it retries with no
+  end while a sync reports success. This needs outside damage to Drive, because a reset is still caught. Another device would
+  keep the note, and this one reports the cleanup as paused.
+- Every purge check reads one stored record for each note the listing does not name, one at a time. That is local, but on
+  2000 notes it comes to about 120 reads for each pull that sees a change.
+- A full reconciliation has no hold, so it can land what a lagging listing shows and report success, as it always could. That
+  covers an expired cursor and a feed longer than one pull's budget of 1000 events or 8 MiB, so a device held for long
+  enough, on a busy account, can still leave its hold this way.
 
 ### Neutral
 

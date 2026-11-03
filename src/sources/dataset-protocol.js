@@ -162,7 +162,16 @@ export class DatasetProtocol {
     }, this.#store.readWidth);
     return markers.filter(Boolean);
   }
+  /** The markers for these notes: what the listing shows, plus any stored here because the feed reported it first. */
   async purges(plan, entityIds, signal) {
+    const result = await this.listedPurges(plan, entityIds, signal), listed = new Set(result.map(marker => marker.entityId));
+    for (const id of new Set(entityIds)) if (!listed.has(id)) {
+      const stored = await this.#journal.getControl?.(`purge:${plan.datasetId}:${id}`);
+      if (stored) result.push(stored);
+    }
+    return result;
+  }
+  async listedPurges(plan, entityIds, signal) {
     const ids = [...new Set(entityIds)], result = [];
     for (let i = 0; i < ids.length; i += DATASET_LIMITS.queryEntities) {
       const batch = ids.slice(i, i + DATASET_LIMITS.queryEntities);

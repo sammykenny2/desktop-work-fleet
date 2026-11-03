@@ -103,6 +103,18 @@ Skip a normal pass's final pull only if no publication occurred and no result re
 requires it; bounded unfinished work schedules another pass. After any publication,
 observe its result before removing local-head protection or claiming completion.
 
+A pass with work proves the generation before its pull's first provider request, and
+again before activating what the pull read. A proof lasts only until the next provider
+request of that pass and never reaches a later pass. The start of a pull and the barrier
+opening an operation can reuse one, because nothing has been read or written since; the
+pull still proves before activating, and a note's opening barrier still lists its purges.
+A remote write cannot reuse a proof from before its preceding read. A read precedes every
+folder, attachment, body and receipt creation and ends the previous proof, so each has its
+own; the exception is a creation directly after a parent folder made on sparse first use,
+which follows only that folder's read-back. A checkpoint is proved after capturing its
+inputs. A receipt is proved again after creation before it is acknowledged, including when
+an uncertain receipt turns out to be covered already.
+
 An empty check cannot lock Drive. A remote write immediately after its returned cursor
 is found by a later poll. Feed visibility has no claimed hard deadline; the five-minute
 audit is a defensive cross-check, not permission to weaken write-time guards.
@@ -177,6 +189,10 @@ the existing file IDs, parents and appProperties.
 | Steady idle, 20-second cadence | At most one due audit per five-minute period after warm-up. Fifteen eligible rounds use 15 feed requests plus one audit, not 15 full passes. |
 | Retained history grows | Hold current state fixed and test 0, 10,000 and 1,000,000 retained versions. Empty-check request count, payload rows and local work do not grow with history. Large-history tests are fixtures, not a million writes to the maintainer's Drive. |
 | Current state grows | Check empty and representative large current workspaces within existing capacity limits. The empty path does not clone/serialize note bodies or iterate current revisions/drafts. |
+| One ordinary save, fixture with one existing note and every shard folder present | Seven generation proofs and at most 79 provider calls for a new note, or 81 if it shares the existing note's shard; six and at most 68 for an edit. Each further queued new note adds four proofs. These are provider calls, not HTTP requests or a latency target; a larger shard tail adds its own reads. |
+| Foreign fence or lost ready receipt at any request of a save, with every shard folder present and below the consolidation threshold | Every write has its own proof and, for a note, a purge check. At most one write follows the fault. The pass stops with `dataset-changed` unless the fault arrives after its last proof, and an operation is acknowledged only after a later proof saw its receipt. |
+| Dataset root lost at any request of an edit | As above, except that the loss can first surface as retryable `dataset-visibility` or `source-file-missing`. The next pass reports `dataset-changed`. |
+| Purge of the edited note at any request of its save | The pass completes, at most one further write happens, and the note does not return after the next pass. |
 | Authenticated timing | Record at least 30 ordinary warm checks per tested host/network, plus due audits separately: median/p95 wall time, auth time, native HTTP time, bridge/local commit time, request/byte counts and connection reuse. |
 
 Performance target: p95 application overhead outside authentication and the one HTTP

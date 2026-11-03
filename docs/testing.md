@@ -47,6 +47,13 @@ history fixtures reject body reads and do not materialize a million records. Con
 edits, saves, purge admission, session replacement, reset fences, critical removals,
 backoff and lost commit acknowledgements retain the existing safety boundaries.
 
+`node --test tests/dataset-save-budget.test.js` holds one ordinary save to its SPEC-011
+provider-call ceilings. It repeats a save with a lost ready receipt or root, a feed-invisible
+fence or a permanent deletion injected before each request position in turn, on a synthetic
+provider. Attachments, consolidation and uncertain receipts have structural or targeted
+checks there, not that sweep. It does not establish real Drive request counts, visibility
+or latency.
+
 `npm run build && node scripts/testing/test-dataset-recovery.mjs` exercises the production
 entry point with real IndexedDB and synthetic account/Drive boundaries in Chromium,
 WebKit and handheld layouts. It checks that delayed automatic empty checks stay quiet,

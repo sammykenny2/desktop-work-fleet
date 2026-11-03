@@ -592,7 +592,7 @@ and K is a requested history page. Required foreground work depends on N/current
 |---|---|
 | New-device bootstrap / lost cursor | Current checkpoint bytes + bounded current tail + relevant purge checks; no all-history descriptor scan |
 | Open/type/save/search/desktop operations | Affected or indexed current local records; no full-history copy, encryption, bridge transfer or graph rebuild |
-| Ordinary sync | New current records, relevant controls and required attachments; no ancestry walk |
+| Ordinary sync | New current records, relevant controls and required attachments; no ancestry walk. [SPEC-011](011-efficient-idle-sync.md) holds the per-save provider-call ceilings |
 | Long-offline reconnect | Bounded feed replay or new verified current reconciliation; preserve pending edits |
 | First history page / selected version | K entries in one note folder / one selected full body; no account-wide history walk |
 | Consolidation | One current shard and exact recent inputs; no history scan or second history-body write |

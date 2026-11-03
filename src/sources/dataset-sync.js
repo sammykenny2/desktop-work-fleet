@@ -29,15 +29,18 @@ export class DatasetSync {
   #tailSizes = new Map();
   #uploadAfter = null;
   #idle = null; #elapsed; #validatedAt = null; #activity = () => {};
+  #generationProven = false;
   #status = { phase: 'idle', pending: 0, nextAttemptAt: 0, error: null };
   constructor({ workspace, storage, fileStore, now = Date.now, elapsed = () => performance.now(), random = Math.random }) {
     requireValue(workspace.currentFormat && typeof fileStore.sourceId === 'string', 'invalid-source', t('errors.sources.sourceIdRequired'));
     this.#workspace = workspace; this.#storage = storage; this.#now = now; this.#elapsed = elapsed; this.#random = random;
     this.#store = new Proxy(fileStore, { get: (target, key) => typeof target[key] !== 'function' ? target[key]
       : key === 'allocateFileIds' ? async (count, options = {}) => {
-        this.#check(); const result = await target[key](count, { ...options, signal: this.#abort.signal }); this.#check(); return result;
+        this.#check(); this.#generationProven = false;
+        const result = await target[key](count, { ...options, signal: this.#abort.signal }); this.#check(); return result;
       } : async (input = {}) => {
-      this.#check(); const result = await target[key]({ ...input, signal: this.#abort.signal }); this.#check(); return result;
+      this.#check(); this.#generationProven = false;
+      const result = await target[key]({ ...input, signal: this.#abort.signal }); this.#check(); return result;
     } });
     this.#protocol = new DatasetProtocol(this.#store, storage); this.#lifecycle = new DatasetLifecycle(this.#store, storage);
   }
@@ -100,6 +103,7 @@ export class DatasetSync {
     return true;
   }
   async #run() {
+    this.#generationProven = false;
     this.#status = { phase: 'checking', pending: this.#workspace.pendingCount, nextAttemptAt: 0, error: null };
     try {
       this.#session ??= await this.#workspace.beginSync(this.#store.sourceId); this.#check();
@@ -113,9 +117,9 @@ export class DatasetSync {
       const known = this.#workspace.syncState.dataset;
       requireValue(!reset || reset.phase === 'complete' || reset.ready && (!known || known.plan.datasetId === reset.binding?.plan.datasetId),
         'source-reset-pending', t('errors.sources.resetPending'));
-      if (known) {
-        await this.#protocol.assertGeneration(known.descriptor, known.plan, this.#abort.signal); this.#binding = known;
-      } else {
+      // The pull below proves the generation before its first provider request, on either of its paths.
+      if (known) this.#binding = known;
+      else {
         const pending = await this.#storage.getJob('dataset-initialize');
         if (pending) this.#binding = await this.#lifecycle.initialize({ signal: this.#abort.signal });
         else {
@@ -175,7 +179,7 @@ export class DatasetSync {
     const published = [...shards.values()].flatMap(value => value.heads.map(head => head.record)), dataEntities = new Set();
     const changedShards = new Set();
     if (cursor && shards.size === DATASET_SHARDS.length) {
-      await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
+      await this.#proveGeneration();
       const known = new Map([...shards].flatMap(([shard, value]) => value.inputs.map(file => [file.id, shard])));
       const purged = new Set(), seen = new Set(); let events = 0, bytes = 0, complete = false, residualLegacy = false;
       try {
@@ -220,7 +224,7 @@ export class DatasetSync {
         changedShards.add(shard); shards.set(shard, { heads: result.heads.filter(head => head.file.shard === shard), inputs: result.inputs.filter(file => file.shard === shard) });
       }
     }
-    await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
+    await this.#proveGeneration();
     this.#validatedAt = this.#elapsed();
     const forbidden = new Set(result.purges.map(value => value.entityId));
     const dirty = new Set([...(result.dirtyEntities ?? []), ...result.heads.filter(head => head.record.kind === 'card' && forbidden.has(head.record.entityId)).map(head => head.record.entityId),
@@ -274,6 +278,7 @@ export class DatasetSync {
         if (!pending && !tail.some(file => file.shard === shard) && candidates.get(shard) < DATASET_LIMITS.candidates) continue;
         try {
           const inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal);
+          await this.#proveGeneration();
           const successor = await this.#protocol.checkpoint(plan, shard, inputs, this.#abort.signal);
           capacity(await this.#protocol.retire(descriptor, plan, successor, this.#abort.signal)); break;
         } catch (error) { if (error.code !== 'dataset-capacity' || pending) throw error; }
@@ -286,11 +291,21 @@ export class DatasetSync {
       && DATASET_SHARDS.every(shard => files.filter(file => file.kind === 'checkpoint' && file.shard === shard).length < DATASET_LIMITS.candidates));
   }
 
-  async #barrier(entityId, kind) {
+  /** A proof lasts only until the next provider request of this pass, so reusing it can never span a read, a write or a later pass. */
+  async #proveGeneration() {
+    if (this.#generationProven) return;
     const { descriptor, plan } = this.#binding;
     await this.#protocol.assertGeneration(descriptor, plan, this.#abort.signal);
+    this.#generationProven = true;
+  }
+
+  /** `proofLast` leaves a proof the next operation or pull can reuse. */
+  async #barrier(entityId, kind, { proofLast = false } = {}) {
+    const { plan } = this.#binding;
+    if (!proofLast) await this.#proveGeneration();
+    const purges = kind === 'card' ? await this.#protocol.purges(plan, [entityId], this.#abort.signal) : [];
+    if (proofLast) await this.#proveGeneration();
     if (kind === 'card') {
-      const purges = await this.#protocol.purges(plan, [entityId], this.#abort.signal);
       for (const purge of purges) await this.#storage.putControl(`purge:${plan.datasetId}:${entityId}`, purge);
       requireValue(!purges.length && !await this.#storage.getControl(`purge:${plan.datasetId}:${entityId}`), 'dataset-purged', t('errors.sources.datasetPurged'));
     }
@@ -315,11 +330,13 @@ export class DatasetSync {
       const covered = this.#latest.heads.some(head => head.record.revisionId === operation.operationId)
         || this.#latest.heads.some(head => head.record.parents.includes(operation.operationId));
       if (covered) {
+        // The activation above is local and unbounded, and the proof before it cannot speak for this acknowledgement.
+        this.#generationProven = false;
         await this.#barrier(operation.entityId, operation.kind);
         await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] }); return;
       }
     } else { job = { ...job, phase: 'receipt' }; await this.#storage.putJob(key, job); }
-    await publisher.publish(publisher.change(job), plan); await this.#barrier(operation.entityId, operation.kind);
+    await publisher.publish(publisher.change(job), plan); await this.#barrier(operation.entityId, operation.kind, { proofLast: true });
     await this.#workspace.acknowledgeOperations(this.#session, [operation.operationId], { jobs: [key] });
     this.#latest.heads = heads;
   }

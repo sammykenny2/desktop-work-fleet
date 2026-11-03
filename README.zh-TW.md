@@ -25,6 +25,23 @@ English: [README.md](README.md)
 - 共用內容與各裝置版面分離，保留未來異質來源、renderer 與輕量 PM 檢視。
 - 自有 iOS／macOS／Android App 保留 Apple／Google 商店目標；不加入 Focus／番茄鐘／回顧。
 
+## 同步模型
+
+Work Fleet 使用 **快照／檢查點加變更日誌的增量同步**（snapshot/checkpoint-based incremental synchronization），
+採本機優先保存、各裝置皆可寫入的多主同步（multi-master synchronization）。共用記錄存放於 Google Drive 的 appDataFolder。
+
+- 新裝置讀取目前的檢查點與有界的近期變更記錄，不必掃描全部保留歷史。
+- 平常透過 Drive changes feed 發現變更，再驗證並套用受影響的記錄。
+- 每個保存版本都有隨機版本 ID 與明確的父版本 ID；並行修改保留為衝突，不以時間戳選出勝者。
+- 整併時建立可獨立讀取的檢查點，只退役它明確涵蓋的變更參照與舊檢查點。
+  版本內容仍保留供歷史功能按需讀取；永久刪除整張便箋時，會移除該便箋的保留歷史。
+
+這裡的「增量」指新發布的記錄，不是文字差異 patch：每個版本仍包含完整便箋內容。
+Incremental backup 與 differential backup 是備份策略；Work Fleet 的可攜式 ZIP 備份是獨立功能。
+協定與刪除規則見 [ADR-062](docs/decisions/062-dataset-checkpoints-and-deletable-history.md) 與
+[SPEC-010](docs/specs/010-dataset-checkpoints-and-deletable-history.md)；平常沒有變更時的檢查見
+[SPEC-011](docs/specs/011-efficient-idle-sync.md)。
+
 ## 從這裡開始
 
 1. [接手入口及參考資料取得規則](docs/handoff/2026-10-04-desktop-interaction-handoff.md)

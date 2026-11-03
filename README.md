@@ -35,6 +35,24 @@ work that stays in view.
   lightweight PM view.
 - Our own iOS, macOS and Android apps keep the Apple and Google store targets; no Focus, Pomodoro or review features.
 
+## Synchronization model
+
+Work Fleet uses **snapshot/checkpoint-based incremental synchronization** with local-first saves and multiple devices
+allowed to write (multi-master synchronization). Google Drive's appDataFolder carries the shared records.
+
+- A joining device reads current checkpoints and bounded recent change records without scanning all retained history.
+- Routine sync follows the Drive changes feed to discover changes, then validates and applies the affected records.
+- Each saved revision has a random version ID and explicit parent IDs. Concurrent edits remain available as conflicts;
+  timestamps do not choose a winner.
+- Compaction creates self-contained checkpoints and retires the exact change references and older checkpoints they cover.
+  Revision bodies remain available for history, fetched on demand; permanent deletion of a note removes its retained history.
+
+Here, *incremental* refers to newly published records, not text patches: every revision contains the full note content.
+Incremental and differential backup are backup strategies; Work Fleet's portable ZIP backups are a separate feature.
+The protocol and deletion rules are in [ADR-062](docs/decisions/062-dataset-checkpoints-and-deletable-history.md) and
+[SPEC-010](docs/specs/010-dataset-checkpoints-and-deletable-history.md); ordinary unchanged checks follow
+[SPEC-011](docs/specs/011-efficient-idle-sync.md).
+
 ## Getting started
 
 1. [Handoff entry and rules for obtaining reference material](docs/handoff/2026-10-04-desktop-interaction-handoff.md)

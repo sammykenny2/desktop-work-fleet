@@ -67,7 +67,7 @@ let desktop; let desktopInfo; let remoteEditor = null;
 // Quick capture brought the main window out of the tray or menu bar, so closing its editor puts the window back.
 let editorHidesMain = false;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
-let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false;
+let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false; let listingLag = null; let listingLagWaits = 0;
 let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
 let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null; let recoveryOwed = false; let landingFailed = false;
 let maintenanceNotice = null; let maintenanceFailure = null;
@@ -561,6 +561,8 @@ async function syncGoogle(force = false) {
   // Recovery is an explicit user choice. Timers and foreground/online events must not retry the
   // blocked dataset and reopen its prompt over Settings while the user reads the reset controls.
   if (datasetProblem) return;
+  // A retry is already set for when the backoff ends, and starting earlier would only report the backoff as a failure.
+  if (!force && listingLag?.service === syncService) return;
   // Settings edits nothing a sync could overwrite and holds Sync now, so it does not hold syncing; a running backup or
   // restore on its data page does, and so does the versions page, whose choices name the versions it shows.
   const settings = $('#settings-dialog');
@@ -594,6 +596,7 @@ async function syncGoogle(force = false) {
     if (landingFailed) { landingFailed = false; sourceSync.invalidateIdle(); }
     if (!current()) return;
     completed = result?.phase === 'idle';
+    if (completed) listingLagWaits = 0;
     if (result?.phase === 'waiting-initialization') {
       setSync('attention', () => t('sync.status.waitingInitialization'), () => t('sync.detail.waitingInitialization')); return;
     }
@@ -614,6 +617,16 @@ async function syncGoogle(force = false) {
       datasetProblem = error; maintenancePaused = true;
       setSync('attention', () => t('sync.recovery.paused'), error.message);
       setText('#google-sync', () => t('sync.recovery.options')); void askDatasetRecovery(); return;
+    }
+    // Drive's filtered lists can lag its feed for a moment. Nothing failed and the cursor held, so this is only "not yet".
+    // Six doubling backoffs always outlast the 30 seconds a pull holds out, so the pass that stops holding runs before any report.
+    if (error.code === 'dataset-visibility' && listingLagWaits < 6) {
+      listingLagWaits++;
+      setSync('busy', () => t('sync.status.syncing'));
+      const wait = listingLag = { service: sourceSync };
+      // Rounded up, because a pass a moment before the backoff ends is refused and reported as a failure.
+      setTimeout(() => { if (listingLag === wait) listingLag = null; void syncGoogle(); }, Math.ceil(Math.max(0, sourceSync.status.nextAttemptAt - Date.now())) + 1);
+      return;
     }
     const vaultPaused = ['vault-locked', 'vault-unavailable', 'storage-cleanup', 'vault-unlock-cancelled', 'vault-unlock-timeout'].includes(error.code);
     if (vaultPaused) {
@@ -645,7 +658,7 @@ function landSync(receive) {
   return desktop ? desktop.perform(land) : land();
 }
 
-// A backup refuses a snapshot whose workspace changed while it was read, and any commit of a running pass changes it.
+// A backup refuses a snapshot whose workspace changed while it was read, and a running pass's landing changes it.
 async function flushForBackup() {
   await syncService?.whenIdle();
   await (desktop ? desktop.perform(flushDraft) : flushDraft());
@@ -831,7 +844,7 @@ function cloudRestoreOptions() {
     prepare: async options => {
       requireConnected(); await maintenanceWork;
       if (!datasetProblem) {
-        const result = await syncService?.sync({ force: true, land: landSync });
+        const result = await syncService?.syncWaiting({ force: true, land: landSync });
         if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingRestore'));
       }
       return prepareDatasetRestore({ ...options, workspace, storage, fileStore: datasetStore, recovery: Boolean(datasetProblem) });
@@ -850,7 +863,7 @@ function backupSourceOptions() {
       try {
         // A pass already running can predate what this export covers, so the export has its own pass after it.
         const service = syncService; await service.whenIdle();
-        const result = await service.sync({ force: true, land: landSync });
+        const result = await service.syncWaiting({ force: true, land: landSync });
         if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingExport'));
         setSync('ok', () => t('sync.status.synced'));
       } catch (error) { setSync('error', () => t('sync.status.failed'), error.message); throw error; }

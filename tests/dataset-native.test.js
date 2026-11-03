@@ -5,6 +5,12 @@ import { datasetQuery, googleDatasetDescriptor, validateDatasetFile, datasetMeta
 import { NativeGoogleDatasetStore } from '../src/native/google.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/dataset/native-wire.json', import.meta.url), 'utf8'));
+test('only hosts that run Drive requests together read files together', () => {
+  const width = platform => new NativeGoogleDatasetStore({ request: async () => ({}) }, { profileId: 'google:account', platform }, 'account').readWidth;
+  for (const platform of ['macos', 'ios']) assert.equal(width(platform), 4, platform);
+  for (const platform of ['windows', 'linux', 'android']) assert.equal(width(platform), 1, platform);
+});
+
 test('empty native feed pages require a terminal token and never normalize malformed changes', async () => {
   let response;
   const store = new NativeGoogleDatasetStore({ request: async () => response }, { profileId: 'google:account' }, 'account');

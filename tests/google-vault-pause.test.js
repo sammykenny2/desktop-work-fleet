@@ -94,7 +94,7 @@ test('hosts without optional vault pause fields retain connected and signed-out 
 });
 
 function syncFixture({ capability = true, unlock, sync } = {}) {
-  const nodes = new Map(); const calls = []; const states = [];
+  const nodes = new Map(); const calls = []; const states = []; const retries = [];
   const account = { configured: true, connected: true, paused: false, accountId: 'fixture', email: 'synthetic@example.test' };
   const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
   const context = vm.createContext({
@@ -106,6 +106,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     } } },
     syncService: { sync: async options => { await options.onActivity(); calls.push(['sync', options.force]); if (sync) await sync(); return { phase: 'idle' }; } },
     syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null, landingFailed: false,
+    listingLag: null, listingLagWaits: 0, setTimeout: (callback, delay) => retries.push({ callback, delay }), Date, Math,
     document: { querySelectorAll: () => [] },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
@@ -116,8 +117,58 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     controller: { reconcile: async () => {} }, workAreas: () => [], render() {},
   });
   vm.runInContext(`${presenter}\n${synchronize}`, context);
-  return { nodes, calls, states, context, invoke: force => vm.runInContext(`syncGoogle(${force})`, context) };
+  return { nodes, calls, states, retries, context, invoke: force => vm.runInContext(`syncGoogle(${force})`, context) };
 }
+
+const lagError = () => Object.assign(new Error('Not visible yet'), { code: 'dataset-visibility' });
+const settle = () => new Promise(resolve => setImmediate(resolve));
+
+test('a fractional backoff still gets a retry that does not arrive early', async () => {
+  const f = syncFixture({ sync: () => { throw lagError(); } });
+  f.context.syncService.status = { nextAttemptAt: Date.now() + 1000.4 };
+  await f.invoke(false);
+  assert.ok(Number.isInteger(f.retries[0].delay)); assert.ok(f.retries[0].delay >= 1000);
+});
+
+test('a listing behind the feed shows as syncing and retries when the backoff ends, without reporting a failure', async () => {
+  let lagging = true;
+  const f = syncFixture({ sync: () => { if (lagging) throw lagError(); } });
+  f.context.syncService.status = { nextAttemptAt: Date.now() + 5000 };
+  await f.invoke(false);
+  assert.equal(f.states.at(-1)[0], 'busy'); assert.equal(textOf(f.states.at(-1)[1]), t('sync.status.syncing'));
+  assert.equal(f.retries.length, 1); assert.ok(f.retries[0].delay > 0 && f.retries[0].delay <= 5001);
+  assert.ok(f.retries[0].delay >= f.context.syncService.status.nextAttemptAt - Date.now(), 'never a moment before the backoff ends');
+
+  const passes = () => f.calls.filter(call => call[0] === 'sync').length, ran = passes();
+  await f.invoke(false);
+  assert.equal(passes(), ran, 'a timer tick during the wait starts nothing');
+  await f.invoke(true);
+  assert.equal(passes(), ran + 1, 'Sync now still can');
+
+  lagging = false; f.retries.at(-1).callback(); await settle();
+  assert.equal(f.states.at(-1)[0], 'ok');
+  assert.equal(vm.runInContext('listingLagWaits', f.context), 0, 'a success ends the count');
+});
+
+test('a listing that stays behind the feed is reported after six waits', async () => {
+  const f = syncFixture({ sync: () => { throw lagError(); } });
+  f.context.syncService.status = { nextAttemptAt: 0 };
+  await f.invoke(false);
+  for (let i = 0; i < 5; i++) { f.retries.at(-1).callback(); await settle(); }
+  assert.equal(f.retries.length, 6); assert.equal(f.states.at(-1)[0], 'busy');
+  f.retries.at(-1).callback(); await settle();
+  assert.equal(f.retries.length, 6); assert.equal(f.states.at(-1)[0], 'error');
+});
+
+test('a wait left by an account does not hold the next account back', async () => {
+  const f = syncFixture({ sync: () => { throw lagError(); } });
+  f.context.syncService.status = { nextAttemptAt: 0 };
+  await f.invoke(false);
+  const calls = [];
+  f.context.syncService = { sync: async () => { calls.push('next account'); return { phase: 'idle' }; }, status: { nextAttemptAt: 0 } };
+  await f.invoke(false);
+  assert.deepEqual(calls, ['next account']);
+});
 
 test('manual sync requests native system unlock then continues the same account sync', async () => {
   const f = syncFixture();
@@ -272,7 +323,7 @@ const flushSource = source.slice(source.indexOf('async function flushForBackup('
 function dataFixture() {
   const calls = []; const queue = { depth: 0 };
   const perform = async action => { queue.depth++; try { return await action(); } finally { queue.depth--; } };
-  const service = { whenIdle: async () => { calls.push(['whenIdle', queue.depth]); }, sync: async options => { calls.push(['sync', queue.depth, options.force, options.land === context.landSync]); return { phase: 'idle' }; } };
+  const service = { whenIdle: async () => { calls.push(['whenIdle', queue.depth]); }, syncWaiting: async options => { calls.push(['sync', queue.depth, options.force, options.land === context.landSync]); return { phase: 'idle' }; } };
   const context = vm.createContext({ profileId: 'google:fixture', googleAccount: { connected: true, email: 'synthetic@example.test' }, native: {}, t, datasetProblem: null,
     syncService: service, workspace: { state: {} }, storage: {}, nativeClosing: false, accountBusy: false, maintenanceWork: null,
     syncBusy: false, $: () => ({}), setSync() {}, desktop: { perform }, landSync: receive => receive(), requireConnected() {}, datasetStore: {},

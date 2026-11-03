@@ -78,14 +78,15 @@ afterwards, as before.
 
 - A drop spanning a landing that changed the layout is refused with "The layout changed. Try again.", as before. A landing
   that changes nothing in the layout does not affect a drag. The drag no longer freezes while the pass runs.
-- The number of Drive requests per pass and the time until other devices see a change are unchanged.
+- This decision left the number of Drive requests per pass and the time until other devices see a change unchanged.
+  [ADR-065](065-reuse-verified-records-to-cut-sync-round-trips.md) reduces them.
 - The maintenance loop's purge and restore steps already ran outside the queue and are not changed here.
 - No queue turn on the shipped desktop hosts is known to wait on Drive: they open an attachment from a paper through
   their local database. A desktop host without that capability would hold its turn for the read.
 - A first dataset failure under a dialog opened over Settings asks its recovery question over Settings when that dialog
   closes, as it asks at once over Settings when no other dialog is open. After that question, nothing asks again on its own.
-- A quiet check that commits during an automatic backup's capture still makes that backup refuse its snapshot and retry
-  later. A pass already running no longer does (decision 6), but this one is existing behaviour and needs its own fix.
+- A quiet check that committed during an automatic backup's capture made that backup refuse its snapshot and retry later. A
+  pass already running no longer did (decision 6). [ADR-065](065-reuse-verified-records-to-cut-sync-round-trips.md) ended this.
 - Import, merge and replace previews of a Google workspace still go stale at the next commit of a pass, including a quiet
   check, and are refused when confirmed. Only a cloud replace preview holds syncing. That is existing behaviour and needs
   its own fix.

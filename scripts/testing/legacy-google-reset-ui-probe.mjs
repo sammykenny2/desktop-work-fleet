@@ -313,7 +313,7 @@ try {
         releaseChanges(); releaseChanges = null;
         await expect(page.locator('#google-sync')).toBeEnabled();
         assert.equal(driveCalls.filter(method => method === 'listDatasetChanges').length, 1);
-        assert.equal(driveCalls.length, 8, 'a due audit adds one generation validation');
+        assert.equal(driveCalls.length, 6, 'a due audit adds the five requests of one generation validation');
         assert.ok(!(await page.evaluate(() => window.fixtureBusyStates)).includes('busy'), 'an empty audit stays quiet');
         if (handheld) await page.locator('#drawer-toggle').click();
         await page.locator('#settings-button').click();

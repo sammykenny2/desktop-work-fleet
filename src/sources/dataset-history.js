@@ -1,6 +1,7 @@
 import { copy, requireValue } from '../core/contracts.js';
 import { datasetShard, verifyDatasetBytes } from './dataset-codec.js';
 import { DatasetProtocol, listDatasetObjects } from './dataset-protocol.js';
+import { VerifiedRecords } from './dataset-records.js';
 import { canonicalJson } from './json.js';
 import { t } from '../i18n/index.js';
 
@@ -10,7 +11,7 @@ const offline = error => ['network', 'unauthorized', 'service-unavailable', 'rat
 
 /** Selected-entity history is paged independently of current sync. Cached coverage is always explicit. */
 export class DatasetHistory {
-  #workspace; #storage; #provider;
+  #workspace; #storage; #provider; #records = new VerifiedRecords();
   constructor({ workspace, storage, fileStore = () => null }) {
     this.#workspace = workspace; this.#storage = storage; this.#provider = typeof fileStore === 'function' ? fileStore : () => fileStore;
   }
@@ -21,7 +22,7 @@ export class DatasetHistory {
       || binding && await this.#storage.getControl(`purge:${binding.plan.datasetId}:${id}`)) found.add(id);
     if (remote && this.#workspace.state.profileId.startsWith('google:')) {
       const store = this.#provider(); requireValue(store && binding, 'history-offline', t('errors.sources.historyOffline'));
-      const protocol = new DatasetProtocol(store, this.#storage);
+      const protocol = new DatasetProtocol(store, this.#storage, { records: this.#records });
       await protocol.assertGeneration(binding.descriptor, binding.plan);
       for (const marker of await protocol.purges(binding.plan, ids)) {
         found.add(marker.entityId); await this.#storage.putControl(`purge:${binding.plan.datasetId}:${marker.entityId}`, marker);
@@ -32,7 +33,8 @@ export class DatasetHistory {
   }
   async verifySnapshot(state, { remote = true } = {}) {
     const current = this.#workspace.state;
-    requireValue(current.profileId === state.profileId && current.revision === state.revision
+    // A quiet sync check moves the revision and leaves everything a backup holds as it was (ADR-065).
+    requireValue(current.profileId === state.profileId && this.#workspace.contentRevision <= state.revision
       && canonicalJson(current.sync.dataset ?? null) === canonicalJson(state.sync.dataset ?? null),
     'backup-snapshot-changed', t('errors.backup.exportWorkspaceChanged'));
     purged(!(await this.purgedEntities(state.cards.map(card => card.id), { remote })).length);
@@ -44,7 +46,7 @@ export class DatasetHistory {
     purged(!await this.#storage.getControl(`purge:${binding.plan.datasetId}:${entityId}`));
     const store = this.#provider();
     if (remote && store) {
-      const protocol = new DatasetProtocol(store, this.#storage);
+      const protocol = new DatasetProtocol(store, this.#storage, { records: this.#records });
       await protocol.assertGeneration(binding.descriptor, binding.plan);
       const markers = await protocol.purges(binding.plan, [entityId]);
       for (const value of markers) await this.#storage.putControl(`purge:${binding.plan.datasetId}:${entityId}`, value);

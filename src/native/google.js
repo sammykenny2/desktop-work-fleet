@@ -1,4 +1,4 @@
-import { visibleDatasetObjects } from '../sources/dataset-protocol.js';
+import { PARALLEL_READS, visibleDatasetObjects } from '../sources/dataset-protocol.js';
 import { DELETE_BATCH_BYTES, deleteBatchIds, deleteBatchResult } from '../sources/drive-batch.js';
 import { FleetError, requireValue } from '../core/contracts.js';
 import { NativeTransfers } from '../storage/native.js';
@@ -88,10 +88,13 @@ export class NativeGoogleFileStore {
 
 /** Dataset operations remain semantic RPCs. Neither query strings nor HTTP/upload addresses cross this bridge. */
 export class NativeGoogleDatasetStore extends NativeGoogleFileStore {
-  #bridge; #account; #transfers;
+  #bridge; #account; #transfers; #readWidth;
   constructor(bridge, info, accountId) {
     super(bridge, info, accountId); this.#bridge = bridge; this.#account = accountId; this.#transfers = new NativeTransfers(bridge, info);
+    // Android, Linux and Windows run their Drive requests one at a time.
+    this.#readWidth = ['macos', 'ios'].includes(info.platform) ? PARALLEL_READS : 1;
   }
+  get readWidth() { return this.#readWidth; }
   async #call(method, args, signal) {
     signal?.throwIfAborted(); const result = await this.#bridge.request(`google.dataset.${method}`, { accountId: this.#account, ...args });
     signal?.throwIfAborted(); return result;

@@ -42,13 +42,14 @@ separate deterministic cost/safety checks from authenticated performance accepta
 Run `node --test tests/idle-sync.test.js tests/dataset-native.test.js tests/dataset-sync.test.js
 tests/dataset-empty.test.js tests/dataset-history-purge.test.js` for the shared controller.
 The ordinary empty fixture uses one provider call, zero record reads and two payload writes;
-the due audit uses eight provider calls. Provider calls are not HTTP counts. Lazy 0/10k/1m
+the due audit uses six provider calls. Provider calls are not HTTP counts. Lazy 0/10k/1m
 history fixtures reject body reads and do not materialize a million records. Concurrent
 edits, saves, purge admission, session replacement, reset fences, critical removals,
 backoff and lost commit acknowledgements retain the existing safety boundaries.
 
 `node --test tests/dataset-save-budget.test.js` holds one ordinary save to its SPEC-011
-provider-call ceilings. It repeats a save with a lost ready receipt or root, a feed-invisible
+provider-call ceilings, and covers what [ADR-065](decisions/065-reuse-verified-records-to-cut-sync-round-trips.md) reuses
+and what it must still ask. It repeats a save with a lost ready receipt or root, a feed-invisible
 fence or a permanent deletion injected before each request position in turn, on a synthetic
 provider. Attachments, consolidation and uncertain receipts have structural or targeted
 checks there, not that sweep. It does not establish real Drive request counts, visibility

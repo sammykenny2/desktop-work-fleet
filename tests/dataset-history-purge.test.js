@@ -35,6 +35,20 @@ async function consolidate(provider, binding) {
   }
 }
 
+test('history checks the generation each time and reads its two records once', async () => {
+  const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
+  const card = await a.workspace.createCard(content('kept')); await a.sync.sync();
+  const { descriptor, plan } = a.sync.binding, reads = [], gets = [];
+  const readObject = provider.readObject.bind(provider), getObject = provider.getObject.bind(provider);
+  provider.readObject = input => { reads.push(input.file.id); return readObject(input); };
+  provider.getObject = input => { gets.push(input.id); return getObject(input); };
+  await a.history.assertAvailable('card', card.id); await a.history.assertAvailable('card', card.id);
+  assert.equal(reads.filter(id => id === descriptor.id).length, 1); assert.equal(reads.filter(id => id === plan.readyId).length, 1);
+  assert.equal(gets.filter(id => id === plan.rootId).length, 2);
+  provider.getObject = input => { if (input.id === plan.rootId) throw Object.assign(new Error('gone'), { code: 'source-file-missing' }); return getObject(input); };
+  await assert.rejects(a.history.assertAvailable('card', card.id), { code: 'dataset-changed' });
+});
+
 test('cached history remains available offline, while a known purge still blocks cached selection', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
   const card = await a.workspace.createCard(content('cached')); await a.sync.sync();

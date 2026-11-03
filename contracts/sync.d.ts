@@ -142,6 +142,10 @@ export interface DatasetProvider {
   readonly sourceId: string;
   getStartCursor(input?: { signal?: AbortSignal }): Promise<string>;
   allocateFileId(input?: { signal?: AbortSignal }): Promise<string>;
+  /** At most 100 per call. */
+  allocateFileIds(count: number, input?: { signal?: AbortSignal }): Promise<string[]>;
+  /** How many reads of immutable files to run at once. One when absent. */
+  readonly readWidth?: number;
   listObjects(input: { query: DatasetQuery; pageToken?: string | null; signal?: AbortSignal }): Promise<{
     files: (DatasetFile | DatasetFolder | DatasetOwnedFile | { id: string; kind: string | null; folder?: boolean; dataset?: boolean })[]; incomplete: boolean; nextPageToken: string | null;
   }>;
@@ -150,6 +154,8 @@ export interface DatasetProvider {
   createObject(input: { file: DatasetFile; bytes: Uint8Array; signal?: AbortSignal }): Promise<DatasetFile>;
   createFolder(input: { file: DatasetFolder; signal?: AbortSignal }): Promise<DatasetFolder>;
   deleteFile(input: { id: string; signal?: AbortSignal }): Promise<void>;
+  /** At most 100 per call. A result with a null code acknowledges removal, including of a file already gone. */
+  deleteFiles(input: { ids: string[]; signal?: AbortSignal }): Promise<{ id: string; code: string | null }[]>;
   /** Only the V1 legacy reset fence uses the existing flat-file transport. */
   readFile(input: { file: FileDescriptor; signal?: AbortSignal }): Promise<Uint8Array>;
   createFile(input: { file: FileDescriptor; bytes: Uint8Array; signal?: AbortSignal }): Promise<FileDescriptor>;

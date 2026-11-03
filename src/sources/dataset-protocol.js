@@ -5,6 +5,7 @@ import { DATASET_LIMITS, DATASET_SHARDS, datasetFile, datasetRecord, decodeDatas
   validateDatasetFile, validateDatasetRecord } from './dataset-codec.js';
 import { t } from '../i18n/index.js';
 import { ensureDatasetDirectory } from './dataset-folders.js';
+import { deleteFailure } from './drive-batch.js';
 
 const invalid = condition => requireValue(condition, 'invalid-dataset', t('errors.sources.datasetInvalid'));
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
@@ -12,6 +13,24 @@ const changed = condition => requireValue(condition, 'dataset-changed', t('error
 const missing = error => ['source-file-missing', 'file-missing'].includes(error.code);
 const equal = (a, b) => canonicalJson(a) === canonicalJson(b);
 const reference = file => ({ id: file.id, sha256: file.sha256 });
+// Open transfers are capped at eight on every host, and the rest of the app needs some too. Only a host that really runs
+// requests together asks for this: queued behind one worker, later reads would only spend their bridge timeout waiting.
+export const PARALLEL_READS = 4;
+
+/** Reads of immutable files have no order. Every read that started ends before this settles, so none outlives its pass. */
+export async function eachRead(items, read, width = 1) {
+  const results = new Array(items.length); let next = 0, failed = false, failure;
+  const worker = async () => {
+    while (!failed && next < items.length) {
+      const at = next++;
+      try { results[at] = await read(items[at]); }
+      catch (error) { if (!failed) { failed = true; failure = error; } }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(width, items.length) }, worker));
+  if (failed) throw failure;
+  return results;
+}
 
 export async function listDatasetObjects(store, query, { signal, limit = DATASET_LIMITS.inputs } = {}) {
   const files = []; const seen = new Set(); let pageToken = null;
@@ -30,16 +49,20 @@ export async function listDatasetObjects(store, query, { signal, limit = DATASET
   return files;
 }
 
-/** A verified create can precede its appearance in a filtered list. Missing expected IDs are retryable, not conflicts. */
-export async function visibleDatasetObjects(store, query, expected, options = {}) {
+async function untilVisible(list, visible, signal) {
   for (let attempt = 0; attempt < 4; attempt++) {
-    const files = await listDatasetObjects(store, query, options);
-    if (expected.every(id => files.some(file => file.id === id))) return files;
+    const value = await list();
+    if (visible(value)) return value;
     if (attempt < 3) {
-      await new Promise(resolve => setTimeout(resolve, 50 * 2 ** attempt)); options.signal?.throwIfAborted();
+      await new Promise(resolve => setTimeout(resolve, 50 * 2 ** attempt)); signal?.throwIfAborted();
     }
   }
   requireValue(false, 'dataset-visibility', t('errors.sources.datasetVisibility'));
+}
+
+/** A verified create can precede its appearance in a filtered list. Missing expected IDs are retryable, not conflicts. */
+export function visibleDatasetObjects(store, query, expected, options = {}) {
+  return untilVisible(() => listDatasetObjects(store, query, options), files => expected.every(id => files.some(file => file.id === id)), options.signal);
 }
 
 /** Coverage is exact and only applies to captured immutable inputs. No ancestry or timestamp winner is inferred. */
@@ -96,32 +119,43 @@ export function mergeDatasetInputs(inputs, purges = []) {
 
 /** Provider-neutral protocol; it has no credentials, mutable latest pointer, lock lease or provider CAS. */
 export class DatasetProtocol {
-  #store; #journal;
-  constructor(store, journal) { this.#store = store; this.#journal = journal; }
+  #store; #journal; #records;
+  constructor(store, journal, { records = null } = {}) { this.#store = store; this.#journal = journal; this.#records = records; }
   get store() { return this.#store; }
   async read(file, signal) { return decodeDatasetRecord(file, await this.#store.readObject({ file, signal })); }
+  /** The same record a read returns, without the download when this session already verified that exact descriptor. */
+  async recall(file, signal) {
+    const known = this.#records?.get(file); if (known) return known;
+    const value = await this.read(file, signal); this.remember(file, value); return value;
+  }
+  remember(file, value) { this.#records?.set(file, value); }
   async assertGeneration(descriptor, plan, signal) {
     validateDatasetRecord(plan); invalid(plan.kind === 'dataset' && descriptor.datasetId === plan.datasetId);
     try {
       const [root, actual, ready, fences, actualPlan, descriptors] = await Promise.all([
         this.#store.getObject({ id: plan.rootId, signal }), this.#store.getObject({ id: descriptor.id, signal }),
         this.#store.getObject({ id: plan.readyId, signal }), visibleDatasetObjects(this.#store, { scope: 'fences' }, plan.fenceId ? [plan.fenceId] : [], { signal, limit: 16 }),
-        this.read(descriptor, signal),
+        // Every request about what exists stays fresh. Metadata carrying the same digest says these bytes did not change.
+        this.recall(descriptor, signal),
         visibleDatasetObjects(this.#store, { scope: 'datasets' }, [descriptor.id], { signal, limit: 16 }),
       ]);
       changed(descriptors.some(file => equal(file, descriptor)));
       for (const file of descriptors) if (file.datasetId !== plan.datasetId) {
-        const other = await this.read(file, signal); changed(other.fenceId !== plan.fenceId);
+        const other = await this.recall(file, signal); changed(other.fenceId !== plan.fenceId);
       }
       changed(equal(actualPlan, plan) && descriptor.kind === 'dataset' && descriptor.parentId === plan.rootId
         && root.id === plan.rootId && root.kind === 'dataset-root' && root.datasetId === plan.datasetId && equal(actual, descriptor)
         && ready.kind === 'ready' && ready.datasetId === plan.datasetId && ready.parentId === plan.rootId
         && equal(fences.map(file => file.id).sort(), plan.fenceId ? [plan.fenceId] : []));
-      const receipt = await this.read(ready, signal);
+      const receipt = await this.recall(ready, signal);
       changed(equal(receipt.descriptor, reference(descriptor)));
       for (const file of receipt.initial) invalid(file.parentId === plan.folders.shards[file.shard]);
       return receipt;
     } catch (error) { if (missing(error)) changed(false); throw error; }
+  }
+  /** The markers `purges` finds, once a listing shows those the changes feed already reported. */
+  visiblePurges(plan, entityIds, expected, signal) {
+    return untilVisible(() => this.purges(plan, entityIds, signal), markers => expected.every(id => markers.some(marker => marker.entityId === id)), signal);
   }
   async purges(plan, entityIds, signal) {
     const ids = [...new Set(entityIds)], result = [];
@@ -137,34 +171,46 @@ export class DatasetProtocol {
     }
     return result;
   }
-  async captureShard(plan, shard, signal) {
-    const files = await listDatasetObjects(this.#store, { scope: 'current', datasetId: plan.datasetId, shard }, { signal });
+  /**
+   * `reuse` answers from verified records for a pull. `added` and `removed` are what the feed just reported: a verified record
+   * has no download left to fail, so a listing that lags the feed has to be noticed here, or the cursor moves past it.
+   * A checkpoint seals what it captures, so it reads every listed file and every uncovered receipt's body again.
+   */
+  async captureShard(plan, shard, signal, { reuse = false, added = [], removed = new Set() } = {}) {
+    const width = this.#store.readWidth;
+    const load = async file => {
+      if (reuse) return this.recall(file, signal);
+      const value = await this.read(file, signal); this.remember(file, value); return value;
+    };
+    const files = await untilVisible(() => listDatasetObjects(this.#store, { scope: 'current', datasetId: plan.datasetId, shard }, { signal }),
+      listed => added.every(id => listed.some(file => file.id === id)) && !listed.some(file => removed.has(file.id)), signal);
     capacity(files.filter(file => file.kind === 'checkpoint').length <= DATASET_LIMITS.candidates + DATASET_LIMITS.writers
       && files.filter(file => file.kind === 'change').length <= DATASET_LIMITS.tailHard + DATASET_LIMITS.writers - 1);
-    const inputs = [];
-    for (const file of files) {
-      invalid(file.datasetId === plan.datasetId && file.shard === shard && file.parentId === plan.folders.shards[shard]);
-      inputs.push({ file, value: await this.read(file, signal) });
-    }
+    for (const file of files) invalid(file.datasetId === plan.datasetId && file.shard === shard && file.parentId === plan.folders.shards[shard]);
+    const inputs = await eachRead(files, async file => ({ file, value: await load(file) }), width);
     const covered = new Set(inputs.flatMap(input => input.value.kind === 'checkpoint' ? input.value.inputs.map(ref => ref.id) : []));
     const purges = await this.purges(plan, inputs.filter(input => input.value.kind === 'change' && input.file.shard !== 'groups')
       .map(input => input.file.entityId), signal);
-    let tailBytes = 0;
+    let tailBytes = 0; const tail = [];
     for (const input of inputs) if (input.value.kind === 'change' && !covered.has(input.file.id)) {
       input.purge = purges.find(value => value.entityId === input.file.entityId);
       if (input.purge) continue;
       const file = input.value.revision; tailBytes += file.size + input.file.size;
       capacity(tailBytes <= DATASET_LIMITS.checkpointBytes * DATASET_LIMITS.writers);
+      tail.push(input);
+    }
+    await eachRead(tail, async input => {
+      const file = input.value.revision;
       let value;
-      try { value = await this.read(file, signal); }
+      try { value = await load(file); }
       catch (error) {
         if (!missing(error) || file.shard === 'groups') throw error;
         [input.purge] = await this.purges(plan, [file.entityId], signal);
-        if (input.purge) continue; throw error;
+        if (input.purge) return; throw error;
       }
       invalid(file.datasetId === plan.datasetId && file.shard === shard);
       input.head = { record: value.record, file, attachments: value.attachments };
-    }
+    }, width);
     // Validation also rejects cycles/false digests in coverage before anything may be retired.
     mergeDatasetInputs(inputs); return inputs;
   }
@@ -253,16 +299,32 @@ export class DatasetProtocol {
     // A newly arrived purge requires a sanitized successor before this client retires anything.
     const purges = await this.purges(plan, value.heads.filter(head => head.record.kind === 'card').map(head => head.record.entityId), signal);
     if (purges.length) return false;
-    for (const ref of value.inputs) {
+    const present = await eachRead(value.inputs, async ref => {
       signal?.throwIfAborted(); let file;
       try { file = await this.#store.getObject({ id: ref.id, signal }); }
-      catch (error) { if (missing(error)) continue; throw error; }
+      catch (error) { if (missing(error)) return null; throw error; }
       invalid(file.datasetId === plan.datasetId && file.parentId === successor.file.parentId
         && file.shard === value.shard && ['checkpoint', 'change'].includes(file.kind) && file.sha256 === ref.sha256);
-      await this.#store.deleteFile({ id: file.id, signal });
-    }
+      return file.id;
+    }, this.#store.readWidth);
+    await this.#deleteAll(present.filter(Boolean), signal);
     if (successor.key && (await this.#journal.getJob(successor.key))?.file.id === successor.file.id) await this.#journal.deleteJob(successor.key);
     return true;
+  }
+  async #deleteAll(ids, signal) {
+    for (let i = 0; i < ids.length; i += 100) {
+      const batch = ids.slice(i, i + 100);
+      let results;
+      try { results = await this.#store.deleteFiles({ ids: batch, signal }); }
+      catch (error) {
+        if (error.code !== 'invalid-source-response') throw error;
+        // An unreadable reply says nothing about this batch. Deleting again is safe, because a file already gone counts as deleted.
+        for (const id of batch) await this.#store.deleteFile({ id, signal });
+        continue;
+      }
+      const failed = results.find(result => result.code);
+      if (failed) throw deleteFailure(failed.code);
+    }
   }
   /** Capture before listing, then bounded feed catch-up. An incomplete pass never returns an advanced cursor. */
   async reconcile(descriptor, plan, { signal, localEntities = [] } = {}) {

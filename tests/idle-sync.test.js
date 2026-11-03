@@ -101,7 +101,7 @@ test('five-minute audits run once, fail closed and resume never treats a persist
   for (let i = 1; i < 15; i++) { clock = i * 20_000; assert.equal((await f.sync.sync()).unchanged, true); }
   assert.equal(f.calls.length, 14);
   f.calls.length = 0; clock = 300_000; await f.sync.sync();
-  assert.equal(f.calls.length, 8, 'one feed call plus seven semantic generation checks');
+  assert.equal(f.calls.length, 6, 'one feed call plus the five requests of a generation check; this session already read its two records');
   f.calls.length = 0; await f.sync.sync(); assert.equal(f.calls.length, 1);
   const before = f.workspace.syncState;
   const root = f.sync.binding.plan.rootId;

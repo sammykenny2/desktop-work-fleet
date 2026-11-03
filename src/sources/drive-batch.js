@@ -1,4 +1,4 @@
-import { requireValue } from '../core/contracts.js';
+import { FleetError, requireValue } from '../core/contracts.js';
 import { validFileId } from './files.js';
 import { t } from '../i18n/index.js';
 
@@ -14,6 +14,10 @@ export function deleteBatchRequest(ids) {
   return new TextEncoder().encode(deleteBatchIds(ids).map((id, index) => `--${DELETE_BATCH_BOUNDARY}\r\nContent-Type: application/http\r\nContent-ID: wf-${index}\r\n\r\nDELETE /drive/v3/files/${id} HTTP/1.1\r\n\r\n`).join('')
     + `--${DELETE_BATCH_BOUNDARY}--\r\n`);
 }
+
+const DELETE_FAILURES = { unauthorized: 'errors.sources.driveUnauthorized', 'rate-limit': 'errors.sources.driveRateLimit',
+  'service-unavailable': 'errors.sources.driveUnavailable', 'source-permission': 'errors.sources.drivePermission' };
+export const deleteFailure = code => new FleetError(code, t(DELETE_FAILURES[code] ?? 'errors.sources.driveNetwork'));
 
 /** Only acknowledged IDs leave the durable journal. A malformed/lost reply can safely retry those same IDs. */
 export function deleteBatchResult(ids, bytes) {

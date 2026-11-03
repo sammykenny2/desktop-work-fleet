@@ -1,8 +1,9 @@
-import { copy, requireValue, FleetError } from '../core/contracts.js';
+import { copy, requireValue } from '../core/contracts.js';
 import { canonicalJson } from './json.js';
 import { sha256, validFileId, validateFile, verifyFile } from './files.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
 import { DatasetProtocol, listDatasetObjects, visibleDatasetObjects } from './dataset-protocol.js';
+import { deleteFailure } from './drive-batch.js';
 import { t } from '../i18n/index.js';
 
 const same = (a, b) => canonicalJson(a) === canonicalJson(b);
@@ -158,10 +159,7 @@ export class DatasetReset {
       if (!files.length) await this.#journal.deleteJob(row.key);
       report(job);
       if (files.length) {
-        const failure = results.find(item => item.code)?.code ?? 'network';
-        const messages = { unauthorized: 'errors.sources.driveUnauthorized', 'rate-limit': 'errors.sources.driveRateLimit',
-          'service-unavailable': 'errors.sources.driveUnavailable', 'source-permission': 'errors.sources.drivePermission' };
-        throw new FleetError(failure, t(messages[failure] ?? 'errors.sources.driveNetwork'));
+        throw deleteFailure(results.find(item => item.code)?.code ?? 'network');
       }
       return true;
     };

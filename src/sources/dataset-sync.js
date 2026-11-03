@@ -4,8 +4,9 @@ import { DATASET_LIMITS, DATASET_SHARDS, requireCheckpointCapacity } from './dat
 import { CurrentRevisions } from './current-revisions.js';
 import { DatasetLifecycle } from './dataset-lifecycle.js';
 import { DatasetPublisher, datasetUploadKey } from './dataset-publisher.js';
-import { DatasetProtocol, listDatasetObjects, mergeDatasetInputs } from './dataset-protocol.js';
+import { DatasetProtocol, eachRead, listDatasetObjects, mergeDatasetInputs } from './dataset-protocol.js';
 import { purgeJobKey } from './dataset-purge.js';
+import { VerifiedRecords } from './dataset-records.js';
 import { t } from '../i18n/index.js';
 
 const equal = (a, b) => canonicalJson(a) === canonicalJson(b);
@@ -15,6 +16,7 @@ const missing = error => ['file-missing', 'source-file-missing'].includes(error.
 const capacity = condition => requireValue(condition, 'dataset-busy', t('errors.sources.datasetBusy'));
 const publicationKey = datasetUploadKey;
 const AUDIT_MS = 5 * 60 * 1000;
+const LISTING_HOLD_MS = 30 * 1000, LISTING_HOLD_GAP_MS = 90 * 1000;
 const landDirectly = receive => receive();
 const token = value => typeof value === 'string' && value.length > 0 && value.length <= 8192;
 function changePage(page) {
@@ -27,7 +29,7 @@ function changePage(page) {
 export class DatasetSync {
   #workspace; #storage; #store; #protocol; #lifecycle; #session; #binding; #latest;
   #running = null; #closed = false; #abort = new AbortController(); #now; #random; #failures = 0;
-  #tailSizes = new Map();
+  #tailSizes = new Map(); #records = new VerifiedRecords(); #hold = null; #recheckAt = null;
   #uploadAfter = null;
   #idle = null; #elapsed; #validatedAt = null; #activity = () => {}; #land = landDirectly;
   #generationProven = false;
@@ -43,7 +45,7 @@ export class DatasetSync {
       this.#check(); this.#generationProven = false;
       const result = await target[key]({ ...input, signal: this.#abort.signal }); this.#check(); return result;
     } });
-    this.#protocol = new DatasetProtocol(this.#store, storage); this.#lifecycle = new DatasetLifecycle(this.#store, storage);
+    this.#protocol = new DatasetProtocol(this.#store, storage, { records: this.#records }); this.#lifecycle = new DatasetLifecycle(this.#store, storage);
   }
   get status() { return copy(this.#status); }
   get binding() { return copy(this.#binding ?? this.#workspace.syncState.dataset ?? null); }
@@ -70,6 +72,23 @@ export class DatasetSync {
     this.#activity = onActivity; this.#land = land;
     this.#running = this.#run().finally(() => { this.#running = null; this.#activity = () => {}; }); return this.#running;
   }
+  /**
+   * A forced pass someone is waiting on. A listing behind the feed normally clears within seconds, so this waits that out briefly.
+   * A pull that stopped waiting may have landed what its listing left out, which is not a result to present as current.
+   */
+  async syncWaiting(options) {
+    for (let waits = 0; ; waits++) {
+      try {
+        const result = await this.sync(options);
+        requireValue(this.#recheckAt === null, 'dataset-visibility', t('errors.sources.datasetVisibility'));
+        return result;
+      } catch (error) {
+        if (error.code !== 'dataset-visibility' || waits >= 3) throw error;
+        await new Promise(resolve => setTimeout(resolve, 500 * 2 ** waits));
+      }
+    }
+  }
+  #recheckDue() { return this.#recheckAt !== null && this.#elapsed() >= this.#recheckAt; }
   async #warmIdle() {
     this.#idle = null;
     const expected = this.#workspace.syncState, epoch = this.#storage.syncEpoch;
@@ -84,6 +103,7 @@ export class DatasetSync {
   }
   async #checkIdle() {
     const cached = this.#idle, state = this.#workspace.syncState;
+    if (this.#recheckDue()) return false;
     if (!cached || cached.epoch !== this.#storage.syncEpoch || state.pendingCount || state.localHeads?.length
       || state.cursor !== cached.expected.cursor || !equal(state.dataset, cached.expected.dataset)
       || !equal(state.datasetView, cached.expected.datasetView)) return false;
@@ -163,7 +183,8 @@ export class DatasetSync {
       return this.status;
     } catch (error) {
       this.invalidateIdle();
-      const retryable = ['network', 'rate-limit', 'service-unavailable', 'page-expired', 'upload-session-expired', 'dataset-busy', 'dataset-visibility', 'file-missing', 'source-file-missing'].includes(error.code);
+      if (error.code !== 'dataset-visibility') this.#hold = null;
+      const retryable = ['network', 'rate-limit', 'service-unavailable', 'page-expired', 'upload-session-expired', 'dataset-busy', 'dataset-visibility', 'file-missing', 'source-file-missing', 'transfer-busy'].includes(error.code);
       const delay = retryable ? Math.max(Math.min(60000, 1000 * 2 ** Math.min(this.#failures++, 6)) * (0.5 + this.#random() * 0.5), error.details?.retryAfterMs ?? 0) : 0;
       this.#status = { phase: this.#closed ? 'stopped' : error.code === 'unauthorized' ? 'needs-login' : retryable ? 'backoff' : 'needs-attention',
         pending: this.#workspace.pendingCount, nextAttemptAt: retryable ? this.#now() + delay : 0,
@@ -180,10 +201,17 @@ export class DatasetSync {
     }
     const published = [...shards.values()].flatMap(value => value.heads.map(head => head.record)), dataEntities = new Set();
     const changedShards = new Set();
-    if (cursor && shards.size === DATASET_SHARDS.length) {
+    // The first pull comes before any upload, so a listing that never agrees must not hold them forever. A full reconciliation
+    // lands what the listing shows, which can leave things out, so another one follows once the listing has had time.
+    // A hold longer ago than any backoff says nothing about this listing.
+    if (this.#hold && this.#elapsed() - this.#hold.last > LISTING_HOLD_GAP_MS) this.#hold = null;
+    const held = this.#hold !== null, heldTooLong = held && this.#elapsed() - this.#hold.since >= LISTING_HOLD_MS, recheck = this.#recheckDue();
+    if (cursor && shards.size === DATASET_SHARDS.length && !heldTooLong && !recheck) {
       await this.#proveGeneration();
       const known = new Map([...shards].flatMap(([shard, value]) => value.inputs.map(file => [file.id, shard])));
       const purged = new Set(), seen = new Set(); let events = 0, bytes = 0, complete = false, residualLegacy = false;
+      // What the feed said, to hold each listing to. Later events replace earlier ones for the same file.
+      const added = new Map(), removed = new Set(), markers = new Map();
       try {
         do {
           invalid(!seen.has(cursor)); seen.add(cursor);
@@ -194,12 +222,14 @@ export class DatasetSync {
             if (change.removed) {
               changed(![plan.rootId, plan.readyId, descriptor.id, plan.fenceId].includes(change.id));
               if (known.has(change.id)) changedShards.add(known.get(change.id));
+              removed.add(change.id); added.delete(change.id); markers.delete(change.id);
             } else {
               changed(!change.legacyReset && !(change.file?.kind === 'dataset' && change.file.datasetId !== plan.datasetId));
               if (change.file?.datasetId !== plan.datasetId) continue;
-              if (['change', 'checkpoint'].includes(change.file.kind)) changedShards.add(change.file.shard);
+              removed.delete(change.id);
+              if (['change', 'checkpoint'].includes(change.file.kind)) { changedShards.add(change.file.shard); added.set(change.id, change.file.shard); }
               if (['revision', 'attachment'].includes(change.file.kind) && change.file.shard !== 'groups') dataEntities.add(change.file.entityId);
-              if (change.file.kind === 'purge') { purged.add(change.file.entityId); changedShards.add(change.file.shard); }
+              if (change.file.kind === 'purge') { purged.add(change.file.entityId); changedShards.add(change.file.shard); markers.set(change.id, change.file.entityId); }
             }
           }
           cursor = page.nextCursor ?? page.cursor;
@@ -207,17 +237,22 @@ export class DatasetSync {
           if (events >= DATASET_LIMITS.feedEvents || bytes >= DATASET_LIMITS.feedBytes) break;
         } while (true);
         for (const shard of changedShards) {
+          // An unread later page could still change any of this, so only a finished feed can hold a listing to it.
+          const options = complete ? { reuse: true, removed, added: [...added].filter(([, home]) => home === shard).map(([id]) => id) } : { reuse: true };
           let inputs;
-          try { inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal); }
-          catch (error) { if (!missing(error)) throw error; inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal); }
+          try { inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal, options); }
+          catch (error) { if (!missing(error)) throw error; inputs = await this.#protocol.captureShard(plan, shard, this.#abort.signal, options); }
           shards.set(shard, { heads: mergeDatasetInputs(inputs), inputs: inputs.map(input => input.file) });
         }
         const targets = [...purged, ...dataEntities, ...[...changedShards].flatMap(shard => shards.get(shard).heads.filter(head => head.record.kind === 'card').map(head => head.record.entityId)),
           ...state.revisions.filter(record => record.kind === 'card' && state.sync.localHeads?.includes(record.revisionId)).map(record => record.entityId),
           ...Object.values(state.drafts).map(draft => draft.cardId)];
         result = { heads: [...shards.values()].flatMap(value => value.heads), inputs: [...shards.values()].flatMap(value => value.inputs),
-          purges: await this.#protocol.purges(plan, targets, this.#abort.signal), cursor: complete ? cursor : null, complete, residualLegacy };
-      } catch (error) { if (error.code !== 'cursor-expired') throw error; }
+          purges: await this.#protocol.visiblePurges(plan, targets, complete ? [...markers.values()] : [], this.#abort.signal), cursor: complete ? cursor : null, complete, residualLegacy };
+      } catch (error) {
+        if (error.code === 'dataset-visibility') this.#hold = { since: this.#hold?.since ?? this.#elapsed(), last: this.#elapsed() };
+        if (error.code !== 'cursor-expired') throw error;
+      }
     }
     if (!result) {
       result = await this.#protocol.reconcile(descriptor, plan, { signal: this.#abort.signal,
@@ -252,7 +287,8 @@ export class DatasetSync {
     this.#check(); result.view = view; result.controls = controls; result.published = published;
     // The turn can come after this pass was stopped, and a stop that keeps the session leaves only the check here to see it.
     await this.#land(() => { this.#check(); return this.#workspace.receiveDataset(this.#session, this.#binding, result); });
-    this.#latest = result;
+    this.#latest = result; this.#hold = null;
+    if (heldTooLong || recheck && held) this.#recheckAt = this.#elapsed() + AUDIT_MS; else if (recheck) this.#recheckAt = null;
   }
 
   async #admit(incomingBytes) {
@@ -264,9 +300,9 @@ export class DatasetSync {
     const sizes = async rows => {
       const ids = new Set(rows.map(file => file.id));
       for (const id of this.#tailSizes.keys()) if (!ids.has(id)) this.#tailSizes.delete(id);
-      for (const file of rows) if (!this.#tailSizes.has(file.id)) {
-        const value = await this.#protocol.read(file, this.#abort.signal); this.#tailSizes.set(file.id, value.revision.size + file.size);
-      }
+      await eachRead(rows.filter(file => !this.#tailSizes.has(file.id)), async file => {
+        const value = await this.#protocol.recall(file, this.#abort.signal); this.#tailSizes.set(file.id, value.revision.size + file.size);
+      }, this.#store.readWidth);
       return rows.reduce((sum, file) => sum + this.#tailSizes.get(file.id), 0);
     };
     const tailBytes = await sizes(tail);
@@ -319,7 +355,7 @@ export class DatasetSync {
     const { plan } = this.#binding, key = publicationKey(plan.datasetId, operation.operationId);
     await this.#barrier(operation.entityId, operation.kind);
     const publisher = new DatasetPublisher({ store: this.#store, storage: this.#storage, profileId: this.#session.profileId,
-      guard: (id, kind) => this.#barrier(id, kind), signal: this.#abort.signal });
+      guard: (id, kind) => this.#barrier(id, kind), signal: this.#abort.signal, records: this.#records });
     let job = await publisher.reserve(plan, operation);
     const incoming = { record: publisher.revision(job, operation).value.record, file: job.revision, attachments: job.attachments };
     const locations = new Map([...this.#latest.heads, incoming].map(head => [head.record.revisionId, head]));

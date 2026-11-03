@@ -228,11 +228,11 @@ export class AutomaticBackup {
     if (await this.#recover(signal)) { await this.#prune(signal); return { kind: 'recovered', saved: copy(this.#state.lastSuccess) }; }
     const previous = this.#state.lastSuccess; const now = this.#clock();
     if (!force && this.#state.lastFailure?.code !== 'backup-latest-missing' && previous?.policyId === this.#state.settings.policyId
-      && (now < previous.savedAt + DAY || this.#workspace.state.revision === previous.sourceRevision)) {
+      && (now < previous.savedAt + DAY || this.#workspace.contentRevision === previous.sourceRevision)) {
       await this.#prune(signal); return { kind: 'not-due' };
     }
     await this.#flush(); checkCancelled(signal);
-    const settings = copy(this.#state.settings); const snapshot = this.#workspace.state;
+    const settings = copy(this.#state.settings); const snapshot = this.#workspace.state, sourceRevision = this.#workspace.contentRevision;
     requireValue(snapshot.profileId === this.#state.profileId, 'backup-profile', t('errors.common.backupProfileChanged'));
     const id = this.#fresh(); const backup = await createBackup({ workspace: this.#workspace, snapshot, storage: this.#storage, appVersion: this.#appVersion,
       uuid: () => id, now: () => new Date(now), signal });
@@ -246,7 +246,7 @@ export class AutomaticBackup {
       } finally { plaintext.fill(0); }
     }
     const job = { id, scheduleId: settings.scheduleId, policyId: settings.policyId, destinationId: settings.destinationId,
-      name: `work-fleet-auto-${id}.zip`, sourceRevision: snapshot.revision, createdAt: now,
+      name: `work-fleet-auto-${id}.zip`, sourceRevision, createdAt: now,
       encrypted: backup.encrypted, sha256: await sha256(backup.bytes), size: backup.bytes.length };
     checkCancelled(signal); await backup.verify?.(); await this.#save({ pending: job });
     const result = await this.#files.create({ ...copy(job), profileId: snapshot.profileId, bytes: backup.bytes, signal });

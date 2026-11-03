@@ -128,6 +128,7 @@ export class Workspace {
   #arrivalLayer = () => null;
   #open = () => null;
   #history;
+  #contentRevision;
 
   static async create({ profileId, deviceId, area, persist, bootstrapGroup = true, arrivalLayer = () => null,
     uuid = () => crypto.randomUUID(), now = Date.now, current = false, history = null }) {
@@ -151,7 +152,7 @@ export class Workspace {
   constructor(state, persist, uuid = () => crypto.randomUUID(), now = Date.now, { history = null } = {}) {
     requireSchemaVersion(state, 'workspace');
     this.#state = copy(state); this.#persist = persist; this.#uuid = uuid; this.#now = now;
-    this.#history = history;
+    this.#history = history; this.#contentRevision = this.#state.revision;
     this.#graph = loadRevisions(this.#state);
     this.#state.revisions = this.#graph.records;
     Object.assign(this.#state, projectRevisions(this.#graph, this.#state));
@@ -182,6 +183,8 @@ export class Workspace {
   /** Drain admitted edits and their layout writes after the caller has stopped new work. */
   async whenIdle() { await this.#tail; await this.#layout.whenIdle(); await this.#tail; }
   get syncState() { return copy(this.#state.sync); }
+  /** The revision of the last commit that could change content. A quiet sync check's cursor and time do not (ADR-065). */
+  get contentRevision() { return this.#contentRevision; }
   get pendingOperations() { return copy(this.#state.outbox); }
   get currentFormat() { return this.#state.format === CURRENT_WORKSPACE_FORMAT; }
   setHistory(history) { this.#history = history; }
@@ -220,7 +223,7 @@ export class Workspace {
         }
         await persist(draft, this.#state.revision, { previous: this.#state, additions, pending, ...options, replaceGraph });
       } else await persist(copy(draft), this.#state.revision);
-      this.#state = draft; this.#graph = graph;
+      this.#state = draft; this.#graph = graph; this.#contentRevision = draft.revision;
       return result;
     });
     this.#tail = operation.catch(() => {});

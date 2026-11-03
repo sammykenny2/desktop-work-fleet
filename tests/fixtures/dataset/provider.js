@@ -1,6 +1,8 @@
 import { copy } from '../../../src/core/contracts.js';
 import { datasetQuery, validateDatasetFile } from '../../../src/sources/dataset-codec.js';
 import { sha256 } from '../../../src/sources/files.js';
+import { deleteBatchIds } from '../../../src/sources/drive-batch.js';
+import { PARALLEL_READS } from '../../../src/sources/dataset-protocol.js';
 
 export class DatasetTestJournal {
   jobs = new Map();
@@ -15,7 +17,13 @@ export class DatasetTestProvider {
   unrelatedHistory = 0; forbiddenHistory = false;
   stats = { lists: 0, gets: 0, bytes: 0, historyReads: 0, creates: 0, deletes: 0 };
   get sourceId() { return 'google-drive:test:appdata-v1'; }
+  // Reads together, as the hosts that can do so, so every fault below also meets overlapping reads.
+  readWidth = PARALLEL_READS;
   async allocateFileId() { return `drive-${++this.counter}`; }
+  async allocateFileIds(count) {
+    if (!Number.isSafeInteger(count) || count < 1 || count > 100) throw Object.assign(new Error('bad count'), { code: 'invalid-source-file' });
+    return Array.from({ length: count }, () => `drive-${++this.counter}`);
+  }
   async getJob(key) { return copy(this.journal.get(key) ?? null); }
   async putJob(key, value) { this.journal.set(key, copy(value)); }
   async deleteJob(key) { this.journal.delete(key); }
@@ -52,7 +60,7 @@ export class DatasetTestProvider {
     await this.hook('create-after', file.id); return copy(file);
   }
   async deleteFiles({ ids, signal }) {
-    this.stats.deleteBatches = (this.stats.deleteBatches ?? 0) + 1;
+    this.stats.deleteBatches = (this.stats.deleteBatches ?? 0) + 1; deleteBatchIds(ids);
     const results = [];
     for (const id of ids) {
       signal?.throwIfAborted();

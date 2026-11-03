@@ -144,6 +144,39 @@ test('interrupted bulk local replacement keeps the active generation and existin
   assert.equal(reopened.workspace.snapshot.cards[0].content.text, 'history 409');
 });
 
+test('a quiet sync check during a capture leaves the snapshot good, and a save during it does not', async () => {
+  const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
+  await a.workspace.createCard(content('kept')); await a.sync.sync(); await a.sync.sync();
+  const interrupting = during => ({ ...a, progress: async () => { const run = during; during = null; await run?.(); } });
+  let quiet = false;
+  const backup = await createBackup(interrupting(async () => { quiet = (await a.sync.sync()).unchanged === true; }));
+  assert.equal(quiet, true, 'the check ran during the capture');
+  await backup.verify?.();
+  assert.equal((await openBackup(backup.bytes)).data.records.length, a.workspace.state.revisions.length);
+  await assert.rejects(createBackup(interrupting(() => a.workspace.createCard(content('saved during it')))), { code: 'backup-snapshot-changed' });
+});
+
+test('only quiet sync checks since the last automatic backup leave nothing to back up', async () => {
+  const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
+  await a.workspace.createCard(content('kept')); await a.sync.sync(); await a.sync.sync();
+  let disk = null, clock = 1_000_000; const files = new Map(), DAY = 24 * 60 * 60 * 1000;
+  const service = new AutomaticBackup({ ...a, now: () => clock, journal: { load: async () => disk, save: async value => { disk = structuredClone(value); } },
+    files: { canCreate: true, canPrune: true, read: async job => files.get(job.id) ?? null,
+      create: async job => { files.set(job.id, job.bytes.slice()); return { saved: true, receipt: job.id }; }, remove: async () => ({ removed: true }) } });
+  await service.configure({ destinationId: 'chosen', destinationName: 'Test', encrypted: false, keep: 2 });
+  assert.equal((await service.run()).kind, 'saved');
+  const revision = a.workspace.state.revision;
+  assert.equal((await a.sync.sync()).unchanged, true); assert.ok(a.workspace.state.revision > revision);
+  clock += 2 * DAY; assert.equal((await service.run()).kind, 'not-due');
+  await a.workspace.createCard(content('new')); clock += 2 * DAY;
+  assert.equal((await service.run()).kind, 'saved');
+  // A journal that outlived its workspace can hold a larger revision than a rebuilt one will reach for a long time.
+  const reopened = new Workspace(a.workspace.state, (...args) => a.storage.save(...args));
+  assert.equal(reopened.contentRevision, a.workspace.state.revision);
+  disk = { ...disk, lastSuccess: { ...disk.lastSuccess, sourceRevision: a.workspace.contentRevision + 5000 } }; clock += 2 * DAY;
+  assert.equal((await service.run()).kind, 'saved');
+});
+
 test('automatic complete backup failure keeps the last verified artifact and never silently exports a cache subset', async () => {
   const provider = new DatasetTestProvider(), a = await client(provider); await a.sync.sync();
   await a.workspace.createCard(content('retained')); await a.sync.sync();

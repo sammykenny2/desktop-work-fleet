@@ -164,12 +164,15 @@ because A is "me".
   colour of its place in the workspace list when no other group wears it, otherwise the first free colour; a retired
   group frees its colour; choosing a colour another group wears swaps the two. Colours never sync, and reordering
   groups does not repaint them. Past nine groups, colours repeat.
-- A group's settings can highlight its notes on this device, for any number of groups and on phones too (since
+- On a computer, a group's settings can highlight its notes on this device, for any number of groups (since
   2026-11-04, replacing the single "My group" setting in Settings). Its notes get an accent-coloured edge on the
   desktop, the board and the list, and its dot in the sidebar becomes a star of the group's colour in the same place,
   so the name keeps its position and width. A highlight never syncs and records no group revision; it stays through
   Reset desktop layout, like the colour, and a merge or a redirect passes it to the receiving group. Rejoining a
   cloud dataset starts from no groups, so it clears highlights along with colours and opacity.
+- Phones neither offer nor show a highlight, even when a restored computer layout carries one. The value stays in the
+  layout, so a backup made on the phone still gives it back to a computer, and the backup format does not differ
+  between systems.
 - On desktop computers each group row also shows the layer
   its papers rest on, as a three-plate icon with the layer named in its tooltip; where the desktop cannot offer the
   chosen layer, the icon shows the layer the papers fall back to and the tooltip names both.

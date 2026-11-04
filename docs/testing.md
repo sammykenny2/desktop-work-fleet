@@ -891,6 +891,7 @@ node scripts/testing/local-backup-ui-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/handheld-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/handheld-highlight-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 The browser, group, revision, backup, restore UI, cloud restore UI, local backup UI, automatic backup and scene probes
@@ -903,6 +904,11 @@ folder, and only `host.info` is changed to say Android (`en-US`) or iOS (`zh-TW`
 zoom and that Settings > General starts with "Version", showing the version and the app, with no update row or startup
 settings. It tests the renderer's phone paths, not the iOS or Android hosts; the Windows UI probe checks the desktop
 "Version and updates" heading and update row.
+
+`handheld-highlight-probe` needs no native build: a synthetic host says Linux, then Android (Chromium) or iOS (WebKit),
+over the same stored notes. A highlight set on the computer shows no checkbox, star or edge on the phone, stays stored
+when the phone saves the group, and shows again on the computer. It tests the renderer's phone paths, not the iOS or
+Android hosts.
 
 `scene-probe` loads the built desktop scene with an in-page synthetic host (`scene.info`, chunked frames with SHA-256, `scene.applied`),
 sends two frames in a row, and verifies that the title band is not repeated in the body, that checklists show only checkboxes, that papers are square, and that titles and steps update when nodes are reused;

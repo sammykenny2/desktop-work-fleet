@@ -86,6 +86,9 @@ const activeActions = new Set();
 const attachmentUrls = new Map(); let attachmentRender = 0;
 const unsavedDrafts = new Map();
 let profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
+// A phone neither offers nor shows a highlight, even when a restored computer layout carries one. The value stays in the
+// layout, so a backup made on the phone still gives it back to a computer.
+const highlightShown = (layout, groupId) => !handheld && groupHighlighted(layout, groupId);
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -1456,7 +1459,7 @@ function renderGroupList(snapshot, layout, groups) {
     row.dataset.groupId = group.id;
     const choose = button('', async () => { activeGroupId = group.id; trashOpen = false; setDrawer(false); render(); await rememberGroup(); });
     // A highlighted group's star takes the dot's place and colour, so the name keeps its position and width.
-    const dot = groupHighlighted(layout, group.id) ? sidebarMark(icon(starPath), 'group-star', t('app.groups.highlightMark')) : element('span', undefined, 'group-dot');
+    const dot = highlightShown(layout, group.id) ? sidebarMark(icon(starPath), 'group-star', t('app.groups.highlightMark')) : element('span', undefined, 'group-dot');
     dot.style.setProperty('--group-color', groupColor(group.id));
     choose.append(dot);
     choose.append(element('span', groupName(group), 'group-name'));
@@ -1779,7 +1782,7 @@ function renderStage(cards) {
     if (!policy.visible || !placement) continue;
     const paper = element('article', undefined, 'card'); paper.dataset.cardId = card.id;
     paper.classList.toggle('operable', policy.draggable); paper.classList.toggle('selectable', !policy.draggable && policy.interactive);
-    paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', groupHighlighted(layout, card.groupId));
+    paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', highlightShown(layout, card.groupId));
     paper.classList.toggle('completed', card.completed);
     paper.style.setProperty('--paper', groupColor(card.groupId)); paper.style.zIndex = String(z++); rectStyle(paper, placement);
     const summary = element('div', summaryText(card), 'card-summary'); if (card.unsaved) summary.append(unsavedDot());
@@ -1881,7 +1884,7 @@ function noteHolder(cards, view, acrossGroups) {
     const title = summaryText(card);
     const note = element('article', undefined, view === 'list' ? 'note-row' : 'note-paper'); note.dataset.cardId = card.id;
     note.style.setProperty('--paper', groupColor(card.groupId));
-    note.classList.toggle('completed', card.completed); note.classList.toggle('mine', groupHighlighted(layout, card.groupId));
+    note.classList.toggle('completed', card.completed); note.classList.toggle('mine', highlightShown(layout, card.groupId));
     // A board paper ticks its checklist steps in place, as the desktop papers do; its boxes wait while a tick saves.
     const body = element('div', undefined, 'note-body markdown');
     renderMarkdown(body, card.content.text, { highlight: view !== 'list', ...card.deleted ? {} : { onToggle: task => {
@@ -2198,8 +2201,8 @@ function groupEditor(group, section = profileId) {
   colorField.append(swatches);
   // Like the colour, this belongs to the device, so saving it records no group revision.
   const highlightAtOpen = Boolean(group) && groupHighlighted(workspace.layout.state, group.id);
-  const highlightField = element('label', undefined, 'check'); const highlight = element('input'); highlight.type = 'checkbox';
-  highlight.name = 'group-highlight'; highlight.checked = highlightAtOpen; highlightField.append(highlight, element('span', t('app.groupEditor.highlight')));
+  const highlightField = handheld ? null : element('label', undefined, 'check'); const highlight = element('input'); highlight.type = 'checkbox';
+  highlight.name = 'group-highlight'; highlight.checked = highlightAtOpen; highlightField?.append(highlight, element('span', t('app.groupEditor.highlight')));
   // Papers resting on the Top layer can let the work beneath them show through; this desktop must offer that layer.
   const opacityAtOpen = group ? groupOpacity(workspace.layout.state, group.id) : 1;
   const opacityField = desktop && residentLayers().includes('floating') ? element('label', t('app.groupEditor.opacity'), 'field opacity-field') : null;
@@ -2234,7 +2237,7 @@ function groupEditor(group, section = profileId) {
   }
   actions.append(immediateButton(t('common.cancel'), () => { if (!writing) dialog.close(); }), save);
   dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
-  form.append(title, label, colorField, highlightField, element('p', t('app.groupEditor.highlightHint'), 'hint'), ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
+  form.append(title, label, colorField, ...highlightField ? [highlightField, element('p', t('app.groupEditor.highlightHint'), 'hint')] : [], ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
     ...opacityField ? [opacityField, element('p', t('app.groupEditor.opacityHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); press(async () => {
@@ -2256,7 +2259,7 @@ function groupEditor(group, section = profileId) {
     const colorNow = group ? colorAtOpen : workspace.layout.state.groupColors?.[groupId];
     if (chosen !== colorAtOpen && chosen !== colorNow) await workspace.layout.setGroupColor(groupId, chosen, workspace.snapshot);
     if (opacityField && opacity.value !== opacityShown) await workspace.layout.setGroupOpacity(groupId, Number(opacity.value) / 100, workspace.snapshot);
-    if (highlight.checked !== highlightAtOpen) await workspace.layout.setGroupHighlight(groupId, highlight.checked, workspace.snapshot);
+    if (highlightField && highlight.checked !== highlightAtOpen) await workspace.layout.setGroupHighlight(groupId, highlight.checked, workspace.snapshot);
     await workspace.layout.placeNew(workspace.working, workAreas()); dialog.close(); render(); workspace.layout.takeArrivedOffDesktop();
     status(t(!group && workspace.layout.state.hiddenGroups?.[groupId] ? 'app.status.groupOffDesktop' : 'app.status.groupSaved'));
   }); });

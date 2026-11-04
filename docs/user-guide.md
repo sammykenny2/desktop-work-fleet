@@ -132,9 +132,9 @@ interface. To switch, see [Settings](#settings).
   notes see-through while they rest on the Top layer, so they don't hide the work beneath them. Only the paper turns
   see-through; text, checkboxes and thumbnails stay solid. Notes on the Wallpaper and Desktop layers, notes being
   adjusted and the main window's board and list stay opaque. Like the color, it is kept on this device only.
-- "Highlight this group's notes" in a group's settings (the ⋯ beside it) gives its notes an accent-colored edge and
-  turns its dot in the sidebar into a star of the same color. Any number of groups can use it. Like the color, it is
-  kept on this device only.
+- "Highlight this group's notes" in a group's settings (the ⋯ beside it) on a computer gives its notes an
+  accent-colored edge and turns its dot in the sidebar into a star of the same color. Any number of groups can use it.
+  Like the color, it is kept on this device only. Phones do not have it.
 - Each group sits on one desktop layer; see [Desktop notes and layers](#desktop-notes-and-layers).
 
 ## The board and the list

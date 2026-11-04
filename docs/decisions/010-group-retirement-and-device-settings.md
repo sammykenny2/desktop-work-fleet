@@ -13,7 +13,8 @@ Revised again 2026-10-23: each group can make its Top-layer papers see-through; 
 next to its colour and never syncs.
 Revised again 2026-11-04: the desktop regions and the sidebar order are separate (ADR-066).
 Revised 2026-11-04: at the maintainer's request, the single device-wide "My group" became a highlight each group can
-carry, set in the group's settings and kept per device like the colour; see the merge item under Decision.
+carry, set in the group's settings and kept per device like the colour; see the merge item under Decision. Phones
+neither offer nor show it, and a value restored from a computer's backup stays in the layout.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 

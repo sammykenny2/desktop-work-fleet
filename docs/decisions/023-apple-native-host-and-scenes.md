@@ -16,6 +16,8 @@ used to shrink the delivery scope.
 
 ## Decision
 
+- Since 2026-11-05, macOS status-button primary clicks open the main window; right-click and Control-click open a
+  separately held NSMenu. Attaching the menu directly to NSStatusItem would consume the primary action.
 - Swift/AppKit/UIKit/WKWebView; shared SQLite, Keychain AES-GCM, a unique owner lock,
   staged transfers and revision CAS. Nothing outside the packaged document has bridge rights; network access goes through
   restricted native HTTPS.

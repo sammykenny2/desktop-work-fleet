@@ -327,7 +327,8 @@ async function initialize() {
   const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed; const reason = native?.info.desktopReason;
   onLocaleChange(relocalize);
   bindEvents(); render(); status(reason ? displayHint ? t('app.status.desktopReasonXwayland', { reason }) : reason
-    : workspace.layout.takeArrivedOffDesktop().length ? t('app.status.arrivedOffDesktop') : t('app.status.opened'));
+    : workspace.layout.takeArrivedOffDesktop().length ? t('app.status.arrivedOffDesktop') : '');
+  document.body.dataset.ready = 'true';
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
   scheduleMaintenance();
@@ -909,8 +910,8 @@ async function confirmPurge(ids) {
   dialog.append(element('h2', t(chosen.length === 1 ? 'app.purge.title' : 'app.purge.emptyTitle')),
     element('p', t('app.purge.warning', { count: chosen.length })),
     ...parts.filter(part => part.problem).map(part => element('p', t('app.purge.skipped', { section: sectionName(part.id), count: part.ids.length, problem: part.problem }), 'purge-skipped')),
-    ...ready.map(part => element('p', parts.length > 1 ? t('app.purge.part', { section: sectionName(part.id), count: part.ids.length, reach: t(part.id.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device') })
-      : t(part.id.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device'))));
+    ...ready.map(part => element('p', t('app.purge.part', { section: sectionName(part.id), count: part.ids.length,
+      reach: t(part.id.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device') }))));
   const list = element('ul');
   for (const id of chosen.slice(0, 10)) list.append(element('li', summaryText(workspace.snapshot.cards.find(card => card.id === id))));
   dialog.append(list);
@@ -1725,7 +1726,6 @@ function render() {
   $('#operate-group').disabled = trashOpen || !groups.length; $('#operate-all').disabled = trashOpen || !groups.length;
   $('[data-view="desktop"]').hidden = handheld || trashOpen;
   $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted && (trashTab === 'all' || workspace.ownerOfCard(card.id).id === trashTab));
-  $('#empty-trash').textContent = trashTab === 'all' ? t('app.purge.emptyTitle') : t('app.purge.emptySection', { section: sectionName(trashTab) });
   renderCounts();
   // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.
   const scope = controller.state.operationScope; const adjusting = scope.kind !== 'none';

@@ -4,6 +4,7 @@ import AppKit
     private var window: NSWindow!
     private var host: FleetWebHost?
     private var statusItem: NSStatusItem?
+    private var statusMenu: NSMenu?
     private var desktop: FleetDesktop?
     private var terminating = false
     private var mainAside = false
@@ -63,6 +64,9 @@ import AppKit
             // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
             if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Work Fleet") { statusItem?.button?.image = image } else { statusItem?.button?.title = "w." }
+            statusItem?.button?.target = self
+            statusItem?.button?.action = #selector(statusItemClicked(_:))
+            statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
             buildMenus()
             // A login-item start stays in the menu bar unless the user asked for the main window.
             if !shell.startHidden || statusItem?.button == nil { showMain() }
@@ -79,7 +83,7 @@ import AppKit
             let item = NSMenuItem(title: FleetText.text(key), action: #selector(desktopAction(_:)), keyEquivalent: ""); item.target = self; item.representedObject = target; menu.addItem(item)
         }
         if updates?.capable == true { let item = NSMenuItem(title: FleetText.text("menuBar.checkUpdates"), action: #selector(checkUpdates), keyEquivalent: ""); item.target = self; menu.addItem(item) }
-        menu.addItem(.separator()); let quitItem = NSMenuItem(title: FleetText.text("menuBar.quit"), action: #selector(quit), keyEquivalent: "q"); quitItem.target = self; menu.addItem(quitItem); statusItem?.menu = menu
+        menu.addItem(.separator()); let quitItem = NSMenuItem(title: FleetText.text("menuBar.quit"), action: #selector(quit), keyEquivalent: "q"); quitItem.target = self; menu.addItem(quitItem); statusMenu = menu
         let mainMenu = NSMenu(), appItem = NSMenuItem(), appMenu = NSMenu(); mainMenu.addItem(appItem); appItem.submenu = appMenu
         let appQuit = NSMenuItem(title: FleetText.text("menu.quit"), action: #selector(quit), keyEquivalent: "q"); appQuit.target = self; appMenu.addItem(appQuit)
         let editTitle = FleetText.text("menu.edit")
@@ -96,6 +100,13 @@ import AppKit
     }
     /// Shows the main window for a desktop action and reports whether it was hidden: ordered out, not minimized.
     private func showHiddenMain() -> Bool { let hidden = !window.isVisible && !window.isMiniaturized; showMain(); return hidden }
+    // Attaching a menu to NSStatusItem consumes every click. Keep it separate so a primary click opens the window.
+    @objc private func statusItemClicked(_ button: NSStatusBarButton) {
+        let event = NSApplication.shared.currentEvent
+        if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
+            statusMenu?.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+        } else { showMain() }
+    }
     @objc private func showMain() {
         if !window.isVisible { shell?.beforeShow(window) }
         window.makeKeyAndOrderFront(nil)

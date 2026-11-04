@@ -112,9 +112,10 @@ covers everything except Trash. Decisions and alternatives are in
 - FR23: Trash is a row below the last section, with an icon and the number of notes in it. It has no settings, cannot be
   dragged and is not a drop target. Selecting it does not change the group that capture files into.
 - FR24: The view shows the title "Trash", the note count, Empty Trash and the note and list views. There is no layout map and
-  no capture button. "This group" and "All" are disabled.
+  no capture button. Empty Trash is a single large trash icon in the floating Capture button's position above the status
+  row, outside the view bar, on phones too. Its label stays "Empty Trash" for every tab. "This group" and "All" are disabled.
 - FR25: Its tabs are All, Cloud notes and Local notes; with one collection there are no tabs. Empty Trash acts on the current
-  tab. With both, the confirmation states the reach of each: cloud needs a connection and applies to every device of that
+  tab. The confirmation names each affected collection even when only one has notes: cloud needs a connection and applies to every device of that
   account; local affects only this device.
 - FR26: Notes are sectioned by group in the note and list views: a section heading has the colour dot, group name and count,
   and the collection name under the All tab. Sections follow sidebar order; groups no longer listed come last. Within a

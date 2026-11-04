@@ -59,7 +59,7 @@ const capture = async text => {
   await page.locator('#editor-dialog button[type="submit"]').click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 try {
-  await page.goto(base.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.goto(base.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await capture('original backup note 中文💡');
   await openCapture(); await page.locator('#editor-text').fill('unsaved note kept after restore');
   await page.locator('#close-editor-button').click(); await expect(page.locator('#status')).toHaveText(t('app.status.unsavedKept'));
@@ -113,7 +113,7 @@ try {
     left: dialog.getBoundingClientRect().left, right: dialog.getBoundingClientRect().right, viewport: innerWidth }));
   assert.ok(geometry.scroll <= geometry.client + 1 && geometry.left >= 0 && geometry.right <= geometry.viewport, 'narrow dialog must not overflow');
   await page.screenshot({ path: 'build/restore-ui-probe.png' });
-  await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   assert.equal(Object.keys((await read()).restoreReceipts).length, 2); assert.deepEqual(errors, []);
   await openDialog(); await choose(plain); await page.locator('#restore-mode').selectOption('local-replace');
   await moreOptions(); await page.locator('#restore-repeat').check(); await preview();
@@ -126,7 +126,7 @@ try {
   assert.ok(full.cards.every(card => !before.cards.some(old => old.id === card.id)), 'full replacement uses fresh identities');
   assert.equal((await history()).length, before.revisions.length); assert.equal(full.layout.deviceId, before.layout.deviceId);
   assert.equal(await page.evaluate(() => window.probeFiles.length), savesBefore, 'old backup is optional');
-  await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.locator('#close-settings').click(); await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   assert.deepEqual(byRevision((await read()).revisions), byRevision(full.revisions)); assert.deepEqual(errors, []);
   console.log('PASS: full app OPFS export/import/repeat, safety-gated replace, retained unsaved changes/history, restart receipts, 390px UI and atomic local full restore without an old backup');
 } catch (error) {

@@ -1,9 +1,11 @@
 # Research index
 
-Updated: 2026-11-03.
+Updated: 2026-11-05.
 
 ## Latest design: read first
 
+- [Tray primary clicks](2026-11-05-tray-primary-click.md): AppKit menu ownership, AppIndicator limitations, the Pi panel's
+  ItemIsMenu default, and the direct StatusNotifier verification boundary.
 - [Idle sync request cost](2026-11-03-idle-sync-request-cost.md): reproduced production-JS provider counts, source-derived native HTTP amplification, Apple session lifetime, primary sources and unmeasured real-account latency; supports proposed ADR-063/SPEC-011/PLAN-012.
 - [Drive batch response framing](2026-11-03-drive-batch-response-framing.md): a public unauthenticated read-only response reproduces the reset parser failure; MIME framing, fixture coverage and authenticated-deletion limits.
 - [Drive dataset checkpoints and deletion](2026-11-01-drive-dataset-checkpoints-and-deletion.md): current history dependencies, supplied JS-only baseline, legacy destructive-reset behavior, Drive capacity limits and unverified protocol assumptions; supports proposed ADR-062/SPEC-010/PLAN-011.

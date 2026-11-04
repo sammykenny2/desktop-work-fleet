@@ -132,7 +132,7 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Verified on real machines: Ubuntu 22.04 GNOME Wayland via XWayland (full use); GNOME Xorg over xrdp (layering and shortcuts);
   Raspberry Pi 5 with labwc (adjust overlay with mouse movement, shortcuts sent with `wtype`, close to tray,
   XDG autostart at login, in-app DEB update). CI runs headless X11 and labwc checks in Docker.
-- Not verified: a Pi reboot with the late-tray fix; the real keyring unlock dialog and password entry; real thumbnailers and
+- Not verified: the direct StatusNotifier tray on real panels and a Pi reboot with the late-tray fix; the real keyring unlock dialog and password entry; real thumbnailers and
   default apps; text fitting in WebKitGTK; multiple displays, HiDPI and IME; KDE, Xfce and other X11 desktops; wayfire;
   a local (non-xrdp) Xorg login. Per-desktop limits are in the [Linux README](src/native/linux/README.md).
 

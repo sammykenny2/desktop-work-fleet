@@ -20,7 +20,7 @@ page.on('pageerror', error => errors.push(error.message));
 const rows = page.locator('#groups .group-row[data-group-id]');
 const row = name => rows.filter({ hasText: name });
 const note = text => page.locator('#list [data-card-id]', { hasText: text });
-const opened = () => expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+const opened = () => expect(page.locator('body[data-ready] #status')).toHaveText('');
 const saveDialog = async () => { await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click(); await expect(page.locator('dialog[open]')).toHaveCount(0); };
 const saveNote = async text => {
   await page.locator('#editor-text').fill(text);
@@ -144,7 +144,7 @@ try {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true, isMobile: true });
   const handset = await phone.newPage(); handset.on('pageerror', error => errors.push(error.message));
   const phoneUrl = new URL(both.href); phoneUrl.searchParams.set('profile', `local-group-delete-phone-${run}`); phoneUrl.searchParams.set('companion', `local-phone-second-${run}`);
-  await handset.goto(phoneUrl.href); await expect(handset.locator('#status')).toHaveText(t('app.status.opened'));
+  await handset.goto(phoneUrl.href); await expect(handset.locator('body[data-ready] #status')).toHaveText('');
   await expect(handset.locator('.first-note button')).toBeInViewport();
   await handset.screenshot({ path: 'build/group-delete-empty-phone.png' });
   await handset.locator('.first-note button').tap();

@@ -27,7 +27,7 @@ const read = () => page.evaluate(async profileId => {
 }, profile);
 const open = async () => {
   const url = new URL('/app/index.html', base); url.searchParams.set('profile', profile);
-  await page.goto(url.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.goto(url.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
 };
 const seed = async kind => {
   // A static resource page has no active Workspace writer. The fixture owns this new profile.
@@ -98,7 +98,7 @@ try {
   assert.deepEqual(restored.drafts, initial.drafts); assert.notEqual(restored.cards[0].revision, resolved.cards[0].revision);
   // The button that opened Settings is gone with the last conflict, so closing hands focus to the gear.
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-button')).toBeFocused();
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   // The note still has the unsaved changes seeded above, so its paper shows them, with a dot, over the restored version (ADR-061).
   await expect(page.locator('.card-summary')).toHaveText('draft not committed yet'); await expect(page.locator('.card-summary .unsaved-dot')).toBeVisible();
   // Version history stays in Settings without conflicts.

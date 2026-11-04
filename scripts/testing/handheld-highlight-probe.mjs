@@ -42,7 +42,7 @@ async function check(engine, platform) {
     await context.route(/\/storage\/native\.js$/, route => route.fulfill({ contentType: 'text/javascript', body: storageModule }));
     const page = await context.newPage(); const errors = [];
     page.on('pageerror', error => errors.push(error.message));
-    const opened = () => expect(page.locator('#status')).toHaveText(t('app.status.opened'), { timeout: 15_000 });
+    const opened = () => expect(page.locator('body[data-ready] #status')).toHaveText('', { timeout: 15_000 });
     const stored = () => page.evaluate(async profile => {
       const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
       const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');

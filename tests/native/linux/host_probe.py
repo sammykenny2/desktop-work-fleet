@@ -3,7 +3,7 @@
 Usage: host_probe.py OUTPUT MODE, MODE one of place, restore, hidden, hidden-tray, data-failure, actions (X11) or wayland, wayland-restore (labwc). Each
 mode is its own process so GApplication registers afresh; the data, bundle and XDG config folders live under OUTPUT. Only data-failure opens the
 workspace store: a database that is not SQLite explains itself, and its set-aside opens empty data (SPEC-006 DO).
-hidden-tray needs the Ayatana AppIndicator typelib and a private session bus: it plays a panel whose StatusNotifierWatcher starts late."""
+hidden-tray needs a private session bus: it plays a panel whose StatusNotifierWatcher starts late."""
 import json
 import os
 from pathlib import Path
@@ -176,7 +176,7 @@ elif MODE == "hidden":
     app.shutdown(app)
 elif MODE == "hidden-tray":
     app.activate(app)
-    check(app.tray.indicator is not None, "the Ayatana AppIndicator tray is in use")
+    check(app.tray.indicator is not None, "the StatusNotifier tray is in use")
     # The panel starts after Work Fleet, as at a real sign-in: the indicator first reports that no watcher is there.
     settle(1)
     check(not app.window.get_visible(), "a tray that is not there yet does not show the hidden window")
@@ -184,22 +184,76 @@ elif MODE == "hidden-tray":
     spin(lambda: app.tray.available, message="the tray connects once the panel's watcher appears")
     titles = []
     bus = Gio.bus_get_sync(Gio.BusType.SESSION)
-    bus.call(bus.get_unique_name(), "/org/ayatana/NotificationItem/app_workfleet_hostprobe", "org.freedesktop.DBus.Properties", "Get",
+    destination = app.tray.indicator.bus.get_unique_name()
+    bus.call(destination, "/StatusNotifierItem", "org.freedesktop.DBus.Properties", "Get",
              GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "Title")), GLib.VariantType("(v)"), Gio.DBusCallFlags.NONE, -1, None,
              lambda source, result: titles.append(source.call_finish(result).unpack()[0]))
     spin(lambda: titles, message="the tray item answers for its title")
     check(titles == ["Work Fleet"], f"the tray shows the product name on hover, not the program name ({titles})")
+    def call(path, interface, method, args=None):
+        results = []
+        def finished(source, result):
+            try:
+                results.append(source.call_finish(result).unpack())
+            except GLib.Error as error:
+                results.append(error)
+        bus.call(destination, path, interface, method, args, None, Gio.DBusCallFlags.NONE, 5000, None, finished)
+        spin(lambda: results, message=f"tray method {method} answered")
+        if isinstance(results[0], Exception):
+            raise results[0]
+        return results[0]
+
+    check(call("/StatusNotifierItem", "org.freedesktop.DBus.Properties", "Get",
+               GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "ItemIsMenu"))) == (False,), "left click is an action, not a menu request")
+    revision, layout = call("/TrayMenu", "com.canonical.dbusmenu", "GetLayout", GLib.Variant("(iias)", (0, -1, [])))
+    check(layout[2][0][1]["label"] == "Open Work Fleet", "the exported menu starts with Open Work Fleet")
+    check(layout[2][-2][1]["type"] == "separator", "the exported menu keeps its separator")
+    check(call("/TrayMenu", "com.canonical.dbusmenu", "GetProperty", GLib.Variant("(is)", (1, "label"))) == ("Open Work Fleet",),
+          "the exported menu answers individual properties")
+    subset = call("/TrayMenu", "com.canonical.dbusmenu", "GetGroupProperties", GLib.Variant("(aias)", ([1], ["label"])))[0]
+    check(subset == [(1, {"label": "Open Work Fleet"})], "the exported menu filters group properties")
+    call("/TrayMenu", "com.canonical.dbusmenu", "AboutToShow", GLib.Variant("(i)", (0,)))
+    check(app.tray_menu and not app.window.get_visible(), "opening the tray menu holds shortcuts and keeps the main window hidden")
+    call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (0, "closed", GLib.Variant("i", 0), 0)))
+    check(not app.tray_menu, "dismissing the exported menu releases shortcuts")
+    call("/StatusNotifierItem", "org.kde.StatusNotifierItem", "ContextMenu", GLib.Variant("(ii)", (10, 20)))
+    spin(lambda: app.tray.menu.get_visible(), message="context activation opens the native menu")
+    check(not app.window.get_visible(), "context activation leaves the main window hidden")
+    app.tray.menu.popdown()
+    spin(lambda: not app.tray_menu, message="the native menu releases shortcuts on dismissal")
+    call("/StatusNotifierItem", "org.kde.StatusNotifierItem", "Activate", GLib.Variant("(ii)", (10, 20)))
+    spin(lambda: app.window.get_visible(), message="left click opens the main window")
+    check(not app.tray_menu, "left click opens the main window without a menu")
+    app.window.hide()
+    call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (1, "clicked", GLib.Variant("i", 0), 0)))
+    spin(lambda: app.window.get_visible(), message="Open Work Fleet in the exported menu opens the main window")
+    app.window.hide()
+    text.set_locale("zh-TW"); app.tray.relabel()
+    translated_revision, translated = call("/TrayMenu", "com.canonical.dbusmenu", "GetLayout", GLib.Variant("(iias)", (0, -1, [])))
+    check(translated_revision > revision and translated[2][0][1]["label"] == text.ZH_TW["tray.open"], "the exported menu follows a language change")
+    text.set_locale("en"); app.tray.relabel()
     # timeout_add_seconds may fire up to a second late, so this settles past the latest moment the wait can end.
     settle(WAIT + 1.5 - 1)
     check(not app.window.get_visible(), "the tray connected within the wait, so the window stays hidden after it")
     Gio.bus_unown_name(ownership)
     spin(lambda: app.window.get_visible(), message="losing the tray shows the hidden window")
     check(True, "losing the tray shows the hidden window")
+    ownership = Gio.bus_own_name_on_connection(bus, "org.kde.StatusNotifierWatcher", Gio.BusNameOwnerFlags.NONE, None, None)
+    spin(lambda: app.tray.available, message="the tray reconnects when the panel returns")
+    check(app.window.get_visible(), "reconnecting a tray does not hide an open window")
+    app.window.hide()
+    bus.emit_signal(None, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher", "StatusNotifierHostUnregistered", None)
+    spin(lambda: not app.tray.available and app.window.get_visible(), message="losing the panel host while its watcher stays also restores the window")
+    bus.emit_signal(None, "/StatusNotifierWatcher", "org.kde.StatusNotifierWatcher", "StatusNotifierHostRegistered", None)
+    spin(lambda: app.tray.available, message="a returning panel host restores tray availability")
     # The data folder, and so host.log, is shared with the earlier X11 modes; only this run's entries count.
     log = (data / "host.log").read_text("utf-8").rsplit(" start version=", 1)[-1]
     check("launchedAtLogin=True hidden=True" in log and " tray available=False uptime=" in log and " tray available=True uptime=" in log,
           "host.log records the sign-in start and when the tray came and went")
     app.shutdown(app)
+    check(app.tray.indicator.bus.is_closed(), "closing the tray disconnects its dedicated notifier bus")
+    app.tray.indicator.close()
+    Gio.bus_unown_name(ownership)
 elif MODE == "actions":
     # The named actions a sway or wayfire keybinding runs, called over D-Bus the way gapplication action calls them.
     app.activate(app)

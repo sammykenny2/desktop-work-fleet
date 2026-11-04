@@ -187,8 +187,10 @@ The system can reassign keys, and the settings show the actual trigger descripti
 while the app has focus or a dialog is open;
 rebuilding the portal session may show the system authorization UI again, and the real flow still awaits confirmation in
 a native environment.
-Ayatana/AppIndicator or Gtk.StatusIcon provides the tray, whose tooltip reads "Work Fleet"; the main window is hidden only
-after the tray is confirmed available.
+Gio exports a StatusNotifierItem and its flat D-Bus menu on a dedicated session-bus connection. `ItemIsMenu=false` and
+`Activate` opens the main window; the context menu keeps the existing actions. Older AppIndicator runtimes do not provide
+this primary-click contract. X11 also has a Gtk.StatusIcon fallback, hidden while a StatusNotifier host is connected.
+The tooltip reads "Work Fleet"; the main window is hidden only after the tray is confirmed available.
 Quitting from the tray uses the draft save flow; if a tray that was connected disconnects, the main window is restored,
 and an account switch closes the old desktop session.
 The main window size, X11 position and maximized state are stored in `window-placement.json` in the data directory, and
@@ -241,7 +243,9 @@ Common to all desktops:
   Python 3.10+, GTK 3,
   WebKitGTK 4.1, PyGObject and cryptography; distributions without WebKitGTK 4.1 (such as Ubuntu 20.04 and Debian 11)
   cannot run it.
-- The tray needs AppIndicator/StatusNotifier or a legacy system tray; without one, closing the main window quits the app.
+- The tray needs a StatusNotifier panel or a legacy X11 system tray; without one, closing the main window quits the app.
+  Primary activation opens the main window and context activation opens the menu; panel click settings can override
+  their physical buttons. The direct StatusNotifier path still needs real GNOME, KDE and Pi panel acceptance.
   Ubuntu provides one by default; plain GNOME does not. The GNOME AppIndicator extension logged `unable to update icon`
   once on Ubuntu 22.04 (2026-10-13).
 - Global shortcuts: X11 sessions use Keybinder, which receives nothing under XWayland; on labwc the settings page writes

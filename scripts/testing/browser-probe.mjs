@@ -25,7 +25,7 @@ const capture = async () => {
 const canvas = () => page.locator('[data-view="desktop"]').click();
 try {
   await page.goto(base.href);
-  await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await expect(page.locator('body[data-ready] #status')).toHaveText('');
   // Quick capture from the canvas shows the group's board behind the editor, where the note will land.
   await expect(page.locator('#compose')).toBeHidden();
   await page.locator('body').click({ position: { x: 700, y: 20 } }); await page.keyboard.press('Control+Shift+N');
@@ -70,7 +70,7 @@ try {
   await expect(page.locator('#compose')).toBeVisible(); await expect(page.locator('#list .note-title')).toHaveText(['First thing']);
   await canvas(); await expect(page.locator('.card-summary')).toHaveText('First thing');
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await expect(page.locator('.card-summary')).toHaveText('First thing');
   // The canvas stands in for the desktop: a paper that takes clicks ticks a step in place and keeps it; a note with
   // unsaved changes ticks those instead (ADR-061).
@@ -79,7 +79,7 @@ try {
   await firstStep().click();
   await expect(page.locator('#status')).toHaveText(t('app.status.savedLocally')); await expect(firstStep()).not.toBeChecked();
   await expect(page.locator('#stage .card')).not.toHaveClass(/selected/);
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened')); await expect(firstStep()).not.toBeChecked();
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText(''); await expect(firstStep()).not.toBeChecked();
   // Board papers tick their steps with one click too. One click elsewhere on a paper opens nothing and two open the
   // editor; a tap opens it at once, as phones have no double tap, and so does a click from assistive technology.
   await page.locator('[data-view="board"]').click(); const boardPaper = page.locator('#list .note-paper').first();
@@ -214,7 +214,7 @@ try {
   await expect(page.locator('.note-row .note-title')).toHaveText('First thing');
   await expect(page.locator('.note-row .note-excerpt')).toHaveText(/^(?!First thing)./);
   await expect(page.locator('#list .attachment-tile')).toHaveCount(0);
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await page.locator('#search').fill('First thing'); await expect(page.locator('.note-row .note-title')).toHaveText('First thing');
   await page.locator('[data-view="desktop"]').click(); await expect(page.locator('#search')).toHaveValue('');
   // The window changed size while the canvas was hidden, and showing it lays the regions out again 250 ms later, which ends
@@ -237,7 +237,7 @@ try {
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   await page.locator('#editor-text').fill('Unsaved text kept over a reload'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await page.locator('[data-view="board"]').click(); await expect(boardPaper.locator('.unsaved-dot')).toBeVisible();
   await expect(boardPaper.locator('.note-body')).toContainText('Unsaved text kept over a reload');
   await boardPaper.locator('.note-title').dblclick(); await expect(page.locator('#editor-text')).toHaveValue('Unsaved text kept over a reload');
@@ -334,7 +334,7 @@ try {
   await page.evaluate(() => window.releaseProbeWrite());
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.locator('#close-editor-button').click();
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   // The view bar gives way by measuring its row: from the desktop apps' default 1180 px down, nothing overlaps and no
   // filter is cut off, and search stays in the top bar.
   const viewBarFits = () => page.evaluate(() => {

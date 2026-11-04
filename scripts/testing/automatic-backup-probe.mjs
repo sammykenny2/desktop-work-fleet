@@ -14,7 +14,7 @@ const context = await browser.newContext({ viewport: { width: 1400, height: 1000
 const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
 try {
   const app = new URL('/app/index.html', base); app.searchParams.set('profile', crypto.randomUUID());
-  await page.goto(app.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.goto(app.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await page.locator('#settings-button').click(); await page.locator('[data-page="data"]').click();
   await expect(page.locator('#auto-backup-retention')).toHaveText(t('backup.automatic.unsupported'));
   for (const id of ['location', 'enable', 'now', 'keep']) await expect(page.locator(`#auto-backup-${id}`)).toBeDisabled();

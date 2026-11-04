@@ -9,7 +9,6 @@ export default {
   'app.incompatible.discard': "Discard this local copy and start the new format",
   'app.purge.title': "Delete forever",
   'app.purge.emptyTitle': "Empty Trash",
-  'app.purge.emptySection': "Empty {section} Trash",
   'app.purge.part': "{section}, {count}: {reach}",
   'app.purge.warning': "Permanently delete {count} notes, including every saved version and their attachments? This cannot be undone.",
   'app.purge.skipped': '{section}, {count}: these stay in Trash for now. {problem}',
@@ -328,7 +327,6 @@ export default {
 
   // Status lines
   'app.status.loading': 'Loading…',
-  'app.status.opened': 'Local data opened',
   'app.status.desktopReasonXwayland': '{reason} You can switch to XWayland on the Desktop page in Settings.',
   'app.status.rescued.one': 'Moved {count} unreachable note back into view',
   'app.status.rescued.other': 'Moved {count} unreachable notes back into view',

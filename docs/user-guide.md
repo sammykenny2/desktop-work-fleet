@@ -176,7 +176,8 @@ interface. To switch, see [Settings](#settings).
 - "Move to Trash" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
   next message. In Trash, "Delete forever" permanently removes the note, all retained versions and its owned
   attachments after confirmation. "Empty Trash" covers the previewed trashed notes across every group, not just the
-  selected group. Cleanup resumes in bounded background steps; its status distinguishes a committed deletion from
+  selected group. The large trash icon at the bottom right replaces Capture in this view, and its confirmation names
+  each affected collection. Cleanup resumes in bounded background steps; its status distinguishes a committed deletion from
   pending cloud/device cleanup. Offline devices and already exported backups cannot be erased remotely.
 - Distinct unpublished changes from a note permanently deleted elsewhere appear in Settings > Versions and conflicts,
   under Needs attention. "Save as copy" creates a new identity; the deleted original does not return. Archived notes
@@ -479,6 +480,8 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
 
 ## The tray and menu bar
 
+- Left-click the icon to open the main window; right-click it for the menu. On macOS, Control-click also opens the menu.
+  Linux panels choose how to map physical clicks to tray actions; this is the app's primary/context-menu contract.
 - While "Keep running in the tray when the main window closes" is on (the default; "Keep running in the menu bar when
   the main window closes" on macOS), closing the window (X) hides it to the tray (the menu bar on macOS). To quit, use
   "Exit Work Fleet" in the Windows tray, or "Save and quit" in the Linux tray and the macOS menu bar; both save first.

@@ -56,6 +56,17 @@ class StatusIcon(Indicator):
         return self.embedded
 
 
+class Notifier:
+    def __init__(self, _app_id, _menu, activate, popup, menu_active, connected, _icon):
+        self.activate, self.popup, self.menu_active, self.connected = activate, popup, menu_active, connected
+
+    def relabel(self):
+        pass
+
+    def close(self):
+        pass
+
+
 class MenuItem:
     """Records its label, as the indicator exports it."""
     def __init__(self, label):
@@ -82,22 +93,22 @@ class Window:
 
 class LinuxTrayTests(unittest.TestCase):
     def setUp(self):
-        self.indicators = {"AyatanaAppIndicator3"}
+        self.session_bus = True
         gi = types.ModuleType("gi")
 
-        def require_version(namespace, _version):
-            if namespace.endswith("AppIndicator3") and namespace not in self.indicators:
-                raise ValueError(namespace)
-        gi.require_version = require_version
         repository = types.ModuleType("gi.repository")
         repository.Gtk = Anything()
         repository.Gtk.StatusIcon = StatusIcon
         repository.Gtk.MenuItem = MenuItem
-        repository.AyatanaAppIndicator3 = types.SimpleNamespace(
-            Indicator=Indicator, IndicatorCategory=types.SimpleNamespace(APPLICATION_STATUS=0),
-            IndicatorStatus=types.SimpleNamespace(ACTIVE=1, PASSIVE=0))
+        repository.GLib = types.SimpleNamespace(Error=RuntimeError)
+        repository.Gdk = types.SimpleNamespace(Display=types.SimpleNamespace(get_default=lambda: types.SimpleNamespace(__gtype__=types.SimpleNamespace(name="GdkX11Display"))))
         gi.repository = repository
-        patcher = mock.patch.dict(sys.modules, {"gi": gi, "gi.repository": repository})
+        def notifier(*args):
+            if not self.session_bus:
+                raise RuntimeError("No session bus")
+            return Notifier(*args)
+        patcher = mock.patch.dict(sys.modules, {"gi": gi, "gi.repository": repository,
+                                              "statusnotifier": types.SimpleNamespace(StatusNotifier=notifier)})
         patcher.start()
         self.addCleanup(patcher.stop)
         spec = importlib.util.spec_from_file_location("tray", NATIVE / "tray.py")
@@ -107,8 +118,24 @@ class LinuxTrayTests(unittest.TestCase):
 
     def create(self, visible=False):
         self.window = Window(visible)
-        return self.module.Tray("app.workfleet.test", self.window, None, None, None, reveal=lambda: self.revealed.append(True),
+        self.actions, self.menu_states = [], []
+        return self.module.Tray("app.workfleet.test", self.window, lambda target, *_: self.actions.append(target), None, self.menu_states.append, reveal=lambda: self.revealed.append(True),
                                 changed=self.changes.append)
+
+    def test_primary_click_opens_the_window_in_both_tray_backends(self):
+        tray = self.create()
+        tray.indicator.activate()
+        self.assertEqual(self.actions, ["show"])
+        self.assertEqual(self.menu_states, [False])
+        tray.icon.handlers["activate"]()
+        self.assertEqual(self.actions, ["show", "show"])
+
+    def test_the_native_context_menu_does_not_activate_the_window(self):
+        tray = self.create()
+        tray.menu = mock.Mock()
+        tray.icon.handlers["popup-menu"](tray.icon, 3, 1234)
+        tray.menu.popup.assert_called_once()
+        self.assertEqual(self.actions, [])
 
     def labels(self, tray):
         return [item.label for item, _key in tray.items]
@@ -129,13 +156,10 @@ class LinuxTrayTests(unittest.TestCase):
         tray.relabel()
         self.assertEqual(self.labels(tray)[0], text.ZH_TW["tray.open"], "a closed tray is left alone")
 
-    def test_the_indicator_shows_the_product_name_on_hover(self):
-        self.assertEqual(self.create().indicator.title, "Work Fleet")
-
     def test_a_watcher_not_there_yet_leaves_a_hidden_start_to_the_wait(self):
         tray = self.create()
-        changed = tray.indicator.handlers["connection-changed"]
-        # libayatana reports the missing StatusNotifierWatcher at once, before the panel that owns it has started.
+        changed = lambda _indicator, connected: tray.indicator.connected(connected)
+        # A missing StatusNotifierWatcher at startup does not mean an available tray was lost.
         changed(tray.indicator, False)
         self.assertEqual((tray.available, self.revealed), (False, []))
         changed(tray.indicator, True)
@@ -146,26 +170,26 @@ class LinuxTrayTests(unittest.TestCase):
 
     def test_losing_a_connected_tray_shows_the_hidden_window(self):
         tray = self.create()
-        changed = tray.indicator.handlers["connection-changed"]
+        changed = lambda _indicator, connected: tray.indicator.connected(connected)
         changed(tray.indicator, True)
         changed(tray.indicator, False)
         self.assertEqual((tray.available, self.revealed), (False, [True]))
 
     def test_losing_the_tray_leaves_a_visible_window_and_a_closed_tray_alone(self):
         tray = self.create(visible=True)
-        changed = tray.indicator.handlers["connection-changed"]
+        changed = lambda _indicator, connected: tray.indicator.connected(connected)
         changed(tray.indicator, True)
         changed(tray.indicator, False)
         self.assertEqual(self.revealed, [])
         tray = self.create()
-        changed = tray.indicator.handlers["connection-changed"]
+        changed = lambda _indicator, connected: tray.indicator.connected(connected)
         changed(tray.indicator, True)
         tray.close()
         changed(tray.indicator, False)
         self.assertEqual(self.revealed, [])
 
     def test_a_status_icon_waits_for_embedding_before_a_loss_counts(self):
-        self.indicators = set()
+        self.session_bus = False
         tray = self.create()
         self.assertIsNone(tray.indicator)
         embedded = tray.icon.handlers["notify::embedded"]

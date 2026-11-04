@@ -51,7 +51,7 @@ try {
   await expect(page.locator('#data-failure-dialog')).toContainText(t('app.incompatible.keep'));
   await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
   await page.locator('#discard-old-local-agree').check(); await page.locator('#discard-old-local').click();
-  await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await expect(page.locator('body[data-ready] #status')).toHaveText('');
   assert.equal((await read()).format, 'work-fleet-workspace-current');
   await page.goto(new URL('/app/style.css', base).href);
   const seeded = await page.evaluate(async profile => {
@@ -71,7 +71,7 @@ try {
     const neighbor = await workspace.createCard(content('keep this neighbor'));
     storage.close(); return { note: note.id, first, second: second.id, neighbor: neighbor.id };
   }, profileId);
-  await page.goto(url.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.goto(url.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await settings('revisions'); await page.getByRole('button', { name: t('conflicts.tab.history'), exact: true }).click();
   await page.locator('#revision-panel .field select').selectOption({ label: t('conflicts.history.note', { summary: 'version 26' }) });
   await expect(page.locator('#revision-panel [data-revision-id]')).toHaveCount(20);

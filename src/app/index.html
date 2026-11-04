@@ -43,7 +43,6 @@
       <div class="view-filters"><button data-filter="active" class="active" data-i18n="app.filters.active"></button><button data-filter="completed" data-i18n="app.filters.completed"></button><button data-filter="archived" data-i18n="app.filters.archived"></button></div>
       <div class="trash-tabs" id="trash-tabs" role="group" data-i18n-attr="aria-label:app.trash.tabsLabel" hidden></div>
       <div class="view-tools">
-      <button id="empty-trash" type="button" class="danger" hidden data-i18n="app.purge.emptyTitle"></button>
       <div class="view-switch" role="group" data-i18n-attr="aria-label:app.views.label">
         <button type="button" data-view="board" aria-pressed="true" data-i18n-attr="title:app.views.board"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span data-i18n="app.views.board"></span></button>
         <button type="button" data-view="list" aria-pressed="false" data-i18n-attr="title:app.views.list"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="4" height="4" rx=".8"/><rect x="4" y="15" width="4" height="4" rx=".8"/><path d="M11 7h9M11 17h9"/></svg><span data-i18n="app.views.list"></span></button>
@@ -61,7 +60,8 @@
     <!-- Capture floats over the group's notes and shows only while they are what is shown; see render(). It follows the
          view bar in the tab order, ahead of the notes. It sits over the status row, which keeps the whole width, on
          phones too. -->
-    <button id="compose" class="primary" data-i18n-attr="aria-label:app.actions.capture;title:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="compose" class="primary floating-action" data-i18n-attr="aria-label:app.actions.capture;title:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="empty-trash" type="button" class="danger floating-action" hidden data-i18n-attr="aria-label:app.purge.emptyTitle;title:app.purge.emptyTitle"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/></svg></button>
     <div id="desktop-hidden" hidden><div><strong data-i18n="app.desktopHidden.title"></strong><p id="desktop-hidden-text"></p></div><button id="show-desktop" class="primary" data-i18n="app.desktopHidden.show"></button></div>
     <div id="stage-shell"><div id="stage" data-i18n-attr="aria-label:app.stage.label"></div><div id="empty" hidden><div class="empty-paper">&#xFF0B;</div><h2 data-i18n="app.empty.title"></h2><p data-i18n="app.empty.text"></p><button id="empty-add" class="primary" data-i18n="app.empty.add"></button></div></div>
     <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p><div class="map-grid" id="layout-regions"></div><h3 class="off-title" id="layout-off-heading" data-i18n="settings.desktop.offDesktop" hidden></h3><div class="off-list" id="layout-off"></div></section>

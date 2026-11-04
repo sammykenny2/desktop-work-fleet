@@ -145,7 +145,8 @@ Shortcuts are registered with Carbon RegisterEventHotKey, and the global keys ar
 is in use; conflicts are shown in settings.
 The menu bar has "Open Work Fleet", "Quick capture", "Adjust all groups", "Show or hide desktop notes", "Check for
 updates…" (only when in-app updates are available) and "Save and quit"; the application menu has "Save and quit Work
-Fleet". Display, Space and sleep
+Fleet". Left-click opens the main window; right-click or Control-click opens the menu. The menu stays separate from
+NSStatusItem so AppKit does not consume primary clicks as menu requests. Display, Space and sleep
 notifications pause input,
 keep the editor surface, and apply the new topology after the owner saves the rescue position; background updates never
 take keyboard focus.

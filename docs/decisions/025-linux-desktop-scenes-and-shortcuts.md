@@ -28,7 +28,10 @@ The GTK owner of ADR-024 holds the only Workspace; scenes use the shared rendere
 - X11 prefers Keybinder 3; other cases use the GlobalShortcuts portal. The actual trigger description is shown in Settings.
   App focus, composition or editor blocking, and native dialogs release the global registrations; they are registered again
   on resume.
-- The tray uses Ayatana/AppIndicator or Gtk.StatusIcon; the main window is hidden only after the tray is confirmed reachable.
+- Since 2026-11-05, the tray exports StatusNotifierItem and a flat D-Bus menu through Gio, with `ItemIsMenu=false`, primary
+  activation opening the main window, and context activation opening the menu. This avoids older AppIndicator runtimes
+  consuming primary clicks. X11 keeps Gtk.StatusIcon as a fallback, hidden while a notifier host is connected; Wayland
+  does not create the X11-only icon. A dedicated bus connection removes the item on close. The main window is hidden only after the tray is confirmed reachable.
   When the tray disconnects, the main window comes back; quitting uses the shared save flow. Since 2026-10-06 the window
   close button only hides the main window when the tray is available. Native menus and file choosers block global shortcuts.
 
@@ -52,6 +55,7 @@ unregistration is used.
 
 - [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md), [ADR-024](024-linux-native-owner-and-storage.md).
 - [Linux host](../../src/native/linux/README.md).
+- [Primary-click evidence and verification limits](../research/2026-11-05-tray-primary-click.md).
 - [GtkLayerShell](https://wmww.github.io/gtk-layer-shell/).
 - [GlobalShortcuts portal](https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.GlobalShortcuts.html).
 

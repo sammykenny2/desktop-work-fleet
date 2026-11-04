@@ -9,7 +9,6 @@ export default {
   'app.incompatible.discard': "捨棄此本機副本並啟用新格式",
   'app.purge.title': "永久刪除",
   'app.purge.emptyTitle': "清空垃圾桶",
-  'app.purge.emptySection': "清空{section}的垃圾桶",
   'app.purge.part': "{section} {count} 張：{reach}",
   'app.purge.warning': "要永久刪除 {count} 張便箋及其所有已保存版本和附件嗎？此操作無法復原。",
   'app.purge.skipped': '{section} {count} 張：這次先留在垃圾桶。{problem}',
@@ -327,7 +326,6 @@ export default {
 
   // Status lines
   'app.status.loading': '正在載入…',
-  'app.status.opened': '已開啟本機資料',
   'app.status.desktopReasonXwayland': '{reason} 可在設定的「桌面」頁改用 XWayland。',
   'app.status.rescued.one': '已將 {count} 張不可達便箋移回可見範圍',
   'app.status.rescued.other': '已將 {count} 張不可達便箋移回可見範圍',

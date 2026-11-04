@@ -822,9 +822,12 @@ docker run --rm --network none \
 
 Xvfb with openbox (X11) verifies the default size, `window-placement.json` after move, maximize, minimize and restore, reopening at the saved position, reset,
 the autostart entry for the bundle's launcher written on first launch and not re-created at later launches after it is turned off, and that with `--launch-at-login` the main window starts hidden,
-shows after a wait when there is no tray (the probe uses 3 seconds through the public `startup` setting), and that a second launch brings up the main window. The `hidden-tray` mode uses Ayatana AppIndicator
-(as the image and the DEB Recommends do) and registers the StatusNotifierWatcher only after the app, verifying that a late tray keeps the main window hidden
-and that the window shows only when the tray disappears; it also reads back from D-Bus that the tray's `Title` is "Work Fleet", and confirms that `host.log` records this sign-in start and the tray coming and going.
+shows after a wait when there is no tray (the probe uses 3 seconds through the public `startup` setting), and that a second launch brings up the main window. The `hidden-tray` mode uses the direct Gio StatusNotifierItem
+and registers the StatusNotifierWatcher only after the app, verifying that a late tray keeps the main window hidden
+and that the window shows only when the tray disappears. D-Bus calls verify `Title=Work Fleet`, `ItemIsMenu=false`, primary
+activation opening the main window, exported menu layout/actions, language changes, and menu-open/close shortcut blocking.
+It confirms that `host.log` records this sign-in start and the tray coming and going. Real panel clicks, menu dismissal
+and focus policy on GNOME, KDE and Pi still need acceptance; macOS primary/context clicks are compiled but not exercised here.
 Headless labwc verifies that only the size and maximized state are saved and applied on reopen.
 `tests/test_linux_hostsettings.py` verifies with the shared fixture the placement rules, the files, Exec quoting, and removing only an autostart entry it wrote itself.
 None of this is evidence of autostart at a real GNOME or Pi sign-in.
@@ -998,6 +1001,12 @@ desktop surviving a reload, and backups and versions per collection. The native 
 (`tests/test_linux_vault.py`, `tests/native/windows/core/Program.cs`, `tests/native/apple/RecordStoreProbe.swift`); no native host
 has run the two sections yet.
 
+For just the Trash flow, `sections-probe.mjs --url URL --trash-only --browser webkit --locale zh-TW` also runs on WebKit;
+Chromium and English are the defaults. It checks the floating 56 px trash icon at 320, 390, 640 and 1280 px, a single-row
+tab/view bar, no page overflow, and collection names in confirmation. Opening a new profile with no groups leaves the
+status line empty instead of claiming to have opened Local notes. Other browser probes wait for `body[data-ready]`
+before asserting that empty startup status. WebKit's Trash-only run skips the later Chromium-only CPU-throttled move test.
+
 `trash-probe.mjs` checks Trash as a sidebar item (SPEC-012): its own view without status tabs, capture, layout map or adjusting; sections by group on the
 board and in the list, newest first; search inside Trash; no drop on its row; leaving it by a group or a region key; no opening over a canvas being
 adjusted; search across every status with each result's group and status, also in a phone's list, and the link to matches in Trash; restore; Empty Trash;
@@ -1043,8 +1052,8 @@ making the owner focusable and focusing it before opening the menu, then restori
 that fixture's native acceptance. This finding does not establish a defect or an acceptance pass in Work Fleet.
 
 Work Fleet uses different native menu paths: Windows already calls `SetForegroundWindow` on the notification owner
-before opening its WPF `ContextMenu`; macOS attaches an `NSMenu` to its status item; Linux uses GTK menus through
-AppIndicator or `Gtk.StatusIcon`. Keep those platform boundaries when investigating a failure. The Electron fix is
+before opening its WPF `ContextMenu`; macOS explicitly opens a separate `NSMenu` for context clicks; Linux exports its
+flat menu over D-Bus, with GTK menus for native context requests and the X11 fallback. Keep those platform boundaries when investigating a failure. The Electron fix is
 reference evidence, not a patch to transplant into these hosts.
 
 The Windows `--tray-menu` probe posts `WM_ACTIVATEAPP` to simulate another app taking the foreground. This checks how

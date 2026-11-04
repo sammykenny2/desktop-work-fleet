@@ -46,7 +46,7 @@ const capture = async text => {
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 try {
-  await page.goto(base.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.goto(base.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await capture('Original group note');
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
@@ -192,7 +192,7 @@ try {
   await expect(versionMeta.nth(1)).toContainText(t('conflicts.version.movedFrom', { group: t('app.groups.defaultName') }));
   await expect(versionMeta.nth(2)).toHaveText(`${t('app.groups.defaultName')} · ${t('conflicts.version.toDo')}`);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', a.id);
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', a.id);
   await page.locator('body').click({ position: { x: 260, y: 20 } });
@@ -312,14 +312,14 @@ try {
   await page.setViewportSize({ width: 1440, height: 1050 });
   await expect(survivor).toHaveCount(1);
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Unsaved note that survives')).deleted, false);
-  await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
+  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
   // On a phone a finger drags a group row held still for a moment, and the grip at once; a finger that moves at once
   // scrolls the drawer instead, and the hold neither chooses the group nor leaves text selected.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true, isMobile: true });
   const handset = await phone.newPage(); handset.on('pageerror', error => errors.push(error.message));
   const phoneUrl = new URL(base.href); phoneUrl.searchParams.set('profile', `groups-${crypto.randomUUID()}`);
-  await handset.goto(phoneUrl.href); await expect(handset.locator('#status')).toHaveText(t('app.status.opened'));
+  await handset.goto(phoneUrl.href); await expect(handset.locator('body[data-ready] #status')).toHaveText('');
   for (const name of ['Inbox', 'Research']) {
     if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
     await handset.locator('#add-group').tap();

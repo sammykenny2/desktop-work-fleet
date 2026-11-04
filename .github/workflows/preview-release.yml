@@ -146,9 +146,13 @@ jobs:
 
           ## Windows
           Requires Windows 11 (build 22000 or later). The package includes the .NET 10 Desktop Runtime, so .NET needs no separate installation; it uses the system's Evergreen WebView2 Runtime.
-          1. Trust the preview certificate (once per computer): download \`WorkFleet-preview.cer\` and run this in an administrator PowerShell:
-             \`Import-Certificate -FilePath .\\WorkFleet-preview.cer -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople\`.
-          2. Double-click \`WorkFleet-${VERSION}-x64.msix\` to install it.
+          1. Download \`WorkFleet-preview.cer\` from the assets below.
+          2. Trust the certificate (once per computer). This needs administrator rights; without them, Windows answers "Access is denied" (E_ACCESSDENIED). Open the Start menu, search for PowerShell, right-click it and choose Run as administrator. Then run this command, changing the path if you saved the file somewhere else:
+
+             \`\`\`powershell
+             Import-Certificate -FilePath "\$HOME\\Downloads\\WorkFleet-preview.cer" -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople
+             \`\`\`
+          3. Double-click \`WorkFleet-${VERSION}-x64.msix\` to install it.
 
           A version higher than the installed one installs as an upgrade and preserves the package's local files; the same version must be uninstalled first. Check the changes above for data-format compatibility and any required reset before upgrading.
           Uninstalling removes all local data inside the package (including drafts, settings and the Google sign-in); export a ZIP from Settings > Data and backup first.
@@ -163,7 +167,7 @@ jobs:
           \`sudo apt install ./work-fleet_${VERSION}_all.deb\`
 
           ## Android
-          Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\`.
+          Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\` from a computer.
           The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and preserves its local files; a build signed with another key cannot. Check the changes above for data-format compatibility and any required reset before upgrading.
 
           ## Updates

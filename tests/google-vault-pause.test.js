@@ -105,7 +105,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
     } } },
     syncService: { sync: async options => { await options.onActivity(); calls.push(['sync', options.force]); if (sync) await sync(); return { phase: 'idle' }; } },
-    syncBusy: false, nativeClosing: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null, landingFailed: false,
+    syncBusy: false, nativeClosing: false, sharedIdsBlocked: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null, landingFailed: false,
     listingLag: null, listingLagWaits: 0, setTimeout: (callback, delay) => retries.push({ callback, delay }), Date, Math,
     document: { querySelectorAll: () => [] },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
@@ -126,7 +126,7 @@ const maintain = source.slice(source.indexOf('async function maintainDataset('),
 async function maintenanceDelay({ step, resetPending = false }) {
   const delays = []; const nothing = () => {};
   const context = vm.createContext({ companions: [], workspace: { state: { cloudRestore: resetPending ? {} : null }, syncState: {}, layout: { placeNew: async () => {} } }, pendingReset: null, datasetProblem: null, maintenanceWork: null,
-    maintenancePaused: false, accountBusy: false, syncBusy: false, nativeClosing: false, editorBusy: false, composing: false, dataPanel: null, revisions: null,
+    maintenancePaused: false, accountBusy: false, syncBusy: false, nativeClosing: false, sharedIdsBlocked: false, editorBusy: false, composing: false, dataPanel: null, revisions: null,
     document: { querySelectorAll: () => [] }, profileId: 'local', googleAccount: null, maintenanceAbort: { signal: { aborted: false } }, maintenanceFailure: null, datasetStore: null,
     purge: { step }, advanceDatasetRestore: step, resetFailure: error => ({ code: error.code, message: error.message }), storage: { putJob: async () => {}, deleteJob: async () => {}, getControl: async () => null, maintenance: async () => false },
     cleanupDatasetTransition: async () => false, setSync: nothing, showMaintenance: nothing, setText: nothing, syncRequested: false, syncGoogle: nothing, render: nothing, t,
@@ -380,7 +380,7 @@ test('an automatic backup waits for a running pass outside the queue before its 
 const runner = source.slice(source.indexOf('async function run(action'), source.indexOf('function primaryArea('));
 function runFixture({ syncBusy = false, pendingBefore = 0, action }) {
   let started = 0;
-  const context = vm.createContext({ nativeClosing: false, syncBusy, maintenanceWork: null, syncRequested: false, activeActions: new Set(), desktop: null,
+  const context = vm.createContext({ nativeClosing: false, sharedIdsBlocked: false, syncBusy, maintenanceWork: null, syncRequested: false, activeActions: new Set(), desktop: null,
     workspace: { pendingCount: pendingBefore }, adjustOverlayActive: () => false, status() {}, currentDraft: null, syncGoogle: () => { started++; } });
   vm.runInContext(runner, context);
   return { context, started: () => started, invoke: () => context.run(() => action(context)) };

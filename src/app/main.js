@@ -80,6 +80,7 @@ let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = 
 let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null; let recoveryOwed = false; let landingFailed = false;
 let maintenanceNotice = null; let maintenanceFailure = null;
 let recoveryWork = null; let recoveryBusy = false;
+let sharedIdsBlocked = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
@@ -112,11 +113,11 @@ const textOf = text => typeof text === 'function' ? text() : text ?? '';
 // Text set outside the render functions keeps how it was built, so relocalize() can build it again in a new language.
 const shownText = new Map();
 function setText(selector, text) { shownText.set(selector, text); $(selector).textContent = textOf(text); }
-async function run(action, { duringAdjust = false } = {}) {
-  if (nativeClosing) return;
+async function run(action, { duringAdjust = false, duringRecovery = false } = {}) {
+  if (nativeClosing || (sharedIdsBlocked && !duringRecovery)) return;
   const pendingBefore = workspace?.pendingCount ?? 0;
   // A click can enter the queue before adjustment starts; admit owner UI again when its turn actually runs.
-  const invoke = () => { if (duringAdjust || !adjustOverlayActive()) return action(); };
+  const invoke = () => { if ((!sharedIdsBlocked || duringRecovery) && (duringAdjust || !adjustOverlayActive())) return action(); };
   const pending = desktop ? desktop.perform(invoke) : Promise.resolve().then(invoke); activeActions.add(pending);
   try { await pending; }
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
@@ -295,11 +296,11 @@ async function initialize() {
       stopAutomatic?.(); stopCompanionBackups(); void run(async () => {
         await flushDraft(); await automatic?.service.whenIdle(); await companionBackupsIdle();
         if (message.id) await native.bridge.request('host.backgroundReady', { id: message.id });
-      }, { duringAdjust: true });
+      }, { duringAdjust: true, duringRecovery: true });
     });
     native.bridge.onEvent('host-foreground', () => {
-      stopAutomatic?.(); if (automatic && !nativeClosing && !accountBusy) stopAutomatic = startAutomaticBackup(automatic.service);
-      if (!nativeClosing && !accountBusy) startCompanionBackups();
+      stopAutomatic?.(); if (automatic && !nativeClosing && !accountBusy && !sharedIdsBlocked) stopAutomatic = startAutomaticBackup(automatic.service);
+      if (!nativeClosing && !accountBusy && !sharedIdsBlocked) startCompanionBackups();
       syncService?.resume();
       void syncGoogle();
     });
@@ -618,7 +619,7 @@ function updateAttention() {
 async function syncGoogle(force = false) {
   // Recovery is an explicit user choice. Timers and foreground/online events must not retry the
   // blocked dataset and reopen its prompt over Settings while the user reads the reset controls.
-  if (datasetProblem) return;
+  if (datasetProblem || sharedIdsBlocked) return;
   // A retry is already set for when the backoff ends, and starting earlier would only report the backoff as a failure.
   if (!force && listingLag?.service === syncService) return;
   // Settings edits nothing a sync could overwrite and holds Sync now, so it does not hold syncing; a running backup or
@@ -709,8 +710,10 @@ function landSync(receive) {
     // The start checked for this, but such ids can arrive later, from another device. Routing by id would now write to the wrong
     // collection, so the page reopens at once, and that check sets the later collection aside with its explanation.
     if (workspace.sharedIds().length) {
+      sharedIdsBlocked = true; stopAutomatic?.(); stopCompanionBackups();
       document.documentElement.inert = true;
-      await flushDraft().catch(error => status(error.message, true)); location.reload();
+      try { await flushDraft(); location.reload(); }
+      catch (error) { document.documentElement.inert = false; showSharedIdsRecovery(error); }
       return received;
     }
     // The data is stored by now. Failing to show it must not stop uploads, and the next pass lands again to retry.
@@ -722,6 +725,29 @@ function landSync(receive) {
     return received;
   };
   return desktop ? desktop.perform(land) : land();
+}
+
+// Ambiguous ids stop ordinary work. A failed flush keeps the page and any native quick editor alive until it can be saved.
+function showSharedIdsRecovery(error) {
+  status(error.message, true);
+  const dialog = element('dialog'); dialog.id = 'shared-ids-recovery';
+  const message = element('p', error.message, 'error'); message.setAttribute('role', 'status');
+  const text = element('textarea'); text.readOnly = true; text.rows = 8; text.style.width = '100%';
+  const showText = () => { text.value = [currentDraft?.content.title, currentDraft?.content.text].filter(Boolean).join('\n\n'); };
+  showText();
+  const field = element('label', t('app.sections.keptText'), 'field'); field.append(text);
+  const retry = immediateButton(t('common.retry'), async () => {
+    if (retry.disabled || nativeClosing) return;
+    retry.disabled = true;
+    const pending = desktop ? desktop.perform(flushDraft) : Promise.resolve().then(flushDraft); activeActions.add(pending);
+    try { await pending; dialog.close(); document.documentElement.inert = true; location.reload(); }
+    catch (error) { message.textContent = error.message; showText(); }
+    finally { activeActions.delete(pending); retry.disabled = false; }
+  }, 'primary');
+  dialog.addEventListener('cancel', event => event.preventDefault());
+  dialog.onclose = () => dialog.remove();
+  dialog.append(element('h2', t('app.sections.saveBeforeReopen')), element('p', t('app.sections.saveBeforeReopenHint')), message, field, retry);
+  document.body.append(dialog); dialog.showModal();
 }
 
 // A backup refuses a snapshot whose workspace changed while it was read, and a running pass's landing changes it.
@@ -774,6 +800,7 @@ async function stopMaintenance() {
   clearTimeout(maintenanceTimer); maintenanceAbort.abort(); await maintenanceWork?.catch(() => {});
 }
 async function maintainDataset() {
+  if (sharedIdsBlocked) return;
   const resetPending = workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete';
   // The account's own work waits for its sign-in; a local collection's does not.
   const sourceWaits = profileId.startsWith('google:') && (!googleAccount?.connected || !workspace.syncState.dataset && !workspace.state.cloudRestore && !pendingReset);

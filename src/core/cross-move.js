@@ -58,11 +58,11 @@ export class CrossMove {
     await source.storage.putJob(noteKey(cardId), job);
     await this.#step('journal');
     const moved = await this.#finishOrClear(source, target, job, bytes);
+    const copyNow = target.workspace.cardValue(job.newCardId);
+    if (moved && (!copyNow || copyNow.deleted)) throw new FleetError('move-copy-gone', t('errors.core.move.copyGone'));
     if (source.workspace.cardValue(cardId)?.movedTo?.id === job.newCardId) return moved;
     // Only an original still in Trash with this mark has moved. Otherwise it changed in time to stay, or its copy went first.
     if (!moved) throw new FleetError('move-changed', t('errors.core.move.changed'));
-    const copyNow = target.workspace.cardValue(moved.id);
-    if (!copyNow || copyNow.deleted) throw new FleetError('move-copy-gone', t('errors.core.move.copyGone'));
     throw new FleetError('move-both', t('errors.core.move.both', { group: this.#groupName(target, moved.groupId) }));
   }
 
@@ -96,18 +96,44 @@ export class CrossMove {
   async #finishOrClear(source, target, job, known = null) {
     try { return await this.#finishNote(source, target, job, known); }
     catch (error) {
-      if (error instanceof FleetError && !target.workspace.cardValue(job.newCardId)) await source.storage.deleteJob(noteKey(job.cardId));
+      const original = source.workspace.cardValue(job.cardId);
+      const recovering = original?.deleted && original.movedTo?.id === job.newCardId;
+      const refused = error instanceof FleetError && ['move-attachment', 'conflict', 'missing-group', 'group-limit'].includes(error.code);
+      // A storage failure may have committed without an acknowledgement, so memory alone cannot prove nothing moved.
+      if (refused && !recovering && !target.workspace.cardValue(job.newCardId)) await source.storage.deleteJob(noteKey(job.cardId));
       throw error;
+    }
+  }
+
+  #copyGone(target, job) { const card = target.workspace.cardValue(job.newCardId); return !card || card.deleted; }
+
+  /** The journal stays until compensation succeeds; startup can repeat it after a failed write or a crash. */
+  async #settleOriginal(source, target, job) {
+    if (this.#copyGone(target, job)) await source.workspace.recoverMovedCard(job.cardId, job.newCardId, job.revision);
+  }
+
+  async #clearNote(source, target, job) {
+    await this.#settleOriginal(source, target, job);
+    await source.storage.deleteJob(noteKey(job.cardId));
+    // Clearing the journal is also an asynchronous write. If the copy went during it, record recovery before attempting it.
+    const original = source.workspace.cardValue(job.cardId);
+    if (original?.deleted && original.movedTo?.id === job.newCardId && this.#copyGone(target, job)) {
+      await source.storage.putJob(noteKey(job.cardId), { ...job, copied: true });
+      await this.#settleOriginal(source, target, job);
+      await source.storage.deleteJob(noteKey(job.cardId));
     }
   }
 
   async #finishNote(source, target, job, known = null) {
     const card = source.workspace.cardValue(job.cardId); const copied = target.workspace.cardValue(job.newCardId);
+    if (card?.movedTo?.id === job.newCardId) {
+      await this.#clearNote(source, target, job); return copied;
+    }
     // Nothing is left to do but clear the record when the note is gone, or this very move trashed it before the record could be
     // cleared; when its copy has since been trashed or purged, which the user did knowing it, so the original stays; or when no
     // copy exists yet and the note has changed or is unsettled. A move waiting for a collection to open allows all this for a
     // long time, and it no longer describes this note.
-    if (!card || card.movedTo?.id === job.newCardId || copied?.deleted
+    if (!card || copied?.deleted
       || (!copied && (job.copied || card.revision !== job.revision || this.#unsettled(source, job.cardId)))) {
       await source.storage.deleteJob(noteKey(job.cardId)); return copied?.deleted ? null : copied;
     }
@@ -130,7 +156,7 @@ export class CrossMove {
       await source.workspace.updateCard(job.cardId, { deleted: true, movedTo: { id: job.newCardId, section: sectionKind(target.id), group: this.#groupName(target, moved.groupId) } }, job.revision);
     }
     await this.#step('trashed');
-    await source.storage.deleteJob(noteKey(job.cardId));
+    await this.#clearNote(source, target, job);
     return moved;
   }
 

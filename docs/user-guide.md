@@ -123,6 +123,10 @@ interface. To switch, see [Settings](#settings).
   group moves behind a progress bar that you can stop: notes already moved stay moved, each note moves completely or not at
   all, and moving the group again continues into the same group. Notes with version conflicts or unsaved changes stay behind.
   A section holds nine groups, so a group can't move into a full one.
+- If a backup has left two sections with the same note identities, actions pause while the app keeps your changes and reopens
+  with the affected section unavailable. If saving fails, keep the window open, copy any text you need and use "Try again".
+  The app reopens only after saving succeeds. A copy deleted during a cross-section move leaves the original alive; an
+  interrupted recovery continues on the next start without undoing later choices you made in Trash.
 - When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop notes sets "Rows" and
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom. There can be up to nine, each holding any

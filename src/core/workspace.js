@@ -188,8 +188,11 @@ export class Workspace {
   // CombinedWorkspace routes a write to the profile holding it (ADR-066), without copying any state to find out.
   holdsCard(id) { return this.#state.cards.some(card => card.id === id) || Object.values(this.#state.drafts).some(draft => draft.cardId === id); }
   holdsGroup(id) { return this.#state.groups.some(group => group.id === id); }
-  /** Every note and group id in this collection, Trash and retired groups too. */
-  * ownIds() { for (const item of [...this.#state.cards, ...this.#state.groups]) yield item.id; }
+  /** Every routable note and group id, including notes never saved and detached recovery text. */
+  * ownIds() {
+    for (const item of [...this.#state.cards, ...this.#state.groups]) yield item.id;
+    for (const draft of Object.values(this.#state.drafts)) yield draft.cardId;
+  }
   holdsDraft(id) { return Object.hasOwn(this.#state.drafts, id); }
   activeGroupList() { return copy(activeGroups(this.#state)); }
   cardValue(id) { const card = this.#state.cards.find(item => item.id === id); return card ? copy(card) : null; }
@@ -836,6 +839,21 @@ export class Workspace {
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);
     });
+  }
+
+  /** Restore only this move's own trash revision; a later user choice or permanent deletion is never reversed. */
+  async recoverMovedCard(cardId, copiedId, previousRevision) {
+    return this.#commit(state => {
+      const card = state.cards.find(item => item.id === cardId); const parent = card.revision;
+      card.deleted = false; card.revision = this.#uuid(); delete card.trashedAt; delete card.trashEpisode; delete card.movedTo;
+      // An existing group that left can return with its note, just as a late note received by sync brings it back.
+      this.#record(state, 'card', card, [parent]);
+      return copy(card);
+    }, this.#persist, false, { guard: state => {
+      const card = state.cards.find(item => item.id === cardId); const heads = this.#graph.heads('card', cardId);
+      return card?.deleted && card.movedTo?.id === copiedId && heads.length === 1 && heads[0].revisionId === card.revision
+        && heads[0].parents.length === 1 && heads[0].parents[0] === previousRevision;
+    } });
   }
 
   /**

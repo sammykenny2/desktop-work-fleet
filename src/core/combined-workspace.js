@@ -234,7 +234,9 @@ export class CombinedWorkspace {
   }
 
   #find(test, code, message) {
-    const profile = this.#profiles.find(test);
+    const matches = this.#profiles.filter(test);
+    requireValue(matches.length < 2, 'shared-ids', t('app.sections.sharedIds'));
+    const [profile] = matches;
     if (!profile) throw new FleetError(code, message());
     return profile;
   }

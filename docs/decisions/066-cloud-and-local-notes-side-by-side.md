@@ -76,6 +76,9 @@ nine, colours repeat as they already do.
   record the move with a new note id, copy the attachments, create the note in the target in one commit, then trash the
   source note. Start-up finishes any recorded move. Creating the note is idempotent because its id is already chosen, so a
   crash can repeat a step but never leaves half a note or two copies.
+- The journal verifies the copy after the source's trash write too. If the copy disappeared, only that move's own trash
+  revision is restored, with the journal retained until recovery succeeds; later user choices and permanent deletions stay.
+  An unacknowledged storage write cannot prove that nothing happened, so it keeps the journal for the next start.
 - The moved note has a new identity. A verified purge is terminal for an identity (ADR-062), so reusing one could refuse a
   note moved back. It carries the current version only; history stays with the source note.
 - The source note goes to its own Trash, marked with where it went (`movedTo`). It can be restored, the move works offline,
@@ -92,6 +95,9 @@ nine, colours repeat as they already do.
 A profile that is incompatible, unreadable or shares note or group ids with another open profile is shown as unavailable,
 with its recovery options; the others work normally. Ids can repeat only when one backup was restored into two profiles
 with its ids kept. Restores into a profile now take new ids when an id is already used by another open profile.
+Notes never saved also own their ids. A collision arriving by sync pauses ordinary actions until current text is kept and
+the page reopens; a failed flush leaves a recovery dialog with selectable text and a retry, rather than discarding the page.
+Routing refuses ambiguous ids throughout, while an existing editor's draft keeps its explicit collection owner.
 
 ### 8. Trash and search
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeGroups } from '../src/core/contracts.js';
+import { activeGroups, FleetError } from '../src/core/contracts.js';
 import { CombinedWorkspace } from '../src/core/combined-workspace.js';
 import { CrossMove } from '../src/core/cross-move.js';
 import { Workspace } from '../src/core/workspace.js';
@@ -107,6 +107,96 @@ test('a crash just after the copy is deleted also leaves the original alive at t
   await assert.rejects(failing.moveNote(note.id, f.groups.local.id), /crash/);
   await f.move.resume();
   assert.deepEqual(live(f.cloud).map(card => card.id), [note.id]); assert.deepEqual(await jobsOf(f.cloud), []);
+});
+
+test('a sync deleting the copy during the source trash write restores the original and reports refusal', async () => {
+  const f = await open(); const note = await f.combined.createCard(content('keep my latest text'), f.groups.local.id);
+  const save = f.local.storage.save.bind(f.local.storage); let deleted = false;
+  f.local.storage.save = async (state, ...args) => {
+    const original = state.cards.find(card => card.id === note.id);
+    if (!deleted && original?.deleted && original.movedTo) {
+      deleted = true; const copy = f.cloud.workspace.cardValue(original.movedTo.id);
+      await receive(f.cloud.workspace, [revisionRecord('card', { ...copy, revision: 'deleted-during-trash', deleted: true,
+        trashedAt: new Date().toISOString(), trashEpisode: 'copy-trash' }, [copy.revision])], 'copy-deleted');
+    }
+    return save(state, ...args);
+  };
+  await assert.rejects(f.move.moveNote(note.id, f.groups['google:cloud'].id), { code: 'move-copy-gone' });
+  assert.deepEqual(live(f.local).map(card => card.id), [note.id]); assert.deepEqual(live(f.cloud), []);
+  assert.equal(f.local.workspace.cardValue(note.id).movedTo, undefined);
+  assert.deepEqual(await jobsOf(f.local), []);
+});
+
+test('a crash after trashing and a failed recovery retain the journal until the original is restored', async () => {
+  for (const purged of [false, true]) {
+    const f = await open(); const note = await f.combined.createCard(content('recover after restart'), f.groups['google:cloud'].id);
+    const crash = new CrossMove(f.combined, { step: async name => { if (name === 'trashed') throw new Error('crash after trash'); } });
+    await assert.rejects(crash.moveNote(note.id, f.groups.local.id), /crash after trash/);
+    const copy = live(f.local)[0];
+    if (purged) await f.local.workspace.applyPermanentDeletion([{ entityId: copy.id, operationId: 'purged-copy' }]);
+    else await f.local.workspace.updateCard(copy.id, { deleted: true }, copy.revision);
+    const save = f.cloud.storage.save.bind(f.cloud.storage);
+    f.cloud.storage.save = async () => { throw new Error('recovery disk full'); };
+    await assert.rejects(f.move.resume(), /recovery disk full/);
+    assert.equal((await jobsOf(f.cloud)).length, 1, 'the recovery is still durable');
+    f.cloud.storage.save = save;
+    await f.move.resume();
+    assert.deepEqual(live(f.cloud).map(card => card.id), [note.id]); assert.deepEqual(live(f.local), []);
+    assert.deepEqual(await jobsOf(f.cloud), []);
+    await f.move.resume(); assert.equal(live(f.cloud).length, 1, 'recovery is idempotent');
+  }
+});
+
+test('a copy deleted while clearing the journal still restores the original', async () => {
+  const f = await open(); const note = await f.combined.createCard(content('keep me'), f.groups['google:cloud'].id);
+  const clear = f.cloud.storage.deleteJob.bind(f.cloud.storage); let deleted = false;
+  f.cloud.storage.deleteJob = async key => {
+    await clear(key);
+    if (!deleted && key === `cross-move:${note.id}`) {
+      deleted = true; const copy = live(f.local)[0];
+      await f.local.workspace.updateCard(copy.id, { deleted: true }, copy.revision);
+    }
+  };
+  await assert.rejects(f.move.moveNote(note.id, f.groups.local.id), { code: 'move-copy-gone' });
+  assert.deepEqual(live(f.cloud).map(card => card.id), [note.id]); assert.deepEqual(await jobsOf(f.cloud), []);
+});
+
+test('a lost acknowledgement of the trash write keeps recovery durable even when memory still shows a live source', async () => {
+  const f = await open(); const note = await f.combined.createCard(content('durable original'), f.groups['google:cloud'].id);
+  const save = f.cloud.storage.save.bind(f.cloud.storage); let lost = false;
+  f.cloud.storage.save = async (state, ...args) => {
+    await save(state, ...args);
+    if (!lost && state.cards.some(card => card.id === note.id && card.deleted && card.movedTo)) {
+      lost = true; const copy = live(f.local)[0];
+      await f.local.workspace.applyPermanentDeletion([{ entityId: copy.id, operationId: 'purged-during-lost-ack' }]);
+      throw new FleetError('native-outcome-unknown', 'The write acknowledgement was lost.');
+    }
+  };
+  await assert.rejects(f.move.moveNote(note.id, f.groups.local.id), { code: 'native-outcome-unknown' });
+  assert.equal(f.cloud.workspace.cardValue(note.id).deleted, false, 'memory has not seen the committed trash write');
+  assert.equal((await jobsOf(f.cloud)).length, 1);
+  f.cloud.storage.save = save;
+  const disk = await f.cloud.storage.load(f.cloud.id);
+  const reopened = new Workspace(disk, (...args) => f.cloud.storage.save(...args), undefined, undefined, { history: f.cloud.storage });
+  assert.equal(reopened.cardValue(note.id).deleted, true, 'the trash write actually committed');
+  const combined = await CombinedWorkspace.open([{ ...f.cloud, workspace: reopened }, f.local]);
+  await new CrossMove(combined).resume();
+  assert.equal(reopened.cardValue(note.id).deleted, false); assert.deepEqual(live(f.local), []);
+  assert.deepEqual(await jobsOf(f.cloud), []);
+});
+
+test('recovery never reverses a later deliberate choice of the original in Trash', async () => {
+  const f = await open(); const note = await f.combined.createCard(content('original'), f.groups['google:cloud'].id);
+  const crash = new CrossMove(f.combined, { step: async name => { if (name === 'trashed') throw new Error('crash'); } });
+  await assert.rejects(crash.moveNote(note.id, f.groups.local.id), /crash/);
+  const original = f.cloud.workspace.cardValue(note.id); const copy = live(f.local)[0];
+  await f.cloud.workspace.resolveRevisions({ kind: 'card', entityId: note.id, heads: [original.revision],
+    selectedRevision: original.revision, patch: { content: content('deliberately kept in Trash') } });
+  await f.local.workspace.updateCard(copy.id, { deleted: true }, copy.revision);
+  await f.move.resume();
+  assert.equal(f.cloud.workspace.cardValue(note.id).deleted, true);
+  assert.equal(f.cloud.workspace.cardValue(note.id).content.text, 'deliberately kept in Trash');
+  assert.deepEqual(await jobsOf(f.cloud), []);
 });
 
 test('a crash after any step of a note finishes on the next start, with one copy and nothing half moved', async () => {

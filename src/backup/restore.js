@@ -101,6 +101,8 @@ function renewedIds(state) {
   const kept = receipts.filter(receipt => receipt.mode !== 'import');
   for (const { mappings } of kept) add(mappings);
   const alive = new Set(state.cards.filter(card => !card.deleted).map(card => card.id));
+  const saved = new Set(state.cards.map(card => card.id));
+  for (const draft of unsavedByCard(state).values()) if (!draft.purged && !saved.has(draft.cardId)) alive.add(draft.cardId);
   const covered = new Set([...state.cards, ...state.groups].map(item => item.id));
   for (const id of [...Object.keys(result.card), ...Object.keys(result.group)]) covered.add(id);
   for (const { mappings } of receipts.filter(receipt => receipt.mode === 'import').reverse()) {

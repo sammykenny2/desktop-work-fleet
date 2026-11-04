@@ -469,6 +469,22 @@ test('an import still stands after a replacement with a backup that holds its co
   assert.deepEqual(local.workspace.snapshot.cards.filter(card => !card.deleted).map(card => card.content.text).sort(), ['b one', 'b two']);
 });
 
+test('an import holding only an unsaved new note keeps its identity when a later backup saves that note', async () => {
+  const source = await fixture(null, new Map(), 'local'); const target = await fixture(null, new Map(), 'local');
+  const draft = source.workspace.blankDraft(source.workspace.snapshot.groups[0].id);
+  draft.content = text('unfinished note'); await source.workspace.saveDraft(draft);
+  const restore = async (document, mode) => {
+    const plan = await prepareRestore({ workspace: target.workspace, document, mode, workAreas: [area], foreignIds: new Set() });
+    await target.workspace.applyRestore(plan, { persist: target.atomic });
+  };
+  await restore(await source.export(), 'import');
+  const imported = target.workspace.working.cards[0]; assert.equal(imported.unsaved, true);
+  await source.workspace.commitDraft(draft.id);
+  await restore(await source.export(), 'merge');
+  assert.deepEqual(target.workspace.working.cards.map(card => card.id), [imported.id]);
+  assert.deepEqual(target.workspace.snapshot.cards.map(card => card.id), [imported.id]);
+});
+
 test('a cloud collection keeps the ids of a backup that has synced, and renews those of one that never did', async () => {
   const local = await fixture(null, new Map(), 'local'); const fromLocal = await local.workspace.createCard(text('never synced'));
   const synced = await fixture(null, new Map(), 'google:account'); const fromCloud = await synced.workspace.createCard(text('synced'));

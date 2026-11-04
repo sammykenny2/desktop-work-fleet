@@ -31,6 +31,7 @@ try {
     await probe('legacy-google-reset-ui-probe.mjs', '--browser', browser, '--platform', platform);
   }
   for (const browser of ['chromium', 'webkit']) await probe('group-dialog-sync-probe.mjs', '--browser', browser);
+  await probe('shared-ids-probe.mjs');
 } finally {
   if (server.exitCode === null) { server.kill(); await once(server, 'exit'); }
 }

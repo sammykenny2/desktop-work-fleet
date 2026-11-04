@@ -41,6 +41,20 @@ test('ids two collections hold are found, whenever they arrive', async () => {
   assert.deepEqual(combined.sharedIds().sort(), [note.id, group[0].id].sort());
 });
 
+test('a saved note colliding with an unsaved new note blocks routing and keeps the draft with its collection', async () => {
+  const { combined, profiles, group } = await open();
+  const draft = combined.openDraft(group[1].id); draft.content = content('unfinished local note'); await combined.saveDraft(draft);
+  await profiles[0].workspace.adoptCard({ id: draft.cardId, groupId: group[0].id, content: content('cloud note'), archived: false, completed: false });
+  assert.deepEqual(combined.sharedIds(), [draft.cardId]);
+  assert.throws(() => combined.openDraft(group[1].id, profiles[1].workspace.working.cards[0]), { code: 'shared-ids' });
+  assert.throws(() => combined.updateCard(draft.cardId, { deleted: true }, profiles[0].workspace.cardValue(draft.cardId).revision), { code: 'shared-ids' });
+  draft.content = content('kept during recovery'); await combined.saveDraft(draft);
+  assert.equal(profiles[1].workspace.unsavedChanges(draft.cardId).content.text, 'kept during recovery');
+  assert.equal(profiles[0].workspace.cardValue(draft.cardId).content.text, 'cloud note');
+  await profiles[0].workspace.adoptGroup({ id: group[1].id, name: 'Colliding group' });
+  assert.throws(() => combined.createCard(content('wrong collection'), group[1].id), { code: 'shared-ids' });
+});
+
 test('text being written stays with its collection when another comes to share its ids', async () => {
   const { combined, profiles, group } = await open();
   const note = await combined.createCard(content('local'), group[1].id);

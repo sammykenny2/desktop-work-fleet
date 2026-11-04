@@ -37,7 +37,19 @@ const recordsModule = `
 import { IndexedDbRecordStore } from '/storage/records-indexed-db.js';
 const store = await IndexedDbRecordStore.open();
 export class NativeRecordStore {
-  constructor() { return Object.fromEntries(['status', 'get', 'page', 'commit', 'getAttachment', 'close'].map(key => [key, (...args) => store[key](...args)])); }
+  constructor() {
+    const methods = Object.fromEntries(['status', 'get', 'page', 'getAttachment', 'close'].map(key => [key, (...args) => store[key](...args)]));
+    methods.commit = async (...args) => {
+      const transaction = args[0];
+      if (window.fixtureHoldCollisionWrite && transaction.profileId === '${cloud}' && transaction.puts.some(row => row.collection === 'current' && row.value.entityId === window.fixtureCollidingId)) {
+        window.fixtureCollisionWriting = true;
+        await new Promise(resolve => { window.fixtureReleaseCollision = resolve; });
+      }
+      if (window.fixtureFailDraftSave && transaction.profileId === '${local}' && transaction.puts.some(row => row.collection === 'draft')) throw new Error('Synthetic disk full');
+      return store.commit(...args);
+    };
+    return methods;
+  }
 }`;
 const storageModule = `
 export { NativeTransfers } from '/storage/native.js?original=1';
@@ -94,7 +106,10 @@ try {
     const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
     const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
     const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profile);
-    try { const card = (await storage.load(profile)).cards.find(item => item.id === id); return { text: card.content.text, deleted: card.deleted }; } finally { storage.close(); }
+    try {
+      const state = await storage.load(profile); const card = state.cards.find(item => item.id === id);
+      return { text: card.content.text, deleted: card.deleted, unsaved: Object.values(state.drafts).find(draft => draft.cardId === id)?.content.text ?? null };
+    } finally { storage.close(); }
   }, { profile: local, id });
 
   await page.goto(`${base.origin}/app/index.html?profile=${encodeURIComponent(cloud)}`);
@@ -110,8 +125,33 @@ try {
   const id = await note('Local note').getAttribute('data-card-id');
   await peer.adoptCard({ id, groupId: peerGroup.id, content: content('Cloud note with the same id'), archived: false, completed: false }); await peerPull();
 
-  // The landing reopens the page, and the start's own check sets Local notes aside with its explanation.
-  await page.evaluate(() => { window.fixtureBeforeLanding = true; window.fixtureHostEvent('host-foreground'); });
+  // A landing can already be writing when an editor opens. Its failed flush must keep the latest text and the page alive.
+  await page.evaluate(id => {
+    window.fixtureBeforeLanding = true; window.fixtureHoldCollisionWrite = true; window.fixtureCollidingId = id;
+    window.fixtureHostEvent('host-foreground');
+  }, id);
+  await expect.poll(() => page.evaluate(() => window.fixtureCollisionWriting)).toBe(true);
+  await note('Local note').dblclick(); await expect(page.locator('#editor-dialog')).toBeVisible();
+  await page.evaluate(() => { window.fixtureFailDraftSave = true; });
+  await page.locator('#editor-text').fill('Latest local text that could not be saved');
+  await expect(page.locator('#draft-status')).toContainText('Synthetic disk full');
+  await page.evaluate(() => { window.fixtureHoldCollisionWrite = false; window.fixtureReleaseCollision(); });
+  const recovery = page.locator('#shared-ids-recovery'); await expect(recovery).toBeVisible();
+  await expect(recovery.locator('textarea')).toHaveValue('Latest local text that could not be saved');
+  assert.equal(await page.evaluate(() => window.fixtureBeforeLanding), true, 'a failed save keeps the page');
+  await recovery.getByRole('button', { name: t('common.retry'), exact: true }).click();
+  await expect(recovery.getByRole('button', { name: t('common.retry'), exact: true })).toBeEnabled();
+  await expect(recovery).toBeVisible();
+  await page.screenshot({ path: 'build/shared-ids-recovery.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(recovery.locator('textarea')).toBeInViewport();
+  await expect(recovery.getByRole('button', { name: t('common.retry'), exact: true })).toBeInViewport();
+  await page.screenshot({ path: 'build/shared-ids-recovery-phone.png' });
+  await page.setViewportSize({ width: 1200, height: 900 });
+  await page.evaluate(() => { window.fixtureFailDraftSave = false; });
+  await recovery.getByRole('button', { name: t('common.retry'), exact: true }).click();
+
+  // After a successful retry the start's own check sets Local notes aside with its explanation.
   await expect(section(local)).toContainText(t('app.sections.sharedIds'), { timeout: 15000 });
   assert.equal(await page.evaluate(() => window.fixtureBeforeLanding), undefined, 'the page reopened');
   await expect(section(local).locator('.group-row')).toHaveCount(0);
@@ -126,7 +166,7 @@ try {
   await page.locator('[data-view="board"]').click(); await expect(note('Cloud note with the same id')).toBeVisible();
   await note('Cloud note with the same id').hover(); await note('Cloud note with the same id').getByRole('button', { name: t('app.notes.more'), exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click(); await expect(note('Cloud note with the same id')).toHaveCount(0);
-  await expect.poll(async () => (await stored(id))).toEqual({ text: 'Local note', deleted: false });
+  await expect.poll(async () => (await stored(id))).toEqual({ text: 'Local note', deleted: false, unsaved: 'Latest local text that could not be saved' });
   await expect(page.locator('#account')).toHaveAttribute('data-sync', /ok|pending/);
   await expect.poll(async () => { await peerPull(); return peer.cardValue(id).deleted; }, { timeout: 15000 }).toBe(true);
   assert.deepEqual(errors, []);

@@ -981,6 +981,15 @@ It does not use native OS automatic files or the vault; the screenshot is `build
 moved. `tests/cross-move-queue.test.js` runs the page's move code on the strict one-at-a-time queue a desktop host uses, which
 browser probes do not have: an action that waits for a later one would wait for ever. `sections-probe.mjs` also drives moves
 through the page.
+The move suite also deletes or purges the copy during final source writes, injects a lost acknowledgement after a durable
+trash commit, and retries recovery after a restart or failed write. It checks that only the move's own trash revision is
+restored and later user choices remain. `backup-restore.test.js` checks that an imported note never saved keeps its identity
+when a newer backup saves it; detached recovery text does not count as a live note.
+`shared-ids-recovery.test.js` runs the production landing and retry on handheld and desktop queues with failed saves.
+`shared-ids-probe.mjs`, also run by `test-dataset-recovery.mjs`, holds a real IndexedDB landing, opens an editor, and fails its
+draft writes. The page must stay with selectable text and working retries at computer and phone widths; only a successful
+retry reopens it, with the text still in its own collection. These are synthetic host/provider checks, not installed-host
+or live Drive acceptance.
 
 `sections-probe.mjs` opens two profiles in the browser preview, with `?profile=google:...&companion=...`, since the preview has no
 host: sections with their own add buttons, notes and pickers per collection, a sidebar drag staying in its section, one colour

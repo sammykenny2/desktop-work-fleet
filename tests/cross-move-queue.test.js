@@ -20,7 +20,7 @@ function harness({ refuse = () => null, fail = () => null, moving = () => {} } =
   const cards = [{ id: 'one', groupId: 'group', content: {} }, { id: 'two', groupId: 'group', content: {} }, { id: 'three', groupId: 'group', content: {} }];
   const owner = { id: 'google:a', workspace: { state: { groups }, working: { cards } } };
   const context = vm.createContext({
-    console, Promise, Set, String, activeActions: new Set(), nativeClosing: false, syncBusy: false, maintenanceWork: false, syncRequested: false, activeGroupId: 'other', composing: false, currentDraft: null, log,
+    console, Promise, Set, String, activeActions: new Set(), nativeClosing: false, sharedIdsBlocked: false, syncBusy: false, maintenanceWork: false, syncRequested: false, activeGroupId: 'other', composing: false, currentDraft: null, log,
     document: { body: { append() {} } }, element, shown,
     immediateButton: (text, handler) => { const made = element('button', text); buttons.set(text, handler); return made; },
     t: key => key, plural: key => key, status: (text, isError) => log.push(isError ? `error:${text}` : `status:${text}`),

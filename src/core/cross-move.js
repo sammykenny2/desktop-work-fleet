@@ -54,16 +54,10 @@ export class CrossMove {
     const copy = earlier?.toProfile === target.id && earlier.revision === card.revision ? target.workspace.cardValue(earlier.newCardId) : null;
     const resumable = copy && !copy.deleted;
     const job = { kind: noteJobKind, cardId, revision: card.revision, toProfile: target.id, toGroupId: targetGroupId, toGroupName: this.#groupName(target, targetGroupId),
-      newCardId: resumable ? earlier.newCardId : this.#uuid(), ...placement ? { placement } : {} };
+      newCardId: resumable ? earlier.newCardId : this.#uuid(), ...resumable ? { copied: true } : {}, ...placement ? { placement } : {} };
     await source.storage.putJob(noteKey(cardId), job);
     await this.#step('journal');
-    let moved;
-    try { moved = await this.#finishNote(source, target, job, bytes); }
-    catch (error) {
-      // A refusal before any copy exists means nothing happened, as the user is told now: nothing is left to finish later.
-      if (error instanceof FleetError && !target.workspace.cardValue(job.newCardId)) await source.storage.deleteJob(noteKey(cardId));
-      throw error;
-    }
+    const moved = await this.#finishOrClear(source, target, job, bytes);
     if (source.workspace.cardValue(cardId)?.movedTo?.id === job.newCardId) return moved;
     // Only an original still in Trash with this mark has moved. Otherwise it changed in time to stay.
     if (!moved) throw new FleetError('move-changed', t('errors.core.move.changed'));
@@ -93,14 +87,26 @@ export class CrossMove {
     return (groups[0] ?? await target.workspace.createGroup(job.toGroupName || t('app.groups.defaultName'))).id;
   }
 
+  #unsettled({ workspace }, cardId) { return Boolean(workspace.unsavedChanges(cardId)) || workspace.revisionHeads('card', cardId).length > 1; }
+
+  // A refusal before any copy exists means nothing happened, as the user is told now, so nothing is left to finish later. Any
+  // other failure, such as a full disk, may pass, and tries again at the next start.
+  async #finishOrClear(source, target, job, known = null) {
+    try { return await this.#finishNote(source, target, job, known); }
+    catch (error) {
+      if (error instanceof FleetError && !target.workspace.cardValue(job.newCardId)) await source.storage.deleteJob(noteKey(job.cardId));
+      throw error;
+    }
+  }
+
   async #finishNote(source, target, job, known = null) {
     const card = source.workspace.cardValue(job.cardId); const copied = target.workspace.cardValue(job.newCardId);
     // Nothing is left to do but clear the record when the note is gone, or this very move trashed it before the record could be
     // cleared; when its copy has since been trashed or purged, which the user did knowing it, so the original stays; or when no
-    // copy exists yet and the note has changed or has unsaved changes. A move waiting for a collection to open allows all this
-    // for a long time, and it no longer describes this note.
+    // copy exists yet and the note has changed or is unsettled. A move waiting for a collection to open allows all this for a
+    // long time, and it no longer describes this note.
     if (!card || card.movedTo?.id === job.newCardId || copied?.deleted
-      || (!copied && (job.copied || card.revision !== job.revision || source.workspace.unsavedChanges(job.cardId)))) {
+      || (!copied && (job.copied || card.revision !== job.revision || this.#unsettled(source, job.cardId)))) {
       await source.storage.deleteJob(noteKey(job.cardId)); return copied?.deleted ? null : copied;
     }
     // A copy is only ever made after its attachments.
@@ -114,9 +120,10 @@ export class CrossMove {
     if (job.placement) await target.workspace.layout.adoptPlacement(job.newCardId, job.placement);
     await this.#step('placed');
     // Read again, for a sync can land between these steps. An original changed after the copy was made stays, and both exist
-    // rather than losing the change; so does one with unsaved changes, which would end up as a draft on a note in Trash.
+    // rather than losing the change; so does an unsettled one, whose unsaved changes or other version would end up on a note in
+    // Trash, and which could not be trashed anyway while in conflict.
     const current = source.workspace.cardValue(job.cardId);
-    if (current?.revision === job.revision && !current.deleted && !source.workspace.unsavedChanges(job.cardId)) {
+    if (current?.revision === job.revision && !current.deleted && !this.#unsettled(source, job.cardId)) {
       await source.workspace.updateCard(job.cardId, { deleted: true, movedTo: { id: job.newCardId, section: sectionKind(target.id), group: this.#groupName(target, moved.groupId) } }, job.revision);
     }
     await this.#step('trashed');
@@ -182,7 +189,7 @@ export class CrossMove {
     for (const source of this.#combined.profiles) {
       for (const row of await this.#jobs(source, noteJobKind)) {
         const target = this.#combined.profiles.find(profile => profile.id === row.toProfile);
-        if (target) await attempt(() => this.#finishNote(source, target, row));
+        if (target) await attempt(() => this.#finishOrClear(source, target, row));
       }
       for (const row of await this.#jobs(source, groupJobKind)) {
         const target = this.#combined.profiles.find(profile => profile.id === row.toProfile);

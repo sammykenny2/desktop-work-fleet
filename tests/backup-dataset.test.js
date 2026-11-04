@@ -206,3 +206,27 @@ test('a note purged under its new id comes back under another, for that id can n
   const again = target.workspace.snapshot.cards.filter(card => card.content.text === 'recover me');
   assert.equal(again.length, 1); assert.notEqual(again[0].id, first.id);
 });
+
+test('restores keep finding the note that came back under a new id, across restarts and across backups', async () => {
+  const records = new MemoryRecordStore(); let target = await client(null, records);
+  const source = await client();
+  await source.workspace.createCard(content('recover me'));
+  const document = await openBackup((await createBackup(source)).bytes);
+  const merge = async () => { const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'merge', workAreas: [area], foreignIds: new Set(), repeat: true }); await apply(target, plan); };
+  const alive = () => target.workspace.snapshot.cards.filter(card => card.content.text === 'recover me' && !card.deleted);
+  await merge();
+  const first = alive()[0]; await purge(target, first.id);
+  await merge(); assert.equal(alive().length, 1); assert.notEqual(alive()[0].id, first.id);
+  target.storage.close?.(); target = await client(null, records);
+  await merge(); assert.equal(alive().length, 1, 'the order of earlier restores survives a restart');
+});
+
+test('two backups holding a purged note bring it back once', async () => {
+  const a = await client(), note = await a.workspace.createCard(content('kept once'));
+  const one = await openBackup((await createBackup(a)).bytes);
+  await a.workspace.createCard(content('another'));
+  const two = await openBackup((await createBackup(a)).bytes);
+  await purge(a, note.id);
+  for (const document of [one, two]) await apply(a, await prepareRestore({ workspace: a.workspace, document, mode: 'merge', workAreas: [area], foreignIds: new Set() }));
+  assert.equal(a.workspace.snapshot.cards.filter(card => card.content.text === 'kept once' && !card.deleted).length, 1);
+});

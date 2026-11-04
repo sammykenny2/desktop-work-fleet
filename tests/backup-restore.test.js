@@ -407,3 +407,20 @@ test('restoring from the same source again merges into what the first restore ma
   await merge(newer, { repeat: true }); assert.deepEqual(count(), first, 'nor does the same one again');
   assert.deepEqual(local.workspace.snapshot.cards.map(card => card.id), after.cards.map(card => card.id));
 });
+
+test('a merge after an import of an older backup of the same source is neither refused nor doubled', async () => {
+  const account = await fixture(null, new Map(), 'google:account'); await account.workspace.createCard(text('one'));
+  const older = await account.export(); await account.workspace.createCard(text('two'));
+  const newer = await account.export();
+  const local = await fixture(null, new Map(), 'local');
+  const restore = async (document, mode, options = {}) => {
+    const plan = await prepareRestore({ workspace: local.workspace, document, mode, workAreas: [area], foreignIds: new Set(), ...options });
+    await local.workspace.applyRestore(plan, { persist: local.atomic });
+  };
+  await restore(newer, 'merge');
+  await restore(older, 'import');
+  const notes = () => local.workspace.snapshot.cards.filter(card => !card.deleted).length;
+  const before = notes();
+  await restore(newer, 'merge', { repeat: true });
+  assert.equal(notes(), before, 'it merges into what the first merge made');
+});

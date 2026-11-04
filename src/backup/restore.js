@@ -86,10 +86,16 @@ async function importData(data, fresh, checkpoint, selected = null, reuse = null
   return { data: result, mappings: Object.fromEntries(Object.entries(maps).map(([kind, map]) => [kind, Object.fromEntries(map)])) };
 }
 
-/** The new ids earlier restores gave this collection, so that restoring from the same source again merges into those notes. */
+/**
+ * The new ids earlier restores gave this collection, so that restoring from the same source again merges into those notes.
+ * They count in the order they happened, for a note purged under one new id takes another. An import makes a copy of its
+ * own, and the ids of two copies cannot be mixed: merges and replacements lead, or failing those the last import.
+ */
 function renewedIds(state) {
   const result = { card: {}, group: {}, revision: {}, draft: {} };
-  for (const { mappings } of Object.values(state.restoreReceipts || {})) for (const kind of Object.keys(result)) Object.assign(result[kind], mappings?.[kind]);
+  const receipts = Object.values(state.restoreReceipts || {}).sort((a, b) => a.committedRevision - b.committedRevision);
+  const kept = receipts.filter(receipt => receipt.mode !== 'import');
+  for (const { mappings } of kept.length ? kept : receipts.slice(-1)) for (const kind of Object.keys(result)) Object.assign(result[kind], mappings?.[kind]);
   return result;
 }
 
@@ -183,17 +189,19 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   const items = [...original.local.cards, ...original.local.groups];
   const elsewhere = !items.some(item => held.has(item.id)) && (!state.profileId.startsWith('google:') || document.manifest.lastSuccessfulSyncAt === null);
   const foreign = Boolean(foreignIds) && (elsewhere || items.some(item => foreignIds.has(item.id)));
-  const renewed = foreign && mode !== 'import' ? renewedIds(state) : null;
-  const guarded = [...new Set([...original.local.cards.map(card => card.id), ...state.cards.map(card => card.id), ...Object.values(renewed?.card ?? {})])];
+  const renewed = mode !== 'import' ? renewedIds(state) : null;
+  const renewedHere = original.local.cards.flatMap(card => renewed && Object.hasOwn(renewed.card, card.id) ? [renewed.card[card.id]] : []);
+  const guarded = [...new Set([...original.local.cards.map(card => card.id), ...state.cards.map(card => card.id), ...renewedHere])];
   const barriers = current && mode !== 'import' ? await workspace.restorationBarriers(guarded) : [];
-  // A note purged under its new id stays purged (ADR-062), so it comes back under another, as any purged note does.
+  // A note purged under its new id stays purged (ADR-062), so it comes back under another, as any purged note does. A note
+  // purged under its old id keeps the new id it came back under, or each backup holding it would bring another copy.
   const renewedFrom = new Map(Object.entries(renewed?.card ?? {}).map(([from, id]) => [id, from]));
-  const purged = barriers.map(id => renewedFrom.get(id) ?? id);
-  if (renewed) for (const from of purged) {
-    if (!Object.hasOwn(renewed.card, from)) continue;
+  for (const id of barriers) {
+    const from = renewedFrom.get(id); if (from === undefined) continue;
     delete renewed.card[from];
     for (const record of original.records) if (record.kind === 'card' && record.entityId === from) delete renewed.revision[record.revisionId];
   }
+  const purged = [...new Set(barriers.map(id => renewedFrom.get(id) ?? id))];
   const verify = async () => {
     checkCancelled(signal);
     if (current && mode !== 'import') requireValue(equal(barriers, await workspace.restorationBarriers(guarded)),

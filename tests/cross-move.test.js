@@ -596,3 +596,43 @@ test('undo gets past a move inside a section whose old group has since moved awa
   assert.equal(f.local.workspace.layout.state.history.length, entries - 1);
   assert.equal(f.local.workspace.cardValue(note.id).groupId, other.id);
 });
+
+test('a conflict arriving while a move waits leaves the note to be settled, and nothing fails at every start', async () => {
+  for (const crash of ['journal', 'created']) {
+    const f = await open();
+    const note = await f.combined.createCard(content('first'), f.groups.local.id);
+    await f.combined.updateCard(note.id, { content: content('second') }, note.revision);
+    const failing = new CrossMove(f.combined, { step: async name => { if (name === crash) throw new Error('crash'); } });
+    await assert.rejects(failing.moveNote(note.id, f.groups['google:cloud'].id), /crash/);
+    await receive(f.local.workspace, [fromOtherDevice(note.id, f.groups.local.id, [note.revision], { createdAt: note.createdAt })], 'one');
+    assert.equal(f.local.workspace.revisionHeads('card', note.id).length, 2);
+    await f.move.resume();
+    assert.equal(f.local.workspace.cardValue(note.id).deleted, false);
+    assert.equal(live(f.cloud).length, crash === 'journal' ? 0 : 1); assert.equal((await jobsOf(f.local)).length, 0);
+    await f.move.resume();
+  }
+});
+
+test('moving again past a copy still marks it, so a later purge of it can never bring its id back', async () => {
+  const f = await open();
+  const note = await f.combined.createCard(content('note'), f.groups.local.id);
+  const failing = new CrossMove(f.combined, { step: async name => { if (name === 'placed') throw new Error('write failed'); } });
+  await assert.rejects(failing.moveNote(note.id, f.groups['google:cloud'].id), /write failed/);
+  await assert.rejects(failing.moveNote(note.id, f.groups['google:cloud'].id), /write failed/);
+  assert.equal(live(f.cloud).length, 1, 'still the one copy');
+  const [{ value: job }] = (await f.local.storage.jobs('cross-move', { limit: 1 })).rows;
+  assert.equal(job.copied, true);
+});
+
+test('a move whose attachment can no longer be read says so once at the next start, and then leaves the note in peace', async () => {
+  const f = await open();
+  const file = await f.local.storage.putAttachment('local', new File(['bytes'], 'x.txt'));
+  const note = await f.combined.createCard(content('note', [file]), f.groups.local.id);
+  const failing = new CrossMove(f.combined, { step: async name => { if (name === 'journal') throw new Error('crash'); } });
+  await assert.rejects(failing.moveNote(note.id, f.groups['google:cloud'].id), /crash/);
+  f.local.storage.getAttachment = async () => null;
+  await assert.rejects(f.move.resume(), error => error.code === 'move-attachment');
+  assert.equal((await jobsOf(f.local)).length, 0);
+  await f.move.resume();
+  assert.equal(f.local.workspace.cardValue(note.id).deleted, false); assert.equal(live(f.cloud).length, 0);
+});

@@ -20,7 +20,7 @@ interface. To switch, see [Settings](#settings).
   To sync across devices, sign in to Google later (see [Google sign-in and sync](#google-sign-in-and-sync)).
 - The round "+" button at the bottom right ("Capture") opens the editor for a new note in the group you are viewing.
   It shows only while that group's To do notes are on the board or in the list; under another filter, during a search
-  and on the Desktop canvas or the Layout map, which show every group, it steps aside. Settings opens from the gear at
+  and on the browser preview's Desktop canvas, which shows every group, it steps aside. Settings opens from the gear at
   the bottom left of the sidebar, or with Ctrl+, (Command+, on macOS).
 - On narrow screens and phones the sidebar folds into a drawer that the button at the top left opens.
 - A second independent window of the same profile is not allowed to write. Leaving the page while a save is in
@@ -157,12 +157,9 @@ interface. To switch, see [Settings](#settings).
   note; the window width only changes how many fit in a row, while phones and windows 640 px or narrower show two
   columns across) and "List". This device remembers the choice. Double-click a note, or choose "More actions" (…) >
   "Edit", to edit it; on a touch screen a tap opens it. A single click on a board paper's checklist box ticks or
-  unticks that step, as on the desktop, and a click elsewhere on a note opens nothing. The third view differs by
-  platform:
-  - Desktop apps: "Layout map", only a blank placeholder for now.
-  - Browser preview: "Desktop", a canvas inside the page that shows the To do notes in their group regions; you
-    arrange them there (see [Browser preview](#browser-preview)).
-  - Phones have no third view.
+  unticks that step, as on the desktop, and a click elsewhere on a note opens nothing. Only the browser preview has
+  a third view, "Desktop": a canvas inside the page that shows the To do notes in their group regions, where you
+  arrange them (see [Browser preview](#browser-preview)).
 - The filters "To do", "Completed" and "Archived" show the notes in each state. "Trash" is its own item below the groups: it
   lists trashed notes by group, on the board and in the list, newest first, and you can restore them there. With cloud and local
   notes both open it has the tabs All, Cloud notes and Local notes, and "Empty Trash" acts on the tab shown. Search covers titles and the full text in every group and every status except Trash: while it has text the title

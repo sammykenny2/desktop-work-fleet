@@ -1755,7 +1755,8 @@ function render() {
   $('.view-switch').hidden = noGroups;
   $('#search').placeholder = t(trashOpen ? 'app.trash.searchPlaceholder' : 'app.search.placeholder');
   $('#operate-group').disabled = trashOpen || !groups.length; $('#operate-all').disabled = trashOpen || !groups.length;
-  $('[data-view="desktop"]').hidden = handheld || trashOpen;
+  // The layout map stays parked until it is more than a stub (ADR-018), so desktop hosts offer only the board and the list.
+  $('[data-view="desktop"]').hidden = handheld || trashOpen || Boolean(desktopInfo);
   $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted && (trashTab === 'all' || workspace.ownerOfCard(card.id).id === trashTab));
   renderCounts();
   // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.
@@ -1770,7 +1771,7 @@ function render() {
   const desktopLabel = desktopInfo ? t('app.views.layoutMap') : t('app.views.desktop');
   $('#desktop-view-label').textContent = desktopLabel; $('[data-view="desktop"]').title = desktopLabel;
   document.querySelectorAll('[data-view]').forEach(node => node.setAttribute('aria-pressed', String(node.dataset.view === view)));
-  // With real desktop scenes the main window never mirrors them; its desktop view is the layout map.
+  // With real desktop scenes the main window never mirrors them; its parked desktop view is the layout map.
   $('#stage-shell').hidden = notesShown || Boolean(desktopInfo); $('#layout-map').hidden = notesShown || !desktopInfo; $('#list').hidden = !notesShown;
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
   if (trashTab !== 'all' && !workspace.profiles.some(profile => profile.id === trashTab)) trashTab = 'all';

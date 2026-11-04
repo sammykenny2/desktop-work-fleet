@@ -2,6 +2,9 @@
 
 ## Status
 
+2026-11-05: the maintainer hid the layout map stub, since it will not be built soon. Desktop hosts offer only the board
+and the list; the browser preview keeps its canvas, which is the only place it can arrange notes.
+
 2026-10-24: the maintainer had the phone layout follow: its "+" also floats above the status row, which spans
 the width, instead of beside the status. On every width the "+" keeps 16 px above the row and rises with it when a
 long status wraps.

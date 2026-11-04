@@ -1007,7 +1007,7 @@ tab/view bar, no page overflow, and collection names in confirmation. Opening a 
 startup free of idle notifications instead of claiming to have opened Local notes. Other browser probes wait for `body[data-ready]`
 before driving the initialized page. WebKit's Trash-only run skips the later Chromium-only CPU-throttled move test.
 
-`trash-probe.mjs` checks Trash as a sidebar item (SPEC-012): its own view without status tabs, capture, layout map or adjusting; sections by group on the
+`trash-probe.mjs` checks Trash as a sidebar item (SPEC-012): its own view without status tabs, capture or adjusting one group, while Adjust all still works and leaves for the canvas; sections by group on the
 board and in the list, newest first; search inside Trash; no drop on its row; leaving it by a group or a region key; no opening over a canvas being
 adjusted; search across every status with each result's group and status, also in a phone's list, and the link to matches in Trash; restore; Empty Trash;
 the buttons fitting a phone's paper; and the phone drawer.

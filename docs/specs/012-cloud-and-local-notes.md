@@ -113,7 +113,8 @@ covers everything except Trash. Decisions and alternatives are in
   dragged and is not a drop target. Selecting it does not change the group that capture files into.
 - FR24: The view shows the title "Trash", the note count, Empty Trash and the note and list views. There is no layout map and
   no capture button. Empty Trash is a single large trash icon in the floating Capture button's position above the status
-  row, outside the view bar, on phones too. Its label stays "Empty Trash" for every tab. "This group" and "All" are disabled.
+  row, outside the view bar, on phones too. Its label stays "Empty Trash" for every tab. "This group" is disabled, since Trash
+  selects no group; "All" stays available, as its shortcut already did. Where the papers are adjusted on the browser's canvas, it leaves Trash for the canvas.
 - FR25: Its tabs are All, Cloud notes and Local notes; with one collection there are no tabs. Empty Trash acts on the current
   tab. The confirmation names each affected collection even when only one has notes: cloud needs a connection and applies to every device of that
   account; local affects only this device.

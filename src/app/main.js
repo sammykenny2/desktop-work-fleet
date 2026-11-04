@@ -1754,7 +1754,8 @@ function render() {
   $('.view-filters').hidden = noGroups || trashOpen || Boolean(query);
   $('.view-switch').hidden = noGroups;
   $('#search').placeholder = t(trashOpen ? 'app.trash.searchPlaceholder' : 'app.search.placeholder');
-  $('#operate-group').disabled = trashOpen || !groups.length; $('#operate-all').disabled = trashOpen || !groups.length;
+  // Trash has no selected group to adjust, but adjusting every group does not depend on one.
+  $('#operate-group').disabled = trashOpen || !groups.length; $('#operate-all').disabled = !groups.length;
   // The layout map stays parked until it is more than a stub (ADR-018), so desktop hosts offer only the board and the list.
   $('[data-view="desktop"]').hidden = handheld || trashOpen || Boolean(desktopInfo);
   $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted && (trashTab === 'all' || workspace.ownerOfCard(card.id).id === trashTab));

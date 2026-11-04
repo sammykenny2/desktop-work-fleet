@@ -48,14 +48,14 @@ try {
   await groupRow('Second').locator('button').first().click();
   await expect(trashRow.locator('.group-count')).toHaveText('3');
 
-  // Trash has its own view: no status tabs, capture, layout map or adjusting, and it keeps the group chosen before it.
+  // Trash has its own view: no status tabs, capture or adjusting one group, and it keeps the group chosen before it.
   await trashRow.locator('button').click();
   await expect(page.locator('#workspace-title')).toHaveText(t('app.trash.title'));
   await expect(page.locator('#count')).toHaveText(plural('app.count.notes', 3));
   await expect(trashRow).toHaveClass(/active/); await expect(page.locator('#groups .group-row[data-group-id].active')).toHaveCount(0);
   await expect(page.locator('.view-filters')).toBeHidden(); await expect(page.locator('#compose')).toBeHidden();
   await expect(page.locator('[data-view="desktop"]')).toBeHidden(); await expect(page.locator('#empty-trash')).toBeVisible();
-  await expect(page.locator('#operate-group')).toBeDisabled(); await expect(page.locator('#operate-all')).toBeDisabled();
+  await expect(page.locator('#operate-group')).toBeDisabled(); await expect(page.locator('#operate-all')).toBeEnabled();
 
   // Sections follow the sidebar, the newest note first, in both views.
   const sections = () => page.locator('#list .trash-head').evaluateAll(heads => heads.map(head => head.textContent));
@@ -91,6 +91,11 @@ try {
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('#workspace-title')).not.toHaveText(t('app.trash.title'));
   // The key also steps its group through its layers, which here may begin adjusting it.
   if (await page.locator('#adjust-bar').isVisible()) await page.locator('#stop-operation').click();
+
+  // Adjust all needs no selected group, so it works from Trash; the browser's papers are on the canvas, so it goes there.
+  await trashRow.locator('button').click(); await expect(page.locator('#operate-all')).toBeEnabled(); await page.locator('#operate-all').click();
+  await expect(page.locator('#adjust-bar')).toBeVisible(); await expect(page.locator('#stage-shell')).toBeVisible(); await expect(trashRow).not.toHaveClass(/active/);
+  await page.locator('#stop-operation').click(); await page.locator('[data-view="board"]').click();
 
   // Trash does not open over a canvas being adjusted, as search does not; it would hide what is being adjusted.
   await page.locator('[data-view="desktop"]').click(); await page.locator('#operate-all').click();
@@ -138,5 +143,5 @@ try {
   await expect(page.locator('#workspace-title')).toHaveText(t('app.trash.title'));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'the phone layout overflows');
   assert.deepEqual(errors, []);
-  console.log('PASS: Trash in the sidebar with its own view, sections and search, disabled adjusting, the kept capture group, search across statuses with a link to Trash, restore, Empty Trash and the phone drawer');
+  console.log('PASS: Trash in the sidebar with its own view, sections and search, adjusting all but not one group, the kept capture group, search across statuses with a link to Trash, restore, Empty Trash and the phone drawer');
 } finally { await context.close(); await browser.close(); }

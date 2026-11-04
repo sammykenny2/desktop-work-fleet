@@ -192,3 +192,17 @@ test('automatic complete backup failure keeps the last verified artifact and nev
   assert.equal(disk.lastSuccess.id, good); assert.equal(disk.pending, null); assert.equal(files.size, 1); assert.equal(removed, 0);
   assert.equal((await openBackup(files.get(good))).manifest.coverage.mode, 'complete-retained-history');
 });
+
+test('a note purged under its new id comes back under another, for that id can never be used again', async () => {
+  const source = await client(), target = await client();
+  await source.workspace.createCard(content('recover me'));
+  const document = await openBackup((await createBackup(source)).bytes);
+  const merge = async (options = {}) => { const plan = await prepareRestore({ workspace: target.workspace, document, mode: 'merge', workAreas: [area], foreignIds: new Set(), ...options }); await apply(target, plan); return plan; };
+  await merge();
+  const first = target.workspace.snapshot.cards.find(card => card.content.text === 'recover me');
+  await purge(target, first.id);
+  const plan = await merge({ repeat: true });
+  assert.equal(plan.preview.recoveredAsNew, 1);
+  const again = target.workspace.snapshot.cards.filter(card => card.content.text === 'recover me');
+  assert.equal(again.length, 1); assert.notEqual(again[0].id, first.id);
+});

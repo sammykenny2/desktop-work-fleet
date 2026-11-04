@@ -204,13 +204,17 @@ export class CombinedWorkspace {
    */
   static async open(profiles) {
     const primary = profiles[0]; let saved = null;
-    // Every open collection holds a copy. The one that changed last leads, for a collection can be closed or unavailable
-    // while another goes on; equal ones are the same record. Each copy then catches up, so that the next start can rely on any.
-    const copies = await Promise.all(profiles.map(profile => profile.storage.getControl(deskKey)));
-    for (const value of copies) if (value && (!saved || value.revision > saved.revision)) saved = value;
-    if (saved) await Promise.all(profiles.map((profile, index) => copies[index]?.revision === saved.revision ? null : profile.storage.putControl(deskKey, saved)));
-    const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state),
-      value => Promise.all(profiles.map(profile => profile.storage.putControl(deskKey, value))));
+    // Every open collection holds a copy. The one that changed last leads, for a collection can be closed, reset or unavailable
+    // while another goes on: a reset one restarts its counter, so the time decides first. Each copy then catches up, so that the
+    // next start can rely on any. A collection that cannot read or write misses out, and its trouble stays its own (FR33).
+    const copies = await Promise.all(profiles.map(profile => profile.storage.getControl(deskKey).catch(() => null)));
+    const later = (a, b) => (a.changedAt ?? 0) - (b.changedAt ?? 0) || a.revision - b.revision;
+    for (const value of copies) if (value && (!saved || later(value, saved) > 0)) saved = value;
+    if (saved) await Promise.all(profiles.map((profile, index) => JSON.stringify(copies[index]) === JSON.stringify(saved) ? null : profile.storage.putControl(deskKey, saved).catch(() => {})));
+    const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state), async value => {
+      const results = await Promise.allSettled(profiles.map(profile => profile.storage.putControl(deskKey, value)));
+      if (results.every(result => result.status === 'rejected')) throw results[0].reason;
+    });
     const combined = new CombinedWorkspace(profiles, desk);
     await combined.layout.settle();
     return combined;
@@ -251,7 +255,7 @@ export class CombinedWorkspace {
     if (this.#profiles.length === 1) return read(this.#profiles[0].workspace);
     const parts = this.#profiles.map(({ workspace }) => read(workspace));
     return { groups: parts.flatMap(part => part.groups), cards: parts.flatMap(part => part.cards), writable: true,
-      conflicts: parts.flatMap(part => part.conflicts ?? []) };
+      conflicts: parts.flatMap(part => part.conflicts ?? []), ...parts.some(part => part.drafts) ? { drafts: Object.assign({}, ...parts.map(part => part.drafts)) } : {} };
   }
   get snapshot() { return this.#merge(workspace => workspace.snapshot); }
   get working() { return this.#merge(workspace => workspace.working); }

@@ -47,8 +47,8 @@ The same request moves Trash out of the view tabs into the sidebar and asks what
 
 - A new device record, the desk, holds what can only have one value on a computer: the group regions (rows, columns,
   area and slots, which may name any profile's groups), shortcuts, the display switches, the main view and group, and the
-  group colours. Every open profile holds a copy in its control records, outside backups; the copy that changed last leads,
-  and the others catch up when they open. The first start seeds it from the
+  group colours. Every open profile holds a copy in its control records, outside backups; the copy that changed last, by
+  time and then by revision, leads, and the others catch up when they open. The first start seeds it from the
   primary's layout, so existing shortcuts and settings carry over without a migration job.
 - The per-profile layout keeps paper placements, undo history and per-group layer, opacity and highlight, and stays the
   atomic partner of that profile's content (ADR-010). Its `grid.slots` now means only that profile's list order, which

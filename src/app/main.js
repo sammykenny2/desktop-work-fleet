@@ -748,7 +748,7 @@ function reportDatasetProgress(value) {
 function resumeMaintenance() {
   if (nativeClosing || maintenanceWork || datasetProblem) return;
   maintenancePaused = false;
-  for (const companion of companions) companion.pausedUntil = 0;
+  for (const companion of companions) if (companion.pausedUntil) companion.pausedUntil = 1;
   if (pendingReset && pendingReset.phase !== 'complete') reportDatasetProgress(resetProgress(pendingReset));
   else if (maintenanceNotice) showMaintenance(maintenanceNotice.text, { completed: maintenanceNotice.completed });
   scheduleMaintenance(0);
@@ -777,6 +777,8 @@ async function maintainDataset() {
   maintenanceWork = (async () => {
     for (const companion of companions) {
       if (companion.pausedUntil > Date.now()) continue;
+      // Its turn again: its notice goes, and comes back only if it fails again.
+      if (companion.pausedUntil) { companion.pausedUntil = 0; showMaintenance(''); }
       try { if (await purgeStep(companion.purge) || await companion.storage.maintenance()) { more = true; return; } }
       catch (error) {
         if (maintenanceAbort.signal.aborted) throw error;
@@ -882,7 +884,7 @@ async function confirmPurge(ids) {
     finally {
       confirm.disabled = false;
       // What is queued goes ahead whatever came after it, so Cancel must not stay on offer.
-      if (queued) { dialog.close(); for (const companion of companions) companion.pausedUntil = 0; maintenancePaused = false; showMaintenance(() => t('app.purge.pending')); scheduleMaintenance(0); }
+      if (queued) { dialog.close(); for (const companion of companions) if (companion.pausedUntil) companion.pausedUntil = 1; maintenancePaused = false; showMaintenance(() => t('app.purge.pending')); scheduleMaintenance(0); }
     }
   }, 'danger'); confirm.id = 'confirm-purge';
   const actions = element('div', undefined, 'dialog-actions'); actions.append(cancel, confirm); dialog.append(actions);
@@ -2059,9 +2061,10 @@ async function moveNoteAcross(cardId, groupId, section, target) {
     const bytes = await attempt(() => crossMove.readAttachments(cardId));
     if (!bytes) return;
     await run(async () => {
-      if (!await attempt(() => crossMove.moveNote(cardId, groupId, bytes))) return;
+      const moved = await attempt(() => crossMove.moveNote(cardId, groupId, bytes));
+      // Refused late, a copy may still have been made.
       await settleMoved();
-      status(t('app.move.noteDone', { section: sectionName(section), group: groupName(target) }));
+      if (moved) status(t('app.move.noteDone', { section: sectionName(section), group: groupName(target) }));
     });
   } catch (error) { status(error.message, true); }
 }

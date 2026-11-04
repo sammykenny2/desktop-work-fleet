@@ -83,6 +83,7 @@ export default {
   'errors.core.sameCollection': '那個群組在同一區。',
   'errors.core.move.unsaved': '這張便箋有未保存的修改，請先保存或捨棄。',
   'errors.core.move.trashed': '這張便箋在垃圾桶裡，請先還原。',
+  'errors.core.move.both': '這張便箋在移動時有變動，所以留在原處。先前版本的副本在「{group}」。',
   'errors.core.move.changed': '這張便箋剛剛有變動，所以留在原處。請再移動一次。',
   'errors.core.move.conflict': '這張便箋有版本衝突，請先到「版本與衝突」解決。',
   'errors.core.move.attachment': '附件 {name} 還不在這台裝置上，所以便箋無法移動。請同步後再試。',

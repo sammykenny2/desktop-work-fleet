@@ -389,3 +389,21 @@ test('a cloud collection keeps the ids of a backup that has synced, and renews t
     assert.equal(target.workspace.snapshot.cards.some(card => card.id === id), kept);
   }
 });
+
+test('restoring from the same source again merges into what the first restore made, instead of duplicating', async () => {
+  // An account's backups, older and newer, restored one after another while signed out.
+  const account = await fixture(null, new Map(), 'google:account'); await account.workspace.createCard(text('one'));
+  const older = await account.export(); await account.workspace.createCard(text('two')); await account.workspace.createGroup('Second');
+  const newer = await account.export();
+  const local = await fixture(null, new Map(), 'local');
+  const merge = async (document, options = {}) => {
+    const plan = await prepareRestore({ workspace: local.workspace, document, mode: 'merge', workAreas: [area], foreignIds: new Set(), ...options });
+    await local.workspace.applyRestore(plan, { persist: local.atomic });
+  };
+  await merge(newer); const after = local.workspace.snapshot;
+  const count = () => { const { cards, groups } = local.workspace.snapshot; return [cards.filter(card => !card.deleted).length, groups.filter(group => !group.deleted).length]; };
+  const first = count(); assert.equal(after.cards.some(card => account.workspace.snapshot.cards.some(item => item.id === card.id)), false, 'they took new ids');
+  await merge(older); assert.deepEqual(count(), first, 'an older backup adds nothing');
+  await merge(newer, { repeat: true }); assert.deepEqual(count(), first, 'nor does the same one again');
+  assert.deepEqual(local.workspace.snapshot.cards.map(card => card.id), after.cards.map(card => card.id));
+});

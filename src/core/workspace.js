@@ -1,4 +1,4 @@
-import { activeGroups, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
+import { activeGroups, blankContent, copy, FleetError, groupKey, membershipKey, requireValue, safeKey, validateNewGroup } from './contracts.js';
 import { createLayout, LayoutStore, recordTransferLayout, retireGroupLayout } from '../layout/store.js';
 import { planGroupMerge, resolveGroupId, validateGroupMerge } from './groups.js';
 import { canonicalJson } from '../sources/json.js';
@@ -23,12 +23,6 @@ function contentValue(content) {
   // Preserve extension data and attachments; adapters must not reduce an unknown format to text.
   canonicalJson(content);
   return copy(content);
-}
-
-// Only the plain editor fields count; any extension data such as a title or capture metadata keeps the draft.
-function blankContent(content) {
-  return Boolean(content) && Object.keys(content).every(key => ['format', 'text', 'attachments'].includes(key))
-    && !content.text.trim() && !content.attachments?.length;
 }
 
 const plainContent = content => canonicalJson({ ...content, attachments: content.attachments || [] });
@@ -172,8 +166,9 @@ export class Workspace {
     }));
   }
 
+  // A note still being written can keep a group that moved away listed, so what reads the groups needs to know of it (ADR-066).
   get snapshot() { return { groups: copy(this.#state.groups), cards: copy(this.#state.cards), writable: true,
-    conflicts: copy(this.#state.conflicts) }; }
+    conflicts: copy(this.#state.conflicts), ...this.#state.groups.some(group => group.movedAway) ? { drafts: copy(this.#state.drafts) } : {} }; }
   /** The snapshot as this device shows it: notes carry their unsaved changes, and unsaved new notes are included. */
   get working() { return workingSnapshot(this.#state, this.#open()); }
   /** Names the note a quick edit has open, which the working snapshot keeps while it holds nothing. */
@@ -617,6 +612,7 @@ export class Workspace {
         value.groupId = resolveGroupId(state, value.groupId);
         // A group that moved away takes this note: alive it brings the group back, and in Trash it needs no listed group.
         if (!state.groups.some(group => group.id === value.groupId && group.movedAway)) this.#group(state, value.groupId);
+        else if (!value.deleted && !activeGroups(state).some(group => group.id === value.groupId)) validateNewGroup(state);
         if (this.currentFormat) {
           const sameEpisode = value.deleted && current.length && current.every(head => head.value.deleted
             && head.value.trashEpisode === value.trashEpisode);
@@ -989,9 +985,11 @@ export class Workspace {
       requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.core.layoutChangedPlain'));
       if (result.transfer) {
         const { cardId, fromGroupId, expectedRevision } = result.transfer;
-        // A note since trashed, or moved to another collection, no longer follows this; it must not block the undos before it.
+        // A note since trashed or moved to another collection no longer follows this, nor does one whose old group has moved
+        // away: neither must block the undos before it.
         const current = state.cards.find(item => item.id === cardId);
-        if (current && !current.deleted) {
+        const gone = state.groups.some(group => group.id === fromGroupId && group.movedAway) && !activeGroups(state).some(group => group.id === fromGroupId);
+        if (current && !current.deleted && !gone) {
           const card = this.#card(state, cardId, expectedRevision);
           this.#group(state, fromGroupId);
           card.groupId = fromGroupId; card.revision = undoRevision;

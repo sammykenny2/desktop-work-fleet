@@ -61,11 +61,11 @@ export function remapLayout(layout, ids) {
   return result;
 }
 
-async function importData(data, fresh, checkpoint, selected = null) {
+async function importData(data, fresh, checkpoint, selected = null, reuse = null) {
   const maps = { card: new Map(), group: new Map(), revision: new Map(), draft: new Map() };
   const ids = Object.fromEntries(Object.entries(maps).map(([kind, map]) => [kind, id => {
     if (selected && !selected[kind].has(id)) return id;
-    if (!map.has(id)) map.set(id, fresh()); return map.get(id);
+    if (!map.has(id)) map.set(id, reuse?.[kind] && Object.hasOwn(reuse[kind], id) ? reuse[kind][id] : fresh()); return map.get(id);
   }]));
   const records = [];
   for (const original of data.records) {
@@ -84,6 +84,13 @@ async function importData(data, fresh, checkpoint, selected = null) {
   };
   const result = { records, local, drafts: data.drafts.map(draft => remapDraft(draft, ids)), layout: remapLayout(data.layout, ids) };
   return { data: result, mappings: Object.fromEntries(Object.entries(maps).map(([kind, map]) => [kind, Object.fromEntries(map)])) };
+}
+
+/** The new ids earlier restores gave this collection, so that restoring from the same source again merges into those notes. */
+function renewedIds(state) {
+  const result = { card: {}, group: {}, revision: {}, draft: {} };
+  for (const { mappings } of Object.values(state.restoreReceipts || {})) for (const kind of Object.keys(result)) Object.assign(result[kind], mappings?.[kind]);
+  return result;
 }
 
 /** A host-confirmed saved backup of one exact committed profile revision. */
@@ -169,11 +176,27 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   requireValue(!current || document.manifest.coverage?.workspaceFormat === CURRENT_WORKSPACE_FORMAT,
     'unsupported-backup-schema', t('errors.backup.legacyFormat'));
   const graphOptions = { allowMissingParents: current };
-  const guarded = [...new Set([...original.local.cards.map(card => card.id), ...state.cards.map(card => card.id)])];
-  const purged = current && mode !== 'import' ? await workspace.restorationBarriers(guarded) : [];
+  // Notes or groups another collection may hold take new ids, or routing by id could not tell the two apart (ADR-066). That
+  // collection may not be open or even on this device, so what can be known is what this one holds: a backup sharing none of
+  // it came from elsewhere. Only a cloud collection's own backup can be new to it and still be its own, and that has synced.
+  const held = new Set([...state.cards, ...state.groups].map(item => item.id));
+  const items = [...original.local.cards, ...original.local.groups];
+  const elsewhere = !items.some(item => held.has(item.id)) && (!state.profileId.startsWith('google:') || document.manifest.lastSuccessfulSyncAt === null);
+  const foreign = Boolean(foreignIds) && (elsewhere || items.some(item => foreignIds.has(item.id)));
+  const renewed = foreign && mode !== 'import' ? renewedIds(state) : null;
+  const guarded = [...new Set([...original.local.cards.map(card => card.id), ...state.cards.map(card => card.id), ...Object.values(renewed?.card ?? {})])];
+  const barriers = current && mode !== 'import' ? await workspace.restorationBarriers(guarded) : [];
+  // A note purged under its new id stays purged (ADR-062), so it comes back under another, as any purged note does.
+  const renewedFrom = new Map(Object.entries(renewed?.card ?? {}).map(([from, id]) => [id, from]));
+  const purged = barriers.map(id => renewedFrom.get(id) ?? id);
+  if (renewed) for (const from of purged) {
+    if (!Object.hasOwn(renewed.card, from)) continue;
+    delete renewed.card[from];
+    for (const record of original.records) if (record.kind === 'card' && record.entityId === from) delete renewed.revision[record.revisionId];
+  }
   const verify = async () => {
     checkCancelled(signal);
-    if (current && mode !== 'import') requireValue(equal(purged, await workspace.restorationBarriers(guarded)),
+    if (current && mode !== 'import') requireValue(equal(barriers, await workspace.restorationBarriers(guarded)),
       'stale-restore-plan', t('errors.common.previewStale'));
   };
   const prior = Object.values(state.restoreReceipts || {}).find(item => item.fingerprint === document.fingerprint);
@@ -185,14 +208,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   for (const draft of original.drafts) if (affected.has(draft.cardId)) {
     selected.draft.add(draft.id); if (draft.baseRevision) selected.revision.add(draft.baseRevision);
   }
-  // Notes or groups another collection may hold take new ids, or routing by id could not tell the two apart (ADR-066). That
-  // collection may not be open or even on this device, so what can be known is what this one holds: a backup sharing none of
-  // it came from elsewhere. Only a cloud collection's own backup can be new to it and still be its own, and that has synced.
-  const held = new Set([...state.cards, ...state.groups].map(item => item.id));
-  const items = [...original.local.cards, ...original.local.groups];
-  const elsewhere = !items.some(item => held.has(item.id)) && (!state.profileId.startsWith('google:') || document.manifest.lastSuccessfulSyncAt === null);
-  const foreign = Boolean(foreignIds) && (elsewhere || items.some(item => foreignIds.has(item.id)));
-  const imported = mode === 'import' || purged.length || foreign ? await importData(original, fresh, checkpoint, mode === 'import' || foreign ? null : selected) : { data: original, mappings: {} };
+  const imported = mode === 'import' || purged.length || foreign ? await importData(original, fresh, checkpoint, mode === 'import' || foreign ? null : selected, renewed) : { data: original, mappings: {} };
   const data = imported.data; const next = copy(state); const additions = [];
   const known = new Map(state.revisions.map(record => [record.revisionId, record]));
   const append = record => { additions.push(record); known.set(record.revisionId, record); };

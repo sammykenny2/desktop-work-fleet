@@ -87,7 +87,7 @@ export class DeskStore {
       const draft = copy(this.#state); const result = await change(draft);
       const next = result?.desk ?? draft;
       if (JSON.stringify(next) === JSON.stringify(this.#state)) return result?.value ?? result;
-      next.revision = this.#state.revision + 1;
+      next.revision = this.#state.revision + 1; next.changedAt = Date.now();
       await this.#persist(copy(next)); this.#state = next;
       return result?.value ?? result;
     });

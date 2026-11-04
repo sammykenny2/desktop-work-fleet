@@ -298,3 +298,28 @@ test('Versions and conflicts opens on a collection that has something to show', 
   assert.equal(combined.attentionCount(), 1); assert.equal(combined.firstNeedingAttention(), 'local');
   assert.equal(new CombinedWorkspace([{ id: 'local', workspace: state([]) }], null).firstNeedingAttention(), null);
 });
+
+test('a collection whose desk copy cannot be read or written does not stop the others opening', async () => {
+  for (const trouble of ['read', 'write']) {
+    const good = controls(); const bad = controls();
+    const local = await Workspace.create({ profileId: 'local', deviceId: 'device', area, persist: async () => {} });
+    const cloud = await Workspace.create({ profileId: 'google:a', deviceId: 'device', area, persist: async () => {}, bootstrapGroup: false });
+    await good.putControl('desk', { revision: 3, grid: { rows: 1, columns: 3, area, slots: [null, null, null] }, groupColors: {}, known: {} });
+    bad[trouble === 'read' ? 'getControl' : 'putControl'] = async () => { throw new Error('storage trouble'); };
+    const combined = await CombinedWorkspace.open([{ id: 'google:a', workspace: cloud, storage: bad }, { id: 'local', workspace: local, storage: good }]);
+    assert.ok(activeGroups(combined.snapshot).length, `it opens with ${trouble} failing`);
+    await combined.layout.setMainGroup(activeGroups(combined.snapshot)[0].id);
+    assert.ok((await good.getControl('desk')).mainGroupId, 'the working copy still saves');
+  }
+});
+
+test('a copy changed later leads even with a lower revision, as after one collection was reset', async () => {
+  const one = controls(); const two = controls();
+  const local = await Workspace.create({ profileId: 'local', deviceId: 'device', area, persist: async () => {} });
+  const cloud = await Workspace.create({ profileId: 'google:a', deviceId: 'device', area, persist: async () => {}, bootstrapGroup: false });
+  const desk = (revision, changedAt, mainView) => ({ revision, changedAt, grid: { rows: 1, columns: 3, area, slots: [null, null, null] }, groupColors: {}, known: {}, mainView });
+  await one.putControl('desk', desk(2, 2000, 'list')); await two.putControl('desk', desk(7, 1000, 'board'));
+  const combined = await CombinedWorkspace.open([{ id: 'google:a', workspace: cloud, storage: two }, { id: 'local', workspace: local, storage: one }]);
+  assert.equal(combined.layout.state.mainView, 'list');
+  assert.equal((await two.getControl('desk')).mainView, 'list');
+});

@@ -47,10 +47,12 @@ export class CrossMove {
     // Everything the move needs must be on this device before it is recorded.
     const bytes = await this.#attachments(source, card, known);
     const placement = source.workspace.layout.state.placements[cardId];
-    // A move still waiting for this collection keeps its id, so that it cannot leave a second copy there. A copy made from an
-    // older version is no longer this note, though: finishing on it would trash the only newest text.
+    // A move stopped past its copy keeps its id, so that it cannot leave a second copy. Only a live copy of this very version
+    // qualifies: finishing on an older one would trash the only newest text, a trashed one would leave nothing alive, and a
+    // purged id can never be used again (ADR-062).
     const earlier = await source.storage.getJob(noteKey(cardId));
-    const resumable = earlier?.toProfile === target.id && (earlier.revision === card.revision || !target.workspace.cardValue(earlier.newCardId));
+    const copy = earlier?.toProfile === target.id && earlier.revision === card.revision ? target.workspace.cardValue(earlier.newCardId) : null;
+    const resumable = copy && !copy.deleted;
     const job = { kind: noteJobKind, cardId, revision: card.revision, toProfile: target.id, toGroupId: targetGroupId, toGroupName: this.#groupName(target, targetGroupId),
       newCardId: resumable ? earlier.newCardId : this.#uuid(), ...placement ? { placement } : {} };
     await source.storage.putJob(noteKey(cardId), job);
@@ -62,8 +64,10 @@ export class CrossMove {
       if (error instanceof FleetError && !target.workspace.cardValue(job.newCardId)) await source.storage.deleteJob(noteKey(cardId));
       throw error;
     }
+    if (source.workspace.cardValue(cardId)?.movedTo?.id === job.newCardId) return moved;
+    // Only an original still in Trash with this mark has moved. Otherwise it changed in time to stay.
     if (!moved) throw new FleetError('move-changed', t('errors.core.move.changed'));
-    return moved;
+    throw new FleetError('move-both', t('errors.core.move.both', { group: this.#groupName(target, moved.groupId) }));
   }
 
   #groupName(profile, groupId) { return profile.workspace.state.groups.find(group => group.id === groupId)?.name ?? ''; }
@@ -91,22 +95,28 @@ export class CrossMove {
 
   async #finishNote(source, target, job, known = null) {
     const card = source.workspace.cardValue(job.cardId); const copied = target.workspace.cardValue(job.newCardId);
-    // Gone, or trashed by this very move before the journal could be cleared. Or changed before any copy exists, which a
-    // move waiting for a collection to open allows for a long time: it no longer describes this note, so the note stays.
-    if (!card || card.movedTo?.id === job.newCardId || (!copied && card.revision !== job.revision)) {
-      await source.storage.deleteJob(noteKey(job.cardId)); return copied;
+    // Nothing is left to do but clear the record when the note is gone, or this very move trashed it before the record could be
+    // cleared; when its copy has since been trashed or purged, which the user did knowing it, so the original stays; or when no
+    // copy exists yet and the note has changed or has unsaved changes. A move waiting for a collection to open allows all this
+    // for a long time, and it no longer describes this note.
+    if (!card || card.movedTo?.id === job.newCardId || copied?.deleted
+      || (!copied && (job.copied || card.revision !== job.revision || source.workspace.unsavedChanges(job.cardId)))) {
+      await source.storage.deleteJob(noteKey(job.cardId)); return copied?.deleted ? null : copied;
     }
     // A copy is only ever made after its attachments.
     if (!copied) for (const { id, bytes } of known ?? await this.#attachments(source, card)) await target.storage.putAttachmentBytes(target.id, id, bytes);
     await this.#step('attachments');
+    // Marked first, so that a copy purged later can never be made again under its id: stopping right here leaves the note
+    // where it was and the record cleared on the next start, which loses nothing.
+    if (!copied) await source.storage.putJob(noteKey(job.cardId), { ...job, copied: true });
     const moved = copied ?? await target.workspace.adoptCard({ id: job.newCardId, groupId: await this.#targetGroup(target, job), content: card.content, archived: card.archived, completed: card.completed, createdAt: card.createdAt });
     await this.#step('created');
     if (job.placement) await target.workspace.layout.adoptPlacement(job.newCardId, job.placement);
     await this.#step('placed');
     // Read again, for a sync can land between these steps. An original changed after the copy was made stays, and both exist
-    // rather than losing the change.
+    // rather than losing the change; so does one with unsaved changes, which would end up as a draft on a note in Trash.
     const current = source.workspace.cardValue(job.cardId);
-    if (current?.revision === job.revision && !current.deleted) {
+    if (current?.revision === job.revision && !current.deleted && !source.workspace.unsavedChanges(job.cardId)) {
       await source.workspace.updateCard(job.cardId, { deleted: true, movedTo: { id: job.newCardId, section: sectionKind(target.id), group: this.#groupName(target, moved.groupId) } }, job.revision);
     }
     await this.#step('trashed');

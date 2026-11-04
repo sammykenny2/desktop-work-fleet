@@ -332,7 +332,7 @@ backup is rebuilt. A failure of the journal itself must also show as paused or a
 | T02 | Full history, edit/edit, delete/edit, missing parents and group cycles are kept, without inventing data or choosing a winner |
 | T03 | Drafts, multi-generation lineage, attachments and membership baselines are kept; a restore does not commit them automatically |
 | T04 | Readable across partitions and devices and after the original Drive data is gone; no credentials or provider information are carried |
-| T05 | Import as new maps everything; merge checks identical IDs; replace keeps old and new history and drafts |
+| T05 | Import as new maps everything; merge checks identical IDs, and a backup sharing nothing with its target takes new ids (SPEC-012 FR34); replace keeps old and new history and drafts |
 | T06 | Transaction abort, quota, a lost response or a restart cause no half or duplicate restore |
 | T07 | Stale previews are rejected after local or sync changes; unobserved remote changes can still form new conflicts |
 | T08 | Offline, missing parents or an unfinished first sync clearly state the known local scope |

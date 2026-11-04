@@ -7,13 +7,13 @@ import { requireValue } from '../core/contracts.js';
 import { formatDate, plural, t } from '../i18n/index.js';
 import { automaticBackupSection } from './automatic-backup.js';
 import { notifications } from './notifications.js';
+import { actionRow, controlRow, infoRow, settingsCard, wideRow } from './settings-row.js';
 
 const node = (tag, text, className) => {
   const value = document.createElement(tag); if (text !== undefined) value.textContent = text;
   if (className) value.className = className; return value;
 };
 const input = (id, type) => { const value = node('input'); value.id = id; value.type = type; return value; };
-const field = (text, control, className = 'field') => { const label = node('label', text, className); label.append(control); return label; };
 const check = (text, control) => { const label = node('label', undefined, 'check'); label.append(control, document.createTextNode(text)); return label; };
 const button = (text, className) => { const value = node('button', text, className); value.type = 'button'; return value; };
 
@@ -25,8 +25,9 @@ function confirmKnownData(target, error, signal) {
     const abort = () => dialog.close();
     cancel.onclick = abort; proceed.onclick = () => { accepted = true; dialog.close(); };
     dialog.onclose = () => { signal?.removeEventListener('abort', abort); dialog.remove(); resolve(accepted); };
+    const actions = node('div', undefined, 'dialog-actions'); actions.append(cancel, proceed);
     dialog.append(node('h2', t('backup.knownData.title')), node('p', target), node('p', error.message),
-      node('p', t('backup.knownData.body')), cancel, proceed);
+      node('p', t('backup.knownData.body')), actions);
     document.body.append(dialog); dialog.showModal();
     signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
   });
@@ -79,7 +80,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const target = backupSource?.target || (google ? t('backup.target.google') : t('backup.target.local'));
   const panel = node('div', undefined, 'backup-panel'); panel.id = 'backup-panel';
   const noticeId = `backup:${workspace.state.profileId}`;
-  const encrypt = input('backup-encrypt', 'checkbox'); encrypt.checked = true;
+  const encrypt = input('backup-encrypt', 'checkbox'); encrypt.className = 'switch'; encrypt.checked = true;
   const coverage = node('select'); coverage.id = 'backup-coverage';
   coverage.append(new Option(t('backup.coverage.complete'), 'complete-retained-history'), new Option(t('backup.coverage.current'), 'current-state-only'));
   const password = input('backup-password', 'password'); password.autocomplete = 'new-password'; password.maxLength = 1024; password.placeholder = t('backup.export.passwordPlaceholder');
@@ -90,17 +91,17 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   if (cloudRestore) mode.append(new Option(t('backup.restore.modeCloudReplace'), 'cloud-replace'));
   if (!google) mode.append(new Option(t('backup.restore.modeLocalReplace'), 'local-replace'));
   const localAgree = input('restore-local-agree', 'checkbox');
-  const localWarning = node('div'); localWarning.hidden = true;
+  const localWarning = node('div', undefined, 'settings-row restore-warning'); localWarning.hidden = true;
   localWarning.append(node('p', t('backup.restore.localWarning', { target })),
     node('p', t('backup.restore.localOptional')), check(t('backup.restore.localAgree'), localAgree));
   const cloudAgree = input('restore-cloud-agree', 'checkbox');
-  const cloudWarning = node('div'); cloudWarning.hidden = true;
+  const cloudWarning = node('div', undefined, 'settings-row restore-warning'); cloudWarning.hidden = true;
   if (cloudRestore) cloudWarning.append(node('p', t('backup.restore.cloudWarning', { target: cloudRestore.target })),
     node('p', t('backup.restore.cloudBackupRequired')),
     check(t('backup.restore.cloudAgree'), cloudAgree));
   const layout = input('restore-layout', 'checkbox'); const repeat = input('restore-repeat', 'checkbox');
   const preview = node('div'); preview.id = 'restore-preview';
-  const safetyInfo = node('p', t('backup.restore.safetyHint'), 'hint');
+  const safetyInfo = node('span', t('backup.restore.safetyHint'), 'row-value');
   const receiptList = node('details'); receiptList.id = 'restore-receipts';
   const automaticSection = automaticBackupSection(automatic, automaticError, workspace.state.profileId, target);
   let busy = false; let committing = false; let abort; let loaded; let plan; let safety;
@@ -126,13 +127,14 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const resetPlan = () => { plan = null; safety = null; cloudAgree.checked = false; localAgree.checked = false; preview.replaceChildren(); refresh(); };
   function refresh() {
     for (const control of [...controls, coverage, encrypt, password, fileInput, readPassword, mode, layout, repeat, cloudAgree, localAgree]) control.disabled = busy;
-    password.disabled = busy || !encrypt.checked;
+    password.disabled = busy || !encrypt.checked; passwordRow.hidden = !encrypt.checked;
     const destructive = ['replace', 'cloud-replace'].includes(mode.value);
     cloudWarning.hidden = mode.value !== 'cloud-replace';
     localWarning.hidden = mode.value !== 'local-replace';
     confirm.hidden = !plan; confirm.disabled = busy || !plan || (destructive && !safety) || (mode.value === 'cloud-replace' && !cloudAgree.checked)
       || (mode.value === 'local-replace' && !localAgree.checked);
-    saveSafety.hidden = !plan || (!destructive && mode.value !== 'local-replace'); safetyInfo.hidden = saveSafety.hidden;
+    saveSafety.hidden = !plan || (!destructive && mode.value !== 'local-replace'); safetyRow.hidden = saveSafety.hidden;
+    previewRow.hidden = !plan; confirmRow.hidden = !plan;
     saveSafety.disabled = busy || !plan || (mode.value !== 'local-replace' && !files.canConfirmSave);
     safetyInfo.textContent = mode.value === 'local-replace' ? t('backup.restore.safetyOptional')
       : destructive && !files.canConfirmSave ? t('backup.restore.safetyUnavailable') : t('backup.restore.safetyHint');
@@ -224,23 +226,28 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     for (const receipt of receipts) if (Object.hasOwn(texts, receipt.mode)) receiptList.append(node('p', texts[receipt.mode](receipt.addedDrafts), 'hint'));
   }
   const exportSection = node('section', undefined, 'settings-block'); const exportHeading = node('h4', t('backup.export.title'), 'settings-heading');
-  exportSection.append(exportHeading, node('p', t('backup.export.source', { target }), 'hint'),
-    node('p', t('backup.export.hint'), 'hint'),
-    ...google ? [node('p', t('backup.export.googleHint'), 'hint')] : [],
-    field(t('backup.coverage.label'), coverage), node('p', t('backup.coverage.choiceHint'), 'hint'),
-    check(t('backup.export.encrypt'), encrypt), field(t('backup.export.password'), password), exportButton);
-  if (uninstallNotice) exportSection.append(node('p', uninstallNotice, 'hint'));
+  const passwordRow = controlRow(t('backup.export.password'), null, password);
+  exportSection.append(exportHeading, node('p', t('backup.export.hint'), 'hint'), settingsCard(
+    infoRow(t('backup.export.source', { target }), google ? t('backup.export.googleHint') : null),
+    controlRow(t('backup.coverage.label'), t('backup.coverage.choiceHint'), coverage),
+    controlRow(t('backup.export.encrypt'), null, encrypt), passwordRow, actionRow(exportButton)));
+  if (uninstallNotice) exportSection.append(node('p', uninstallNotice, 'settings-note'));
   const options = node('details', undefined, 'restore-options');
   options.append(node('summary', t('backup.restore.moreOptions')), check(t('backup.restore.layout'), layout), check(t('backup.restore.repeat'), repeat));
+  // The second card is the checked file's answer, and shows only once there is one.
+  const previewRow = wideRow(preview), safetyRow = infoRow(safetyInfo, null, saveSafety), confirmRow = actionRow(confirm);
+  safetyRow.classList.add('stack-narrow');
   const restoreSection = node('section', undefined, 'settings-block');
-  restoreSection.append(node('h4', t('backup.restore.title'), 'settings-heading'), field(t('backup.restore.file'), fileInput), field(t('backup.restore.password'), readPassword),
-    field(t('backup.restore.mode'), mode), cloudWarning, localWarning, options, readButton, preview, safetyInfo, saveSafety, confirm, receiptList);
+  restoreSection.append(node('h4', t('backup.restore.title'), 'settings-heading'), settingsCard(
+    controlRow(t('backup.restore.file'), null, fileInput, { stacked: true }), controlRow(t('backup.restore.password'), null, readPassword),
+    controlRow(t('backup.restore.mode'), null, mode, { stacked: true }), cloudWarning, localWarning, wideRow(options), actionRow(readButton)),
+    settingsCard(previewRow, safetyRow, confirmRow), receiptList);
   const goExport = () => { exportHeading.scrollIntoView({ block: 'start', behavior: 'smooth' }); (encrypt.checked ? password : exportButton).focus({ preventScroll: true }); };
   const resetSection = node('section', undefined, 'reset-section'); resetSection.hidden = !reset;
   if (reset) {
     // A backup is one tap away from the reset, here and again in the warning.
     const backupFirst = button(t('backup.reset.exportFirst')); backupFirst.onclick = goExport;
-    const open = button(t('backup.reset.open'), 'danger'); open.id = 'reset-data'; open.onclick = () => confirmReset(reset, goExport);
+    const open = button(t('backup.reset.open'), 'danger-outline'); open.id = 'reset-data'; open.onclick = () => confirmReset(reset, goExport);
     // A blocked reset stays disabled and says why; otherwise it follows the panel's busy state.
     if (reset.blocked) open.disabled = true; else controls.push(open);
     controls.push(backupFirst);

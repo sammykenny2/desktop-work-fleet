@@ -1,33 +1,34 @@
 import { requireValue } from '../core/contracts.js';
 import { formatDate, t } from '../i18n/index.js';
 import { notifications } from './notifications.js';
+import { actionRow, controlRow, infoRow, settingsCard, wideRow } from './settings-row.js';
 
 const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
-const field = (text, control, className = 'field') => { const label = node('label', text); label.className = className; label.append(control); return label; };
-const check = (text, control) => { const label = node('label', undefined, 'check'); label.append(control, document.createTextNode(text)); return label; };
 
 export function automaticBackupSection(automatic, unavailable = null, profile = 'local', context = '') {
   const section = node('section', undefined, 'settings-block'); section.id = 'automatic-backup'; section.append(node('h4', t('backup.automatic.title'), 'settings-heading'));
   if (!automatic) {
-    section.append(node('p', t(unavailable ? 'backup.automatic.unavailable' : 'backup.automatic.unsupported'), 'hint'));
+    const buttons = [];
     if (unavailable) {
       const details = node('button', t('common.viewDetails')); details.type = 'button';
-      details.onclick = () => notifications().show(unavailable, { id: `automatic-backup:${profile}`, context, kind: 'error' }); section.append(details);
+      details.onclick = () => notifications().show(unavailable, { id: `automatic-backup:${profile}`, context, kind: 'error' }); buttons.push(details);
     }
+    section.append(settingsCard(infoRow(t(unavailable ? 'backup.automatic.unavailable' : 'backup.automatic.unsupported'), null, ...buttons)));
     return { element: section, busy: () => false, dispose: () => {} };
   }
   const { service, files, vault } = automatic;
-  const status = node('p', '', 'auto-backup-state'); status.id = 'auto-backup-status'; status.setAttribute('role', 'status');
-  const destination = node('span', '', 'auto-backup-place'); destination.id = 'auto-backup-destination';
+  const status = node('span', '', 'row-label auto-backup-state'); status.id = 'auto-backup-status'; status.setAttribute('role', 'status');
+  const destination = node('span', '', 'row-value'); destination.id = 'auto-backup-destination';
   const noticeId = `automatic-backup:${profile}`;
   const say = (text, kind = 'info') => notifications().show(text, { id: noticeId, context, kind });
   const unconfirmedFiles = node('details', undefined, 'hint'); unconfirmedFiles.append(node('summary', t('backup.automatic.unconfirmedFiles')));
   const unconfirmedList = node('ul'); unconfirmedFiles.append(unconfirmedList);
   const keep = node('input'); keep.id = 'auto-backup-keep'; keep.type = 'number'; keep.min = '1'; keep.max = '90';
-  const encrypted = node('input'); encrypted.id = 'auto-backup-encrypt'; encrypted.type = 'checkbox';
+  const encrypted = node('input', undefined, 'switch'); encrypted.id = 'auto-backup-encrypt'; encrypted.type = 'checkbox';
   const password = node('input'); password.id = 'auto-backup-password'; password.type = 'password'; password.autocomplete = 'new-password'; password.maxLength = 1024;
-  const cryptoInfo = node('p', '', 'hint'); let current = service.status; let chosen; let busy = false; let disabling = false; let dirty = false;
-  const retentionInfo = node('p', '', 'hint'); retentionInfo.id = 'auto-backup-retention';
+  const cryptoInfo = node('span', '', 'row-value'); let current = service.status; let chosen; let busy = false; let disabling = false; let dirty = false;
+  const retentionInfo = node('span', '', 'row-value'); retentionInfo.id = 'auto-backup-retention';
+  const schedule = node('span', t('backup.automatic.hint'), 'row-value');
   keep.value = String(current.settings?.keep || 7); encrypted.checked = current.settings?.encrypted ?? true;
   const buttons = [];
   const report = result => {
@@ -69,7 +70,7 @@ export function automaticBackupSection(automatic, unavailable = null, profile = 
     await files.authorize(current.settings.destinationId);
     report(await service.run({ force: true }));
   });
-  const disable = button('auto-backup-disable', t('backup.automatic.disable'), async () => {});
+  const disable = button('auto-backup-disable', t('backup.automatic.disable'), async () => {}, 'leading');
   disable.onclick = async () => {
     if (disabling || !current.enabled) return; disabling = true; refresh();
     try { await service.disable(); say(t('backup.automatic.disabledKept')); }
@@ -91,19 +92,23 @@ export function automaticBackupSection(automatic, unavailable = null, profile = 
     status.textContent = state;
     status.classList.toggle('error', Boolean(current.paused || current.error));
     const unconfirmed = [...current.inventory.filter(item => item.status === 'unconfirmed'), ...(current.pending ? [current.pending] : [])];
-    unconfirmedFiles.hidden = unconfirmed.length === 0; unconfirmedList.replaceChildren();
+    unconfirmedRow.hidden = unconfirmed.length === 0; unconfirmedList.replaceChildren();
     for (const file of unconfirmed) unconfirmedList.append(node('li', t('backup.automatic.unconfirmedItem', { date: formatDate(file.createdAt), name: file.name })));
     cryptoInfo.textContent = current.canEncrypt ? t('backup.automatic.passwordStored') : t('backup.automatic.noVault');
     retentionInfo.textContent = !current.canCreate ? t('backup.automatic.unsupported')
       : current.canPrune ? '' : t('backup.automatic.noPrune');
     retentionInfo.hidden = !retentionInfo.textContent;
+    // With nowhere to save and nothing set up there is nothing to fill in, only the way the page says to back up instead.
+    const configurable = current.canCreate || current.enabled || Boolean(current.settings); schedule.hidden = !current.canCreate;
+    for (const row of [placeRow, keepRow, encryptRow, actionsRow]) row.hidden = !configurable;
+    passwordRow.hidden = !configurable || !encrypted.checked || !current.canEncrypt;
     enable.textContent = current.enabled ? t('backup.automatic.save') : t('backup.automatic.enable');
   }
   for (const control of [keep, encrypted, password]) control.oninput = () => { dirty = true; refresh(); };
-  const place = node('div', undefined, 'auto-backup-row'); place.append(node('span', t('backup.automatic.location'), 'auto-backup-label'), destination, choose);
-  const actions = node('div', undefined, 'reset-buttons'); actions.append(enable, run, disable);
-  section.append(status, node('p', t('backup.automatic.hint'), 'hint'), place, field(t('backup.automatic.keep'), keep), retentionInfo,
-    check(t('backup.automatic.encrypt'), encrypted), field(t('backup.automatic.password'), password), cryptoInfo, actions, unconfirmedFiles);
+  const placeRow = infoRow(t('backup.automatic.location'), destination, choose), keepRow = controlRow(t('backup.automatic.keep'), null, keep);
+  const encryptRow = controlRow(t('backup.automatic.encrypt'), cryptoInfo, encrypted), passwordRow = controlRow(t('backup.automatic.password'), null, password);
+  const actionsRow = actionRow(disable, run, enable), unconfirmedRow = wideRow(unconfirmedFiles);
+  section.append(settingsCard(infoRow(status, [schedule, retentionInfo]), placeRow, keepRow, encryptRow, passwordRow, actionsRow, unconfirmedRow));
   const unsubscribe = service.subscribe(value => {
     current = value;
     if (busy && current.phase !== 'idle') say(t('backup.automatic.state.running'), 'progress');

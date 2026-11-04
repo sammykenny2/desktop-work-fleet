@@ -1,10 +1,10 @@
 export default {
   'backup.receipt.history': '最近的還原紀錄',
   'backup.automatic.unavailable': '自動備份目前無法使用。',
-  'backup.coverage.label': "備份範圍（安全備份也使用此選擇）",
+  'backup.coverage.label': "備份範圍",
   'backup.coverage.complete': "完整保留歷史",
   'backup.coverage.current': "僅目前狀態",
-  'backup.coverage.choiceHint': "完整歷史可能超過封存檔容量限制。「僅目前狀態」不包含較早版本，不能視為完整歷史備份。自動備份要求包含完整保留歷史。",
+  'backup.coverage.choiceHint': "完整歷史可能超過封存檔容量限制。「僅目前狀態」不包含較早版本，不能視為完整歷史備份。自動備份要求包含完整保留歷史。安全備份也使用此選擇。",
   'backup.coverage.currentHint': "範圍：目前便箋與衝突版本、群組、未保存修改及其可取得的附件。不包含較早版本。",
   'backup.coverage.completeHint': "範圍：這些便箋與群組擷取到的所有保留歷史。",
   'backup.preview.recoveredAsNew': "{count} 個已永久刪除的身分將以新便箋復原，不會讓已刪除的原便箋重新出現。",

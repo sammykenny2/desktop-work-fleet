@@ -49,6 +49,7 @@ import { prepareDatasetRestore, advanceDatasetRestore } from '../backup/dataset-
 import { createBackup, openBackup } from '../backup/payload.js';
 import { saveSafetyBackup } from '../backup/restore.js';
 import { formatDate, localizeDocument, onLocaleChange, plural, t } from '../i18n/index.js';
+import { controlRow, settingsCard } from './settings-row.js';
 import { groupName } from '../core/group-name.js';
 import { adoptHostLanguage, changeLanguage, languageOptions, languagePreference, startLanguage } from './language.js';
 
@@ -2782,10 +2783,11 @@ async function showSettingsPage(page) {
 // The Versions and Data pages work on one collection at a time; this chooses which, when there are several.
 function collectionPicker(selected, change) {
   if (workspace.profiles.length < 2) return null;
-  const label = element('label', t('app.sections.choose'), 'field collection-picker'); const select = element('select');
+  const select = element('select');
   for (const { id } of workspace.profiles) select.append(new Option(sectionName(id), id));
   // It shows what the page below it is on until the page changes, which it may refuse while busy.
-  select.value = selected; select.onchange = () => { const chosen = select.value; select.value = selected; change(chosen); }; label.append(select); return label;
+  select.value = selected; select.onchange = () => { const chosen = select.value; select.value = selected; change(chosen); };
+  const picker = settingsCard(controlRow(t('app.sections.choose'), null, select)); picker.classList.add('collection-picker'); return picker;
 }
 async function mountRevisions() {
   const host = $('#revisions-host');

@@ -1,10 +1,10 @@
 export default {
   'backup.receipt.history': 'Recent restores',
   'backup.automatic.unavailable': 'Automatic backup is unavailable.',
-  'backup.coverage.label': "Backup coverage (also used for a safety backup)",
+  'backup.coverage.label': "Backup coverage",
   'backup.coverage.complete': "Complete retained history",
   'backup.coverage.current': "Current state only",
-  'backup.coverage.choiceHint': "Complete history may exceed the archive limit. Current state only excludes earlier versions; it is never a complete history backup. Automatic backups require complete retained history.",
+  'backup.coverage.choiceHint': "Complete history may exceed the archive limit. Current state only excludes earlier versions; it is never a complete history backup. Automatic backups require complete retained history. A safety backup uses this choice too.",
   'backup.coverage.currentHint': "Coverage: current notes and conflicts, groups, unsaved changes and their available attachments. Earlier versions are excluded.",
   'backup.coverage.completeHint': "Coverage: all retained history captured for these notes and groups.",
   'backup.preview.recoveredAsNew': "{count} permanently deleted identities will be recovered as new notes, without reviving the deleted originals.",

@@ -448,6 +448,8 @@ try {
           } finally { storage.close(); }
         }, profileId);
         await page.reload();
+        // A press before the page is ready reaches no handler, which a slower machine can show.
+        await expect(page.locator('body')).toHaveAttribute('data-ready', 'true', { timeout: 15_000 });
         if (handheld) await page.locator('#drawer-toggle').click();
         await page.locator('#settings-button').click();
         await page.locator('#settings-dialog [data-page="account"]').click();

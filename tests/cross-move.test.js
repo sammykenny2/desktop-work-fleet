@@ -6,6 +6,7 @@ import { CrossMove } from '../src/core/cross-move.js';
 import { Workspace } from '../src/core/workspace.js';
 import { MemoryRecordStore } from '../src/storage/records.js';
 import { WorkspaceRecordStorage } from '../src/storage/workspace-records.js';
+import { revisionRecord } from '../src/sources/revisions.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 };
 const content = (text, attachments = []) => ({ format: 'markdown', text, attachments });
@@ -23,6 +24,13 @@ async function open(ids = ['google:cloud', 'local']) {
   return { combined, profiles, groups, cloud: profiles[0], local: profiles[1], move: new CrossMove(combined) };
 }
 const jobsOf = async profile => [...(await profile.storage.jobs('cross-move', { limit: 100 })).rows, ...(await profile.storage.jobs('cross-group', { limit: 100 })).rows];
+// What a sync delivers from another device.
+const receive = async (workspace, records, cursor) => {
+  const session = await workspace.beginSync('other-device'); const expectedCursor = workspace.syncState.cursor;
+  await workspace.receiveRevisions(records, { session, expectedCursor, cursor });
+  await workspace.endSync(session);
+};
+const fromOtherDevice = (id, groupId, parents = [], extra = {}) => revisionRecord('card', { id, revision: `${id}-remote`, groupId, content: content('from the other device'), deleted: false, archived: false, completed: false, ...extra }, parents);
 const live = profile => profile.workspace.snapshot.cards.filter(card => !card.deleted);
 const trashed = profile => profile.workspace.snapshot.cards.filter(card => card.deleted);
 
@@ -291,4 +299,203 @@ test('a move across goes only through the journal, and a move inside a collectio
   await assert.rejects(f.move.moveNote(note.id, other.id), error => error.code === 'same-collection');
   await f.combined.transferCard({ cardId: note.id, groupId: other.id, expectedRevision: note.revision });
   assert.equal(f.local.workspace.cardValue(note.id).groupId, other.id); assert.equal(f.local.workspace.cardValue(note.id).deleted, false);
+});
+
+test('a note from before creation times moves, and takes none with it', async () => {
+  const f = await open();
+  await receive(f.cloud.workspace, [fromOtherDevice('old-note', f.groups['google:cloud'].id)], 'one');
+  assert.equal(f.cloud.workspace.cardValue('old-note').createdAt, undefined);
+  const moved = await f.move.moveNote('old-note', f.groups.local.id);
+  assert.equal(moved.content.text, 'from the other device'); assert.equal(Object.hasOwn(moved, 'createdAt'), false);
+  assert.equal(f.cloud.workspace.cardValue('old-note').deleted, true);
+});
+
+test('moving again after a failure past the copy brings the newest text, so Trash never holds the only copy of it', async () => {
+  const f = await open();
+  const note = await f.combined.createCard(content('first'), f.groups.local.id);
+  const failing = new CrossMove(f.combined, { step: async name => { if (name === 'placed') throw new Error('write failed'); } });
+  await assert.rejects(failing.moveNote(note.id, f.groups['google:cloud'].id), /write failed/);
+  await f.combined.updateCard(note.id, { content: content('newest') }, f.local.workspace.cardValue(note.id).revision);
+  await f.move.moveNote(note.id, f.groups['google:cloud'].id);
+  assert.deepEqual(live(f.cloud).map(card => card.content.text).sort(), ['first', 'newest']);
+  assert.equal(f.local.workspace.cardValue(note.id).deleted, true);
+});
+
+test('a conflict on a note in a moved group can be settled either way on the device that moved it', async () => {
+  for (const keep of ['edited', 'trashed']) {
+    const f = await open(); const groupId = f.groups['google:cloud'].id; const ws = f.cloud.workspace;
+    await f.combined.createGroup('Other', 'google:cloud');
+    const note = await f.combined.createCard(content('first'), groupId);
+    const target = await f.move.openGroup(groupId, 'local');
+    await f.move.moveNote(note.id, target); assert.equal(await f.move.finishGroup(groupId), true);
+    await receive(ws, [fromOtherDevice(note.id, groupId, [note.revision], { createdAt: note.createdAt })], 'one');
+    const heads = ws.revisionHeads('card', note.id); assert.equal(heads.length, 2);
+    const chosen = heads.find(head => head.value.deleted === (keep === 'trashed'));
+    await ws.resolveRevisions({ kind: 'card', entityId: note.id, heads: heads.map(head => head.revisionId), selectedRevision: chosen.revisionId });
+    const settled = ws.cardValue(note.id); assert.equal(ws.revisionHeads('card', note.id).length, 1);
+    assert.equal(settled.deleted, keep === 'trashed');
+    assert.equal(activeGroups(ws.snapshot).some(group => group.id === groupId), keep === 'edited', 'a note kept alive brings its group back');
+    if (keep === 'edited') { assert.equal(settled.content.text, 'from the other device'); assert.equal(settled.movedTo, undefined); }
+  }
+});
+
+test('Versions can restore an original whose group moved away', async () => {
+  const f = await open(); const groupId = f.groups['google:cloud'].id; const ws = f.cloud.workspace;
+  const note = await f.combined.createCard(content('first'), groupId);
+  const target = await f.move.openGroup(groupId, 'local');
+  await f.move.moveNote(note.id, target); await f.move.finishGroup(groupId);
+  const page = await ws.historyPage('card', note.id, {});
+  await ws.resolveRevisions({ kind: 'card', entityId: note.id, heads: ws.revisionHeads('card', note.id).map(head => head.revisionId),
+    selectedRevision: page.records.find(record => !record.value.deleted).revisionId, fromHistory: true });
+  assert.equal(ws.cardValue(note.id).deleted, false); assert.ok(activeGroups(ws.snapshot).some(group => group.id === groupId));
+});
+
+test('a stopped move leaves its group alone at the next start, even once something else emptied it', async () => {
+  const f = await open();
+  const { source, notes } = await groupOf(f, 2);
+  const slot = f.combined.layout.state.grid.slots.indexOf(source.id);
+  const target = await f.move.openGroup(source.id, 'local');
+  await f.move.moveNote(notes[0].id, target);
+  await f.combined.updateCard(notes[1].id, { deleted: true }, notes[1].revision);
+  await f.move.resume();
+  assert.ok(activeGroups(f.cloud.workspace.snapshot).some(group => group.id === source.id), 'the user kept this group');
+  assert.equal(f.combined.layout.state.grid.slots[slot], source.id, 'and its region');
+  assert.equal(await f.move.finishGroup(source.id), true, 'moving it again finishes it');
+});
+
+test('a group that came back keeps the record of a move stopped later, so moving it again continues', async () => {
+  const f = await open();
+  const { source, notes } = await groupOf(f, 1);
+  const first = await f.move.openGroup(source.id, 'local');
+  await f.move.moveNote(notes[0].id, first); await f.move.finishGroup(source.id);
+  await receive(f.cloud.workspace, [fromOtherDevice('late-one', source.id), fromOtherDevice('late-two', source.id)], 'one');
+  const second = await f.move.openGroup(source.id, 'local');
+  await f.move.moveNote('late-one', second); await f.move.resume();
+  assert.equal((await f.move.groupTarget(source.id))?.toGroupId, second);
+  assert.equal(await f.move.openGroup(source.id, 'local'), second);
+});
+
+test('a note still being written when its group moved away keeps the group in sight and can be saved', async () => {
+  const f = await open(); const groupId = f.groups['google:cloud'].id; const ws = f.cloud.workspace;
+  const draft = ws.blankDraft(groupId); draft.content.text = 'typing'; await ws.saveDraft(draft);
+  const group = ws.state.groups.find(item => item.id === groupId);
+  await receive(ws, [revisionRecord('group', { ...group, revision: 'moved-elsewhere', movedAway: true }, [group.revision])], 'one');
+  assert.ok(f.combined.groups().some(item => item.id === groupId));
+  const saved = await ws.commitDraft(draft.id);
+  assert.equal(saved.groupId, groupId); assert.equal(saved.deleted, false);
+});
+
+test('a note that changes while its attachment loads stays, and the move says it did not happen', async () => {
+  const f = await open();
+  const file = await f.cloud.storage.putAttachment('google:cloud', new File(['bytes'], 'x.txt'));
+  const note = await f.combined.createCard(content('first', [file]), f.groups['google:cloud'].id);
+  const read = f.cloud.storage.getAttachment.bind(f.cloud.storage); let changed = false;
+  f.cloud.storage.getAttachment = async (...args) => {
+    if (!changed) { changed = true; await f.combined.updateCard(note.id, { content: content('changed', [file]) }, note.revision); }
+    return read(...args);
+  };
+  await assert.rejects(f.move.moveNote(note.id, f.groups.local.id), error => error.code === 'move-changed');
+  assert.equal(f.cloud.workspace.cardValue(note.id).deleted, false); assert.equal(live(f.local).length, 0); assert.equal((await jobsOf(f.cloud)).length, 0);
+});
+
+test('bytes read ahead are used, so a desktop queue does not wait for the network', async () => {
+  const f = await open();
+  const file = await f.cloud.storage.putAttachment('google:cloud', new File(['bytes'], 'x.txt'));
+  const note = await f.combined.createCard(content('first', [file]), f.groups['google:cloud'].id);
+  const bytes = await f.move.readAttachments(note.id);
+  f.cloud.storage.getAttachment = async () => { throw new Error('this must not read again'); };
+  await f.move.moveNote(note.id, f.groups.local.id, bytes);
+  assert.ok(await f.local.storage.getAttachment('local', file.id));
+});
+
+test('a group moving never grows the grid, and takes its region when it finishes', async () => {
+  const f = await open();
+  const { source, notes } = await groupOf(f, 1);
+  await f.combined.createGroup('Fourth', 'local'); await f.combined.layout.settle();
+  const before = f.combined.layout.desk.state.grid; const slot = before.slots.indexOf(source.id);
+  const full = { ...before, slots: before.slots.map((id, index) => id ?? `reserved-${index}`) };
+  await f.combined.layout.desk.update(draft => { draft.grid = full; for (const id of full.slots) if (id.startsWith('reserved-')) draft.known[id] = 'google:closed'; });
+  const target = await f.move.openGroup(source.id, 'local');
+  assert.equal(f.combined.layout.state.grid.slots.includes(target), false, 'the grid is full, so it waits');
+  assert.deepEqual(f.combined.layout.takeArrivedOffDesktop(), [], 'and that is no arrival to announce');
+  await f.move.moveNote(notes[0].id, target); await f.move.finishGroup(source.id);
+  const after = f.combined.layout.desk.state.grid;
+  assert.equal(after.rows, before.rows); assert.equal(after.columns, before.columns); assert.equal(after.slots[slot], target);
+});
+
+test('a group off the desktop stays off when it moves', async () => {
+  const f = await open();
+  const { source, notes } = await groupOf(f, 1); const layout = f.combined.layout;
+  const grid = layout.state.grid;
+  await layout.configure({ grid: { ...grid, slots: grid.slots.map(id => id === source.id ? null : id) } }, f.combined.snapshot); await layout.settle();
+  assert.equal(layout.state.hiddenGroups[source.id], true);
+  const target = await f.move.openGroup(source.id, 'local');
+  await f.move.moveNote(notes[0].id, target); await f.move.finishGroup(source.id);
+  assert.equal(layout.state.hiddenGroups[target], true);
+});
+
+test('undo gets past a move inside a section once the note has moved across or gone to Trash', async () => {
+  for (const after of ['across', 'trash']) {
+    const f = await open();
+    const other = await f.combined.createGroup('Other', 'local');
+    const note = await f.combined.createCard(content('note'), f.groups.local.id); await f.combined.layout.placeNew(f.combined.working, [area]);
+    await f.combined.transferCard({ cardId: note.id, groupId: other.id, expectedRevision: note.revision });
+    if (after === 'across') await f.move.moveNote(note.id, f.groups['google:cloud'].id);
+    else await f.combined.updateCard(note.id, { deleted: true }, f.local.workspace.cardValue(note.id).revision);
+    const entries = f.local.workspace.layout.state.history.length;
+    await f.combined.undo([area]);
+    assert.equal(f.local.workspace.layout.state.history.length, entries - 1, 'the entry is used up, not stuck on top');
+    assert.equal(f.local.workspace.cardValue(note.id).deleted, true);
+  }
+});
+
+test('a target group in conflict refuses the move before anything changes, and nothing happens later', async () => {
+  const f = await open(); const groupId = f.groups['google:cloud'].id; const ws = f.cloud.workspace;
+  const group = ws.state.groups.find(item => item.id === groupId);
+  await receive(ws, [revisionRecord('group', { ...group, revision: 'other-name', name: 'Other name' }, [])], 'one');
+  const note = await f.combined.createCard(content('stays'), f.groups.local.id);
+  await assert.rejects(f.move.moveNote(note.id, groupId), error => error.code === 'conflict');
+  assert.equal((await jobsOf(f.local)).length, 0);
+  const heads = ws.revisionHeads('group', groupId);
+  await ws.resolveRevisions({ kind: 'group', entityId: groupId, heads: heads.map(head => head.revisionId), selectedRevision: heads[0].revisionId });
+  await f.move.resume();
+  assert.equal(f.local.workspace.cardValue(note.id).deleted, false); assert.equal(live(f.cloud).length, 0);
+});
+
+test('a moved group on the desktop layer stays there, rather than taking the layer new arrivals get', async () => {
+  const f = await open();
+  f.local.workspace.setArrivalLayer(() => 'wallpaper');
+  const target = await f.move.openGroup(f.groups['google:cloud'].id, 'local');
+  assert.equal(f.combined.layout.state.groupLayers[target], 'desktop');
+});
+
+test('a crash before the looks came along brings them when the move starts again', async () => {
+  const f = await open();
+  const { source } = await groupOf(f, 1); await f.combined.layout.setGroupHighlight(source.id, true);
+  const failing = new CrossMove(f.combined, { step: async name => { if (name === 'group-created') throw new Error('crash'); } });
+  await assert.rejects(failing.openGroup(source.id, 'local'), /crash/);
+  const target = await f.move.openGroup(source.id, 'local');
+  assert.equal(f.combined.layout.state.groupHighlights[target], true);
+});
+
+test('a group that came back counts toward nine, so ten raise the overflow every other way of reaching ten does', async () => {
+  const f = await open(); const ws = f.cloud.workspace;
+  const { source, notes } = await groupOf(f, 1);
+  const target = await f.move.openGroup(source.id, 'local');
+  await f.move.moveNote(notes[0].id, target); await f.move.finishGroup(source.id);
+  for (let index = activeGroups(ws.state).length; index < 9; index++) await f.combined.createGroup(`More ${index}`, 'google:cloud');
+  await receive(ws, [fromOtherDevice('late', source.id)], 'one');
+  assert.equal(activeGroups(ws.state).length, 10); assert.ok(ws.state.conflicts.some(item => item.kind === 'group-overflow'));
+});
+
+test('a target group merged since the move began receives it through the merge', async () => {
+  const f = await open();
+  const into = await f.combined.createGroup('Into', 'google:cloud');
+  const note = await f.combined.createCard(content('note'), f.groups.local.id);
+  const failing = new CrossMove(f.combined, { step: async name => { if (name === 'journal') throw new Error('crash'); } });
+  await assert.rejects(failing.moveNote(note.id, f.groups['google:cloud'].id), /crash/);
+  const plan = f.combined.previewGroupMerge(f.groups['google:cloud'].id, into.id);
+  await f.combined.mergeGroup(plan, [area]);
+  await f.move.resume();
+  assert.deepEqual(live(f.cloud).map(card => card.groupId), [into.id]);
 });

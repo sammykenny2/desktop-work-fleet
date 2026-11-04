@@ -4,6 +4,7 @@ import { validateShortcuts } from './shortcuts.js';
 import { deskFields, deskKey, DeskStore, hiddenGroups, seedDesk, settledColors, settleDesk } from '../layout/desk.js';
 import { swapGroupColor, validColor } from '../layout/colors.js';
 import { orderedGroups } from '../layout/order.js';
+import { groupLayer } from '../layout/stages.js';
 import { mainViews } from '../layout/store.js';
 import { t } from '../i18n/index.js';
 
@@ -15,7 +16,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  * looks. Writes go to whichever holds the value, and each profile's layout stays the atomic partner of its content.
  */
 class CombinedLayout {
-  #combined; #desk;
+  #combined; #desk; #arrivedOff = [];
   constructor(combined, desk) { this.#combined = combined; this.#desk = desk; }
   get #profiles() { return this.#combined.profiles; }
   get desk() { return this.#desk; }
@@ -52,8 +53,14 @@ class CombinedLayout {
       const profile = this.#profiles.find(item => item.id === owner);
       try { return profile ? resolveGroupId(profile.workspace.snapshot, id) : null; } catch { return null; }
     };
-    await this.#desk.update(draft => ({ desk: { ...settleDesk(draft, groups, open, resolve), revision: draft.revision } }));
+    await this.#desk.update(draft => {
+      const settled = settleDesk(draft, groups, open, resolve);
+      for (const group of groups) if (draft.known[group.id] !== group.profileId && !settled.grid.slots.includes(group.id)) this.#arrivedOff.push(group.id);
+      return { desk: { ...settled, revision: draft.revision } };
+    });
   }
+  /** Groups new to this device that found no free region since the last call, so that the page can say so. */
+  takeArrivedOffDesktop() { return this.#arrivedOff.splice(0); }
 
   async placeNew(_snapshot, workAreas, paperSize = undefined, checkpoint = null) {
     await this.settle();
@@ -103,9 +110,21 @@ class CombinedLayout {
   /** A group moved to another collection wears what it wore. */
   async carryLooks(sourceId, targetId) {
     const state = this.state; const target = this.#ofGroup(targetId);
-    if (state.groupLayers[sourceId]) await target.layout.setGroupLayer(targetId, state.groupLayers[sourceId], target.snapshot);
+    // Not the layer a group new to this device arrives on: no stored layer means the desktop layer.
+    await target.layout.setGroupLayer(targetId, groupLayer(state, sourceId), target.snapshot);
     if (state.groupOpacity[sourceId] !== undefined) await target.layout.setGroupOpacity(targetId, state.groupOpacity[sourceId], target.snapshot);
     if (state.groupHighlights[sourceId]) await target.layout.setGroupHighlight(targetId, true, target.snapshot);
+  }
+  /**
+   * A group on its way here from another collection. Its region comes when the move ends, so it never grows the grid; until
+   * then a free region shows the notes already moved in case the move stops. A source off the desktop keeps it off too.
+   */
+  admitMovedGroup(sourceId, targetId, profileId) {
+    return this.#desk.update(draft => {
+      draft.known[targetId] = profileId;
+      const free = draft.grid.slots.indexOf(null);
+      if (free >= 0 && draft.grid.slots.includes(sourceId)) draft.grid.slots[free] = targetId;
+    });
   }
   /** When a group has moved completely, the target takes its region, colour and place as the group the main window shows. */
   handOverGroup(sourceId, targetId) {
@@ -185,7 +204,11 @@ export class CombinedWorkspace {
    */
   static async open(profiles) {
     const primary = profiles[0]; let saved = null;
-    for (const profile of [...profiles].sort((a, b) => (b.id === 'local') - (a.id === 'local'))) saved ??= await profile.storage.getControl(deskKey);
+    // Every open collection holds a copy. The one that changed last leads, for a collection can be closed or unavailable
+    // while another goes on; equal ones are the same record. Each copy then catches up, so that the next start can rely on any.
+    const copies = await Promise.all(profiles.map(profile => profile.storage.getControl(deskKey)));
+    for (const value of copies) if (value && (!saved || value.revision > saved.revision)) saved = value;
+    if (saved) await Promise.all(profiles.map((profile, index) => copies[index]?.revision === saved.revision ? null : profile.storage.putControl(deskKey, saved)));
     const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state),
       value => Promise.all(profiles.map(profile => profile.storage.putControl(deskKey, value))));
     const combined = new CombinedWorkspace(profiles, desk);
@@ -241,9 +264,10 @@ export class CombinedWorkspace {
   /** An unsaved change by its id, whichever profile holds it. */
   draft(id) { return this.#profiles.map(({ workspace }) => workspace.state.drafts[id]).find(Boolean) ?? null; }
   /** Conflicts plus unsaved text whose note was deleted forever: what the status bar counts. */
-  attentionCount() {
-    return this.#profiles.reduce((sum, { workspace }) => { const state = workspace.state; return sum + state.conflicts.length + Object.values(state.drafts).filter(draft => draft.purged).length; }, 0);
-  }
+  #attentionIn({ workspace }) { const state = workspace.state; return state.conflicts.length + Object.values(state.drafts).filter(draft => draft.purged).length; }
+  attentionCount() { return this.#profiles.reduce((sum, profile) => sum + this.#attentionIn(profile), 0); }
+  /** The collection Versions and conflicts should open on, for the count spans them all. */
+  firstNeedingAttention() { return this.#profiles.find(profile => this.#attentionIn(profile) > 0)?.id ?? null; }
   setOpenNote(open) { for (const { workspace } of this.#profiles) workspace.setOpenNote(open); }
   whenIdle() { return Promise.all([this.#layout.whenIdle(), ...this.#profiles.map(({ workspace }) => workspace.whenIdle())]); }
 

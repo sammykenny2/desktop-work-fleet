@@ -295,8 +295,8 @@ Cancellation, a stale or wrong profile, a full disk and an aborted transaction k
 response is lost, the restore completes only after the complete persisted content is confirmed.
 Automatic backups first wait until idle and resume afterwards; settings, saved ZIPs, other workspaces and the Google
 cloud are not affected.
-Google → offline local: export a ZIP manually → switch to Local notes → import, or run a full local restore; nothing is
-written back to Google afterwards.
+Google → local: export a ZIP manually → choose Local notes on the Data page → restore, which gives its notes new ids
+(SPEC-012 FR34), or run a full local restore; nothing is written back to Google afterwards.
 Google → Google or local → Google: in the target Google workspace choose import, merge, the original replace or the
 full overwrite.
 The related decision is [ADR-038](../decisions/038-portable-local-and-cloud-backup-flows.md).

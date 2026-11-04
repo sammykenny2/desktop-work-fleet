@@ -35,7 +35,7 @@ function* projectionSteps(graph, previous = { groups: [], cards: [], conflicts: 
     catch (error) { conflicts.push({ kind: 'card-group', cardId: card.id, groupId: card.groupId, reason: error.code }); }
     yield;
   }
-  const count = activeGroups({ groups }).length;
+  const count = activeGroups({ groups, cards, drafts: previous.drafts }).length;
   if (count > 9) conflicts.push({ kind: 'group-overflow', count });
   if (graph.pending.length) conflicts.push({ kind: 'pending-revisions', revisions: graph.pending, missing: graph.missing });
   return snapshot;

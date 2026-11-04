@@ -279,6 +279,9 @@ export class Workspace {
     this.#resolved(state, 'group', id);
   }
 
+  /** Throws what writing a note into this group would throw, before anything depends on it. */
+  requireGroup(id) { this.#group(this.#state, id); }
+
   #record(state, kind, value, parents) {
     const record = revisionRecord(kind, value, parents);
     requireValue(!state.revisions.some(item => item.revisionId === record.revisionId), 'revision-collision', t('errors.core.revisionIdDuplicate'));
@@ -611,7 +614,9 @@ export class Workspace {
         'missing-revision', t('errors.core.chosenRevisionMissing'));
       const value = { ...copy(selected.value), ...patch, revision: this.#uuid() };
       if (kind === 'card') {
-        value.groupId = resolveGroupId(state, value.groupId); this.#group(state, value.groupId);
+        value.groupId = resolveGroupId(state, value.groupId);
+        // A group that moved away takes this note: alive it brings the group back, and in Trash it needs no listed group.
+        if (!state.groups.some(group => group.id === value.groupId && group.movedAway)) this.#group(state, value.groupId);
         if (this.currentFormat) {
           const sameEpisode = value.deleted && current.length && current.every(head => head.value.deleted
             && head.value.trashEpisode === value.trashEpisode);
@@ -780,12 +785,13 @@ export class Workspace {
    * after a crash changes nothing.
    */
   async adoptCard({ id, groupId, content, archived, completed, createdAt }) {
+    // Notes from before creation times have none, and a record cannot hold an undefined value.
     const value = contentValue(content);
     return this.#commit(state => {
       const existing = state.cards.find(card => card.id === id);
       if (existing) return copy(existing);
       this.#group(state, groupId);
-      const card = { id, revision: this.#uuid(), groupId, content: value, deleted: false, archived, completed, createdAt };
+      const card = { id, revision: this.#uuid(), groupId, content: value, deleted: false, archived, completed, ...createdAt === undefined ? {} : { createdAt } };
       state.cards.push(card); this.#record(state, 'card', card, []);
       return copy(card);
     });
@@ -983,10 +989,14 @@ export class Workspace {
       requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.core.layoutChangedPlain'));
       if (result.transfer) {
         const { cardId, fromGroupId, expectedRevision } = result.transfer;
-        const card = this.#card(state, cardId, expectedRevision);
-        this.#group(state, fromGroupId);
-        card.groupId = fromGroupId; card.revision = undoRevision;
-        this.#record(state, 'card', card, [expectedRevision]);
+        // A note since trashed, or moved to another collection, no longer follows this; it must not block the undos before it.
+        const current = state.cards.find(item => item.id === cardId);
+        if (current && !current.deleted) {
+          const card = this.#card(state, cardId, expectedRevision);
+          this.#group(state, fromGroupId);
+          card.groupId = fromGroupId; card.revision = undoRevision;
+          this.#record(state, 'card', card, [expectedRevision]);
+        }
       }
       state.layout = copy(layout);
     }), undoRevision);

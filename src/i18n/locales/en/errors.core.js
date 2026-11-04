@@ -83,6 +83,7 @@ export default {
   'errors.core.sameCollection': 'That group is in the same section.',
   'errors.core.move.unsaved': 'This note has unsaved changes. Save or discard them first.',
   'errors.core.move.trashed': 'This note is in Trash. Restore it first.',
+  'errors.core.move.changed': 'This note changed just now, so it stays where it is. Try moving it again.',
   'errors.core.move.conflict': 'This note has a version conflict. Resolve it in Versions and conflicts first.',
   'errors.core.move.attachment': "The attachment {name} isn't on this device yet, so the note can't move. Sync and try again.",
   'errors.core.otherCollection': 'That group is in the other section, so moving there needs a confirmation.',

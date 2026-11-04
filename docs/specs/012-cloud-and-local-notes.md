@@ -55,8 +55,8 @@ covers everything except Trash. Decisions and alternatives are in
   through sync keeps them and shows the existing notice, per collection.
 - FR6: Dragging a group row within its section reorders that section only. It changes no region and no shortcut, so the
   "keys moved" notice is gone. Phones keep the grip and hold gestures.
-- FR7: Group pickers list groups by section. A saved note's editor offers only its own collection's groups; moving across
-  uses FR12.
+- FR7: Group pickers list groups by section. An open editor offers only its own collection's groups, since its draft lives
+  there: a new note belongs to the section of the group it started from, and moving a saved note across uses FR12.
 
 ### Desktop regions
 
@@ -81,15 +81,17 @@ covers everything except Trash. Decisions and alternatives are in
 - FR14: A move creates the note in the target, then trashes the original. Each note either moves completely or not at all. A
   move interrupted by a crash finishes on the next start, without duplicating the note. Status, content, attachments, desktop
   position and creation time move with it. A move into a collection that is not open waits until it opens; a note that
-  changes before its copy exists stays where it is, and one that changes after keeps both.
+  changes before its copy exists stays where it is, and one that changes after keeps both. A move that was refused has
+  nothing left to finish later.
 - FR15: Notes with a version conflict or unsaved changes do not move; the result lists how many stayed. A note with an
   attachment that is not on this device and cannot be fetched stays and is reported the same way. A single such note is
   refused with the reason before anything changes.
 - FR16: Notes in Trash stay where they are when their group moves.
 - FR17: A stopped or partial move leaves both groups in place. Moving the group again continues into the same target group.
 - FR18: When a group has moved completely it leaves its section. The target group takes its region, layer, opacity, highlight
-  and colour. A note that another device put in the group before it heard of the move brings the group back, so that the note
-  stays in sight.
+  and colour. Until then the target uses a free region if there is one and never grows the grid; a group off the desktop
+  stays off. A note that another device put in the group before it heard of the move, or one still being written, brings the
+  group back, so that the note stays in sight.
 - FR19: A group cannot move into a collection that already holds nine groups: the app says so before anything changes. Moving
   a single note to an existing group is unaffected.
 - FR20: Moves within a collection stay as in SPEC-003, with Undo and no Trash. A move across has no Undo; the original in
@@ -129,7 +131,10 @@ covers everything except Trash. Decisions and alternatives are in
 ### Failure and data
 
 - FR33: A collection that cannot open shows as unavailable in its section with its recovery options. The other works normally.
-- FR34: Two collections sharing note or group ids count as FR33 for the second one. A restore never creates such a pair.
+  When it is the signed-in account's own, the recovery page comes first and also offers to sign out, which opens Local notes.
+- FR34: Two collections sharing note or group ids count as FR33 for the second one. A restore never creates such a pair: a
+  backup sharing nothing with its target came from elsewhere, so its notes and groups take new ids. Only a cloud collection's
+  own synced backup may be new to its target and keep its ids.
 - FR35: Backups stay per collection and keep their format. Manual export asks which collection; automatic backups run for each;
   a restore asks for its target. The desk is not part of a backup.
 - FR36: "Reset all data" names the collection it resets. A reset of Local notes does not touch cloud notes, and the reverse.

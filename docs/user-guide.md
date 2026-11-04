@@ -86,7 +86,7 @@ interface. To switch, see [Settings](#settings).
 
 ## Groups
 
-- The plus button next to "All groups" in the sidebar opens "New group".
+- Each section in the sidebar has its own plus button, which opens "New group" for that section.
 - The group you choose in the sidebar, the group a region key switches to, a group you just created, or the group
   you save a new note into (also when you pick another one in the editor) is the one the main window shows, and
   "Capture" and Quick capture add new notes to it. This device remembers it, so after a
@@ -151,7 +151,8 @@ interface. To switch, see [Settings](#settings).
     arrange them there (see [Browser preview](#browser-preview)).
   - Phones have no third view.
 - The filters "To do", "Completed" and "Archived" show the notes in each state. "Trash" is its own item below the groups: it
-  lists trashed notes by group, on the board and in the list, newest first, and you can restore them there. Search covers titles and the full text in every group and every status except Trash: while it has text the title
+  lists trashed notes by group, on the board and in the list, newest first, and you can restore them there. With cloud and local
+  notes both open it has the tabs All, Cloud notes and Local notes, and "Empty Trash" acts on the tab shown. Search covers titles and the full text in every group and every status except Trash: while it has text the title
   reads "Search results in all groups", each result names its group and status, and a link below the results shows
   matches in Trash. In Trash, search covers only Trash. The search field ends the top bar; on phones it opens from the magnifier
   at the top right.

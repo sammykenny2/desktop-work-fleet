@@ -321,7 +321,8 @@ async function initialize() {
   // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
   const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed; const reason = native?.info.desktopReason;
   onLocaleChange(relocalize);
-  bindEvents(); render(); status(reason ? displayHint ? t('app.status.desktopReasonXwayland', { reason }) : reason : t('app.status.opened'));
+  bindEvents(); render(); status(reason ? displayHint ? t('app.status.desktopReasonXwayland', { reason }) : reason
+    : workspace.layout.takeArrivedOffDesktop().length ? t('app.status.arrivedOffDesktop') : t('app.status.opened'));
   $('#share-note').hidden = !native?.info.capabilities.fileShare;
   if (native) await initializeGoogle();
   scheduleMaintenance();
@@ -461,6 +462,8 @@ async function showDataFailure(cause) {
     if (location?.path) body.append(element('p', t('app.dataFailure.folder')), element('code', location.path, 'data-failure-path'));
     actions.replaceChildren(button(t('app.dataFailure.openFolder'), () => native.bridge.request('data.reveal')));
     if (canSetAside(cause)) actions.append(button(t('app.dataFailure.setAside'), confirm));
+    // Signed out, only the local notes open, so this is the way to them while the account's notes cannot open.
+    if (profileId.startsWith('google:')) actions.append(button(t('app.dataFailure.signOut'), () => native.bridge.request('google.signOut')));
   };
   const confirm = () => {
     body.replaceChildren(element('h3', t('app.dataFailure.confirmTitle')), element('p', t('app.dataFailure.confirmMove')),
@@ -704,6 +707,7 @@ function landSync(receive) {
     try {
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
       try { await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); } finally { render(); }
+      if (workspace.layout.takeArrivedOffDesktop().length) status(t('app.status.arrivedOffDesktop'));
     } catch (error) { landingFailed = true; status(error.message, true); }
     return received;
   };
@@ -744,6 +748,7 @@ function reportDatasetProgress(value) {
 function resumeMaintenance() {
   if (nativeClosing || maintenanceWork || datasetProblem) return;
   maintenancePaused = false;
+  for (const companion of companions) companion.pausedUntil = 0;
   if (pendingReset && pendingReset.phase !== 'complete') reportDatasetProgress(resetProgress(pendingReset));
   else if (maintenanceNotice) showMaintenance(maintenanceNotice.text, { completed: maintenanceNotice.completed });
   scheduleMaintenance(0);
@@ -771,7 +776,14 @@ async function maintainDataset() {
   let more = false; let listingBehind = false;
   maintenanceWork = (async () => {
     for (const companion of companions) {
-      if (await purgeStep(companion.purge) || await companion.storage.maintenance()) { more = true; return; }
+      if (companion.pausedUntil > Date.now()) continue;
+      try { if (await purgeStep(companion.purge) || await companion.storage.maintenance()) { more = true; return; } }
+      catch (error) {
+        if (maintenanceAbort.signal.aborted) throw error;
+        // Its trouble is its own: the others carry on, and this one tries again later or on Retry.
+        companion.pausedUntil = Date.now() + 60000;
+        showMaintenance(() => t('app.purge.paused', { error: error.message }), { retry: true, error: true });
+      }
     }
     if (sourceWaits) return;
     if (maintenanceFailure) { await storage.deleteJob('dataset-ui-error'); maintenanceFailure = null; }
@@ -847,20 +859,31 @@ async function purgeStep(job) {
 async function confirmPurge(ids) {
   if (!ids.length) return;
   const parts = workspace.profiles.map(({ id }) => ({ id, ids: ids.filter(card => workspace.ownerOfCard(card).id === id) })).filter(part => part.ids.length);
-  for (const part of parts) part.preview = await profileContext(part.id).purge.preview(part.ids);
+  for (const part of parts) {
+    try { part.preview = await profileContext(part.id).purge.preview(part.ids); }
+    // Emptying cloud notes needs the account. That must not hold back what only this device keeps.
+    catch (error) { part.problem = error.code === 'history-offline' ? t('app.purge.needsConnection', { section: sectionName(part.id) }) : error.message; }
+  }
+  const ready = parts.filter(part => part.preview); const chosen = ready.flatMap(part => part.ids);
+  if (!ready.length) throw new Error(parts[0].problem);
   const dialog = element('dialog'); dialog.id = 'purge-dialog';
-  dialog.append(element('h2', t(ids.length === 1 ? 'app.purge.title' : 'app.purge.emptyTitle')),
-    element('p', t('app.purge.warning', { count: ids.length })),
-    ...parts.map(part => element('p', parts.length > 1 ? t('app.purge.part', { section: sectionName(part.id), count: part.ids.length, reach: t(part.id.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device') })
+  dialog.append(element('h2', t(chosen.length === 1 ? 'app.purge.title' : 'app.purge.emptyTitle')),
+    element('p', t('app.purge.warning', { count: chosen.length })),
+    ...parts.filter(part => part.problem).map(part => element('p', t('app.purge.skipped', { section: sectionName(part.id), count: part.ids.length, problem: part.problem }), 'purge-skipped')),
+    ...ready.map(part => element('p', parts.length > 1 ? t('app.purge.part', { section: sectionName(part.id), count: part.ids.length, reach: t(part.id.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device') })
       : t(part.id.startsWith('google:') ? 'app.purge.cloud' : 'app.purge.device'))));
   const list = element('ul');
-  for (const id of ids.slice(0, 10)) list.append(element('li', summaryText(workspace.snapshot.cards.find(card => card.id === id))));
+  for (const id of chosen.slice(0, 10)) list.append(element('li', summaryText(workspace.snapshot.cards.find(card => card.id === id))));
   dialog.append(list);
   const cancel = button(t('common.cancel'), () => dialog.close());
   const confirm = button(t('app.purge.confirm'), async () => {
-    confirm.disabled = true;
-    try { for (const part of parts) await profileContext(part.id).purge.enqueue(part.preview); dialog.close(); maintenancePaused = false; showMaintenance(() => t('app.purge.pending')); scheduleMaintenance(0); }
-    finally { confirm.disabled = false; }
+    confirm.disabled = true; let queued = false;
+    try { for (const part of ready) { await profileContext(part.id).purge.enqueue(part.preview); queued = true; } }
+    finally {
+      confirm.disabled = false;
+      // What is queued goes ahead whatever came after it, so Cancel must not stay on offer.
+      if (queued) { dialog.close(); for (const companion of companions) companion.pausedUntil = 0; maintenancePaused = false; showMaintenance(() => t('app.purge.pending')); scheduleMaintenance(0); }
+    }
   }, 'danger'); confirm.id = 'confirm-purge';
   const actions = element('div', undefined, 'dialog-actions'); actions.append(cancel, confirm); dialog.append(actions);
   dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
@@ -893,7 +916,11 @@ async function changeGoogleAccount(action) {
 function companionResetPlan(companion) {
   return { cloud: false, keeps: [t('settings.data.keeps.backups'), t('settings.data.keeps.otherCollection')], blocked: null, detail: t('backup.reset.deletesCollectionLocal'),
     target: t('settings.data.target.collection', { section: sectionName(companion.id) }),
-    run: async say => { say(t('sync.reset.deletingDevice')); await browserJournal?.reset(companion.id); await companion.storage.reset(companion.id); location.reload(); return { localReset: true }; } };
+    run: async say => {
+      say(t('sync.reset.deletingDevice'));
+      await runDatasetChange(async () => { await browserJournal?.reset(companion.id); await companion.storage.reset(companion.id); return { localReset: true }; });
+      return { localReset: true };
+    } };
 }
 function resetPlan() {
   const google = profileId.startsWith('google:');
@@ -979,10 +1006,10 @@ function datasetProgressText({ phase, completed = 0, total = 0, ready = false, f
 // The transition owns the writer until it reloads. Plan validation still uses the revision shown in its preview.
 async function runDatasetChange(work) {
   if (accountBusy || nativeClosing) throw new Error(t('sync.errors.accountBusy'));
-  accountBusy = true; clearInterval(syncTimer); stopAutomatic?.();
+  accountBusy = true; clearInterval(syncTimer); stopAutomatic?.(); stopCompanionBackups();
   const before = workspace.state, oldReset = await storage.getJob('dataset-reset');
   try {
-    await stopMaintenance(); await automatic?.service.whenIdle();
+    await stopMaintenance(); await automatic?.service.whenIdle(); await companionBackupsIdle();
     await syncService?.stop({ endSession: false }); await syncService?.whenIdle(); syncService = null;
     desktop?.beginClose(); if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: true });
     await desktop?.whenIdle(); desktop?.sealClose();
@@ -1002,6 +1029,7 @@ async function runDatasetChange(work) {
     if (desktop) await native.bridge.request('desktop.shortcuts.block', { blocked: false }).catch(() => {});
     accountBusy = false; maintenanceAbort = new AbortController();
     if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
+    startCompanionBackups();
     if (native) await initializeGoogle(); scheduleMaintenance(); throw error;
   }
 }
@@ -1289,7 +1317,7 @@ async function desktopAction(target, intent) {
   if (target === '@hide') { await flushDraft(); await native.bridge.request('desktop.hideMain'); return; }
   // A Linux named action names a region, which stands for the group it holds now.
   const region = shortcutRegion(target);
-  if (region !== null) { target = workspace.layout.state.grid.slots[region - 1]; if (!target) return; }
+  if (region !== null) { target = workspace.layout.state.liveSlots[region - 1]; if (!target) return; }
   if (target === shortcutActions.capture) {
     await leaveAdjustOverlay();
     const shown = desktop ? await native.bridge.request('desktop.showMain', { intent: intent ?? null }) : null;
@@ -1366,6 +1394,8 @@ async function prepareNativeClose() {
   const stoppedSync = syncService;
   nativeClosing = true; document.body.inert = true; desktop?.beginClose();
   for (const [dialog] of dialogs) dialog.inert = true;
+  // An action waiting for a confirmation would wait for ever behind an inert dialog, and so would the close.
+  for (const waiting of document.querySelectorAll('#confirm-dialog')) waiting.close();
   clearInterval(syncTimer); stopAutomatic?.(); stopCompanionBackups();
   try {
     if (!workspace) await recoveryWork?.catch(() => {});
@@ -1767,7 +1797,6 @@ function renderStage(cards) {
   }
 }
 
-// Stub: a scaled map of every display, its group regions and paper positions comes later; papers move on the real desktop.
 // The regions of this computer and the groups off its desktop. A region of a collection that is not open stays reserved.
 function renderLayoutMap() {
   const layout = workspace.layout.state; const groups = shownGroups(); const host = $('#layout-regions');
@@ -1809,7 +1838,9 @@ function renderTrashTabs() {
   const tabs = $('#trash-tabs'); tabs.hidden = !trashOpen || workspace.profiles.length < 2; tabs.replaceChildren();
   if (tabs.hidden) return;
   for (const [value, label] of [['all', t('app.trash.all')], ...workspace.profiles.map(({ id }) => [id, sectionName(id)])]) {
-    const tab = immediateButton(label, () => { trashTab = value; render(); }, value === trashTab ? 'active' : ''); tab.dataset.trashTab = value; tabs.append(tab);
+    // Drawing the tabs again replaces the one just pressed, so the focus goes to its successor.
+    const tab = immediateButton(label, () => { trashTab = value; render(); [...tabs.children].find(node => node.dataset.trashTab === value)?.focus(); }, value === trashTab ? 'active' : '');
+    tab.dataset.trashTab = value; tab.setAttribute('aria-pressed', String(value === trashTab)); tabs.append(tab);
   }
 }
 function clearNotes(view) {
@@ -1822,7 +1853,8 @@ function renderNotes(cards, view, acrossGroups, matchesInTrash = 0) {
   const list = clearNotes(view);
   list.append(cards.length ? noteHolder(cards, view, acrossGroups) : element('p', t('app.notes.empty'), 'hint'));
   if (matchesInTrash) {
-    const link = immediateButton('', () => { trashOpen = true; render(); }, 'trash-link');
+    // The count spans every collection, so the link does too.
+    const link = immediateButton('', () => { trashOpen = true; trashTab = 'all'; render(); }, 'trash-link');
     link.append(element('span', plural('app.trash.matches', matchesInTrash)), element('span', t('app.trash.show')));
     list.append(link);
   }
@@ -2011,16 +2043,27 @@ async function askMoveNote(cardId, groupId) {
   const source = from.workspace.state.groups.find(group => group.id === card.groupId); const target = workspace.groups().find(group => group.id === groupId);
   moveDialog(t('app.move.noteTitle', { section: sectionName(to.id) }),
     [element('strong', summaryText(card)), moveChip(from.id, groupName(source), groupColor(card.groupId)), element('span', '\u2192', 'move-arrow'), moveChip(to.id, groupName(target), groupColor(groupId))],
-    moveEffects(to.id, from.id, true), t('app.move.confirmNote'), () => run(async () => {
-      // Only moving can tell that an attachment cannot be fetched; nothing has changed yet when it says so.
-      try { await crossMove.moveNote(cardId, groupId); }
-      catch (error) {
-        if (!String(error.code).startsWith('move-')) throw error;
-        moveNotice(t('app.move.refusedTitle'), [error.message]); return;
-      }
+    moveEffects(to.id, from.id, true), t('app.move.confirmNote'), () => moveNoteAcross(cardId, groupId, to.id, target));
+}
+async function moveNoteAcross(cardId, groupId, section, target) {
+  // Only moving can tell that an attachment cannot be fetched or that the note just changed; nothing has moved when it says so.
+  const attempt = async action => {
+    try { return await action(); }
+    catch (error) {
+      if (!String(error.code).startsWith('move-')) throw error;
+      moveNotice(t('app.move.refusedTitle'), [error.message]); return null;
+    }
+  };
+  try {
+    // An attachment may have to come from Drive, which must not hold up a desktop's queue (ADR-064).
+    const bytes = await attempt(() => crossMove.readAttachments(cardId));
+    if (!bytes) return;
+    await run(async () => {
+      if (!await attempt(() => crossMove.moveNote(cardId, groupId, bytes))) return;
       await settleMoved();
-      status(t('app.move.noteDone', { section: sectionName(to.id), group: groupName(target) }));
-    }));
+      status(t('app.move.noteDone', { section: sectionName(section), group: groupName(target) }));
+    });
+  } catch (error) { status(error.message, true); }
 }
 async function settleMoved() { await workspace.layout.placeNew(workspace.working, workAreas()); await controller.reconcile(); render(); }
 async function askMoveGroup(groupId, toProfile) {
@@ -2070,7 +2113,11 @@ async function moveGroupAcross(group, toProfile, ids) {
   for (const id of ids) {
     if (stopping || nativeClosing) break;
     const card = currentCard(id); current.textContent = card ? summaryText(card) : '';
-    try { await perform(async () => { await crossMove.moveNote(id, target); await settleMoved(); }); done++; }
+    try {
+      // An attachment may have to come from Drive, which must not hold up a desktop's queue (ADR-064).
+      const bytes = await crossMove.readAttachments(id);
+      await perform(async () => { await crossMove.moveNote(id, target, bytes); await settleMoved(); }); done++;
+    }
     catch (error) {
       failure = error;
       // A note that cannot move stays behind; anything else, such as a full disk, ends the move.
@@ -2088,9 +2135,11 @@ async function moveGroupAcross(group, toProfile, ids) {
   if (nativeClosing) return;
   const remaining = from.workspace.working.cards.filter(card => card.groupId === groupId && !card.deleted).length;
   const name = groupName(group); const section = sectionName(toProfile); const home = sectionName(from.id);
+  // The notes already moved are in a group with no region of its own yet, so they have left the desktop for now.
+  const offDesktop = workspace.layout.state.hiddenGroups?.[target] && workspace.layout.state.grid.slots.includes(groupId) ? [t('app.move.targetOff')] : [];
   if (finished) moveNotice(t('app.move.doneTitle'), [plural('app.move.doneText', done, { section, group: name })]);
-  else if (stopping) moveNotice(t('app.move.stoppedTitle'), [t('app.move.stoppedText', { done, left: remaining, section: home, group: name }), t('app.move.again')]);
-  else moveNotice(t('app.move.partialTitle'), [...failure ? [failure.message] : [], t('app.move.partialText', { done, left: remaining, section: home, group: name }), t('app.move.again')]);
+  else if (stopping) moveNotice(t('app.move.stoppedTitle'), [t('app.move.stoppedText', { done, left: remaining, section: home, group: name }), t('app.move.again'), ...offDesktop]);
+  else moveNotice(t('app.move.partialTitle'), [...failure ? [failure.message] : [], t('app.move.partialText', { done, left: remaining, section: home, group: name }), t('app.move.again'), ...offDesktop]);
 }
 // A note from a group that has moved away needs another group; with none left in its collection, the group comes back.
 async function restoreNote(card) {
@@ -2205,7 +2254,7 @@ function groupEditor(group, section = profileId) {
     if (chosen !== colorAtOpen && chosen !== colorNow) await workspace.layout.setGroupColor(groupId, chosen, workspace.snapshot);
     if (opacityField && opacity.value !== opacityShown) await workspace.layout.setGroupOpacity(groupId, Number(opacity.value) / 100, workspace.snapshot);
     if (highlight.checked !== highlightAtOpen) await workspace.layout.setGroupHighlight(groupId, highlight.checked, workspace.snapshot);
-    await workspace.layout.placeNew(workspace.working, workAreas()); dialog.close(); render();
+    await workspace.layout.placeNew(workspace.working, workAreas()); dialog.close(); render(); workspace.layout.takeArrivedOffDesktop();
     status(t(!group && workspace.layout.state.hiddenGroups?.[groupId] ? 'app.status.groupOffDesktop' : 'app.status.groupSaved'));
   }); });
   dialog.showModal(); input.focus();
@@ -2465,14 +2514,14 @@ async function readAttachment(id) {
 }
 async function previewAttachment(file) {
   if (attachmentFiles) {
-    for (const reader of companions) { const result = await reader.attachments?.preview(file); if (result?.available) return result; }
+    for (const reader of companions) { const result = await reader.attachments?.preview(file).catch(() => null); if (result?.available) return result; }
     return attachmentFiles.preview(file);
   }
   return { available: Boolean(await readAttachment(file.id)), png: null };
 }
 async function openAttachment(file) {
   if (attachmentFiles) {
-    for (const reader of companions) { const held = await reader.attachments?.preview(file); if (held?.available) return reader.attachments.open(file); }
+    for (const reader of companions) { const held = await reader.attachments?.preview(file).catch(() => null); if (held?.available) return reader.attachments.open(file); }
     return attachmentFiles.open(file);
   }
   const blob = await readAttachment(file.id);
@@ -2617,7 +2666,8 @@ function collectionPicker(selected, change) {
   if (workspace.profiles.length < 2) return null;
   const label = element('label', t('app.sections.choose'), 'field collection-picker'); const select = element('select');
   for (const { id } of workspace.profiles) select.append(new Option(sectionName(id), id));
-  select.value = selected; select.onchange = () => change(select.value); label.append(select); return label;
+  // It shows what the page below it is on until the page changes, which it may refuse while busy.
+  select.value = selected; select.onchange = () => { const chosen = select.value; select.value = selected; change(chosen); }; label.append(select); return label;
 }
 async function mountRevisions() {
   const host = $('#revisions-host');
@@ -2850,7 +2900,8 @@ function previewGrid(reshape = false, apply = false) {
   const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = shownGroups();
   if (reshape || settingsSlots.length !== rows * columns) {
     // A smaller grid takes groups off the desktop and a larger one leaves its new regions empty: the choice stays the user's.
-    const held = settingsSlots.filter(Boolean);
+    // Reshaping starts from the regions as they are now: a group may have landed since this page drew them.
+    const held = (reshape ? workspace.layout.state.grid.slots : settingsSlots).filter(Boolean);
     settingsSlots = Array.from({ length: rows * columns }, (_, index) => held[index] || null);
   }
   const preview = $('#grid-preview'); preview.replaceChildren(); preview.style.gridTemplateColumns = `repeat(${columns},1fr)`;
@@ -3124,6 +3175,8 @@ function bindEvents() {
   $('#close-editor-button').onclick = () => run(closeEditor); $('#close-editor').onclick = () => run(closeEditor);
   $('#capture-inbox-button').onclick = () => run(async () => {
     await ensureCaptureGroup();
+    // A share lands in the account's collection, which may have no group while another collection does.
+    if (!primary.activeGroupList().length) { await workspace.ensureCaptureGroup(); await workspace.layout.settle(); render(); }
     fillGroups($('#capture-group'), activeGroupId, profileId); $('#capture-result').textContent = ''; $('#capture-inbox-dialog').showModal(); await refreshCaptures();
   });
   $('#close-capture').onclick = () => { if (!captureBusy) $('#capture-inbox-dialog').close(); };
@@ -3167,7 +3220,7 @@ function bindEvents() {
   });
   // The status bar shows conflicts only while there are some; the button opens their page in Settings, which waits for
   // an input in progress.
-  $('#conflicts-button').onclick = () => run(() => openSettings('revisions'));
+  $('#conflicts-button').onclick = () => run(() => { revisionsProfile = workspace.firstNeedingAttention() ?? revisionsProfile; return openSettings('revisions'); });
   const stage = $('#stage');
   // Stage gestures run in order, so a release never overtakes the one before it.
   let stageQueue = Promise.resolve();

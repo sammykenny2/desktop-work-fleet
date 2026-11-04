@@ -357,3 +357,35 @@ test('a backup keeps each group opacity, and an import gives the imported groups
   assert.equal(imported.length, 1); assert.equal(opacity[imported[0]], 0.4);
   assert.ok(target.workspace.snapshot.groups.some(group => group.id === imported[0]), 'the opacity follows the imported group');
 });
+
+test('beside other collections, a backup from elsewhere takes new ids, so that two collections never come to share them', async () => {
+  // Nothing tells this device what a collection that is not open holds, as when merging an account's backup while signed out.
+  const account = await fixture(null, new Map(), 'google:account'); const note = await account.workspace.createCard(text('from the account'));
+  const local = await fixture(null, new Map(), 'local');
+  const plan = await prepareRestore({ workspace: local.workspace, document: await account.export(), mode: 'merge', workAreas: [area], foreignIds: new Set() });
+  await local.workspace.applyRestore(plan, { persist: local.atomic });
+  const restored = local.workspace.snapshot.cards.filter(card => card.content.text === 'from the account');
+  assert.equal(restored.length, 1); assert.notEqual(restored[0].id, note.id);
+  const groups = new Set(account.workspace.snapshot.groups.map(group => group.id));
+  assert.equal(local.workspace.snapshot.groups.some(group => groups.has(group.id)), false);
+});
+
+test('a collection\'s own backup keeps its ids, for it shares something with its target', async () => {
+  const local = await fixture(null, new Map(), 'local'); const note = await local.workspace.createCard(text('mine'));
+  const document = await local.export(); await local.workspace.createCard(text('later'));
+  const plan = await prepareRestore({ workspace: local.workspace, document, mode: 'merge', workAreas: [area], foreignIds: new Set() });
+  await local.workspace.applyRestore(plan, { persist: local.atomic });
+  assert.deepEqual(local.workspace.snapshot.cards.filter(card => card.content.text === 'mine').map(card => card.id), [note.id]);
+});
+
+test('a cloud collection keeps the ids of a backup that has synced, and renews those of one that never did', async () => {
+  const local = await fixture(null, new Map(), 'local'); const fromLocal = await local.workspace.createCard(text('never synced'));
+  const synced = await fixture(null, new Map(), 'google:account'); const fromCloud = await synced.workspace.createCard(text('synced'));
+  const reopened = await fixture({ ...synced.disk(), sync: { ...synced.disk().sync, lastSuccessfulSyncAt: '2026-11-01T00:00:00.000Z' } }, new Map(), 'google:account');
+  for (const [from, id, kept] of [[local, fromLocal.id, false], [reopened, fromCloud.id, true]]) {
+    const target = await fixture(null, new Map(), 'google:other');
+    const plan = await prepareRestore({ workspace: target.workspace, document: await from.export(), mode: 'merge', workAreas: [area], foreignIds: new Set() });
+    await target.workspace.applyRestore(plan, { persist: target.atomic });
+    assert.equal(target.workspace.snapshot.cards.some(card => card.id === id), kept);
+  }
+});

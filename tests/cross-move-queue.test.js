@@ -28,9 +28,9 @@ function harness({ refuse = () => null, fail = () => null, moving = () => {} } =
     currentCard: id => cards.find(card => card.id === id), activeGroups: () => [],
     render: () => log.push('render'), rememberGroup: async () => {}, workAreas: () => [], syncGoogle: async () => {},
     controller: { state: { operationScope: { kind: 'none' } }, endEdit: async () => true, reconcile: async () => {} },
-    workspace: { pendingCount: 0, working: { cards }, groups: () => groups, layout: { placeNew: async () => {} }, ownerOfCard: () => owner, ownerOfGroup: id => id === 'group' ? owner : { id: 'local' }, profile: () => ({ workspace: { snapshot: {} } }) },
-    crossMove: { refusal: id => refuse(id), groupTarget: async () => null,
-      moveNote: async id => { const error = fail(id); if (error) throw error; log.push(`move:${id}`); cards.find(card => card.id === id).deleted = true; moving(id); },
+    workspace: { pendingCount: 0, working: { cards }, groups: () => groups, layout: { placeNew: async () => {}, state: { hiddenGroups: {}, grid: { slots: [] } } }, ownerOfCard: () => owner, ownerOfGroup: id => id === 'group' ? owner : { id: 'local' }, profile: () => ({ workspace: { snapshot: {} } }) },
+    crossMove: { refusal: id => refuse(id), groupTarget: async () => null, readAttachments: async () => [],
+      moveNote: async id => { const error = fail(id); if (error) throw error; log.push(`move:${id}`); cards.find(card => card.id === id).deleted = true; moving(id); return { id }; },
       openGroup: async () => { log.push('open'); return 'target'; }, finishGroup: async () => { log.push('finish'); return cards.every(card => card.deleted); } },
     desktop: { perform: action => { const next = tail.then(() => action()); tail = next.catch(() => {}); return next; } } });
   vm.runInContext(`${source.slice(runStart, runEnd)}\n${source.slice(from, to)}\nglobalThis.api = { run, askMoveNote, askMoveGroup };`, context);

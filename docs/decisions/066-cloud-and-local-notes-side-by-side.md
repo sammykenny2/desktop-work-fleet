@@ -47,7 +47,8 @@ The same request moves Trash out of the view tabs into the sidebar and asks what
 
 - A new device record, the desk, holds what can only have one value on a computer: the group regions (rows, columns,
   area and slots, which may name any profile's groups), shortcuts, the display switches, the main view and group, and the
-  group colours. It is stored in the local profile's control records, outside backups. The first start seeds it from the
+  group colours. Every open profile holds a copy in its control records, outside backups; the copy that changed last leads,
+  and the others catch up when they open. The first start seeds it from the
   primary's layout, so existing shortcuts and settings carry over without a migration job.
 - The per-profile layout keeps paper placements, undo history and per-group layer, opacity and highlight, and stays the
   atomic partner of that profile's content (ADR-010). Its `grid.slots` now means only that profile's list order, which
@@ -110,6 +111,8 @@ with its ids kept. Restores into a profile now take new ids when an id is alread
 ### Negative
 
 - A move is copy-then-trash: Trash grows by one note per moved note, and cloud content stays until Trash is emptied.
+- Versions that know nothing of `movedAway` (0.5.13 and earlier) show a fully moved group as an empty group and count it
+  toward nine, until that device updates.
 - Dragging a sidebar row no longer rearranges the desktop.
 - Moved notes lose their version history in the target, and other devices see the source note in Trash.
 - Sync work grows with each signed-in account when more than one is offered.

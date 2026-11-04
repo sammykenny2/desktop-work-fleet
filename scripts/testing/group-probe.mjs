@@ -326,7 +326,9 @@ try {
   const [first, second] = await order(); const chosenBefore = await chosen();
   assert.equal(await rows.nth(1).evaluate(node => getComputedStyle(node).userSelect), 'none', 'group rows carry no selectable text');
   const touch = await phone.newCDPSession(handset);
-  const centre = async locator => { const box = await locator.boundingBox(); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
+  // A drop draws the list again once the new order is saved, which can replace a row while it is being measured.
+  const measured = async locator => { for (let attempt = 0; ; attempt++) { const box = await locator.boundingBox(); if (box || attempt === 20) return box; await handset.waitForTimeout(50); } };
+  const centre = async locator => { const box = await measured(locator); return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
   const slide = async (from, toY, hold) => {
     await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [from] });
     if (hold) await handset.waitForTimeout(hold);
@@ -335,7 +337,7 @@ try {
     }
     await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   };
-  const top = async index => (await rows.nth(index).boundingBox()).y + 4;
+  const top = async index => (await measured(rows.nth(index))).y + 4;
   await slide(await centre(rows.nth(1).locator('.group-name')), await top(0), 0);
   await handset.waitForTimeout(500); assert.deepEqual(await order(), [first, second], 'a finger that moves at once does not drag');
   await slide(await centre(rows.nth(1).locator('.group-name')), await top(0), 600);

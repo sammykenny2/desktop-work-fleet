@@ -220,6 +220,7 @@ test('a dataset transition reloads its durable journal after a missing save repl
   for (const code of ['lost-save', 'source-reset-superseded']) {
     let saved = { revision: 4 }; let reloads = 0; const jobs = new Map();
     const context = vm.createContext({ accountBusy: false, nativeClosing: false, clearInterval() {}, syncTimer: null,
+      stopCompanionBackups() {}, startCompanionBackups() {}, companionBackupsIdle: async () => {},
       stopAutomatic: null, automatic: null, syncService: null, desktop: null, activeActions: [], draftPending: null,
       currentDraft: null, unsavedDrafts: new Set(), document: { body: {} }, profileId: 'google:fixture',
       native: { bridge: {}, info: {} }, workspace: { state: copy(saved) }, stopMaintenance: async () => {}, t,

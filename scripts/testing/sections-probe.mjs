@@ -91,7 +91,17 @@ try {
   await expect(page.locator('#trash-tabs button')).toHaveCount(3); await expect(page.locator('#trash-tabs button.active')).toHaveText(t('app.trash.all'));
   await expect(page.locator('#list .trash-head .source')).toHaveText([t('app.sections.cloud'), t('app.sections.local')]);
   await mkdir('build/sections-probe', { recursive: true }); await page.screenshot({ path: 'build/sections-probe/trash.png' });
+  // The link from a search counts every collection, so it shows them all, whichever tab was last open.
   await page.locator(`#trash-tabs [data-trash-tab="${local}"]`).click();
+  await row('Work').locator('button').first().click(); await page.locator('#search').fill('Cloud trip');
+  await page.locator('#list .trash-link').click(); await expect(page.locator('#trash-tabs button.active')).toHaveText(t('app.trash.all'));
+  await expect(page.locator('#list .note-title')).toHaveText(['Cloud trip plan']); await page.locator('#search').fill('');
+  // Emptying both with no connection reaches the part that needs none, and says what stays.
+  await page.locator('#empty-trash').click(); await expect(page.locator('#purge-dialog')).toContainText(t('app.purge.needsConnection', { section: t('app.sections.cloud') }));
+  await expect(page.locator('#purge-dialog')).toContainText(t('app.purge.device')); await expect(page.locator('#purge-dialog li')).toHaveText(['Local paint plan']);
+  await page.locator('#purge-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
+  await page.locator(`#trash-tabs [data-trash-tab="${local}"]`).click(); await expect(page.locator(`#trash-tabs [data-trash-tab="${local}"]`)).toBeFocused();
+  await expect(page.locator(`#trash-tabs [data-trash-tab="${local}"]`)).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('#list .note-title')).toHaveText(['Local paint plan']); await expect(page.locator('#list .trash-head .source')).toHaveCount(0);
   await expect(page.locator('#empty-trash')).toHaveText(t('app.purge.emptySection', { section: t('app.sections.local') }));
   await page.locator('#empty-trash').click(); await expect(page.locator('#purge-dialog')).toContainText(t('app.purge.device'));

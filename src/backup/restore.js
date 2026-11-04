@@ -1,4 +1,4 @@
-import { copy, requireValue, validRect } from '../core/contracts.js';
+import { activeGroups, copy, requireValue, validRect } from '../core/contracts.js';
 import { canonicalJson } from '../sources/json.js';
 import { revisionRecord, RevisionGraph, validId } from '../sources/revisions.js';
 import { projectRevisionsAsync, reconcileSourceLayout } from '../sources/projection.js';
@@ -185,8 +185,13 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   for (const draft of original.drafts) if (affected.has(draft.cardId)) {
     selected.draft.add(draft.id); if (draft.baseRevision) selected.revision.add(draft.baseRevision);
   }
-  // Notes or groups another open collection already holds take new ids, or routing by id could not tell the two apart (ADR-066).
-  const foreign = Boolean(foreignIds) && [...original.local.cards, ...original.local.groups].some(item => foreignIds.has(item.id));
+  // Notes or groups another collection may hold take new ids, or routing by id could not tell the two apart (ADR-066). That
+  // collection may not be open or even on this device, so what can be known is what this one holds: a backup sharing none of
+  // it came from elsewhere. Only a cloud collection's own backup can be new to it and still be its own, and that has synced.
+  const held = new Set([...state.cards, ...state.groups].map(item => item.id));
+  const items = [...original.local.cards, ...original.local.groups];
+  const elsewhere = !items.some(item => held.has(item.id)) && (!state.profileId.startsWith('google:') || document.manifest.lastSuccessfulSyncAt === null);
+  const foreign = Boolean(foreignIds) && (elsewhere || items.some(item => foreignIds.has(item.id)));
   const imported = mode === 'import' || purged.length || foreign ? await importData(original, fresh, checkpoint, mode === 'import' || foreign ? null : selected) : { data: original, mappings: {} };
   const data = imported.data; const next = copy(state); const additions = [];
   const known = new Map(state.revisions.map(record => [record.revisionId, record]));
@@ -201,7 +206,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   const preferences = copy(data.local); let extraCards = 0; let retiredGroups = 0; let recoveryGroup = null;
   if (mode === 'replace') {
     const backupSnapshot = await projectRevisionsAsync(backupGraph, { ...data.local, conflicts: data.local.transferIntents }, checkpoint);
-    let recipient = backupSnapshot.groups.find(group => !group.deleted)?.id;
+    let recipient = activeGroups(backupSnapshot)[0]?.id;
     if (!recipient) {
       recoveryGroup = { id: fresh(), revision: fresh(), name: t('backup.restore.recoveryGroupName'), deleted: false }; recipient = recoveryGroup.id;
       append(revisionRecord('group', recoveryGroup)); preferences.groups.push({ id: recipient, revision: recoveryGroup.revision });

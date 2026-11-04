@@ -269,3 +269,32 @@ test('one profile behaves as it did before there were several', async () => {
   assert.ok(combined.layout.state.placements[note.id]);
   assert.equal(combined.layout.state.hiddenGroups[group[0].id], undefined);
 });
+
+test('the desk copy that changed last leads, and every copy catches up', async () => {
+  const one = controls(); const two = controls(); const local = await Workspace.create({ profileId: 'local', deviceId: 'device', area, persist: async () => {} });
+  const cloud = await Workspace.create({ profileId: 'google:a', deviceId: 'device', area, persist: async () => {}, bootstrapGroup: false });
+  const desk = revision => ({ revision, grid: { rows: 1, columns: 3, area, slots: [null, null, null] }, groupColors: {}, known: {}, mainView: revision === 7 ? 'list' : 'board' });
+  // Local notes could not open for a while, so only the account's copy moved on.
+  await one.putControl('desk', desk(3)); await two.putControl('desk', desk(7));
+  const combined = await CombinedWorkspace.open([{ id: 'google:a', workspace: cloud, storage: two }, { id: 'local', workspace: local, storage: one }]);
+  assert.equal(combined.layout.state.mainView, 'list');
+  assert.equal((await one.getControl('desk')).mainView, 'list', 'the behind copy catches up, so signing out next still finds it');
+});
+
+test('a group new to this device that finds no free region is reported once; one with a region is not', async () => {
+  const { combined, profiles } = await open(['google:a', 'local']);
+  assert.deepEqual(combined.layout.takeArrivedOffDesktop(), [], 'the first groups found regions');
+  const added = []; for (let index = 0; index < 8; index++) added.push(await combined.createGroup(`More ${index}`, profiles[index % 2].id));
+  await combined.layout.settle();
+  const off = added.filter(group => combined.layout.state.hiddenGroups[group.id]).map(group => group.id);
+  assert.equal(off.length, 1, 'nine regions fit nine of the ten groups');
+  assert.deepEqual(combined.layout.takeArrivedOffDesktop(), off); assert.deepEqual(combined.layout.takeArrivedOffDesktop(), []);
+  await combined.layout.settle(); assert.deepEqual(combined.layout.takeArrivedOffDesktop(), [], 'it stays off without saying so again');
+});
+
+test('Versions and conflicts opens on a collection that has something to show', () => {
+  const state = conflicts => ({ state: { conflicts, drafts: {} } });
+  const combined = new CombinedWorkspace([{ id: 'google:a', workspace: state([]) }, { id: 'local', workspace: state([{}]) }], null);
+  assert.equal(combined.attentionCount(), 1); assert.equal(combined.firstNeedingAttention(), 'local');
+  assert.equal(new CombinedWorkspace([{ id: 'local', workspace: state([]) }], null).firstNeedingAttention(), null);
+});

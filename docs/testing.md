@@ -897,6 +897,7 @@ node scripts/testing/handheld-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/handheld-highlight-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-delete-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/shared-ids-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/layout-probe.mjs --url http://127.0.0.1:PORT [--browser chromium|webkit] [--locale en|zh-TW]
 ```
 
 The browser, group, revision, backup, restore UI, cloud restore UI, local backup UI, automatic backup and scene probes
@@ -1011,6 +1012,12 @@ before driving the initialized page. WebKit's Trash-only run skips the later Chr
 board and in the list, newest first; search inside Trash; no drop on its row; leaving it by a group or a region key; no opening over a canvas being
 adjusted; search across every status with each result's group and status, also in a phone's list, and the link to matches in Trash; restore; Empty Trash;
 the buttons fitting a phone's paper; and the phone drawer.
+
+`layout-probe.mjs` checks the layout rules every screen shares at 1280, 860, 390 and 320 px: a dropdown as tall as the text field beside it, with its own arrow,
+on the engine that drew it flat; the management actions of group settings and note details together and apart from their answer, on their own row on a phone; a toast off a dialog's
+action row after the dialog scrolls; every settings page fitting its width and starting at the top; and Data and backup in cards of rows, with its encryption, destructive restore, checked-file and
+automatic backup states. A synthetic desktop host checks that the layout map is not offered and that Adjust all stays available in Trash. It writes pictures to `build/layout-probe`.
+It runs a browser engine, not a native host's web view; the checked-file state needs Chromium's file picker. It also runs from `test-dataset-recovery.mjs` in CI.
 
 `notifications-probe.mjs --url URL --browser chromium` and `--browser webkit --locale zh-TW` check toast expiration, sticky
 errors, progress updates, text isolation, one-shot actions, focus and 320/390/1200 px geometry. The same host moves into

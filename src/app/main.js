@@ -50,6 +50,7 @@ import { createBackup, openBackup } from '../backup/payload.js';
 import { saveSafetyBackup } from '../backup/restore.js';
 import { formatDate, localizeDocument, onLocaleChange, plural, t } from '../i18n/index.js';
 import { controlRow, settingsCard } from './settings-row.js';
+import { limitContextMenu } from './context-menu.js';
 import { groupName } from '../core/group-name.js';
 import { adoptHostLanguage, changeLanguage, languageOptions, languagePreference, startLanguage } from './language.js';
 
@@ -185,6 +186,7 @@ async function initialize() {
   status(t('app.status.loading')); setSync('off', () => t('sync.status.opening'));
   setText('#storage-note', () => t('sync.status.opening')); renderAccount();
   native = await connectNative();
+  if (native && !['ios', 'android'].includes(native.info.platform)) limitContextMenu();
   // Register before storage can return into a recovery screen. No Workspace exists there to flush.
   native?.bridge.onCloseRequested(() => { void prepareNativeClose(); });
   // Modal dialogs escape their parent's inert state. Also stop their input, including recovery before Workspace exists.

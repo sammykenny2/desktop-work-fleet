@@ -8,7 +8,9 @@ import { shortcutForEvent } from '../core/shortcuts.js';
 import { createFrameRefresher } from './frame-refresh.js';
 import { getLocale, localizeDocument, setLocale, t } from '../i18n/index.js';
 import { translucent } from '../layout/opacity.js';
+import { limitContextMenu } from '../app/context-menu.js';
 
+limitContextMenu();
 const root = document.querySelector('#scene'); const status = document.querySelector('#scene-status');
 const nodes = new Map(); const frozen = new Set(); const fitter = paperFitter();
 let bridge, client, info, frame, editor = null, composing = false, gesture = null, lastError, displayPending = false;

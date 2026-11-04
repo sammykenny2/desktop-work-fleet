@@ -51,6 +51,7 @@ async function checkWidth(width, height) {
   const { openDrawer, closeDrawer, capture } = browserPage(context, phone);
   const url = new URL(base); url.searchParams.set('profile', `layout-${crypto.randomUUID()}`);
   await page.goto(url.href); await opened(page);
+  assert.equal(await page.locator('#workspace-title').evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))), true, 'a browser keeps its own menu');
   await capture(page, 'First note'); await openDrawer(page);
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Second');
   await page.locator('dialog[open] button[type=submit]').click(); await expect(page.locator('dialog[open]')).toHaveCount(0);
@@ -194,6 +195,12 @@ async function checkDesktopHost() {
   await expect(page.locator('[data-view="desktop"]')).toBeHidden(); await expect(page.locator('#layout-map')).toBeHidden();
   await page.locator('[data-view="list"]').click(); await page.locator('[data-view="board"]').click();
   await expect(page.locator('[data-view="desktop"]')).toBeHidden(); await expect(page.locator('#layout-map')).toBeHidden();
+
+  // An app has no Reload or Back to offer; what can be typed keeps its menu.
+  const menuAllowed = selector => page.locator(selector).evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  assert.equal(await menuAllowed('#workspace-title'), false, 'the window shows no web view menu');
+  assert.equal(await menuAllowed('.note-paper'), false, 'a note shows no web view menu');
+  assert.equal(await menuAllowed('#search'), true, 'a text field keeps its menu');
 
   // Trash has no group to adjust, but Adjust all works from there as its shortcut does.
   await page.locator('#groups .trash-row button').click();

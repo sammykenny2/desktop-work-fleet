@@ -20,7 +20,8 @@ export const compareId = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const createdAt = card => typeof card.createdAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(card.createdAt) ? card.createdAt : '';
 export const compareCards = (a, b) => compareId(createdAt(a), createdAt(b)) || compareId(a.id, b.id);
 export const copy = value => structuredClone(value);
-export const activeGroups = snapshot => snapshot.groups.filter(group => !group.deleted);
+// A group moved away to another collection stays only so that its trashed notes keep a group (ADR-066).
+export const activeGroups = snapshot => snapshot.groups.filter(group => !group.deleted && !group.movedAway);
 export const groupKey = snapshot => JSON.stringify(activeGroups(snapshot).map(group => group.id).sort(compareId));
 export const safeKey = key => typeof key === 'string' && key.length > 0
   && !['__proto__', 'prototype', 'constructor'].includes(key);
@@ -50,7 +51,7 @@ export const containsRect = (outer, inner) => inner.x >= outer.x && inner.y >= o
 // A completed paper leaves the desktop unless this device shows completed papers; then it stays, marked as completed.
 export function eligible(card, layout) {
   return !card.deleted && !card.archived && (!card.completed || layout.completedVisible === true)
-    && layout.placements[card.id]?.visible !== false;
+    && layout.placements[card.id]?.visible !== false && !layout.hiddenGroups?.[card.groupId];
 }
 
 export function inScope(card, scope) {
@@ -77,14 +78,12 @@ export function summaryText(card) {
     .replace(/\s+/g, ' ').trim() || t('notes.summary.untitled');
 }
 
-export function gridRegions(grid, groups) {
-  validateGrid(grid.rows, grid.columns, groups.length);
+// A region holds any one group or none, and a group may hold no region (SPEC-012), so this checks only the grid itself.
+export function gridRegions(grid) {
+  validateGrid(grid.rows, grid.columns, 0);
   requireValue(validRect(grid.area), 'invalid-area', t('errors.common.workAreaRequired'));
-  const ids = new Set(groups.map(group => group.id));
-  requireValue(grid.slots.filter(Boolean).length === groups.length
-    && new Set(grid.slots.filter(Boolean)).size === groups.length
-    && grid.slots.filter(Boolean).every(id => ids.has(id))
-    && grid.slots.length === grid.rows * grid.columns,
+  const held = grid.slots.filter(Boolean);
+  requireValue(new Set(held).size === held.length && grid.slots.length === grid.rows * grid.columns,
   'invalid-slots', t('errors.core.slotsInvalid'));
   const { x, y, width, height } = grid.area;
   return grid.slots.map((groupId, index) => ({

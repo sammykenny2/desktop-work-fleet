@@ -87,7 +87,7 @@ export function planFormation({ snapshot, layout, scope, mode, grid = layout.gri
   requireValue(Array.isArray(workAreas) && workAreas.length && workAreas.every(validRect)
     && Number.isFinite(gap) && gap >= 0, 'invalid-area', t('errors.common.workAreaRequired'));
   const groups = activeGroups(snapshot);
-  const regions = gridRegions(grid, groups);
+  const regions = gridRegions(grid);
   requireValue(scope.kind === 'all' || groups.some(group => group.id === scope.groupId),
     'missing-group', t('errors.common.groupMissing'));
   const cards = stableCards(snapshot.cards.filter(card => eligible(card, layout) && inScope(card, scope)), layout);

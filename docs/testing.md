@@ -922,11 +922,10 @@ Keep this wait if the probe is edited.
 The group probe verifies that the gear opens Settings on General and the account chip on Account and sync with the
 account card selected (at 390 px the gear shows the list of pages with the card on top), group preview, cancel and merge (a never-saved note counting as a note that moves), archived data and unsaved-note integrity, the browser's Reset desktop
 layout hint naming no main window, region swaps not moving cards,
-the sidebar following the regions and reordering them by mouse drag and Alt+arrow keys without moving cards, a board
+the sidebar keeping its own order, reordered by mouse drag and Alt+arrow keys without moving a card or changing a region or key, a board
 paper dragged onto another sidebar group (Esc and the note's own group moving nothing; one new version of the same note
 with its desktop position kept; Undo from the status bar; "Moved from" on the versions in history; nothing moving at
-390 px), the
-toast naming the keys that changed group,
+390 px),
 a colour swap in group settings recording no revision and repainting the sidebar dot, group highlights set in each group's settings (two at once, no revision recorded, the star taking the dot's place and colour with the name unmoved, the edge on exactly the highlighted group's notes) and following a merge,
 the group chosen in the sidebar, by a region key, by creating it or in the editor of a new note being remembered in the layout and shown again after a reload,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving

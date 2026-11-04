@@ -1,11 +1,12 @@
 import { Workspace } from '../core/workspace.js';
+import { CombinedWorkspace } from '../core/combined-workspace.js';
 import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
-import { normalizeShortcut, regionKeyChanges, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
+import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, stepGroup } from '../layout/stages.js';
 import { groupHighlighted, mainGroup, mainView } from '../layout/store.js';
-import { orderedGroups, reorderSlots } from '../layout/order.js';
+import { reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity, MIN_OPACITY } from '../layout/opacity.js';
 import { InteractionController, cardPolicy, quickMoveKey, sceneOrder } from '../interaction/controller.js';
@@ -50,7 +51,8 @@ import { groupName } from '../core/group-name.js';
 import { adoptHostLanguage, changeLanguage, languageOptions, languagePreference, startLanguage } from './language.js';
 
 const $ = selector => document.querySelector(selector);
-let workspace; let storage; let controller; let lease;
+// `workspace` is every open profile as one, for the interface; `primary` and `storage` are the profile sync and recovery act on.
+let workspace; let primary; let storage; let controller; let lease;
 // The browser preview opens on its desktop canvas when there is room; desktop hosts and phones open on the papers.
 let activeGroupId; let filter = 'active'; let trashOpen = false; let showDesktop = !matchMedia('(max-width:640px)').matches;
 let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resolve(); let editorBusy = false;
@@ -93,16 +95,6 @@ function immediateButton(text, handler, className) {
 }
 function button(text, action, className) { return immediateButton(text, () => run(action), className); }
 // A status can offer one follow-up, such as undoing a delete, which runs once; the next status takes it away.
-// A short message floating above the page that leaves on its own or when closed; a newer one replaces it. The live
-// region stays in the page and is emptied rather than hidden, so assistive technology announces every message.
-let toastTimer = 0;
-function closeToast() { clearTimeout(toastTimer); $('#toast').replaceChildren(); }
-function toast(title, lines = []) {
-  const close = element('button', '×', 'toast-close'); close.type = 'button'; close.setAttribute('aria-label', t('common.close'));
-  close.onclick = event => { event.stopPropagation(); closeToast(); };
-  $('#toast').replaceChildren(element('strong', title), ...lines.map(line => element('span', line)), close);
-  clearTimeout(toastTimer); toastTimer = setTimeout(closeToast, 4000 + 1500 * lines.length);
-}
 function status(text, error = false, action = null) {
   $('#status').textContent = text; $('#status').classList.toggle('error', error);
   const follow = $('#status-action'); follow.hidden = !action; follow.textContent = action?.label ?? '';
@@ -148,7 +140,7 @@ const colorNames = () => [t('app.colors.yellow'), t('app.colors.mint'), t('app.c
 // The note as this device shows it, with its unsaved changes; a note never saved has no revision (ADR-061).
 function currentCard(id) { return workspace.working.cards.find(card => card.id === id); }
 // The sidebar and every group picker list groups in this device's region order.
-function shownGroups() { return orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot)); }
+function shownGroups() { return workspace.orderedGroups(); }
 // A group chosen in the sidebar or by a region key is remembered on this device, so after a restart the main window and
 // quick capture return to it. A group that is gone falls back to the remembered one, which a merge carries to the
 // receiving group, and then to the first. Remembering never holds up the action that chose the group; a failed write
@@ -225,15 +217,16 @@ async function initialize() {
   if (saved) saved = await stagePendingDatasetReset(saved, storage);
   // Groups new to this computer, made here or brought by sign-in or sync, start at the back of its desktop.
   const backLayer = () => arrivalLayer(residentLayers());
-  try { if (saved) workspace = new Workspace(saved, persist); }
+  try { if (saved) primary = new Workspace(saved, persist); }
   catch (error) { if (recovery && workspaceFailureCause(error, saved)) return showDataFailure(workspaceFailureCause(error, saved)); throw error; }
-  workspace ||= await Workspace.create({ profileId,
+  primary ||= await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, current: true,
     bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
-  const history = new DatasetHistory({ workspace, storage, fileStore: () => datasetStore });
-  workspace.setHistory(history); storage.setAttachmentLoader(id => history.attachment(id));
-  purge = new DatasetPurge({ workspace, storage, fileStore: () => datasetStore });
-  workspace.setArrivalLayer(backLayer);
+  const history = new DatasetHistory({ workspace: primary, storage, fileStore: () => datasetStore });
+  primary.setHistory(history); storage.setAttachmentLoader(id => history.attachment(id));
+  purge = new DatasetPurge({ workspace: primary, storage, fileStore: () => datasetStore });
+  primary.setArrivalLayer(backLayer);
+  workspace = await CombinedWorkspace.open([{ id: profileId, workspace: primary, storage }]);
   // A new note open in a quick edit stays on the desktop while its text is cleared (ADR-061).
   workspace.setOpenNote(() => remoteEditor?.cardId ?? null);
   activeGroupId = rememberedGroup();
@@ -255,7 +248,7 @@ async function initialize() {
   try {
     const journal = native ? storage.journal() : await IndexedDbBackupJournal.open(); if (!native) browserJournal = journal;
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
-    const service = new AutomaticBackup({ workspace, storage, journal, files, vault, appVersion: native?.info.appVersion,
+    const service = new AutomaticBackup({ workspace: primary, storage, journal, files, vault, appVersion: native?.info.appVersion,
       flush: flushForBackup }); await service.load();
     automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
@@ -301,7 +294,7 @@ async function initialize() {
   scheduleMaintenance();
   addEventListener('pagehide', () => { clearTimeout(maintenanceTimer); maintenanceAbort.abort(); }, { once: true });
   if (native?.info.capabilities.shareInbox) {
-    captureInbox = new NativeCaptureInbox(native, workspace, storage);
+    captureInbox = new NativeCaptureInbox(native, primary, storage);
     native.bridge.onEvent('host-capture', () => { void refreshCaptures().catch(error => status(error.message, true)); });
     native.bridge.onEvent('host-foreground', () => { void refreshCaptures().catch(error => status(error.message, true)); });
     await refreshCaptures();
@@ -475,7 +468,7 @@ async function initializeGoogle() {
   if (datasetStore) {
     setText('#storage-note', paused ? () => t('sync.storage.paused') : () => t('sync.storage.google'));
     setSync(paused ? 'attention' : 'off', paused ? () => t('sync.status.paused') : () => t('sync.status.waiting'), paused ? googleAccount.pauseReason : '');
-    syncService = new DatasetSync({ workspace, storage, fileStore: datasetStore });
+    syncService = new DatasetSync({ workspace: primary, storage, fileStore: datasetStore });
     syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
     addEventListener('online', () => { maintenancePaused = false; scheduleMaintenance(); void syncGoogle(); });
     addEventListener('pagehide', () => { clearInterval(syncTimer); void syncService?.stop(); });
@@ -716,7 +709,7 @@ async function maintainDataset() {
   maintenanceWork = (async () => {
     if (maintenanceFailure) { await storage.deleteJob('dataset-ui-error'); maintenanceFailure = null; }
     if (workspace.state.cloudRestore) {
-      const result = await advanceDatasetRestore({ workspace, storage, fileStore: datasetStore, signal: maintenanceAbort.signal,
+      const result = await advanceDatasetRestore({ workspace: primary, storage, fileStore: datasetStore, signal: maintenanceAbort.signal,
         progress: reportDatasetProgress });
       more = true;
       if (result.complete) {
@@ -847,7 +840,7 @@ function cloudRestoreOptions() {
         const result = await syncService?.syncWaiting({ force: true, land: landSync });
         if (result?.phase === 'waiting-initialization') throw new Error(t('sync.errors.initializingRestore'));
       }
-      return prepareDatasetRestore({ ...options, workspace, storage, fileStore: datasetStore, recovery: Boolean(datasetProblem) });
+      return prepareDatasetRestore({ ...options, workspace: primary, storage, fileStore: datasetStore, recovery: Boolean(datasetProblem) });
     },
     run: (plan, safety, say) => runCloudRestore(say, { plan, safety }) };
 }
@@ -875,7 +868,7 @@ async function applyLocalRestore(plan, signal) {
   stopAutomatic?.();
   try {
     await automatic?.service.whenIdle();
-    const apply = () => workspace.applyRestore(plan, { signal,
+    const apply = () => primary.applyRestore(plan, { signal,
       persist: (state, revision, attachments, options) => storage.saveWithAttachments(state, revision, attachments, options) });
     return await (desktop ? desktop.perform(apply) : apply());
   } finally { if (automatic) stopAutomatic = startAutomaticBackup(automatic.service); }
@@ -928,7 +921,7 @@ async function runCloudRestore(say, { plan, safety } = {}) {
   requireConnected();
   if (!plan) { resumeMaintenance(); say(t('sync.status.overwriteUnfinished')); return; }
   await runDatasetChange(async () => {
-    await plan.stage(workspace, storage, datasetStore, safety);
+    await plan.stage(primary, storage, datasetStore, safety);
   });
 }
 
@@ -979,17 +972,17 @@ async function askDatasetRecovery() {
   } else {
     actions.append(action(t('sync.recovery.rejoin'), async () => {
       requireConnected(); await flushDraft();
-      const preview = await previewDatasetRejoin({ workspace, storage, fileStore: datasetStore });
+      const preview = await previewDatasetRejoin({ workspace: primary, storage, fileStore: datasetStore });
       body.replaceChildren(element('p', t('sync.recovery.rejoinPreview', { account, pending: preview.pending, drafts: preview.drafts, cards: preview.cards })));
       actions.replaceChildren(exportFirst, later, action(t('sync.recovery.confirmRejoin'), async () => runDatasetChange(() =>
-        stageDatasetRejoin({ workspace, storage, fileStore: datasetStore, preview })), 'danger'));
+        stageDatasetRejoin({ workspace: primary, storage, fileStore: datasetStore, preview })), 'danger'));
     }));
     actions.append(action(t('sync.recovery.recover'), async () => {
       requireConnected(); await flushDraft();
       // Only current content and locally available attachments may be promised after loss. The safety archive uses that same explicit coverage.
-      const backup = await createBackup({ workspace, storage, coverage: 'current-state-only', appVersion: native?.info.appVersion });
+      const backup = await createBackup({ workspace: primary, storage, coverage: 'current-state-only', appVersion: native?.info.appVersion });
       const document = await openBackup(backup.bytes, { requireCurrent: true });
-      const plan = await prepareDatasetRestore({ workspace, storage, fileStore: datasetStore, document, workAreas: workAreas(), recovery: true });
+      const plan = await prepareDatasetRestore({ workspace: primary, storage, fileStore: datasetStore, document, workAreas: workAreas(), recovery: true });
       let safety = null;
       const confirm = action(t('sync.recovery.confirmRecover'), async () => runCloudRestore(text => { message.textContent = text; }, { plan, safety }), 'danger');
       confirm.disabled = true; ready.set(confirm, () => Boolean(safety));
@@ -1000,7 +993,7 @@ async function askDatasetRecovery() {
       const save = action(t('backup.restore.saveSafety'), async () => {
         if ([...password.value].length < 12) throw new Error(t('backup.errors.passwordTooShort'));
         const destination = await nativeBackups.manual.chooseDestination({ requireConfirmed: true });
-        safety = await saveSafetyBackup({ workspace, storage, password: password.value, coverage: 'current-state-only', appVersion: native.info.appVersion, save: value => destination.save(value) });
+        safety = await saveSafetyBackup({ workspace: primary, storage, password: password.value, coverage: 'current-state-only', appVersion: native.info.appVersion, save: value => destination.save(value) });
         password.value = '';
         confirm.disabled = false; message.textContent = t('backup.restore.safetySaved');
       });
@@ -1109,7 +1102,7 @@ function initializeDesktop() {
   desktop = new DesktopOwner({ bridge: native.bridge, authority, editor: currentDesktopEditor,
     project: sequence => {
       const frame = projectDesktop({ snapshot: workspace.working, layout: workspace.layout.state, interaction: controller.state,
-        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.state.revision, layers: desktopInfo.layers, residentLayers: residentLayers(), editor: currentDesktopEditor(), notice: desktopNotice,
+        sessionId: desktopInfo.sessionId, sequence, topology: desktopInfo.topology ?? 0, workspaceRevision: workspace.revision, layers: desktopInfo.layers, residentLayers: residentLayers(), editor: currentDesktopEditor(), notice: desktopNotice,
         quickMove: workspace.layout.state.quickMove === true && quickMoveOffered() ? quickMoveKey(native.info.platform) : null });
       // Settings only speaks up when a paper cannot sit on the layer it asks for.
       const [fallback] = frame.fallbacks; const layerName = layer => stageNames()[groupLayerOrder.indexOf(layer)];
@@ -1143,7 +1136,7 @@ function initializeDesktop() {
       // Keep the main preview noneditable until every already accepted durable write settles.
       await authority.whenDraftIdle();
       if (remoteEditor?.viewId === viewId && currentDraft?.id === draftId) {
-        currentDraft = copy(workspace.state.drafts[draftId] || currentDraft); remoteEditor = null;
+        currentDraft = copy(workspace.draft(draftId) || currentDraft); remoteEditor = null;
         // A quick edit has no other place to go on (SPEC-003, 2026-10-24): it closes and keeps its unsaved changes.
         if (controller.state.operationScope.kind === 'none' && controller.state.editingCardId === currentDraft.cardId) {
           await queueDraft(); await controller.endEdit({ keepDraft: true }); currentDraft = null; render();
@@ -1257,7 +1250,7 @@ let desktopNotice = null; let noticeSerial = 0;
 function announce(groupId, text, step = 0, steps = 0) {
   const layout = workspace.layout.state; const groups = activeGroups(workspace.snapshot);
   let rect = layout.grid.area;
-  try { rect = groupId && gridRegions(layout.grid, groups).find(region => region.groupId === groupId) || rect; } catch { /* Overflowing groups use the whole area. */ }
+  try { rect = groupId && gridRegions(layout.grid).find(region => region.groupId === groupId) || rect; } catch { /* Overflowing groups use the whole area. */ }
   const id = ++noticeSerial;
   desktopNotice = { id, rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
     title: groupId ? groupName(groups.find(group => group.id === groupId)) || t('app.groups.fallback') : t('app.groups.all'), text, step, steps };
@@ -1308,7 +1301,7 @@ async function prepareNativeClose() {
     for (const [dialog, inert] of dialogs) dialog.inert = inert;
     if (workspace) {
       if (stoppedSync && syncService === stoppedSync) {
-        syncService = new DatasetSync({ workspace, storage, fileStore: datasetStore });
+        syncService = new DatasetSync({ workspace: primary, storage, fileStore: datasetStore });
         syncTimer = setInterval(() => { void syncGoogle(); }, 20000);
       }
       if (automatic) stopAutomatic = startAutomaticBackup(automatic.service);
@@ -1331,7 +1324,9 @@ async function cancelNativeClose(message) {
 }
 
 function renderGroupList(snapshot, layout, groups) {
-  $('#groups').replaceChildren(); const reorderable = groups.every(group => layout.grid.slots.includes(group.id));
+  // A collection past nine groups, which only a sync can produce, cannot take a new order until a merge.
+  const fixedOrder = new Set(workspace.profiles.filter(profile => activeGroups(profile.workspace.snapshot).length > 9).map(profile => profile.id));
+  $('#groups').replaceChildren();
   for (const group of groups) {
     const row = element('div', undefined, `group-row${group.id === activeGroupId && !trashOpen ? ' active' : ''}`);
     row.dataset.groupId = group.id;
@@ -1343,8 +1338,7 @@ function renderGroupList(snapshot, layout, groups) {
     choose.append(element('span', groupName(group), 'group-name'));
     if (desktopInfo) choose.append(layerMark(groupLayer(layout, group.id)));
     choose.append(element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
-    // Groups move only while every group holds a region; past nine, regions cannot take a new order until a merge.
-    if (reorderable) {
+    if (!fixedOrder.has(group.profileId)) {
       row.classList.add('reorderable'); choose.setAttribute('aria-keyshortcuts', 'Alt+ArrowUp Alt+ArrowDown');
       const grip = element('span', undefined, 'group-grip'); grip.setAttribute('aria-hidden', 'true');
       grip.append(icon('M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01')); row.append(grip);
@@ -1380,22 +1374,21 @@ function layerMark(layer) {
     shown === layer ? name(layer) : t('app.groupEditor.layerUnsupported', { layer: name(layer), fallback: name(shown) }));
 }
 
-// Dragging a group row reorders the regions, so the list, the desktop regions and the region keys keep one order;
-// papers stay where they are. A mouse drags the whole row. A finger drags the grip at once, or the rest of the row once
+// Dragging a group row changes only the order of its section: regions, region keys and papers stay (ADR-066). A mouse
+// drags the whole row. A finger drags the grip at once, or the rest of the row once
 // held still for a moment, as phone lists do; a finger that moves first scrolls the drawer.
 let groupDrag = null; let groupDragClick = false; const groupHold = 350;
 function reorderGroups(ids) {
   return run(async () => {
-    const grid = workspace.layout.state.grid; const held = grid.slots.filter(Boolean);
-    // A group that arrived during the drag goes last, and one that left drops out.
-    const order = [...ids.filter(id => held.includes(id)), ...held.filter(id => !ids.includes(id))];
     // A refused order must not leave the rows where they were dropped.
-    try { if (order.some((id, index) => id !== held[index])) await workspace.layout.configure({ grid: reorderSlots(grid, order) }, workspace.snapshot); }
-    finally { render(); }
-    // Region keys now act on other groups; say which, since nothing on screen shows it. Phones have no keys.
-    const layout = workspace.layout.state; const changes = handheld ? [] : regionKeyChanges(layout.shortcuts, grid.slots, layout.grid.slots);
-    if (changes.length) toast(t('app.groups.keysMoved'), changes.map(({ keys, groupId }) => t('app.groups.keyMoved',
-      { keys: keys.join(t('app.groups.keySeparator')), group: groupName(activeGroups(workspace.snapshot).find(group => group.id === groupId)) })));
+    try {
+      for (const { workspace: own } of workspace.profiles) {
+        const grid = own.layout.state.grid; const held = grid.slots.filter(Boolean);
+        // A group that arrived during the drag goes last, and one that left drops out.
+        const order = [...ids.filter(id => held.includes(id)), ...held.filter(id => !ids.includes(id))];
+        if (order.some((id, index) => id !== held[index])) await own.layout.configure({ grid: reorderSlots(grid, order) }, own.snapshot);
+      }
+    } finally { render(); }
   });
 }
 function startGroupDrag(event) {
@@ -1448,7 +1441,8 @@ function stepGroupOrder(event) {
   const row = event.target.closest('.group-row.reorderable');
   if (!row || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
   event.preventDefault();
-  const ids = shownGroups().map(group => group.id).filter(id => workspace.layout.state.grid.slots.includes(id));
+  const section = workspace.ownerOfGroup(row.dataset.groupId).id;
+  const ids = shownGroups().filter(group => group.profileId === section).map(group => group.id);
   const from = ids.indexOf(row.dataset.groupId); const to = from + (event.key === 'ArrowUp' ? -1 : 1);
   if (from < 0 || to < 0 || to >= ids.length) return;
   [ids[from], ids[to]] = [ids[to], ids[from]];
@@ -1595,8 +1589,7 @@ async function arrangeDesktop(kind) {
 // Conflicts show in the status bar only while there are some; version history stays in Settings. Unsaved changes show
 // on their notes (ADR-061).
 function renderCounts() {
-  const state = workspace.state;
-  const conflictCount = state.conflicts.length + Object.values(state.drafts).filter(draft => draft.purged).length;
+  const conflictCount = workspace.attentionCount();
   $('#conflict-count').textContent = plural('app.conflicts.count', conflictCount); $('#conflicts-button').hidden = !conflictCount;
   $('#settings-conflict-count').textContent = String(conflictCount); $('#settings-conflict-count').hidden = !conflictCount;
 }
@@ -1607,9 +1600,11 @@ function renderStage(cards) {
   if (desktopInfo) { const area = screenArea(); stage.style.transform = `translate(${-area.x}px, ${-area.y}px)`; }
   const layout = workspace.layout.state; const state = controller.state;
   let regions = [];
-  try { regions = gridRegions(layout.grid, activeGroups(workspace.snapshot)); } catch (error) { status(error.message, true); }
+  try { regions = gridRegions(layout.grid); } catch (error) { status(error.message, true); }
   for (const region of regions.filter(region => region.groupId)) {
     const group = activeGroups(workspace.snapshot).find(group => group.id === region.groupId);
+    // A region reserved for a collection that is not open draws nothing here.
+    if (!group) continue;
     const boundary = element('div', undefined, 'region'); boundary.dataset.groupId = group.id;
     rectStyle(boundary, region); stage.append(boundary);
     const label = element('div', groupName(group), 'region-label'); label.dataset.groupId = group.id;
@@ -2307,7 +2302,7 @@ async function mountRevisions() {
   currentDraft = null; render();
   // Settings may have closed or moved to another page while the edit was being saved.
   if (!$('#settings-dialog').open || settingsPage !== 'revisions') return;
-  revisions = revisionPanel({ workspace, storage, profileId, onChanged: async () => {
+  revisions = revisionPanel({ workspace: primary, storage, profileId, onChanged: async () => {
     await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
   } });
   host.replaceChildren(revisions.element);
@@ -2321,7 +2316,7 @@ async function mountDataPanel() {
   currentDraft = null; controller.cancelDrag(); render();
   // Settings may have closed or moved to another page while the edit was being saved.
   if (!$('#settings-dialog').open || settingsPage !== 'data') return;
-  dataPanel = backupPanel({ workspace, storage, getWorkAreas: workAreas, flush: flushDraft, automatic,
+  dataPanel = backupPanel({ workspace: primary, storage, getWorkAreas: workAreas, flush: flushDraft, automatic,
     automaticError: automaticError && t('settings.data.automaticOff', { error: automaticError.message }),
     files: nativeBackups?.manual, reset: resetPlan(), cloudRestore: cloudRestoreOptions(), backupSource: backupSourceOptions(), localRestore: applyLocalRestore,
     appVersion: native?.info.appVersion, uninstallNotice: native?.info.platform === 'windows' ? t('settings.data.uninstallNotice') : null,
@@ -2514,9 +2509,9 @@ function applyShortcuts() {
 function previewGrid(reshape = false, apply = false) {
   const rows = Number($('#grid-rows').value); const columns = Number($('#grid-columns').value); const groups = shownGroups();
   if (reshape || settingsSlots.length !== rows * columns) {
-    const ordered = settingsSlots.filter(id => id && groups.some(group => group.id === id));
-    for (const group of groups) if (!ordered.includes(group.id)) ordered.push(group.id);
-    settingsSlots = Array.from({ length: rows * columns }, (_, index) => ordered[index] || null);
+    // A smaller grid takes groups off the desktop and a larger one leaves its new regions empty: the choice stays the user's.
+    const held = settingsSlots.filter(Boolean);
+    settingsSlots = Array.from({ length: rows * columns }, (_, index) => held[index] || null);
   }
   const preview = $('#grid-preview'); preview.replaceChildren(); preview.style.gridTemplateColumns = `repeat(${columns},1fr)`;
   for (let i = 0; i < rows * columns; i++) {
@@ -2526,14 +2521,14 @@ function previewGrid(reshape = false, apply = false) {
     select.value = settingsSlots[i] || '';
     cell.classList.toggle('empty', !settingsSlots[i]); if (settingsSlots[i]) cell.style.setProperty('--paper', groupColor(settingsSlots[i]));
     select.onchange = () => {
-      const next = select.value || null; const other = settingsSlots.findIndex((id, index) => id === next && index !== i);
+      const next = select.value || null; const other = next ? settingsSlots.findIndex((id, index) => id === next && index !== i) : -1;
       if (other >= 0) settingsSlots[other] = settingsSlots[i];
       settingsSlots[i] = next; previewGrid(false, true);
     };
     cell.append(select); preview.append(cell);
   }
   try {
-    gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }, groups); $('#grid-message').hidden = true;
+    gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }); $('#grid-message').hidden = true;
     if (apply) applyLayout({ grid: { rows, columns, area: screenArea(), slots: [...settingsSlots] } });
   } catch (error) { $('#grid-message').textContent = error.message; $('#grid-message').hidden = false; }
 }
@@ -2683,7 +2678,6 @@ function bindEvents() {
     await workspace.layout.configure({ desktopVisible: true }, workspace.snapshot); render(); status(t('app.status.desktopShown'));
   });
   $('#add-group').onclick = () => run(() => groupEditor());
-  $('#toast').onclick = closeToast;
   const groupList = $('#groups');
   groupList.addEventListener('pointerdown', startGroupDrag); groupList.addEventListener('pointermove', moveGroupDrag);
   // A row dragged after a hold still has the drawer's panning, so its moves must not scroll; and a held finger must not

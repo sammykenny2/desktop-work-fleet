@@ -347,7 +347,7 @@ function dataFixture() {
   const perform = async action => { queue.depth++; try { return await action(); } finally { queue.depth--; } };
   const service = { whenIdle: async () => { calls.push(['whenIdle', queue.depth]); }, syncWaiting: async options => { calls.push(['sync', queue.depth, options.force, options.land === context.landSync]); return { phase: 'idle' }; } };
   const context = vm.createContext({ profileId: 'google:fixture', googleAccount: { connected: true, email: 'synthetic@example.test' }, native: {}, t, datasetProblem: null,
-    syncService: service, workspace: { state: {} }, storage: {}, nativeClosing: false, accountBusy: false, maintenanceWork: null,
+    syncService: service, workspace: { state: {} }, primary: { state: {} }, storage: {}, nativeClosing: false, accountBusy: false, maintenanceWork: null,
     syncBusy: false, $: () => ({}), setSync() {}, desktop: { perform }, landSync: receive => receive(), requireConnected() {}, datasetStore: {},
     prepareDatasetRestore: async () => 'plan', flushDraft: async () => { calls.push(['flush', queue.depth]); } });
   vm.runInContext(`${exportSource}\n${prepareSource}\n${flushSource}`, context);

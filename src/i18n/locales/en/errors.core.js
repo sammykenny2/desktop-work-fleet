@@ -80,6 +80,7 @@ export default {
   'errors.core.layoutChangedByOther': 'Another writer changed the layout.',
   'errors.core.layoutChangedRetrySync': 'The layout changed. Try syncing again.',
   'errors.core.layoutStorageRequired': 'A reliable way to save the layout is needed.',
+  'errors.core.otherCollection': 'That group is in the other section, so moving there needs a confirmation.',
   'errors.core.layoutSettingUnknown': 'Unknown layout setting.',
   'errors.core.visibilityInvalid': 'A display setting must be true or false.',
   'errors.core.mainViewUnknown': 'Unknown main window view.',

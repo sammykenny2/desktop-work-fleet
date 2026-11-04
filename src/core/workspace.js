@@ -179,6 +179,10 @@ export class Workspace {
   /** Names the note a quick edit has open, which the working snapshot keeps while it holds nothing. */
   setOpenNote(open) { this.#open = open; }
   get state() { return copy(this.#state); }
+  // CombinedWorkspace routes a write to the profile holding it (ADR-066), without copying any state to find out.
+  holdsCard(id) { return this.#state.cards.some(card => card.id === id) || Object.values(this.#state.drafts).some(draft => draft.cardId === id); }
+  holdsGroup(id) { return this.#state.groups.some(group => group.id === id); }
+  holdsDraft(id) { return Object.hasOwn(this.#state.drafts, id); }
   get layout() { return this.#layout; }
   /** Drain admitted edits and their layout writes after the caller has stopped new work. */
   async whenIdle() { await this.#tail; await this.#layout.whenIdle(); await this.#tail; }
@@ -269,7 +273,7 @@ export class Workspace {
   }
 
   #group(state, id) {
-    requireValue(state.groups.some(group => group.id === id && !group.deleted), 'missing-group', t('errors.common.groupMissingOrPending'));
+    requireValue(state.groups.some(group => group.id === id && !group.deleted && !group.movedAway), 'missing-group', t('errors.common.groupMissingOrPending'));
     this.#resolved(state, 'group', id);
   }
 
@@ -614,7 +618,7 @@ export class Workspace {
         }
       } else if (!value.deleted) {
         delete value.redirectGroupId;
-        if (!state.groups.some(group => group.id === value.id && !group.deleted)) validateNewGroup(state);
+        if (!activeGroups(state).some(group => group.id === value.id)) validateNewGroup(state);
       } else {
         value.redirectGroupId = resolveGroupId(state, value.redirectGroupId);
         requireValue(value.redirectGroupId !== value.id, 'group-cycle', t('errors.core.groupRedirectSelf'));
@@ -786,7 +790,7 @@ export class Workspace {
     if (!kept) return this.blankDraft(groupId, card && this.#state.cards.find(item => item.id === card.id));
     // A group retired since the changes were kept redirects them; one gone without a redirect gives way to `groupId`.
     const draft = rebaseDraft(this.#state, { ...copy(kept), id: this.#uuid() });
-    if (!this.#state.groups.some(group => group.id === draft.groupId && !group.deleted)) draft.groupId = groupId;
+    if (!activeGroups(this.#state).some(group => group.id === draft.groupId)) draft.groupId = groupId;
     this.#group(this.#state, draft.groupId);
     return draft;
   }

@@ -42,12 +42,12 @@ nothing a user sees until phase 4 shows the second section. No phase includes a 
 
 ### Phase 3: Combined workspace and desk
 
-- [ ] `CombinedWorkspace`: merged reads, routed writes, undo across profiles
-- [ ] Desk store: regions, shortcuts, switches, main view and group, colours; seeded from the primary
-- [ ] Regions hold any groups; off-desktop groups are hidden; `placeNew` takes the desk's regions
-- [ ] Interaction controller, authority and projection run on the combined objects
-- [ ] Group `movedAway` state honoured by every active list
-- [ ] Tests with three profiles
+- [x] `CombinedWorkspace`: merged reads, routed writes, undo across profiles
+- [x] Desk store: regions, shortcuts, switches, main view and group, colours; seeded from the primary
+- [x] Regions hold any groups; off-desktop groups are hidden; `placeNew` takes the desk's regions
+- [x] Interaction controller, authority and projection run on the combined objects
+- [x] Group `movedAway` state honoured by every active list
+- [x] Tests with three profiles
 
 **Deliverables**: the page runs on the combined objects with one or more profiles. Single-profile behaviour unchanged apart
 from FR8 to FR10.

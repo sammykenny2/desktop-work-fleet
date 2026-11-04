@@ -148,14 +148,12 @@ because A is "me".
   default for new cards.
 - Renaming a group or changing its grid position changes neither its stable ID nor the group a shortcut is already
   assigned to.
-- Each device lists its groups in its own region order (left to right, top to bottom), then any group no region
-  holds. A mouse drags a sidebar row; a finger drags its grip at once, or the rest of the row after holding it still
-  for 350 ms, while a finger that moves first scrolls the drawer (since 2026-10-24). The sidebar has no selectable
-  text, so a held finger brings up no text selection or callout on Android or iOS. Reordering the sidebar moves groups between the regions they hold, leaving empty regions in place, so region
-  keys follow, and a toast lists every bound key that now acts on a different group (phones, which have no keys, show
-  none); it moves no paper and syncs nothing. Default regions rebuilt for a new group or a layout reset keep
-  that order. While more than nine groups exist the regions cannot hold them all, so the order cannot change until
-  groups are merged.
+- Each device keeps its own order of groups in the sidebar, apart from the regions (since 2026-11-04, ADR-066; it used to
+  follow them). A mouse drags a sidebar row; a finger drags its grip at once, or the rest of the row after holding it
+  still for 350 ms, while a finger that moves first scrolls the drawer (since 2026-10-24). The sidebar has no selectable
+  text, so a held finger brings up no text selection or callout on Android or iOS. Reordering the sidebar changes only
+  that order: it moves no paper, changes no region or key and syncs nothing. While more than nine groups exist, which only
+  a sync can produce, the order cannot change until groups are merged.
 - The new-group and group-settings dialog opens at once, also during a sync, unless an earlier click is still waiting,
   such as Adjust, which then goes first; repeated clicks open one dialog. On a desktop host Save and Merge still wait
   for a running sync to finish: a press counts once, the pressed button stays disabled meanwhile, and closing the dialog
@@ -208,14 +206,14 @@ groups to arrange this time <= rows * columns
 
 2 rows × 4 columns means two rows, one above the other, with four blocks each; 3 rows × 3 columns is valid; 3 rows × 4
 columns is not. The UI shows rows/columns text and a small grid preview, not just an easily confused "2×4".
-Seven groups can use eight regions and keep an empty one; nine groups cannot use eight regions. An invalid choice keeps
-the current layout and does not delete or merge groups. An empty region has no target group; dragging into it neither
-moves a card to another group nor creates a group.
+Any region holds any one group or none, and there may be fewer regions than groups (since 2026-11-04, SPEC-012). A group in
+no region is off the desktop: its papers are not drawn, placed or arranged, keep their positions, and it stays in the main
+window. An invalid choice keeps the current layout and does not delete or merge groups. An empty region has no target
+group; dragging into it neither moves a card to another group nor creates a group.
 
 Nine groups is a product limit, not a reason to persist IDs as 0 to 8.
 If two devices create groups offline and syncing then produces more than nine, all known data must be kept, the user
-is told to tidy up, and formations that cannot fit are paused. The tenth group must not be dropped, merged arbitrarily
-or have its content hidden.
+is told to tidy up. The tenth group must not be dropped or merged arbitrarily.
 
 ## Card geometry and preview text
 
@@ -590,7 +588,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 |---|---|---|
 | C01 | First use creates only one idea | No Project, machine or execution state is needed; it lands in the default group |
 | C02 | Set 2 rows × 4 columns | Two rows, one above the other, with four regions each: eight regions |
-| C03 | Choose 3 rows × 4 columns / nine groups on eight regions | The invalid layout is explicitly rejected; groups and layout stay unchanged |
+| C03 | Choose 3 rows × 4 columns | The invalid layout is explicitly rejected; groups and layout stay unchanged |
 | C04 | Seven groups on eight regions | The empty region stays; no eighth group is created |
 | C05 | Rename a group and change its formation position | The existing shortcut still points to the same stable group |
 | C06 | Ordinary drag of A1 into B's region | The position changes; membership stays A |

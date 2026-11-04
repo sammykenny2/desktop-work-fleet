@@ -218,7 +218,9 @@ export class LayoutStore {
 
   // New papers are square, like the familiar 3 × 3 in sticky note, and smaller only where their region is shorter;
   // papers already placed keep their size.
-  async placeNew(snapshot, workAreas, paperSize = { width: 240, height: 240 }, checkpoint = null) {
+  // A combined layout passes `desk`: the regions of this computer, the groups off its desktop, which get no place, and
+  // the papers other profiles have shown there.
+  async placeNew(snapshot, workAreas, paperSize = { width: 240, height: 240 }, checkpoint = null, desk = null) {
     snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
     requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', t('errors.core.paperSizeInvalid'));
     return this.#transaction(async draft => {
@@ -229,23 +231,22 @@ export class LayoutStore {
         draft.grid = defaultGrid(orderedGroups(draft, groups), draft.grid.area);
       }
       const knownIds = new Set(groups.map(group => group.id));
-      const regionGroups = groups.filter(group => gridIds.includes(group.id));
-      const regions = groups.length <= 9 ? gridRegions(draft.grid, groups)
-        : gridRegions(draft.grid, regionGroups);
+      const regions = desk ? desk.regions : gridRegions(draft.grid);
       const deferred = [];
       let order = Math.max(0, ...Object.values(draft.placements).map(rect => rect.order)) + 1;
-      const fresh = snapshot.cards.filter(card => !card.deleted && !draft.placements[card.id])
+      const fresh = snapshot.cards.filter(card => !card.deleted && !draft.placements[card.id] && !desk?.hidden[card.groupId])
         .sort((a, b) => compareId(a.id, b.id));
       // Placements outlive deleted, archived and hidden papers; only papers on the desktop take up room.
-      const shown = snapshot.cards.filter(card => draft.placements[card.id] && eligible(card, draft))
-        .map(card => draft.placements[card.id]);
+      const view = desk ? { ...draft, completedVisible: desk.completedVisible, hiddenGroups: desk.hidden } : draft;
+      const shown = [...desk?.occupied ?? [], ...snapshot.cards.filter(card => draft.placements[card.id] && eligible(card, view))
+        .map(card => draft.placements[card.id])];
       for (const card of fresh) {
         if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
         const size = fitNewPaper(paperSize, region);
         draft.placements[card.id] = rescueRect({ ...newPaperPosition(size, region, shown), ...size, order: order++, visible: true }, workAreas);
-        if (eligible(card, draft)) shown.push(draft.placements[card.id]);
+        if (eligible(card, view)) shown.push(draft.placements[card.id]);
       }
       return { deferred, groupOverflow: groups.length > 9, groups: groupKey(snapshot) };
     });
@@ -292,6 +293,19 @@ export class LayoutStore {
       draft.history.push({ kind: 'formation', before, gridBefore: copy(draft.grid), gridAfter: copy(plan.grid) });
       draft.grid = copy(plan.grid);
       return { membership: plan.membership };
+    });
+  }
+
+  /** This profile's part of a formation across profiles; the combined layout has checked the plan. */
+  async applyChanges(changes) {
+    changes = copy(changes);
+    return this.#transaction(draft => {
+      const before = {};
+      for (const [id, rect] of Object.entries(changes)) {
+        before[id] = geometry(draft.placements[id]);
+        Object.assign(draft.placements[id], geometry(rect));
+      }
+      draft.history.push({ kind: 'formation', before });
     });
   }
 

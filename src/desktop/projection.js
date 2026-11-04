@@ -23,7 +23,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
   const resident = residentLayers.includes('desktop') ? 'desktop' : 'wallpaper';
   const groups = activeGroups(snapshot); const colors = settleGroupColors(layout.groupColors, groups);
   let regions = [];
-  try { regions = gridRegions(layout.grid, groups); } catch { /* A group overflow must not hide existing cards. */ }
+  try { regions = gridRegions(layout.grid); } catch { /* An invalid grid must not hide existing cards. */ }
   const fallbacks = []; const cards = [];
   for (const card of sceneOrder(snapshot.cards, layout, interaction)) {
     const policy = cardPolicy(card, layout, interaction); const saved = layout.placements[card.id];

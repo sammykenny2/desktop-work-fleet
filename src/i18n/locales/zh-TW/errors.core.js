@@ -80,6 +80,7 @@ export default {
   'errors.core.layoutChangedByOther': '版面已由另一個寫入者變更。',
   'errors.core.layoutChangedRetrySync': '版面已變更，請重試同步。',
   'errors.core.layoutStorageRequired': '需要可靠的版面保存介面。',
+  'errors.core.otherCollection': '那個群組在另一區，移過去需要先確認。',
   'errors.core.layoutSettingUnknown': '未知的版面設定。',
   'errors.core.visibilityInvalid': '顯示設定必須是布林值。',
   'errors.core.mainViewUnknown': '未知的主畫面檢視。',

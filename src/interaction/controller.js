@@ -224,7 +224,7 @@ export class InteractionController {
     const groups = activeGroups(this.#getSnapshot());
     const layout = this.#layout.state;
     let regions = [];
-    try { regions = gridRegions(layout.grid, groups); } catch { /* Invalid grid disables region transfer, not ordinary dragging. */ }
+    try { regions = gridRegions(layout.grid); } catch { /* Invalid grid disables region transfer, not ordinary dragging. */ }
     drag.target = resolveDropTarget(point, shiftKey, labels, regions, groups);
     return copy(drag);
   }

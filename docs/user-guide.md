@@ -104,14 +104,14 @@ interface. To switch, see [Settings](#settings).
   where it is.
 - When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop notes sets "Rows" and
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
-  swaps the two. Regions are numbered from left to right and from top to bottom.
-- The sidebar lists groups in region order, and each device keeps its own order. Drag a group up or down to reorder
-  it; on a phone, hold the group a moment and then drag it, or drag the dotted grip at the left of the row at once
-  (a finger that moves without holding scrolls the list), and with a keyboard press Alt+Up or Alt+Down on the
-  group. Reordering moves the groups between their regions, so each region key then acts on the group now in its
-  region; a short message lists the keys that now act on a different group and closes by itself. Notes already on
-  the desktop stay where they are until you arrange them. While there are more than nine groups (after syncing
-  offline changes), the order cannot change until groups are merged.
+  swaps the two. Regions are numbered from left to right and from top to bottom. There can be up to nine, each holding any
+  group or none. A group in no region stays off the desktop and shows only in the main window; its notes keep their places
+  for when it returns. A new group takes a free region if there is one.
+- Each device keeps its own order of groups in the sidebar. Drag a group up or down to reorder it; on a phone, hold
+  the group a moment and then drag it, or drag the dotted grip at the left of the row at once (a finger that moves
+  without holding scrolls the list), and with a keyboard press Alt+Up or Alt+Down on the group. This changes only the
+  sidebar: regions, region keys and notes stay as they are. While there are more than nine groups (after syncing offline
+  changes), the order cannot change until groups are merged.
 - Each group has one of nine paper colors on this device. Choose it in the group's "⋯" > "Group settings" >
   "Color on this device"; a small dot marks a color another group already uses, and choosing it swaps the two
   groups' colors. A new group takes a color no other group uses, and a merged group frees its color. Colors do not

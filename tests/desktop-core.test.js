@@ -62,7 +62,10 @@ test('C02–C04: row-major grids, empty cells and all legal boundary values', ()
   assert.deepEqual(regions[4], { groupId: 'g4', x: 0, y: 450, width: 300, height: 450 });
   assert.equal(regions[7].groupId, null);
   throwsCode(() => validateGrid(2, 4, 9), 'invalid-grid');
-  throwsCode(() => gridRegions({ ...grid, slots: [...groups.map(g => g.id), 'g0'] }, groups), 'invalid-slots');
+  throwsCode(() => gridRegions({ ...grid, slots: [...groups.map(g => g.id), 'g0'] }), 'invalid-slots');
+  throwsCode(() => gridRegions({ ...grid, slots: groups.map(() => 'g0') }), 'invalid-slots');
+  // A region may hold no group, and a group may hold no region.
+  assert.equal(gridRegions({ ...grid, slots: grid.slots.map(() => null) }).length, grid.slots.length);
 });
 
 test('C03: rejected grid preserves data and placements', async () => {

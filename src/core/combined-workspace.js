@@ -1,0 +1,255 @@
+import { activeGroups, copy, defaultGrid, eligible, FleetError, gridRegions, groupKey, membershipKey, requireValue } from './contracts.js';
+import { resolveGroupId } from './groups.js';
+import { validateShortcuts } from './shortcuts.js';
+import { deskFields, deskKey, DeskStore, hiddenGroups, seedDesk, settleDesk } from '../layout/desk.js';
+import { settleGroupColors, swapGroupColor, validColor } from '../layout/colors.js';
+import { orderedGroups } from '../layout/order.js';
+import { mainViews } from '../layout/store.js';
+import { t } from '../i18n/index.js';
+
+const pick = (object, keep) => Object.fromEntries(Object.entries(object).filter(([key]) => keep(key)));
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+/**
+ * The layout every consumer reads: the desk's per-computer values over each open profile's placements and per-group
+ * looks. Writes go to whichever holds the value, and each profile's layout stays the atomic partner of its content.
+ */
+class CombinedLayout {
+  #combined; #desk; #undo = [];
+  constructor(combined, desk) { this.#combined = combined; this.#desk = desk; }
+  get #profiles() { return this.#combined.profiles; }
+  get desk() { return this.#desk; }
+
+  get state() {
+    const desk = this.#desk.state; const groups = this.#combined.groups();
+    const known = pick(hiddenGroups(desk, groups), id => desk.known[id] !== undefined);
+    const merged = { schemaVersion: 1, revision: desk.revision, grid: desk.grid, groupColors: desk.groupColors, hiddenGroups: known,
+      placements: {}, history: [], groupLayers: {}, groupOpacity: {}, groupHighlights: {} };
+    for (const key of deskFields) if (desk[key] !== undefined) merged[key] = desk[key];
+    for (const { workspace } of this.#profiles) {
+      const layout = workspace.layout.state;
+      merged.deviceId ??= layout.deviceId; merged.revision += layout.revision;
+      Object.assign(merged.placements, layout.placements); merged.history.push(...layout.history);
+      Object.assign(merged.groupLayers, layout.groupLayers); Object.assign(merged.groupOpacity, layout.groupOpacity);
+      Object.assign(merged.groupHighlights, layout.groupHighlights);
+    }
+    return merged;
+  }
+  whenIdle() { return Promise.all([this.#desk.whenIdle(), ...this.#profiles.map(({ workspace }) => workspace.layout.whenIdle())]); }
+
+  /** One profile's own layout: its sidebar order lives in its `grid.slots`. */
+  of(profileId) { return this.#combined.profile(profileId).workspace.layout; }
+  #ofCard(cardId) { return this.#combined.ownerOfCard(cardId).workspace; }
+  #ofGroup(groupId) { return this.#combined.ownerOfGroup(groupId).workspace; }
+  #remember(workspaces) { if (workspaces.length) this.#undo.push(workspaces); }
+
+  async settle() {
+    const groups = this.#combined.groups(); const open = this.#profiles.map(profile => profile.id);
+    const resolve = (id, owner) => {
+      const profile = this.#profiles.find(item => item.id === owner);
+      try { return profile ? resolveGroupId(profile.workspace.snapshot, id) : null; } catch { return null; }
+    };
+    await this.#desk.update(draft => ({ desk: { ...settleDesk(draft, groups, open, resolve), revision: draft.revision } }));
+  }
+
+  async placeNew(_snapshot, workAreas, paperSize = undefined, checkpoint = null) {
+    await this.settle();
+    const desk = this.#desk.state; const results = [];
+    const regions = gridRegions(desk.grid, []).filter(region => region.groupId);
+    const hidden = hiddenGroups(desk, this.#combined.groups());
+    for (const { workspace } of this.#profiles) {
+      const view = this.state;
+      const occupied = this.#combined.working.cards.filter(card => view.placements[card.id] && eligible(card, view) && !workspace.holdsCard(card.id))
+        .map(card => view.placements[card.id]);
+      results.push(await workspace.layout.placeNew(workspace.working, workAreas, paperSize, checkpoint,
+        { regions, hidden, occupied, completedVisible: desk.completedVisible === true }));
+    }
+    return { deferred: results.flatMap(result => result.deferred), groupOverflow: results.some(result => result.groupOverflow), groups: groupKey(this.#combined.snapshot) };
+  }
+
+  async configure(patch, snapshot) {
+    patch = copy(patch);
+    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'shortcuts', 'mainView'];
+    requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
+    requireValue(groupKey(copy(snapshot)) === groupKey(this.#combined.snapshot), 'stale-groups', t('errors.core.groupsChanged'));
+    const groups = this.#combined.groups();
+    if (patch.grid) gridRegions(patch.grid, groups);
+    requireValue(['desktopVisible', 'completedVisible', 'quickMove'].every(key => !(key in patch) || typeof patch[key] === 'boolean'),
+      'invalid-setting', t('errors.core.visibilityInvalid'));
+    if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, groups);
+    requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', t('errors.core.mainViewUnknown'));
+    return this.#desk.update(draft => { Object.assign(draft, patch); return { groups: groupKey(this.#combined.snapshot) }; });
+  }
+
+  setMainGroup(groupId) {
+    requireValue(this.#combined.groups().some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
+    return this.#desk.update(draft => { draft.mainGroupId = groupId; });
+  }
+  setGroupColor(groupId, index) {
+    const groups = this.#combined.groups();
+    requireValue(validColor(index), 'invalid-setting', t('errors.core.colorUnknown'));
+    requireValue(groups.some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
+    return this.#desk.update(draft => { draft.groupColors = swapGroupColor(settleGroupColors(draft.groupColors, groups), groupId, index); });
+  }
+  setGroupLayer(groupId, layer) { const workspace = this.#ofGroup(groupId); return workspace.layout.setGroupLayer(groupId, layer, workspace.snapshot); }
+  setGroupOpacity(groupId, value) { const workspace = this.#ofGroup(groupId); return workspace.layout.setGroupOpacity(groupId, value, workspace.snapshot); }
+  setGroupHighlight(groupId, on) { const workspace = this.#ofGroup(groupId); return workspace.layout.setGroupHighlight(groupId, on, workspace.snapshot); }
+  setCardPolicy(cardId, patch) { return this.#ofCard(cardId).layout.setCardPolicy(cardId, patch); }
+
+  async move(cardId, position, expectedRevision) {
+    requireValue(expectedRevision === undefined || expectedRevision === this.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
+    const workspace = this.#ofCard(cardId); const before = workspace.layout.state.history.length;
+    const result = await workspace.layout.move(cardId, position);
+    if (workspace.layout.state.history.length > before) this.#remember([workspace]);
+    return result;
+  }
+
+  /** A formation is one action to the user, so it undoes as one even when it moved papers of several profiles. */
+  async applyFormation(plan, getSnapshot) {
+    plan = copy(plan); const state = this.state;
+    requireValue(plan.layoutRevision === state.revision && plan.membership === membershipKey(getSnapshot(), state), 'stale-plan', t('errors.core.arrangePlanStale'));
+    requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', t('errors.core.resizeNotAllowed'));
+    const touched = [];
+    for (const { workspace } of this.#profiles) {
+      const changes = pick(plan.changes, id => workspace.holdsCard(id));
+      if (Object.keys(changes).length) { await workspace.layout.applyChanges(changes); touched.push(workspace); }
+    }
+    if (!same(plan.grid, state.grid)) await this.#desk.update(draft => { draft.grid = copy(plan.grid); });
+    this.#remember(touched);
+    return { membership: plan.membership };
+  }
+
+  rememberTransfer(workspace) { this.#remember([workspace]); }
+  /** The most recent action of this session comes first; history kept from an earlier session follows, newest profile first. */
+  async undo(workAreas) {
+    const workspaces = this.#undo.pop() ?? this.#profiles.map(profile => profile.workspace).filter(workspace => workspace.layout.state.history.length).slice(0, 1);
+    let result = { kind: 'empty', rescued: [] };
+    for (const workspace of workspaces) result = await workspace.undo(workAreas);
+    return result;
+  }
+
+  async reset(_snapshot, area, layer = null) {
+    for (const { workspace } of this.#profiles) await workspace.layout.reset(workspace.snapshot, area, layer);
+    this.#undo = [];
+    // The regions start over from the list, as far as nine reach; groups past that stay off the desktop.
+    const groups = this.#combined.orderedGroups();
+    await this.#desk.update(draft => {
+      draft.grid = defaultGrid(groups.slice(0, 9), area); draft.desktopVisible = true;
+      delete draft.completedVisible; delete draft.quickMove;
+    });
+  }
+
+  async recoverDisplays(workAreas, primary) {
+    const rescued = [];
+    for (const { workspace } of this.#profiles) rescued.push(...(await workspace.layout.recoverDisplays(workAreas, primary)).rescued);
+    const { x, y, width, height } = primary;
+    await this.#desk.update(draft => { draft.grid.area = { x, y, width, height }; });
+    return { reason: 'display-unreachable', rescued };
+  }
+}
+
+/**
+ * The open profiles as one workspace for the interface (ADR-066). Reads merge; a write goes to the profile holding that
+ * note, group or unsaved change, and a request for one that no open profile holds is refused rather than guessed. Sync,
+ * recovery and backups work on one profile's own Workspace, so `primary`, `state` and `syncState` answer for the primary.
+ */
+export class CombinedWorkspace {
+  #profiles; #layout;
+  /** `profiles` is `[{ id, workspace, storage }]` with the primary first; the desk loads from `deskStorage`. */
+  static async open(profiles, deskStorage = profiles.find(profile => profile.id === 'local')?.storage ?? profiles[0].storage) {
+    const primary = profiles[0];
+    const saved = await deskStorage.getControl(deskKey);
+    const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state), value => deskStorage.putControl(deskKey, value));
+    const combined = new CombinedWorkspace(profiles, desk);
+    await combined.layout.settle();
+    return combined;
+  }
+  constructor(profiles, desk) {
+    this.#profiles = profiles;
+    this.#layout = new CombinedLayout(this, desk);
+  }
+  get profiles() { return this.#profiles; }
+  get primary() { return this.#profiles[0].workspace; }
+  get layout() { return this.#layout; }
+  profile(id) {
+    const profile = this.#profiles.find(item => item.id === id);
+    requireValue(profile, 'invalid-profile', t('errors.storage.profileMismatch'));
+    return profile;
+  }
+
+  #find(test, code, message) {
+    const profile = this.#profiles.find(test);
+    if (!profile) throw new FleetError(code, message());
+    return profile;
+  }
+  ownerOfCard(id) { return this.#find(({ workspace }) => workspace.holdsCard(id), 'missing-card', () => t('errors.common.noteMissing')); }
+  ownerOfGroup(id) { return this.#find(({ workspace }) => workspace.holdsGroup(id), 'missing-group', () => t('errors.common.groupMissing')); }
+  #ownerOfDraft(draft) {
+    return this.#find(({ workspace }) => workspace.holdsDraft(draft.id) || workspace.holdsCard(draft.cardId) || workspace.holdsGroup(draft.groupId),
+      'missing-group', () => t('errors.common.groupMissing'));
+  }
+  #entity(kind, id) { return kind === 'group' ? this.ownerOfGroup(id) : this.ownerOfCard(id); }
+
+  /** Active groups with their owner, in the order of the profiles. */
+  groups() { return this.#profiles.flatMap(({ id, workspace }) => activeGroups(workspace.snapshot).map(group => ({ ...group, profileId: id }))); }
+  /** Each profile's groups in that profile's own list order, one profile after another. */
+  orderedGroups() {
+    return this.#profiles.flatMap(({ id, workspace }) => orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot)).map(group => ({ ...group, profileId: id })));
+  }
+  #merge(read) {
+    if (this.#profiles.length === 1) return read(this.#profiles[0].workspace);
+    const parts = this.#profiles.map(({ workspace }) => read(workspace));
+    return { groups: parts.flatMap(part => part.groups), cards: parts.flatMap(part => part.cards), writable: true,
+      conflicts: parts.flatMap(part => part.conflicts ?? []) };
+  }
+  get snapshot() { return this.#merge(workspace => workspace.snapshot); }
+  get working() { return this.#merge(workspace => workspace.working); }
+  get state() { return this.primary.state; }
+  get syncState() { return this.primary.syncState; }
+  get currentFormat() { return this.primary.currentFormat; }
+  get pendingCount() { return this.#profiles.reduce((sum, { workspace }) => sum + workspace.pendingCount, 0); }
+  /** Grows with every saved change of any profile, so a desktop frame can tell it is newer. */
+  get revision() { return this.#profiles.reduce((sum, { workspace }) => sum + workspace.state.revision, 0); }
+  /** An unsaved change by its id, whichever profile holds it. */
+  draft(id) { return this.#profiles.map(({ workspace }) => workspace.state.drafts[id]).find(Boolean) ?? null; }
+  /** Conflicts plus unsaved text whose note was deleted forever: what the status bar counts. */
+  attentionCount() {
+    return this.#profiles.reduce((sum, { workspace }) => { const state = workspace.state; return sum + state.conflicts.length + Object.values(state.drafts).filter(draft => draft.purged).length; }, 0);
+  }
+  setOpenNote(open) { for (const { workspace } of this.#profiles) workspace.setOpenNote(open); }
+  whenIdle() { return Promise.all(this.#profiles.map(({ workspace }) => workspace.whenIdle())); }
+
+  revisionHeads(kind, id) { return this.#entity(kind, id).workspace.revisionHeads(kind, id); }
+  unsavedChanges(cardId) { return this.#profiles.find(({ workspace }) => workspace.holdsCard(cardId))?.workspace.unsavedChanges(cardId) ?? null; }
+  discardChanges(cardId) { return this.ownerOfCard(cardId).workspace.discardChanges(cardId); }
+  openDraft(groupId, card = null) { return (card ? this.ownerOfCard(card.id) : this.ownerOfGroup(groupId)).workspace.openDraft(groupId, card); }
+  saveDraft(draft) { return this.#ownerOfDraft(draft).workspace.saveDraft(draft); }
+  commitDraft(draftId, options) { return this.#find(({ workspace }) => workspace.holdsDraft(draftId), 'missing-card', () => t('errors.common.noteMissing')).workspace.commitDraft(draftId, options); }
+  discardUnneededDraft(draftId) { return (this.#profiles.find(({ workspace }) => workspace.holdsDraft(draftId)) ?? this.#profiles[0]).workspace.discardUnneededDraft(draftId); }
+  createCard(content, groupId) { return this.ownerOfGroup(groupId).workspace.createCard(content, groupId); }
+  updateCard(cardId, patch, expectedRevision) { return this.ownerOfCard(cardId).workspace.updateCard(cardId, patch, expectedRevision); }
+  restoreCard(cardId, expectedRevision) { return this.ownerOfCard(cardId).workspace.restoreCard(cardId, expectedRevision); }
+
+  /** Within a profile only; moving across goes through a confirmed move (SPEC-012). */
+  async transferCard({ cardId, groupId, expectedRevision, position, expectedLayoutRevision }) {
+    const { workspace } = this.ownerOfCard(cardId);
+    requireValue(workspace.holdsGroup(groupId), 'other-collection', t('errors.core.otherCollection'));
+    requireValue(expectedLayoutRevision === undefined || expectedLayoutRevision === this.#layout.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
+    const before = workspace.layout.state.history.length;
+    const result = await workspace.transferCard({ cardId, groupId, expectedRevision, position });
+    if (workspace.layout.state.history.length > before) this.#layout.rememberTransfer(workspace);
+    return result;
+  }
+  undo(workAreas) { return this.#layout.undo(workAreas); }
+
+  /** A new group goes to the named profile, the primary unless one is named. */
+  createGroup(name, profileId = this.#profiles[0].id) { return this.profile(profileId).workspace.createGroup(name); }
+  ensureCaptureGroup() { return this.primary.ensureCaptureGroup(); }
+  renameGroup(id, name, expectedRevision) { return this.ownerOfGroup(id).workspace.renameGroup(id, name, expectedRevision); }
+  previewGroupMerge(sourceId, targetId) {
+    const { workspace } = this.ownerOfGroup(sourceId);
+    requireValue(workspace.holdsGroup(targetId), 'other-collection', t('errors.core.otherCollection'));
+    return workspace.previewGroupMerge(sourceId, targetId);
+  }
+  mergeGroup(plan) { return this.ownerOfGroup(plan.sourceId).workspace.mergeGroup(plan); }
+}

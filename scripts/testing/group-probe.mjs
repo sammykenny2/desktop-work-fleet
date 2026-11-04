@@ -26,7 +26,11 @@ const read = () => page.evaluate(async profile => {
       const { Workspace } = await import('/core/workspace.js');
       const { orderedGroups } = await import('/layout/order.js');
       const state = new Workspace(await storage.load(profile), async () => {}).state;
-      state.groups = orderedGroups(state.layout, state.groups); return state;
+      state.groups = orderedGroups(state.layout, state.groups);
+      // What one computer has one value of lives on the desk; a profile's own grid holds only its list order (ADR-066).
+      const desk = await storage.getControl('desk');
+      state.layout = { ...state.layout, ...desk, listSlots: state.layout.grid.slots, revision: state.layout.revision };
+      return state;
     }
     catch (error) { if (error.code !== 'stale-writer' || attempt === 19) throw error; await new Promise(resolve => setTimeout(resolve, 10)); }
   } } finally { storage.close(); }
@@ -114,23 +118,22 @@ try {
   assert.deepEqual((await read()).layout.groupHighlights, { [b.id]: true });
   state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
-  // The sidebar follows the regions; dragging a row or Alt+arrow keys reorder the regions without moving notes.
+  // The sidebar keeps its own order: dragging a row or Alt+arrow keys change only that, not regions, keys or notes (ADR-066).
   const groupRow = id => page.locator(`#groups .group-row[data-group-id="${id}"]`);
-  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', b.id);
+  const listRows = () => page.locator("#groups .group-row[data-group-id]").evaluateAll(nodes => nodes.map(node => node.dataset.groupId));
+  const regionsBefore = (await read()).layout.grid.slots; const shortcutsBefore = (await read()).layout.shortcuts;
+  assert.deepEqual(await listRows(), [a.id, b.id], 'a region swap leaves the sidebar order alone');
   const activeBefore = await page.locator('#groups .group-row.active').getAttribute('data-group-id');
-  const from = await groupRow(a.id).boundingBox(); const to = await groupRow(b.id).boundingBox();
+  const from = await groupRow(b.id).boundingBox(); const to = await groupRow(a.id).boundingBox();
   await page.mouse.move(from.x + 60, from.y + from.height / 2); await page.mouse.down();
   await page.mouse.move(from.x + 60, to.y + 4, { steps: 8 }); await page.mouse.up();
-  await expect.poll(async () => (await read()).layout.grid.slots).toEqual([a.id, b.id]);
-  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', a.id);
-  // A toast says which region keys now act on which group.
-  await expect(page.locator('#toast')).toBeVisible(); await expect(page.locator('#toast')).toContainText(t('app.groups.keysMoved'));
-  await expect(page.locator('#toast')).toContainText(t('app.groups.keyMoved', { keys: 'Ctrl+Shift+2', group: 'Research' }));
-  await page.locator('#toast').getByRole('button', { name: t('common.close'), exact: true }).click();
-  await expect(page.locator('#toast')).toBeEmpty(); await expect(page.locator('#toast')).toBeHidden();
+  await expect.poll(async () => (await read()).layout.listSlots).toEqual([b.id, a.id]);
+  assert.deepEqual(await listRows(), [b.id, a.id]);
+  assert.deepEqual((await read()).layout.grid.slots, regionsBefore, 'dragging a row moves no region');
+  assert.deepEqual((await read()).layout.shortcuts, shortcutsBefore, 'dragging a row changes no key');
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', activeBefore);
-  await groupRow(a.id).locator('button').first().press('Alt+ArrowDown');
-  await expect.poll(async () => (await read()).layout.grid.slots).toEqual([b.id, a.id]);
+  await groupRow(a.id).locator('button').first().press('Alt+ArrowUp');
+  await expect.poll(async () => (await read()).layout.listSlots).toEqual([a.id, b.id]);
   await expect(groupRow(a.id).locator('button').first()).toBeFocused();
   assert.deepEqual((await read()).layout.placements, positions, 'reordering groups does not move cards');
   // Colours are this device's: choosing the colour another group wears swaps the two and records no group revision.
@@ -185,7 +188,7 @@ try {
   await expect(versionMeta.nth(2)).toHaveText(`${t('app.groups.defaultName')} · ${t('conflicts.version.toDo')}`);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', b.id);
+  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', a.id);
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', a.id);
   await page.locator('body').click({ position: { x: 260, y: 20 } });
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));

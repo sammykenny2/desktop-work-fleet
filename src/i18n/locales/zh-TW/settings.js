@@ -50,7 +50,7 @@ export default {
   'settings.desktop.quickMove': '按住 {key} 拖曳或雙擊便箋',
   'settings.desktop.quickMoveHint': '拖曳可移動桌面層或最上層的便箋，雙擊可就地編輯，不用進入調整。其他裝置各自設定。',
   'settings.desktop.regions': '群組區域',
-  'settings.desktop.regionsHint': '整理便箋時，每個群組會排進自己的區域。',
+  'settings.desktop.regionsHint': '最多 9 個區域，每格可放任一群組。整理便箋時，每個群組會排進自己的區域；沒放進區域的群組不會顯示在桌面上，只在主畫面看得到。',
   'settings.desktop.rows': '列',
   'settings.desktop.rowCount': '列數',
   'settings.desktop.columns': '欄',

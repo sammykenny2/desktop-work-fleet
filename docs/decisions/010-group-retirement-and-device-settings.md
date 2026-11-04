@@ -11,6 +11,7 @@ Revised 2026-10-23: the group the main window shows is remembered per device, so
 across restarts; see the `mainGroupId` item under Decision.
 Revised again 2026-10-23: each group can make its Top-layer papers see-through; the opacity is a device setting
 next to its colour and never syncs.
+Revised again 2026-11-04: the desktop regions and the sidebar order are separate (ADR-066).
 Revised 2026-11-04: at the maintainer's request, the single device-wide "My group" became a highlight each group can
 carry, set in the group's settings and kept per device like the colour; see the merge item under Decision.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
@@ -55,12 +56,10 @@ overwrite other changes.
 - Group regions can be swapped while group IDs stay stable; number shortcuts follow the region. Queued old
   settings and new-card placements check the group set again at the atomic save point, so a retired group is
   never written back into the grid or local preferences.
-- The group list (sidebar and group pickers) follows the region order in `grid.slots`, then any group no region
-  holds; there is no shared order field, so ordering never syncs or conflicts. Dragging in the sidebar rewrites the
-  slots with the same `configure` path as the regions settings: the occupied regions take the groups in the new
-  order and empty regions stay, so number keys follow and no paper moves. Default regions rebuilt when a group is
-  added, a source reconciles groups or the layout is reset keep the current order. With more than nine groups
-  the grid cannot validate, so the sidebar offers no reordering until a merge. The maintainer chose a
+- The group list (sidebar and group pickers) follows a profile's `grid.slots`, then any group not in them; there is no
+  shared order field, so ordering never syncs or conflicts. Since ADR-066 these slots hold only that list order: the
+  desktop regions moved to the per-device desk, so dragging in the sidebar changes no region, key or paper. With more than
+  nine groups the sidebar offers no reordering until a merge. The maintainer chose a
   per-device order linked to the regions over a synced order or a separate list order.
 - A group's paper colour is a device setting: `groupColors` maps each active group to one of the nine palette
   entries. Layouts without it get the colour each group already showed (its place in the workspace list); a group

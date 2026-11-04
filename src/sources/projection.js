@@ -1,4 +1,4 @@
-import { compareCards, compareId, copy, defaultGrid } from '../core/contracts.js';
+import { activeGroups, compareCards, compareId, copy, defaultGrid } from '../core/contracts.js';
 import { groupResolver, resolveGroupId } from '../core/groups.js';
 import { orderedGroups } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
@@ -35,7 +35,7 @@ function* projectionSteps(graph, previous = { groups: [], cards: [], conflicts: 
     catch (error) { conflicts.push({ kind: 'card-group', cardId: card.id, groupId: card.groupId, reason: error.code }); }
     yield;
   }
-  const count = groups.filter(group => !group.deleted).length;
+  const count = activeGroups({ groups }).length;
   if (count > 9) conflicts.push({ kind: 'group-overflow', count });
   if (graph.pending.length) conflicts.push({ kind: 'pending-revisions', revisions: graph.pending, missing: graph.missing });
   return snapshot;
@@ -56,7 +56,7 @@ export async function projectRevisionsAsync(graph, previous, checkpoint) {
 /** Remote content may reconcile device references, but never move or resize an existing paper. */
 export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
   const result = copy(layout);
-  const groups = snapshot.groups.filter(group => !group.deleted);
+  const groups = activeGroups(snapshot);
   const active = new Set(groups.map(group => group.id));
   // Groups this device has just received for the first time take the layer chosen for them; a stored layer stays.
   for (const [id, layer] of Object.entries(arrived)) {

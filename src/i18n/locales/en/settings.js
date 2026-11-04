@@ -50,7 +50,7 @@ export default {
   'settings.desktop.quickMove': 'Hold {key} to drag or double-click a note',
   'settings.desktop.quickMoveHint': 'Dragging moves a note on the Desktop or Top layer and a double-click edits it in place, without adjusting. Other devices keep their own choice.',
   'settings.desktop.regions': 'Group regions',
-  'settings.desktop.regionsHint': 'When notes are arranged, each group goes into its own region.',
+  'settings.desktop.regionsHint': 'Up to nine regions, each holding any group. When notes are arranged, each group goes into its region. A group in no region stays off the desktop and shows only in the main window.',
   'settings.desktop.rows': 'Rows',
   'settings.desktop.rowCount': 'Number of rows',
   'settings.desktop.columns': 'Columns',

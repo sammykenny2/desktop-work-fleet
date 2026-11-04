@@ -77,7 +77,7 @@ export async function prepareDatasetRestore({ workspace, storage, fileStore, doc
     const next = restore.materialize(empty.state), maps = restore.receipt.mappings;
     const ids = Object.fromEntries(['card', 'group', 'revision', 'draft'].map(kind => [kind, id => maps[kind]?.[id] ?? id]));
     next.layout = reconcileSourceLayout(remapLayout(deviceLayout(current.layout, document.data), ids), next);
-    const placement = await new LayoutStore(next.layout, async value => { next.layout = value; })
+    const placement = options.placeLater ? { deferred: [] } : await new LayoutStore(next.layout, async value => { next.layout = value; })
       .placeNew(next, options.workAreas, undefined, backupScheduler(options.signal));
     layout = next.layout; deferred = placement.deferred.length;
   }

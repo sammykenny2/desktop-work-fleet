@@ -11,6 +11,9 @@ The user reported that several machines in turn showed "Google authorization is 
 and said this behavior is unacceptable.
 To revoke Work Fleet's access, remove it under "Third-party apps & services" in the Google Account.
 
+Revised 2026-11-04 (ADR-066): `local` opens beside the account's partition instead of being switched to, and nothing crosses
+between them except a confirmed move. Signing in or out still reloads the page through the same steps. "Use local notes" is gone.
+
 ## Context
 
 The FileSync/Drive adapter of ADR-012 already exists; it needs native authorization, secure storage and a usable account

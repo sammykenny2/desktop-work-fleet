@@ -258,11 +258,11 @@ validates the input, and the preview is bound to the current account and revisio
 After the user saves a safety backup of the current data and ticks the clearing confirmation, the backup is merged into
 a blank Workspace of the same account, and the complete state, attachments and job marker are written to disk in one
 local transaction. Overwritten old drafts remain only in the safety ZIP; drafts from the backup are still local drafts.
-Unless "Also restore desktop positions" is chosen, the blank Workspace starts from this device's layout: its grid and
-regions, shortcuts, colours, layers, display and main-window settings and the positions of the notes the backup holds
-are kept, while references to notes and groups the backup lacks and the undo records are dropped. As after a sync,
-groups new to this device fill empty regions, and the default grid is rebuilt only when they do not fit. With the
-option the backup's layout applies.
+Unless "Also restore desktop positions" is chosen, the blank Workspace starts from this device's layout: its layers and
+the positions of the notes the backup holds are kept, while references to notes and groups the backup lacks and the undo
+records are dropped. With the option the backup's positions and layers apply. Since ADR-066 regions, shortcuts, colours,
+display and main-window settings belong to this computer's desk, which no restore changes: groups new to this device take
+free regions, as after a sync, and new papers are placed in those regions once the restore lands.
 
 Normal sync pauses in the `reset` stage. The reset marker is written first and the current project's Work Fleet
 appDataFolder is cleared, keeping the control markers; then the `upload` stage is persisted, and only then are all

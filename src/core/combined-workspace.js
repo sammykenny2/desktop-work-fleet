@@ -1,8 +1,8 @@
 import { activeGroups, copy, defaultGrid, eligible, FleetError, gridRegions, groupKey, membershipKey, requireValue } from './contracts.js';
 import { resolveGroupId } from './groups.js';
 import { validateShortcuts } from './shortcuts.js';
-import { deskFields, deskKey, DeskStore, hiddenGroups, seedDesk, settleDesk } from '../layout/desk.js';
-import { settleGroupColors, swapGroupColor, validColor } from '../layout/colors.js';
+import { deskFields, deskKey, DeskStore, hiddenGroups, seedDesk, settledColors, settleDesk } from '../layout/desk.js';
+import { swapGroupColor, validColor } from '../layout/colors.js';
 import { orderedGroups } from '../layout/order.js';
 import { mainViews } from '../layout/store.js';
 import { t } from '../i18n/index.js';
@@ -15,7 +15,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
  * looks. Writes go to whichever holds the value, and each profile's layout stays the atomic partner of its content.
  */
 class CombinedLayout {
-  #combined; #desk; #undo = [];
+  #combined; #desk;
   constructor(combined, desk) { this.#combined = combined; this.#desk = desk; }
   get #profiles() { return this.#combined.profiles; }
   get desk() { return this.#desk; }
@@ -23,7 +23,9 @@ class CombinedLayout {
   get state() {
     const desk = this.#desk.state; const groups = this.#combined.groups();
     const known = pick(hiddenGroups(desk, groups), id => desk.known[id] !== undefined);
-    const merged = { schemaVersion: 1, revision: desk.revision, grid: desk.grid, groupColors: desk.groupColors, hiddenGroups: known,
+    // A key for a region reserved for a collection that is not open acts on nothing, so shortcuts read the live slots.
+    const open = new Set(groups.map(group => group.id));
+    const merged = { schemaVersion: 1, revision: desk.revision, grid: desk.grid, liveSlots: desk.grid.slots.map(id => open.has(id) ? id : null), groupColors: desk.groupColors, hiddenGroups: known,
       placements: {}, history: [], groupLayers: {}, groupOpacity: {}, groupHighlights: {} };
     for (const key of deskFields) if (desk[key] !== undefined) merged[key] = desk[key];
     for (const { workspace } of this.#profiles) {
@@ -36,12 +38,13 @@ class CombinedLayout {
     return merged;
   }
   whenIdle() { return Promise.all([this.#desk.whenIdle(), ...this.#profiles.map(({ workspace }) => workspace.layout.whenIdle())]); }
+  /** Read for every note drawn, so it skips merging the placements. */
+  get groupColors() { return this.#desk.state.groupColors; }
 
   /** One profile's own layout: its sidebar order lives in its `grid.slots`. */
   of(profileId) { return this.#combined.profile(profileId).workspace.layout; }
   #ofCard(cardId) { return this.#combined.ownerOfCard(cardId).workspace; }
   #ofGroup(groupId) { return this.#combined.ownerOfGroup(groupId).workspace; }
-  #remember(workspaces) { if (workspaces.length) this.#undo.push(workspaces); }
 
   async settle() {
     const groups = this.#combined.groups(); const open = this.#profiles.map(profile => profile.id);
@@ -89,7 +92,8 @@ class CombinedLayout {
     const groups = this.#combined.groups();
     requireValue(validColor(index), 'invalid-setting', t('errors.core.colorUnknown'));
     requireValue(groups.some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
-    return this.#desk.update(draft => { draft.groupColors = swapGroupColor(settleGroupColors(draft.groupColors, groups), groupId, index); });
+    const open = this.#profiles.map(profile => profile.id);
+    return this.#desk.update(draft => { draft.groupColors = swapGroupColor(settledColors(draft, groups, open), groupId, index); });
   }
   setGroupLayer(groupId, layer) { const workspace = this.#ofGroup(groupId); return workspace.layout.setGroupLayer(groupId, layer, workspace.snapshot); }
   setGroupOpacity(groupId, value) { const workspace = this.#ofGroup(groupId); return workspace.layout.setGroupOpacity(groupId, value, workspace.snapshot); }
@@ -98,10 +102,7 @@ class CombinedLayout {
 
   async move(cardId, position, expectedRevision) {
     requireValue(expectedRevision === undefined || expectedRevision === this.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
-    const workspace = this.#ofCard(cardId); const before = workspace.layout.state.history.length;
-    const result = await workspace.layout.move(cardId, position);
-    if (workspace.layout.state.history.length > before) this.#remember([workspace]);
-    return result;
+    return this.#ofCard(cardId).layout.move(cardId, position);
   }
 
   /** A formation is one action to the user, so it undoes as one even when it moved papers of several profiles. */
@@ -109,32 +110,32 @@ class CombinedLayout {
     plan = copy(plan); const state = this.state;
     requireValue(plan.layoutRevision === state.revision && plan.membership === membershipKey(getSnapshot(), state), 'stale-plan', t('errors.core.arrangePlanStale'));
     requireValue(plan.allowResize || plan.resized.length === 0, 'resize-consent', t('errors.core.resizeNotAllowed'));
-    const touched = [];
+    const batch = crypto.randomUUID();
     for (const { workspace } of this.#profiles) {
       const changes = pick(plan.changes, id => workspace.holdsCard(id));
-      if (Object.keys(changes).length) { await workspace.layout.applyChanges(changes); touched.push(workspace); }
+      if (Object.keys(changes).length) await workspace.layout.applyChanges(changes, batch);
     }
     if (!same(plan.grid, state.grid)) await this.#desk.update(draft => { draft.grid = copy(plan.grid); });
-    this.#remember(touched);
     return { membership: plan.membership };
   }
 
-  rememberTransfer(workspace) { this.#remember([workspace]); }
-  /** The most recent action of this session comes first; history kept from an earlier session follows, newest profile first. */
+  /** The newest action across profiles comes first, also after a restart; a formation across profiles undoes as one. */
   async undo(workAreas) {
-    const workspaces = this.#undo.pop() ?? this.#profiles.map(profile => profile.workspace).filter(workspace => workspace.layout.state.history.length).slice(0, 1);
-    let result = { kind: 'empty', rescued: [] };
-    for (const workspace of workspaces) result = await workspace.undo(workAreas);
+    const tops = this.#profiles.map(({ workspace }) => ({ workspace, top: workspace.layout.state.history.at(-1) })).filter(item => item.top)
+      .sort((a, b) => (b.top.at ?? 0) - (a.top.at ?? 0));
+    if (!tops.length) return { kind: 'empty', rescued: [] };
+    const { batch } = tops[0].top; let result;
+    for (const { workspace } of batch ? tops.filter(item => item.top.batch === batch) : tops.slice(0, 1)) result = await workspace.undo(workAreas);
     return result;
   }
 
   async reset(_snapshot, area, layer = null) {
     for (const { workspace } of this.#profiles) await workspace.layout.reset(workspace.snapshot, area, layer);
-    this.#undo = [];
     // The regions start over from the list, as far as nine reach; groups past that stay off the desktop.
     const groups = this.#combined.orderedGroups();
     await this.#desk.update(draft => {
-      draft.grid = defaultGrid(groups.slice(0, 9), area); draft.desktopVisible = true;
+      // Forgetting what it has seen lets a group of a collection not open now take a free region when it returns.
+      draft.grid = defaultGrid(groups.slice(0, 9), area); draft.desktopVisible = true; draft.known = {};
       delete draft.completedVisible; delete draft.quickMove;
     });
   }
@@ -155,11 +156,16 @@ class CombinedLayout {
  */
 export class CombinedWorkspace {
   #profiles; #layout;
-  /** `profiles` is `[{ id, workspace, storage }]` with the primary first; the desk loads from `deskStorage`. */
-  static async open(profiles, deskStorage = profiles.find(profile => profile.id === 'local')?.storage ?? profiles[0].storage) {
-    const primary = profiles[0];
-    const saved = await deskStorage.getControl(deskKey);
-    const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state), value => deskStorage.putControl(deskKey, value));
+  /**
+   * `profiles` is `[{ id, workspace, storage }]` with the primary first. The desk is kept in every open profile, so that
+   * resetting one collection's data leaves this computer's regions, shortcuts and colours; the local copy leads because
+   * it is always open.
+   */
+  static async open(profiles) {
+    const primary = profiles[0]; let saved = null;
+    for (const profile of [...profiles].sort((a, b) => (b.id === 'local') - (a.id === 'local'))) saved ??= await profile.storage.getControl(deskKey);
+    const desk = new DeskStore(saved ?? seedDesk(primary.workspace.layout.state),
+      value => Promise.all(profiles.map(profile => profile.storage.putControl(deskKey, value))));
     const combined = new CombinedWorkspace(profiles, desk);
     await combined.layout.settle();
     return combined;
@@ -191,10 +197,10 @@ export class CombinedWorkspace {
   #entity(kind, id) { return kind === 'group' ? this.ownerOfGroup(id) : this.ownerOfCard(id); }
 
   /** Active groups with their owner, in the order of the profiles. */
-  groups() { return this.#profiles.flatMap(({ id, workspace }) => activeGroups(workspace.snapshot).map(group => ({ ...group, profileId: id }))); }
+  groups() { return this.#profiles.flatMap(({ id, workspace }) => workspace.activeGroupList().map(group => ({ ...group, profileId: id }))); }
   /** Each profile's groups in that profile's own list order, one profile after another. */
   orderedGroups() {
-    return this.#profiles.flatMap(({ id, workspace }) => orderedGroups(workspace.layout.state, activeGroups(workspace.snapshot)).map(group => ({ ...group, profileId: id })));
+    return this.#profiles.flatMap(({ id, workspace }) => orderedGroups({ grid: { slots: workspace.layout.slots } }, workspace.activeGroupList()).map(group => ({ ...group, profileId: id })));
   }
   #merge(read) {
     if (this.#profiles.length === 1) return read(this.#profiles[0].workspace);
@@ -217,7 +223,7 @@ export class CombinedWorkspace {
     return this.#profiles.reduce((sum, { workspace }) => { const state = workspace.state; return sum + state.conflicts.length + Object.values(state.drafts).filter(draft => draft.purged).length; }, 0);
   }
   setOpenNote(open) { for (const { workspace } of this.#profiles) workspace.setOpenNote(open); }
-  whenIdle() { return Promise.all(this.#profiles.map(({ workspace }) => workspace.whenIdle())); }
+  whenIdle() { return Promise.all([this.#layout.whenIdle(), ...this.#profiles.map(({ workspace }) => workspace.whenIdle())]); }
 
   revisionHeads(kind, id) { return this.#entity(kind, id).workspace.revisionHeads(kind, id); }
   unsavedChanges(cardId) { return this.#profiles.find(({ workspace }) => workspace.holdsCard(cardId))?.workspace.unsavedChanges(cardId) ?? null; }
@@ -235,10 +241,7 @@ export class CombinedWorkspace {
     const { workspace } = this.ownerOfCard(cardId);
     requireValue(workspace.holdsGroup(groupId), 'other-collection', t('errors.core.otherCollection'));
     requireValue(expectedLayoutRevision === undefined || expectedLayoutRevision === this.#layout.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
-    const before = workspace.layout.state.history.length;
-    const result = await workspace.transferCard({ cardId, groupId, expectedRevision, position });
-    if (workspace.layout.state.history.length > before) this.#layout.rememberTransfer(workspace);
-    return result;
+    return workspace.transferCard({ cardId, groupId, expectedRevision, position });
   }
   undo(workAreas) { return this.#layout.undo(workAreas); }
 
@@ -251,5 +254,10 @@ export class CombinedWorkspace {
     requireValue(workspace.holdsGroup(targetId), 'other-collection', t('errors.core.otherCollection'));
     return workspace.previewGroupMerge(sourceId, targetId);
   }
-  mergeGroup(plan) { return this.ownerOfGroup(plan.sourceId).workspace.mergeGroup(plan); }
+  /** The merged group's region passes to the group it joined, as soon as the merge lands. */
+  async mergeGroup(plan) {
+    const result = await this.ownerOfGroup(plan.sourceId).workspace.mergeGroup(plan);
+    await this.#layout.settle();
+    return result;
+  }
 }

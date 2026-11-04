@@ -96,10 +96,10 @@ test('a replaced photo releases its blob URL, and so does leaving the account', 
   assert.equal(f.nodes.get('#account-button').title, undefined);
 });
 
-test('local notes ask for no profile and show no tooltip', () => {
+test('signed out, the chip offers sign-in, asks for no profile and shows no tooltip', () => {
   const f = fixture({ profileId: 'local', account: { configured: true, connected: false }, reply: () => assert.fail('no request') });
   f.render(); f.load();
-  assert.equal(f.nodes.get('#account-name').textContent, t('sync.account.localNotes'));
+  assert.equal(f.nodes.get('#account-name').textContent, t('sync.account.signInPrompt'));
   assert.equal(f.nodes.get('#account-button').title, undefined);
   assert.equal(f.nodes.get('#account-avatar img').hidden, true);
   assert.equal(f.requests.length, 0);

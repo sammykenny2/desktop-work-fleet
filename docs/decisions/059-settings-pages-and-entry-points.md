@@ -11,6 +11,9 @@ Language alone.
 2026-11-04: at the maintainer's request, My group left the Desktop notes page. It only highlights notes, so it became
 a checkbox in each group's settings that any number of groups can use, phones included (ADR-010).
 
+2026-11-04 (ADR-066): Account and sync no longer offers "Use local notes". With two collections, Data and backup and Versions and
+conflicts each show one at a time, chosen at the top of the page.
+
 ## Context
 
 The account chip at the bottom left of the sidebar and the gear beside it opened the same Settings dialog. The account

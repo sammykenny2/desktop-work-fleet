@@ -44,10 +44,14 @@ export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   return { movedCards: affected.size, retiredGroupId: sourceId, removedUndo: oldLength - draft.history.length };
 }
 
+// Undo goes back through several profiles' histories newest first, also after a restart; two stamps never tie.
+let lastStamp = 0;
+const stamp = () => { lastStamp = Math.max(Date.now(), lastStamp + 1); return lastStamp; };
+
 export function recordTransferLayout(draft, cardId, position, transfer) {
   const rect = draft.placements[cardId];
   requireValue(rect || !position, 'missing-placement', t('errors.core.placementMissing'));
-  draft.history.push({ kind: 'transfer', before: rect ? { [cardId]: geometry(rect) } : {}, transfer: copy(transfer) });
+  draft.history.push({ kind: 'transfer', at: stamp(), before: rect ? { [cardId]: geometry(rect) } : {}, transfer: copy(transfer) });
   if (position) {
     requireValue(Number.isFinite(position.x) && Number.isFinite(position.y), 'invalid-position', t('errors.core.positionInvalid'));
     Object.assign(rect, { x: position.x, y: position.y });
@@ -122,6 +126,8 @@ export class LayoutStore {
   }
 
   get state() { return copy(this.#state); }
+  /** This profile's list order, without copying its placements. */
+  get slots() { return [...this.#state.grid.slots]; }
 
   /** Serialize a source transaction with device writes; the callback atomically persists both states. */
   integrateSource(persist) {
@@ -260,7 +266,7 @@ export class LayoutStore {
       const rect = draft.placements[cardId];
       requireValue(rect, 'missing-placement', t('errors.core.placementMissing'));
       if (rect.x === position.x && rect.y === position.y) return;
-      draft.history.push({ kind: 'move', before: { [cardId]: geometry(rect) } });
+      draft.history.push({ kind: 'move', at: stamp(), before: { [cardId]: geometry(rect) } });
       Object.assign(rect, { x: position.x, y: position.y });
     });
   }
@@ -290,22 +296,24 @@ export class LayoutStore {
         before[id] = geometry(draft.placements[id]);
         Object.assign(draft.placements[id], geometry(rect));
       }
-      draft.history.push({ kind: 'formation', before, gridBefore: copy(draft.grid), gridAfter: copy(plan.grid) });
+      draft.history.push({ kind: 'formation', at: stamp(), before, gridBefore: copy(draft.grid), gridAfter: copy(plan.grid) });
       draft.grid = copy(plan.grid);
       return { membership: plan.membership };
     });
   }
 
   /** This profile's part of a formation across profiles; the combined layout has checked the plan. */
-  async applyChanges(changes) {
+  async applyChanges(changes, batch) {
     changes = copy(changes);
     return this.#transaction(draft => {
       const before = {};
       for (const [id, rect] of Object.entries(changes)) {
+        // A paper purged since the plan was made has nothing left to arrange.
+        if (!draft.placements[id]) continue;
         before[id] = geometry(draft.placements[id]);
         Object.assign(draft.placements[id], geometry(rect));
       }
-      draft.history.push({ kind: 'formation', before });
+      draft.history.push({ kind: 'formation', at: stamp(), batch, before });
     });
   }
 

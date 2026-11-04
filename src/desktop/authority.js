@@ -166,7 +166,7 @@ export class DesktopAuthority {
         return result;
       }
       case 'interaction.shortcut': {
-        const layout = this.#workspace.layout.state; const bindings = resolveShortcuts(layout.shortcuts, layout.grid.slots);
+        const layout = this.#workspace.layout.state; const bindings = resolveShortcuts(layout.shortcuts, layout.liveSlots ?? layout.grid.slots);
         requireValue(typeof args.key === 'string' && Object.hasOwn(bindings, args.key) && this.#shortcut,
           'desktop-shortcut', t('errors.desktop.shortcutChanged'));
         return this.#shortcut(bindings[args.key], intent);

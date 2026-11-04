@@ -25,6 +25,7 @@ const profileId = 'google:test', email = 'old-notes@example.invalid';
 
 // Replace only host/provider boundaries. The UI, WorkspaceRecordStorage, DatasetSync and DatasetReset are real.
 const bridgeModule = `
+export const profileBridge = bridge => bridge;
 export async function connectNative() {
   window.fixtureCloseHandlers = []; window.fixtureCloseReady = 0; window.fixtureCloseCancelled = [];
   const events = new Map();

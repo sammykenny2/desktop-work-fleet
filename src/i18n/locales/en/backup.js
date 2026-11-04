@@ -158,6 +158,8 @@ export default {
   'backup.reset.exportFirst': 'Export a backup first',
   'backup.reset.open': 'Reset all data…',
   'backup.reset.confirmTitle': 'Reset all data?',
+  'backup.reset.deletesCollectionCloud': 'This permanently deletes, from this device and Google, all cloud notes (including Completed, Archived and Trash), their groups, unsaved changes, attachments and version history. Your local notes, and the desktop regions and shortcuts of this computer, stay.',
+  'backup.reset.deletesCollectionLocal': 'This permanently deletes, from this device, all local notes (including Completed, Archived and Trash), their groups, unsaved changes, attachments and version history. Your cloud notes, and the desktop regions and shortcuts of this computer, stay.',
   'backup.reset.deletesCloud': 'This permanently deletes, from this device and Google, all notes (including Completed, Archived and Trash), groups, unsaved changes, attachments, version history, the desktop layout, shortcuts and automatic backup settings.',
   'backup.reset.deletesLocal': 'This permanently deletes, from this device, all notes (including Completed, Archived and Trash), groups, unsaved changes, attachments, version history, the desktop layout, shortcuts and automatic backup settings.',
   'backup.reset.otherDevices': 'Other devices signed in to this Google account will ask at their next sync whether to clear their own copy.',

@@ -27,6 +27,7 @@ export default {
   'sync.recovery.working': "正在準備雲端資料：{done} / {total}…",
   // Where the notes live: the account chip and the identity on the Account and sync page
   'sync.account.localNotes': '本機便箋',
+  'sync.account.signInPrompt': '登入以使用雲端便箋',
   'sync.account.google': 'Google 帳號',
   'sync.account.current': '目前 Google 帳號',
   'sync.account.this': '這個 Google 帳號',
@@ -57,7 +58,7 @@ export default {
   'sync.status.resetUnfinished': '資料重設尚未完成',
   'sync.status.resetting': '正在重設資料…',
   'sync.status.overwriteUnfinished': 'Google 覆蓋尚未完成',
-  'sync.detail.signInSwitches': '登入後會改用該帳號的便箋；這裡的本機便箋會留在這台裝置。',
+  'sync.detail.signInSwitches': '登入後，該帳號的雲端便箋會出現在旁邊；本機便箋會留在這台裝置，不會自動上傳。',
   'sync.detail.notesKept': '這台裝置上的便箋和還沒同步的修改都還在。',
   'sync.detail.unlockKeyring': '金鑰圈若已鎖定，請在系統視窗中解鎖；完成後會接續同步。',
   'sync.detail.waitingInitialization': '其他裝置正在建立或還原資料，完成後會自動接續同步。',
@@ -80,8 +81,6 @@ export default {
   'sync.google.switchAccount': '切換帳號',
   'sync.google.signOut': '登出',
   'sync.google.signingIn': '請完成原生 Google 登入與同步授權…',
-  'sync.local.detail': '只存在這台裝置、不會同步',
-  'sync.local.switch': '切換',
 
   // Continuing a Google overwrite
   'sync.cloudRestore.title': '完成 Google 覆蓋',

@@ -158,7 +158,7 @@ export async function prepareLocalRestore({ workspace, document, ...options }) {
 }
 
 export async function prepareRestore({ workspace, document, mode = 'import', layout = 'preserve', workAreas,
-  repeat = false, uuid = () => crypto.randomUUID(), signal }) {
+  repeat = false, uuid = () => crypto.randomUUID(), signal, foreignIds = null, placeLater = false }) {
   requireValue(document instanceof BackupDocument, 'invalid-backup-data', t('errors.backup.backupNotVerified'));
   requireValue(['import', 'merge', 'replace'].includes(mode) && ['preserve', 'backup'].includes(layout),
     'invalid-restore-mode', t('errors.backup.restoreModeInvalid'));
@@ -185,7 +185,9 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   for (const draft of original.drafts) if (affected.has(draft.cardId)) {
     selected.draft.add(draft.id); if (draft.baseRevision) selected.revision.add(draft.baseRevision);
   }
-  const imported = mode === 'import' || purged.length ? await importData(original, fresh, checkpoint, mode === 'import' ? null : selected) : { data: original, mappings: {} };
+  // Notes or groups another open collection already holds take new ids, or routing by id could not tell the two apart (ADR-066).
+  const foreign = Boolean(foreignIds) && [...original.local.cards, ...original.local.groups].some(item => foreignIds.has(item.id));
+  const imported = mode === 'import' || purged.length || foreign ? await importData(original, fresh, checkpoint, mode === 'import' || foreign ? null : selected) : { data: original, mappings: {} };
   const data = imported.data; const next = copy(state); const additions = [];
   const known = new Map(state.revisions.map(record => [record.revisionId, record]));
   const append = record => { additions.push(record); known.set(record.revisionId, record); };
@@ -278,7 +280,8 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   }
   next.layout = reconcileSourceLayout(next.layout, next);
   const temporaryLayout = new LayoutStore(next.layout, async value => { next.layout = value; });
-  const placement = await temporaryLayout.placeNew(next, workAreas, undefined, checkpoint); next.layout.revision = state.layout.revision + 1;
+  // The page places new papers after the restore lands, in this computer's regions, which this profile's layout does not hold.
+  const placement = placeLater ? { deferred: [] } : await temporaryLayout.placeNew(next, workAreas, undefined, checkpoint); next.layout.revision = state.layout.revision + 1;
   // An older backup's group-bound keys move to the regions those groups now hold, and its per-paper layers become group layers.
   next.layout.shortcuts = regionShortcuts(next.layout.shortcuts, next.layout.grid.slots);
   next.layout = groupLayersFromPapers(next.layout, next.cards);

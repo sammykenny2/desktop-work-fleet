@@ -16,6 +16,19 @@ export function seedDesk(layout) {
   return desk;
 }
 
+// A region stays reserved for a collection that is not open, so that signing in restores the desktop. Another account being
+// open frees it: only one account opens at a time, and its regions would otherwise never come back.
+export function isReserved(desk, id, openProfiles) {
+  const owner = desk.known[id];
+  return owner !== undefined && !openProfiles.includes(owner) && !(owner.startsWith('google:') && openProfiles.some(profile => profile.startsWith('google:')));
+}
+/** Colours of a collection that is not open are kept, so its groups wear them again when it returns. */
+export function settledColors(desk, groups, openProfiles) {
+  const active = new Set(groups.map(group => group.id));
+  const absent = Object.keys(desk.known).filter(id => !active.has(id) && isReserved(desk, id, openProfiles)).map(id => ({ id }));
+  return settleGroupColors(desk.groupColors, [...absent, ...groups]);
+}
+
 const freeSlot = slots => slots.indexOf(null);
 
 /** Regions grow for a new group until the grid is full, as they always have; past nine the group stays off the desktop. */
@@ -35,7 +48,7 @@ function placeInGrid(grid, groupId) {
  */
 export function settleDesk(desk, groups, openProfiles, resolve) {
   const result = copy(desk); const active = new Set(groups.map(group => group.id));
-  const reserved = id => result.known[id] !== undefined && !openProfiles.includes(result.known[id]);
+  const reserved = id => isReserved(result, id, openProfiles);
   const held = new Set(result.grid.slots.filter(id => id && active.has(id)));
   result.grid.slots = result.grid.slots.map(id => {
     if (!id || active.has(id) || reserved(id)) return id;
@@ -53,9 +66,7 @@ export function settleDesk(desk, groups, openProfiles, resolve) {
     if (!result.grid.slots.includes(group.id)) placeInGrid(result.grid, group.id);
   }
   for (const id of Object.keys(result.known)) if (!active.has(id) && !reserved(id) && !result.grid.slots.includes(id)) delete result.known[id];
-  // Colours of a collection that is not open are kept, so its groups wear them again when it returns.
-  const absent = Object.keys(result.known).filter(id => !active.has(id)).map(id => ({ id }));
-  result.groupColors = settleGroupColors(result.groupColors, [...absent, ...groups]);
+  result.groupColors = settledColors(result, groups, openProfiles);
   return result;
 }
 

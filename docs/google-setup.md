@@ -126,8 +126,8 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
 - Account settings are in Settings → Account and sync; clicking the account area at the bottom left of the sidebar, or the
   account card at the top of the Settings pages, opens that page directly. It shows the current account, the "Sync" row, and the "Google account" row with "Sign in",
   "Switch account" and "Sign out".
-- Press "Sign in" in the "Google account" row; after granting identity and app data access, that Google account's own
-  workspace opens.
+- Press "Sign in" in the "Google account" row; after granting identity and app data access, that Google account's notes open as
+  Cloud notes, above Local notes in the sidebar.
   Existing local notes are not uploaded automatically; to move them, export a backup first, then import it in the Google
   workspace.
 - App data is in the hidden appDataFolder and does not appear in the normal Drive file list.
@@ -136,9 +136,9 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
   local data and pending changes are kept.
 - When "Sign in to Google again" appears, re-authorize with the original account; choosing another account opens a
   different workspace.
-- "Switch" in the "Local notes" row returns to the local workspace; "Sign out" removes only this device's account
-  credentials, and other devices stay signed in.
-  Both keep the original account's local notes, drafts and pending changes.
+- "Sign out" removes only this device's account credentials, and other devices stay signed in. Cloud notes leaves the sidebar
+  and the desktop, and the account's notes, drafts and pending changes stay on this device for when you sign in again. Local
+  notes do not depend on the account.
   To remove access from every device, remove Work Fleet under "Third-party apps & services" in the Google Account.
   Versions up to and including 0.2.3 revoke the grant on sign-out, and the account's other devices then ask to sign in
   again within about an hour, because their tokens become invalid. Do not sign out on such builds; a device that lost
@@ -205,8 +205,7 @@ is not bound to a source account or Drive file ID.
    checking the last successful sync time and the number of pending changes in the message.
 2. Confirm the ZIP was saved. Content and drafts that other devices have not uploaded are not in this backup; if needed,
    sync on those devices first or export on each of them.
-3. In Settings → Account and sync, press "Switch" in the "Local notes" row, then open Data and backup and choose the
-   ZIP.
+3. In Settings → Data and backup, choose Local notes at the top of the page, then choose the ZIP.
    To keep the existing local content, choose "Add as new notes" or "Merge with current notes"; to replace it entirely
    with the backup, choose "Clear this device, then restore from the backup".
 4. Press "Check file", check the clearing scope and the restore counts, tick "I understand the current local content
@@ -242,7 +241,7 @@ account as a test user in Google Auth Platform:
 
 1. First leave a note and a draft in the local workspace, then sign in to Google from Account and sync and allow app data
    access.
-   On success that account's workspace opens; the original local notes are kept and not moved to Google automatically.
+   On success Cloud notes appears above Local notes; the original local notes are kept and not moved to Google automatically.
 2. Cancel during account selection or authorization: the app returns to the original workspace, which can still edit,
    sync and retry; cancelling is not shown as a sync failure.
 3. Sync manually, add notes and attachments, and confirm that another device on the same account syncs them; force-quit

@@ -14,6 +14,7 @@ interface. To switch, see [Settings](#settings).
 ## Getting started
 
 - You can record notes offline without a Google account: the app starts with Local notes, which stay on this device.
+  Sign in and Cloud notes appears above them in the sidebar; the two are always shown together, with no switching.
   To sync across devices, sign in to Google later (see [Google sign-in and sync](#google-sign-in-and-sync)).
 - The round "+" button at the bottom right ("Capture") opens the editor for a new note in the group you are viewing.
   It shows only while that group's To do notes are on the board or in the list; under another filter, during a search
@@ -102,6 +103,10 @@ interface. To switch, see [Settings](#settings).
   mouse: the group lights up and reads "Move to …", and Esc cancels. The status bar then offers "Undo", which moves
   the note back unless it has moved again since. Moving from the sidebar or the "⋯" details leaves the desktop paper
   where it is.
+- The sidebar has a section for Cloud notes, while you are signed in, and one for Local notes, each with its own + and up to
+  nine groups of its own. Cloud notes sync to your other devices; Local notes never leave this device. Signing out hides
+  Cloud notes from the sidebar and the desktop and keeps them on this device for when you sign in again. Pickers keep a note
+  inside its section.
 - When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop notes sets "Rows" and
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom. There can be up to nine, each holding any
@@ -359,7 +364,7 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
 - History lists are paged, and remote version contents download only when opened. Offline cached history can be
   incomplete. Notes retain versions until whole-note permanent deletion; copies own their cloud attachments, so
   saving a copy can consume additional Drive space. A future "clear this note's history" operation is not implemented.
-- To work offline, download a Google ZIP, switch to Local notes and restore it. The detailed procedures in both
+- To work offline, download a Google ZIP and restore it into Local notes. The detailed procedures in both
   directions are in [Google setup](google-setup.md).
 - During the test phase the data formats of notes and backups stay at V1; updated fields do not start a schema
   upgrade or create extra copies. The data version policy is

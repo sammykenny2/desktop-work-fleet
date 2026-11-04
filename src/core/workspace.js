@@ -183,6 +183,7 @@ export class Workspace {
   holdsCard(id) { return this.#state.cards.some(card => card.id === id) || Object.values(this.#state.drafts).some(draft => draft.cardId === id); }
   holdsGroup(id) { return this.#state.groups.some(group => group.id === id); }
   holdsDraft(id) { return Object.hasOwn(this.#state.drafts, id); }
+  activeGroupList() { return copy(activeGroups(this.#state)); }
   get layout() { return this.#layout; }
   /** Drain admitted edits and their layout writes after the caller has stopped new work. */
   async whenIdle() { await this.#tail; await this.#layout.whenIdle(); await this.#tail; }

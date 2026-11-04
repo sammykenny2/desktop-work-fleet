@@ -27,6 +27,7 @@ export default {
   'sync.recovery.working': "Preparing cloud data: {done} / {total}…",
   // Where the notes live: the account chip and the identity on the Account and sync page
   'sync.account.localNotes': 'Local notes',
+  'sync.account.signInPrompt': 'Sign in to use cloud notes',
   'sync.account.google': 'Google account',
   'sync.account.current': 'the current Google account',
   'sync.account.this': 'this Google account',
@@ -57,7 +58,7 @@ export default {
   'sync.status.resetUnfinished': "The data reset isn't finished",
   'sync.status.resetting': 'Resetting data…',
   'sync.status.overwriteUnfinished': "The Google overwrite isn't finished",
-  'sync.detail.signInSwitches': "Signing in switches to that account's notes. The local notes here stay on this device.",
+  'sync.detail.signInSwitches': "Sign in to see that account's cloud notes beside these. Your local notes stay on this device and don't upload by themselves.",
   'sync.detail.notesKept': "The notes on this device and the changes that haven't synced are all still here.",
   'sync.detail.unlockKeyring': 'If the keyring is locked, unlock it in the system window. Sync continues afterwards.',
   'sync.detail.waitingInitialization': 'Another device is creating or restoring the data. Sync continues on its own when that finishes.',
@@ -80,8 +81,6 @@ export default {
   'sync.google.switchAccount': 'Switch account',
   'sync.google.signOut': 'Sign out',
   'sync.google.signingIn': 'Finish the Google sign-in and allow sync…',
-  'sync.local.detail': 'Only on this device, never synced',
-  'sync.local.switch': 'Switch',
 
   // Continuing a Google overwrite
   'sync.cloudRestore.title': 'Finish the Google overwrite',

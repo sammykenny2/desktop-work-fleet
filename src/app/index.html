@@ -14,7 +14,6 @@
 <body>
   <aside class="sidebar" id="sidebar" data-i18n-attr="aria-label:app.sidebar.label">
     <div class="brand"><span class="brand-mark" aria-hidden="true">w.</span><div>Work Fleet<small data-i18n="app.sidebar.tagline"></small></div></div>
-    <div class="section-label"><span data-i18n="app.sidebar.groups"></span> <button id="add-group" data-i18n-attr="aria-label:app.sidebar.addGroup">&#xFF0B;</button></div>
     <nav id="groups" data-i18n-attr="aria-label:app.sidebar.groupsLabel"></nav>
     <nav class="sidebar-links" data-i18n-attr="aria-label:app.sidebar.linksLabel">
       <button id="capture-inbox-button" hidden><bdi data-i18n="app.shareInbox.title"></bdi> <span id="capture-count">0</span></button>
@@ -42,6 +41,7 @@
     <!-- The view bar chooses what is shown; while adjusting, the adjust bar covers it at the same height, so the canvas keeps its size. -->
     <div class="view-bar">
       <div class="view-filters"><button data-filter="active" class="active" data-i18n="app.filters.active"></button><button data-filter="completed" data-i18n="app.filters.completed"></button><button data-filter="archived" data-i18n="app.filters.archived"></button></div>
+      <div class="trash-tabs" id="trash-tabs" role="group" data-i18n-attr="aria-label:app.trash.tabsLabel" hidden></div>
       <div class="view-tools">
       <button id="empty-trash" type="button" class="danger" hidden data-i18n="app.purge.emptyTitle"></button>
       <div class="view-switch" role="group" data-i18n-attr="aria-label:app.views.label">
@@ -64,7 +64,7 @@
     <button id="compose" class="primary" data-i18n-attr="aria-label:app.actions.capture;title:app.actions.capture"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
     <div id="desktop-hidden" hidden><div><strong data-i18n="app.desktopHidden.title"></strong><p id="desktop-hidden-text"></p></div><button id="show-desktop" class="primary" data-i18n="app.desktopHidden.show"></button></div>
     <div id="stage-shell"><div id="stage" data-i18n-attr="aria-label:app.stage.label"></div><div id="empty" hidden><div class="empty-paper">&#xFF0B;</div><h2 data-i18n="app.empty.title"></h2><p data-i18n="app.empty.text"></p><button id="empty-add" class="primary" data-i18n="app.empty.add"></button></div></div>
-    <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p></section>
+    <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p><div class="map-grid" id="layout-regions"></div><h3 class="off-title" id="layout-off-heading" data-i18n="settings.desktop.offDesktop" hidden></h3><div class="off-list" id="layout-off"></div></section>
     <section id="list" hidden></section>
     <!-- Conflicts show only while there are some, apart from the passing status, and open their page in Settings. -->
     <footer><button id="conflicts-button" type="button" hidden data-i18n-attr="title:settings.revisions.title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.9 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.5M12 17.5h.01"/></svg><span id="conflict-count"></span></button><span class="status-line" role="status" aria-live="polite"><span id="status"></span><button id="status-action" type="button" aria-describedby="status" hidden></button></span></footer>
@@ -153,7 +153,6 @@
             <div class="settings-list">
               <div class="settings-row" id="sync-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.row.label"></span><span class="row-value" id="sync-detail"></span></span><button type="button" id="google-sync"></button></div>
               <div class="settings-row" id="google-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.account.google"></span><span class="row-value" id="google-value"></span></span><span class="row-actions"><button type="button" id="google-sign-in" hidden></button><button type="button" id="google-sign-out" hidden data-i18n="sync.google.signOut"></button></span></div>
-              <div class="settings-row" id="local-row" hidden><span class="row-text"><span class="row-label" data-i18n="sync.account.localNotes"></span><span class="row-value" data-i18n="sync.local.detail"></span></span><button type="button" id="google-local" data-i18n="sync.local.switch"></button></div>
             </div>
             <p class="settings-note" id="account-detail" hidden></p>
           </section>
@@ -174,6 +173,8 @@
             <div class="grid-size"><label><span data-i18n="settings.desktop.rows"></span><select id="grid-rows" data-i18n-attr="aria-label:settings.desktop.rowCount"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label><span data-i18n="settings.desktop.columns"></span><select id="grid-columns" data-i18n-attr="aria-label:settings.desktop.columnCount"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
             <div id="grid-preview" data-i18n-attr="aria-label:settings.desktop.regionLayout"></div>
             <p id="grid-message" class="settings-note error" role="status" hidden></p>
+            <h4 class="settings-heading" id="regions-off-heading" data-i18n="settings.desktop.offDesktop" hidden></h4>
+            <div class="off-list" id="regions-off" hidden></div>
             <div class="settings-list" id="display-list">
               <div class="settings-row" id="display-row" hidden><span class="row-text"><span class="row-label" data-i18n="settings.desktop.display.label"></span><span class="row-value" id="display-detail"></span></span><span class="row-actions"><button type="button" id="display-restart" hidden data-i18n="settings.desktop.display.restart"></button><input id="display-xwayland" class="switch" type="checkbox" data-i18n-attr="aria-label:settings.desktop.display.label"></span></div>
             </div>

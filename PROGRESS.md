@@ -10,7 +10,7 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 
 ## Product scope
 
-- The target is 1.0: one card per thing, up to nine groups, a per-device desktop layout, desktop presentation on
+- The target is 1.0: one card per thing, cloud and local notes side by side with up to nine groups each, a per-device desktop layout, desktop presentation on
   Windows, macOS and Linux, native iOS and Android apps, Google Drive app-data sync and portable backups.
   The behaviour contract is [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md); the order of work is in [ROADMAP](ROADMAP.md).
 - Every build so far is a preview. 1.0 is not reached and no store submission has started.

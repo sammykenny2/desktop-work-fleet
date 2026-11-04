@@ -1,7 +1,7 @@
 export default {
   // Grid and groups
   'errors.core.gridInvalid': '格局最多 3 列、4 欄、9 區，且必須容納所有群組。',
-  'errors.core.slotsInvalid': '每個群組必須有一個獨立區域；空區不會建立群組。',
+  'errors.core.slotsInvalid': '一個群組只能放在一個區域；空區不會建立群組。',
   'errors.core.groupLimit': '最多可建立九個群組。請先整理現有群組。',
   'errors.core.groupOverflow': '同步帶來超過九組；資料保留，請先整理群組。',
   'errors.core.groupNameRequired': '請輸入群組名稱。',

@@ -59,7 +59,7 @@ function confirmReset(reset, goExport) {
   dialog.oncancel = event => { if (running) event.preventDefault(); };
   dialog.onclose = () => dialog.remove();
   dialog.append(node('h2', t('backup.reset.confirmTitle')), node('p', reset.target, 'reset-target'),
-    node('p', reset.cloud ? t('backup.reset.deletesCloud') : t('backup.reset.deletesLocal')),
+    node('p', reset.detail ?? (reset.cloud ? t('backup.reset.deletesCloud') : t('backup.reset.deletesLocal'))),
     ...reset.cloud ? [node('p', t('backup.reset.otherDevices')), node('p', t('backup.reset.updateDevices'))] : [],
     node('p', t('backup.reset.keeps', { items: reset.keeps.join(t('backup.reset.keepsSeparator')) })),
     check(t('backup.reset.agree'), agree), state);
@@ -71,7 +71,7 @@ function confirmReset(reset, goExport) {
  * The Data and backup page: export, restore, automatic backup and the reset. It mounts inside the settings window;
  * busy() tells the window to stay open while a backup or restore is running.
  */
-export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, localRestore, backupSource, uninstallNotice, appVersion }) {
+export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged, files = browserBackupFiles(), automatic, automaticError, reset, cloudRestore, localRestore, backupSource, foreignIds = () => null, uninstallNotice, appVersion }) {
   const google = workspace.state.profileId.startsWith('google:');
   const target = backupSource?.target || (google ? t('backup.target.google') : t('backup.target.local'));
   const panel = node('div', undefined, 'backup-panel'); panel.id = 'backup-panel';
@@ -160,10 +160,10 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     resetPlan(); await flush(); const file = fileInput.files[0];
     requireValue(file && file.size <= BACKUP_LIMITS.encryptedBytes, 'backup-limit', t('backup.errors.fileTooLarge'));
     loaded = await openBackup(new Uint8Array(await file.arrayBuffer()), { password: readPassword.value, signal, progress, requireCurrent: true });
-    const options = { document: loaded, layout: layout.checked || mode.value === 'local-replace' ? 'backup' : 'preserve', repeat: repeat.checked, workAreas: getWorkAreas(), signal };
+    const options = { document: loaded, layout: layout.checked || mode.value === 'local-replace' ? 'backup' : 'preserve', repeat: repeat.checked, workAreas: getWorkAreas(), signal, placeLater: true };
     plan = mode.value === 'cloud-replace' ? await cloudRestore.prepare(options)
       : mode.value === 'local-replace' ? await prepareLocalRestore({ ...options, workspace })
-      : await prepareRestore({ ...options, workspace, mode: mode.value });
+      : await prepareRestore({ ...options, workspace, mode: mode.value, foreignIds: foreignIds() });
     const value = plan.preview; const counts = value.backup.counts;
     const after = { notes: plural('backup.count.notes', value.result.cards), groups: plural('backup.count.groups', value.result.groups) };
     preview.append(node('p', t('backup.preview.target', { target })), node('p', t('backup.preview.contents', { date: formatDate(value.backup.createdAt),

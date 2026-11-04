@@ -2,8 +2,8 @@ import { requireValue } from '../core/contracts.js';
 import { t } from '../i18n/index.js';
 
 /**
- * On each device the group list follows the desktop regions: groups in region order, left to right and top to bottom,
- * then any group no region holds (more than nine after a sync) in workspace order.
+ * On each device a collection's group list follows its `grid.slots`, which hold only that order (ADR-066), then any group
+ * they do not hold (more than nine after a sync) in workspace order.
  */
 export function orderedGroups(layout, groups) {
   const rank = new Map(layout.grid.slots.filter(Boolean).map((id, index) => [id, index]));

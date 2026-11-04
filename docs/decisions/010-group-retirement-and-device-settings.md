@@ -76,8 +76,8 @@ overwrite other changes.
   the sidebar, with a region key, by creating it or by saving a new note into it (the editor's group picker counts as
   a choice, as the maintainer decided), and quick capture files new notes into it. On opening, the
   remembered group is shown while it is active, otherwise the first group in the sidebar. A local merge or a received
-  redirect carries it to the receiving group, resetting the desktop layout keeps it, a restore that replaces the
-  layout brings the backup's and an import keeps this device's. It never syncs and is not the transient active group
+  redirect carries it to the receiving group, and resetting the desktop layout and any restore keep it (ADR-066: it lives
+  on the desk). It never syncs and is not the transient active group
   of an adjust scope: adjusting all groups or selecting papers on the desktop does not write it. The maintainer asked
   for this because a sign-in start keeps the main window in the tray, and capture used to fall back to the first
   group after every restart.

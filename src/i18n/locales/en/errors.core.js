@@ -1,7 +1,7 @@
 export default {
   // Grid and groups
   'errors.core.gridInvalid': 'The grid can have at most 3 rows, 4 columns and 9 regions, and must fit every group.',
-  'errors.core.slotsInvalid': "Each group needs its own region; empty regions don't create groups.",
+  'errors.core.slotsInvalid': "A group can hold only one region; empty regions don't create groups.",
   'errors.core.groupLimit': 'You can create up to nine groups. Tidy up your existing groups first.',
   'errors.core.groupOverflow': 'Sync brought more than nine groups. Your data is kept; tidy up your groups first.',
   'errors.core.groupNameRequired': 'Enter a group name.',

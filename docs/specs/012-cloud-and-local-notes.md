@@ -131,7 +131,7 @@ covers everything except Trash. Decisions and alternatives are in
 - FR35: Backups stay per collection and keep their format. Manual export asks which collection; automatic backups run for each;
   a restore asks for its target. The desk is not part of a backup.
 - FR36: "Reset all data" names the collection it resets. A reset of Local notes does not touch cloud notes, and the reverse.
-- FR37: Versions and conflicts lists both collections and labels each entry.
+- FR37: Versions and conflicts shows one collection at a time, chosen at the top of the page.
 
 ### Non-Functional Requirements
 

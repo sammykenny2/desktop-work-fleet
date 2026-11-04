@@ -54,13 +54,13 @@ from FR8 to FR10.
 
 ### Phase 4: Two sections
 
-- [ ] Sidebar sections, add buttons, headings; account chip and Account page without switching
-- [ ] Sidebar order per section, free of regions and shortcuts
-- [ ] Group regions settings, layout map, dimmed layer mark
-- [ ] Trash tabs, collection labels, Empty Trash per tab
-- [ ] Unavailable collection state; id-collision check
-- [ ] Backups, reset and Versions and conflicts per collection
-- [ ] SPEC-003, ADR-021, ADR-010 and user guide updates
+- [x] Sidebar sections, add buttons, headings; account chip and Account page without switching
+- [x] Sidebar order per section, free of regions and shortcuts
+- [x] Group regions settings, layout map, dimmed layer mark
+- [x] Trash tabs, collection labels, Empty Trash per tab
+- [x] Unavailable collection state; id-collision check
+- [x] Backups, reset and Versions and conflicts per collection
+- [x] SPEC-003, ADR-021, ADR-010 and user guide updates
 
 **Deliverables**: FR1 to FR11, FR22, FR25, FR33 to FR37.
 

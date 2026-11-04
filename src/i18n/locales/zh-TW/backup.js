@@ -158,6 +158,8 @@ export default {
   'backup.reset.exportFirst': '先匯出備份',
   'backup.reset.open': '重設所有資料…',
   'backup.reset.confirmTitle': '重設所有資料？',
+  'backup.reset.deletesCollectionCloud': '這會從這台裝置和 Google 永久刪除所有雲端便箋（包含已完成、封存和垃圾桶）、它們的群組、未保存的修改、附件與版本歷史。本機便箋，以及這台電腦的桌面區域和快捷鍵都會保留。',
+  'backup.reset.deletesCollectionLocal': '這會從這台裝置永久刪除所有本機便箋（包含已完成、封存和垃圾桶）、它們的群組、未保存的修改、附件與版本歷史。雲端便箋，以及這台電腦的桌面區域和快捷鍵都會保留。',
   'backup.reset.deletesCloud': '會永久刪除這台裝置與 Google 雲端上的所有便箋（含已完成、封存與垃圾桶）、群組、未保存的修改、附件、版本歷史、桌面佈局、快捷鍵與自動備份設定。',
   'backup.reset.deletesLocal': '會永久刪除這台裝置上的所有便箋（含已完成、封存與垃圾桶）、群組、未保存的修改、附件、版本歷史、桌面佈局、快捷鍵與自動備份設定。',
   'backup.reset.otherDevices': '登入這個 Google 帳號的其他裝置，下次同步時會詢問要不要清除自己的副本。',

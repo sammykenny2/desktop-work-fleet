@@ -110,6 +110,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     document: { querySelectorAll: () => [] },
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
+    stopCompanionBackups() {}, startCompanionBackups() {}, companionBackupsIdle: async () => {}, companions: [],
     flushDraft: async () => calls.push('flush'),
     workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingCount: 0, layout: { placeNew: async () => {} },
       syncState: { lastSuccessfulSyncAt: '2026-11-03T01:00:00.000Z' } },
@@ -124,7 +125,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
 const maintain = source.slice(source.indexOf('async function maintainDataset('), source.indexOf('async function confirmPurge('));
 async function maintenanceDelay({ step, resetPending = false }) {
   const delays = []; const nothing = () => {};
-  const context = vm.createContext({ workspace: { state: { cloudRestore: resetPending ? {} : null }, syncState: {} }, pendingReset: null, datasetProblem: null, maintenanceWork: null,
+  const context = vm.createContext({ companions: [], workspace: { state: { cloudRestore: resetPending ? {} : null }, syncState: {}, layout: { placeNew: async () => {} } }, pendingReset: null, datasetProblem: null, maintenanceWork: null,
     maintenancePaused: false, accountBusy: false, syncBusy: false, nativeClosing: false, editorBusy: false, composing: false, dataPanel: null, revisions: null,
     document: { querySelectorAll: () => [] }, profileId: 'local', googleAccount: null, maintenanceAbort: { signal: { aborted: false } }, maintenanceFailure: null, datasetStore: null,
     purge: { step }, advanceDatasetRestore: step, resetFailure: error => ({ code: error.code, message: error.message }), storage: { putJob: async () => {}, deleteJob: async () => {}, getControl: async () => null, maintenance: async () => false },
@@ -488,22 +489,22 @@ test('closing the host or cancelling an old account prompt does not overwrite th
 });
 
 test('cancelled account change or close leaves an immediately usable manual-sync button', async () => {
-  for (const action of ['local', 'close']) {
+  for (const action of ['signOut', 'close']) {
     let reject;
     const f = syncFixture({ unlock: () => new Promise((_resolve, fail) => { reject = fail; }) });
     const first = f.invoke(true);
-    if (action === 'local') {
+    if (action === 'signOut') {
       const oldSync = f.context.syncService;
       oldSync.stop = async () => {}; oldSync.whenIdle = async () => {};
       Object.assign(f.context, { syncTimer: null, clearInterval() {}, stopAutomatic: null, automatic: null,
         status() {}, initializeGoogle: async () => { f.context.syncService = oldSync; } });
       f.context.document.body = {};
       f.context.native.bridge.request = async method => {
-        assert.equal(method, 'google.local');
+        assert.equal(method, 'google.signOut');
         reject(Object.assign(new Error('Request cancelled'), { code: 'vault-unlock-cancelled' }));
         throw new Error('Account switch cancelled');
       };
-      await vm.runInContext(`${changeAccount}\nchangeGoogleAccount('local')`, f.context);
+      await vm.runInContext(`${changeAccount}\nchangeGoogleAccount('signOut')`, f.context);
       assert.equal(f.context.accountBusy, false);
       assert.equal(f.context.document.body.inert, false);
     } else {

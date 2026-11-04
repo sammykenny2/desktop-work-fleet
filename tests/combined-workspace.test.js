@@ -174,6 +174,56 @@ test('a formation across profiles applies to each and undoes as one action; a mo
   assert.equal(combined.layout.state.placements[a.id].y, 40, 'the earlier move stays');
 });
 
+test('undo finds the newest action after a restart, and a formation across profiles still undoes as one', async () => {
+  const { combined, group, profiles, storage } = await open();
+  const a = await combined.createCard(content('a'), group[0].id); const b = await combined.createCard(content('b'), group[1].id);
+  await combined.layout.placeNew(combined.working, [area]);
+  await combined.layout.move(a.id, { x: 40, y: 40 }); await combined.layout.move(b.id, { x: 500, y: 300 });
+  const before = combined.layout.state.placements;
+  await combined.layout.applyFormation(planFormation({ snapshot: combined.working, layout: combined.layout.state, scope: { kind: 'all' }, mode: 'stack', workAreas: [area], summaryBands: { [a.id]: 36, [b.id]: 36 } }), () => combined.working);
+  const again = await CombinedWorkspace.open(profiles, storage);
+  await again.undo([area]);
+  assert.equal(again.layout.state.placements[a.id].x, before[a.id].x); assert.equal(again.layout.state.placements[b.id].x, before[b.id].x);
+  await again.undo([area]);
+  assert.notEqual(again.layout.state.placements[b.id].y, 300, 'the later move undoes first'); assert.equal(again.layout.state.placements[a.id].y, 40);
+});
+
+test('a merge passes its region and the main group on as soon as it lands', async () => {
+  const { combined, group, profiles } = await open();
+  const second = await combined.createGroup('Second', profiles[0].id); await combined.layout.placeNew(combined.working, [area]);
+  const grid = combined.layout.state.grid;
+  await combined.layout.configure({ grid: { ...grid, slots: grid.slots.map(id => id === second.id ? null : id) } }, combined.snapshot);
+  await combined.layout.setMainGroup(group[0].id);
+  const held = combined.layout.state.grid.slots.indexOf(group[0].id);
+  await combined.mergeGroup(combined.previewGroupMerge(group[0].id, second.id));
+  assert.equal(combined.layout.state.grid.slots[held], second.id); assert.equal(combined.layout.state.mainGroupId, second.id);
+});
+
+test('choosing a colour keeps the colours of a collection that is not open', async () => {
+  const storage = controls(); let disk;
+  const local = await Workspace.create({ profileId: 'local', deviceId: 'device', area, persist: async state => { disk = copy(state); } });
+  await storage.putControl('desk', { revision: 1, grid: { rows: 1, columns: 2, area, slots: ['cloud-group', null] }, groupColors: { 'cloud-group': 5 }, known: { 'cloud-group': 'google:a' } });
+  const combined = await CombinedWorkspace.open([{ id: 'local', workspace: local, storage }]);
+  const own = activeGroups(local.snapshot)[0];
+  await combined.layout.setGroupColor(own.id, 2);
+  assert.equal(combined.layout.groupColors['cloud-group'], 5); assert.equal(combined.layout.groupColors[own.id], 2);
+  assert.deepEqual(combined.layout.state.grid.slots.includes('cloud-group'), true, 'its region stays reserved');
+  assert.equal(combined.layout.state.liveSlots.includes('cloud-group'), false, 'a key for that region acts on nothing');
+  assert.ok(disk);
+});
+
+test('another account being open frees the regions of the account before it', () => {
+  const desk = { revision: 0, grid: { rows: 1, columns: 2, area, slots: ['old', 'local'] }, groupColors: {}, known: { old: 'google:a', local: 'local' } };
+  const settled = settleDesk(desk, [{ id: 'new', profileId: 'google:b' }, { id: 'local', profileId: 'local' }], ['google:b', 'local'], () => null);
+  assert.deepEqual(settled.grid.slots, ['new', 'local']); assert.equal(settled.known.old, undefined);
+});
+
+test('after a reset a group of a collection not open takes a free region when it returns', () => {
+  const desk = { revision: 0, grid: { rows: 1, columns: 2, area, slots: ['local', null] }, groupColors: {}, known: {} };
+  const settled = settleDesk(desk, [{ id: 'cloud', profileId: 'google:a' }, { id: 'local', profileId: 'local' }], ['google:a', 'local'], () => null);
+  assert.deepEqual(settled.grid.slots, ['local', 'cloud']);
+});
+
 test('a plan made before any profile changed is refused, as a plan for one profile is', async () => {
   const { combined, group } = await open();
   const a = await combined.createCard(content('a'), group[0].id); const b = await combined.createCard(content('b'), group[1].id);

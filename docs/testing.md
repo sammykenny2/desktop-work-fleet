@@ -880,6 +880,7 @@ python scripts/testing/serve_preview.py --port 0
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/trash-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/sections-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-dialog-sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
@@ -957,6 +958,13 @@ The automatic probe first confirms that the real app's automatic file capability
 to check the full UI, turning it off while running, reservation abort, a lost ack and restart, CAS, the authorization pause and readable ZIP bytes.
 It does not use native OS automatic files or the vault; the screenshot is `build/automatic-backup-probe.png`.
 `automatic-backup-probe` once failed without a message (2026-10-06) and then passed three times in a row.
+`sections-probe.mjs` opens two profiles in the browser preview, with `?profile=google:...&companion=...`, since the preview has no
+host: sections with their own add buttons, notes and pickers per collection, a sidebar drag staying in its section, one colour
+table, search naming the collection, Trash tabs and Empty Trash per collection, regions across collections with groups off the
+desktop surviving a reload, and backups and versions per collection. The native hosts' routing is checked in their own tests
+(`tests/test_linux_vault.py`, `tests/native/windows/core/Program.cs`, `tests/native/apple/RecordStoreProbe.swift`); no native host
+has run the two sections yet.
+
 `trash-probe.mjs` checks Trash as a sidebar item (SPEC-012): its own view without status tabs, capture, layout map or adjusting; sections by group on the
 board and in the list, newest first; search inside Trash; no drop on its row; leaving it by a group or a region key; no opening over a canvas being
 adjusted; search across every status with each result's group and status, also in a phone's list, and the link to matches in Trash; restore; Empty Trash;

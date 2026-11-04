@@ -20,7 +20,7 @@ work that stays in view.
 
 - One card per thing, organized in groups; the local device can highlight "mine", and groups are not hard-coded as
   machines.
-- At most nine groups; formation uses rows × columns, with at most three rows and four columns and no more than nine
+- Cloud and local notes side by side, each with at most nine groups; formation uses rows × columns, with at most three rows and four columns and no more than nine
   regions in total.
 - Normally read-only and click-through; a shortcut activates one group or all groups, which temporarily float above
   ordinary apps.

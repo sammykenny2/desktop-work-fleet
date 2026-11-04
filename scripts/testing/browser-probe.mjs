@@ -138,7 +138,7 @@ try {
   await expect(page.locator('.inline-editor')).toHaveCount(0); await expect(editor).not.toBeVisible();
   assert.deepEqual(await page.locator('.card').boundingBox(), originalBox);
   await expect(page.locator('.card-body')).toContainText('Saved in place');
-  await page.getByRole('button', { name: t('app.sidebar.addGroup'), exact: true }).click();
+  await page.locator('#add-group').click();
   await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups')).toContainText('Research');
@@ -217,6 +217,9 @@ try {
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await page.locator('#search').fill('First thing'); await expect(page.locator('.note-row .note-title')).toHaveText('First thing');
   await page.locator('[data-view="desktop"]').click(); await expect(page.locator('#search')).toHaveValue('');
+  // The window changed size while the canvas was hidden, and showing it lays the regions out again 250 ms later, which ends
+  // any drag then in progress; wait for that so the drags below do not race it.
+  await page.waitForTimeout(400);
   await expect(page.locator('.card-body h1')).toHaveText('First thing');
   assert.deepEqual(await paper.boundingBox(), moved, 'board and list must not move desktop papers');
   // The reload ended adjust mode; the drags below need it again.

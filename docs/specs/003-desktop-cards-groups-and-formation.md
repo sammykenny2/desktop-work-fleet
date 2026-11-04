@@ -72,7 +72,7 @@ addendum "adjust mode arranges, quick edit edits".
 | U13 | Card size is normally stable; formation may adjust it with the user's consent, and without consent cards may extend beyond the group region |
 | U14 | A new card's initial position defaults to its own group region; adding or syncing does not rearrange existing cards |
 | U15 | Formation can be undone |
-| U16 | At most 9 groups; the grid has at most 3 rows and 4 columns and at most 9 blocks in total, so 3 rows × 4 columns is forbidden |
+| U16 | At most 9 groups per collection (SPEC-012); the grid has at most 3 rows and 4 columns and at most 9 blocks in total, so 3 rows × 4 columns is forbidden |
 | U17 | A shortcut can activate drag mode for a single group; editing a single card on the desktop is quick edit (2026-10-24 addendum) |
 | U18 | The group being operated floats above ordinary app windows for the time being and returns to its original layer afterwards |
 | U19 | Single click selects; in adjust mode a double click does not edit (2026-10-24); an ordinary drag only moves; only a group label or a Shift + region drop moves a card to another group |

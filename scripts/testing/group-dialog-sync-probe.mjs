@@ -23,6 +23,7 @@ const profileId = 'google:test';
 // it runs actions with no queue at all, so what the queue holds cannot be seen there.
 const viewId = '00000000-0000-4000-8000-000000000002', sessionId = '00000000-0000-4000-8000-000000000001';
 const bridgeModule = `
+export const profileBridge = bridge => bridge;
 export async function connectNative() {
   const events = new Map();
   const emit = (type, message = {}) => { for (const callback of events.get(type) ?? []) callback(message); };

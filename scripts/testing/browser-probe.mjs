@@ -25,7 +25,7 @@ const capture = async () => {
 const canvas = () => page.locator('[data-view="desktop"]').click();
 try {
   await page.goto(base.href);
-  await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   // Quick capture from the canvas shows the group's board behind the editor, where the note will land.
   await expect(page.locator('#compose')).toBeHidden();
   await page.locator('body').click({ position: { x: 700, y: 20 } }); await page.keyboard.press('Control+Shift+N');
@@ -70,23 +70,23 @@ try {
   await expect(page.locator('#compose')).toBeVisible(); await expect(page.locator('#list .note-title')).toHaveText(['First thing']);
   await canvas(); await expect(page.locator('.card-summary')).toHaveText('First thing');
   const firstCardId = await page.locator('.card').getAttribute('data-card-id');
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('.card-summary')).toHaveText('First thing');
   // The canvas stands in for the desktop: a paper that takes clicks ticks a step in place and keeps it; a note with
   // unsaved changes ticks those instead (ADR-061).
   const firstStep = () => page.locator('#stage .card-body input').first();
   await expect(firstStep()).toBeChecked(); await expect(firstStep()).toBeEnabled();
   await firstStep().click();
-  await expect(page.locator('#status')).toHaveText(t('app.status.savedLocally')); await expect(firstStep()).not.toBeChecked();
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.savedLocally')); await expect(firstStep()).not.toBeChecked();
   await expect(page.locator('#stage .card')).not.toHaveClass(/selected/);
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText(''); await expect(firstStep()).not.toBeChecked();
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true'); await expect(firstStep()).not.toBeChecked();
   // Board papers tick their steps with one click too. One click elsewhere on a paper opens nothing and two open the
   // editor; a tap opens it at once, as phones have no double tap, and so does a click from assistive technology.
   await page.locator('[data-view="board"]').click(); const boardPaper = page.locator('#list .note-paper').first();
   const boardStep = boardPaper.locator('.note-body input[type="checkbox"]').first(); const editor = page.locator('#editor-dialog');
   for (const checked of [true, false]) {
     await boardStep.click(); await expect(boardStep).toBeChecked({ checked }); await expect(boardStep).toBeEnabled();
-    await expect(page.locator('#status')).toHaveText(t('app.status.savedLocally'));
+    await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.savedLocally'));
   }
   await boardPaper.locator('.note-title').click(); await expect(editor).not.toBeVisible();
   const touch = await context.newCDPSession(page); await touch.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 1 });
@@ -102,25 +102,25 @@ try {
   const savedText = await page.locator('#editor-text').inputValue();
   await page.locator('#editor-text').fill(`${savedText}\n\nKept for later`);
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.unsavedKept'));
+  await page.locator('#close-editor').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.unsavedKept'));
   // ADR-061: the paper keeps showing the typed text, with a dot, and a tick changes that unsaved text.
   await expect(boardPaper.locator('.note-title .unsaved-dot')).toBeVisible(); await expect(boardPaper.locator('.note-body')).toContainText('Kept for later');
   await canvas(); await expect(page.locator('#stage .card-summary .unsaved-dot')).toBeVisible(); await firstStep().click();
-  await expect(page.locator('#status')).toHaveText(t('app.status.tickedUnsaved')); await expect(firstStep()).toBeChecked();
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.tickedUnsaved')); await expect(firstStep()).toBeChecked();
   // Opening the note again continues its unsaved changes.
   await page.locator('[data-view="board"]').click(); await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   await expect(page.locator('#editor-text')).toHaveValue(`${savedText.replace('- [ ] First step', '- [x] First step')}\n\nKept for later`);
   // The text changes only in the main window's editor: adjust mode arranges notes and opens none (SPEC-003, 2026-10-24).
   assert.match(savedText, /^# First thing\n/);
   await page.locator('#editor-text').fill('# First thing\n\nSaved in place\n\n- [x] First step'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#status')).toHaveText(t('app.status.noteSaved'));
+  await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.noteSaved'));
   await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
   // "Discard changes" returns the note to its saved text, and the status line can bring the changes back.
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   await page.locator('#editor-text').fill('# First thing\n\nThrown away'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.getByRole('button', { name: t('app.editor.discard'), exact: true }).click(); await expect(page.locator('#status')).toHaveText(t('app.status.changesDiscarded'));
+  await page.getByRole('button', { name: t('app.editor.discard'), exact: true }).click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.changesDiscarded'));
   await expect(boardPaper.locator('.note-body')).toContainText('Saved in place'); await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
-  await page.locator('#status-action').click(); await expect(page.locator('#status')).toHaveText(t('app.status.changesRestored'));
+  await page.locator('.toast[data-notice-id=undo] .toast-action').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.changesRestored'));
   await expect(boardPaper.locator('.note-body')).toContainText('Thrown away'); await expect(boardPaper.locator('.unsaved-dot')).toBeVisible();
   await boardPaper.locator('.note-title').dblclick(); await page.getByRole('button', { name: t('app.editor.discard'), exact: true }).click();
   await expect(page.locator('#list .unsaved-dot')).toHaveCount(0);
@@ -176,6 +176,7 @@ try {
   // The board and the list show the same papers; the body starts from the first line, the list excerpt after it.
   // The choice is kept on this device.
   await page.locator('[data-view="board"]').click();
+  await page.locator('#groups .group-row[data-group-id]').first().locator('button').first().click();
   const tile = page.locator('.note-paper').filter({ hasText: 'First thing' });
   await expect(tile.locator('.note-title')).toHaveText('First thing');
   await expect(tile.locator('.note-body')).toContainText('Saved in place'); await expect(tile.locator('.note-body h1')).toHaveText('First thing');
@@ -188,7 +189,7 @@ try {
   await expect(page.locator('#compose')).toBeVisible();
   const foot = () => page.evaluate(() => {
     const box = selector => document.querySelector(selector).getBoundingClientRect();
-    return { compose: box('#compose'), footer: box('main > footer'), status: box('.status-line') };
+    return { compose: box('#compose'), footer: box('main > footer') };
   });
   for (const width of [390, 900, 1440]) {
     await page.setViewportSize({ width, height: width < 640 ? 844 : 1050 });
@@ -196,16 +197,17 @@ try {
     // The row's height reaches Capture through a ResizeObserver, so the measurement waits for it to settle.
     await expect.poll(async () => { const { compose, footer } = await foot(); return Math.abs(footer.top - compose.bottom - 16) <= 1; },
       { message: `Capture sits 16 px above the status row at ${width} px` }).toBe(true);
-    const { compose, footer, status } = await foot();
-    assert.ok(Math.abs(status.right - footer.right) <= 1 && Math.abs(compose.right - footer.right) <= 1,
-      `the status and Capture end at the right edge of the status row at ${width} px`);
+    const { compose, footer } = await foot();
+    assert.ok(Math.abs(compose.right - footer.right) <= 1,
+      `Capture ends at the right edge of the footer at ${width} px`);
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  const shown = await page.locator('#status').textContent(); const oneLine = (await foot()).footer.height;
-  await page.locator('#status').evaluate(node => { node.textContent = `${node.textContent} `.repeat(8); });
-  await expect.poll(async () => { const { compose, footer } = await foot(); return footer.height > oneLine && Math.abs(footer.top - compose.bottom - 16) <= 1; },
-    { message: 'Capture rises with a wrapped status' }).toBe(true);
-  await page.locator('#status').evaluate((node, text) => { node.textContent = text; }, shown);
+  await expect.poll(async () => { const { compose, footer } = await foot(); return Math.abs(footer.top - compose.bottom - 16) <= 1; }).toBe(true);
+  const oneLine = (await foot()).footer.height;
+  await page.evaluate(async () => { const { notifications } = await import('/app/notifications.js'); notifications().show('Long result message. '.repeat(20), { id: 'geometry-fixture', kind: 'error' }); });
+  const { compose, footer } = await foot(); assert.equal(footer.height, oneLine);
+  assert.ok(Math.abs(footer.top - compose.bottom - 16) <= 1, 'a wrapped toast does not move Capture');
+  await page.evaluate(async () => { const { notifications } = await import('/app/notifications.js'); notifications().clear('geometry-fixture'); });
   await page.setViewportSize({ width: 1440, height: 1050 });
   const tileDownload = page.waitForEvent('download'); await tile.locator('.attachment-tile').dblclick();
   assert.equal((await tileDownload).suggestedFilename(), 'proof.txt', 'the browser downloads when no native opener is available');
@@ -214,7 +216,7 @@ try {
   await expect(page.locator('.note-row .note-title')).toHaveText('First thing');
   await expect(page.locator('.note-row .note-excerpt')).toHaveText(/^(?!First thing)./);
   await expect(page.locator('#list .attachment-tile')).toHaveCount(0);
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.locator('#search').fill('First thing'); await expect(page.locator('.note-row .note-title')).toHaveText('First thing');
   await page.locator('[data-view="desktop"]').click(); await expect(page.locator('#search')).toHaveValue('');
   // The window changed size while the canvas was hidden, and showing it lays the regions out again 250 ms later, which ends
@@ -227,7 +229,7 @@ try {
   await page.getByRole('button', { name: t('app.toolbar.undo'), exact: true }).click();
   await expect.poll(async () => (await paper.boundingBox())?.x).toBe(beforeDrag.x);
   await dragTo(true);
-  await expect(page.locator('#status')).toHaveText(t('app.status.movedToGroup'));
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.movedToGroup'));
   await expect(page.locator('#groups .group-row[data-group-id]').nth(1)).toContainText('1');
   await page.getByRole('button', { name: t('app.toolbar.undo'), exact: true }).click();
   await expect(page.locator('#groups .group-row[data-group-id]').first()).toContainText('1');
@@ -237,7 +239,7 @@ try {
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   await page.locator('#editor-text').fill('Unsaved text kept over a reload'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.locator('[data-view="board"]').click(); await expect(boardPaper.locator('.unsaved-dot')).toBeVisible();
   await expect(boardPaper.locator('.note-body')).toContainText('Unsaved text kept over a reload');
   await boardPaper.locator('.note-title').dblclick(); await expect(page.locator('#editor-text')).toHaveValue('Unsaved text kept over a reload');
@@ -284,7 +286,7 @@ try {
   await capture();
   await page.locator('#editor-heading').fill('Title typed, then deleted'); await page.locator('#editor-heading').fill('');
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.locator('#close-editor').click(); await expect(page.locator('#status')).toHaveText(t('app.status.closed'));
+  await page.locator('#close-editor').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.closed'));
   // On the board a long paper ends its text with "…", and its attachments are one row below the text.
   await capture();
   await page.locator('#editor-text').fill(Array.from({ length: 40 }, (_, n) => `Paragraph ${n + 1} of a long text.`).join('\n\n'));
@@ -334,7 +336,7 @@ try {
   await page.evaluate(() => window.releaseProbeWrite());
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
   await page.locator('#close-editor-button').click();
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   // The view bar gives way by measuring its row: from the desktop apps' default 1180 px down, nothing overlaps and no
   // filter is cut off, and search stays in the top bar.
   const viewBarFits = () => page.evaluate(() => {
@@ -362,7 +364,7 @@ try {
   await expect(page.locator('#stage .card').filter({ hasText: 'Important text still being written' }).locator('.unsaved-dot')).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1050 });
   const other = await context.newPage(); await other.goto(base.href);
-  await expect(other.locator('#status')).toContainText(t('app.errors.openElsewhere')); await other.close();
+  await expect(other.locator('.toast[data-latest=true] .toast-message')).toContainText(t('app.errors.openElsewhere')); await other.close();
   const storageResult = await page.evaluate(async () => {
     const { IndexedDbStorage } = await import('../storage/indexed-db.js');
     const { Workspace } = await import('../core/workspace.js');

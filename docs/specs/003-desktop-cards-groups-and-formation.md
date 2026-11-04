@@ -617,7 +617,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 | C25 | Move A1 to B in single-group A mode | Completion hint; A1 returns to the resident policy; A's other cards remain operable; B is not summoned |
 | C26 | Move A1 to B in All mode | Still operable; the scope stays All |
 | C27 | Transfer from the action menu | The same data command; coordinates are kept; no mouse drag required |
-| C27a | Drop a board paper on group B in the main window's sidebar, then Undo in the status bar | One new revision of the same card in B, coordinates kept; Undo moves it back only while it is still in B; history marks each version "Moved from …" |
+| C27a | Drop a board paper on group B in the main window's sidebar, then Undo in its toast (ADR-068) | One new revision of the same card in B, coordinates kept; Undo moves it back only while it is still in B; history marks each version "Moved from …" |
 | C28 | After target B was previewed, B is deleted / its position is taken by another group | No transfer to the wrong group; safe cancellation |
 | C29 | Remote text edit / group change during a transfer | Text is not overwritten, and neither membership intent is silently dropped |
 | C30 | Undoing a transfer when a newer change exists | Handled conditionally; the newer change is not blindly overwritten |
@@ -776,7 +776,7 @@ starts from the quick move key instead. This changes U17, U19, C18 and C20 above
 - **End.**
   - Save commits the text as a new revision and closes.
   - Discard changes drops the note's unsaved changes, so it shows its saved revision again, or removes a note never
-    saved, and closes; the main window's status line offers to undo it (ADR-061). It replaced Cancel, which undid only
+    saved, and closes; a toast offers to undo it (ADR-061/ADR-068). It replaced Cancel, which undid only
     the changes since the quick edit began.
   - Esc, when the input method does not consume it, keeps changed text unsaved and closes (U23), as the main window's
     close does.

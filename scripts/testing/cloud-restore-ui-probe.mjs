@@ -62,7 +62,7 @@ try {
           while ((await reset.status()).phase !== 'complete') await reset.step();
           window.probeResult = { text: state.cards.map(card => card.content.text), drafts: Object.values(state.drafts).map(draft => draft.content.text),
             oldFilesGone: oldIds.every(id => !store.files.has(id)), pending: Boolean(state.cloudRestore), filesSaved };
-          say('synthetic overwrite finished');
+          say('synthetic overwrite finished', { progress: false });
         } } });
     document.body.replaceChildren(panel.element); window.probePanel = panel;
     window.probeCalls = () => Object.values(store.stats).reduce((a, b) => a + b, 0);
@@ -72,10 +72,10 @@ try {
   await page.locator('#restore-mode').selectOption('cloud-replace');
   await expect(page.getByText(/synthetic-account@example.invalid/)).toBeVisible();
   await choose(Buffer.from('invalid')); const calls = await page.evaluate(() => window.probeCalls());
-  await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toHaveClass(/error/);
+  await page.locator('#preview-restore').click(); await expect(page.locator('.toast[data-notice-id^=backup] .toast-message')).toHaveClass(/error/);
   assert.equal(await page.evaluate(() => window.probeCalls()), calls);
   await choose(Buffer.from(bytes)); await page.locator('#backup-encrypt').uncheck(); await page.locator('#backup-coverage').selectOption('current-state-only');
-  const preview = async () => { await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.ready')); };
+  const preview = async () => { await page.locator('#preview-restore').click(); await expect(page.locator('.toast[data-notice-id^=backup] .toast-message')).toHaveText(t('backup.restore.ready')); };
   await preview(); assert.equal(await page.evaluate(() => window.probePanel.blocksSync()), true);
   await expect(page.locator('#confirm-restore')).toBeDisabled();
   await page.locator('#restore-cloud-agree').check(); await expect(page.locator('#confirm-restore')).toBeDisabled();
@@ -84,7 +84,7 @@ try {
   await expect(page.locator('#confirm-restore')).toBeDisabled();
   await preview(); await page.locator('#save-safety-backup').click(); await expect(page.locator('#confirm-restore')).toBeDisabled();
   await page.locator('#restore-cloud-agree').check(); await expect(page.locator('#confirm-restore')).toBeEnabled();
-  await page.locator('#confirm-restore').click(); await expect(page.locator('#backup-status')).toHaveText('synthetic overwrite finished');
+  await page.locator('#confirm-restore').click(); await expect(page.locator('.toast[data-notice-id^=backup] .toast-message')).toHaveText('synthetic overwrite finished');
   const result = await page.evaluate(() => window.probeResult);
   assert.deepEqual(result, { text: ['restored backup content'], drafts: ['backup draft stays unpublished'], oldFilesGone: true, pending: false, filesSaved: 2 });
   assert.deepEqual(errors, []);

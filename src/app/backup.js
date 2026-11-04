@@ -6,6 +6,7 @@ import { browserBackupFiles } from '../backup/browser-files.js';
 import { requireValue } from '../core/contracts.js';
 import { formatDate, plural, t } from '../i18n/index.js';
 import { automaticBackupSection } from './automatic-backup.js';
+import { notifications } from './notifications.js';
 
 const node = (tag, text, className) => {
   const value = document.createElement(tag); if (text !== undefined) value.textContent = text;
@@ -41,7 +42,7 @@ const syncSummary = manifest => t('backup.syncSummary.text', {
 function confirmReset(reset, goExport) {
   const dialog = node('dialog', undefined, 'reset-dialog'); dialog.id = 'reset-data-dialog';
   const agree = input('reset-agree', 'checkbox');
-  const state = node('p', '', 'backup-message'); state.setAttribute('role', 'status'); state.setAttribute('aria-live', 'polite');
+  const noticeId = `reset:${reset.target}`;
   const backup = button(t('backup.reset.exportFirst')); const cancel = button(t('common.cancel'));
   const confirm = button(t('backup.reset.confirm'), 'danger'); confirm.id = 'confirm-reset-data'; confirm.disabled = true;
   let running = false;
@@ -51,10 +52,12 @@ function confirmReset(reset, goExport) {
   cancel.onclick = () => dialog.close();
   confirm.onclick = async () => {
     if (running || !agree.checked) return;
-    running = true; settle(); state.classList.remove('error'); state.textContent = t('backup.reset.running');
+    running = true; settle(); notifications().clear(noticeId);
+    const progress = text => notifications().show(text, { id: noticeId, context: reset.target, kind: 'progress' });
+    progress(t('backup.reset.running'));
     // Success reopens the page on the emptied workspace, so only a failure comes back here.
-    try { await reset.run(text => { state.textContent = text; }); }
-    catch (error) { running = false; settle(); state.textContent = error.message; state.classList.add('error'); }
+    try { await reset.run(progress); notifications().clear(noticeId); }
+    catch (error) { running = false; settle(); notifications().show(error.message, { id: noticeId, context: reset.target, kind: 'error' }); }
   };
   dialog.oncancel = event => { if (running) event.preventDefault(); };
   dialog.onclose = () => dialog.remove();
@@ -62,7 +65,7 @@ function confirmReset(reset, goExport) {
     node('p', reset.detail ?? (reset.cloud ? t('backup.reset.deletesCloud') : t('backup.reset.deletesLocal'))),
     ...reset.cloud ? [node('p', t('backup.reset.otherDevices')), node('p', t('backup.reset.updateDevices'))] : [],
     node('p', t('backup.reset.keeps', { items: reset.keeps.join(t('backup.reset.keepsSeparator')) })),
-    check(t('backup.reset.agree'), agree), state);
+    check(t('backup.reset.agree'), agree));
   const actions = node('div', undefined, 'dialog-actions'); actions.append(backup, cancel, confirm); dialog.append(actions);
   document.body.append(dialog); dialog.showModal();
 }
@@ -75,8 +78,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const google = workspace.state.profileId.startsWith('google:');
   const target = backupSource?.target || (google ? t('backup.target.google') : t('backup.target.local'));
   const panel = node('div', undefined, 'backup-panel'); panel.id = 'backup-panel';
-  const message = node('p', '', 'backup-message');
-  message.id = 'backup-status'; message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
+  const noticeId = `backup:${workspace.state.profileId}`;
   const encrypt = input('backup-encrypt', 'checkbox'); encrypt.checked = true;
   const coverage = node('select'); coverage.id = 'backup-coverage';
   coverage.append(new Option(t('backup.coverage.complete'), 'complete-retained-history'), new Option(t('backup.coverage.current'), 'current-state-only'));
@@ -99,22 +101,27 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const layout = input('restore-layout', 'checkbox'); const repeat = input('restore-repeat', 'checkbox');
   const preview = node('div'); preview.id = 'restore-preview';
   const safetyInfo = node('p', t('backup.restore.safetyHint'), 'hint');
-  const receiptList = node('div'); receiptList.id = 'restore-receipts';
-  const automaticSection = automaticBackupSection(automatic, automaticError);
+  const receiptList = node('details'); receiptList.id = 'restore-receipts';
+  const automaticSection = automaticBackupSection(automatic, automaticError, workspace.state.profileId, target);
   let busy = false; let committing = false; let abort; let loaded; let plan; let safety;
   const controls = [];
   const action = (id, text, work, className) => {
     const value = button(text, className); value.id = id; controls.push(value);
     value.onclick = () => execute(work); return value;
   };
-  const say = (text, error = false) => { message.textContent = text; message.classList.toggle('error', error); };
+  let progressing = false;
+  const say = (text, error = false, progress = false) => {
+    progressing = progress;
+    notifications().show(text, { id: noticeId, context: target, kind: error ? 'error' : progress ? 'progress' : 'info',
+      action: progress && !committing ? { label: t('common.cancel'), run: () => abort?.abort() } : null });
+  };
   const progress = ({ phase, completed, total }) => {
-    if (phase === 'save-commit') { committing = true; refresh(); say(t('backup.progress.finishing')); return; }
+    if (phase === 'save-commit') { committing = true; refresh(); say(t('backup.progress.finishing'), false, true); return; }
     const values = { completed, total };
     const names = { read: () => t('backup.progress.read', values), write: () => t('backup.progress.write', values),
       attachments: () => t('backup.progress.attachments', values), encrypt: () => t('backup.progress.encrypt', values),
       decrypt: () => t('backup.progress.decrypt', values), save: () => t('backup.progress.save', values) };
-    say(Object.hasOwn(names, phase) ? names[phase]() : t('backup.progress.other', values));
+    say(Object.hasOwn(names, phase) ? names[phase]() : t('backup.progress.other', values), false, true);
   };
   const resetPlan = () => { plan = null; safety = null; cloudAgree.checked = false; localAgree.checked = false; preview.replaceChildren(); refresh(); };
   function refresh() {
@@ -127,18 +134,18 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
       || (mode.value === 'local-replace' && !localAgree.checked);
     saveSafety.hidden = !plan || (!destructive && mode.value !== 'local-replace'); safetyInfo.hidden = saveSafety.hidden;
     saveSafety.disabled = busy || !plan || (mode.value !== 'local-replace' && !files.canConfirmSave);
-    cancel.hidden = !busy; cancel.disabled = committing;
     safetyInfo.textContent = mode.value === 'local-replace' ? t('backup.restore.safetyOptional')
       : destructive && !files.canConfirmSave ? t('backup.restore.safetyUnavailable') : t('backup.restore.safetyHint');
     layout.disabled = busy || mode.value === 'local-replace';
   }
   async function execute(work) {
-    if (busy) return; busy = true; abort = new AbortController(); refresh(); say(t('backup.status.working'));
+    if (busy) return; busy = true; abort = new AbortController(); refresh(); notifications().clear(noticeId); say(t('backup.status.working'), false, true);
     try { await work(abort.signal); }
     catch (error) {
-      say(error.name === 'AbortError' || error.code === 'backup-cancelled' ? t('backup.status.cancelled') : error.message, true);
+      const cancelled = error.name === 'AbortError' || ['backup-cancelled', 'export-cancelled'].includes(error.code);
+      say(cancelled && error.code !== 'export-cancelled' ? t('backup.status.cancelled') : error.message, !cancelled);
       if (['stale-restore-plan', 'restore-profile', 'missing-safety-backup'].includes(error.code)) resetPlan();
-    } finally { busy = false; committing = false; abort = null; refresh(); }
+    } finally { if (progressing) notifications().clear(noticeId); busy = false; committing = false; abort = null; refresh(); }
   }
   const exportPassword = () => {
     if (!encrypt.checked) return undefined;
@@ -147,7 +154,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   const exportButton = action('export-backup', t('backup.export.action'), async signal => {
     const secret = exportPassword(); const destination = await files.chooseDestination();
     await flush(); checkCancelled(signal);
-    if (google) say(t('backup.export.syncing'));
+    if (google) say(t('backup.export.syncing'), false, true);
     const result = await createSourceBackup({ workspace, storage, appVersion, coverage: coverage.value, source: backupSource, password: secret, signal, progress,
       confirmKnownData: (error, signal) => confirmKnownData(target, error, signal) });
     await result.verify?.();
@@ -200,16 +207,18 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
   });
   const confirm = action('confirm-restore', t('backup.restore.confirm'), async signal => {
     requireValue(mode.value !== 'local-replace' || localAgree.checked, 'restore-consent', t('backup.errors.localConsent'));
-    await flush(); checkCancelled(signal); committing = true; refresh(); say(t('backup.restore.restoring'));
-    if (mode.value === 'cloud-replace') { await cloudRestore.run(plan, safety, say); return; }
+    await flush(); checkCancelled(signal); committing = true; refresh(); say(t('backup.restore.restoring'), false, true);
+    if (mode.value === 'cloud-replace') {
+      await cloudRestore.run(plan, safety, (text, { error = false, progress = true } = {}) => say(text, error, progress)); return;
+    }
     if (mode.value === 'local-replace' && localRestore) await localRestore(plan, signal);
     else await workspace.applyRestore(plan, { safetyBackup: safety, signal,
       persist: (state, revision, attachments, options) => storage.saveWithAttachments(state, revision, attachments, options) });
     resetPlan(); await onChanged(); renderReceipts(); say(t('backup.restore.done'));
   }, 'primary');
-  const cancel = button(t('common.cancel')); cancel.id = 'cancel-backup'; cancel.onclick = () => { if (!committing) abort?.abort(); };
   function renderReceipts() {
-    receiptList.replaceChildren(); const receipts = Object.values(workspace.state.restoreReceipts || {}).slice(-3).reverse();
+    receiptList.replaceChildren(node('summary', t('backup.receipt.history'))); const receipts = Object.values(workspace.state.restoreReceipts || {}).slice(-3).reverse();
+    receiptList.hidden = !receipts.length;
     const texts = { import: count => plural('backup.receipt.import', count), merge: count => plural('backup.receipt.merge', count),
       replace: count => plural('backup.receipt.replace', count), 'local-replace': count => plural('backup.receipt.localReplace', count) };
     for (const receipt of receipts) if (Object.hasOwn(texts, receipt.mode)) receiptList.append(node('p', texts[receipt.mode](receipt.addedDrafts), 'hint'));
@@ -238,9 +247,7 @@ export function backupPanel({ workspace, storage, getWorkAreas, flush, onChanged
     const buttons = node('div', undefined, 'reset-buttons'); buttons.append(backupFirst, open);
     resetSection.append(node('h4', t('backup.reset.title'), 'settings-heading'), node('p', reset.blocked || t('backup.reset.hint', { target: reset.target }), 'hint'), buttons);
   }
-  const status = node('div', undefined, 'backup-status-bar'); status.append(message, cancel);
-  // Whether backups are running comes before the actions; the reset stays last.
-  panel.append(status, automaticSection.element, exportSection, restoreSection, resetSection);
+  panel.append(automaticSection.element, exportSection, restoreSection, resetSection);
   mode.onchange = () => { if (mode.value === 'local-replace') layout.checked = true; resetPlan(); };
   for (const control of [layout, repeat]) control.onchange = resetPlan;
   cloudAgree.onchange = refresh;

@@ -23,7 +23,7 @@ internal static class GridAreaProbe
       window.Show();
       try
       {
-        await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", name + " initialization");
+        await Program.Wait(window, "document.body?.dataset.ready === 'true'", name + " initialization");
         var main = window.WebView.CoreWebView2;
         if (name == "small")
         {

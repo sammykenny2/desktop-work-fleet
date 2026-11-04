@@ -16,7 +16,7 @@ internal static class DesktopIntegrationProbe
   {
     var until = DateTime.UtcNow.AddSeconds(45);
     while (DateTime.UtcNow < until) { if (await check()) return; await Task.Delay(60); }
-    var state = await Eval(main.WebView.CoreWebView2, "document.querySelector('#status')?.textContent");
+    var state = await Eval(main.WebView.CoreWebView2, "document.querySelector('.toast[data-latest=true] .toast-message')?.textContent");
     var scenes = new List<string>();
     foreach (var surface in main.Desktop!.Surfaces)
       scenes.Add(surface.WebView.CoreWebView2 is null ? "uninitialized" : (await Eval(surface.WebView.CoreWebView2, "({url:location.href,visibility:document.visibilityState,text:document.body?.innerText.slice(0,300)})")).ToString());
@@ -110,7 +110,7 @@ internal static class DesktopIntegrationProbe
     // Entering adjust mode closes a quick edit, so the owner's flush barrier waits for the input method first.
     await Eval(floating, "document.querySelector('textarea').value='Last desktop text before closing';document.querySelector('textarea').dispatchEvent(new Event('input',{bubbles:true}));document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionstart',{bubbles:true}))");
     await Eval(main.WebView.CoreWebView2, "document.querySelector('#operate-all').click()");
-    await Wait(async () => (await Eval(main.WebView.CoreWebView2, "document.querySelector('#status').textContent.startsWith('Finish ')")).ValueKind == JsonValueKind.True,
+    await Wait(async () => (await Eval(main.WebView.CoreWebView2, "document.querySelector('.toast[data-latest=true] .toast-message').textContent.startsWith('Finish ')")).ValueKind == JsonValueKind.True,
       "IME prevents entering adjust mode through the owner flush barrier", main);
     if ((await Eval(floating, "Boolean(document.querySelector('textarea'))")).ValueKind != JsonValueKind.True) throw new Exception("IME editor was destroyed.");
     await Eval(floating, "document.querySelector('textarea').dispatchEvent(new CompositionEvent('compositionend',{bubbles:true}))");

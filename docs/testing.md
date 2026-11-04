@@ -937,7 +937,7 @@ as well as Google export with sync, the explicit choice after a failure, and can
 Windows uses the installed Edge; Linux and macOS use Playwright Chromium, which needs
 `npx playwright install chromium` the first time. Playwright and the test browser are not shipped in product artifacts.
 The probe verifies create and reopen, Markdown and checklists, attachment bytes and isolation of malicious HTML, adjusted papers carrying no Edit or "⋯" and opening no editor on a double click or Enter (C58),
-plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers 240 px wide at 900 and 1440 px, no repeated titles, the selection kept after reopening), Capture floating 16 px above the status row and both ending at its right edge at those widths and at 390 px, where Capture rises with a status that wraps,
+plain and Shift drag-and-drop, undo, the adjust bar covering the filters and views and holding search until Done, Done moving no paper and handing focus back to the sidebar entry (or the view switch behind a closed phone drawer, which hands Done the focus on entry), Adjust position in the sidebar or drawer and search ending the top bar, the floating Capture showing only over the group's To do board or list (not on the canvas, under another filter or during a search, whose title names every group), quick capture from the canvas opening the editor over the board, the view bar fitting without overlap or a cut-off filter at 1180, 1024 and 700 px, search and filters not moving cards, the board and list views (square papers 240 px wide at 900 and 1440 px, no repeated titles, the selection kept after reopening), Capture floating 16 px above the status row and both ending at its right edge at those widths and at 390 px, where a wrapped notification leaves Capture and the footer in place,
 unsaved changes shown with a dot, continued, ticked, discarded and brought back, the slow-write prompt when leaving the page, the narrow-screen entry and the single writer.
 It also uses real IDB to verify concurrent CAS, rejection of non-consecutive revisions, attachments and profile isolation.
 Measuring a paper right after a drop can read a null box, because the redraw after the save replaces the element; the probe therefore waits until the paper is no longer dragging (2026-10-06).
@@ -947,7 +947,7 @@ account card selected (at 390 px the gear shows the list of pages with the card 
 layout hint naming no main window, region swaps not moving cards,
 the sidebar keeping its own order, reordered by mouse drag and Alt+arrow keys without moving a card or changing a region or key, a board
 paper dragged onto another sidebar group (Esc and the note's own group moving nothing; one new version of the same note
-with its desktop position kept; Undo from the status bar; "Moved from" on the versions in history; nothing moving at
+with its desktop position kept; Undo from its toast; "Moved from" on the versions in history; nothing moving at
 390 px),
 a colour swap in group settings recording no revision and repainting the sidebar dot, group highlights set in each group's settings (two at once, no revision recorded, the star taking the dot's place and colour with the name unmoved, the edge on exactly the highlighted group's notes) and following a merge,
 the group chosen in the sidebar, by a region key, by creating it or in the editor of a new note being remembered in the layout and shown again after a reload,
@@ -1004,13 +1004,23 @@ has run the two sections yet.
 For just the Trash flow, `sections-probe.mjs --url URL --trash-only --browser webkit --locale zh-TW` also runs on WebKit;
 Chromium and English are the defaults. It checks the floating 56 px trash icon at 320, 390, 640 and 1280 px, a single-row
 tab/view bar, no page overflow, and collection names in confirmation. Opening a new profile with no groups leaves the
-status line empty instead of claiming to have opened Local notes. Other browser probes wait for `body[data-ready]`
-before asserting that empty startup status. WebKit's Trash-only run skips the later Chromium-only CPU-throttled move test.
+startup free of idle notifications instead of claiming to have opened Local notes. Other browser probes wait for `body[data-ready]`
+before driving the initialized page. WebKit's Trash-only run skips the later Chromium-only CPU-throttled move test.
 
 `trash-probe.mjs` checks Trash as a sidebar item (SPEC-012): its own view without status tabs, capture, layout map or adjusting; sections by group on the
 board and in the list, newest first; search inside Trash; no drop on its row; leaving it by a group or a region key; no opening over a canvas being
 adjusted; search across every status with each result's group and status, also in a phone's list, and the link to matches in Trash; restore; Empty Trash;
 the buttons fitting a phone's paper; and the phone drawer.
+
+`notifications-probe.mjs --url URL --browser chromium` and `--browser webkit --locale zh-TW` check toast expiration, sticky
+errors, progress updates, text isolation, one-shot actions, focus and 320/390/1200 px geometry. The same host moves into
+the current modal, including nested dialogs, and out again after close; its dismiss/action buttons are exercised through
+real pointer input in the isolated browser. These cases also run from `test-dataset-recovery.mjs` in CI. The pure
+`tests/notifications.test.js` checks independent pause reasons, dismissed-background deduplication and new attempts.
+`tests/google-vault-pause.test.js` runs the real reset presenter to ensure completed journals stay silent while new
+completion is announced; the renderer reset probe repeats that across reloads. Backup, automatic-backup and revision
+probes now read the notifications instead of former inline result paragraphs. Native Windows probes need a Windows
+runner; browser engines do not establish operating-system notification or assistive-technology acceptance.
 
 The output screenshot is `build/browser-probe.png`, and on failure `build/browser-probe-failure.png`.
 This is not acceptance of real power loss, a Google source, iOS or Android, or OS layering; these browser probes are not in GitHub Actions CI and must run locally.

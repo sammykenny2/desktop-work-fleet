@@ -63,7 +63,7 @@ internal static class DesktopFormationProbe
     focus.AllowedWindow = new WindowInteropHelper(window).Handle;
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent==='Local data opened'", "formation fixture initialized");
+      await Program.Wait(window, "document.body?.dataset.ready === 'true'", "formation fixture initialized");
       var log = File.ReadAllText(Path.Combine(directory, "data", "host.log"));
       if (!log.Contains(" displays at start " + NativeDisplays.Describe([display with { WorkArea = bounds }]) + "\n", StringComparison.Ordinal))
         throw new Exception("host.log did not record the display inventory at start: " + log);
@@ -162,7 +162,7 @@ internal static class DesktopFormationProbe
           await Eval(main, $"document.querySelector('#{mode}').click()");
           await Wait(main, "document.querySelector('#formation-dialog').open&&!document.querySelector('#apply-formation').disabled", name + " preview");
           await Eval(main, "document.querySelector('#apply-formation').click()");
-          await Wait(main, "!document.querySelector('#formation-dialog').open&&document.querySelector('#status').textContent.includes('Arranged.')", name + " durable formation");
+          await Wait(main, "!document.querySelector('#formation-dialog').open&&document.querySelector('.toast[data-latest=true] .toast-message').textContent.includes('Arranged.')", name + " durable formation");
         }
         var until = DateTime.UtcNow.AddSeconds(10);
         while ((await Papers(surface.WebView.CoreWebView2)).SequenceEqual(previous) && DateTime.UtcNow < until) await Task.Delay(100);

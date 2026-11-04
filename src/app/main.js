@@ -19,6 +19,7 @@ import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
 import { rankSearch } from './search.js';
 import { trashSections } from './trash.js';
+import { notifications } from './notifications.js';
 import { canSetAside, causeKey, loadFailureCause, workspaceFailureCause } from './data-failure.js';
 import { revisionPanel } from './conflicts.js';
 import { backupPanel } from './backup.js';
@@ -103,24 +104,25 @@ function immediateButton(text, handler, className) {
   node.addEventListener('click', event => { event.stopPropagation(); handler(); }); return node;
 }
 function button(text, action, className) { return immediateButton(text, () => run(action), className); }
-// A status can offer one follow-up, such as undoing a delete, which runs once; the next status takes it away.
+// Passing results leave the layout alone. Undo stays available while other results use their own notice.
 function status(text, error = false, action = null) {
-  $('#status').textContent = text; $('#status').classList.toggle('error', error);
-  const follow = $('#status-action'); follow.hidden = !action; follow.textContent = action?.label ?? '';
-  follow.onclick = action && (() => { follow.hidden = true; run(action.run); });
+  if (!text || text === t('app.status.loading')) return;
+  const id = action ? 'undo' : error ? `status-error:${text}` : 'status';
+  notifications().show(text, { id, renew: !error, kind: error ? 'error' : 'info',
+    action: action && { label: action.label, run: () => run(action.run) } });
 }
 const textOf = text => typeof text === 'function' ? text() : text ?? '';
 // Text set outside the render functions keeps how it was built, so relocalize() can build it again in a new language.
 const shownText = new Map();
 function setText(selector, text) { shownText.set(selector, text); $(selector).textContent = textOf(text); }
-async function run(action, { duringAdjust = false, duringRecovery = false } = {}) {
+async function run(action, { duringAdjust = false, duringRecovery = false, rethrow = false } = {}) {
   if (nativeClosing || (sharedIdsBlocked && !duringRecovery)) return;
   const pendingBefore = workspace?.pendingCount ?? 0;
   // A click can enter the queue before adjustment starts; admit owner UI again when its turn actually runs.
   const invoke = () => { if ((!sharedIdsBlocked || duringRecovery) && (duringAdjust || !adjustOverlayActive())) return action(); };
   const pending = desktop ? desktop.perform(invoke) : Promise.resolve().then(invoke); activeActions.add(pending);
   try { await pending; }
-  catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
+  catch (error) { if (rethrow) throw error; status(error.message, true); }
   finally {
     activeActions.delete(pending);
     syncIfPending(pendingBefore);
@@ -277,7 +279,7 @@ async function initialize() {
     const files = nativeBackups?.files || new BrowserAutomaticFiles(); const vault = nativeBackups?.vault;
     const service = new AutomaticBackup({ workspace: primary, storage, journal, files, vault, appVersion: native?.info.appVersion,
       flush: flushForBackup }); await service.load();
-    automatic = { service, files, vault }; stopAutomatic = startAutomaticBackup(service);
+    automatic = { service, files, vault }; monitorAutomatic(automatic, profileId); stopAutomatic = startAutomaticBackup(service);
     addEventListener('pagehide', () => { stopAutomatic(); journal.close(); });
   } catch (error) { automaticError = error; }
   for (const companion of companions) {
@@ -285,7 +287,7 @@ async function initialize() {
       const journal = native ? companion.storage.journal() : await IndexedDbBackupJournal.open();
       const files = companion.backups?.files || new BrowserAutomaticFiles(); const vault = companion.backups?.vault;
       const service = new AutomaticBackup({ workspace: companion.workspace, storage: companion.storage, journal, files, vault, appVersion: native?.info.appVersion, flush: flushForBackup });
-      await service.load(); companion.automatic = { service, files, vault };
+      await service.load(); companion.automatic = { service, files, vault }; monitorAutomatic(companion.automatic, companion.id);
       addEventListener('pagehide', () => { stopCompanionBackups(); journal.close(); });
     } catch (error) { companion.automaticError = error; }
   }
@@ -384,6 +386,27 @@ async function openCompanion(id, backLayer) {
 
 const stopCompanionBackups = () => { for (const companion of companions) { companion.stopAutomatic?.(); companion.stopAutomatic = null; } };
 const startCompanionBackups = () => { for (const companion of companions) if (companion.automatic && !companion.stopAutomatic) companion.stopAutomatic = startAutomaticBackup(companion.automatic.service); };
+function monitorAutomatic({ service, files }, profile) {
+  let previous = null, success = JSON.stringify(service.status.lastSuccess ?? null); const id = `automatic-backup:${profile}`;
+  const unsubscribe = service.subscribe(value => {
+    const message = value.error?.message ?? null;
+    if (!message && JSON.stringify(value.lastSuccess ?? null) !== success) {
+      success = JSON.stringify(value.lastSuccess ?? null); previous = null;
+      if (notifications().items.get(id)?.kind === 'error' || notifications().dismissed.get(id)?.kind === 'error') notifications().clear(id);
+    }
+    if (message && message !== previous) notifications().show(message, { id, context: sectionName(profile), kind: 'error',
+      action: { label: t('common.retry'), run: () => run(async () => {
+        const current = service.status;
+        if (!current.enabled || !current.settings) return;
+        await files.authorize(current.settings.destinationId);
+        const result = await service.run({ force: true });
+        if (service.status.error) throw new Error(service.status.error.message);
+        if (['saved', 'recovered'].includes(result.kind)) notifications().show(t('backup.automatic.result.saved'), { id, context: sectionName(profile) });
+      }, { rethrow: true }) } });
+    if (message) previous = message;
+  });
+  addEventListener('pagehide', unsubscribe, { once: true });
+}
 const companionBackupsIdle = () => Promise.all(companions.map(companion => companion.automatic?.service.whenIdle()));
 
 async function showIncompatibleLocal() {
@@ -503,8 +526,8 @@ async function initializeGoogle() {
   if (transitionError && (workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete')) {
     const failure = resetFailure(transitionError); maintenanceFailure = failure; maintenancePaused = true;
     showMaintenance(() => t('sync.reset.paused', { error: failure.message }), { retry: !datasetProblem, error: true });
-  } else if (pendingReset) {
-    showMaintenance(() => datasetProgressText(resetProgress(pendingReset)), { completed: pendingReset.phase === 'complete' });
+  } else if (pendingReset && pendingReset.phase !== 'complete') {
+    showMaintenance(() => datasetProgressText(resetProgress(pendingReset)));
   }
   renderGoogleAccess(); renderAccount();
   $('#google-sign-in').onclick = () => { void changeGoogleAccount('signIn'); };
@@ -609,7 +632,14 @@ function setSync(state, text, detail = '') {
   shownSync = [state, text, detail]; const shownDetail = textOf(detail);
   syncState = state; $('#account').dataset.sync = state; $('#settings-dialog').dataset.sync = state;
   $('#sync-status').textContent = textOf(text); $('#sync-detail').textContent = textOf(text); $('#settings-account-status').textContent = textOf(text);
-  $('#account-detail').textContent = shownDetail; $('#account-detail').hidden = !shownDetail; updateAttention();
+  const problem = ['error', 'attention'].includes(state) && shownDetail;
+  const explanation = state === 'off' ? shownDetail : '';
+  $('#account-detail').textContent = explanation; $('#account-detail').hidden = !explanation;
+  const id = `sync:${profileId}`;
+  if (problem && !datasetProblem && !(maintenanceNotice?.error && textOf(maintenanceNotice.text).includes(shownDetail))) notifications().show(shownDetail, { id, kind: 'error', context: sectionName(profileId),
+    action: { label: t('settings.account.title'), keepOpen: true, run: () => run(() => openSettings('account')) } });
+  else if (['ok', 'off'].includes(state) || problem) notifications().clear(id);
+  updateAttention();
   if (state === 'ok' || state === 'pending') loadGoogleProfile();
 }
 // The drawer hides the account chip and the sidebar links on phones, so their warnings show on the drawer button.
@@ -761,16 +791,13 @@ function resetFailure(error) {
   return { kind: 'dataset-ui-error', code: error.code ?? 'storage-error',
     message: error.code === 'native-outcome-unknown' ? t('sync.reset.unconfirmed') : error.message };
 }
-function showMaintenance(text, { retry = false, error = false, completed = false } = {}) {
-  maintenanceNotice = { text, retry, error, completed };
-  setText('#cleanup-status', completed ? '' : text); $('#retry-cleanup').hidden = completed || !retry;
-  setText('#dataset-maintenance-status', text);
-  $('#dataset-maintenance-status').classList.toggle('error', error);
-  $('#dataset-maintenance').hidden = !textOf(text);
-  $('#retry-dataset-maintenance').hidden = !retry;
-  const action = () => t(workspace.state.cloudRestore ? 'sync.actions.resumeOverwrite'
-    : pendingReset && !pendingReset.ready ? 'sync.actions.resumeReset' : 'app.purge.retry');
-  setText('#retry-cleanup', action); setText('#retry-dataset-maintenance', action);
+function showMaintenance(text, { retry = false, error = false, completed = false, profile = profileId } = {}) {
+  if (profile === profileId) maintenanceNotice = { text, retry, error, completed };
+  const id = `maintenance:${profile}`;
+  if (!textOf(text)) { notifications().clear(id); return; }
+  notifications().show(textOf(text), { id, context: sectionName(profile), kind: error ? 'error' : completed ? 'info' : 'progress',
+    action: retry ? { label: t(workspace.state.cloudRestore ? 'sync.actions.resumeOverwrite'
+      : pendingReset && !pendingReset.ready ? 'sync.actions.resumeReset' : 'app.purge.retry'), run: resumeMaintenance } : null });
 }
 function resetProgress(job) {
   return { phase: job.phase, completed: job.deleted, total: job.captured, ready: job.ready, folders: job.retainedFolders };
@@ -787,7 +814,7 @@ function resumeMaintenance() {
   maintenancePaused = false;
   for (const companion of companions) if (companion.pausedUntil) companion.pausedUntil = 1;
   if (pendingReset && pendingReset.phase !== 'complete') reportDatasetProgress(resetProgress(pendingReset));
-  else if (maintenanceNotice) showMaintenance(maintenanceNotice.text, { completed: maintenanceNotice.completed });
+  else if (maintenanceNotice && !maintenanceNotice.completed) showMaintenance(maintenanceNotice.text);
   scheduleMaintenance(0);
 }
 
@@ -816,13 +843,17 @@ async function maintainDataset() {
     for (const companion of companions) {
       if (companion.pausedUntil > Date.now()) continue;
       // Its turn again: its notice goes, and comes back only if it fails again.
-      if (companion.pausedUntil) { companion.pausedUntil = 0; showMaintenance(''); }
-      try { if (await purgeStep(companion.purge) || await companion.storage.maintenance()) { more = true; return; } }
+      if (companion.pausedUntil) companion.pausedUntil = 0;
+      try {
+        if (await purgeStep(companion.purge, companion.id) || await companion.storage.maintenance()) { more = true; return; }
+        const id = `maintenance:${companion.id}`;
+        if (notifications().items.get(id)?.kind === 'error' || notifications().dismissed.get(id)?.kind === 'error') notifications().clear(id);
+      }
       catch (error) {
         if (maintenanceAbort.signal.aborted) throw error;
         // Its trouble is its own: the others carry on, and this one tries again later or on Retry.
         companion.pausedUntil = Date.now() + 60000;
-        showMaintenance(() => t('app.purge.paused', { error: error.message }), { retry: true, error: true });
+        showMaintenance(() => t('app.purge.paused', { error: error.message }), { retry: true, error: true, profile: companion.id });
       }
     }
     if (sourceWaits) return;
@@ -850,7 +881,7 @@ async function maintainDataset() {
       more = await cleanupDatasetTransition(storage) || await storage.maintenance();
       const datasetId = workspace.syncState.dataset?.plan.datasetId;
       if (pendingReset?.residualLegacy || datasetId && await storage.getControl(`legacy-residual:${datasetId}`))
-        showMaintenance(() => t('sync.reset.residual'));
+        showMaintenance(() => t('sync.reset.residual'), { error: true });
     }
   })();
   try { await maintenanceWork; }
@@ -886,12 +917,12 @@ async function maintainDataset() {
   }
 }
 
-async function purgeStep(job) {
+async function purgeStep(job, profile = profileId) {
   const result = await job.step({ signal: maintenanceAbort.signal });
   if (!result) return false;
   const key = { pending: 'app.purge.pending', committed: 'app.purge.committed', 'cloud-cleanup': 'app.purge.committed',
     'local-cleanup': 'app.purge.local', complete: 'app.purge.complete', 'needs-preview': 'app.purge.review' }[result.phase];
-  if (key) showMaintenance(() => t(key));
+  if (key) showMaintenance(() => t(key), { profile, completed: result.phase === 'complete', error: result.phase === 'needs-preview' });
   await controller.reconcile(); await workspace.layout.placeNew(workspace.working, workAreas()); render();
   return true;
 }
@@ -1192,7 +1223,7 @@ function editorView(cardId, fallback) {
   const views = (desktopInfo?.views || []).filter(view => view.layer === 'floating' && view.active !== false && overlap(view) > 0);
   return views.sort((a, b) => overlap(b) - overlap(a))[0]?.viewId ?? fallback;
 }
-// Discarding drops a note's unsaved changes. The status line can bring them back while the note has no newer ones.
+// Discarding drops a note's unsaved changes. A notification can bring them back while the note has no newer ones.
 async function discardChanges(cardId) {
   const kept = workspace.unsavedChanges(cardId);
   await workspace.discardChanges(cardId);
@@ -2015,7 +2046,7 @@ async function tickStep(id, revision, task) {
   await controller.reconcile(); render(); status(t('app.status.savedLocally'));
 }
 
-// Deleting asks nothing, as the status line offers to undo it and Deleted keeps the note. A note's unsaved changes go
+// Deleting asks nothing, as its notification offers Undo and Deleted keeps the note. A note's unsaved changes go
 // with it, so "More actions" asks first for such a note (ADR-061); undoing the delete brings both back.
 async function deleteCard(id) {
   // A quick edit open on the note keeps its last text first, so that text goes with the delete instead of coming back.
@@ -2480,7 +2511,7 @@ function queueDraft() {
     }
   }).catch(error => {
     if (currentDraft?.id !== id) return;
-    $('#draft-status').textContent = t('app.editor.draftSaveFailed', { error: error.message });
+    $('#draft-status').textContent = '';
     status(t('app.status.draftSaveFailed', { error: error.message }), true);
   });
   return draftPending;
@@ -2698,7 +2729,7 @@ function renderLanguageSetting() {
   select.replaceChildren(...languageOptions().map(({ value, label }) => new Option(label, value)));
   select.value = languagePreference();
 }
-/** A language change redraws everything built from the catalogs; status lines refresh on their next update. */
+/** A language change redraws everything built from the catalogs; notification messages refresh on their next update. */
 function relocalize() {
   localizeDocument();
   for (const [selector, text] of shownText) $(selector).textContent = textOf(text);
@@ -2973,8 +3004,12 @@ function readShortcuts() {
   return validateShortcuts(result, activeGroups(workspace.snapshot));
 }
 function checkShortcuts() {
-  try { readShortcuts(); $('#shortcut-message').hidden = true; return true; }
-  catch (error) { $('#shortcut-message').textContent = error.message; $('#shortcut-message').hidden = false; return false; }
+  const controls = [...document.querySelectorAll('[data-shortcut-target]')];
+  try { readShortcuts(); controls.forEach(control => control.removeAttribute('aria-invalid')); notifications().clear('shortcut-setting'); return true; }
+  catch (error) {
+    controls.find(control => control === document.activeElement)?.setAttribute('aria-invalid', 'true');
+    notifications().show(error.message, { id: 'shortcut-setting', kind: 'error' }); return false;
+  }
 }
 function applyShortcuts() {
   if (checkShortcuts()) applyLayout({ shortcuts: readShortcuts() });
@@ -3017,9 +3052,13 @@ function previewGrid(reshape = false, apply = false) {
     return chip;
   }));
   try {
-    gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }); $('#grid-message').hidden = true;
+    gridRegions({ rows, columns, slots: settingsSlots, area: screenArea() }); notifications().clear('grid-setting');
+    for (const control of [$('#grid-rows'), $('#grid-columns')]) control.removeAttribute('aria-invalid');
     if (apply) applyLayout({ grid: { rows, columns, area: screenArea(), slots: [...settingsSlots] } });
-  } catch (error) { $('#grid-message').textContent = error.message; $('#grid-message').hidden = false; }
+  } catch (error) {
+    for (const control of [$('#grid-rows'), $('#grid-columns')]) control.setAttribute('aria-invalid', 'true');
+    notifications().show(error.message, { id: 'grid-setting', kind: 'error' });
+  }
 }
 
 function point(event) { const bounds = $('#stage').getBoundingClientRect(); return { x: event.clientX - bounds.left, y: event.clientY - bounds.top }; }
@@ -3096,11 +3135,10 @@ function setSearching(on) {
 }
 function bindEvents() {
   $('#empty-trash').onclick = () => run(() => confirmPurge(workspace.snapshot.cards.filter(card => card.deleted && (trashTab === 'all' || workspace.ownerOfCard(card.id).id === trashTab)).map(card => card.id)));
-  $('#retry-cleanup').onclick = resumeMaintenance;
-  $('#retry-dataset-maintenance').onclick = resumeMaintenance;
   // Inert blocks real input and focus; capture also rejects synthetic or already dispatched owner input.
   for (const type of ['click', 'dblclick', 'pointerdown', 'keydown', 'submit']) document.addEventListener(type, event => {
     if (!adjustOverlayActive()) return;
+    if (event.target.closest?.('.toast-close')) return;
     // An owned foreground window suspends global hotkeys, so its local desktop keys and Escape must still work.
     if (type === 'keydown' && (event.key === 'Escape' || shortcutForEvent(event, liveShortcuts()))) return;
     event.preventDefault(); event.stopImmediatePropagation();
@@ -3123,9 +3161,9 @@ function bindEvents() {
   for (const item of settings.querySelectorAll('[data-page]')) item.onclick = () => run(() => showSettingsPage(item.dataset.page));
   $('#settings-back').onclick = () => run(() => showSettingsPage(null));
   $('#language').onchange = () => run(async () => {
-    $('#language-message').hidden = true;
+    notifications().clear('language-setting'); $('#language').removeAttribute('aria-invalid');
     try { await changeLanguage($('#language').value); }
-    catch (error) { renderLanguageSetting(); $('#language-message').textContent = error.message; $('#language-message').hidden = false; }
+    catch (error) { renderLanguageSetting(); $('#language').setAttribute('aria-invalid', 'true'); notifications().show(error.message, { id: 'language-setting', kind: 'error' }); }
   });
   for (const id of ['#close-settings', '#close-settings-list']) $(id).onclick = () => { if (!dataPanel?.busy() && !revisions?.busy()) settings.close(); };
   settings.addEventListener('cancel', event => {

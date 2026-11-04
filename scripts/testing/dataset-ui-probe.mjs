@@ -51,7 +51,7 @@ try {
   await expect(page.locator('#data-failure-dialog')).toContainText(t('app.incompatible.keep'));
   await page.getByRole('button', { name: t('app.incompatible.openSettings'), exact: true }).click();
   await page.locator('#discard-old-local-agree').check(); await page.locator('#discard-old-local').click();
-  await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   assert.equal((await read()).format, 'work-fleet-workspace-current');
   await page.goto(new URL('/app/style.css', base).href);
   const seeded = await page.evaluate(async profile => {
@@ -71,7 +71,7 @@ try {
     const neighbor = await workspace.createCard(content('keep this neighbor'));
     storage.close(); return { note: note.id, first, second: second.id, neighbor: neighbor.id };
   }, profileId);
-  await page.goto(url.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.goto(url.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await settings('revisions'); await page.getByRole('button', { name: t('conflicts.tab.history'), exact: true }).click();
   await page.locator('#revision-panel .field select').selectOption({ label: t('conflicts.history.note', { summary: 'version 26' }) });
   await expect(page.locator('#revision-panel [data-revision-id]')).toHaveCount(20);
@@ -84,7 +84,7 @@ try {
   await page.locator('#purge-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
   assert.ok((await read()).cards.some(card => card.id === seeded.second));
   await page.locator('#empty-trash').click(); await page.locator('#confirm-purge').click();
-  await expect(page.locator('#cleanup-status')).toHaveText(t('app.purge.complete'), { timeout: 15000 });
+  await expect(page.locator('.toast[data-notice-id^=maintenance] .toast-message')).toHaveText(t('app.purge.complete'), { timeout: 15000 });
   const after = await read(); assert.equal(after.cards.some(card => card.id === seeded.second), false);
   assert.ok(after.cards.some(card => card.id === seeded.neighbor));
   await settings('data'); await expect(page.locator('#backup-coverage')).toHaveValue('complete-retained-history');

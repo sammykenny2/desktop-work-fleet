@@ -7,4 +7,7 @@ export default {
   'common.ok': '確定',
   'common.retry': '重試',
   'common.save': '保存',
+  'common.notifications': '通知',
+  'common.dismissNotification': '關閉通知',
+  'common.viewDetails': '查看詳細資料',
 };

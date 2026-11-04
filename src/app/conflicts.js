@@ -2,6 +2,7 @@ import { activeGroups, summaryText } from '../core/contracts.js';
 import { groupName } from '../core/group-name.js';
 import { orderedGroups } from '../layout/order.js';
 import { plural, t } from '../i18n/index.js';
+import { notifications } from './notifications.js';
 
 const element = (tag, text, className) => {
   const node = document.createElement(tag);
@@ -13,7 +14,7 @@ const element = (tag, text, className) => {
 /** The Versions and conflicts page of Settings. Every action checks the heads shown when this view was built. */
 export function revisionPanel({ workspace, storage, profileId, onChanged }) {
   const root = element('div', undefined, 'revision-panel'); root.id = 'revision-panel';
-  const message = element('p', '', 'revision-message'); message.setAttribute('role', 'status');
+  const noticeId = `revisions:${profileId}`;
   const navigation = element('div', undefined, 'editor-tabs revision-tabs');
   const body = element('div', undefined, 'revision-body');
   let busy = false; let view = 'conflicts'; let historyKey; let epoch = 0; let disposed = false; const urls = [];
@@ -23,9 +24,9 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
     button.onclick = async () => {
       if (busy) return;
       busy = true; root.querySelectorAll('button,select').forEach(node => { node.disabled = true; });
-      try { await callback(); message.textContent = ''; }
+      try { await callback(); notifications().clear(noticeId); }
       // A refused choice may mean the versions changed, so the page shows them again under the reason.
-      catch (error) { render(); message.textContent = error.message; }
+      catch (error) { render(); notifications().show(error.message, { id: noticeId, kind: 'error' }); }
       finally { busy = false; root.querySelectorAll('button,select').forEach(node => { node.disabled = false; }); }
     };
     return button;
@@ -192,7 +193,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
           }
           coverage.textContent = t(page.coverage === 'cached' ? 'conflicts.history.cached' : after ? 'conflicts.history.partial' : 'conflicts.history.complete', { count: seen.size });
           if (after) records.append(more);
-        } catch (error) { if (current()) { coverage.textContent = error.message; records.append(more); } }
+        } catch (error) { if (current()) { coverage.textContent = ''; notifications().show(error.message, { id: noticeId, kind: 'error', action: { label: t('common.retry'), run: append } }); records.append(more); } }
         finally { loading = false; more.disabled = false; }
       };
       const more = action(t('conflicts.history.more'), append);
@@ -212,7 +213,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
     navigation.append(conflictTab, historyTab);
     if (view === 'conflicts') renderConflicts(); else renderHistory();
   }
-  root.append(navigation, message, body); render();
+  root.append(navigation, body); render();
   // Settings keeps the page while a choice is being saved, and disposing frees downloaded attachments.
   return { element: root, busy: () => busy, dispose() { disposed = true; epoch++; for (const url of urls.splice(0)) URL.revokeObjectURL(url); } };
 }

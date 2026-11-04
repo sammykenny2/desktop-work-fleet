@@ -1,9 +1,10 @@
 # Decision index
 
-Updated: 2026-11-03.
+Updated: 2026-11-05.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-068](068-operation-results-use-toasts.md) | Accepted (2026-11-05) | Session-only toasts for operation results, errors and progress; modal ownership, action lifetime and no replay of completed cleanup |
 | [ADR-067](067-sections-may-be-empty-and-groups-can-be-deleted.md) | Accepted (2026-11-04) | A section may hold no group and never refills itself; only starting a note with no group anywhere makes one; any group can be deleted, with its notes in Trash |
 | [ADR-066](066-cloud-and-local-notes-side-by-side.md) | Accepted (2026-11-04); implementation in progress | Cloud and local notes open side by side as one Workspace per profile; a per-device desk holds regions and shortcuts; moves across use a journal and leave the original in Trash |
 | [ADR-065](065-reuse-verified-records-to-cut-sync-round-trips.md) | Accepted (2026-11-04); real Drive acceptance pending | A session reuses immutable records it verified, while every request about what exists stays fresh, a pull holds its listing and cursor to the feed, and a reported purge marker applies at once. Fewer ID requests and lookups, parallel reads on macOS and iOS, batched retirement, and a quiet check no longer voids a backup |

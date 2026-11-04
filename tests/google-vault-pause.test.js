@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { formatDate, plural, t } from '../src/i18n/index.js';
+import { NotificationQueue } from '../src/app/notifications.js';
 
 // Run the actual account presenter with a bounded DOM/bridge fixture; no account data or browser is opened.
 const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'utf8');
@@ -18,9 +19,11 @@ const textOf = value => typeof value === 'function' ? value() : value;
 
 async function fixture(profileId, account, state = {}, jobs = {}) {
   const nodes = new Map(); const timers = []; const syncs = []; const connections = []; let immediate = 0;
+  const notices = new NotificationQueue({ schedule: () => 0, cancel() {} });
   const $ = id => { if (!nodes.has(id)) nodes.set(id, { classList: { toggle() {} } }); return nodes.get(id); };
   const context = vm.createContext({
     profileId, googleAccount: null, syncTimer: null, syncService: null, t, textOf,
+    notifications: () => notices, sectionName: id => t(id.startsWith('google:') ? 'app.sections.cloud' : 'app.sections.local'),
     native: { info: { profileId }, bridge: { request: async method => { assert.equal(method, 'google.status'); return account; } } },
     workspace: { state }, primary: { state }, storage: { getJob: async key => jobs[key] ?? null, putJob: async (key, value) => { jobs[key] = value; } }, sourceResetAsked: true,
     datasetStore: null, pendingReset: null, datasetProblem: null, maintenancePaused: false, scheduleMaintenance() {}, stopAutomatic: null, automatic: { service: { clearSettings: async () => {} } },
@@ -33,7 +36,7 @@ async function fixture(profileId, account, state = {}, jobs = {}) {
     DatasetSync: class { constructor(options) { connections.push(options); } },
   });
   await vm.runInContext(`${presenter}\n${maintenance}\n${progress}\n${initialize}\ninitializeGoogle()`, context);
-  return { nodes, timers, syncs, immediate, connections, context };
+  return { nodes, timers, syncs, immediate, connections, context, notices };
 }
 
 test('locked vault keeps offline Google notes and a retry route without suggesting reauthentication', async () => {
@@ -67,11 +70,24 @@ test('saved reset timeout uses continuation guidance and clearing does not claim
   const jobs = { 'dataset-reset': { phase: 'clearing', ready: false, deleted: 100, captured: 106 },
     'dataset-ui-error': { code: 'native-outcome-unknown', message: 'Keep your text and reopen Work Fleet to check.' } };
   const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, {}, jobs);
-  assert.equal(f.nodes.get('#dataset-maintenance-status').textContent, t('sync.reset.paused', { error: t('sync.reset.unconfirmed') }));
-  assert.equal(f.nodes.get('#retry-dataset-maintenance').hidden, false);
+  assert.equal(f.notices.items.get('maintenance:google:fixture').text, t('sync.reset.paused', { error: t('sync.reset.unconfirmed') }));
+  assert.ok(f.notices.items.get('maintenance:google:fixture').action);
   assert.equal(f.context.maintenanceFailure.code, 'native-outcome-unknown');
   const text = vm.runInContext('datasetProgressText({ phase: "clearing", completed: 100, total: 106, ready: false })', f.context);
   assert.ok(text.includes('100 / 106')); assert.ok(!text.includes('New data is ready'));
+});
+
+test('a completed reset stays silent on reopening, while a newly completed job announces once', async () => {
+  const jobs = { 'dataset-reset': { phase: 'complete', seeded: true, ready: true, deleted: 12, captured: 12 } };
+  const f = await fixture('google:fixture', { configured: true, connected: true, accountId: 'fixture' }, {}, jobs);
+  assert.equal(f.notices.items.size, 0);
+  assert.equal(jobs['dataset-reset'].phase, 'complete', 'notification policy must preserve the durable reset journal');
+  vm.runInContext('reportDatasetProgress({ phase: "complete", completed: 12, total: 12, ready: true })', f.context);
+  assert.equal(f.notices.items.get('maintenance:google:fixture').text, t('sync.reset.cleaned'));
+  assert.equal(f.notices.items.get('maintenance:google:fixture').context, t('app.sections.cloud'));
+  f.notices.dismiss('maintenance:google:fixture');
+  await vm.runInContext('initializeGoogle()', f.context);
+  assert.equal(f.notices.items.size, 0);
 });
 
 test('unlock status updates the same account controls without starting OAuth', async () => {

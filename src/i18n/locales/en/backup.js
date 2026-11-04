@@ -1,4 +1,6 @@
 export default {
+  'backup.receipt.history': 'Recent restores',
+  'backup.automatic.unavailable': 'Automatic backup is unavailable.',
   'backup.coverage.label': "Backup coverage (also used for a safety backup)",
   'backup.coverage.complete': "Complete retained history",
   'backup.coverage.current': "Current state only",
@@ -147,7 +149,7 @@ export default {
   'backup.automatic.result.saved': 'Backed up and verified.',
   'backup.automatic.result.disabled': 'Automatic backup is turned off.',
   'backup.automatic.result.notDue': 'Already backed up today, and nothing has changed since.',
-  'backup.automatic.result.paused': 'Backup is paused. Fix the problem above first.',
+  'backup.automatic.result.paused': 'Backup is paused. Try again to continue.',
   'backup.automatic.result.backoff': 'It will try again automatically later.',
   'backup.automatic.result.other': 'Check the backup status above.',
   'backup.automatic.chooseCancelled': 'Selection cancelled.',

@@ -46,7 +46,7 @@ const capture = async text => {
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 try {
-  await page.goto(base.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await capture('Original group note');
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
@@ -65,7 +65,7 @@ try {
   for (const index of [0, 1]) {
     await page.locator('#groups .group-row[data-group-id]').nth(index).locator('.group-menu').click();
     await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
-    await expect(page.locator('dialog[open]')).toHaveCount(0); await expect(page.locator('#status')).toHaveText(t('app.status.groupSaved'));
+    await expect(page.locator('dialog[open]')).toHaveCount(0); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupSaved'));
   }
   assert.deepEqual((await read()).revisions, state.revisions, 'an unchanged group name must not record a revision');
   // Settings apply as soon as they are valid; there is no save button. The gear opens General.
@@ -83,11 +83,11 @@ try {
   const allShortcut = page.locator('[data-shortcut-target="@all"]');
   const bShortcut = page.locator('[data-shortcut-target="@region1"]'); const lastShortcut = page.locator('[data-shortcut-target="@region9"]');
   await expect(bShortcut).toHaveValue('Ctrl+Shift+1'); await expect(lastShortcut).toHaveValue('Ctrl+Shift+9');
-  await bShortcut.fill('Ctrl+Shift+0'); await expect(page.locator('#shortcut-message')).toContainText(t('settings.errors.duplicateShortcut'));
+  await bShortcut.fill('Ctrl+Shift+0'); await expect(page.locator('.toast[data-notice-id=shortcut-setting] .toast-message')).toContainText(t('settings.errors.duplicateShortcut'));
   await bShortcut.press('Tab'); assert.equal((await read()).layout.shortcuts['Ctrl+Shift+0'], '@all', 'an invalid shortcut set is never applied');
   await bShortcut.fill('Ctrl+Shift+1, Alt+Shift+1'); await bShortcut.press('Tab');
   await lastShortcut.fill(''); await lastShortcut.press('Tab'); await allShortcut.fill('Ctrl+Shift+9, Ctrl+A'); await allShortcut.press('Tab');
-  await expect(page.locator('#shortcut-message')).toBeHidden();
+  await expect(page.locator('.toast[data-notice-id=shortcut-setting] .toast-message')).toBeHidden();
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   // The account chip opens Account and sync, with the card above the pages; the gear still opens General afterwards.
   await page.locator('#account-button').click(); await expect(page.locator('#settings-page-title')).toHaveText(t('settings.account.title'));
@@ -173,7 +173,7 @@ try {
   await dragNote(groupRow(a.id), async () => { await expect(groupRow(a.id)).not.toHaveClass(/receiving/); await page.mouse.up(); });
   await expect(original).toHaveCount(1); assert.deepEqual((await read()).revisions, beforeMove.revisions, 'a cancelled drag and the own group move nothing');
   await dragNote(groupRow(b.id), () => page.mouse.up());
-  await expect(page.locator('#status')).toHaveText(t('app.status.movedTo', { group: 'Research' })); await expect(original).toHaveCount(0);
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.movedTo', { group: 'Research' })); await expect(original).toHaveCount(0);
   const afterMove = await read(); const versions = state => state.revisions.filter(record => record.entityId === moving.id);
   assert.equal(afterMove.cards.length, beforeMove.cards.length, 'a move adds no note');
   assert.equal(afterMove.cards.find(card => card.id === moving.id).groupId, b.id);
@@ -181,7 +181,7 @@ try {
   assert.notEqual(versions(afterMove)[0].revisionId, moving.revision);
   assert.deepEqual(versions(afterMove).at(-1).parents, [moving.revision], 'a move is one new version of the same note');
   assert.deepEqual(afterMove.layout.placements[moving.id], beforeMove.layout.placements[moving.id], 'the desktop paper stays where it was');
-  await page.locator('#status-action').click(); await expect(page.locator('#status')).toHaveText(t('app.status.undone'));
+  await page.locator('.toast[data-notice-id=undo] .toast-action').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.undone'));
   await expect(original).toHaveCount(1); assert.equal((await read()).cards.find(card => card.id === moving.id).groupId, a.id);
   await page.locator('#settings-button').click(); await page.locator('[data-page="revisions"]').click();
   await page.getByRole('button', { name: t('conflicts.tab.history'), exact: true }).click();
@@ -192,7 +192,7 @@ try {
   await expect(versionMeta.nth(1)).toContainText(t('conflicts.version.movedFrom', { group: t('app.groups.defaultName') }));
   await expect(versionMeta.nth(2)).toHaveText(`${t('app.groups.defaultName')} · ${t('conflicts.version.toDo')}`);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', a.id);
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', a.id);
   await page.locator('body').click({ position: { x: 260, y: 20 } });
@@ -229,7 +229,7 @@ try {
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
   await page.locator('#compose').click(); await page.locator('#editor-text').fill('Unsaved note that survives the merge');
-  await page.locator('#close-editor-button').click(); await expect(page.locator('#status')).toHaveText(t('app.status.unsavedKept'));
+  await page.locator('#close-editor-button').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.unsavedKept'));
   const before = await read();
   await groupRow(b.id).locator('.group-menu').click();
   await page.getByRole('button', { name: t('app.groupEditor.merge'), exact: true }).click();
@@ -291,12 +291,12 @@ try {
   const survivor = page.locator('.note-row').filter({ hasText: 'Unsaved note that survives the merge' });
   await survivor.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click();
-  await expect(page.locator('#status')).toHaveText(t('app.status.deleted')); await expect(survivor).toHaveCount(0);
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.deleted')); await expect(survivor).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  const undoDelete = page.locator('#status-action');
+  const undoDelete = page.locator('.toast[data-notice-id=undo] .toast-action');
   await expect(undoDelete).toHaveText(t('app.status.undoDelete')); await expect(undoDelete).toBeInViewport();
   // A double click runs the Undo once, so the second click cannot report the restored note as changed.
-  await undoDelete.dblclick(); await expect(page.locator('#status')).toHaveText(t('app.status.restored'));
+  await undoDelete.dblclick(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.restored'));
   await expect(undoDelete).toBeHidden();
   // At phone width the sidebar is a closed drawer, so a mouse press and move on a note moves nothing.
   const beforePress = await read(); const pressed = await survivor.boundingBox();
@@ -312,14 +312,14 @@ try {
   await page.setViewportSize({ width: 1440, height: 1050 });
   await expect(survivor).toHaveCount(1);
   assert.equal((await read()).cards.find(card => card.content.text.startsWith('Unsaved note that survives')).deleted, false);
-  await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   assert.equal((await read()).cards.length, 3); assert.deepEqual(errors, []);
   // On a phone a finger drags a group row held still for a moment, and the grip at once; a finger that moves at once
   // scrolls the drawer instead, and the hold neither chooses the group nor leaves text selected.
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true, isMobile: true });
   const handset = await phone.newPage(); handset.on('pageerror', error => errors.push(error.message));
   const phoneUrl = new URL(base.href); phoneUrl.searchParams.set('profile', `groups-${crypto.randomUUID()}`);
-  await handset.goto(phoneUrl.href); await expect(handset.locator('body[data-ready] #status')).toHaveText('');
+  await handset.goto(phoneUrl.href); await expect(handset.locator('body')).toHaveAttribute('data-ready', 'true');
   for (const name of ['Inbox', 'Research']) {
     if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
     await handset.locator('#add-group').tap();

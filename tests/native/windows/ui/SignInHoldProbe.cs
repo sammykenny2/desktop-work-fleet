@@ -20,7 +20,7 @@ internal static class SignInHoldProbe
     window.Show();
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "sign-in launch initialization");
+      await Program.Wait(window, "document.body?.dataset.ready === 'true'", "sign-in launch initialization");
       await Until(() => Log(directory).Contains($"scenes waiting: {SignInDisplays.LidClosedReason}; lid=closed builtIn=on other=on changed=none\n"),
         "scenes wait while the closed lid's panel is on");
       await Task.Delay(2500);

@@ -53,7 +53,7 @@ const trashNote = async text => {
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click(); await expect(note(text)).toHaveCount(0);
 };
 try {
-  await page.goto(base.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
 
   // One section per collection, the account's first, each with its own add button; a new section starts empty beside an account.
   assert.deepEqual(await page.locator('#groups .side-section .section-label span').allTextContents(), [t('app.sections.cloud'), t('app.sections.local')]);
@@ -151,7 +151,7 @@ try {
     await page.locator('#close-settings').click(); await page.locator('[data-view="desktop"]').click();
     await expect(page.locator('#stage .card', { hasText: 'Cloud budget plan' })).toHaveCount(0);
     // Taking it off does not put it back after a reload, and the desk stays.
-    await page.reload(); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+    await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     assert.equal((await read(local)).desk.grid.slots.includes(workId), false);
     await expect(section(cloud).locator('.group-name')).toHaveText(['Plans', 'Work']);
     // A note made while its group is off the desktop takes its place when the group gets a region again.
@@ -172,7 +172,7 @@ try {
     await page.mouse.move(dragged.x + dragged.width / 2, dragged.y + dragged.height / 2); await page.mouse.down();
     await page.mouse.move(dragged.x + dragged.width / 2 - 30, dragged.y + dragged.height / 2, { steps: 4 });
     await page.mouse.move(drop.x + drop.width / 2, drop.y + drop.height / 2, { steps: 8 }); await page.mouse.up();
-    await expect(page.locator('#status')).toHaveText(t('app.status.movedTo', { group: 'Plans' }));
+    await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.movedTo', { group: 'Plans' }));
     await expect.poll(() => placed('Moved by a drop')).toBe(true);
     await row('Plans').locator('button').first().click(); await page.locator('[data-view="desktop"]').click();
     for (const text of ['Moved by its details', 'Moved by a drop']) await expect(page.locator('#stage .card', { hasText: text })).toBeVisible();
@@ -199,7 +199,7 @@ try {
     await page.locator('#move-dialog').getByRole('button', { name: t('app.move.confirmNote'), exact: true }).click();
     await expect(note('Cloud budget plan')).toHaveCount(0);
     await expect.poll(async () => (await read(local)).cards.filter(card => card.content.text === 'Cloud budget plan' && !card.deleted).length).toBe(1);
-    await expect(page.locator('#status')).toHaveText(t('app.move.noteDone', { section: t('app.sections.local'), group: 'Home' }));
+    await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.move.noteDone', { section: t('app.sections.local'), group: 'Home' }));
     // A group dragged onto the other section shows its notes, then a blocking progress dialog that can stop.
     await row('Plans').locator('button').first().click();
     for (const text of ['Plan one', 'Plan two', 'Plan three', 'Plan four', 'Plan five', 'Plan six']) await capture(text);
@@ -257,7 +257,7 @@ try {
 
     // A single collection has one heading and no Trash tabs.
     const single = new URL(base.href); single.searchParams.delete('companion'); single.searchParams.set('profile', `local-alone-${run}`);
-    await page.goto(single.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+    await page.goto(single.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
     assert.deepEqual(await page.locator('#groups .side-section .section-label span').allTextContents(), [t('app.sections.local')]);
     // Like every section, it opens with no group: the first note makes one.
     await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(0);

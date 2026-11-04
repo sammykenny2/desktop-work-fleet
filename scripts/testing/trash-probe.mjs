@@ -34,7 +34,7 @@ const trashNote = async text => {
 const groupRow = name => page.locator('#groups .group-row[data-group-id]', { hasText: name });
 const trashRow = page.locator('#groups .trash-row');
 try {
-  await page.goto(base.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(page.locator('[data-filter]')).toHaveCount(3);
   await capture('Alpha plan to trash'); await capture('Alpha plan to keep');
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Second');

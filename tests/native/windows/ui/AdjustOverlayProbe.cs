@@ -26,7 +26,7 @@ internal static class AdjustOverlayProbe
     var window = Program.Open(Path.Combine(directory, "data"));
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "adjust fixture");
+      await Program.Wait(window, "document.body?.dataset.ready === 'true'", "adjust fixture");
       var main = window.WebView.CoreWebView2;
       foreach (var title in new[] { "Adjust A", "Adjust B" })
       {

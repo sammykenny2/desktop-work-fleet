@@ -41,7 +41,7 @@ async function phone(platform, locale) {
   await page.addInitScript(() => { window.workFleet = { postMessage: text => window.probeRelay(text) }; });
   try {
     setLocale(locale === 'zh-TW' ? 'zh-TW' : 'en');
-    await page.goto(base.href); await expect(page.locator('body[data-ready] #status')).toHaveText('', { timeout: 15_000 });
+    await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true', { timeout: 15_000 });
     // The phone apps do not zoom like a page.
     assert.match(await page.locator('meta[name="viewport"]').getAttribute('content'), /maximum-scale=1, user-scalable=no/);
     // On a phone the gear opens the list of pages.

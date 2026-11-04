@@ -7,6 +7,7 @@
   <meta name="color-scheme" content="light">
   <title>Work Fleet</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="notifications.css">
   <link rel="stylesheet" href="../app/rich-content.css">
   <script type="importmap">{"imports":{"marked":"../vendor/marked.js","highlight.js/lib/common":"../vendor/highlight.js","dompurify":"../vendor/dompurify.js","fflate":"../vendor/fflate.js"}}</script>
   <script type="module" src="main.js"></script>
@@ -56,7 +57,6 @@
         <button id="stop-operation" type="button" class="primary" hidden data-i18n="common.done"></button>
       </div>
     </div>
-    <div class="cleanup-status"><span id="cleanup-status" role="status" aria-live="polite"></span><button id="retry-cleanup" type="button" hidden data-i18n="app.purge.retry"></button></div>
     <!-- Capture floats over the group's notes and shows only while they are what is shown; see render(). It follows the
          view bar in the tab order, ahead of the notes. It sits over the status row, which keeps the whole width, on
          phones too. -->
@@ -66,8 +66,8 @@
     <div id="stage-shell"><div id="stage" data-i18n-attr="aria-label:app.stage.label"></div><div id="empty" hidden><div class="empty-paper">&#xFF0B;</div><h2 data-i18n="app.empty.title"></h2><p data-i18n="app.empty.text"></p><button id="empty-add" class="primary" data-i18n="app.empty.add"></button></div></div>
     <section id="layout-map" data-i18n-attr="aria-label:app.views.layoutMap" hidden><h2 data-i18n="app.layoutMap.title"></h2><p data-i18n="app.layoutMap.text"></p><p data-i18n="app.layoutMap.move"></p><div class="map-grid" id="layout-regions"></div><h3 class="off-title" id="layout-off-heading" data-i18n="settings.desktop.offDesktop" hidden></h3><div class="off-list" id="layout-off"></div></section>
     <section id="list" hidden></section>
-    <!-- Conflicts show only while there are some, apart from the passing status, and open their page in Settings. -->
-    <footer><button id="conflicts-button" type="button" hidden data-i18n-attr="title:settings.revisions.title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.9 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.5M12 17.5h.01"/></svg><span id="conflict-count"></span></button><span class="status-line" role="status" aria-live="polite"><span id="status"></span><button id="status-action" type="button" aria-describedby="status" hidden></button></span></footer>
+    <!-- Conflicts stay here only while there are some and open their page in Settings; passing results use notifications. -->
+    <footer><button id="conflicts-button" type="button" hidden data-i18n-attr="title:settings.revisions.title"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.3 4.9 2.8 18a2 2 0 0 0 1.7 3h15a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4.5M12 17.5h.01"/></svg><span id="conflict-count"></span></button></footer>
   </main>
   <!-- Outside main, which the phone drawer makes inert; empty and zero-sized when idle, so screen readers hear each fill. -->
   <dialog id="capture-inbox-dialog">
@@ -146,7 +146,6 @@
             <div class="settings-list">
               <label class="settings-row"><span class="row-text"><span class="row-label" data-i18n="settings.general.language"></span><span class="row-value" data-i18n="settings.general.languageHint"></span></span><select id="language" data-i18n-attr="aria-label:settings.general.language"></select></label>
             </div>
-            <p id="language-message" class="settings-note error" role="status" hidden></p>
           </section>
           <section class="settings-page" data-panel="account" hidden>
             <div class="identity"><span id="identity-avatar" class="avatar"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="11" rx="1.5"/><path d="M2.5 19h19"/></svg><span id="identity-initial" hidden></span><img alt="" hidden></span><div><strong id="identity-name"></strong><p id="storage-note"></p></div></div>
@@ -157,7 +156,6 @@
             <p class="settings-note" id="account-detail" hidden></p>
           </section>
           <section class="settings-page" data-panel="data" hidden>
-            <div id="dataset-maintenance" class="settings-list" hidden><div class="settings-row"><span class="row-text"><span id="dataset-maintenance-status" class="row-value" role="status" aria-live="polite"></span></span><button id="retry-dataset-maintenance" type="button" hidden data-i18n="app.purge.retry"></button></div></div>
             <div id="data-host"></div>
           </section>
           <section class="settings-page" data-panel="revisions" hidden><div id="revisions-host"></div></section>
@@ -172,7 +170,6 @@
             <p class="hint" data-i18n="settings.desktop.regionsHint"></p>
             <div class="grid-size"><label><span data-i18n="settings.desktop.rows"></span><select id="grid-rows" data-i18n-attr="aria-label:settings.desktop.rowCount"><option>1</option><option>2</option><option>3</option></select></label><span aria-hidden="true">×</span><label><span data-i18n="settings.desktop.columns"></span><select id="grid-columns" data-i18n-attr="aria-label:settings.desktop.columnCount"><option>1</option><option>2</option><option>3</option><option>4</option></select></label></div>
             <div id="grid-preview" data-i18n-attr="aria-label:settings.desktop.regionLayout"></div>
-            <p id="grid-message" class="settings-note error" role="status" hidden></p>
             <h4 class="settings-heading" id="regions-off-heading" data-i18n="settings.desktop.offDesktop" hidden></h4>
             <div class="off-list" id="regions-off" hidden></div>
             <div class="settings-list" id="display-list">
@@ -189,7 +186,6 @@
               <div class="settings-list" id="shortcut-regions"></div>
               <template id="all-tile"><span class="region-tile all" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg></span></template>
             </div>
-            <p id="shortcut-message" class="settings-note error" role="status" hidden></p>
             <button type="button" id="retry-shortcuts" hidden data-i18n="settings.shortcuts.retry"></button>
             <div id="labwc-shortcuts" hidden><p class="hint" id="labwc-shortcuts-note"></p><button type="button" id="labwc-write"></button></div>
           </section>

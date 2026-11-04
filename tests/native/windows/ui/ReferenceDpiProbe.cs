@@ -80,7 +80,7 @@ internal static class ReferenceDpiProbe
     window.Show();
     try
     {
-      await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "reference DPI fixture");
+      await Program.Wait(window, "document.body?.dataset.ready === 'true'", "reference DPI fixture");
       var main = window.WebView.CoreWebView2;
       await main.ExecuteScriptAsync("document.querySelector('#compose').click()");
       await Program.Wait(window, "document.querySelector('#editor-dialog').open", "new note");

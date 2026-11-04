@@ -134,7 +134,7 @@ try {
   await note('Local note').dblclick(); await expect(page.locator('#editor-dialog')).toBeVisible();
   await page.evaluate(() => { window.fixtureFailDraftSave = true; });
   await page.locator('#editor-text').fill('Latest local text that could not be saved');
-  await expect(page.locator('#draft-status')).toContainText('Synthetic disk full');
+  await expect(page.locator('.toast[data-kind=error] .toast-message').filter({ hasText: 'Synthetic disk full' }).first()).toContainText('Synthetic disk full');
   await page.evaluate(() => { window.fixtureHoldCollisionWrite = false; window.fixtureReleaseCollision(); });
   const recovery = page.locator('#shared-ids-recovery'); await expect(recovery).toBeVisible();
   await expect(recovery.locator('textarea')).toHaveValue('Latest local text that could not be saved');

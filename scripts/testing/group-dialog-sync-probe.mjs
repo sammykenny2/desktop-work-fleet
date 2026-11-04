@@ -205,7 +205,7 @@ try {
   // pass that follows uploads both without waiting for the timer.
   await settled(); await holdSync();
   await groupDialog('First during sync'); await submit(3); await noDialog(); await expect(groupNamed('First during sync')).toHaveCount(1);
-  await expect(page.locator('#status')).toHaveText(t('app.status.groupSaved'));
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupSaved'));
   await groupDialog('Second during sync'); await submit(1); await noDialog(); await expect(groupNamed('Second during sync')).toHaveCount(1);
   stillHeld('saving two groups'); assert.equal(await groups(), before + 2, 'three presses of Save must create one group');
   await finishSync(); await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok', { timeout: 5000 });
@@ -317,7 +317,7 @@ try {
   await page.locator('dialog[open]').getByRole('textbox').fill('Named here');
   await peer.workspace.renameGroup(renamed.id, 'Renamed elsewhere', renamed.revision); await peerPull();
   await finishSync(); await expect(groupNamed('Renamed elsewhere')).toHaveCount(1);
-  await submit(1); await expect(page.locator('#status')).toHaveText(t('errors.core.groupUpdated'));
+  await submit(1); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('errors.core.groupUpdated'));
   await expect(dialogButton(t('common.save'))).toBeEnabled();
   await submit(1); await noDialog();
   await expect(groupNamed('Named here')).toHaveCount(1);
@@ -331,7 +331,7 @@ try {
   assert.equal(await open(), 1, 'Cancel and Escape must not close a dialog whose save is writing');
   await page.evaluate(() => { window.fixtureOpenCommits(); window.fixtureCommitGate = undefined; });
   await noDialog();
-  await expect(page.locator('#status')).toHaveText(t('app.status.groupSaved'));
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupSaved'));
   await expect(groupNamed('Written despite Cancel')).toHaveCount(1);
 
   // A failure needing a recovery question cannot ask over the dialog, so it asks when the dialog closes. Keep this last for

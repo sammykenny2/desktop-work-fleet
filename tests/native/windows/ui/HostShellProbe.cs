@@ -19,7 +19,7 @@ internal static class HostShellProbe
     Directory.CreateDirectory(directory); directoryForErrors = directory;
     await SecondLaunch(directory);
     var window = Open(directory);
-    await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "host shell initialization");
+    await Program.Wait(window, "document.body?.dataset.ready === 'true'", "host shell initialization");
     await Eval(window, "document.querySelector('#settings-button').click()");
     await Program.Wait(window, "document.querySelector('#settings-dialog').open", "settings");
     var version = HostIdentity.BuildVersion();
@@ -60,7 +60,7 @@ internal static class HostShellProbe
     await Program.Wait(window, $"document.querySelector('#reset-layout-dialog').open && document.querySelector('#reset-layout-text').textContent.includes('{windowLine}')", "reset confirmation names the main window");
     await Eval(window, "document.querySelector('#confirm-reset-layout').click()");
     // The layout is reset first; a failure there leaves the dialog open and its status names the cause.
-    await Program.Wait(window, "!document.querySelector('#reset-layout-dialog').open && document.querySelector('#status').textContent === 'Desktop layout and main window reset'", "layout and window reset reported");
+    await Program.Wait(window, "!document.querySelector('#reset-layout-dialog').open && document.querySelector('.toast[data-latest=true] .toast-message').textContent === 'Desktop layout and main window reset'", "layout and window reset reported");
     await Until(() => WindowPlacement.Read(directory) is null && Bounds(window) == Default(area, dpi), "reset removes the file and centres the default size");
     Move(window, moved);
     await Until(() => WindowPlacement.Read(directory) == moved, "bounds saved again after reset");
@@ -68,12 +68,12 @@ internal static class HostShellProbe
     await Program.Close(window);
 
     window = Open(directory);
-    await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "reopen");
+    await Program.Wait(window, "document.body?.dataset.ready === 'true'", "reopen");
     if (Bounds(window) != moved) throw new Exception($"Reopened at {Bounds(window)} instead of {moved}.");
     await Program.Close(window);
     WindowPlacement.Write(directory, moved with { X = area.X + area.Width + 50_000 });
     window = Open(directory);
-    await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "reopen after display loss");
+    await Program.Wait(window, "document.body?.dataset.ready === 'true'", "reopen after display loss");
     if (Bounds(window) != Default(area, dpi)) throw new Exception($"Bounds on a missing display were not replaced: {Bounds(window)}.");
     await Program.Close(window);
     Console.WriteLine("PASS Windows startup settings, main window placement and second launch");

@@ -49,13 +49,13 @@ internal static class DataFailureUiProbe
     // A main window built over damaged data would stay registered with WPF and keep the app from ever shutting down.
     Require(System.Windows.Application.Current.Windows.OfType<FleetWindow>().SequenceEqual([reopened!]), "A failed main window stayed registered.");
     Require(SetAside(start) is [var folder] && File.Exists(Path.Combine(folder, "fleet.sqlite3")), "The damaged database is not in one set-aside folder.");
-    await Program.Wait(reopened!, "document.querySelector('#status')?.textContent === 'Local data opened'", "empty data opens after the start-up set-aside");
+    await Program.Wait(reopened!, "document.body?.dataset.ready === 'true'", "empty data opens after the start-up set-aside");
     await Program.Close(reopened!);
     Console.WriteLine("PASS a damaged database explains itself at start in the Fluent theme and opens empty once set aside");
 
     var page = Path.Combine(directory, "page");
     var first = Program.Open(page);
-    await Program.Wait(first, "document.querySelector('#status')?.textContent === 'Local data opened'", "first open writes the workspace record");
+    await Program.Wait(first, "document.body?.dataset.ready === 'true'", "first open writes the workspace record");
     await Program.Close(first);
     using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(page, "fleet.sqlite3"), Pooling = false }.ToString()))
     {
@@ -75,7 +75,7 @@ internal static class DataFailureUiProbe
     await Program.Wait(second, "document.querySelector('#data-failure-body h3') !== null", "the set-aside confirmation");
     Require(SetAside(page).Length == 0, "The data moved before the confirmation.");
     await second.WebView.CoreWebView2.ExecuteScriptAsync(last);
-    await Program.Wait(second, "document.querySelector('#status')?.textContent === 'Local data opened'", "the host reopens the page on empty data");
+    await Program.Wait(second, "document.body?.dataset.ready === 'true'", "the host reopens the page on empty data");
     Require(SetAside(page) is [var moved] && File.Exists(Path.Combine(moved, "fleet.sqlite3")), "The undecryptable database is not in one set-aside folder.");
     await Program.Close(second);
     Console.WriteLine("PASS notes the page cannot decrypt show their folder and open empty once set aside");

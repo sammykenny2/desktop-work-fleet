@@ -1,4 +1,6 @@
 export default {
+  'backup.receipt.history': '最近的還原紀錄',
+  'backup.automatic.unavailable': '自動備份目前無法使用。',
   'backup.coverage.label': "備份範圍（安全備份也使用此選擇）",
   'backup.coverage.complete': "完整保留歷史",
   'backup.coverage.current': "僅目前狀態",
@@ -147,7 +149,7 @@ export default {
   'backup.automatic.result.saved': '已備份，檔案檢查無誤。',
   'backup.automatic.result.disabled': '自動備份已停用。',
   'backup.automatic.result.notDue': '今天已經備份過，沒有新的變更。',
-  'backup.automatic.result.paused': '備份暫停了，請先處理上方的問題。',
+  'backup.automatic.result.paused': '備份已暫停，請重試以繼續。',
   'backup.automatic.result.backoff': '稍後會自動重試。',
   'backup.automatic.result.other': '請查看上方的備份狀態。',
   'backup.automatic.chooseCancelled': '已取消選擇。',

@@ -143,13 +143,13 @@ import WebKit
         var lastState = "No renderer response"
         for _ in 0..<200 {
             do {
-                let value = try await host.web.evaluateJavaScript("({status: document.querySelector('#status')?.textContent || '', error: document.querySelector('#status')?.classList.contains('error') || false, storage: document.querySelector('#storage-note')?.textContent || '', groups: document.querySelectorAll('#groups .group-row[data-group-id]').length, lang: document.documentElement.lang, chinese: /[\\u3400-\\u9fff]/.test((document.querySelector('#status')?.textContent || '') + (document.querySelector('#storage-note')?.textContent || '')), ready: document.readyState, errors: globalThis.__probeErrors || [], bridge: typeof globalThis.__workFleetReceive, resources: performance.getEntriesByType('resource').map(e => e.name)})")
+                let value = try await host.web.evaluateJavaScript("({appReady: document.body?.dataset.ready === 'true', status: document.querySelector('.toast[data-latest=true] .toast-message')?.textContent || '', error: document.querySelector('.toast[data-latest=true] .toast-message')?.classList.contains('error') || false, storage: document.querySelector('#storage-note')?.textContent || '', groups: document.querySelectorAll('#groups .group-row[data-group-id]').length, lang: document.documentElement.lang, chinese: /[\\u3400-\\u9fff]/.test((document.querySelector('.toast[data-latest=true] .toast-message')?.textContent || '') + (document.querySelector('#storage-note')?.textContent || '')), ready: document.readyState, errors: globalThis.__probeErrors || [], bridge: typeof globalThis.__workFleetReceive, resources: performance.getEntriesByType('resource').map(e => e.name)})")
                 if let state = value as? [String: Any] {
                     lastState = String(describing: state)
-                    // Element state, not wording: the catalogs own the text. Startup finished in English with native storage and groups.
-                    if (state["status"] as? String)?.isEmpty == false, state["error"] as? Bool == false, state["lang"] as? String == "en",
+                    // Element state, not wording: startup finished in English with native storage and an empty first section.
+                    if state["appReady"] as? Bool == true, state["error"] as? Bool == false, state["lang"] as? String == "en",
                         state["chinese"] as? Bool == false, (state["storage"] as? String)?.isEmpty == false, state["bridge"] as? String == "function",
-                        (state["groups"] as? Int ?? 0) > 0 {
+                        (state["groups"] as? Int) == 0 {
                         try await verifyClose(host, directory: root.appendingPathComponent("renderer", isDirectory: true))
                         return
                     }

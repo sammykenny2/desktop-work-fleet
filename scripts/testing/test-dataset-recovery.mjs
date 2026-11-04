@@ -32,6 +32,8 @@ try {
   }
   for (const browser of ['chromium', 'webkit']) await probe('group-dialog-sync-probe.mjs', '--browser', browser);
   await probe('shared-ids-probe.mjs');
+  await probe('notifications-probe.mjs', '--browser', 'chromium');
+  await probe('notifications-probe.mjs', '--browser', 'webkit', '--locale', 'zh-TW');
 } finally {
   if (server.exitCode === null) { server.kill(); await once(server, 'exit'); }
 }

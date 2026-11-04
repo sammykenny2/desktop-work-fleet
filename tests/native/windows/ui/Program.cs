@@ -108,7 +108,7 @@ internal static class Program
       await Task.Delay(100);
     }
     var state = window.WebView.CoreWebView2 is null ? "no WebView2" : (await Eval(window,
-      "({url:location.href,ready:document.readyState,status:document.querySelector('#status')?.textContent,body:document.body?.innerText.slice(0,1500)})")).ToString();
+      "({url:location.href,ready:document.readyState,status:document.querySelector('.toast[data-latest=true] .toast-message')?.textContent,body:document.body?.innerText.slice(0,1500)})")).ToString();
     throw new Exception($"Timed out: {description}; {last}; {state}");
   }
   internal static async Task Close(FleetWindow window)
@@ -119,7 +119,7 @@ internal static class Program
   private static async Task Probe(string directory)
   {
     Directory.CreateDirectory(directory); var window = Open(directory);
-    await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native app initialization");
+    await Wait(window, "document.body?.dataset.ready === 'true'", "native app initialization");
     await Wait(window, "document.querySelector('#storage-note')?.textContent.includes('Encrypted on this device')", "native adapter selection");
     Console.WriteLine($"WebView2 {window.WebView.CoreWebView2.Environment.BrowserVersionString}");
     await Eval(window, "document.querySelector('#compose').click()");
@@ -137,7 +137,7 @@ internal static class Program
     await Eval(window, "const visible=document.querySelector('#desktop-visible');visible.checked=false;visible.dispatchEvent(new Event('change'));document.querySelector('#close-settings').click()");
     await Wait(window, "!document.querySelector('#settings-dialog').open && !document.querySelector('#desktop-hidden').hidden && document.querySelector('#desktop-hidden-text').textContent.startsWith('1 note ')", "hidden desktop notes explained");
     await Eval(window, "document.querySelector('#show-desktop').click()");
-    await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('#status').textContent === 'Desktop notes are showing'", "hidden desktop notes shown again");
+    await Wait(window, "document.querySelector('#desktop-hidden').hidden && document.querySelector('.toast[data-latest=true] .toast-message').textContent === 'Desktop notes are showing'", "hidden desktop notes shown again");
     await DesktopIntegrationProbe.Run(window, directory);
     await ShortcutIntegrationProbe.Run(window);
     // The main host refuses navigations away from the exact packaged document and prevents frames.
@@ -149,7 +149,7 @@ internal static class Program
     await Eval(window, "document.querySelector('iframe').remove();document.querySelector('#settings-button').click()");
     await Wait(window, "document.querySelector('dialog[open]') !== null", "settings dialog");
     window.Close(); await Task.Delay(200);
-    await Wait(window, "document.querySelector('#status').textContent.includes('Finish or close the current dialog')", "close refuses open work dialog");
+    await Wait(window, "document.querySelector('.toast[data-latest=true] .toast-message').textContent.includes('Finish or close the current dialog')", "close refuses open work dialog");
     await Eval(window, "document.querySelector('dialog[open]').close()");
     await BackupProbe(window, directory);
     using (var screenshot = File.Create(Path.Combine(directory, "native-ui.png")))
@@ -158,11 +158,11 @@ internal static class Program
     await Wait(window, "document.querySelector('#editor-dialog').open", "second editor");
     await Eval(window, "document.querySelector('#editor-text').value='Still unsaved at the moment of closing';document.querySelector('#editor-text').dispatchEvent(new Event('input',{bubbles:true}))");
     await Close(window); window = Open(directory);
-    await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native restart");
+    await Wait(window, "document.body?.dataset.ready === 'true'", "native restart");
     // A new note left unsaved at close is a note with a dot after reopening (ADR-061).
     await Wait(window, "document.querySelector('.note-title')?.textContent === 'Native note' && [...document.querySelectorAll('#list article')].some(note => note.textContent.includes('Still unsaved at the moment of closing') && note.querySelector('.unsaved-dot'))", "card and exact unsaved note retained after native reopen");
     await DesktopIntegrationProbe.CloseWithDraft(window); window = Open(directory);
-    await Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "reopen after scene close");
+    await Wait(window, "document.body?.dataset.ready === 'true'", "reopen after scene close");
     await Wait(window, "[...document.querySelectorAll('#list article')].some(note => note.textContent.includes('Desktop text that must reach the disk at close') && note.querySelector('.unsaved-dot'))", "exact desktop final text survived close as unsaved changes");
     // Hold the real host.ready request on the next document. Resizing must not install
     // a live group menu or card action before the native close handshake is ready.
@@ -176,7 +176,7 @@ internal static class Program
     window.WebView.CoreWebView2.Reload();
     await Wait(window, "window.nativeReadyHeld === true", "hold native readiness");
     window.Width = 980; await Task.Delay(300);
-    await Wait(window, "document.querySelectorAll('.card,.group-menu').length === 0 && document.querySelector('#status').textContent === 'Loading…'", "resize cannot bypass native readiness");
+    await Wait(window, "document.querySelectorAll('.card,.group-menu').length === 0 && document.body?.dataset.ready !== 'true'", "resize cannot bypass native readiness");
     await Eval(window, "document.querySelector('#compose').click()");
     await Wait(window, "!document.querySelector('#editor-dialog').open", "editor remains unavailable before readiness");
     await Close(window);
@@ -194,10 +194,10 @@ internal static class Program
     await Eval(window, "document.querySelector('#auto-backup-location').click()");
     await Wait(window, "document.querySelector('#auto-backup-destination').textContent.includes('backups')", "native directory grant");
     await Eval(window, "document.querySelector('#auto-backup-password').value='native-window-backup-password-abcdefghijkl';document.querySelector('#auto-backup-enable').click()");
-    await Wait(window, "document.querySelector('#auto-backup-message').textContent === 'Backed up and verified.'", "native automatic encrypted file");
+    await Wait(window, "document.querySelector('.toast[data-notice-id^=automatic-backup] .toast-message').textContent === 'Backed up and verified.'", "native automatic encrypted file");
     if (Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-auto-*.zip").Length != 1) throw new Exception("Missing automatic file");
     await Eval(window, "document.querySelector('#backup-password').value='manual-window-backup-password-abcdefghijkl';document.querySelector('#export-backup').click()");
-    await Wait(window, "document.querySelector('#backup-status').textContent.startsWith('Backup saved and verified.')", "native manual verified file");
+    await Wait(window, "document.querySelector('.toast[data-notice-id^=backup] .toast-message').textContent.startsWith('Backup saved and verified.')", "native manual verified file");
     var file = Directory.GetFiles(Path.Combine(directory, "backups"), "work-fleet-backup-*.zip").Single();
     var base64 = Convert.ToBase64String(File.ReadAllBytes(file));
     await Eval(window, """
@@ -208,7 +208,7 @@ internal static class Program
       document.querySelector('#restore-password').value='manual-window-backup-password-abcdefghijkl';
       document.querySelector('#preview-restore').click();
       """.Replace("BASE64", JsonSerializer.Serialize(base64)));
-    await Wait(window, "document.querySelector('#backup-status').textContent === 'The file can be restored. Check the details, then select Confirm restore.'", "native file portable restore preview");
+    await Wait(window, "document.querySelector('.toast[data-notice-id^=backup] .toast-message').textContent === 'The file can be restored. Check the details, then select Confirm restore.'", "native file portable restore preview");
     await Wait(window, "document.querySelector('#restore-preview').textContent.includes('1 attachment')", "backup retains attachment");
     await Eval(window, "document.querySelector('#close-settings').click()");
   }

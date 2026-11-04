@@ -35,7 +35,7 @@ internal static class DiagnosticsProbe
       var window = Program.Open(directory);
       try
       {
-        await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native app initialization");
+        await Program.Wait(window, "document.body?.dataset.ready === 'true'", "native app initialization");
         if (!window.WebView.CoreWebView2.Settings.AreDevToolsEnabled) throw new Exception("Debug DevTools disabled");
         var listeners = IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners().Where(e => e.Port == port).ToList();
         if (listeners.Count == 0 || listeners.Any(e => !IPAddress.IsLoopback(e.Address)))
@@ -45,8 +45,8 @@ internal static class DiagnosticsProbe
         var main = targets.RootElement.EnumerateArray().FirstOrDefault(t =>
           t.GetProperty("url").GetString()?.StartsWith("https://work-fleet.invalid/app/index.html", StringComparison.Ordinal) == true);
         if (main.ValueKind != JsonValueKind.Object) throw new Exception($"Main document missing from CDP targets: {targets.RootElement}");
-        var status = await Evaluate(main.GetProperty("webSocketDebuggerUrl").GetString()!, "document.querySelector('#status').textContent");
-        if (status != "Local data opened") throw new Exception($"CDP evaluated unexpected status: {status}");
+        var readiness = await Evaluate(main.GetProperty("webSocketDebuggerUrl").GetString()!, "document.body.dataset.ready");
+        if (readiness != "true") throw new Exception($"CDP evaluated unexpected readiness: {readiness}");
         Console.WriteLine($"PASS Debug WebView2 CDP on 127.0.0.1:{port}: {targets.RootElement.GetArrayLength()} target(s), main document evaluated");
       }
       finally { await Program.Close(window); }

@@ -14,7 +14,7 @@ const context = await browser.newContext({ viewport: { width: 1400, height: 1000
 const page = await context.newPage(); const errors = []; page.on('pageerror', error => errors.push(error.message));
 try {
   const app = new URL('/app/index.html', base); app.searchParams.set('profile', crypto.randomUUID());
-  await page.goto(app.href); await expect(page.locator('body[data-ready] #status')).toHaveText('');
+  await page.goto(app.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.locator('#settings-button').click(); await page.locator('[data-page="data"]').click();
   await expect(page.locator('#auto-backup-retention')).toHaveText(t('backup.automatic.unsupported'));
   for (const id of ['location', 'enable', 'now', 'keep']) await expect(page.locator(`#auto-backup-${id}`)).toBeDisabled();
@@ -62,11 +62,11 @@ try {
     window.autoProbe = fixture;
   });
   await page.locator('#auto-backup-location').click(); await page.locator('#auto-backup-enable').click();
-  await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.errors.vaultUnavailable'));
+  await expect(page.locator('.toast[data-notice-id^=automatic-backup] .toast-message')).toHaveText(t('backup.errors.vaultUnavailable'));
   assert.equal(await page.evaluate(() => window.autoProbe.journal.load(window.autoProbe.profileId)), null);
   await page.locator('#auto-backup-encrypt').uncheck(); await page.locator('#auto-backup-keep').fill('1');
-  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.automatic.result.saved'));
-  await page.locator('#auto-backup-now').click(); await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.automatic.result.saved'));
+  await page.locator('#auto-backup-enable').click(); await expect(page.locator('.toast[data-notice-id^=automatic-backup] .toast-message')).toHaveText(t('backup.automatic.result.saved'));
+  await page.locator('#auto-backup-now').click(); await expect(page.locator('.toast[data-notice-id^=automatic-backup] .toast-message')).toHaveText(t('backup.automatic.result.saved'));
   assert.deepEqual(await page.evaluate(() => ({ count: window.autoProbe.count, inventory: window.autoProbe.service.state.inventory.length })), { count: 2, inventory: 1 });
   await page.evaluate(() => {
     window.autoProbe.flush = () => new Promise(resolve => { window.autoProbe.gateEntered = true; window.autoProbe.release = resolve; });
@@ -76,7 +76,7 @@ try {
   await page.evaluate(() => window.autoProbe.release()); await expect(page.locator('#auto-backup-status')).toContainText(t('backup.automatic.state.off'));
   assert.equal(await page.evaluate(() => window.autoProbe.count), 2, 'stopped preparation created no new output');
   await page.evaluate(() => { window.autoProbe.flush = async () => {}; });
-  await page.locator('#auto-backup-enable').click(); await expect(page.locator('#auto-backup-message')).toHaveText(t('backup.automatic.result.saved'));
+  await page.locator('#auto-backup-enable').click(); await expect(page.locator('.toast[data-notice-id^=automatic-backup] .toast-message')).toHaveText(t('backup.automatic.result.saved'));
   const result = await page.evaluate(async () => {
     const f = window.autoProbe; const assert = (value, message) => { if (!value) throw new Error(message); };
     f.lose = true;

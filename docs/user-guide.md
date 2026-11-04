@@ -43,7 +43,7 @@ interface. To switch, see [Settings](#settings).
   editor or on the desktop, continues them.
 - "Save note" saves the changes and removes the dot. "Close", the ✕ and Esc keep changed text unsaved; blank or
   unchanged content keeps nothing. "Discard changes" returns the note to its saved version, or throws away a new note
-  that was never saved; the status line offers to undo that while the note has no newer unsaved changes.
+  that was never saved; a notification offers to undo that while the note has no newer unsaved changes.
 - A new note with text that was never saved is a note too: it appears in its group with the dot and can be opened,
   ticked and moved within its group. Choose another group for it in its editor; moving it to another group otherwise
   waits until it is saved.
@@ -109,7 +109,7 @@ interface. To switch, see [Settings](#settings).
 - To move a note to another group, drag it there in adjust mode (see
   [Adjust mode and arranging](#adjust-mode-and-arranging)), or choose the group in "Move to group" in the note's "⋯"
   details. On a computer you can also drag a note on the board or in the list onto a group in the sidebar with the
-  mouse: the group lights up and reads "Move to …", and Esc cancels. The status bar then offers "Undo", which moves
+  mouse: the group lights up and reads "Move to …", and Esc cancels. A notification then offers "Undo", which moves
   the note back unless it has moved again since. Moving from the sidebar or the "⋯" details leaves the desktop paper
   where it is.
 - The sidebar has a section for Cloud notes, while you are signed in, and one for Local notes, each with its own + and up to
@@ -173,8 +173,7 @@ interface. To switch, see [Settings](#settings).
   matching in the first five lines of their text; then the rest. Within a tier the notes keep their usual order.
 - Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
   are marked as completed. Archiving or deleting takes a note off the desktop on every device.
-- "Move to Trash" in a note's "⋯" details asks nothing first. The status line at the bottom offers "Undo" until the
-  next message. In Trash, "Delete forever" permanently removes the note, all retained versions and its owned
+- "Move to Trash" in a note's "⋯" details asks nothing first. A notification offers "Undo" until you use or close it, or another undoable action replaces it. In Trash, "Delete forever" permanently removes the note, all retained versions and its owned
   attachments after confirmation. "Empty Trash" covers the previewed trashed notes across every group, not just the
   selected group. The large trash icon at the bottom right replaces Capture in this view, and its confirmation names
   each affected collection. Cleanup resumes in bounded background steps; its status distinguishes a committed deletion from
@@ -312,7 +311,7 @@ groups:
     preferred languages that is English or Traditional Chinese (including Chinese without a region, Hong Kong and
     Macau). Simplified Chinese and other languages are skipped, and with no match the app uses English.
   - Choosing an option switches the window at once without reloading. The desktop notes, the tray, the macOS menu bar
-    and application menus, and the dialogs the app shows itself switch to the same language. A status line already on
+    and application menus, and the dialogs the app shows itself switch to the same language. A notification already on
     screen keeps its language until it next changes.
   - Phones have the same setting; on iOS the Share Extension sheet follows it too.
   - The choice belongs to this device: it is not part of a backup or of Google data.
@@ -321,6 +320,9 @@ groups:
   "Group regions". On GNOME Wayland the page also has "Show
   desktop notes through XWayland" (see [Linux](#linux)). "Reset desktop layout" is last.
 - Shortcuts: see [Shortcuts](#shortcuts).
+- Operation results and failures appear in notifications over the page, including over Settings. Ordinary results disappear
+  after a few seconds; errors, progress and Undo/Retry remain until closed, acted on or resolved. Hovering or focusing a
+  notification pauses its timeout. Old completed cleanup is not announced when the app reopens.
 - Data and backup: automatic backup, export, restore and, last, reset all data; see
   [Backups and restore](#backups-and-restore).
 - Versions and conflicts: see [Versions and conflicts](#versions-and-conflicts).
@@ -408,6 +410,8 @@ layout is chosen separately ("Also restore desktop positions"), and importing ne
 - In a Google workspace, "Clear Google, then restore from the backup" overwrites everything; see
   [Google setup](google-setup.md). Unless "Also restore desktop positions" is ticked, this device keeps its own layout
   and settings for the notes and groups in the backup.
+
+Recent restore receipts are under the collapsed "Recent restores" entry.
 
 ### Automatic backups
 

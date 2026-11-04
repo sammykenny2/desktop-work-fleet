@@ -1,20 +1,26 @@
 import { requireValue } from '../core/contracts.js';
 import { formatDate, t } from '../i18n/index.js';
+import { notifications } from './notifications.js';
 
 const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
 const field = (text, control, className = 'field') => { const label = node('label', text); label.className = className; label.append(control); return label; };
 const check = (text, control) => { const label = node('label', undefined, 'check'); label.append(control, document.createTextNode(text)); return label; };
 
-export function automaticBackupSection(automatic, unavailable = null) {
+export function automaticBackupSection(automatic, unavailable = null, profile = 'local', context = '') {
   const section = node('section', undefined, 'settings-block'); section.id = 'automatic-backup'; section.append(node('h4', t('backup.automatic.title'), 'settings-heading'));
   if (!automatic) {
-    section.append(node('p', unavailable || t('backup.automatic.unsupported'), 'hint'));
+    section.append(node('p', t(unavailable ? 'backup.automatic.unavailable' : 'backup.automatic.unsupported'), 'hint'));
+    if (unavailable) {
+      const details = node('button', t('common.viewDetails')); details.type = 'button';
+      details.onclick = () => notifications().show(unavailable, { id: `automatic-backup:${profile}`, context, kind: 'error' }); section.append(details);
+    }
     return { element: section, busy: () => false, dispose: () => {} };
   }
   const { service, files, vault } = automatic;
   const status = node('p', '', 'auto-backup-state'); status.id = 'auto-backup-status'; status.setAttribute('role', 'status');
   const destination = node('span', '', 'auto-backup-place'); destination.id = 'auto-backup-destination';
-  const message = node('p', '', 'backup-message'); message.id = 'auto-backup-message'; message.setAttribute('role', 'status');
+  const noticeId = `automatic-backup:${profile}`;
+  const say = (text, kind = 'info') => notifications().show(text, { id: noticeId, context, kind });
   const unconfirmedFiles = node('details', undefined, 'hint'); unconfirmedFiles.append(node('summary', t('backup.automatic.unconfirmedFiles')));
   const unconfirmedList = node('ul'); unconfirmedFiles.append(unconfirmedList);
   const keep = node('input'); keep.id = 'auto-backup-keep'; keep.type = 'number'; keep.min = '1'; keep.max = '90';
@@ -27,16 +33,17 @@ export function automaticBackupSection(automatic, unavailable = null) {
   const report = result => {
     const texts = { disabled: () => t('backup.automatic.result.disabled'), 'not-due': () => t('backup.automatic.result.notDue'),
       paused: () => t('backup.automatic.result.paused'), backoff: () => t('backup.automatic.result.backoff') };
-    message.textContent = ['saved', 'recovered'].includes(result.kind) ? t('backup.automatic.result.saved')
-      : Object.hasOwn(texts, result.kind) ? texts[result.kind]() : t('backup.automatic.result.other');
+    say(['saved', 'recovered'].includes(result.kind) ? t('backup.automatic.result.saved')
+      : result.kind === 'paused' && current.error ? current.error.message
+        : Object.hasOwn(texts, result.kind) ? texts[result.kind]() : t('backup.automatic.result.other'), result.kind === 'paused' ? 'error' : 'info');
   };
   const button = (id, text, work, className) => {
     const value = node('button', text, className); value.type = 'button'; value.id = id; buttons.push(value);
     value.onclick = async () => {
-      if (busy) return; busy = true; refresh(); message.textContent = '';
+      if (busy) return; busy = true; refresh(); notifications().clear(noticeId);
       try { await work(); }
-      catch (error) { message.textContent = error.name === 'AbortError' ? t('backup.automatic.chooseCancelled') : error.message; }
-      finally { busy = false; refresh(); }
+      catch (error) { say(error.name === 'AbortError' ? t('backup.automatic.chooseCancelled') : error.message, error.name === 'AbortError' ? 'info' : 'error'); }
+      finally { if (notifications().items.get(noticeId)?.kind === 'progress') notifications().clear(noticeId); busy = false; refresh(); }
     };
     return value;
   };
@@ -65,8 +72,8 @@ export function automaticBackupSection(automatic, unavailable = null) {
   const disable = button('auto-backup-disable', t('backup.automatic.disable'), async () => {});
   disable.onclick = async () => {
     if (disabling || !current.enabled) return; disabling = true; refresh();
-    try { await service.disable(); message.textContent = t('backup.automatic.disabledKept'); }
-    catch (error) { message.textContent = error.message; }
+    try { await service.disable(); say(t('backup.automatic.disabledKept')); }
+    catch (error) { say(error.message, 'error'); }
     finally { disabling = false; refresh(); }
   };
   function refresh() {
@@ -81,7 +88,7 @@ export function automaticBackupSection(automatic, unavailable = null) {
     const state = !current.enabled ? (current.settings ? t('backup.automatic.state.off') : t('backup.automatic.state.notSet'))
       : current.paused ? t('backup.automatic.state.paused') : running ? t('backup.automatic.state.running')
       : last ? t('backup.automatic.state.lastBackup', { date: last }) : t('backup.automatic.state.on');
-    status.textContent = current.error ? t('backup.automatic.state.withError', { state, error: current.error.message }) : state;
+    status.textContent = state;
     status.classList.toggle('error', Boolean(current.paused || current.error));
     const unconfirmed = [...current.inventory.filter(item => item.status === 'unconfirmed'), ...(current.pending ? [current.pending] : [])];
     unconfirmedFiles.hidden = unconfirmed.length === 0; unconfirmedList.replaceChildren();
@@ -96,9 +103,10 @@ export function automaticBackupSection(automatic, unavailable = null) {
   const place = node('div', undefined, 'auto-backup-row'); place.append(node('span', t('backup.automatic.location'), 'auto-backup-label'), destination, choose);
   const actions = node('div', undefined, 'reset-buttons'); actions.append(enable, run, disable);
   section.append(status, node('p', t('backup.automatic.hint'), 'hint'), place, field(t('backup.automatic.keep'), keep), retentionInfo,
-    check(t('backup.automatic.encrypt'), encrypted), field(t('backup.automatic.password'), password), cryptoInfo, actions, unconfirmedFiles, message);
+    check(t('backup.automatic.encrypt'), encrypted), field(t('backup.automatic.password'), password), cryptoInfo, actions, unconfirmedFiles);
   const unsubscribe = service.subscribe(value => {
     current = value;
+    if (busy && current.phase !== 'idle') say(t('backup.automatic.state.running'), 'progress');
     if (!dirty && current.settings) { keep.value = String(current.settings.keep); encrypted.checked = current.settings.encrypted; }
     refresh();
   });

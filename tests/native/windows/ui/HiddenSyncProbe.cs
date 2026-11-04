@@ -12,7 +12,7 @@ internal static class HiddenSyncProbe
   public static async Task Run(string directory)
   {
     var window = Program.Open(directory);
-    await Program.Wait(window, "document.querySelector('#status')?.textContent === 'Local data opened'", "native app initialization");
+    await Program.Wait(window, "document.body?.dataset.ready === 'true'", "native app initialization");
     var web = window.WebView.CoreWebView2;
     await web.ExecuteScriptAsync("window.probeStart=Date.now();window.probeTicks=[];window.probeInterval=[];" +
       "const at=()=>Math.round((Date.now()-window.probeStart)/1000);" +

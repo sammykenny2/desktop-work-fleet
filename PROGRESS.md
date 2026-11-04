@@ -33,7 +33,8 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Papers: new papers are 240×240 squares that shrink to fit a short group region (minimum 160×160); placed papers keep their
   size until "reset desktop layout". One group palette serves desktop and main window; group regions follow the primary display.
 - Main window: a board of paper tiles or a list, remembered per device; an optional title that search and sharing include;
-  papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring.
+  papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring;
+  operation results, errors and progress use session-only toasts over modal dialogs, with Undo/Retry and no replay of old cleanup results (ADR-068).
 - Verified with model tests, Edge/Chromium browser and scene probes, and the Windows native UI probes.
 - The application uses record-level IndexedDB/native SQLite persistence, bounded current heads, draft deltas and
   paged history/outbox. Older local formats require an explicit local discard; no migration runs. Versions loads

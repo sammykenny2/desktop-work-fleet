@@ -20,7 +20,7 @@ page.on('pageerror', error => errors.push(error.message));
 const rows = page.locator('#groups .group-row[data-group-id]');
 const row = name => rows.filter({ hasText: name });
 const note = text => page.locator('#list [data-card-id]', { hasText: text });
-const opened = () => expect(page.locator('body[data-ready] #status')).toHaveText('');
+const opened = () => expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
 const saveDialog = async () => { await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click(); await expect(page.locator('dialog[open]')).toHaveCount(0); };
 const saveNote = async text => {
   await page.locator('#editor-text').fill(text);
@@ -79,7 +79,7 @@ try {
 
   // Deleted, the group leaves the list and the page moves on to the group left.
   await openDelete('Second'); await confirmDelete();
-  await expect(rows).toHaveCount(1); await expect(page.locator('#status')).toHaveText(t('app.status.groupDeletedNotes'));
+  await expect(rows).toHaveCount(1); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupDeletedNotes'));
   await expect(page.locator('#workspace-title')).toHaveText(t('app.groups.defaultName'));
 
   // In Trash the note says its group is gone, and restoring asks for another.
@@ -95,7 +95,7 @@ try {
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Empty'); await saveDialog();
   await openDelete('Empty');
   await expect(page.locator('#confirm-dialog p')).toHaveText(t('app.groupDelete.empty')); await confirmDelete();
-  await expect(rows).toHaveCount(1); await expect(page.locator('#status')).toHaveText(t('app.status.groupDeleted'));
+  await expect(rows).toHaveCount(1); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupDeleted'));
 
   // The last group cannot merge, but it can go, and the page returns to where it started.
   await row(t('app.groups.defaultName')).locator('.group-menu').click();
@@ -126,7 +126,7 @@ try {
   await expect(page.locator('#workspace-title')).toHaveText(t('app.sections.cloud')); await expect(page.locator('.first-note')).toBeVisible();
   // Before the first sync a cloud group cannot be made yet, and the page says so.
   await page.locator('.first-note button').click();
-  await expect(page.locator('#status')).toHaveText(t('errors.common.initialSyncRequired')); await expect(page.locator('#editor-dialog')).not.toBeVisible(); await expect(rows).toHaveCount(0);
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('errors.common.initialSyncRequired')); await expect(page.locator('#editor-dialog')).not.toBeVisible(); await expect(rows).toHaveCount(0);
   await page.getByRole('button', { name: t('app.sections.addGroup', { section: t('app.sections.local') }), exact: true }).click();
   await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Home'); await saveDialog();
   await expect(rows).toHaveCount(1); await expect(page.locator('.first-note')).toBeHidden(); await expect(page.locator('#groups .section-empty')).toHaveCount(1);
@@ -144,7 +144,7 @@ try {
   const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, locale: 'en-US', hasTouch: true, isMobile: true });
   const handset = await phone.newPage(); handset.on('pageerror', error => errors.push(error.message));
   const phoneUrl = new URL(both.href); phoneUrl.searchParams.set('profile', `local-group-delete-phone-${run}`); phoneUrl.searchParams.set('companion', `local-phone-second-${run}`);
-  await handset.goto(phoneUrl.href); await expect(handset.locator('body[data-ready] #status')).toHaveText('');
+  await handset.goto(phoneUrl.href); await expect(handset.locator('body')).toHaveAttribute('data-ready', 'true');
   await expect(handset.locator('.first-note button')).toBeInViewport();
   await handset.screenshot({ path: 'build/group-delete-empty-phone.png' });
   await handset.locator('.first-note button').tap();

@@ -330,7 +330,7 @@ try {
         const successfulAt = (await read()).state.sync.lastSuccessfulSyncAt;
         failChanges = true; await page.clock.fastForward(21000);
         await expect(page.locator('#account')).toHaveAttribute('data-sync', 'error');
-        await expect(page.locator('#account-detail')).toHaveText('Synthetic idle network unavailable');
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText('Synthetic idle network unavailable');
         assert.equal((await read()).state.sync.lastSuccessfulSyncAt, successfulAt, 'failed checks do not report a new successful time');
         await page.locator('#google-sync').click();
         await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok');
@@ -397,7 +397,7 @@ try {
         assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0);
         assert.equal(await page.evaluate(() => document.body.inert), false);
         await page.evaluate(() => { window.fixtureCancelPicker(); window.fixtureCloseCancelled = []; });
-        await page.locator('#close-error-dialog button').click();
+        await page.locator('#close-error-dialog > button').click();
         await expect(page.locator('#export-backup')).toBeEnabled(); unchangedCloud();
       }
       await page.locator('#reset-data').click();
@@ -429,14 +429,14 @@ try {
         if (handheld) await page.locator('#drawer-toggle').click();
         await page.locator('#settings-button').click();
         await page.locator('#settings-dialog [data-page="account"]').click();
-        await expect(page.locator('#account-detail')).toContainText('Creating the new cloud data:');
-        await expect(page.locator('#account-detail')).not.toContainText('/ 106');
-        await expect(page.locator('#account-detail')).not.toContainText('Old-file cleanup has not started yet.');
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).toContainText('Creating the new cloud data:');
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).not.toContainText('/ 106');
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).not.toContainText('Old-file cleanup has not started yet.');
         await expect(page.locator('#google-sync')).toBeDisabled();
         releaseReset();
-        await expect(page.locator('#account-detail')).toContainText(t('sync.reset.unconfirmed'));
-        await expect(page.locator('#cleanup-status')).toContainText(t('sync.reset.unconfirmed'));
-        await expect(page.locator('#account-detail')).not.toContainText('Keep your text');
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('.toast[data-notice-id^=maintenance] .toast-message')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).not.toContainText('Keep your text');
         await expect(page.locator('#google-sync')).toBeEnabled();
         // An earlier preview may have persisted the generic draft-save hint. Reopening must reinterpret its code.
         await page.evaluate(async profile => {
@@ -451,12 +451,12 @@ try {
         if (handheld) await page.locator('#drawer-toggle').click();
         await page.locator('#settings-button').click();
         await page.locator('#settings-dialog [data-page="account"]').click();
-        await expect(page.locator('#account-detail')).toContainText(t('sync.reset.unconfirmed'));
-        await expect(page.locator('#account-detail')).not.toContainText('Keep your text');
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('.toast[data-latest=true] .toast-message')).not.toContainText('Keep your text');
         if (handheld) await page.locator('#settings-back').click();
         await page.locator('#settings-dialog [data-page="data"]').click();
-        await expect(page.locator('#dataset-maintenance-status')).toContainText(t('sync.reset.unconfirmed'));
-        await expect(page.locator('#retry-dataset-maintenance')).toBeEnabled();
+        await expect(page.locator('.toast[data-notice-id^=maintenance] .toast-message')).toContainText(t('sync.reset.unconfirmed'));
+        await expect(page.locator('.toast[data-notice-id^=maintenance] .toast-action')).toBeEnabled();
         await mkdir('build/reset-settings', { recursive: true });
         await page.screenshot({ path: `build/reset-settings/${platform}-${engine}-error.png`, animations: 'disabled' });
         if (handheld) await page.locator('#settings-back').click();
@@ -482,21 +482,17 @@ try {
       assert.equal(after.reset.retainedFolders, retainedFolder ? 1 : 0);
       if (retainedFolder) assert.ok(provider.files.has(retainedFolder));
       const cleanupResult = retainedFolder ? t('sync.reset.cleanedWithFolders', { folders: 1 }) : t('sync.reset.cleaned');
-      await expect(page.locator('#dataset-maintenance-status')).toHaveText(cleanupResult);
-      await expect(page.locator('#cleanup-status')).toHaveText('');
-      await expect(page.locator('#retry-cleanup')).toBeHidden();
+      await expect(page.locator('.toast[data-notice-id^=maintenance] .toast-message')).toHaveText(cleanupResult);
+      await expect(page.locator('.toast[data-notice-id^=maintenance] .toast-action')).toBeHidden();
       await page.reload();
       await expect(page.locator('#account-name')).toHaveText(email);
       if (handheld) await page.locator('#drawer-toggle').click();
       await page.locator('#settings-button').click();
       await page.locator('#settings-dialog [data-page="data"]').click();
-      await expect(page.locator('#dataset-maintenance-status')).toBeVisible();
-      await expect(page.locator('#dataset-maintenance-status')).toHaveText(cleanupResult);
-      await expect(page.locator('#retry-dataset-maintenance')).toBeHidden();
+      await expect(page.locator('.toast[data-notice-id^=maintenance]')).toHaveCount(0);
       await page.locator('#close-settings').click();
-      await expect(page.locator('#cleanup-status')).toHaveText('');
-      await expect(page.locator('#retry-cleanup')).toBeHidden();
-      console.log(`PASS ${engine}/${platform}: completed reset stays in Settings after reload, with ${after.reset.retainedFolders} retained folders and no main-window notice.`);
+      await expect(page.locator('.toast[data-notice-id^=maintenance]')).toHaveCount(0);
+      console.log(`PASS ${engine}/${platform}: completed reset stays silent after reload, with ${after.reset.retainedFolders} retained folders and no replayed Settings notice.`);
       // A reset leaves no group, so the first-note prompt stands in for the view bar and the capture button.
       await page.locator('.first-note button').click();
       await page.locator('#editor-text').fill('First new note after reset');
@@ -541,13 +537,13 @@ try {
         await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
         await page.evaluate(() => { window.fixtureWriteFailure = true; });
         await page.locator('#editor-text').fill('Keep this text when saving fails');
-        await expect(page.locator('#draft-status')).toContainText('Synthetic disk full');
+        await expect(page.locator('.toast[data-kind=error] .toast-message').filter({ hasText: 'Synthetic disk full' }).first()).toContainText('Synthetic disk full');
         await requestClose();
         await expect(page.locator('#close-error-dialog')).toContainText('Synthetic disk full');
         assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0);
         assert.equal(await page.evaluate(() => document.body.inert), false);
         assert.ok(await page.evaluate(() => window.fixtureCloseCancelled[0].includes('Synthetic disk full')));
-        await page.locator('#close-error-dialog button').click();
+        await page.locator('#close-error-dialog > button').click();
         await expect(page.locator('#editor-text')).toHaveValue('Keep this text when saving fails');
         await page.evaluate(() => { window.fixtureWriteFailure = false; window.fixtureCloseCancelled = []; });
         await requestClose(); await terminalClose();

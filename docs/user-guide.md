@@ -201,8 +201,8 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   own "⋯" details keep only "Show on the desktop".
 - While Locked, notes on the Desktop layer and the Top layer still let you select text and click links, and the mouse
   does not pass through them. The Wallpaper layer always lets the mouse pass through.
-- "Show notes while locked" in Settings > Desktop notes must be on for notes to stay on the desktop while Locked. When it is
-  off, notes appear on the desktop only while you adjust them.
+- "Show notes on the desktop" in Settings > Desktop notes keeps notes on the desktop between adjustments. When it is
+  off, notes appear only while you adjust their positions. This setting applies only to this computer.
 - "Show completed notes" in Settings > Desktop notes is off at first. While it is off, completed notes leave this computer's
   desktop, also while you adjust, and return to their old places when you turn it on or move them back to To do.
   Each computer keeps its own choice, and "Reset desktop layout" turns it back off.
@@ -280,7 +280,7 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
 - On each switch, the center of the group's region briefly shows, on the Top layer, the group name, its current
   layer and a dot for each step. It fades out after about 1.5 seconds and does not block the mouse.
 - Ctrl+Shift+0 puts every group into Adjust position; press it again and each group returns to its own layer.
-- When "Show notes while locked" is off, or in the browser preview, a region key only toggles that group's Adjust
+- When "Show notes on the desktop" is off, or in the browser preview, a region key only toggles that group's Adjust
   position and does not change layers.
 - Regions are numbered from left to right and from top to bottom. The number keys follow the regions and act on the
   group that is in that region at the time; keys for empty regions are not registered with the system.
@@ -317,7 +317,7 @@ groups:
   - Phones have the same setting; on iOS the Share Extension sheet follows it too.
   - The choice belongs to this device: it is not part of a backup or of Google data.
 - Desktop notes (desktop apps and the browser preview; phones have no Desktop notes or Shortcuts page): "Show notes
-  while locked", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only) and
+  on the desktop", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only) and
   "Group regions". On GNOME Wayland the page also has "Show
   desktop notes through XWayland" (see [Linux](#linux)). "Reset desktop layout" is last.
 - Shortcuts: see [Shortcuts](#shortcuts).

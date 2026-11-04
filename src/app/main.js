@@ -1987,8 +1987,11 @@ function noteHolder(cards, view, acrossGroups) {
     else {
       // A note never saved has no revision to complete, move or delete yet (ADR-061); its editor saves or discards it.
       if (card.revision) {
-        actions.append(iconButton(card.completed ? t('app.notes.markToDo') : t('app.notes.markCompleted'), card.completed ? ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'] : ['m5 12.5 4.5 4.5L19 7'],
-          () => changeCard(card.id, { completed: !card.completed })),
+        const back = ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'];
+        // An archived note comes back to To do or Completed, whichever it was; its completion is not what this view changes.
+        actions.append(card.archived ? iconButton(t('app.card.unarchive'), back, () => changeCard(card.id, { archived: false }, t(card.completed ? 'app.status.backToCompleted' : 'app.status.backToToDo')))
+          : iconButton(card.completed ? t('app.notes.markToDo') : t('app.notes.markCompleted'), card.completed ? back : ['m5 12.5 4.5 4.5L19 7'],
+            () => changeCard(card.id, { completed: !card.completed })),
         iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card, { edit: true })));
         note.classList.add('movable');
       }
@@ -2031,9 +2034,9 @@ function noteHolder(cards, view, acrossGroups) {
   return holder;
 }
 
-async function changeCard(id, patch) {
+async function changeCard(id, patch, done = t('app.status.savedLocally')) {
   const card = currentCard(id); await workspace.updateCard(id, patch, card.revision);
-  await controller.reconcile(); render(); status(t('app.status.savedLocally'));
+  await controller.reconcile(); render(); status(done);
 }
 // A checkbox on a paper ticks that step in place. A note with unsaved changes shows them, so the tick changes them and
 // the note stays unsaved; a saved note gets a new revision (ADR-061). A note open in an editor (its first write may still

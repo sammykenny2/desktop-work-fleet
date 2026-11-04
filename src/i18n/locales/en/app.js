@@ -349,6 +349,8 @@ export default {
   'app.status.groupDeletedNotes': 'Group deleted. Its notes are in Trash.',
   'app.status.closed': 'Closed',
   'app.status.unsavedKept': 'Closed. The unsaved changes are kept on this device.',
+  'app.status.backToToDo': 'Back in To do',
+  'app.status.backToCompleted': 'Back in Completed',
   'app.status.closedNoChanges': 'Closed. There were no changes to discard.',
   'app.status.changesDiscarded': 'Changes discarded',
   'app.status.undoDiscard': 'Undo',

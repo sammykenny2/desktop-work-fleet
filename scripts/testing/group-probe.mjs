@@ -228,6 +228,22 @@ try {
   await row.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
   await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click();
   await expect(page.locator('dialog[open]')).toHaveCount(0);
+  // Archived notes come back to where they were, whatever their state: this one to To do, a completed one to Completed.
+  await page.locator('[data-filter="archived"]').click();
+  await row.getByRole('button', { name: t('app.card.unarchive'), exact: true }).click(); await expect(row).toHaveCount(0);
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.backToToDo'));
+  await page.locator('[data-filter="active"]').click(); await expect(row).toHaveCount(1);
+  await row.getByRole('button', { name: t('app.notes.markCompleted'), exact: true }).click(); await page.locator('[data-filter="completed"]').click();
+  await row.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click(); await expect(page.locator('dialog[open]')).toHaveCount(0);
+  await page.locator('[data-filter="archived"]').click();
+  await row.getByRole('button', { name: t('app.card.unarchive'), exact: true }).click(); await expect(row).toHaveCount(0);
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.backToCompleted'));
+  await page.locator('[data-filter="completed"]').click(); await expect(row).toHaveCount(1);
+  await row.getByRole('button', { name: t('app.notes.markToDo'), exact: true }).click(); await page.locator('[data-filter="active"]').click();
+  await row.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
+  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click();
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
   await page.locator('#compose').click(); await page.locator('#editor-text').fill('Unsaved note that survives the merge');
   await page.locator('#close-editor-button').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.unsavedKept'));
   const before = await read();

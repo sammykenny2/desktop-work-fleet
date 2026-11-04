@@ -267,7 +267,7 @@ try {
   // Group settings and Merge open at once too, and several presses of Merge open one merge dialog.
   await settled(); await holdSync(); await press('#groups .group-row[data-group-id] .group-menu', 3);
   assert.equal(await open(), 1, 'three clicks on group settings during a sync must open one dialog at once');
-  await press('dialog[open] .dialog-actions button:not(.leading)', 3);
+  await press('#merge-group', 3);
   await expect(page.locator('#merge-dialog')).toHaveCount(1); assert.equal(await open(), 1, 'three presses of Merge must open one merge dialog');
   stillHeld('opening Merge'); await finishSync();
   assert.equal(await open(), 1, 'a sync ending must not open another dialog');

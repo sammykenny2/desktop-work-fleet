@@ -2313,12 +2313,13 @@ function groupEditor(group, section = profileId) {
     }).finally(() => { for (const control of held) control.disabled = false; });
   };
   if (group) {
-    merge = immediateButton(t('app.groupEditor.merge'), () => press(() => { dialog.close(); return openGroupMerge(group); }));
+    // Deleting, merging and moving decide what becomes of the group, so they stay together, apart from Cancel and Save.
+    actions.append(immediateButton(t('app.groupEditor.delete'), () => { if (writing) return; dialog.close(); void askDeleteGroup(group); }, 'leading danger-outline'));
+    merge = immediateButton(t('app.groupEditor.merge'), () => press(() => { dialog.close(); return openGroupMerge(group); }), 'leading'); merge.id = 'merge-group';
     merge.disabled = shownGroups().filter(item => item.profileId === group.profileId).length < 2; actions.append(merge);
     for (const { id } of workspace.profiles) if (id !== group.profileId) {
-      const away = immediateButton(t('app.groupEditor.moveTo', { section: sectionName(id) }), () => { if (writing) return; dialog.close(); run(() => askMoveGroup(group.id, id)); }, 'leading'); actions.prepend(away);
+      actions.append(immediateButton(t('app.groupEditor.moveTo', { section: sectionName(id) }), () => { if (writing) return; dialog.close(); run(() => askMoveGroup(group.id, id)); }, 'leading'));
     }
-    actions.prepend(immediateButton(t('app.groupEditor.delete'), () => { if (writing) return; dialog.close(); void askDeleteGroup(group); }, 'leading danger'));
   }
   actions.append(immediateButton(t('common.cancel'), () => { if (!writing) dialog.close(); }), save);
   dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
@@ -2422,7 +2423,7 @@ async function askDeleteGroup(group) {
 }
 
 function deleteButton(cardId, dialog) {
-  const node = element('button', t('app.card.delete')); node.type = 'button';
+  const node = element('button', t('app.card.delete'), 'leading'); node.type = 'button';
   node.addEventListener('click', async event => {
     event.stopPropagation();
     if (workspace.unsavedChanges(cardId) && !await confirmAction(t('app.card.deleteUnsavedTitle'), t('app.card.deleteUnsavedText'), t('app.card.delete'))) return;
@@ -2439,8 +2440,8 @@ function cardDetails(card, { edit = false } = {}) {
   // Phones show no desktop papers, so the display option they cannot show stays unchanged.
   dialog.append(groupLabel, ...handheld ? [] : [visibility]);
   const actions = element('div', undefined, 'dialog-actions');
-  if (edit) actions.append(button(t('app.card.edit'), async () => { dialog.close(); await openEditor(currentCard(card.id) ?? card); }));
-  actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
+  if (edit) actions.append(button(t('app.card.edit'), async () => { dialog.close(); await openEditor(currentCard(card.id) ?? card); }, 'leading'));
+  actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }, 'leading'),
     deleteButton(card.id, dialog),
     button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
       // A group in another section needs its own confirmation, so the rest of this dialog waits for another time.

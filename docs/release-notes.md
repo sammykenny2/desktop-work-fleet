@@ -9,6 +9,20 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.6.1
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Groups can be deleted and every section can stay empty. Safer note moves, restores and recovery keep unsaved text with its collection.
+
+- Empty sections and deleting groups: a new install and a reset start with no group, and deleting the last group leaves its section empty. Starting the first note creates its group when needed. "Delete group" asks how many notes go to Trash and how many unsaved changes are discarded. Restoring a note asks for another group, or brings its group back when the section has none.
+- Phones: group highlighting is a computer feature again. Android and iOS show no highlight checkbox, star or accent edge. Stored highlights stay in backups and appear again on a computer.
+- Collection safety: note identities arriving later through sync are checked against every open collection, including notes never saved. Ambiguous actions are refused. Current text stays with its original collection; a failed save keeps the page open with selectable text and a retry instead of reloading past the failure. Native background saving still runs while other actions are paused.
+- Restores: merging a newer backup keeps the identities from that source's earlier import, independently of imports and merges from other sources. This includes an imported note that had never been saved and is saved in a newer source backup, so it stays one note.
+- Moves: if the target copy disappears during the final source or journal write, the original is recovered and the move reports that it could not finish. Failed writes and lost acknowledgements retain the recovery journal for the next start. Recovery never reverses a later choice of the original in Trash or a permanent deletion. Moving an unplaced note into a desktop group gives it a desktop position at once, including through Undo and note details.
+- Known limits: two simultaneous moves of one note can make two copies. Restore receipts stay on their device, so restoring related backups on a second cloud device can still double notes. A sync completing while a group delete is queued can add notes beyond those named in the confirmation; those notes also go to Trash.
+- Compatibility and verification: existing V1 note, sync and backup formats are unchanged; no reset or migration is required. Update every device for consistent section and deleted-group behavior. Shared regression tests, Chromium/WebKit renderer probes and an independent review cover the safety fixes. Real Google Drive behavior and installed-device acceptance remain unverified.
+
 ## 0.6.0
 
 Platforms: Windows, Linux, macOS, Android.

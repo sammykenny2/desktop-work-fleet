@@ -37,6 +37,7 @@ export default {
   'app.search.open': '搜尋',
   'app.search.close': '結束搜尋',
   'app.search.title': '所有群組的搜尋結果',
+  'app.search.origin': '{group} · {status}',
 
   // The status bar shows conflicts only while there are some
   'app.conflicts.count.one': '{count} 個衝突',
@@ -68,7 +69,13 @@ export default {
   'app.filters.active': '待處理',
   'app.filters.completed': '已完成',
   'app.filters.archived': '封存',
-  'app.filters.deleted': '垃圾桶',
+  'app.trash.title': '垃圾桶',
+  'app.trash.empty': '垃圾桶是空的。',
+  'app.trash.noMatches': '垃圾桶裡沒有符合的便箋。',
+  'app.trash.searchPlaceholder': '搜尋垃圾桶…',
+  'app.trash.matches.one': '垃圾桶裡還有 {count} 筆符合',
+  'app.trash.matches.other': '垃圾桶裡還有 {count} 筆符合',
+  'app.trash.show': '到垃圾桶看',
   'app.views.label': '檢視方式',
   'app.views.board': '便箋',
   'app.views.list': '清單',

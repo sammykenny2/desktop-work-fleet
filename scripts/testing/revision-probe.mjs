@@ -107,7 +107,7 @@ try {
   await page.locator('#close-settings').click();
 
   const cyclic = await seed('cycle'); await page.setViewportSize({ width: 390, height: 844 }); await open();
-  await expect(page.locator('#groups .group-row')).toHaveCount(0);
+  await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(0);
   // Phones show the conflict in the status bar too, so the drawer button carries no dot for it.
   await expect(page.locator('#attention-dot')).toBeHidden();
   await expect(page.locator('#conflicts-button')).toBeInViewport(); await page.locator('#conflicts-button').click();
@@ -122,7 +122,7 @@ try {
 
   // A note whose group is missing is moved with a picker that lists groups in the sidebar's order.
   await seed('missing'); await page.setViewportSize({ width: 1440, height: 1050 }); await open();
-  const sidebarOrder = await page.locator('#groups .group-name').allTextContents();
+  const sidebarOrder = await page.locator('#groups .group-row[data-group-id] .group-name').allTextContents();
   assert.equal(sidebarOrder[0], 'Third group');
   await page.locator('#conflicts-button').click();
   await expect(page.locator('#revision-panel')).toContainText(t('conflicts.noteGroup.title'));

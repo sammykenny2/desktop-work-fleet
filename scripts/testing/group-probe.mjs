@@ -41,10 +41,10 @@ try {
   await capture('Original group note');
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
-  await expect(page.locator('#groups .group-row')).toHaveCount(2);
+  await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(2);
   const created = await read(); assert.equal(created.layout.mainGroupId, created.groups[1].id, 'a new group is shown and remembered');
   // A note filed into another group from the editor shows and remembers that group, as a sidebar choice does.
-  await page.locator('#groups .group-row').first().locator('button').first().click();
+  await page.locator('#groups .group-row[data-group-id]').first().locator('button').first().click();
   await expect.poll(async () => (await read()).layout.mainGroupId).toBe(created.groups[0].id);
   await page.locator('#compose').click(); await page.locator('#editor-text').fill('Research note');
   await page.locator('#editor-group').selectOption(created.groups[1].id);
@@ -54,7 +54,7 @@ try {
   assert.equal(state.layout.mainGroupId, b.id, 'the group chosen in the editor is remembered');
   // Saving group settings with the name as shown, including the translated default name, records no group revision.
   for (const index of [0, 1]) {
-    await page.locator('#groups .group-row').nth(index).locator('.group-menu').click();
+    await page.locator('#groups .group-row[data-group-id]').nth(index).locator('.group-menu').click();
     await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
     await expect(page.locator('dialog[open]')).toHaveCount(0); await expect(page.locator('#status')).toHaveText(t('app.status.groupSaved'));
   }
@@ -116,13 +116,13 @@ try {
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
   // The sidebar follows the regions; dragging a row or Alt+arrow keys reorder the regions without moving notes.
   const groupRow = id => page.locator(`#groups .group-row[data-group-id="${id}"]`);
-  await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', b.id);
+  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', b.id);
   const activeBefore = await page.locator('#groups .group-row.active').getAttribute('data-group-id');
   const from = await groupRow(a.id).boundingBox(); const to = await groupRow(b.id).boundingBox();
   await page.mouse.move(from.x + 60, from.y + from.height / 2); await page.mouse.down();
   await page.mouse.move(from.x + 60, to.y + 4, { steps: 8 }); await page.mouse.up();
   await expect.poll(async () => (await read()).layout.grid.slots).toEqual([a.id, b.id]);
-  await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', a.id);
+  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', a.id);
   // A toast says which region keys now act on which group.
   await expect(page.locator('#toast')).toBeVisible(); await expect(page.locator('#toast')).toContainText(t('app.groups.keysMoved'));
   await expect(page.locator('#toast')).toContainText(t('app.groups.keyMoved', { keys: 'Ctrl+Shift+2', group: 'Research' }));
@@ -185,7 +185,7 @@ try {
   await expect(versionMeta.nth(2)).toHaveText(`${t('app.groups.defaultName')} · ${t('conflicts.version.toDo')}`);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
   await page.reload(); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
-  await expect(page.locator('#groups .group-row').first()).toHaveAttribute('data-group-id', b.id);
+  await expect(page.locator('#groups .group-row[data-group-id]').first()).toHaveAttribute('data-group-id', b.id);
   await expect(page.locator('#groups .group-row.active')).toHaveAttribute('data-group-id', a.id);
   await page.locator('body').click({ position: { x: 260, y: 20 } });
   await page.keyboard.press('Control+Shift+1'); await expect(page.locator('#mode-label')).toHaveText(t('app.mode.adjustingGroup', { group: 'Research' }));
@@ -237,7 +237,7 @@ try {
   await page.getByRole('button', { name: t('app.groupEditor.merge'), exact: true }).click();
   await page.locator('#merge-target').selectOption(a.id);
   await page.getByRole('button', { name: t('app.merge.confirm'), exact: true }).click();
-  await expect(page.locator('#groups .group-row')).toHaveCount(1);
+  await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(1);
   state = await read(); assert.deepEqual(state.layout.placements, before.layout.placements);
   assert.equal(state.cards.find(card => card.content.text.startsWith('Research note')).archived, true);
   assert.ok(state.cards.every(card => card.groupId === a.id));
@@ -317,7 +317,7 @@ try {
   await handset.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).tap();
   await expect(handset.locator('dialog[open]')).toHaveCount(0);
   if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
-  const rows = handset.locator('#groups .group-row'); await expect(rows).toHaveCount(2);
+  const rows = handset.locator('#groups .group-row[data-group-id]'); await expect(rows).toHaveCount(2);
   const order = () => rows.evaluateAll(nodes => nodes.map(node => node.dataset.groupId));
   const chosen = () => handset.locator('#groups .group-row.active').getAttribute('data-group-id');
   const [first, second] = await order(); const chosenBefore = await chosen();

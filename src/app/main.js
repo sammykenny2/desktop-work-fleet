@@ -16,6 +16,7 @@ import { WorkspaceRecordStorage } from '../storage/workspace-records.js';
 import { renderMarkdown } from './markdown.js';
 import { checklistProgress, toggleChecklist } from './checklist.js';
 import { rankSearch } from './search.js';
+import { trashSections } from './trash.js';
 import { canSetAside, causeKey, loadFailureCause, workspaceFailureCause } from './data-failure.js';
 import { revisionPanel } from './conflicts.js';
 import { backupPanel } from './backup.js';
@@ -51,7 +52,7 @@ import { adoptHostLanguage, changeLanguage, languageOptions, languagePreference,
 const $ = selector => document.querySelector(selector);
 let workspace; let storage; let controller; let lease;
 // The browser preview opens on its desktop canvas when there is room; desktop hosts and phones open on the papers.
-let activeGroupId; let filter = 'active'; let showDesktop = !matchMedia('(max-width:640px)').matches;
+let activeGroupId; let filter = 'active'; let trashOpen = false; let showDesktop = !matchMedia('(max-width:640px)').matches;
 let currentDraft = null; let draftSequence = 0; let draftPending = Promise.resolve(); let editorBusy = false;
 let composing = false;
 let formationMode = 'stack'; let formationPreview; let groupLabels = [];
@@ -1224,13 +1225,13 @@ async function desktopAction(target, intent) {
   else if (target !== shortcutActions.all && target !== '@stop' && desktop && workspace.layout.state.desktopVisible) {
     const layers = residentLayers();
     const stage = await stepGroup({ workspace, controller, groupId: target, wallpaper: layers.includes('wallpaper'), desktop: layers.includes('desktop'), floating: layers.includes('floating') });
-    activeGroupId = target; const stages = desktopStages();
+    activeGroupId = target; trashOpen = false; const stages = desktopStages();
     announce(target, stageNames()[stage], stages.indexOf(stage) + 1, stages.length);
     await rememberGroup();
   }
   else {
     const changed = await controller.activate(target === '@stop' ? { kind: 'none' } : target === shortcutActions.all ? { kind: 'all' } : { kind: 'group', groupId: target });
-    if (changed && target !== shortcutActions.all && target !== '@stop') { activeGroupId = target; await rememberGroup(); }
+    if (changed && target !== shortcutActions.all && target !== '@stop') { activeGroupId = target; trashOpen = false; await rememberGroup(); }
     const adjusting = controller.state.operationScope.kind !== 'none';
     if (changed) showCanvas();
     if (changed && desktop && target !== '@stop') {
@@ -1332,9 +1333,9 @@ async function cancelNativeClose(message) {
 function renderGroupList(snapshot, layout, groups) {
   $('#groups').replaceChildren(); const reorderable = groups.every(group => layout.grid.slots.includes(group.id));
   for (const group of groups) {
-    const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
+    const row = element('div', undefined, `group-row${group.id === activeGroupId && !trashOpen ? ' active' : ''}`);
     row.dataset.groupId = group.id;
-    const choose = button('', async () => { activeGroupId = group.id; setDrawer(false); render(); await rememberGroup(); });
+    const choose = button('', async () => { activeGroupId = group.id; trashOpen = false; setDrawer(false); render(); await rememberGroup(); });
     // A highlighted group's star takes the dot's place and colour, so the name keeps its position and width.
     const dot = groupHighlighted(layout, group.id) ? sidebarMark(icon(starPath), 'group-star', t('app.groups.highlightMark')) : element('span', undefined, 'group-dot');
     dot.style.setProperty('--group-color', groupColor(group.id));
@@ -1350,6 +1351,15 @@ function renderGroupList(snapshot, layout, groups) {
     }
     row.append(choose, button('⋯', () => groupEditor(group), 'group-menu')); $('#groups').append(row);
   }
+  // Trash is no group: it takes no drop and no drag, and capture keeps filing into the group chosen before it (SPEC-012).
+  const trash = element('div', undefined, `group-row trash-row${trashOpen ? ' active' : ''}`);
+  const open = button('', () => { trashOpen = true; setDrawer(false); render(); });
+  // As with search, the view that adjusting works on stays until Done.
+  open.disabled = !desktopInfo && controller.state.operationScope.kind !== 'none';
+  const mark = element('span', undefined, 'trash-mark'); mark.append(icon('M4 7h16', 'M9.5 7V4.5h5V7', 'M6.5 7l1 13h9l1-13', 'M10 11v5.5', 'M14 11v5.5'));
+  open.append(mark, element('span', t('app.trash.title'), 'group-name'), element('span', String(snapshot.cards.filter(card => card.deleted).length), 'group-count'));
+  const spacer = element('span', undefined, 'menu-spacer'); spacer.setAttribute('aria-hidden', 'true');
+  trash.append(open, spacer); $('#groups').append(trash);
 }
 
 // Small marks in a group row: a star for a highlighted group, and on desktop computers the layer the group's papers rest on.
@@ -1472,7 +1482,7 @@ function moveNoteDrag(event) {
   event.preventDefault();
   noteDrag.ghost.style.transform = `translate(${event.clientX + 14}px, ${event.clientY + 14}px)`;
   // Only another group takes the note; the label names the group, so colour is not the only sign.
-  const row = document.elementFromPoint(event.clientX, event.clientY)?.closest('#groups .group-row');
+  const row = document.elementFromPoint(event.clientX, event.clientY)?.closest('#groups .group-row[data-group-id]');
   const target = row && card && row.dataset.groupId !== card.groupId ? row : null;
   $('#groups').querySelectorAll('.group-row').forEach(node => node.classList.toggle('receiving', node === target));
   noteDrag.groupId = target?.dataset.groupId ?? null;
@@ -1488,7 +1498,6 @@ function endNoteDrag(event, dropped) {
 }
 
 function matchesFilter(card) {
-  if (filter === 'deleted') return card.deleted;
   if (card.deleted) return false;
   if (filter === 'archived') return card.archived;
   if (card.archived) return false;
@@ -1504,16 +1513,21 @@ function render() {
   if (!groupDrag?.active) renderGroupList(snapshot, layout, groups);
   const query = $('#search').value.trim().toLocaleLowerCase();
   // Filters and search look through papers the desktop does not show, so they always use the board or the list.
-  const notesShown = !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
+  const notesShown = trashOpen || !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
   // Search looks through every group, so the title stops naming the selected one while it has text.
-  $('#workspace-title').textContent = query ? t('app.search.title')
+  $('#workspace-title').textContent = trashOpen ? t('app.trash.title') : query ? t('app.search.title')
     : notesShown ? groupName(groups.find(group => group.id === activeGroupId)) || t('app.groups.defaultName')
       : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
   // Capture adds to the selected group's To do, so it shows only while that is what is shown: not under another
   // filter, a search or the canvas and layout map of every group.
-  $('#compose').hidden = filter !== 'active' || Boolean(query) || view === 'desktop';
-  $('#empty-trash').hidden = filter !== 'deleted';
-  $('.view-bar').classList.toggle('trash-visible', filter === 'deleted');
+  $('#compose').hidden = trashOpen || filter !== 'active' || Boolean(query) || view === 'desktop';
+  $('#empty-trash').hidden = !trashOpen;
+  $('.view-bar').classList.toggle('trash-visible', trashOpen);
+  // The status tabs do not apply to Trash or to a search, which looks through every status (SPEC-012).
+  $('.view-filters').hidden = trashOpen || Boolean(query);
+  $('#search').placeholder = t(trashOpen ? 'app.trash.searchPlaceholder' : 'app.search.placeholder');
+  $('#operate-group').disabled = trashOpen; $('#operate-all').disabled = trashOpen;
+  $('[data-view="desktop"]').hidden = handheld || trashOpen;
   $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted);
   renderCounts();
   // Locked is the everyday state and shows nothing; adjust mode replaces the view bar with its own bar until Done.
@@ -1531,18 +1545,19 @@ function render() {
   // With real desktop scenes the main window never mirrors them; its desktop view is the layout map.
   $('#stage-shell').hidden = notesShown || Boolean(desktopInfo); $('#layout-map').hidden = notesShown || !desktopInfo; $('#list').hidden = !notesShown;
   document.querySelectorAll('[data-filter]').forEach(node => node.classList.toggle('active', node.dataset.filter === filter));
-  const cards = rankSearch(snapshot.cards.filter(matchesFilter), query);
-  const listCards = cards.filter(card => query || card.groupId === activeGroupId);
+  const cards = rankSearch(snapshot.cards.filter(card => trashOpen ? card.deleted : query ? !card.deleted : matchesFilter(card)), query);
+  const listCards = cards.filter(card => trashOpen || query || card.groupId === activeGroupId);
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
   $('#count').textContent = notesShown ? plural('app.count.notes', listCards.length) : plural('app.count.desktopNotes', shown);
-  if (notesShown) renderNotes(listCards, view, Boolean(query));
+  if (trashOpen) renderTrash(listCards, view, Boolean(query));
+  else if (notesShown) renderNotes(listCards, view, Boolean(query), query ? rankSearch(snapshot.cards.filter(card => card.deleted), query).length : 0);
   else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
   // Completed papers this device hides are still notes, so they never bring up the first-note prompt.
   const withCompleted = { ...layout, completedVisible: true };
   $('#empty').hidden = snapshot.cards.some(card => eligible(card, withCompleted));
-  $('#desktop-hidden').hidden = handheld || !hidden || filter !== 'active' || Boolean(query);
+  $('#desktop-hidden').hidden = handheld || !hidden || trashOpen || filter !== 'active' || Boolean(query);
   $('#desktop-hidden-text').textContent = plural('app.desktopHidden.text', hidden);
   desktop?.publish(); syncAdjustOverlay(); fitBars();
 }
@@ -1648,10 +1663,33 @@ const paperLabel = card => card.unsaved ? t('app.notes.unsavedLabel', { note: su
 
 // The board shows each paper as the 240 px square a new desktop paper is, however wide the window, until the phone
 // layout's two columns take over at 640 px; the list keeps one row per paper.
-function renderNotes(cards, view, acrossGroups) {
+function clearNotes(view) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
   boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? t('app.views.listLabel') : t('app.views.boardLabel'));
-  if (!cards.length) { list.append(element('p', t('app.notes.empty'), 'hint')); return; }
+  return list;
+}
+// A search leaves Trash out, so it says below the results when Trash holds more that match (SPEC-012).
+function renderNotes(cards, view, acrossGroups, matchesInTrash = 0) {
+  const list = clearNotes(view);
+  list.append(cards.length ? noteHolder(cards, view, acrossGroups) : element('p', t('app.notes.empty'), 'hint'));
+  if (matchesInTrash) {
+    const link = immediateButton('', () => { trashOpen = true; render(); }, 'trash-link');
+    link.append(element('span', plural('app.trash.matches', matchesInTrash)), element('span', t('app.trash.show')));
+    list.append(link);
+  }
+}
+function renderTrash(cards, view, searching) {
+  const list = clearNotes(view);
+  if (!cards.length) { list.append(element('p', t(searching ? 'app.trash.noMatches' : 'app.trash.empty'), 'hint')); return; }
+  const groups = workspace.working.groups;
+  for (const section of trashSections(cards, shownGroups().map(group => group.id), { ranked: searching })) {
+    const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(section.groupId));
+    const head = element('h2', undefined, 'trash-head');
+    head.append(dot, element('span', groupName(groups.find(group => group.id === section.groupId)) || t('app.groups.pendingSync')), element('span', String(section.cards.length), 'count'));
+    list.append(head, noteHolder(section.cards, view, false));
+  }
+}
+function noteHolder(cards, view, acrossGroups) {
   const groups = activeGroups(workspace.snapshot); const layout = workspace.layout.state;
   const holder = element('div', undefined, view === 'list' ? 'note-list' : 'board');
   for (const card of cards) {
@@ -1669,7 +1707,6 @@ function renderNotes(cards, view, acrossGroups) {
     const { done, total } = checklistProgress(card.content.text); const files = card.content.attachments?.length || 0;
     if (total) meta.append(element('span', plural('app.count.steps', total, { done })));
     if (files) meta.append(element('span', plural('app.count.attachments', files)));
-    if (acrossGroups) meta.append(element('span', groupName(groups.find(group => group.id === card.groupId)) || t('app.groups.pendingSync')));
     const actions = element('div', undefined, 'note-actions');
     if (card.deleted) actions.append(button(t('app.notes.restore'), async () => { await workspace.restoreCard(card.id, card.revision); render(); status(t('app.status.restored')); }),
       button(t('app.purge.title'), () => confirmPurge([card.id]), 'danger'));
@@ -1695,21 +1732,25 @@ function renderNotes(cards, view, acrossGroups) {
       note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); edit(); } };
     }
     const heading = element('h3', title, 'note-title'); if (card.unsaved) heading.append(unsavedDot());
+    // Search results say where each note is on a line of their own: the meta row clips, and phones hide it in the list.
+    const origin = acrossGroups ? element('div', t('app.search.origin', { group: groupName(groups.find(group => group.id === card.groupId)) || t('app.groups.pendingSync'),
+      status: t(card.archived ? 'app.filters.archived' : card.completed ? 'app.filters.completed' : 'app.filters.active') }), 'note-origin') : null;
     if (view === 'list') {
       const text = element('div', undefined, 'note-text');
       // A paper without its own title shows its first line as the title, so the excerpt starts after it.
       const plain = body.textContent.replace(/\s+/g, ' ').trim();
       text.append(heading, element('div', !card.content.title && plain.startsWith(title) ? plain.slice(title.length).trim() : plain, 'note-excerpt'));
+      if (origin) text.append(origin);
       note.append(element('span', undefined, 'note-swatch'), text, meta, actions);
     } else {
       const foot = element('div', undefined, 'note-foot'); foot.append(meta, actions);
-      note.append(heading, body); boardFitter.observe(body);
+      note.append(heading, body); if (origin) note.append(origin); boardFitter.observe(body);
       const strip = attachmentStrip(card.content.attachments || [], noteAttachmentCleanup, boardFitter); if (strip) note.append(strip);
       note.append(foot);
     }
     holder.append(note);
   }
-  list.append(holder);
+  return holder;
 }
 
 async function changeCard(id, patch) {
@@ -1859,7 +1900,7 @@ function groupEditor(group) {
         group = activeGroups(workspace.snapshot).find(item => item.id === group.id) ?? group; throw error;
       });
     }
-    else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; await rememberGroup(); }
+    else { const created = await workspace.createGroup(input.value); activeGroupId = groupId = created.id; trashOpen = false; await rememberGroup(); }
     // A new group already took a layer and a colour when it was created; the dialog only guessed them at opening. Only
     // a choice the user changed is applied, so a sync landing meanwhile cannot make an untouched guess repaint a group.
     const layerNow = group ? currentLayer : groupLayer(workspace.layout.state, groupId);
@@ -2527,7 +2568,7 @@ function setDrawer(open) {
 // covers the view switch until Done.
 function showCanvas() {
   if (desktopInfo || handheld || controller.state.operationScope.kind === 'none') return;
-  showDesktop = true; filter = 'active'; if ($('#search').value || $('.topbar').classList.contains('searching')) setSearching(false);
+  showDesktop = true; filter = 'active'; trashOpen = false; if ($('#search').value || $('.topbar').classList.contains('searching')) setSearching(false);
 }
 // Auto margins take only free space, so counting them never makes a fitting row look too wide.
 function rowFits(row) {
@@ -2558,7 +2599,7 @@ function handOverFocus(before) {
 // A note that is being or was just captured is seen where it lands: its group's To do on the board or list, not a
 // search, the canvas or the layout map of every group. A browser canvas still being adjusted stays.
 function showToDo() {
-  filter = 'active'; if ($('#search').value || $('.topbar').classList.contains('searching')) setSearching(false);
+  filter = 'active'; trashOpen = false; if ($('#search').value || $('.topbar').classList.contains('searching')) setSearching(false);
   if (controller.state.operationScope.kind === 'none') showDesktop = false;
 }
 function setSearching(on) {

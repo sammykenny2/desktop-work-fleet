@@ -23,12 +23,12 @@ nothing a user sees until phase 4 shows the second section. No phase includes a 
 
 ### Phase 1: Trash and search
 
-- [ ] Trash row in the sidebar and its own view, separate from the status tabs
-- [ ] Sections by group in the note and list views, most recently trashed first
-- [ ] "This group" and "All" disabled, no capture or layout map in Trash
-- [ ] Search across every status, with a link to matches in Trash; Trash searches itself
-- [ ] Delete forever readable on every paper colour
-- [ ] Tests, browser probes, SPEC-003, user guides
+- [x] Trash row in the sidebar and its own view, separate from the status tabs
+- [x] Sections by group in the note and list views, most recently trashed first
+- [x] "This group" and "All" disabled, no capture or layout map in Trash
+- [x] Search across every status, with a link to matches in Trash; Trash searches itself
+- [x] Delete forever readable on every paper colour
+- [x] Tests, browser probes, SPEC-003, user guides
 
 **Deliverables**: FR23, FR24, FR26, FR28 to FR32, without the collection tabs and FR27.
 

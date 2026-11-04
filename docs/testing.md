@@ -879,6 +879,7 @@ python scripts/testing/serve_preview.py --port 0
 # In another terminal, replace PORT with the actual port printed above
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/trash-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-dialog-sync-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/revision-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sync-probe.mjs --url http://127.0.0.1:PORT
@@ -957,6 +958,11 @@ The automatic probe first confirms that the real app's automatic file capability
 to check the full UI, turning it off while running, reservation abort, a lost ack and restart, CAS, the authorization pause and readable ZIP bytes.
 It does not use native OS automatic files or the vault; the screenshot is `build/automatic-backup-probe.png`.
 `automatic-backup-probe` once failed without a message (2026-10-06) and then passed three times in a row.
+`trash-probe.mjs` checks Trash as a sidebar item (SPEC-012): its own view without status tabs, capture, layout map or adjusting; sections by group on the
+board and in the list, newest first; search inside Trash; no drop on its row; leaving it by a group or a region key; no opening over a canvas being
+adjusted; search across every status with each result's group and status, also in a phone's list, and the link to matches in Trash; restore; Empty Trash;
+the buttons fitting a phone's paper; and the phone drawer.
+
 The output screenshot is `build/browser-probe.png`, and on failure `build/browser-probe-failure.png`.
 This is not acceptance of real power loss, a Google source, iOS or Android, or OS layering; these browser probes are not in GitHub Actions CI and must run locally.
 The browser probes (`browser-probe`, `restore-ui-probe`, `automatic-backup-probe` and others) sometimes time out on the first page load, stuck on the loading screen for more than 5 seconds with no page error.

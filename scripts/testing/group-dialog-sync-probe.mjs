@@ -133,8 +133,8 @@ try {
   const settled = async () => { await synced(); await expect(page.locator('#account')).toHaveAttribute('data-sync', 'ok'); await synced(); };
 
   const open = () => page.locator('dialog[open]').count();
-  const groups = () => page.locator('#groups .group-row').count();
-  const groupNamed = name => page.locator('#groups .group-name', { hasText: name });
+  const groups = () => page.locator('#groups .group-row[data-group-id]').count();
+  const groupNamed = name => page.locator('#groups .group-row[data-group-id] .group-name', { hasText: name });
   // A sync that stays inside a Drive request, as a slow connection does.
   const holdSync = async (on = 'listDatasetChanges', target = page) => {
     holdOn = on; await target.evaluate(() => window.fixtureHostEvent('host-foreground'));
@@ -264,7 +264,7 @@ try {
   await expect.poll(adjusting).toBe(false); await finishSync();
 
   // Group settings and Merge open at once too, and several presses of Merge open one merge dialog.
-  await settled(); await holdSync(); await press('#groups .group-row .group-menu', 3);
+  await settled(); await holdSync(); await press('#groups .group-row[data-group-id] .group-menu', 3);
   assert.equal(await open(), 1, 'three clicks on group settings during a sync must open one dialog at once');
   await press('dialog[open] .dialog-actions button:first-child', 3);
   await expect(page.locator('#merge-dialog')).toHaveCount(1); assert.equal(await open(), 1, 'three presses of Merge must open one merge dialog');
@@ -312,7 +312,7 @@ try {
   await settled(); await peerPull();
   const renamed = peer.workspace.snapshot.groups.find(group => group.name === 'First during sync');
   await holdSync();
-  await page.locator('#groups .group-row', { hasText: 'First during sync' }).locator('.group-menu').evaluate(node => node.click());
+  await page.locator('#groups .group-row[data-group-id]', { hasText: 'First during sync' }).locator('.group-menu').evaluate(node => node.click());
   await page.locator('dialog[open]').getByRole('textbox').fill('Named here');
   await peer.workspace.renameGroup(renamed.id, 'Renamed elsewhere', renamed.revision); await peerPull();
   await finishSync(); await expect(groupNamed('Renamed elsewhere')).toHaveCount(1);

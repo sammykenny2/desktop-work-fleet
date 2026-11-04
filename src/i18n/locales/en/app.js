@@ -37,6 +37,7 @@ export default {
   'app.search.open': 'Search',
   'app.search.close': 'Close search',
   'app.search.title': 'Search results in all groups',
+  'app.search.origin': '{group} · {status}',
 
   // The status bar shows conflicts only while there are some
   'app.conflicts.count.one': '{count} conflict',
@@ -68,7 +69,13 @@ export default {
   'app.filters.active': 'To do',
   'app.filters.completed': 'Completed',
   'app.filters.archived': 'Archived',
-  'app.filters.deleted': 'Trash',
+  'app.trash.title': 'Trash',
+  'app.trash.empty': 'Trash is empty.',
+  'app.trash.noMatches': 'No notes in Trash match.',
+  'app.trash.searchPlaceholder': 'Search Trash…',
+  'app.trash.matches.one': '{count} note in Trash matches',
+  'app.trash.matches.other': '{count} notes in Trash match',
+  'app.trash.show': 'Show in Trash',
   'app.views.label': 'View',
   'app.views.board': 'Board',
   'app.views.list': 'List',

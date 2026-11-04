@@ -70,7 +70,7 @@ internal static class DesktopFormationProbe
       var main = window.WebView.CoreWebView2;
       focus.BrowserProcess = main.BrowserProcessId;
       // Start explicitly on the Desktop layer, since new groups now default to the Wallpaper layer.
-      await Eval(main, "document.querySelector('#groups .group-row .group-menu').click()");
+      await Eval(main, "document.querySelector('#groups .group-row[data-group-id] .group-menu').click()");
       await Wait(main, "Boolean(document.querySelector('dialog[open]'))", "fixture group layer");
       await Eval(main, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='desktop';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()})()");
       await Wait(main, "!document.querySelector('dialog[open]')", "save fixture Desktop layer");
@@ -180,7 +180,7 @@ internal static class DesktopFormationProbe
       await Check(resident, "desktop-after-floating-formation");
       if (window.Desktop.Surfaces.Count > 2)
       {
-        await Eval(main, "document.querySelector('#groups .group-row .group-menu').click()");
+        await Eval(main, "document.querySelector('#groups .group-row[data-group-id] .group-menu').click()");
         await Wait(main, "Boolean(document.querySelector('dialog[open]'))", "group layer dialog");
         await Eval(main, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='wallpaper';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()})()");
         await Wait(main, "!document.querySelector('dialog[open]')", "save wallpaper policy");

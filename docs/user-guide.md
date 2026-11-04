@@ -138,9 +138,10 @@ interface. To switch, see [Settings](#settings).
   - Browser preview: "Desktop", a canvas inside the page that shows the To do notes in their group regions; you
     arrange them there (see [Browser preview](#browser-preview)).
   - Phones have no third view.
-- The filters "To do", "Completed", "Archived" and "Trash" show the notes in each state, and you can restore notes
-  from them. Search covers titles and the full text in every group: while it has text the title reads "Search results
-  in all groups", and on the board each result names its group. Its field ends the top bar; on phones it opens from the magnifier
+- The filters "To do", "Completed" and "Archived" show the notes in each state. "Trash" is its own item below the groups: it
+  lists trashed notes by group, on the board and in the list, newest first, and you can restore them there. Search covers titles and the full text in every group and every status except Trash: while it has text the title
+  reads "Search results in all groups", each result names its group and status, and a link below the results shows
+  matches in Trash. In Trash, search covers only Trash. The search field ends the top bar; on phones it opens from the magnifier
   at the top right.
 - Search results come in three tiers: notes whose title, or first line when there is no title, matches; then notes
   matching in the first five lines of their text; then the rest. Within a tier the notes keep their usual order.

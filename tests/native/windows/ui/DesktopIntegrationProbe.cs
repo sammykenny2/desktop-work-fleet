@@ -26,7 +26,7 @@ internal static class DesktopIntegrationProbe
   {
     async Task Layer(string value)
     {
-      await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
+      await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row[data-group-id] .group-menu').click()");
       await Wait(async () => (await Eval(main.WebView.CoreWebView2, "Boolean(document.querySelector('dialog[open]'))")).GetBoolean(), "group layer dialog", main);
       await Eval(main.WebView.CoreWebView2, $"(()=>{{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='wallpaper'));s.value='{value}';[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()}})()");
       await Wait(async () => (await Eval(main.WebView.CoreWebView2, "!document.querySelector('dialog[open]')")).GetBoolean(), "save group layer", main);
@@ -165,7 +165,7 @@ internal static class DesktopIntegrationProbe
     }
     // A group resting on the Top layer at 50% draws its paper see-through in the topmost scene; back on the Desktop layer
     // the paper is opaque again.
-    await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row .group-menu').click()");
+    await Eval(main.WebView.CoreWebView2, "document.querySelector('#groups .group-row[data-group-id] .group-menu').click()");
     await Wait(async () => (await Eval(main.WebView.CoreWebView2, "Boolean(document.querySelector('dialog[open] input[name=group-opacity]'))")).GetBoolean(), "group opacity control", main);
     await Eval(main.WebView.CoreWebView2, "(()=>{const d=document.querySelector('dialog[open]');const s=[...d.querySelectorAll('select')].find(s=>[...s.options].some(o=>o.value==='floating'));s.value='floating';"
       + "const r=d.querySelector('input[name=group-opacity]');r.value='50';r.dispatchEvent(new Event('input'));[...d.querySelectorAll('button')].find(b=>b.textContent==='Save').click()})()");

@@ -517,7 +517,7 @@ try {
         assert.equal(await page.evaluate(() => window.fixtureCloseReady), 0, 'in-flight sync must settle before native close');
         provider.hook = previousHook; releaseSync();
         await terminalClose();
-        await page.reload(); await expect(page.locator('#groups .group-row').first()).toBeVisible();
+        await page.reload(); await expect(page.locator('#groups .group-row[data-group-id]').first()).toBeVisible();
         await page.locator('[data-view="board"]').click();
         await page.locator('#settings-button').click();
         await page.locator('#close-settings').click(); await page.locator('#compose').click();
@@ -535,7 +535,7 @@ try {
         });
         await terminalClose();
         assert.ok(Object.values((await read()).state.drafts).some(draft => draft.content.text === 'Draft kept through graceful quit'));
-        await page.reload(); await expect(page.locator('#groups .group-row').first()).toBeVisible();
+        await page.reload(); await expect(page.locator('#groups .group-row[data-group-id]').first()).toBeVisible();
         await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
         await page.evaluate(() => { window.fixtureWriteFailure = true; });
         await page.locator('#editor-text').fill('Keep this text when saving fails');

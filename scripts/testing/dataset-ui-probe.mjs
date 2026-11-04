@@ -78,7 +78,7 @@ try {
   await expect(page.locator('#revision-panel [data-revision-id]')).toHaveCount(29);
   await page.locator(`[data-revision-id="${seeded.first}"]`).getByRole('button', { name: t('conflicts.version.restore'), exact: true }).click();
   await expect.poll(async () => (await read()).cards.find(card => card.id === seeded.note)?.content.text).toBe('first version');
-  await page.locator('#close-settings').click(); await page.locator('[data-filter="deleted"]').click();
+  await page.locator('#close-settings').click(); await page.locator('.trash-row button').click();
   await page.locator('#empty-trash').click(); await expect(page.locator('#purge-dialog')).toContainText('second trashed note');
   await page.locator('#purge-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
   assert.ok((await read()).cards.some(card => card.id === seeded.second));
@@ -112,12 +112,12 @@ try {
   await page.locator('[data-recovery-draft]').getByRole('button', { name: t('app.editor.saveCopy'), exact: true }).click();
   const recovered = (await read()).cards.find(card => card.content.text === 'unpublished recovery content');
   assert.ok(recovered && recovered.id !== deleted); await page.locator('#close-settings').click();
-  await page.setViewportSize({ width: 390, height: 844 }); await page.locator('[data-filter="deleted"]').click();
-  const trashVisible = await page.locator('[data-filter=deleted]').evaluate(element => {
+  await page.setViewportSize({ width: 390, height: 844 }); await page.locator('#drawer-toggle').click(); await page.locator('.trash-row button').click();
+  const trashVisible = await page.locator('#empty-trash').evaluate(element => {
     const button = element.getBoundingClientRect(), strip = element.parentElement.getBoundingClientRect();
     return button.left >= strip.left && button.right <= strip.right;
   });
-  assert.equal(trashVisible, true, 'the selected Trash filter must remain visible beside its actions on mobile');
+  assert.equal(trashVisible, true, 'Empty Trash must remain visible beside the views on mobile');
   await mkdir('build/dataset-ui', { recursive: true }); await page.screenshot({ path: `build/dataset-ui/${engine}-trash.png`, fullPage: true });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'mobile layout overflows');
   assert.deepEqual(errors, []);

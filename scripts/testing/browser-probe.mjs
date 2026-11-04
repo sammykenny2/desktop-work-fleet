@@ -153,7 +153,7 @@ try {
     await page.mouse.up(); if (shift) await page.keyboard.up('Shift');
   };
   await dragTo(false);
-  await expect(page.locator('#groups .group-row').first()).toContainText('1');
+  await expect(page.locator('#groups .group-row[data-group-id]').first()).toContainText('1');
   // The drop re-renders the stage once its layout commit lands; measure the settled paper, not the one being replaced.
   await expect(paper).not.toHaveClass(/dragging/);
   const moved = await paper.boundingBox();
@@ -163,7 +163,7 @@ try {
   await page.locator('#stop-operation').click(); await expect(page.locator('#adjust-bar')).toBeHidden();
   await expect(page.locator('#operate-group')).toBeFocused();
   assert.deepEqual(await paper.boundingBox(), moved, 'leaving adjust mode keeps the paper in place');
-  for (const filter of ['completed', 'archived', 'deleted']) {
+  for (const filter of ['completed', 'archived']) {
     await page.locator(`[data-filter="${filter}"]`).click();
     await expect(page.locator('#stage-shell')).not.toBeVisible();
     await page.locator('[data-filter="active"]').click();
@@ -225,11 +225,11 @@ try {
   await expect.poll(async () => (await paper.boundingBox())?.x).toBe(beforeDrag.x);
   await dragTo(true);
   await expect(page.locator('#status')).toHaveText(t('app.status.movedToGroup'));
-  await expect(page.locator('#groups .group-row').nth(1)).toContainText('1');
+  await expect(page.locator('#groups .group-row[data-group-id]').nth(1)).toContainText('1');
   await page.getByRole('button', { name: t('app.toolbar.undo'), exact: true }).click();
-  await expect(page.locator('#groups .group-row').first()).toContainText('1');
+  await expect(page.locator('#groups .group-row[data-group-id]').first()).toContainText('1');
   // The undone note is back in the first group, which the board shows once it is selected again.
-  await page.locator('#stop-operation').click(); await page.locator('#groups .group-row').first().locator('button').first().click();
+  await page.locator('#stop-operation').click(); await page.locator('#groups .group-row[data-group-id]').first().locator('button').first().click();
   await page.locator('[data-view="board"]').click();
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   await page.locator('#editor-text').fill('Unsaved text kept over a reload'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));

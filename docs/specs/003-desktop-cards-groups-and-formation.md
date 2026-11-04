@@ -177,6 +177,8 @@ because A is "me".
   chosen layer, the icon shows the layer the papers fall back to and the tooltip names both.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group
   revision, so nothing syncs and no other device's edit of that group can conflict with it.
+- Trash is a sidebar item below the groups with its own view, and search covers every status except Trash (since 2026-11-04;
+  see [SPEC-012](012-cloud-and-local-notes.md)).
 - A group new to a computer starts at the back of that computer's desktop: the Wallpaper layer, or the Desktop layer
   where the desktop offers no Wallpaper layer. This covers groups created on the computer (the first default group,
   the account's starter group and groups the user adds) and groups that sign-in or sync brings to it for the first

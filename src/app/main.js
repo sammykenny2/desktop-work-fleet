@@ -1,5 +1,6 @@
 import { Workspace } from '../core/workspace.js';
 import { CombinedWorkspace } from '../core/combined-workspace.js';
+import { CrossMove } from '../core/cross-move.js';
 import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
@@ -55,7 +56,7 @@ const $ = selector => document.querySelector(selector);
 let workspace; let primary; let storage; let controller; let lease;
 // The other open profiles beside the primary (ADR-066), each with its own storage, purge jobs and backups, and the ones that
 // could not open, which do not stop the rest.
-let companions = []; let unavailableProfiles = [];
+let companions = []; let unavailableProfiles = []; let crossMove = null;
 let dataProfile = null; let revisionsProfile = null;
 // The browser preview opens on its desktop canvas when there is room; desktop hosts and phones open on the papers.
 let activeGroupId; let filter = 'active'; let trashOpen = false; let trashTab = 'all'; let showDesktop = !matchMedia('(max-width:640px)').matches;
@@ -118,9 +119,12 @@ async function run(action, { duringAdjust = false } = {}) {
   catch (error) { status(error.message, true); if (currentDraft) $('#draft-status').textContent = error.message; }
   finally {
     activeActions.delete(pending);
-    if (workspace?.pendingCount > pendingBefore) {
-      if (syncBusy || maintenanceWork) syncRequested = true; else void syncGoogle();
-    }
+    syncIfPending(pendingBefore);
+  }
+}
+function syncIfPending(pendingBefore) {
+  if (workspace?.pendingCount > pendingBefore) {
+    if (syncBusy || maintenanceWork) syncRequested = true; else void syncGoogle();
   }
 }
 function primaryArea(workAreas) { const { x, y, width, height } = workAreas.find(area => area.primary) || workAreas[0]; return { x, y, width, height }; }
@@ -243,6 +247,8 @@ async function initialize() {
   const second = native ? native.info.companionProfile : new URLSearchParams(location.search).get('companion');
   if (second) await openCompanion(second, backLayer);
   workspace = await CombinedWorkspace.open([{ id: profileId, workspace: primary, storage }, ...companions]);
+  // A move across that a crash interrupted finishes first, so nothing below sees a note half way.
+  crossMove = new CrossMove(workspace); await crossMove.resume().catch(error => status(error.message, true));
   // A new note open in a quick edit stays on the desktop while its text is cleared (ADR-061).
   workspace.setOpenNote(() => remoteEditor?.cardId ?? null);
   activeGroupId = rememberedGroup();
@@ -1532,8 +1538,13 @@ function moveGroupDrag(event) {
     if (Math.abs(event.clientY - groupDrag.startY) < 5 || !activateGroupDrag()) return;
   }
   event.preventDefault();
-  // A row moves within its own section.
+  // A row moves within its own section; over another section it offers to move there.
   const section = groupDrag.row.parentElement;
+  const over = document.elementFromPoint(event.clientX, event.clientY)?.closest('.side-section');
+  const across = over && over !== section && over.dataset.profile && !unavailableProfiles.some(entry => entry.id === over.dataset.profile) ? over : null;
+  document.querySelectorAll('.side-section.receiving').forEach(node => { if (node !== across) node.classList.remove('receiving'); });
+  groupDrag.across = across?.dataset.profile ?? null;
+  if (across) { across.classList.add('receiving'); return; }
   const rows = [...section.querySelectorAll('.group-row.reorderable')].filter(row => row !== groupDrag.row);
   const before = rows.find(row => { const box = row.getBoundingClientRect(); return event.clientY < box.top + box.height / 2; });
   const target = before || null;
@@ -1541,11 +1552,13 @@ function moveGroupDrag(event) {
 }
 function endGroupDrag(event, dropped) {
   if (groupDrag?.pointerId !== event.pointerId) return;
-  const { active, row, hold } = groupDrag; groupDrag = null; clearTimeout(hold);
+  const { active, row, hold, across } = groupDrag; groupDrag = null; clearTimeout(hold);
   if (!active) return;
+  document.querySelectorAll('.side-section.receiving').forEach(node => node.classList.remove('receiving'));
   row.classList.remove('dragging'); document.body.classList.remove('group-dragging');
   // The click that ends a drag must not also choose the group.
   groupDragClick = true; setTimeout(() => { groupDragClick = false; }, 0);
+  if (dropped && across) { render(); void run(() => askMoveGroup(row.dataset.groupId, across)); return; }
   if (dropped) void reorderGroups([...$('#groups').querySelectorAll('.group-row.reorderable')].map(node => node.dataset.groupId));
   else render();
 }
@@ -1590,11 +1603,10 @@ function moveNoteDrag(event) {
   noteDrag.ghost.style.transform = `translate(${event.clientX + 14}px, ${event.clientY + 14}px)`;
   // Only another group takes the note; the label names the group, so colour is not the only sign.
   const row = document.elementFromPoint(event.clientX, event.clientY)?.closest('#groups .group-row[data-group-id]');
-  // A group of another collection takes the note only through a confirmed move.
-  const target = row && card && row.dataset.groupId !== card.groupId && workspace.ownerOfGroup(row.dataset.groupId) === workspace.ownerOfCard(card.id) ? row : null;
+  const target = row && card && row.dataset.groupId !== card.groupId ? row : null;
   $('#groups').querySelectorAll('.group-row').forEach(node => node.classList.toggle('receiving', node === target));
   noteDrag.groupId = target?.dataset.groupId ?? null;
-  noteDrag.ghost.lastChild.textContent = target ? t('app.stage.moveTo', { group: groupName(activeGroups(workspace.snapshot).find(group => group.id === noteDrag.groupId)) }) : '';
+  noteDrag.ghost.lastChild.textContent = target ? t('app.stage.moveTo', { group: groupName(workspace.groups().find(group => group.id === noteDrag.groupId)) }) : '';
 }
 function endNoteDrag(event, dropped) {
   if (noteDrag?.pointerId !== event.pointerId) return;
@@ -1824,6 +1836,7 @@ function renderTrash(cards, view, searching) {
     const head = element('h2', undefined, 'trash-head');
     head.append(dot, element('span', groupName(groups.find(group => group.id === section.groupId)) || t('app.groups.pendingSync')), element('span', String(section.cards.length), 'count'));
     if (trashTab === 'all' && workspace.profiles.length > 1) head.append(element('span', sectionName(workspace.ownerOfCard(section.cards[0].id).id), 'source'));
+    if (groups.find(group => group.id === section.groupId)?.movedAway) head.append(element('span', t('app.trash.groupGone'), 'gone'));
     list.append(head, noteHolder(section.cards, view, false));
   }
 }
@@ -1846,7 +1859,7 @@ function noteHolder(cards, view, acrossGroups) {
     if (total) meta.append(element('span', plural('app.count.steps', total, { done })));
     if (files) meta.append(element('span', plural('app.count.attachments', files)));
     const actions = element('div', undefined, 'note-actions');
-    if (card.deleted) actions.append(button(t('app.notes.restore'), async () => { await workspace.restoreCard(card.id, card.revision); render(); status(t('app.status.restored')); }),
+    if (card.deleted) actions.append(button(t('app.notes.restore'), () => restoreNote(card)),
       button(t('app.purge.title'), () => confirmPurge([card.id]), 'danger'));
     else {
       // A note never saved has no revision to complete, move or delete yet (ADR-061); its editor saves or discards it.
@@ -1870,6 +1883,8 @@ function noteHolder(cards, view, acrossGroups) {
       note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); edit(); } };
     }
     const heading = element('h3', title, 'note-title'); if (card.unsaved) heading.append(unsavedDot());
+    // Moved across, the original in Trash says where it went: on a line of its own, for the meta row clips.
+    const moved = card.deleted && typeof card.movedTo?.group === 'string' ? element('div', t('app.trash.movedTo', { section: t(card.movedTo.section === 'cloud' ? 'app.sections.cloud' : 'app.sections.local'), group: groupName({ name: card.movedTo.group }) }), 'note-moved') : null;
     // Search results say where each note is on a line of their own: the meta row clips, and phones hide it in the list.
     const place = acrossGroups ? t('app.search.origin', { group: groupName(groups.find(group => group.id === card.groupId)) || t('app.groups.pendingSync'),
       status: t(card.archived ? 'app.filters.archived' : card.completed ? 'app.filters.completed' : 'app.filters.active') }) : '';
@@ -1880,10 +1895,11 @@ function noteHolder(cards, view, acrossGroups) {
       const plain = body.textContent.replace(/\s+/g, ' ').trim();
       text.append(heading, element('div', !card.content.title && plain.startsWith(title) ? plain.slice(title.length).trim() : plain, 'note-excerpt'));
       if (origin) text.append(origin);
+      if (moved) text.append(moved);
       note.append(element('span', undefined, 'note-swatch'), text, meta, actions);
     } else {
       const foot = element('div', undefined, 'note-foot'); foot.append(meta, actions);
-      note.append(heading, body); if (origin) note.append(origin); boardFitter.observe(body);
+      note.append(heading, body); if (origin) note.append(origin); if (moved) note.append(moved); boardFitter.observe(body);
       const strip = attachmentStrip(card.content.attachments || [], noteAttachmentCleanup, boardFitter); if (strip) note.append(strip);
       note.append(foot);
     }
@@ -1945,13 +1961,150 @@ function confirmAction(title, text, label) {
 
 // A note dropped on a sidebar group moves with the same command as "More actions" > "Move to group": a new version of
 // the same note, its desktop paper where it was. Undo moves it back only while no other move has happened since.
+// A move inside a collection happens at once, with Undo; one across asks first, and the original in Trash is the way back.
 async function moveNoteToGroup(id, groupId) {
+  if (workspace.ownerOfGroup(groupId) !== workspace.ownerOfCard(id)) return askMoveNote(id, groupId);
   const from = currentCard(id).groupId; const nameOf = groupId => groupName(activeGroups(workspace.snapshot).find(group => group.id === groupId));
   await controller.moveToGroup(id, groupId); await controller.reconcile(); render();
   status(t('app.status.movedTo', { group: nameOf(groupId) }), false, { label: t('app.status.undoMove'), run: async () => {
     if (currentCard(id)?.groupId !== groupId) throw new FleetError('conflict', t('app.status.moveUndoStale'));
     await controller.moveToGroup(id, from); await controller.reconcile(); render(); status(t('app.status.undone'));
   } });
+}
+
+// Moving across (ADR-066): what a move does is said before it happens, and a note that cannot move says why.
+function moveChip(id, name, color) {
+  const chip = element('span', undefined, 'move-chip'); const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', color);
+  chip.append(dot, element('span', name), element('small', sectionName(id))); return chip;
+}
+function moveDialog(title, path, lines, confirmLabel, confirm) {
+  const dialog = element('dialog'); dialog.id = 'move-dialog';
+  const route = element('div', undefined, 'move-path'); route.append(...path);
+  const list = element('ul', undefined, 'effects'); list.append(...lines.map(line => element('li', line)));
+  const actions = element('div', undefined, 'dialog-actions');
+  actions.append(immediateButton(t('common.cancel'), () => dialog.close()), immediateButton(confirmLabel, () => { dialog.close(); confirm(); }, 'primary'));
+  dialog.append(element('h2', title), route, list, actions);
+  dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
+}
+function moveNotice(title, lines) {
+  const dialog = element('dialog'); dialog.id = 'move-notice'; const actions = element('div', undefined, 'dialog-actions');
+  actions.append(immediateButton(t('app.move.ok'), () => dialog.close(), 'primary'));
+  dialog.append(element('h2', title), ...lines.map(line => element('p', line)), actions);
+  dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
+}
+const moveEffects = (toId, fromId, one) => {
+  const toCloud = toId.startsWith('google:');
+  return [t(toCloud ? (one ? 'app.move.effectToCloudNote' : 'app.move.effectToCloudNotes') : (one ? 'app.move.effectToLocalNote' : 'app.move.effectToLocalNotes')),
+    t(fromId.startsWith('google:') ? 'app.move.originalCloud' : 'app.move.originalLocal', { section: sectionName(fromId) }), t('app.move.history')];
+};
+async function endEditForMove() {
+  if (controller.state.operationScope.kind !== 'none' || composing) throw new Error(t('app.errors.finishInputOrDialog'));
+  if (currentDraft) await flushDraft();
+  if (!await controller.endEdit()) throw new Error(t('app.errors.finishTextInput'));
+  currentDraft = null;
+}
+async function askMoveNote(cardId, groupId) {
+  await endEditForMove();
+  const from = workspace.ownerOfCard(cardId); const to = workspace.ownerOfGroup(groupId); const card = currentCard(cardId);
+  const refusal = crossMove.refusal(cardId);
+  if (refusal) { moveNotice(t('app.move.refusedTitle'), [t(`errors.core.move.${refusal}`)]); return; }
+  const source = from.workspace.state.groups.find(group => group.id === card.groupId); const target = workspace.groups().find(group => group.id === groupId);
+  moveDialog(t('app.move.noteTitle', { section: sectionName(to.id) }),
+    [element('strong', summaryText(card)), moveChip(from.id, groupName(source), groupColor(card.groupId)), element('span', '\u2192', 'move-arrow'), moveChip(to.id, groupName(target), groupColor(groupId))],
+    moveEffects(to.id, from.id, true), t('app.move.confirmNote'), () => run(async () => {
+      // Only moving can tell that an attachment cannot be fetched; nothing has changed yet when it says so.
+      try { await crossMove.moveNote(cardId, groupId); }
+      catch (error) {
+        if (!String(error.code).startsWith('move-')) throw error;
+        moveNotice(t('app.move.refusedTitle'), [error.message]); return;
+      }
+      await settleMoved();
+      status(t('app.move.noteDone', { section: sectionName(to.id), group: groupName(target) }));
+    }));
+}
+async function settleMoved() { await workspace.layout.placeNew(workspace.working, workAreas()); await controller.reconcile(); render(); }
+async function askMoveGroup(groupId, toProfile) {
+  await endEditForMove();
+  const from = workspace.ownerOfGroup(groupId); const group = workspace.groups().find(item => item.id === groupId);
+  const earlier = await crossMove.groupTarget(groupId); const continuing = earlier?.toProfile === toProfile;
+  if (!continuing && activeGroups(workspace.profile(toProfile).workspace.snapshot).length >= 9) {
+    moveNotice(t('app.move.fullTitle', { section: sectionName(toProfile) }), [t('app.move.fullText', { section: sectionName(toProfile) })]); return;
+  }
+  const notes = workspace.working.cards.filter(card => card.groupId === groupId && !card.deleted);
+  const movable = notes.filter(card => !crossMove.refusal(card.id));
+  if (notes.length && !movable.length) { moveNotice(t('app.move.noneTitle'), [t('app.move.noneText')]); return; }
+  const left = workspace.working.cards.filter(card => card.groupId === groupId && card.deleted).length;
+  const count = test => movable.filter(test).length;
+  const lines = [plural('app.move.groupCount', movable.length, { active: count(card => !card.completed && !card.archived), completed: count(card => card.completed && !card.archived), archived: count(card => card.archived) }),
+    ...moveEffects(toProfile, from.id, false)];
+  if (notes.length > movable.length) lines.push(plural('app.move.blocked', notes.length - movable.length));
+  if (left) lines.push(plural('app.move.trashStays', left));
+  lines.push(t('app.move.stopNote'));
+  const color = groupColor(groupId);
+  moveDialog(t('app.move.groupTitle', { group: groupName(group), section: sectionName(toProfile) }),
+    [moveChip(from.id, groupName(group), color), element('span', '\u2192', 'move-arrow'), moveChip(toProfile, continuing ? t('app.move.continuing', { group: groupName(group) }) : t('app.move.newGroup', { group: groupName(group) }), color)],
+    lines, t('app.move.confirmGroup'), () => startGroupMove(group, toProfile, movable.map(card => card.id)));
+}
+// The move is not one turn in the queue, or waiting for its own steps would stop it for good on a desktop. Each note takes
+// its own turn, so the desktop answers between notes and closing the app waits for only the current one.
+function startGroupMove(group, toProfile, ids) {
+  const moving = moveGroupAcross(group, toProfile, ids).catch(error => status(error.message, true));
+  activeActions.add(moving); void moving.finally(() => activeActions.delete(moving));
+}
+async function moveGroupAcross(group, toProfile, ids) {
+  const perform = action => desktop ? desktop.perform(action) : action();
+  const groupId = group.id; const from = workspace.ownerOfGroup(groupId); const pendingBefore = workspace.pendingCount;
+  const target = await perform(() => crossMove.openGroup(groupId, toProfile));
+  let stopping = false; let done = 0; let tried = 0; let failure = null;
+  const dialog = element('dialog'); dialog.id = 'move-progress'; dialog.addEventListener('cancel', event => event.preventDefault());
+  const bar = element('progress'); bar.max = ids.length || 1; bar.value = 0;
+  const current = element('span', '', 'current'); const tally = element('span', `0 / ${ids.length}`, 'tally');
+  const line = element('div', undefined, 'progress-line'); line.append(current, tally);
+  const box = element('div', undefined, 'progress-box'); box.append(bar, line);
+  const stop = immediateButton(t('app.move.stop'), () => { stopping = true; stop.disabled = true; stop.textContent = t('app.move.stopping'); });
+  const actions = element('div', undefined, 'dialog-actions'); actions.append(stop);
+  dialog.append(element('h2', t('app.move.progressTitle', { group: groupName(group), section: sectionName(toProfile) })), box,
+    element('p', t(toProfile.startsWith('google:') ? 'app.move.progressCloud' : 'app.move.progressLocal'), 'hint'), actions);
+  dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
+  render();
+  for (const id of ids) {
+    if (stopping || nativeClosing) break;
+    const card = currentCard(id); current.textContent = card ? summaryText(card) : '';
+    try { await perform(async () => { await crossMove.moveNote(id, target); await settleMoved(); }); done++; }
+    catch (error) {
+      failure = error;
+      // A note that cannot move stays behind; anything else, such as a full disk, ends the move.
+      if (!String(error.code).startsWith('move-')) break;
+    }
+    bar.value = ++tried; tally.textContent = `${done} / ${ids.length}`;
+  }
+  dialog.close();
+  const finished = await perform(async () => {
+    const result = await crossMove.finishGroup(groupId);
+    if (result && activeGroupId === groupId) { activeGroupId = target; await rememberGroup(); }
+    await settleMoved(); return result;
+  });
+  syncIfPending(pendingBefore);
+  if (nativeClosing) return;
+  const remaining = from.workspace.working.cards.filter(card => card.groupId === groupId && !card.deleted).length;
+  const name = groupName(group); const section = sectionName(toProfile); const home = sectionName(from.id);
+  if (finished) moveNotice(t('app.move.doneTitle'), [plural('app.move.doneText', done, { section, group: name })]);
+  else if (stopping) moveNotice(t('app.move.stoppedTitle'), [t('app.move.stoppedText', { done, left: remaining, section: home, group: name }), t('app.move.again')]);
+  else moveNotice(t('app.move.partialTitle'), [...failure ? [failure.message] : [], t('app.move.partialText', { done, left: remaining, section: home, group: name }), t('app.move.again')]);
+}
+// A note from a group that has moved away needs another group; with none left in its collection, the group comes back.
+async function restoreNote(card) {
+  const owner = workspace.ownerOfCard(card.id); const groups = shownGroups().filter(group => group.profileId === owner.id);
+  const finish = async groupId => { await workspace.restoreCard(card.id, card.revision, groupId); await workspace.layout.placeNew(workspace.working, workAreas()); render(); status(t('app.status.restored')); };
+  if (groups.some(group => group.id === card.groupId)) { await finish(null); return; }
+  const gone = owner.workspace.state.groups.find(group => group.id === card.groupId);
+  if (!groups.length) { await owner.workspace.returnMovedGroup(card.groupId); await finish(null); return; }
+  const dialog = element('dialog'); dialog.id = 'restore-target'; const select = element('select'); fillGroups(select, groups[0].id, owner.id);
+  const field = element('label', t('app.trash.restoreTo'), 'field'); field.append(select);
+  const actions = element('div', undefined, 'dialog-actions');
+  actions.append(immediateButton(t('common.cancel'), () => dialog.close()), button(t('app.notes.restore'), async () => { await finish(select.value); dialog.close(); }, 'primary'));
+  dialog.append(element('h2', t('app.trash.restoreTitle')), element('p', t('app.trash.restoreText', { group: groupName(gone), section: sectionName(owner.id) })), field, actions);
+  dialog.onclose = () => dialog.remove(); document.body.append(dialog); dialog.showModal();
 }
 
 // Takes its turn in the queue, so an action from any window that came first can start adjusting or need no dialog in its
@@ -2023,6 +2176,9 @@ function groupEditor(group, section = profileId) {
   if (group) {
     merge = immediateButton(t('app.groupEditor.merge'), () => press(() => { dialog.close(); return openGroupMerge(group); }));
     merge.disabled = shownGroups().filter(item => item.profileId === group.profileId).length < 2; actions.append(merge);
+    for (const { id } of workspace.profiles) if (id !== group.profileId) {
+      const away = immediateButton(t('app.groupEditor.moveTo', { section: sectionName(id) }), () => { if (writing) return; dialog.close(); run(() => askMoveGroup(group.id, id)); }, 'leading'); actions.prepend(away);
+    }
   }
   actions.append(immediateButton(t('common.cancel'), () => { if (!writing) dialog.close(); }), save);
   dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
@@ -2112,7 +2268,7 @@ function deleteButton(cardId, dialog) {
 // Board and list notes also offer Edit here; papers on the canvas and the desktop have their own Edit button.
 function cardDetails(card, { edit = false } = {}) {
   const dialog = element('dialog'); dialog.append(element('h2', summaryText(card)));
-  const groupLabel = element('label', t('app.card.moveToGroup'), 'field'); const select = element('select'); fillGroups(select, card.groupId, workspace.ownerOfCard(card.id).id); groupLabel.append(select);
+  const groupLabel = element('label', t('app.card.moveToGroup'), 'field'); const select = element('select'); fillGroups(select, card.groupId); groupLabel.append(select);
   const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode(t('app.card.showOnDesktop')));
   // Which layer a paper sits on belongs to its group and changes only with the group's shortcut on the desktop.
   // Phones show no desktop papers, so the display option they cannot show stays unchanged.
@@ -2122,6 +2278,8 @@ function cardDetails(card, { edit = false } = {}) {
   actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }),
     deleteButton(card.id, dialog),
     button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
+      // A group in another section needs its own confirmation, so the rest of this dialog waits for another time.
+      if (select.value !== card.groupId && workspace.ownerOfGroup(select.value) !== workspace.ownerOfCard(card.id)) { dialog.close(); await askMoveNote(card.id, select.value); return; }
       if (select.value !== card.groupId) await controller.moveToGroup(card.id, select.value);
       // A note whose group is off the desktop has no place yet, so it has no display setting to change.
       if (!handheld && workspace.layout.state.placements[card.id]) await workspace.layout.setCardPolicy(card.id, { visible: check.checked });

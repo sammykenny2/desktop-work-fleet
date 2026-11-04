@@ -127,6 +127,66 @@ try {
   await expect(page.locator('#stage .card', { hasText: 'Made off the desktop' })).toHaveCount(1);
   await page.screenshot({ path: 'build/sections-probe/desktop.png' });
 
+  // A note dragged onto a group in the other section asks first, then moves; the original waits in Trash and says where it went.
+  await page.locator('[data-view="board"]').click(); await row('Work').locator('button').first().click();
+  const paper = await note('Cloud budget plan').boundingBox(); const home = await row('Home').boundingBox();
+  await page.mouse.move(paper.x + 60, paper.y + 90); await page.mouse.down(); await page.mouse.move(paper.x + 30, paper.y + 60, { steps: 4 });
+  await page.mouse.move(home.x + 40, home.y + home.height / 2, { steps: 8 }); await expect(row('Home')).toHaveClass(/receiving/); await page.mouse.up();
+  await expect(page.locator('#move-dialog h2')).toHaveText(t('app.move.noteTitle', { section: t('app.sections.local') }));
+  await expect(page.locator('#move-dialog')).toContainText(t('app.move.effectToLocalNote'));
+  await page.screenshot({ path: 'build/sections-probe/move-note.png' });
+  await page.locator('#move-dialog').getByRole('button', { name: t('common.cancel'), exact: true }).click();
+  await expect(note('Cloud budget plan')).toHaveCount(1); assert.equal((await read(local)).cards.some(card => card.content.text === 'Cloud budget plan'), false, 'cancel moves nothing');
+  await page.mouse.move(paper.x + 60, paper.y + 90); await page.mouse.down(); await page.mouse.move(paper.x + 30, paper.y + 60, { steps: 4 });
+  await page.mouse.move(home.x + 40, home.y + home.height / 2, { steps: 8 }); await page.mouse.up();
+  await page.locator('#move-dialog').getByRole('button', { name: t('app.move.confirmNote'), exact: true }).click();
+  await expect(note('Cloud budget plan')).toHaveCount(0);
+  await expect.poll(async () => (await read(local)).cards.filter(card => card.content.text === 'Cloud budget plan' && !card.deleted).length).toBe(1);
+  await expect(page.locator('#status')).toHaveText(t('app.move.noteDone', { section: t('app.sections.local'), group: 'Home' }));
+  // A group dragged onto the other section shows its notes, then a blocking progress dialog that can stop.
+  await row('Plans').locator('button').first().click();
+  for (const text of ['Plan one', 'Plan two', 'Plan three', 'Plan four', 'Plan five', 'Plan six']) await capture(text);
+  const plansRow = await row('Plans').boundingBox(); const localSection = await section(local).boundingBox();
+  await page.mouse.move(plansRow.x + 60, plansRow.y + plansRow.height / 2); await page.mouse.down();
+  await page.mouse.move(plansRow.x + 60, plansRow.y + 30, { steps: 3 }); await page.mouse.move(localSection.x + 60, localSection.y + 40, { steps: 8 });
+  await expect(section(local)).toHaveClass(/receiving/); await page.screenshot({ path: 'build/sections-probe/move-group-drag.png' }); await page.mouse.up();
+  await expect(page.locator('#move-dialog h2')).toHaveText(t('app.move.groupTitle', { group: 'Plans', section: t('app.sections.local') }));
+  await page.screenshot({ path: 'build/sections-probe/move-group.png' });
+  // A slowed page, so that the bar can be seen and Stop can be pressed the way a person presses it.
+  const slow = await context.newCDPSession(page); await slow.send('Emulation.setCPUThrottlingRate', { rate: 30 });
+  await page.locator('#move-dialog').getByRole('button', { name: t('app.move.confirmGroup'), exact: true }).click();
+  await expect(page.locator('#move-progress')).toBeVisible();
+  await expect(page.locator('#move-progress progress')).toBeVisible();
+  await page.screenshot({ path: 'build/sections-probe/move-progress.png' });
+  await page.locator('#move-progress').getByRole('button', { name: t('app.move.stop'), exact: true }).click({ timeout: 20_000 });
+  await expect(page.locator('#move-notice h2')).toHaveText(t('app.move.stoppedTitle'), { timeout: 30_000 });
+  await slow.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  await page.screenshot({ path: 'build/sections-probe/move-stopped.png' });
+  await page.locator('#move-notice').getByRole('button', { name: t('app.move.ok'), exact: true }).click();
+  await expect(section(cloud).locator('.group-row', { hasText: 'Plans' })).toHaveCount(1);
+  await expect(section(local).locator('.group-row', { hasText: 'Plans' })).toHaveCount(1);
+  // Moving it again continues into the same group, from its settings this time, and the old group then leaves.
+  await section(cloud).locator('.group-row', { hasText: 'Plans' }).locator('.group-menu').click();
+  await page.locator('dialog[open]').getByRole('button', { name: t('app.groupEditor.moveTo', { section: t('app.sections.local') }), exact: true }).click();
+  await expect(page.locator('#move-dialog')).toContainText(t('app.move.continuing', { group: 'Plans' }));
+  await page.locator('#move-dialog').getByRole('button', { name: t('app.move.confirmGroup'), exact: true }).click();
+  await expect(page.locator('#move-notice h2')).toHaveText(t('app.move.doneTitle'), { timeout: 15_000 });
+  await page.locator('#move-notice').getByRole('button', { name: t('app.move.ok'), exact: true }).click();
+  await expect(section(cloud).locator('.group-row', { hasText: 'Plans' })).toHaveCount(0);
+  await expect(section(local).locator('.group-row', { hasText: 'Plans' })).toHaveCount(1);
+  assert.equal((await read(local)).cards.filter(card => card.content.text.startsWith('Plan ') && !card.deleted).length, 6);
+  assert.equal((await read(local)).groups.filter(group => group.name === 'Plans' && !group.deleted).length, 1, 'moving again used the same group');
+  // The originals wait in Trash, under a group that has moved away; restoring one asks where to.
+  await page.locator('#groups .trash-row button').click(); await page.locator(`#trash-tabs [data-trash-tab="${cloud}"]`).click();
+  await expect(note('Plan one').locator('.note-moved')).toContainText('Plans');
+  await expect(page.locator('#list .trash-head .gone')).toHaveCount(1);
+  await page.screenshot({ path: 'build/sections-probe/trash-moved.png' });
+  await note('Plan one').hover(); await note('Plan one').getByRole('button', { name: t('app.notes.restore'), exact: true }).click();
+  await expect(page.locator('#restore-target h2')).toHaveText(t('app.trash.restoreTitle'));
+  await page.locator('#restore-target').getByRole('button', { name: t('app.notes.restore'), exact: true }).click();
+  await expect(page.locator('#restore-target')).toHaveCount(0);
+  await expect.poll(async () => (await read(cloud)).cards.find(card => card.content.text === 'Plan one' && !card.deleted)?.movedTo).toBeUndefined();
+  await page.locator('[data-trash-tab="all"]').click(); await row('Work').locator('button').first().click();
   // Backups and versions work on one collection at a time.
   await page.locator('#settings-button').click(); await page.locator('[data-page="data"]').click();
   const pickData = page.locator('#data-host .collection-picker select');

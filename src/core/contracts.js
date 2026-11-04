@@ -20,8 +20,10 @@ export const compareId = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const createdAt = card => typeof card.createdAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(card.createdAt) ? card.createdAt : '';
 export const compareCards = (a, b) => compareId(createdAt(a), createdAt(b)) || compareId(a.id, b.id);
 export const copy = value => structuredClone(value);
-// A group moved away to another collection stays only so that its trashed notes keep a group (ADR-066).
-export const activeGroups = snapshot => snapshot.groups.filter(group => !group.deleted && !group.movedAway);
+// A group moved away to another collection stays only so that its trashed notes keep a group (ADR-066). A note another
+// device put there before it heard of the move brings the group back, so that the note stays in sight.
+const stillHolds = (snapshot, group) => snapshot.cards?.some(card => card.groupId === group.id && !card.deleted);
+export const activeGroups = snapshot => snapshot.groups.filter(group => !group.deleted && (!group.movedAway || stillHolds(snapshot, group)));
 export const groupKey = snapshot => JSON.stringify(activeGroups(snapshot).map(group => group.id).sort(compareId));
 export const safeKey = key => typeof key === 'string' && key.length > 0
   && !['__proto__', 'prototype', 'constructor'].includes(key);

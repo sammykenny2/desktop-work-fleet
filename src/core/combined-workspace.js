@@ -100,6 +100,28 @@ class CombinedLayout {
   setGroupHighlight(groupId, on) { const workspace = this.#ofGroup(groupId); return workspace.layout.setGroupHighlight(groupId, on, workspace.snapshot); }
   setCardPolicy(cardId, patch) { return this.#ofCard(cardId).layout.setCardPolicy(cardId, patch); }
 
+  /** A group moved to another collection wears what it wore. */
+  async carryLooks(sourceId, targetId) {
+    const state = this.state; const target = this.#ofGroup(targetId);
+    if (state.groupLayers[sourceId]) await target.layout.setGroupLayer(targetId, state.groupLayers[sourceId], target.snapshot);
+    if (state.groupOpacity[sourceId] !== undefined) await target.layout.setGroupOpacity(targetId, state.groupOpacity[sourceId], target.snapshot);
+    if (state.groupHighlights[sourceId]) await target.layout.setGroupHighlight(targetId, true, target.snapshot);
+  }
+  /** When a group has moved completely, the target takes its region, colour and place as the group the main window shows. */
+  handOverGroup(sourceId, targetId) {
+    return this.#desk.update(draft => {
+      const held = draft.grid.slots.indexOf(sourceId);
+      if (held >= 0) {
+        const other = draft.grid.slots.indexOf(targetId); if (other >= 0) draft.grid.slots[other] = null;
+        draft.grid.slots[held] = targetId;
+      }
+      if (draft.groupColors[sourceId] !== undefined) {
+        draft.groupColors[targetId] = draft.groupColors[sourceId]; delete draft.groupColors[sourceId];
+      }
+      if (draft.mainGroupId === sourceId) draft.mainGroupId = targetId;
+    });
+  }
+
   async move(cardId, position, expectedRevision) {
     requireValue(expectedRevision === undefined || expectedRevision === this.state.revision, 'stale-layout', t('errors.common.layoutChanged'));
     return this.#ofCard(cardId).layout.move(cardId, position);
@@ -234,7 +256,7 @@ export class CombinedWorkspace {
   discardUnneededDraft(draftId) { return (this.#profiles.find(({ workspace }) => workspace.holdsDraft(draftId)) ?? this.#profiles[0]).workspace.discardUnneededDraft(draftId); }
   createCard(content, groupId) { return this.ownerOfGroup(groupId).workspace.createCard(content, groupId); }
   updateCard(cardId, patch, expectedRevision) { return this.ownerOfCard(cardId).workspace.updateCard(cardId, patch, expectedRevision); }
-  restoreCard(cardId, expectedRevision) { return this.ownerOfCard(cardId).workspace.restoreCard(cardId, expectedRevision); }
+  restoreCard(cardId, expectedRevision, groupId = null) { return this.ownerOfCard(cardId).workspace.restoreCard(cardId, expectedRevision, groupId); }
 
   /** Within a profile only; moving across goes through a confirmed move (SPEC-012). */
   async transferCard({ cardId, groupId, expectedRevision, position, expectedLayoutRevision }) {

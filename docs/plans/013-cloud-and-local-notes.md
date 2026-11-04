@@ -66,11 +66,11 @@ from FR8 to FR10.
 
 ### Phase 5: Moves across
 
-- [ ] Move journal and start-up recovery; moved-note creation; `movedTo`
-- [ ] Note move: drag, "Move to group", confirmation, refusal reasons
-- [ ] Group move: drag, settings button, progress with Stop, result; resume; `movedAway`; region and looks pass on
-- [ ] Restoring from a moved-away group
-- [ ] Crash-point tests at every journal step
+- [x] Move journal and start-up recovery; moved-note creation; `movedTo`
+- [x] Note move: drag, "Move to group", confirmation, refusal reasons
+- [x] Group move: drag, settings button, progress with Stop, result; resume; `movedAway`; region and looks pass on
+- [x] Restoring from a moved-away group
+- [x] Crash-point tests at every journal step
 
 **Deliverables**: FR12 to FR21, FR27.
 
@@ -109,3 +109,5 @@ See ADR-066.
 ## Progress Log
 
 - 2026-11-04: Plan approved with the maintainer after a clickable mock.
+- 2026-11-04: Phases 1 to 5 implemented. Still open before this plan completes: maintainer acceptance on real devices, since no
+  native host has yet run two sections.

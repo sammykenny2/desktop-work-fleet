@@ -105,8 +105,15 @@ interface. To switch, see [Settings](#settings).
   where it is.
 - The sidebar has a section for Cloud notes, while you are signed in, and one for Local notes, each with its own + and up to
   nine groups of its own. Cloud notes sync to your other devices; Local notes never leave this device. Signing out hides
-  Cloud notes from the sidebar and the desktop and keeps them on this device for when you sign in again. Pickers keep a note
+  Cloud notes from the sidebar and the desktop and keeps them on this device for when you sign in again. A note's editor keeps it
   inside its section.
+- To move a note to the other section, drag it onto a group there, or choose that group in the note's "⋯" > "Move to group". To
+  move a group, drag it onto the other section, or use "Move to ..." in its settings. You confirm first, because moving to Local
+  notes means your other devices no longer see it, and moving to Cloud notes means it syncs to them. The original goes to its
+  section's Trash and says where it went; it leaves Google only when that Trash is emptied. Only the current version moves. A
+  group moves behind a progress bar that you can stop: notes already moved stay moved, each note moves completely or not at
+  all, and moving the group again continues into the same group. Notes with version conflicts or unsaved changes stay behind.
+  A section holds nine groups, so a group can't move into a full one.
 - When notes are arranged, each group goes into its own region. "Group regions" in Settings > Desktop notes sets "Rows" and
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom. There can be up to nine, each holding any

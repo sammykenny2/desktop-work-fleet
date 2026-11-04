@@ -302,6 +302,16 @@ export class LayoutStore {
     });
   }
 
+  /** A moved note's position comes with it; repeating this after a crash changes nothing. */
+  async adoptPlacement(cardId, rect) {
+    rect = copy(rect);
+    return this.#transaction(draft => {
+      if (draft.placements[cardId]) return;
+      const order = Math.max(0, ...Object.values(draft.placements).map(item => item.order)) + 1;
+      draft.placements[cardId] = { ...rect, order };
+    });
+  }
+
   /** This profile's part of a formation across profiles; the combined layout has checked the plan. */
   async applyChanges(changes, batch) {
     changes = copy(changes);

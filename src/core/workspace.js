@@ -184,6 +184,7 @@ export class Workspace {
   holdsGroup(id) { return this.#state.groups.some(group => group.id === id); }
   holdsDraft(id) { return Object.hasOwn(this.#state.drafts, id); }
   activeGroupList() { return copy(activeGroups(this.#state)); }
+  cardValue(id) { const card = this.#state.cards.find(item => item.id === id); return card ? copy(card) : null; }
   get layout() { return this.#layout; }
   /** Drain admitted edits and their layout writes after the caller has stopped new work. */
   async whenIdle() { await this.#tail; await this.#layout.whenIdle(); await this.#tail; }
@@ -274,7 +275,7 @@ export class Workspace {
   }
 
   #group(state, id) {
-    requireValue(state.groups.some(group => group.id === id && !group.deleted && !group.movedAway), 'missing-group', t('errors.common.groupMissingOrPending'));
+    requireValue(activeGroups(state).some(group => group.id === id), 'missing-group', t('errors.common.groupMissingOrPending'));
     this.#resolved(state, 'group', id);
   }
 
@@ -615,7 +616,7 @@ export class Workspace {
           const sameEpisode = value.deleted && current.length && current.every(head => head.value.deleted
             && head.value.trashEpisode === value.trashEpisode);
           if (value.deleted && !sameEpisode) { value.trashedAt = this.#createdAt(); value.trashEpisode = this.#uuid(); }
-          if (!value.deleted) { delete value.trashedAt; delete value.trashEpisode; }
+          if (!value.deleted) { delete value.trashedAt; delete value.trashEpisode; delete value.movedTo; }
         }
       } else if (!value.deleted) {
         delete value.redirectGroupId;
@@ -759,7 +760,7 @@ export class Workspace {
 
   async updateCard(cardId, patch, expectedRevision) {
     patch = copy(patch);
-    requireValue(Object.keys(patch).every(key => ['content', 'archived', 'completed', 'deleted'].includes(key)),
+    requireValue(Object.keys(patch).every(key => ['content', 'archived', 'completed', 'deleted', 'movedTo'].includes(key)),
       'invalid-command', t('errors.core.noteUpdateForbidden'));
     if ('content' in patch) contentValue(patch.content);
     for (const key of ['archived', 'completed', 'deleted']) {
@@ -771,6 +772,60 @@ export class Workspace {
       Object.assign(card, copy(patch), { revision: this.#uuid() });
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);
+    });
+  }
+
+  /**
+   * A note moved here from another collection (ADR-066). Its id was chosen before the move began, so repeating this step
+   * after a crash changes nothing.
+   */
+  async adoptCard({ id, groupId, content, archived, completed, createdAt }) {
+    const value = contentValue(content);
+    return this.#commit(state => {
+      const existing = state.cards.find(card => card.id === id);
+      if (existing) return copy(existing);
+      this.#group(state, groupId);
+      const card = { id, revision: this.#uuid(), groupId, content: value, deleted: false, archived, completed, createdAt };
+      state.cards.push(card); this.#record(state, 'card', card, []);
+      return copy(card);
+    });
+  }
+
+  /** A group moved here from another collection; the same rule applies. */
+  async adoptGroup({ id, name }) {
+    return this.#addGroup(state => {
+      const existing = state.groups.find(group => group.id === id);
+      if (existing) return copy(existing);
+      validateNewGroup(state);
+      const group = { id, revision: this.#uuid(), name, deleted: false };
+      state.groups.push(group); this.#record(state, 'group', group, []);
+      return copy(group);
+    });
+  }
+
+  /**
+   * A group whose notes have all moved to another collection leaves every list. It stays as a record because its trashed
+   * notes still need a group, and a deleted group would have to name a redirect in this collection.
+   */
+  async retireMovedGroup(id) {
+    return this.#commit(state => {
+      const group = state.groups.find(item => item.id === id);
+      if (!group || group.movedAway) return group ? copy(group) : null;
+      const parent = group.revision; group.movedAway = true; group.revision = this.#uuid();
+      this.#record(state, 'group', group, [parent]);
+      return copy(group);
+    });
+  }
+
+  /** A moved group comes back when a note restored from Trash has no other group to go to. */
+  async returnMovedGroup(id) {
+    return this.#commit(state => {
+      const group = state.groups.find(item => item.id === id);
+      if (!group?.movedAway) return group ? copy(group) : null;
+      validateNewGroup(state);
+      const parent = group.revision; delete group.movedAway; group.revision = this.#uuid();
+      this.#record(state, 'group', group, [parent]);
+      return copy(group);
     });
   }
 
@@ -841,13 +896,15 @@ export class Workspace {
     });
   }
 
-  async restoreCard(cardId, expectedRevision) {
+  // A group that has moved away (ADR-066) takes no note back, so restoring into it needs another group.
+  async restoreCard(cardId, expectedRevision, groupId = null) {
     return this.#commit(state => {
       const card = state.cards.find(card => card.id === cardId);
       requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', t('errors.core.deletedNoteChanged'));
       this.#resolved(state, 'card', cardId);
-      this.#group(state, card.groupId);
-      card.deleted = false; card.revision = this.#uuid(); delete card.trashedAt; delete card.trashEpisode;
+      this.#group(state, groupId ?? card.groupId);
+      if (groupId) card.groupId = groupId;
+      card.deleted = false; card.revision = this.#uuid(); delete card.trashedAt; delete card.trashEpisode; delete card.movedTo;
       this.#record(state, 'card', card, [expectedRevision]);
       return copy(card);
     });

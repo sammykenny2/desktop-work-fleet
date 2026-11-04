@@ -128,8 +128,7 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
   "Switch account" and "Sign out".
 - Press "Sign in" in the "Google account" row; after granting identity and app data access, that Google account's notes open as
   Cloud notes, above Local notes in the sidebar.
-  Existing local notes are not uploaded automatically; to move them, export a backup first, then import it in the Google
-  workspace.
+  Existing local notes are not uploaded automatically; to move some, drag them or their group onto Cloud notes.
 - App data is in the hidden appDataFolder and does not appear in the normal Drive file list.
 - A signed-in workspace tries to sync every 20 seconds, also while the main window is in the tray or menu bar, and
   again as soon as the main window shows. "Sync now" in Account and sync syncs immediately. Offline or after a failure,

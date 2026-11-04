@@ -80,14 +80,16 @@ covers everything except Trash. Decisions and alternatives are in
   and Stop. Stop finishes the current note and ends the move.
 - FR14: A move creates the note in the target, then trashes the original. Each note either moves completely or not at all. A
   move interrupted by a crash finishes on the next start, without duplicating the note. Status, content, attachments, desktop
-  position and creation time move with it.
+  position and creation time move with it. A move into a collection that is not open waits until it opens; a note that
+  changes before its copy exists stays where it is, and one that changes after keeps both.
 - FR15: Notes with a version conflict or unsaved changes do not move; the result lists how many stayed. A note with an
   attachment that is not on this device and cannot be fetched stays and is reported the same way. A single such note is
   refused with the reason before anything changes.
 - FR16: Notes in Trash stay where they are when their group moves.
 - FR17: A stopped or partial move leaves both groups in place. Moving the group again continues into the same target group.
 - FR18: When a group has moved completely it leaves its section. The target group takes its region, layer, opacity, highlight
-  and colour.
+  and colour. A note that another device put in the group before it heard of the move brings the group back, so that the note
+  stays in sight.
 - FR19: A group cannot move into a collection that already holds nine groups: the app says so before anything changes. Moving
   a single note to an existing group is unaffected.
 - FR20: Moves within a collection stay as in SPEC-003, with Undo and no Trash. A move across has no Undo; the original in

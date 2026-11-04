@@ -175,6 +175,7 @@ because A is "me".
   chosen layer, the icon shows the layer the papers fall back to and the tooltip names both.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group
   revision, so nothing syncs and no other device's edit of that group can conflict with it.
+- Notes and groups move between cloud and local notes only through a confirmed move (SPEC-012).
 - Trash is a sidebar item below the groups with its own view, and search covers every status except Trash (since 2026-11-04;
   see [SPEC-012](012-cloud-and-local-notes.md)).
 - A group new to a computer starts at the back of that computer's desktop: the Wallpaper layer, or the Desktop layer

@@ -1,4 +1,4 @@
-import { compareId, copy, requireValue, summaryText } from './contracts.js';
+import { activeGroups, compareId, copy, requireValue, summaryText } from './contracts.js';
 import { t } from '../i18n/index.js';
 
 /** A retired group retains its explicit destination; missing dependencies and cycles are never guessed. */
@@ -36,8 +36,8 @@ export function groupResolver(groups) {
 
 export function planGroupMerge(state, sourceId, targetId) {
   requireValue(sourceId !== targetId, 'same-group', t('errors.core.mergeSameGroup'));
-  const source = state.groups.find(group => group.id === sourceId && !group.deleted && !group.movedAway);
-  const target = state.groups.find(group => group.id === targetId && !group.deleted && !group.movedAway);
+  const source = activeGroups(state).find(group => group.id === sourceId);
+  const target = activeGroups(state).find(group => group.id === targetId);
   requireValue(source && target, 'missing-group', t('errors.core.mergeGroupsMissing'));
   const cards = state.cards.filter(card => card.groupId === sourceId).sort((a, b) => compareId(a.id, b.id));
   const cardIds = new Set(cards.map(card => card.id));

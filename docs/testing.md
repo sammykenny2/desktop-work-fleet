@@ -958,6 +958,11 @@ The automatic probe first confirms that the real app's automatic file capability
 to check the full UI, turning it off while running, reservation abort, a lost ack and restart, CAS, the authorization pause and readable ZIP bytes.
 It does not use native OS automatic files or the vault; the screenshot is `build/automatic-backup-probe.png`.
 `automatic-backup-probe` once failed without a message (2026-10-06) and then passed three times in a row.
+`tests/cross-move.test.js` stops a move after every journal step and checks that the next start ends with one copy and nothing half
+moved. `tests/cross-move-queue.test.js` runs the page's move code on the strict one-at-a-time queue a desktop host uses, which
+browser probes do not have: an action that waits for a later one would wait for ever. `sections-probe.mjs` also drives moves
+through the page.
+
 `sections-probe.mjs` opens two profiles in the browser preview, with `?profile=google:...&companion=...`, since the preview has no
 host: sections with their own add buttons, notes and pickers per collection, a sidebar drag staying in its section, one colour
 table, search naming the collection, Trash tabs and Empty Trash per collection, regions across collections with groups off the

@@ -31,7 +31,7 @@ export default {
   'errors.desktop.editorGone': 'This text editor is no longer available. Keep a copy of what you typed.',
   'errors.desktop.otherWindowEditing': 'Finish typing in the other window first.',
   'errors.desktop.finishInput': 'Finish the current input first.',
-  'errors.desktop.unconfirmedInput': "Some input isn't confirmed yet, so the current text stays. Try saving again or copy the text.",
+  'errors.desktop.unconfirmedInput': "Some input isn't confirmed yet, so the current text stays. Press Save again or copy the text.",
   'errors.desktop.draftInvalid': 'The typed text is invalid.',
   'errors.desktop.draftStale': 'Newer typed text has already arrived, so the older text was not applied.',
   'errors.desktop.draftGap': 'Typed text arrived out of order. Keep your text and try again.',

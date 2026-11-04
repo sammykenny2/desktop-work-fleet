@@ -28,17 +28,20 @@ const button = (text, action) => { const node = make('button', text); node.type 
 // The in-place editor's actions are icons named by their aria-label, with no hover tooltip: the macOS host passes no
 // mouse movement to the scene and a quick edit leaves the app inactive, so a tooltip could not appear there.
 const svgNs = 'http://www.w3.org/2000/svg';
-// Discarding unsaved changes is a trash can rather than a cross, so it does not read as closing (ADR-061).
 const editorIcons = {
-  retry: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3M17.3 3.2v3.5h-3.5', full: 'M14 4h6v6M20 4l-6 6M10 20H4v-6M4 20l6-6',
-  discard: 'M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 10.5v6', save: 'M5 12.5l4.5 4.5L19 7.5',
+  full: 'M14 4h6v6M20 4l-6 6M10 20H4v-6M4 20l6-6', cancel: 'M6 6l12 12M18 6 6 18',
+  trash: 'M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 10.5v6', save: 'M5 12.5l4.5 4.5L19 7.5',
 };
 function iconButton(label, path, action) {
   const node = button('', action); node.setAttribute('aria-label', label);
   const svg = document.createElementNS(svgNs, 'svg'); svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('aria-hidden', 'true');
   const line = document.createElementNS(svgNs, 'path'); line.setAttribute('d', path); svg.append(line); node.append(svg); return node;
 }
-function draftStatus(text, error = false) { const state = root.querySelector('.draft-state'); if (state) { state.textContent = text; state.classList.toggle('error', error); } }
+function draftStatus(text, error = false) {
+  // While a question is on the line, what happens meanwhile waits for it to go.
+  if (armed?.asking) { armed.previous = { text, error }; return; }
+  const state = root.querySelector('.draft-state'); if (state) { state.textContent = text; state.classList.toggle('error', error); }
+}
 function captureIntent() {
   try { return bridge.request('scene.intent').then(value => value.intent).catch(() => null); }
   catch { return Promise.resolve(null); }
@@ -47,8 +50,41 @@ async function saveDraft() {
   if (!editor || composing) return;
   const current = editor; draftStatus(t('desktop.unsaved.writing')); await current.flush(); if (editor === current) draftStatus(t('desktop.unsaved.kept'));
 }
-async function editAction(method) {
+// Throwing away what was typed takes a second press, asked on the paper itself: a question in the main window would pull
+// it over the desktop. A pair of fast clicks is one press, and anything else the user does takes the question back.
+const ARMED_MS = 4000; const SECOND_PRESS_MS = 400;
+let armed = null; let lastAction = 0;
+function disarm() {
+  if (!armed) return;
+  const { previous, timer } = armed; clearTimeout(timer); armed = null;
+  for (const node of root.querySelectorAll('.card-actions .armed')) node.classList.remove('armed');
+  draftStatus(previous.text, previous.error);
+}
+// Text not yet back in a frame counts too, as what the frame says trails the last keystroke; a note never saved and still
+// empty has nothing to lose, though it shows as unsaved while it is open.
+function holdsChanges(cardId) {
+  const card = frame.cards.find(item => item.id === cardId);
+  return editor.dirty || editor.text !== card?.text || Boolean(card?.unsaved) && !card.blank;
+}
+function pressTwice(method, question, node) {
   if (!editor || composing) return;
+  if (!holdsChanges(editor.cardId)) return editAction(method);
+  if (armed?.method !== method) {
+    disarm();
+    const state = root.querySelector('.draft-state');
+    armed = { method, draftId: editor.draftId, at: Date.now(), previous: { text: state?.textContent ?? '', error: state?.classList.contains('error') ?? false }, timer: setTimeout(disarm, ARMED_MS) };
+    node.classList.add('armed'); draftStatus(question, true); armed.asking = true;
+    // Typing must reach the text, which takes the question back, rather than press the button again with Space or Enter.
+    // Whoever came to the button by keyboard stays on it.
+    if (!node.matches(':focus-visible')) root.querySelector('.inline-editor')?.focus();
+    return;
+  }
+  if (Date.now() - armed.at < SECOND_PRESS_MS) return;
+  return editAction(method);
+}
+async function editAction(method) {
+  if (!editor || composing || Date.now() - lastAction < SECOND_PRESS_MS) return;
+  lastAction = Date.now(); disarm();
   const intent = method === 'editor.full' ? captureIntent() : Promise.resolve(null);
   await saveDraft(); await client.command(method, { draftId: editor.draftId, sequence: editor.sequence }, await intent);
 }
@@ -64,6 +100,7 @@ function render(next) {
     localizeDocument(); renderAdjustOverlay(false);
     root.querySelector('.inline-editor')?.setAttribute('aria-label', t('desktop.editor.label'));
   }
+  if (armed && armed.draftId !== active?.draftId) { clearTimeout(armed.timer); armed = null; }
   if (!active) { editor = null; frozen.clear(); }
   else if (!editor || editor.draftId !== active.draftId) editor = new DesktopDraft(client, active);
   frame = next; status.hidden = true;
@@ -100,8 +137,8 @@ function render(next) {
       if (item.editorId !== editor.draftId) {
         item.disposeAttachments?.(); item.disposeAttachments = null; item.filesKey = null; item.files.hidden = true;
         item.editorId = editor.draftId; const input = make('textarea', undefined, 'inline-editor'); input.value = editor.text; input.setAttribute('aria-label', t('desktop.editor.label'));
-        input.oninput = () => { editor.text = input.value; if (!composing) void run(saveDraft); };
-        input.addEventListener('compositionstart', () => { composing = true; });
+        input.oninput = () => { disarm(); editor.text = input.value; if (!composing) void run(saveDraft); };
+        input.addEventListener('compositionstart', () => { disarm(); composing = true; });
         input.addEventListener('compositionend', () => { composing = false; editor.text = input.value; void run(saveDraft); });
         input.onkeydown = event => {
           if (event.isComposing || composing) return;
@@ -113,10 +150,13 @@ function render(next) {
         queueMicrotask(() => { if (input.isConnected) input.focus(); });
       }
       updateFrozen();
-      actions.replaceChildren(iconButton(t('desktop.editor.retrySave'), editorIcons.retry, saveDraft),
-        iconButton(t('desktop.editor.full'), editorIcons.full, () => editAction('editor.full')),
-        iconButton(t('desktop.editor.discard'), editorIcons.discard, () => editAction('editor.cancel')),
-        iconButton(t('common.save'), editorIcons.save, () => editAction('editor.save')));
+      // A note never saved has nothing to keep in Trash; Cancel removes it.
+      const trash = card.revision ? iconButton(t('desktop.editor.trash'), editorIcons.trash, () => pressTwice('editor.delete', t('desktop.editor.confirmTrash'), trash)) : null;
+      trash?.classList.add('leading'); trash?.classList.toggle('armed', armed?.method === 'editor.delete');
+      const cancel = iconButton(t('common.cancel'), editorIcons.cancel, () => pressTwice('editor.cancel', t('desktop.editor.confirmDiscard'), cancel));
+      cancel.classList.toggle('armed', armed?.method === 'editor.cancel');
+      actions.replaceChildren(...trash ? [trash] : [], iconButton(t('desktop.editor.full'), editorIcons.full, () => editAction('editor.full')),
+        cancel, iconButton(t('common.save'), editorIcons.save, () => editAction('editor.save')));
     } else {
       const filesKey = JSON.stringify([card.revision, card.attachments || [], card.interactive]);
       const missingChanged = item.files.querySelector('.missing') && item.attachmentRevision !== next.workspaceRevision;

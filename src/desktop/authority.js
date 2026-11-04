@@ -8,7 +8,7 @@ import { t } from '../i18n/index.js';
 
 const uuid = value => typeof value === 'string' && value.length === 36 && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 const methods = new Set(['pointer.down', 'pointer.move', 'pointer.up', 'pointer.cancel', 'card.select', 'card.edit',
-  'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'editor.cancel', 'interaction.escape', 'interaction.shortcut',
+  'card.transfer', 'card.check', 'editor.change', 'editor.save', 'editor.end', 'editor.full', 'editor.cancel', 'editor.delete', 'interaction.escape', 'interaction.shortcut',
   'interaction.done', 'layout.arrange', 'attachment.preview', 'attachment.open']);
 const arrangements = new Set(['stack', 'spread', 'undo']);
 
@@ -238,12 +238,13 @@ export class DesktopAuthority {
         await this.#editor.change({ ...current, text: args.text, sequence: args.sequence });
         return { sequence: args.sequence };
       }
-      case 'editor.save': case 'editor.end': case 'editor.full': case 'editor.cancel': {
+      case 'editor.save': case 'editor.end': case 'editor.full': case 'editor.cancel': case 'editor.delete': {
         const current = this.#editor.current();
         requireValue(current && current.viewId === viewId && current.draftId === args.draftId
           && current.sequence === args.sequence, 'desktop-editor', t('errors.desktop.draftBusy'));
         if (method === 'editor.save') return this.#editor.save();
         if (method === 'editor.full') return this.#editor.full(intent);
+        if (method === 'editor.delete') return this.#editor.delete();
         return method === 'editor.cancel' ? this.#editor.cancel() : this.#editor.end();
       }
       // The adjust overlay's own buttons, for desktops where the main window is hidden while adjusting.

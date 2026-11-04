@@ -31,7 +31,7 @@ export default {
   'errors.desktop.editorGone': '這個文字編輯視窗已失效，請保留輸入內容。',
   'errors.desktop.otherWindowEditing': '請先完成另一個視窗的文字輸入。',
   'errors.desktop.finishInput': '請先完成目前輸入。',
-  'errors.desktop.unconfirmedInput': '仍有未確認輸入，保留目前文字；請重試保存或複製文字。',
+  'errors.desktop.unconfirmedInput': '仍有未確認輸入，保留目前文字；請再按一次保存或複製文字。',
   'errors.desktop.draftInvalid': '輸入的文字格式無效。',
   'errors.desktop.draftStale': '已收到較新的輸入文字，未套用舊文字。',
   'errors.desktop.draftGap': '輸入文字順序不連續，請保留文字後重試。',

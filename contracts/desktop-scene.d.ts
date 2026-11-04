@@ -12,12 +12,12 @@ export interface DesktopFrame {
   locale: 'en' | 'zh-TW';
   groups: { id: string; name: string; color: string; region: (Rect & { groupId: string | null }) | null }[];
   operationScope: Scope; activeGroupId: string | null;
-  /** `revision` is null for a note never saved; `unsaved` marks a paper showing unsaved changes (ADR-061). */
+  /** `revision` is null for a note never saved; `unsaved` marks a paper showing unsaved changes (ADR-061); `blank` a paper with no text, title or attachment. */
   cards: { id: string; groupId: string; revision: string | null; summary: string; text: string; format: string;
     attachmentCount: number; attachments?: { id: string; name: string }[]; rect: Rect; layer: ResidentLayer; interactive: boolean; draggable: boolean;
     editing: boolean; selected: boolean; completed: boolean; mine: boolean; color: string;
     /** From 0.3 to 1: below 1 only for a paper resting on the Top layer, whose background then lets the work show through. */
-    opacity: number; unsaved?: boolean }[];
+    opacity: number; unsaved?: boolean; blank?: boolean }[];
   editor: DesktopEditor | null;
   dropTarget: { groupId: string; kind: 'label' | 'region' } | null;
   fallbacks: { cardId: string; requested: ResidentLayer; effective: ResidentLayer }[];
@@ -31,7 +31,7 @@ export interface DesktopCommand {
   method: 'pointer.down' | 'pointer.move' | 'pointer.up' | 'pointer.cancel' | 'card.select' | 'card.edit' | 'card.transfer'
     | 'editor.change' | 'editor.save' | 'editor.end' | 'editor.full' | 'interaction.escape' | 'interaction.shortcut'
     /** Discards the note's unsaved changes, returning it to its saved revision, and closes the quick edit (ADR-061). */
-    | 'editor.cancel'
+    | 'editor.cancel' | 'editor.delete'
     /** Adjust overlay controls: end adjust mode, or arrange the adjusted scope with args.kind stack, spread or undo. */
     | 'interaction.done' | 'layout.arrange' | 'attachment.preview' | 'attachment.open'
     /** Ticks checklist step args.task of a paper that takes clicks, drawn from note revision args.revision. */

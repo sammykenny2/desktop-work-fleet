@@ -1,5 +1,5 @@
 /** Desktop scene rendering regression with a synthetic host. Usage: node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT */
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { t } from '../../src/i18n/index.js';
@@ -33,7 +33,7 @@ await page.addInitScript(() => {
       attachments: Array.from({ length: 6 }, (_, n) => ({ id: `blob-${n}`, name: `file-${n}.pdf` })) }] : window.probeRich ? [{ ...paper('rich', 24, 'Rich content', '# Section 1\n## Section 2\n### Section 3\n#### Section 4\n##### Section 5\n###### Section 6\n\n```js\nconst message = \"hello\";\n```\n\n```unknown-language\n<script>never execute</script>\n```\n\n- [ ] read only\n\n<img src=x onerror=alert(1)>', '#fff6cc'), revision: window.probeFileRevision || 'r1', rect: { x: 24, y: 24, width: 520, height: 500 }, draggable: true, attachments: [{ id: 'blob-a', name: 'proof.pdf' }, { id: 'blob-b', name: 'photo.png' }] }] : [
       { ...paper('c1', 24, 'Quarterly report', `# Quarterly report\n\n- [x] Collect the numbers\n- [ ] Draw the charts\n- [${sequence > 1 ? 'x' : ' '}] Write the summary`, '#fff6cc'),
         interactive: !window.probeClickThrough },
-      { ...paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'), editing: Boolean(window.probeEditing) },
+      { ...paper('c2', 292, 'Buy milk, eggs and coffee beans', 'Buy milk, eggs and coffee beans', '#e7f2e7'), editing: Boolean(window.probeEditing), unsaved: Boolean(window.probeEditingUnsaved), ...window.probeEditingNew ? { revision: null, blank: window.probeEditingNew === 'blank', text: window.probeEditingText } : {} },
       { ...paper('c3', 560, sequence > 1 ? 'Dentist moved' : 'Dentist appointment', `# ${sequence > 1 ? 'Dentist moved' : 'Dentist appointment'}\n\nNext Tuesday at 14:30, bring the insurance card.`, '#e5edf8'), unsaved: true },
     ], editor: window.probeEditing ? { cardId: 'c2', draftId: 'd1', viewId: 'v1', text: 'Buy milk, eggs and coffee beans', sequence: 0 } : null,
     dropTarget: null, fallbacks: [], notice: null, quickMove: window.probeQuick || null });
@@ -60,7 +60,9 @@ await page.addInitScript(() => {
       if (command.method.startsWith('pointer.')) window.probePointer.push({ method: command.method, args: command.args });
       if (command.method === 'card.edit' || command.method.startsWith('editor.')) window.probeEditor.push({ method: command.method, args: command.args });
       if (command.method === 'card.check') window.probeChecks.push(command.args);
-      if (command.method === 'card.check' && window.probeRefuseCheck) send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: false, error: { code: 'desktop-expired', message: 'The note has changed.' } });
+      if (command.method === 'editor.change' && window.probeDraftFails) send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: false, error: { code: 'native-write', message: 'The disk is full.' } });
+      else if (command.method === 'editor.change') send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: true, result: { sequence: command.args.sequence } });
+      else if (command.method === 'card.check' && window.probeRefuseCheck) send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: false, error: { code: 'desktop-expired', message: 'The note has changed.' } });
       else send({ v: 1, event: 'desktop-command-result', commandId: command.id, ok: true, result });
     }
     if (message.method === 'scene.applied') window.probeApplied++;
@@ -281,15 +283,76 @@ try {
   // The editor's actions are icon buttons: each is named by its aria-label and shows only its icon.
   const editorButtons = page.locator('.card[data-card-id="c2"] .card-actions button');
   assert.deepEqual(await editorButtons.evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label'))),
-    [t('desktop.editor.retrySave'), t('desktop.editor.full'), t('desktop.editor.discard'), t('common.save')]);
+    [t('desktop.editor.trash'), t('desktop.editor.full'), t('common.cancel'), t('common.save')]);
   assert.deepEqual(await editorButtons.evaluateAll(nodes => nodes.map(node => node.textContent.trim() === '' && Boolean(node.querySelector('svg[aria-hidden="true"] path')))),
     [true, true, true, true], 'the editor buttons show icons instead of text');
   const downsBefore = (await quickState()).downs.length;
   await drag('.card[data-card-id="c2"] .card-summary', quickModifier);
   assert.equal((await quickState()).downs.length, downsBefore, 'the paper being edited does not move');
-  await page.locator('.card[data-card-id="c2"] .card-actions').getByRole('button', { name: t('desktop.editor.discard'), exact: true }).click();
+  // The web view's own menu stays away from the paper; the text being edited keeps its menu.
+  const menuAllowed = selector => page.locator(selector).evaluate(node => node.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  assert.equal(await menuAllowed('.card[data-card-id="c1"] .card-summary'), false, 'a paper shows no web view menu');
+  assert.equal(await menuAllowed('.card[data-card-id="c2"] textarea'), true, 'the text being edited keeps its menu');
+  const editorAction = name => page.locator('.card[data-card-id="c2"] .card-actions').getByRole('button', { name, exact: true });
+  const sent = method => page.evaluate(wanted => window.probeEditor.filter(entry => entry.method === wanted).length, method);
+  // Move to Trash is apart from the answer to the edit, and nothing to lose means one press.
+  const [trashBox, fullBox] = await Promise.all([editorAction(t('desktop.editor.trash')).boundingBox(), editorAction(t('desktop.editor.full')).boundingBox()]);
+  assert.ok(fullBox.x - (trashBox.x + trashBox.width) > 20, 'Move to Trash stands apart from the other actions');
+  await page.locator('.card[data-card-id="c2"]').screenshot({ path: 'build/scene-editor.png' });
+  await editorAction(t('common.cancel')).dblclick();
   await page.waitForFunction(() => window.probeEditor.some(entry => entry.method === 'editor.cancel'));
+  await page.waitForTimeout(100); assert.equal(await sent('editor.cancel'), 1, 'a double click is one command');
+  await page.waitForTimeout(450);
   assert.equal(await page.evaluate(() => window.probeEditor.find(entry => entry.method === 'editor.cancel').args.draftId), 'd1');
+  // With changes to lose, the first press only asks, on the paper; a fast double click is still one press.
+  await page.evaluate(() => { window.probeEditingUnsaved = true; window.probeNextFrame(); });
+  await page.waitForFunction(() => document.querySelector('.card[data-card-id="c2"]').classList.contains('unsaved'));
+  const draftState = page.locator('.card[data-card-id="c2"] .draft-state'); const kept = await draftState.textContent();
+  const cancels = await sent('editor.cancel'), trashes = await sent('editor.delete');
+  await editorAction(t('common.cancel')).evaluate(node => { node.click(); node.click(); });
+  await expect(editorAction(t('common.cancel'))).toHaveClass(/armed/); await expect(draftState).toHaveText(t('desktop.editor.confirmDiscard'));
+  await page.locator('.card[data-card-id="c2"]').screenshot({ path: 'build/scene-editor-asking.png' });
+  await page.waitForTimeout(100); assert.equal(await sent('editor.cancel'), cancels, 'the first press discards nothing');
+  // The question goes away by itself, and typing takes it back at once.
+  await expect(editorAction(t('common.cancel'))).not.toHaveClass(/armed/, { timeout: 6000 }); await expect(draftState).toHaveText(kept);
+  await editorAction(t('common.cancel')).click(); await expect(editorAction(t('common.cancel'))).toHaveClass(/armed/);
+  await page.waitForTimeout(450); const beforeTyping = await page.locator('.card[data-card-id="c2"] textarea').inputValue();
+  await page.keyboard.type('x y'); await expect(editorAction(t('common.cancel'))).not.toHaveClass(/armed/);
+  assert.equal(await page.locator('.card[data-card-id="c2"] textarea').inputValue(), `${beforeTyping}x y`, 'typing after the first press reaches the text');
+  assert.equal(await sent('editor.cancel'), cancels, 'a space typed after the first press does not answer it');
+  await page.waitForFunction(state => document.querySelector('.card[data-card-id="c2"] .draft-state').textContent === state, kept);
+  // A second press after a moment is the answer.
+  await editorAction(t('common.cancel')).click(); await page.waitForTimeout(450); await editorAction(t('common.cancel')).click();
+  await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'editor.cancel').length > count, cancels);
+  await editorAction(t('desktop.editor.trash')).click(); await expect(editorAction(t('desktop.editor.trash'))).toHaveClass(/armed/);
+  await expect(draftState).toHaveText(t('desktop.editor.confirmTrash')); assert.equal(await sent('editor.delete'), trashes);
+  await page.waitForTimeout(450); await editorAction(t('desktop.editor.trash')).click();
+  await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'editor.delete').length > count, trashes);
+  // A note never saved: empty closes at once, while a title or attachment counts as something to lose.
+  await page.evaluate(() => { window.probeEditingUnsaved = true; window.probeEditingNew = 'blank'; window.probeEditingText = document.querySelector('.card[data-card-id="c2"] textarea').value; window.probeNextFrame(); });
+  await page.waitForFunction(() => document.querySelector('.card[data-card-id="c2"]') && !document.querySelector('.card[data-card-id="c2"] .card-actions .leading'));
+  const blankCancels = await sent('editor.cancel');
+  await page.waitForTimeout(450); await editorAction(t('common.cancel')).click();
+  await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'editor.cancel').length > count, blankCancels);
+  await page.evaluate(() => { window.probeEditingNew = 'content'; window.probeNextFrame(); });
+  await page.waitForFunction(() => !document.querySelector('.card[data-card-id="c2"] .card-actions .armed'));
+  const contentCancels = await sent('editor.cancel'); await page.waitForTimeout(450);
+  await editorAction(t('common.cancel')).click(); await expect(editorAction(t('common.cancel'))).toHaveClass(/armed/);
+  assert.equal(await sent('editor.cancel'), contentCancels, 'a never-saved note with only a title or attachment still asks');
+  await page.waitForTimeout(450); await editorAction(t('common.cancel')).click();
+  await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'editor.cancel').length > count, contentCancels);
+  await page.evaluate(() => { window.probeEditingUnsaved = false; window.probeEditingNew = null; window.probeDraftFails = true; window.probeNextFrame(); });
+  await page.waitForFunction(() => document.querySelector('.card[data-card-id="c2"] .card-actions .leading'));
+  await page.waitForTimeout(450);
+  // Text that cannot be kept stays in the paper, the line says why, and typing or Save writes it again: no retry button.
+  const area = page.locator('.card[data-card-id="c2"] textarea'); await area.press('y'); const typed = await area.inputValue();
+  await expect(draftState).toHaveText('The disk is full.'); await expect(draftState).toHaveClass(/error/);
+  const saves = await sent('editor.save');
+  await editorAction(t('common.save')).click(); await expect(draftState).toHaveText('The disk is full.');
+  await page.waitForTimeout(450); assert.equal(await sent('editor.save'), saves, 'Save waits until the text is kept');
+  assert.equal(await area.inputValue(), typed, 'the text stays in the paper');
+  await page.evaluate(() => { window.probeDraftFails = false; }); await editorAction(t('common.save')).click();
+  await page.waitForFunction(count => window.probeEditor.filter(entry => entry.method === 'editor.save').length > count, saves);
   await page.evaluate(() => { window.probeEditing = false; window.probeQuick = null; window.probeNextFrame(); });
   const budgets = await page.evaluate(async () => {
     const { renderMarkdown } = await import('/app/markdown.js');

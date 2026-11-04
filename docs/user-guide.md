@@ -212,9 +212,11 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   ([SPEC-003](specs/003-desktop-cards-groups-and-formation.md#2026-10-24-addendum-quick-move)).
 - With the same switch on, hold Ctrl (⌘ on macOS) and double-click such a note to edit it in place: it rises to the Top
   layer, opaque, where it is, with no overlay, and the main window stays where it is. It continues the note's unsaved
-  changes. Below the text, the check mark (Save) saves the text, the trash can (Discard changes) returns the note to its
-  saved version, the outward arrows (Full editor) continue in the main window, and the circular arrow retries keeping
-  text that could not be kept. Esc keeps changed text unsaved and closes. Clicking another app leaves it open;
+  changes. Below the text, the check mark (Save) saves the text, the cross (Cancel) returns the note to its
+  saved version, the outward arrows (Full editor) continue in the main window, and the trash can at the left moves the
+  note to Trash. With unsaved changes, Cancel and the trash can ask first: the line under the text asks, and a second
+  press within a few seconds answers it. If text cannot be kept, the line says why, and typing or Save writes it
+  again. Esc keeps changed text unsaved and closes. Clicking another app leaves it open;
   double-clicking another note with the key closes it, keeping its changes, and opens that one. Entering adjust mode,
   a change of displays, the note leaving the desktop or turning the switch off also close it and keep changed text
   unsaved. While one note is open the others can still be moved

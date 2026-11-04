@@ -767,17 +767,22 @@ starts from the quick move key instead. This changes U17, U19, C18 and C20 above
 - **While editing.** The paper floats on the Top layer at its own position and size, opaque, and returns to its group's
   layer when editing ends, as an adjusted paper does (U18). No overlay appears and the main window stays where it is.
   The editor takes the keyboard where the host allows; on layer-shell desktops a click into the text may be needed
-  first. It continues the note's unsaved changes (ADR-061). Its actions are Save, Discard changes and Full editor,
-  besides retrying text that could not be kept. They are icon buttons (a check mark, a trash can, outward arrows and a
-  circular arrow) named for screen readers; they show no hover tooltip, because the
-  macOS scene receives no mouse movement (see the Apple README). The paper being edited does not
+  first. It continues the note's unsaved changes (ADR-061). Its actions are Move to Trash on the left, then Full editor,
+  Cancel and Save. They are icon buttons (a trash can, outward arrows, a cross and a check mark) named for screen readers;
+  they show no hover tooltip, because the
+  macOS scene receives no mouse movement (see the Apple README). Typed text is kept as it is written; text that could
+  not be kept stays in the paper, the line under it says why, and typing or Save writes it again. The paper being edited does not
   move; other papers keep their resting behaviour and can still be moved with the key. Clicking another app or the
   desktop does not end editing: the paper stays open on the Top layer until one of the ends below.
 - **End.**
   - Save commits the text as a new revision and closes.
-  - Discard changes drops the note's unsaved changes, so it shows its saved revision again, or removes a note never
-    saved, and closes; a toast offers to undo it (ADR-061/ADR-068). It replaced Cancel, which undid only
-    the changes since the quick edit began.
+  - Cancel drops the note's unsaved changes, so it shows its saved revision again, or removes a note never
+    saved, and closes; a toast offers to undo it (ADR-061/ADR-068). With no changes it only closes.
+  - Move to Trash deletes the note and closes; a toast offers to undo it. A note never saved does not offer it.
+  - With unsaved changes, Cancel and Move to Trash take a second press. The first turns the button red and asks on the
+    line under the text, and keeps everything as it was; typing, another action or about four seconds take the question
+    back, and a second press within 0.4 seconds does not count, so a fast double click is one press. The question stays on the paper because
+    a dialog in the main window would pull it over the desktop.
   - Esc, when the input method does not consume it, keeps changed text unsaved and closes (U23), as the main window's
     close does.
   - Full editor continues the unsaved changes in the main window's editor.
@@ -794,7 +799,7 @@ Acceptance cases:
 | C58 | Adjust mode on the desktop or the browser preview's Desktop canvas | Papers show no Edit or "⋯"; double click and Enter do not edit; a single click selects and raises |
 | C59 | The switch is off; hold the key and double-click a resting paper | No editing; the double click behaves as before |
 | C60 | The switch is on; hold the key and double-click a Desktop- or Top-layer paper | It floats opaque on the Top layer at the same position and size and opens for editing; no overlay, the main window does not move |
-| C61 | Type, then Discard changes | The note shows its saved revision with no dot, no unsaved changes are kept, and the paper is back on its layer (ADR-061) |
+| C61 | Type, then press Cancel twice | The first press asks and changes nothing; after the second the note shows its saved revision with no dot, no unsaved changes are kept, and the paper is back on its layer (ADR-061) |
 | C62 | Type, then Esc | The changed text is kept as unsaved changes, the paper shows it with a dot and is back on its layer; Save instead commits a new revision |
 | C63 | While editing, hold the key and double-click another paper | The first keeps its changed text unsaved and closes; the second opens |
 | C63b | While editing, hold the key and drag the edited paper, then another paper | The edited paper does not move; the other paper moves and editing goes on |

@@ -1,4 +1,4 @@
-import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue } from '../core/contracts.js';
+import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue, blankContent } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity } from '../layout/opacity.js';
@@ -45,7 +45,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       // Only a paper resting on the Top layer is see-through; one being adjusted or edited stays opaque.
       opacity: layer === 'floating' && !draggable && !editing ? groupOpacity(layout, card.groupId) : 1,
       // The snapshot is the working one: a paper showing unsaved changes carries a dot (ADR-061).
-      unsaved: card.unsaved === true });
+      unsaved: card.unsaved === true, blank: blankContent(card.content) });
   }
   const projectedEditor = editor && cards.find(card => card.id === editor.cardId && card.editing)
     ? { cardId: editor.cardId, draftId: editor.draftId, viewId: editor.viewId, text: editor.text, sequence: editor.sequence } : null;

@@ -37,6 +37,8 @@ button { font: inherit; font-size: 12px; border: 1px solid #00000020; border-rad
 button:focus-visible { outline: 2px solid #245f50; }
 /* The in-place editor's actions are icon buttons (scene.js iconButton). */
 .card-actions button { width: 28px; height: 24px; padding: 0; display: grid; place-items: center; }
+.card-actions .leading { margin-right: auto; }
+.card-actions .armed { background: #a42d25; border-color: #a42d25; color: #fff; }
 .card-actions svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .draft-state { font-size: 11px; min-height: 20px; padding-top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .draft-state.error { color: #a42d25; }

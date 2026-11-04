@@ -1281,6 +1281,12 @@ function initializeDesktop() {
       save: () => saveEditor(),
       end: () => closeEditor(),
       cancel: () => discardEditor(),
+      delete: async () => {
+        const { id: draftId, cardId } = currentDraft;
+        // A paper that was only opened leaves no changes behind to bring back. A refused delete, as for a note with
+        // unresolved versions, has already ended the edit and kept its text, so the paper must still hear that it ended.
+        try { await deleteCard(cardId); await workspace.discardUnneededDraft(draftId); } finally { render(); }
+      },
       full: async intent => {
         await flushDraft(); const { id: draftId, cardId } = currentDraft;
         if (!await controller.endEdit({ keepDraft: true })) throw new Error(t('app.errors.finishInput')); remoteEditor = null; currentDraft = null;

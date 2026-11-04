@@ -461,8 +461,9 @@ lost with a renderer. Add exact native commands only when their probes exist; un
 - `scene-probe`: adjusted papers carry no buttons and a double click or Enter on one sends no `card.edit`; with the key,
   a double click on a resting paper sends `card.edit` only after its release reached the owner, also at a human pace
   where the second press starts its own captured gesture (which failed before the paper was looked up under the
-  pointer), the editor shows icon buttons named (aria-label) Retry save, Full editor, Discard changes and Save with no
-  text, Discard changes sends `editor.cancel`, a paper with `unsaved` ends its title band with a dot and names it in its
+  pointer), the editor shows icon buttons named (aria-label) Move to Trash, Full editor, Cancel and Save with no
+  text, Cancel and Move to Trash send `editor.cancel` and `editor.delete` at once with nothing to lose and on a second press otherwise, typing takes that question back and reaches the text,
+  text that could not be kept stays with its reason until a later Save writes it, the paper shows no web view menu, a paper with `unsaved` ends its title band with a dot and names it in its
   accessible label, and a press with the key on the edited paper sends no
   quick move. `group-probe`, `browser-probe` and `revision-probe` check that adjusted papers open no editor and edit
   through the main window's editor. On 2026-10-24 these passed on macOS, `browser-probe` with its 390 px Capture-gap

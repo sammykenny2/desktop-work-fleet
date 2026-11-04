@@ -39,6 +39,7 @@ async function fixture(attachments, { check, residentLayers, liftQuickMove } = {
     save: async () => { await workspace.commitDraft(editor.draftId); await controller.endEdit(); editor = null; },
     end: async () => { await controller.endEdit(); editor = null; },
     cancel: async () => { const { cardId } = editor; editor = null; await workspace.discardChanges(cardId); await controller.endEdit(); },
+    delete: async () => { const { cardId } = editor; editor = null; await controller.endEdit({ keepDraft: true }); await workspace.updateCard(cardId, { deleted: true }, workspace.snapshot.cards.find(card => card.id === cardId).revision); await workspace.discardChanges(cardId); },
     full: async () => ({ draftId: editor.draftId }),
   } });
   authority.addView(view); authority.addView(foreign);
@@ -279,6 +280,27 @@ test('C58/C60/C61: card.edit opens only a resting paper, opaque on the Top layer
   const wallpaper = await fixture(undefined, { residentLayers: () => ['wallpaper'] });
   await wallpaper.workspace.layout.configure({ quickMove: true }, wallpaper.workspace.snapshot);
   await rejects(wallpaper.command('card.edit', { cardId: wallpaper.card.id }), 'outside-scope');
+});
+
+test('a quick edit moves its note to Trash, only for the edit session it names', async () => {
+  const f = await fixture(); await f.workspace.layout.configure({ quickMove: true }, f.workspace.snapshot);
+  await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
+  const draft = await f.command('card.edit', { cardId: f.card.id });
+  await f.command('editor.change', { draftId: draft.draftId, sequence: 1, text: 'typed, then trashed' });
+  await rejects(f.command('editor.delete', { draftId: crypto.randomUUID(), sequence: 1 }), 'desktop-editor');
+  assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.card.id).deleted, false);
+  await f.command('editor.delete', { draftId: draft.draftId, sequence: 1 });
+  assert.equal(f.editor(), null); assert.equal(f.workspace.snapshot.cards.find(c => c.id === f.card.id).deleted, true);
+  assert.equal(f.frame().cards.some(c => c.id === f.card.id), false, 'the paper leaves the desktop');
+});
+
+test('a frame counts a title as something to lose on a note never saved', async () => {
+  const f = await fixture();
+  assert.equal(f.frame().cards.find(c => c.id === f.card.id).blank, false);
+  const note = f.workspace.openDraft(f.b.id); note.content.title = 'Only a title'; await f.workspace.saveDraft(note);
+  await f.workspace.layout.placeNew(f.workspace.working, [area]);
+  const drawn = f.frame().cards.find(c => c.id === note.cardId);
+  assert.deepEqual([drawn.revision, drawn.text, drawn.blank], [null, '', false]);
 });
 
 test('ADR-061: frames dot papers with unsaved changes, a quick edit continues them, and notes never saved open and tick without a revision', async () => {

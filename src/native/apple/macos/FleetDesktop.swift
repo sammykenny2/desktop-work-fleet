@@ -199,7 +199,7 @@ import AppKit
             else { throw FleetFailure("scene-command", "The desktop command isn't valid.") }
             let id = try FleetProtocol.text(command, "id"), method = try FleetProtocol.text(command, "method"), requested = try FleetProtocol.number(args, "topology")
             try FleetProtocol.require(FleetProtocol.isUUID(id) && FleetProtocol.text(command, "sessionId") == session && FleetProtocol.number(command, "serial") > 0 && command["args"] is [String: Any], "scene-session", "The desktop command belongs to another session.")
-            let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "editor.cancel", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open"]
+            let allowed = ["pointer.down", "pointer.move", "pointer.up", "pointer.cancel", "card.select", "card.edit", "card.transfer", "card.check", "editor.change", "editor.save", "editor.end", "editor.full", "editor.cancel", "editor.delete", "interaction.escape", "interaction.shortcut", "interaction.done", "layout.arrange", "attachment.preview", "attachment.open"]
             try FleetProtocol.require(allowed.contains(method), "unsupported-method", "The desktop surface does not support this operation.")
             if method == "card.edit" { editRequested = ProcessInfo.processInfo.systemUptime }
             let draft = method == "editor.change"

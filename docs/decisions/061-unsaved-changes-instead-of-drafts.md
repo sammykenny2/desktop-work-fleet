@@ -48,8 +48,10 @@ this device, shown by a filled dot like VS Code's unsaved-file marker. There is 
     out, quitting) keep changed text as unsaved changes.
   - "Discard changes" returns the note to its saved revision, or removes a note that was never saved. The status
     line offers to undo it while the note has no newer unsaved changes. On the desktop it replaces the quick edit's
-    Cancel, drawn as a trash can: Cancel undid only the changes since the quick edit began, a third state between
-    saved and unsaved.
+    Cancel, which undid only the changes since the quick edit began, a third state between saved and unsaved.
+    2026-11-05: the maintainer found a trash can that does not delete wrong, and the quick edit needs a real one, so
+    Discard is drawn as a cross beside Save and named Cancel. A cross elsewhere can mean closing with the changes kept,
+    so with changes to lose it takes a second press (SPEC-003).
 - **Changes made elsewhere.** Saving is refused when the note's content changed elsewhere since the unsaved changes
   began. The editor then offers "Overwrite", which makes the unsaved changes the next revision of the note as it is
   now (the other revision stays in history), and "Save as a copy". When only flags or the group changed, the save

@@ -9,6 +9,22 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.6.0
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Cloud notes and Local notes now sit side by side in the sidebar with no switching, and notes and groups can be moved between them. Trash moves to the sidebar. Update every device.
+
+- Two sections: the sidebar shows Cloud notes while you are signed in and Local notes always, each with its own + and up to nine groups. There is no switching and nothing syncs between them. Signing out hides Cloud notes and keeps them on this device. Notes you already kept locally appear under Local notes.
+- Moves across sections: dragging a note or a group to the other section, or choosing one in "Move to", asks you to confirm first. A group move shows a blocking progress bar that you can stop; notes already moved stay where they went, and moving the group again continues into the same group. Each note moves whole or not at all, and a move cut short by a crash finishes or is dropped the next time the app opens. Only the current version and its attachments move, and notes with version conflicts or unsaved changes stay behind. The original goes to its section's Trash and says where it went. A move within a section works as before.
+- Desktop: "Group regions" in Settings > Desktop notes now chooses the group each region holds, from either section, and the sidebar order no longer decides it. There may be fewer regions than groups, and a group in no region stays off the desktop. A colour already taken falls to a free one.
+- Trash: Trash is now a row in the sidebar below Local notes, with note and list views sectioned by group. With both sections open it has the tabs All, Cloud notes and Local notes. "This group" and "All" are disabled while it is shown. Delete forever is now readable on board papers and fits on a phone's paper.
+- Search: search now covers every status in every group, whatever tab is selected, and each result names its group and status. It leaves Trash out and links to the matches there; inside Trash it searches only Trash.
+- Highlighting: any number of groups can highlight their notes, from each group's settings, replacing the single My group in Settings. A highlighted group's star replaces its dot in the sidebar, and phones have it too. An earlier My group choice is not carried over.
+- Restore: a backup sharing nothing with its target now takes new ids, unless the target is a cloud collection and the backup has synced. Restoring the same backup again reuses them.
+- Known limits: Trash grows with every move across sections, and a note moved out of Cloud notes stays on Google Drive until Trash is emptied. A new note's editor only offers groups in its own section. When the account's own notes cannot open, the recovery page comes first and offers to sign out, so Local notes are not reachable until you do. A second cloud device restoring the same backup, or two of your own backups taken either side of a restore and merged on a new device, can double notes. Two simultaneous moves of one note make two copies, and a copy trashed during a move leaves both in Trash.
+- Compatibility and verification: update every device. 0.5.13 and earlier refuse backups from a fresh profile, and show a fully moved group as an empty group that counts toward the limit. The backup format is unchanged and no reset or migration is required; moved notes and groups carry new fields that earlier versions keep but ignore. Shared tests, Chromium and WebKit renderer probes and CI pass, and independent reviews covered the change, with one small last fix checked only by rerunning the reviewer's scripts. Two sections and moves have not been run on a native host; real Drive behavior and installed-app acceptance remain unverified.
+
 ## 0.5.13
 
 Platforms: Windows, Linux, macOS, Android.

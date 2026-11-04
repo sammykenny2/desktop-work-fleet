@@ -31,6 +31,33 @@ async function open(ids = ['google:primary', 'local', 'local:second'], { storage
   return { combined, profiles, group, storage };
 }
 
+test('ids two collections hold are found, whenever they arrive', async () => {
+  const { combined, profiles, group } = await open();
+  const note = await combined.createCard(content('one'), group[1].id);
+  assert.deepEqual(combined.sharedIds(), []);
+  await profiles[0].workspace.adoptCard({ id: note.id, groupId: group[0].id, content: content('the same id, from a sync'), archived: false, completed: false });
+  assert.deepEqual(combined.sharedIds(), [note.id]);
+  await profiles[2].workspace.adoptGroup({ id: group[0].id, name: 'The same group id' });
+  assert.deepEqual(combined.sharedIds().sort(), [note.id, group[0].id].sort());
+});
+
+test('text being written stays with its collection when another comes to share its ids', async () => {
+  const { combined, profiles, group } = await open();
+  const note = await combined.createCard(content('local'), group[1].id);
+  const open_ = combined.openDraft(group[1].id, note);
+  await profiles[0].workspace.adoptCard({ id: note.id, groupId: group[0].id, content: content('the same id, from a sync'), archived: false, completed: false });
+  open_.content.text = 'typed before its first save'; await combined.saveDraft(open_);
+  assert.equal(profiles[1].workspace.unsavedChanges(note.id).content.text, 'typed before its first save');
+  assert.equal(profiles[0].workspace.unsavedChanges(note.id), null);
+  open_.content.text = 'typed after it'; await combined.saveDraft(open_);
+  assert.equal(profiles[1].workspace.unsavedChanges(note.id).content.text, 'typed after it');
+  assert.equal(profiles[0].workspace.unsavedChanges(note.id), null);
+  const fresh = combined.openDraft(group[1].id);
+  await profiles[0].workspace.adoptGroup({ id: group[1].id, name: 'The same group id' });
+  fresh.content.text = 'a new note'; await combined.saveDraft(fresh);
+  assert.ok(profiles[1].workspace.holdsDraft(fresh.id)); assert.ok(!profiles[0].workspace.holdsDraft(fresh.id));
+});
+
 test('reads merge every profile, and a write reaches only the profile that holds it', async () => {
   const { combined, profiles, group } = await open();
   assert.deepEqual(activeGroups(combined.snapshot).map(item => item.name), ['Group 0', 'Group 1', 'Group 2']);

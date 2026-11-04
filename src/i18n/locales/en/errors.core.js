@@ -85,6 +85,7 @@ export default {
   'errors.core.move.trashed': 'This note is in Trash. Restore it first.',
   'errors.core.move.both': 'This note changed while it was moving, so it stays where it is. The copy made from the earlier version is in {group}.',
   'errors.core.move.changed': 'This note changed just now, so it stays where it is. Try moving it again.',
+  'errors.core.move.copyGone': 'Its copy was deleted while it was moving, so this note stays where it is. You can move it again.',
   'errors.core.move.conflict': 'This note has a version conflict. Resolve it in Versions and conflicts first.',
   'errors.core.move.attachment': "The attachment {name} isn't on this device yet, so the note can't move. Sync and try again.",
   'errors.core.otherCollection': 'That group is in the other section, so moving there needs a confirmation.',

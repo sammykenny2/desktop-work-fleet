@@ -370,9 +370,9 @@ async function openCompanion(id, backLayer) {
     const saved = await own.load(id); const persist = (...args) => own.save(...args);
     const opened = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId: id, deviceId: crypto.randomUUID(), area: screenArea(), persist,
       current: true, bootstrapGroup: false, arrivalLayer: backLayer });
-    const held = new Set([...primary.state.cards, ...primary.state.groups].map(item => item.id));
+    const held = new Set([primary, ...companions.map(item => item.workspace)].flatMap(item => [...item.ownIds()]));
     // Only one backup restored into two collections with its ids kept can do this; routing by id could not tell them apart.
-    if ([...opened.state.cards, ...opened.state.groups].some(item => held.has(item.id))) throw new FleetError('shared-ids', t('app.sections.sharedIds'));
+    if ([...opened.ownIds()].some(id => held.has(id))) throw new FleetError('shared-ids', t('app.sections.sharedIds'));
     const history = new DatasetHistory({ workspace: opened, storage: own, fileStore: () => null });
     opened.setHistory(history); own.setAttachmentLoader(attachment => history.attachment(attachment)); opened.setArrivalLayer(backLayer);
     companions.push({ id, workspace: opened, storage: own, purge: new DatasetPurge({ workspace: opened, storage: own, fileStore: () => null }),
@@ -706,6 +706,13 @@ function landSync(receive) {
   const land = async () => {
     const received = await receive();
     if (nativeClosing || accountBusy) return received;
+    // The start checked for this, but such ids can arrive later, from another device. Routing by id would now write to the wrong
+    // collection, so the page reopens at once, and that check sets the later collection aside with its explanation.
+    if (workspace.sharedIds().length) {
+      document.documentElement.inert = true;
+      await flushDraft().catch(error => status(error.message, true)); location.reload();
+      return received;
+    }
     // The data is stored by now. Failing to show it must not stop uploads, and the next pass lands again to retry.
     try {
       activeGroupId = activeGroups(workspace.snapshot).some(group => group.id === activeGroupId) ? activeGroupId : rememberedGroup();
@@ -2018,10 +2025,11 @@ function confirmAction(title, text, label) {
 async function moveNoteToGroup(id, groupId) {
   if (workspace.ownerOfGroup(groupId) !== workspace.ownerOfCard(id)) return askMoveNote(id, groupId);
   const from = currentCard(id).groupId; const nameOf = groupId => groupName(activeGroups(workspace.snapshot).find(group => group.id === groupId));
-  await controller.moveToGroup(id, groupId); await controller.reconcile(); render();
+  // A note from a group off the desktop has no place yet, and needs one if this group is on it.
+  await controller.moveToGroup(id, groupId); await settleMoved();
   status(t('app.status.movedTo', { group: nameOf(groupId) }), false, { label: t('app.status.undoMove'), run: async () => {
     if (currentCard(id)?.groupId !== groupId) throw new FleetError('conflict', t('app.status.moveUndoStale'));
-    await controller.moveToGroup(id, from); await controller.reconcile(); render(); status(t('app.status.undone'));
+    await controller.moveToGroup(id, from); await settleMoved(); status(t('app.status.undone'));
   } });
 }
 
@@ -2377,7 +2385,8 @@ function cardDetails(card, { edit = false } = {}) {
     button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
       // A group in another section needs its own confirmation, so the rest of this dialog waits for another time.
       if (select.value !== card.groupId && workspace.ownerOfGroup(select.value) !== workspace.ownerOfCard(card.id)) { dialog.close(); await askMoveNote(card.id, select.value); return; }
-      if (select.value !== card.groupId) await controller.moveToGroup(card.id, select.value);
+      // A note from a group off the desktop has no place yet, and needs one if this group is on it.
+      if (select.value !== card.groupId) { await controller.moveToGroup(card.id, select.value); await workspace.layout.placeNew(workspace.working, workAreas()); }
       // A note whose group is off the desktop has no place yet, so it has no display setting to change.
       if (!handheld && workspace.layout.state.placements[card.id]) await workspace.layout.setCardPolicy(card.id, { visible: check.checked });
       await controller.reconcile(); dialog.close(); render(); status(t('app.status.savedLocally'));

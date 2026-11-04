@@ -89,13 +89,25 @@ async function importData(data, fresh, checkpoint, selected = null, reuse = null
 /**
  * The new ids earlier restores gave this collection, so that restoring from the same source again merges into those notes.
  * They count in the order they happened, for a note purged under one new id takes another. An import makes a copy of its
- * own, and the ids of two copies cannot be mixed: merges and replacements lead, or failing those the last import.
+ * own, and the ids of two copies of one source cannot be mixed: merges and replacements lead, or failing those the last
+ * import of that source. Receipts name no source, but copies of one source share original ids, and a merge that kept them
+ * leaves them in this collection. An import with no note left alive no longer stands for its source: a replacement retired it,
+ * or the user trashed it, and a later merge should not land in Trash.
  */
 function renewedIds(state) {
   const result = { card: {}, group: {}, revision: {}, draft: {} };
   const receipts = Object.values(state.restoreReceipts || {}).sort((a, b) => a.committedRevision - b.committedRevision);
+  const add = mappings => { for (const kind of Object.keys(result)) Object.assign(result[kind], mappings?.[kind]); };
   const kept = receipts.filter(receipt => receipt.mode !== 'import');
-  for (const { mappings } of kept.length ? kept : receipts.slice(-1)) for (const kind of Object.keys(result)) Object.assign(result[kind], mappings?.[kind]);
+  for (const { mappings } of kept) add(mappings);
+  const alive = new Set(state.cards.filter(card => !card.deleted).map(card => card.id));
+  const covered = new Set([...state.cards, ...state.groups].map(item => item.id));
+  for (const id of [...Object.keys(result.card), ...Object.keys(result.group)]) covered.add(id);
+  for (const { mappings } of receipts.filter(receipt => receipt.mode === 'import').reverse()) {
+    const from = [...Object.keys(mappings?.card ?? {}), ...Object.keys(mappings?.group ?? {})];
+    if (from.some(id => covered.has(id)) || !Object.values(mappings?.card ?? {}).some(id => alive.has(id))) continue;
+    add(mappings); for (const id of from) covered.add(id);
+  }
   return result;
 }
 

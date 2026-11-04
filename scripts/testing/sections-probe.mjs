@@ -130,6 +130,27 @@ try {
   await expect(section(cloud).locator('.group-name')).toHaveText(['Plans', 'Work']);
   // A note made while its group is off the desktop takes its place when the group gets a region again.
   await row('Work').locator('button').first().click(); await capture('Made off the desktop');
+  // A note moved from a group off the desktop to one on it takes a place at once, from "More actions" and from a drop on the sidebar.
+  const placed = async text => {
+    const state = await read(cloud); const card = state.cards.find(item => item.content.text === text);
+    return Boolean(state.layout.placements[card.id]);
+  };
+  await capture('Moved by its details'); assert.equal(await placed('Moved by its details'), false, 'a note in a group off the desktop has no place');
+  await note('Moved by its details').hover(); await note('Moved by its details').getByRole('button', { name: t('app.notes.more'), exact: true }).click();
+  const plansId = (await read(cloud)).groups.find(group => group.name === 'Plans').id;
+  await page.locator('dialog[open] select').selectOption(plansId);
+  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.apply'), exact: true }).click(); await expect(page.locator('dialog[open]')).toHaveCount(0);
+  await expect.poll(() => placed('Moved by its details')).toBe(true);
+  await row('Work').locator('button').first().click(); await capture('Moved by a drop'); assert.equal(await placed('Moved by a drop'), false);
+  const dragged = await note('Moved by a drop').boundingBox(); const drop = await row('Plans').boundingBox();
+  await page.mouse.move(dragged.x + dragged.width / 2, dragged.y + dragged.height / 2); await page.mouse.down();
+  await page.mouse.move(dragged.x + dragged.width / 2 - 30, dragged.y + dragged.height / 2, { steps: 4 });
+  await page.mouse.move(drop.x + drop.width / 2, drop.y + drop.height / 2, { steps: 8 }); await page.mouse.up();
+  await expect(page.locator('#status')).toHaveText(t('app.status.movedTo', { group: 'Plans' }));
+  await expect.poll(() => placed('Moved by a drop')).toBe(true);
+  await row('Plans').locator('button').first().click(); await page.locator('[data-view="desktop"]').click();
+  for (const text of ['Moved by its details', 'Moved by a drop']) await expect(page.locator('#stage .card', { hasText: text })).toBeVisible();
+  await page.locator('[data-view="board"]').click(); await row('Work').locator('button').first().click();
   await page.locator('#settings-button').click(); await page.locator('[data-page="desktop"]').click();
   await region(held).selectOption(workId); await page.locator('#close-settings').click();
   await page.locator('[data-view="desktop"]').click();

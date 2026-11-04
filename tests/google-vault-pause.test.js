@@ -112,7 +112,7 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     setSync: (...args) => states.push(args), renderAccount() {},
     stopCompanionBackups() {}, startCompanionBackups() {}, companionBackupsIdle: async () => {}, companions: [],
     flushDraft: async () => calls.push('flush'),
-    workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingCount: 0, layout: { placeNew: async () => {}, takeArrivedOffDesktop: () => [] },
+    workspace: { snapshot: { groups: [{ id: 'group' }] }, pendingCount: 0, sharedIds: () => [], layout: { placeNew: async () => {}, takeArrivedOffDesktop: () => [] },
       syncState: { lastSuccessfulSyncAt: '2026-11-03T01:00:00.000Z' } },
     activeGroups: snapshot => snapshot.groups, activeGroupId: 'group',
     controller: { reconcile: async () => {} }, workAreas: () => [], render() {},

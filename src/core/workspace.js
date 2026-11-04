@@ -188,6 +188,8 @@ export class Workspace {
   // CombinedWorkspace routes a write to the profile holding it (ADR-066), without copying any state to find out.
   holdsCard(id) { return this.#state.cards.some(card => card.id === id) || Object.values(this.#state.drafts).some(draft => draft.cardId === id); }
   holdsGroup(id) { return this.#state.groups.some(group => group.id === id); }
+  /** Every note and group id in this collection, Trash and retired groups too. */
+  * ownIds() { for (const item of [...this.#state.cards, ...this.#state.groups]) yield item.id; }
   holdsDraft(id) { return Object.hasOwn(this.#state.drafts, id); }
   activeGroupList() { return copy(activeGroups(this.#state)); }
   cardValue(id) { const card = this.#state.cards.find(item => item.id === id); return card ? copy(card) : null; }

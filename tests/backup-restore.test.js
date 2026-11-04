@@ -413,6 +413,62 @@ test('a collection\'s own backup keeps its ids, for it shares something with its
   assert.deepEqual(local.workspace.snapshot.cards.filter(card => card.content.text === 'mine').map(card => card.id), [note.id]);
 });
 
+test('an import of one source and a merge of another each keep their own ids, so a later merge of either is not doubled', async () => {
+  const sourceOf = async name => { const f = await fixture(null, new Map(), `google:${name}`); await f.workspace.createCard(text(`${name} one`)); return f; };
+  const a = await sourceOf('a'); const b = await sourceOf('b');
+  const documentA = await a.export(); const documentB = await b.export();
+  await b.workspace.createCard(text('b two')); const newerB = await b.export();
+  const local = await fixture(null, new Map(), 'local');
+  const restore = async (document, mode) => {
+    const plan = await prepareRestore({ workspace: local.workspace, document, mode, workAreas: [area], foreignIds: new Set() });
+    await local.workspace.applyRestore(plan, { persist: local.atomic });
+  };
+  await restore(documentA, 'merge'); await restore(documentB, 'import'); await restore(newerB, 'merge');
+  const texts = () => local.workspace.snapshot.cards.filter(card => !card.deleted).map(card => card.content.text).sort();
+  assert.deepEqual(texts(), ['a one', 'b one', 'b two'], 'the merge of the newer B lands on the imported copy of B');
+});
+
+test('two imports of one source and a later merge use the last copy, and an import before a replacement stands for nothing', async () => {
+  const b = await fixture(null, new Map(), 'google:b'); await b.workspace.createCard(text('b one'));
+  const older = await b.export(); await b.workspace.createCard(text('b two')); const newer = await b.export();
+  await b.workspace.createCard(text('b three')); const newest = await b.export();
+  const local = await fixture(null, new Map(), 'local');
+  const restore = async (workspaceOf, document, mode, options = {}) => {
+    const plan = await prepareRestore({ workspace: workspaceOf.workspace, document, mode, workAreas: [area], foreignIds: new Set(), ...options });
+    await workspaceOf.workspace.applyRestore(plan, { persist: workspaceOf.atomic, ...options.apply });
+  };
+  await restore(local, older, 'import'); await restore(local, newer, 'import');
+  const live = f => f.workspace.snapshot.cards.filter(card => !card.deleted).map(card => card.content.text).sort();
+  assert.deepEqual(live(local), ['b one', 'b one', 'b two'], 'each import is a copy of its own');
+  await restore(local, newest, 'merge');
+  assert.deepEqual(live(local), ['b one', 'b one', 'b three', 'b two'], 'only the last copy gains the new note');
+
+  const replaced = await fixture(null, new Map(), 'local'); await restore(replaced, older, 'import');
+  const a = await fixture(null, new Map(), 'google:a'); await a.workspace.createCard(text('a one')); const documentA = await a.export();
+  const plan = await prepareRestore({ workspace: replaced.workspace, document: documentA, mode: 'replace', layout: 'backup', workAreas: [area], foreignIds: new Set() });
+  const safetyBackup = await saveSafetyBackup({ workspace: replaced.workspace, storage: replaced.storage, save: async () => ({ saved: true, receipt: 'verified-test-file' }) });
+  await replaced.workspace.applyRestore(plan, { persist: replaced.atomic, safetyBackup });
+  assert.deepEqual(live(replaced), ['a one']);
+  await restore(replaced, newer, 'merge');
+  assert.deepEqual(live(replaced), ['a one', 'b one', 'b two'], 'the retired copy is not brought back by a merge');
+  assert.equal(replaced.workspace.state.conflicts.length, 0);
+});
+
+test('an import still stands after a replacement with a backup that holds its copy', async () => {
+  const b = await fixture(null, new Map(), 'google:b'); await b.workspace.createCard(text('b one'));
+  const older = await b.export(); await b.workspace.createCard(text('b two')); const newer = await b.export();
+  const local = await fixture(null, new Map(), 'local');
+  const plan = await prepareRestore({ workspace: local.workspace, document: older, mode: 'import', workAreas: [area], foreignIds: new Set() });
+  await local.workspace.applyRestore(plan, { persist: local.atomic });
+  const own = await local.export();
+  const replace = await prepareRestore({ workspace: local.workspace, document: own, mode: 'replace', layout: 'backup', workAreas: [area], foreignIds: new Set() });
+  const safetyBackup = await saveSafetyBackup({ workspace: local.workspace, storage: local.storage, save: async () => ({ saved: true, receipt: 'verified-test-file' }) });
+  await local.workspace.applyRestore(replace, { persist: local.atomic, safetyBackup });
+  const merge = await prepareRestore({ workspace: local.workspace, document: newer, mode: 'merge', workAreas: [area], foreignIds: new Set() });
+  await local.workspace.applyRestore(merge, { persist: local.atomic });
+  assert.deepEqual(local.workspace.snapshot.cards.filter(card => !card.deleted).map(card => card.content.text).sort(), ['b one', 'b two']);
+});
+
 test('a cloud collection keeps the ids of a backup that has synced, and renews those of one that never did', async () => {
   const local = await fixture(null, new Map(), 'local'); const fromLocal = await local.workspace.createCard(text('never synced'));
   const synced = await fixture(null, new Map(), 'google:account'); const fromCloud = await synced.workspace.createCard(text('synced'));

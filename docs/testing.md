@@ -893,6 +893,7 @@ node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/handheld-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/handheld-highlight-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-delete-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/shared-ids-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 The browser, group, revision, backup, restore UI, cloud restore UI, local backup UI, automatic backup and scene probes
@@ -912,6 +913,10 @@ It writes the first note, deletes groups down to none with their counts in the q
 and with no group left, and repeats with two sections, where a group in one leaves the other empty, and on a phone-sized page,
 where every button of the group dialog fits. `tests/group-delete.test.js` covers the same rules in the core for both sections,
 with a failed write, unsaved changes, conflicts, a stopped move and two devices over sync.
+
+`shared-ids-probe` gives the renderer a synthetic host with an account and Local notes, and a synthetic Drive that delivers a note
+with the id of a local note. The page must reopen once with Local notes set aside and explained, and deleting the account's
+note must leave the local one stored as it was. It does not run a native host or real Drive.
 
 `handheld-highlight-probe` needs no native build: a synthetic host says Linux, then Android (Chromium) or iOS (WebKit),
 over the same stored notes. A highlight set on the computer shows no checkbox, star or edge on the phone, stays stored

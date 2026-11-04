@@ -80,6 +80,35 @@ test('unsaved changes and version conflicts refuse a note before anything change
   assert.equal(f.local.workspace.cardValue(note.id).deleted, false);
 });
 
+test('a copy deleted while the note moves leaves the original alive, and the move says so', async () => {
+  const f = await open();
+  const note = await f.combined.createCard(content('keep me'), f.groups['google:cloud'].id);
+  const syncDeletes = new CrossMove(f.combined, { step: async name => {
+    if (name !== 'placed') return;
+    const copy = live(f.local)[0]; await f.local.workspace.updateCard(copy.id, { deleted: true }, copy.revision);
+  } });
+  await assert.rejects(syncDeletes.moveNote(note.id, f.groups.local.id), { code: 'move-copy-gone' });
+  assert.deepEqual(live(f.cloud).map(card => card.id), [note.id], 'the original stays alive');
+  assert.equal(f.cloud.workspace.cardValue(note.id).movedTo, undefined);
+  assert.deepEqual(await jobsOf(f.cloud), []);
+  // It can simply move again.
+  const moved = await f.move.moveNote(note.id, f.groups.local.id);
+  assert.deepEqual(live(f.local).map(card => card.id), [moved.id]); assert.deepEqual(live(f.cloud), []);
+});
+
+test('a crash just after the copy is deleted also leaves the original alive at the next start', async () => {
+  const f = await open();
+  const note = await f.combined.createCard(content('keep me'), f.groups['google:cloud'].id);
+  const failing = new CrossMove(f.combined, { step: async name => {
+    if (name !== 'placed') return;
+    const copy = live(f.local)[0]; await f.local.workspace.updateCard(copy.id, { deleted: true }, copy.revision);
+    throw new Error('crash');
+  } });
+  await assert.rejects(failing.moveNote(note.id, f.groups.local.id), /crash/);
+  await f.move.resume();
+  assert.deepEqual(live(f.cloud).map(card => card.id), [note.id]); assert.deepEqual(await jobsOf(f.cloud), []);
+});
+
 test('a crash after any step of a note finishes on the next start, with one copy and nothing half moved', async () => {
   for (const crash of ['journal', 'attachments', 'created', 'placed', 'trashed']) {
     const f = await open();

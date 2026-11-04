@@ -197,6 +197,7 @@ class CombinedLayout {
  */
 export class CombinedWorkspace {
   #profiles; #layout;
+  #draftOwners = new Map();
   /**
    * `profiles` is `[{ id, workspace, storage }]` with the primary first. The desk is kept in every open profile, so that
    * resetting one collection's data leaves this computer's regions, shortcuts and colours; the local copy leads because
@@ -237,11 +238,22 @@ export class CombinedWorkspace {
     if (!profile) throw new FleetError(code, message());
     return profile;
   }
+  /** Ids more than one open collection holds. Routing by id cannot tell these apart, so nothing should write while any exist. */
+  sharedIds() {
+    const seen = new Set(); const shared = new Set();
+    for (const { workspace } of this.#profiles) {
+      const own = new Set(workspace.ownIds());
+      for (const id of own) if (seen.has(id)) shared.add(id);
+      for (const id of own) seen.add(id);
+    }
+    return [...shared];
+  }
   ownerOfCard(id) { return this.#find(({ workspace }) => workspace.holdsCard(id), 'missing-card', () => t('errors.common.noteMissing')); }
   ownerOfGroup(id) { return this.#find(({ workspace }) => workspace.holdsGroup(id), 'missing-group', () => t('errors.common.groupMissing')); }
+  // The collection that holds or opened a draft keeps it: ids another collection has come to share must not redirect its text.
   #ownerOfDraft(draft) {
-    return this.#find(({ workspace }) => workspace.holdsDraft(draft.id) || workspace.holdsCard(draft.cardId) || workspace.holdsGroup(draft.groupId),
-      'missing-group', () => t('errors.common.groupMissing'));
+    return this.#profiles.find(({ workspace }) => workspace.holdsDraft(draft.id)) ?? this.#draftOwners.get(draft.id)
+      ?? this.#find(({ workspace }) => workspace.holdsCard(draft.cardId) || workspace.holdsGroup(draft.groupId), 'missing-group', () => t('errors.common.groupMissing'));
   }
   #entity(kind, id) { return kind === 'group' ? this.ownerOfGroup(id) : this.ownerOfCard(id); }
 
@@ -278,7 +290,12 @@ export class CombinedWorkspace {
   revisionHeads(kind, id) { return this.#entity(kind, id).workspace.revisionHeads(kind, id); }
   unsavedChanges(cardId) { return this.#profiles.find(({ workspace }) => workspace.holdsCard(cardId))?.workspace.unsavedChanges(cardId) ?? null; }
   discardChanges(cardId) { return this.ownerOfCard(cardId).workspace.discardChanges(cardId); }
-  openDraft(groupId, card = null) { return (card ? this.ownerOfCard(card.id) : this.ownerOfGroup(groupId)).workspace.openDraft(groupId, card); }
+  openDraft(groupId, card = null) {
+    const owner = card ? this.ownerOfCard(card.id) : this.ownerOfGroup(groupId);
+    const draft = owner.workspace.openDraft(groupId, card);
+    this.#draftOwners.set(draft.id, owner);
+    return draft;
+  }
   saveDraft(draft) { return this.#ownerOfDraft(draft).workspace.saveDraft(draft); }
   commitDraft(draftId, options) { return this.#find(({ workspace }) => workspace.holdsDraft(draftId), 'missing-card', () => t('errors.common.noteMissing')).workspace.commitDraft(draftId, options); }
   discardUnneededDraft(draftId) { return (this.#profiles.find(({ workspace }) => workspace.holdsDraft(draftId)) ?? this.#profiles[0]).workspace.discardUnneededDraft(draftId); }

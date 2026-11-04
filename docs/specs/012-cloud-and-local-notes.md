@@ -82,8 +82,8 @@ covers everything except Trash. Decisions and alternatives are in
   move interrupted by a crash finishes on the next start, without duplicating the note. Status, content, attachments, desktop
   position and creation time move with it. A move into a collection that is not open waits until it opens; a note that
   changes before its copy exists stays where it is, and one that changes after keeps both, and says so. A note with unsaved
-  changes, or whose copy was trashed or purged meanwhile, keeps its original too. A move that was refused has nothing left
-  to finish later.
+  changes, or whose copy was trashed or purged meanwhile, keeps its original too, and a move under way says so. A move that was
+  refused has nothing left to finish later.
 - FR15: Notes with a version conflict or unsaved changes do not move; the result lists how many stayed. A note with an
   attachment that is not on this device and cannot be fetched stays and is reported the same way. A single such note is
   refused with the reason before anything changes.
@@ -133,10 +133,13 @@ covers everything except Trash. Decisions and alternatives are in
 
 - FR33: A collection that cannot open shows as unavailable in its section with its recovery options. The other works normally.
   When it is the signed-in account's own, the recovery page comes first and also offers to sign out, which opens Local notes.
-- FR34: Two collections sharing note or group ids count as FR33 for the second one. A restore never creates such a pair: a
-  backup sharing nothing with its target came from elsewhere, so its notes and groups take new ids. Only a cloud collection's
-  own synced backup may be new to its target and keep its ids. Restoring from the same source again merges into the notes the
-  earlier restore made.
+- FR34: Two collections sharing note or group ids count as FR33 for the second one. Such ids can also arrive later, by a sync
+  from another device; the page then reopens at once, so that nothing is written to the wrong collection. A restore never
+  creates such a pair: a backup sharing nothing with its target came from elsewhere, so its notes and groups take new ids. Only a
+  cloud collection's own synced backup may be new to its target and keep its ids. Restoring from the same source again merges
+  into the notes the earlier restore made, and each source counts on its own: merges and replacements of a source lead, or failing
+  those its last import with a note still alive. Replacing all of a collection's local data starts this record over, so a source
+  restored before that counts as new.
 - FR35: Backups stay per collection and keep their format. Manual export asks which collection; automatic backups run for each;
   a restore asks for its target. The desk is not part of a backup.
 - FR36: "Reset all data" names the collection it resets. A reset of Local notes does not touch cloud notes, and the reverse.

@@ -59,8 +59,10 @@ export class CrossMove {
     await this.#step('journal');
     const moved = await this.#finishOrClear(source, target, job, bytes);
     if (source.workspace.cardValue(cardId)?.movedTo?.id === job.newCardId) return moved;
-    // Only an original still in Trash with this mark has moved. Otherwise it changed in time to stay.
+    // Only an original still in Trash with this mark has moved. Otherwise it changed in time to stay, or its copy went first.
     if (!moved) throw new FleetError('move-changed', t('errors.core.move.changed'));
+    const copyNow = target.workspace.cardValue(moved.id);
+    if (!copyNow || copyNow.deleted) throw new FleetError('move-copy-gone', t('errors.core.move.copyGone'));
     throw new FleetError('move-both', t('errors.core.move.both', { group: this.#groupName(target, moved.groupId) }));
   }
 
@@ -121,9 +123,10 @@ export class CrossMove {
     await this.#step('placed');
     // Read again, for a sync can land between these steps. An original changed after the copy was made stays, and both exist
     // rather than losing the change; so does an unsettled one, whose unsaved changes or other version would end up on a note in
-    // Trash, and which could not be trashed anyway while in conflict.
-    const current = source.workspace.cardValue(job.cardId);
-    if (current?.revision === job.revision && !current.deleted && !this.#unsettled(source, job.cardId)) {
+    // Trash, and which could not be trashed anyway while in conflict. A copy deleted meanwhile leaves the original too, or
+    // the note would be alive nowhere.
+    const current = source.workspace.cardValue(job.cardId); const copyNow = target.workspace.cardValue(job.newCardId);
+    if (copyNow && !copyNow.deleted && current?.revision === job.revision && !current.deleted && !this.#unsettled(source, job.cardId)) {
       await source.workspace.updateCard(job.cardId, { deleted: true, movedTo: { id: job.newCardId, section: sectionKind(target.id), group: this.#groupName(target, moved.groupId) } }, job.revision);
     }
     await this.#step('trashed');

@@ -22,7 +22,7 @@ async function fixture(profileId, account, state = {}, jobs = {}) {
   const context = vm.createContext({
     profileId, googleAccount: null, syncTimer: null, syncService: null, t, textOf,
     native: { info: { profileId }, bridge: { request: async method => { assert.equal(method, 'google.status'); return account; } } },
-    workspace: { state }, storage: { getJob: async key => jobs[key] ?? null, putJob: async (key, value) => { jobs[key] = value; } }, sourceResetAsked: true,
+    workspace: { state }, primary: { state }, storage: { getJob: async key => jobs[key] ?? null, putJob: async (key, value) => { jobs[key] = value; } }, sourceResetAsked: true,
     datasetStore: null, pendingReset: null, datasetProblem: null, maintenancePaused: false, scheduleMaintenance() {}, stopAutomatic: null, automatic: { service: { clearSettings: async () => {} } },
     maintenanceNotice: null, maintenanceFailure: null, maintenanceWork: null, nativeClosing: false,
     $, setText: (id, text) => { $(id).textContent = textOf(text); },

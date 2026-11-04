@@ -59,7 +59,7 @@ public sealed partial class LocalDatabase
   }
   public byte[] ReadEntryPage(JsonElement query)
   {
-    RecordRequire(query.EnumerateObject().All(field => new[] { "collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly" }.Contains(field.Name)));
+    RecordRequire(query.EnumerateObject().All(field => new[] { "collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly", "profile" }.Contains(field.Name)));
     var keysOnly = query.TryGetProperty("keysOnly", out var flag) && flag.GetBoolean();
     var order = query.TryGetProperty("order", out _) ? JsonRules.Text(query, "order") : "desc"; RecordRequire(order is "asc" or "desc");
     var collection = JsonRules.Text(query, "collection"); RecordRequire(RecordCollections.Contains(collection));

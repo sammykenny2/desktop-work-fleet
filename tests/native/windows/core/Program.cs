@@ -80,6 +80,33 @@ using (var db = new LocalDatabase(root, "local"))
     Fails(() => UserProtection.Unprotect(protectedValue, "two")); protectedValue[^1] ^= 1;
     Fails(() => UserProtection.Unprotect(protectedValue, "one"));
   });
+  Test("a request naming another profile reaches its view of the file and no other (ADR-066)", () =>
+  {
+    using var account = new LocalDatabase(Path.Combine(root, "companion"), "google:companion-account");
+    using var local = account.ForProfile("local");
+    using var bridge = new BridgeSession(account) { Companion = new BridgeSession(local) };
+    JsonElement Ask(string method, object parameters)
+    {
+      using var reply = JsonDocument.Parse(bridge.Dispatch(JsonSerializer.Serialize(new { v = 1, id = Guid.NewGuid(), method, @params = parameters })));
+      return reply.RootElement.Clone();
+    }
+    var info = Ask("host.info", new { }).GetProperty("result");
+    Require(info.GetProperty("profileId").GetString() == "google:companion-account" && info.GetProperty("companionProfile").GetString() == "local");
+    // A paged read checks its keys strictly, so its query must accept the name too.
+    Require(Ask("storage.records.page", new { collection = "current", expectedRevision = (long?)null, profile = "local" }).GetProperty("ok").GetBoolean(), "a page naming the companion is answered");
+    Require(Ask("storage.records.page", new { collection = "current", expectedRevision = (long?)null, profile = "google:companion-account" }).GetProperty("ok").GetBoolean(), "a page naming the primary is answered");
+    var bytes = Record(0); var digest = LocalDatabase.Digest(bytes);
+    var token = local.Stage("workspace", bytes, digest); local.CommitRecord("workspace", token, null, [], false);
+    Require(account.ReadRecord("workspace") is null, "the account must not see local data");
+    Require(local.ReadRecord("workspace") is not null, "the view must read its own profile");
+    Require(Ask("storage.load", new { kind = "workspace" }).GetProperty("result").ValueKind == JsonValueKind.Null, "no profile named: the account answers");
+    Require(Ask("storage.load", new { kind = "workspace", profile = "local" }).GetProperty("result").ValueKind == JsonValueKind.Object, "local named: the companion answers");
+    Require(Ask("storage.load", new { kind = "workspace", profile = "google:companion-account" }).GetProperty("result").ValueKind == JsonValueKind.Null, "its own name: the account answers");
+    var unknown = Ask("storage.load", new { kind = "workspace", profile = "google:someone-else" });
+    Require(!unknown.GetProperty("ok").GetBoolean() && unknown.GetProperty("error").GetProperty("code").GetString() == "invalid-profile", "an unknown profile is refused");
+    var host = Ask("host.info", new { profile = "local" });
+    Require(host.GetProperty("ok").GetBoolean() == false, "only data methods reach the companion");
+  });
   Test("protocol rejects unscoped SQL, paths, vault reads and malformed envelopes", () =>
   {
     using var bridge = new BridgeSession(db);

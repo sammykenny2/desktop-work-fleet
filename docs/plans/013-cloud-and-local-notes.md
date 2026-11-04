@@ -34,9 +34,9 @@ nothing a user sees until phase 4 shows the second section. No phase includes a 
 
 ### Phase 2: Open two profiles
 
-- [ ] Hosts route storage, transfer, attachment, backup and data methods by `profile`: Windows, Apple, Linux, Android
-- [ ] Renderer stores scoped to a profile; browser preview included
-- [ ] Host capability saying which extra profile may open
+- [x] Hosts route storage, transfer, attachment and backup methods by `profile`: Windows, Apple, Linux, Android
+- [x] `profileBridge` lets a renderer store name its profile; the stores use it from phase 4
+- [x] Host info says which extra profile is open
 
 **Deliverables**: a page can read and write `local` while the primary is an account. No visible change.
 

@@ -23,6 +23,10 @@ actor FleetService {
     private var attachmentFiles: (@MainActor (Data, String, Bool) async throws -> Any)?
     /// Stores the display-language preference: macOS beside its startup settings, iOS in user defaults (docs/i18n.md).
     private var language: (@MainActor (String) throws -> Void)?
+    /// Answers requests naming another profile (ADR-066), with its own transfers and staged data on its own view of the database.
+    private var companion: FleetService?, companionProfile: String?
+    private var ownsGoogle = true
+    private static let companionMethods = ["storage.", "transfer.", "backup.", "attachment.", "file."]
     init(database: FleetDatabase, google: FleetGoogle, platform: String, choose: @escaping @MainActor () async throws -> URL) {
         self.database = database; self.google = google; self.platform = platform
         backups = FleetBackup(database: database, choose: choose); drive = FleetDrive(google: google, profile: database.profile)
@@ -34,6 +38,13 @@ actor FleetService {
     func setUpdates(_ available: Bool) { updates = available }
     func setAttachmentFiles(_ handler: @escaping @MainActor (Data, String, Bool) async throws -> Any) { attachmentFiles = handler }
     func setLanguage(_ handler: @escaping @MainActor (String) throws -> Void) { language = handler }
+    func setCompanion(_ service: FleetService, profile: String) async {
+        companion = service; companionProfile = profile
+        await service.adopt(attachmentFiles: attachmentFiles, exports: exports)
+    }
+    private func adopt(attachmentFiles: (@MainActor (Data, String, Bool) async throws -> Any)?, exports: (@MainActor (Data, String, String) async throws -> Any)?) {
+        self.attachmentFiles = attachmentFiles; self.exports = exports; ownsGoogle = false
+    }
     #if DEBUG
     func readOnlyDriveProbe() async -> [String: Any] { await drive.readOnlyProbe() }
     #endif
@@ -51,6 +62,13 @@ actor FleetService {
     }
     func invoke(_ method: String, _ args: [String: Any]) async throws -> Any {
         try FleetProtocol.require(!closed, "native-closed", "The native session has ended.")
+        if let named = args["profile"], named as? String != database.profile {
+            // A request naming data this session does not hold is refused rather than answered from the wrong profile.
+            guard let companion, named as? String == companionProfile, Self.companionMethods.contains(where: { method.hasPrefix($0) }) else {
+                throw FleetFailure("invalid-profile", "This request names data that isn't open.")
+            }
+            return try await companion.invoke(method, args)
+        }
         for (id, value) in transfers where Date().timeIntervalSince(value.used) > 300 { transfers.removeValue(forKey: id) }
         if method.hasPrefix("desktop."), let desktop { return try await desktop(method, args) }
         if ["attachment.preview", "attachment.open"].contains(method) {
@@ -100,7 +118,7 @@ actor FleetService {
         }
         switch method {
         case "host.info":
-            return ["protocol": 1, "platform": platform, "profileId": database.profile, "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
+            return ["protocol": 1, "platform": platform, "profileId": database.profile, "companionProfile": companionProfile.map { $0 as Any } ?? NSNull(), "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0",
                 "distribution": platform == "ios" ? "ios" : "app", "storage": "sqlite-keychain", "maxChunkBytes": FleetProtocol.chunk,
                 "maxMessageBytes": 1024 * 1024, "maxRecordBytes": FleetProtocol.record, "maxAttachmentBytes": FleetProtocol.attachment, "maxBackupBytes": FleetProtocol.backup,
                 "capabilities": ["nativeStorage": true, "recordStorage": true, "automaticFiles": true, "backupFiles": true, "secureBackup": true, "google": await google.available, "desktopPresentation": desktop != nil, "fileExport": exports != nil, "fileShare": exports != nil && platform == "ios", "shareInbox": capture != nil,
@@ -160,7 +178,7 @@ actor FleetService {
         }
     }
     func close() async {
-        if closed { return }; closed = true; await drive.close(); await google.close()
+        if closed { return }; closed = true; await companion?.close(); await drive.close(); if ownsGoogle { await google.close() }
         for id in staged { try? database.discard(id) }; staged.removeAll(); transfers.removeAll(); database.close()
     }
 }

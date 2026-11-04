@@ -102,7 +102,7 @@ class RecordStore:
     @read_failure
     def record_page(self, query):
         require(isinstance(query, dict) and "expectedRevision" in query
-                and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly"})
+                and set(query) <= {"collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly", "profile"})
         keys_only = query.get("keysOnly", False)
         require(type(keys_only) is bool)
         order = query.get("order", "desc")

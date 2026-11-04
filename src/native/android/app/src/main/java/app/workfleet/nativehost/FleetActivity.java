@@ -185,11 +185,15 @@ public final class FleetActivity extends Activity {
         Protocol.require(getPreferences(MODE_PRIVATE).edit().putString(LANGUAGE, preference).commit(), "native-storage", "The display language wasn't saved.");
         language = preference; applyLanguage(); runOnUiThread(this::redrawDialogs); return languageInfo();
     }
-    private void openStore() throws Exception { database = new FleetDatabase(this, profile); bridge = new FleetBridge(database, this); google = new GoogleFiles(this, database, config); }
+    private void openStore() throws Exception { database = new FleetDatabase(this, profile); bridge = new FleetBridge(database, this);
+        // Signed in, the local notes open beside the account's (ADR-066).
+        if (!profile.equals("local")) bridge.companion = new FleetBridge(database.forProfile("local"), this);
+        google = new GoogleFiles(this, database, config); }
     private void handle(String id, String method, JSONObject args, FleetBridge session, GoogleFiles account, long current, JavaScriptReplyProxy proxy) {
         JSONObject response; String switchTo = null;
         try {
             Protocol.require(!destroyed && current == epoch, "stale-session", "The native session has ended."); Object result;
+            final FleetBridge target = session.route(method, args);
             if (method.startsWith("google.")) {
                 switch (method) {
                     case "google.status": result = account.status(); break;
@@ -201,10 +205,11 @@ public final class FleetActivity extends Activity {
                 }
             } else if (method.startsWith("capture.")) {
                 Protocol.require(captures != null, "capture-unavailable", "The Share inbox isn't available right now."); result = captures.invoke(method, args, session);
-            } else if (method.equals("file.export")) result = exports.export(args, session);
-            else result = session.invoke(method, args);
-            // A reset reopens the same, now empty, profile the same way an account switch opens another one.
-            if (method.equals("storage.reset")) switchTo = ((JSONObject) result).getString("profileId");
+            } else if (method.equals("file.export")) result = exports.export(args, target);
+            else result = target.invoke(method, args);
+            // A reset reopens the same, now empty, profile the same way an account switch opens another one. Resetting a
+            // companion's data leaves the primary open; the page reloads itself.
+            if (method.equals("storage.reset") && target == session) switchTo = ((JSONObject) result).getString("profileId");
             response = Protocol.object("v", 1, "id", id, "ok", true, "result", result);
         } catch (Exception error) {
             switchTo = null;

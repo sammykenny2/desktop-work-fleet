@@ -10,9 +10,15 @@ import protocol as p
 from text import t
 
 
+# The methods a companion session answers (ADR-066); host, Google and desktop methods stay with the primary.
+COMPANION_METHODS = ("storage.", "transfer.", "backup.", "attachment.")
+
+
 class Service:
     def __init__(self, database, vault, config, choose, open_browser, desktop=None):
         self.database, self.desktop = database, desktop
+        # Answers requests naming another profile, with its own transfers and staged data on its own view of the database.
+        self.companion = None
         # A text.py key for why desktop notes are unavailable, looked up when host.info answers.
         self.desktop_reason = None
         self.display = None
@@ -63,6 +69,12 @@ class Service:
 
     def invoke(self, method, args, deadline=None, request_cancelled=None):
         p.require(not self.closed, "native-closed", "The native session has ended.")
+        named = args.get("profile", self.database.profile)
+        if named != self.database.profile:
+            # A request naming data this session does not hold is refused rather than answered from the wrong profile.
+            p.require(self.companion is not None and named == self.companion.database.profile and method.startswith(COMPANION_METHODS),
+                      "invalid-profile", "This request names data that isn't open.")
+            return self.companion.invoke(method, args, deadline, request_cancelled)
         if method.startswith("google."):
             if method == "google.status":
                 return self.google.status()
@@ -121,7 +133,7 @@ class Service:
             if method.startswith("backup."):
                 return self.backup.invoke(method, args, self.upload, self.download)
             if method == "host.info":
-                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, **self.identity, "storage": "sqlite-local-key", "desktopReason": t(self.desktop_reason) if self.desktop_reason else None, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
+                return {"protocol": 1, "platform": "linux", "profileId": self.database.profile, "companionProfile": self.companion.database.profile if self.companion else None, **self.identity, "storage": "sqlite-local-key", "desktopReason": t(self.desktop_reason) if self.desktop_reason else None, "displayBackend": self.display.info() if self.display else None, "maxChunkBytes": p.CHUNK, "maxMessageBytes": 1024 * 1024, "maxRecordBytes": p.RECORD, "maxAttachmentBytes": p.ATTACHMENT, "maxBackupBytes": p.BACKUP,
                         "capabilities": {"nativeStorage": True, "recordStorage": True, "automaticFiles": True, "backupFiles": True, "secureBackup": True, "google": self.google.available, "desktopPresentation": self.desktop is not None,
                                          "hostPreferences": self.shell is not None, "updates": self.updates, "vaultUnlock": True, "attachmentFiles": self.attachment_files is not None,
                                          "languagePreference": self.language is not None, "dataRecovery": self.reveal is not None},
@@ -213,6 +225,8 @@ class Service:
             raise p.Failure("unsupported-method", "The native host doesn't support this operation.")
 
     def close(self):
+        if self.companion is not None:
+            self.companion.close()
         self.closed = True
         self.google.close()
         self.secrets.close()

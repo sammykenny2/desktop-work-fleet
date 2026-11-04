@@ -77,7 +77,7 @@ final class RecordStore {
         }
     }
     byte[] page(JSONObject query) throws Exception {
-        require(new HashSet<>(Arrays.asList("collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly")).containsAll(keys(query)) && query.has("expectedRevision"));
+        require(new HashSet<>(Arrays.asList("collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly", "profile")).containsAll(keys(query)) && query.has("expectedRevision"));
         require(!query.has("keysOnly") || query.get("keysOnly") instanceof Boolean); boolean keysOnly = query.optBoolean("keysOnly", false);
         String order = query.has("order") ? query.getString("order") : "desc"; require(Arrays.asList("asc", "desc").contains(order));
         String collection = Protocol.text(query, "collection", 32); require(COLLECTIONS.contains(collection));

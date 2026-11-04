@@ -51,6 +51,10 @@ enum FleetKeychain {
         database.close()
         database = try FleetDatabase(directory: directory, profile: "local")
         try require(recordRevision(database) == 1 && database.recordEntry("draft", "one") != nil, "reopen lost committed records")
+        // Another profile's view of the same file sees none of this profile's records, and closing it closes nothing (ADR-066).
+        let view = try database.view(profile: "google:probe-account")
+        try require(try view.recordStatus() == nil && view.recordEntry("draft", "one") == nil, "a view reached another profile's records")
+        view.close(); try require(database.recordEntry("draft", "one") != nil, "closing a view closed the file")
         let attachmentBytes = Data("delete only with receipt".utf8), attachmentID = FleetProtocol.digest(attachmentBytes)
         _ = try database.putAttachment(database.stage("attachment", attachmentBytes, attachmentID))
         var deletion = try FleetProtocol.json(batch(2, [])); deletion["attachmentDeletes"] = [attachmentID]

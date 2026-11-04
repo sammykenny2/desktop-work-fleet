@@ -11,13 +11,14 @@ public sealed partial class LocalDatabase : IDisposable
   public const int MaxAttachment = 25 * 1024 * 1024;
   private readonly SqliteConnection connection;
   private readonly FileStream owner;
-  private readonly object gate = new();
+  private readonly object gate;
+  private readonly bool view;
   private bool disposed;
   public string ProfileId { get; }
   public LocalDatabase(string directory, string profileId)
   {
     HostError.Require(profileId.Length is > 0 and <= 256 && !profileId.Contains('\0'), "invalid-profile", "The account partition is invalid.");
-    ProfileId = profileId;
+    gate = new(); ProfileId = profileId;
     // SPEC-006 DO: a failure to open the data names its cause, which the start-up dialog and the page explain.
     try { Directory.CreateDirectory(directory); }
     catch (Exception error) when (DataFailure.Classify(error) is { } cause) { throw DataFailure.Describe(cause); }
@@ -48,6 +49,16 @@ public sealed partial class LocalDatabase : IDisposable
       if (error is not HostError && DataFailure.Classify(error) is { } cause) throw DataFailure.Describe(cause);
       throw;
     }
+  }
+  private LocalDatabase(LocalDatabase parent, string profileId)
+  {
+    connection = parent.connection; owner = parent.owner; gate = parent.gate; ProfileId = profileId; view = true;
+  }
+  /// <summary>The same database file seen as another profile (ADR-066). It shares this connection and lock; closing it closes nothing.</summary>
+  public LocalDatabase ForProfile(string profileId)
+  {
+    HostError.Require(profileId.Length is > 0 and <= 256 && !profileId.Contains('\0'), "invalid-profile", "The account partition is invalid.");
+    return new LocalDatabase(this, profileId);
   }
   private SqliteCommand Command(string sql, SqliteTransaction? tx = null, params (string, object?)[] parameters)
   {
@@ -244,6 +255,6 @@ public sealed partial class LocalDatabase : IDisposable
     "invalid-digest", "The SHA-256 digest is invalid.");
   public void Dispose()
   {
-    lock (gate) { if (disposed) return; connection.Dispose(); owner.Dispose(); disposed = true; }
+    lock (gate) { if (disposed) return; if (!view) { connection.Dispose(); owner.Dispose(); } disposed = true; }
   }
 }

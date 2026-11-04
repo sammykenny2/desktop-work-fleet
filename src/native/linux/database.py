@@ -1,6 +1,7 @@
 """Single-owner encrypted SQLite, with an owner-only local key and legacy keyring migration."""
 import base64
 from contextlib import closing, contextmanager
+import copy
 import fcntl
 import os
 from pathlib import Path
@@ -563,6 +564,8 @@ def storage_key(directory, filename, legacy):
 
 
 class Database(RecordStore):
+    is_view = False
+
     def __init__(self, directory, profile, vault):
         self.directory, self.profile = Path(directory), profile
         p.require(profile == "local" or profile.startswith("google:") and p.is_account(profile[7:]), "invalid-profile", "The account profile isn't valid.")
@@ -725,7 +728,19 @@ class Database(RecordStore):
             # Return the freed pages so the deleted notes do not stay behind in the database file.
             self.connection.execute("VACUUM")
 
+    def for_profile(self, profile):
+        """The same database file seen as another profile (ADR-066). It shares this connection and lock; closing it closes nothing."""
+        p.require(profile == "local" or profile.startswith("google:") and p.is_account(profile[7:]), "invalid-profile", "The account partition is invalid.")
+        view = copy.copy(self)
+        view.profile, view.is_view = profile, True
+        # The owner lock proves no transfer of this profile is live, as when a profile opens as the primary.
+        with self.lock:
+            self.connection.execute("DELETE FROM staging WHERE profile=?", (profile,))
+        return view
+
     def close(self):
+        if self.is_view:
+            return
         with self.lock:
             if self.connection is not None:
                 self.connection.close()

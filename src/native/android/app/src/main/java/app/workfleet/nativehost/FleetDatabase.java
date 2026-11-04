@@ -30,12 +30,13 @@ final class FleetDatabase implements AutoCloseable {
     private final FileLock lock;
     private final RecordStore records;
     final String profile;
+    private final boolean view;
     FleetDatabase(Context context, String profile) throws Exception {
         this(context, profile, null);
     }
     // Instrumented storage probes supply a synthetic key and isolated Context; production uses AndroidKeyStore.
     FleetDatabase(Context context, String profile, SecretKey testKey) throws Exception {
-        this.profile = profile;
+        this.profile = profile; view = false;
         Protocol.require(profile.equals("local") || profile.matches("google:[A-Za-z0-9_-]{1,255}"), "invalid-profile", "The workspace ID is invalid.");
         owner = new RandomAccessFile(new File(context.getFilesDir(), "owner.lock"), "rw"); lock = owner.getChannel().tryLock();
         Protocol.require(lock != null, "native-already-open", "The workspace is already open in another window.");
@@ -52,6 +53,13 @@ final class FleetDatabase implements AutoCloseable {
         };
         db = helper.getWritableDatabase(); db.delete("staging", null, null); records = new RecordStore(this, db, profile);
     }
+    // The same database file seen as another profile (ADR-066). It shares this connection; closing it closes nothing.
+    private FleetDatabase(FleetDatabase parent, String profile) throws Exception {
+        Protocol.require(profile.equals("local") || profile.matches("google:[A-Za-z0-9_-]{1,255}"), "invalid-profile", "The workspace ID is invalid.");
+        this.profile = profile; view = true; helper = parent.helper; db = parent.db; key = parent.key; owner = parent.owner; lock = parent.lock;
+        records = new RecordStore(this, db, profile);
+    }
+    FleetDatabase forProfile(String profile) throws Exception { return new FleetDatabase(this, profile); }
     private static SecretKey storageKey() throws Exception {
         KeyStore vault = KeyStore.getInstance("AndroidKeyStore"); vault.load(null); String alias = "work-fleet-storage-v1";
         if (!vault.containsAlias(alias)) {
@@ -168,7 +176,7 @@ final class FleetDatabase implements AutoCloseable {
         // Return the freed pages so the deleted notes do not stay behind in the database file.
         db.execSQL("VACUUM");
     }
-    @Override public synchronized void close() throws Exception { helper.close(); lock.release(); owner.close(); }
+    @Override public synchronized void close() throws Exception { if (view) return; helper.close(); lock.release(); owner.close(); }
     synchronized JSONObject recordStatus() throws Exception { return records.status(); }
     synchronized byte[] recordEntry(String collection, String id) throws Exception { return records.entry(collection, id); }
     synchronized byte[] recordPage(JSONObject query) throws Exception { return records.page(query); }

@@ -37,7 +37,24 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   /// <summary>True once after the profile's data was deleted; the host then reopens the document on the empty profile.</summary>
   public bool TakeResetDone() { lock (gate) { var value = resetDone; resetDone = false; return value; } }
   public bool Ready { get; private set; }
-  private object Info() => new { protocol = 1, platform = "windows", profileId = database.ProfileId,
+  /// <summary>Answers requests naming another profile (ADR-066), with its own transfers and staged data on its own view of the database.</summary>
+  public BridgeSession? Companion { get; set; }
+  private string Profile => database.ProfileId;
+  private static readonly string[] CompanionMethods = ["storage.", "transfer.", "backup.", "attachment."];
+  private BridgeSession Route(string message)
+  {
+    if (Companion is null || !message.Contains("\"profile\"", StringComparison.Ordinal) || Encoding.UTF8.GetByteCount(message) > MaxMessage) return this;
+    try
+    {
+      using var document = JsonRules.Parse(Encoding.UTF8.GetBytes(message)); var request = document.RootElement;
+      if (!request.TryGetProperty("params", out var args) || !args.TryGetProperty("profile", out var named)) return this;
+      var method = JsonRules.Text(request, "method");
+      return named.GetString() == Companion.Profile && CompanionMethods.Any(prefix => method.StartsWith(prefix, StringComparison.Ordinal)) ? Companion : this;
+    }
+    // A malformed request is answered by the ordinary checks of Dispatch.
+    catch (Exception error) when (error is JsonException or InvalidOperationException or HostError) { return this; }
+  }
+  private object Info() => new { protocol = 1, platform = "windows", profileId = database.ProfileId, companionProfile = Companion?.Profile,
     appVersion = (identity ?? HostIdentity.Default).AppVersion, distribution = (identity ?? HostIdentity.Default).Distribution, storage = "sqlite-dpapi", maxChunkBytes = ChunkSize, maxMessageBytes = MaxMessage,
     maxRecordBytes = LocalDatabase.MaxRecord, maxAttachmentBytes = LocalDatabase.MaxAttachment, maxBackupBytes = WindowsBackupDirectory.MaxBackupBytes,
     capabilities = new { nativeStorage = true, recordStorage = true, automaticFiles = backupFiles is not null && chooseBackupDirectory is not null,
@@ -48,6 +65,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   /// <summary>The host runs this on its preview lane. Shell thumbnail handlers never hold the storage bridge gate.</summary>
   public string DispatchPreview(string message)
   {
+    var target = Route(message); if (!ReferenceEquals(target, this)) return target.DispatchPreview(message);
     string? id = null;
     try
     {
@@ -61,7 +79,10 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
         HostError.Require(Guid.TryParseExact(id, "D", out _) && JsonRules.Integer(request, "v") == 1
           && JsonRules.Text(request, "method") == "attachment.preview" && request.GetProperty("params").ValueKind == JsonValueKind.Object && attachmentFiles is not null,
           "invalid-request", "The attachment preview request is invalid.");
-        var args = request.GetProperty("params"); name = JsonRules.Text(args, "name", 240); bytes = database.ReadAttachment(JsonRules.Text(args, "id"));
+        var args = request.GetProperty("params");
+        if (args.TryGetProperty("profile", out var named))
+          HostError.Require(named.ValueKind == JsonValueKind.String && named.GetString() == database.ProfileId, "invalid-profile", "This request names data that isn't open.");
+        name = JsonRules.Text(args, "name", 240); bytes = database.ReadAttachment(JsonRules.Text(args, "id"));
       }
       var result = bytes is null ? (object)new { available = false, png = (string?)null } : attachmentFiles!(bytes, name, false);
       lock (gate) { ObjectDisposedException.ThrowIf(disposed, this); }
@@ -75,6 +96,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
 
   public string Dispatch(string message)
   {
+    var target = Route(message); if (!ReferenceEquals(target, this)) return target.Dispatch(message);
     lock (gate)
     {
       string? id = null; string? method = null;
@@ -113,6 +135,9 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
   }
   private object? Invoke(string method, JsonElement args)
   {
+    // A request naming data this session does not hold is refused rather than answered from the wrong profile.
+    if (args.TryGetProperty("profile", out var named))
+      HostError.Require(named.ValueKind == JsonValueKind.String && named.GetString() == database.ProfileId, "invalid-profile", "This request names data that isn't open.");
     if (method.StartsWith("desktop.", StringComparison.Ordinal) && desktop is not null) return desktop(method, args);
     if (method.StartsWith("backup.", StringComparison.Ordinal) && args.TryGetProperty("profileId", out var profile))
       HostError.Require(profile.ValueKind == JsonValueKind.String && profile.GetString() == database.ProfileId, "backup-profile", "The backup account has changed.");
@@ -312,7 +337,7 @@ public sealed class BridgeSession(LocalDatabase database, NativeBackupFiles? bac
       if (disposed) return;
       foreach (var token in transfers.Keys.ToArray()) Drop(token);
       foreach (var token in staged) database.Discard(token);
-      staged.Clear(); disposed = true;
+      staged.Clear(); disposed = true; Companion?.Dispose();
     }
   }
 }

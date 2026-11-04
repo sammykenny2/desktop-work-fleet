@@ -6,13 +6,23 @@ import Darwin
 final class FleetDatabase {
     private var database: OpaquePointer?
     private var owner: Int32 = -1
-    private let lock = NSRecursiveLock()
+    private let lock: NSRecursiveLock
+    private let parent: FleetDatabase?
     private let key: SymmetricKey
     private var closed = false
     let profile: String
     let directory: URL
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    /// The same database file seen as another profile (ADR-066). It shares this connection and lock; closing it closes nothing.
+    private init(sharing parent: FleetDatabase, profile: String) {
+        self.parent = parent; database = parent.database; lock = parent.lock; key = parent.key; self.profile = profile; directory = parent.directory
+    }
+    func view(profile: String) throws -> FleetDatabase {
+        try FleetProtocol.require(profile == "local" || profile.hasPrefix("google:") && FleetProtocol.isAccount(String(profile.dropFirst(7))), "invalid-profile", "The account partition is invalid.")
+        return FleetDatabase(sharing: self, profile: profile)
+    }
     init(directory: URL, profile: String) throws {
+        lock = NSRecursiveLock(); parent = nil
         self.directory = directory; self.profile = profile
         try FleetProtocol.require(profile == "local" || profile.hasPrefix("google:") && FleetProtocol.isAccount(String(profile.dropFirst(7))), "invalid-profile", "The workspace ID isn't valid.")
         // SPEC-006 DO: a failure to open the data names its cause, which the start-up alert and the page explain.
@@ -192,7 +202,7 @@ final class FleetDatabase {
             try execute("INSERT OR REPLACE INTO records VALUES(?,?,?,?)", [profile, kind, revision, try seal(bytes, kind, "record")]); try discard(token)
         }
     } }
-    func close() { synchronized { if closed { return }; closed = true; sqlite3_close(database); database = nil; if owner >= 0 { flock(owner, LOCK_UN); Darwin.close(owner); owner = -1 } } }
+    func close() { synchronized { if closed { return }; closed = true; if parent != nil { database = nil; return }; sqlite3_close(database); database = nil; if owner >= 0 { flock(owner, LOCK_UN); Darwin.close(owner); owner = -1 } } }
 }
 
 extension FleetDatabase {
@@ -235,7 +245,7 @@ extension FleetDatabase {
         return bytes
     } }
     func recordPage(_ query: [String: Any]) throws -> Data { try readingRecords {
-        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly"]))
+        try Self.recordRequire(Set(query.keys).isSubset(of: ["collection", "entity", "after", "limit", "expectedRevision", "order", "keysOnly", "profile"]))
         let keysOnly = query["keysOnly"] as? Bool ?? false
         if let flag = query["keysOnly"] { try Self.recordRequire(flag is NSNumber && CFGetTypeID(flag as CFTypeRef) == CFBooleanGetTypeID()) }
         let order = query["order"] as? String ?? "desc"

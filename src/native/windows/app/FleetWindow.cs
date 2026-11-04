@@ -102,7 +102,7 @@ public sealed class FleetWindow : Window
       if (placement is not null && !offscreen) { placement.Apply(); if (placement.PendingMaximize) { placement.PendingMaximize = false; WindowState = WindowState.Maximized; } }
     };
     HostText.Changed += LanguageChanged;
-    Closed += (_, _) => { HostText.Changed -= LanguageChanged; placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); attachmentFiles.Dispose(); backupFiles.Dispose(); database.Dispose(); };
+    Closed += (_, _) => { HostText.Changed -= LanguageChanged; placement?.Flush(); updater?.Dispose(); tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); web.Dispose(); bridge?.Dispose(); CloseCompanion(); attachmentFiles.Dispose(); backupFiles.Dispose(); database.Dispose(); };
   }
   /// <summary>A second launch of Work Fleet shows the running instance's main window.</summary>
   public void ShowFromLaunch() { if (!shuttingDown) ShowMain(true); }
@@ -188,7 +188,7 @@ public sealed class FleetWindow : Window
     core.NavigationStarting += (_, e) =>
     {
       if (!NavigationPolicy.IsDocument(e.Uri)) { e.Cancel = true; if (e.IsUserInitiated) OpenExternal(e.Uri); return; }
-      navigation++; google?.Dispose(); bridge?.Dispose(); desktop?.Dispose();
+      navigation++; google?.Dispose(); bridge?.Dispose(); CloseCompanion(); desktop?.Dispose();
       attachmentFiles.Dispose(); attachmentFiles = new AttachmentFiles();
       google = new NativeGoogle(dataDirectory, database.ProfileId);
       var epoch = navigation;
@@ -199,6 +199,12 @@ public sealed class FleetWindow : Window
         Log, holdAtSignIn: shell?.LaunchedAtLogin == true, builtInOverride: desktopBuiltIn);
       bridge = new BridgeSession(database, backupFiles, ChooseBackupDirectory, desktop.Invoke, google.Available, shell is null ? null : shell.Identity with { Updates = updater?.Capable == true }, attachmentFiles.Invoke,
         languagePreference: true, dataRecovery: true);
+      // Signed in, the local notes open beside the account's (ADR-066).
+      if (database.ProfileId != "local")
+      {
+        companionDatabase = database.ForProfile("local"); companionBackupFiles = new NativeBackupFiles(companionDatabase);
+        bridge.Companion = new BridgeSession(companionDatabase, companionBackupFiles, ChooseBackupDirectory, attachmentFiles: attachmentFiles.Invoke);
+      }
     };
     core.AddWebResourceRequestedFilter("*", CoreWebView2WebResourceContext.All);
     core.WebResourceRequested += (_, e) =>
@@ -223,7 +229,7 @@ public sealed class FleetWindow : Window
     core.ProcessFailed += (_, _) =>
     {
       // Keep the native store alive. A new document must reopen from committed state.
-      navigation++; google?.Dispose(); bridge?.Dispose(); bridge = null; desktop?.Dispose(); desktop = null;
+      navigation++; google?.Dispose(); bridge?.Dispose(); bridge = null; CloseCompanion(); desktop?.Dispose(); desktop = null;
       attachmentFiles.Dispose();
       ShowMain(false);
       Content = new TextBlock { Text = HostText.Get("window.rendererStopped"),
@@ -343,7 +349,7 @@ public sealed class FleetWindow : Window
   {
     var profile = database.ProfileId; var failed = false;
     attachmentFiles.Dispose();
-    google?.Dispose(); bridge?.Dispose(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
+    google?.Dispose(); bridge?.Dispose(); CloseCompanion(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
     try { DataFailure.SetAside(dataDirectory, DateTimeOffset.Now); }
     catch (HostError error) when (error.Code == "data-set-aside-incomplete")
     {
@@ -400,10 +406,17 @@ public sealed class FleetWindow : Window
       _ = Dispatcher.BeginInvoke(new Action(() => { if (epoch == navigation && !shuttingDown) SwitchProfile(profile); }));
     }
   }
+  private LocalDatabase? companionDatabase;
+  private NativeBackupFiles? companionBackupFiles;
+  private void CloseCompanion()
+  {
+    companionBackupFiles?.Dispose(); companionBackupFiles = null;
+    companionDatabase?.Dispose(); companionDatabase = null;
+  }
   private void SwitchProfile(string profile)
   {
     attachmentFiles.Dispose();
-    google?.Dispose(); bridge?.Dispose(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
+    google?.Dispose(); bridge?.Dispose(); CloseCompanion(); desktop?.Dispose(); backupFiles.Dispose(); database.Dispose();
     try
     {
       database = new LocalDatabase(dataDirectory, profile); backupFiles = new NativeBackupFiles(database);
@@ -520,7 +533,7 @@ public sealed class FleetWindow : Window
     placement?.Flush();
     _ = RegisterApplicationRestart(null, 0);
     Hide();
-    tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); bridge?.Dispose(); backupFiles.Dispose(); database.Dispose();
+    tray?.Dispose(); google?.Dispose(); desktop?.Dispose(); bridge?.Dispose(); CloseCompanion(); backupFiles.Dispose(); database.Dispose();
     attachmentFiles.Dispose(); Instance?.Dispose(); Instance = null;
     try
     {

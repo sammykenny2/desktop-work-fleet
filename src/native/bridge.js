@@ -86,6 +86,17 @@ export function nativeTransport(view = globalThis) {
   return transport ?? null;
 }
 
+/**
+ * The bridge as one profile's stores use it (ADR-066): every request names the profile, so a host answers from that
+ * profile's session and refuses a profile that is not open. The primary needs no such wrapper.
+ */
+export function profileBridge(bridge, profile) {
+  return { request: (method, params = {}) => bridge.request(method, { ...params, profile }),
+    onEvent: (name, listener) => bridge.onEvent(name, listener), onCloseRequested: listener => bridge.onCloseRequested(listener),
+    // The stores of every profile share one bridge, so closing one of them leaves it open.
+    close() {} };
+}
+
 export async function connectNative(view = globalThis) {
   const transport = nativeTransport(view);
   if (!transport) return null;

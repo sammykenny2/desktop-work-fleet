@@ -583,6 +583,43 @@ class LinuxVaultTests(unittest.TestCase):
         self.assertEqual(service.invoke("host.language.set", {"preference": "en"}), {"preference": "en", "system": ["zh-TW", "en-US"]})
         self.assertEqual(calls, [("host.language.set", {"preference": "en"})])
 
+    def test_a_request_naming_another_profile_reaches_only_its_view_of_the_file(self):
+        account = self.open("google:fixture")
+        service = self.service(account)
+        local = account.for_profile("local")
+        service.companion = self.service(local)
+        self.addCleanup(local.close)
+        info = service.invoke("host.info", {})
+        self.assertEqual((info["profileId"], info["companionProfile"]), ("google:fixture", "local"))
+        self.assertIsNone(service.companion.companion)
+        # A paged read checks its keys strictly, so its query must accept the name too.
+        for profile in ("local", "google:fixture"):
+            service.invoke("storage.records.page", {"collection": "current", "expectedRevision": None, "profile": profile})
+        # Each session keeps its own staged data, so a token can't commit into the other profile.
+        record = b'{"profileId":"local","revision":0}'
+        digest = self.protocol.digest(record)
+        token = local.stage("workspace", record, digest)
+        local.commit("workspace", token, None, [])
+        self.assertIsNone(account.record("workspace"))
+        self.assertIsNotNone(local.record("workspace"))
+        self.assertIsNone(service.invoke("storage.load", {"kind": "workspace"}), "no profile named: the account answers")
+        self.assertIsNotNone(service.invoke("storage.load", {"kind": "workspace", "profile": "local"}), "local named: the companion answers")
+        self.assertIsNone(service.invoke("storage.load", {"kind": "workspace", "profile": "google:fixture"}), "its own name: the account answers")
+        # A transfer left by a crash is cleared when the view opens, as it is when a profile opens as the primary.
+        left = local.stage("attachment", b"left behind", self.protocol.digest(b"left behind"))
+        account.for_profile("local")
+        with self.assertRaises(self.protocol.Failure):
+            local.staged(left, "attachment")
+        for method, args in (("storage.load", {"kind": "workspace", "profile": "google:other"}), ("host.info", {"profile": "local"}), ("google.status", {"profile": "local"})):
+            with self.assertRaises(self.protocol.Failure) as refused:
+                service.invoke(method, args)
+            self.assertEqual(refused.exception.code, "invalid-profile")
+        # Closing the view leaves the file open for the account.
+        local.close()
+        self.assertIsNone(account.record("workspace"))
+        service.close()
+        self.assertTrue(service.companion.closed)
+
     def test_slow_backup_vault_does_not_block_owner_storage_bridge(self):
         db = self.open()
         service = self.service(db)

@@ -696,6 +696,10 @@ class FleetApp(Gtk.Application):
             try:
                 service = Service(database, self.vault, self.config, self.choose_directory, lambda uri: self.ui(lambda: Gio.AppInfo.launch_default_for_uri(uri, None)))
                 service.attachment_files = AttachmentFiles(ui=self.ui)
+                # Signed in, the local notes open beside the account's (ADR-066).
+                if profile != "local":
+                    service.companion = Service(database.for_profile("local"), self.vault, self.config, self.choose_directory, lambda uri: self.ui(lambda: Gio.AppInfo.launch_default_for_uri(uri, None)))
+                    service.companion.attachment_files = AttachmentFiles(ui=self.ui)
                 if persist:
                     with tempfile.NamedTemporaryFile(dir=self.directory, prefix="profile-", delete=False) as stream:
                         filename = stream.name
@@ -798,7 +802,8 @@ class FleetApp(Gtk.Application):
                     result = future.result()
                     view.post({"v": 1, "id": value["id"], "ok": True, "result": result})
                     # A reset reopens the same, now empty, profile the same way an account switch opens another one.
-                    if method in ("google.open", "google.local", "google.signOut", "storage.reset"):
+                    # Resetting a companion's data leaves the primary open; the page reloads itself.
+                    if method in ("google.open", "google.local", "google.signOut", "storage.reset") and value["params"].get("profile", session.database.profile) == session.database.profile:
                         self.epoch += 1
                         self.close_desktop()
                         self.open_store(result["profileId"], persist=True)

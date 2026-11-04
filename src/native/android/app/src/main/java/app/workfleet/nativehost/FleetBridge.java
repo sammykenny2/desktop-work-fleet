@@ -22,12 +22,24 @@ final class FleetBridge implements AutoCloseable {
     private final HashSet<String> staged = new HashSet<>();
     private boolean closed;
     boolean ready, closeReady;
+    // Answers requests naming another profile (ADR-066), with its own transfers and staged data on its own view of the database.
+    FleetBridge companion;
+    private static final String[] COMPANION_METHODS = { "storage.", "transfer.", "backup.", "attachment.", "file." };
+    // A request naming data this session does not hold is refused rather than answered from the wrong profile.
+    FleetBridge route(String method, JSONObject args) throws Exception {
+        if (args == null || !args.has("profile")) return this;
+        String named = args.optString("profile", "");
+        if (named.equals(database.profile)) return this;
+        boolean allowed = false; for (String prefix : COMPANION_METHODS) allowed |= method.startsWith(prefix);
+        Protocol.require(companion != null && named.equals(companion.database.profile) && allowed, "invalid-profile", "This request names data that isn't open.");
+        return companion;
+    }
     FleetBridge(FleetDatabase database, FleetActivity activity) throws Exception { this.database = database; this.activity = activity; backups = new BackupFiles(activity, database); }
     synchronized Object invoke(String method, JSONObject args) throws Exception {
         Protocol.require(!closed, "native-closed", "The native workspace is closed."); sweep();
         if (method.startsWith("backup.")) return backups.invoke(method, args, this);
         switch (method) {
-            case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "appVersion", BuildConfig.VERSION_NAME, "distribution", "android", "storage", "sqlite-keystore",
+            case "host.info": return Protocol.object("protocol", 1, "platform", "android", "profileId", database.profile, "companionProfile", companion == null ? JSONObject.NULL : companion.database.profile, "appVersion", BuildConfig.VERSION_NAME, "distribution", "android", "storage", "sqlite-keystore",
                 "maxChunkBytes", Protocol.CHUNK, "maxMessageBytes", 1024 * 1024, "maxRecordBytes", Protocol.RECORD, "maxAttachmentBytes", Protocol.ATTACHMENT, "maxBackupBytes", Protocol.BACKUP,
                 "capabilities", Protocol.object("nativeStorage", true, "recordStorage", true, "automaticFiles", true, "backupFiles", true, "secureBackup", true, "google", activity.googleConfigured(), "desktopPresentation", false, "fileExport", true, "fileShare", true, "shareInbox", activity.capturesAvailable(), "languagePreference", true),
                 "language", activity.languageInfo());
@@ -102,5 +114,5 @@ final class FleetBridge implements AutoCloseable {
     private Transfer transfer(String token) throws Exception { Transfer value = transfers.get(token); Protocol.require(value != null, "transfer-missing", "The native transfer has expired."); value.used = System.currentTimeMillis(); return value; }
     private void drop(String token) { Transfer value = transfers.remove(token); if (value != null) { value.bytes.reset(); if (value.download != null) Arrays.fill(value.download, (byte) 0); } }
     private void sweep() { for (String id : new HashSet<>(transfers.keySet())) if (System.currentTimeMillis() - transfers.get(id).used > 300000) drop(id); }
-    @Override public synchronized void close() { closed = true; for (String token : staged) database.discard(token); staged.clear(); for (String token : new HashSet<>(transfers.keySet())) drop(token); }
+    @Override public synchronized void close() { if (companion != null) companion.close(); closed = true; for (String token : staged) database.discard(token); staged.clear(); for (String token : new HashSet<>(transfers.keySet())) drop(token); }
 }

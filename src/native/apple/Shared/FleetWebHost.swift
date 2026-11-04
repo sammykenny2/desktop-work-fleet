@@ -29,6 +29,7 @@ import UIKit
     let platform = "ios"
     weak var presenter: UIViewController?
     #endif
+    private var openProfile = "local"
     init(directory: URL) throws {
         self.directory = directory
         guard let resources = Bundle.main.resourceURL else { throw FleetFailure("native-assets", "The packaged assets are missing.") }
@@ -47,7 +48,7 @@ import UIKit
             let marker = directory.appendingPathComponent("profile.txt")
             let selected = (try? String(contentsOf: marker, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)) ?? "local"
             let profile = selected == "local" || selected.hasPrefix("google:") && FleetProtocol.isAccount(String(selected.dropFirst(7))) ? selected : "local"
-            let database = try FleetDatabase(directory: directory, profile: profile)
+            let database = try FleetDatabase(directory: directory, profile: profile); openProfile = profile
             let google = try FleetGoogle(profile: profile, config: config); self.google = google
             #if os(macOS)
             google.presenting = { [weak self] in self?.web.window }
@@ -76,6 +77,13 @@ import UIKit
                 #else
                 return try await self.exports.export(bytes, name: name, action: action, presenter: self.presenter)
                 #endif
+            }
+            // Signed in, the local notes open beside the account's (ADR-066).
+            if profile != "local", let service {
+                let companion = FleetService(database: try database.view(profile: "local"), google: google, platform: platform, choose: { [weak self] in
+                    guard let self else { throw FleetFailure("native-closed", "The native session has ended.") }; return try await self.chooseDirectory()
+                })
+                await service.setCompanion(companion, profile: "local")
             }
             let rules = "[{\"trigger\":{\"url-filter\":\"^https?://\"},\"action\":{\"type\":\"block\"}}]"
             let blocker: WKContentRuleList = try await withCheckedThrowingContinuation { continuation in
@@ -106,7 +114,8 @@ import UIKit
                 do {
                     let result = try await service.invoke(method, args); response = ["v": 1, "id": id, "ok": true, "result": result]
                     // A reset reopens the same, now empty, profile the same way an account switch opens another one.
-                    if ["google.open", "google.signOut", "google.local", "storage.reset"].contains(method) { next = (result as? [String: Any])?["profileId"] as? String }
+                    // Resetting a companion's data leaves the primary open; the page reloads itself.
+                    if ["google.open", "google.signOut", "google.local", "storage.reset"].contains(method), (args["profile"] as? String ?? openProfile) == openProfile { next = (result as? [String: Any])?["profileId"] as? String }
                     // SPEC-006 DO: the page couldn't read its notes, so the database moves aside and the same profile opens empty.
                     if method == "data.setAside" { next = (result as? [String: Any])?["profileId"] as? String; setAside = true }
                 } catch {

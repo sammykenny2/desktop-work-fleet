@@ -79,25 +79,29 @@ export function createNotifications(doc) {
     else if (!visible && isOpen()) host.hidePopover();
     host.style.top = ''; host.style.bottom = ''; host.style.maxHeight = '';
     if (parent !== doc.body && visible) {
-      // The phone's Data page ends in restore/reset actions; its page list and Account page have actions at the top.
+      // The host's padding only leaves the toasts' shadows room, so it does not count as covering anything.
+      const style = doc.defaultView.getComputedStyle(host); const roomTop = parseFloat(style.paddingTop), roomBottom = parseFloat(style.paddingBottom);
+      const roomLeft = parseFloat(style.paddingLeft), roomRight = parseFloat(style.paddingRight);
+      // The Data page's cards end in actions at the right, where a toast would sit, and scrolling brings any of them to the
+      // bottom. A phone's page list and Account page have actions at the top.
       if (parent.classList.contains('settings') && !parent.classList.contains('listing')
-        && parent.querySelector('[data-panel=data]')?.hidden === false && doc.defaultView.innerWidth <= 640) {
+        && parent.querySelector('[data-panel=data]')?.hidden === false) {
         const header = [...parent.querySelectorAll('.settings-head,.nav-head')].map(node => node.getBoundingClientRect()).find(rect => rect.width && rect.height);
         if (header) {
           const top = header.bottom + 8 - (popover ? 0 : parent.getBoundingClientRect().top);
-          host.style.top = `${Math.ceil(top)}px`; host.style.bottom = 'auto';
-          host.style.maxHeight = `${Math.max(44, Math.min(doc.defaultView.innerHeight * 0.4, doc.defaultView.innerHeight - top - 16))}px`;
+          host.style.top = `${Math.ceil(top - roomTop)}px`; host.style.bottom = 'auto';
+          host.style.maxHeight = `${Math.max(44, Math.min(doc.defaultView.innerHeight * 0.4, doc.defaultView.innerHeight - top - 16)) + roomTop + roomBottom}px`;
           return;
         }
       }
       const bounds = host.getBoundingClientRect();
       const actions = [...parent.querySelectorAll(':scope > .dialog-actions, :scope > form > .dialog-actions, :scope > button')]
         .map(node => node.getBoundingClientRect()).filter(rect => rect.width && rect.height);
-      if (actions.some(rect => bounds.bottom > rect.top && bounds.top < rect.bottom && bounds.right > rect.left && bounds.left < rect.right)) {
+      if (actions.some(rect => bounds.bottom - roomBottom > rect.top && bounds.top + roomTop < rect.bottom && bounds.right - roomRight > rect.left && bounds.left + roomLeft < rect.right)) {
         const top = Math.min(...actions.map(rect => rect.top)) - (popover ? 0 : parent.getBoundingClientRect().top);
         const height = popover ? doc.defaultView.innerHeight : parent.getBoundingClientRect().height;
-        host.style.bottom = `${Math.ceil(height - top + 12)}px`;
-        host.style.maxHeight = `${Math.max(44, Math.floor(top - 28))}px`;
+        host.style.bottom = `${Math.ceil(height - top + 12 - roomBottom)}px`;
+        host.style.maxHeight = `${Math.max(44, Math.floor(top - 28)) + roomTop + roomBottom}px`;
       }
     }
   }
@@ -158,6 +162,12 @@ export function createNotifications(doc) {
   observer.observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['open'] });
   new ResizeObserver(place).observe(host);
   doc.defaultView.addEventListener('resize', place);
+  // A dialog that scrolls can bring its action row under a toast, so the toasts move out of its way again.
+  let scrollFrame = 0;
+  doc.addEventListener('scroll', event => {
+    if (scrollFrame || !views.size || event.target === host) return;
+    scrollFrame = doc.defaultView.requestAnimationFrame(() => { scrollFrame = 0; place(); });
+  }, { capture: true, passive: true });
   doc.addEventListener('visibilitychange', () => { for (const id of queue.items.keys()) queue.pause(id, 'hidden', doc.hidden); });
   onLocaleChange(render);
   return queue;

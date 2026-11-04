@@ -29,8 +29,8 @@ use toasts instead.
 - Notifications use a manual popover in the top layer. The host belongs to the topmost modal dialog, moving with dialog
   opening/closing, so notifications remain interactive and escape clipping without making another modal or taking focus.
   A positioned descendant is the fallback when Popover is unavailable. Text is inserted with textContent.
-- A phone Data page places notifications below its header, leaving restore/reset actions reachable. Dialog action rows
-  are protected from overlap. Progress belonging to a parent operation is hidden while a child requests consent, then
+- The Data page places notifications below its header, leaving its export, restore and reset actions reachable. Dialog action rows
+  are protected from overlap, also after the dialog scrolls. Progress belonging to a parent operation is hidden while a child requests consent, then
   returns; its Cancel does not compete with the consent dialog's Cancel. A blocking recovery dialog carries its own
   explanation without duplicating the same sync error in a toast. Navigation actions retain the failure until resolved.
 - Errors use an alert live region; ordinary results and progress use status. Buttons have localized names. A notice

@@ -497,7 +497,8 @@ try {
       await expect(page.locator('#cleanup-status')).toHaveText('');
       await expect(page.locator('#retry-cleanup')).toBeHidden();
       console.log(`PASS ${engine}/${platform}: completed reset stays in Settings after reload, with ${after.reset.retainedFolders} retained folders and no main-window notice.`);
-      await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
+      // A reset leaves no group, so the first-note prompt stands in for the view bar and the capture button.
+      await page.locator('.first-note button').click();
       await page.locator('#editor-text').fill('First new note after reset');
       await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
       if (handheld) await page.locator('#drawer-toggle').click();

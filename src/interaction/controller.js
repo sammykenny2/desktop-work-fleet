@@ -351,8 +351,9 @@ export class InteractionController {
     } else if (selected) {
       this.#state.activeGroupId = selected.groupId;
     }
-    if (this.#state.operationScope.kind === 'group'
-      && !activeGroups(this.#getSnapshot()).some(group => group.id === this.#state.operationScope.groupId)) {
+    // Adjusting a group ends with that group, and adjusting everything ends with the last one.
+    const groups = activeGroups(this.#getSnapshot()); const adjusting = this.#state.operationScope;
+    if ((adjusting.kind === 'group' && !groups.some(group => group.id === adjusting.groupId)) || (adjusting.kind === 'all' && !groups.length)) {
       await this.activate({ kind: 'none' });
     }
   }

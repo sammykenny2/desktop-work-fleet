@@ -6,7 +6,8 @@ Accepted, 2026-11-04, at the maintainer's request, after a clickable mock. Revis
 [ADR-021](021-windows-google-account-and-sync.md), the sidebar and region order of
 [ADR-010](010-group-retirement-and-device-settings.md) and the Account page of
 [ADR-059](059-settings-pages-and-entry-points.md). Behaviour is in [SPEC-012](../specs/012-cloud-and-local-notes.md);
-the order of work is in [PLAN-013](../plans/013-cloud-and-local-notes.md).
+the order of work is in [PLAN-013](../plans/013-cloud-and-local-notes.md). What an empty section does, and deleting a group, are
+in [ADR-067](067-sections-may-be-empty-and-groups-can-be-deleted.md).
 
 ## Context
 

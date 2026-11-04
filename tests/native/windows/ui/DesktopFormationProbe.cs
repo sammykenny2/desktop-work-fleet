@@ -69,6 +69,11 @@ internal static class DesktopFormationProbe
         throw new Exception("host.log did not record the display inventory at start: " + log);
       var main = window.WebView.CoreWebView2;
       focus.BrowserProcess = main.BrowserProcessId;
+      // A new profile holds no group, so make the one the fixture arranges.
+      await Eval(main, "document.querySelector('#add-group').click()");
+      await Wait(main, "Boolean(document.querySelector('dialog[open]'))", "fixture group");
+      await Eval(main, "(()=>{const d=document.querySelector('dialog[open]');d.querySelector('input:not([type=radio],[type=checkbox])').value='Formation';d.querySelector('form').requestSubmit();})()");
+      await Wait(main, "!document.querySelector('dialog[open]')", "save fixture group");
       // Start explicitly on the Desktop layer, since new groups now default to the Wallpaper layer.
       await Eval(main, "document.querySelector('#groups .group-row[data-group-id] .group-menu').click()");
       await Wait(main, "Boolean(document.querySelector('dialog[open]'))", "fixture group layer");

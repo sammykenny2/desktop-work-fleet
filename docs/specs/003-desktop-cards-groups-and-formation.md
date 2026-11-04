@@ -141,8 +141,8 @@ because A is "me".
 
 ### Group identity and first use (D)
 
-- On first use one default group can be created. It counts toward the 9 groups; there is no free tenth "Ungrouped"
-  group.
+- A section opens with no group. Starting a note with no group in any section creates the default group in the primary
+  section (ADR-067). It counts toward the 9 groups; there is no free tenth "Ungrouped" group.
 - Quick add does not force a machine, project, owner or execution state. With a clear target it uses that group;
   without one it uses the visible default group. Which group a device highlights does not change other devices'
   default for new cards.
@@ -590,7 +590,7 @@ The table below is the acceptance contract to implement, not a list of passed te
 
 | ID | Given / When | Required observable result |
 |---|---|---|
-| C01 | First use creates only one idea | No Project, machine or execution state is needed; it lands in the default group |
+| C01 | First use creates only one idea | No Project, machine or execution state is needed; it lands in the default group, made for it |
 | C02 | Set 2 rows × 4 columns | Two rows, one above the other, with four regions each: eight regions |
 | C03 | Choose 3 rows × 4 columns | The invalid layout is explicitly rejected; groups and layout stay unchanged |
 | C04 | Seven groups on eight regions | The empty region stays; no eighth group is created |

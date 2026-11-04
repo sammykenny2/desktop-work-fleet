@@ -15,6 +15,7 @@ Revised again 2026-11-04: the desktop regions and the sidebar order are separate
 Revised 2026-11-04: at the maintainer's request, the single device-wide "My group" became a highlight each group can
 carry, set in the group's settings and kept per device like the colour; see the merge item under Decision. Phones
 neither offer nor show it, and a value restored from a computer's backup stays in the layout.
+Revised again 2026-11-04: any group can be deleted, the last one too, and a section may hold no group (ADR-067).
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 
@@ -28,9 +29,9 @@ overwrite other changes.
 
 ## Decision
 
-- The same "merge or remove group" flow handles empty groups and groups with data; the target must be another
-  group that still exists.
-  The last group cannot be removed. The preview counts active, completed, archived and Deleted cards and drafts.
+- The same merge flow handles empty groups and groups with data; the target must be another group that still exists.
+  Removing a group with no target is a delete (ADR-067). The preview counts active, completed, archived and Deleted cards and
+  drafts.
 - The preview fingerprint pins the versions of the source and target groups, every affected card version and the
   drafts; it is checked again at the Workspace's atomic commit point, and if anything changed a new preview is
   required instead of accepting the new scope automatically.

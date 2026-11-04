@@ -58,7 +58,7 @@ async function check(engine, platform) {
 
     // On a computer the checkbox, the star and the edge all work, which shows the phone checks below can fail.
     await page.goto(base.href); await opened();
-    await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); await page.locator('#editor-text').fill('Highlighted note');
+    await page.locator('.first-note button').click(); await page.locator('#editor-text').fill('Highlighted note');
     await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
     const groupId = await page.locator('#groups .group-row[data-group-id]').first().getAttribute('data-group-id');
     await groupMenu.click(); await checkbox().setChecked(true); await save();

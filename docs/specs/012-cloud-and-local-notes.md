@@ -117,8 +117,8 @@ covers everything except Trash. Decisions and alternatives are in
 - FR26: Notes are sectioned by group in the note and list views: a section heading has the colour dot, group name and count,
   and the collection name under the All tab. Sections follow sidebar order; groups no longer listed come last. Within a
   section the most recently trashed note is first.
-- FR27: A note moved across says where it went. Restoring a note whose group has moved away asks for a target group in the
-  same collection; if the collection has no group, the group comes back.
+- FR27: A note moved across says where it went. Restoring a note whose group has moved away or been deleted asks for a target
+  group in the same collection; if the collection has no group, the group comes back (ADR-067).
 - FR28: Delete forever stays per note. The button is readable on every paper colour.
 - FR29: The status tabs become To do, Completed and Archived.
 

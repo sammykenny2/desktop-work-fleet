@@ -241,7 +241,8 @@ async function initialize() {
   catch (error) { if (recovery && workspaceFailureCause(error, saved)) return showDataFailure(workspaceFailureCause(error, saved)); throw error; }
   primary ||= await Workspace.create({ profileId,
     deviceId: crypto.randomUUID(), area: screenArea(), persist, current: true,
-    bootstrapGroup: !profileId.startsWith('google:'), arrivalLayer: backLayer });
+    // Every section starts empty. Only writing a note with no group anywhere creates one (ADR-067).
+    bootstrapGroup: false, arrivalLayer: backLayer });
   const history = new DatasetHistory({ workspace: primary, storage, fileStore: () => datasetStore });
   primary.setHistory(history); storage.setAttachmentLoader(id => history.attachment(id));
   purge = new DatasetPurge({ workspace: primary, storage, fileStore: () => datasetStore });
@@ -367,7 +368,6 @@ async function openCompanion(id, backLayer) {
   addEventListener('pagehide', () => own.close());
   try {
     const saved = await own.load(id); const persist = (...args) => own.save(...args);
-    // A section starts empty beside an account: its first group is the user's to make.
     const opened = saved ? new Workspace(saved, persist) : await Workspace.create({ profileId: id, deviceId: crypto.randomUUID(), area: screenArea(), persist,
       current: true, bootstrapGroup: false, arrivalLayer: backLayer });
     const held = new Set([...primary.state.cards, ...primary.state.groups].map(item => item.id));
@@ -1484,7 +1484,8 @@ function renderGroupList(snapshot, layout, groups) {
   }
   // Trash is no group: it takes no drop and no drag, and capture keeps filing into the group chosen before it (SPEC-012).
   const trash = element('div', undefined, `group-row trash-row${trashOpen ? ' active' : ''}`);
-  const open = button('', () => { trashOpen = true; setDrawer(false); render(); });
+  // With no group row to choose, this row is also the way back out.
+  const open = button('', () => { trashOpen = !groups.length ? !trashOpen : true; setDrawer(false); render(); });
   // As with search, the view that adjusting works on stays until Done.
   open.disabled = !desktopInfo && controller.state.operationScope.kind !== 'none';
   const mark = element('span', undefined, 'trash-mark'); mark.append(icon('M4 7h16', 'M9.5 7V4.5h5V7', 'M6.5 7l1 13h9l1-13', 'M10 11v5.5', 'M14 11v5.5'));
@@ -1667,21 +1668,27 @@ function render() {
   // A row being dragged stays where the pointer holds it; the drop renders the list again.
   if (!groupDrag?.active) renderGroupList(snapshot, layout, groups);
   const query = $('#search').value.trim().toLocaleLowerCase();
+  // With no group anywhere there is nothing to filter, switch or adjust: only the prompt for a first note (ADR-067).
+  // Search and Trash still work, because trashed notes outlive their groups.
+  const noGroups = !groups.length && !trashOpen && !query;
   // Filters and search look through papers the desktop does not show, so they always use the board or the list.
-  const notesShown = trashOpen || !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
+  const notesShown = noGroups || trashOpen || !showDesktop || filter !== 'active' || Boolean(query); const view = notesShown ? mainView(layout) : 'desktop';
   // Search looks through every group, so the title stops naming the selected one while it has text.
   $('#workspace-title').textContent = trashOpen ? t('app.trash.title') : query ? t('app.search.title')
-    : notesShown ? groupName(groups.find(group => group.id === activeGroupId)) || t('app.groups.defaultName')
-      : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
+    // The first note lands in this section's new group, which does not exist yet to be named.
+    : noGroups ? sectionName(profileId)
+      : notesShown ? groupName(groups.find(group => group.id === activeGroupId))
+        : desktopInfo ? t('app.views.layoutMap') : t('app.views.desktopTitle');
   // Capture adds to the selected group's To do, so it shows only while that is what is shown: not under another
   // filter, a search or the canvas and layout map of every group.
-  $('#compose').hidden = trashOpen || filter !== 'active' || Boolean(query) || view === 'desktop';
+  $('#compose').hidden = noGroups || trashOpen || filter !== 'active' || Boolean(query) || view === 'desktop';
   $('#empty-trash').hidden = !trashOpen;
   $('.view-bar').classList.toggle('trash-visible', trashOpen);
   // The status tabs do not apply to Trash or to a search, which looks through every status (SPEC-012).
-  $('.view-filters').hidden = trashOpen || Boolean(query);
+  $('.view-filters').hidden = noGroups || trashOpen || Boolean(query);
+  $('.view-switch').hidden = noGroups;
   $('#search').placeholder = t(trashOpen ? 'app.trash.searchPlaceholder' : 'app.search.placeholder');
-  $('#operate-group').disabled = trashOpen; $('#operate-all').disabled = trashOpen;
+  $('#operate-group').disabled = trashOpen || !groups.length; $('#operate-all').disabled = trashOpen || !groups.length;
   $('[data-view="desktop"]').hidden = handheld || trashOpen;
   $('#empty-trash').disabled = !snapshot.cards.some(card => card.deleted && (trashTab === 'all' || workspace.ownerOfCard(card.id).id === trashTab));
   $('#empty-trash').textContent = trashTab === 'all' ? t('app.purge.emptyTitle') : t('app.purge.emptySection', { section: sectionName(trashTab) });
@@ -1709,7 +1716,8 @@ function render() {
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
   $('#count').textContent = notesShown ? plural('app.count.notes', listCards.length) : plural('app.count.desktopNotes', shown);
-  if (trashOpen) renderTrash(listCards, view, Boolean(query));
+  if (noGroups) renderFirstNotePrompt(view);
+  else if (trashOpen) renderTrash(listCards, view, Boolean(query));
   else if (notesShown) renderNotes(listCards, view, Boolean(query), query ? rankSearch(snapshot.cards.filter(card => card.deleted), query).length : 0);
   else if (desktopInfo) renderLayoutMap();
   else renderStage(snapshot.cards);
@@ -1863,6 +1871,14 @@ function renderNotes(cards, view, acrossGroups, matchesInTrash = 0) {
     link.append(element('span', plural('app.trash.matches', matchesInTrash)), element('span', t('app.trash.show')));
     list.append(link);
   }
+}
+// The canvas's first-note prompt, for every host and view. Its button is the one way a group appears by itself: the note
+// needs somewhere to go, so openEditor makes the group first.
+function renderFirstNotePrompt(view) {
+  const add = button(t('app.empty.add'), () => openEditor(), 'primary');
+  const prompt = element('div', undefined, 'first-note');
+  prompt.append(element('div', '\uFF0B', 'empty-paper'), element('h2', t('app.empty.title')), element('p', t('app.empty.text')), add);
+  clearNotes(view).append(prompt);
 }
 function renderTrash(cards, view, searching) {
   const list = clearNotes(view);
@@ -2150,10 +2166,10 @@ async function moveGroupAcross(group, toProfile, ids) {
 // A note from a group that has moved away needs another group; with none left in its collection, the group comes back.
 async function restoreNote(card) {
   const owner = workspace.ownerOfCard(card.id); const groups = shownGroups().filter(group => group.profileId === owner.id);
-  const finish = async groupId => { await workspace.restoreCard(card.id, card.revision, groupId); await workspace.layout.placeNew(workspace.working, workAreas()); render(); status(t('app.status.restored')); };
+  const finish = async (groupId, options) => { await workspace.restoreCard(card.id, card.revision, groupId, options); await workspace.layout.placeNew(workspace.working, workAreas()); render(); status(t('app.status.restored')); };
   if (groups.some(group => group.id === card.groupId)) { await finish(null); return; }
   const gone = owner.workspace.state.groups.find(group => group.id === card.groupId);
-  if (!groups.length) { await owner.workspace.returnMovedGroup(card.groupId); await finish(null); return; }
+  if (!groups.length) { await finish(null, { bringGroupBack: true }); return; }
   const dialog = element('dialog'); dialog.id = 'restore-target'; const select = element('select'); fillGroups(select, groups[0].id, owner.id);
   const field = element('label', t('app.trash.restoreTo'), 'field'); field.append(select);
   const actions = element('div', undefined, 'dialog-actions');
@@ -2234,6 +2250,7 @@ function groupEditor(group, section = profileId) {
     for (const { id } of workspace.profiles) if (id !== group.profileId) {
       const away = immediateButton(t('app.groupEditor.moveTo', { section: sectionName(id) }), () => { if (writing) return; dialog.close(); run(() => askMoveGroup(group.id, id)); }, 'leading'); actions.prepend(away);
     }
+    actions.prepend(immediateButton(t('app.groupEditor.delete'), () => { if (writing) return; dialog.close(); void askDeleteGroup(group); }, 'leading danger'));
   }
   actions.append(immediateButton(t('common.cancel'), () => { if (!writing) dialog.close(); }), save);
   dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
@@ -2309,6 +2326,31 @@ async function openGroupMerge(group) {
   dialog.append(field, message, items, element('p', t('app.merge.undoHint'), 'hint'), actions);
   dialog.oncancel = event => { if (busy) event.preventDefault(); };
   dialog.addEventListener('close', () => dialog.remove()); document.body.append(dialog); refresh(); dialog.showModal();
+}
+
+// The question stays outside the action queue, so the desktop is not held up while it is open. Any section's group can
+// go, the last one too; its notes wait in Trash (ADR-067).
+async function askDeleteGroup(group) {
+  const endEdit = async () => {
+    if (!await controller.endEdit()) throw new Error(t('app.errors.finishTextInput'));
+    // Rendered at once: the desktop must stop showing the editor even if the question is cancelled or the delete refused.
+    currentDraft = null; remoteEditor = null; render();
+  };
+  // A quick edit keeps its text first, so the question counts it.
+  let plan = null;
+  await run(async () => { await endEdit(); plan = workspace.previewGroupDelete(group.id); });
+  if (!plan) return;
+  const text = [...plan.notes ? [plural('app.groupDelete.notes', plan.notes)] : plan.unsaved ? [] : [t('app.groupDelete.empty')],
+    ...plan.unsaved ? [plural('app.groupDelete.unsaved', plan.unsaved)] : []].join(' ');
+  if (!await confirmAction(t('app.groupDelete.title', { group: groupName(group) }), text, t('app.groupEditor.delete'))) return;
+  await run(async () => {
+    await endEdit();
+    // What arrived or was typed while the question was open has not been agreed to.
+    if (workspace.previewGroupDelete(group.id).fingerprint !== plan.fingerprint) throw new Error(t('app.groupDelete.changed'));
+    const result = await workspace.deleteGroup(group.id);
+    await workspace.layout.placeNew(workspace.working, workAreas()); await controller.reconcile(); render();
+    status(t(result.notes ? 'app.status.groupDeletedNotes' : 'app.status.groupDeleted'));
+  });
 }
 
 function deleteButton(cardId, dialog) {
@@ -3180,17 +3222,21 @@ function bindEvents() {
   $('#discard-changes').onclick = () => run(discardEditor);
   $('#close-editor-button').onclick = () => run(closeEditor); $('#close-editor').onclick = () => run(closeEditor);
   $('#capture-inbox-button').onclick = () => run(async () => {
-    await ensureCaptureGroup();
-    // A share lands in the account's collection, which may have no group while another collection does.
-    if (!primary.activeGroupList().length) { await workspace.ensureCaptureGroup(); await workspace.layout.settle(); render(); }
-    fillGroups($('#capture-group'), activeGroupId, profileId); $('#capture-result').textContent = ''; $('#capture-inbox-dialog').showModal(); await refreshCaptures();
+    // A share lands in the account's collection. With no group there, the one it needs is made only if a share is kept.
+    fillGroups($('#capture-group'), activeGroupId, profileId);
+    if (!$('#capture-group').options.length) $('#capture-group').append(new Option(t('app.groups.defaultName'), ''));
+    // The group shown may belong to the other section, which a share cannot land in.
+    if ($('#capture-group').selectedIndex < 0) $('#capture-group').selectedIndex = 0;
+    $('#capture-result').textContent = ''; $('#capture-inbox-dialog').showModal(); await refreshCaptures();
   });
   $('#close-capture').onclick = () => { if (!captureBusy) $('#capture-inbox-dialog').close(); };
   $('#capture-inbox-dialog').addEventListener('cancel', event => { if (captureBusy) event.preventDefault(); });
   $('#accept-capture').onclick = () => run(async () => {
     if (captureBusy || !selectedCapture) return; captureBusy = true; $('#accept-capture').disabled = true; $('#discard-capture').disabled = true; $('#capture-group').disabled = true; $('#capture-result').textContent = t('app.shareInbox.saving');
     try {
-      const result = await captureInbox.accept(selectedCapture, $('#capture-group').value); selectedCapture = null;
+      let target = $('#capture-group').value;
+      if (!target) { target = (await workspace.ensureCaptureGroup()).id; await workspace.layout.settle(); }
+      const result = await captureInbox.accept(selectedCapture, target); selectedCapture = null;
       render(); await refreshCaptures(true); $('#capture-inbox-dialog').close();
       // A share becomes a new note with unsaved changes, opened for a look before it is saved (ADR-061).
       const note = result.unsaved ? currentCard(result.cardId) : null;

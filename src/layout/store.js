@@ -26,18 +26,22 @@ export function createLayout(deviceId, groups, area) {
     groupColors: settleGroupColors({}, groups) };
 }
 
+/** Merging names a receiving group. Deleting names none (`targetId` null), so what followed the group ends with it. */
 export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   const affected = new Set(affectedCards);
   draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
   // A highlight moves on to the receiving group, as a shortcut does.
-  if (draft.groupHighlights?.[sourceId]) draft.groupHighlights[targetId] = true;
-  if (draft.mainGroupId === sourceId) draft.mainGroupId = targetId;
+  if (targetId && draft.groupHighlights?.[sourceId]) draft.groupHighlights[targetId] = true;
+  if (draft.mainGroupId === sourceId) { if (targetId) draft.mainGroupId = targetId; else delete draft.mainGroupId; }
   // The receiving group keeps its own layer and colour; the retired group's colour is free again.
   if (draft.groupLayers) delete draft.groupLayers[sourceId];
   if (draft.groupColors) delete draft.groupColors[sourceId];
   if (draft.groupOpacity) delete draft.groupOpacity[sourceId];
   if (draft.groupHighlights) delete draft.groupHighlights[sourceId];
-  for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
+  for (const key of Object.keys(draft.shortcuts)) {
+    if (draft.shortcuts[key] !== sourceId) continue;
+    if (targetId) draft.shortcuts[key] = targetId; else delete draft.shortcuts[key];
+  }
   const oldLength = draft.history.length;
   draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
     || [entry.transfer.fromGroupId, entry.transfer.toGroupId].includes(sourceId)));

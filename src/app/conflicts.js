@@ -71,7 +71,7 @@ export function revisionPanel({ workspace, storage, profileId, onChanged }) {
         }
         article.append(attachments);
       }
-    } else article.append(element('p', value.deleted ? t('conflicts.version.mergedInto', { group: groupLabel(value.redirectGroupId) }) : t('conflicts.version.activeGroup')));
+    } else article.append(element('p', value.deleted ? t('conflicts.version.mergedInto', { group: groupLabel(value.redirectGroupId) }) : t(value.movedAway ? 'conflicts.version.goneGroup' : 'conflicts.version.activeGroup')));
     const details = element('details'); details.append(element('summary', t('conflicts.version.details')), element('code', record.revisionId));
     details.append(element('p', record.parents.length ? plural('conflicts.version.parents', record.parents.length) : t('conflicts.version.first')));
     article.append(details);

@@ -40,6 +40,7 @@ export default {
   'conflicts.version.downloadAttachment': 'Download attachment: {name}',
   'conflicts.version.mergedInto': 'Merged into "{group}"',
   'conflicts.version.activeGroup': 'Group in use',
+  'conflicts.version.goneGroup': 'Group deleted or moved away',
   'conflicts.version.details': 'Version details',
   'conflicts.version.parents.one': 'Follows {count} version',
   'conflicts.version.parents.other': 'Follows {count} versions',

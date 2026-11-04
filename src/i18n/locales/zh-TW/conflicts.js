@@ -40,6 +40,7 @@ export default {
   'conflicts.version.downloadAttachment': '下載附件：{name}',
   'conflicts.version.mergedInto': '已合併至「{group}」',
   'conflicts.version.activeGroup': '使用中的群組',
+  'conflicts.version.goneGroup': '已刪除或移走的群組',
   'conflicts.version.details': '版本資料',
   'conflicts.version.parents.one': '承接 {count} 個版本',
   'conflicts.version.parents.other': '承接 {count} 個版本',

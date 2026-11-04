@@ -54,6 +54,17 @@ export function unsavedByCard(state, open = null) {
 }
 
 /**
+ * The unsaved work a group's delete takes: changes to its notes outside Trash, and notes never saved in it. Other changes that
+ * only name the group stay: their note may have moved on or be in Trash, and a recovery copy of a note deleted forever
+ * belongs to Versions (ADR-067).
+ */
+function goesWithGroup(state, groupId) {
+  const saved = new Set(state.cards.map(card => card.id));
+  const live = new Set(state.cards.filter(card => card.groupId === groupId && !card.deleted).map(card => card.id));
+  return draft => !draft.purged && (live.has(draft.cardId) || (draft.groupId === groupId && !saved.has(draft.cardId)));
+}
+
+/**
  * The notes as this device shows them (ADR-061). A note with unsaved changes shows them and carries `unsaved`; unsaved
  * changes whose note does not exist, such as a new note never saved, are a note of their own with no revision, after
  * the saved ones. Commands that write a revision read the saved snapshot instead.
@@ -661,7 +672,15 @@ export class Workspace {
   /** An empty cloud stays empty until capture starts; concurrent first captures share one group identity. */
   async ensureCaptureGroup() {
     const existing = activeGroups(this.#state)[0]; if (existing) return copy(existing);
-    if (!this.currentFormat || !this.#state.profileId.startsWith('google:')) return this.createGroup(t('app.groups.defaultName'));
+    if (!this.currentFormat || !this.#state.profileId.startsWith('google:')) {
+      return this.#addGroup(state => {
+        const present = activeGroups(state)[0]; if (present) return copy(present);
+        validateNewGroup(state);
+        const group = { id: this.#uuid(), revision: this.#uuid(), name: t('app.groups.defaultName'), deleted: false };
+        state.groups.push(group); this.#record(state, 'group', group, []);
+        return copy(group);
+      });
+    }
     const binding = this.#state.sync.dataset, sourceId = this.#state.sync.sourceId;
     requireValue(binding && typeof this.#state.sync.cursor === 'string', 'initial-sync-required', t('errors.common.initialSyncRequired'));
     const record = await initialGroupRecord(sourceId, [binding.plan.datasetId]);
@@ -746,6 +765,47 @@ export class Workspace {
     }));
   }
 
+  /** What deleting the group takes with it. Throws what the delete would throw, before anyone is asked. */
+  previewGroupDelete(id) {
+    this.#group(this.#state, id);
+    const notes = this.#state.cards.filter(card => card.groupId === id && !card.deleted);
+    for (const card of notes) this.#resolved(this.#state, 'card', card.id);
+    const unsaved = [...unsavedByCard(this.#state).values()].filter(goesWithGroup(this.#state, id));
+    return { notes: notes.length, unsaved: unsaved.length,
+      fingerprint: JSON.stringify([notes.map(card => [card.id, card.revision]), unsaved.map(draft => [draft.id, draft.content])]) };
+  }
+
+  /**
+   * Deletes a group, the last one too: its notes go to Trash and it leaves every list, all in one step (ADR-067). It stays
+   * as a record, as a group moved away does, because its trashed notes still need a group and a deleted record would have
+   * to name a redirect. A restored note asks for another group, or brings this one back when its collection has none.
+   */
+  async deleteGroup(id) {
+    return this.#layout.integrateSource((layout, layoutRevision) => this.#commit(state => {
+      this.#group(state, id);
+      requireValue(state.layout.revision === layoutRevision, 'stale-layout', t('errors.common.layoutChanged'));
+      const notes = state.cards.filter(card => card.groupId === id && !card.deleted); const goes = goesWithGroup(state, id);
+      for (const card of notes) {
+        this.#resolved(state, 'card', card.id);
+        const previous = card.revision;
+        if (this.currentFormat && !card.trashedAt) { card.trashedAt = this.#createdAt(); card.trashEpisode = this.#uuid(); }
+        card.deleted = true; card.revision = this.#uuid();
+        this.#record(state, 'card', card, [previous]);
+      }
+      // Unsaved work goes with its note, as when one note is deleted. Left behind, a note never saved would keep the group in sight.
+      for (const [key, draft] of Object.entries(state.drafts)) if (goes(draft)) delete state.drafts[key];
+      const group = state.groups.find(item => item.id === id);
+      if (!group.movedAway) {
+        const parent = group.revision; group.movedAway = true; group.revision = this.#uuid();
+        this.#record(state, 'group', group, [parent]);
+      }
+      retireGroupLayout(layout, id, null, notes.map(card => card.id));
+      state.layout = reconcileSourceLayout(layout, state);
+      state.layout.revision = layoutRevision + 1;
+      return { layout: state.layout, value: { notes: notes.length } };
+    }));
+  }
+
   async createCard(content, groupId = activeGroups(this.#state)[0]?.id) {
     const value = contentValue(content);
     if (groupId === undefined && this.currentFormat && this.#state.profileId.startsWith('google:')) groupId = (await this.ensureCaptureGroup()).id;
@@ -819,17 +879,17 @@ export class Workspace {
     });
   }
 
-  /** A moved group comes back when a note restored from Trash has no other group to go to. */
-  async returnMovedGroup(id) {
-    return this.#commit(state => {
-      const group = state.groups.find(item => item.id === id);
-      if (!group?.movedAway) return group ? copy(group) : null;
-      validateNewGroup(state);
-      const parent = group.revision; delete group.movedAway; group.revision = this.#uuid();
-      this.#record(state, 'group', group, [parent]);
-      return copy(group);
-    });
+  #returnGroup(state, id) {
+    const group = state.groups.find(item => item.id === id);
+    if (!group?.movedAway) return group ? copy(group) : null;
+    validateNewGroup(state);
+    const parent = group.revision; delete group.movedAway; group.revision = this.#uuid();
+    this.#record(state, 'group', group, [parent]);
+    return copy(group);
   }
+
+  /** A group that left its collection comes back. */
+  async returnMovedGroup(id) { return this.#commit(state => this.#returnGroup(state, id)); }
 
   blankDraft(groupId, card = null) {
     this.#group(this.#state, card?.groupId || groupId);
@@ -898,12 +958,14 @@ export class Workspace {
     });
   }
 
-  // A group that has moved away (ADR-066) takes no note back, so restoring into it needs another group.
-  async restoreCard(cardId, expectedRevision, groupId = null) {
+  // A group that has moved away or been deleted takes no note back, so restoring into it needs another group. With none in
+  // the collection the note brings it back, in this one step, so a restore that fails leaves the group gone.
+  async restoreCard(cardId, expectedRevision, groupId = null, { bringGroupBack = false } = {}) {
     return this.#commit(state => {
       const card = state.cards.find(card => card.id === cardId);
       requireValue(card && card.deleted && card.revision === expectedRevision, 'conflict', t('errors.core.deletedNoteChanged'));
       this.#resolved(state, 'card', cardId);
+      if (bringGroupBack) this.#returnGroup(state, card.groupId);
       this.#group(state, groupId ?? card.groupId);
       if (groupId) card.groupId = groupId;
       card.deleted = false; card.revision = this.#uuid(); delete card.trashedAt; delete card.trashEpisode; delete card.movedTo;

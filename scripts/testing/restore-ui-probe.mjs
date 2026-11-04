@@ -49,7 +49,11 @@ const moreOptions = async () => { const details = page.locator('.restore-options
 const choose = async buffer => { await page.locator('#restore-file').setInputFiles({ name: 'synthetic-backup.zip', mimeType: 'application/zip', buffer }); };
 const preview = async () => { await page.locator('#preview-restore').click(); await expect(page.locator('#backup-status')).toHaveText(t('backup.restore.ready')); };
 // Capture floats over a group's board or list, not over the canvas of every group.
-const openCapture = async () => { await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); };
+// With no group yet, the first-note prompt stands in for the view bar and the capture button.
+const openCapture = async () => {
+  if (await page.locator('.first-note').count()) await page.locator('.first-note button').click();
+  else { await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); }
+};
 const capture = async text => {
   await openCapture(); await page.locator('#editor-text').fill(text);
   await page.locator('#editor-dialog button[type="submit"]').click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();

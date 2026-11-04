@@ -17,8 +17,13 @@ const context = await browser.newContext({ viewport: { width: 1280, height: 860 
 const page = await context.newPage(); const errors = [];
 page.on('pageerror', error => errors.push(error.message));
 const note = text => page.locator('#list [data-card-id]', { hasText: text });
+// With no group yet, the first-note prompt stands in for the view bar and the capture button.
+const openCapture = async () => {
+  if (await page.locator('.first-note').count()) await page.locator('.first-note button').click();
+  else { await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); }
+};
 const capture = async text => {
-  await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); await page.locator('#editor-text').fill(text);
+  await openCapture(); await page.locator('#editor-text').fill(text);
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 const moreActions = async text => { await note(text).hover(); await note(text).getByRole('button', { name: t('app.notes.more'), exact: true }).click(); };

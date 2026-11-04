@@ -14,6 +14,8 @@ interface. To switch, see [Settings](#settings).
 ## Getting started
 
 - You can record notes offline without a Google account: the app starts with Local notes, which stay on this device.
+  It opens with no groups. "Add the first note" makes a group called "My notes" for that note, or you can add a group yourself
+  with the + beside a section.
   Sign in and Cloud notes appears above them in the sidebar; the two are always shown together, with no switching.
   To sync across devices, sign in to Google later (see [Google sign-in and sync](#google-sign-in-and-sync)).
 - The round "+" button at the bottom right ("Capture") opens the editor for a new note in the group you are viewing.
@@ -93,8 +95,15 @@ interface. To switch, see [Settings](#settings).
   restart, including one that starts in the tray, the same group is chosen again. A merge passes it on to the
   receiving group; if the group no longer exists, the first group is chosen. "Adjust all" and clicking notes on the
   desktop do not change the remembered group.
+- A section can hold no groups, in Cloud notes and Local notes alike. Opening the app, signing in, resetting local data or
+  deleting the last group does not add one. With no group in any section, the main window offers "Add the first note", which
+  makes "My notes" in Cloud notes while you are signed in and otherwise in Local notes. A share kept from the inbox lands in that
+  same section, and makes "My notes" there if the section has no group. Search and Trash stay available.
+- "Delete group" in "Group settings" works on any group, the last one too. Its notes go to Trash and their unsaved changes are
+  discarded, after a question that says how many. Restoring such a note asks for another group; if its section has none, the
+  deleted group comes back. A delete has no Undo.
 - The "⋯" next to a group opens "Group settings", where you can rename the group, or merge it into another group with
-  "Merge or remove group". First choose a receiving group and preview all of the notes that move, unsaved ones too; then
+  "Merge group". First choose a receiving group and preview all of the notes that move, unsaved ones too; then
   "Merge and remove the original group" confirms. The content and desktop positions are kept and the source group is
   removed; Undo can't bring back a merged group.
 - To move a note to another group, drag it there in adjust mode (see

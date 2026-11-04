@@ -212,7 +212,10 @@ try {
   const single = new URL(base.href); single.searchParams.delete('companion'); single.searchParams.set('profile', `local-alone-${run}`);
   await page.goto(single.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   assert.deepEqual(await page.locator('#groups .side-section .section-label span').allTextContents(), [t('app.sections.local')]);
-  await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(1);
+  // Like every section, it opens with no group: the first note makes one.
+  await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(0);
+  await expect(page.locator('#workspace-title')).toHaveText(t('app.sections.local'));
+  await expect(page.locator('.first-note')).toBeVisible();
   await page.locator('#groups .trash-row button').click(); await expect(page.locator('#trash-tabs')).toBeHidden();
   assert.deepEqual(errors, []);
   console.log('PASS: two sections with their own add buttons, notes and pickers per collection, a sidebar drag inside its section, one colour table, search naming the collection, Trash tabs and Empty Trash per collection, regions across collections with groups off the desktop after a reload, and backups and versions per collection');

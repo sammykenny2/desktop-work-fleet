@@ -284,7 +284,7 @@ export class CombinedWorkspace {
   discardUnneededDraft(draftId) { return (this.#profiles.find(({ workspace }) => workspace.holdsDraft(draftId)) ?? this.#profiles[0]).workspace.discardUnneededDraft(draftId); }
   createCard(content, groupId) { return this.ownerOfGroup(groupId).workspace.createCard(content, groupId); }
   updateCard(cardId, patch, expectedRevision) { return this.ownerOfCard(cardId).workspace.updateCard(cardId, patch, expectedRevision); }
-  restoreCard(cardId, expectedRevision, groupId = null) { return this.ownerOfCard(cardId).workspace.restoreCard(cardId, expectedRevision, groupId); }
+  restoreCard(cardId, expectedRevision, groupId = null, options = {}) { return this.ownerOfCard(cardId).workspace.restoreCard(cardId, expectedRevision, groupId, options); }
 
   /** Within a profile only; moving across goes through a confirmed move (SPEC-012). */
   async transferCard({ cardId, groupId, expectedRevision, position, expectedLayoutRevision }) {
@@ -307,6 +307,13 @@ export class CombinedWorkspace {
   /** The merged group's region passes to the group it joined, as soon as the merge lands. */
   async mergeGroup(plan) {
     const result = await this.ownerOfGroup(plan.sourceId).workspace.mergeGroup(plan);
+    await this.#layout.settle();
+    return result;
+  }
+  previewGroupDelete(id) { return this.ownerOfGroup(id).workspace.previewGroupDelete(id); }
+  /** The deleted group's region frees up as soon as the delete lands. */
+  async deleteGroup(id) {
+    const result = await this.ownerOfGroup(id).workspace.deleteGroup(id);
     await this.#layout.settle();
     return result;
   }

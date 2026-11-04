@@ -61,6 +61,7 @@ try {
     const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profile);
     const workspace = new Workspace(await storage.load(profile), (...args) => storage.save(...args), undefined, undefined, { history: storage });
     const content = text => ({ format: 'markdown', text, attachments: [] });
+    await workspace.ensureCaptureGroup();
     let note = await workspace.createCard(content('first version'));
     const first = note.revision;
     for (let i = 0; i < 27; i++) note = await workspace.updateCard(note.id, { content: content(`version ${i}`) }, note.revision);

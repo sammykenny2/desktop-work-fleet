@@ -36,8 +36,13 @@ const read = () => page.evaluate(async profile => {
   } } finally { storage.close(); }
 }, profile);
 // Capture floats over a group's board or list, not over the canvas of every group.
+// With no group yet, the first-note prompt stands in for the view bar and the capture button.
+const openCapture = async () => {
+  if (await page.locator('.first-note').count()) await page.locator('.first-note button').click();
+  else { await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); }
+};
 const capture = async text => {
-  await page.locator('[data-view="board"]').click(); await page.locator('#compose').click(); await page.locator('#editor-text').fill(text);
+  await openCapture(); await page.locator('#editor-text').fill(text);
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 try {
@@ -315,10 +320,13 @@ try {
   const handset = await phone.newPage(); handset.on('pageerror', error => errors.push(error.message));
   const phoneUrl = new URL(base.href); phoneUrl.searchParams.set('profile', `groups-${crypto.randomUUID()}`);
   await handset.goto(phoneUrl.href); await expect(handset.locator('#status')).toHaveText(t('app.status.opened'));
-  await handset.locator('#drawer-toggle').tap(); await handset.locator('#add-group').tap();
-  await handset.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
-  await handset.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).tap();
-  await expect(handset.locator('dialog[open]')).toHaveCount(0);
+  for (const name of ['Inbox', 'Research']) {
+    if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
+    await handset.locator('#add-group').tap();
+    await handset.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill(name);
+    await handset.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).tap();
+    await expect(handset.locator('dialog[open]')).toHaveCount(0);
+  }
   if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
   const rows = handset.locator('#groups .group-row[data-group-id]'); await expect(rows).toHaveCount(2);
   const order = () => rows.evaluateAll(nodes => nodes.map(node => node.dataset.groupId));

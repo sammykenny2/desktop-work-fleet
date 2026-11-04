@@ -892,6 +892,7 @@ node scripts/testing/automatic-backup-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/scene-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/handheld-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/handheld-highlight-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/group-delete-probe.mjs --url http://127.0.0.1:PORT
 ```
 
 The browser, group, revision, backup, restore UI, cloud restore UI, local backup UI, automatic backup and scene probes
@@ -904,6 +905,13 @@ folder, and only `host.info` is changed to say Android (`en-US`) or iOS (`zh-TW`
 zoom and that Settings > General starts with "Version", showing the version and the app, with no update row or startup
 settings. It tests the renderer's phone paths, not the iOS or Android hosts; the Windows UI probe checks the desktop
 "Version and updates" heading and update row.
+
+`group-delete-probe` opens a new profile and checks the page with no group: no selected row, the first-note prompt, the hidden
+status tabs, view switch and capture button, the disabled adjust buttons, working search, and Trash with its row leading back.
+It writes the first note, deletes groups down to none with their counts in the question, restores notes into another group
+and with no group left, and repeats with two sections, where a group in one leaves the other empty, and on a phone-sized page,
+where every button of the group dialog fits. `tests/group-delete.test.js` covers the same rules in the core for both sections,
+with a failed write, unsaved changes, conflicts, a stopped move and two devices over sync.
 
 `handheld-highlight-probe` needs no native build: a synthetic host says Linux, then Android (Chromium) or iOS (WebKit),
 over the same stored notes. A highlight set on the computer shows no checkbox, star or edge on the phone, stays stored

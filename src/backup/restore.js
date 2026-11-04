@@ -230,8 +230,11 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
   const preferences = copy(data.local); let extraCards = 0; let retiredGroups = 0; let recoveryGroup = null;
   if (mode === 'replace') {
     const backupSnapshot = await projectRevisionsAsync(backupGraph, { ...data.local, conflicts: data.local.transferIntents }, checkpoint);
+    const backupGroups = new Set(data.local.groups.map(item => item.id));
     let recipient = activeGroups(backupSnapshot)[0]?.id;
-    if (!recipient) {
+    // A group in sight that this backup does not hold retires into another, so with none in the backup it needs one made for it.
+    // With nothing to retire, a section left with no group stays so, and a hidden record stays for its trashed notes (ADR-067).
+    if (!recipient && activeGroups(state).some(group => !backupGroups.has(group.id))) {
       recoveryGroup = { id: fresh(), revision: fresh(), name: t('backup.restore.recoveryGroupName'), deleted: false }; recipient = recoveryGroup.id;
       append(revisionRecord('group', recoveryGroup)); preferences.groups.push({ id: recipient, revision: recoveryGroup.revision });
     }
@@ -244,12 +247,12 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
       }
     };
     for (const { kind, entityId, heads } of backupGraph.iterateEntities()) { restoreHeads(kind, entityId, heads); await checkpoint(); }
-    const backupCards = new Set(data.local.cards.map(item => item.id)); const backupGroups = new Set(data.local.groups.map(item => item.id));
+    const backupCards = new Set(data.local.cards.map(item => item.id));
     for (const card of state.cards) if (!backupCards.has(card.id)) {
       restoreHeads('card', card.id, graph.heads('card', card.id), { deleted: true,
         ...current && !card.deleted ? { trashedAt: new Date().toISOString(), trashEpisode: fresh() } : {} }); extraCards++; await checkpoint();
     }
-    for (const group of state.groups) if (!backupGroups.has(group.id)) {
+    if (recipient) for (const group of state.groups) if (!backupGroups.has(group.id)) {
       restoreHeads('group', group.id, graph.heads('group', group.id), { deleted: true, redirectGroupId: recipient }); retiredGroups++; await checkpoint();
     }
     for (const values of [preferences.cards, preferences.groups]) for (const value of values) value.revision = restoredHeads.get(value.revision) || value.revision;

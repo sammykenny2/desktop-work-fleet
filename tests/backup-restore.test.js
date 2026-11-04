@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
-import { copy } from '../src/core/contracts.js';
+import { activeGroups, copy } from '../src/core/contracts.js';
 import { revisionRecord } from '../src/sources/revisions.js';
 import { canonicalJson, parseJson } from '../src/sources/json.js';
 import { sha256 } from '../src/sources/files.js';
@@ -339,6 +339,41 @@ test('a backup keeps group highlights, and an import adds the imported groups to
   assert.ok(highlights.includes(own.id), 'this device keeps its own highlight');
   assert.equal(imported.length, 1);
   assert.ok(target.workspace.snapshot.groups.some(group => group.id === imported[0] && !group.deleted), 'the highlight follows the imported group');
+});
+
+test('a backup keeps a deleted group out of the lists and its notes in Trash, ready to bring the group back', async () => {
+  const s = await source(); const note = await s.workspace.createCard(text('In the deleted group'), s.b.id);
+  await s.workspace.deleteGroup(s.b.id);
+  const document = await s.export(); const target = await fixture();
+  const plan = await prepareLocalRestore({ workspace: target.workspace, document, workAreas: [area], layout: 'backup' });
+  await target.workspace.applyRestore(plan, { persist: target.atomic });
+  assert.deepEqual(activeGroups(target.workspace.snapshot).map(group => group.id), [s.a.id]);
+  assert.equal(target.workspace.cardValue(note.id).deleted, true);
+  await target.workspace.returnMovedGroup(s.b.id);
+  await target.workspace.restoreCard(note.id, target.workspace.cardValue(note.id).revision);
+  assert.equal(target.workspace.cardValue(note.id).groupId, s.b.id);
+});
+
+test('replacing with a backup that holds no group adds one only when groups here need somewhere to go', async () => {
+  const s = await source(); await s.workspace.deleteGroup(s.a.id); await s.workspace.deleteGroup(s.b.id);
+  assert.deepEqual(activeGroups(s.workspace.snapshot), []);
+  const document = await s.export();
+  const same = await prepareRestore({ workspace: s.workspace, document, mode: 'replace', layout: 'backup', workAreas: [area] });
+  assert.equal(same.preview.recoveryGroup, null, 'nothing here needs a group');
+  const safetyBackup = await saveSafetyBackup({ workspace: s.workspace, storage: s.storage, save: async () => ({ saved: true, receipt: 'verified-test-file' }) });
+  await s.workspace.applyRestore(same, { persist: s.atomic, safetyBackup });
+  assert.deepEqual(activeGroups(s.workspace.snapshot), []);
+  const other = await fixture();
+  const elsewhere = await prepareRestore({ workspace: other.workspace, document, mode: 'replace', layout: 'backup', workAreas: [area] });
+  assert.equal(typeof elsewhere.preview.recoveryGroup, 'string', 'a group here retires into the one made for it');
+  const hidden = await fixture(); const group = hidden.workspace.snapshot.groups[0];
+  const note = await hidden.workspace.createCard(text('In Trash here'), group.id); await hidden.workspace.deleteGroup(group.id);
+  const kept = await prepareRestore({ workspace: hidden.workspace, document, mode: 'replace', layout: 'backup', workAreas: [area] });
+  assert.equal(kept.preview.recoveryGroup, null, 'a deleted group\'s record needs no group to retire into');
+  const hiddenBackup = await saveSafetyBackup({ workspace: hidden.workspace, storage: hidden.storage, save: async () => ({ saved: true, receipt: 'verified-test-file' }) });
+  await hidden.workspace.applyRestore(kept, { persist: hidden.atomic, safetyBackup: hiddenBackup });
+  assert.deepEqual(activeGroups(hidden.workspace.snapshot), []);
+  assert.equal(hidden.workspace.cardValue(note.id).deleted, true);
 });
 
 test('a backup keeps each group opacity, and an import gives the imported groups theirs while the local groups keep their own', async () => {

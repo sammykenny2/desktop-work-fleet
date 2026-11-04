@@ -60,12 +60,12 @@ function validateGrid(grid, groups) {
 function validateLayout(layout, snapshot, graph) {
   requireSchemaVersion(layout, 'layout', { code: 'unsupported-backup-schema' });
   fail(object(layout) && validId(layout.deviceId) && count(layout.revision)
-    && typeof layout.desktopVisible === 'boolean' && (layout.myGroupId === null || validId(layout.myGroupId))
+    && typeof layout.desktopVisible === 'boolean'
     && object(layout.placements) && Array.isArray(layout.history));
   const groups = new Set(snapshot.groups.map(item => item.id)); const cards = new Set(snapshot.cards.map(item => item.id));
   validateGrid(layout.grid, groups);
   // Retired/cyclic targets remain recoverable preferences. Source reconciliation repairs them explicitly.
-  fail(layout.myGroupId === null || groups.has(layout.myGroupId)); validateShortcuts(layout.shortcuts, snapshot.groups);
+  validateShortcuts(layout.shortcuts, snapshot.groups);
   const geometry = value => validRect(value) && Number.isFinite(value.order);
   const layers = ['desktop', 'wallpaper', 'floating'];
   for (const [id, rect] of Object.entries(layout.placements)) fail(cards.has(id) && geometry(rect)
@@ -83,6 +83,8 @@ function validateLayout(layout, snapshot, graph) {
     && Object.entries(layout.groupColors).every(([id, index]) => groups.has(id) && validColor(index)));
   fail(layout.groupOpacity === undefined || object(layout.groupOpacity)
     && Object.entries(layout.groupOpacity).every(([id, value]) => groups.has(id) && validOpacity(value)));
+  fail(layout.groupHighlights === undefined || object(layout.groupHighlights)
+    && Object.entries(layout.groupHighlights).every(([id, value]) => groups.has(id) && value === true));
   for (const undo of layout.history) {
     fail(object(undo) && ['move', 'formation', 'transfer'].includes(undo.kind) && object(undo.before));
     for (const [id, rect] of Object.entries(undo.before)) fail(cards.has(id) && geometry(rect));

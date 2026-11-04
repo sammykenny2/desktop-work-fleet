@@ -85,7 +85,9 @@ test('an overwrite keeps the layout of this device for what the backup holds unl
   await device.workspace.layout.placeNew(device.workspace.snapshot, [area]);
   await device.workspace.layout.move(kept.id, { x: 700, y: 500 });
   for (const group of [a, c]) await device.workspace.layout.setGroupLayer(group.id, 'floating', device.workspace.snapshot);
-  await device.workspace.layout.configure({ myGroupId: b.id, mainView: 'list', completedVisible: true,
+  await device.workspace.layout.setGroupHighlight(b.id, true, device.workspace.snapshot);
+  await device.workspace.layout.setGroupHighlight(c.id, true, device.workspace.snapshot);
+  await device.workspace.layout.configure({ mainView: 'list', completedVisible: true,
     shortcuts: { ...device.workspace.layout.state.shortcuts, 'Alt+F2': '@capture' } }, device.workspace.snapshot);
   await device.workspace.layout.setMainGroup(c.id, device.workspace.snapshot);
   const before = device.workspace.layout.state; assert.ok(before.history.length > 0);
@@ -102,7 +104,8 @@ test('an overwrite keeps the layout of this device for what the backup holds unl
   assert.deepEqual(layout.groupColors, { [a.id]: before.groupColors[a.id], [b.id]: before.groupColors[b.id] });
   assert.deepEqual(layout.grid, { ...before.grid, slots: before.grid.slots.map(id => id === c.id ? null : id) }, 'this device keeps its grid');
   assert.deepEqual(layout.history, []);
-  assert.equal(layout.myGroupId, b.id); assert.equal(layout.mainGroupId, undefined, 'a remembered group the backup lacks is dropped');
+  assert.deepEqual(layout.groupHighlights, { [b.id]: true }, 'a highlight on a group the backup lacks is dropped');
+  assert.equal(layout.mainGroupId, undefined, 'a remembered group the backup lacks is dropped');
   assert.equal(layout.mainView, 'list'); assert.equal(layout.completedVisible, true); assert.equal(layout.shortcuts['Alt+F2'], '@capture');
   assert.equal(layout.deviceId, before.deviceId); assert.ok(layout.revision > before.revision);
   // The restored copy must still pass every reference check of the next backup.
@@ -110,7 +113,7 @@ test('an overwrite keeps the layout of this device for what the backup holds unl
 
   const applied = (await overwrite('backup')).layout; const backupLayout = document.data.layout;
   assert.deepEqual(applied.placements[kept.id], backupLayout.placements[kept.id]); assert.deepEqual(applied.shortcuts, backupLayout.shortcuts);
-  assert.equal(applied.mainView, undefined); assert.equal(applied.myGroupId, null); assert.deepEqual(applied.groupLayers, {});
+  assert.equal(applied.mainView, undefined); assert.equal(applied.groupHighlights, undefined); assert.deepEqual(applied.groupLayers, {});
   assert.ok(applied.revision > before.revision, 'the layout revision never goes back');
 });
 

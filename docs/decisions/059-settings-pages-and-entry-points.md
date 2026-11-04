@@ -8,6 +8,9 @@ Accepted, 2026-10-24, at the maintainer's request.
 "Version": the version and the app it runs in, with no update row, since the stores update them. Only the web shows
 Language alone.
 
+2026-11-04: at the maintainer's request, My group left the Desktop notes page. It only highlights notes, so it became
+a checkbox in each group's settings that any number of groups can use, phones included (ADR-010).
+
 ## Context
 
 The account chip at the bottom left of the sidebar and the gear beside it opened the same Settings dialog. The account
@@ -32,7 +35,7 @@ runs came after export and restore.
   - The Desktop page is renamed Desktop notes, so it names what it configures rather than the computer.
 - **General**: "Version and updates", then "Startup", then "Language". Phones show "Version" (no update row) and
   Language; the web, which has no host, shows only Language.
-- **Desktop notes**: the display switches and My group, then Group regions, then "Show desktop notes through XWayland"
+- **Desktop notes**: the display switches, then Group regions, then "Show desktop notes through XWayland"
   (GNOME Wayland only), then Reset desktop layout last.
 - **Data and backup**: automatic backup, export, restore, then Reset all data last.
 

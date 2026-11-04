@@ -926,7 +926,7 @@ paper dragged onto another sidebar group (Esc and the note's own group moving no
 with its desktop position kept; Undo from the status bar; "Moved from" on the versions in history; nothing moving at
 390 px), the
 toast naming the keys that changed group,
-a colour swap in group settings recording no revision and repainting the sidebar dot, the My group star following the setting and a merge,
+a colour swap in group settings recording no revision and repainting the sidebar dot, group highlights set in each group's settings (two at once, no revision recorded, the star taking the dot's place and colour with the name unmoved, the edge on exactly the highlighted group's notes) and following a merge,
 the group chosen in the sidebar, by a region key, by creating it or in the editor of a new note being remembered in the layout and shown again after a reload,
 custom and duplicate shortcuts, and multiple bindings surviving a merge and being set again. It also checks that saving
 group settings with the name unchanged records no revision, that "Show completed notes" starts off, shows a completed

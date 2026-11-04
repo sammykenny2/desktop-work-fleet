@@ -66,7 +66,6 @@ export interface DeviceLayout {
   placements: Record<Id, Placement>;
   history: LayoutUndo[];
   desktopVisible: boolean;
-  myGroupId: Id | null;
   shortcuts: Record<string, Id>;
   /** Missing groups are on the desktop layer. */
   groupLayers: Record<Id, ResidentLayer>;
@@ -74,6 +73,8 @@ export interface DeviceLayout {
   groupColors?: Record<Id, number>;
   /** This device's opacity, 0.3 to 1, for each group's papers resting on the Top layer; absent means opaque. Never syncs. */
   groupOpacity?: Record<Id, number>;
+  /** Groups whose notes stand out on this device, any number of them; absent means none. Never syncs. */
+  groupHighlights?: Record<Id, true>;
   /** Whether holding the platform key and dragging moves a resting paper (SPEC-003 quick move); absent means off. Never syncs. */
   quickMove?: boolean;
   /** The main window's view of a group's papers on this device; missing shows the board. */

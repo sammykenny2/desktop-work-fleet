@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { Workspace } from '../src/core/workspace.js';
 import { copy } from '../src/core/contracts.js';
 import { resolveGroupId } from '../src/core/groups.js';
+import { groupHighlighted } from '../src/layout/store.js';
+import { reconcileSourceLayout } from '../src/sources/projection.js';
 
 const area = { x: 0, y: 0, width: 1200, height: 900 };
 const content = text => ({ format: 'markdown', text, attachments: [{ id: 'blob', name: 'original.txt' }], custom: { keep: true } });
@@ -26,7 +28,8 @@ async function fixture() {
 
 test('group merge previews every state, atomically redirects membership and preserves content and geometry', async () => {
   const f = await fixture();
-  await f.workspace.layout.configure({ myGroupId: f.a.id, shortcuts: { 'Ctrl+Shift+1': f.a.id } }, f.workspace.snapshot);
+  await f.workspace.layout.configure({ shortcuts: { 'Ctrl+Shift+1': f.a.id } }, f.workspace.snapshot);
+  await f.workspace.layout.setGroupHighlight(f.a.id, true, f.workspace.snapshot);
   await f.workspace.layout.setMainGroup(f.a.id, f.workspace.snapshot);
   const before = f.disk(); const plan = f.workspace.previewGroupMerge(f.a.id, f.b.id);
   assert.equal(plan.cards.length, 4); assert.equal(plan.cards.filter(card => card.deleted).length, 1);
@@ -35,7 +38,7 @@ test('group merge previews every state, atomically redirects membership and pres
   assert.deepEqual(f.disk(), before); assert.deepEqual(f.workspace.state, before);
   f.fail(false); await f.workspace.mergeGroup(plan);
   assert.deepEqual(f.workspace.layout.state.placements, before.layout.placements);
-  assert.equal(f.workspace.layout.state.myGroupId, f.b.id); assert.equal(f.workspace.layout.state.mainGroupId, f.b.id);
+  assert.deepEqual(f.workspace.layout.state.groupHighlights, { [f.b.id]: true }); assert.equal(f.workspace.layout.state.mainGroupId, f.b.id);
   assert.equal(f.workspace.layout.state.shortcuts['Ctrl+Shift+1'], f.b.id);
   assert.deepEqual(f.workspace.layout.state.grid.slots, before.layout.grid.slots.map(id => id === f.a.id ? null : id));
   for (const previous of before.cards) {
@@ -150,11 +153,42 @@ test('autosave queued during a merge follows only proven membership revisions an
   }
 });
 
+test('any number of groups can be highlighted on this device, and a merge leaves one highlight on the receiving group', async () => {
+  const f = await fixture(); const groups = f.workspace.snapshot.groups;
+  await f.workspace.layout.setGroupHighlight(f.a.id, true, f.workspace.snapshot);
+  await f.workspace.layout.setGroupHighlight(f.b.id, true, f.workspace.snapshot);
+  const layout = () => f.workspace.layout.state;
+  assert.deepEqual(layout().groupHighlights, { [f.a.id]: true, [f.b.id]: true });
+  assert.ok(groupHighlighted(layout(), f.a.id) && groupHighlighted(layout(), f.b.id));
+  assert.deepEqual(f.workspace.snapshot.groups, groups, 'a highlight records no group revision');
+  await assert.rejects(f.workspace.layout.setGroupHighlight('missing-group', true, f.workspace.snapshot), error => error.code === 'missing-group');
+  await f.workspace.mergeGroup(f.workspace.previewGroupMerge(f.a.id, f.b.id));
+  assert.deepEqual(layout().groupHighlights, { [f.b.id]: true });
+  await f.workspace.layout.setGroupHighlight(f.b.id, false, f.workspace.snapshot);
+  assert.deepEqual(layout().groupHighlights, {}); assert.equal(groupHighlighted(layout(), f.b.id), false);
+});
+
+test('a redirect passes a highlight on, a group simply gone takes it along, and an unchanged highlight bumps no revision', async () => {
+  const f = await fixture();
+  await f.workspace.layout.setGroupHighlight(f.a.id, true, f.workspace.snapshot);
+  const layout = f.workspace.layout.state; const snapshot = copy(f.workspace.snapshot);
+  const steady = reconcileSourceLayout(layout, snapshot);
+  assert.deepEqual(steady.groupHighlights, { [f.a.id]: true }); assert.equal(steady.revision, layout.revision);
+  const retired = snapshot.groups.find(group => group.id === f.a.id); retired.deleted = true; retired.redirectGroupId = f.b.id;
+  assert.deepEqual(reconcileSourceLayout(layout, snapshot).groupHighlights, { [f.b.id]: true });
+  delete retired.redirectGroupId;
+  assert.deepEqual(reconcileSourceLayout(layout, snapshot).groupHighlights, {});
+  // Rejoining a dataset starts from no groups: highlights leave with the colours rather than linger as unknown groups,
+  // which the next backup's reference checks would refuse.
+  const rejoined = reconcileSourceLayout(layout, { groups: [] });
+  assert.deepEqual(rejoined.groupHighlights, {}); assert.deepEqual(rejoined.groupColors, {});
+});
+
 test('queued old settings cannot reintroduce retired group references after merge', async () => {
   const f = await fixture(); const oldSnapshot = f.workspace.snapshot;
   await f.workspace.mergeGroup(f.workspace.previewGroupMerge(f.a.id, f.b.id));
   const before = f.disk();
-  await assert.rejects(f.workspace.layout.configure({ myGroupId: f.a.id }, oldSnapshot), error => error.code === 'stale-groups');
+  await assert.rejects(f.workspace.layout.configure({ shortcuts: { 'Ctrl+1': f.a.id } }, oldSnapshot), error => error.code === 'stale-groups');
   await assert.rejects(f.workspace.layout.placeNew(oldSnapshot, [area]), error => error.code === 'stale-groups');
   assert.deepEqual(f.disk(), before); assert.deepEqual(f.workspace.layout.state, before.layout);
 });

@@ -2,6 +2,7 @@ import { activeGroups, copy, gridRegions, summaryText, validRect, requireValue }
 import { groupColors } from '../core/palette.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity } from '../layout/opacity.js';
+import { groupHighlighted } from '../layout/store.js';
 import { cardPolicy, sceneOrder } from '../interaction/controller.js';
 import { groupName } from '../core/group-name.js';
 import { getLocale, t } from '../i18n/index.js';
@@ -39,7 +40,7 @@ export function projectDesktop({ snapshot, layout, interaction, sessionId, seque
       attachments: (card.content.attachments || []).map(file => ({ id: file.id, name: file.name })),
       rect: { x: placement.x, y: placement.y, width: placement.width, height: placement.height }, layer,
       interactive, draggable, editing,
-      selected: interaction.selectedCardId === card.id, completed: card.completed, mine: layout.myGroupId === card.groupId,
+      selected: interaction.selectedCardId === card.id, completed: card.completed, mine: groupHighlighted(layout, card.groupId),
       color: groupColors[colors[card.groupId] ?? 0],
       // Only a paper resting on the Top layer is see-through; one being adjusted or edited stays opaque.
       opacity: layer === 'floating' && !draggable && !editing ? groupOpacity(layout, card.groupId) : 1,

@@ -43,11 +43,11 @@ export function remapLayout(layout, ids) {
   const grid = value => { value.slots = value.slots.map(id => id === null ? null : ids.group(id)); };
   const geometry = value => Object.fromEntries(Object.entries(value).map(([id, rect]) => [ids.card(id), rect]));
   grid(result.grid); result.placements = geometry(result.placements);
-  if (result.myGroupId !== null) result.myGroupId = ids.group(result.myGroupId);
   if (result.mainGroupId !== undefined) result.mainGroupId = ids.group(result.mainGroupId);
   if (result.groupLayers) result.groupLayers = Object.fromEntries(Object.entries(result.groupLayers).map(([id, layer]) => [ids.group(id), layer]));
   if (result.groupColors) result.groupColors = Object.fromEntries(Object.entries(result.groupColors).map(([id, index]) => [ids.group(id), index]));
   if (result.groupOpacity) result.groupOpacity = Object.fromEntries(Object.entries(result.groupOpacity).map(([id, value]) => [ids.group(id), value]));
+  if (result.groupHighlights) result.groupHighlights = Object.fromEntries(Object.keys(result.groupHighlights).map(id => [ids.group(id), true]));
   for (const key of Object.keys(result.shortcuts)) if (!result.shortcuts[key].startsWith('@')) result.shortcuts[key] = ids.group(result.shortcuts[key]);
   for (const undo of result.history) {
     undo.before = geometry(undo.before);
@@ -268,6 +268,7 @@ export async function prepareRestore({ workspace, document, mode = 'import', lay
       next.layout.groupLayers = { ...restoredLayout.groupLayers, ...next.layout.groupLayers };
       // An opacity cannot clash, so imported groups keep the backup's while this device's own stay.
       next.layout.groupOpacity = { ...restoredLayout.groupOpacity, ...next.layout.groupOpacity };
+      next.layout.groupHighlights = { ...restoredLayout.groupHighlights, ...next.layout.groupHighlights };
       // Imported groups take free colours instead of the backup's, which could clash with this device's own.
     } else {
       next.layout = { ...restoredLayout, deviceId: state.layout.deviceId, revision: state.layout.revision,

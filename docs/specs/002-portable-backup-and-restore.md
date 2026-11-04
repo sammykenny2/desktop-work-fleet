@@ -86,7 +86,7 @@ for the next backup.
 | Missing parent | Pending records and missing IDs are kept as they are, without inventing parents; the manifest counts them and states the known local scope |
 | Drafts | All drafts, uncommitted cards, recoveredFrom baselines and their attachments; after a restore they are still local drafts |
 | Local reading preferences | The current complete head selection and entity order, proofs of pure membership rebases, unfinished transfer intents |
-| Per-device layout | deviceId, grid/regions, placement/size/order, display/layer/selection, shortcuts, myGroup, undo |
+| Per-device layout | deviceId, grid/regions, placement/size/order, display/layer/selection, shortcuts, group highlights, undo |
 | Attachments | The bytes referenced by all history, drafts and their baselines; a missing file, a size mismatch or a wrong hash rejects the complete export |
 | Excluded | Profile/account, tokens, client secret, Drive file IDs, source/session, cursor, upload URLs, outbox packets and restore receipts |
 

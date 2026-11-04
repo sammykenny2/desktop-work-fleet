@@ -120,8 +120,9 @@ interface. To switch, see [Settings](#settings).
   notes see-through while they rest on the Top layer, so they don't hide the work beneath them. Only the paper turns
   see-through; text, checkboxes and thumbnails stay solid. Notes on the Wallpaper and Desktop layers, notes being
   adjusted and the main window's board and list stay opaque. Like the color, it is kept on this device only.
-- "My group" in Settings > Desktop notes gives the notes of one group an accent-colored edge on this device and puts a
-  star before its name in the sidebar. Phones have no "My group" and ignore one carried over by a restored layout.
+- "Highlight this group's notes" in a group's settings (the ⋯ beside it) gives its notes an accent-colored edge and
+  turns its dot in the sidebar into a star of the same color. Any number of groups can use it. Like the color, it is
+  kept on this device only.
 - Each group sits on one desktop layer; see [Desktop notes and layers](#desktop-notes-and-layers).
 
 ## The board and the list
@@ -288,7 +289,7 @@ groups:
   - Phones have the same setting; on iOS the Share Extension sheet follows it too.
   - The choice belongs to this device: it is not part of a backup or of Google data.
 - Desktop notes (desktop apps and the browser preview; phones have no Desktop notes or Shortcuts page): "Show notes
-  while locked", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only), "My group" and
+  while locked", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only) and
   "Group regions". On GNOME Wayland the page also has "Show
   desktop notes through XWayland" (see [Linux](#linux)). "Reset desktop layout" is last.
 - Shortcuts: see [Shortcuts](#shortcuts).

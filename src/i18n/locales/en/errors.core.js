@@ -8,7 +8,6 @@ export default {
   'errors.core.groupUpdated': 'The group was updated. Try again.',
   'errors.core.groupsChanged': 'Groups changed. Reopen Settings or Arrange.',
   'errors.core.groupPendingSync': "Group data hasn't synced yet.",
-  'errors.core.myGroupMissing': 'The group set as yours no longer exists.',
 
   // Group merges
   'errors.core.groupCycle': 'Merging these groups would create a loop. Resolve the group conflicts first.',

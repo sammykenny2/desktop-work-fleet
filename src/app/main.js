@@ -4,7 +4,7 @@ import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionKeyChanges, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
 import { adjustStage, arrivalLayer, groupLayer, groupLayerOrder, restingLayer, stepGroup } from '../layout/stages.js';
-import { mainGroup, mainView } from '../layout/store.js';
+import { groupHighlighted, mainGroup, mainView } from '../layout/store.js';
 import { orderedGroups, reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity, MIN_OPACITY } from '../layout/opacity.js';
@@ -92,8 +92,6 @@ function immediateButton(text, handler, className) {
 }
 function button(text, action, className) { return immediateButton(text, () => run(action), className); }
 // A status can offer one follow-up, such as undoing a delete, which runs once; the next status takes it away.
-// Phones arrange no desktop, so "My group" means nothing there, even when a restored computer layout carries one.
-const myGroupOf = layout => handheld ? null : layout.myGroupId;
 // A short message floating above the page that leaves on its own or when closed; a newer one replaces it. The live
 // region stays in the page and is emptied rather than hidden, so assistive technology announces every message.
 let toastTimer = 0;
@@ -158,9 +156,8 @@ const rememberedGroup = () => mainGroup(workspace.layout.state, shownGroups());
 async function rememberGroup() {
   if (activeGroupId) await workspace.layout.setMainGroup(activeGroupId, workspace.snapshot).catch(error => status(error.message, true));
 }
-function fillGroups(select, selected, none = false) {
+function fillGroups(select, selected) {
   select.replaceChildren();
-  if (none) select.append(new Option(t('app.groups.none'), ''));
   for (const group of shownGroups()) select.append(new Option(groupName(group), group.id));
   select.value = selected || '';
 }
@@ -1338,9 +1335,10 @@ function renderGroupList(snapshot, layout, groups) {
     const row = element('div', undefined, `group-row${group.id === activeGroupId ? ' active' : ''}`);
     row.dataset.groupId = group.id;
     const choose = button('', async () => { activeGroupId = group.id; setDrawer(false); render(); await rememberGroup(); });
-    const dot = element('span', undefined, 'group-dot'); dot.style.setProperty('--group-color', groupColor(group.id));
+    // A highlighted group's star takes the dot's place and colour, so the name keeps its position and width.
+    const dot = groupHighlighted(layout, group.id) ? sidebarMark(icon(starPath), 'group-star', t('app.groups.highlightMark')) : element('span', undefined, 'group-dot');
+    dot.style.setProperty('--group-color', groupColor(group.id));
     choose.append(dot);
-    if (myGroupOf(layout) === group.id) choose.append(sidebarMark(icon(starPath), 'group-star', t('app.groups.myGroupMark')));
     choose.append(element('span', groupName(group), 'group-name'));
     if (desktopInfo) choose.append(layerMark(groupLayer(layout, group.id)));
     choose.append(element('span', String(snapshot.cards.filter(card => card.groupId === group.id && !card.deleted && !card.archived).length), 'group-count'));
@@ -1354,7 +1352,7 @@ function renderGroupList(snapshot, layout, groups) {
   }
 }
 
-// Small marks in a group row: a star for My group, and on desktop computers the layer the group's papers rest on.
+// Small marks in a group row: a star for a highlighted group, and on desktop computers the layer the group's papers rest on.
 const starPath = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z';
 // Three plates stacked back to front from the bottom; the group's plate is filled.
 const layerPlates = { floating: 'M12 2.5 20 5.5 12 8.5 4 5.5Z', desktop: 'M12 9 20 12 12 15 4 12Z', wallpaper: 'M12 15.5 20 18.5 12 21.5 4 18.5Z' };
@@ -1609,7 +1607,7 @@ function renderStage(cards) {
     if (!policy.visible || !placement) continue;
     const paper = element('article', undefined, 'card'); paper.dataset.cardId = card.id;
     paper.classList.toggle('operable', policy.draggable); paper.classList.toggle('selectable', !policy.draggable && policy.interactive);
-    paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', myGroupOf(layout) === card.groupId);
+    paper.classList.toggle('selected', state.selectedCardId === card.id); paper.classList.toggle('mine', groupHighlighted(layout, card.groupId));
     paper.classList.toggle('completed', card.completed);
     paper.style.setProperty('--paper', groupColor(card.groupId)); paper.style.zIndex = String(z++); rectStyle(paper, placement);
     const summary = element('div', summaryText(card), 'card-summary'); if (card.unsaved) summary.append(unsavedDot());
@@ -1654,13 +1652,13 @@ function renderNotes(cards, view, acrossGroups) {
   for (const close of noteAttachmentCleanup.splice(0)) close();
   boardFitter.clear(); const list = $('#list'); list.replaceChildren(); list.setAttribute('aria-label', view === 'list' ? t('app.views.listLabel') : t('app.views.boardLabel'));
   if (!cards.length) { list.append(element('p', t('app.notes.empty'), 'hint')); return; }
-  const groups = activeGroups(workspace.snapshot); const myGroupId = myGroupOf(workspace.layout.state);
+  const groups = activeGroups(workspace.snapshot); const layout = workspace.layout.state;
   const holder = element('div', undefined, view === 'list' ? 'note-list' : 'board');
   for (const card of cards) {
     const title = summaryText(card);
     const note = element('article', undefined, view === 'list' ? 'note-row' : 'note-paper'); note.dataset.cardId = card.id;
     note.style.setProperty('--paper', groupColor(card.groupId));
-    note.classList.toggle('completed', card.completed); note.classList.toggle('mine', myGroupId === card.groupId);
+    note.classList.toggle('completed', card.completed); note.classList.toggle('mine', groupHighlighted(layout, card.groupId));
     // A board paper ticks its checklist steps in place, as the desktop papers do; its boxes wait while a tick saves.
     const body = element('div', undefined, 'note-body markdown');
     renderMarkdown(body, card.content.text, { highlight: view !== 'list', ...card.deleted ? {} : { onToggle: task => {
@@ -1813,6 +1811,10 @@ function groupEditor(group) {
     swatch.append(radio, chip); swatches.append(swatch);
   });
   colorField.append(swatches);
+  // Like the colour, this belongs to the device, so saving it records no group revision.
+  const highlightAtOpen = Boolean(group) && groupHighlighted(workspace.layout.state, group.id);
+  const highlightField = element('label', undefined, 'check'); const highlight = element('input'); highlight.type = 'checkbox';
+  highlight.name = 'group-highlight'; highlight.checked = highlightAtOpen; highlightField.append(highlight, element('span', t('app.groupEditor.highlight')));
   // Papers resting on the Top layer can let the work beneath them show through; this desktop must offer that layer.
   const opacityAtOpen = group ? groupOpacity(workspace.layout.state, group.id) : 1;
   const opacityField = desktop && residentLayers().includes('floating') ? element('label', t('app.groupEditor.opacity'), 'field opacity-field') : null;
@@ -1844,7 +1846,7 @@ function groupEditor(group) {
   }
   actions.append(immediateButton(t('common.cancel'), () => { if (!writing) dialog.close(); }), save);
   dialog.addEventListener('cancel', event => { if (writing) event.preventDefault(); });
-  form.append(title, label, colorField, ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
+  form.append(title, label, colorField, highlightField, element('p', t('app.groupEditor.highlightHint'), 'hint'), ...layerField ? [layerField, element('p', t('app.groupEditor.layerHint'), 'hint')] : [],
     ...opacityField ? [opacityField, element('p', t('app.groupEditor.opacityHint'), 'hint')] : [], actions); dialog.append(form); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   form.addEventListener('submit', event => { event.preventDefault(); press(async () => {
@@ -1866,6 +1868,7 @@ function groupEditor(group) {
     const colorNow = group ? colorAtOpen : workspace.layout.state.groupColors?.[groupId];
     if (chosen !== colorAtOpen && chosen !== colorNow) await workspace.layout.setGroupColor(groupId, chosen, workspace.snapshot);
     if (opacityField && opacity.value !== opacityShown) await workspace.layout.setGroupOpacity(groupId, Number(opacity.value) / 100, workspace.snapshot);
+    if (highlight.checked !== highlightAtOpen) await workspace.layout.setGroupHighlight(groupId, highlight.checked, workspace.snapshot);
     await workspace.layout.placeNew(workspace.working, workAreas()); dialog.close(); render(); status(t('app.status.groupSaved'));
   }); });
   dialog.showModal(); input.focus();
@@ -2408,7 +2411,7 @@ function renderDesktopSettings() {
   $('#quick-move-label').textContent = t('settings.desktop.quickMove', { key: native?.info.platform === 'macos' ? '⌘' : 'Ctrl' });
   $('#desktop-quick-move').checked = layout.quickMove === true;
   settingsSlots = [...layout.grid.slots];
-  fillGroups($('#my-group'), layout.myGroupId, true); $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
+  $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
   previewGrid();
 }
 function applyLayout(patch) {
@@ -2631,7 +2634,6 @@ function bindEvents() {
   $('#open-main').onchange = () => setHostPreference('openMainAtLogin', $('#open-main'));
   $('#start-login-system').onclick = () => run(() => native.bridge.request('host.preferences.openSystem'));
   $('#update-action').onclick = () => runUpdateAction();
-  $('#my-group').onchange = () => applyLayout({ myGroupId: $('#my-group').value || null });
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
   $('#labwc-write').onclick = () => run(async () => { await nativeShortcuts?.writeLabwc(); status(t('app.status.labwcWritten')); });

@@ -105,6 +105,18 @@ test('frames carry the owner locale and show the stored initial group name in th
   } finally { setLocale('en'); }
 });
 
+test('a desktop frame marks the papers of every highlighted group and only those', async () => {
+  const f = await fixture();
+  const mine = () => Object.fromEntries(projectDesktop({ snapshot: f.workspace.snapshot, layout: f.workspace.layout.state,
+    interaction: f.controller.state, sessionId: 'highlight-test', sequence: 1, workspaceRevision: f.workspace.state.revision,
+    layers: ['desktop', 'floating', 'wallpaper'] }).cards.map(card => [card.id, card.mine]));
+  assert.deepEqual(mine(), { [f.card.id]: false, [f.other.id]: false }, 'native hosts refuse a frame whose flag is not a boolean');
+  await f.workspace.layout.setGroupHighlight(f.a.id, true, f.workspace.snapshot);
+  assert.deepEqual(mine(), { [f.card.id]: true, [f.other.id]: false });
+  await f.workspace.layout.setGroupHighlight(f.b.id, true, f.workspace.snapshot);
+  assert.deepEqual(mine(), { [f.card.id]: true, [f.other.id]: true });
+});
+
 test('wallpaper projections stay passive, float only their operated group, then restore current resident policy', async () => {
   const f = await fixture();
   await f.workspace.layout.setGroupLayer(f.a.id, 'wallpaper', f.workspace.snapshot);

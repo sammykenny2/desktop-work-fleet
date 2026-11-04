@@ -11,6 +11,8 @@ Revised 2026-10-23: the group the main window shows is remembered per device, so
 across restarts; see the `mainGroupId` item under Decision.
 Revised again 2026-10-23: each group can make its Top-layer papers see-through; the opacity is a device setting
 next to its colour and never syncs.
+Revised 2026-11-04: at the maintainer's request, the single device-wide "My group" became a highlight each group can
+carry, set in the group's settings and kept per device like the colour; see the merge item under Decision.
 Merge cycles and dependency handling in the remote revision graph belong to the sync slice; this record does not
 claim they are done.
 
@@ -44,8 +46,8 @@ overwrite other changes.
 - Groups, cards, drafts, the outbox and layout settings are committed in the same transaction. If saving fails,
   all three keep their original values;
   the shared data transaction must run even when the group has no region yet and no geometry changed.
-- All card geometry is kept; the source group's region becomes empty; the device's "mine" group (`myGroupId`) and
-  shortcuts from older versions bound to the group move to the target group; shortcuts bound to a region stay with
+- All card geometry is kept; the source group's region becomes empty; the source group's highlight
+  (`groupHighlights`) and shortcuts from older versions bound to the group move to the target group; shortcuts bound to a region stay with
   that region.
   Old related group-change undo entries become invalid and are removed; other geometry undo entries are kept.
   A merge is not a layout undo, and the layout Undo does not recreate the group; the confirmation explains this

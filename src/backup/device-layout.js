@@ -7,8 +7,8 @@ export function deviceLayout(layout, data) {
   const known = (value, set) => Object.fromEntries(Object.entries(value ?? {}).filter(([id]) => set.has(id)));
   const result = { ...copy(layout), history: [], placements: known(layout.placements, cards),
     groupLayers: known(layout.groupLayers, groups), groupColors: known(layout.groupColors, groups), groupOpacity: known(layout.groupOpacity, groups),
+    groupHighlights: known(layout.groupHighlights, groups),
     grid: { ...copy(layout.grid), slots: layout.grid.slots.map(id => groups.has(id) ? id : null) } };
-  if (!groups.has(result.myGroupId)) result.myGroupId = null;
   if (!groups.has(result.mainGroupId)) delete result.mainGroupId;
   return result;
 }

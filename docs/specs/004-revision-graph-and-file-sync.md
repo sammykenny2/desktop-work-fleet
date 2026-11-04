@@ -126,7 +126,7 @@ A device that receives all cards at once in its first sync therefore shows the s
 them (user decision on 2026-10-06: creation time, oldest on top).
 The card projection may show a card in the receiving group by following the complete group redirect chain; the
 original revision.value.groupId does not change.
-Each device's "mine" setting and shortcuts follow the effective redirect; region bookkeeping can adjust, while the
+Each device's group highlights and shortcuts follow the effective redirect; region bookkeeping can adjust, while the
 geometry and display policy of existing cards do not change.
 Tidying more than nine groups back to nine restores a valid layout in the same transaction. With cycles or missing
 dependencies, drafts can still be saved; input must not be lost because a rebase failed.

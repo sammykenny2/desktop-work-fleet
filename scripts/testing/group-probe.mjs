@@ -39,7 +39,7 @@ const capture = async text => {
 try {
   await page.goto(base.href); await expect(page.locator('#status')).toHaveText(t('app.status.opened'));
   await capture('Original group note');
-  await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio])').fill('Research');
+  await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups .group-row')).toHaveCount(2);
   const created = await read(); assert.equal(created.layout.mainGroupId, created.groups[1].id, 'a new group is shown and remembered');
@@ -79,18 +79,39 @@ try {
   await bShortcut.fill('Ctrl+Shift+1, Alt+Shift+1'); await bShortcut.press('Tab');
   await lastShortcut.fill(''); await lastShortcut.press('Tab'); await allShortcut.fill('Ctrl+Shift+9, Ctrl+A'); await allShortcut.press('Tab');
   await expect(page.locator('#shortcut-message')).toBeHidden();
-  await page.locator('[data-page="desktop"]').click(); await page.locator('#my-group').selectOption(b.id);
   await page.locator('#close-settings').click(); await expect(page.locator('#settings-dialog')).not.toBeVisible();
-  await expect.poll(async () => (await read()).layout.myGroupId).toBe(b.id);
   // The account chip opens Account and sync, with the card above the pages; the gear still opens General afterwards.
   await page.locator('#account-button').click(); await expect(page.locator('#settings-page-title')).toHaveText(t('settings.account.title'));
   await expect(page.locator('.nav-account')).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#settings-account-name')).toHaveText(t('sync.account.localNotes'));
   await page.locator('#close-settings').click(); await page.locator('#settings-button').click();
   await expect(page.locator('#settings-page-title')).toHaveText(t('settings.general.title')); await page.locator('#close-settings').click();
-  // My group carries a star in the sidebar, and only My group does.
-  await expect(page.locator('#groups .group-star')).toHaveCount(1);
-  await expect(page.locator(`#groups .group-row[data-group-id="${b.id}"] .group-star`)).toHaveAttribute('aria-label', t('app.groups.myGroupMark'));
+  // Any number of groups can be highlighted, each from its own settings. The star takes the dot's place and colour, so
+  // the name does not move, and no group revision is recorded.
+  const sidebarRow = id => page.locator(`#groups .group-row[data-group-id="${id}"]`);
+  const setHighlight = async (id, on) => {
+    await sidebarRow(id).locator('.group-menu').click();
+    await page.locator('dialog[open]').getByRole('checkbox', { name: t('app.groupEditor.highlight'), exact: true }).setChecked(on);
+    await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+  };
+  const nameLeft = async id => (await sidebarRow(id).locator('.group-name').boundingBox()).x;
+  const beforeHighlight = await read(); const nameBefore = await nameLeft(b.id);
+  await setHighlight(b.id, true); await setHighlight(a.id, true);
+  await expect.poll(async () => (await read()).layout.groupHighlights).toEqual({ [b.id]: true, [a.id]: true });
+  assert.deepEqual((await read()).revisions, beforeHighlight.revisions, 'a highlight must not record a revision');
+  await expect(page.locator('#groups .group-star')).toHaveCount(2); await expect(page.locator('#groups .group-dot')).toHaveCount(0);
+  await expect(sidebarRow(b.id).locator('.group-star')).toHaveAttribute('aria-label', t('app.groups.highlightMark'));
+  await expect(sidebarRow(b.id).locator('.group-star')).toHaveAttribute('style', `--group-color: ${groupColors[beforeHighlight.layout.groupColors[b.id]]};`);
+  assert.equal(await nameLeft(b.id), nameBefore, 'the star must not push the name');
+  // The edge marks every shown note of a highlighted group and no other.
+  const shownGroup = await page.locator('#groups .group-row.active').getAttribute('data-group-id');
+  const shownNotes = await page.locator('#list [data-card-id]').count(); assert.ok(shownNotes > 0);
+  await expect(page.locator('#list .mine')).toHaveCount(shownNotes);
+  await setHighlight(a.id, false);
+  await expect(page.locator('#list .mine')).toHaveCount(shownGroup === a.id ? 0 : shownNotes);
+  await expect(page.locator('#groups .group-star')).toHaveCount(1); await expect(sidebarRow(a.id).locator('.group-dot')).toHaveCount(1);
+  assert.deepEqual((await read()).layout.groupHighlights, { [b.id]: true });
   state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
   // The sidebar follows the regions; dragging a row or Alt+arrow keys reorder the regions without moving notes.
@@ -220,7 +241,7 @@ try {
   state = await read(); assert.deepEqual(state.layout.placements, before.layout.placements);
   assert.equal(state.cards.find(card => card.content.text.startsWith('Research note')).archived, true);
   assert.ok(state.cards.every(card => card.groupId === a.id));
-  assert.equal(state.layout.myGroupId, a.id); assert.equal(state.layout.shortcuts['Ctrl+Shift+1'], '@region1');
+  assert.deepEqual(state.layout.groupHighlights, { [a.id]: true }); assert.equal(state.layout.shortcuts['Ctrl+Shift+1'], '@region1');
   await expect(page.locator(`#groups .group-row[data-group-id="${a.id}"] .group-star`)).toHaveCount(1);
   assert.equal(state.layout.shortcuts['Alt+Shift+1'], '@region1'); assert.equal(state.layout.shortcuts['Ctrl+Shift+9'], '@all');
   await page.locator('#settings-button').click();
@@ -292,7 +313,7 @@ try {
   const phoneUrl = new URL(base.href); phoneUrl.searchParams.set('profile', `groups-${crypto.randomUUID()}`);
   await handset.goto(phoneUrl.href); await expect(handset.locator('#status')).toHaveText(t('app.status.opened'));
   await handset.locator('#drawer-toggle').tap(); await handset.locator('#add-group').tap();
-  await handset.locator('dialog[open] input:not([type=radio])').fill('Research');
+  await handset.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await handset.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).tap();
   await expect(handset.locator('dialog[open]')).toHaveCount(0);
   if (!await handset.locator('#sidebar').isVisible()) await handset.locator('#drawer-toggle').tap();
@@ -321,5 +342,5 @@ try {
   await slide(await centre(rows.nth(1).locator('.group-grip')), await top(0), 0);
   await expect.poll(order, { message: 'the grip drags at once' }).toEqual([first, second]);
   await phone.close(); assert.deepEqual(errors, []);
-  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, an unsaved new note moving with its group, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, holding or gripping a group row to drag it on a phone, fixed geometry, grid remapping, sidebar reordering, colour swaps, the My group star, the remembered main-window group and configurable shortcuts');
+  console.log('PASS: settings entry points, unchanged-name saves, group preview/cancel/merge, an unsaved new note moving with its group, archived content, hidden completed papers, undo after delete, dragging a note to a sidebar group with Undo and its history, holding or gripping a group row to drag it on a phone, fixed geometry, grid remapping, sidebar reordering, colour swaps, group highlights, the remembered main-window group and configurable shortcuts');
 } finally { await context.close(); await browser.close(); }

@@ -8,7 +8,6 @@ export default {
   'errors.core.groupUpdated': '群組已更新，請重試。',
   'errors.core.groupsChanged': '群組已變更，請重新開啟設定或排列。',
   'errors.core.groupPendingSync': '群組資料尚待同步。',
-  'errors.core.myGroupMissing': '屬於我的群組已不存在。',
 
   // Group merges
   'errors.core.groupCycle': '群組合併產生循環，請先處理群組衝突。',

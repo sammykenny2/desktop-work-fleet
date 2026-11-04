@@ -112,7 +112,7 @@ not forbidden forever either.
 |---|---|
 | Card / Note / Post-it | The same product object: stable ID, content and primary group membership; a window ID does not stand in for it |
 | Group | A logical collection of cards; its name and stable ID do not depend on which machine is viewing it |
-| My group | A device-side local highlight setting; the same group data can be highlighted differently on machines A and B |
+| Highlighted group | A device-side local mark on a group, for any number of groups; the same group data can be highlighted differently on machines A and B |
 | Region | The target area the current device's formation gives a group; not a hard container, clipping area or permission scope |
 | Formation | A one-off arrangement command issued by the user, with a chosen scope and stack/spread; not automatic background layout |
 | Base order | The stable stacking order of the device layout, separate from the temporarily selected card |
@@ -166,8 +166,13 @@ because A is "me".
   colour of its place in the workspace list when no other group wears it, otherwise the first free colour; a retired
   group frees its colour; choosing a colour another group wears swaps the two. Colours never sync, and reordering
   groups does not repaint them. Past nine groups, colours repeat.
-- The sidebar marks this device's "My group" with a star; phones have no "My group" and ignore one in a restored
-  layout. On desktop computers each group row also shows the layer
+- A group's settings can highlight its notes on this device, for any number of groups and on phones too (since
+  2026-11-04, replacing the single "My group" setting in Settings). Its notes get an accent-coloured edge on the
+  desktop, the board and the list, and its dot in the sidebar becomes a star of the group's colour in the same place,
+  so the name keeps its position and width. A highlight never syncs and records no group revision; it stays through
+  Reset desktop layout, like the colour, and a merge or a redirect passes it to the receiving group. Rejoining a
+  cloud dataset starts from no groups, so it clears highlights along with colours and opacity.
+- On desktop computers each group row also shows the layer
   its papers rest on, as a three-plate icon with the layer named in its tooltip; where the desktop cannot offer the
   chosen layer, the icon shows the layer the papers fall back to and the tooltip names both.
 - Saving a group's settings with its name unchanged, for example to change only this device's layer, records no group

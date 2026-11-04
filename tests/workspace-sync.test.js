@@ -30,7 +30,8 @@ const groupBranch = (group, revision, patch) => revisionRecord('group', { ...gro
 
 test('remote data, conflict projection, device references and cursor commit together or all roll back', async () => {
   const f = await fixture();
-  await f.workspace.layout.configure({ myGroupId: f.a.id, shortcuts: { 'Ctrl+1': f.a.id } }, f.workspace.snapshot);
+  await f.workspace.layout.configure({ shortcuts: { 'Ctrl+1': f.a.id } }, f.workspace.snapshot);
+  await f.workspace.layout.setGroupHighlight(f.a.id, true, f.workspace.snapshot);
   await f.workspace.layout.setMainGroup(f.a.id, f.workspace.snapshot);
   const draft = f.workspace.blankDraft(f.a.id, f.card); draft.content.text = 'unsaved independent edit';
   await f.workspace.saveDraft(draft);
@@ -43,7 +44,7 @@ test('remote data, conflict projection, device references and cursor commit toge
   f.fail(false); await f.receive(records);
   const after = f.disk();
   assert.equal(after.cards[0].content.text, 'new text'); assert.equal(after.cards[0].groupId, f.b.id);
-  assert.equal(after.layout.myGroupId, f.b.id); assert.equal(after.layout.mainGroupId, f.b.id); assert.equal(after.layout.shortcuts['Ctrl+1'], f.b.id);
+  assert.deepEqual(after.layout.groupHighlights, { [f.b.id]: true }); assert.equal(after.layout.mainGroupId, f.b.id); assert.equal(after.layout.shortcuts['Ctrl+1'], f.b.id);
   assert.deepEqual(after.layout.placements, before.layout.placements);
   // Unsaved changes keep their text and base, and follow the retired group's redirect (ADR-061).
   assert.deepEqual(after.drafts, { [draft.id]: { ...before.drafts[draft.id], groupId: f.b.id } }); assert.deepEqual(after.outbox, before.outbox);
@@ -150,7 +151,7 @@ test('ten concurrent groups are retained, can be merged to nine and cannot be ov
   await f.receive(records); const before = f.disk();
   assert.equal(f.workspace.snapshot.groups.filter(group => !group.deleted).length, 10);
   assert.ok(f.workspace.state.conflicts.some(item => item.kind === 'group-overflow'));
-  await assert.rejects(f.workspace.layout.configure({ myGroupId: f.a.id }, oldSnapshot), fails('stale-groups'));
+  await assert.rejects(f.workspace.layout.configure({ shortcuts: { 'Ctrl+1': f.a.id } }, oldSnapshot), fails('stale-groups'));
   assert.deepEqual(f.disk(), before);
   await f.workspace.mergeGroup(f.workspace.previewGroupMerge('group-0', f.a.id));
   assert.equal(f.workspace.snapshot.groups.filter(group => !group.deleted).length, 9);

@@ -14,25 +14,29 @@ export const mainViews = Object.freeze(['board', 'list']);
 export const mainView = layout => layout.mainView === 'list' ? 'list' : 'board';
 /** The group the main window shows on this device, kept across restarts; quick capture files new notes into it. */
 export const mainGroup = (layout, groups) => groups.some(group => group.id === layout.mainGroupId) ? layout.mainGroupId : groups[0]?.id;
+/** Whether this device makes the group's notes stand out; any number of groups can. */
+export const groupHighlighted = (layout, groupId) => layout.groupHighlights?.[groupId] === true;
 
 const geometry = rect => Object.fromEntries(['x', 'y', 'width', 'height', 'order'].map(key => [key, rect[key]]));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function createLayout(deviceId, groups, area) {
   return { schemaVersion: schemas.layout, deviceId, revision: 0, grid: defaultGrid(groups, area),
-    placements: {}, history: [], desktopVisible: true, myGroupId: null, shortcuts: defaultShortcuts(), groupLayers: {},
+    placements: {}, history: [], desktopVisible: true, shortcuts: defaultShortcuts(), groupLayers: {},
     groupColors: settleGroupColors({}, groups) };
 }
 
 export function retireGroupLayout(draft, sourceId, targetId, affectedCards) {
   const affected = new Set(affectedCards);
   draft.grid.slots = draft.grid.slots.map(id => id === sourceId ? null : id);
-  if (draft.myGroupId === sourceId) draft.myGroupId = targetId;
+  // A highlight moves on to the receiving group, as a shortcut does.
+  if (draft.groupHighlights?.[sourceId]) draft.groupHighlights[targetId] = true;
   if (draft.mainGroupId === sourceId) draft.mainGroupId = targetId;
   // The receiving group keeps its own layer and colour; the retired group's colour is free again.
   if (draft.groupLayers) delete draft.groupLayers[sourceId];
   if (draft.groupColors) delete draft.groupColors[sourceId];
   if (draft.groupOpacity) delete draft.groupOpacity[sourceId];
+  if (draft.groupHighlights) delete draft.groupHighlights[sourceId];
   for (const key of Object.keys(draft.shortcuts)) if (draft.shortcuts[key] === sourceId) draft.shortcuts[key] = targetId;
   const oldLength = draft.history.length;
   draft.history = draft.history.filter(entry => !entry.transfer || !(affected.has(entry.transfer.cardId)
@@ -146,13 +150,11 @@ export class LayoutStore {
 
   async configure(patch, snapshot) {
     patch = copy(patch); snapshot = copy(snapshot);
-    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'myGroupId', 'shortcuts', 'mainView'];
+    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'shortcuts', 'mainView'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
     if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
     requireValue(['desktopVisible', 'completedVisible', 'quickMove'].every(key => !(key in patch) || typeof patch[key] === 'boolean'),
       'invalid-setting', t('errors.core.visibilityInvalid'));
-    requireValue(!('myGroupId' in patch) || patch.myGroupId === null || activeGroups(snapshot).some(group => group.id === patch.myGroupId),
-      'invalid-group-setting', t('errors.core.myGroupMissing'));
     if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, activeGroups(snapshot));
     requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', t('errors.core.mainViewUnknown'));
     return this.#transaction(draft => { Object.assign(draft, copy(patch)); return { groups: groupKey(snapshot) }; });
@@ -201,6 +203,16 @@ export class LayoutStore {
       const next = { ...draft.groupOpacity };
       if (rounded === 1) delete next[groupId]; else next[groupId] = rounded;
       draft.groupOpacity = next;
+    });
+  }
+
+  /** Whether the group's notes stand out on this device; turning it off removes the entry. */
+  async setGroupHighlight(groupId, highlighted, snapshot) {
+    requireValue(activeGroups(copy(snapshot)).some(group => group.id === groupId), 'missing-group', t('errors.common.groupMissing'));
+    return this.#transaction(draft => {
+      const next = { ...draft.groupHighlights };
+      if (highlighted) next[groupId] = true; else delete next[groupId];
+      draft.groupHighlights = next;
     });
   }
 
@@ -315,8 +327,8 @@ export class LayoutStore {
   /**
    * Resets this device's desktop layout: default group regions in the current group order, no placements or undo
    * history, papers shown, completed papers hidden, every group on the given back layer (the desktop layer when none
-   * is given) and no highlighted group. Shortcuts, group colours and the device identity stay. Callers re-place papers
-   * with placeNew afterwards; a crash in between leaves papers unplaced, which the start-up placeNew already repairs.
+   * is given). Shortcuts, group colours and highlights, and the device identity stay. Callers re-place papers with
+   * placeNew afterwards; a crash in between leaves papers unplaced, which the start-up placeNew already repairs.
    */
   async reset(snapshot, area, layer = null) {
     snapshot = copy(snapshot); area = copy(area);
@@ -327,7 +339,7 @@ export class LayoutStore {
       // More than nine groups have no default grid; keep the regions and still clear every paper position.
       draft.grid = groups.length <= 9 ? defaultGrid(orderedGroups(draft, groups), area) : { ...draft.grid, area };
       const groupLayers = layer ? Object.fromEntries(groups.map(group => [group.id, layer])) : {};
-      Object.assign(draft, { placements: {}, history: [], desktopVisible: true, myGroupId: null, groupLayers });
+      Object.assign(draft, { placements: {}, history: [], desktopVisible: true, groupLayers });
       delete draft.completedVisible; delete draft.quickMove;
     });
   }

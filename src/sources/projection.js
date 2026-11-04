@@ -69,7 +69,9 @@ export function reconcileSourceLayout(layout, snapshot, arrived = {}) {
   const resolve = id => {
     try { return resolveGroupId(snapshot, id); } catch { return id; }
   };
-  if (result.myGroupId) result.myGroupId = resolve(result.myGroupId);
+  // A redirect passes a retired group's highlight on, as a local merge does; a group simply gone takes it along.
+  if (result.groupHighlights) result.groupHighlights = Object.fromEntries(Object.keys(result.groupHighlights)
+    .map(id => resolve(id)).filter(id => active.has(id)).map(id => [id, true]));
   if (result.mainGroupId) result.mainGroupId = resolve(result.mainGroupId);
   for (const [key, target] of Object.entries(result.shortcuts)) {
     if (!target.startsWith('@')) result.shortcuts[key] = resolve(target);

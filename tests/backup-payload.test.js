@@ -36,7 +36,8 @@ async function fixture() {
   await workspace.layout.placeNew(workspace.snapshot, [area]);
   await workspace.layout.setCardPolicy(card.id, { visible: false });
   await workspace.layout.setGroupLayer(b.id, 'wallpaper', workspace.snapshot);
-  await workspace.layout.configure({ myGroupId: a.id, completedVisible: false, quickMove: true, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } },
+  await workspace.layout.setGroupHighlight(a.id, true, workspace.snapshot);
+  await workspace.layout.configure({ completedVisible: false, quickMove: true, shortcuts: { 'Ctrl+1': a.id, 'Ctrl+2': '@capture' } },
     workspace.snapshot);
   await workspace.layout.setMainGroup(a.id, workspace.snapshot);
   const draft = workspace.blankDraft(a.id, workspace.snapshot.cards.find(item => item.id === card.id));
@@ -157,10 +158,15 @@ test('valid hashes cannot disguise duplicate revisions, bad selected heads, inva
     files => edit(files, 'layout.json', value => { value.groupColors = Object.fromEntries(Object.keys(value.groupColors).map(id => [id, 9])); }),
     files => edit(files, 'layout.json', value => { value.groupOpacity = { 'missing-group': 0.5 }; }),
     files => edit(files, 'layout.json', value => { value.groupOpacity = Object.fromEntries(Object.keys(value.groupColors).map(id => [id, 0.1])); }),
+    files => edit(files, 'layout.json', value => { value.groupHighlights = { 'missing-group': true }; }),
+    files => edit(files, 'layout.json', value => { value.groupHighlights = { [value.grid.slots[0]]: false }; }),
+    files => edit(files, 'layout.json', value => { value.groupHighlights = [value.grid.slots[0]]; }),
     files => edit(files, 'layout.json', value => { value.placements['unknown-card'] = Object.values(value.placements)[0]; }),
     files => edit(files, 'local.json', value => { Object.values(value.membershipRebases)[0].revision = value.groups[0].revision; }),
     files => edit(files, 'drafts/00000000.json', value => { value.baseRevision = parseJson(files.get('local.json')).groups[0].revision; }),
   ]) await assert.rejects(openBackup(await change(bytes, mutate)));
+  // The retired My group setting is ignored, so a backup made before highlights still opens.
+  await openBackup(await change(bytes, files => edit(files, 'layout.json', value => { value.myGroupId = 'retired-setting'; })));
 });
 
 test('extra or renamed attachments, conflicting declared sizes and duplicate JSON keys fail even with fresh manifest hashes', async () => {

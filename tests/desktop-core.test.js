@@ -564,7 +564,8 @@ test('layout reset re-places every paper by group and keeps content, groups and 
   await f.workspace.layout.move(f.a1.id, { x: 900, y: 700 });
   await f.workspace.layout.setCardPolicy(f.a2.id, { visible: false });
   await f.workspace.layout.setGroupLayer(f.a.id, 'floating', f.workspace.snapshot);
-  await f.workspace.layout.configure({ desktopVisible: false, myGroupId: f.b.id,
+  await f.workspace.layout.setGroupHighlight(f.b.id, true, f.workspace.snapshot);
+  await f.workspace.layout.configure({ desktopVisible: false,
     grid: { ...f.workspace.layout.state.grid, rows: 2, columns: 1 } }, f.workspace.snapshot);
   const shortcuts = f.workspace.layout.state.shortcuts; const cards = copy(f.workspace.snapshot.cards);
   await f.workspace.layout.reset(f.workspace.snapshot, area);
@@ -572,7 +573,8 @@ test('layout reset re-places every paper by group and keeps content, groups and 
   await f.workspace.layout.placeNew(f.workspace.snapshot, workAreas);
   const layout = f.workspace.layout.state;
   assert.deepEqual(layout.grid, defaultGrid(activeGroups(f.workspace.snapshot), area));
-  assert.equal(layout.desktopVisible, true); assert.equal(layout.myGroupId, null); assert.deepEqual(layout.history, []);
+  assert.equal(layout.desktopVisible, true); assert.deepEqual(layout.history, []);
+  assert.deepEqual(layout.groupHighlights, { [f.b.id]: true }, 'a highlight stays through the reset, like the colour');
   assert.deepEqual(layout.shortcuts, shortcuts); assert.deepEqual(f.workspace.snapshot.cards, cards);
   for (const card of [f.a1, f.a2]) assert.ok(layout.placements[card.id].x < 600, 'first group papers return to its region');
   assert.ok(layout.placements[f.b1.id].x >= 600);

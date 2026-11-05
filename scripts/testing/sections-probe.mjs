@@ -49,8 +49,7 @@ const capture = async text => {
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click(); await expect(page.locator('#editor-dialog')).not.toBeVisible();
 };
 const trashNote = async text => {
-  await note(text).hover(); await note(text).getByRole('button', { name: t('app.notes.more'), exact: true }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click(); await expect(note(text)).toHaveCount(0);
+  await note(text).hover(); await note(text).getByRole('button', { name: t('app.card.delete'), exact: true }).click(); await expect(note(text)).toHaveCount(0);
 };
 try {
   await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');

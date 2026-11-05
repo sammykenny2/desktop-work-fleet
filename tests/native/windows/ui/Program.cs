@@ -128,7 +128,7 @@ internal static class Program
     await Wait(window, "document.querySelector('#draft-status').textContent === 'Kept on this device, not saved yet'", "durable unsaved changes");
     // The attachment text carries escaped CJK characters, so the native attachment path keeps multi-byte UTF-8 exactly.
     await Eval(window, "const files=new DataTransfer();files.items.add(new File(['native attachment \u4E2D\u6587'],'proof.txt',{type:'text/plain'}));document.querySelector('#attachment-input').files=files.files;document.querySelector('#attachment-input').dispatchEvent(new Event('change',{bubbles:true}))");
-    await Wait(window, "document.querySelector('#attachments a')?.textContent === 'proof.txt'", "native attachment");
+    await Wait(window, "document.querySelector('#attachments .attachment-name')?.textContent === 'proof.txt'", "native attachment");
     await Eval(window, "document.querySelector('#editor-form').requestSubmit()");
     await Wait(window, "!document.querySelector('#editor-dialog').open && document.querySelector('.note-title')?.textContent === 'Native note'", "save native card");
     // Turning daily display off must explain the hidden papers above the list, and its action must restore them.

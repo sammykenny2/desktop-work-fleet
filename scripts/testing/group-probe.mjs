@@ -234,8 +234,7 @@ try {
   await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.backToToDo'));
   await page.locator('[data-filter="active"]').click(); await expect(row).toHaveCount(1);
   await row.getByRole('button', { name: t('app.notes.markCompleted'), exact: true }).click(); await page.locator('[data-filter="completed"]').click();
-  await row.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.archive'), exact: true }).click(); await expect(page.locator('dialog[open]')).toHaveCount(0);
+  await row.getByRole('button', { name: t('app.card.archive'), exact: true }).click();
   await page.locator('[data-filter="archived"]').click();
   await row.getByRole('button', { name: t('app.card.unarchive'), exact: true }).click(); await expect(row).toHaveCount(0);
   await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.backToCompleted'));
@@ -305,8 +304,7 @@ try {
   // Deleting asks nothing; the status line offers to undo it, also in a phone-sized window, until the next status.
   await page.locator('[data-view="list"]').click();
   const survivor = page.locator('.note-row').filter({ hasText: 'Unsaved note that survives the merge' });
-  await survivor.getByRole('button', { name: t('app.notes.more'), exact: true }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click();
+  await survivor.getByRole('button', { name: t('app.card.delete'), exact: true }).click();
   await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.deleted')); await expect(survivor).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   const undoDelete = page.locator('.toast[data-notice-id=undo] .toast-action');

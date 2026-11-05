@@ -1,6 +1,8 @@
 export default {
   'notes.summary.untitled': '新的想法',
   'notes.attachment.open': '開啟附件 {name}',
+  'notes.attachment.tileTitleMenu': '{name}｜雙擊開啟副本，右鍵有更多動作；外部修改不會回存便箋',
+  'notes.attachment.size': '{size} KiB',
   'notes.attachment.tileTitle': '{name}｜雙擊開啟附件副本；外部修改不會回存便箋',
   'notes.attachment.notDownloaded': '{name}（尚未下載）',
   'notes.checklist.step': '步驟 {number}',

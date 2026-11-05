@@ -82,17 +82,29 @@
     <h2 data-i18n="app.shareInbox.discardTitle"></h2><p data-i18n="app.shareInbox.discardText"></p>
     <div class="dialog-actions"><button id="cancel-discard-capture" data-i18n="common.cancel"></button><button id="confirm-discard-capture" data-i18n="app.shareInbox.confirmDiscard"></button></div>
   </dialog>
-  <dialog id="editor-dialog">
+  <!-- One sheet: what the note is on top, its text filling the height, and its files and the answer below. Formatting is
+       for writing, so its tools go with Edit. -->
+  <dialog id="editor-dialog" aria-labelledby="editor-title">
     <form id="editor-form">
-      <header><div><span class="eyebrow" data-i18n="app.editor.eyebrow"></span><h2 id="editor-title"></h2></div><button type="button" id="close-editor" data-i18n-attr="aria-label:app.editor.closeKeep">✕</button></header>
-      <label class="field"><span data-i18n="app.editor.group"></span><select id="editor-group"></select></label>
-      <label class="field"><span data-i18n="app.editor.heading"></span><input id="editor-heading" type="text" data-i18n-attr="placeholder:app.editor.headingPlaceholder" autocomplete="off"></label>
-      <div class="editor-tabs"><button type="button" id="edit-tab" aria-pressed="true" data-i18n="app.editor.editTab"></button><button type="button" id="preview-tab" aria-pressed="false" data-i18n="app.editor.previewTab"></button><button type="button" id="insert-task" data-i18n="app.editor.insertTask"></button><button type="button" id="share-note" hidden data-i18n="app.editor.shareText"></button></div>
+      <header class="editor-head">
+        <h2 id="editor-title"></h2>
+        <select id="editor-group" data-i18n-attr="aria-label:app.editor.group;title:app.editor.group"></select>
+        <button type="button" id="share-note" class="icon-button" hidden data-i18n-attr="aria-label:app.editor.shareText;title:app.editor.shareText"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M8 7.5 12 3.5l4 4M6 11.5H5v9h14v-9h-1"/></svg></button>
+      </header>
+      <input id="editor-heading" class="editor-heading" type="text" autocomplete="off" data-i18n-attr="placeholder:app.editor.headingPlaceholder;aria-label:app.editor.heading">
+      <div class="editor-bar">
+        <div class="editor-modes" role="group" data-i18n-attr="aria-label:app.editor.modesLabel"><button type="button" id="edit-tab" aria-pressed="true" data-i18n="app.editor.editTab"></button><button type="button" id="preview-tab" aria-pressed="false" data-i18n="app.editor.previewTab"></button></div>
+        <div class="editor-tools" id="editor-tools" role="toolbar" data-i18n-attr="aria-label:app.editor.toolsLabel">
+          <button type="button" id="insert-heading" data-i18n-attr="aria-label:app.editor.toolHeading;title:app.editor.toolHeading"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M16 5v14M6 12h10M19.5 19v-5l-2 1"/></svg></button>
+          <button type="button" id="insert-bold" data-i18n-attr="aria-label:app.editor.toolBold;title:app.editor.toolBold"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path stroke-width="2.4" d="M7.5 5h5.5a3.5 3.5 0 0 1 0 7H7.5zM7.5 12h6.5a3.5 3.5 0 0 1 0 7H7.5z"/></svg></button>
+          <button type="button" id="insert-list" data-i18n-attr="aria-label:app.editor.toolList;title:app.editor.toolList"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6.5H20M9.5 12H20M9.5 17.5H20M4.5 6.5h.01M4.5 12h.01M4.5 17.5h.01" stroke-width="2.2"/></svg></button>
+          <button type="button" id="insert-task" data-i18n-attr="aria-label:app.editor.insertTask;title:app.editor.insertTask"><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8 12.5 2.8 2.8L16 9.5"/></svg></button>
+        </div>
+      </div>
       <textarea id="editor-text" data-i18n-attr="placeholder:app.editor.textPlaceholder;aria-label:app.editor.textLabel" spellcheck="false"></textarea>
       <div id="editor-preview" class="markdown" hidden></div>
-      <ul id="attachments"></ul>
-      <div class="editor-bottom"><label class="file-button"><span data-i18n="app.editor.attach"></span><input id="attachment-input" type="file" multiple hidden></label><span id="draft-status" role="status"></span></div>
-      <div class="dialog-actions"><button type="button" id="discard-changes" class="leading" data-i18n="app.editor.discard"></button><button type="button" id="save-copy" hidden data-i18n="app.editor.saveCopy"></button><button type="button" id="overwrite" hidden data-i18n="app.editor.overwrite"></button><button type="button" id="close-editor-button" data-i18n="common.close"></button><button type="submit" class="primary" data-i18n="app.editor.save"></button></div>
+      <div class="editor-files"><ul id="attachments"></ul><label class="file-button"><span data-i18n="app.editor.attach"></span><input id="attachment-input" type="file" multiple hidden></label></div>
+      <div class="dialog-actions"><button type="button" id="discard-changes" class="leading" data-i18n="app.editor.discard"></button><span id="draft-status" role="status"></span><button type="button" id="save-copy" hidden data-i18n="app.editor.saveCopy"></button><button type="button" id="overwrite" hidden data-i18n="app.editor.overwrite"></button><button type="button" id="close-editor-button" data-i18n="common.close" data-i18n-attr="title:app.editor.closeKeep"></button><button type="submit" class="primary" data-i18n="app.editor.save"></button></div>
     </form>
   </dialog>
   <dialog id="formation-dialog">

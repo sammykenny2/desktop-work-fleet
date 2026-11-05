@@ -1,6 +1,8 @@
 export default {
   'notes.summary.untitled': 'New note',
   'notes.attachment.open': 'Open attachment {name}',
+  'notes.attachment.tileTitleMenu': '{name} | Double-click to open a copy, right-click for more; edits made elsewhere are not saved back to the note',
+  'notes.attachment.size': '{size} KiB',
   'notes.attachment.tileTitle': '{name} | Double-click to open a copy of the attachment; edits made elsewhere are not saved back to the note',
   'notes.attachment.notDownloaded': '{name} (not downloaded yet)',
   'notes.checklist.step': 'Step {number}',

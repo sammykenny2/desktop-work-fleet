@@ -813,3 +813,26 @@ Acceptance cases:
 - [Platform evidence and unverified scope](../research/2026-10-04-desktop-interaction-platform-feasibility.md)
 - [Implementation order](../plans/003-desktop-interaction-implementation.md)
 - [Handoff entry point and rules for obtaining the auxiliary reference](../handoff/2026-10-04-desktop-interaction-handoff.md)
+
+## 2026-11-05 addendum: a note's actions and the full editor
+
+The maintainer reviewed the note's buttons and found the full editor the most cluttered screen. This replaces "More
+actions" > "Edit" and the details dialog's Edit, Archive and Delete above.
+
+- **A note's buttons.** To do offers Mark as completed, Move to Trash and settings; Completed offers Back to To do, Archive,
+  Move to Trash and settings; Archived offers Unarchive, which returns it to To do or Completed by its own state, and Move
+  to Trash. Trash is unchanged. Move to Trash asks only when unsaved changes would go with the note (ADR-061).
+- **Settings ("⋯").** Move to group and Show on desktop, with Cancel and Apply; a note still to do also has Archive here. An archived note
+  has no settings: it is on no desktop, and a drag to the sidebar still moves it.
+- **In place on a board paper.** Ctrl or Command with a double click edits a board paper in place, in any filter but
+  Trash, with the desktop paper's actions and second press. It does not depend on the quick move switch, which guards papers
+  resting on the desktop. A plain double click, a tap, Enter and the list view open the full editor. One edit at a time; pressing
+  elsewhere in the window, Esc and changing what is shown keep changed text unsaved and close, as on the desktop. Clicking another app does not end it.
+- **Full editor.** One sheet: its name and group, the title as the head of the note, Edit and Preview at the left of a bar
+  with formatting tools at its right, the text filling the height, files, then the answer. The tools (heading, bold, bulleted
+  list, checklist step) write Markdown, take back with Undo, and show only under Edit. There is one way to close, as a cross here would
+  mean the opposite of the desktop paper's. On a phone it takes the whole screen.
+- **Attachments.** A file, not a download link. With a mouse, a double click opens a copy in its app and a right click or "⋯"
+  shows the app's own menu: Open where the host can, Save as…, and Remove in the editor. A tap shows that menu, along the
+  bottom edge, with Share where the host offers it. A browser's Save as… is its download. Bytes leave as opaque data, so HTML and SVG never run in the page.
+- **The web view's own menu** does not appear on desktop hosts or desktop papers, except for text fields and selected text.

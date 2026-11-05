@@ -36,6 +36,8 @@ try {
   await probe('notifications-probe.mjs', '--browser', 'webkit', '--locale', 'zh-TW');
   await probe('layout-probe.mjs', '--browser', 'chromium');
   await probe('layout-probe.mjs', '--browser', 'webkit', '--locale', 'zh-TW');
+  await probe('note-actions-probe.mjs', '--browser', 'chromium');
+  await probe('note-actions-probe.mjs', '--browser', 'webkit', '--locale', 'zh-TW');
 } finally {
   if (server.exitCode === null) { server.kill(); await once(server, 'exit'); }
 }

@@ -1,7 +1,7 @@
 import { Workspace } from '../core/workspace.js';
 import { CombinedWorkspace } from '../core/combined-workspace.js';
 import { CrossMove } from '../core/cross-move.js';
-import { activeGroups, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
+import { activeGroups, blankContent, copy, eligible, FleetError, gridRegions, summaryText } from '../core/contracts.js';
 import { groupColors } from '../core/palette.js';
 import { normalizeShortcut, regionShortcuts, regionTarget, resolveShortcuts, shortcutActions, shortcutForEvent, shortcutRegion, validateShortcuts } from '../core/shortcuts.js';
 import { planFormation } from '../layout/formation.js';
@@ -29,7 +29,10 @@ import { startAutomaticBackup } from '../backup/lifecycle.js';
 import { connectNative, profileBridge } from '../native/bridge.js';
 import { NativeFiles } from '../native/files.js';
 import { NativeAttachments } from '../native/attachments.js';
-import { renderAttachmentTiles } from './attachments.js';
+import { imageThumbnail, renderAttachmentTiles } from './attachments.js';
+import { closeAppMenu, openAppMenu } from './app-menu.js';
+import { createSecondPress, editorIcons, SECOND_PRESS_MS } from './second-press.js';
+import { applyTextEdit, toggleLinePrefix, toggleWrap } from './text-tools.js';
 import { paperFitter } from './fit.js';
 import { NativeCaptureInbox } from '../native/capture.js';
 import { NativeStorage } from '../storage/native.js';
@@ -87,7 +90,7 @@ let sharedIdsBlocked = false;
 let syncState = 'off'; let captureCount = 0; let handheld = false; let sourceResetAsked = false;
 const narrow = matchMedia('(max-width:640px)');
 const activeActions = new Set();
-const attachmentUrls = new Map(); let attachmentRender = 0;
+let attachmentRender = 0;
 const unsavedDrafts = new Map();
 let profileId = new URLSearchParams(location.search).get('profile') || 'local-preview';
 // A phone neither offers nor shows a highlight, even when a restored computer layout carries one. The value stays in the
@@ -1253,6 +1256,7 @@ function initializeDesktop() {
       current: currentDesktopEditor,
       begin: async (id, requester) => {
         if (editorBusy || composing || document.querySelector('dialog[open]')) throw new Error(t('app.errors.finishMainEdit'));
+        if (inlineActive()) await closeEditor();
         const viewId = editorView(id, requester); const previous = currentDesktopEditor();
         if (previous?.cardId === id && previous.viewId === viewId) return { draftId: previous.draftId, sequence: previous.sequence };
         const reuseId = currentDraft?.cardId === id ? currentDraft.id : null;
@@ -1456,6 +1460,7 @@ function announce(groupId, text, step = 0, steps = 0) {
 
 // Android's back button arrives as a close request; like other Android apps it first dismisses whatever is on top.
 function dismissTopLayer() {
+  if (closeAppMenu()) return true;
   const dialog = [...document.querySelectorAll('dialog[open]')].at(-1);
   // A synthetic cancel runs each dialog's own guard, such as keeping a busy dialog open or keeping the editor's draft.
   if (dialog) { if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close(); return true; }
@@ -1692,7 +1697,7 @@ function stepGroupOrder(event) {
 // actions" > "Move to group", as keyboards do. The list holds the capture, since a render may replace the note.
 let noteDrag = null;
 function startNoteDrag(event) {
-  const note = event.target.closest('.movable');
+  const note = event.target.closest('.movable:not(.editing)');
   if (!note || noteDrag || event.button !== 0 || event.pointerType !== 'mouse' || narrow.matches
     || event.target.closest('a,button,input,select,textarea,.attachment-tile')) return;
   noteDrag = { pointerId: event.pointerId, cardId: note.dataset.cardId, x: event.clientX, y: event.clientY, active: false };
@@ -1792,7 +1797,13 @@ function render() {
   const shown = snapshot.cards.filter(card => cardPolicy(card, layout, controller.state).visible).length;
   const hidden = shown ? 0 : snapshot.cards.filter(card => eligible(card, layout)).length;
   $('#count').textContent = notesShown ? plural('app.count.notes', listCards.length) : plural('app.count.desktopNotes', shown);
-  if (noGroups) renderFirstNotePrompt(view);
+  // A paper being edited in place stays as it is while it lasts; what is shown changing ends the edit, which keeps the text.
+  const shownNow = JSON.stringify([noGroups, trashOpen, view, filter, activeGroupId, query]);
+  const editingHere = inlineActive() && inlineEdit.scope === shownNow;
+  if (inlineActive() && !editingHere) closeInlineSoon(); else if (!editingHere) inlineEdit = null;
+  lastNotesScope = shownNow;
+  if (editingHere) { /* The paper and its text stay in place. */ }
+  else if (noGroups) renderFirstNotePrompt(view);
   else if (trashOpen) renderTrash(listCards, view, Boolean(query));
   else if (notesShown) renderNotes(listCards, view, Boolean(query), query ? rankSearch(snapshot.cards.filter(card => card.deleted), query).length : 0);
   else if (desktopInfo) renderLayoutMap();
@@ -1914,6 +1925,7 @@ function icon(...paths) {
   return svg;
 }
 function iconButton(label, paths, action) { const node = button('', action, 'note-action'); node.setAttribute('aria-label', label); node.title = label; node.append(icon(...paths)); return node; }
+function immediateIconButton(label, paths, handler) { const node = immediateButton('', handler, 'note-action'); node.setAttribute('aria-label', label); node.title = label; node.append(icon(...paths)); return node; }
 // A filled dot marks a note with unsaved changes, like a text editor's unsaved tab (ADR-061).
 function unsavedDot() {
   const dot = element('span', undefined, 'unsaved-dot'); dot.title = t('app.notes.unsaved');
@@ -1988,22 +2000,27 @@ function noteHolder(cards, view, acrossGroups) {
     if (total) meta.append(element('span', plural('app.count.steps', total, { done })));
     if (files) meta.append(element('span', plural('app.count.attachments', files)));
     const actions = element('div', undefined, 'note-actions');
+    // A double click is one press: the first redraws the notes, and the second would land on whichever slid under the pointer.
+    actions.addEventListener('click', event => { if (event.detail > 1) { event.preventDefault(); event.stopPropagation(); } }, true);
     if (card.deleted) actions.append(button(t('app.notes.restore'), () => restoreNote(card)),
       button(t('app.purge.title'), () => confirmPurge([card.id]), 'danger'));
     else {
       // A note never saved has no revision to complete, move or delete yet (ADR-061); its editor saves or discards it.
       if (card.revision) {
         const back = ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 0 11H11'];
-        // An archived note comes back to To do or Completed, whichever it was; its completion is not what this view changes.
-        actions.append(card.archived ? iconButton(t('app.card.unarchive'), back, () => changeCard(card.id, { archived: false }, t(card.completed ? 'app.status.backToCompleted' : 'app.status.backToToDo')))
-          : iconButton(card.completed ? t('app.notes.markToDo') : t('app.notes.markCompleted'), card.completed ? back : ['m5 12.5 4.5 4.5L19 7'],
-            () => changeCard(card.id, { completed: !card.completed })),
-        iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card, { edit: true })));
+        const trash = immediateIconButton(t('app.card.delete'), [editorIcons.trash], () => askDeleteCard(card.id));
+        const settings = () => iconButton(t('app.notes.more'), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => cardDetails(card));
+        // Each state offers its next step first. An archived note comes back to To do or Completed, whichever it was, and
+        // has no settings: it is on no desktop, and a drag to the sidebar still moves it.
+        if (card.archived) actions.append(iconButton(t('app.card.unarchive'), back, () => changeCard(card.id, { archived: false }, t(card.completed ? 'app.status.backToCompleted' : 'app.status.backToToDo'))), trash);
+        else if (card.completed) actions.append(iconButton(t('app.notes.markToDo'), back, () => changeCard(card.id, { completed: false })),
+          iconButton(t('app.card.archive'), ['M4 4.5h16v5H4zM5.5 9.5v9a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-9M10 13h4'], () => changeCard(card.id, { archived: true })), trash, settings());
+        else actions.append(iconButton(t('app.notes.markCompleted'), ['m5 12.5 4.5 4.5L19 7'], () => changeCard(card.id, { completed: true })), trash, settings());
         note.classList.add('movable');
       }
       note.tabIndex = 0; note.setAttribute('aria-label', paperLabel(card));
       // A mouse opens the editor with a double-click, so a click that misses a checkbox opens nothing; a tap still opens
-      // it, as phones have no double tap. Enter, Space and "More actions" > Edit open it too.
+      // it, as phones have no double tap. Enter and Space open it too.
       // A click without a pointer (detail 0) comes from assistive technology and opens it as well. The editor starts from
       // the note as it is now, which a tick may have changed since this paper was drawn.
       let tapped = false; const opens = event => !event.target.closest('a,button,input');
@@ -2011,7 +2028,11 @@ function noteHolder(cards, view, acrossGroups) {
       note.onpointerdown = event => { tapped = event.pointerType === 'touch' || event.pointerType === 'pen'; };
       note.onmousedown = event => { if (event.detail > 1 && opens(event)) event.preventDefault(); };
       note.onclick = event => { if ((tapped || event.detail === 0) && opens(event)) edit(); };
-      note.ondblclick = event => { if (!tapped && opens(event)) edit(); };
+      note.ondblclick = event => {
+        if (tapped || !opens(event)) return;
+        if ((event.ctrlKey || event.metaKey) && view !== 'list') run(() => openInlineEditor(currentCard(card.id) ?? card));
+        else edit();
+      };
       note.onkeydown = event => { if (event.target === note && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); edit(); } };
     }
     const heading = element('h3', title, 'note-title'); if (card.unsaved) heading.append(unsavedDot());
@@ -2061,7 +2082,7 @@ async function tickStep(id, revision, task) {
 }
 
 // Deleting asks nothing, as its notification offers Undo and Deleted keeps the note. A note's unsaved changes go
-// with it, so "More actions" asks first for such a note (ADR-061); undoing the delete brings both back.
+// with it, so the trash can asks first for such a note (ADR-061); undoing the delete brings both back.
 async function deleteCard(id) {
   // A quick edit open on the note keeps its last text first, so that text goes with the delete instead of coming back.
   if (currentDraft?.cardId === id && controller.state.editingCardId === id) {
@@ -2091,7 +2112,7 @@ function confirmAction(title, text, label) {
   });
 }
 
-// A note dropped on a sidebar group moves with the same command as "More actions" > "Move to group": a new version of
+// A note dropped on a sidebar group moves with the same command as the note's settings > "Move to group": a new version of
 // the same note, its desktop paper where it was. Undo moves it back only while no other move has happened since.
 // A move inside a collection happens at once, with Undo; one across asks first, and the original in Trash is the way back.
 async function moveNoteToGroup(id, groupId) {
@@ -2434,17 +2455,14 @@ async function askDeleteGroup(group) {
   });
 }
 
-function deleteButton(cardId, dialog) {
-  const node = element('button', t('app.card.delete'), 'leading'); node.type = 'button';
-  node.addEventListener('click', async event => {
-    event.stopPropagation();
-    if (workspace.unsavedChanges(cardId) && !await confirmAction(t('app.card.deleteUnsavedTitle'), t('app.card.deleteUnsavedText'), t('app.card.delete'))) return;
-    run(async () => { await deleteCard(cardId); dialog.close(); });
-  });
-  return node;
+// Asks only when something would go with the note (ADR-061); the notification offers Undo either way. The question stays
+// outside the action queue, so the desktop is not held up while it is open.
+async function askDeleteCard(id) {
+  if (workspace.unsavedChanges(id) && !await confirmAction(t('app.card.deleteUnsavedTitle'), t('app.card.deleteUnsavedText'), t('app.card.delete'))) return;
+  run(() => deleteCard(id));
 }
-// Board and list notes also offer Edit here; papers on the canvas and the desktop have their own Edit button.
-function cardDetails(card, { edit = false } = {}) {
+// A note's settings: where it lives and whether this computer shows it. Editing and its other steps are on the note.
+function cardDetails(card) {
   const dialog = element('dialog'); dialog.append(element('h2', summaryText(card)));
   const groupLabel = element('label', t('app.card.moveToGroup'), 'field'); const select = element('select'); fillGroups(select, card.groupId); groupLabel.append(select);
   const visibility = element('label', undefined, 'check'); const check = element('input'); check.type = 'checkbox'; check.checked = workspace.layout.state.placements[card.id]?.visible !== false; visibility.append(check, document.createTextNode(t('app.card.showOnDesktop')));
@@ -2452,10 +2470,9 @@ function cardDetails(card, { edit = false } = {}) {
   // Phones show no desktop papers, so the display option they cannot show stays unchanged.
   dialog.append(groupLabel, ...handheld ? [] : [visibility]);
   const actions = element('div', undefined, 'dialog-actions');
-  if (edit) actions.append(button(t('app.card.edit'), async () => { dialog.close(); await openEditor(currentCard(card.id) ?? card); }, 'leading'));
-  actions.append(button(card.archived ? t('app.card.unarchive') : t('app.card.archive'), async () => { await changeCard(card.id, { archived: !card.archived }); dialog.close(); }, 'leading'),
-    deleteButton(card.id, dialog),
-    button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
+  // A completed note has Archive on its paper; one still to do does not, so here is where it goes.
+  if (!card.completed) actions.append(button(t('app.card.archive'), async () => { await changeCard(card.id, { archived: true }); dialog.close(); }, 'leading'));
+  actions.append(button(t('common.cancel'), () => dialog.close()), button(t('app.card.apply'), async () => {
       // A group in another section needs its own confirmation, so the rest of this dialog waits for another time.
       if (select.value !== card.groupId && workspace.ownerOfGroup(select.value) !== workspace.ownerOfCard(card.id)) { dialog.close(); await askMoveNote(card.id, select.value); return; }
       // A note from a group off the desktop has no place yet, and needs one if this group is on it.
@@ -2480,6 +2497,7 @@ async function ensureCaptureGroup() {
 // (ADR-061).
 async function openEditor(card = null) {
   if (composing) return;
+  if (inlineActive()) await closeEditor();
   editorHidesMain = false;
   if (!card) await ensureCaptureGroup();
   if (controller.state.editingCardId && currentDraft) await controller.endEdit();
@@ -2492,6 +2510,84 @@ async function openEditor(card = null) {
   $('#editor-group').disabled = Boolean(currentDraft.baseRevision); showConflictActions(null);
   $('#editor-dialog').showModal(); showEditorTab(false); queueDraft(); $('#editor-text').focus();
   showAttachments();
+}
+
+// In place, on a board paper: the same actions as a desktop paper's (SPEC-003), without the desktop's protocol, as this
+// window holds the note itself. Nothing redraws the notes while it lasts, and pressing anywhere else keeps the changes and
+// closes it, as selecting another paper does on the desktop.
+let inlineEdit = null; let lastNotesScope = null; let lastInlineAction = 0;
+// On a Mac, Control+B is the system's caret key in any text box, and Command+B is the app's.
+const boldKey = event => event.key.toLowerCase() === 'b' && (/Mac|iPhone|iPad/.test(navigator.platform) ? event.metaKey && !event.ctrlKey : event.ctrlKey);
+const inlineActive = () => Boolean(inlineEdit) && currentDraft?.id === inlineEdit.draftId;
+// It takes its turn in the queue, by which time another editor may have opened; that one is not what this closes.
+function closeInlineSoon() {
+  const { draftId } = inlineEdit;
+  void run(async () => { if (inlineActive() && inlineEdit.draftId === draftId) await settlingInline(closeEditor); });
+}
+// An editor that ends part way through a failed step must not leave its paper looking editable.
+async function settlingInline(work) {
+  try { await work(); } finally { if (inlineEdit && !inlineActive()) render(); }
+}
+function writeInlineStatus(text, error = false) { if (inlineEdit) { inlineEdit.state.textContent = text; inlineEdit.state.classList.toggle('error', error); } }
+const inlinePress = createSecondPress({
+  read: () => ({ text: inlineEdit?.state.textContent ?? '', error: inlineEdit?.state.classList.contains('error') ?? false }),
+  write: writeInlineStatus, focus: () => inlineEdit?.input.focus(),
+  buttons: () => inlineEdit?.note.querySelectorAll('.armed') ?? [],
+});
+function inlineHoldsChanges() {
+  if (!currentDraft.baseRevision && blankContent(currentDraft.content)) return false;
+  if (workspace.unsavedChanges(currentDraft.cardId)) return true;
+  return currentDraft.content.text !== workspace.snapshot.cards.find(card => card.id === currentDraft.cardId)?.content.text;
+}
+async function inlineAction(work, twice) {
+  if (!inlineActive() || composing || editorBusy) return;
+  if (twice) { if (inlineHoldsChanges() && !inlinePress.press({ ...twice, draftId: inlineEdit.draftId })) return; }
+  if (Date.now() - lastInlineAction < SECOND_PRESS_MS) return;
+  lastInlineAction = Date.now(); inlinePress.takeBack();
+  await settlingInline(work);
+}
+async function moveInlineNoteToTrash() {
+  await flushDraft(); const { id: draftId, cardId } = currentDraft;
+  // The text goes with the delete, and Undo brings both back. A refused delete keeps the text as unsaved changes.
+  currentDraft = null;
+  try { await deleteCard(cardId); await workspace.discardUnneededDraft(draftId); } finally { render(); }
+}
+async function inlineToFullEditor() {
+  await flushDraft(); const { id: draftId, cardId } = currentDraft; currentDraft = null;
+  try { await workspace.discardUnneededDraft(draftId); await openEditor(currentCard(cardId) ?? null); } finally { render(); }
+}
+async function openInlineEditor(card) {
+  if (!card || composing || editorBusy || document.querySelector('dialog[open]')) return;
+  if (inlineActive()) { if (inlineEdit.cardId === card.id) return; await closeEditor(); }
+  const note = [...$('#list').querySelectorAll('.note-paper')].find(paper => paper.dataset.cardId === card.id); if (!note) return;
+  if (controller.state.editingCardId && currentDraft) await controller.endEdit();
+  remoteEditor = null; currentDraft = workspace.openDraft(card.groupId, card); currentDraft.content.attachments ||= [];
+  const input = element('textarea', undefined, 'inline-editor'); input.value = currentDraft.content.text; input.setAttribute('aria-label', t('desktop.editor.label'));
+  const state = element('div', t('desktop.unsaved.kept'), 'draft-state'); const area = element('div', undefined, 'note-edit'); area.append(input, state);
+  const trash = iconButton(t('desktop.editor.trash'), [editorIcons.trash], () => inlineAction(moveInlineNoteToTrash, { method: 'trash', question: t('desktop.editor.confirmTrash'), node: trash }));
+  const cancel = iconButton(t('common.cancel'), [editorIcons.cancel], () => inlineAction(discardEditor, { method: 'cancel', question: t('desktop.editor.confirmDiscard'), node: cancel }));
+  const actions = element('div', undefined, 'note-actions'); trash.classList.add('leading');
+  actions.append(...currentDraft.baseRevision ? [trash] : [], iconButton(t('desktop.editor.full'), [editorIcons.full], () => inlineAction(inlineToFullEditor)), cancel,
+    iconButton(t('common.save'), [editorIcons.save], () => inlineAction(() => saveEditor())));
+  note.querySelector('.note-body').replaceWith(area); note.querySelector('.note-foot').replaceChildren(actions);
+  note.classList.add('editing'); note.onclick = null; note.ondblclick = null; note.onkeydown = null; note.onmousedown = null;
+  inlineEdit = { draftId: currentDraft.id, cardId: card.id, note, input, state, scope: lastNotesScope }; inlinePress.forget(currentDraft.id); lastInlineAction = 0;
+  input.oninput = () => { inlinePress.takeBack(); if (!currentDraft || editorBusy) return; currentDraft.content.text = input.value; if (!composing) void queueDraft(); };
+  input.addEventListener('compositionstart', () => { inlinePress.takeBack(); composing = true; controller.setComposing(true); });
+  input.addEventListener('compositionend', () => {
+    composing = false; controller.setComposing(false); input.oninput();
+    if (!input.isConnected && inlineActive()) closeInlineSoon();
+  });
+  input.onkeydown = event => {
+    if (event.isComposing || composing) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); closeInlineSoon(); }
+    else if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void run(() => inlineAction(() => saveEditor())); }
+    else if (boldKey(event)) { event.preventDefault(); applyTextEdit(input, toggleWrap(input.value, input.selectionStart, input.selectionEnd, '**')); }
+  };
+  // The first keystrokes must not wait for the first write.
+  input.focus(); input.setSelectionRange(input.value.length, input.value.length);
+  // A desktop paper's quick edit may just have ended, and the desktop needs to hear it.
+  await queueDraft(); render();
 }
 
 function renderSelection() {
@@ -2509,15 +2605,19 @@ function renderSelection() {
 }
 
 
+function showDraftStatus(text) {
+  if (!inlineActive()) { $('#draft-status').textContent = text; return; }
+  if (!inlinePress.hold(text)) writeInlineStatus(text);
+}
 function queueDraft() {
   if (!currentDraft) return Promise.resolve();
   const sequence = ++draftSequence; const id = currentDraft.id;
   unsavedDrafts.set(id, sequence);
-  $('#draft-status').textContent = t('desktop.unsaved.writing');
+  showDraftStatus(t('desktop.unsaved.writing'));
   draftPending = workspace.saveDraft(copy(currentDraft));
   draftPending.then(() => {
     if (unsavedDrafts.get(id) === sequence) unsavedDrafts.delete(id);
-    if (sequence === draftSequence && currentDraft?.id === id) $('#draft-status').textContent = t('desktop.unsaved.kept');
+    if (sequence === draftSequence && currentDraft?.id === id) showDraftStatus(t('desktop.unsaved.kept'));
     // A new note is a note of its group from its first kept text (ADR-061), so it takes its desktop place at once:
     // arranging papers while its editor is still open must find it placed.
     const cardId = currentDraft?.id === id ? currentDraft.cardId : null;
@@ -2526,7 +2626,7 @@ function queueDraft() {
     }
   }).catch(error => {
     if (currentDraft?.id !== id) return;
-    $('#draft-status').textContent = '';
+    showDraftStatus('');
     status(t('app.status.draftSaveFailed', { error: error.message }), true);
   });
   return draftPending;
@@ -2541,6 +2641,7 @@ async function flushDraft() {
 }
 function setEditorBusy(value) {
   editorBusy = value; $('#editor-text').readOnly = value; $('#editor-heading').readOnly = value;
+  if (inlineEdit) inlineEdit.input.readOnly = value;
   $('#editor-form').querySelectorAll('button').forEach(node => { node.disabled = value; });
   $('#attachment-input').disabled = value;
   $('#editor-group').disabled = value || Boolean(currentDraft?.baseRevision);
@@ -2607,6 +2708,7 @@ async function saveEditor({ asCopy = false, overwrite = false } = {}) {
 function showEditorTab(preview) {
   $('#editor-text').hidden = preview; $('#editor-preview').hidden = !preview;
   $('#edit-tab').setAttribute('aria-pressed', String(!preview)); $('#preview-tab').setAttribute('aria-pressed', String(preview));
+  $('#editor-tools').hidden = preview;
   if (preview) renderMarkdown($('#editor-preview'), currentDraft.content.text, { onToggle: index => run(async () => {
     if (editorBusy) return;
     currentDraft.content.text = toggleChecklist(currentDraft.content.text, index); $('#editor-text').value = currentDraft.content.text;
@@ -2642,33 +2744,73 @@ async function readAttachment(id) {
   for (const reader of attachmentReaders()) { const blob = await reader.storage.getAttachment(reader.id, id).catch(error => { if (reader.id === profileId) throw error; return null; }); if (blob) return blob; }
   return null;
 }
+const localPreviews = new Map();
 async function previewAttachment(file) {
   if (attachmentFiles) {
     for (const reader of companions) { const result = await reader.attachments?.preview(file).catch(() => null); if (result?.available) return result; }
     return attachmentFiles.preview(file);
   }
-  return { available: Boolean(await readAttachment(file.id)), png: null };
+  // Drawn once: every redraw of the notes asks again, and a wall of photos must not decode them each time.
+  if (!localPreviews.has(file.id)) {
+    if (localPreviews.size >= 64) localPreviews.delete(localPreviews.keys().next().value);
+    const pending = (async () => {
+      const blob = await readAttachment(file.id); if (!blob) localPreviews.delete(file.id);
+      return { available: Boolean(blob), png: blob && file.mediaType?.startsWith('image/') ? await imageThumbnail(blob) : null };
+    })().catch(error => { localPreviews.delete(file.id); throw error; });
+    localPreviews.set(file.id, pending);
+  }
+  return localPreviews.get(file.id);
 }
 async function openAttachment(file) {
   if (attachmentFiles) {
     for (const reader of companions) { const held = await reader.attachments?.preview(file).catch(() => null); if (held?.available) return reader.attachments.open(file); }
     return attachmentFiles.open(file);
   }
+  return saveAttachment(file);
+}
+// Bytes on their way out stay opaque: an HTML or SVG attachment must never become a document of this page.
+async function saveAttachment(file) {
+  if (!nativeFiles && window.showSaveFilePicker) {
+    // The dialog needs the click that asked for it, so it comes before the read, which may go to Drive.
+    let handle;
+    try { handle = await window.showSaveFilePicker({ suggestedName: file.name }); }
+    catch (error) { if (error.name === 'AbortError') { status(t('app.status.saveCancelled')); return; } throw error; }
+    const held = await readAttachment(file.id);
+    if (!held) throw new Error(t('app.errors.attachmentMissing'));
+    const writable = await handle.createWritable(); await writable.write(new Blob([held], { type: 'application/octet-stream' })); await writable.close();
+    status(t('app.status.attachmentSaved')); return;
+  }
   const blob = await readAttachment(file.id);
   if (!blob) throw new Error(t('app.errors.attachmentMissing'));
-  if (nativeFiles) return nativeFiles.export(new Uint8Array(await blob.arrayBuffer()), file.name);
-  const url = URL.createObjectURL(blob); const link = element('a'); link.href = url; link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (nativeFiles) {
+    const result = await nativeFiles.export(new Uint8Array(await blob.arrayBuffer()), file.name);
+    status(result.completed ? t('app.status.attachmentSaved') : t('app.status.saveCancelled')); return;
+  }
+  // A host's save dialog may still be reading the link after the click, so it stays for a while.
+  const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); const link = element('a'); link.href = url; link.download = file.name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
-function appendAttachmentTiles(body, files, cleanups) {
-  if (!files.length) return;
-  const tiles = element('div'); body.append(tiles);
-  cleanups.push(renderAttachmentTiles(tiles, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true) }));
+async function shareAttachment(file) {
+  const blob = await readAttachment(file.id);
+  if (!blob) throw new Error(t('app.errors.attachmentMissing'));
+  const result = await nativeFiles.export(new Uint8Array(await blob.arrayBuffer()), file.name, 'share');
+  status(result.completed ? t('app.status.attachmentShared') : t('app.status.shareCancelled'));
+}
+// What can be done with a file differs by host: desktops open it in its app, phones hand it on. A save panel or a read
+// from Drive must not hold the action queue (ADR-064), so only Remove, which writes, takes a turn.
+function attachmentMenu(file, where, remove = null) {
+  const outside = work => () => { work(file).catch(error => status(error.message, true)); };
+  openAppMenu([
+    ...attachmentFiles ? [{ label: t('app.attachments.open'), action: outside(openAttachment) }] : [],
+    ...native?.info.capabilities.fileShare ? [{ label: t('app.editor.shareAttachment'), action: outside(shareAttachment) }] : [],
+    { label: t('app.attachments.save'), action: outside(saveAttachment) },
+    ...remove ? [{ label: t('app.editor.removeAttachment'), danger: true, action: () => run(remove) }] : [],
+  ], where);
 }
 // On a paper the attachments are one row of thumbnails along its bottom edge; the fitter hides tiles beyond the row.
 function attachmentStrip(files, cleanups, fitter) {
   if (!files.length) return null;
   const strip = element('div', undefined, 'paper-files'); fitter.observe(strip);
-  cleanups.push(renderAttachmentTiles(strip, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true) }));
+  cleanups.push(renderAttachmentTiles(strip, files, { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true), menu: (file, where) => attachmentMenu(file, where) }));
   return strip;
 }
 // An attachment not on this device comes from Drive, which no queue turn may wait for (ADR-064).
@@ -2680,31 +2822,22 @@ async function renderAttachments() {
   // Drive can answer after the editor closed or another render began; only the latest render may touch the list.
   const latest = ++attachmentRender, shown = currentDraft?.id;
   for (const close of editorAttachmentCleanup.splice(0)) close();
-  for (const url of attachmentUrls.values()) URL.revokeObjectURL(url); attachmentUrls.clear();
   const list = $('#attachments'); list.replaceChildren();
   if (!currentDraft) return;
   for (const attachment of currentDraft.content.attachments || []) {
-    const blob = await readAttachment(attachment.id);
+    await readAttachment(attachment.id);
     if (latest !== attachmentRender || shown !== currentDraft?.id) return;
-    const row = element('li'); appendAttachmentTiles(row, [attachment], editorAttachmentCleanup);
-    if (blob) {
-      // Download-only bytes: HTML/SVG attachments must never become same-origin executable documents.
-      const url = URL.createObjectURL(new Blob([blob], { type: 'application/octet-stream' })); attachmentUrls.set(attachment.id, url);
-      const link = element('a', attachment.name); link.href = url; link.download = attachment.name; row.append(link);
-      if (native?.info.capabilities.fileShare) row.append(button(t('app.editor.shareAttachment'), async () => {
-        if (editorBusy) return;
-        setEditorBusy(true);
-        try {
-          const result = await nativeFiles.export(new Uint8Array(blob), attachment.name, 'share');
-          status(result.completed ? t('app.status.attachmentShared') : t('app.status.shareCancelled'));
-        } finally { setEditorBusy(false); }
-      }));
-    } else row.append(element('span', t('app.editor.notDownloaded', { name: attachment.name })));
-    row.append(element('span', `${Math.ceil(attachment.size / 1024)} KiB`), button(t('app.editor.removeAttachment'), async () => {
+    const remove = async () => {
       if (editorBusy) return;
       currentDraft.content.attachments = currentDraft.content.attachments.filter(item => item.id !== attachment.id);
       await queueDraft(); showAttachments();
-    })); list.append(row);
+    };
+    const menu = (file, where) => attachmentMenu(file, where, remove);
+    const row = element('li'); const tiles = element('div'); row.append(tiles);
+    editorAttachmentCleanup.push(renderAttachmentTiles(tiles, [attachment], { preview: previewAttachment, open: openAttachment, report: error => status(error.message, true), menu, details: true }));
+    // The menu is for a mouse too, not only behind a right click nobody would guess.
+    const more = immediateIconButton(t('app.attachments.actions', { name: attachment.name }), ['M5.5 12h.01M12 12h.01M18.5 12h.01'], () => menu(attachment, more));
+    row.append(more); list.append(row);
   }
 }
 
@@ -3285,6 +3418,9 @@ function bindEvents() {
     status(t('app.status.layoutWindowReset'));
   });
   $('#editor-text').oninput = () => { if (!currentDraft || editorBusy) return; currentDraft.content.text = $('#editor-text').value; queueDraft(); };
+  $('#editor-text').addEventListener('keydown', event => { if (!composing && boldKey(event)) { event.preventDefault(); $('#insert-bold').click(); } });
+  // On the click, not the press: closing redraws the notes, and a button redrawn under a held mouse would never get its click.
+  document.addEventListener('click', event => { if (inlineActive() && !inlineEdit.note.contains(event.target) && !event.target.closest?.('.toast-host,.app-menu')) closeInlineSoon(); }, true);
   // A blank title is left out, so a paper falls back to its first line and an empty draft is still empty.
   $('#editor-heading').oninput = () => {
     if (!currentDraft || editorBusy) return; const title = $('#editor-heading').value.trim();
@@ -3305,12 +3441,17 @@ function bindEvents() {
       status(result.completed ? t('app.status.noteShared') : t('app.status.shareCancelled'));
     } finally { setEditorBusy(false); }
   });
-  $('#insert-task').onclick = () => { if (editorBusy) return; const text = $('#editor-text'); showEditorTab(false); text.setRangeText('- [ ] ', text.selectionStart, text.selectionEnd, 'end'); currentDraft.content.text = text.value; queueDraft(); text.focus(); };
+  // Formatting writes the Markdown a person could type, in a way Undo takes back.
+  const textTool = (id, edit) => { $(id).onclick = () => { if (!currentDraft || editorBusy || composing) return; const input = $('#editor-text'); applyTextEdit(input, edit(input.value, input.selectionStart, input.selectionEnd)); }; };
+  textTool('#insert-task', (text, start, end) => toggleLinePrefix(text, start, end, '- [ ] '));
+  textTool('#insert-list', (text, start, end) => toggleLinePrefix(text, start, end, '- '));
+  textTool('#insert-heading', (text, start, end) => toggleLinePrefix(text, start, end, '## '));
+  textTool('#insert-bold', (text, start, end) => toggleWrap(text, start, end, '**'));
   $('#editor-form').onsubmit = event => { event.preventDefault(); run(() => saveEditor()); };
   $('#save-copy').onclick = () => run(() => saveEditor({ asCopy: true }));
   $('#overwrite').onclick = () => run(() => saveEditor({ overwrite: true }));
   $('#discard-changes').onclick = () => run(discardEditor);
-  $('#close-editor-button').onclick = () => run(closeEditor); $('#close-editor').onclick = () => run(closeEditor);
+  $('#close-editor-button').onclick = () => run(closeEditor);
   $('#capture-inbox-button').onclick = () => run(async () => {
     // A share lands in the account's collection. With no group there, the one it needs is made only if a share is kept.
     fillGroups($('#capture-group'), activeGroupId, profileId);
@@ -3342,7 +3483,7 @@ function bindEvents() {
     try { await captureInbox.discard(selectedCapture); $('#discard-capture-dialog').close(); selectedCapture = null; await refreshCaptures(true); }
     finally { captureBusy = false; }
   });
-  $('#editor-dialog').oncancel = event => { event.preventDefault(); if (!composing) run(closeEditor); };
+  $('#editor-dialog').oncancel = event => { event.preventDefault(); if (!closeAppMenu() && !composing) run(closeEditor); };
   $('#attachment-input').onchange = () => run(async () => {
     try { await addAttachments([...$('#attachment-input').files]); }
     finally { $('#attachment-input').value = ''; }
@@ -3403,6 +3544,7 @@ function bindEvents() {
       return;
     }
     if (editControl) return;
+    if (event.key === 'Escape' && inlineActive()) { event.preventDefault(); if (!composing) closeInlineSoon(); return; }
     if (event.key === 'Escape') { event.preventDefault(); const before = document.activeElement; run(async () => { await controller.escape(); render(); handOverFocus(before); }, { duringAdjust: true }); }
     if (event.key === 'Shift' && controller.state.dragSession) dragPaint(controller.pointerMove(controller.state.dragSession.current, { pointerId: controller.state.dragSession.pointerId, shiftKey: true, labels: groupLabels }));
   });

@@ -30,13 +30,15 @@ interface. To switch, see [Settings](#settings).
 
 ## Notes and the editor
 
-- "Capture" opens the editor. It supports Markdown and checklists ("+ Checklist" adds a step, "Preview / checklist"
-  shows the result), and "+ Attachment" attaches files of up to 25 MiB each. Files pasted or dragged into the editor,
+- "Capture" opens the editor. It writes Markdown: under "Edit", the tools at the right of the bar add a heading, bold text
+  (Ctrl or ⌘+B), a bulleted list or a checklist step, and "Preview" shows the result. "+ Attachment" attaches files of up to 25 MiB each. Files pasted or dragged into the editor,
   such as a screenshot, are attached the same way; a pasted picture without a name of its own is named "Pasted image"
   with the date and time. Pasted or dragged text stays text.
 - "Title (optional)" can stay empty. With a title, the top of the paper shows it; without one, the paper shows the
   first line of the body. The body is always shown from its first line.
-- Attachments can only be downloaded; HTML and SVG attachments are never run directly.
+- An attachment is a file, not a link. In the editor, double-click it to open a copy in its own app; right-click it, or use its "⋯",
+  for "Open", "Save as…" and "Remove". On a phone, tap it for what the phone can do with it: "Share" where the phone offers it, "Save as…" and
+  "Remove". The browser preview has no app to open it in, so a double click there saves it. HTML and SVG attachments never run inside the app.
 - A note is saved, or it has unsaved changes kept on this device, as in a text editor. A note with unsaved changes
   shows them, with a filled dot at the end of its title; in the main window, pointing at the dot says "Unsaved
   changes, kept on this device". They are not synced and are included in backups. Opening the note again, in the
@@ -64,7 +66,7 @@ interface. To switch, see [Settings](#settings).
 - Notes you can operate on the desktop scroll their text. Notes on the Wallpaper layer and on the main window's board
   do not scroll: text that does not fit ends with "…". Open the note in the editor to read all of it.
 - A paper with attachments shows a row of thumbnails along its bottom, from left to right; thumbnails that do not fit
-  are not shown. Double-click a thumbnail to open the attachment.
+  are not shown. Double-click a thumbnail to open the attachment, or, in the main window, right-click it, or tap it on a phone, for its other actions.
 - On notes that take clicks (the Desktop and Top layers, and notes being adjusted), click a checklist box to tick or
   untick that step. It is saved and synced like any edit, without selecting, moving or opening the note. Notes on the
   Wallpaper layer let clicks through, so their boxes cannot be ticked there. On a note with unsaved changes the tick
@@ -108,9 +110,9 @@ interface. To switch, see [Settings](#settings).
   removed; Undo can't bring back a merged group.
 - To move a note to another group, drag it there in adjust mode (see
   [Adjust mode and arranging](#adjust-mode-and-arranging)), or choose the group in "Move to group" in the note's "⋯"
-  details. On a computer you can also drag a note on the board or in the list onto a group in the sidebar with the
+  settings. On a computer you can also drag a note on the board or in the list onto a group in the sidebar with the
   mouse: the group lights up and reads "Move to …", and Esc cancels. A notification then offers "Undo", which moves
-  the note back unless it has moved again since. Moving from the sidebar or the "⋯" details leaves the desktop paper
+  the note back unless it has moved again since. Moving from the sidebar or the "⋯" settings leaves the desktop paper
   where it is.
 - The sidebar has a section for Cloud notes, while you are signed in, and one for Local notes, each with its own + and up to
   nine groups of its own. Cloud notes sync to your other devices; Local notes never leave this device. Signing out hides
@@ -155,8 +157,9 @@ interface. To switch, see [Settings](#settings).
 - In the desktop apps the main window does not mirror the desktop layout; you drag notes on the desktop itself.
 - On the right of the filter bar, switch between "Board" (a grid of square papers, each the 240×240 of a new desktop
   note; the window width only changes how many fit in a row, while phones and windows 640 px or narrower show two
-  columns across) and "List". This device remembers the choice. Double-click a note, or choose "More actions" (…) >
-  "Edit", to edit it; on a touch screen a tap opens it. A single click on a board paper's checklist box ticks or
+  columns across) and "List". This device remembers the choice. Double-click a note, or press Enter on it, to open the full editor; on a touch screen a tap opens it.
+  Hold Ctrl (⌘ on macOS) and double-click a board paper to edit it in place, with the actions of a desktop paper
+  ([Desktop notes and layers](#desktop-notes-and-layers)); pressing anywhere else keeps its changes and closes it. A single click on a board paper's checklist box ticks or
   unticks that step, as on the desktop, and a click elsewhere on a note opens nothing. Only the browser preview has
   a third view, "Desktop": a canvas inside the page that shows the To do notes in their group regions, where you
   arrange them (see [Browser preview](#browser-preview)).
@@ -170,7 +173,9 @@ interface. To switch, see [Settings](#settings).
   matching in the first five lines of their text; then the rest. Within a tier the notes keep their usual order.
 - Completed notes leave the desktop unless this computer shows them (see "Show completed notes" below); shown, they
   are marked as completed. Archiving or deleting takes a note off the desktop on every device.
-- "Move to Trash" in a note's "⋯" details asks nothing first. A notification offers "Undo" until you use or close it, or another undoable action replaces it. In Trash, "Delete forever" permanently removes the note, all retained versions and its owned
+- A note offers its next step when you point at it, or always on a touch screen: To do has the check mark, the trash can and "⋯"; Completed has "Back to To do", "Archive",
+  the trash can and "⋯"; Archived has "Unarchive", which returns the note to To do or Completed, whichever it was, and the trash can. "⋯" holds the note's settings: its group, whether this computer shows it, and "Archive" for a note still to do.
+- The trash can asks nothing first, unless unsaved changes would go with the note. A notification offers "Undo" until you use or close it, or another undoable action replaces it. In Trash, "Delete forever" permanently removes the note, all retained versions and its owned
   attachments after confirmation. "Empty Trash" covers the previewed trashed notes across every group, not just the
   selected group. The large trash icon at the bottom right replaces Capture in this view, and its confirmation names
   each affected collection. Cleanup resumes in bounded background steps; its status distinguishes a committed deletion from
@@ -194,7 +199,7 @@ Desktop notes exist only in the desktop apps (Windows, macOS, Linux).
   really are and the tooltip says so. In a window narrower than about 950 pixels the sidebar leaves the icon out.
 - The layer belongs to the group, and each computer stores its own. On a computer you can also choose it in the
   group's "⋯" > "Group settings" > "Layer on the desktop"; phones and the browser preview have no such option. A note's
-  own "⋯" details keep only "Show on the desktop".
+  own "⋯" settings keep only "Show on the desktop".
 - While Locked, notes on the Desktop layer and the Top layer still let you select text and click links, and the mouse
   does not pass through them. The Wallpaper layer always lets the mouse pass through.
 - "Show notes on the desktop" in Settings > Desktop notes keeps notes on the desktop between adjustments. When it is

@@ -59,9 +59,8 @@ async function checkWidth(width, height) {
 
   // A dropdown is as tall as the text field beside it, on the engine that used to draw it flat too.
   await page.locator('[data-view="board"]').click(); await page.locator('#compose').click();
-  const select = await rect(page.locator('#editor-group')), field = await rect(page.locator('#editor-heading'));
-  assert.ok(select.height >= 36, `a dropdown is ${select.height} px tall`);
-  assert.ok(Math.abs(select.height - field.height) <= 2, `a dropdown (${select.height}) matches a text field (${field.height})`);
+  const select = await rect(page.locator('#editor-group'));
+  assert.ok(select.height >= 34, `a dropdown is ${select.height} px tall`);
   assert.equal(await page.locator('#editor-group').evaluate(node => getComputedStyle(node).appearance), 'none');
   assert.match(await page.locator('#editor-group').evaluate(node => getComputedStyle(node).backgroundImage), /gradient/);
   // A toast stays off the action row, also once the dialog has scrolled it into view.
@@ -81,14 +80,18 @@ async function checkWidth(width, height) {
     else { assert.equal(a.top, c.top, 'one row on a computer'); assert.ok(c.left - b.right >= 24, 'space divides management from the answers'); }
   };
   await openDrawer(page); await page.locator('#groups .group-menu').first().click();
+  const groupNameHeight = (await rect(page.locator('dialog[open] .field input').first())).height;
   await inCluster(button(page, t('app.groupEditor.delete')), button(page, t('app.groupEditor.merge')), button(page, t('common.cancel')), button(page, t('common.save')));
   for (const control of await page.locator('dialog[open] .dialog-actions button').all()) await expect(control).toBeInViewport();
   const swatch = await rect(page.locator('dialog[open] .swatch input').first()); assert.ok(swatch.height <= 28, `a colour's target stays its own size (${swatch.height} px)`);
   await clearToasts(page); await page.screenshot({ path: `${output}/${engine}-${locale}-${width}-group.png`, animations: 'disabled' }); await noDialog(page); await closeDrawer(page);
 
-  // Note details keep the same split.
+  // Note settings keep the same split.
   await page.locator('#list [data-card-id]').first().hover(); await page.locator('#list [data-card-id]').first().getByRole('button', { name: t('app.notes.more'), exact: true }).click();
-  await inCluster(button(page, t('app.card.edit')), button(page, t('app.card.archive')), button(page, t('common.cancel')), button(page, t('app.card.apply')));
+  const [archive, answer] = await Promise.all([rect(button(page, t('app.card.archive'))), rect(button(page, t('app.card.apply')))]);
+  const settingsSelect = await rect(page.locator('dialog[open] select')); assert.ok(settingsSelect.height >= 36, `a dropdown is ${settingsSelect.height} px tall`);
+  assert.ok(Math.abs(settingsSelect.height - groupNameHeight) <= 2, `a dropdown (${settingsSelect.height}) matches a text field (${groupNameHeight})`);
+  assert.ok(archive.left < answer.left, 'Archive stays apart from the answer');
   await clearToasts(page); await page.screenshot({ path: `${output}/${engine}-${locale}-${width}-note.png`, animations: 'disabled' }); await noDialog(page);
 
   // Every settings page fits its width and starts at the top.

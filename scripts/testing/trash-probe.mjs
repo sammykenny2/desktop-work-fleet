@@ -28,7 +28,7 @@ const capture = async text => {
 };
 const moreActions = async text => { await note(text).hover(); await note(text).getByRole('button', { name: t('app.notes.more'), exact: true }).click(); };
 const trashNote = async text => {
-  await moreActions(text); await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click();
+  await note(text).hover(); await note(text).getByRole('button', { name: t('app.card.delete'), exact: true }).click();
   await expect(note(text)).toHaveCount(0);
 };
 const groupRow = name => page.locator('#groups .group-row[data-group-id]', { hasText: name });

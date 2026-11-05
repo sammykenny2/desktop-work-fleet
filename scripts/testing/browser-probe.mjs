@@ -15,6 +15,7 @@ assert.ok(['127.0.0.1', 'localhost'].includes(base.hostname), 'Only loopback dev
 base.pathname = '/app/index.html'; base.searchParams.set('profile', `probe-${crypto.randomUUID()}`);
 const browser = await chromium.launch({ channel: process.platform === 'win32' ? 'msedge' : undefined, headless: true });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1050 }, locale: 'en-US' });
+await context.addInitScript(() => { delete window.showSaveFilePicker; }); // Here a save is a download, as in a browser without the picker.
 const page = await context.newPage();
 const errors = [];
 page.on('pageerror', error => errors.push(error.message));
@@ -38,8 +39,8 @@ try {
   await page.getByRole('button', { name: t('app.editor.editTab'), exact: true }).click();
   assert.ok((await page.locator('#editor-text').inputValue()).includes('- [x] First step'));
   await page.locator('#attachment-input').setInputFiles({ name: 'proof.txt', mimeType: 'text/plain', buffer: Buffer.from('retained attachment') });
-  await expect(page.locator('#attachments a')).toHaveText('proof.txt');
-  await expect(page.locator('#attachments .attachment-tile')).toHaveText('TXTproof.txt');
+  await expect(page.locator('#attachments .attachment-name')).toHaveText('proof.txt');
+  await expect(page.locator('#attachments .attachment-tile')).toHaveText(/^TXTproof\.txt/);
   // Files pasted or dropped into the editor become attachments; a pasted picture without its own name gets a dated one,
   // and a paste or drop without files is left to the text box.
   const transfer = (type, files) => page.locator('#editor-text').evaluate((node, { type, files }) => {
@@ -54,17 +55,17 @@ try {
   assert.equal(await transfer('drop', []), false, 'a text drop stays text');
   assert.equal(await transfer('paste', [{ name: 'image.png', type: 'image/png', text: 'pasted picture' }]), true);
   const pastedImage = new RegExp(`^${t('app.editor.pastedImage', { time: String.raw`\d{4}-\d\d-\d\d \d\d\.\d\d\.\d\d` })}\.png$`);
-  await expect(page.locator('#attachments a')).toHaveText(['proof.txt', pastedImage]);
+  await expect(page.locator('#attachments .attachment-name')).toHaveText(['proof.txt', pastedImage]);
   const dropped = [{ name: 'dropped.txt', type: 'text/plain', text: 'dropped file' }];
   assert.equal(await transfer('dragover', dropped), true, 'a file drag is accepted');
   assert.equal(await transfer('drop', dropped), true);
-  await expect(page.locator('#attachments a')).toHaveText(['proof.txt', pastedImage, 'dropped.txt']);
+  await expect(page.locator('#attachments .attachment-name')).toHaveText(['proof.txt', pastedImage, 'dropped.txt']);
   for (const [index, name] of [pastedImage, 'dropped.txt'].entries()) {
-    await page.locator('#attachments li', { has: page.locator('a', { hasText: name }) })
-      .getByRole('button', { name: t('app.editor.removeAttachment'), exact: true }).click();
-    await expect(page.locator('#attachments a')).toHaveCount(2 - index);
+    await page.locator('#attachments li', { has: page.locator('.attachment-name', { hasText: name }) }).locator('.note-action').click();
+    await page.getByRole('menuitem', { name: t('app.editor.removeAttachment'), exact: true }).click();
+    await expect(page.locator('#attachments .attachment-name')).toHaveCount(2 - index);
   }
-  await expect(page.locator('#attachments a')).toHaveText('proof.txt');
+  await expect(page.locator('#attachments .attachment-name')).toHaveText('proof.txt');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   await expect(page.locator('#editor-dialog')).not.toBeVisible();
   await expect(page.locator('#compose')).toBeVisible(); await expect(page.locator('#list .note-title')).toHaveText(['First thing']);
@@ -95,14 +96,14 @@ try {
   await touch.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tapAt });
   await touch.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await expect(editor).toBeVisible(); await touch.send('Emulation.setTouchEmulationEnabled', { enabled: false }); await touch.detach();
-  await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
+  await page.locator('#close-editor-button').click(); await expect(editor).not.toBeVisible();
   await boardPaper.locator('.note-title').dispatchEvent('click'); await expect(editor).toBeVisible();
-  await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
+  await page.locator('#close-editor-button').click(); await expect(editor).not.toBeVisible();
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   const savedText = await page.locator('#editor-text').inputValue();
   await page.locator('#editor-text').fill(`${savedText}\n\nKept for later`);
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.locator('#close-editor').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.unsavedKept'));
+  await page.locator('#close-editor-button').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.unsavedKept'));
   // ADR-061: the paper keeps showing the typed text, with a dot, and a tick changes that unsaved text.
   await expect(boardPaper.locator('.note-title .unsaved-dot')).toBeVisible(); await expect(boardPaper.locator('.note-body')).toContainText('Kept for later');
   await canvas(); await expect(page.locator('#stage .card-summary .unsaved-dot')).toBeVisible(); await firstStep().click();
@@ -238,13 +239,13 @@ try {
   await page.locator('[data-view="board"]').click();
   await boardPaper.locator('.note-title').dblclick(); await expect(editor).toBeVisible();
   await page.locator('#editor-text').fill('Unsaved text kept over a reload'); await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.locator('#close-editor').click(); await expect(editor).not.toBeVisible();
+  await page.locator('#close-editor-button').click(); await expect(editor).not.toBeVisible();
   await page.reload(); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await page.locator('[data-view="board"]').click(); await expect(boardPaper.locator('.unsaved-dot')).toBeVisible();
   await expect(boardPaper.locator('.note-body')).toContainText('Unsaved text kept over a reload');
   await boardPaper.locator('.note-title').dblclick(); await expect(page.locator('#editor-text')).toHaveValue('Unsaved text kept over a reload');
-  await expect(page.locator('#attachments a')).toHaveText('proof.txt');
-  const downloadPromise = page.waitForEvent('download'); await page.locator('#attachments a').click();
+  await expect(page.locator('#attachments .attachment-name')).toHaveText('proof.txt');
+  const downloadPromise = page.waitForEvent('download'); await page.locator('#attachments .attachment-tile').dblclick();
   const download = await downloadPromise; const stream = await download.createReadStream();
   let downloaded = ''; for await (const chunk of stream) downloaded += chunk.toString();
   assert.equal(downloaded, 'retained attachment');
@@ -274,9 +275,8 @@ try {
   await page.locator('#search').fill('Weekly report'); await expect(page.locator('#list .note-title')).toHaveText(['Weekly report']);
   // Search looks through every group: the title says so, and capture, which adds to one group, steps aside.
   await expect(page.locator('#workspace-title')).toHaveText(t('app.search.title')); await expect(page.locator('#compose')).toBeHidden();
-  // "More actions" offers Edit for board and list notes.
-  await page.locator('#list article').filter({ hasText: 'Weekly report' }).getByRole('button', { name: t('app.notes.more'), exact: true }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.edit'), exact: true }).click();
+  // A double click opens the full editor from a search too.
+  await page.locator('#list article').filter({ hasText: 'Weekly report' }).locator('.note-title').dblclick();
   await expect(page.locator('#editor-heading')).toHaveValue('Weekly report');
   await page.locator('#editor-heading').fill(''); await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   // The open editor is modal, so clearing the search before it closes types into nothing. Editing a note keeps the search.
@@ -286,12 +286,12 @@ try {
   await capture();
   await page.locator('#editor-heading').fill('Title typed, then deleted'); await page.locator('#editor-heading').fill('');
   await expect(page.locator('#draft-status')).toHaveText(t('desktop.unsaved.kept'));
-  await page.locator('#close-editor').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.closed'));
+  await page.locator('#close-editor-button').click(); await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.closed'));
   // On the board a long paper ends its text with "…", and its attachments are one row below the text.
   await capture();
   await page.locator('#editor-text').fill(Array.from({ length: 40 }, (_, n) => `Paragraph ${n + 1} of a long text.`).join('\n\n'));
   await page.locator('#attachment-input').setInputFiles({ name: 'row.txt', mimeType: 'text/plain', buffer: Buffer.from('row') });
-  await expect(page.locator('#attachments a')).toHaveText('row.txt');
+  await expect(page.locator('#attachments .attachment-name')).toHaveText('row.txt');
   await page.getByRole('button', { name: t('app.editor.save'), exact: true }).click();
   await expect(page.locator('[data-view="board"]')).toHaveAttribute('aria-pressed', 'true');
   // Other filters hide capture: a note it adds would not show there.
@@ -307,12 +307,11 @@ try {
   await capture();
   const attack = '<script>localStorage.setItem("attachment-script-ran","yes")</script>';
   await page.locator('#attachment-input').setInputFiles({ name: 'untrusted.html', mimeType: 'text/html', buffer: Buffer.from(attack) });
-  const unsafeLink = page.locator('#attachments a'); await expect(unsafeLink).toHaveText('untrusted.html');
-  const href = await unsafeLink.getAttribute('href');
-  const attachmentTab = await context.newPage();
-  const attachmentDownload = attachmentTab.waitForEvent('download');
-  await attachmentTab.goto(href).catch(error => assert.match(error.message, /ERR_ABORTED|Download/));
-  await attachmentDownload; await attachmentTab.close();
+  // An attachment is never a link of this page: it leaves as opaque bytes, under its name, and runs nothing.
+  await expect(page.locator('#attachments .attachment-name')).toHaveText('untrusted.html'); await expect(page.locator('#attachments a')).toHaveCount(0);
+  await page.locator('#attachments .attachment-tile').click({ button: 'right' });
+  const attachmentDownload = page.waitForEvent('download'); await page.getByRole('menuitem', { name: t('app.attachments.save'), exact: true }).click();
+  assert.equal((await attachmentDownload).suggestedFilename(), 'untrusted.html');
   assert.equal(await page.evaluate(() => localStorage.getItem('attachment-script-ran')), null);
 
   // Keep the workspace store busy to prove that changes still being written warn before navigation.

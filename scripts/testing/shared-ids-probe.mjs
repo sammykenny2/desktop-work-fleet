@@ -164,8 +164,7 @@ try {
   // Only the account's note can be reached now, and deleting it leaves the local one alone.
   await page.locator('#groups .group-row[data-group-id]').first().locator('button').first().click();
   await page.locator('[data-view="board"]').click(); await expect(note('Cloud note with the same id')).toBeVisible();
-  await note('Cloud note with the same id').hover(); await note('Cloud note with the same id').getByRole('button', { name: t('app.notes.more'), exact: true }).click();
-  await page.locator('dialog[open]').getByRole('button', { name: t('app.card.delete'), exact: true }).click(); await expect(note('Cloud note with the same id')).toHaveCount(0);
+  await note('Cloud note with the same id').hover(); await note('Cloud note with the same id').getByRole('button', { name: t('app.card.delete'), exact: true }).click(); await expect(note('Cloud note with the same id')).toHaveCount(0);
   await expect.poll(async () => (await stored(id))).toEqual({ text: 'Local note', deleted: false, unsaved: 'Latest local text that could not be saved' });
   await expect(page.locator('#account')).toHaveAttribute('data-sync', /ok|pending/);
   await expect.poll(async () => { await peerPull(); return peer.cardValue(id).deleted; }, { timeout: 15000 }).toBe(true);

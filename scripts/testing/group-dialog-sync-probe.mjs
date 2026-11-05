@@ -173,7 +173,7 @@ try {
   answerAttachments(); attachmentGate = null; await settled();
   await page.waitForTimeout(200); await expect(page.locator('#attachments li')).toHaveCount(0);
   await noteWithAttachment.dblclick(); await expect(page.locator('#attachments li')).toHaveCount(1);
-  await page.locator('#close-editor').click(); await expect(page.locator('#editor-dialog')).not.toBeVisible(); await settled();
+  await page.locator('#close-editor-button').click(); await expect(page.locator('#editor-dialog')).not.toBeVisible(); await settled();
 
   // Adding an attachment while reads are held leaves the editor usable, and the list ends with what the note holds, once each.
   const attachmentRows = page.locator('#attachments li');
@@ -189,7 +189,8 @@ try {
   assert.equal(await page.locator('#editor-text').evaluate(node => node.readOnly), false, 'the text box must stay usable while reads are held');
   answerAttachments(); attachmentGate = null;
   await expect(attachmentRows).toHaveCount(3); await page.waitForTimeout(200); await expect(attachmentRows).toHaveCount(3);
-  await page.locator('#attachments li', { hasText: 'b.txt' }).getByRole('button', { name: t('app.editor.removeAttachment'), exact: true }).click();
+  await page.locator('#attachments li', { hasText: 'b.txt' }).locator('.note-action').click();
+  await page.getByRole('menuitem', { name: t('app.editor.removeAttachment'), exact: true }).click();
   await expect(attachmentRows).toHaveCount(2); await saveNote(); await settled(); await peerPull();
   assert.deepEqual(peer.workspace.snapshot.cards.find(card => card.content.text === 'Note with two attachments').content.attachments.map(file => file.name).sort(), ['a.txt', 'c.txt']);
 
@@ -351,7 +352,7 @@ try {
   release(); release = null;
   await expect(editing.page.locator('#account')).toHaveAttribute('data-sync', 'attention');
   assert.equal(await editing.page.locator('#source-reset-dialog').count(), 0, 'the recovery question must not open over the editor');
-  await editing.page.locator('#close-editor').click();
+  await editing.page.locator('#close-editor-button').click();
   await expect(editing.page.locator('#source-reset-dialog')).toHaveCount(1);
   await editing.context.close();
 

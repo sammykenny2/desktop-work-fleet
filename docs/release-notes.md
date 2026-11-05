@@ -9,6 +9,23 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 0.3.7 every release carries Windows, Linux, macOS and Android.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.6.2
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: A redesigned note editor, clearer note buttons, editing in place in the main window, and attachments that open and save like files.
+
+- Full editor: the editor is now one sheet. The title heads the note, Edit and Preview sit at the left of a bar with formatting tools at its right (heading, bold, bulleted list, checklist step), which show only under Edit, and the text fills the height. There is one Close button. On a phone it takes the whole screen.
+- A note's buttons: To do offers Mark as completed, Move to Trash and settings; Completed offers Back to To do, Archive, Move to Trash and settings; Archived offers Unarchive, which returns the note to To do or Completed, and Move to Trash. "⋯" now holds only the note's settings. In Traditional Chinese the Archived filter reads as a state.
+- Editing in place: Ctrl or Command with a double click edits a board paper in the main window, with the same actions as a desktop paper. A plain double click still opens the full editor.
+- Desktop papers: the in-place actions are now Move to Trash, Full editor, Cancel and Save, and Retry is gone, as typing or Save writes kept text again. With changes to lose, Cancel and Move to Trash take a second press, asked on the paper itself.
+- Attachments: an attachment is a file rather than a download link. A double click opens a copy in its app; a right click or its "⋯" shows Open, Save as… and Remove. A tap on a phone shows what the phone can do with it. Save as… uses the system's dialog where the host has one, which on Windows replaces the download notification. Browsers and phones now draw image thumbnails.
+- Notifications: operation results, failures and progress now appear as notifications instead of messages inside settings pages and the status line. They stay off a dialog's action row, also after the dialog scrolls.
+- Layout: dropdowns are full height on every platform, which fixes the flat ones on macOS. Data and backup uses the same cards as the other settings pages. Group settings keeps Delete, Merge and Move together, and destructive entry buttons are outlined, with only the final confirmation filled.
+- Other changes: the Layout map is hidden on desktop apps until it is built. Adjust all works from Trash. The web view's own menu, with its Reload, no longer appears in the desktop apps, except for text fields and selected text. On macOS and Linux a click on the menu bar or tray icon opens the main window, as on Windows. Empty Trash floats above the notes, and the setting Show notes while locked is now Show notes on the desktop.
+- Known limits: links in a note have no right-click menu on desktop apps, so copy a link's address from the note's text in the editor. If writing to the device keeps failing, Cancel, Move to Trash and Esc on a paper also wait, as they write first. The in-place editor edits text only, so titles and attachments stay with the full editor.
+- Compatibility and verification: note, sync and backup formats are unchanged, so no reset or migration is needed. Automated checks cover the renderer in Chromium and WebKit and the Linux and Windows hosts' core checks; the desktop right-click menu, the Windows save dialog and a phone's keyboard were not exercised on real devices.
+
 ## 0.6.1
 
 Platforms: Windows, Linux, macOS, Android.

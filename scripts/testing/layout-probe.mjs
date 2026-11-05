@@ -91,7 +91,7 @@ async function checkWidth(width, height) {
   const [archive, answer] = await Promise.all([rect(button(page, t('app.card.archive'))), rect(button(page, t('app.card.apply')))]);
   const settingsSelect = await rect(page.locator('dialog[open] select')); assert.ok(settingsSelect.height >= 36, `a dropdown is ${settingsSelect.height} px tall`);
   assert.ok(Math.abs(settingsSelect.height - groupNameHeight) <= 2, `a dropdown (${settingsSelect.height}) matches a text field (${groupNameHeight})`);
-  assert.ok(archive.left < answer.left, 'Archive stays apart from the answer');
+  assert.ok(archive.left < answer.left || archive.bottom <= answer.top, 'Archive stays apart from the answer, on a row above it if the words need that');
   await clearToasts(page); await page.screenshot({ path: `${output}/${engine}-${locale}-${width}-note.png`, animations: 'disabled' }); await noDialog(page);
 
   // Every settings page fits its width and starts at the top.

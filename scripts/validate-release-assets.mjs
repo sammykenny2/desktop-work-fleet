@@ -1,7 +1,7 @@
 /**
  * Check the files of one vX.Y.Z preview release before it is published (ADR-044).
- * Usage: node scripts/validate-release-assets.mjs --dir DIR --version X.Y.Z --repository OWNER/REPO [--help]
- * The release carries every platform, so the folder must hold exactly the expected files. Each .sha256 matches its file,
+ * Usage: node scripts/validate-release-assets.mjs --dir DIR --version X.Y.Z --repository OWNER/REPO [--desktop-only] [--help]
+ * The folder must hold exactly the selected platforms' files. Each .sha256 matches its file,
  * each desktop update manifest names this release and files in it by size and SHA-256, and the Sparkle appcast points
  * at the macOS archive in this release. The release workflow uploads the folder only after this passes.
  */
@@ -15,13 +15,13 @@ import { parseArgs } from 'node:util';
 export const manifestNames = { windows: 'work-fleet-update-windows.json', linux: 'work-fleet-update-linux.json', macos: 'work-fleet-update-macos.json' };
 
 /** Every file one release carries, by platform. */
-export function releaseAssets(version) {
+export function releaseAssets(version, { includeAndroid = true } = {}) {
   return {
     windows: [`WorkFleet-${version}-x64.msix`, `WorkFleet-${version}-x64.msix.sha256`, 'WorkFleet-preview.cer', manifestNames.windows],
     linux: [`work-fleet_${version}_all.deb`, `work-fleet_${version}_all.deb.sha256`, manifestNames.linux],
     macos: [`WorkFleet-${version}-macos-universal.dmg`, `WorkFleet-${version}-macos-universal.dmg.sha256`,
       `WorkFleet-${version}-macos-universal.zip`, `WorkFleet-${version}-macos-universal.zip.sha256`, 'appcast.xml', manifestNames.macos],
-    android: [`WorkFleet-${version}-android-debug.apk`, `WorkFleet-${version}-android-debug.apk.sha256`],
+    ...(includeAndroid ? { android: [`WorkFleet-${version}-android-debug.apk`, `WorkFleet-${version}-android-debug.apk.sha256`] } : {}),
   };
 }
 
@@ -36,11 +36,11 @@ export function installers(version) {
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 
-export async function validateReleaseAssets({ dir, version, repository }) {
+export async function validateReleaseAssets({ dir, version, repository, includeAndroid = true }) {
   if (!/^(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})$/.test(version ?? '')) throw new Error('--version must be x.y.z');
   if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,38}\/[A-Za-z0-9._-]{1,100}$/.test(repository ?? '')) throw new Error('--repository must be owner/repo');
   const tag = `v${version}`; const problems = [];
-  const expected = Object.values(releaseAssets(version)).flat();
+  const expected = Object.values(releaseAssets(version, { includeAndroid })).flat();
   const present = (await readdir(dir, { withFileTypes: true })).filter(entry => entry.isFile()).map(entry => entry.name);
   for (const name of expected) if (!present.includes(name)) problems.push(`missing ${name}`);
   for (const name of present) if (!expected.includes(name)) problems.push(`unexpected ${name}`);
@@ -81,12 +81,12 @@ export async function validateReleaseAssets({ dir, version, repository }) {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { values } = parseArgs({ options: { help: { type: 'boolean' }, dir: { type: 'string' }, version: { type: 'string' }, repository: { type: 'string' } } });
+  const { values } = parseArgs({ options: { help: { type: 'boolean' }, dir: { type: 'string' }, version: { type: 'string' }, repository: { type: 'string' }, 'desktop-only': { type: 'boolean' } } });
   if (values.help) {
-    console.log('Usage: node scripts/validate-release-assets.mjs --dir DIR --version X.Y.Z --repository OWNER/REPO\nChecks the files of the vX.Y.Z release before it is published.');
+    console.log('Usage: node scripts/validate-release-assets.mjs --dir DIR --version X.Y.Z --repository OWNER/REPO [--desktop-only]\nChecks the files of the vX.Y.Z release before it is published.');
   } else {
     if (!values.dir) throw new Error('Missing --dir. Use --help.');
-    const files = await validateReleaseAssets(values);
+    const files = await validateReleaseAssets({ ...values, includeAndroid: !values['desktop-only'] });
     console.log(`Release v${values.version}: ${files.length} files checked.`);
   }
 }

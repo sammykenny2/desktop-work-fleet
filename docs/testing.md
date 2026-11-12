@@ -1450,6 +1450,10 @@ Google sign-in callback (ADR-021): the core probe verifies `LoopbackCallback` wi
 In-app updates (ADR-044, revised 2026-10-23): the core probe uses `tests/fixtures/update-feed.atom` and `update-feed.json` to verify that only `vX.Y.Z` releases count and older per-platform tags are ignored even when higher,
 numeric version comparison, download locations in the same repo and tag, this platform's manifest name, rejection of unknown channels and of a feed without any `vX.Y.Z` release, rejection of DTDs and external entities, and the manifest and MSIX identity checks.
 `node --test tests/release-assets.test.js` checks `scripts/validate-release-assets.mjs` on a synthetic release folder (exactly the expected files, `.sha256` files, each desktop manifest and the appcast in the same `vX.Y.Z` release), and that each platform workflow uploads exactly the files the validator expects and only `preview-release.yml` publishes.
+It checks desktop-only selection through the validator API and CLI, rejecting unexpected APKs and missing desktop
+assets, and the workflow guards for an intentionally skipped Android job versus failed or cancelled selected builds.
+On Unix hosts it also runs the production release-notes shell with the publishing command replaced, checking that
+Android installation instructions are present only when selected.
 `tests/release-versions.test.js` checks that `scripts/platform-version.mjs --release` refuses version records that differ.
 None of this runs the release workflow itself; the first `preview-release.yml` run is its end-to-end check.
 `Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `app.workfleet.updateprobe.e2e`,

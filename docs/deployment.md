@@ -35,7 +35,9 @@ Any version bump needs the user's explicit approval of the specific version numb
 Since 0.2.0 the five platforms share one version number (the user's decision on 2026-10-14) and are bumped together.
 Since 0.3.7 one GitHub prerelease tagged `v<version>` carries Windows, macOS, Linux and Android together (the
 maintainer's decision on 2026-10-23), so a release needs all four records to hold the same version
-(`node scripts/platform-version.mjs --release` prints it and fails when they differ), and no platform is released alone.
+(`node scripts/platform-version.mjs --release` prints it and fails when they differ). Since 2026-11-12 the maintainer may
+choose a desktop-only preview: Windows, macOS and Linux stay together, while the Android build and APK are omitted.
+All four version records still advance together, including Android's build number; this does not distribute an Android build.
 The version's entry in [release notes](release-notes.md) lists the platforms under `Platforms`.
 Releases up to 0.3.6 had one tag per platform (`windows-v`, `linux-v`, `macos-v`, `android-v`). Desktop installs of 0.3.6
 or earlier look only for those: they keep reporting that they are up to date, or an error once those releases are deleted
@@ -160,23 +162,26 @@ applies to all platforms, and also to an agent's documentation and handoff wrap-
    Before dispatching, confirm that the worktree is clean, that the local HEAD equals origin/main and that the version
    is the target the user approved.
 3. Once Actions is authorized: `gh workflow run preview-release.yml --ref main` (or run Preview release from the
-   Actions page with main selected).
+   Actions page with main selected). Android is included by default. For an authorized desktop-only preview, pass
+   `-f include_android=false`; list only Windows, Linux and macOS in the release-notes entry's `Platforms` line.
    Note the run URL and check that the run's source SHA is the version-bump commit; from dispatch on, the repository
    gets no release bookkeeping (see below).
 4. [preview-release.yml](../.github/workflows/preview-release.yml) first confirms that it runs on main, that the four
    version records agree, that neither the `v<version>` tag nor the release exists, reads the version's entry with
    `scripts/release-notes.mjs` (which fails when the entry is missing or malformed) and runs `npm test`.
-   It then builds the four platforms side by side through `windows-package.yml`, `macos-package.yml`,
-   `linux-package.yml` and `android-apk.yml`, passing the entry's `Summary` as the in-app update summary. Each saves
+   It then builds the selected platforms side by side through `windows-package.yml`, `macos-package.yml`,
+   `linux-package.yml` and, when included, `android-apk.yml`, passing the entry's `Summary` as the in-app update summary. Each saves
    its share of the release as an artifact. The publish job checks all of them with
    `scripts/validate-release-assets.mjs`: exactly the expected files, each `.sha256` and each desktop manifest matching
-   its files, and the appcast pointing at the macOS ZIP in this release. Only then does it create the tag and the
+   its files, and the appcast pointing at the macOS ZIP in this release. Desktop-only validation rejects APK files and
+   still requires all desktop assets. Publishing permits an intentionally skipped Android job, and requires every
+   selected build to succeed. Only then does it create the tag and the
    prerelease in one step, whose text is the entry's change bullets followed by each platform's installation steps.
    The release carries the MSIX, the public CER and `work-fleet-update-windows.json`; the DMG, the Sparkle ZIP,
-   `appcast.xml` and `work-fleet-update-macos.json`; the DEB and `work-fleet-update-linux.json`; the APK; and a
+   `appcast.xml` and `work-fleet-update-macos.json`; the DEB and `work-fleet-update-linux.json`; the APK when included; and a
    `.sha256` for each installer. A failure leaves no release.
-   The workflow takes no dispatch inputs (there is no `summary` input): the release text and the update summary come
-   only from the entry.
+   The only dispatch input is `include_android` (there is no `summary` input): the release text and the update summary
+   come only from the entry, and Android installation instructions are omitted for desktop-only previews.
    Release text is English: the release-notes entry is written in English, and the installation steps that
    `preview-release.yml` appends are English text in the workflow. Where an in-app update prompt shows the entry's
    `Summary`, it stays English whatever the app's display language.
@@ -343,8 +348,8 @@ Play. After a successful run, download the APK, its SHA-256 and the source-commi
 fourteen days. Artifact names carry the version, run ID and attempt so different builds of the same version cannot be
 confused.
 
-Releases publish the APK through [preview releases](#preview-releases): `preview-release.yml` calls `android-apk.yml`
-with the release commit, and the verified APK goes into the `v<version>` release with the other platforms
+When Android is included, releases publish the APK through [preview releases](#preview-releases): `preview-release.yml`
+calls `android-apk.yml` with the release commit, and the verified APK goes into the `v<version>` release with the other platforms
 ([ADR-055](decisions/055-mobile-device-build-workflows.md)).
 
 Repository Variables: `WORK_FLEET_APP_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`,

@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { execFile } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { promisify } from 'node:util';
 import { writeUpdateFeed } from '../scripts/macos/write-update-feed.mjs';
 import { manifestNames, releaseAssets, validateReleaseAssets } from '../scripts/validate-release-assets.mjs';
 
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const execute = promisify(execFile);
 
 // One folder shaped like the four platform builds' output, with the macOS feed from the real writer.
 async function release(folder, version) {
@@ -70,6 +73,25 @@ test('one vX.Y.Z release carries every platform, and each manifest and the appca
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
+test('desktop-only releases require every desktop asset and reject Android assets, through the API and CLI', async () => {
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'work-fleet-desktop-release-'));
+  const version = '0.6.3'; const options = { dir: folder, version, repository: 'o/r', includeAndroid: false };
+  try {
+    await release(folder, version);
+    await assert.rejects(validateReleaseAssets(options), /unexpected WorkFleet-0\.6\.3-android-debug\.apk/);
+    for (const name of releaseAssets(version).android) await unlink(path.join(folder, name));
+    const files = await validateReleaseAssets(options);
+    assert.equal(files.length, 13);
+    assert.deepEqual(files.sort(), Object.values(releaseAssets(version, { includeAndroid: false })).flat().sort());
+    await assert.rejects(validateReleaseAssets({ ...options, includeAndroid: true }), /missing WorkFleet-0\.6\.3-android-debug\.apk/);
+    const { stdout } = await execute(process.execPath, [new URL('../scripts/validate-release-assets.mjs', import.meta.url).pathname,
+      '--dir', folder, '--version', version, '--repository', 'o/r', '--desktop-only']);
+    assert.match(stdout, /13 files checked/);
+    await unlink(path.join(folder, 'work-fleet-update-linux.json'));
+    await assert.rejects(validateReleaseAssets(options), /missing work-fleet-update-linux\.json/);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
 // Each platform's build saves exactly its share of the release, and only preview-release.yml publishes.
 test('the release workflow publishes the files the validator expects, from one build per platform', async () => {
   const workflows = new URL('../.github/workflows/', import.meta.url);
@@ -91,12 +113,43 @@ test('the release workflow publishes the files the validator expects, from one b
   }
   assert.match(release, /pattern: release-\*\n {10}merge-multiple: true\n {10}path: dist\n/);
   assert.match(release, /validate-release-assets\.mjs --dir dist --version "\$VERSION" --repository "\$GITHUB_REPOSITORY"/);
-  // Publishing waits for every platform and uploads the whole checked folder.
+  // Publishing waits for every selected platform and uploads the whole checked folder.
   assert.ok(release.split('\n').includes('    needs: [guard, windows, linux, macos, android]'), 'publish needs every platform');
+  assert.match(release, /include_android:\n\s+description:[^\n]+\n\s+type: boolean\n\s+default: true/);
+  assert.match(release, /android:\n\s+name: Android\n\s+needs: guard\n\s+if: \$\{\{ inputs\.include_android \}\}/);
+  assert.match(release, /!cancelled\(\) && needs\.guard\.result == 'success' && needs\.windows\.result == 'success'/);
+  assert.match(release, /needs\.linux\.result == 'success' && needs\.macos\.result == 'success'/);
+  assert.match(release, /needs\.android\.result == 'success' \|\| \(!inputs\.include_android && needs\.android\.result == 'skipped'\)/);
+  assert.match(release, /if \[ "\$INCLUDE_ANDROID" = false \]; then args\+=\(--desktop-only\); fi/);
+  assert.match(release, /if \[ "\$INCLUDE_ANDROID" = true \]; then\n\s+cat >> "\$RUNNER_TEMP\/notes\.md" <<EOF\n\s+## Android/);
   assert.match(release, /--notes-file "\$RUNNER_TEMP\/notes\.md" dist\/\*\n/);
   for (const file of await readdir(workflows)) {
     const source = await read(file);
     if (file !== 'preview-release.yml') assert.doesNotMatch(source, /gh release (create|upload)/, `${file} must not publish`);
     assert.doesNotMatch(source, /(windows|linux|macos|android)-v\$/, `${file} must not use per-platform tags`);
   }
+});
+
+test('the release notes shell includes Android installation steps only when selected', { skip: process.platform === 'win32' }, async () => {
+  const workflow = await readFile(new URL('../.github/workflows/preview-release.yml', import.meta.url), 'utf8');
+  const lines = workflow.split('\n');
+  const step = lines.indexOf('      - name: Create the release');
+  const start = lines.indexOf('        run: |', step);
+  assert.ok(step >= 0 && start > step);
+  const script = lines.slice(start + 1).map(line => line.slice(10)).join('\n');
+  const folder = await mkdtemp(path.join(os.tmpdir(), 'work-fleet-release-notes-'));
+  try {
+    for (const includeAndroid of [true, false]) {
+      // Run the production shell with only the final publishing command replaced; no GitHub request is made.
+      await execute('bash', ['-eu', '-c', `gh() { return 0; }\n${script}`], { cwd: folder,
+        env: { ...process.env, RUNNER_TEMP: folder, GITHUB_REPOSITORY: 'o/r', VERSION: '0.6.3', TAG: 'v0.6.3', COMMIT: 'test-source',
+          CHANGES: '- Preserve group regions.', INCLUDE_ANDROID: String(includeAndroid),
+          PLATFORMS: includeAndroid ? 'Windows, macOS, Linux and Android' : 'Windows, macOS and Linux' } });
+      const notes = await readFile(path.join(folder, 'notes.md'), 'utf8');
+      for (const platform of ['Windows', 'macOS', 'Linux', 'Updates']) assert.match(notes, new RegExp(`^## ${platform}$`, 'm'));
+      assert.match(notes, /Preserve group regions/);
+      if (includeAndroid) assert.match(notes, /^## Android$/m);
+      else assert.doesNotMatch(notes, /Android|android-debug\.apk/);
+    }
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });

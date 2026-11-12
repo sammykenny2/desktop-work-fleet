@@ -2,11 +2,11 @@
 
 One entry per version, newest first, written in the commit that bumps the version.
 Entries describe what changed for users and operators. They never record whether or when a build reached users;
-that record is the GitHub Release `v<version>`, which carries every platform, and its workflow run (up to 0.3.6, one
+that record is the GitHub Release `v<version>`, which carries the selected platforms, and its workflow run (up to 0.3.6, one
 release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version>`, `ios-v<version>` and
 `android-v<version>`).
-`Platforms` lists the platforms whose version files carry the number and that were meant for distribution; since
-0.3.7 every release carries Windows, Linux, macOS and Android.
+`Platforms` lists the platforms included for distribution. Windows, Linux and macOS stay together; Android may be
+omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
 ## 0.6.2

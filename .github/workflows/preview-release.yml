@@ -1,15 +1,20 @@
 name: Preview release
 
-# Manual only. Builds Windows, macOS, Linux and Android from the selected commit on main and publishes one GitHub
+# Manual only. Builds Windows, macOS, Linux and optionally Android from the selected commit on main and publishes one GitHub
 # prerelease tagged v<version>, the version all four platform records hold (scripts/platform-version.mjs --release). The
 # desktop apps find that release in the public release feed and read their own manifest in it (ADR-044). An existing tag
 # or release is never replaced: bump the version to publish another preview. The release is created only after every
-# platform is built and its files pass scripts/validate-release-assets.mjs, so a failed run leaves nothing published;
+# selected platform is built and its files pass scripts/validate-release-assets.mjs, so a failed run leaves nothing published;
 # "Re-run failed jobs" keeps the platforms that were built. The release text and the in-app update summary come from the
 # version's entry in docs/release-notes.md. Procedure: docs/deployment.md, "Preview releases".
 
 on:
   workflow_dispatch:
+    inputs:
+      include_android:
+        description: Include the Android APK alongside the desktop installers
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -39,7 +44,7 @@ jobs:
       - name: Resolve the release tag
         id: version
         run: |
-          # The Android build only runs on main, and every platform must be in the release.
+          # Every selected platform builds the same commit on main with matching version records.
           [ "$GITHUB_REF" = refs/heads/main ] || { echo 'Preview releases are built from main.'; exit 1; }
           version=$(node scripts/platform-version.mjs --release)
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -103,6 +108,7 @@ jobs:
   android:
     name: Android
     needs: guard
+    if: ${{ inputs.include_android }}
     uses: ./.github/workflows/android-apk.yml
     with:
       commit: ${{ needs.guard.outputs.commit }}
@@ -111,6 +117,11 @@ jobs:
   publish:
     name: Publish the prerelease
     needs: [guard, windows, linux, macos, android]
+    # A deliberately skipped Android build is allowed; a failed or cancelled selected build never publishes.
+    if: >-
+      ${{ !cancelled() && needs.guard.result == 'success' && needs.windows.result == 'success' &&
+          needs.linux.result == 'success' && needs.macos.result == 'success' &&
+          (needs.android.result == 'success' || (!inputs.include_android && needs.android.result == 'skipped')) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -130,7 +141,11 @@ jobs:
       - name: Check the release files
         env:
           VERSION: ${{ needs.guard.outputs.version }}
-        run: node scripts/validate-release-assets.mjs --dir dist --version "$VERSION" --repository "$GITHUB_REPOSITORY"
+          INCLUDE_ANDROID: ${{ inputs.include_android }}
+        run: |
+          args=()
+          if [ "$INCLUDE_ANDROID" = false ]; then args+=(--desktop-only); fi
+          node scripts/validate-release-assets.mjs --dir dist --version "$VERSION" --repository "$GITHUB_REPOSITORY" "${args[@]}"
       - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -138,9 +153,11 @@ jobs:
           VERSION: ${{ needs.guard.outputs.version }}
           COMMIT: ${{ needs.guard.outputs.commit }}
           CHANGES: ${{ needs.guard.outputs.changes }}
+          INCLUDE_ANDROID: ${{ inputs.include_android }}
+          PLATFORMS: ${{ inputs.include_android && 'Windows, macOS, Linux and Android' || 'Windows, macOS and Linux' }}
         run: |
           cat > "$RUNNER_TEMP/notes.md" <<EOF
-          Preview of Work Fleet ${VERSION} for Windows, macOS, Linux and Android, built from ${COMMIT}.
+          Preview of Work Fleet ${VERSION} for ${PLATFORMS}, built from ${COMMIT}.
 
           ${CHANGES}
 
@@ -166,10 +183,16 @@ jobs:
           Requires the system GTK 3 and WebKitGTK 4.1 of Debian, Ubuntu or Raspberry Pi OS.
           \`sudo apt install ./work-fleet_${VERSION}_all.deb\`
 
+          EOF
+          if [ "$INCLUDE_ANDROID" = true ]; then
+          cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Android
           Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\` from a computer.
           The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and preserves its local files; a build signed with another key cannot. Check the changes above for data-format compatibility and any required reset before upgrading.
 
+          EOF
+          fi
+          cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Updates
           On Windows, macOS and Linux, check for and install updates from the tray (the menu bar on macOS) or Settings > Desktop > Version and updates. Installing on Linux asks for the system password; on macOS, Sparkle downloads, verifies and reopens the app.
           Desktop installs of 0.3.6 or earlier look only for the older per-platform releases: they keep reporting that they are up to date, or an error once those releases are gone, and never offer this one. Install it once by hand as above.

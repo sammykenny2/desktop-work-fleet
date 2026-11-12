@@ -9,6 +9,17 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.6.3
+
+Platforms: Windows, Linux, macOS.
+
+Summary: Keep your chosen group regions stable when groups change. New installations start with 2 rows and 3 columns.
+
+- Group regions: adding or syncing a group no longer expands the desktop grid. A new group takes an existing empty region, or stays off the desktop when the grid is full. Removing or merging groups keeps the row and column count, other groups' regions and existing paper positions.
+- Defaults: a clean installation starts with 2 rows and 3 columns. Existing installations keep their saved dimensions. Sidebar groups remain reorderable up to nine, independently of the desktop's region count.
+- Preview packaging: desktop-only previews include Windows, macOS and Linux while omitting the Android build and APK. Desktop installers, checksums and update files are still required before the preview can be created.
+- Compatibility and verification: note, sync and backup formats are unchanged; no reset or migration is needed. Shared regression tests and the Chromium group/settings probe cover the layout change. The Windows region probe now expects the six-region default; native interface acceptance and independent review remain unverified.
+
 ## 0.6.2
 
 Platforms: Windows, Linux, macOS, Android.

@@ -332,7 +332,8 @@ try {
   assert.equal(await open(), 1, 'Cancel and Escape must not close a dialog whose save is writing');
   await page.evaluate(() => { window.fixtureOpenCommits(); window.fixtureCommitGate = undefined; });
   await noDialog();
-  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupSaved'));
+  // Earlier saves filled the six fixed regions; this save still succeeds, with its group off the desktop.
+  await expect(page.locator('.toast[data-latest=true] .toast-message')).toHaveText(t('app.status.groupOffDesktop'));
   await expect(groupNamed('Written despite Cancel')).toHaveCount(1);
 
   // A failure needing a recovery question cannot ask over the dialog, so it asks when the dialog closes. Keep this last for

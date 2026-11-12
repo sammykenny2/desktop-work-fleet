@@ -144,7 +144,10 @@ test('concurrent opposite group retirements preserve all data, permit draft save
 });
 
 test('ten concurrent groups are retained, can be merged to nine and cannot be overwritten by stale device settings', async () => {
-  const f = await fixture(); const oldSnapshot = f.workspace.snapshot;
+  const f = await fixture();
+  await f.workspace.layout.configure({ grid: { rows: 3, columns: 3, area,
+    slots: [f.a.id, f.b.id, ...Array(7).fill(null)] } }, f.workspace.snapshot);
+  const oldSnapshot = f.workspace.snapshot;
   const records = Array.from({ length: 8 }, (_, index) => revisionRecord('group', {
     id: `group-${index}`, revision: `group-root-${index}`, name: `Group ${index}`, deleted: false,
   }));
@@ -274,6 +277,7 @@ test('projection keeps established local group order when new UUIDs sort before 
   const ids = ['z-group', 'root-z', 'a-group', 'root-a'];
   const workspace = await Workspace.create({ profileId: 'test', deviceId: 'device', area,
     persist: async () => {}, uuid: () => ids.shift() || crypto.randomUUID() });
+  await workspace.layout.configure({ grid: { rows: 1, columns: 3, area, slots: ['z-group', null, null] } }, workspace.snapshot);
   await workspace.createGroup('New');
   assert.deepEqual(workspace.snapshot.groups.map(group => group.id), ['z-group', 'a-group']);
   const session = await workspace.beginSync('test');

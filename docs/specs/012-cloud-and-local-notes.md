@@ -61,12 +61,14 @@ covers everything except Trash. Decisions and alternatives are in
 ### Desktop regions
 
 - FR8: The grid keeps its limits: at most 3 rows, 4 columns and 9 regions. Any region may hold any group of any open
-  collection, or be empty. There may be fewer regions than groups.
+  collection, or be empty. There may be fewer regions than groups. A clean install defaults to 2 rows and 3 columns;
+  existing installations keep their saved dimensions.
 - FR9: A group in no region is off the desktop: its papers are not drawn and not in scope of adjusting or arranging, and it
   stays in the main window. Its row shows a dimmed layer mark with a tooltip. A paper keeps its position while its group is
   off the desktop and returns there. A paper never placed is placed when its group gets a region.
-- FR10: A group new to this device takes the first free region, and the grid grows for it as far as nine regions; past that
-  it stays off the desktop and a toast says so (ADR-068). A group the user took off the desktop stays off until the user places it.
+- FR10: A group new to this device takes the first free region. If the chosen grid is full, it stays off the desktop and a
+  toast says so (ADR-068). Adding, syncing, merging or deleting groups never changes the grid's row or column count or
+  moves existing papers; other groups keep their regions. A group the user took off the desktop stays off until the user places it.
 - FR11: Settings > Desktop notes > Group regions offers every group per region, grouped by section, and lists the groups off
   the desktop. While signed out, regions holding cloud groups stay reserved, and that page marks them.
 

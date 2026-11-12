@@ -1,4 +1,4 @@
-import { copy, defaultGrid } from '../core/contracts.js';
+import { copy } from '../core/contracts.js';
 import { settleGroupColors } from './colors.js';
 
 /**
@@ -31,14 +31,11 @@ export function settledColors(desk, groups, openProfiles) {
 
 const freeSlot = slots => slots.indexOf(null);
 
-/** Regions grow for a new group until the grid is full, as they always have; past nine the group stays off the desktop. */
+/** A new group can fill an empty region; only the user changes the grid's dimensions. */
 function placeInGrid(grid, groupId) {
   const free = freeSlot(grid.slots);
   if (free >= 0) { grid.slots[free] = groupId; return true; }
-  const held = grid.slots.length;
-  if (held >= 9) return false;
-  const larger = defaultGrid(Array.from({ length: held + 1 }, (_, index) => ({ id: grid.slots[index] ?? groupId })), grid.area);
-  Object.assign(grid, larger); return true;
+  return false;
 }
 
 /**

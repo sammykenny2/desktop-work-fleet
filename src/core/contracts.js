@@ -103,8 +103,8 @@ export function gridRegions(grid) {
 
 export function defaultGrid(groups, area) {
   requireValue(groups.length <= 9, 'group-overflow', t('errors.core.groupOverflow'));
-  const rows = groups.length <= 4 ? 1 : groups.length <= 8 ? 2 : 3;
-  const columns = Math.max(1, Math.ceil(groups.length / rows));
+  const rows = 2;
+  const columns = 3;
   return { rows, columns, area: copy(area),
     slots: Array.from({ length: rows * columns }, (_, index) => groups[index]?.id ?? null) };
 }

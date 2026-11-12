@@ -133,7 +133,8 @@ interface. To switch, see [Settings](#settings).
   "Columns", and below them you choose the group for each region; choosing a group that is already in another region
   swaps the two. Regions are numbered from left to right and from top to bottom. There can be up to nine, each holding any
   group or none. A group in no region stays off the desktop and shows only in the main window; its notes keep their places
-  for when it returns. A new group takes a free region if there is one.
+  for when it returns. A clean install starts with 2 rows × 3 columns. Adding or removing groups keeps your chosen rows
+  and columns and existing regions; a new group takes a free region if there is one, otherwise it stays off the desktop.
 - Each device keeps its own order of groups in the sidebar. Drag a group up or down to reorder it; on a phone, hold
   the group a moment and then drag it, or drag the dotted grip at the left of the row at once (a finger that moves
   without holding scrolls the list), and with a keyboard press Alt+Up or Alt+Down on the group. This changes only the

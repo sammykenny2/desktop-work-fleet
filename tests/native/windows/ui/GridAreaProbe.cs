@@ -50,11 +50,11 @@ internal static class GridAreaProbe
           if (frame is null) await Task.Delay(100);
         }
         if (frame is null) throw new Exception(name + ": no region frame in any scene");
-        // One group fills the grid, so its frame is the whole work area, in scene units from the display's corner.
-        var expected = new Frame((area.X - display.Bounds.X) / scale, (area.Y - display.Bounds.Y) / scale, area.Width / scale, area.Height / scale);
+        // The first group holds the top-left region of the default 2-row, 3-column grid, in scene units.
+        var expected = new Frame((area.X - display.Bounds.X) / scale, (area.Y - display.Bounds.Y) / scale, area.Width / (3 * scale), area.Height / (2 * scale));
         if (Math.Abs(frame.X - expected.X) > 2 || Math.Abs(frame.Y - expected.Y) > 2 || Math.Abs(frame.Width - expected.Width) > 2 || Math.Abs(frame.Height - expected.Height) > 2)
-          throw new Exception($"{name}: region frame {frame} instead of the work area {expected}");
-        Console.WriteLine($"PASS grid area {name}: region frame {frame.Width:0}x{frame.Height:0} matches the primary work area");
+          throw new Exception($"{name}: region frame {frame} instead of the default grid's first region {expected}");
+        Console.WriteLine($"PASS grid area {name}: region frame {frame.Width:0}x{frame.Height:0} follows the primary work area");
         await window.Desktop!.Surfaces[1].WebView.CoreWebView2.ExecuteScriptAsync("document.querySelector('.adjust-tools button.primary').click()");
         await Program.Wait(window, "document.querySelector('#stop-operation').hidden", name + " finish adjusting");
       }

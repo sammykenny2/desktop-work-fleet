@@ -48,10 +48,14 @@ const capture = async text => {
 try {
   await page.goto(base.href); await expect(page.locator('body')).toHaveAttribute('data-ready', 'true');
   await capture('Original group note');
+  const initial = await read();
+  assert.deepEqual([initial.layout.grid.rows, initial.layout.grid.columns], [2, 3], 'a clean install uses six fixed regions');
   await page.locator('#add-group').click(); await page.locator('dialog[open] input:not([type=radio],[type=checkbox])').fill('Research');
   await page.locator('dialog[open]').getByRole('button', { name: t('common.save'), exact: true }).click();
   await expect(page.locator('#groups .group-row[data-group-id]')).toHaveCount(2);
   const created = await read(); assert.equal(created.layout.mainGroupId, created.groups[1].id, 'a new group is shown and remembered');
+  assert.deepEqual(created.layout.grid, { ...initial.layout.grid, slots: [initial.groups[0].id, created.groups[1].id, null, null, null, null] });
+  assert.deepEqual(created.layout.placements, initial.layout.placements, 'a new group leaves the first paper in place');
   // A note filed into another group from the editor shows and remembers that group, as a sidebar choice does.
   await page.locator('#groups .group-row[data-group-id]').first().locator('button').first().click();
   await expect.poll(async () => (await read()).layout.mainGroupId).toBe(created.groups[0].id);
@@ -121,7 +125,7 @@ try {
   await expect(page.locator('#list .mine')).toHaveCount(shownGroup === a.id ? 0 : shownNotes);
   await expect(page.locator('#groups .group-star')).toHaveCount(1); await expect(sidebarRow(a.id).locator('.group-dot')).toHaveCount(1);
   assert.deepEqual((await read()).layout.groupHighlights, { [b.id]: true });
-  state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id]);
+  state = await read(); assert.deepEqual(state.layout.grid.slots, [b.id, a.id, null, null, null, null]);
   assert.deepEqual(state.layout.placements, positions, 'remapping does not move cards');
   // The sidebar keeps its own order: dragging a row or Alt+arrow keys change only that, not regions, keys or notes (ADR-066).
   const groupRow = id => page.locator(`#groups .group-row[data-group-id="${id}"]`);

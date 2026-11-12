@@ -3,7 +3,7 @@ import { activeGroups, compareId, containsRect, copy, defaultGrid, eligible,
 import { defaultShortcuts, validateShortcuts } from '../core/shortcuts.js';
 import { maximalAreas, overlaps, subtract } from './formation.js';
 import { groupLayerOrder } from './stages.js';
-import { orderedGroups } from './order.js';
+import { groupOrderGrid, orderedGroups } from './order.js';
 import { settleGroupColors, swapGroupColor, validColor } from './colors.js';
 import { validOpacity } from './opacity.js';
 import { schemas } from '../core/schema.js';
@@ -237,8 +237,19 @@ export class LayoutStore {
       const groups = activeGroups(snapshot);
       const gridIds = draft.grid.slots.filter(Boolean);
       if (groups.length <= 9 && (groups.length !== gridIds.length || groups.some(group => !gridIds.includes(group.id)))) {
-        // Region bookkeeping does not move papers already on the desktop, and groups keep the order they had.
-        draft.grid = defaultGrid(orderedGroups(draft, groups), draft.grid.area);
+        if (desk) {
+          // In a combined workspace these slots hold sidebar order, not desktop regions.
+          draft.grid = groupOrderGrid(draft, groups);
+        } else {
+          // Group changes fill or free existing regions without changing their geometry or moving papers.
+          const ids = new Set(groups.map(group => group.id));
+          draft.grid.slots = draft.grid.slots.map(id => ids.has(id) ? id : null);
+          for (const group of groups) {
+            const free = draft.grid.slots.indexOf(null);
+            if (free < 0) break;
+            if (!draft.grid.slots.includes(group.id)) draft.grid.slots[free] = group.id;
+          }
+        }
       }
       const knownIds = new Set(groups.map(group => group.id));
       const regions = desk ? desk.regions : gridRegions(draft.grid);
@@ -365,15 +376,17 @@ export class LayoutStore {
    * history, papers shown, completed papers hidden, every group on the given back layer (the desktop layer when none
    * is given). Shortcuts, group colours and highlights, and the device identity stay. Callers re-place papers with
    * placeNew afterwards; a crash in between leaves papers unplaced, which the start-up placeNew already repairs.
+   * A combined workspace resets the profile's sidebar order with listOnly and resets its desktop regions separately.
    */
-  async reset(snapshot, area, layer = null) {
+  async reset(snapshot, area, layer = null, { listOnly = false } = {}) {
     snapshot = copy(snapshot); area = copy(area);
     requireValue(validRect(area), 'invalid-area', t('errors.core.noDisplay'));
     requireValue(layer === null || groupLayerOrder.includes(layer), 'invalid-setting', t('errors.core.layerUnknown'));
     return this.#transaction(draft => {
       const groups = activeGroups(snapshot);
-      // More than nine groups have no default grid; keep the regions and still clear every paper position.
-      draft.grid = groups.length <= 9 ? defaultGrid(orderedGroups(draft, groups), area) : { ...draft.grid, area };
+      // Sidebar order is separate from desktop regions in a combined workspace.
+      if (groups.length <= 9) draft.grid = listOnly ? groupOrderGrid(draft, groups) : defaultGrid(orderedGroups(draft, groups), area);
+      draft.grid.area = area;
       const groupLayers = layer ? Object.fromEntries(groups.map(group => [group.id, layer])) : {};
       Object.assign(draft, { placements: {}, history: [], desktopVisible: true, groupLayers });
       delete draft.completedVisible; delete draft.quickMove;

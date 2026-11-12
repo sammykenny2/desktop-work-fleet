@@ -5,6 +5,7 @@ import { CombinedWorkspace } from '../src/core/combined-workspace.js';
 import { Workspace } from '../src/core/workspace.js';
 import { groupHighlighted } from '../src/layout/store.js';
 import { settleDesk } from '../src/layout/desk.js';
+import { reorderSlots } from '../src/layout/order.js';
 import { projectDesktop } from '../src/desktop/projection.js';
 import { idleInteraction, InteractionController } from '../src/interaction/controller.js';
 import { planFormation } from '../src/layout/formation.js';
@@ -118,12 +119,15 @@ test('the desk holds what a computer has one of, and each profile keeps its own 
 test('the desk survives reopening, and the first start takes its settings from the primary', async () => {
   const storage = controls(); let disk;
   const workspace = await Workspace.create({ profileId: 'google:primary', deviceId: 'device', area, persist: async state => { disk = copy(state); } });
-  await workspace.layout.configure({ quickMove: true, shortcuts: { ...workspace.layout.state.shortcuts, 'Alt+F2': '@capture' } }, workspace.snapshot);
+  const grid = { rows: 1, columns: 4, area, slots: [workspace.snapshot.groups[0].id, null, null, null] };
+  await workspace.layout.configure({ grid, quickMove: true, shortcuts: { ...workspace.layout.state.shortcuts, 'Alt+F2': '@capture' } }, workspace.snapshot);
   const first = await CombinedWorkspace.open([{ id: 'google:primary', workspace, storage }], storage);
   assert.equal(first.layout.state.quickMove, true); assert.equal(first.layout.state.shortcuts['Alt+F2'], '@capture');
+  assert.deepEqual(first.layout.state.grid, grid, 'existing dimensions are carried over');
   await first.layout.configure({ quickMove: false }, first.snapshot);
   const reopened = await CombinedWorkspace.open([{ id: 'google:primary', workspace: new Workspace(disk, async state => { disk = copy(state); }), storage }], storage);
   assert.equal(reopened.layout.state.quickMove, false, 'a saved desk is not seeded again');
+  assert.deepEqual(reopened.layout.state.grid, grid);
 });
 
 test('a group in no region is off the desktop: not eligible, not placed, not in a formation', async () => {
@@ -158,17 +162,63 @@ test('a group taken off the desktop stays off, and a paper there keeps its place
   assert.equal(combined.layout.state.placements[note.id].x, 700);
 });
 
-test('a new group takes a free region, the grid grows until nine, and past that it stays off with no place taken', async () => {
+test('new groups fill the six default regions and stay off the desktop once full without changing the grid', async () => {
   const { combined, profiles } = await open(['google:primary', 'local']);
+  const grid = combined.layout.state.grid;
   const made = [];
   for (let index = 0; index < 7; index++) { made.push(await combined.createGroup(`Extra ${index}`, profiles[index % 2].id)); await combined.layout.placeNew(combined.working, [area]); }
   const state = combined.layout.state;
-  assert.equal(state.grid.slots.filter(Boolean).length, 9); assert.ok(state.grid.rows * state.grid.columns <= 9);
+  assert.deepEqual(state.grid, { ...grid, slots: [...grid.slots.slice(0, 2), ...made.slice(0, 4).map(group => group.id)] });
   for (const id of state.grid.slots) assert.ok(id);
-  const late = await combined.createGroup('Past nine', profiles[1].id); await combined.layout.placeNew(combined.working, [area]);
+  const late = await combined.createGroup('No free region', profiles[1].id);
+  const note = await combined.createCard(content('off desktop'), late.id);
+  await combined.layout.placeNew(combined.working, [area]);
   assert.equal(combined.layout.state.grid.slots.includes(late.id), false); assert.equal(combined.layout.state.hiddenGroups[late.id], true);
+  assert.equal(combined.layout.state.placements[note.id], undefined);
   // Giving it a region takes it from nobody else silently: the user replaces one in Settings.
-  assert.equal(combined.layout.state.grid.slots.length, 9);
+  assert.equal(combined.layout.state.grid.slots.length, 6);
+});
+
+test('a saved full grid keeps its dimensions, regions and papers when local or synced groups arrive and on reopening', async () => {
+  const { combined, profiles, group, storage } = await open(['google:primary', 'local']);
+  const grid = { rows: 1, columns: 2, area, slots: [group[1].id, group[0].id] };
+  await combined.layout.configure({ grid }, combined.snapshot);
+  const note = await combined.createCard(content('keep this position'), group[0].id);
+  await combined.layout.placeNew(combined.working, [area]);
+  await combined.layout.move(note.id, { x: 760, y: 120 });
+  const placements = combined.layout.state.placements;
+  const local = await combined.createGroup('Local arrival', profiles[1].id);
+  await profiles[0].workspace.adoptGroup({ id: 'synced-group', name: 'Sync arrival' });
+  await combined.layout.placeNew(combined.working, [area]);
+  assert.deepEqual(combined.layout.state.grid, grid);
+  assert.deepEqual(combined.layout.state.placements, placements);
+  assert.equal(combined.layout.state.hiddenGroups[local.id], true);
+  assert.equal(combined.layout.state.hiddenGroups['synced-group'], true);
+  const reopened = await CombinedWorkspace.open(profiles, storage);
+  await reopened.layout.placeNew(reopened.working, [area]);
+  assert.deepEqual(reopened.layout.state.grid, grid);
+  assert.deepEqual(reopened.layout.state.placements, placements);
+  await reopened.mergeGroup(reopened.previewGroupMerge(local.id, group[1].id));
+  await reopened.layout.placeNew(reopened.working, [area]);
+  assert.deepEqual(reopened.layout.state.grid, grid);
+  await reopened.deleteGroup(group[0].id);
+  await reopened.layout.placeNew(reopened.working, [area]);
+  assert.deepEqual(reopened.layout.state.grid, { ...grid, slots: [group[1].id, null] }, 'removing a shown group leaves its region empty');
+  assert.deepEqual(reopened.layout.state.placements, placements);
+});
+
+test('all nine sidebar groups can still be reordered and reset while the desktop keeps six regions', async () => {
+  const { combined, profiles } = await open(['local']);
+  for (let index = 1; index < 9; index++) await combined.createGroup(`Group ${index}`, 'local');
+  await combined.layout.placeNew(combined.working, [area]);
+  const own = profiles[0].workspace;
+  const ids = combined.orderedGroups().map(group => group.id).reverse();
+  await own.layout.configure({ grid: reorderSlots(own.layout.state.grid, ids) }, own.snapshot);
+  assert.deepEqual(combined.orderedGroups().map(group => group.id), ids);
+  await combined.layout.reset(combined.snapshot, area);
+  await combined.layout.placeNew(combined.working, [area]);
+  assert.deepEqual(combined.orderedGroups().map(group => group.id), ids);
+  assert.deepEqual(combined.layout.state.grid, { rows: 2, columns: 3, area, slots: ids.slice(0, 6) });
 });
 
 test('regions of a profile that is not open stay reserved, and return when it does', () => {
@@ -274,7 +324,7 @@ test('a plan made before any profile changed is refused, as a plan for one profi
   await assert.rejects(combined.layout.applyFormation(plan, () => combined.working), error => error.code === 'stale-plan');
 });
 
-test('a reset clears each profile and lays regions out from the list, as far as nine reach', async () => {
+test('a reset clears each profile and lays the six default regions out from the list', async () => {
   const { combined, profiles, group } = await open();
   const note = await combined.createCard(content('a'), group[1].id); await combined.layout.placeNew(combined.working, [area]);
   await combined.layout.configure({ desktopVisible: false, quickMove: true, grid: { ...combined.layout.state.grid, slots: combined.layout.state.grid.slots.map(() => null) } }, combined.snapshot);
@@ -328,7 +378,7 @@ test('a group new to this device that finds no free region is reported once; one
   const added = []; for (let index = 0; index < 8; index++) added.push(await combined.createGroup(`More ${index}`, profiles[index % 2].id));
   await combined.layout.settle();
   const off = added.filter(group => combined.layout.state.hiddenGroups[group.id]).map(group => group.id);
-  assert.equal(off.length, 1, 'nine regions fit nine of the ten groups');
+  assert.equal(off.length, 4, 'six default regions fit six of the ten groups');
   assert.deepEqual(combined.layout.takeArrivedOffDesktop(), off); assert.deepEqual(combined.layout.takeArrivedOffDesktop(), []);
   await combined.layout.settle(); assert.deepEqual(combined.layout.takeArrivedOffDesktop(), [], 'it stays off without saying so again');
 });

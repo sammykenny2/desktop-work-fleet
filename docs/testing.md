@@ -28,6 +28,11 @@ The requirements for the new cards, groups and formation are in [SPEC-003 C01–
 the layered strategy is in [PLAN-003](plans/003-desktop-interaction-implementation.md).
 `tests/desktop-core.test.js` verifies the grid, where new papers land, formation and capacity, undo, operation scope, the gesture model,
 atomic save failures, safe exit from drafts and adapter replacement; the injected in-memory persist does not prove that the OS writes to disk.
+Together with `tests/combined-workspace.test.js`, it checks the fixed 2 × 3 clean-install grid, preservation of saved
+dimensions and paper placements as groups arrive or retire, full-grid arrivals staying off the desktop, and sidebar
+ordering through nine groups independently of the desktop's region count.
+`scripts/testing/group-probe.mjs` checks the clean-install grid and unchanged regions and paper placement after a new
+group is saved through the browser UI.
 C numbers in test names mark only the simulated semantic part; the native capabilities of C16, C35, C40–C43 and C46–C47 still need acceptance on a real host.
 A green result from old tests must not be listed as a pass for a new feature, and document changes do not restart the old Mac probes.
 
@@ -1364,7 +1369,8 @@ Next it runs `--sign-in-hold OUTPUT_DIRECTORY` ([ADR-046](decisions/046-windows-
 
 Next it runs `--grid-area OUTPUT_DIRECTORY` (SPEC-003, "Display changes"):
 - The main window opens twice on the same test data. The first time it gets only the top-left quarter of the primary display's work area, and a note is added; the second time it gets the full work area.
-- Each time it presses "Adjust all" and reads the region frame drawn by the floating scene. There is only one group, so the region frame should equal that run's work area.
+- Each time it presses "Adjust all" and reads the first region frame drawn by the floating scene. In the default 2-row,
+  3-column grid it covers the top-left third of that run's work-area width and half its height.
 - Before the fix, the second region frame was still a quarter of the size, the same as the `Ctrl+Shift+digit` dashed frame the user reported.
 - It checks only the startup path. The layout-saving rule is verified by the node test C43b; the wiring for display changes while running and the `Ctrl+Shift+digit` hint have no automated test and await a real-machine check.
 

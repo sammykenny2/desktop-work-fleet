@@ -24,6 +24,7 @@ async function fixture() {
     persist, uuid: () => `id-${String(++counter).padStart(4, '0')}` });
   const a = workspace.snapshot.groups[0];
   const b = await workspace.createGroup('Other group');
+  await workspace.layout.configure({ grid: { rows: 1, columns: 2, area, slots: [a.id, b.id] } }, workspace.snapshot);
   const a1 = await workspace.createCard(markdown('First task'), a.id);
   const a2 = await workspace.createCard(markdown('Second task'), a.id);
   const b1 = await workspace.createCard(markdown('Third task'), b.id);
@@ -66,6 +67,37 @@ test('C02–C04: row-major grids, empty cells and all legal boundary values', ()
   throwsCode(() => gridRegions({ ...grid, slots: groups.map(() => 'g0') }), 'invalid-slots');
   // A region may hold no group, and a group may hold no region.
   assert.equal(gridRegions({ ...grid, slots: grid.slots.map(() => null) }).length, grid.slots.length);
+});
+
+test('a clean layout always starts with two rows and three columns, independent of group count', () => {
+  for (let count = 0; count <= 9; count++) {
+    const groups = Array.from({ length: count }, (_, index) => ({ id: `g${index}` }));
+    assert.deepEqual(createLayout('device', groups, area).grid, {
+      rows: 2, columns: 3, area,
+      slots: Array.from({ length: 6 }, (_, index) => groups[index]?.id ?? null),
+    });
+  }
+});
+
+test('new and retired groups keep configured region geometry and existing paper placements', async () => {
+  const f = await fixture(); const layout = f.workspace.layout;
+  const grid = { rows: 2, columns: 2, area, slots: [f.b.id, null, f.a.id, null] };
+  await layout.configure({ grid }, f.workspace.snapshot);
+  const placements = layout.state.placements;
+  const c = await f.workspace.createGroup('Third');
+  await layout.placeNew(f.workspace.snapshot, workAreas);
+  assert.deepEqual(layout.state.grid, { ...grid, slots: [f.b.id, c.id, f.a.id, null] });
+  assert.deepEqual(layout.state.placements, placements);
+  const d = await f.workspace.createGroup('Fourth');
+  await layout.placeNew(f.workspace.snapshot, workAreas);
+  const full = layout.state.grid;
+  const off = await f.workspace.createGroup('Off desktop');
+  await layout.placeNew(f.workspace.snapshot, workAreas);
+  assert.deepEqual(layout.state.grid, full);
+  await f.workspace.mergeGroup(f.workspace.previewGroupMerge(c.id, f.a.id));
+  await layout.placeNew(f.workspace.snapshot, workAreas);
+  assert.deepEqual(layout.state.grid, { ...grid, slots: [f.b.id, off.id, f.a.id, d.id] });
+  assert.deepEqual(layout.state.placements, placements);
 });
 
 test('C03: rejected grid preserves data and placements', async () => {
@@ -153,6 +185,8 @@ test('stack and spread arrange new square papers beside older 280 × 220 ones, k
     const workArea = { x: 0, y: 0, width, height }; const name = `${mode} ${groupCount} groups on ${width} × ${height}`;
     const groups = Array.from({ length: groupCount }, (_, i) => ({ id: `g${i}` }));
     const layout = createLayout('device', groups, workArea);
+    layout.grid = { rows: groupCount === 9 ? 3 : 1, columns: groupCount === 9 ? 3 : groupCount, area: workArea,
+      slots: groups.map(group => group.id) };
     const cards = groups.flatMap(group => Array.from({ length: perGroup }, (_, i) => ({ id: `${group.id}-${i}`, groupId: group.id })));
     cards.forEach((card, order) => {
       layout.placements[card.id] = { x: 0, y: 0, order, ...(order % 2 ? { width: 240, height: 240 } : { width: 280, height: 220 }) };
@@ -179,7 +213,9 @@ test('a new paper stays square but shrinks to fit a short region, never below 16
   // [work area width, height, expected side, whether stack and spread then keep every paper in its region]
   for (const [width, height, side, fits] of [[1920, 1032, 240, true], [1280, 775, 234, true], [1366, 728, 218, true], [900, 540, 160, false]]) {
     const workArea = { x: 0, y: 0, width, height }; const name = `9 groups on ${width} × ${height}`;
-    const store = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+    const initial = createLayout('device', groups, workArea);
+    initial.grid = { rows: 3, columns: 3, area: workArea, slots: groups.map(group => group.id) };
+    const store = new LayoutStore(initial, async () => {});
     await store.placeNew({ groups, cards }, [workArea]);
     const layout = store.state; const regions = gridRegions(layout.grid, groups);
     for (const card of cards) {
@@ -198,7 +234,9 @@ test('a new paper stays square but shrinks to fit a short region, never below 16
 test('a new paper takes the first free place in its region and, once it is full, never lands on another paper', async () => {
   const groups = Array.from({ length: 4 }, (_, i) => ({ id: `g${i}` }));
   const workArea = { x: 0, y: 0, width: 1920, height: 1032 };
-  const store = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  const initial = createLayout('device', groups, workArea);
+  initial.grid = { rows: 1, columns: 4, area: workArea, slots: groups.map(group => group.id) };
+  const store = new LayoutStore(initial, async () => {});
   const region = gridRegions(store.state.grid, groups)[0]; const cards = [];
   const add = async (patch = {}) => {
     const card = { id: `c${String(cards.length).padStart(2, '0')}`, groupId: 'g0', ...patch }; cards.push(card);
@@ -218,7 +256,7 @@ test('a new paper takes the first free place in its region and, once it is full,
   }
 
   // Deleted, hidden and completed papers keep their placement but leave their place free.
-  const fresh = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  const fresh = new LayoutStore(initial, async () => {});
   const papers = [{ id: 'a', groupId: 'g0' }, { id: 'b', groupId: 'g0' }, { id: 'c', groupId: 'g0' }];
   await fresh.placeNew({ groups, cards: papers }, [workArea]);
   await fresh.setCardPolicy('b', { visible: false });
@@ -229,7 +267,7 @@ test('a new paper takes the first free place in its region and, once it is full,
     [[12, 12], [12, 264], [12, 516]]);
 
   // A paper the user moved leaves the room around it free.
-  const moved = new LayoutStore(createLayout('device', groups, workArea), async () => {});
+  const moved = new LayoutStore(initial, async () => {});
   await moved.placeNew({ groups, cards: [{ id: 'a', groupId: 'g0' }] }, [workArea]);
   await moved.move('a', { x: 40, y: 30 });
   await moved.placeNew({ groups, cards: [{ id: 'a', groupId: 'g0' }, { id: 'b', groupId: 'g0' }] }, [workArea]);
@@ -580,7 +618,7 @@ test('layout reset re-places every paper by group and keeps content, groups and 
   assert.deepEqual(layout.groupHighlights, { [f.b.id]: true }, 'a highlight stays through the reset, like the colour');
   assert.deepEqual(layout.shortcuts, shortcuts); assert.deepEqual(f.workspace.snapshot.cards, cards);
   for (const card of [f.a1, f.a2]) assert.ok(layout.placements[card.id].x < 600, 'first group papers return to its region');
-  assert.ok(layout.placements[f.b1.id].x >= 600);
+  assert.ok(layout.placements[f.b1.id].x >= area.width / 3);
   assert.deepEqual(Object.values(layout.placements).map(rect => rect.visible), [true, true, true]);
   assert.deepEqual(layout.groupLayers, {}, 'without a back layer every group is back on the desktop layer');
 });

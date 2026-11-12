@@ -171,8 +171,8 @@ class CombinedLayout {
   }
 
   async reset(_snapshot, area, layer = null) {
-    for (const { workspace } of this.#profiles) await workspace.layout.reset(workspace.snapshot, area, layer);
-    // The regions start over from the list, as far as nine reach; groups past that stay off the desktop.
+    for (const { workspace } of this.#profiles) await workspace.layout.reset(workspace.snapshot, area, layer, { listOnly: true });
+    // The default six regions start over from the list; groups past that stay off the desktop.
     const groups = this.#combined.orderedGroups();
     await this.#desk.update(draft => {
       // Forgetting what it has seen lets a group of a collection not open now take a free region when it returns.

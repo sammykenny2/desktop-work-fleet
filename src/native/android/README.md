@@ -5,6 +5,12 @@ Credential Manager account selection and Google AuthorizationClient Drive author
 overlay permission.
 The native WebView reads only packaged assets; Google and file operations go through a fixed bridge, and there is no
 local note server.
+Automatic Drive checks and cloud maintenance pause while the Activity is in the background or the page is hidden.
+On return, one foreground check observes the existing retry deadline. A network failure from a request interrupted by
+that suspension waits for this check; a current foreground failure, authorization error or unconfirmed native result
+still appears. Local saves and durable upload/maintenance journals are retained. Desktop background sync is unchanged.
+Native Google failures log only the bridge operation name and stable error code, without notes, account identifiers,
+credentials or response bodies.
 The launcher icon is an adaptive icon (`res/mipmap-anydpi`) of bitmap layers with a monochrome layer for themed icons,
 written by `scripts/render-brand-assets.mjs --install`.
 The app does not zoom like a page (2026-10-24): the WebView turns zoom support off, and the page fixes its scale, so two

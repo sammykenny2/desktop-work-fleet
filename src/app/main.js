@@ -82,6 +82,7 @@ let desktop; let desktopInfo; let remoteEditor = null;
 let editorHidesMain = false;
 let nativeShortcuts; let shortcutStatus = []; let labwcShortcuts = null;
 let googleAccount; let syncService; let syncTimer; let syncBusy = false; let accountBusy = false; let listingLag = null; let listingLagWaits = 0;
+let androidBackground = false; let androidSyncEpoch = 0; let syncRetry = null;
 let datasetStore = null; let purge; let maintenanceTimer; let maintenanceWork = null; let maintenanceAbort = new AbortController();
 let maintenancePaused = false; let syncRequested = false; let datasetProblem = null; let pendingReset = null; let recoveryOwed = false; let landingFailed = false;
 let maintenanceNotice = null; let maintenanceFailure = null;
@@ -301,16 +302,19 @@ async function initialize() {
   if (native) {
     native.bridge.onEvent('update-state', message => { updateState = message.state; if ($('#settings-dialog').open) renderUpdate(); });
     native.bridge.onEvent('host-background', message => {
+      if (native.info.platform === 'android') { androidBackground = true; androidSyncEpoch++; }
       stopAutomatic?.(); stopCompanionBackups(); void run(async () => {
         await flushDraft(); await automatic?.service.whenIdle(); await companionBackupsIdle();
         if (message.id) await native.bridge.request('host.backgroundReady', { id: message.id });
       }, { duringAdjust: true, duringRecovery: true });
     });
     native.bridge.onEvent('host-foreground', () => {
+      if (native.info.platform === 'android') androidBackground = false;
       stopAutomatic?.(); if (automatic && !nativeClosing && !accountBusy && !sharedIdsBlocked) stopAutomatic = startAutomaticBackup(automatic.service);
       if (!nativeClosing && !accountBusy && !sharedIdsBlocked) startCompanionBackups();
       syncService?.resume();
       void syncGoogle();
+      if (native.info.platform === 'android' && !maintenancePaused) scheduleMaintenance(0);
     });
     await native.bridge.request('host.ready');
     if (desktop) await native.bridge.request('desktop.start');
@@ -329,7 +333,10 @@ async function initialize() {
   native?.bridge.onEvent('host-tick', () => { if (document.visibilityState === 'hidden') void syncGoogle(); });
   // A dialog's close event does not bubble, so one listener for all of them has to capture it.
   document.addEventListener('close', () => { if (recoveryOwed && datasetProblem) void askDatasetRecovery(); }, true);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { syncService?.resume(); void syncGoogle(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (native?.info.platform === 'android' && document.visibilityState === 'hidden') androidSyncEpoch++;
+    if (document.visibilityState === 'visible') { syncService?.resume(); void syncGoogle(); }
+  });
   displayBackend = native?.info.displayBackend ?? null;
   // GNOME Wayland without desktop papers points at the setting that brings them through XWayland.
   const displayHint = displayBackend?.current === 'wayland' && !displayBackend.fixed; const reason = native?.info.desktopReason;
@@ -654,6 +661,7 @@ function updateAttention() {
   $('#attention-dot').hidden = !(captureCount || ['error', 'attention'].includes(syncState));
 }
 async function syncGoogle(force = false) {
+  if (!force && androidSyncPaused()) return;
   // Recovery is an explicit user choice. Timers and foreground/online events must not retry the
   // blocked dataset and reopen its prompt over Settings while the user reads the reset controls.
   if (datasetProblem || sharedIdsBlocked) return;
@@ -665,7 +673,10 @@ async function syncGoogle(force = false) {
   if (maintenanceWork) { syncRequested = true; return; }
   if (!syncService || syncBusy || nativeClosing || accountBusy || composing || dataPanel?.busy() || dataPanel?.blocksSync() || revisions
     || [...document.querySelectorAll('dialog[open]')].some(dialog => dialog !== settings)) return;
+  if (!force && native?.info.platform === 'android' && deferSyncRetry(syncService)) return;
+  if (syncRetry) { clearTimeout(syncRetry.timer); syncRetry = null; }
   const sourceSync = syncService; const sourceProfile = profileId;
+  const sourceEpoch = native?.info.platform === 'android' ? androidSyncEpoch : 0;
   let completed = false;
   const current = () => !nativeClosing && !accountBusy && syncService === sourceSync && profileId === sourceProfile;
   syncBusy = true; $('#google-sync').disabled = true;
@@ -709,6 +720,11 @@ async function syncGoogle(force = false) {
     else setSync('ok', () => t('sync.status.syncedAt', { time: formatDate(at, { hour: '2-digit', minute: '2-digit' }) }));
   } catch (error) {
     if (!current()) return;
+    // Android can withdraw background network access while an admitted request is still running. Recheck on resume;
+    // only that current foreground attempt can report a network failure. Other failures retain their normal handling.
+    if (error.code === 'network' && native?.info.platform === 'android' && (androidSyncPaused() || sourceEpoch !== androidSyncEpoch)) {
+      setSync('busy', () => t('sync.status.waiting')); syncRequested = true; return;
+    }
     if (['dataset-changed', 'incompatible-cloud-data', 'initialization-conflict', 'source-reset-superseded'].includes(error.code)) {
       datasetProblem = error; maintenancePaused = true;
       setSync('attention', () => t('sync.recovery.paused'), error.message);
@@ -737,6 +753,23 @@ async function syncGoogle(force = false) {
     const again = syncRequested || completed && workspace.pendingCount > 0; syncRequested = false;
     if (again && current()) queueMicrotask(() => { void syncGoogle(); });
   }
+}
+function androidSyncPaused() {
+  return native?.info.platform === 'android' && (androidBackground || document.visibilityState === 'hidden');
+}
+// Resume can precede the failed background request's backoff deadline. Keep one account-bound retry without forcing it.
+function deferSyncRetry(service) {
+  const at = service.status?.nextAttemptAt;
+  if (!(at > Date.now())) return false;
+  if (syncRetry?.service === service && syncRetry.at === at) return true;
+  if (syncRetry) clearTimeout(syncRetry.timer);
+  const retry = syncRetry = { service, at };
+  retry.timer = setTimeout(() => {
+    if (syncRetry !== retry) return;
+    syncRetry = null;
+    if (service === syncService) void syncGoogle();
+  }, Math.ceil(at - Date.now()) + 1);
+  return true;
 }
 // What a pass pulled lands in one queue turn with everything that depends on it, so no action sees one without the other.
 // A sync therefore waits for the queue here, and nothing holding the queue may wait for a sync.
@@ -835,6 +868,8 @@ async function stopMaintenance() {
 }
 async function maintainDataset() {
   if (sharedIdsBlocked) return;
+  if (androidSyncPaused()) { scheduleMaintenance(); return; }
+  const sourceEpoch = native?.info.platform === 'android' ? androidSyncEpoch : 0;
   const resetPending = workspace.state.cloudRestore || pendingReset && pendingReset.phase !== 'complete';
   // The account's own work waits for its sign-in; a local collection's does not.
   const sourceWaits = profileId.startsWith('google:') && (!googleAccount?.connected || !workspace.syncState.dataset && !workspace.state.cloudRestore && !pendingReset);
@@ -893,6 +928,8 @@ async function maintainDataset() {
   try { await maintenanceWork; }
   catch (error) {
     if (!maintenanceAbort.signal.aborted) {
+      if (!resetPending && error.code === 'network' && native?.info.platform === 'android'
+        && (androidSyncPaused() || sourceEpoch !== androidSyncEpoch)) return;
       maintenancePaused = error.code !== 'dataset-visibility';
       // Cleanup waiting for a listing asks Drive each time, so it asks no more often than a sync does. A reset keeps its pace.
       listingBehind = !resetPending && error.code === 'dataset-visibility';

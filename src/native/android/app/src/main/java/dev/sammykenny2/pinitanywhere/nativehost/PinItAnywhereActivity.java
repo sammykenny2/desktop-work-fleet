@@ -214,6 +214,7 @@ public final class PinItAnywhereActivity extends Activity {
         } catch (Exception error) {
             switchTo = null;
             Protocol.Failure failure = error instanceof Protocol.Failure ? (Protocol.Failure) error : new Protocol.Failure("native-unavailable", "The operation didn't finish. Keep your draft and try again.");
+            if (method.startsWith("google.")) android.util.Log.w("PinItAnywhere", "Google operation failed: " + method + " (" + failure.code + ")");
             try { response = Protocol.object("v", 1, "id", id, "ok", false, "error", Protocol.object("code", failure.code, "message", failure.getMessage())); }
             catch (Exception impossible) { return; }
         }

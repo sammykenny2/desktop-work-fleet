@@ -59,12 +59,13 @@ test('a successful collision flush reopens only after the save completes', async
 test('a paused collision still saves its owned draft and acknowledges the native background lifecycle', async () => {
   const f = fixture(false); await f.recover(); f.allowSave();
   const calls = []; let background;
-  Object.assign(f.context, { automatic: null, companionBackupsIdle: async () => {},
-    native: { bridge: { onEvent(_type, listener) { background = listener; }, request: async (...args) => calls.push(args) } } });
+  Object.assign(f.context, { automatic: null, companionBackupsIdle: async () => {}, androidBackground: false, androidSyncEpoch: 0,
+    native: { info: { platform: 'android' }, bridge: { onEvent(_type, listener) { background = listener; }, request: async (...args) => calls.push(args) } } });
   const listener = source.slice(source.indexOf("native.bridge.onEvent('host-background'"), source.indexOf("native.bridge.onEvent('host-foreground'"));
   vm.runInContext(listener, f.context); background({ id: 'background-task' });
   await Promise.all([...f.context.activeActions]);
   assert.equal(f.saved().content.text, 'Latest unsaved text');
+  assert.equal(f.context.androidBackground, true); assert.equal(f.context.androidSyncEpoch, 1);
   assert.equal(calls[0][0], 'host.backgroundReady'); assert.equal(calls[0][1].id, 'background-task');
   assert.equal(f.reloads(), 0, 'background saving does not navigate away from the recovery dialog');
 });

@@ -10,6 +10,7 @@ const source = await readFile(new URL('../src/app/main.js', import.meta.url), 'u
 const initialize = source.slice(source.indexOf('async function initializeGoogle()'), source.indexOf('function renderGoogleAccess()'));
 const presenter = source.slice(source.indexOf('function renderGoogleAccess()'), source.indexOf('// The account chip'));
 const synchronize = source.slice(source.indexOf('async function syncGoogle('), source.indexOf('function resetFailure('));
+const syncPresentation = source.slice(source.indexOf('function setSync('), source.indexOf('// The drawer hides'));
 const maintenance = source.slice(source.indexOf('function resetFailure('), source.indexOf('function scheduleMaintenance('));
 const progress = source.slice(source.indexOf('function datasetProgressText('), source.indexOf('async function runDatasetChange('));
 assert.ok(synchronize.length > 0 && !synchronize.includes('run(initialize)'), 'sync fixture must not include the app bootstrap');
@@ -109,21 +110,25 @@ test('hosts without optional vault pause fields retain connected and signed-out 
   assert.equal(local.timers.length, 0);
 });
 
-function syncFixture({ capability = true, unlock, sync } = {}) {
+function syncFixture({ capability = true, unlock, sync, platform = 'windows', present = false } = {}) {
   const nodes = new Map(); const calls = []; const states = []; const retries = [];
+  const notices = new NotificationQueue({ schedule: () => 0, cancel() {} });
   const account = { configured: true, connected: true, paused: false, accountId: 'fixture', email: 'synthetic@example.test' };
-  const $ = id => { if (!nodes.has(id)) nodes.set(id, {}); return nodes.get(id); };
+  const $ = id => { if (!nodes.has(id)) nodes.set(id, { dataset: {} }); return nodes.get(id); };
   const context = vm.createContext({
     AbortController, maintenanceWork: null, syncRequested: false, datasetProblem: null, maintenancePaused: false,
     stopMaintenance: async () => {}, scheduleMaintenance() {}, datasetStore: null,
-    profileId: 'google:fixture', googleAccount: { ...account, connected: false, paused: true }, t, plural, formatDate,
-    native: { info: { capabilities: { vaultUnlock: capability } }, bridge: { request: async method => {
+    profileId: 'google:fixture', googleAccount: { ...account, ...platform === 'android' ? {} : { connected: false, paused: true } }, t, plural, formatDate, textOf,
+    native: { info: { platform, capabilities: { vaultUnlock: capability } }, bridge: { request: async method => {
       assert.equal(method, 'google.unlockVault'); calls.push(method); return unlock ? unlock() : account;
     } } },
     syncService: { sync: async options => { await options.onActivity(); calls.push(['sync', options.force]); if (sync) await sync(); return { phase: 'idle' }; } },
     syncBusy: false, nativeClosing: false, sharedIdsBlocked: false, accountBusy: false, composing: false, dataPanel: null, revisions: null, desktop: null, landingFailed: false,
-    listingLag: null, listingLagWaits: 0, setTimeout: (callback, delay) => retries.push({ callback, delay }), Date, Math,
-    document: { querySelectorAll: () => [] },
+    androidBackground: false, androidSyncEpoch: 0, syncRetry: null,
+    listingLag: null, listingLagWaits: 0, setTimeout: (callback, delay) => retries.push({ callback, delay }), clearTimeout() {}, queueMicrotask, Date, Math,
+    document: { visibilityState: 'visible', querySelectorAll: () => [] },
+    shownSync: null, syncState: 'off', maintenanceNotice: null, updateAttention() {}, loadGoogleProfile() {},
+    notifications: () => notices, sectionName: () => 'Cloud notes',
     $, setText: (id, text) => { $(id).textContent = textOf(text); },
     setSync: (...args) => states.push(args), renderAccount() {},
     stopCompanionBackups() {}, startCompanionBackups() {}, companionBackupsIdle: async () => {}, companions: [],
@@ -134,21 +139,29 @@ function syncFixture({ capability = true, unlock, sync } = {}) {
     controller: { reconcile: async () => {} }, workAreas: () => [], render() {},
   });
   vm.runInContext(`${presenter}\n${synchronize}`, context);
-  return { nodes, calls, states, retries, context, invoke: force => vm.runInContext(`syncGoogle(${force})`, context) };
+  if (present) {
+    vm.runInContext(syncPresentation, context);
+    const show = context.setSync; context.setSync = (...args) => { states.push(args); show(...args); };
+  }
+  return { nodes, calls, states, retries, context, notices, invoke: force => vm.runInContext(`syncGoogle(${force})`, context) };
 }
 
 // One turn of the real maintenance loop, with the cleanup step's outcome supplied.
 const maintain = source.slice(source.indexOf('async function maintainDataset('), source.indexOf('async function confirmPurge('));
-async function maintenanceDelay({ step, resetPending = false }) {
-  const delays = []; const nothing = () => {};
-  const context = vm.createContext({ companions: [], workspace: { state: { cloudRestore: resetPending ? {} : null }, syncState: {}, layout: { placeNew: async () => {} } }, pendingReset: null, datasetProblem: null, maintenanceWork: null,
+function maintenanceFixture({ step, resetPending = false, platform = 'windows' }) {
+  const delays = [], notices = []; const nothing = () => {};
+  const context = vm.createContext({ companions: [], primary: { state: {} }, workspace: { state: { cloudRestore: resetPending ? {} : null }, syncState: {}, layout: { placeNew: async () => {} } }, pendingReset: null, datasetProblem: null, maintenanceWork: null,
     maintenancePaused: false, accountBusy: false, syncBusy: false, nativeClosing: false, sharedIdsBlocked: false, editorBusy: false, composing: false, dataPanel: null, revisions: null,
-    document: { querySelectorAll: () => [] }, profileId: 'local', googleAccount: null, maintenanceAbort: { signal: { aborted: false } }, maintenanceFailure: null, datasetStore: null,
+    document: { visibilityState: 'visible', querySelectorAll: () => [] }, native: { info: { platform } }, androidBackground: false, androidSyncEpoch: 0,
+    profileId: 'local', googleAccount: null, maintenanceAbort: { signal: { aborted: false } }, maintenanceFailure: null, datasetStore: null,
     purge: { step }, advanceDatasetRestore: step, resetFailure: error => ({ code: error.code, message: error.message }), storage: { putJob: async () => {}, deleteJob: async () => {}, getControl: async () => null, maintenance: async () => false },
-    cleanupDatasetTransition: async () => false, setSync: nothing, showMaintenance: nothing, setText: nothing, syncRequested: false, syncGoogle: nothing, render: nothing, t,
+    cleanupDatasetTransition: async () => false, setSync: nothing, showMaintenance: (...args) => notices.push(args), setText: nothing, syncRequested: false, syncGoogle: nothing, render: nothing, t,
     scheduleMaintenance: delay => delays.push(delay), $: () => ({}), reportDatasetProgress: nothing, controller: { reconcile: async () => {} }, workAreas: () => [], automatic: null });
-  await vm.runInContext(`${maintain}\nmaintainDataset()`, context);
-  return delays.at(-1);
+  vm.runInContext(`${synchronize}\n${maintain}`, context);
+  return { context, delays, notices, invoke: () => vm.runInContext('maintainDataset()', context) };
+}
+async function maintenanceDelay(options) {
+  const f = maintenanceFixture(options); await f.invoke(); return f.delays.at(-1);
 }
 const visibility = async () => { throw Object.assign(new Error('Not listed yet'), { code: 'dataset-visibility' }); };
 
@@ -161,6 +174,127 @@ test('cleanup waiting for a listing asks Drive no more often than a sync does, w
 
 const lagError = () => Object.assign(new Error('Not visible yet'), { code: 'dataset-visibility' });
 const settle = () => new Promise(resolve => setImmediate(resolve));
+
+for (const signal of ['host', 'visibility']) test(`Android ${signal} background signal stops automatic Drive checks`, async () => {
+  const f = syncFixture({ platform: 'android', capability: false });
+  if (signal === 'host') f.context.androidBackground = true;
+  else f.context.document.visibilityState = 'hidden';
+  await f.invoke(false);
+  assert.deepEqual(f.calls, [], 'a locked or hidden phone must not start another Drive pass');
+});
+
+test('a hidden desktop keeps its resident synchronization', async () => {
+  const f = syncFixture({ capability: false }); f.context.document.visibilityState = 'hidden';
+  await f.invoke(false);
+  assert.ok(f.calls.some(value => Array.isArray(value) && value[0] === 'sync'));
+});
+
+test('native Android pause/resume handlers suspend and coalesce automatic checks', async () => {
+  const f = syncFixture({ platform: 'android', capability: false }); const events = new Map();
+  f.context.native.bridge.onEvent = (name, action) => events.set(name, action);
+  f.context.run = action => action(); f.context.automatic = null; f.context.stopAutomatic = null;
+  f.context.syncService.resume = () => {};
+  const start = source.indexOf("    native.bridge.onEvent('host-background'");
+  const end = source.indexOf("    await native.bridge.request('host.ready');", start);
+  assert.ok(start > 0 && end > start);
+  vm.runInContext(source.slice(start, end), f.context);
+  events.get('host-background')({}); await settle(); f.calls.length = 0;
+  await f.invoke(false); assert.equal(f.calls.length, 0);
+  assert.equal(f.context.androidSyncEpoch, 1);
+  events.get('host-foreground')(); events.get('host-foreground')(); await settle();
+  assert.equal(f.calls.filter(value => Array.isArray(value) && value[0] === 'sync').length, 1);
+});
+
+test('Android background maintenance starts no purge or storage cleanup work', async () => {
+  let calls = 0;
+  const f = maintenanceFixture({ platform: 'android', step: async () => { calls++; return null; } });
+  f.context.androidBackground = true; await f.invoke();
+  assert.equal(calls, 0); assert.equal(f.notices.length, 0);
+  f.context.androidBackground = false; await f.invoke(); assert.equal(calls, 1);
+});
+
+test('maintenance interrupted by Android suspension retries its journal without a permanent error toast', async () => {
+  let first = true;
+  const f = maintenanceFixture({ platform: 'android', step: async () => {
+    if (!first) return null;
+    first = false; f.context.androidBackground = true; f.context.androidSyncEpoch++;
+    throw Object.assign(new Error('Background network unavailable'), { code: 'network' });
+  } });
+  await f.invoke(); assert.equal(f.notices.length, 0); assert.equal(f.context.maintenancePaused, false);
+  f.context.androidBackground = false; await f.invoke(); assert.equal(f.notices.length, 0);
+});
+
+test('an explicit reset keeps its recorded failure even if Android was suspended', async () => {
+  const f = maintenanceFixture({ platform: 'android', resetPending: true, step: async () => {
+    f.context.androidBackground = true; f.context.androidSyncEpoch++;
+    throw Object.assign(new Error('Reset network unavailable'), { code: 'network' });
+  } });
+  await f.invoke(); assert.equal(f.context.maintenancePaused, true); assert.equal(f.notices.length, 1);
+  assert.equal(f.context.maintenanceFailure.code, 'network');
+});
+
+test('an Android request interrupted by suspension waits for one foreground retry and respects backoff', async () => {
+  let reject, now = 1000, first = true;
+  const f = syncFixture({ platform: 'android', capability: false, present: true,
+    sync: () => first ? new Promise((_resolve, fail) => { reject = fail; }) : undefined });
+  f.context.Date = class extends Date { static now() { return now; } };
+  const pass = f.invoke(false); await settle();
+  f.context.androidBackground = true; f.context.androidSyncEpoch++;
+  f.context.syncService.status = { nextAttemptAt: 2000, error: { code: 'network' } };
+  reject(Object.assign(new Error('Network unavailable'), { code: 'network' })); await pass; await settle();
+  assert.equal(f.context.syncState, 'busy');
+  assert.equal(f.nodes.get('#sync-status').textContent, t('sync.status.waiting'));
+  assert.equal(f.notices.items.size, 0, 'suspension must not replay an obsolete failure on unlock');
+
+  first = false; f.context.androidBackground = false;
+  const before = f.calls.length;
+  await f.invoke(false); await f.invoke(false);
+  assert.equal(f.calls.length, before, 'resume must honor the provider retry deadline');
+  assert.equal(f.retries.length, 1, 'duplicate resume triggers must share one retry');
+  now = 2001; f.retries[0].callback(); await settle();
+  assert.equal(f.context.syncState, 'ok'); assert.equal(f.notices.items.size, 0);
+});
+
+test('a late Android background failure cannot become a fresh foreground error', async () => {
+  let reject;
+  const f = syncFixture({ platform: 'android', capability: false, sync: () => new Promise((_resolve, fail) => { reject = fail; }) });
+  const pass = f.invoke(false); await settle();
+  f.context.androidSyncEpoch++;
+  f.context.syncService.status = { nextAttemptAt: Date.now() + 1000, error: { code: 'network' } };
+  reject(Object.assign(new Error('Old network request'), { code: 'network' })); await pass; await settle();
+  assert.equal(f.states.some(value => value[0] === 'error'), false);
+  assert.equal(f.retries.length, 1);
+});
+
+test('a current foreground network failure is visible, and its confirmed recovery clears the same toast', async () => {
+  let offline = true;
+  const f = syncFixture({ platform: 'android', capability: false, present: true,
+    sync: () => { if (offline) throw Object.assign(new Error('Network unavailable'), { code: 'network' }); } });
+  await f.invoke(false);
+  assert.equal(f.context.syncState, 'error'); assert.equal(f.notices.items.get('sync:google:fixture').text, 'Network unavailable');
+  offline = false; await f.invoke(false);
+  assert.equal(f.context.syncState, 'ok'); assert.equal(f.notices.items.has('sync:google:fixture'), false);
+});
+
+test('an old Android retry cannot poll a replacement account or replay after manual sync', async () => {
+  for (const action of ['account', 'manual']) {
+    const f = syncFixture({ platform: 'android', capability: false });
+    f.context.syncService.status = { nextAttemptAt: Date.now() + 1000 };
+    await f.invoke(false); assert.equal(f.retries.length, 1);
+    if (action === 'account') f.context.syncService = { sync: () => assert.fail('the previous account must not poll its replacement') };
+    else await f.invoke(true);
+    const before = f.calls.length; f.retries[0].callback(); await settle();
+    assert.equal(f.calls.length, before);
+  }
+});
+
+test('suspension never conceals an authorization failure', async () => {
+  let reject;
+  const f = syncFixture({ platform: 'android', capability: false, present: true, sync: () => new Promise((_resolve, fail) => { reject = fail; }) });
+  const pass = f.invoke(false); await settle(); f.context.androidBackground = true; f.context.androidSyncEpoch++;
+  reject(Object.assign(new Error('Sign in again'), { code: 'unauthorized' })); await pass;
+  assert.equal(f.context.syncState, 'error'); assert.equal(f.notices.items.get('sync:google:fixture').text, 'Sign in again');
+});
 
 test('a fractional backoff still gets a retry that does not arrive early', async () => {
   const f = syncFixture({ sync: () => { throw lagError(); } });

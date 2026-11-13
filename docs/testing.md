@@ -117,6 +117,17 @@ shows activity, and empty checks never flush drafts or rebuild notes. Controller
 cover long-resume invalidation separately.
 These checks neither use a native phone host nor measure the real Drive round trip.
 
+The same presenter suite exercises Android host pause/resume and page visibility: hidden automatic checks and cloud
+maintenance do no work; a network error from a pass spanning suspension waits for one foreground retry at its existing
+backoff deadline. Duplicate resume triggers coalesce, old retries cannot poll a replacement account or replay after a
+manual sync, current network/authentication failures remain visible, and a confirmed success clears its sync toast.
+Explicit reset failures retain their recorded pause. Desktop checks still run while hidden.
+For native acceptance, use a locally signed Release APK with an authenticated test account, leave it open, lock for at
+least one minute, then unlock and compare the account status and toast. Inspect only this app's `PinItAnywhere` log tag
+for Google operation/error-code pairs. Confirm background polling stops, pending changes survive and sync resumes;
+separately check an actual foreground network failure and account changes. Presenter fixtures do not establish native
+lifecycle delivery or real-provider timing.
+
 The same runner also starts `group-dialog-sync-probe.mjs` in Chromium and WebKit. It gives the production renderer a
 synthetic desktop host, so the real `DesktopOwner` queue exists, and holds a synthetic Drive request inside a real
 `DatasetSync` pass ([ADR-064](decisions/064-sync-talks-to-drive-outside-the-action-queue.md)). While Drive has not

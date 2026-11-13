@@ -6,10 +6,12 @@ import re
 from pathlib import Path
 import shutil
 import stat
+import sys
 import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "src/native/linux"))
 spec = importlib.util.spec_from_file_location("hostsettings", ROOT / "src/native/linux/hostsettings.py")
 hostsettings = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(hostsettings)
@@ -123,6 +125,8 @@ class LinuxHostSettingsTests(unittest.TestCase):
         hostsettings.write_autostart(path, "work-fleet --launch-at-login", "app.workfleet.preview",
                                      {"en": "Shows notes after sign-in", "zh-TW": "Traditional Chinese comment"})
         text = path.read_text("utf-8")
+        self.assertIn("\nName=Pin It Anywhere\n", text)
+        self.assertIn(f"\nName[zh_TW]={hostsettings.text.ZH_TW['common.appName']}\n", text)
         self.assertIn("Exec=work-fleet --launch-at-login\n", text)
         # The session shows the comment in its own language: English by default, Comment[zh_TW] for Traditional Chinese.
         self.assertIn("\nComment=Shows notes after sign-in\nComment[zh_TW]=Traditional Chinese comment\n", text)

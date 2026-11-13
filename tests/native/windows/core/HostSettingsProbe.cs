@@ -99,9 +99,9 @@ internal static class HostSettingsProbe
     Require(english.Count > 0 && english.Keys.Order().SequenceEqual(chinese.Keys.Order()), "both tables have the same keys");
     foreach (var (key, text) in english)
       Require(text.Trim().Length > 0 && chinese[key].Trim().Length > 0 && Placeholders(text).SequenceEqual(Placeholders(chinese[key])), $"{key} text and placeholders");
-    Require(HostText.Format("en", "tray.tipDownloading", ("percent", 42)) == "Work Fleet · Downloading update 42%", "placeholders are filled");
+    Require(HostText.Format("en", "tray.tipDownloading", ("percent", 42)) == "Pin It Anywhere · Downloading update 42%", "placeholders are filled");
     Require(HostText.Format("en", "dialog.updateAvailable", ("version", "0.4.0")).Contains("{current}"), "a missing value leaves its placeholder");
-    Require(HostText.Format("zh-TW", "missing.key") == "missing.key" && HostText.Format("fr", "tray.exit") == "Exit Work Fleet", "missing keys and locales");
+    Require(HostText.Format("zh-TW", "missing.key") == "missing.key" && HostText.Format("fr", "tray.exit") == "Exit Pin It Anywhere", "missing keys and locales");
 
     // Apply re-resolves the host locale and notifies once per locale change.
     var changes = 0; void Changed() => changes++;

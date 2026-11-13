@@ -306,7 +306,7 @@ From the root of the checkout:
 bash scripts/macos/start-validation.sh
 ```
 
-The command builds `build/Work Fleet.app`, starts the loopback service and pairs the Mac with a one-time admin invite.
+The command builds `build/Pin It Anywhere.app`, starts the loopback service and pairs the Mac with a one-time admin invite.
 Data is in `~/.work-fleet/` by default; the app's settings and offline cache are in its own Sandbox container.
 Ctrl-C in the terminal stops the server this run started; WF → Quit in the menu bar closes the app.
 `WORK_FLEET_DATA` sets a data directory outside the repo, and `--port 9848` changes the port.
@@ -324,7 +324,7 @@ permanent token):
 
 ```bash
 python3 src/server/work_fleet.py invite --role admin
-open 'build/Work Fleet.app'
+open 'build/Pin It Anywhere.app'
 ```
 
 In the menu bar choose WF → Connection and display…, and enter `http://127.0.0.1:9847` and the printed `code`.

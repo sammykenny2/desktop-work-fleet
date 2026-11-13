@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Approved requirements and working defaults; implementation pending |
+| Status | Approved requirements and working defaults; implementation in progress under PLAN-014 |
 | Owner | Project maintainer |
 | Reviewer | Independent implementation review and maintainer device acceptance pending |
 | Decisions | [ADR-069](../decisions/069-pin-it-anywhere-product-identity.md), [ADR-070](../decisions/070-release-channels-and-architecture.md) |

@@ -165,9 +165,9 @@ import UIKit
         #endif
         let text = FleetText.dialog(error, fallback: "dialog.openFailedRetry")
         #if os(macOS)
-        let alert = NSAlert(); alert.messageText = "Work Fleet"; alert.informativeText = text; alert.addButton(withTitle: FleetText.text("dialog.ok")); alert.runModal()
+        let alert = NSAlert(); alert.messageText = FleetText.text("common.appName"); alert.informativeText = text; alert.addButton(withTitle: FleetText.text("dialog.ok")); alert.runModal()
         #else
-        let alert = UIAlertController(title: "Work Fleet", message: text, preferredStyle: .alert); alert.addAction(UIAlertAction(title: FleetText.text("dialog.close"), style: .default)); presenter?.present(alert, animated: true)
+        let alert = UIAlertController(title: FleetText.text("common.appName"), message: text, preferredStyle: .alert); alert.addAction(UIAlertAction(title: FleetText.text("dialog.close"), style: .default)); presenter?.present(alert, animated: true)
         #endif
     }
     #if os(macOS)
@@ -206,7 +206,7 @@ import UIKit
         }
         decisionHandler(.cancel)
     }
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { Task { await stop(); showFailure(FleetFailure("native-view", "The window's content stopped. The last saved data is kept; reopen Work Fleet.")) } }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { Task { await stop(); showFailure(FleetFailure("native-view", "The window's content stopped. The last saved data is kept; reopen Pin It Anywhere.")) } }
     private func chooseDirectory() async throws -> URL {
         #if os(macOS)
         let panel = NSOpenPanel(); panel.canChooseDirectories = true; panel.canChooseFiles = false; panel.allowsMultipleSelection = false

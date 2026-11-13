@@ -1,6 +1,6 @@
 // Errors from the desktop owner, its scenes and their transfers (src/desktop).
 export default {
-  'errors.desktop.nativeOnly': '桌面視窗需由 Work Fleet 原生 App 開啟。',
+  'errors.desktop.nativeOnly': '桌面視窗需由貓亂貼原生 App 開啟。',
   'errors.desktop.closing': 'App 正在保存並關閉，請稍候。',
   'errors.desktop.sessionInvalid': '桌面工作階段身分無效。',
   'errors.desktop.sessionClosed': '桌面工作階段已關閉。',

@@ -116,11 +116,16 @@ test('MSIX uses the Windows version record and includes early Windows 11 while e
     }
     await mkdir(path.join(directory, 'config'), { recursive: true });
     await copyFile(path.join(root, 'config', 'startup.json'), path.join(directory, 'config', 'startup.json'));
+    const locale = 'src/i18n/locales/en/common.js';
+    await mkdir(path.dirname(path.join(directory, locale)), { recursive: true });
+    await copyFile(path.join(root, locale), path.join(directory, locale));
     const stage = path.join(directory, 'build', 'windows', 'stage');
     await execute(process.execPath, [path.join(directory, 'scripts', 'generate-windows-manifest.mjs'), '--stage', stage],
       { env: { PATH: process.env.PATH } });
     const manifest = await readFile(path.join(stage, 'AppxManifest.xml'), 'utf8');
     assert.match(manifest, /<Identity [^>]*Version="2\.4\.6\.0"/);
+    assert.match(manifest, /<DisplayName>Pin It Anywhere<\/DisplayName>/);
+    assert.match(manifest, /<Identity Name="app\.workfleet\.preview"[^>]*Publisher="CN=Work Fleet Preview"/);
     assert.match(manifest, /<TargetDeviceFamily Name="Windows\.Desktop" MinVersion="10\.0\.22000\.0" MaxVersionTested="10\.0\.26200\.0"\s*\/>/);
   } finally {
     await rm(directory, { recursive: true, force: true });

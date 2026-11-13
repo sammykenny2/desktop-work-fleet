@@ -4,6 +4,7 @@ Older AppIndicator libraries consume primary clicks as menu requests. Export the
 D-Bus interfaces directly with Gio, which the host already needs, on a dedicated connection.
 """
 from gi.repository import Gio, GLib, Gtk
+from text import t
 
 ITEM = "org.kde.StatusNotifierItem"
 WATCHER = "org.kde.StatusNotifierWatcher"
@@ -25,6 +26,7 @@ ITEM_XML = """<node><interface name="org.kde.StatusNotifierItem">
 <method name="ContextMenu"><arg type="i" direction="in"/><arg type="i" direction="in"/></method>
 <method name="Scroll"><arg type="i" direction="in"/><arg type="s" direction="in"/></method>
 <signal name="NewStatus"><arg type="s"/></signal>
+<signal name="NewTitle"/><signal name="NewToolTip"/>
 </interface></node>"""
 
 MENU_XML = """<node><interface name="com.canonical.dbusmenu">
@@ -52,11 +54,11 @@ class StatusNotifier:
         self.revision = 1
         self.properties = {
             "Category": GLib.Variant("s", "ApplicationStatus"), "Id": GLib.Variant("s", app_id),
-            "Title": GLib.Variant("s", "Work Fleet"), "Status": GLib.Variant("s", "Active"),
+            "Title": GLib.Variant("s", t("common.appName")), "Status": GLib.Variant("s", "Active"),
             "WindowId": GLib.Variant("u", 0), "IconName": GLib.Variant("s", icon.stem if icon else app_id),
             "IconThemePath": GLib.Variant("s", str(icon.parent) if icon else ""),
             "ItemIsMenu": GLib.Variant("b", False), "Menu": GLib.Variant("o", MENU_PATH),
-            "ToolTip": GLib.Variant("(sa(iiay)ss)", (app_id, [], "Work Fleet", "")),
+            "ToolTip": GLib.Variant("(sa(iiay)ss)", (app_id, [], t("common.appName"), "")),
         }
         for prefix in ("", "Overlay", "Attention"):
             self.properties[prefix + "IconPixmap"] = GLib.Variant("a(iiay)", [])
@@ -202,6 +204,11 @@ class StatusNotifier:
 
     def relabel(self):
         if not self.closed:
+            self.properties["Title"] = GLib.Variant("s", t("common.appName"))
+            tooltip = self.properties["ToolTip"].unpack()
+            self.properties["ToolTip"] = GLib.Variant("(sa(iiay)ss)", (tooltip[0], tooltip[1], t("common.appName"), tooltip[3]))
+            self.bus.emit_signal(None, ITEM_PATH, ITEM, "NewTitle", None)
+            self.bus.emit_signal(None, ITEM_PATH, ITEM, "NewToolTip", None)
             self.revision += 1
             self.bus.emit_signal(None, MENU_PATH, MENU, "LayoutUpdated", GLib.Variant("(ui)", (self.revision, 0)))
 

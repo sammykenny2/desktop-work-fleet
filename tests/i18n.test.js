@@ -44,6 +44,8 @@ test('no catalog file repeats a key, which an object literal would silently drop
 });
 
 test('lookups interpolate, fall back to English and pick plural forms', () => {
+  assert.equal(inLocale('en', () => t('common.appName')), 'Pin It Anywhere');
+  assert.equal(inLocale('zh-TW', () => t('common.appName')), String.fromCodePoint(0x8c93, 0x4e82, 0x8cbc));
   assert.equal(t('settings.general.language'), 'Display language');
   assert.equal(inLocale('zh-TW', () => t('settings.general.language')), catalogs['zh-TW']['settings.general.language']);
   assert.equal(t('missing.key.for.test'), 'missing.key.for.test');
@@ -144,6 +146,7 @@ test('every native string table has matching English and Traditional Chinese blo
     const blocks = nativeBlocks(read(file));
     assert.deepEqual(Object.keys(blocks).sort(), [...LOCALES].sort(), file);
     assert.ok(Object.keys(blocks.en).length > 0, `${file} has entries`);
+    for (const locale of LOCALES) assert.equal(blocks[locale]['common.appName'], catalogs[locale]['common.appName'], `${file} ${locale} product name`);
     assert.deepEqual(Object.keys(blocks['zh-TW']).sort(), Object.keys(blocks.en).sort(), file);
     for (const [key, text] of Object.entries(blocks.en)) {
       assert.deepEqual(placeholders(blocks['zh-TW'][key]), placeholders(text), `${file} ${key}`);
@@ -151,10 +154,26 @@ test('every native string table has matching English and Traditional Chinese blo
   }
 });
 
+test('system launcher resources and store drafts use the same localized product names', () => {
+  const android = 'src/native/android/app/src/main/';
+  assert.match(read(`${android}AndroidManifest.xml`), /android:label="@string\/app_name"/);
+  for (const [locale, appleLocale, androidLocale, storeLocale] of [
+    ['en', 'en', 'values', 'en-US'], ['zh-TW', 'zh-Hant', 'values-b+zh+Hant', 'zh-TW'],
+  ]) {
+    const name = catalogs[locale]['common.appName'];
+    const apple = read(`src/native/apple/resources/${appleLocale}.lproj/InfoPlist.strings`);
+    for (const key of ['CFBundleName', 'CFBundleDisplayName']) assert.ok(apple.includes(`"${key}" = "${name}";`));
+    assert.ok(read(`${android}res/${androidLocale}/strings.xml`).includes(`<string name="app_name">${name}</string>`));
+    assert.equal(JSON.parse(read(`docs/release/store-listing.${storeLocale}.json`)).name, name);
+  }
+});
+
 // Chinese text outside the zh-TW catalogs and Chinese editions. Each place says why it needs Chinese, and `lines`
 // caps how many lines of that file may contain it.
 const CJK_EXCEPTIONS = [
   { file: 'src/sources/initial-group.js', lines: 1, reason: 'the shared initial group keeps its persisted V1 name' },
+  { file: 'src/native/apple/resources/zh-Hant.lproj/InfoPlist.strings', lines: 2, reason: 'the system-localized product name in Apple app and extension metadata' },
+  { file: 'src/native/android/app/src/main/res/values-b+zh+Hant/strings.xml', lines: 1, reason: 'the system-localized Android launcher and share-target product name' },
   { file: 'docs/i18n.md', lines: 16, reason: 'the Traditional Chinese option labels and the terminology pairs' },
   { file: 'docs/decisions/069-pin-it-anywhere-product-identity.md', lines: 1, reason: 'the final zh-TW product name quoted as identity data in the English ADR' },
   { file: 'tests/desktop-transport.test.js', lines: 1, reason: 'three-byte UTF-8 text makes chunk boundaries split a character' },

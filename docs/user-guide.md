@@ -4,7 +4,7 @@
 
 Updated: 2026-10-23.
 
-How to use the 1.0 Work Fleet app on Windows, macOS, Linux, phones and in the browser preview. How to build, run and
+How to use the 1.0 Pin It Anywhere app on Windows, macOS, Linux, phones and in the browser preview. How to build, run and
 package the app, and how to use the 0.1.0 validation prototype, are in [Setup](setup-guide.md). Current status is in
 [PROGRESS](../PROGRESS.md).
 
@@ -337,12 +337,12 @@ groups:
 On the desktop apps, the "Startup" section of Settings > General has these switches; each shows what the system
 actually does:
 
-- "Start Work Fleet when you sign in to the computer". If you turned it off in the system (Startup apps in Windows,
+- "Start Pin It Anywhere when you sign in to the computer". If you turned it off in the system (Startup apps in Windows,
   Login Items in System Settings on macOS), the row says so and you turn it back on there.
 - "Keep running in the tray when the main window closes" ("Keep running in the menu bar when the main window closes"
-  on macOS). When it is off, closing the main window saves and quits Work Fleet.
+  on macOS). When it is off, closing the main window saves and quits Pin It Anywhere.
 - "Open the main window after starting at sign-in". When it is off, a start at sign-in only shows desktop notes in the
-  background; opening Work Fleet yourself always shows the main window.
+  background; opening Pin It Anywhere yourself always shows the main window.
 
 ### Reset desktop layout
 
@@ -462,11 +462,11 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
   saved job, including after reopening the app. Creating new cloud data and cleaning old files have separate
   progress counts. A running backup or another confirmation can temporarily pause the background work.
 
-### When Work Fleet can't open your notes
+### When Pin It Anywhere can't open your notes
 
-- On Windows, macOS and Linux, when the notes on this device can't be opened, Work Fleet says why instead of a general
-  error: the data is damaged, the disk is full, another program is using it, the system doesn't let Work Fleet open
-  its folder, or the data can't be decrypted (on Windows only the Windows account, on the PC, that used Work Fleet
+- On Windows, macOS and Linux, when the notes on this device can't be opened, Pin It Anywhere says why instead of a general
+  error: the data is damaged, the disk is full, another program is using it, the system doesn't let Pin It Anywhere open
+  its folder, or the data can't be decrypted (on Windows only the Windows account, on the PC, that used Pin It Anywhere
   before can read it; on Linux only the local key kept with the data can).
 - It shows the data folder, with "Open folder" ("Show in Finder" on macOS) to see it in the file manager.
 - For damaged data or data that can't be decrypted, "Set aside and start again…" asks first, then moves the database
@@ -474,8 +474,8 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
   is deleted. A Google workspace gets its notes, groups and attachments back from Drive after you sign in again; this
   device's desktop positions, colours, shortcuts and unsaved changes stay in the set-aside copy. The local
   workspace comes back only by restoring a backup ZIP. Preferences such as the display language stay as they were.
-- A full disk, data another program holds, a folder Work Fleet may not open, or a cause it can't tell is not offered
-  setting aside: free space, close that program or check the folder's permissions, then start Work Fleet again.
+- A full disk, data another program holds, a folder Pin It Anywhere may not open, or a cause it can't tell is not offered
+  setting aside: free space, close that program or check the folder's permissions, then start Pin It Anywhere again.
 
 ### Keep your own copies
 
@@ -493,30 +493,33 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
   Linux panels choose how to map physical clicks to tray actions; this is the app's primary/context-menu contract.
 - While "Keep running in the tray when the main window closes" is on (the default; "Keep running in the menu bar when
   the main window closes" on macOS), closing the window (X) hides it to the tray (the menu bar on macOS). To quit, use
-  "Exit Work Fleet" in the Windows tray, or "Save and quit" in the Linux tray and the macOS menu bar; both save first.
+  "Exit Pin It Anywhere" in the Windows tray, or "Save and quit" in the Linux tray and the macOS menu bar; both save first.
   When the switch is off, or when the tray is unavailable, X saves and quits.
 - After X or the Windows tray's "Hide main window", the desktop notes and the authority over local data keep running.
   From the tray you can reopen the main window, use Quick capture, adjust notes or quit.
-- The Windows tray menu starts with "Open Work Fleet" in bold, which is also what clicking the icon does, and "Hide
+- The Windows tray menu starts with "Open Pin It Anywhere" in bold, which is also what clicking the icon does, and "Hide
   main window" while the main window shows. Then come "Quick capture", "Show or hide desktop notes" and "Adjust all
   notes" ("Done adjusting" instead while notes are being adjusted), each with its global shortcut when that key is
-  registered, then "Check for updates…" (where in-app updates are available) and last "Exit Work Fleet". The menu
+  registered, then "Check for updates…" (where in-app updates are available) and last "Exit Pin It Anywhere". The menu
   has the Windows 11 look and follows the Windows light or dark mode.
-- The Linux tray and the macOS menu bar have "Open Work Fleet", "Quick capture", "Adjust all groups", "Show or hide
+- The Linux tray and the macOS menu bar have "Open Pin It Anywhere", "Quick capture", "Adjust all groups", "Show or hide
   desktop notes", "Check for updates…" (where in-app updates are available) and "Save and quit". The macOS
-  application menu also has "Save and quit Work Fleet".
+  application menu also has "Save and quit Pin It Anywhere".
 - The tray and menu labels follow Settings > General > Display language.
 - If the focus has moved after a delay, click a floating note once to continue.
-- Whether closing the main window keeps Work Fleet in the tray is a switch in Settings > General; see
+- Whether closing the main window keeps Pin It Anywhere in the tray is a switch in Settings > General; see
   [Startup and the main window](#startup-and-the-main-window).
 
 ## Updates
 
+- The repository is now [pin-it-anywhere](https://github.com/sammykenny2/pin-it-anywhere). Builds configured with the
+  old repository cannot discover updates through its redirect. When a new build is available, install it manually
+  once and follow its data-transition instructions; keep the old app if it still holds local notes you need.
 - Settings > General > "Version and updates" shows the version, how it was installed and the in-app update state. A
   single button offers the next step: "Check for updates", "Download update", or "Restart and install". The tray and
   the menu bar also have "Check for updates…".
-- Work Fleet checks for updates only when you ask; there is no automatic or periodic check.
-- "Restart and install" first saves unsaved text; Work Fleet closes and reopens when the installation is done. Finish
+- Pin It Anywhere checks for updates only when you ask; there is no automatic or periodic check.
+- "Restart and install" first saves unsaved text; Pin It Anywhere closes and reopens when the installation is done. Finish
   a running backup or restore first.
 - Only installations that can upgrade in place support in-app updates: the installed Windows app (MSIX), a signed and
   notarized macOS app (updated with Sparkle) and Linux installed from the DEB (installed through pkexec). Other forms,
@@ -541,7 +544,7 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
 
 ### macOS
 
-- The close button keeps Work Fleet in the menu bar; "Save and quit" there saves and quits.
+- The close button keeps Pin It Anywhere in the menu bar; "Save and quit" there saves and quits.
 - Desktop notes use three AppKit layers with the same controls as Windows.
 
 ### Linux
@@ -563,13 +566,13 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
 - On layer-shell desktops such as Raspberry Pi OS (labwc), the resident layers are not limited by the overlay (the
   default pcmanfm desktop has no Wallpaper layer). Adjust mode likewise covers the whole screen with the overlay and
   hides the main window.
-- On Wayland desktops without a global shortcuts portal, such as sway and wayfire, Work Fleet can't register its keys.
-  Bind keys in the compositor's own configuration to Work Fleet's named actions instead, which run while Work Fleet
+- On Wayland desktops without a global shortcuts portal, such as sway and wayfire, Pin It Anywhere can't register its keys.
+  Bind keys in the compositor's own configuration to Pin It Anywhere's named actions instead, which run while Pin It Anywhere
   is open: `quick-capture`, `toggle-desktop`, `adjust-all`, `done-adjusting`, `region-1` to `region-9` (the group in
   that region steps on, as its key does), `show-main` and `quit` (save and quit, as in the tray). For example, in
   sway's config: `bindsym Ctrl+Shift+n exec gapplication action <app id> quick-capture`; in wayfire.ini, under
   `[command]`: `binding_capture = <ctrl> <shift> KEY_N` and `command_capture = gapplication action <app id> quick-capture`.
-  `<app id>` is Work Fleet's application ID, the name of its icon in `/usr/lib/work-fleet/Icons` without `.png`
+  `<app id>` is Pin It Anywhere's application ID, the name of its icon in `/usr/lib/work-fleet/Icons` without `.png`
   (`app.workfleet.preview` for builds without their own); `gapplication` comes with the GLib tools (`libglib2.0-bin`).
   Without an activation token from the compositor, the main window may come to the front without taking the focus.
   Hyprland's own portal offers global shortcuts, so there Settings > Shortcuts registers them as on GNOME or KDE

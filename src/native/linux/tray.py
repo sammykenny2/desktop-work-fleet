@@ -32,8 +32,8 @@ class Tray:
         display = Gdk.Display.get_default()
         if display is not None and display.__gtype__.name == "GdkX11Display":
             self.icon = Gtk.StatusIcon.new_from_file(str(icon)) if icon is not None else Gtk.StatusIcon.new_from_icon_name(app_id)
-            self.icon.set_title("Work Fleet")
-            self.icon.set_tooltip_text("Work Fleet")
+            self.icon.set_title(t("common.appName"))
+            self.icon.set_tooltip_text(t("common.appName"))
             self.icon.connect("activate", lambda *_: self.dispatch("show"))
             self.icon.connect("popup-menu", lambda _icon, button, timestamp: self.menu.popup(None, None, Gtk.StatusIcon.position_menu, self.icon, button, timestamp))
             self.icon.connect("notify::embedded", lambda *_: self.connection(self.notifier_available or self.icon.is_embedded()))
@@ -68,6 +68,9 @@ class Tray:
             return
         for item, key in self.items:
             item.set_label(t(key))
+        if self.icon is not None:
+            self.icon.set_title(t("common.appName"))
+            self.icon.set_tooltip_text(t("common.appName"))
         if self.indicator is not None:
             self.indicator.relabel()
 

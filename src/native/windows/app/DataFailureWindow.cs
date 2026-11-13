@@ -19,8 +19,8 @@ public sealed class DataFailureWindow : Window
   public DataFailureWindow(string directory, string cause, Func<string, bool>? confirm = null)
   {
     this.directory = directory;
-    this.confirm = confirm ?? (text => MessageBox.Show(this, text, "Work Fleet", MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK);
-    Title = "Work Fleet"; Width = 560; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
+    this.confirm = confirm ?? (text => MessageBox.Show(this, text, HostText.Get("common.appName"), MessageBoxButton.OKCancel, MessageBoxImage.Warning, MessageBoxResult.Cancel) == MessageBoxResult.OK);
+    Title = HostText.Get("common.appName"); Width = 560; SizeToContent = SizeToContent.Height; ResizeMode = ResizeMode.NoResize;
     WindowStartupLocation = WindowStartupLocation.CenterScreen;
 #pragma warning disable WPF0001 // Fluent ThemeMode is experimental; only this window opts in, never the transparent scene windows.
     // The Windows 11 look: Fluent controls and backdrop in the Windows app light or dark mode, following a change while open.
@@ -58,7 +58,7 @@ public sealed class DataFailureWindow : Window
     catch (HostError error)
     {
       var key = error.Code == "data-set-aside-incomplete" ? "dataFailure.setAsideIncomplete" : "dataFailure.setAsideFailed";
-      MessageBox.Show(this, HostText.Get(key), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Error);
+      MessageBox.Show(this, HostText.Get(key), HostText.Get("common.appName"), MessageBoxButton.OK, MessageBoxImage.Error);
       return false;
     }
   }

@@ -77,7 +77,7 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     const framework = path.join(app, 'Contents/Frameworks/Sparkle.framework/Versions/B/Sparkle');
     await mkdir(path.dirname(framework), { recursive: true });
     await writeFile(framework, 'fixture');
-    await writeFile(path.join(app, 'Contents/Resources/Config/public.json'), JSON.stringify({ update: { repository: 'sammykenny2/desktop-work-fleet' } }));
+    await writeFile(path.join(app, 'Contents/Resources/Config/public.json'), JSON.stringify({ update: { repository: 'sammykenny2/pin-it-anywhere' } }));
     const tools = path.join(directory, 'tools');
     await mkdir(tools);
     const scripts = {

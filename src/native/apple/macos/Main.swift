@@ -33,7 +33,7 @@ import AppKit
             // A hidden page's timers slow down, so the host ticks every 20 seconds and a main window in the menu bar keeps syncing on time.
             tick = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak host] _ in MainActor.assumeIsolated { host?.event("host-tick") } }
             window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1180, height: 800), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-            window.title = "Work Fleet"; window.minSize = NSSize(width: 380, height: 520); window.contentView = host.web; window.delegate = self; shell.apply(window)
+            window.title = FleetText.text("common.appName"); window.minSize = NSSize(width: 380, height: 520); window.contentView = host.web; window.delegate = self; shell.apply(window)
             host.configure = { [weak self, weak host] service in
                 guard let self, let host else { throw FleetFailure("native-closed", "The native session has ended.") }
                 self.desktop?.close()
@@ -63,7 +63,7 @@ import AppKit
             }
             // SF Symbols are template images, so the menu-bar icon follows light/dark and highlight states.
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-            if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Work Fleet") { statusItem?.button?.image = image } else { statusItem?.button?.title = "w." }
+            if let image = NSImage(systemSymbolName: "note.text", accessibilityDescription: FleetText.text("common.appName")) { statusItem?.button?.image = image } else { statusItem?.button?.title = "p." }
             statusItem?.button?.target = self
             statusItem?.button?.action = #selector(statusItemClicked(_:))
             statusItem?.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -72,7 +72,7 @@ import AppKit
             if !shell.startHidden || statusItem?.button == nil { showMain() }
             shell.firstLaunch()
         } catch {
-            let alert = NSAlert(); alert.messageText = "Work Fleet"; alert.informativeText = FleetText.dialog(error, fallback: "dialog.openFailed")
+            let alert = NSAlert(); alert.messageText = FleetText.text("common.appName"); alert.informativeText = FleetText.dialog(error, fallback: "dialog.openFailed")
             alert.addButton(withTitle: FleetText.text("dialog.ok")); alert.runModal(); NSApplication.shared.terminate(nil)
         }
     }
@@ -97,6 +97,8 @@ import AppKit
     private func changeLanguage(_ preference: String) throws {
         guard let shell else { throw FleetFailure("native-closed", "The native session has ended.") }
         try shell.setLanguage(preference); FleetText.apply(preference); buildMenus()
+        window.title = FleetText.text("common.appName")
+        statusItem?.button?.image?.accessibilityDescription = FleetText.text("common.appName")
     }
     /// Shows the main window for a desktop action and reports whether it was hidden: ordered out, not minimized.
     private func showHiddenMain() -> Bool { let hidden = !window.isVisible && !window.isMiniaturized; showMain(); return hidden }

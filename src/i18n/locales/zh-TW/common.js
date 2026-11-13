@@ -1,5 +1,5 @@
 export default {
-  'common.appName': 'Work Fleet',
+  'common.appName': '貓亂貼',
   'common.cancel': '取消',
   'common.close': '關閉',
   'common.done': '完成',

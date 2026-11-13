@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Planned; documentation approved, implementation not started by this task |
+| Status | In progress; repository source and localized display names updated, service/application-ID cutover pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Independent implementation reviewer and maintainer on real devices |
@@ -18,9 +18,10 @@
 ## Overview
 
 Separate local implementation from external account changes, then verify the transition using real installed builds.
-The phases below describe future work. A documentation commit neither renames the remote repository nor creates cloud
-projects, modifies credentials, dispatches workflows or submits store builds. Apply the existing authorization rules
-when those actions are requested; do not ask again for authorization already supplied for the same action.
+The phases below separate completed source work from pending acceptance. A documentation commit neither renames the
+remote repository nor creates cloud projects, modifies credentials, dispatches workflows or submits store builds.
+Apply the existing authorization rules when those actions are requested; do not ask again for authorization already
+supplied for the same action.
 
 ## Implementation Phases
 
@@ -32,8 +33,10 @@ when those actions are requested; do not ask again for authorization already sup
   deep-link, release-file and public contact/URL identities identified by ADR-069.
 - [ ] Review V1 format freeze and backup compatibility before external beta; record a specific follow-up decision if
   the existing data policy must change, rather than adding speculative migration machinery.
-- [ ] Export complete old local and cloud backups; prove restore with the current data contracts before retiring any
-  old installation or client. Keep existing data and credentials available throughout cutover.
+- [ ] Preserve local notes and verify their recovery before retiring any old installation. For this maintainer's
+  identity cutover only, preservation/restore of the old Google Drive notes was waived on 2026-11-13; use a fresh new
+  project without importing them. No cloud deletion or credential revocation is needed for that transition. The
+  general backup/restore product requirements remain in force for other users.
 
 **Deliverable**: a concrete identity mapping and verified recovery route for FR01–FR05 and FR13.
 
@@ -41,11 +44,20 @@ when those actions are requested; do not ask again for authorization already sup
 
 - [ ] Update locale/native display names, manifests, app/extension IDs, App Group, launcher/share metadata and store
   drafts together. Keep internal names unless a public identity or build contract actually depends on them.
+  - [x] Update renderer/native names, window titles, Apple/Android localized system-name resources, Linux desktop/startup
+    names, Windows English package display names, DMG application names and store/privacy drafts. Keep technical IDs,
+    storage paths, signing subjects and existing public artifact filenames until their cutover is ready.
+  - [ ] Apply final Apple/Android IDs with actual matching OAuth clients and Apple registrations/profiles; complete
+    localized Windows package resources and native installed acceptance. The new Cloud project has not been created.
 - [ ] Register the new Google project/clients and Apple IDs/profiles when authorized. Derive callbacks from actual
   clients, and register each Android distribution fingerprint, including the Play app-signing fingerprint.
 - [ ] Configure OAuth branding, privacy/support pages and contacts; keep private keys and tokens out of public config.
 - [ ] Rename the GitHub repo when authorized; update remotes, links, update source, workflow assumptions and future asset
   names together. Verify how an already installed old build reaches the new source before relying on redirects.
+  - [x] Rename the repository and local remote to `sammykenny2/pin-it-anywhere`; use that repository as the generated
+    update-source default. Workflows already derive their release repository from `GITHUB_REPOSITORY`.
+  - [ ] Finish future asset naming with the distribution-contract changes. Old installed updaters require a manual
+    transition because the redirected Atom feed names the new repository; native install/update acceptance is pending.
 - [ ] Test old/new Google app-data visibility, fresh sign-in, token refresh, account isolation, sharing and backup/restore
   in the new app identity. Document any required manual transition instead of claiming an in-place upgrade.
 

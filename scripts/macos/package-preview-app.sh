@@ -60,9 +60,9 @@ if [[ "$PLATFORM" == ios && "$SIMULATOR" == 0 ]]; then
     (cd "$OUTPUT"; ditto -c -k --keepParent Payload "$PACKAGE")
 elif [[ "$DMG" == 1 ]]; then
     PACKAGE="$NAME.dmg"
-    mkdir "$OUTPUT/disk-image"; ditto "$APP" "$OUTPUT/disk-image/Work Fleet.app"; ln -s /Applications "$OUTPUT/disk-image/Applications"
+    mkdir "$OUTPUT/disk-image"; ditto "$APP" "$OUTPUT/disk-image/Pin It Anywhere.app"; ln -s /Applications "$OUTPUT/disk-image/Applications"
     cp "$OUTPUT/README.txt" "$OUTPUT/disk-image/"
-    hdiutil create -volname 'Work Fleet' -srcfolder "$OUTPUT/disk-image" -format UDZO "$OUTPUT/$PACKAGE"
+    hdiutil create -volname 'Pin It Anywhere' -srcfolder "$OUTPUT/disk-image" -format UDZO "$OUTPUT/$PACKAGE"
     rm -rf -- "$OUTPUT/disk-image"
 else
     PACKAGE="$NAME.zip"

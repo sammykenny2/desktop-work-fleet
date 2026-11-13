@@ -34,7 +34,7 @@ public static class Program
       if (instance is null) { guard.Note("handed to the running instance"); return; }
       if (directory != AppDataDirectory.Unpackaged && !File.Exists(Path.Combine(directory, "fleet.sqlite3"))
         && File.Exists(Path.Combine(AppDataDirectory.Unpackaged, "fleet.sqlite3")))
-        MessageBox.Show(HostText.Get("dialog.separateData"), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Information);
+        MessageBox.Show(HostText.Get("dialog.separateData"), HostText.Get("common.appName"), MessageBoxButton.OK, MessageBoxImage.Information);
       var window = OpenWindow(directory, () => new FleetWindow(directory, shell: new HostShell(directory, signIn, HostShell.Distribution())), cause =>
       {
         var explanation = new DataFailureWindow(directory, cause); explanation.ShowDialog(); return explanation.SetAsideDone;
@@ -48,7 +48,7 @@ public static class Program
     catch (Exception error)
     {
       guard?.Note("startup failed " + HostLog.Describe(error));
-      MessageBox.Show(Describe(error), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Error);
+      MessageBox.Show(Describe(error), HostText.Get("common.appName"), MessageBoxButton.OK, MessageBoxImage.Error);
     }
     finally { guard?.Note("exit"); instance?.Dispose(); }
   }

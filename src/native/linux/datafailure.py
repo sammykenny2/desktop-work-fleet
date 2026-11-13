@@ -21,9 +21,9 @@ TEXT_KEYS = {DAMAGED: "dataFailure.damaged", FULL: "dataFailure.full", IN_USE: "
              KEY: "dataFailure.key", UNREADABLE: "dataFailure.unreadable"}
 MESSAGES = {
     DAMAGED: "The local data is damaged and can't be opened.",
-    FULL: "The disk is full, so the local data can't be opened. Free some space and start Work Fleet again.",
-    IN_USE: "Another program is using the local data. Close it and start Work Fleet again.",
-    DENIED: "Work Fleet isn't allowed to open its local data folder.",
+    FULL: "The disk is full, so the local data can't be opened. Free some space and start Pin It Anywhere again.",
+    IN_USE: "Another program is using the local data. Close it and start Pin It Anywhere again.",
+    DENIED: "Pin It Anywhere isn't allowed to open its local data folder.",
     KEY: "The local key can't verify the local data.",
     UNREADABLE: "The local data can't be opened.",
 }
@@ -92,5 +92,5 @@ def set_aside(directory, now):
         except OSError:
             pass
         if not restored:
-            raise p.Failure("data-set-aside-incomplete", f"Part of the local data is in {folder}. Nothing was deleted; move those files back before starting Work Fleet again.") from error
+            raise p.Failure("data-set-aside-incomplete", f"Part of the local data is in {folder}. Nothing was deleted; move those files back before starting Pin It Anywhere again.") from error
         raise p.Failure("data-set-aside", "The local data couldn't be set aside, and nothing was moved. Check the folder's permissions and try again.") from error

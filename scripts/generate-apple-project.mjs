@@ -17,7 +17,10 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
     path: path.relative(output, name).split(path.sep).join('/'), sourceTree: 'SOURCE_ROOT' });
   const shared = (await readdir(path.join(root, 'src', 'native', 'apple', 'Shared'))).filter(name => name.endsWith('.swift')).sort()
     .map(name => file(path.join(root, 'src', 'native', 'apple', 'Shared', name), 'sourcecode.swift'));
-  const resources = [file(path.join(root, 'src', 'native', 'apple', 'PrivacyInfo.xcprivacy'), 'text.xml'),
+  const localizedNames = add({ isa: 'PBXVariantGroup', name: 'InfoPlist.strings', sourceTree: '<group>',
+    children: ['en', 'zh-Hant'].map(locale => add({ isa: 'PBXFileReference', name: locale,
+      lastKnownFileType: 'text.plist.strings', path: `resources/${locale}.lproj/InfoPlist.strings`, sourceTree: 'SOURCE_ROOT' })) });
+  const resources = [localizedNames, file(path.join(root, 'src', 'native', 'apple', 'PrivacyInfo.xcprivacy'), 'text.xml'),
     file(path.join(root, 'LICENSE'), 'text'), file(path.join(root, 'THIRD-PARTY-NOTICES.md'), 'text')];
   const packageId = add({ isa: 'XCRemoteSwiftPackageReference', repositoryURL: 'https://github.com/google/GoogleSignIn-iOS',
     requirement: { kind: 'exactVersion', version: '9.2.0' } });
@@ -88,7 +91,7 @@ export async function generateAppleProject(root = fileURLToPath(new URL('../', i
       APPLICATION_EXTENSION_API_ONLY: 'YES', SKIP_INSTALL: 'YES', ASSETCATALOG_COMPILER_APPICON_NAME: '', OTHER_LDFLAGS: ['$(inherited)'] })),
     buildPhases: [preparePhase('share', 'WorkFleetShare'), add({ isa: 'PBXSourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles([...shareShared, shareSource]), runOnlyForDeploymentPostprocessing: 0 }),
       add({ isa: 'PBXFrameworksBuildPhase', buildActionMask: 2147483647, files: [], runOnlyForDeploymentPostprocessing: 0 }),
-      add({ isa: 'PBXResourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles(resources.filter(ref => ['PrivacyInfo.xcprivacy', 'LICENSE', 'THIRD-PARTY-NOTICES.md'].includes(path.basename(objects[ref].path)))), runOnlyForDeploymentPostprocessing: 0 })],
+      add({ isa: 'PBXResourcesBuildPhase', buildActionMask: 2147483647, files: buildFiles(resources), runOnlyForDeploymentPostprocessing: 0 })],
     buildRules: [], dependencies: [], packageProductDependencies: [] }); targets.push(shareTarget);
   const proxy = add({ isa: 'PBXContainerItemProxy', containerPortal: projectId, proxyType: 1, remoteGlobalIDString: shareTarget, remoteInfo: 'WorkFleetShare' });
   objects[iosTarget].dependencies.push(add({ isa: 'PBXTargetDependency', target: shareTarget, targetProxy: proxy }));

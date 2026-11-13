@@ -157,7 +157,7 @@ jobs:
           PLATFORMS: ${{ inputs.include_android && 'Windows, macOS, Linux and Android' || 'Windows, macOS and Linux' }}
         run: |
           cat > "$RUNNER_TEMP/notes.md" <<EOF
-          Preview of Work Fleet ${VERSION} for ${PLATFORMS}, built from ${COMMIT}.
+          Preview of Pin It Anywhere ${VERSION} for ${PLATFORMS}, built from ${COMMIT}.
 
           ${CHANGES}
 
@@ -177,7 +177,7 @@ jobs:
 
           ## macOS
           Signed with Developer ID and notarized by Apple. Requires macOS 13 or later.
-          Open \`WorkFleet-${VERSION}-macos-universal.dmg\` and drag Work Fleet to Applications.
+          Open \`WorkFleet-${VERSION}-macos-universal.dmg\` and drag Pin It Anywhere to Applications.
 
           ## Linux
           Requires the system GTK 3 and WebKitGTK 4.1 of Debian, Ubuntu or Raspberry Pi OS.
@@ -199,4 +199,4 @@ jobs:
           Google sign-in is in testing: only accounts added as test users can sign in.
           EOF
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \
-            --title "Work Fleet $VERSION (preview)" --notes-file "$RUNNER_TEMP/notes.md" dist/*
+            --title "Pin It Anywhere $VERSION (preview)" --notes-file "$RUNNER_TEMP/notes.md" dist/*

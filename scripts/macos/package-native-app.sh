@@ -122,9 +122,9 @@ else
         deliver "$NAME.pkg"
     fi
     if [[ "$DMG" == 1 ]]; then
-        mkdir "$OUTPUT/disk-image"; ditto "$APP" "$OUTPUT/disk-image/Work Fleet.app"; ln -s /Applications "$OUTPUT/disk-image/Applications"
+        mkdir "$OUTPUT/disk-image"; ditto "$APP" "$OUTPUT/disk-image/Pin It Anywhere.app"; ln -s /Applications "$OUTPUT/disk-image/Applications"
         IMAGE="$OUTPUT/$NAME.dmg"
-        hdiutil create -volname 'Work Fleet' -srcfolder "$OUTPUT/disk-image" -format UDZO "$IMAGE"
+        hdiutil create -volname 'Pin It Anywhere' -srcfolder "$OUTPUT/disk-image" -format UDZO "$IMAGE"
         if [[ -n "$APPLICATION" ]]; then codesign --sign "$APPLICATION" --timestamp "$IMAGE"; fi
         if [[ -n "$NOTARY" ]]; then
             xcrun notarytool submit "$IMAGE" "${NOTARY_ARGS[@]}" --wait

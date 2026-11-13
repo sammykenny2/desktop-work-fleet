@@ -281,19 +281,19 @@ export default {
   // Drafts and the share inbox
 
   // When this device's notes cannot be read (SPEC-006 DO)
-  'app.dataFailure.title': 'Work Fleet 無法開啟你的便箋',
+  'app.dataFailure.title': '貓亂貼無法開啟你的便箋',
   'app.dataFailure.damaged': '存在這台裝置上的便箋已損壞。',
-  'app.dataFailure.full': '磁碟已滿。請先清出一些空間，再重新啟動 Work Fleet。',
-  'app.dataFailure.inUse': '另一個程式正在使用本機資料。請先關閉它（例如備份或同步工具），再重新啟動 Work Fleet。',
-  'app.dataFailure.denied': '系統不允許 Work Fleet 開啟資料夾。請檢查資料夾權限，再重新啟動 Work Fleet。',
+  'app.dataFailure.full': '磁碟已滿。請先清出一些空間，再重新啟動貓亂貼。',
+  'app.dataFailure.inUse': '另一個程式正在使用本機資料。請先關閉它（例如備份或同步工具），再重新啟動貓亂貼。',
+  'app.dataFailure.denied': '系統不允許貓亂貼開啟資料夾。請檢查資料夾權限，再重新啟動貓亂貼。',
   'app.dataFailure.key': '存在這台裝置上的便箋無法用這台電腦目前的金鑰解密。只有存下它們的帳號與金鑰才能讀取。',
-  'app.dataFailure.unreadable': 'Work Fleet 無法讀取存在這台裝置上的便箋，也無法判斷原因。',
+  'app.dataFailure.unreadable': '貓亂貼無法讀取存在這台裝置上的便箋，也無法判斷原因。',
   'app.dataFailure.folder': '資料在這個資料夾：',
   'app.dataFailure.openFolder': '開啟資料夾',
   'app.dataFailure.signOut': '登出並開啟本機便箋',
   'app.dataFailure.setAside': '移到一旁並重新開始…',
   'app.dataFailure.confirmTitle': '要把本機資料移到一旁嗎？',
-  'app.dataFailure.confirmMove': '資料庫會移到資料夾內一個標有日期的「set-aside」資料夾，Work Fleet 再以空白資料重新開始。不會刪除任何東西。',
+  'app.dataFailure.confirmMove': '資料庫會移到資料夾內一個標有日期的「set-aside」資料夾，貓亂貼再以空白資料重新開始。不會刪除任何東西。',
   'app.dataFailure.confirmGoogle': 'Google 工作空間重新登入後，便箋、群組與附件會從 Drive 回來；這台裝置的桌面位置、顏色、快捷鍵與未保存的修改只留在移到一旁的副本裡。',
   'app.dataFailure.confirmLocal': '本機工作空間只能從備份 ZIP 還原。',
   'app.dataFailure.confirm': '移到一旁並重新開始',
@@ -379,7 +379,7 @@ export default {
   // Closing the app
   'app.close.finishInput': '請先完成目前輸入，再關閉 App。',
   'app.close.finishOperation': '帳號、復原、備份或版本操作仍在進行。請先完成或取消該操作，再嘗試退出或安裝更新。',
-  'app.close.cancelled': 'Work Fleet 無法退出',
+  'app.close.cancelled': '貓亂貼無法退出',
   'app.close.unsavedDrafts': '仍有修改尚未保留到這台裝置；請先保存便箋或複製文字，再關閉 App。',
   'app.close.failed': '尚未關閉：{error}',
 

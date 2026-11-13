@@ -34,7 +34,9 @@ test('native notices can be refreshed after read-only package licenses were copi
 async function fixture(root) {
   for (const file of ['src/native/apple/Shared/FleetProtocol.swift', 'src/native/apple/Shared/FleetCaptureInbox.swift',
     'src/native/apple/Shared/FleetText.swift', 'src/native/apple/ios/Main.swift', 'src/native/apple/macos/Main.swift', 'src/native/apple/share/ShareViewController.swift',
-    'src/native/apple/PrivacyInfo.xcprivacy', 'src/native/apple/config/WorkFleet.xcconfig', 'LICENSE', 'THIRD-PARTY-NOTICES.md']) {
+    'src/native/apple/PrivacyInfo.xcprivacy', 'src/native/apple/config/WorkFleet.xcconfig',
+    'src/native/apple/resources/en.lproj/InfoPlist.strings', 'src/native/apple/resources/zh-Hant.lproj/InfoPlist.strings',
+    'LICENSE', 'THIRD-PARTY-NOTICES.md']) {
     await mkdir(path.dirname(path.join(root, file)), { recursive: true });
     await writeFile(path.join(root, file), 'fixture\n');
   }
@@ -63,6 +65,12 @@ test('Xcode project is location independent and does not embed local configurati
       const targets = Object.values(objects).filter(object => object.isa === 'PBXNativeTarget');
       assert.deepEqual(targets.map(target => target.name).sort(), ['WorkFleetIOS', 'WorkFleetMac', 'WorkFleetShare']);
       for (const target of targets) assert.equal(objects[target.buildPhases[0]].name, 'Prepare local resources');
+      for (const target of targets) {
+        const phase = target.buildPhases.map(id => objects[id]).find(phase => phase.isa === 'PBXResourcesBuildPhase');
+        const names = phase.files.map(id => objects[objects[id].fileRef]).find(resource => resource.name === 'InfoPlist.strings');
+        assert.equal(names?.isa, 'PBXVariantGroup', `${target.name} bundles localized system names`);
+        assert.deepEqual(names.children.map(id => objects[id].name), ['en', 'zh-Hant']);
+      }
       // A distribution profile belongs only to the macOS Release app, never Debug, iOS, or package resource bundles.
       for (const target of targets) {
         const configurations = objects[target.buildConfigurationList].buildConfigurations.map(id => objects[id]);

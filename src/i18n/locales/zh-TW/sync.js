@@ -16,13 +16,13 @@ export default {
   'sync.recovery.options': "查看復原選項",
   'sync.recovery.title': "選擇如何繼續使用 Google",
   'sync.recovery.kept': "{account} 的雲端資料遺失、已變更或格式不相容。本機便箋與未保存修改仍在，不會自動上傳本機副本。",
-  'sync.recovery.legacy': "你可以保留舊資料並使用相容程式，或前往「資料與備份」，明確重設此帳號的 Work Fleet Google 資料。重設無須下載歷史內容。",
+  'sync.recovery.legacy': "你可以保留舊資料並使用相容程式，或前往「資料與備份」，明確重設此帳號的貓亂貼 Google 資料。重設無須下載歷史內容。",
   'sync.recovery.reset': "開啟雲端重設",
   'sync.recovery.rejoin': "預覽重新加入目前雲端",
   'sync.recovery.rejoinPreview': "要加入 {account} 已驗證的目前資料嗎？這會取代本機 {cards} 張便箋，捨棄此處 {pending} 筆待同步保存及 {drafts} 份草稿。若需要本機副本，請先匯出。Google 資料不會被刪除。",
   'sync.recovery.confirmRejoin': "取代此副本並加入 Google",
   'sync.recovery.recover': "預覽將本機資料復原至 Google",
-  'sync.recovery.recoverPreview': "要以此裝置目前的 {cards} 張便箋及 {drafts} 份草稿取代 {account} 的 Work Fleet 雲端資料，並使用新的便箋身分嗎？確認前須先儲存安全備份。無法復原未快取的歷史或遺失的附件。",
+  'sync.recovery.recoverPreview': "要以此裝置目前的 {cards} 張便箋及 {drafts} 份草稿取代 {account} 的貓亂貼雲端資料，並使用新的便箋身分嗎？確認前須先儲存安全備份。無法復原未快取的歷史或遺失的附件。",
   'sync.recovery.confirmRecover': "以此本機資料取代 Google",
   'sync.recovery.working': "正在準備雲端資料：{done} / {total}…",
   // Where the notes live: the account chip and the identity on the Account and sync page
@@ -84,13 +84,13 @@ export default {
 
   // Continuing a Google overwrite
   'sync.cloudRestore.title': '完成 Google 覆蓋',
-  'sync.cloudRestore.resumeReset': '將繼續清空 {account} 的 Work Fleet 雲端資料，再上傳已保存的還原資料。其他裝置請先停止同步。',
+  'sync.cloudRestore.resumeReset': '將繼續清空 {account} 的貓亂貼雲端資料，再上傳已保存的還原資料。其他裝置請先停止同步。',
   'sync.cloudRestore.resumeUpload': '將繼續上傳已保存的還原資料，不會再次清空雲端。',
   'sync.cloudRestore.incomplete': '覆蓋尚未完成',
 
   // Another device reset the cloud
   'sync.sourceReset.title': '雲端資料已重設',
-  'sync.sourceReset.body': '{account} 的 Work Fleet 雲端資料已在其他裝置重設。這台裝置上的副本還在，但已停止同步。',
+  'sync.sourceReset.body': '{account} 的貓亂貼雲端資料已在其他裝置重設。這台裝置上的副本還在，但已停止同步。',
   'sync.sourceReset.clearHint': '清除副本後會從目前的雲端重新同步；這台裝置尚未同步的修改也會一起刪除，需要的話請先匯出備份。',
   'sync.sourceReset.exportFirst': '先匯出備份',
   'sync.sourceReset.clear': '清除這台裝置的副本',

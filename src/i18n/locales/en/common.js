@@ -1,5 +1,5 @@
 export default {
-  'common.appName': 'Work Fleet',
+  'common.appName': 'Pin It Anywhere',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.done': 'Done',

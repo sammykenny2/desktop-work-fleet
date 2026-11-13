@@ -59,7 +59,7 @@ public sealed class FleetWindow : Window
     HostText.Apply((shell?.Preferences ?? HostPreferences.Read(this.dataDirectory)).Language);
     database = new LocalDatabase(this.dataDirectory, profile);
     backupFiles = new NativeBackupFiles(database);
-    Title = "Work Fleet"; Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
+    Title = HostText.Get("common.appName"); Width = 1180; Height = 800; MinWidth = 380; MinHeight = 520;
     Content = web; WindowStartupLocation = WindowStartupLocation.CenterScreen;
     this.shell = shell;
     if (shell is not null)
@@ -368,7 +368,7 @@ public sealed class FleetWindow : Window
       Content = new TextBlock { Text = HostText.Get("window.openFailed"), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(32) };
       return;
     }
-    if (failed) MessageBox.Show(this, HostText.Get("dataFailure.setAsideFailed"), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Error);
+    if (failed) MessageBox.Show(this, HostText.Get("dataFailure.setAsideFailed"), HostText.Get("common.appName"), MessageBoxButton.OK, MessageBoxImage.Error);
   }
   private async Task HandleGoogle(BridgeSession session, long epoch, string json)
   {
@@ -508,6 +508,7 @@ public sealed class FleetWindow : Window
   private void LanguageChanged() => Dispatcher.BeginInvoke(new Action(() =>
   {
     if (shuttingDown) return;
+    Title = HostText.Get("common.appName");
     if (updater is not null) PublishUpdate(updater.Snapshot()); else tray?.SetTip(null);
   }));
   private void PublishUpdate(object state) => Dispatcher.BeginInvoke(new Action(() =>
@@ -544,7 +545,7 @@ public sealed class FleetWindow : Window
     catch (Exception error)
     {
       if (updater?.Probe == true) { ProbeResult("install_failed: " + error.Message); Application.Current?.Shutdown(); return; }
-      MessageBox.Show(HostText.Get("dialog.installFailed", ("detail", error.Message)), "Work Fleet", MessageBoxButton.OK, MessageBoxImage.Warning);
+      MessageBox.Show(HostText.Get("dialog.installFailed", ("detail", error.Message)), HostText.Get("common.appName"), MessageBoxButton.OK, MessageBoxImage.Warning);
       try
       {
         var family = global::Windows.ApplicationModel.Package.Current.Id.FamilyName;

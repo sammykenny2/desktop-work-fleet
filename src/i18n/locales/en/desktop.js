@@ -1,6 +1,6 @@
 // Desktop scenes (src/desktop/index.html, scene.js); each frame carries the main window's locale.
 export default {
-  'desktop.scene.title': 'Work Fleet desktop',
+  'desktop.scene.title': 'Pin It Anywhere desktop',
   'desktop.scene.label': 'Desktop notes',
   'desktop.editor.label': 'Edit note in place',
   'desktop.editor.full': 'Full editor',

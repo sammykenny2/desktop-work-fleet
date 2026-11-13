@@ -77,7 +77,7 @@ public sealed class LoopbackCallback : IDisposable
         var stream = client.GetStream();
         var query = Parse(await ReadHeader(stream, timeout.Token));
         var valid = query is not null && query.TryGetValue("state", out var states) && states.Length == 1 && states[0] == state;
-        var body = Encoding.UTF8.GetBytes(valid ? "Work Fleet: You may close this browser tab." : "Invalid callback.");
+        var body = Encoding.UTF8.GetBytes(HostText.Get(valid ? "google.callbackComplete" : "google.callbackInvalid"));
         var response = Encoding.ASCII.GetBytes($"HTTP/1.1 {(valid ? "200 OK" : "400 Bad Request")}\r\nContent-Type: text/plain; charset=utf-8\r\nCache-Control: no-store\r\nConnection: close\r\nContent-Length: {body.Length}\r\n\r\n");
         if (!valid) { Interlocked.Increment(ref rejected); counted = true; }
         try { await stream.WriteAsync(response.Concat(body).ToArray(), timeout.Token); }

@@ -183,7 +183,7 @@ class Google:
 
     def identity(self, access):
         status, data, _ = http("https://www.googleapis.com/oauth2/v3/userinfo", headers={"Authorization": "Bearer " + access}, maximum=65536)
-        p.require(status == 200, "unauthorized", "Work Fleet couldn't verify the Google account.")
+        p.require(status == 200, "unauthorized", "Pin It Anywhere couldn't verify the Google account.")
         value = p.decode(data)
         p.require(p.is_account(value.get("sub")), "google-account", "The Google account ID isn't valid.")
         return value

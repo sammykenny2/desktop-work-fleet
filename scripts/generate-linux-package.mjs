@@ -5,6 +5,8 @@ import path from 'node:path';
 import { readBuildConfig } from './config.mjs';
 import { writePaperIcon } from './apple-icons.mjs';
 import { readPlatformVersion } from './platform-version.mjs';
+import common from '../src/i18n/locales/en/common.js';
+import traditionalChinese from '../src/i18n/locales/zh-TW/common.js';
 
 if (process.argv.includes('--help')) {
   console.log('Usage: node scripts/generate-linux-package.mjs\nRun npm run build first. Writes build/linux/work-fleet-VERSION, using src/native/linux/VERSION.');
@@ -45,7 +47,8 @@ exec "$PYTHON" "$APP_ROOT/Native/host.py" --assets "$APP_ROOT/Assets" --config "
 `, { mode: 0o755 });
   await writeFile(path.join(destination, 'Desktop', `${appId}.desktop`), `[Desktop Entry]
 Type=Application
-Name=Work Fleet
+Name=${common['common.appName']}
+Name[zh_TW]=${traditionalChinese['common.appName']}
 Comment=Quick work notes with optional Google sync
 Exec=work-fleet
 Icon=${appId}

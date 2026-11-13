@@ -60,7 +60,7 @@ macOS fields in Google Auth Platform > Clients > Create client:
 | Field | Setting |
 |---|---|
 | Application type | iOS, for Google's Apple SDK |
-| Name | for example `Work Fleet macOS`, only for identification in the console |
+| Name | for example `Pin It Anywhere macOS`, only for identification in the console |
 | Bundle ID | the same as `WORK_FLEET_APP_ID`; currently `app.workfleet.preview` for previews |
 | App Store ID | leave empty for GitHub previews; after a store listing, enter the numeric ID from the App Store URL |
 | Apple Team ID | optional; with an Apple team, enter the value of `WORK_FLEET_APPLE_TEAM_ID`, and use the same value when iOS and macOS share the team |
@@ -138,7 +138,7 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
 - "Sign out" removes only this device's account credentials, and other devices stay signed in. Cloud notes leaves the sidebar
   and the desktop, and the account's notes, drafts and pending changes stay on this device for when you sign in again. Local
   notes do not depend on the account.
-  To remove access from every device, remove Work Fleet under "Third-party apps & services" in the Google Account.
+  To remove access from every device, remove Pin It Anywhere under "Third-party apps & services" in the Google Account.
   Versions up to and including 0.2.3 revoke the grant on sign-out, and the account's other devices then ask to sign in
   again within about an hour, because their tokens become invalid. Do not sign out on such builds; a device that lost
   access only needs to sign in again ("Sign in to Google again"), which does not affect other devices (2026-10-15).
@@ -169,7 +169,7 @@ The maintainer handles Apple builds on a Mac; no hosted Actions run is needed.
    press "Check file".
 3. Check the target account and the counts, press "Back up current data first", choose a safe place for the ZIP and wait
    until the check succeeds.
-   Then tick "I understand this permanently clears the Work Fleet data in Google" and press "Confirm restore".
+   Then tick "I understand this permanently clears the Pin It Anywhere data in Google" and press "Confirm restore".
 4. The app stages the restore locally, records exact old cloud targets, publishes the reset fence and uploads a
    new dataset. Receiving devices activate it only after the archive's declared history and attachments have been
    seeded and current checkpoints are ready. Captured old files are cleaned in the background. Drafts stay on the

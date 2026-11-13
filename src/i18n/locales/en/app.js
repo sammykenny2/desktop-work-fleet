@@ -282,19 +282,19 @@ export default {
   // Share inbox
 
   // When this device's notes cannot be read (SPEC-006 DO)
-  'app.dataFailure.title': "Work Fleet can't open your notes",
+  'app.dataFailure.title': "Pin It Anywhere can't open your notes",
   'app.dataFailure.damaged': 'The notes stored on this device are damaged.',
-  'app.dataFailure.full': 'The disk is full. Free some space, then start Work Fleet again.',
-  'app.dataFailure.inUse': 'Another program is using the local data. Close it, for example a backup or sync tool, then start Work Fleet again.',
-  'app.dataFailure.denied': "The system doesn't let Work Fleet open its data folder. Check the folder's permissions, then start Work Fleet again.",
+  'app.dataFailure.full': 'The disk is full. Free some space, then start Pin It Anywhere again.',
+  'app.dataFailure.inUse': 'Another program is using the local data. Close it, for example a backup or sync tool, then start Pin It Anywhere again.',
+  'app.dataFailure.denied': "The system doesn't let Pin It Anywhere open its data folder. Check the folder's permissions, then start Pin It Anywhere again.",
   'app.dataFailure.key': "The notes stored on this device can't be decrypted with the keys this computer has now. Only the account and the keys that saved them can read them.",
-  'app.dataFailure.unreadable': "Work Fleet couldn't read the notes stored on this device, and it can't tell why.",
+  'app.dataFailure.unreadable': "Pin It Anywhere couldn't read the notes stored on this device, and it can't tell why.",
   'app.dataFailure.folder': 'The data is in this folder:',
   'app.dataFailure.openFolder': 'Open folder',
   'app.dataFailure.signOut': 'Sign out and open Local notes',
   'app.dataFailure.setAside': 'Set aside and start again…',
   'app.dataFailure.confirmTitle': 'Set the local data aside?',
-  'app.dataFailure.confirmMove': 'The database moves into a dated "set-aside" folder inside the data folder, and Work Fleet starts again with empty data. Nothing is deleted.',
+  'app.dataFailure.confirmMove': 'The database moves into a dated "set-aside" folder inside the data folder, and Pin It Anywhere starts again with empty data. Nothing is deleted.',
   'app.dataFailure.confirmGoogle': "Google workspaces get their notes, groups and attachments back from Drive after you sign in again. This device's desktop positions, colours, shortcuts and unsaved changes stay only in the set-aside copy.",
   'app.dataFailure.confirmLocal': 'The local workspace comes back only by restoring a backup ZIP.',
   'app.dataFailure.confirm': 'Set aside and start again',
@@ -380,7 +380,7 @@ export default {
   // Closing the app
   'app.close.finishInput': 'Finish the current input before closing the app.',
   'app.close.finishOperation': 'An account, recovery, backup or version operation is still running. Finish or cancel it, then try quitting or installing the update again.',
-  'app.close.cancelled': 'Work Fleet could not quit',
+  'app.close.cancelled': 'Pin It Anywhere could not quit',
   'app.close.unsavedDrafts': "Some changes couldn't be kept on this device yet. Save the note or copy its text before closing the app.",
   'app.close.failed': 'Not closed: {error}',
 

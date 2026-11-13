@@ -252,7 +252,7 @@ class Vault:
         self.service.ensure_session_sync(self.cancellable)
         encoded = self.service.encode_dbus_secret(secret)
         attributes = {**self.attributes(kind, key), "xdg:schema": "app.workfleet.native.v1"}
-        properties = {"org.freedesktop.Secret.Item.Label": GLib.Variant("s", "Work Fleet " + kind),
+        properties = {"org.freedesktop.Secret.Item.Label": GLib.Variant("s", "Pin It Anywhere " + kind),
                       "org.freedesktop.Secret.Item.Attributes": GLib.Variant("a{ss}", attributes)}
         reply = self.call(collection.get_object_path(), "org.freedesktop.Secret.Collection", "CreateItem",
                           GLib.Variant("(a{sv}(oayays)b)", (properties, encoded.unpack(), True)), "(oo)")
@@ -584,7 +584,7 @@ class Database(RecordStore):
             try:
                 fcntl.flock(self.owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
-                raise p.Failure("workspace-owned", "Work Fleet is already open with this data; use that window.") from error
+                raise p.Failure("workspace-owned", "Pin It Anywhere is already open with this data; use that window.") from error
             filename = self.directory / "fleet.sqlite3"
             existing = filename.exists()
             if existing:
@@ -697,7 +697,7 @@ class Database(RecordStore):
             _, data = self.staged(token, kind)
             value = p.decode(data)
             revision = p.number(value, "revision")
-            p.require(revision == (0 if expected is None else expected + 1), "revision-conflict", "Another change took this local version. Keep your draft and reopen Work Fleet.")
+            p.require(revision == (0 if expected is None else expected + 1), "revision-conflict", "Another change took this local version. Keep your draft and reopen Pin It Anywhere.")
             self.connection.execute("BEGIN IMMEDIATE")
             try:
                 current = self.connection.execute("SELECT revision FROM records WHERE profile=? AND kind=?", (self.profile, kind)).fetchone()

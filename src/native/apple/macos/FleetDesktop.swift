@@ -107,7 +107,7 @@ import AppKit
                 if views.contains(where: { $0.layer == layer && assignments[$0.id]?.id == display.id }) { continue }
                 var match = views.first { !$0.retired && $0.layer == layer && assignments[$0.id] == nil && (!stable || $0.display == display.id) }
                 if match == nil && !stable {
-                    try FleetProtocol.require(views.filter { !$0.retired }.count < 48, "desktop-capacity", "There are too many desktop windows. Save, then reopen Work Fleet.")
+                    try FleetProtocol.require(views.filter { !$0.retired }.count < 48, "desktop-capacity", "There are too many desktop windows. Save, then reopen Pin It Anywhere.")
                     match = newView(display, layer)
                 }
                 if let match { assignments[match.id] = display }

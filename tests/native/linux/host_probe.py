@@ -123,15 +123,16 @@ if MODE == "place":
     app.window.resize(1000, 700)
     spin(lambda: hostsettings.read_placement(data) == {"x": 200, "y": 150, "width": 1000, "height": 700, "maximized": False}, message="bounds saved for the next launch")
     labels = lambda: [item.get_label() for item, _key in app.tray.items]
-    check(app.describe_language()["preference"] == "auto" and app.describe_language()["system"][0] == "en" and labels()[0] == "Open Work Fleet",
+    check(app.describe_language()["preference"] == "auto" and app.describe_language()["system"][0] == "en" and labels()[0] == "Open Pin It Anywhere",
           "the tray starts in the system's English")
     answer = app.shell_invoke("host.language.set", {"preference": "zh-TW"})
     check(answer["preference"] == "zh-TW" and hostsettings.read_preferences(data)[0]["language"] == "zh-TW", "the display language is stored")
     check(labels()[0] == text.ZH_TW["tray.open"] and app.shell_invoke("update.state", {})["reason"] == text.ZH_TW["update.debOnly"],
           "the tray menu and host reasons switch to Traditional Chinese at once")
+    check(app.window.get_title() == text.ZH_TW["common.appName"], "the window title switches with the display language")
     # Later modes start with the preference stored as English.
     app.shell_invoke("host.language.set", {"preference": "en"})
-    check(labels()[0] == "Open Work Fleet" and hostsettings.read_preferences(data)[0]["language"] == "en", "and back to English")
+    check(labels()[0] == "Open Pin It Anywhere" and hostsettings.read_preferences(data)[0]["language"] == "en", "and back to English")
     app.shutdown(app)
 elif MODE == "restore":
     app.activate(app)
@@ -177,7 +178,7 @@ elif MODE == "hidden":
 elif MODE == "hidden-tray":
     app.activate(app)
     check(app.tray.indicator is not None, "the StatusNotifier tray is in use")
-    # The panel starts after Work Fleet, as at a real sign-in: the indicator first reports that no watcher is there.
+    # The panel starts after Pin It Anywhere, as at a real sign-in: the indicator first reports that no watcher is there.
     settle(1)
     check(not app.window.get_visible(), "a tray that is not there yet does not show the hidden window")
     ownership = own_watcher()
@@ -189,7 +190,7 @@ elif MODE == "hidden-tray":
              GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "Title")), GLib.VariantType("(v)"), Gio.DBusCallFlags.NONE, -1, None,
              lambda source, result: titles.append(source.call_finish(result).unpack()[0]))
     spin(lambda: titles, message="the tray item answers for its title")
-    check(titles == ["Work Fleet"], f"the tray shows the product name on hover, not the program name ({titles})")
+    check(titles == ["Pin It Anywhere"], f"the tray shows the product name on hover, not the program name ({titles})")
     def call(path, interface, method, args=None):
         results = []
         def finished(source, result):
@@ -206,12 +207,12 @@ elif MODE == "hidden-tray":
     check(call("/StatusNotifierItem", "org.freedesktop.DBus.Properties", "Get",
                GLib.Variant("(ss)", ("org.kde.StatusNotifierItem", "ItemIsMenu"))) == (False,), "left click is an action, not a menu request")
     revision, layout = call("/TrayMenu", "com.canonical.dbusmenu", "GetLayout", GLib.Variant("(iias)", (0, -1, [])))
-    check(layout[2][0][1]["label"] == "Open Work Fleet", "the exported menu starts with Open Work Fleet")
+    check(layout[2][0][1]["label"] == "Open Pin It Anywhere", "the exported menu starts with Open Pin It Anywhere")
     check(layout[2][-2][1]["type"] == "separator", "the exported menu keeps its separator")
-    check(call("/TrayMenu", "com.canonical.dbusmenu", "GetProperty", GLib.Variant("(is)", (1, "label"))) == ("Open Work Fleet",),
+    check(call("/TrayMenu", "com.canonical.dbusmenu", "GetProperty", GLib.Variant("(is)", (1, "label"))) == ("Open Pin It Anywhere",),
           "the exported menu answers individual properties")
     subset = call("/TrayMenu", "com.canonical.dbusmenu", "GetGroupProperties", GLib.Variant("(aias)", ([1], ["label"])))[0]
-    check(subset == [(1, {"label": "Open Work Fleet"})], "the exported menu filters group properties")
+    check(subset == [(1, {"label": "Open Pin It Anywhere"})], "the exported menu filters group properties")
     call("/TrayMenu", "com.canonical.dbusmenu", "AboutToShow", GLib.Variant("(i)", (0,)))
     check(app.tray_menu and not app.window.get_visible(), "opening the tray menu holds shortcuts and keeps the main window hidden")
     call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (0, "closed", GLib.Variant("i", 0), 0)))
@@ -226,7 +227,7 @@ elif MODE == "hidden-tray":
     check(not app.tray_menu, "left click opens the main window without a menu")
     app.window.hide()
     call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (1, "clicked", GLib.Variant("i", 0), 0)))
-    spin(lambda: app.window.get_visible(), message="Open Work Fleet in the exported menu opens the main window")
+    spin(lambda: app.window.get_visible(), message="Open Pin It Anywhere in the exported menu opens the main window")
     app.window.hide()
     text.set_locale("zh-TW"); app.tray.relabel()
     translated_revision, translated = call("/TrayMenu", "com.canonical.dbusmenu", "GetLayout", GLib.Variant("(iias)", (0, -1, [])))

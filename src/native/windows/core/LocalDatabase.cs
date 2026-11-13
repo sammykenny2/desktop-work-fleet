@@ -24,7 +24,7 @@ public sealed partial class LocalDatabase : IDisposable
     catch (Exception error) when (DataFailure.Classify(error) is { } cause) { throw DataFailure.Describe(cause); }
     try { owner = new FileStream(Path.Combine(directory, "owner.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
     catch (IOException error) when ((error.HResult & 0xffff) is 32 or 33)
-    { throw new HostError("native-already-open", "This data location is already open in another Work Fleet window. Use that window."); }
+    { throw new HostError("native-already-open", "This data location is already open in another Pin It Anywhere window. Use that window."); }
     catch (Exception error) when (DataFailure.Classify(error) is { } cause) { throw DataFailure.Describe(cause); }
     connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(directory, "fleet.sqlite3"),
       Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
@@ -32,7 +32,7 @@ public sealed partial class LocalDatabase : IDisposable
     {
       connection.Open(); Execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;");
       var version = Convert.ToInt64(Scalar("PRAGMA user_version;"));
-      HostError.Require(version is 0 or 1 or 2, "storage-version", "The database is from a newer version. Update Work Fleet.");
+      HostError.Require(version is 0 or 1 or 2, "storage-version", "The database is from a newer version. Update Pin It Anywhere.");
       using var tx = connection.BeginTransaction();
       Execute("CREATE TABLE IF NOT EXISTS records (profile TEXT NOT NULL, kind TEXT NOT NULL, revision INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,kind));", tx);
       Execute("CREATE TABLE IF NOT EXISTS attachments (profile TEXT NOT NULL, id TEXT NOT NULL, data BLOB NOT NULL, PRIMARY KEY(profile,id));", tx);

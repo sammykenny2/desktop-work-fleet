@@ -1,4 +1,4 @@
-# desktop-work-fleet
+# 貓亂貼
 
 English: [README.md](README.md)
 
@@ -27,7 +27,7 @@ English: [README.md](README.md)
 
 ## 同步模型
 
-Work Fleet 使用 **快照／檢查點加變更日誌的增量同步**（snapshot/checkpoint-based incremental synchronization），
+貓亂貼使用 **快照／檢查點加變更日誌的增量同步**（snapshot/checkpoint-based incremental synchronization），
 採本機優先保存、各裝置皆可寫入的多主同步（multi-master synchronization）。共用記錄存放於 Google Drive 的 appDataFolder。
 
 - 新裝置讀取目前的檢查點與有界的近期變更記錄，不必掃描全部保留歷史。
@@ -37,7 +37,7 @@ Work Fleet 使用 **快照／檢查點加變更日誌的增量同步**（snapsho
   版本內容仍保留供歷史功能按需讀取；永久刪除整張便箋時，會移除該便箋的保留歷史。
 
 這裡的「增量」指新發布的記錄，不是文字差異 patch：每個版本仍包含完整便箋內容。
-Incremental backup 與 differential backup 是備份策略；Work Fleet 的可攜式 ZIP 備份是獨立功能。
+Incremental backup 與 differential backup 是備份策略；貓亂貼的可攜式 ZIP 備份是獨立功能。
 協定與刪除規則見 [ADR-062](docs/decisions/062-dataset-checkpoints-and-deletable-history.md) 與
 [SPEC-010](docs/specs/010-dataset-checkpoints-and-deletable-history.md)；平常沒有變更時的檢查見
 [SPEC-011](docs/specs/011-efficient-idle-sync.md)。

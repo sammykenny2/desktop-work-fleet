@@ -44,7 +44,7 @@ test('empty config supports local builds but reports missing release values and 
     await assert.rejects(readBuildConfig(root, environment));
   }
   // ADR-044: every platform's public config names the release repository; an override must still be owner/repo.
-  assert.deepEqual(empty.update, { repository: 'sammykenny2/desktop-work-fleet', channel: 'preview', macosPublicKey: '' });
+  assert.deepEqual(empty.update, { repository: 'sammykenny2/pin-it-anywhere', channel: 'preview', macosPublicKey: '' });
   assert.deepEqual((await readBuildConfig(root, { WORK_FLEET_UPDATE_REPOSITORY: 'fork-owner/work.fleet' })).update, { repository: 'fork-owner/work.fleet', channel: 'preview', macosPublicKey: '' });
   const key = 'A'.repeat(43) + '=';
   assert.equal((await readBuildConfig(root, { WORK_FLEET_SPARKLE_PUBLIC_KEY: key })).update.macosPublicKey, key);

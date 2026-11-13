@@ -208,7 +208,7 @@ class FleetApp(Gtk.Application):
             # Launching Work Fleet again shows the running one, including after a hidden sign-in start.
             self.show_main()
             return
-        self.window = Gtk.ApplicationWindow(application=self, title="Work Fleet")
+        self.window = Gtk.ApplicationWindow(application=self, title=text.t("common.appName"))
         icon = self.assets.parent / "Icons" / ((self.config.get("appId") or "app.workfleet.preview") + ".png")
         if icon.is_file():
             self.window.set_icon_from_file(str(icon))
@@ -486,6 +486,8 @@ class FleetApp(Gtk.Application):
     def apply_language(self):
         """Re-resolves the host locale and redraws what the host draws itself; reasons and update text follow when next read."""
         text.set_locale(text.resolve_locale(self.preferences["language"], self.system_languages))
+        if self.window is not None:
+            self.window.set_title(text.t("common.appName"))
         if self.tray is not None:
             self.tray.relabel()
 
@@ -938,7 +940,7 @@ class FleetApp(Gtk.Application):
 
     def failure(self, error, then=None):
         message = t(FATAL.get(error.code, "fatal.workspace") if isinstance(error, p.Failure) else "fatal.workspace")
-        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text="Work Fleet")
+        dialog = Gtk.MessageDialog(transient_for=self.window, modal=True, message_type=Gtk.MessageType.ERROR, buttons=Gtk.ButtonsType.CLOSE, text=text.t("common.appName"))
         dialog.format_secondary_text(message)
         self.dialog_opened()
         def dismissed(dialog, _response):

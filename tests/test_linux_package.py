@@ -28,7 +28,7 @@ class LinuxPackageTests(unittest.TestCase):
             "package.json": '{\n  "appId": "app.workfleet.test",\n  "version": "2.3.4",\n  "binariesBuilt": false\n}\n',
             "run-work-fleet.sh": "#!/bin/bash\nexit 0\n",
             f"Desktop/{self.app_id}.desktop": (
-                "[Desktop Entry]\nType=Application\nName=Work Fleet\nExec=work-fleet\n"
+                "[Desktop Entry]\nType=Application\nName=Pin It Anywhere\nExec=work-fleet\n"
             ),
             f"Icons/{self.app_id}.png": "Packaging fixture\n",
             "Licenses/LICENSE": "Test fixture license\n",
@@ -91,7 +91,7 @@ class LinuxPackageTests(unittest.TestCase):
                                                         "sha256": hashlib.sha256(packages[0].read_bytes()).hexdigest()}]})
                 self.assertEqual(
                     self.field(packages[0], "Maintainer"),
-                    f"Work Fleet maintainers <{email}>",
+                    f"Pin It Anywhere maintainers <{email}>",
                 )
                 self.assertEqual(list(self.output.glob("deb-stage-*")), [existing_stage])
                 self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Traditional Chinese product name for the system launcher and share targets. -->
+<resources>
+    <string name="app_name">貓亂貼</string>
+</resources>

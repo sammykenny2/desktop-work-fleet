@@ -1,4 +1,4 @@
-# desktop-work-fleet
+# Pin It Anywhere
 
 Traditional Chinese: [README.zh-TW.md](README.zh-TW.md)
 
@@ -37,7 +37,7 @@ work that stays in view.
 
 ## Synchronization model
 
-Work Fleet uses **snapshot/checkpoint-based incremental synchronization** with local-first saves and multiple devices
+Pin It Anywhere uses **snapshot/checkpoint-based incremental synchronization** with local-first saves and multiple devices
 allowed to write (multi-master synchronization). Google Drive's appDataFolder carries the shared records.
 
 - A joining device reads current checkpoints and bounded recent change records without scanning all retained history.
@@ -48,7 +48,7 @@ allowed to write (multi-master synchronization). Google Drive's appDataFolder ca
   Revision bodies remain available for history, fetched on demand; permanent deletion of a note removes its retained history.
 
 Here, *incremental* refers to newly published records, not text patches: every revision contains the full note content.
-Incremental and differential backup are backup strategies; Work Fleet's portable ZIP backups are a separate feature.
+Incremental and differential backup are backup strategies; Pin It Anywhere's portable ZIP backups are a separate feature.
 The protocol and deletion rules are in [ADR-062](docs/decisions/062-dataset-checkpoints-and-deletable-history.md) and
 [SPEC-010](docs/specs/010-dataset-checkpoints-and-deletable-history.md); ordinary unchanged checks follow
 [SPEC-011](docs/specs/011-efficient-idle-sync.md).

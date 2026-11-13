@@ -14,6 +14,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 NATIVE = ROOT / "src/native/linux"
+sys.path.insert(0, str(NATIVE))
 
 
 def load(name):
@@ -63,8 +64,8 @@ class LocaleRules(unittest.TestCase):
         self.assertEqual(text.resolve_locale("auto", text.system_languages({"LANG": "zh_CN.UTF-8", "LANGUAGE": "zh_CN:zh_TW"})), "zh-TW")
 
     def test_lookup_interpolates_and_falls_back(self):
-        self.assertEqual(text.t("dialog.upToDate", version="1.2.3"), "Work Fleet 1.2.3 is up to date.")
-        self.assertEqual(text.t("dialog.upToDate"), "Work Fleet {version} is up to date.")
+        self.assertEqual(text.t("dialog.upToDate", version="1.2.3"), "Pin It Anywhere 1.2.3 is up to date.")
+        self.assertEqual(text.t("dialog.upToDate"), "Pin It Anywhere {version} is up to date.")
         self.assertEqual(text.t("missing.key.for.test"), "missing.key.for.test")
         text.set_locale("zh-TW")
         self.assertEqual(text.get_locale(), "zh-TW")
@@ -121,12 +122,15 @@ class HostLanguage(unittest.TestCase):
         self.owner.directory = self.directory
         self.owner.preferences = hostsettings.read_preferences(self.directory)[0]
         self.owner.system_languages = ["zh-TW", "en-US"]
+        self.titles = []
+        self.owner.window = types.SimpleNamespace(set_title=self.titles.append)
         self.owner.tray = types.SimpleNamespace(relabel=lambda: relabels.append(text.get_locale()))
 
     @unittest.skipUnless(os.name == "posix", "host files use POSIX directory sync")
     def test_setting_stores_the_preference_relabels_the_tray_and_answers(self):
         result = self.owner.shell_invoke("host.language.set", {"preference": "zh-TW"})
         self.assertEqual(result, {"preference": "zh-TW", "system": ["zh-TW", "en-US"]})
+        self.assertEqual(self.titles[-1], text.ZH_TW["common.appName"])
         self.assertEqual((text.get_locale(), self.relabels), ("zh-TW", ["zh-TW"]))
         stored = json.loads((self.directory / "host-preferences.json").read_text("utf-8"))
         self.assertEqual((stored["version"], stored["language"]), (1, "zh-TW"))

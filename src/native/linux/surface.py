@@ -17,6 +17,7 @@ except (ValueError, ImportError):
     Layer = None
 
 import protocol as p
+from text import t
 from scenes import intersection
 
 
@@ -189,7 +190,7 @@ class Surface:
         self.overlay = layer == "floating" and adjust_overlay(mode)
         self.adjusting = False
         self.window = Gtk.Window(type=Gtk.WindowType.TOPLEVEL)
-        self.window.set_title("Work Fleet desktop")
+        self.window.set_title(t("common.appName"))
         self.window.set_decorated(False)
         self.window.set_resizable(False)
         self.window.set_skip_taskbar_hint(True)

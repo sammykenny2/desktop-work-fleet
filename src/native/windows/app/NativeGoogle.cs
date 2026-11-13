@@ -129,7 +129,7 @@ public sealed class NativeGoogle : IDisposable
           ["redirect_uri"] = redirect, ["grant_type"] = "authorization_code" }, cancel);
         var access = JsonRules.Text(tokens, "access_token", 8192);
         var scopes = JsonRules.Text(tokens, "scope", 4096).Split(' ');
-        HostError.Require(scopes.Contains(DriveScope) && scopes.Contains("openid"), "source-permission", "Allow Work Fleet to use your Google identity and sync its app data.");
+        HostError.Require(scopes.Contains(DriveScope) && scopes.Contains("openid"), "source-permission", "Allow Pin It Anywhere to use your Google identity and sync its app data.");
         using var identityRequest = new HttpRequestMessage(HttpMethod.Get, "https://openidconnect.googleapis.com/v1/userinfo");
         identityRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", access);
         using var identityResponse = await http.SendAsync(identityRequest, HttpCompletionOption.ResponseHeadersRead, cancel);

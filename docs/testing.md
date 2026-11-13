@@ -18,6 +18,21 @@ Run Play/TestFlight tests using their actual distributed Release builds and coll
 channel; a local APK/IPA or build-only check does not establish store delivery. Actual run and store outcomes belong
 in the conversation and external systems, not a new tracked release-result log.
 
+Repository rename: `tests/config.test.js` checks the new generated update-source default and explicit repository
+overrides. The old public Atom URL redirects to the new repository, whose entry links use the canonical new name.
+The native parsers require an exact repository match; old-source builds need a manual transition rather than relying
+on the redirect. Check an old and new installed build on each desktop before claiming native transition acceptance;
+network/feed inspection alone does not establish package installation or data preservation. The maintainer-specific
+old Google-data preservation waiver is scoped in PLAN-014 and does not waive local-note or product backup acceptance.
+
+Display-name regression checks: `tests/i18n.test.js` compares runtime names, Apple/Android launcher resources and
+store drafts against the locale catalogs; `tests/apple-project.test.js` verifies that every Apple target includes
+the localized InfoPlist resource group. `tests/release-versions.test.js` inspects the generated Windows English name
+without changing its preview package identity/publisher. Linux text/host-settings/tray tests cover localized titles
+and startup names. Build the native Apple targets and inspect the resulting `.lproj/InfoPlist.strings`, rather than
+assuming a source resource reached the bundle. Native launcher/share selection, Windows package localization,
+new-ID signing and Google authorization still require separate acceptance.
+
 ## Reset deletion and native batch transport
 
 `node --test tests/drive-batch.test.js tests/dataset-reset.test.js tests/dataset-native.test.js tests/google-drive.test.js`

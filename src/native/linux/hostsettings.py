@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+import text
 
 PREFERENCES = "host-preferences.json"
 PLACEMENT = "window-placement.json"
@@ -252,7 +253,8 @@ def write_autostart(path, command, icon, comments=None):
     comments = comments or {}
     described = ([f"Comment={comments['en']}"] if comments.get("en") else []) + \
         [f"Comment[{locale.replace('-', '_')}]={value}" for locale, value in sorted(comments.items()) if locale != "en" and value]
-    body = "\n".join(["[Desktop Entry]", "Type=Application", "Name=Work Fleet", *described,
+    body = "\n".join(["[Desktop Entry]", "Type=Application", f"Name={text.EN['common.appName']}",
+                      f"Name[zh_TW]={text.ZH_TW['common.appName']}", *described,
                       f"Exec={command}", f"Icon={icon}", "Terminal=false", "X-GNOME-Autostart-enabled=true", MARKER, ""])
     replace(path.parent, path.name, body.encode("utf-8"))
 

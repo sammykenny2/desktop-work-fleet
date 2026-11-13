@@ -1,4 +1,4 @@
-# Work Fleet Privacy and Data Notice
+# Pin It Anywhere Privacy and Data Notice
 
 Traditional Chinese: [privacy.zh-TW.md](privacy.zh-TW.md)
 
@@ -6,7 +6,7 @@ Maintainer: sammykenny2. Contact: [sammykenny2@gmail.com](mailto:sammykenny2@gma
 This document is the public privacy notice for the GitHub preview builds; store submissions still require each store's
 forms to be checked against the actual SDKs and distributed artifacts.
 
-Work Fleet is for recording notes, to-dos, drafts and attachments. Users can use only a local workspace, or choose to
+Pin It Anywhere is for recording notes, to-dos, drafts and attachments. Users can use only a local workspace, or choose to
 sign in to Google to sync their data.
 
 ## Local data
@@ -28,7 +28,7 @@ Google Drive already provides under the app data permission; the photo is downlo
 When sync is on, notes, groups, attachments and version data are sent to that account's Google Drive app data space.
 Google receives the account and network information that OAuth, Drive and profile photo requests need; its handling of that data is
 governed by Google's privacy policy.
-Work Fleet has no note-content server of its own and does not ask for access to ordinary Drive folders.
+Pin It Anywhere has no note-content server of its own and does not ask for access to ordinary Drive folders.
 Signing out stops sync on this device and removes the sign-in data the app stored; notes already saved remain in that
 account's partition.
 

@@ -1,6 +1,6 @@
 // Desktop scenes (src/desktop/index.html, scene.js); each frame carries the main window's locale.
 export default {
-  'desktop.scene.title': 'Work Fleet 桌面',
+  'desktop.scene.title': '貓亂貼桌面',
   'desktop.scene.label': '桌面便箋',
   'desktop.editor.label': '就地編輯便箋',
   'desktop.editor.full': '完整編輯',

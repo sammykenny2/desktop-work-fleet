@@ -122,7 +122,7 @@ class Desktop:
         return {"sessionId": self.session, "referenceDpi": 96, "topology": self.topology, "layers": list(self.layers), "residentLayers": list(resident_layers(self.mode)), "adjustOverlay": adjust_overlay(self.mode), "backend": self.mode, "wallpaperPlacement": wallpaper_placement(self.mode, self.layers), "workAreas": self.work_areas(self.displays), "views": [view.info() for view in self.views if not view.retired]}
 
     def new_view(self, display, layer):
-        p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "There are too many desktop windows. Save, then reopen Work Fleet.")
+        p.require(len([view for view in self.views if not view.retired]) < 16 * len(self.layers), "desktop-capacity", "There are too many desktop windows. Save, then reopen Pin It Anywhere.")
         view = Surface(display, layer, self.assets, self.web_factory, self.scene, self.retire, lambda identifier: self.send("desktop-dismiss", viewId=identifier), self.mode)
         self.views.append(view)
         self.watch(view.window)
@@ -173,7 +173,7 @@ class Desktop:
             self.send("desktop-action", target=target, intent=captured["id"])
 
     def shortcut(self, key):
-        """A labwc keybind handed over by gapplication. It runs whichever window has the focus, so a focused Work Fleet
+        """A labwc keybind handed over by gapplication. It runs whichever window has the focus, so a focused Pin It Anywhere
         window lends the intent its focus, as an in-app key would."""
         if self.closed or not self.started or self.blocked or self.native_menu or self.shortcuts.labwc is None:
             return

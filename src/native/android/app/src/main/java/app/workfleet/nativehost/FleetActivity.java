@@ -98,7 +98,7 @@ public final class FleetActivity extends Activity {
         try {
             byte[] bytes; try (java.io.InputStream stream = getAssets().open("config/public.json")) { bytes = Protocol.bytes(stream, 65536); }
             config = Protocol.json(bytes); profile = getPreferences(MODE_PRIVATE).getString("profile", "local"); openStore();
-            Protocol.require(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER), "native-version", "Update Android System WebView, then open Work Fleet again.");
+            Protocol.require(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER), "native-version", "Update Android System WebView, then open Pin It Anywhere again.");
             web = new WebView(this); setContentView(insetFrame(web)); WebView.setWebContentsDebuggingEnabled(false);
             web.getSettings().setJavaScriptEnabled(true); web.getSettings().setDomStorageEnabled(false);
             web.getSettings().setAllowFileAccess(false); web.getSettings().setAllowContentAccess(true);

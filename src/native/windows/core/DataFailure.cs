@@ -37,9 +37,9 @@ public static class DataFailure
   public static HostError Describe(string cause) => new(cause, cause switch
   {
     Damaged => "The local data is damaged and can't be opened.",
-    Full => "The disk is full, so the local data can't be opened. Free some space and start Work Fleet again.",
-    InUse => "Another program is using the local data. Close it and start Work Fleet again.",
-    Denied => "Work Fleet isn't allowed to open its local data folder.",
+    Full => "The disk is full, so the local data can't be opened. Free some space and start Pin It Anywhere again.",
+    InUse => "Another program is using the local data. Close it and start Pin It Anywhere again.",
+    Denied => "Pin It Anywhere isn't allowed to open its local data folder.",
     Key => "The local data can't be decrypted under this Windows account.",
     _ => "The local data can't be opened.",
   });
@@ -77,7 +77,7 @@ public static class DataFailure
       foreach (var (from, to) in moved) try { File.Move(to, from); } catch (Exception again) when (again is IOException or UnauthorizedAccessException) { restored = false; }
       try { if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder); }
       catch (Exception again) when (again is IOException or UnauthorizedAccessException) { }
-      if (!restored) throw new HostError("data-set-aside-incomplete", $"Part of the local data is in {folder}. Nothing was deleted; move those files back before starting Work Fleet again.");
+      if (!restored) throw new HostError("data-set-aside-incomplete", $"Part of the local data is in {folder}. Nothing was deleted; move those files back before starting Pin It Anywhere again.");
       throw new HostError("data-set-aside", held);
     }
   }

@@ -36,12 +36,13 @@ final class HostText {
     private static Map<String, String> english() {
         Map<String, String> table = new HashMap<>();
         // i18n:en
+        table.put("common.appName", "Pin It Anywhere");
         table.put("dialog.close", "Close");
         table.put("dialog.ok", "OK");
         table.put("dialog.openFailed", "Couldn't open the secure workspace. Keep the app's data and try again.");
-        table.put("dialog.webViewOutdated", "Update Android System WebView, then open Work Fleet again.");
+        table.put("dialog.webViewOutdated", "Update Android System WebView, then open Pin It Anywhere again.");
         table.put("dialog.alreadyOpen", "The workspace is already open in another window.");
-        table.put("dialog.accountSwitchFailed", "The account switch didn't finish. Your data is kept; reopen Work Fleet.");
+        table.put("dialog.accountSwitchFailed", "The account switch didn't finish. Your data is kept; reopen Pin It Anywhere.");
         table.put("share.notReceivedTitle", "Share not received");
         table.put("share.readFailed", "Couldn't read the shared content. Keep the original file and try again.");
         table.put("share.inboxUnavailable", "The Share inbox isn't available right now. Keep the original and try again.");
@@ -58,6 +59,7 @@ final class HostText {
     private static Map<String, String> traditionalChinese() {
         Map<String, String> table = new HashMap<>();
         // i18n:zh-TW
+        table.put("common.appName", "貓亂貼");
         table.put("dialog.close", "關閉");
         table.put("dialog.ok", "確定");
         table.put("dialog.openFailed", "無法開啟安全工作空間；請保留 App 資料並重試。");

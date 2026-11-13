@@ -20,8 +20,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 - Current version numbers are in the per-platform version files listed in [deployment](docs/deployment.md).
 - Final identity and distribution targets are accepted in
   [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and
-  [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The source/service cutover and distribution changes
-  are pending under [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
+  [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The repository and generated update source use
+  `sammykenny2/pin-it-anywhere`. Renderer/native display names and Apple/Android system-name resources use the final
+  localized names; Apple/Android IDs, service registrations, Windows localized package resources and distribution
+  changes remain pending under [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
 
 ## Status by area
 

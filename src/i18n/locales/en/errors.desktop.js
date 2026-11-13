@@ -1,7 +1,7 @@
 // Errors from the desktop owner, its scenes and their transfers (src/desktop).
 export default {
-  'errors.desktop.nativeOnly': 'Desktop windows can only be opened by the Work Fleet app.',
-  'errors.desktop.closing': 'Work Fleet is saving and closing. Please wait.',
+  'errors.desktop.nativeOnly': 'Desktop windows can only be opened by the Pin It Anywhere app.',
+  'errors.desktop.closing': 'Pin It Anywhere is saving and closing. Please wait.',
   'errors.desktop.sessionInvalid': 'The desktop session ID is invalid.',
   'errors.desktop.sessionClosed': 'The desktop session has closed.',
   'errors.desktop.viewInvalid': 'The desktop window ID is invalid.',

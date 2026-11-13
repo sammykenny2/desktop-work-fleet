@@ -8,16 +8,18 @@ import { parseArgs, promisify } from 'node:util';
 import { readBuildConfig, missingReleaseConfig } from './config.mjs';
 import { buildWebAssets } from './build-web.mjs';
 import { readAppleVersion, versionRecords } from './platform-version.mjs';
+import common from '../src/i18n/locales/en/common.js';
 
 const repositoryRoot = fileURLToPath(new URL('../', import.meta.url));
 const execute = promisify(execFile);
 const escape = text => text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 export function appleInfoPlist(platform, config, { version, build }) {
-  // English first with Traditional Chinese (docs/i18n.md). The app ships no .lproj folders; declaring both localizations
-  // lets alert buttons, share sheets and context menus that the system draws follow the user's language for these two.
+  // InfoPlist.strings supplies localized system names. Declaring both localizations also lets system-drawn alert
+  // buttons, share sheets and context menus follow the user's language for these two.
   const localizations = '<key>CFBundleDevelopmentRegion</key><string>en</string><key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string></array>';
-  const shared = localizations + '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string><key>CFBundleName</key><string>Work Fleet</string><key>CFBundleDisplayName</key><string>Work Fleet</string>' +
+  const shared = localizations + '<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string><key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>' +
+    `<key>CFBundleName</key><string>${escape(common['common.appName'])}</string><key>CFBundleDisplayName</key><string>${escape(common['common.appName'])}</string>` +
     `<key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${build}</string>`;
   const group = `<key>FleetCaptureAppGroup</key><string>${escape(config.appleAppGroupId)}</string>`;
   let content;

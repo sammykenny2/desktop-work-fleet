@@ -50,7 +50,7 @@ cat > "$STAGE/DEBIAN/control" <<CONTROL
 Package: work-fleet
 Version: $VERSION
 Architecture: all
-Maintainer: Work Fleet maintainers <$EMAIL>
+Maintainer: Pin It Anywhere maintainers <$EMAIL>
 Section: utils
 Priority: optional
 Depends: bash, python3 (>= 3.10), python3-gi, python3-gi-cairo, python3-cairo, python3-cryptography, gir1.2-gtk-3.0, gir1.2-webkit2-4.1

@@ -25,7 +25,7 @@ import UIKit
             let web = host.web; web.translatesAutoresizingMaskIntoConstraints = false; controller.view.addSubview(web)
             NSLayoutConstraint.activate([web.topAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.topAnchor), web.bottomAnchor.constraint(equalTo: controller.view.safeAreaLayoutGuide.bottomAnchor), web.leadingAnchor.constraint(equalTo: controller.view.leadingAnchor), web.trailingAnchor.constraint(equalTo: controller.view.trailingAnchor)])
             web.scrollView.keyboardDismissMode = .interactive
-        } catch { let alert = UIAlertController(title: "Work Fleet", message: FleetText.dialog(error, fallback: "dialog.openFailedRetry"), preferredStyle: .alert); alert.addAction(UIAlertAction(title: FleetText.text("dialog.ok"), style: .default)); controller.present(alert, animated: true) }
+        } catch { let alert = UIAlertController(title: FleetText.text("common.appName"), message: FleetText.dialog(error, fallback: "dialog.openFailedRetry"), preferredStyle: .alert); alert.addAction(UIAlertAction(title: FleetText.text("dialog.ok"), style: .default)); controller.present(alert, animated: true) }
         open(connectionOptions.urlContexts)
     }
     func scene(_ scene: UIScene, openURLContexts contexts: Set<UIOpenURLContext>) { open(contexts) }

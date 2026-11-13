@@ -261,8 +261,14 @@ on 2026-10-14; they use the same Desktop OAuth client as Windows.
 Only an app installed from the DEB has in-app updates: it downloads and verifies the package and installs it with
 pkexec (which needs the system password and a polkit authentication agent), then saves and restarts on success.
 
-Desktop update checks on all three platforms use the public `releases.atom`, not the unauthenticated REST API; the
-manifests and appcasts of existing releases need no rewrite.
+Desktop update checks on all three platforms use the public `releases.atom`, not the unauthenticated REST API.
+The default source is now `sammykenny2/pin-it-anywhere`; workflows use `GITHUB_REPOSITORY` for future download URLs.
+After the repository rename, the old feed URL redirects successfully but its entry links name the new repository.
+Existing Windows, macOS and Linux parsers require the configured repository in those links, so a build configured
+with the old repository cannot discover updates from the redirected feed. Install a future build configured with
+the new repository manually once, following its identity/data-transition instructions. Do not uninstall an old app
+with local notes until those notes are recoverable. Native installed transitions remain unverified.
+Historical assets, manifests and appcasts keep their original names and contents; do not rewrite published releases.
 Only the preview channel is supported; the limits of the Atom feed's recent-entries list and of a release channel are
 in [ADR-044](decisions/044-desktop-in-app-updates-from-github-releases.md).
 

@@ -226,14 +226,14 @@ public sealed class DesktopCoordinator : IDisposable
     {
       if (assignments.Any(a => a.Display.Id == slot.Display.Id && a.View.Layer == slot.Layer)) continue;
       // A Top-layer scene moved to another display device showed nothing there: after a switch from a remote session
-      // to the local display its composition stayed blank, adjust mode included, until Work Fleet restarted. That
+      // to the local display its composition stayed blank, adjust mode included, until Pin It Anywhere restarted. That
       // layer gets a new scene instead; the edited one assigned above is still carried across until its edit ends.
       var match = slot.Layer == "floating" ? null : views.FirstOrDefault(v => !v.Retired && v.Layer == slot.Layer && assignments.All(a => a.View != v));
       if (match is null)
       {
         // Unassigned Top-layer views are closed below, so they do not count.
         HostError.Require(views.Count(v => !v.Retired && (v.Layer != "floating" || assignments.Any(a => a.View == v))) < 48, "desktop-capacity",
-          "Too many desktop windows are open. Restart Work Fleet to show them again; your data is kept.");
+          "Too many desktop windows are open. Restart Pin It Anywhere to show them again; your data is kept.");
         match = new(slot.Display, slot.Layer, unit); views.Add(match); Watch(match);
       }
       assignments.Add((match, slot.Display));

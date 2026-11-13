@@ -39,7 +39,7 @@ final class FleetDatabase {
             default: throw FleetDatabase.failure("data-unreadable")
             }
         }
-        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { Darwin.close(descriptor); throw FleetFailure("native-already-open", "This workspace is already open in another Work Fleet window.") }
+        guard flock(descriptor, LOCK_EX | LOCK_NB) == 0 else { Darwin.close(descriptor); throw FleetFailure("native-already-open", "This workspace is already open in another Pin It Anywhere window.") }
         do { key = try FleetKeychain.storageKey(existing: FileManager.default.fileExists(atPath: data.path)) }
         catch { Darwin.close(descriptor); throw error }
         owner = descriptor
@@ -48,7 +48,7 @@ final class FleetDatabase {
             sqlite3_busy_timeout(database, 5000)
             try execute("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA foreign_keys=ON;")
             let version = try scalar("PRAGMA user_version;") as? Int64 ?? 0
-            try FleetProtocol.require(version == 0 || version == 1, "storage-version", "This data uses a newer format. Update Work Fleet.")
+            try FleetProtocol.require(version == 0 || version == 1, "storage-version", "This data uses a newer format. Update Pin It Anywhere.")
             try execute("CREATE TABLE IF NOT EXISTS records(profile TEXT,kind TEXT,revision INTEGER,data BLOB,PRIMARY KEY(profile,kind));")
             try execute("CREATE TABLE IF NOT EXISTS attachments(profile TEXT,id TEXT,data BLOB,PRIMARY KEY(profile,id));")
             try execute("CREATE TABLE IF NOT EXISTS staging(profile TEXT,token TEXT PRIMARY KEY,kind TEXT,digest TEXT,size INTEGER,data BLOB);")
@@ -59,9 +59,9 @@ final class FleetDatabase {
     }
     static let databaseFiles = ["fleet.sqlite3", "fleet.sqlite3-wal", "fleet.sqlite3-shm", "fleet.sqlite3-journal"]
     private static let messages = ["data-damaged": "The local data is damaged and can't be opened.",
-        "data-full": "The disk is full, so the local data can't be opened. Free some space and open Work Fleet again.",
-        "data-in-use": "Another program is using the local data. Close it and open Work Fleet again.",
-        "data-denied": "Work Fleet isn't allowed to open its local data folder.", "data-unreadable": "The local data can't be opened."]
+        "data-full": "The disk is full, so the local data can't be opened. Free some space and open Pin It Anywhere again.",
+        "data-in-use": "Another program is using the local data. Close it and open Pin It Anywhere again.",
+        "data-denied": "Pin It Anywhere isn't allowed to open its local data folder.", "data-unreadable": "The local data can't be opened."]
     static func failure(_ cause: String) -> FleetFailure { FleetFailure(cause, messages[cause] ?? "The local data can't be opened.") }
     /// Names a generic open failure from SQLite's last result code; every other failure keeps its own code and message.
     private static func classified(_ database: OpaquePointer?, _ error: Error) -> Error {
@@ -97,7 +97,7 @@ final class FleetDatabase {
             var restored = true
             for (source, target) in moved.reversed() { do { try manager.moveItem(at: target, to: source) } catch { restored = false } }
             if (try? manager.contentsOfDirectory(atPath: folder.path))?.isEmpty == true { try? manager.removeItem(at: folder) }
-            if !restored { throw FleetFailure("data-set-aside-incomplete", "Part of the local data is in \(folder.path). Nothing was deleted; move those files back before opening Work Fleet again.") }
+            if !restored { throw FleetFailure("data-set-aside-incomplete", "Part of the local data is in \(folder.path). Nothing was deleted; move those files back before opening Pin It Anywhere again.") }
             throw FleetFailure("data-set-aside", "The local data couldn't be set aside, and nothing was moved. Check the folder's permissions and try again.")
         }
     }

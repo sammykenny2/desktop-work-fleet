@@ -124,7 +124,7 @@ import ServiceManagement
         try check(FleetText.preference == "zh-TW" && FleetText.locale == "zh-TW" && FleetText.text("menuBar.quit") == FleetText.zhTW["menuBar.quit"], "zh-TW text comes from the Traditional Chinese block")
         FleetText.apply("en")
         try check(FleetText.text("menuBar.quit") == "Save and quit", "English text comes from the English block")
-        try check(FleetText.text("dialog.upToDate", ["version": "1.2.3"]) == "Work Fleet 1.2.3 is up to date.", "Placeholders are filled")
+        try check(FleetText.text("dialog.upToDate", ["version": "1.2.3"]) == "Pin It Anywhere 1.2.3 is up to date.", "Placeholders are filled")
         try check(FleetText.text("missing.key") == "missing.key", "A missing key stays visible")
         FleetText.apply("fr")
         try check(FleetText.preference == "auto" && FleetText.locale == FleetText.resolve("auto", FleetText.system), "An unknown preference applies as auto")

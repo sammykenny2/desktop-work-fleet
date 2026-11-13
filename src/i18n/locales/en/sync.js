@@ -16,13 +16,13 @@ export default {
   'sync.recovery.options': "Review recovery choices",
   'sync.recovery.title': "Choose how to continue with Google",
   'sync.recovery.kept': "The cloud data for {account} is missing, changed or incompatible. Your local notes and unsaved changes are still here. No local copy will be uploaded automatically.",
-  'sync.recovery.legacy': "You can keep the old data and use a compatible app, or open Data and backup to explicitly reset this account’s Work Fleet Google data. No historical bodies need to be downloaded for the reset.",
+  'sync.recovery.legacy': "You can keep the old data and use a compatible app, or open Data and backup to explicitly reset this account’s Pin It Anywhere Google data. No historical bodies need to be downloaded for the reset.",
   'sync.recovery.reset': "Open cloud reset",
   'sync.recovery.rejoin': "Preview joining the current cloud",
   'sync.recovery.rejoinPreview': "Join the verified current dataset of {account}? This replaces this device’s {cards} notes and discards {pending} pending saves and {drafts} drafts here. Export first if you need this local copy. Google data will not be deleted.",
   'sync.recovery.confirmRejoin': "Replace this copy and join Google",
   'sync.recovery.recover': "Preview recovering local data to Google",
-  'sync.recovery.recoverPreview': "Replace the Work Fleet cloud data of {account} with this device’s {cards} current notes and {drafts} drafts, using new note identities? Save the safety backup before confirming. Uncached history and missing attachments cannot be recovered.",
+  'sync.recovery.recoverPreview': "Replace the Pin It Anywhere cloud data of {account} with this device’s {cards} current notes and {drafts} drafts, using new note identities? Save the safety backup before confirming. Uncached history and missing attachments cannot be recovered.",
   'sync.recovery.confirmRecover': "Replace Google with this local data",
   'sync.recovery.working': "Preparing cloud data: {done} / {total}…",
   // Where the notes live: the account chip and the identity on the Account and sync page
@@ -84,13 +84,13 @@ export default {
 
   // Continuing a Google overwrite
   'sync.cloudRestore.title': 'Finish the Google overwrite',
-  'sync.cloudRestore.resumeReset': 'This continues clearing the Work Fleet cloud data of {account}, then uploads the saved restore data. Stop syncing on other devices first.',
+  'sync.cloudRestore.resumeReset': 'This continues clearing the Pin It Anywhere cloud data of {account}, then uploads the saved restore data. Stop syncing on other devices first.',
   'sync.cloudRestore.resumeUpload': "This continues uploading the saved restore data. The cloud isn't cleared again.",
   'sync.cloudRestore.incomplete': "The overwrite isn't finished",
 
   // Another device reset the cloud
   'sync.sourceReset.title': 'The cloud data was reset',
-  'sync.sourceReset.body': 'The Work Fleet cloud data of {account} was reset on another device. The copy on this device is still here, but it has stopped syncing.',
+  'sync.sourceReset.body': 'The Pin It Anywhere cloud data of {account} was reset on another device. The copy on this device is still here, but it has stopped syncing.',
   'sync.sourceReset.clearHint': "Clearing the copy syncs again from the current cloud. Changes on this device that haven't synced are deleted too, so export a backup first if you need them.",
   'sync.sourceReset.exportFirst': 'Export a backup first',
   'sync.sourceReset.clear': "Clear this device's copy",

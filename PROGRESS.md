@@ -22,9 +22,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and
   [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The repository and generated update source use
   `sammykenny2/pin-it-anywhere`. Renderer/native display names and Apple/Android system-name resources use the final
-  localized names. Apple/Android build defaults use the final IDs, and local build settings contain the new project's
-  Desktop, Apple and Web OAuth clients and support contact. Android OAuth, Apple registrations/profiles, CI service
-  configuration, Windows localized package resources and distribution changes remain pending under
+  localized names. Apple/Android build defaults use the final IDs; the new Google clients, support settings and Apple
+  registrations/profiles are configured locally and in CI. Windows localized package resources, trusted Windows signing,
+  ARM64 packaging and native/provider acceptance remain pending under
   [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
 
 ## Status by area
@@ -150,9 +150,11 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
 ### Android
 
 - Implemented: native host with SQLite and Keystore encryption, SAF backups, file export, share inbox,
-  Credential Manager and AuthorizationClient sign-in with a token cache bound to the verified account, and a fixed debug keystore.
+  Credential Manager and AuthorizationClient sign-in with a token cache bound to the verified account, separate local
+  Debug and direct-APK Release signing keys, and new-project OAuth configuration.
 - Verified: on a Pixel 9 Pro (Android 17) the app starts, keeps clear of system bars and the keyboard, and drops blank drafts;
   JUnit tests and debug APK builds pass; the APK signer matches the registered OAuth SHA-1.
+  The new-identity signed Release CI artifact is installed for user 0 on the Pixel 9 Pro and matches the registered signer.
 - Not verified: real Google sign-in, Drive round trips and process death on a device; full editing, backups, share inbox, back key.
 
 ### iOS
@@ -173,8 +175,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   to reach these releases. `apple-native-build.yml` is an unsigned macOS compile check. Version files are in
   [deployment](docs/deployment.md).
 - `android-apk.yml` builds signed Release APKs with separate release Secrets and inspects the real signer,
-  manifest and bundled runtime variant before saving artifacts. Release credentials, OAuth and installed acceptance
-  remain pending; local Debug builds are separate. A standalone workflow run publishes nothing.
+  manifest and bundled runtime variant before saving artifacts. Release credentials and OAuth are configured;
+  installed update and Google round-trip acceptance remain pending. Local Debug builds are separate; a standalone run
+  publishes nothing. Interim Windows previews retain the existing test-signed x64 MSIX/CER route while Certum is pending.
   iOS builds, signing and installation stay local; no GitHub workflow builds or uploads
   iOS packages because embedded provisioning profiles disclose registered device identifiers
   ([ADR-057](docs/decisions/057-local-ios-builds-and-device-privacy.md)).

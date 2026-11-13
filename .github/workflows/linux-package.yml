@@ -51,6 +51,9 @@ jobs:
           WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
           WORK_FLEET_GOOGLE_LINUX_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_LINUX_CLIENT_ID }}
           WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET: ${{ secrets.WORK_FLEET_GOOGLE_LINUX_CLIENT_SECRET }}
+          WORK_FLEET_PRIVACY_URL: ${{ vars.WORK_FLEET_PRIVACY_URL }}
+          WORK_FLEET_SUPPORT_URL: ${{ vars.WORK_FLEET_SUPPORT_URL }}
+          WORK_FLEET_SUPPORT_EMAIL: ${{ vars.WORK_FLEET_SUPPORT_EMAIL }}
           SUMMARY: ${{ inputs.summary }}
           VERSION: ${{ inputs.version }}
         run: |

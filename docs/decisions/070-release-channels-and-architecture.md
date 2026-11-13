@@ -30,8 +30,17 @@ contract includes a preview CER, and Windows packaging and update selection assu
 - Inspect actual artifacts and resolved configuration: Android must not be debuggable, Apple distribution entitlements
   must not enable `get-task-allow`, and Windows Release must exclude development inspection features. Linux's
   Python/JavaScript host has no equivalent binary build variant; verify packaged production settings and resources.
-- Future GitHub Releases must not attach `.cer` files or instruct users to install a preview certificate as a trust
-  prerequisite. This does not prohibit private developer certificate management or alter historical releases.
+- The trusted Windows distribution target excludes `.cer` files and manual preview-certificate trust setup.
+  The interim preview exception below retains the existing test-certificate route until that cutover.
+  Private developer certificate management and historical releases are unaffected.
+
+### Interim GitHub preview exception
+
+On 2026-11-13 the maintainer explicitly retained the existing test-signed Windows x64 MSIX and public CER for interim
+four-platform GitHub previews while Certum issuance is pending. The Windows binary still uses Release configuration;
+recipients must explicitly trust the existing preview certificate. Android delivery uses its signed Release APK.
+The trusted-signing, ARM64/MSIX bundle, installed-update, provider and independent-review targets remain open.
+An interim preview does not establish store readiness or acceptance of those boundaries.
 
 ### Distribution targets
 

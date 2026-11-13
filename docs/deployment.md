@@ -13,12 +13,13 @@ architectures and signing/build-mode rules are in [ADR-070](decisions/070-releas
 configuration change was performed by that documentation decision.
 
 The procedures below describe existing tooling and retain current Work Fleet file names. Android delivery requires a
-signed Release APK and the release-signing settings below; Debug remains local development tooling. The Windows
-CER/public trust instructions are a legacy path that must be changed before future distribution under the new policy.
+signed Release APK and the release-signing settings below; Debug remains local development tooling. The maintainer
+explicitly retained the existing Windows x64 test-certificate MSIX/CER route for interim GitHub previews while Certum
+issuance is pending; see ADR-070. Trusted Windows distribution still needs its separate signing cutover.
 Windows currently builds x64 only; ARM64/MSIX bundle and AppImage are not implemented. The current Linux
 DEB is architecture-independent (`all`), not separate amd64/arm64 artifacts. macOS CI already produces Universal DMG
 plus the ZIP/appcast update payload; local PKG support does not imply that PKG is the selected primary installer.
-Update these procedures alongside implementation; do not use the legacy CER steps as a future release checklist.
+Update these procedures alongside implementation; the CER steps apply only to the authorized interim preview route.
 
 ## Existing packaging entry points
 
@@ -32,11 +33,12 @@ Update these procedures alongside implementation; do not use the legacy CER step
 
 ## Versions and release file names
 
-The dataset/current-record change in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md) is an
-incompatible persistence boundary for the next maintainer-approved **minor** release. The exact target version
-requires separate approval. Keep the unreleased JSON contracts at V1; do not add migration jobs. Before shipping,
-require the PLAN-011 provider and independent-review gates, tell users to update every device, and retain explicit
-local/cloud reset choices. Earlier full-workspace backups are not silently converted by the new format.
+The dataset/current-record change in [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md) defines an
+incompatible persistence boundary with older legacy formats. Keep the current JSON contracts at V1; do not add
+migration jobs. The PLAN-011 provider and independent-review acceptance gates remain open. The maintainer authorized
+interim previews with those limits disclosed; they do not mark the gates passed or establish production readiness.
+Tell users to update every device and retain explicit local/cloud reset choices. Earlier legacy full-workspace
+backups are not silently converted by the current format. Every target version still requires separate approval.
 
 Windows support follows [ADR-034](decisions/034-windows-11-compatibility-and-install-floor.md): the target covers early
 Windows 11/23H2 and 24H2+, and Windows 10 is excluded from installation.

@@ -161,6 +161,11 @@ jobs:
 
           ${CHANGES}
 
+          ## Before installing
+          Export a complete backup from the old app before changing installations or accounts, and keep the old app until your notes are accessible in the new one.
+          This preview uses the new Pin It Anywhere Google project and Apple application identity. Sign in again; the previous project's Google Drive notes are not imported automatically. Restore a supported backup deliberately if you need those notes.
+          Desktop builds configured with the old repository cannot discover this release through its redirect. Download and install this preview manually once.
+
           ## Windows
           Requires Windows 11 (build 22000 or later). The package includes the .NET 10 Desktop Runtime, so .NET needs no separate installation; it uses the system's Evergreen WebView2 Runtime.
           1. Download \`WorkFleet-preview.cer\` from the assets below.
@@ -187,6 +192,7 @@ jobs:
           if [ "$INCLUDE_ANDROID" = true ]; then
           cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Android
+          The Android application identity has also changed from older Work Fleet previews; keep the old app and its backup until the new installation has the notes you need.
           Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-release.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-release.apk\` from a computer.
           This is a signed Release APK. Updates require the same application ID and signing key and a higher versionCode. It cannot replace a Debug APK signed with the old test key; export a backup before removing an old installation. Google Play signing is configured separately. Check the changes above for data-format compatibility and any required reset before upgrading.
 
@@ -195,7 +201,7 @@ jobs:
           cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Updates
           On Windows, macOS and Linux, check for and install updates from the tray (the menu bar on macOS) or Settings > Desktop > Version and updates. Installing on Linux asks for the system password; on macOS, Sparkle downloads, verifies and reopens the app.
-          Desktop installs of 0.3.6 or earlier look only for the older per-platform releases: they keep reporting that they are up to date, or an error once those releases are gone, and never offer this one. Install it once by hand as above.
+          Older repository settings and desktop installs of 0.3.6 or earlier require the manual transition described above. The new build uses the pin-it-anywhere repository for subsequent update checks.
           Google sign-in is in testing: only accounts added as test users can sign in.
           EOF
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$COMMIT" --prerelease \

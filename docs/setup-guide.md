@@ -276,8 +276,8 @@ The DEB suits distributions that provide the system dependencies above.
 The version number is in `src/native/linux/VERSION`; normal and release builds both use it, and early versions get
 no extra `~preview`.
 
-The GitHub **Android device APK** workflow (`.github/workflows/android-apk.yml`) builds a phone-installable APK after
-the public Variables and the explicitly authorized fixed signing Secret are configured. Run it manually from Actions
+The GitHub **Android Release APK** workflow (`.github/workflows/android-apk.yml`) builds a signed Release APK after
+the public Variables and four explicitly authorized release-signing Secrets are configured. Run it manually from Actions
 on main, then download the APK, checksum and source-commit record from Artifacts, kept for fourteen days. It keeps the
 recorded version, publishes nothing and submits nothing to stores; releases carry the APK through `preview-release.yml`.
 Signing settings and installation are in [phone test builds](deployment.md#phone-test-builds).

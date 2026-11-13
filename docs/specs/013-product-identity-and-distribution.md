@@ -20,7 +20,8 @@ and format choices; this specification owns the required behavior and acceptance
 
 - Show the correct localized product identity while keeping technical identifiers stable across versions.
 - Preserve access to existing local/cloud notes through an explicit, verified identity cutover.
-- Make every distributed build installable and updatable through its actual channel without developer trust setup.
+- Make trusted distribution installable and updatable without developer trust setup; ADR-070 records the explicitly
+  authorized interim Windows test-certificate preview exception.
 - Exercise Android and iOS beta distribution and native Windows ARM64 before claiming their support.
 
 ## Non-Goals
@@ -39,7 +40,7 @@ and format choices; this specification owns the required behavior and acceptance
 | FR04 | OAuth clients, callback schemes and Android certificate fingerprints match the actual app identity and signing channel. A new client's sign-in works on each supported platform, including after restart. |
 | FR05 | Apple main app, extension, App Group and Keychain entitlements match the new IDs and correct provisioning profiles. Sharing reaches the intended app; old storage access is not assumed. |
 | FR06 | Every distributed app meets ADR-070's Release/signing policy. Validation inspects actual build configuration, signatures and entitlements, rather than trusting artifact names. Debug development/CI outputs remain outside distribution sets. |
-| FR07 | The future GitHub asset contract rejects CERs and Debug deliverables. Install instructions require no manually trusted preview certificate. Update archives, metadata and checksums remain included where required. |
+| FR07 | GitHub delivery rejects Debug deliverables. Trusted Windows distribution excludes CERs and manual certificate trust setup; the authorized interim preview retains the existing MSIX/CER route under ADR-070. Update archives, metadata and checksums remain included where required. |
 | FR08 | Windows direct installation, native x64/ARM64 selection and subsequent updates validate the chosen package identity, publisher, version and compatible architecture. MSIX data retention and uninstall behavior continue to follow ADR-037. |
 | FR09 | A macOS Universal DMG installs the app into Applications; the installed app updates through the signed ZIP/appcast with data preserved. Both CPU architectures are included and runtime acceptance is distinguished from package inspection. |
 | FR10 | Linux DEB installation, system dependencies, startup, desktop entry, uninstall and verified in-app update work on the declared supported environments. The package architecture field accurately describes its contents. |
@@ -61,7 +62,7 @@ host must validate the one it actually consumes. Mobile stores handle their own 
 | C02 Identity cutover | Complete exports from old local and cloud collections are restored in the new identity; content, attachments and required metadata are checked; old copies remain available until accepted. |
 | C03 Google cutover | Actual new-project clients sign in and refresh on native platforms; old/new app-data visibility is measured with a test account, and no unexplained empty cloud is treated as data deletion. |
 | C04 Apple signing and sharing | Distribution signatures/profiles/entitlements agree for app and extension; real-device sharing and restart work; no development-device IPA is hosted publicly. |
-| C05 Release asset inspection | Every channel's actual artifacts pass build-mode and signing checks; a CER or Debug artifact fails future release validation; development unit tests can still run in Debug. |
+| C05 Release asset inspection | Every channel's actual artifacts pass build-mode and signing checks; Debug and unexpected files fail validation. The existing Windows CER is accepted only for the documented interim preview route; trusted Windows delivery excludes it. Development unit tests can still run in Debug. |
 | C06 Windows x64 and ARM64 | Clean install and old-to-new update on both native architectures, including bundle selection, signature/publisher rejection, startup and data lifetime. |
 | C07 macOS install and update | DMG install into Applications followed by a Sparkle update; arm64 and Intel runtime checks, with signature rejection and data preservation. |
 | C08 Linux DEB | Clean install, menu launch, sign-in startup, update/cancel, dependencies and uninstall on each declared supported Debian-family environment. |

@@ -1496,10 +1496,11 @@ numeric version comparison, download locations in the same repo and tag, this pl
 It checks desktop-only selection through the validator API and CLI, rejecting unexpected APKs and missing desktop
 assets, and the workflow guards for an intentionally skipped Android job versus failed or cancelled selected builds.
 The Android allowlist requires the Release APK and rejects extra Debug APKs; its workflow must use release Secrets
-and inspect the built APK before either artifact upload. The Windows CER contract remains legacy pending its signing
-cutover and is not certified by these asset tests.
+and inspect the built APK before either artifact upload. The Windows CER contract is the explicitly authorized interim
+preview exception in ADR-070; these asset tests do not certify CA trust or the future trusted-signing cutover.
 On Unix hosts it also runs the production release-notes shell with the publishing command replaced, checking that
-Android installation instructions are present only when selected.
+Android installation instructions are present only when selected, and backup/new-project/manual-transition guidance
+precedes installation instructions for both release selections.
 `tests/release-versions.test.js` checks that `scripts/platform-version.mjs --release` refuses version records that differ.
 None of this runs the release workflow itself; the first `preview-release.yml` run is its end-to-end check.
 `Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `app.workfleet.updateprobe.e2e`,

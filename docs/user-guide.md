@@ -515,6 +515,10 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
 - The repository is now [pin-it-anywhere](https://github.com/sammykenny2/pin-it-anywhere). Builds configured with the
   old repository cannot discover updates through its redirect. When a new build is available, install it manually
   once and follow its data-transition instructions; keep the old app if it still holds local notes you need.
+- Before installing the renamed app or signing in to its new Google project, export a complete backup from the old
+  app and keep it available until the new installation can read your notes. Changed Apple/Android application
+  identities may create a separate installation or credential boundary. The same Google account does not make the
+  previous project's Drive notes appear automatically; restore a supported backup deliberately when needed.
 - Settings > General > "Version and updates" shows the version, how it was installed and the in-app update state. A
   single button offers the next step: "Check for updates", "Download update", or "Restart and install". The tray and
   the menu bar also have "Check for updates…".

@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | In progress; final build IDs and local Google settings applied, native signing and service acceptance pending |
+| Status | In progress; final identities and service/signing settings configured, trusted Windows signing and native/provider acceptance pending |
 | Owner | Project maintainer |
 | Assigned To | Unassigned |
 | Reviewer | Independent implementation reviewer and maintainer on real devices |
@@ -22,6 +22,10 @@ The phases below separate completed source work from pending acceptance. A docum
 remote repository nor creates cloud projects, modifies credentials, dispatches workflows or submits store builds.
 Apply the existing authorization rules when those actions are requested; do not ask again for authorization already
 supplied for the same action.
+
+The maintainer authorized interim four-platform GitHub previews with the existing Windows x64 MSIX/CER route while
+Certum issuance is pending (ADR-070). Store testing/submission, Windows ARM64 and open provider/independent acceptance
+remain separate work; preview artifact checks do not mark them passed.
 
 ## Implementation Phases
 
@@ -49,14 +53,14 @@ supplied for the same action.
     storage paths, signing subjects and existing public artifact filenames until their cutover is ready.
   - [x] Set final Apple/Android build defaults and Apple local configuration; keep Windows package identity independent
     of the shared mobile ID. Preserve internal storage names and installed data.
-  - [ ] Complete Android OAuth, Apple registrations/profiles, localized Windows package resources and native installed
-    acceptance. The new Google project exists; new-client live acceptance is pending.
+  - [ ] Complete localized Windows package resources and native installed acceptance. The new Google clients are
+    configured; real sign-in and cross-device acceptance remain pending.
 - [ ] Register the new Google project/clients and Apple IDs/profiles when authorized. Derive callbacks from actual
   clients, and register each Android distribution fingerprint, including the Play app-signing fingerprint.
   - [x] Apply the maintainer-supplied new-project Desktop, macOS, iOS and Web clients to ignored local settings. Validate
     the Desktop JSON's project/client/full secret and use it for Windows/Linux without exposing its value.
-  - [ ] Configure the missing new Android client and Apple IDs/App Group/profiles; switch CI service settings as a
-    separate external configuration step. Verify Google API/consent settings and real sign-in.
+  - [x] Configure the new Android client, Apple IDs/App Group/development and Developer ID profiles, and CI service settings.
+  - [ ] Verify Google API/consent settings and real sign-in across the native platforms.
 - [ ] Configure OAuth branding, privacy/support pages and contacts; keep private keys and tokens out of public config.
 - [ ] Rename the GitHub repo when authorized; update remotes, links, update source, workflow assumptions and future asset
   names together. Verify how an already installed old build reaches the new source before relying on redirects.
@@ -75,12 +79,14 @@ supplied for the same action.
   and isolated CI tests. Configure upload/Play keys separately and validate the final app-signing identity.
   - [x] Add signed Release APK entry points, separate CI release-signing inputs, actual APK signature/manifest/runtime
     inspection and a Release-only Android asset allowlist. Keep local Debug and unsigned AAB inspection available.
-  - [ ] Configure the real direct-APK signer and matching OAuth, then verify installation/update; configure Play
-    app-signing and upload identities separately before any Play delivery.
+  - [x] Configure the direct-APK signer and matching OAuth; verify Release CI and installed package identity on a Pixel 9 Pro.
+  - [ ] Verify a higher-version direct-APK update; configure Play app-signing and upload identities separately before Play delivery.
 - [ ] After Certum issuance, verify signing-tool compatibility, timestamp, trust chain and Publisher, then sign Windows
   distribution artifacts without exporting a CER into the public delivery set.
+  Interim GitHub previews retain the explicitly authorized Windows test-certificate MSIX/CER route.
 - [ ] Update packaging workflows, release asset allowlists, metadata writers, tests and install instructions as one
-  change: reject CER/Debug assets, omit the public Windows unpackaged ZIP and retain necessary macOS update ZIPs.
+  change: reject Debug assets, remove CERs at the trusted Windows signing cutover, omit the public Windows unpackaged ZIP
+  and retain necessary macOS update ZIPs.
 - [ ] Add artifact inspection for Release configuration and distribution entitlements; distinguish configuration from
   channel names and keep CI's non-distributed Debug probes working.
 - [ ] Update deployment procedures and both editions of affected user-facing documents to match implemented behavior.

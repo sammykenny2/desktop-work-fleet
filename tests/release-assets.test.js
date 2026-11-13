@@ -151,6 +151,11 @@ test('the release notes shell includes Android installation steps only when sele
       const notes = await readFile(path.join(folder, 'notes.md'), 'utf8');
       for (const platform of ['Windows', 'macOS', 'Linux', 'Updates']) assert.match(notes, new RegExp(`^## ${platform}$`, 'm'));
       assert.match(notes, /Preserve group regions/);
+      assert.ok(notes.indexOf('Export a complete backup') < notes.indexOf('## Windows'), 'backup instructions precede installation');
+      assert.match(notes, /previous project's Google Drive notes are not imported automatically/);
+      assert.match(notes, /old repository cannot discover this release through its redirect/);
+      assert.match(notes, /Download and install this preview manually once/);
+      assert.match(notes, /WorkFleet-preview\.cer/);
       if (includeAndroid) assert.match(notes, /^## Android$/m);
       else assert.doesNotMatch(notes, /Android|android-release\.apk/);
       assert.doesNotMatch(notes, /android-debug\.apk|fixed test key/);
@@ -167,5 +172,15 @@ test('Android delivery uses release signing and inspects the actual package befo
   assert.doesNotMatch(source, /ANDROID_DEBUG_KEYSTORE_BASE64|WORK_FLEET_ANDROID_DEBUG_SHA1|android-debug\.apk/);
   for (const name of ['KEYSTORE_BASE64', 'KEY_ALIAS', 'STORE_PASSWORD', 'KEY_PASSWORD']) {
     assert.ok(source.includes(`secrets.ANDROID_RELEASE_${name}`));
+  }
+});
+
+test('Windows and Linux preview packages receive the configured public support metadata', async () => {
+  for (const file of ['windows-package.yml', 'linux-package.yml']) {
+    const source = await readFile(new URL('../.github/workflows/' + file, import.meta.url), 'utf8');
+    const build = source.slice(source.indexOf('      - name: Build the'), source.indexOf('      - uses: actions/upload-artifact'));
+    for (const field of ['WORK_FLEET_PRIVACY_URL', 'WORK_FLEET_SUPPORT_URL', 'WORK_FLEET_SUPPORT_EMAIL']) {
+      assert.ok(build.includes(field + ': ${{ vars.' + field + ' }}'), file + ' forwards ' + field + ' to its package build');
+    }
   }
 });

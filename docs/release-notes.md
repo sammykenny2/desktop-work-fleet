@@ -9,6 +9,120 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.7.2
+
+Platforms: Windows, Linux, macOS.
+
+Summary: Choose the size of new desktop notes, use consistent tray menus, and restore reliable macOS menu actions. Windows certificate cleanup now handles inherited entries that disappear after removal.
+
+- New desktop notes: choose Small (160 x 160), Medium (240 x 240, default), or Tall (240 x 400) in Desktop notes settings. The device-local preference applies to newly placed cloud and local notes; existing note positions and sizes stay unchanged.
+- Desktop menus: Windows, macOS and Linux share action order, separators, enabled states and registered-shortcut annotations. The note-position action is now called "Adjust all note positions" in English, with matching Traditional Chinese wording.
+- macOS menu actions: preserve a menu selection until native menu tracking finishes, so quick capture, note-position adjustment and arrangements still dispatch when the foreground-app lookup has no answer during selection. Opening the main window also restores a hidden or minimized window.
+- Windows certificate cleanup: re-query each exact old trust path immediately before removal and skip entries that have already disappeared. Current-user stores can inherit a local-machine entry; two listed paths do not necessarily mean two independently installed copies. Follow the corrected steps below.
+- Compatibility: application identities, preview signer and V1 note/sync/backup formats are unchanged from 0.7.1. A 0.7.1 installation can use its existing update path and certificate trust. Earlier identities and formats still need the manual transition described in 0.7.1; retain earlier apps, data and backups until recovery is verified.
+- Distribution and verification: this preview includes Windows, macOS and Linux only. Shared Apple/Android version records advance to 0.7.2 with build number 702; no Android APK, iOS download or store/beta submission is included. Automated and isolated desktop probes cover the changes; installed updates, real-provider behavior and the complete native interaction matrix remain separate acceptance checks.
+
+### Windows: remove the old CER and trust the current one
+
+Use these steps on each Windows computer that trusted the 0.7.0 or earlier preview certificate. Deleting the downloaded
+`.cer` file alone does not remove Windows trust. Retire the old certificate only when you no longer need to install
+packages signed by it; retain any earlier app/data you still need. If you already completed this transition for 0.7.1,
+no additional certificate change is required for 0.7.2.
+
+The old certificate included with 0.7.0 has Subject **`CN=Work Fleet Preview`** and SHA-1 thumbprint
+**`A6:46:FA:7F:1E:38:E5:E9:9C:7F:1D:5B:C9:C1:47:A1:D5:1C:60:8D`**.
+The current certificate has Subject **`CN=Pin It Anywhere Preview`** and thumbprint
+**`2C:59:63:AE:F3:7E:59:50:57:02:D1:75:00:95:7A:52:8F:0A:54:1F`**.
+Match the thumbprint, not just the display name; a separately created local certificate may have the same old name.
+
+Current-user certificate stores except Personal inherit local-machine certificates. Removing a local-machine entry
+can therefore also make its current-user view disappear. The 0.7.1 instructions could then report "Cannot find path"
+while processing their cached second entry, even though the removal succeeded. Re-run the preview below to refresh
+the list; do not reuse `$oldCertificates` from those earlier instructions. If no matches remain, continue to step 3.
+
+1. Open Start, search for **PowerShell**, right-click it and select **Run as administrator**. Run this preview block.
+   It checks only the exact old certificate in the current-user and local-machine Trusted People/Trusted Root stores,
+   lists matching paths, and previews their removal. Errors other than a missing entry stop the operation:
+
+   ```powershell
+   $oldThumbprint = 'A6:46:FA:7F:1E:38:E5:E9:9C:7F:1D:5B:C9:C1:47:A1:D5:1C:60:8D'.Replace(':', '')
+   $oldSubject = 'CN=Work Fleet Preview'
+   $stores = @(
+       'Cert:\LocalMachine\TrustedPeople', 'Cert:\CurrentUser\TrustedPeople',
+       'Cert:\LocalMachine\Root', 'Cert:\CurrentUser\Root'
+   )
+   $oldCertificates = @(
+       foreach ($store in $stores) {
+           $path = "$store\$oldThumbprint"
+           try {
+               $certificate = Get-Item -LiteralPath $path -ErrorAction Stop
+           } catch [System.Management.Automation.ItemNotFoundException] {
+               continue
+           }
+           if ($certificate.Thumbprint -ne $oldThumbprint -or $certificate.Subject -ne $oldSubject) {
+               throw 'Unexpected certificate; stop.'
+           }
+           [pscustomobject]@{ Path = $path; Subject = $certificate.Subject; Thumbprint = $certificate.Thumbprint }
+       }
+   )
+   $oldCertificates | Format-List Subject, Thumbprint, Path
+   $oldCertificates | ForEach-Object { Remove-Item -LiteralPath $_.Path -WhatIf -ErrorAction Stop }
+   if ($oldCertificates.Count -eq 0) { Write-Host 'No matching old trust entries found.' }
+   ```
+
+2. Check that every listed thumbprint is the old one above. In the **same PowerShell window**, run the removal block
+   and confirm each entry that still exists. Each path is looked up again, its identity is checked again, and a missing
+   path is skipped. This does not use `-DeleteKey` and does not target personal signing-key stores or unrelated certificates:
+
+   ```powershell
+   foreach ($entry in $oldCertificates) {
+       try {
+           $certificate = Get-Item -LiteralPath $entry.Path -ErrorAction Stop
+       } catch [System.Management.Automation.ItemNotFoundException] {
+           Write-Host "Already absent: $($entry.Path)"
+           continue
+       }
+       if ($certificate.Thumbprint -ne $oldThumbprint -or $certificate.Subject -ne $oldSubject) {
+           throw 'Unexpected certificate; stop.'
+       }
+       Remove-Item -LiteralPath $entry.Path -Confirm -ErrorAction Stop
+   }
+   $stores | ForEach-Object {
+       [pscustomobject]@{
+           Store = $_
+           Present = Test-Path -LiteralPath "$_\$oldThumbprint" -ErrorAction Stop
+       }
+   } | Format-Table -AutoSize
+   ```
+
+   Every `Present` value should be `False` when cleanup is complete. If an entry remains after you declined its
+   confirmation, re-run the preview before deciding whether to remove it. An access-denied error requires an
+   administrator PowerShell window; do not hide unexpected errors with `-ErrorAction SilentlyContinue`.
+
+3. Download **`PinItAnywhere-preview.cer` from this version's assets**. In that administrator PowerShell window,
+   verify its identity and import it into Local Machine / Trusted People. Change the file path if needed:
+
+   ```powershell
+   $newCer = Join-Path $HOME 'Downloads\PinItAnywhere-preview.cer'
+   $newThumbprint = '2C:59:63:AE:F3:7E:59:50:57:02:D1:75:00:95:7A:52:8F:0A:54:1F'.Replace(':', '')
+   $certificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($newCer)
+   try {
+       if ($certificate.Thumbprint -ne $newThumbprint -or $certificate.Subject -ne 'CN=Pin It Anywhere Preview') {
+           throw 'Unexpected new certificate; stop and check the download.'
+       }
+       Import-Certificate -FilePath $newCer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+   } finally {
+       $certificate.Dispose()
+   }
+   ```
+
+4. Open **`PinItAnywhere-0.7.2-x64.msix`**. A 0.7.1 installation has the same package identity, Publisher and signer;
+   earlier installations with a different identity remain separate. Installing or uninstalling an application is
+   separate from removing its certificate trust.
+
+References: [Microsoft certificate-store inheritance](https://learn.microsoft.com/en-us/windows-hardware/drivers/install/local-machine-and-current-user-certificate-stores)
+and [Certificate provider](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.security/about/about_certificate_provider).
+
 ## 0.7.1
 
 Platforms: Windows, Linux, macOS, Android.

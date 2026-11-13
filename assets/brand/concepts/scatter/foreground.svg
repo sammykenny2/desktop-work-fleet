@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Pin It Anywhere, concept "scatter": papers placed at different angles, the front one pinned.
+       Each top-level group is one layer (back to front). Groups marked data-legacy are drawn
+       only in pre-rendered PNGs; Icon Composer adds its own shadows and depth. -->
+  <g id="back-paper" transform="rotate(14 640 400)">
+    <rect x="470" y="230" width="340" height="340" rx="40" fill="#2A9D8F"/>
+  </g>
+  <g id="front-shadow" data-legacy="true" transform="rotate(-8 460 590)">
+    <rect x="250" y="380" width="420" height="420" rx="44" fill="#3B2A10" fill-opacity="0.25" transform="translate(10 22)"/>
+  </g>
+  <g id="front-paper" transform="rotate(-8 460 590)">
+    <rect x="250" y="380" width="420" height="420" rx="44" fill="#FFFAF0"/>
+    <rect x="310" y="520" width="300" height="32" rx="16" fill="#E7C9A0"/>
+    <rect x="310" y="596" width="240" height="32" rx="16" fill="#E7C9A0"/>
+    <rect x="310" y="672" width="160" height="32" rx="16" fill="#E7C9A0"/>
+  </g>
+  <g id="pin">
+    <circle cx="322" cy="452" r="58" fill="#E4573D"/>
+    <circle cx="304" cy="434" r="18" fill="#FF9F86"/>
+  </g>
+</svg>

@@ -4,6 +4,8 @@ Updated: 2026-11-13.
 
 ## Latest design: read first
 
+- [App icon platform requirements](2026-11-13-app-icon-platform-requirements.md): Apple Icon Composer and asset
+  catalogs, Android adaptive/Play, MSIX/Store, Linux hicolor/symbolic, publisher-logo surfaces and what was verified locally.
 - [Product identity and distribution boundaries](2026-11-13-product-identity-and-distribution-boundaries.md): dated
   primary sources, OAuth/app-data cutover limits, installer/update separation, beta rules and untested native boundaries.
 - [Tray primary clicks](2026-11-05-tray-primary-click.md): AppKit menu ownership, AppIndicator limitations, the Pi panel's

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Single-colour silhouette for themed and tinted icons; only alpha matters. -->
+  <defs>
+    <mask id="back" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <rect x="250" y="380" width="420" height="420" rx="44" fill="#000" transform="rotate(-8 460 590)" stroke="#000" stroke-width="56"/>
+    </mask>
+    <mask id="front" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g transform="rotate(-8 460 590)">
+        <rect x="310" y="520" width="300" height="32" rx="16" fill="#000"/>
+        <rect x="310" y="596" width="240" height="32" rx="16" fill="#000"/>
+        <rect x="310" y="672" width="160" height="32" rx="16" fill="#000"/>
+      </g>
+      <circle cx="322" cy="452" r="80" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="470" y="230" width="340" height="340" rx="40" fill="#000" transform="rotate(14 640 400)" mask="url(#back)"/>
+  <rect x="250" y="380" width="420" height="420" rx="44" fill="#000" transform="rotate(-8 460 590)" mask="url(#front)"/>
+  <circle cx="322" cy="452" r="58" fill="#000"/>
+</svg>

@@ -1,0 +1,9 @@
+{
+  "name": "Paper Pin",
+  "summary": "One tilted paper held by a round pin: the plainest reading of the product name.",
+  "fill": { "top": "#2E6AA3", "bottom": "#173D64" },
+  "darkFill": { "top": "#2A3442", "bottom": "#11161D" },
+  "darkColors": { "#FFF4D9": "#F3E6C4", "#EBD3A0": "#C9B07A", "#B9C8D6": "#8FA3B8" },
+  "scale": { "ios": 1.0, "macos": 0.98, "android": 0.72, "freeform": 1.22 },
+  "offset": { "ios": [0, -12], "macos": [0, -12], "android": [0, -10], "freeform": [0, -30] }
+}

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Pin It Anywhere, concept "paper-pin": one tilted paper held by a round pin.
+       Each top-level group is one layer (back to front). Groups marked data-legacy are drawn
+       only in pre-rendered PNGs; Icon Composer adds its own shadows and depth. -->
+  <g id="paper-shadow" data-legacy="true" transform="rotate(-5 512 540)">
+    <path fill="#0B2742" fill-opacity="0.35" d="M300 290H724A40 40 0 0 1 764 330V720L634 850H300A40 40 0 0 1 260 810V330A40 40 0 0 1 300 290Z" transform="translate(10 22)"/>
+  </g>
+  <g id="paper" transform="rotate(-5 512 540)">
+    <path fill="#FFF4D9" d="M300 290H724A40 40 0 0 1 764 330V720L634 850H300A40 40 0 0 1 260 810V330A40 40 0 0 1 300 290Z"/>
+    <path fill="#EBD3A0" d="M764 720L634 850V748A28 28 0 0 1 662 720Z"/>
+    <rect x="330" y="468" width="350" height="34" rx="17" fill="#B9C8D6"/>
+    <rect x="330" y="552" width="290" height="34" rx="17" fill="#B9C8D6"/>
+    <rect x="330" y="636" width="200" height="34" rx="17" fill="#B9C8D6"/>
+  </g>
+  <g id="pin-shadow" data-legacy="true">
+    <ellipse cx="398" cy="388" rx="66" ry="58" fill="#3A2A12" fill-opacity="0.22"/>
+  </g>
+  <g id="pin">
+    <circle cx="376" cy="366" r="66" fill="#EE5A3C"/>
+    <circle cx="354" cy="344" r="22" fill="#FF9F86"/>
+  </g>
+</svg>

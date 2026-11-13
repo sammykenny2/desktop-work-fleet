@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Single-colour silhouette for themed and tinted icons; only alpha matters. -->
+  <defs>
+    <mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="#fff"/>
+      <g transform="rotate(-5 512 540)">
+        <path fill="#000" d="M764 720L634 850V748A28 28 0 0 1 662 720Z" transform="translate(-14 -14)"/>
+        <rect x="330" y="468" width="350" height="34" rx="17" fill="#000"/>
+        <rect x="330" y="552" width="290" height="34" rx="17" fill="#000"/>
+        <rect x="330" y="636" width="200" height="34" rx="17" fill="#000"/>
+      </g>
+      <circle cx="376" cy="366" r="90" fill="#000"/>
+    </mask>
+  </defs>
+  <g mask="url(#cut)" transform="rotate(-5 512 540)">
+    <path fill="#000" d="M300 290H724A40 40 0 0 1 764 330V720L634 850H300A40 40 0 0 1 260 810V330A40 40 0 0 1 300 290Z"/>
+  </g>
+  <circle cx="376" cy="366" r="66" fill="#000"/>
+</svg>

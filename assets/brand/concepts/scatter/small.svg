@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Hand-simplified colour icon for 16-48 px. Edges sit on even units so 16 and 32 px stay crisp. -->
+  <rect x="14" y="2" width="16" height="16" rx="2" fill="#2A9D8F"/>
+  <rect x="2" y="10" width="20" height="20" rx="2" fill="#7A4A12"/>
+  <rect x="4" y="12" width="16" height="16" rx="1" fill="#FFFAF0"/>
+  <rect x="8" y="18" width="8" height="2" fill="#D9A766"/>
+  <rect x="8" y="22" width="6" height="2" fill="#D9A766"/>
+  <circle cx="7" cy="13" r="4" fill="#7A4A12"/>
+  <circle cx="7" cy="13" r="2.5" fill="#E4573D"/>
+</svg>

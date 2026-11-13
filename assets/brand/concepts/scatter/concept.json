@@ -1,0 +1,9 @@
+{
+  "name": "Scatter",
+  "summary": "Two papers at different angles, the front one pinned: notes placed anywhere on the desktop.",
+  "fill": { "top": "#F7C65A", "bottom": "#EE9A3A" },
+  "darkFill": { "top": "#3A3226", "bottom": "#17130D" },
+  "darkColors": { "#FFFAF0": "#F1E8D6", "#E7C9A0": "#B89A70", "#2A9D8F": "#2E8A7E" },
+  "scale": { "ios": 1.08, "macos": 1.06, "android": 0.76, "freeform": 1.22 },
+  "offset": { "ios": [0, -6], "macos": [0, -6], "android": [0, -4], "freeform": [0, -14] }
+}

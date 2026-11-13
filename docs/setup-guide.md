@@ -136,7 +136,7 @@ Without `.env` you can use the local preview; Google and the release configurati
 .\gradlew.bat assembleDebug
 ```
 
-The APK is at `src/native/android/app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`;
+The APK is at `src/native/android/app/build/outputs/apk/debug/PinItAnywhere-<versionName>-android-debug.apk`;
 `Build-AndroidApp.ps1` and `build-android-app.sh` also copy it to `build/`.
 Version numbers and file names per platform are in [Deployment](deployment.md).
 After changing the application ID in `.env`, sync again. `local.properties` is the local SDK path that the IDE
@@ -205,7 +205,7 @@ For local trial installs use `-LocalTestSign`. It reuses a code-signing certific
 manifest publisher exactly, is valid and is trusted in LocalMachine/TrustedPeople; when there are several, choose one
 with `-CertificateThumbprint`.
 This mode delivers only after signing succeeds and local trust verification passes, and it also outputs
-`WorkFleet-preview.cer` without the private key.
+`PinItAnywhere-preview.cer` without the private key.
 A computer that already trusts that certificate can open the MSIX to install it, with no Windows Store developer
 account.
 Other test computers must trust the public CER first; see the
@@ -268,7 +268,7 @@ a user's reboot or install acceptance. Details are in the [Linux README](../src/
 Windows can run `Build-LinuxPackage.ps1` with an existing Docker Linux engine; it produces a preview DEB with the
 dpkg-deb of a pinned Ubuntu image. It needs no local Linux GUI and does not run the app. `-Release` requires the
 formal public settings.
-The Linux and Windows build entry points both produce `build/work-fleet_<version>_all.deb` directly, with no manual
+The Linux and Windows build entry points both produce `build/pin-it-anywhere_<version>_all.deb` directly, with no manual
 file moves.
 The tar.gz and the DEB are both in `build/`, the source and runtime copies in `build/linux/`; the DEB staging is
 removed automatically when packaging ends.

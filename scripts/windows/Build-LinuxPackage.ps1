@@ -39,6 +39,6 @@ try {
     if ($Release) { $Arguments += '--release' }
     & docker @Arguments
     if ($LASTEXITCODE -ne 0) { throw 'Linux DEB build failed; a Linux Docker engine and an available build image are required.' }
-    Write-Output "Linux package: $(Join-Path $BuildOutput "work-fleet_${Version}_all.deb")"
-    Write-Output "Linux archive: $(Join-Path $BuildOutput "work-fleet-$Version.tar.gz")"
+    Write-Output "Linux package: $(Join-Path $BuildOutput "pin-it-anywhere_${Version}_all.deb")"
+    Write-Output "Linux archive: $(Join-Path $BuildOutput "pin-it-anywhere-$Version.tar.gz")"
 } finally { Pop-Location }

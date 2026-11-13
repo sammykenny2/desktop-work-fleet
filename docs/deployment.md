@@ -82,22 +82,29 @@ Windows and Apple move files to `build/` only after the whole build, signing and
 failure leaves no partial output.
 
 - Windows: `<Version>` in `src/native/windows/Directory.Build.props`, used for the assembly version, the MSIX identity
-  (with `.0` appended) and `WorkFleet-<version>-x64.msix`/`WorkFleet-<version>-x64.zip`.
+  (with `.0` appended) and `PinItAnywhere-<version>-x64.msix`/`PinItAnywhere-<version>-x64.zip`.
 - macOS/iOS: `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` in `src/native/apple/config/WorkFleet.xcconfig`;
   an override in Local.xcconfig or on the command line makes resource preparation fail. The packaging scripts read the
   app's Info.plist.
   - macOS command-line builds always include arm64/x86_64, and both architectures are checked before packaging.
-    Release exports are `WorkFleet-<version>-macos-universal.pkg`/`.dmg`;
-    previews are `WorkFleet-<version>-macos-universal-<unsigned|development>.zip`, or `.dmg` with `--dmg`.
-  - iOS previews are `WorkFleet-<version>-ios-<unsigned|development>.ipa` and `WorkFleet-<version>-ios-simulator.zip`;
-    release exports are named by `--method` as `WorkFleet-<version>-ios-<method>.ipa`;
-    the macOS `app-store-connect` export is `WorkFleet-<version>-macos-universal-app-store-connect.pkg`.
+    Release exports are `PinItAnywhere-<version>-macos-universal.pkg`/`.dmg`;
+    previews are `PinItAnywhere-<version>-macos-universal-<unsigned|development>.zip`, or `.dmg` with `--dmg`.
+  - iOS previews are `PinItAnywhere-<version>-ios-<unsigned|development>.ipa` and `PinItAnywhere-<version>-ios-simulator.zip`;
+    release exports are named by `--method` as `PinItAnywhere-<version>-ios-<method>.ipa`;
+    the macOS `app-store-connect` export is `PinItAnywhere-<version>-macos-universal-app-store-connect.pkg`.
   - The preview suffix comes from the app's own signature, not from the certificates on the build machine.
 - Android: `versionName` in `src/native/android/app/build.gradle.kts`;
-  local `WorkFleet-<version>-android-debug.apk`, signed delivery `WorkFleet-<version>-android-release.apk`,
-  or `WorkFleet-<version>-android-release.aab` for the bundle path.
-- Linux: `src/native/linux/VERSION`; `build/work-fleet_<version>_all.deb` follows the Debian
-  `package_version_architecture` convention, and the source/runtime archive is `build/work-fleet-<version>.tar.gz`.
+  local `PinItAnywhere-<version>-android-debug.apk`, signed delivery `PinItAnywhere-<version>-android-release.apk`,
+  or `PinItAnywhere-<version>-android-release.aab` for the bundle path.
+- Linux: `src/native/linux/VERSION`; `build/pin-it-anywhere_<version>_all.deb` follows the Debian
+  filename style, and the source/runtime archive is `build/pin-it-anywhere-<version>.tar.gz`, with a matching top-level directory.
+
+Distribution filenames use `PinItAnywhere` (lowercase `pin-it-anywhere` for Linux), including the companion
+`PinItAnywhere-preview.cer`. This renames the public certificate file, not its contents or the package's signer.
+Keep `work-fleet-update-windows.json`, `work-fleet-update-linux.json`, `work-fleet-update-macos.json` and `appcast.xml`
+at their existing names because installed desktop hosts request them by those names. Their asset entries and URLs
+name the new downloads. Internal Apple targets, Windows package identity/publisher and the installed Debian package
+name `work-fleet` are independent of download filenames and remain unchanged. Historical published assets are not renamed.
 
 Public settings are in `.env.example`: each platform's Google client, the app ID, the Apple team/App Group, the
 Microsoft package identity/publisher, and privacy and support data. Private keys and passwords come from the OS
@@ -142,7 +149,7 @@ licences/notices and NuGet package metadata, and neither contains a runtime inst
 An unsigned preview MSIX is not treated as directly installable or as a store deliverable, and the ZIP has no
 executable signature either.
 Without an existing trusted preview certificate, a plain `Build-WindowsPackage.ps1 -SkipRestore` produces an unsigned
-MSIX/ZIP, and `Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` checks only the package
+MSIX/ZIP, and `Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix -Unsigned` checks only the package
 contents.
 Users unpack the ZIP and run `WorkFleet.exe`; the ZIP and the unpackaged Debug build share `%LOCALAPPDATA%\WorkFleet`,
 so close an older instance that uses the same data folder first.
@@ -348,7 +355,7 @@ The job therefore blocks outbound UDP 443 before packaging, GitHub's workaround,
 `macos-15` on 2026-10-23, 6 of 10 staple-and-validate rounds failed with UDP 443 open and 10 of 10 passed with it
 blocked. Remove that step once the issue is fixed. Each staple and validate is still retried up to six times with pauses growing from
 one minute (`WORK_FLEET_STAPLER_PAUSE` sets the first pause in seconds);
-only when everything succeeds are `WorkFleet-<version>-macos-universal.dmg`/`.zip`, their `.sha256` files,
+only when everything succeeds are `PinItAnywhere-<version>-macos-universal.dmg`/`.zip`, their `.sha256` files,
 `appcast.xml` and `work-fleet-update-macos.json` delivered to `build/`.
 Ordinary local packaging still produces a PKG by default; only `--no-pkg` skips it. Notarizing a PKG still needs
 `--installer-identity`.
@@ -399,7 +406,7 @@ CI requires all four signing Secrets and the full public Release configuration b
 Debug unit tests, then `build-android-app.sh --signed --apk`; it never uploads a Debug APK. Before saving the APK,
 `scripts/check_android_package.py` runs SDK `apksigner verify` and `apkanalyzer manifest print`, rejecting a wrong
 signer, an Android Debug certificate, wrong app ID/version, debuggable/test-only manifests and non-Release bundled
-runtime inventories. The package is `WorkFleet-<version>-android-release.apk` with its SHA-256.
+runtime inventories. The package is `PinItAnywhere-<version>-android-release.apk` with its SHA-256.
 Missing release credentials stop the job; the old `ANDROID_DEBUG_KEYSTORE_BASE64` Secret is not a fallback and is not
 deleted automatically. Matching application ID, signer and a higher versionCode are required for an installed update.
 Export a supported backup before removing an old test-key installation; never uninstall it automatically.
@@ -428,7 +435,7 @@ For existing Xcode-managed profiles that cannot use manual Xcode signing, first 
 The tool validates the Team, bundle IDs, App Group, main app's Keychain group, validity, certificate and matching device
 sets; it signs the nested code, extension and app, embeds the matching profiles, and verifies the result.
 
-Packaging produces `build/WorkFleet-<version>-ios-development.ipa` and its SHA-256 without changing the version.
+Packaging produces `build/PinItAnywhere-<version>-ios-development.ipa` and its SHA-256 without changing the version.
 Install the signed `.app` using Xcode or `xcrun devicectl device install app --device <DEVICE_ID> <APP_PATH>`, or use
 Apple Configurator with the IPA. Keep the bundle ID and Team unchanged when updating an installed copy. Only devices
 registered in both profiles can install it, with Developer Mode enabled. After adding a device, update both local
@@ -447,7 +454,7 @@ The Linux DEB uses the version in `src/native/linux/VERSION`, and early versions
 builds may use the preview maintainer contact;
 a release still needs the final public settings and email, and the version number does not decide whether distribution
 acceptance is complete.
-The Linux and Windows build entry points write `build/work-fleet_<version>_all.deb` directly, and the packaging script
+The Linux and Windows build entry points write `build/pin-it-anywhere_<version>_all.deb` directly, and the packaging script
 removes its staging automatically.
 WSL cannot apply the Unix permissions `dpkg-deb` needs on a Windows-mounted checkout: build the DEB in a private Linux
 temporary directory and copy it back into the ignored `build/` (2026-10-17).

@@ -42,11 +42,11 @@ if [[ "$PLATFORM" == macos ]]; then
     ARCHITECTURES=" $(lipo -archs "$APP/Contents/MacOS/$EXECUTABLE") "
     [[ "$ARCHITECTURES" == *' arm64 '* && "$ARCHITECTURES" == *' x86_64 '* ]] || {
         echo "macOS previews must be universal; found:$ARCHITECTURES. Rebuild with scripts/macos/build-native-app.sh." >&2; exit 1; }
-    NAME="WorkFleet-$VERSION-macos-universal-$(signing)"
+    NAME="PinItAnywhere-$VERSION-macos-universal-$(signing)"
 elif [[ "$SIMULATOR" == 0 ]]; then
-    NAME="WorkFleet-$VERSION-ios-$(signing)"
+    NAME="PinItAnywhere-$VERSION-ios-$(signing)"
 else
-    NAME="WorkFleet-$VERSION-ios-simulator"
+    NAME="PinItAnywhere-$VERSION-ios-simulator"
 fi
 OUTPUT="$PROJECT_ROOT/build/apple/preview-$PLATFORM"
 rm -rf -- "$OUTPUT"; mkdir -p "$OUTPUT"

@@ -3,6 +3,8 @@ import json
 import os
 import shutil
 import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -10,6 +12,31 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGER = ROOT / "scripts" / "linux" / "package-deb.sh"
+
+
+class LinuxArchiveTests(unittest.TestCase):
+    def test_archive_filename_root_and_checksum_use_product_name(self):
+        with tempfile.TemporaryDirectory(prefix="pin-it-anywhere-archive-") as temporary:
+            checkout = Path(temporary) / "checkout with spaces"
+            script = checkout / "scripts/package-linux.py"
+            script.parent.mkdir(parents=True)
+            shutil.copy2(ROOT / "scripts/package-linux.py", script)
+            version = checkout / "src/native/linux/VERSION"
+            version.parent.mkdir(parents=True)
+            version.write_text("9.8.7\n", encoding="utf-8")
+            bundle = checkout / "build/linux/work-fleet-9.8.7"
+            (bundle / "Native").mkdir(parents=True)
+            (bundle / "Native/host.py").write_text("# Packaging fixture\n", encoding="utf-8")
+            result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, timeout=10)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            archive = checkout / "build/pin-it-anywhere-9.8.7.tar.gz"
+            self.assertTrue(archive.is_file())
+            digest = hashlib.sha256(archive.read_bytes()).hexdigest()
+            self.assertEqual(archive.with_name(archive.name + ".sha256").read_text(encoding="utf-8"),
+                             f"{digest}  {archive.name}\n")
+            with tarfile.open(archive) as packed:
+                self.assertEqual(packed.getnames(), ["pin-it-anywhere-9.8.7", "pin-it-anywhere-9.8.7/Native",
+                                                    "pin-it-anywhere-9.8.7/Native/host.py"])
 
 
 @unittest.skipUnless(
@@ -77,7 +104,7 @@ class LinuxPackageTests(unittest.TestCase):
                 result = self.package(*options)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 packages = list(self.output.glob("*.deb"))
-                self.assertEqual([p.name for p in packages], ["work-fleet_2.3.4_all.deb"])
+                self.assertEqual([p.name for p in packages], ["pin-it-anywhere_2.3.4_all.deb"])
                 self.assertEqual(self.field(packages[0], "Version"), "2.3.4")
                 self.assert_checksum(packages[0])
                 self.assertEqual(self.field(packages[0], "Package"), "work-fleet")
@@ -87,7 +114,7 @@ class LinuxPackageTests(unittest.TestCase):
                 # ADR-044: the release's update manifest names exactly this DEB.
                 manifest = json.loads((self.output / "work-fleet-update-linux.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest, {"schemaVersion": 1, "platform": "linux", "version": "2.3.4", "tag": "v2.3.4", "summary": "",
-                                            "assets": [{"arch": "all", "name": "work-fleet_2.3.4_all.deb", "size": packages[0].stat().st_size,
+                                            "assets": [{"arch": "all", "name": "pin-it-anywhere_2.3.4_all.deb", "size": packages[0].stat().st_size,
                                                         "sha256": hashlib.sha256(packages[0].read_bytes()).hexdigest()}]})
                 self.assertEqual(
                     self.field(packages[0], "Maintainer"),
@@ -164,13 +191,13 @@ class LinuxPackageTests(unittest.TestCase):
             timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        package = build / "work-fleet_9.8.7_all.deb"
+        package = build / "pin-it-anywhere_9.8.7_all.deb"
         self.assertTrue(package.is_file())
         self.assertEqual(self.field(package, "Version"), "9.8.7")
         self.assert_checksum(package)
         self.assertEqual(list((build / "linux").glob("*.deb")), [])
         self.assertEqual(list(build.glob("deb-stage-*")), [])
-        archive = build / "work-fleet-9.8.7.tar.gz"
+        archive = build / "pin-it-anywhere-9.8.7.tar.gz"
         self.assertTrue(archive.is_file())
         self.assert_checksum(archive)
         self.assertEqual(marker.read_text(encoding="utf-8"), "existing output\n")
@@ -193,8 +220,8 @@ class LinuxPackageTests(unittest.TestCase):
         # Release files sit directly in build/, at the same depth as every other platform's.
         self.assertEqual(
             sorted(p.name for p in build.iterdir() if p.is_file()),
-            ["keep.txt", "work-fleet-9.8.7.tar.gz", "work-fleet-9.8.7.tar.gz.sha256",
-             "work-fleet-update-linux.json", "work-fleet_9.8.7_all.deb", "work-fleet_9.8.7_all.deb.sha256"],
+            ["keep.txt", "pin-it-anywhere-9.8.7.tar.gz", "pin-it-anywhere-9.8.7.tar.gz.sha256",
+             "pin-it-anywhere_9.8.7_all.deb", "pin-it-anywhere_9.8.7_all.deb.sha256", "work-fleet-update-linux.json"],
         )
         self.assertEqual([p.name for p in (build / "linux").iterdir()], ["work-fleet-9.8.7"])
 

@@ -78,14 +78,14 @@ jobs:
           SUMMARY: ${{ inputs.summary }}
         run: |
           ./scripts/windows/Build-WindowsPackage.ps1 -LocalTestSign -UpdateSummary $env:SUMMARY
-          if (-not (Test-Path -LiteralPath "build/WorkFleet-$env:VERSION-x64.msix")) { throw "build/WorkFleet-$env:VERSION-x64.msix was not produced." }
+          if (-not (Test-Path -LiteralPath "build/PinItAnywhere-$env:VERSION-x64.msix")) { throw "build/PinItAnywhere-$env:VERSION-x64.msix was not produced." }
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-windows
           path: |
-            build/WorkFleet-${{ inputs.version }}-x64.msix
-            build/WorkFleet-${{ inputs.version }}-x64.msix.sha256
-            build/WorkFleet-preview.cer
+            build/PinItAnywhere-${{ inputs.version }}-x64.msix
+            build/PinItAnywhere-${{ inputs.version }}-x64.msix.sha256
+            build/PinItAnywhere-preview.cer
             build/work-fleet-update-windows.json
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.

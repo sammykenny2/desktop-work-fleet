@@ -53,14 +53,14 @@ node scripts/generate-apple-export-options.mjs "${EXPORT_ARGS[@]}"
 xcodebuild -exportArchive -archivePath "$ARCHIVE" -exportPath "$OUTPUT/products" -exportOptionsPlist "$OPTIONS"
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :ApplicationProperties:CFBundleShortVersionString' "$ARCHIVE/Info.plist")"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Unexpected archive version: $VERSION" >&2; exit 1; }
-NAME="WorkFleet-$VERSION-ios"
+NAME="PinItAnywhere-$VERSION-ios"
 if [[ "$PLATFORM" == macos ]]; then
     ARCHIVED="$ARCHIVE/Products/Applications/WorkFleetMac.app"
     EXECUTABLE="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$ARCHIVED/Contents/Info.plist")"
     ARCHITECTURES=" $(lipo -archs "$ARCHIVED/Contents/MacOS/$EXECUTABLE") "
     [[ "$ARCHITECTURES" == *' arm64 '* && "$ARCHITECTURES" == *' x86_64 '* ]] || {
         echo "macOS packages must be universal; found:$ARCHITECTURES. Archive with scripts/macos/build-native-app.sh." >&2; exit 1; }
-    NAME="WorkFleet-$VERSION-macos-universal"
+    NAME="PinItAnywhere-$VERSION-macos-universal"
 fi
 DELIVERED=(); FEED=()
 NOTARY_ARGS=(--keychain-profile "$NOTARY")

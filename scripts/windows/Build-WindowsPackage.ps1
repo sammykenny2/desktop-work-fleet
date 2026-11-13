@@ -130,7 +130,7 @@ try {
         $LocalCertificate = $SigningCertificates[0]
         $CertificateThumbprint = $LocalCertificate.Thumbprint
     }
-    $Msix = Join-Path $Work "WorkFleet-$PackageVersion-x64.msix"
+    $Msix = Join-Path $Work "PinItAnywhere-$PackageVersion-x64.msix"
     $PackagingLog = Join-Path $Work 'makeappx.log'
     & $MakeAppx pack /d $Stage /p $Msix /h SHA256 > $PackagingLog
     if ($LASTEXITCODE -ne 0) {
@@ -145,11 +145,11 @@ try {
         if ($LocalTestSign) {
             & $SignTool verify /pa /v $Msix
             if ($LASTEXITCODE -ne 0) { throw 'Local test signature is not valid or trusted on this machine.' }
-            $PublicCertificate = Join-Path $Work 'WorkFleet-preview.cer'
+            $PublicCertificate = Join-Path $Work 'PinItAnywhere-preview.cer'
             Export-Certificate -Cert $LocalCertificate -FilePath $PublicCertificate -Type CERT | Out-Null
         }
     }
-    $Zip = Join-Path $Work "WorkFleet-$PackageVersion-x64.zip"
+    $Zip = Join-Path $Work "PinItAnywhere-$PackageVersion-x64.zip"
     $PublishedFiles = Get-ChildItem -LiteralPath $Stage -Force | Select-Object -ExpandProperty FullName
     Compress-Archive -LiteralPath $PublishedFiles -DestinationPath $Zip
     Write-Checksum $Msix; Write-Checksum $Zip
@@ -165,7 +165,7 @@ try {
     if ($LocalTestSign) { $Delivered += $PublicCertificate }
     Move-Item -LiteralPath $Delivered -Destination $Delivery -Force
     $Msix = Join-Path $Delivery (Split-Path -Leaf $Msix); $Zip = Join-Path $Delivery (Split-Path -Leaf $Zip)
-    if ($LocalTestSign) { $PublicCertificate = Join-Path $Delivery 'WorkFleet-preview.cer' }
+    if ($LocalTestSign) { $PublicCertificate = Join-Path $Delivery 'PinItAnywhere-preview.cer' }
     Write-Output "MSIX: $Msix"
     Write-Output "Portable ZIP: $Zip"
     Write-Output "Update manifest: $(Join-Path $Delivery 'work-fleet-update-windows.json')"

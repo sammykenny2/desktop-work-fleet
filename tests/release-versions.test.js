@@ -105,7 +105,7 @@ test('repository records hold numeric versions and the packaging scripts never r
     assert.equal((await readFile(path.join(root, project), 'utf8')).includes('<Version>'), false, project);
   }
   const gradle = await readFile(path.join(root, 'src/native/android/app/build.gradle.kts'), 'utf8');
-  assert.ok(gradle.includes('archivesName.set("WorkFleet-${android.defaultConfig.versionName}-android")'));
+  assert.ok(gradle.includes('archivesName.set("PinItAnywhere-${android.defaultConfig.versionName}-android")'));
 });
 
 test('packaging work directories are fixed and release files go directly in build/', async () => {

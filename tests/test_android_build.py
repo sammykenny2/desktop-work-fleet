@@ -37,9 +37,9 @@ esac
 set -eu
 for task in "$@"; do
   case "$task" in
-    assembleDebug) output=apk/debug/WorkFleet-9.8.7-android-debug.apk ;;
-    assembleRelease) output=apk/release/WorkFleet-9.8.7-android-release.apk ;;
-    bundleRelease) output=bundle/release/WorkFleet-9.8.7-android-release.aab ;;
+    assembleDebug) output=apk/debug/PinItAnywhere-9.8.7-android-debug.apk ;;
+    assembleRelease) output=apk/release/PinItAnywhere-9.8.7-android-release.apk ;;
+    bundleRelease) output=bundle/release/PinItAnywhere-9.8.7-android-release.aab ;;
     *) continue ;;
   esac
   printf '%s' "$task" > invoked-task.txt
@@ -66,7 +66,7 @@ done
                 result = self.build(arguments, signing)
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual((self.root / "invoked-task.txt").read_text(), task)
-                package = self.root / "build" / ("WorkFleet-9.8.7-" + name)
+                package = self.root / "build" / ("PinItAnywhere-9.8.7-" + name)
                 self.assertEqual(package.read_text(), "synthetic " + task)
                 self.assertEqual(Path(str(package) + ".sha256").read_text(), hashlib.sha256(package.read_bytes()).hexdigest() + "  " + package.name + "\n")
 

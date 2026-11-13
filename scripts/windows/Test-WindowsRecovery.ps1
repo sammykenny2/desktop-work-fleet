@@ -2,7 +2,7 @@
 .SYNOPSIS
     Prove end to end that a sign-in crash leaves Explorer first, with an isolated probe package.
 .DESCRIPTION
-    Takes the locally signed build/WorkFleet-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and installs a
+    Takes the locally signed build/PinItAnywhere-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and installs a
     copy under the probe identity app.workfleet.crashprobe.e2e, signed with the same locally trusted certificate.
     crash-probe.txt in its data directory makes this identity (ADR-045; no other reads it) start as a sign-in launch and,
     once its desktop scenes are inside Explorer, fail the way the 0.2.0 sign-in launch did: a render-thread failure.
@@ -11,7 +11,7 @@
     the probe package, its data and its crash dump; host.log is kept under build/windows/crash-probe. The installed Work
     Fleet package, its data and its certificate trust are never touched. The probe's empty desktop scenes exist briefly.
 .PARAMETER PackagePath
-    Signed MSIX to copy. Defaults to build/WorkFleet-VERSION-x64.msix.
+    Signed MSIX to copy. Defaults to build/PinItAnywhere-VERSION-x64.msix.
 .PARAMETER SdkBin
     Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
 .EXAMPLE
@@ -49,7 +49,7 @@ public static bool Answers(string className) {
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'; $SignTool = Find-SdkTool 'SignTool.exe'
 $Version = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
 if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version.' }
-if (-not $PackagePath) { $PackagePath = Join-Path $ProjectRoot "build/WorkFleet-$Version-x64.msix" }
+if (-not $PackagePath) { $PackagePath = Join-Path $ProjectRoot "build/PinItAnywhere-$Version-x64.msix" }
 $Package = (Resolve-Path -LiteralPath $PackagePath).ProviderPath
 if ((Get-AuthenticodeSignature -LiteralPath $Package).Status -ne 'Valid') { throw 'The source MSIX must be signed and trusted; run Build-WindowsPackage.ps1 -LocalTestSign first.' }
 $Work = Join-Path $ProjectRoot 'build/windows/crash-probe'

@@ -5,7 +5,7 @@
     On 2026-10-14 the 0.2.1 sign-in launch started while Windows still used a laptop's closed internal panel as the
     primary display next to an external one; when Windows turned the panel off, the WPF render thread failed (ADR-045).
     This test repeats that change without a reboot. It switches Windows to "Extend" with DisplaySwitch.exe, starts a
-    copy of build/WorkFleet-VERSION-x64.msix under the probe identity app.workfleet.displayprobe.e2e (signed with the
+    copy of build/PinItAnywhere-VERSION-x64.msix under the probe identity app.workfleet.displayprobe.e2e (signed with the
     same locally trusted certificate), waits for its desktop scenes to be inside Explorer, then alternates "Second screen
     only" and "Extend" for -Cycles rounds while checking that Explorer answers. Passes when the probe logs no fatal
     error and Explorer never stops answering for 5 seconds or reports a hang. It needs two connected displays (a
@@ -14,7 +14,7 @@
     change would reach that one too. The probe package, its data and any probe crash dump are removed; host.log is kept
     under build/windows/display-probe.
 .PARAMETER PackagePath
-    Signed MSIX to copy. Defaults to build/WorkFleet-VERSION-x64.msix.
+    Signed MSIX to copy. Defaults to build/PinItAnywhere-VERSION-x64.msix.
 .PARAMETER SdkBin
     Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
 .PARAMETER Cycles
@@ -107,7 +107,7 @@ if ($Others.Count -gt 0) { throw 'Quit the running Work Fleet from its tray menu
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'; $SignTool = Find-SdkTool 'SignTool.exe'
 $Version = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
 if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version.' }
-if (-not $PackagePath) { $PackagePath = Join-Path $ProjectRoot "build/WorkFleet-$Version-x64.msix" }
+if (-not $PackagePath) { $PackagePath = Join-Path $ProjectRoot "build/PinItAnywhere-$Version-x64.msix" }
 $Package = (Resolve-Path -LiteralPath $PackagePath).ProviderPath
 if ((Get-AuthenticodeSignature -LiteralPath $Package).Status -ne 'Valid') { throw 'The source MSIX must be signed and trusted; run Build-WindowsPackage.ps1 -LocalTestSign first.' }
 $Work = Join-Path $ProjectRoot 'build/windows/display-probe'

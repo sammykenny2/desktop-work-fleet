@@ -203,7 +203,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         feed = "https://github.com/o/r/releases.atom"
         base = "https://github.com/o/r/releases/download/v0.2.0/"
         manifest = json.dumps({"schemaVersion": 1, "platform": "linux", "version": "0.2.0", "tag": "v0.2.0", "summary": "New version",
-                               "assets": [{"arch": "all", "name": "work-fleet_0.2.0_all.deb", "size": len(deb), "sha256": hashlib.sha256(deb).hexdigest()}]}).encode()
+                               "assets": [{"arch": "all", "name": "pin-it-anywhere_0.2.0_all.deb", "size": len(deb), "sha256": hashlib.sha256(deb).hexdigest()}]}).encode()
         releases = feed_for("v0.2.0")
         commands = []
         pkexec = {"code": 126}
@@ -215,7 +215,7 @@ class LinuxUpdaterTests(unittest.TestCase):
             if command[0] == "dpkg":
                 return completed(stdout="amd64\n")
             return completed(pkexec["code"], stderr="dpkg: error\n")
-        routes = {feed: releases, base + "work-fleet-update-linux.json": manifest, base + "work-fleet_0.2.0_all.deb": deb}
+        routes = {feed: releases, base + "work-fleet-update-linux.json": manifest, base + "pin-it-anywhere_0.2.0_all.deb": deb}
         instance, states = self.updater_for(folder, routes, run)
         self.assertEqual(instance.snapshot()["nextAction"], "check")
         self.wait(instance, instance.check)
@@ -227,7 +227,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.assertTrue(all("api.github.com" not in request.full_url for request in requests))
         self.wait(instance, instance.download)
         self.assertEqual(instance.snapshot()["status"], "downloaded")
-        self.assertEqual((folder / "updates/work-fleet_0.2.0_all.deb").read_bytes(), deb)
+        self.assertEqual((folder / "updates/pin-it-anywhere_0.2.0_all.deb").read_bytes(), deb)
         self.assertIn("downloading", [state["status"] for state in states])
         results = []
         done = threading.Event()
@@ -243,7 +243,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         finally:
             text.set_locale("en")
         self.assertEqual(commands[-1][0], "pkexec")
-        self.assertTrue(commands[-1][-1].endswith("work-fleet_0.2.0_all.deb"))
+        self.assertTrue(commands[-1][-1].endswith("pin-it-anywhere_0.2.0_all.deb"))
         pkexec["code"] = 0
         done.clear()
         instance.install(lambda ok: (results.append(ok), done.set()))
@@ -253,7 +253,7 @@ class LinuxUpdaterTests(unittest.TestCase):
         self.wait(instance, instance.check)
         self.assertEqual(instance.snapshot()["status"], "downloaded")
         # A changed file is caught right before installing.
-        (folder / "updates/work-fleet_0.2.0_all.deb").write_bytes(b"tampered")
+        (folder / "updates/pin-it-anywhere_0.2.0_all.deb").write_bytes(b"tampered")
         done.clear()
         instance.install(lambda ok: (results.append(ok), done.set()))
         self.assertTrue(done.wait(10))

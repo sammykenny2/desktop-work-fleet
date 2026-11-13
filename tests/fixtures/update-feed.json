@@ -15,7 +15,13 @@
     "<!DOCTYPE feed [<!ENTITY x SYSTEM \"file:///etc/passwd\">]><feed xmlns=\"http://www.w3.org/2005/Atom\">&x;</feed>"
   ],
   "manifests": [
-    { "name": "a matching manifest names the asset to download",
+    { "name": "a matching manifest accepts the new product filename using the existing manifest lookup",
+      "manifest": { "schemaVersion": 1, "platform": "windows", "version": "0.1.10", "tag": "v0.1.10", "summary": "Fixes and improvements",
+        "assets": [{ "arch": "x64", "name": "PinItAnywhere-0.1.10-x64.msix", "size": 1000, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }] },
+      "expected": { "version": "0.1.10", "summary": "Fixes and improvements", "name": "PinItAnywhere-0.1.10-x64.msix", "size": 1000,
+        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "url": "https://github.com/o/r/releases/download/v0.1.10/PinItAnywhere-0.1.10-x64.msix" } },
+    { "name": "a matching historical manifest still names the old asset to download",
       "manifest": { "schemaVersion": 1, "platform": "windows", "version": "0.1.10", "tag": "v0.1.10", "summary": "Fixes and improvements",
         "assets": [{ "arch": "x64", "name": "WorkFleet-0.1.10-x64.msix", "size": 1000, "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }] },
       "expected": { "version": "0.1.10", "summary": "Fixes and improvements", "name": "WorkFleet-0.1.10-x64.msix", "size": 1000,

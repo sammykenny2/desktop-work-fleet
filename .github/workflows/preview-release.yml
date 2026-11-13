@@ -168,13 +168,13 @@ jobs:
 
           ## Windows
           Requires Windows 11 (build 22000 or later). The package includes the .NET 10 Desktop Runtime, so .NET needs no separate installation; it uses the system's Evergreen WebView2 Runtime.
-          1. Download \`WorkFleet-preview.cer\` from the assets below.
+          1. Download \`PinItAnywhere-preview.cer\` from the assets below.
           2. Trust the certificate (once per computer). This needs administrator rights; without them, Windows answers "Access is denied" (E_ACCESSDENIED). Open the Start menu, search for PowerShell, right-click it and choose Run as administrator. Then run this command, changing the path if you saved the file somewhere else:
 
              \`\`\`powershell
-             Import-Certificate -FilePath "\$HOME\\Downloads\\WorkFleet-preview.cer" -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople
+             Import-Certificate -FilePath "\$HOME\\Downloads\\PinItAnywhere-preview.cer" -CertStoreLocation Cert:\\LocalMachine\\TrustedPeople
              \`\`\`
-          3. Double-click \`WorkFleet-${VERSION}-x64.msix\` to install it.
+          3. Double-click \`PinItAnywhere-${VERSION}-x64.msix\` to install it.
 
           A version higher than the installed one installs as an upgrade and preserves the package's local files; the same version must be uninstalled first. Check the changes above for data-format compatibility and any required reset before upgrading.
           Uninstalling removes all local data inside the package (including drafts, settings and the Google sign-in); export a ZIP from Settings > Data and backup first.
@@ -182,18 +182,18 @@ jobs:
 
           ## macOS
           Signed with Developer ID and notarized by Apple. Requires macOS 13 or later.
-          Open \`WorkFleet-${VERSION}-macos-universal.dmg\` and drag Pin It Anywhere to Applications.
+          Open \`PinItAnywhere-${VERSION}-macos-universal.dmg\` and drag Pin It Anywhere to Applications.
 
           ## Linux
           Requires the system GTK 3 and WebKitGTK 4.1 of Debian, Ubuntu or Raspberry Pi OS.
-          \`sudo apt install ./work-fleet_${VERSION}_all.deb\`
+          \`sudo apt install ./pin-it-anywhere_${VERSION}_all.deb\`
 
           EOF
           if [ "$INCLUDE_ANDROID" = true ]; then
           cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Android
           The Android application identity has also changed from older Work Fleet previews; keep the old app and its backup until the new installation has the notes you need.
-          Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-release.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-release.apk\` from a computer.
+          Requires Android 9 (API 28) or later. Download \`PinItAnywhere-${VERSION}-android-release.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r PinItAnywhere-${VERSION}-android-release.apk\` from a computer.
           This is a signed Release APK. Updates require the same application ID and signing key and a higher versionCode. It cannot replace a Debug APK signed with the old test key; export a backup before removing an old installation. Google Play signing is configured separately. Check the changes above for data-format compatibility and any required reset before upgrading.
 
           EOF

@@ -55,9 +55,9 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Could not read versionName from src/native/android/app/build.gradle.kts.' }
     $Task = if ($Release) { 'bundleRelease' } else { 'assembleDebug' }
     if ($Apk) { $Task = 'assembleRelease' }
-    $Output = "src/native/android/app/build/outputs/apk/debug/WorkFleet-$AndroidVersion-android-debug.apk"
-    if ($Release) { $Output = "src/native/android/app/build/outputs/bundle/release/WorkFleet-$AndroidVersion-android-release.aab" }
-    if ($Apk) { $Output = "src/native/android/app/build/outputs/apk/release/WorkFleet-$AndroidVersion-android-release.apk" }
+    $Output = "src/native/android/app/build/outputs/apk/debug/PinItAnywhere-$AndroidVersion-android-debug.apk"
+    if ($Release) { $Output = "src/native/android/app/build/outputs/bundle/release/PinItAnywhere-$AndroidVersion-android-release.aab" }
+    if ($Apk) { $Output = "src/native/android/app/build/outputs/apk/release/PinItAnywhere-$AndroidVersion-android-release.apk" }
     & $GradlePath -p src/native/android --no-daemon --console plain $Task
     if ($LASTEXITCODE -ne 0) { throw 'Android native build failed.' }
     if (-not (Test-Path -LiteralPath $Output -PathType Leaf)) { throw "Expected Gradle output $Output was not produced." }

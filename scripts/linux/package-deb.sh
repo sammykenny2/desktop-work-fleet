@@ -58,7 +58,7 @@ Recommends: gir1.2-secret-1, gir1.2-gtklayershell-0.1, gir1.2-keybinder-3.0, gir
 Description: Work notes with local encrypted storage and optional Google sync
  Native GTK host with bundled editor assets and user-selected backups.
 CONTROL
-PACKAGE="$OUTPUT/work-fleet_${VERSION}_all.deb"
+PACKAGE="$OUTPUT/pin-it-anywhere_${VERSION}_all.deb"
 dpkg-deb --build --root-owner-group "$STAGE" "$PACKAGE"
 (cd "$OUTPUT" && sha256sum "${PACKAGE##*/}" > "$PACKAGE.sha256")
 python3 - "$PACKAGE" "$VERSION" "$SUMMARY" "$OUTPUT/work-fleet-update-linux.json" <<'MANIFEST'

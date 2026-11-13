@@ -116,6 +116,6 @@ jobs:
         run: |
           ./scripts/windows/Build-WindowsPackage.ps1
           $version = node scripts/platform-version.mjs --platform windows
-          ./scripts/windows/Test-WindowsPackage.ps1 -PackagePath "build/WorkFleet-$version-x64.msix" -Unsigned
+          ./scripts/windows/Test-WindowsPackage.ps1 -PackagePath "build/PinItAnywhere-$version-x64.msix" -Unsigned
           python -B -m unittest tests.test_windows_package -v
           if ($LASTEXITCODE -ne 0) { exit 1 }

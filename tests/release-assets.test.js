@@ -19,7 +19,7 @@ async function release(folder, version) {
   const manifest = async (platform, arch, name, bytes) => write(manifestNames[platform], JSON.stringify({ schemaVersion: 1, platform, version,
     tag: `v${version}`, summary: 'Fixes', assets: [{ arch, name, size: bytes.length, sha256: digest(bytes) }] }, null, 2));
   const assets = releaseAssets(version);
-  const msix = await write(assets.windows[0], 'msix'); await checksum(assets.windows[0], msix); await write('WorkFleet-preview.cer', 'cer');
+  const msix = await write(assets.windows[0], 'msix'); await checksum(assets.windows[0], msix); await write('PinItAnywhere-preview.cer', 'cer');
   await manifest('windows', 'x64', assets.windows[0], msix);
   const deb = await write(assets.linux[0], 'deb'); await checksum(assets.linux[0], deb); await manifest('linux', 'all', assets.linux[0], deb);
   const dmg = await write(assets.macos[0], 'dmg'); await checksum(assets.macos[0], dmg);
@@ -36,43 +36,50 @@ test('one vX.Y.Z release carries every platform, and each manifest and the appca
   try {
     await release(folder, '0.3.7');
     const files = await validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' });
-    assert.equal(files.length, 15);
+    assert.deepEqual(files.sort(), [
+      'PinItAnywhere-0.3.7-x64.msix', 'PinItAnywhere-0.3.7-x64.msix.sha256', 'PinItAnywhere-preview.cer',
+      'pin-it-anywhere_0.3.7_all.deb', 'pin-it-anywhere_0.3.7_all.deb.sha256',
+      'PinItAnywhere-0.3.7-macos-universal.dmg', 'PinItAnywhere-0.3.7-macos-universal.dmg.sha256',
+      'PinItAnywhere-0.3.7-macos-universal.zip', 'PinItAnywhere-0.3.7-macos-universal.zip.sha256',
+      'PinItAnywhere-0.3.7-android-release.apk', 'PinItAnywhere-0.3.7-android-release.apk.sha256',
+      'appcast.xml', 'work-fleet-update-windows.json', 'work-fleet-update-linux.json', 'work-fleet-update-macos.json',
+    ].sort());
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'another/repo' }), /appcast\.xml does not point/);
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.8', repository: 'o/r' }), /missing WorkFleet-0\.3\.8-x64\.msix/);
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.8', repository: 'o/r' }), /missing PinItAnywhere-0\.3\.8-x64\.msix/);
 
     const windows = path.join(folder, manifestNames.windows); const original = await readFile(windows, 'utf8');
     await writeFile(windows, original.replace('"v0.3.7"', '"windows-v0.3.7"'));
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /work-fleet-update-windows\.json does not describe windows v0\.3\.7/);
     const entry = JSON.parse(original).assets[0];
     await writeFile(windows, original.replace(`"size": ${entry.size}`, `"size": ${entry.size + 1}`));
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /wrong size or SHA-256 for WorkFleet-0\.3\.7-x64\.msix/);
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /wrong size or SHA-256 for PinItAnywhere-0\.3\.7-x64\.msix/);
     // A manifest that is consistent with a file but would not install: the certificate, another architecture or two
     // entries for one architecture, which the hosts refuse.
-    const cer = await readFile(path.join(folder, 'WorkFleet-preview.cer'));
+    const cer = await readFile(path.join(folder, 'PinItAnywhere-preview.cer'));
     const rewrite = assets => writeFile(windows, JSON.stringify({ ...JSON.parse(original), assets }));
-    for (const assets of [[{ ...entry, name: 'WorkFleet-preview.cer', size: cer.length, sha256: digest(cer) }], [{ ...entry, arch: 'arm64' }], [entry, entry]]) {
+    for (const assets of [[{ ...entry, name: 'PinItAnywhere-preview.cer', size: cer.length, sha256: digest(cer) }], [{ ...entry, arch: 'arm64' }], [entry, entry]]) {
       await rewrite(assets);
-      await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /must list exactly WorkFleet-0\.3\.7-x64\.msix for x64/);
+      await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /must list exactly PinItAnywhere-0\.3\.7-x64\.msix for x64/);
     }
     await writeFile(windows, original);
     const linux = path.join(folder, manifestNames.linux); const linuxOriginal = await readFile(linux, 'utf8');
     await writeFile(linux, linuxOriginal.replace('"arch": "all"', '"arch": "amd64"'));
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /must list exactly work-fleet_0\.3\.7_all\.deb for all/);
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /must list exactly pin-it-anywhere_0\.3\.7_all\.deb for all/);
     await writeFile(linux, linuxOriginal);
 
-    await writeFile(path.join(folder, 'work-fleet_0.3.7_all.deb'), 'changed');
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /work-fleet_0\.3\.7_all\.deb\.sha256 does not match/);
-    await writeFile(path.join(folder, 'work-fleet_0.3.7_all.deb'), 'deb');
+    await writeFile(path.join(folder, 'pin-it-anywhere_0.3.7_all.deb'), 'changed');
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /pin-it-anywhere_0\.3\.7_all\.deb\.sha256 does not match/);
+    await writeFile(path.join(folder, 'pin-it-anywhere_0.3.7_all.deb'), 'deb');
 
     // Every platform must be there, and nothing else: a shared name such as the old work-fleet-update.json is refused.
     await writeFile(path.join(folder, 'work-fleet-update.json'), '{}');
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected work-fleet-update\.json/);
     await unlink(path.join(folder, 'work-fleet-update.json'));
-    await writeFile(path.join(folder, 'WorkFleet-0.3.7-android-debug.apk'), 'debug');
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected WorkFleet-0\.3\.7-android-debug\.apk/);
-    await unlink(path.join(folder, 'WorkFleet-0.3.7-android-debug.apk'));
-    await unlink(path.join(folder, 'WorkFleet-0.3.7-android-release.apk.sha256'));
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /missing WorkFleet-0\.3\.7-android-release\.apk\.sha256/);
+    await writeFile(path.join(folder, 'PinItAnywhere-0.3.7-android-debug.apk'), 'debug');
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected PinItAnywhere-0\.3\.7-android-debug\.apk/);
+    await unlink(path.join(folder, 'PinItAnywhere-0.3.7-android-debug.apk'));
+    await unlink(path.join(folder, 'PinItAnywhere-0.3.7-android-release.apk.sha256'));
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /missing PinItAnywhere-0\.3\.7-android-release\.apk\.sha256/);
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
@@ -81,12 +88,12 @@ test('desktop-only releases require every desktop asset and reject Android asset
   const version = '0.6.3'; const options = { dir: folder, version, repository: 'o/r', includeAndroid: false };
   try {
     await release(folder, version);
-    await assert.rejects(validateReleaseAssets(options), /unexpected WorkFleet-0\.6\.3-android-release\.apk/);
+    await assert.rejects(validateReleaseAssets(options), /unexpected PinItAnywhere-0\.6\.3-android-release\.apk/);
     for (const name of releaseAssets(version).android) await unlink(path.join(folder, name));
     const files = await validateReleaseAssets(options);
     assert.equal(files.length, 13);
     assert.deepEqual(files.sort(), Object.values(releaseAssets(version, { includeAndroid: false })).flat().sort());
-    await assert.rejects(validateReleaseAssets({ ...options, includeAndroid: true }), /missing WorkFleet-0\.6\.3-android-release\.apk/);
+    await assert.rejects(validateReleaseAssets({ ...options, includeAndroid: true }), /missing PinItAnywhere-0\.6\.3-android-release\.apk/);
     const { stdout } = await execute(process.execPath, [new URL('../scripts/validate-release-assets.mjs', import.meta.url).pathname,
       '--dir', folder, '--version', version, '--repository', 'o/r', '--desktop-only']);
     assert.match(stdout, /13 files checked/);
@@ -155,9 +162,14 @@ test('the release notes shell includes Android installation steps only when sele
       assert.match(notes, /previous project's Google Drive notes are not imported automatically/);
       assert.match(notes, /old repository cannot discover this release through its redirect/);
       assert.match(notes, /Download and install this preview manually once/);
-      assert.match(notes, /WorkFleet-preview\.cer/);
+      assert.match(notes, /PinItAnywhere-preview\.cer/);
+      assert.match(notes, /PinItAnywhere-0\.6\.3-x64\.msix/);
+      assert.match(notes, /PinItAnywhere-0\.6\.3-macos-universal\.dmg/);
+      assert.match(notes, /pin-it-anywhere_0\.6\.3_all\.deb/);
       if (includeAndroid) assert.match(notes, /^## Android$/m);
       else assert.doesNotMatch(notes, /Android|android-release\.apk/);
+      if (includeAndroid) assert.match(notes, /PinItAnywhere-0\.6\.3-android-release\.apk/);
+      assert.doesNotMatch(notes, /WorkFleet-|work-fleet_/);
       assert.doesNotMatch(notes, /android-debug\.apk|fixed test key/);
     }
   } finally { await rm(folder, { recursive: true, force: true }); }

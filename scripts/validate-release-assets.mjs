@@ -11,26 +11,27 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-// The desktop hosts read these by name; tests/fixtures/update-feed.json lists the same names.
+// Installed desktop hosts request these fixed names, including after the product rename.
+// Keep them stable; asset names inside the manifests can change. tests/fixtures/update-feed.json shares this contract.
 export const manifestNames = { windows: 'work-fleet-update-windows.json', linux: 'work-fleet-update-linux.json', macos: 'work-fleet-update-macos.json' };
 
 /** Every file one release carries, by platform. */
 export function releaseAssets(version, { includeAndroid = true } = {}) {
   return {
-    windows: [`WorkFleet-${version}-x64.msix`, `WorkFleet-${version}-x64.msix.sha256`, 'WorkFleet-preview.cer', manifestNames.windows],
-    linux: [`work-fleet_${version}_all.deb`, `work-fleet_${version}_all.deb.sha256`, manifestNames.linux],
-    macos: [`WorkFleet-${version}-macos-universal.dmg`, `WorkFleet-${version}-macos-universal.dmg.sha256`,
-      `WorkFleet-${version}-macos-universal.zip`, `WorkFleet-${version}-macos-universal.zip.sha256`, 'appcast.xml', manifestNames.macos],
-    ...(includeAndroid ? { android: [`WorkFleet-${version}-android-release.apk`, `WorkFleet-${version}-android-release.apk.sha256`] } : {}),
+    windows: [`PinItAnywhere-${version}-x64.msix`, `PinItAnywhere-${version}-x64.msix.sha256`, 'PinItAnywhere-preview.cer', manifestNames.windows],
+    linux: [`pin-it-anywhere_${version}_all.deb`, `pin-it-anywhere_${version}_all.deb.sha256`, manifestNames.linux],
+    macos: [`PinItAnywhere-${version}-macos-universal.dmg`, `PinItAnywhere-${version}-macos-universal.dmg.sha256`,
+      `PinItAnywhere-${version}-macos-universal.zip`, `PinItAnywhere-${version}-macos-universal.zip.sha256`, 'appcast.xml', manifestNames.macos],
+    ...(includeAndroid ? { android: [`PinItAnywhere-${version}-android-release.apk`, `PinItAnywhere-${version}-android-release.apk.sha256`] } : {}),
   };
 }
 
 /** The installer each desktop manifest names, for the architecture its host asks for. */
 export function installers(version) {
   return {
-    windows: { arch: 'x64', file: `WorkFleet-${version}-x64.msix` },
-    linux: { arch: 'all', file: `work-fleet_${version}_all.deb` },
-    macos: { arch: 'universal', file: `WorkFleet-${version}-macos-universal.zip` },
+    windows: { arch: 'x64', file: `PinItAnywhere-${version}-x64.msix` },
+    linux: { arch: 'all', file: `pin-it-anywhere_${version}_all.deb` },
+    macos: { arch: 'universal', file: `PinItAnywhere-${version}-macos-universal.zip` },
   };
 }
 
@@ -70,7 +71,7 @@ export async function validateReleaseAssets({ dir, version, repository, includeA
       problems.push(`${name} has the wrong size or SHA-256 for ${installer}`);
     }
   }
-  const archive = `WorkFleet-${version}-macos-universal.zip`;
+  const archive = `PinItAnywhere-${version}-macos-universal.zip`;
   const appcast = bytes.get('appcast.xml').toString('utf8');
   const enclosure = /<enclosure\s+url="([^"]+)"\s+length="(\d+)"/.exec(appcast);
   if (!enclosure || enclosure[1] !== `https://github.com/${repository}/releases/download/${tag}/${archive}`

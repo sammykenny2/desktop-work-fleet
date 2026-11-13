@@ -88,7 +88,7 @@ In Android Studio, choose **Open** and select `src/native/android`. After Gradle
 Build APK. It needs Node 22+ (with npm), JDK 17 and Android SDK 36; the project includes the Gradle Wrapper, and the build
 installs the npm dependencies and generates the UI assets automatically.
 You can also run `gradlew.bat assembleDebug` in that folder; the APK is at
-`app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`.
+`app/build/outputs/apk/debug/PinItAnywhere-<versionName>-android-debug.apk`.
 See the [Android project notes](src/native/android/README.md).
 
 ## Open iOS / macOS in Xcode

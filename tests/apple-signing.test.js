@@ -110,8 +110,8 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
       '--notary-profile', 'fixture-notary', '--dmg', '--no-pkg'];
     await execute('bash', args, { cwd: directory, env });
     const files = await readdir(path.join(directory, 'build'));
-    for (const file of ['WorkFleet-0.2.0-macos-universal.dmg', 'WorkFleet-0.2.0-macos-universal.dmg.sha256',
-      'WorkFleet-0.2.0-macos-universal.zip', 'WorkFleet-0.2.0-macos-universal.zip.sha256', 'appcast.xml', 'work-fleet-update-macos.json']) assert.ok(files.includes(file));
+    for (const file of ['PinItAnywhere-0.2.0-macos-universal.dmg', 'PinItAnywhere-0.2.0-macos-universal.dmg.sha256',
+      'PinItAnywhere-0.2.0-macos-universal.zip', 'PinItAnywhere-0.2.0-macos-universal.zip.sha256', 'appcast.xml', 'work-fleet-update-macos.json']) assert.ok(files.includes(file));
     assert.equal(files.some(file => file.endsWith('.pkg')), false);
     const log = await readFile(env.TOOL_LOG, 'utf8');
     assert.equal(log.includes('/productbuild '), false);
@@ -129,8 +129,8 @@ test('notarized DMG and update ZIP need no Installer identity and publish only a
     await execute('bash', automaticArgs, { cwd: directory, env });
     const pkgArgs = automaticArgs.filter(value => value !== '--no-pkg');
     await execute('bash', pkgArgs, { cwd: directory, env: { ...env, ALLOW_PKG: '1' } });
-    assert.ok((await readdir(path.join(directory, 'build'))).includes('WorkFleet-0.2.0-macos-universal.pkg'));
-    const output = path.join(directory, 'build/WorkFleet-0.2.0-macos-universal.dmg');
+    assert.ok((await readdir(path.join(directory, 'build'))).includes('PinItAnywhere-0.2.0-macos-universal.pkg'));
+    const output = path.join(directory, 'build/PinItAnywhere-0.2.0-macos-universal.dmg');
     await writeFile(output, 'previous successful package');
     const priorFeed = await readFile(path.join(directory, 'build/appcast.xml'), 'utf8');
     const beforeRuntimeFailure = await readFile(env.TOOL_LOG, 'utf8');

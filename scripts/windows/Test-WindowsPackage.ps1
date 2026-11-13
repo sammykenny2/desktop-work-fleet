@@ -12,9 +12,9 @@
 .PARAMETER Unsigned
     Inspect an unsigned preview MSIX built without a signing certificate.
 .EXAMPLE
-    .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix
+    .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix
 .EXAMPLE
-    .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned
+    .\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix -Unsigned
 #>
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$PackagePath, [switch]$Unsigned)
@@ -120,7 +120,7 @@ Write-Output 'PASS bundled runtime licenses, incorporated notices and package pr
 if ($Unsigned) {
     Write-Output 'PASS unsigned preview contents only; installation and trusted signing remain unverified'
 } else {
-    $PublicCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Join-Path (Split-Path -Parent $Package) 'WorkFleet-preview.cer'))
+    $PublicCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new((Join-Path (Split-Path -Parent $Package) 'PinItAnywhere-preview.cer'))
     try {
         if ($PublicCertificate.Thumbprint -ne $Certificate.Thumbprint -or $PublicCertificate.HasPrivateKey) { throw 'Companion CER must match the signer and contain no private key.' }
     } finally { $PublicCertificate.Dispose() }

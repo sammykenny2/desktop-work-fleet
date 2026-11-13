@@ -39,9 +39,9 @@ if [[ -z "${ANDROID_HOME:-}" && ! -f src/native/android/local.properties ]]; the
 fi
 if [[ "$release" == 1 ]]; then node scripts/check-config.mjs --platform android; fi
 version=$(node scripts/platform-version.mjs --platform android)
-output="src/native/android/app/build/outputs/apk/debug/WorkFleet-$version-android-debug.apk"
-if [[ "$task" == bundleRelease ]]; then output="src/native/android/app/build/outputs/bundle/release/WorkFleet-$version-android-release.aab"; fi
-if [[ "$task" == assembleRelease ]]; then output="src/native/android/app/build/outputs/apk/release/WorkFleet-$version-android-release.apk"; fi
+output="src/native/android/app/build/outputs/apk/debug/PinItAnywhere-$version-android-debug.apk"
+if [[ "$task" == bundleRelease ]]; then output="src/native/android/app/build/outputs/bundle/release/PinItAnywhere-$version-android-release.aab"; fi
+if [[ "$task" == assembleRelease ]]; then output="src/native/android/app/build/outputs/apk/release/PinItAnywhere-$version-android-release.apk"; fi
 bash src/native/android/gradlew -p src/native/android --no-daemon --console plain "$task"
 [[ -f "$output" ]] || { printf 'Expected Gradle output %s was not produced.\n' "$output" >&2; exit 1; }
 package="${output##*/}"

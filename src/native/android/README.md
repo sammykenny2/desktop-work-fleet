@@ -42,8 +42,8 @@ The command line in this directory also builds; set `JAVA_HOME` and `ANDROID_HOM
 bash ./gradlew assembleDebug
 ```
 
-The APK is at `app/build/outputs/apk/debug/WorkFleet-<versionName>-android-debug.apk`; the release AAB is
-`app/build/outputs/bundle/release/WorkFleet-<versionName>-android-release.aab`. The version is recorded only in
+The APK is at `app/build/outputs/apk/debug/PinItAnywhere-<versionName>-android-debug.apk`; the release AAB is
+`app/build/outputs/bundle/release/PinItAnywhere-<versionName>-android-release.aab`. The version is recorded only in
 `versionName` in `app/build.gradle.kts`.
 `scripts/windows/Build-AndroidApp.ps1`/`scripts/linux/build-android-app.sh` also copy the build output to the repository's
 `build/`, with a `.sha256`.
@@ -92,7 +92,7 @@ Signing comes from four process/CI variables, `WORK_FLEET_ANDROID_KEYSTORE` (abs
 `WORK_FLEET_ANDROID_KEY_ALIAS`, `WORK_FLEET_ANDROID_STORE_PASSWORD` and `WORK_FLEET_ANDROID_KEY_PASSWORD`,
 which are never written to the repository, `.env` or the public JSON. `-Signed`/`--signed` requires all inputs and stops
 when one is missing.
-Add `-Apk`/`--apk` to produce `WorkFleet-<versionName>-android-release.apk` with `assembleRelease` instead of a release
+Add `-Apk`/`--apk` to produce `PinItAnywhere-<versionName>-android-release.apk` with `assembleRelease` instead of a release
 AAB. This option requires `-Signed`/`--signed`; an unsigned installable APK is not a delivery output. Debug remains
 the default for local development and is not included in the release workflow's artifacts.
 Using the release variant in Android Studio or running `gradlew bundleRelease` directly checks the final public settings

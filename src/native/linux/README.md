@@ -91,7 +91,7 @@ The shared `scripts/linux/package-deb.sh` uses a new staging directory each time
 entry, icons and notices.
 The desktop entry passes validation but has both Office and Utility as main categories, so some menus may list it twice
 (2026-10-05).
-The Linux and Windows build entry points produce `build/work-fleet_<version>_all.deb` and a `.sha256` of the same name
+The Linux and Windows build entry points produce `build/pin-it-anywhere_<version>_all.deb` and a `.sha256` of the same name
 directly, with no manual file moves;
 staging is removed automatically when the packaging script ends; the tar.gz is in `build/` next to the DEB, the
 source/runtime copy is in `build/linux/`, and both are regenerated on every build.

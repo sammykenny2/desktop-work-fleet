@@ -2,7 +2,7 @@
 .SYNOPSIS
     Prove the in-app MSIX update end to end with an isolated probe package.
 .DESCRIPTION
-    Takes the locally signed build/WorkFleet-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and makes two
+    Takes the locally signed build/PinItAnywhere-VERSION-x64.msix (Build-WindowsPackage.ps1 -LocalTestSign) and makes two
     copies under the probe identity app.workfleet.updateprobe.e2e: VERSION and the next patch version, both signed with
     the same locally trusted certificate. Installs the first, gives it a local feed folder instead of GitHub
     (ADR-044; only this identity reads one) and lets it download, verify and install the second, which closes it.
@@ -10,7 +10,7 @@
     The installed Work Fleet package, its data and its certificate trust are never touched. The probe window and an
     empty desktop scene appear briefly; another running Work Fleet keeps its own global shortcuts.
 .PARAMETER PackagePath
-    Signed MSIX to copy. Defaults to build/WorkFleet-VERSION-x64.msix.
+    Signed MSIX to copy. Defaults to build/PinItAnywhere-VERSION-x64.msix.
 .PARAMETER SdkBin
     Directory containing MakeAppx.exe and SignTool.exe, or auto-detect Windows SDK.
 .EXAMPLE
@@ -37,7 +37,7 @@ function Remove-Probe {
 $MakeAppx = Find-SdkTool 'MakeAppx.exe'; $SignTool = Find-SdkTool 'SignTool.exe'
 $Version = & node (Join-Path $ProjectRoot 'scripts/platform-version.mjs') --platform windows
 if ($LASTEXITCODE -ne 0) { throw 'Could not read the Windows version.' }
-if (-not $PackagePath) { $PackagePath = Join-Path $ProjectRoot "build/WorkFleet-$Version-x64.msix" }
+if (-not $PackagePath) { $PackagePath = Join-Path $ProjectRoot "build/PinItAnywhere-$Version-x64.msix" }
 $Package = (Resolve-Path -LiteralPath $PackagePath).ProviderPath
 if ((Get-AuthenticodeSignature -LiteralPath $Package).Status -ne 'Valid') { throw 'The source MSIX must be signed and trusted; run Build-WindowsPackage.ps1 -LocalTestSign first.' }
 $Parts = $Version.Split('.'); $Next = "$($Parts[0]).$($Parts[1]).$([int]$Parts[2] + 1)"
@@ -65,7 +65,7 @@ function New-ProbePackage([string]$PackageVersion, [string]$Destination) {
     & $SignTool sign /sha1 $Certificate[0].Thumbprint /s My /fd SHA256 /q $Destination
     if ($LASTEXITCODE -ne 0) { throw "Signing failed for $PackageVersion." }
 }
-$First = Join-Path $Work "probe-$Version.msix"; $SecondName = "WorkFleet-$Next-x64.msix"; $Second = Join-Path $Feed $SecondName
+$First = Join-Path $Work "probe-$Version.msix"; $SecondName = "PinItAnywhere-$Next-x64.msix"; $Second = Join-Path $Feed $SecondName
 New-ProbePackage $Version $First
 New-ProbePackage $Next $Second
 # The same shapes the updater reads from GitHub: a public Atom feed and the release's work-fleet-update-windows.json.

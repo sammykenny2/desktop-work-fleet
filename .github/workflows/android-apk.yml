@@ -79,7 +79,7 @@ jobs:
         id: package
         run: |
           version=$(node scripts/platform-version.mjs --platform android)
-          apk="build/WorkFleet-$version-android-release.apk"
+          apk="build/PinItAnywhere-$version-android-release.apk"
           python3 scripts/check_android_package.py --apk "$apk" --app-id "$WORK_FLEET_APP_ID" --version "$version" \
             --sha1 "$WORK_FLEET_ANDROID_RELEASE_SHA1" --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
             --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
@@ -90,10 +90,10 @@ jobs:
       - name: Save APK and checksum
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: work-fleet-android-${{ steps.package.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          name: pin-it-anywhere-android-${{ steps.package.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk.sha256
+            build/PinItAnywhere-${{ steps.package.outputs.version }}-android-release.apk
+            build/PinItAnywhere-${{ steps.package.outputs.version }}-android-release.apk.sha256
             build/android-build.txt
           if-no-files-found: error
           retention-days: 14
@@ -103,8 +103,8 @@ jobs:
         with:
           name: release-android
           path: |
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk.sha256
+            build/PinItAnywhere-${{ steps.package.outputs.version }}-android-release.apk
+            build/PinItAnywhere-${{ steps.package.outputs.version }}-android-release.apk.sha256
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.
           overwrite: true

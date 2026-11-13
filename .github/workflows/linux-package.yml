@@ -58,13 +58,13 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: |
           bash scripts/linux/build-native-app.sh --deb --update-summary "$SUMMARY"
-          test -f "build/work-fleet_${VERSION}_all.deb" && test -f build/work-fleet-update-linux.json
+          test -f "build/pin-it-anywhere_${VERSION}_all.deb" && test -f build/work-fleet-update-linux.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-linux
           path: |
-            build/work-fleet_${{ inputs.version }}_all.deb
-            build/work-fleet_${{ inputs.version }}_all.deb.sha256
+            build/pin-it-anywhere_${{ inputs.version }}_all.deb
+            build/pin-it-anywhere_${{ inputs.version }}_all.deb.sha256
             build/work-fleet-update-linux.json
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.

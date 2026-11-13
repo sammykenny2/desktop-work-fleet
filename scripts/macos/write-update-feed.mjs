@@ -27,9 +27,9 @@ export async function writeUpdateFeed({ archive, signature, version, build, repo
   const appcast = `<?xml version="1.0" encoding="utf-8"?>
 <rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
   <channel>
-    <title>Work Fleet for macOS</title>
+    <title>Pin It Anywhere for macOS</title>
     <item>
-      <title>Work Fleet ${escape(version)}</title>
+      <title>Pin It Anywhere ${escape(version)}</title>
       <pubDate>${now.toUTCString()}</pubDate>
       <sparkle:version>${escape(build)}</sparkle:version>
       <sparkle:shortVersionString>${escape(version)}</sparkle:shortVersionString>

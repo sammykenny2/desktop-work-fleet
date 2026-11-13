@@ -27,14 +27,14 @@ test('the macOS artifact allowlist excludes stale iOS device and simulator packa
     const escaped = pattern.split('*').map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*');
     return new RegExp(`^${escaped}$`).test(file);
   });
-  for (const file of ['build/WorkFleet-0.3.2-macos-universal-unsigned.zip',
-    'build/WorkFleet-0.3.2-macos-universal-unsigned.zip.sha256',
+  for (const file of ['build/PinItAnywhere-0.3.2-macos-universal-unsigned.zip',
+    'build/PinItAnywhere-0.3.2-macos-universal-unsigned.zip.sha256',
     'build/apple/preview-macos/README.txt', 'build/apple/preview-macos/toolchain.txt']) {
     assert.ok(matches(file), `expected macOS output: ${file}`);
   }
-  for (const file of ['build/WorkFleet-0.3.2-ios-development.ipa',
-    'build/WorkFleet-0.3.2-ios-development.ipa.sha256', 'build/WorkFleet-0.3.2-ios-unsigned.ipa',
-    'build/WorkFleet-0.3.2-ios-simulator.zip', 'build/WorkFleet-0.3.2-ios-simulator.zip.sha256',
+  for (const file of ['build/PinItAnywhere-0.3.2-ios-development.ipa',
+    'build/PinItAnywhere-0.3.2-ios-development.ipa.sha256', 'build/PinItAnywhere-0.3.2-ios-unsigned.ipa',
+    'build/PinItAnywhere-0.3.2-ios-simulator.zip', 'build/PinItAnywhere-0.3.2-ios-simulator.zip.sha256',
     'build/apple/preview-ios/README.txt', 'build/apple/preview-ios/toolchain.txt']) {
     assert.equal(matches(file), false, `private iOS output: ${file}`);
   }

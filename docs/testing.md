@@ -1174,7 +1174,7 @@ Packaging check for a locally signed preview (it does not install the app or cha
 
 ```powershell
 .\scripts\windows\Build-WindowsPackage.ps1 -LocalTestSign
-.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix
+.\scripts\windows\Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix
 ```
 
 Replace `VERSION` with the Windows version. The check confirms that four invalid signing-argument combinations are rejected before the build,
@@ -1188,7 +1188,7 @@ This is package-content and signature verification; it does not replace launchin
 The Windows package check requires the .NET 10 Core and Desktop versions both to equal `WindowsRuntimeVersion` exactly, and rejects WPF 8, mixed patches and old TFMs; the fixture does not prove that the runtime DLLs run.
 The first packaging restores the win-x64 self-contained runtime packs; add `-SkipRestore` only after a package restore with the same settings.
 Without an existing trusted certificate, use the plain `Build-WindowsPackage.ps1` and
-`Test-WindowsPackage.ps1 -PackagePath build/WorkFleet-VERSION-x64.msix -Unsigned` to check the unsigned content;
+`Test-WindowsPackage.ps1 -PackagePath build/PinItAnywhere-VERSION-x64.msix -Unsigned` to check the unsigned content;
 this is not signature, install or Store acceptance. Without `-Unsigned` an unsigned package is still rejected, and the option also rejects unknown or damaged signature states.
 `python -m unittest discover -s tests -p 'test_windows_package.py' -v` uses the Windows SDK MakeAppx to produce isolated synthetic containers
 and verifies a too-high or too-low floor, device family and MaxVersionTested, a wrong version, environment and private-key files, the explicit unsigned mode,
@@ -1503,6 +1503,10 @@ preview exception in ADR-070; these asset tests do not certify CA trust or the f
 On Unix hosts it also runs the production release-notes shell with the publishing command replaced, checking that
 Android installation instructions are present only when selected, and backup/new-project/manual-transition guidance
 precedes installation instructions for both release selections.
+The inventory and rendered installation instructions require the `PinItAnywhere` download names (`pin-it-anywhere` for Linux).
+The shared feed fixture retains historical filenames and adds a renamed asset to exercise the existing native parsers;
+manifest lookup names remain stable. `tests/test_linux_package.py` also checks the tar.gz filename, root directory and
+checksum without requiring Debian tools; its DEB integration checks still require `dpkg-deb`.
 `tests/release-versions.test.js` checks that `scripts/platform-version.mjs --release` refuses version records that differ.
 None of this runs the release workflow itself; the first `preview-release.yml` run is its end-to-end check.
 `Test-WindowsUpdate.ps1` runs after `Build-WindowsPackage.ps1 -LocalTestSign`: it turns the MSIX into two versions of `app.workfleet.updateprobe.e2e`,

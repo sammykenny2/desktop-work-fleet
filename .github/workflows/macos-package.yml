@@ -122,10 +122,10 @@ jobs:
         with:
           name: release-macos
           path: |
-            build/WorkFleet-${{ inputs.version }}-macos-universal.dmg
-            build/WorkFleet-${{ inputs.version }}-macos-universal.dmg.sha256
-            build/WorkFleet-${{ inputs.version }}-macos-universal.zip
-            build/WorkFleet-${{ inputs.version }}-macos-universal.zip.sha256
+            build/PinItAnywhere-${{ inputs.version }}-macos-universal.dmg
+            build/PinItAnywhere-${{ inputs.version }}-macos-universal.dmg.sha256
+            build/PinItAnywhere-${{ inputs.version }}-macos-universal.zip
+            build/PinItAnywhere-${{ inputs.version }}-macos-universal.zip.sha256
             build/appcast.xml
             build/work-fleet-update-macos.json
           if-no-files-found: error

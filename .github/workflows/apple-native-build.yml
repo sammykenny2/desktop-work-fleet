@@ -45,10 +45,10 @@ jobs:
       - name: Save native packages
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: work-fleet-macos-native-preview
+          name: pin-it-anywhere-macos-native-preview
           path: |
-            build/WorkFleet-*-macos-universal-unsigned.zip
-            build/WorkFleet-*-macos-universal-unsigned.zip.sha256
+            build/PinItAnywhere-*-macos-universal-unsigned.zip
+            build/PinItAnywhere-*-macos-universal-unsigned.zip.sha256
             build/apple/preview-macos/README.txt
             build/apple/preview-macos/toolchain.txt
           if-no-files-found: error
@@ -57,7 +57,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: work-fleet-macos-build-diagnostics
+          name: pin-it-anywhere-macos-build-diagnostics
           path: build/apple/DerivedData/Logs/Build
           if-no-files-found: ignore
           retention-days: 7

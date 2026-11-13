@@ -107,6 +107,15 @@ test('the installed app and tray icons are complete at the sizes each project re
   assert.doesNotMatch(await readFile(at(`${theme}/symbolic/apps/app-icon-symbolic.svg`), 'utf8'), /stroke/);
 });
 
+test('the app sidebar mark is the selected concept\'s small icon', async () => {
+  // ADR-069 selects cat-note; the sidebar draws its 32-unit art inline, so a source change must reach index.html too.
+  const shapes = svg => (svg.match(/<(?:path|rect|circle|ellipse)\b[^>]*\/>/g) ?? []).map(shape => shape.replace(/\s+/g, ' '));
+  const html = await readFile(fileURLToPath(new URL('../src/app/index.html', import.meta.url)), 'utf8');
+  const mark = /<span class="brand-mark" aria-hidden="true">(<svg viewBox="0 0 32 32"[\s\S]*?<\/svg>)<\/span>/.exec(html);
+  assert.ok(mark, 'index.html draws the brand mark as an inline 32-unit SVG');
+  assert.deepEqual(shapes(mark[1]), shapes((await loadConcept('cat-note')).small));
+});
+
 test('publisher marks are constructed without fonts', () => {
   for (const svg of [company.badge(), company.square(), company.cat(), company.mono(), company.lockup(), company.lockup({ dark: true }), company.header()]) {
     assert.doesNotMatch(svg, /<text|font-family|<image/);

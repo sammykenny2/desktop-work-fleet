@@ -45,18 +45,26 @@ Localized display names may change later without changing permanent application 
 
 ### App icon (2026-11-13)
 
-The maintainer chose **Cat Note** from three candidates drawn in this repository. It is a cream note with cat ears, a
-coral pin for its nose, on a teal gradient. It follows the Traditional Chinese name and the cat-led family rule, and it
-stays recognisable at 16 px and as a one-colour menu-bar or tray glyph. Paper Pin (one tilted paper on ink blue) and
-Scatter (two papers on amber) were not selected; their sources stay in `assets/brand/concepts/` for reference.
+The maintainer chose **Cat Note** from three candidates drawn in this repository. It is a note with cat ears and a
+coral pin for its nose. It follows the Traditional Chinese name and the cat-led family rule, and it stays recognisable
+at 16 px and as a one-colour menu-bar or tray glyph. Paper Pin (one tilted paper on ink blue) and Scatter (two papers
+on amber) were not selected; their sources stay in `assets/brand/concepts/` for reference.
+
+Colours (revised by the maintainer on 2026-11-14): the icon takes the app's own palette. The backplate and outline use
+the pine accent family (`#2E7A66` to `#1A493D`, beside the UI accent `#245f50`), the paper is the default note yellow
+`#ffe98a`, and the coral pin stays the one bright accent. The first version's teal gradient and cream paper read as a
+different green from the app's buttons. Moving the app to that teal was rejected: white text on it reaches about
+3.2:1, below the 4.5:1 that normal text needs, where the pine accent reaches about 7.5:1.
 
 - The layered SVG in `assets/brand/concepts/cat-note/` is the source. `node scripts/render-brand-assets.mjs --concept
   cat-note --install` renders it with Playwright at design time and replaces the committed bitmaps each native project
   reads. Packaging only copies those files and never needs a browser.
+- The app's sidebar mark is the same 32-unit small art, drawn inline in `src/app/index.html` in place of the earlier
+  `p.` tile. `tests/brand-assets.test.js` keeps it identical to `small.svg`.
 - Apple uses asset catalogs: one 1024 px iOS image with dark and tinted appearances, and macOS 16-1024 px. The Icon
   Composer `.icon` document is not wired in: the last Apple CI build (2026-10-20) used the `macos-15` image's default
-  Xcode 16.4, which predates Icon Composer. Adopt it once the Apple builds use Xcode 26 or later. The macOS menu bar shows the template glyph `StatusItem` instead of the
-  `note.text` SF Symbol.
+  Xcode 16.4, which predates Icon Composer. Adopt it once the Apple builds use Xcode 26 or later. The macOS menu bar
+  shows the template glyph `StatusItem` instead of the `note.text` SF Symbol.
 - Android uses an adaptive icon of bitmap layers, including the monochrome layer for themed icons.
 - Windows embeds the 16-256 px icon in the executable; its windows and notification-area icon reuse it. The MSIX
   names three unqualified scale-100 images because the package has no `resources.pri`; scale and target-size variants

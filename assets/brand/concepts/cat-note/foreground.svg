@@ -3,17 +3,17 @@
        Each top-level group is one layer (back to front). Groups marked data-legacy are drawn
        only in pre-rendered PNGs; Icon Composer adds its own shadows and depth. -->
   <g id="note-shadow" data-legacy="true" transform="rotate(4 512 540)">
-    <path fill="#06372F" fill-opacity="0.32" transform="translate(8 22)" d="M262 420L284 236Q290 196 322 220L446 330H578L702 220Q734 196 740 236L762 420V720L652 830H318Q262 830 262 774Z"/>
+    <path fill="#0F2E26" fill-opacity="0.32" transform="translate(8 22)" d="M262 420L284 236Q290 196 322 220L446 330H578L702 220Q734 196 740 236L762 420V720L652 830H318Q262 830 262 774Z"/>
   </g>
   <g id="note" transform="rotate(4 512 540)">
-    <path fill="#FFF4D9" d="M262 420L284 236Q290 196 322 220L446 330H578L702 220Q734 196 740 236L762 420V720L652 830H318Q262 830 262 774Z"/>
-    <path fill="#EBD3A0" d="M762 720L652 830V748A28 28 0 0 1 680 720Z"/>
+    <path fill="#FFE98A" d="M262 420L284 236Q290 196 322 220L446 330H578L702 220Q734 196 740 236L762 420V720L652 830H318Q262 830 262 774Z"/>
+    <path fill="#E9C75C" d="M762 720L652 830V748A28 28 0 0 1 680 720Z"/>
     <path fill="#F6B7A6" d="M304 300L318 254L380 310Z"/>
     <path fill="#F6B7A6" d="M720 300L706 254L644 310Z"/>
     <ellipse cx="420" cy="520" rx="28" ry="38" fill="#1E3A3A"/>
     <ellipse cx="604" cy="520" rx="28" ry="38" fill="#1E3A3A"/>
-    <rect x="352" y="652" width="320" height="32" rx="16" fill="#B7D3CC"/>
-    <rect x="352" y="724" width="210" height="32" rx="16" fill="#B7D3CC"/>
+    <rect x="352" y="652" width="320" height="32" rx="16" fill="#E2C964"/>
+    <rect x="352" y="724" width="210" height="32" rx="16" fill="#E2C964"/>
   </g>
   <g id="pin-shadow" data-legacy="true">
     <ellipse cx="520" cy="604" rx="34" ry="30" fill="#3A2A12" fill-opacity="0.22"/>

@@ -8,12 +8,14 @@ concepts were not selected and stay for reference. Platform rules and their sour
 
 ## Concepts
 
-- `cat-note` (selected): a paper with cat ears and a pin for a nose, on teal. Follows the Traditional Chinese name and
-  the cat-led naming rule for the product family.
+- `cat-note` (selected): a paper with cat ears and a pin for a nose. Follows the Traditional Chinese name and the
+  cat-led naming rule for the product family. It uses the app's palette: the pine accent family behind it and the
+  default yellow note (`#ffe98a`) for the paper. The app's sidebar mark in `src/app/index.html` is its `small.svg`
+  drawn inline, so change both together.
 - `paper-pin`: one tilted paper held by a round pin, on ink blue. The plainest reading of the English name.
 - `scatter`: two papers at different angles, the front one pinned, on amber. "Anywhere" rather than "pin".
 
-All three share the cream paper and the coral pin.
+The two unselected concepts keep the cream paper; all three share the coral pin.
 
 ## Layer files
 

@@ -264,7 +264,7 @@ elif MODE == "actions":
 
     def run(name):
         answered = []
-        bus.call("dev.sammykenny2.pinitanywhere.hostprobe", "/app/pinitanywhere/hostprobe", "org.gtk.Actions", "Activate", GLib.Variant("(sava{sv})", (name, [], {})),
+        bus.call(app.get_application_id(), app.get_dbus_object_path(), "org.gtk.Actions", "Activate", GLib.Variant("(sava{sv})", (name, [], {})),
                  None, Gio.DBusCallFlags.NONE, -1, None, lambda source, result: answered.append(source.call_finish(result)))
         spin(lambda: answered, message=f"{name} answered over D-Bus")
     app.window.hide()

@@ -544,8 +544,9 @@ lost with a renderer. Add exact native commands only when their probes exist; un
 
 - `tests/test_linux_hostsettings.py` (`LinuxNamedActionTests`, on every platform) checks the action names, their tray
   targets and that region targets match `regionTarget` in `src/core/shortcuts.js`.
-- The `actions` mode of `tests/native/linux/host_probe.py` (in `test-host-shell.sh`) calls each action over D-Bus the
-  way `gapplication action` does: `show-main` shows the hidden main window, the others run their tray targets, and `quit`
+- The `actions` mode of `tests/native/linux/host_probe.py` (in `test-host-shell.sh`) calls each action over D-Bus using the
+  registered application's actual destination and object path, so identity changes cannot leave a stale probe path.
+  It follows `gapplication action`: `show-main` shows the hidden main window, the others run their tray targets, and `quit`
   runs the save-and-quit path. A real sway or wayfire keybinding and the page turning `@regionN` into its group in a
   running app have not been checked (2026-10-23).
 

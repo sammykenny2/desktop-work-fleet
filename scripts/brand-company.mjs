@@ -101,7 +101,9 @@ function lockup(dark) {
   const stroke = 44, metrics = { cap: 330, x: 220, ascender: 330, descender: 110, stroke }, margin = 20, badgeSize = 360;
   const words = setText('sammykenny2.dev', metrics, { colours: Object.assign([], { 10: PALETTE.accent, 11: PALETTE.accent }) });
   const plate = dark ? PALETTE.paper : PALETTE.ink, letters = dark ? PALETTE.ink : PALETTE.paper;
-  const badge = `<g transform="translate(${margin} ${margin}) scale(${f(badgeSize / 1024)})"><rect width="1024" height="1024" rx="230" fill="${plate}"/>${monogram({ paper: letters })}</g>`;
-  const left = margin + badgeSize + 64, baseline = margin + badgeSize / 2 + metrics.x / 2;
-  return { body: `${badge}${strokes(words.parts, dark ? PALETTE.paper : PALETTE.ink, stroke, left, baseline)}`, width: Math.ceil(left + words.width + stroke / 2 + margin), height: badgeSize + 2 * margin };
+  // The x-height is centred on the badge; ascenders (k, 2, d) and the y descender reach beyond it, so they set the height.
+  const half = Math.max(badgeSize / 2, metrics.ascender - metrics.x / 2, metrics.descender + metrics.x / 2), centre = margin + half;
+  const badge = `<g transform="translate(${margin} ${f(centre - badgeSize / 2)}) scale(${f(badgeSize / 1024)})"><rect width="1024" height="1024" rx="230" fill="${plate}"/>${monogram({ paper: letters })}</g>`;
+  const left = margin + badgeSize + 64, baseline = centre + metrics.x / 2;
+  return { body: `${badge}${strokes(words.parts, dark ? PALETTE.paper : PALETTE.ink, stroke, left, baseline)}`, width: Math.ceil(left + words.width + stroke / 2 + margin), height: Math.ceil(2 * centre) };
 }

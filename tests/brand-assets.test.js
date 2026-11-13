@@ -115,3 +115,33 @@ test('publisher marks are constructed without fonts', () => {
   }
   assert.match(company.header(), /viewBox="0 0 4096 2304"/);
 });
+
+test('publisher letters, with half their stroke, stay inside the canvas', () => {
+  // Vertices of the absolute M, L, V, H and A commands; ascender, cap and descender extremes are all path vertices.
+  const extents = (d, dx, dy) => {
+    const xs = [], ys = [];
+    for (const [, command, list] of d.matchAll(/([MLVHA])([^A-Za-z]*)/g)) {
+      const values = list.trim().split(/[\s,]+/).filter(Boolean).map(Number);
+      if (command === 'V') ys.push(...values); else if (command === 'H') xs.push(...values);
+      else for (let index = 0; index < values.length; index += command === 'A' ? 7 : 2) {
+        const pair = command === 'A' ? values.slice(index + 5, index + 7) : values.slice(index, index + 2);
+        xs.push(pair[0]); ys.push(pair[1]);
+      }
+    }
+    return { xs: xs.map(x => x + dx), ys: ys.map(y => y + dy) };
+  };
+  const marks = { badge: company.badge(), square: company.square(), cat: company.cat(), mono: company.mono(), lockup: company.lockup(), 'lockup-dark': company.lockup({ dark: true }) };
+  for (const [name, svg] of Object.entries(marks)) {
+    const [, width, height] = /viewBox="0 0 (\d+) (\d+)"/.exec(svg).map(Number);
+    // The lockup's badge is a scaled copy of the badge mark, which is checked on its own.
+    const letters = svg.replace(/<g transform="[^"]*scale\([^"]*">.*?<\/g>/s, '');
+    let checked = 0;
+    for (const [, dx, dy, d, stroke] of letters.matchAll(/<path transform="translate\(([-\d.]+) ([-\d.]+)\)" d="([^"]+)" fill="none" stroke="[^"]+" stroke-width="([\d.]+)"/g)) {
+      const { xs, ys } = extents(d, Number(dx), Number(dy)), half = Number(stroke) / 2;
+      assert.ok(Math.min(...xs) - half >= 0 && Math.max(...xs) + half <= width, `${name} letters overflow horizontally`);
+      assert.ok(Math.min(...ys) - half >= 0 && Math.max(...ys) + half <= height, `${name} letters are clipped at the top or bottom`);
+      checked++;
+    }
+    assert.ok(checked >= 3, `${name} has stroked letters`);
+  }
+});

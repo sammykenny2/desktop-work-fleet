@@ -43,8 +43,8 @@ android {
         applicationId = configuredId.ifEmpty { "dev.sammykenny2.pinitanywhere" }
         minSdk = 28
         targetSdk = 36
-        versionCode = 603
-        versionName = "0.6.3"
+        versionCode = 700
+        versionName = "0.7.0"
         testInstrumentationRunner = "app.workfleet.nativehost.StorageProbe"
     }
     // host.info reports versionName, which Settings shows and backups record.

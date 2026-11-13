@@ -9,6 +9,20 @@ release per platform: `windows-v<version>`, `linux-v<version>`, `macos-v<version
 omitted for an explicitly requested desktop-only preview, even though all version records advance together.
 `Summary` is one plain line for the in-app update prompt.
 
+## 0.7.0
+
+Platforms: Windows, Linux, macOS, Android.
+
+Summary: Pin It Anywhere brings new app identities and Google sign-in settings, plus signed Android Release downloads. Back up before switching.
+
+- Product identity: Work Fleet becomes Pin It Anywhere, with localized native names, windows, menus, launcher entries and Apple sharing metadata. Installer and updater file names keep their existing WorkFleet/work-fleet names.
+- Sign-in and data: the apps use the new pin-it-anywhere Google project. Sign in again; the old project's Drive notes are not imported automatically. Apple and Android application identities also change. Export a complete backup with the old app and retain it until the new installation can access the notes you need; restore a supported backup deliberately.
+- Desktop updates: the update source is sammykenny2/pin-it-anywhere. Apps configured with the previous repository cannot discover the new release through redirects and need one manual installation. New builds use the renamed source for later updates.
+- Android packaging: downloads use a signed Release APK with a dedicated release key and matching OAuth registration. CI checks the actual signer, application/version metadata, non-debuggable flags and bundled Release runtime inventory before saving an artifact. Google Play signing remains separate.
+- Windows preview: the x64 MSIX retains its existing package identity and test-signing certificate. The included public CER still requires explicit trust on each test computer. Certum signing and native Windows ARM64/MSIX bundles remain future work.
+- Support links: Windows and Linux package builds receive the configured privacy/support URLs and contact, using the renamed repository's public resources.
+- Compatibility and verification: note, sync and backup formats are unchanged from 0.6.3 and remain V1. App/service identities require the manual transition above; no automatic cloud import or migration runs. Automated checks and Android Release CI/package installation cover the implemented changes. Real-provider behavior, desktop install/update transitions and independent review remain unverified; this preview does not establish store or production readiness.
+
 ## 0.6.3
 
 Platforms: Windows, Linux, macOS.

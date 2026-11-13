@@ -56,8 +56,8 @@ remain separate work; preview artifact checks do not mark them passed.
     current-tree identity guard and regenerate the Xcode project. Compile the macOS Universal and iOS simulator
     targets and the Android signed Release APK, retaining the registered Apple/Android identities.
   - [x] Configure the renamed CI Variables and four Secrets with the maintainer's authorization; prepare the matching
-    Windows preview Publisher/signer. Keep the original Windows Secrets as private-key backup. Reconcile ignored
-    local settings at integration; native signed-install/update acceptance remains open.
+    Windows preview Publisher/signer. Retire the superseded Windows signing Secrets at the maintainer's request.
+    Local settings use the renamed keys; native signed-install/update acceptance remains open.
   - [x] Update renderer/native names, window titles, Apple/Android localized system-name resources, Linux desktop/startup
     names, Windows English package display names, DMG application names and store/privacy drafts. Keep technical IDs,
     storage paths, signing subjects and existing public artifact filenames until their cutover is ready.

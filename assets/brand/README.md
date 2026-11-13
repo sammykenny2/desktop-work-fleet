@@ -28,6 +28,10 @@ Each `concepts/<id>/` directory holds:
   Groups must not nest other `<g>` elements.
 - `monochrome.svg`: one-colour silhouette for Android themed icons and the tinted appearance.
 - `small.svg`: a 32-unit drawing simplified by hand for 16-32 px, with edges on even units.
+- `pixel-16.svg`, `pixel-20.svg` and `pixel-24.svg` (optional, `cat-note` has all three): the small drawing redrawn on a
+  16, 20 and 24 px grid with every edge on a whole pixel, filling the cell from top to bottom like other
+  notification-area icons. They use `small.svg`'s colours. The Windows icon's 16, 20, 24 and 32 px frames come from them
+  (32 px doubles the 16 px drawing), so the tray is sharp at 100, 125, 150 and 200% scaling.
 - `tray.svg`: a 32-unit (16 pt at 2x) black glyph of filled shapes for the macOS menu bar, the Windows notification
   area and the GNOME symbolic icon.
 
@@ -59,8 +63,9 @@ Per concept the output contains:
   and `AppIcon.icns`: the asset-catalog route.
 - `apple/macos/StatusItem.imageset`: a vector template image for the menu bar, plus 1x and 2x PNGs.
 - `android/res`: the adaptive icon with background, foreground and monochrome layers at every density, as bitmaps.
-- `windows/AppIcon.ico` (16-256 px), and `windows/Assets` with the MSIX tiles at scale 100-400, the target sizes 16-256
-  and both unplated alternates. Two monochrome notification-area icons: `tray-light-theme.ico` and `tray-dark-theme.ico`.
+- `windows/AppIcon.ico` (16-256 px; 16-32 px from the pixel-grid drawings when the concept has them), and
+  `windows/Assets` with the MSIX tiles at scale 100-400, the target sizes 16-256 and both unplated alternates. Two
+  monochrome notification-area icons: `tray-light-theme.ico` and `tray-dark-theme.ico`.
   The package installs only three scale-100 tiles until it gains a `resources.pri`, and the tray uses the app icon.
 - `linux/hicolor`: 16-512 px bitmaps, a scalable SVG and `<app-id>-symbolic.svg`.
 - `store/`:

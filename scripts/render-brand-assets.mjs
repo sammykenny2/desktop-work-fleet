@@ -111,10 +111,17 @@ async function main() {
   try { ({ chromium } = await import('playwright')); } catch { throw new Error('Playwright is a dev dependency; run npm ci first.'); }
   const ids = settings.concept === 'all' ? await listConcepts() : [settings.concept];
   const browser = await chromium.launch(), page = await browser.newPage();
-  const raster = async (svg, width, height = width) => {
-    await page.setViewportSize({ width, height });
-    await page.setContent(`<!doctype html><style>html,body{margin:0;background:transparent}body>svg{display:block;width:${width}px;height:${height}px}</style>${svg}`);
-    return page.screenshot({ omitBackground: true, type: 'png' });
+  // One page draws every image, so calls are queued: concurrent callers (the ICO builders use Promise.all) would
+  // otherwise interleave viewport, content and screenshot, and every frame would come out as the last image set.
+  let queue = Promise.resolve();
+  const raster = (svg, width, height = width) => {
+    const run = queue.then(async () => {
+      await page.setViewportSize({ width, height });
+      await page.setContent(`<!doctype html><style>html,body{margin:0;background:transparent}body>svg{display:block;width:${width}px;height:${height}px}</style>${svg}`);
+      return page.screenshot({ omitBackground: true, type: 'png' });
+    });
+    queue = run.catch(() => {});
+    return run;
   };
   const write = async (file, data) => { await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, data); };
   const png = async (file, svg, width, height) => write(file, await raster(svg, width, height));
@@ -130,6 +137,9 @@ async function main() {
       };
       for (const [name, svg] of Object.entries(art)) await write(path.join(root, 'sources', `${name}.svg`), svg);
       const appIcon = size => size <= SMALL_LIMIT ? art.small : art.freeform;
+      // Windows small frames (notification area, title bars, small taskbar targets) use the pixel-grid drawings, which
+      // fill the cell with whole-pixel edges; other sizes fall back to the shared art.
+      const windowsIcon = size => (size <= SMALL_LIMIT && compose.pixel(concept, size)) || appIcon(size);
 
       // Apple: Icon Composer document (Xcode 26+ builds fallbacks from it) and the asset-catalog route.
       const iconPath = path.join(root, 'apple', 'AppIcon.icon');
@@ -174,12 +184,12 @@ async function main() {
 
       // Windows: executable icon, MSIX visual assets, monochrome notification-area icons and Store listing art.
       const win = path.join(root, 'windows');
-      await write(path.join(win, 'AppIcon.ico'), ico(await Promise.all([16, 20, 24, 32, 40, 48, 64, 256].map(async size => ({ size, data: await raster(appIcon(size), size) })))));
+      await write(path.join(win, 'AppIcon.ico'), ico(await Promise.all([16, 20, 24, 32, 40, 48, 64, 256].map(async size => ({ size, data: await raster(windowsIcon(size), size) })))));
       for (const [name, colour] of [['tray-light-theme', '#1A1A1A'], ['tray-dark-theme', '#FFFFFF']])
         await write(path.join(win, `${name}.ico`), ico(await Promise.all([16, 20, 24, 32, 40, 48, 64].map(async size => ({ size, data: await raster(compose.tray(concept, colour), size) })))));
       const assets = path.join(win, 'Assets');
       for (const size of TARGET_SIZES) for (const suffix of ['', '_altform-unplated', '_altform-lightunplated'])
-        await png(path.join(assets, `Square44x44Logo.targetsize-${size}${suffix}.png`), appIcon(size), size);
+        await png(path.join(assets, `Square44x44Logo.targetsize-${size}${suffix}.png`), windowsIcon(size), size);
       const tiles = { Square44x44Logo: [44, 44, 1], Square71x71Logo: [71, 71, 0.6], Square150x150Logo: [150, 150, 0.6], Wide310x150Logo: [310, 150, 0.6], Square310x310Logo: [310, 310, 0.6], StoreLogo: [50, 50, 1], SplashScreen: [620, 300, 0.6] };
       for (const [name, [width, height, share]] of Object.entries(tiles)) for (const scale of SCALES) {
         const w = Math.round(width * scale / 100), h = Math.round(height * scale / 100), size = Math.round(Math.min(w, h) * share);

@@ -36,7 +36,8 @@ Explorer's desktop window keeps its DPI, and the attached scenes inside it take 
 - `app/`: `PinItAnywhere.Windows.csproj`, the WPF main program, desktop scenes, shortcuts, tray and Google sign-in.
 - `core/`: `PinItAnywhere.Windows.Core.csproj`, SQLite/DPAPI, the bridge, backup files and scene transport.
 - `app/PinItAnywhere.ico` and `package-assets/`: the app icon embedded in the executable (also used by its windows and the
-  tray) and the MSIX tile images, written by `scripts/render-brand-assets.mjs --install`. The package has no
+  tray; its 16-32 px frames are pixel-grid drawings that fill the notification-area cell) and the MSIX tile images,
+  written by `scripts/render-brand-assets.mjs --install`. The package has no
   `resources.pri`, so the manifest names unqualified scale-100 images and Windows scales them for other DPIs and the
   taskbar.
 - The test projects are in `tests/native/windows/core` and `tests/native/windows/ui`, under the solution's `tests` folder.

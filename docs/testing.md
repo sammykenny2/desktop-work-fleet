@@ -35,7 +35,8 @@ new-ID signing and Google authorization still require separate acceptance.
 
 App icon checks ([ADR-069](decisions/069-pin-it-anywhere-product-identity.md)): `tests/brand-assets.test.js` checks
 the layered sources and reads the committed bitmaps without a browser. Every Apple catalog entry and Android layer
-must exist at its size, the Windows icon must hold its eight PNG sizes, and the hicolor theme must be complete.
+must exist at its size, the Windows icon must hold eight distinct PNG frames each drawn at its declared size, the
+pixel-grid drawings must keep whole-pixel edges and the small icon's colours, and the hicolor theme must be complete.
 `tests/release-versions.test.js` requires that every image the generated MSIX manifest names is staged, and
 `tests/test_linux_package.py` checks that the DEB installs the whole theme under the app ID. After changing a source,
 run `node scripts/render-brand-assets.mjs --concept cat-note --install`. Then compile the catalogs with `actool` (or

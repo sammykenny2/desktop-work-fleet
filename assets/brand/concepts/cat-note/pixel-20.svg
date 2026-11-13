@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" width="20" height="20">
+  <!-- Free-form colour icon on the 20 px grid (125% scaling); every edge sits on a whole pixel. -->
+  <path fill="#1A493D" d="M2 20V3L5 0L9 4H11L15 0L18 3V16L14 20Z"/>
+  <path fill="#FFE98A" d="M3 19V4L5 2L8 5H12L15 2L17 4V15H14A1 1 0 0 0 13 16V19Z"/>
+  <path fill="#E9C75C" d="M14 16H17L14 19Z"/>
+  <rect x="6" y="8" width="2" height="2" fill="#1E3A3A"/>
+  <rect x="12" y="8" width="2" height="2" fill="#1E3A3A"/>
+  <rect x="9" y="11" width="2" height="2" fill="#EE5A3C"/>
+  <rect x="5" y="15" width="5" height="1" fill="#2E7A66"/>
+</svg>

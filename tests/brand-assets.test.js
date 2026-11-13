@@ -90,14 +90,19 @@ test('the installed app and tray icons are complete at the sizes each project re
   for (const [density, factor] of Object.entries({ mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 }))
     for (const layer of ['background', 'foreground', 'monochrome'])
       assert.deepEqual(await pixels(`${res}/mipmap-${density}/ic_launcher_${layer}.png`), [108 * factor, 108 * factor], `${density} ${layer}`);
-  // Windows: the embedded icon (executable, windows and tray) and the unqualified scale-100 MSIX images.
+  // Windows: the embedded icon (executable, windows and tray) and the unqualified scale-100 MSIX images. Each frame's
+  // PNG must be drawn at the size its directory entry declares: Windows takes the 16-32 px frame for the notification
+  // area and scales whatever it finds there, so a 256 px image in every slot draws a shrunken, blurred icon.
   const ico = await readFile(at('src/native/windows/app/PinItAnywhere.ico')), entries = ico.readUInt16LE(4);
-  const sizes = Array.from({ length: entries }, (_, index) => {
-    const entry = 6 + 16 * index, offset = ico.readUInt32LE(entry + 12);
-    assert.equal(ico.subarray(offset, offset + 4).toString('hex'), '89504e47');
-    return ico[entry] || 256;
+  const frames = Array.from({ length: entries }, (_, index) => {
+    const entry = 6 + 16 * index, length = ico.readUInt32LE(entry + 8), offset = ico.readUInt32LE(entry + 12), size = ico[entry] || 256;
+    const data = ico.subarray(offset, offset + length);
+    assert.equal(data.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', `ICO frame ${size} is a PNG`);
+    assert.deepEqual([data.readUInt32BE(16), data.readUInt32BE(20)], [size, size], `ICO frame ${size} is drawn at its declared size`);
+    return { size, data: data.toString('base64') };
   });
-  assert.deepEqual(sizes, [16, 20, 24, 32, 40, 48, 64, 256]);
+  assert.deepEqual(frames.map(frame => frame.size), [16, 20, 24, 32, 40, 48, 64, 256]);
+  assert.equal(new Set(frames.map(frame => frame.data)).size, frames.length, 'every ICO frame is its own image');
   for (const [name, side] of [['Square44x44Logo', 44], ['Square150x150Logo', 150], ['StoreLogo', 50]])
     assert.deepEqual(await pixels(`src/native/windows/package-assets/${name}.png`), [side, side], name);
   // Linux: a hicolor theme under the fixed name that packaging renames to the app ID.
@@ -105,6 +110,28 @@ test('the installed app and tray icons are complete at the sizes each project re
   for (const side of [16, 22, 24, 32, 48, 64, 128, 256, 512]) assert.deepEqual(await pixels(`${theme}/${side}x${side}/apps/app-icon.png`), [side, side]);
   assert.match(await readFile(at(`${theme}/scalable/apps/app-icon.svg`), 'utf8'), /^<svg /);
   assert.doesNotMatch(await readFile(at(`${theme}/symbolic/apps/app-icon-symbolic.svg`), 'utf8'), /stroke/);
+});
+
+test('pixel-grid icons fill their grid on whole pixels in the small icon\'s palette', () => {
+  const fills = svg => new Set([...svg.matchAll(/fill="([^"]+)"/g)].map(match => match[1].toUpperCase()));
+  const selected = concepts.find(concept => concept.id === 'cat-note');
+  assert.deepEqual(Object.keys(selected.pixel).map(Number), [16, 20, 24], 'the selected concept draws every Windows small grid');
+  for (const concept of concepts) for (const [grid, svg] of Object.entries(concept.pixel)) {
+    const name = `${concept.id} pixel-${grid}`;
+    assert.match(svg, new RegExp(`viewBox="0 0 ${grid} ${grid}" width="${grid}" height="${grid}"`), name);
+    // Every coordinate, size and arc radius is a whole number, so each edge lands on a pixel boundary at 1x and 2x.
+    const shapes = svg.replace(/<!--[\s\S]*?-->/g, '').replace(/^<svg[^>]*>/, '');
+    for (const [, value] of shapes.matchAll(/\b(?:d|x|y|width|height)="([^"]+)"/g))
+      for (const number of value.match(/-?\d*\.?\d+/g) ?? []) assert.ok(Number.isInteger(Number(number)), `${name} has an off-grid value ${number}`);
+    // It fills the cell from top to bottom, like other notification-area icons.
+    assert.match(svg, new RegExp(`<path fill="[^"]+" d="M\\d+ ${grid}V`), `${name} reaches the bottom edge`);
+    assert.match(svg, /L\d+ 0L/, `${name} reaches the top edge`);
+    // The palette follows small.svg, so a colour revision has to reach these drawings too.
+    assert.deepEqual([...fills(svg)].sort(), [...fills(concept.small)].sort(), `${name} uses the small icon's colours`);
+    assert.equal(compose.pixel(concept, Number(grid)), svg);
+  }
+  assert.equal(compose.pixel(selected, 32), selected.pixel[16], '32 px doubles the 16 px drawing');
+  assert.equal(compose.pixel(selected, 30), undefined);
 });
 
 test('the app sidebar mark is the selected concept\'s small icon', async () => {

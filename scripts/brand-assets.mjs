@@ -8,11 +8,13 @@
  *   monochrome.svg   1024 single-colour silhouette (Android themed icon, tinted appearances)
  *   small.svg        32-unit hand-simplified colour icon for 16-32 px
  *   tray.svg         32-unit black glyph for menu bars, notification areas and symbolic icons
+ *   pixel-<N>.svg    optional N-unit colour icon drawn on an N px grid that fills its cell (Windows small frames)
  */
 import { readFile, readdir } from 'node:fs/promises';
 
 export const brandRoot = new URL('../assets/brand/', import.meta.url);
 const LAYERS = ['background', 'foreground', 'monochrome', 'small', 'tray'];
+export const PIXEL_GRIDS = [16, 20, 24];
 
 export async function listConcepts() {
   const entries = await readdir(new URL('concepts/', brandRoot), { withFileTypes: true });
@@ -23,6 +25,11 @@ export async function loadConcept(id) {
   const directory = new URL(`concepts/${id}/`, brandRoot), concept = { id, directory };
   concept.meta = JSON.parse(await readFile(new URL('concept.json', directory), 'utf8'));
   for (const layer of LAYERS) concept[layer] = await readFile(new URL(`${layer}.svg`, directory), 'utf8');
+  concept.pixel = {};
+  for (const grid of PIXEL_GRIDS) {
+    try { concept.pixel[grid] = await readFile(new URL(`pixel-${grid}.svg`, directory), 'utf8'); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+  }
   return concept;
 }
 
@@ -106,6 +113,11 @@ export const compose = {
     return document(`<g filter="url(#${id}-shadow)"><g filter="url(#${id}-outline)">${foreground(concept, 'freeform', { dark, legacy: false })}</g></g>`, 1024, outline + shadow(`${id}-shadow`, 16, 18, 0.28));
   },
   small: concept => concept.small,
+  /**
+   * The pixel-grid drawing that lands on whole pixels at `size` (the largest grid dividing it, so 32 px doubles the
+   * 16 px drawing), or undefined when the concept has none for that size.
+   */
+  pixel: (concept, size) => PIXEL_GRIDS.filter(grid => size % grid === 0 && concept.pixel?.[grid]).map(grid => concept.pixel[grid]).at(-1),
   tray: (concept, colour = '#000') => concept.tray.replace(/#000\b/g, colour),
   /** Layer files for an Icon Composer document: flat art only, no legacy shadows. */
   iconLayers: concept => groups(concept.foreground).filter(group => !group.legacy).map(group => ({

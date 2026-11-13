@@ -140,6 +140,7 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
     assert.ok(plist.includes('group.app.workfleet.ios'));
     assert.ok(plist.includes('<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/>'));
     assert.ok(plist.includes('<string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string>'));
+    assert.equal(plist.includes('LSApplicationCategoryType'), false);
     // System-drawn alert buttons, share sheets and menus follow the user's language for both supported localizations.
     const localizations = '<key>CFBundleDevelopmentRegion</key><string>en</string><key>CFBundleLocalizations</key><array><string>en</string><string>zh-Hant</string></array>';
     assert.ok(plist.includes(localizations));
@@ -158,12 +159,19 @@ test('Apple build prepares fresh bundle resources and keeps share extension free
       assert.ok(script.includes('workFleet'));
       assert.equal(script.includes('PRIVATE_TOKEN'), false);
     }
+    const mac = path.join(directory, 'Mac');
+    await prepareAppleBuild({ platform: 'macos', output: mac, environment: {
+      ...environment, WORK_FLEET_GOOGLE_MACOS_CLIENT_ID: '123-macos.apps.googleusercontent.com',
+    }, installDependencies: false });
+    const macPlist = await readFile(path.join(mac, 'Info.plist'), 'utf8');
+    assert.ok(macPlist.includes('<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>'));
     const share = path.join(directory, 'Share');
     await prepareAppleBuild({ platform: 'share', output: share, environment });
     const sharePlist = await readFile(path.join(share, 'Info.plist'), 'utf8');
     assert.ok(sharePlist.includes('com.apple.share-services'));
     assert.ok(sharePlist.includes('group.app.workfleet.ios'));
     assert.ok(sharePlist.includes(localizations));
+    assert.equal(sharePlist.includes('LSApplicationCategoryType'), false);
     assert.equal(sharePlist.includes('UIApplicationSceneManifest'), false);
     assert.equal(sharePlist.includes(environment.WORK_FLEET_GOOGLE_IOS_CLIENT_ID), false);
     await assert.rejects(access(path.join(share, 'Config')));

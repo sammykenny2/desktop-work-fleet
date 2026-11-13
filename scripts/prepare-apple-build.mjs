@@ -33,6 +33,7 @@ export function appleInfoPlist(platform, config, { version, build }) {
     content += platform === 'ios'
       ? group + '<key>LSRequiresIPhoneOS</key><true/><key>UILaunchScreen</key><dict/><key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/><key>UISceneConfigurations</key><dict><key>UIWindowSceneSessionRoleApplication</key><array><dict><key>UISceneConfigurationName</key><string>Default Configuration</string><key>UISceneDelegateClassName</key><string>$(PRODUCT_MODULE_NAME).FleetSceneDelegate</string></dict></array></dict></dict><key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string><string>UIInterfaceOrientationLandscapeLeft</string><string>UIInterfaceOrientationLandscapeRight</string></array>'
       : '<key>NSPrincipalClass</key><string>NSApplication</string><key>LSMinimumSystemVersion</key><string>13.0</string>'
+        + '<key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>'
         // ADR-044 Sparkle: checks only when the user asks; the sandboxed app installs through Sparkle's launcher service.
         + '<key>SUEnableAutomaticChecks</key><false/><key>SUAutomaticallyUpdate</key><false/><key>SUEnableInstallerLauncherService</key><true/>'
         + (config.update?.macosPublicKey ? `<key>SUPublicEDKey</key><string>${escape(config.update.macosPublicKey)}</string>` : '');

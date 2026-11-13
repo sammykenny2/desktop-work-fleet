@@ -656,6 +656,8 @@ APK build, IDE Sync, real-device operation and Google round trips are separate v
 `tests/apple-project.test.js` verifies that the Xcode project generates identical content from different checkout paths, that all source references are portable,
 the main app and Share Extension dependencies, that machine configuration stays out of the project, generated assets and Info.plist, the Apple main-window and scene classic bundles,
 that CSP is not loosened, missing release values, and duplicate copies of read-only dependency licence files.
+It also checks the generated macOS productivity category and keeps that macOS-only key out of iOS and the Share Extension.
+Visibility in Spotlight's app browsing view still needs a manual check with a newly built and installed app; metadata checks do not prove visibility or suggestion ranking.
 `node --test tests/apple-project.test.js` needs no Apple SDK; it does not mean Xcode loading, Swift compilation or signing passed.
 `tests/apple-signing.test.js` verifies the certificate and profile settings of the manual Developer ID export and invalid signing arguments;
 on a Mac it also runs DMG plus update-ZIP packaging with the real PlistBuddy and fake Xcode, notary and codesign tools, confirming that no Installer is needed,

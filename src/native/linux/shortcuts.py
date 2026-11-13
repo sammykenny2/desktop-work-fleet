@@ -30,6 +30,7 @@ class Shortcuts:
     def __init__(self, mode, action, changed, labwc=None):
         self.mode, self.action, self.changed, self.labwc = mode, action, changed, labwc
         self.bindings, self.registrations, self.active = [], [], {}
+        self.last_answers = []
         self.generation = 0
         self.suspended = self.closed = False
         self.keybinder = self.bus = self.session = None
@@ -66,6 +67,7 @@ class Shortcuts:
             identifier = "wf_" + hashlib.sha256((key + "\0" + target).encode()).hexdigest()[:32]
             bindings.append({"key": key, "target": target, "chord": chord, "status": status, "id": identifier})
         self.bindings = bindings
+        self.last_answers = []
         self.refresh()
         return {"registrations": self.registrations}
 
@@ -83,6 +85,8 @@ class Shortcuts:
             if registered.get(binding["id"]):
                 result["triggerDescription"] = registered[binding["id"]]
             self.registrations.append(result)
+        if not self.suspended:
+            self.last_answers = [dict(item) for item in self.registrations]
         self.changed(self.registrations)
 
     def suspend(self, value):
@@ -125,6 +129,7 @@ class Shortcuts:
             for result in self.registrations:
                 if result["status"] == "unavailable" and parse(result["key"])[0] is not None:
                     result["status"] = "conflict"
+            self.last_answers = [dict(item) for item in self.registrations]
             self.changed(self.registrations)
         elif self.bus is not None and any(value["chord"] for value in self.bindings):
             self.create_portal()

@@ -143,6 +143,8 @@ class StatusNotifier:
             values = {"type": GLib.Variant("s", "separator")} if isinstance(item, Gtk.SeparatorMenuItem) else {
                 "label": GLib.Variant("s", item.get_label().replace("_", "__"))}
             values.update(enabled=GLib.Variant("b", item.get_sensitive()), visible=GLib.Variant("b", item.get_visible()))
+            if getattr(item, "shortcut_parts", None):
+                values["shortcut"] = GLib.Variant("aas", [item.shortcut_parts])
         return {key: value for key, value in values.items() if not names or key in names}
 
     def event(self, node_id, event, _data, _time):
@@ -160,8 +162,10 @@ class StatusNotifier:
 
     def about_to_show(self, node_id):
         self.item_properties(node_id)
+        before = self.revision
         if node_id == 0:
             self.menu_active(True)
+        return self.revision != before
 
     def menu_call(self, _bus, _sender, _path, _interface, method, args, invocation):
         values = args.unpack()
@@ -188,16 +192,16 @@ class StatusNotifier:
                         errors.append(event[0])
                 reply = GLib.Variant("(ai)", (errors,))
             elif method == "AboutToShow":
-                self.about_to_show(values[0])
-                reply = GLib.Variant("(b)", (False,))
+                reply = GLib.Variant("(b)", (self.about_to_show(values[0]),))
             elif method == "AboutToShowGroup":
-                errors = []
+                errors, changed = [], []
                 for node_id in values[0]:
                     try:
-                        self.about_to_show(node_id)
+                        if self.about_to_show(node_id):
+                            changed.append(node_id)
                     except KeyError:
                         errors.append(node_id)
-                reply = GLib.Variant("(aiai)", ([], errors))
+                reply = GLib.Variant("(aiai)", (changed, errors))
             invocation.return_value(reply)
         except KeyError:
             invocation.return_dbus_error(MENU + ".Error.InvalidMenuItem", "The tray menu item or property does not exist.")

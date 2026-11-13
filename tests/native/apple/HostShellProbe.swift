@@ -123,7 +123,7 @@ import ServiceManagement
         PinItAnywhereText.apply("zh-TW")
         try check(PinItAnywhereText.preference == "zh-TW" && PinItAnywhereText.locale == "zh-TW" && PinItAnywhereText.text("menuBar.quit") == PinItAnywhereText.zhTW["menuBar.quit"], "zh-TW text comes from the Traditional Chinese block")
         PinItAnywhereText.apply("en")
-        try check(PinItAnywhereText.text("menuBar.quit") == "Save and quit", "English text comes from the English block")
+        try check(PinItAnywhereText.text("menuBar.quit") == "Quit Pin It Anywhere", "English text comes from the English block")
         try check(PinItAnywhereText.text("dialog.upToDate", ["version": "1.2.3"]) == "Pin It Anywhere 1.2.3 is up to date.", "Placeholders are filled")
         try check(PinItAnywhereText.text("missing.key") == "missing.key", "A missing key stays visible")
         PinItAnywhereText.apply("fr")

@@ -134,6 +134,19 @@ internal static class HostSettingsProbe
     Require(Rows(TrayMenu.Entries(true, true, false, [])) == "*show @hide | @capture @toggle @stop | exit",
       "a shown main window can be hidden; while adjusting only finishing is offered; no update row without updates");
     Require(TrayMenu.Entries(true, false, true, keys).Where(e => !e.IsSeparator).All(e => english.ContainsKey(e.Text)), "every row has host text");
+    using var trayDocument = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(Path.GetDirectoryName(FindFixture())!, "tray-menu.json")));
+    var trayKeys = trayDocument.RootElement.GetProperty("shortcuts").EnumerateArray().Select(row =>
+      (row.GetProperty("key").GetString()!, row.GetProperty("target").GetString()!, row.GetProperty("status").GetString()!)).ToArray();
+    foreach (var test in trayDocument.RootElement.GetProperty("cases").EnumerateArray())
+    {
+      var rows = TrayMenu.Entries(test.GetProperty("mainVisible").GetBoolean(), test.GetProperty("adjusting").GetBoolean(),
+        test.GetProperty("updates").GetBoolean(), trayKeys, test.GetProperty("ready").GetBoolean());
+      Require(rows.Select(row => row.Action).SequenceEqual(test.GetProperty("actions").EnumerateArray().Select(item => item.GetString())), "shared tray action order");
+      Require(rows.Where(row => !row.Enabled).Select(row => row.Action).SequenceEqual(test.GetProperty("disabled").EnumerateArray().Select(item => item.GetString())), "shared tray enabled state");
+      var expectedKeys = test.GetProperty("keys").EnumerateObject().ToDictionary(item => item.Name, item => item.Value.GetString());
+      var actualKeys = rows.Where(row => row.Shortcut is not null).ToDictionary(row => row.Action, row => row.Shortcut);
+      Require(actualKeys.Count == expectedKeys.Count && actualKeys.All(row => expectedKeys.GetValueOrDefault(row.Key) == row.Value), "shared tray shortcut hints");
+    }
     Require(TrayMenu.Theme(false, 0) == "Dark" && TrayMenu.Theme(false, 1) == "Light" && TrayMenu.Theme(false, null) == "Light"
       && TrayMenu.Theme(true, 0) == "HC", "the menu follows the Windows mode, light without a value, and high contrast first");
     // A 1920x1080 display with a 48-pixel taskbar at the bottom, then at the left; a point already in the work area stays.

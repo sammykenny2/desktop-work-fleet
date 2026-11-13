@@ -1,10 +1,10 @@
 import AppKit
 
-@main @MainActor final class PinItAnywhereApp: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuDelegate {
+@main @MainActor final class PinItAnywhereApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var window: NSWindow!
     private var host: PinItAnywhereWebHost?
     private var statusItem: NSStatusItem?
-    private var statusMenu: NSMenu?
+    private var statusMenu: PinItAnywhereTrayMenu?
     private var desktop: PinItAnywhereDesktop?
     private var terminating = false
     private var mainAside = false
@@ -16,7 +16,9 @@ import AppKit
     static func main() {
         // Release packaging exercises the actual dyld loader without opening UI, storage or login items.
         if CommandLine.arguments.contains("--check-runtime") { print("PASS Pin It Anywhere runtime load"); return }
-        let application = NSApplication.shared; let delegate = PinItAnywhereApp(); application.delegate = delegate; application.setActivationPolicy(.regular); application.run()
+        let application = NSApplication.shared; let delegate = PinItAnywhereApp(); application.delegate = delegate; application.setActivationPolicy(.regular)
+        // NSApplication's delegate is weak. Release optimization must not retire the owner while the run loop is active.
+        withExtendedLifetime(delegate) { application.run() }
     }
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Read before anything else handles events: macOS marks a login-item launch on the open-application event.
@@ -83,12 +85,11 @@ import AppKit
     }
     /// The menu bar menu and the application menus in the host locale; drawn again when the display language changes.
     private func buildMenus() {
-        let menu = NSMenu(); menu.delegate = self; let show = NSMenuItem(title: PinItAnywhereText.text("menuBar.open"), action: #selector(showMain), keyEquivalent: ""); show.target = self; menu.addItem(show)
-        for (key, target) in [("menuBar.quickCapture", "@capture"), ("menuBar.adjustAll", "@all"), ("menuBar.toggleDesktop", "@toggle")] {
-            let item = NSMenuItem(title: PinItAnywhereText.text(key), action: #selector(desktopAction(_:)), keyEquivalent: ""); item.target = self; item.representedObject = target; menu.addItem(item)
-        }
-        if updates?.capable == true { let item = NSMenuItem(title: PinItAnywhereText.text("menuBar.checkUpdates"), action: #selector(checkUpdates), keyEquivalent: ""); item.target = self; menu.addItem(item) }
-        menu.addItem(.separator()); let quitItem = NSMenuItem(title: PinItAnywhereText.text("menuBar.quit"), action: #selector(quit), keyEquivalent: "q"); quitItem.target = self; menu.addItem(quitItem); statusMenu = menu
+        if statusMenu == nil { statusMenu = PinItAnywhereTrayMenu(state: { [weak self] in
+            guard let self else { return .init() }
+            return .init(mainVisible: window.isVisible && !window.isMiniaturized, adjusting: desktop?.adjusting == true,
+                         ready: desktop?.menuActionsAvailable == true, updates: updates?.capable == true, shortcuts: desktop?.shortcutAnswers ?? [])
+        }, invoke: { [weak self] action in self?.trayAction(action) }, active: { [weak self] in self?.desktop?.menuActive($0) }) }
         let mainMenu = NSMenu(), appItem = NSMenuItem(), appMenu = NSMenu(); mainMenu.addItem(appItem); appItem.submenu = appMenu
         let appQuit = NSMenuItem(title: PinItAnywhereText.text("menu.quit"), action: #selector(quit), keyEquivalent: "q"); appQuit.target = self; appMenu.addItem(appQuit)
         let editTitle = PinItAnywhereText.text("menu.edit")
@@ -111,12 +112,14 @@ import AppKit
     @objc private func statusItemClicked(_ button: NSStatusBarButton) {
         let event = NSApplication.shared.currentEvent
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
-            statusMenu?.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
+            desktop?.prepareMenu()
+            statusMenu?.reload(); statusMenu?.menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.minY), in: button)
         } else { showMain() }
     }
     @objc private func showMain() {
+        mainAside = false
         if !window.isVisible { shell?.beforeShow(window) }
-        window.makeKeyAndOrderFront(nil)
+        PinItAnywhereTrayMenu.showMain(window)
         if shell?.pendingMaximize == true { shell?.pendingMaximize = false; if !window.isZoomed { window.zoom(nil) } }
         NSApplication.shared.activate(ignoringOtherApps: false)
     }
@@ -154,10 +157,17 @@ import AppKit
         else if !mainAside && window.isVisible && !window.isMiniaturized { mainAside = true; window.miniaturize(nil) }
     }
     @objc private func quit() { NSApplication.shared.terminate(nil) }
-    @objc private func desktopAction(_ item: NSMenuItem) { if let target = item.representedObject as? String { desktop?.menuActive(false); desktop?.action(target) } }
-    func menuWillOpen(_ menu: NSMenu) { desktop?.menuActive(true) }
-    func menuDidClose(_ menu: NSMenu) { desktop?.menuActive(false) }
-    // The close button keeps Pin It Anywhere in the menu bar unless that setting is off; "Save and quit" still saves and quits.
+    private func trayAction(_ action: String) {
+        switch action {
+        case "show": DispatchQueue.main.async { [weak self] in self?.showMain() }
+        case "update": DispatchQueue.main.async { [weak self] in self?.checkUpdates() }
+        case "exit": DispatchQueue.main.async { [weak self] in self?.quit() }
+        default:
+            guard desktop?.menuActionsAvailable == true else { showMain(); return }
+            desktop?.menuAction(action)
+        }
+    }
+    // The close button keeps Pin It Anywhere in the menu bar unless that setting is off; Quit still saves first.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if terminating { return true }
         if statusItem?.button != nil && shell?.closeToTray != false { shell?.flush(); sender.orderOut(nil) } else { NSApplication.shared.terminate(nil) }

@@ -75,8 +75,8 @@ public sealed class PinItAnywhereWindow : Window
       {
         // How long the tray takes at sign-in is the evidence for trayWaitSeconds in config/startup.json.
         // A hidden sign-in start shows the window off screen until it is ready, so it does not count as shown.
-        tray = new NativeTray(TrayAction, () => TrayMenu.Entries(IsVisible && !offscreen, desktop?.Adjusting == true, updater?.Capable == true,
-          desktop?.ShortcutAnswers.Select(s => (s.Key, s.Target, s.Status)) ?? [])); Log($"tray available={tray.Available} uptime={Uptime()}");
+        tray = new NativeTray(TrayAction, () => TrayMenu.Entries(IsVisible && !offscreen && WindowState != WindowState.Minimized, desktop?.Adjusting == true, updater?.Capable == true,
+          desktop?.ShortcutAnswers.Select(s => (s.Key, s.Target, s.Status)) ?? [], desktop?.MenuActionsAvailable == true)); Log($"tray available={tray.Available} uptime={Uptime()}");
         tray.Changed += () => { Log($"tray available={tray.Available} uptime={Uptime()}"); if (!tray.Available) ShowMain(false); };
         tray.MenuActive += active => desktop?.MenuActive(active); await Initialize();
       }

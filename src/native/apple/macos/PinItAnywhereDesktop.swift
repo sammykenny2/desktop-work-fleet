@@ -4,22 +4,29 @@ import AppKit
     static let layers = ["desktop", "floating", "wallpaper"]
     private struct Display { let id: String, primary: Bool, native: NSRect, viewport: NSRect, work: NSRect }
     private struct Command { let view: PinItAnywhereSceneSurface, id: String, upload: String?, draft: Bool, created = Date() }
-    private struct Intent { let id = PinItAnywhereProtocol.uuid(), process: pid_t, created = ProcessInfo.processInfo.systemUptime }
+    private typealias Intent = PinItAnywhereActivationIntent
     let session = PinItAnywhereProtocol.uuid()
     private let assets: URL, referenceTop: CGFloat
     private let send: (String, [String: Any]) -> Void, show: () -> Bool, hide: () -> Bool, mainVisible: (Bool) -> Void
+    private let foregroundProcess: () -> pid_t?
     private let transfers = PinItAnywhereSceneTransfers(), shortcuts = PinItAnywhereShortcuts()
     private var displays: [Display], proposed: [Display]?
     private var views: [PinItAnywhereSceneSurface] = [], commands: [String: Command] = [:], flushes: [String: (String, String)] = [:], frozen: [String: String] = [:]
     private var sceneIntents: [String: (String, Intent)] = [:], bindings: [String: String] = [:]
     private var intent: Intent?, focusSequence: Int64?, frame: PinItAnywhereSceneFrame?, frameToken: String?
+    private var menuOrigin: pid_t?
     private var topology: Int64 = 0, proposedTopology: Int64 = 0
     // A quick edit's keyboard request, honoured once its view shows the frame and only shortly after a scene asked to edit.
     private var editRequested: TimeInterval = 0, editorFocus: (view: String, sequence: Int64)?
     private var started = false, closed = false, displayPending = false, blocked = false, menu = false
+    var menuActionsAvailable: Bool { started && !closed && !blocked }
+    var adjusting: Bool { frame?.adjusting == true }
+    var shortcutAnswers: [[String: String]] { shortcuts.lastAnswers }
     private var observers: [(NotificationCenter, NSObjectProtocol)] = [], displayTask: Task<Void, Never>?
-    init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Bool, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void) throws {
+    init(assets: URL, send: @escaping (String, [String: Any]) -> Void, show: @escaping () -> Bool, hide: @escaping () -> Bool, mainVisible: @escaping (Bool) -> Void,
+         foregroundProcess: @escaping () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }) throws {
         self.assets = assets; self.send = send; self.show = show; self.hide = hide; self.mainVisible = mainVisible
+        self.foregroundProcess = foregroundProcess
         guard let primary = NSScreen.screens.first else { throw PinItAnywhereFailure("desktop-display", "No display is available.") }
         referenceTop = primary.frame.maxY; displays = try Self.readDisplays(top: primary.frame.maxY)
         for display in displays { for layer in Self.layers { _ = newView(display, layer) } }
@@ -29,7 +36,15 @@ import AppKit
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in self?.invalidateDisplays(); self?.displayTask?.cancel() }
         observe(workspace, NSWorkspace.didWakeNotification) { [weak self] in self?.refreshDisplays() }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in self?.refreshDisplays() }
-        observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.revokeIntent(); self?.shortcuts.refresh() }
+        let activationObserver = workspace.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] notification in
+            let process = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.intent?.survivesActivation(process, ownProcess: ProcessInfo.processInfo.processIdentifier) != true { self.revokeIntent() }
+                self.shortcuts.refresh()
+            }
+        }
+        observers.append((workspace, activationObserver))
         for name in [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification, NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification] {
             observe(.default, name) { [weak self] in Task { @MainActor in self?.shortcuts.refresh() } }
         }
@@ -62,13 +77,28 @@ import AppKit
         guard let value = views.first(where: { $0.id == id && !$0.retired && $0.ready }) else { throw PinItAnywhereFailure("desktop-view", "The desktop window has closed or isn't ready yet.") }; return value
     }
     private func current(_ value: Intent) -> Bool {
-        ProcessInfo.processInfo.systemUptime - value.created <= 5 && NSWorkspace.shared.frontmostApplication?.processIdentifier == value.process
+        value.current(now: ProcessInfo.processInfo.systemUptime, foreground: foregroundProcess(),
+                      ownProcess: ProcessInfo.processInfo.processIdentifier)
     }
-    private func capture() -> Intent? { guard !blocked && !menu, let process = NSWorkspace.shared.frontmostApplication?.processIdentifier else { return nil }; return Intent(process: process) }
+    private func capture() -> Intent? { guard !blocked && !menu, let process = foregroundProcess() else { return nil }; return Intent(process: process) }
     private func revokeIntent() { intent = nil; focusSequence = nil; sceneIntents.removeAll() }
     func action(_ target: String) {
         guard !closed && started, let captured = capture() else { return }; intent = captured; focusSequence = nil
         send("desktop-action", ["target": target, "intent": captured.id])
+    }
+    /// Remember only the origin before tracking; activation permission is created by the later selection.
+    func prepareMenu() { menuOrigin = foregroundProcess() }
+    /// Capture at selection, then dispatch after menu tracking. Never create a fresh intent in the queued callback.
+    func menuAction(_ target: String) {
+        guard menuActionsAvailable, !menu else { return }
+        // The native tracking loop can temporarily have no frontmost app. A menu selection is still an explicit action.
+        let captured = Intent(process: menuOrigin ?? foregroundProcess() ?? ProcessInfo.processInfo.processIdentifier, fromMenu: true)
+        menuOrigin = nil
+        intent = captured; focusSequence = nil
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !closed, started else { return }
+            send("desktop-action", ["target": target, "intent": captured.id])
+        }
     }
     func menuActive(_ active: Bool) { menu = active; shortcuts.blocked = blocked || menu }
     private func startViews() {

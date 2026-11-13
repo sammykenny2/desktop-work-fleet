@@ -1,0 +1,143 @@
+{
+  "shortcuts": [
+    {
+      "key": "Ctrl+Shift+N",
+      "target": "@capture",
+      "status": "available"
+    },
+    {
+      "key": "Ctrl+Shift+D",
+      "target": "@toggle",
+      "status": "conflict"
+    },
+    {
+      "key": "Ctrl+Shift+0",
+      "target": "@all",
+      "status": "available"
+    }
+  ],
+  "cases": [
+    {
+      "name": "hidden-ready",
+      "mainVisible": false,
+      "adjusting": false,
+      "ready": true,
+      "updates": true,
+      "actions": [
+        "show",
+        "",
+        "@capture",
+        "@toggle",
+        "@all",
+        "",
+        "update",
+        "",
+        "exit"
+      ],
+      "disabled": [],
+      "keys": {
+        "@capture": "Ctrl+Shift+N",
+        "@all": "Ctrl+Shift+0"
+      }
+    },
+    {
+      "name": "shown-adjusting",
+      "mainVisible": true,
+      "adjusting": true,
+      "ready": true,
+      "updates": true,
+      "actions": [
+        "show",
+        "@hide",
+        "",
+        "@capture",
+        "@toggle",
+        "@stop",
+        "",
+        "update",
+        "",
+        "exit"
+      ],
+      "disabled": [],
+      "keys": {
+        "@capture": "Ctrl+Shift+N"
+      }
+    },
+    {
+      "name": "no-update-provider",
+      "mainVisible": false,
+      "adjusting": false,
+      "ready": true,
+      "updates": false,
+      "actions": [
+        "show",
+        "",
+        "@capture",
+        "@toggle",
+        "@all",
+        "",
+        "exit"
+      ],
+      "disabled": [],
+      "keys": {
+        "@capture": "Ctrl+Shift+N",
+        "@all": "Ctrl+Shift+0"
+      }
+    },
+    {
+      "name": "shown-not-ready",
+      "mainVisible": true,
+      "adjusting": false,
+      "ready": false,
+      "updates": false,
+      "actions": [
+        "show",
+        "@hide",
+        "",
+        "@capture",
+        "@toggle",
+        "@all",
+        "",
+        "exit"
+      ],
+      "disabled": [
+        "@hide",
+        "@capture",
+        "@toggle",
+        "@all"
+      ],
+      "keys": {
+        "@capture": "Ctrl+Shift+N",
+        "@all": "Ctrl+Shift+0"
+      }
+    },
+    {
+      "name": "blocked-adjustment",
+      "mainVisible": true,
+      "adjusting": true,
+      "ready": false,
+      "updates": true,
+      "actions": [
+        "show",
+        "@hide",
+        "",
+        "@capture",
+        "@toggle",
+        "@stop",
+        "",
+        "update",
+        "",
+        "exit"
+      ],
+      "disabled": [
+        "@hide",
+        "@capture",
+        "@toggle",
+        "@stop"
+      ],
+      "keys": {
+        "@capture": "Ctrl+Shift+N"
+      }
+    }
+  ]
+}

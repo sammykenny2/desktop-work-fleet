@@ -145,13 +145,13 @@ The native three-layer check on a Mac is `bash scripts/macos/test-desktop-layers
 the Xcode CLI tools.
 Shortcuts are registered with Carbon RegisterEventHotKey, and the global keys are released while the app or the editor
 is in use; conflicts are shown in settings.
-The menu bar has "Open Pin It Anywhere", "Quick capture", "Adjust all note positions", "Show or hide desktop notes", "Check for
-updates…" (only when in-app updates are available) and "Save and quit"; the application menu has "Save and quit Work
-PinItAnywhere". Left-click opens the main window; right-click or Control-click opens the menu. The menu stays separate from
-NSStatusItem so AppKit does not consume primary clicks as menu requests. Display, Space and sleep
-notifications pause input,
-keep the editor surface, and apply the new topology after the owner saves the rescue position; background updates never
-take keyboard focus.
+The menu bar follows the shared desktop action order: Open, Hide main window when shown, Quick capture,
+Show or hide desktop notes, Adjust all note positions (Done adjusting while active), Check for updates when available,
+and Quit Pin It Anywhere. Quit saves through the existing close handshake; the application menu uses the same wording.
+The menu reads the latest owner state before opening, disables unavailable desktop actions and annotates successfully
+registered shortcuts. Opening explicitly restores minimized windows. Menu selections release shortcut suspension before
+queuing their action, retain the gesture through this app's own activation, and never renew an expired focus intent or
+carry it across another app's activation. The application delegate stays alive for the entire native run loop.
 
 On 2026-10-05 a macOS Debug universal build (arm64/x86_64) was compiled with Xcode 27.0 on an Apple Silicon Mac,
 and a 0.1.0 Apple Development signed DMG was produced; the signing and mount checks are recorded in the git history and

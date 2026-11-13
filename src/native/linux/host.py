@@ -226,7 +226,7 @@ class PinItAnywhereApp(Gtk.Application):
         self.tray = Tray(self.config.get("appId") or "dev.sammykenny2.pinitanywhere", self.window, self.tray_action, self.close_requested, self.menu_active,
                          icon if icon.is_file() else None, reveal=lambda: self.show_main(activate=False),
                          update=self.tray_update if self.updater.capable else None,
-                         changed=lambda available: self.log(f"tray available={available} uptime={self.uptime()}"))
+                         changed=lambda available: self.log(f"tray available={available} uptime={self.uptime()}"), state=self.tray_state)
         self.log(f"tray available={self.tray.available} uptime={self.uptime()}")
         GLib.timeout_add_seconds(20, self.host_tick)
         if self.hidden_start:
@@ -594,6 +594,14 @@ class PinItAnywhereApp(Gtk.Application):
     def menu_active(self, active):
         self.tray_menu = active
         self.update_native_block()
+
+    def tray_state(self):
+        window = self.window.get_window()
+        visible = self.window.get_visible() and (window is None or not window.get_state() & Gdk.WindowState.ICONIFIED)
+        desktop = self.desktop
+        return {"main_visible": visible, "ready": desktop is not None and desktop.started and not desktop.closed and not desktop.blocked,
+                "adjusting": desktop is not None and desktop.frame is not None and desktop.frame["operationScope"]["kind"] != "none",
+                "shortcuts": [] if desktop is None else desktop.shortcuts.last_answers}
 
     def update_native_block(self):
         if self.desktop is not None:

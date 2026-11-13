@@ -125,7 +125,7 @@ public sealed class NativeTray : IDisposable
     {
       if (entry.IsSeparator) { next.Items.Add(new Separator()); continue; }
       // WPF reads one underscore as an access-key mark; two keep it as text. The shortcut is drawn right-aligned.
-      var item = new MenuItem { Header = HostText.Get(entry.Text).Replace("_", "__"), InputGestureText = entry.Shortcut ?? "" };
+      var item = new MenuItem { Header = HostText.Get(entry.Text).Replace("_", "__"), InputGestureText = entry.Shortcut ?? "", IsEnabled = entry.Enabled };
       // The default item is the one the icon's click runs.
       if (entry.Default) item.FontWeight = FontWeights.SemiBold;
       item.Click += (_, _) => { if (generation == opened) chosen = entry.Action; };

@@ -58,6 +58,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   remote bodies on selection. Trash offers Delete forever and Empty Trash with resumable cleanup; unpublished
   edits from a purged identity are kept in Versions for Save as copy. Component benchmarks confirm bounded ordinary record work within measured storage capacity; installed-host
   latency and acceptance remain open under [PLAN-011](docs/plans/011-dataset-checkpoints-and-deletable-history.md).
+- Desktop menus: Windows, macOS and Linux share action order, adjustment-state switching, readiness and successful-key
+  annotations while keeping native appearance. macOS menu actions retain their gesture through this app's activation,
+  with the original expiry and revocation on another app's activation; installed signed-app acceptance remains open.
 - Languages: the UI is English-first with a Traditional Chinese catalog; Settings > General > Display language offers
   Auto-detect, English and Traditional Chinese and switches without a reload. Every host stores the choice per device and
   draws its tray, menus and dialogs in it; host errors arrive in English and are shown through the catalogs

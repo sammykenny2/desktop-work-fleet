@@ -80,6 +80,32 @@ save taking focus that no longer belongs to the operation.
   and the page and its drafts stay in the running WebView; when the tray is not available, X still saves and exits.
   The tray's save-and-exit item, in-app Close and WM_CLOSE keep the existing durable close protocol.
 
+## Shared desktop menu contract
+
+The maintainer delegated cross-platform menu alignment and macOS action repair on 2026-11-14. Windows, macOS and Linux
+use the same action order and snapshot the current owner state before the menu opens:
+
+1. Open the main window, then Hide main window only while it is shown and not minimized.
+2. Quick capture, Show or hide desktop notes, then Adjust all note positions; Done adjusting replaces the last item
+   during any adjustment scope.
+3. Check for updates only with an available native update provider.
+4. Exit last. English follows native wording (Exit on Windows, Quit on macOS/Linux); all save through the existing close
+   handshake. The native menu appearance and modifier symbols stay platform-specific.
+
+Separators divide the groups above. Registered shortcut answers survive temporary suspension for app focus or menu
+tracking; refused keys and a previous binding set are never advertised. Desktop actions are disabled until the desktop
+session starts, and while a native write/close barrier blocks it. Open and exit remain reachable.
+
+macOS retains its application delegate for the native run loop. It remembers the foreground app before native tracking,
+so a temporarily missing frontmost app during selection cannot silently discard a menu command. Selection releases
+tracking, captures that gesture once and queues dispatch. The gesture can survive activation of this app as the menu closes;
+another app's activation revokes it, and the original five-second expiry remains. Global shortcut and scene intent
+rules do not gain this menu exception. Opening explicitly restores a minimized main window.
+
+The three native menu models share the acceptance fixture `tests/fixtures/tray-menu.json`; native transport tests own
+the menu callback and owner-bridge verification. Linux keeps exported D-Bus node IDs stable when rows hide or labels
+change, publishes enabled/visible/shortcut properties and reports refreshes through AboutToShow.
+
 ## Consequences
 
 ### Positive

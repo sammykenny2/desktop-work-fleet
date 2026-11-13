@@ -217,6 +217,32 @@ elif MODE == "hidden-tray":
     check(app.tray_menu and not app.window.get_visible(), "opening the tray menu holds shortcuts and keeps the main window hidden")
     call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (0, "closed", GLib.Variant("i", 0), 0)))
     check(not app.tray_menu, "dismissing the exported menu releases shortcuts")
+    original_state, original_action = app.tray.state, app.tray.action
+    menu_state = {"main_visible": True, "ready": True, "adjusting": True,
+                  "shortcuts": [{"key": "Ctrl+Shift+N", "target": "@capture", "status": "available"}]}
+    chosen = []
+    def selected(target, *_):
+        check(not app.tray_menu, "an exported selection releases shortcut suspension before dispatch")
+        chosen.append(target)
+    app.tray.state, app.tray.action = lambda: menu_state, selected
+    changed, errors = call("/TrayMenu", "com.canonical.dbusmenu", "AboutToShowGroup", GLib.Variant("(ai)", ([0, 999],)))
+    check(changed == [0] and errors == [999], "AboutToShowGroup reports refreshed state and unknown nodes")
+    _revision, dynamic = call("/TrayMenu", "com.canonical.dbusmenu", "GetLayout", GLib.Variant("(iias)", (0, -1, [])))
+    labels = {properties.get("label"): node_id for node_id, properties, _children in dynamic[2] if properties.get("visible") and "label" in properties}
+    done_id, capture_id = labels[text.EN["tray.finishAdjusting"]], labels[text.EN["tray.quickCapture"]]
+    check(text.EN["tray.hideMain"] in labels, "a shown main window offers Hide")
+    check(call("/TrayMenu", "com.canonical.dbusmenu", "GetProperty", GLib.Variant("(is)", (capture_id, "shortcut"))) ==
+          ([["Control", "Shift", "N"]],), "D-Bus exports registered shortcut annotations")
+    call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (done_id, "clicked", GLib.Variant("i", 0), 0)))
+    check(chosen == ["@stop"], "Done uses the stop action, not the all-groups toggle")
+    menu_state.update(main_visible=False, ready=False)
+    call("/TrayMenu", "com.canonical.dbusmenu", "AboutToShow", GLib.Variant("(i)", (0,)))
+    check(call("/TrayMenu", "com.canonical.dbusmenu", "GetProperty", GLib.Variant("(is)", (capture_id, "label"))) ==
+          (text.EN["tray.quickCapture"],), "state changes keep exported action IDs stable")
+    call("/TrayMenu", "com.canonical.dbusmenu", "Event", GLib.Variant("(isvu)", (capture_id, "clicked", GLib.Variant("i", 0), 0)))
+    check(chosen == ["@stop"], "disabled exported actions are not dispatched")
+    app.tray.state, app.tray.action = original_state, original_action
+    app.tray.set_menu_active(False); app.tray.refresh()
     call("/StatusNotifierItem", "org.kde.StatusNotifierItem", "ContextMenu", GLib.Variant("(ii)", (10, 20)))
     spin(lambda: app.tray.menu.get_visible(), message="context activation opens the native menu")
     check(not app.window.get_visible(), "context activation leaves the main window hidden")

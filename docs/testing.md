@@ -87,6 +87,18 @@ and Traditional Chinese. It uses synthetic IndexedDB profiles; installed native-
 C numbers in test names mark only the simulated semantic part; the native capabilities of C16, C35, C40–C43 and C46–C47 still need acceptance on a real host.
 A green result from old tests must not be listed as a pass for a new feature, and document changes do not restart the old Mac probes.
 
+Desktop menu regression coverage: `tests/fixtures/tray-menu.json` defines action order, enabled state and successful
+shortcut annotations for all three native models. `test_linux_tray.py` checks the GTK callback state and stable slots;
+the Windows `HostSettingsProbe` consumes the same fixture. `test_macos_tray_menu.py` compiles the production AppKit menu,
+dispatches every enabled item with [NSMenu.performActionForItem](https://developer.apple.com/documentation/appkit/nsmenu/performactionforitem(at:)), and checks disabled items, language, menu focus expiry
+and a disposable hidden/minimized window. `test_macos_tray_bridge.py` uses the real WebKit bridge, renderer, desktop
+coordinator and encrypted SQLite with a fake Google SDK and synthetic Keychain implementation: toggle, adjust, finish
+and quick capture must reach a hidden owner, even with no foreground-app answer during native selection; quick capture
+must also reveal its window. The global-shortcut path keeps its stricter admission. The probe bundles the native renderer from the installed npm dependencies and never
+opens product data or a real account. Without a graphical Mac session it reports a skip.
+The Linux `hidden-tray` native host probe checks real D-Bus state refreshes, stable IDs, shortcut properties, Done and
+disabled-item dispatch. These isolated checks do not establish acceptance in the maintainer's running signed app.
+
 `tests/schema-version.test.js` verifies the SPEC-007 testing-phase policy: every current JSON format is V1, loading and editing trigger no version-bump writes,
 local and Google share the V1 ZIP, and unsupported formats are rejected with the data kept. There is no per-version migration or copy acceptance work.
 For documentation work, check_docs.py, git diff --check and a scope and semantic consistency check are enough.

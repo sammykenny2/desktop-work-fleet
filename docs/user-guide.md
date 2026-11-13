@@ -496,18 +496,18 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
   Linux panels choose how to map physical clicks to tray actions; this is the app's primary/context-menu contract.
 - While "Keep running in the tray when the main window closes" is on (the default; "Keep running in the menu bar when
   the main window closes" on macOS), closing the window (X) hides it to the tray (the menu bar on macOS). To quit, use
-  "Exit Pin It Anywhere" in the Windows tray, or "Save and quit" in the Linux tray and the macOS menu bar; both save first.
+  "Exit Pin It Anywhere" in the Windows tray, or "Quit Pin It Anywhere" in the Linux tray and the macOS menu bar; all save first.
   When the switch is off, or when the tray is unavailable, X saves and quits.
 - After X or the Windows tray's "Hide main window", the desktop notes and the authority over local data keep running.
   From the tray you can reopen the main window, use Quick capture, adjust notes or quit.
-- The Windows tray menu starts with "Open Pin It Anywhere" in bold, which is also what clicking the icon does, and "Hide
-  main window" while the main window shows. Then come "Quick capture", "Show or hide desktop notes" and "Adjust all
-  note positions" ("Done adjusting" instead while notes are being adjusted), each with its global shortcut when that key is
-  registered, then "Check for updates…" (where in-app updates are available) and last "Exit Pin It Anywhere". The menu
-  has the Windows 11 look and follows the Windows light or dark mode.
-- The Linux tray and the macOS menu bar have "Open Pin It Anywhere", "Quick capture", "Adjust all note positions", "Show or hide
-  desktop notes", "Check for updates…" (where in-app updates are available) and "Save and quit". The macOS
-  application menu also has "Save and quit Pin It Anywhere".
+- All three desktop hosts use the same action order, in groups separated by lines: Open Pin It Anywhere and Hide main
+  window (only when the window is shown, not minimized); Quick capture, Show or hide desktop notes and Adjust all note
+  positions; Check for updates… (only where in-app updates are available); and Exit Pin It Anywhere on Windows or Quit
+  Pin It Anywhere on macOS/Linux. Both exit commands save first. The macOS application menu also offers Quit Pin It Anywhere.
+- While notes are being adjusted, Done adjusting replaces Adjust all note positions. Desktop actions are disabled
+  while the desktop session is starting or an operation temporarily blocks input; Open and quitting remain available.
+  Opening restores a hidden or minimized main window. Registered shortcuts are shown beside their desktop actions;
+  refused or unavailable shortcuts are omitted. Each platform keeps its native menu appearance and shortcut symbols.
 - The tray and menu labels follow Settings > General > Display language.
 - If the focus has moved after a delay, click a floating note once to continue.
 - Whether closing the main window keeps Pin It Anywhere in the tray is a switch in Settings > General; see
@@ -551,7 +551,7 @@ Recent restore receipts are under the collapsed "Recent restores" entry.
 
 ### macOS
 
-- The close button keeps Pin It Anywhere in the menu bar; "Save and quit" there saves and quits.
+- The close button keeps Pin It Anywhere in the menu bar; "Quit Pin It Anywhere" there saves and quits.
 - Desktop notes use three AppKit layers with the same controls as Windows.
 
 ### Linux

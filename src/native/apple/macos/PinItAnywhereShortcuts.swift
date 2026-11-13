@@ -7,6 +7,8 @@ import Carbon
     private var nextID: UInt32 = 0
     private var bindings: [(key: String, target: String)] = []
     private(set) var registrations: [[String: String]] = []
+    /// Keep actual registration answers while app focus or menu tracking temporarily releases hotkeys.
+    private(set) var lastAnswers: [[String: String]] = []
     var blocked = false { didSet { if blocked != oldValue { refresh() } } }
     var action: ((String) -> Void)?, changed: (([[String: String]]) -> Void)?
     init() {
@@ -34,7 +36,7 @@ import Carbon
             try PinItAnywhereProtocol.require(keys.insert(key).inserted && target.range(of: "^(?:@(?:all|capture|toggle)|[A-Za-z0-9][A-Za-z0-9._:-]{0,127})$", options: .regularExpression) != nil && !["__proto__", "constructor", "prototype"].contains(target), "shortcut-settings", "A shortcut target isn't valid.")
             next.append((key, target))
         }
-        bindings = next; refresh(); return ["registrations": registrations]
+        bindings = next; lastAnswers = []; refresh(); return ["registrations": registrations]
     }
     func refresh() {
         clear(); var result: [[String: String]] = []
@@ -52,7 +54,9 @@ import Carbon
             }
             result.append(["key": binding.key, "target": binding.target, "status": status])
         }
-        registrations = result; changed?(result)
+        registrations = result
+        if !suspended { lastAnswers = result }
+        changed?(result)
     }
     private static func parse(_ text: String) -> (key: UInt32, modifiers: UInt32, status: String) {
         let parts = text.split(separator: "+").map(String.init), order = ["Ctrl", "Alt", "Shift", "Meta"]

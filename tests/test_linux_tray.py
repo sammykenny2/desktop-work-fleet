@@ -1,5 +1,6 @@
 """The Linux tray shows a hidden main window only when a tray it had goes away (ADR-043), using fake GI without a display."""
 import importlib.util
+import json
 from pathlib import Path
 import sys
 import types
@@ -71,6 +72,9 @@ class MenuItem:
     """Records its label, as the indicator exports it."""
     def __init__(self, label):
         self.label = label
+        self.visible = self.sensitive = True
+        self.handlers = {}
+        self.child = types.SimpleNamespace(set_accel=lambda *_: None)
 
     @classmethod
     def new_with_label(cls, label):
@@ -80,7 +84,25 @@ class MenuItem:
         self.label = label
 
     def connect(self, *_args):
-        pass
+        self.handlers[_args[0]] = _args[1]
+
+    def activate(self):
+        self.handlers["activate"](self)
+
+    def set_visible(self, value):
+        self.visible = value
+
+    def get_visible(self):
+        return self.visible
+
+    def set_sensitive(self, value):
+        self.sensitive = value
+
+    def get_sensitive(self):
+        return self.sensitive
+
+    def get_child(self):
+        return self.child
 
 
 class Window:
@@ -100,6 +122,7 @@ class LinuxTrayTests(unittest.TestCase):
         repository.Gtk = Anything()
         repository.Gtk.StatusIcon = StatusIcon
         repository.Gtk.MenuItem = MenuItem
+        repository.Gtk.accelerator_parse = lambda _chord: (0, 0)
         repository.GLib = types.SimpleNamespace(Error=RuntimeError)
         repository.Gdk = types.SimpleNamespace(Display=types.SimpleNamespace(get_default=lambda: types.SimpleNamespace(__gtype__=types.SimpleNamespace(name="GdkX11Display"))))
         gi.repository = repository
@@ -143,18 +166,47 @@ class LinuxTrayTests(unittest.TestCase):
     def test_the_menu_follows_the_display_language(self):
         self.addCleanup(text.set_locale, "en")
         tray = self.module.Tray("dev.sammykenny2.pinitanywhere.test", Window(), None, None, None, update=lambda: None)
-        self.assertEqual(self.labels(tray), ["Open Pin It Anywhere", "Quick capture", "Adjust all note positions", "Show or hide desktop notes",
-                                             "Check for updates…", "Save and quit"])
+        self.assertEqual(self.labels(tray), ["Open Pin It Anywhere", "Quick capture", "Show or hide desktop notes", "Adjust all note positions",
+                                             "Check for updates…", "Quit Pin It Anywhere"])
         text.set_locale("zh-TW")
         tray.relabel()
-        self.assertEqual(self.labels(tray), [text.ZH_TW[key] for key in ("tray.open", "tray.quickCapture", "tray.adjustAll",
-                                                                          "tray.toggleDesktop", "tray.checkUpdates", "tray.saveAndQuit")])
+        self.assertEqual(self.labels(tray), [text.ZH_TW[key] for key in ("tray.open", "tray.quickCapture", "tray.toggleDesktop",
+                                                                          "tray.adjustAll", "tray.checkUpdates", "tray.saveAndQuit")])
         # A tray started in Traditional Chinese, as at a sign-in start, draws it from the first frame.
         self.assertEqual(self.labels(self.module.Tray("dev.sammykenny2.pinitanywhere.test", Window(), None, None, None))[0], text.ZH_TW["tray.open"])
         text.set_locale("en")
         tray.close()
         tray.relabel()
         self.assertEqual(self.labels(tray)[0], text.ZH_TW["tray.open"], "a closed tray is left alone")
+
+    def test_menu_order_state_and_shortcuts_match_the_shared_fixture(self):
+        fixture = json.loads((NATIVE.parents[2] / "tests/fixtures/tray-menu.json").read_text())
+        for case in fixture["cases"]:
+            with self.subTest(case=case["name"]):
+                rows = self.module.entries(case["mainVisible"], case["adjusting"], case["ready"], case["updates"], fixture["shortcuts"])
+                self.assertEqual([row["action"] if row else "" for row in rows], case["actions"])
+                self.assertEqual([row["action"] for row in rows if row and not row["enabled"]], case["disabled"])
+                self.assertEqual({row["action"]: row["shortcut"] for row in rows if row and row["shortcut"]}, case["keys"])
+
+    def test_opening_refreshes_state_and_menu_clicks_run_only_after_unblocking(self):
+        state = {"main_visible": True, "ready": True, "adjusting": False, "shortcuts": []}
+        actions, active = [], []
+        def dispatch(target, *_):
+            self.assertFalse(active[-1], "menu tracking ends before a desktop action")
+            actions.append(target)
+        tray = self.module.Tray("dev.sammykenny2.pinitanywhere.test", Window(True), dispatch, lambda: actions.append("exit"), active.append, state=lambda: state)
+        stable = [id(item) for item, _ in tray.slots]
+        tray.set_menu_active(True)
+        self.assertIn("Hide main window", self.labels(tray))
+        state["adjusting"] = True; tray.set_menu_active(False); tray.set_menu_active(True)
+        self.assertIn("Done adjusting", self.labels(tray))
+        item = next(item for item, key in tray.items if key == "tray.finishAdjusting")
+        item.activate(); self.assertEqual(actions, ["@stop"])
+        self.assertEqual([id(item) for item, _ in tray.slots], stable, "D-Bus node IDs remain stable")
+        state["ready"] = False; tray.set_menu_active(True)
+        item.activate(); self.assertEqual(actions, ["@stop"], "a disabled desktop action is not sent")
+        next(item for item, key in tray.items if key == "tray.saveAndQuit").activate()
+        self.assertEqual(actions, ["@stop", "exit"], "quitting remains available while desktop actions are blocked")
 
     def test_a_watcher_not_there_yet_leaves_a_hidden_start_to_the_wait(self):
         tray = self.create()

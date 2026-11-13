@@ -68,8 +68,9 @@ public sealed class DesktopCoordinator : IDisposable
   public IReadOnlyList<ShortcutRegistration> ShortcutStatus => shortcuts.Registrations;
   /// <summary>Each key as Windows last answered it, also while an open menu or this app's focus suspends them.</summary>
   public IReadOnlyList<ShortcutRegistration> ShortcutAnswers => shortcuts.LastAnswers;
+  public bool MenuActionsAvailable => started && !disposed && !shortcutsBlocked;
   /// <summary>Whether the topmost scene shows the adjust overlay, so the tray offers finishing instead of adjusting.</summary>
-  public bool Adjusting => views.Any(v => v.Active && !v.Retired && v.Adjusting);
+  public bool Adjusting => frame?.Adjusting == true;
   private sealed record PendingCommand(SceneView View, string Id, string? Upload, bool Draft, DateTime Created);
   private sealed class SceneView(DisplayInfo display, string layer, double scale)
   {

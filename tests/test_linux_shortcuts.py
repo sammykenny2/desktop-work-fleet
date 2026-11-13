@@ -75,8 +75,12 @@ class LinuxShortcutTests(unittest.TestCase):
         self.assertEqual(sorted(keybinder.handlers), ["<Control><Shift>1", "<Control><Shift>d"])
         keybinder.handlers["<Control><Shift>d"]("<Control><Shift>d", None)
         self.assertEqual(actions, [("@toggle", 42)])
+        answers = [dict(item) for item in shortcuts.last_answers]
         shortcuts.suspend(True)
         self.assertEqual(keybinder.handlers, {}, "a focused Pin It Anywhere window releases the global chords")
+        self.assertEqual(shortcuts.last_answers, answers, "temporary suspension keeps registration answers for the tray")
+        shortcuts.configure({"bindings": [{"key": "Ctrl+Shift+N", "target": "@capture"}]})
+        self.assertEqual(shortcuts.last_answers, [], "a new binding set never inherits stale shortcut hints")
 
     def test_labwc_keys_are_available_once_written_even_while_pin_it_anywhere_has_the_focus(self):
         class Labwc:

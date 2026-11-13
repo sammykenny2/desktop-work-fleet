@@ -10,11 +10,13 @@ cd "$ROOT"
 mkdir -p "$ROOT/build"
 OUTPUT="$(mktemp -d "$ROOT/build/macos-layer-checks-XXXXXXXX")"
 xcrun swiftc -parse-as-library -swift-version 5 \
+    -module-cache-path "$OUTPUT/module-cache" \
     src/native/apple/Shared/PinItAnywhereProtocol.swift \
     src/native/apple/Shared/PinItAnywhereText.swift \
     src/native/apple/macos/PinItAnywhereSceneProtocol.swift \
     src/native/apple/macos/PinItAnywhereSceneSurface.swift \
     src/native/apple/macos/PinItAnywhereShortcuts.swift \
+    src/native/apple/macos/PinItAnywhereTrayMenu.swift \
     src/native/apple/macos/PinItAnywhereDesktop.swift \
     tests/native/apple/SceneLayersProbe.swift \
     -o "$OUTPUT/scene-layers-probe"

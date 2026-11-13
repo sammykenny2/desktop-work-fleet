@@ -193,6 +193,11 @@ Gio exports a StatusNotifierItem and its flat D-Bus menu on a dedicated session-
 `Activate` opens the main window; the context menu keeps the existing actions. Older AppIndicator runtimes do not provide
 this primary-click contract. X11 also has a Gtk.StatusIcon fallback, hidden while a StatusNotifier host is connected.
 The tooltip reads "Pin It Anywhere"; the main window is hidden only after the tray is confirmed available.
+The tray uses the shared desktop action order in ADR-019, with Hide only while the main window is shown, Done adjusting
+in place of Adjust while active, and desktop actions disabled before the owner is ready or during an input barrier.
+Successful registration answers survive temporary shortcut suspension for menu annotations. The GTK and exported D-Bus
+menus share stable item IDs, enabled/visible state and shortcut properties; AboutToShow refreshes the snapshot.
+Quit Pin It Anywhere still uses the existing save handshake.
 Quitting from the tray uses the draft save flow; if a tray that was connected disconnects, the main window is restored,
 and an account switch closes the old desktop session.
 The main window size, X11 position and maximized state are stored in `window-placement.json` in the data directory, and

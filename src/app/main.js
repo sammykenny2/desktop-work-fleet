@@ -10,6 +10,7 @@ import { groupHighlighted, mainGroup, mainView } from '../layout/store.js';
 import { reorderSlots } from '../layout/order.js';
 import { settleGroupColors } from '../layout/colors.js';
 import { groupOpacity, MIN_OPACITY } from '../layout/opacity.js';
+import { newPaperSize } from '../layout/paper-size.js';
 import { InteractionController, cardPolicy, quickMoveKey, sceneOrder } from '../interaction/controller.js';
 import { IndexedDbStorage, acquireProfile } from '../storage/indexed-db.js';
 import { IndexedDbRecordStore } from '../storage/records-indexed-db.js';
@@ -1970,7 +1971,7 @@ function unsavedDot() {
 }
 const paperLabel = card => card.unsaved ? t('app.notes.unsavedLabel', { note: summaryText(card) }) : summaryText(card);
 
-// The board shows each paper as the 240 px square a new desktop paper is, however wide the window, until the phone
+// The board shows each paper as a 240 px square independently of the new-desktop-paper size, until the phone
 // layout's two columns take over at 640 px; the list keeps one row per paper.
 function renderTrashTabs() {
   const tabs = $('#trash-tabs'); tabs.hidden = !trashOpen || workspace.profiles.length < 2; tabs.replaceChildren();
@@ -3132,6 +3133,7 @@ function renderDesktopSettings() {
   $('#quick-move-row').hidden = !desktopInfo || !quickMoveOffered();
   $('#quick-move-label').textContent = t('settings.desktop.quickMove', { key: native?.info.platform === 'macos' ? '⌘' : 'Ctrl' });
   $('#desktop-quick-move').checked = layout.quickMove === true;
+  $('#desktop-paper-size').value = newPaperSize(layout);
   settingsSlots = [...layout.grid.slots];
   $('#grid-rows').value = String(layout.grid.rows); $('#grid-columns').value = String(layout.grid.columns);
   previewGrid();
@@ -3384,6 +3386,7 @@ function bindEvents() {
   $('#start-login-system').onclick = () => run(() => native.bridge.request('host.preferences.openSystem'));
   $('#update-action').onclick = () => runUpdateAction();
   $('#grid-rows').onchange = () => previewGrid(true, true); $('#grid-columns').onchange = () => previewGrid(true, true);
+  $('#desktop-paper-size').onchange = () => applyLayout({ newPaperSize: $('#desktop-paper-size').value });
   $('#retry-shortcuts').onclick = () => { void nativeShortcuts?.update(liveShortcuts(), true); };
   $('#labwc-write').onclick = () => run(async () => { await nativeShortcuts?.writeLabwc(); status(t('app.status.labwcWritten')); });
   $('#empty-add').onclick = () => run(() => openEditor());

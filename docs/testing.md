@@ -78,6 +78,12 @@ dimensions and paper placements as groups arrive or retire, full-grid arrivals s
 ordering through nine groups independently of the desktop's region count.
 `scripts/testing/group-probe.mjs` checks the clean-install grid and unchanged regions and paper placement after a new
 group is saved through the browser UI.
+`tests/paper-size.test.js` checks the per-device Small/Medium/Tall preference, Medium on a clean install, preservation
+of placed papers, cloud/local collections sharing a choice without content or outbox changes, reopening, explicit reset,
+queued writes, rejected settings and persistence failures, and proportional fitting with the 160 shortest-side floor.
+`scripts/testing/paper-size-probe.mjs` checks all three selections and placements through the actual Settings UI,
+reload persistence, unchanged main-window squares and the rendered Tall desktop paper in Chromium and WebKit, in English
+and Traditional Chinese. It uses synthetic IndexedDB profiles; installed native-host interaction remains unverified.
 C numbers in test names mark only the simulated semantic part; the native capabilities of C16, C35, C40–C43 and C46–C47 still need acceptance on a real host.
 A green result from old tests must not be listed as a pass for a new feature, and document changes do not restart the old Mac probes.
 
@@ -956,6 +962,8 @@ python scripts/testing/serve_preview.py --port 0
 # In another terminal, replace PORT with the actual port printed above
 node scripts/testing/browser-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-probe.mjs --url http://127.0.0.1:PORT
+node scripts/testing/paper-size-probe.mjs --url http://127.0.0.1:PORT --browser chromium --locale en
+node scripts/testing/paper-size-probe.mjs --url http://127.0.0.1:PORT --browser webkit --locale zh-TW
 node scripts/testing/trash-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/sections-probe.mjs --url http://127.0.0.1:PORT
 node scripts/testing/group-dialog-sync-probe.mjs --url http://127.0.0.1:PORT

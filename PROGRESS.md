@@ -45,8 +45,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   used on a real machine),
   attachments pasted or dropped into the editor, and an explanation with a confirmed set-aside when local data cannot be
   opened.
-- Papers: new papers are 240×240 squares that shrink to fit a short group region (minimum 160×160); placed papers keep their
-  size until "reset desktop layout". One group palette serves desktop and main window; group regions follow the primary display.
+- Papers: this device chooses Small (160×160), Medium (240×240, the default) or Tall (240×400) for new desktop placements;
+  papers shrink proportionally to fit a short group region (minimum shortest side 160). Placed papers keep their size
+  until "reset desktop layout", which keeps the preference and re-places papers at the selected size. The main-window
+  board stays independent. One group palette serves desktop and main window; group regions follow the primary display.
 - Main window: a board of paper tiles or a list, remembered per device; an optional title that search and sharing include;
   papers that cannot scroll end with "…"; attachments sit in a thumbnail strip under the text; H1–H6 sizes and code colouring;
   operation results, errors and progress use session-only toasts over modal dialogs, with Undo/Retry and no replay of old cleanup results (ADR-068).

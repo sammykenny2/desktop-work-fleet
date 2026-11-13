@@ -7,7 +7,7 @@ import { settleGroupColors } from './colors.js';
  * seen, so that a group the user took off the desktop stays off and a signed-out account's regions stay reserved.
  */
 export const deskKey = 'desk';
-export const deskFields = Object.freeze(['desktopVisible', 'completedVisible', 'quickMove', 'mainView', 'mainGroupId', 'shortcuts']);
+export const deskFields = Object.freeze(['desktopVisible', 'completedVisible', 'quickMove', 'newPaperSize', 'mainView', 'mainGroupId', 'shortcuts']);
 
 /** The first start takes what the primary profile's layout already holds, so existing settings carry over. */
 export function seedDesk(layout) {

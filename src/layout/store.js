@@ -6,6 +6,7 @@ import { groupLayerOrder } from './stages.js';
 import { groupOrderGrid, orderedGroups } from './order.js';
 import { settleGroupColors, swapGroupColor, validColor } from './colors.js';
 import { validOpacity } from './opacity.js';
+import { paperDimensions, validPaperSize } from './paper-size.js';
 import { schemas } from '../core/schema.js';
 import { t } from '../i18n/index.js';
 
@@ -160,13 +161,14 @@ export class LayoutStore {
 
   async configure(patch, snapshot) {
     patch = copy(patch); snapshot = copy(snapshot);
-    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'shortcuts', 'mainView'];
+    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'newPaperSize', 'shortcuts', 'mainView'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
     if (patch.grid) gridRegions(patch.grid, activeGroups(snapshot));
     requireValue(['desktopVisible', 'completedVisible', 'quickMove'].every(key => !(key in patch) || typeof patch[key] === 'boolean'),
       'invalid-setting', t('errors.core.visibilityInvalid'));
     if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, activeGroups(snapshot));
     requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', t('errors.core.mainViewUnknown'));
+    requireValue(!('newPaperSize' in patch) || validPaperSize(patch.newPaperSize), 'invalid-setting', t('errors.core.paperSizeUnknown'));
     return this.#transaction(draft => { Object.assign(draft, copy(patch)); return { groups: groupKey(snapshot) }; });
   }
 
@@ -226,14 +228,15 @@ export class LayoutStore {
     });
   }
 
-  // New papers are square, like the familiar 3 × 3 in sticky note, and smaller only where their region is shorter;
+  // New papers use this device's size preference and keep their shape when fitted to a short region;
   // papers already placed keep their size.
   // A combined layout passes `desk`: the regions of this computer, the groups off its desktop, which get no place, and
   // the papers other profiles have shown there.
-  async placeNew(snapshot, workAreas, paperSize = { width: 240, height: 240 }, checkpoint = null, desk = null) {
-    snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = copy(paperSize);
-    requireValue(paperSize.width > 0 && paperSize.height > 0, 'invalid-size', t('errors.core.paperSizeInvalid'));
+  async placeNew(snapshot, workAreas, paperSize = undefined, checkpoint = null, desk = null) {
+    snapshot = copy(snapshot); workAreas = copy(workAreas); paperSize = paperSize == null ? null : copy(paperSize);
+    requireValue(paperSize === null || (paperSize.width > 0 && paperSize.height > 0), 'invalid-size', t('errors.core.paperSizeInvalid'));
     return this.#transaction(async draft => {
+      const startingSize = paperSize ?? paperDimensions(draft);
       const groups = activeGroups(snapshot);
       const gridIds = draft.grid.slots.filter(Boolean);
       if (groups.length <= 9 && (groups.length !== gridIds.length || groups.some(group => !gridIds.includes(group.id)))) {
@@ -265,7 +268,7 @@ export class LayoutStore {
         if (checkpoint) await checkpoint();
         if (!knownIds.has(card.groupId)) { deferred.push(card.id); continue; }
         const region = regions.find(region => region.groupId === card.groupId) || draft.grid.area;
-        const size = fitNewPaper(paperSize, region);
+        const size = fitNewPaper(startingSize, region);
         draft.placements[card.id] = rescueRect({ ...newPaperPosition(size, region, shown), ...size, order: order++, visible: true }, workAreas);
         if (eligible(card, view)) shown.push(draft.placements[card.id]);
       }

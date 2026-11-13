@@ -58,8 +58,11 @@ interface. To switch, see [Settings](#settings).
   editing. For attachments and other content, Full editor (the outward arrows) goes back to the editor in the main
   window.
 - Moving a note with unsaved changes to Trash asks first, as its changes go with it; Undo brings back both.
-- New notes are 240×240 squares. Where a group region is short, a new note shrinks to a square that fits (at least
-  160×160). Notes already on the desktop keep their size until you use Reset desktop layout.
+- Settings > Desktop notes > New desktop note size offers Small (160×160), Medium (240×240, the default) and Tall
+  (240×400). The choice is saved only on this device and serves both cloud and local notes. It applies when a note first
+  gets a desktop position, including notes arriving from another device. Notes already placed keep their size.
+  New notes shrink proportionally to fit a short group region, with a minimum shortest side of 160. Text size stays the
+  same. Reset desktop layout keeps your choice and re-places the existing notes at that size.
 - A new note, including one that arrives from sync, takes the first free place in its group's region, row by row from
   the top left. Only when the region is full does it overlap, stepping down and to the right from the region's corner so
   each note beneath still shows the start of its title.
@@ -156,8 +159,8 @@ interface. To switch, see [Settings](#settings).
 ## The board and the list
 
 - In the desktop apps the main window does not mirror the desktop layout; you drag notes on the desktop itself.
-- On the right of the filter bar, switch between "Board" (a grid of square papers, each the 240×240 of a new desktop
-  note; the window width only changes how many fit in a row, while phones and windows 640 px or narrower show two
+- On the right of the filter bar, switch between "Board" (a grid of 240×240 square papers, independent of New desktop
+  note size; the window width only changes how many fit in a row, while phones and windows 640 px or narrower show two
   columns across) and "List". This device remembers the choice. Double-click a note, or press Enter on it, to open the full editor; on a touch screen a tap opens it.
   Hold Ctrl (⌘ on macOS) and double-click a board paper to edit it in place, with the actions of a desktop paper
   ([Desktop notes and layers](#desktop-notes-and-layers)); pressing anywhere else keeps its changes and closes it. A single click on a board paper's checklist box ticks or
@@ -321,7 +324,7 @@ groups:
   - Phones have the same setting; on iOS the Share Extension sheet follows it too.
   - The choice belongs to this device: it is not part of a backup or of Google data.
 - Desktop notes (desktop apps and the browser preview; phones have no Desktop notes or Shortcuts page): "Show notes
-  on the desktop", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only) and
+  on the desktop", "Show completed notes", "Hold Ctrl to drag or double-click a note" (desktop apps only), "New desktop note size" and
   "Group regions". On GNOME Wayland the page also has "Show
   desktop notes through XWayland" (see [Linux](#linux)). "Reset desktop layout" is last.
 - Shortcuts: see [Shortcuts](#shortcuts).

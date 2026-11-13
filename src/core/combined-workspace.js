@@ -6,6 +6,7 @@ import { swapGroupColor, validColor } from '../layout/colors.js';
 import { orderedGroups } from '../layout/order.js';
 import { groupLayer } from '../layout/stages.js';
 import { mainViews } from '../layout/store.js';
+import { paperDimensions, validPaperSize } from '../layout/paper-size.js';
 import { t } from '../i18n/index.js';
 
 const pick = (object, keep) => Object.fromEntries(Object.entries(object).filter(([key]) => keep(key)));
@@ -65,6 +66,7 @@ class CombinedLayout {
   async placeNew(_snapshot, workAreas, paperSize = undefined, checkpoint = null) {
     await this.settle();
     const desk = this.#desk.state; const results = [];
+    paperSize ??= paperDimensions(desk);
     const regions = gridRegions(desk.grid, []).filter(region => region.groupId);
     const hidden = hiddenGroups(desk, this.#combined.groups());
     for (const { workspace } of this.#profiles) {
@@ -79,7 +81,7 @@ class CombinedLayout {
 
   async configure(patch, snapshot) {
     patch = copy(patch);
-    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'shortcuts', 'mainView'];
+    const allowed = ['grid', 'desktopVisible', 'completedVisible', 'quickMove', 'newPaperSize', 'shortcuts', 'mainView'];
     requireValue(Object.keys(patch).every(key => allowed.includes(key)), 'invalid-setting', t('errors.core.layoutSettingUnknown'));
     requireValue(groupKey(copy(snapshot)) === groupKey(this.#combined.snapshot), 'stale-groups', t('errors.core.groupsChanged'));
     const groups = this.#combined.groups();
@@ -88,6 +90,7 @@ class CombinedLayout {
       'invalid-setting', t('errors.core.visibilityInvalid'));
     if ('shortcuts' in patch) patch.shortcuts = validateShortcuts(patch.shortcuts, groups);
     requireValue(!('mainView' in patch) || mainViews.includes(patch.mainView), 'invalid-setting', t('errors.core.mainViewUnknown'));
+    requireValue(!('newPaperSize' in patch) || validPaperSize(patch.newPaperSize), 'invalid-setting', t('errors.core.paperSizeUnknown'));
     return this.#desk.update(draft => { Object.assign(draft, patch); return { groups: groupKey(this.#combined.snapshot) }; });
   }
 

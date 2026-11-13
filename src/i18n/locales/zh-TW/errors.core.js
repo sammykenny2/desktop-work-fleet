@@ -100,6 +100,7 @@ export default {
   'errors.core.placementMissing': '找不到卡片位置。',
   'errors.core.positionInvalid': '卡片位置無效。',
   'errors.core.paperSizeInvalid': '卡片尺寸必須大於零。',
+  'errors.core.paperSizeUnknown': '請選擇支援的桌面便箋大小。',
   'errors.core.arrangePlanStale': '預覽後資料或版面已變更，請重新預覽。',
   'errors.core.resizeNotAllowed': '本次未允許改變卡片尺寸。',
   'errors.core.undoMoveNeedsSource': '轉組復原需由資料來源檢查版本。',

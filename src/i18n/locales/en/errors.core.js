@@ -100,6 +100,7 @@ export default {
   'errors.core.placementMissing': "The note's position can't be found.",
   'errors.core.positionInvalid': "The note's position is invalid.",
   'errors.core.paperSizeInvalid': 'The note size must be greater than zero.',
+  'errors.core.paperSizeUnknown': 'Choose a supported desktop note size.',
   'errors.core.arrangePlanStale': 'The data or layout changed after the preview. Preview again.',
   'errors.core.resizeNotAllowed': "Resizing notes wasn't allowed this time.",
   'errors.core.undoMoveNeedsSource': 'Undoing a group move needs the data source to check versions.',

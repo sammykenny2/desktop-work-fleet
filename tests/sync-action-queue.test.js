@@ -117,10 +117,11 @@ for (const endSession of [true, false]) test(`a pass stopped while waiting for i
   const action = heldAt();
   const holding = a.queue(async () => { action.reached(); await action.opened; });
   await action.entered;
-  const before = a.workspace.syncState.cursor, requests = a.requests.length;
+  const before = a.workspace.syncState.cursor, landing = heldAt();
+  const land = a.land;
+  a.land = receive => { const pending = land(receive); landing.reached(); return pending; };
   const pass = a.pass({ force: true });
-  while (a.requests.length === requests) await new Promise(setImmediate);
-  await new Promise(resolve => setTimeout(resolve, 50));
+  await landing.entered;
   await a.sync.stop({ endSession });
   let idle = false; const whenIdle = a.sync.whenIdle().then(() => { idle = true; });
   await new Promise(resolve => setTimeout(resolve, 20));

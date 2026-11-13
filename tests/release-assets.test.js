@@ -5,6 +5,7 @@ import { mkdtemp, readdir, readFile, rm, unlink, writeFile } from 'node:fs/promi
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { writeUpdateFeed } from '../scripts/macos/write-update-feed.mjs';
 import { manifestNames, releaseAssets, validateReleaseAssets } from '../scripts/validate-release-assets.mjs';
@@ -94,7 +95,7 @@ test('desktop-only releases require every desktop asset and reject Android asset
     assert.equal(files.length, 13);
     assert.deepEqual(files.sort(), Object.values(releaseAssets(version, { includeAndroid: false })).flat().sort());
     await assert.rejects(validateReleaseAssets({ ...options, includeAndroid: true }), /missing PinItAnywhere-0\.6\.3-android-release\.apk/);
-    const { stdout } = await execute(process.execPath, [new URL('../scripts/validate-release-assets.mjs', import.meta.url).pathname,
+    const { stdout } = await execute(process.execPath, [fileURLToPath(new URL('../scripts/validate-release-assets.mjs', import.meta.url)),
       '--dir', folder, '--version', version, '--repository', 'o/r', '--desktop-only']);
     assert.match(stdout, /13 files checked/);
     await unlink(path.join(folder, 'pin-it-anywhere-update-linux.json'));

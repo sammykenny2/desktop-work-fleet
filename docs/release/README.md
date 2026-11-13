@@ -35,6 +35,9 @@ variables and signs the release AAB with the upload key, for Play App Signing to
 
 All four must be provided together; they must not be written into `.env`, public JSON or command-line arguments. The
 script does not create keys, sign in to a store or upload anything.
+For direct installation, add `-Apk`/`--apk` to build a signed Release APK. The GitHub Android workflow uses this path
+and checks the real signer, manifest and bundled Release inventory; configure its separate release signing Secrets as
+described in [deployment](../deployment.md#android-on-github). Debug signing is only for local development.
 The SHA-1 of the Google Android OAuth client must match the actual distribution signature; debug and Play signing are
 configured separately. The Google Web client is used as the Credential Manager audience and belongs to the same Google
 Cloud project.

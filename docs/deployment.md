@@ -12,12 +12,13 @@ architectures and signing/build-mode rules are in [ADR-070](decisions/070-releas
 [PLAN-014](plans/014-product-identity-and-distribution.md) orders the changes. No remote rename or service/signing
 configuration change was performed by that documentation decision.
 
-The procedures below describe existing tooling and retain current Work Fleet file names. Android's Debug APK workflow
-and the Windows CER/public trust instructions are legacy paths that must be changed before future distribution under
-the new policy. Windows currently builds x64 only; ARM64/MSIX bundle and AppImage are not implemented. The current Linux
+The procedures below describe existing tooling and retain current Work Fleet file names. Android delivery requires a
+signed Release APK and the release-signing settings below; Debug remains local development tooling. The Windows
+CER/public trust instructions are a legacy path that must be changed before future distribution under the new policy.
+Windows currently builds x64 only; ARM64/MSIX bundle and AppImage are not implemented. The current Linux
 DEB is architecture-independent (`all`), not separate amd64/arm64 artifacts. macOS CI already produces Universal DMG
 plus the ZIP/appcast update payload; local PKG support does not imply that PKG is the selected primary installer.
-Update these procedures alongside implementation; do not use the legacy Debug/CER steps as a future release checklist.
+Update these procedures alongside implementation; do not use the legacy CER steps as a future release checklist.
 
 ## Existing packaging entry points
 
@@ -27,7 +28,7 @@ Update these procedures alongside implementation; do not use the legacy Debug/CE
 | macOS | Xcode: open `src/native/apple/WorkFleet.xcodeproj`; or `scripts/macos/build-native-app.sh --platform macos --release`, `package-native-app.sh` | xcarchive/PKG/optional DMG; Xcode, Node 22+/npm, an Apple team and signing identities |
 | Linux | `scripts/linux/build-native-app.sh`; optional `--release --deb`; on Windows, `Build-LinuxPackage.ps1` | source/runtime tar.gz/DEB; offline notes need the system GTK/WebKitGTK, Google and saved backup passwords also need a Secret Service |
 | iOS | The same committed Xcode project, scheme WorkFleetIOS; or `scripts/macos/build-native-app.sh --platform ios --release`, `package-native-app.sh` | xcarchive/IPA; Xcode, Node 22+/npm, an Apple team, App Group profiles for the app and the extension |
-| Android | Android Studio: open `src/native/android`; or `scripts/windows/Build-AndroidApp.ps1`/`scripts/linux/build-android-app.sh` | debug APK/release AAB; Node 22+, npm, JDK 17, Android SDK 36. The Gradle 9.6.0 Wrapper is included and assets are generated automatically; see [opening and building](../src/native/android/README.md) |
+| Android | Android Studio: open `src/native/android`; or `scripts/windows/Build-AndroidApp.ps1`/`scripts/linux/build-android-app.sh` | local Debug APK, signed Release APK (`-Signed -Apk`/`--signed --apk`) or Release AAB; Node 22+, npm, JDK 17, Android SDK 36. The Gradle 9.6.0 Wrapper is included and assets are generated automatically; see [opening and building](../src/native/android/README.md) |
 
 ## Versions and release file names
 
@@ -91,7 +92,8 @@ failure leaves no partial output.
     the macOS `app-store-connect` export is `WorkFleet-<version>-macos-universal-app-store-connect.pkg`.
   - The preview suffix comes from the app's own signature, not from the certificates on the build machine.
 - Android: `versionName` in `src/native/android/app/build.gradle.kts`;
-  `WorkFleet-<version>-android-debug.apk`/`WorkFleet-<version>-android-release.aab`.
+  local `WorkFleet-<version>-android-debug.apk`, signed delivery `WorkFleet-<version>-android-release.apk`,
+  or `WorkFleet-<version>-android-release.aab` for the bundle path.
 - Linux: `src/native/linux/VERSION`; `build/work-fleet_<version>_all.deb` follows the Debian
   `package_version_architecture` convention, and the source/runtime archive is `build/work-fleet-<version>.tar.gz`.
 
@@ -365,7 +367,7 @@ accounts are configured by the maintainer.
 
 #### Android on GitHub
 
-In GitHub Actions, choose **Android device APK** (`android-apk.yml`), select main and press Run workflow. It is manual
+In GitHub Actions, choose **Android Release APK** (`android-apk.yml`), select main and press Run workflow. It is manual
 only and needs the user's authorization to run; it changes no version, publishes no release and sends nothing to Google
 Play. After a successful run, download the APK, its SHA-256 and the source-commit record from Artifacts, kept for
 fourteen days. Artifact names carry the version, run ID and attempt so different builds of the same version cannot be
@@ -376,20 +378,29 @@ calls `android-apk.yml` with the release commit, and the verified APK goes into 
 ([ADR-055](decisions/055-mobile-device-build-workflows.md)).
 
 Repository Variables: `WORK_FLEET_APP_ID`, `WORK_FLEET_GOOGLE_PROJECT_ID`, `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`,
-`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and `WORK_FLEET_ANDROID_DEBUG_SHA1` (the signing SHA-1, colon-separated).
-It reuses the existing Google Cloud project and needs no Web client secret.
-`WORK_FLEET_ANDROID_DEBUG_SHA1` holds the fingerprint of the existing local test signer, which is also the SHA-1
-registered for the Android OAuth client (2026-10-17).
+`WORK_FLEET_GOOGLE_WEB_CLIENT_ID`, `WORK_FLEET_ANDROID_RELEASE_SHA1` (colon-separated signing SHA-1),
+`WORK_FLEET_PRIVACY_URL`, `WORK_FLEET_SUPPORT_URL` and `WORK_FLEET_SUPPORT_EMAIL`.
+The Android and Web clients must belong to the selected project; no Web client secret is needed.
+Register an Android OAuth client for the final package ID and actual direct-APK release signer. Register the
+Google Play app-signing fingerprint separately when configuring Play delivery; the upload key does not establish it.
 
 | Repository Secret | Purpose |
 |---|---|
-| `ANDROID_DEBUG_KEYSTORE_BASE64` | base64 of the fixed test debug keystore; alias `androiddebugkey`, and the key and store passwords are the Android standard test value `android` |
+| `ANDROID_RELEASE_KEYSTORE_BASE64` | base64 of the existing release keystore; never the Android Debug keystore |
+| `ANDROID_RELEASE_KEY_ALIAS` | alias of the release signing key |
+| `ANDROID_RELEASE_STORE_PASSWORD` | keystore password |
+| `ANDROID_RELEASE_KEY_PASSWORD` | private-key password |
 
 First get the maintainer's explicit authorization to upload signing data to this repository's Secrets; never commit a
 private key or put the values in public Variables.
-The fixed Android key must be the same as the installed version's and must match the SHA-1 registered with OAuth; CI
-checks this after packaging and fails on a mismatch.
-This is a debug test build; the release Play App Signing key and upload key are prepared separately.
+CI requires all four signing Secrets and the full public Release configuration before building. It runs isolated
+Debug unit tests, then `build-android-app.sh --signed --apk`; it never uploads a Debug APK. Before saving the APK,
+`scripts/check_android_package.py` runs SDK `apksigner verify` and `apkanalyzer manifest print`, rejecting a wrong
+signer, an Android Debug certificate, wrong app ID/version, debuggable/test-only manifests and non-Release bundled
+runtime inventories. The package is `WorkFleet-<version>-android-release.apk` with its SHA-256.
+Missing release credentials stop the job; the old `ANDROID_DEBUG_KEYSTORE_BASE64` Secret is not a fallback and is not
+deleted automatically. Matching application ID, signer and a higher versionCode are required for an installed update.
+Export a supported backup before removing an old test-key installation; never uninstall it automatically.
 
 #### iOS local builds
 
@@ -424,7 +435,8 @@ profiles and build again. No GitHub iOS signing Secrets or workflow dispatch are
 The manual `.github/workflows/apple-native-build.yml` now targets only an unsigned macOS Debug ZIP. Hosted runners
 are free for a public repository, dispatch needs authorization, the limit is 20 minutes and artifacts last seven days.
 
-Android `-Signed`/`--signed` requires the four signing environment variables and produces a release AAB, see
+Android `-Signed`/`--signed` requires the four signing environment variables and produces a release AAB; add
+`-Apk`/`--apk` for an installable signed Release APK. See
 [store preparation](release/README.md). An ordinary release build without signing inputs produces an unsigned AAB.
 The Linux runtime tar.gz embeds no Python or GTK; the DEB is for distributions that provide the supported dependency
 versions.

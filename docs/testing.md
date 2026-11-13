@@ -599,6 +599,15 @@ Local checks do not establish a hosted build or real-device acceptance; signing 
 - Real Android signing: set `WORK_FLEET_ANDROID_DEBUG_KEYSTORE` to the absolute path of the existing debug keystore,
   run `testDebugUnitTest assembleDebug`, and check the APK with the SDK's `apksigner verify --verbose --print-certs`.
   The SHA-1 must match the installed build and the value registered for OAuth; the official release key does not use this debug setting.
+- Android delivery: configure the four release signing process variables and complete public settings from
+  [deployment](deployment.md#android-on-github), then run `bash scripts/linux/build-android-app.sh --signed --apk`
+  (`Build-AndroidApp.ps1 -Signed -Apk` on Windows). Run `python3 scripts/check_android_package.py --help` with the SDK
+  [apksigner](https://developer.android.com/tools/apksigner)/[apkanalyzer](https://developer.android.com/tools/apkanalyzer)
+  paths and expected app ID, version and signer to inspect the actual APK. A file name is not
+  evidence of Release mode. Real Google sign-in, installation/update and Play signing remain separate acceptance.
+  `python3 -B -m unittest tests.test_android_build tests.test_android_package -v` exercises task/output selection in an
+  isolated fixture and rejects renamed Debug/test-only APKs, debug inventories/certificates, mismatched identities,
+  multiple signers, missing inventory and SDK verification failures. Synthetic tool output is not real APK acceptance.
 
 `python3 -B -m unittest discover -s tests -p 'test_linux_package.py' -v`, where bash and dpkg-deb are available,
 really packages an isolated fixture and verifies that the version and file name of both the normal and the release DEB come from the bundle's `package.json`, that a missing version is rejected,
@@ -1486,6 +1495,9 @@ numeric version comparison, download locations in the same repo and tag, this pl
 `node --test tests/release-assets.test.js` checks `scripts/validate-release-assets.mjs` on a synthetic release folder (exactly the expected files, `.sha256` files, each desktop manifest and the appcast in the same `vX.Y.Z` release), and that each platform workflow uploads exactly the files the validator expects and only `preview-release.yml` publishes.
 It checks desktop-only selection through the validator API and CLI, rejecting unexpected APKs and missing desktop
 assets, and the workflow guards for an intentionally skipped Android job versus failed or cancelled selected builds.
+The Android allowlist requires the Release APK and rejects extra Debug APKs; its workflow must use release Secrets
+and inspect the built APK before either artifact upload. The Windows CER contract remains legacy pending its signing
+cutover and is not certified by these asset tests.
 On Unix hosts it also runs the production release-notes shell with the publishing command replaced, checking that
 Android installation instructions are present only when selected.
 `tests/release-versions.test.js` checks that `scripts/platform-version.mjs --release` refuses version records that differ.

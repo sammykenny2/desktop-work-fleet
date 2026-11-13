@@ -21,7 +21,7 @@ export function releaseAssets(version, { includeAndroid = true } = {}) {
     linux: [`work-fleet_${version}_all.deb`, `work-fleet_${version}_all.deb.sha256`, manifestNames.linux],
     macos: [`WorkFleet-${version}-macos-universal.dmg`, `WorkFleet-${version}-macos-universal.dmg.sha256`,
       `WorkFleet-${version}-macos-universal.zip`, `WorkFleet-${version}-macos-universal.zip.sha256`, 'appcast.xml', manifestNames.macos],
-    ...(includeAndroid ? { android: [`WorkFleet-${version}-android-debug.apk`, `WorkFleet-${version}-android-debug.apk.sha256`] } : {}),
+    ...(includeAndroid ? { android: [`WorkFleet-${version}-android-release.apk`, `WorkFleet-${version}-android-release.apk.sha256`] } : {}),
   };
 }
 

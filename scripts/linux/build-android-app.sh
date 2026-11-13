@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Build Android APK/AAB and copy it with a .sha256 into build/. Usage: build-android-app.sh [--release] [--signed] [--help]
+# Build Android APK/AAB and copy it with a .sha256 into build/.
+# Usage: build-android-app.sh [--release | --signed [--apk]] [--help]
 set -euo pipefail
-usage() { printf 'Usage: %s [--release] [--signed]\nRequires Node 22+, npm, JDK 17 and Android SDK 36; uses the checked-in Gradle Wrapper.\n' "$0"; }
-task=assembleDebug
+usage() { printf 'Usage: %s [--release | --signed [--apk]]\nDefault: local Debug APK. --release: AAB. --signed: require release signing; --apk selects an installable Release APK.\nRequires Node 22+, npm, JDK 17 and Android SDK 36; uses the checked-in Gradle Wrapper.\n' "$0"; }
+release=0
 signed=0
+apk=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --release) task=bundleRelease; shift ;;
-        --signed) task=bundleRelease; signed=1; shift ;;
+        --release) release=1; shift ;;
+        --signed) release=1; signed=1; shift ;;
+        --apk) apk=1; shift ;;
         --help) usage; exit 0 ;;
         *) usage >&2; exit 2 ;;
     esac
 done
+[[ "$apk" == 0 || "$signed" == 1 ]] || { printf '%s\n' '--apk requires --signed; unsigned installable APKs are not delivery outputs.' >&2; exit 2; }
+task=assembleDebug
+if [[ "$release" == 1 ]]; then task=bundleRelease; fi
+if [[ "$apk" == 1 ]]; then task=assembleRelease; fi
 project_root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
 cd "$project_root"
 export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$project_root/build/gradle-home}"
@@ -30,10 +37,11 @@ if [[ -z "${ANDROID_HOME:-}" && ! -f src/native/android/local.properties ]]; the
     printf 'Set ANDROID_HOME or open src/native/android in Android Studio to configure the SDK.\n' >&2
     exit 1
 fi
-if [[ "$task" == bundleRelease ]]; then node scripts/check-config.mjs --platform android; fi
+if [[ "$release" == 1 ]]; then node scripts/check-config.mjs --platform android; fi
 version=$(node scripts/platform-version.mjs --platform android)
 output="src/native/android/app/build/outputs/apk/debug/WorkFleet-$version-android-debug.apk"
 if [[ "$task" == bundleRelease ]]; then output="src/native/android/app/build/outputs/bundle/release/WorkFleet-$version-android-release.aab"; fi
+if [[ "$task" == assembleRelease ]]; then output="src/native/android/app/build/outputs/apk/release/WorkFleet-$version-android-release.apk"; fi
 bash src/native/android/gradlew -p src/native/android --no-daemon --console plain "$task"
 [[ -f "$output" ]] || { printf 'Expected Gradle output %s was not produced.\n' "$output" >&2; exit 1; }
 package="${output##*/}"

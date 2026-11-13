@@ -195,6 +195,7 @@ account for now.
 .\scripts\windows\Build-WindowsPackage.ps1 -LocalTestSign
 .\scripts\windows\Build-WindowsPackage.ps1 -Release -CertificateThumbprint <thumbprint> -TimestampUrl <https-url>
 .\scripts\windows\Build-AndroidApp.ps1 -Signed
+.\scripts\windows\Build-AndroidApp.ps1 -Signed -Apk
 .\scripts\windows\Build-LinuxPackage.ps1
 ```
 
@@ -226,11 +227,14 @@ with Xcode:
 bash scripts/macos/package-native-app.sh --platform ios --method app-store-connect
 bash scripts/macos/package-native-app.sh --platform macos --method developer-id --dmg
 bash scripts/linux/build-android-app.sh --signed
+bash scripts/linux/build-android-app.sh --signed --apk
 ```
 
 Apple can use `--archive` to pass an existing archive. Formal macOS signing and notarization also need the installer
 and application identities and a Keychain notary profile; see [Deployment](deployment.md). These entry points do not
 create store accounts or submit for review automatically.
+Android `-Signed`/`--signed` produces an AAB; add `-Apk`/`--apk` for the signed Release APK used for direct installation.
+The default Debug APK remains a local development build.
 
 ## Linux 1.0 native build
 

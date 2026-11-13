@@ -68,8 +68,11 @@ test('one vX.Y.Z release carries every platform, and each manifest and the appca
     await writeFile(path.join(folder, 'work-fleet-update.json'), '{}');
     await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected work-fleet-update\.json/);
     await unlink(path.join(folder, 'work-fleet-update.json'));
-    await unlink(path.join(folder, 'WorkFleet-0.3.7-android-debug.apk.sha256'));
-    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /missing WorkFleet-0\.3\.7-android-debug\.apk\.sha256/);
+    await writeFile(path.join(folder, 'WorkFleet-0.3.7-android-debug.apk'), 'debug');
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /unexpected WorkFleet-0\.3\.7-android-debug\.apk/);
+    await unlink(path.join(folder, 'WorkFleet-0.3.7-android-debug.apk'));
+    await unlink(path.join(folder, 'WorkFleet-0.3.7-android-release.apk.sha256'));
+    await assert.rejects(validateReleaseAssets({ dir: folder, version: '0.3.7', repository: 'o/r' }), /missing WorkFleet-0\.3\.7-android-release\.apk\.sha256/);
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
 
@@ -78,12 +81,12 @@ test('desktop-only releases require every desktop asset and reject Android asset
   const version = '0.6.3'; const options = { dir: folder, version, repository: 'o/r', includeAndroid: false };
   try {
     await release(folder, version);
-    await assert.rejects(validateReleaseAssets(options), /unexpected WorkFleet-0\.6\.3-android-debug\.apk/);
+    await assert.rejects(validateReleaseAssets(options), /unexpected WorkFleet-0\.6\.3-android-release\.apk/);
     for (const name of releaseAssets(version).android) await unlink(path.join(folder, name));
     const files = await validateReleaseAssets(options);
     assert.equal(files.length, 13);
     assert.deepEqual(files.sort(), Object.values(releaseAssets(version, { includeAndroid: false })).flat().sort());
-    await assert.rejects(validateReleaseAssets({ ...options, includeAndroid: true }), /missing WorkFleet-0\.6\.3-android-debug\.apk/);
+    await assert.rejects(validateReleaseAssets({ ...options, includeAndroid: true }), /missing WorkFleet-0\.6\.3-android-release\.apk/);
     const { stdout } = await execute(process.execPath, [new URL('../scripts/validate-release-assets.mjs', import.meta.url).pathname,
       '--dir', folder, '--version', version, '--repository', 'o/r', '--desktop-only']);
     assert.match(stdout, /13 files checked/);
@@ -149,7 +152,20 @@ test('the release notes shell includes Android installation steps only when sele
       for (const platform of ['Windows', 'macOS', 'Linux', 'Updates']) assert.match(notes, new RegExp(`^## ${platform}$`, 'm'));
       assert.match(notes, /Preserve group regions/);
       if (includeAndroid) assert.match(notes, /^## Android$/m);
-      else assert.doesNotMatch(notes, /Android|android-debug\.apk/);
+      else assert.doesNotMatch(notes, /Android|android-release\.apk/);
+      assert.doesNotMatch(notes, /android-debug\.apk|fixed test key/);
     }
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+test('Android delivery uses release signing and inspects the actual package before uploading', async () => {
+  const source = await readFile(new URL('../.github/workflows/android-apk.yml', import.meta.url), 'utf8');
+  assert.match(source, /build-android-app\.sh --signed --apk/);
+  assert.match(source, /check_android_package\.py --apk/);
+  assert.match(source, /--sha1 "\$WORK_FLEET_ANDROID_RELEASE_SHA1"/);
+  assert.ok(source.indexOf('check_android_package.py') < source.indexOf('- name: Save APK and checksum'));
+  assert.doesNotMatch(source, /ANDROID_DEBUG_KEYSTORE_BASE64|WORK_FLEET_ANDROID_DEBUG_SHA1|android-debug\.apk/);
+  for (const name of ['KEYSTORE_BASE64', 'KEY_ALIAS', 'STORE_PASSWORD', 'KEY_PASSWORD']) {
+    assert.ok(source.includes(`secrets.ANDROID_RELEASE_${name}`));
+  }
 });

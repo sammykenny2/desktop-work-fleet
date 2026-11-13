@@ -172,7 +172,9 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   `android-apk.yml`; it needs the four version records to agree. Desktop installs of 0.3.6 or earlier need one manual install
   to reach these releases. `apple-native-build.yml` is an unsigned macOS compile check. Version files are in
   [deployment](docs/deployment.md).
-- `android-apk.yml` also builds a test-signed device APK on its own, from the fixed signing Secret, and publishes nothing then.
+- `android-apk.yml` builds signed Release APKs with separate release Secrets and inspects the real signer,
+  manifest and bundled runtime variant before saving artifacts. Release credentials, OAuth and installed acceptance
+  remain pending; local Debug builds are separate. A standalone workflow run publishes nothing.
   iOS builds, signing and installation stay local; no GitHub workflow builds or uploads
   iOS packages because embedded provisioning profiles disclose registered device identifiers
   ([ADR-057](docs/decisions/057-local-ios-builds-and-device-privacy.md)).

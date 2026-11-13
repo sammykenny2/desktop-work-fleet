@@ -187,8 +187,8 @@ jobs:
           if [ "$INCLUDE_ANDROID" = true ]; then
           cat >> "$RUNNER_TEMP/notes.md" <<EOF
           ## Android
-          Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-debug.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-debug.apk\` from a computer.
-          The APK is signed with the project's fixed test key, not a Google Play key, so a later preview with a higher version installs over it and preserves its local files; a build signed with another key cannot. Check the changes above for data-format compatibility and any required reset before upgrading.
+          Requires Android 9 (API 28) or later. Download \`WorkFleet-${VERSION}-android-release.apk\` on the phone and open it, allowing installs from this source when Android asks, or run \`adb install -r WorkFleet-${VERSION}-android-release.apk\` from a computer.
+          This is a signed Release APK. Updates require the same application ID and signing key and a higher versionCode. It cannot replace a Debug APK signed with the old test key; export a backup before removing an old installation. Google Play signing is configured separately. Check the changes above for data-format compatibility and any required reset before upgrading.
 
           EOF
           fi

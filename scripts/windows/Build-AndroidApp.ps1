@@ -11,14 +11,17 @@
     Build a release AAB instead of a debug APK.
 .PARAMETER Signed
     Require signing environment variables and build a release AAB.
+.PARAMETER Apk
+    With Signed, build an installable signed Release APK instead of an AAB.
 .PARAMETER GradlePath
     Optional Gradle executable override; defaults to the checked-in gradlew.bat.
 .EXAMPLE
     .\scripts\windows\Build-AndroidApp.ps1 -Release
 #>
 [CmdletBinding()]
-param([switch]$Release, [switch]$Signed, [string]$GradlePath = '')
+param([switch]$Release, [switch]$Signed, [switch]$Apk, [string]$GradlePath = '')
 $ErrorActionPreference = 'Stop'
+if ($Apk -and -not $Signed) { throw 'Apk requires Signed; unsigned installable APKs are not delivery outputs.' }
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $SavedSdkEnvironment = @{}
 Push-Location $ProjectRoot
@@ -51,8 +54,10 @@ try {
     $AndroidVersion = & node scripts/platform-version.mjs --platform android
     if ($LASTEXITCODE -ne 0) { throw 'Could not read versionName from src/native/android/app/build.gradle.kts.' }
     $Task = if ($Release) { 'bundleRelease' } else { 'assembleDebug' }
+    if ($Apk) { $Task = 'assembleRelease' }
     $Output = "src/native/android/app/build/outputs/apk/debug/WorkFleet-$AndroidVersion-android-debug.apk"
     if ($Release) { $Output = "src/native/android/app/build/outputs/bundle/release/WorkFleet-$AndroidVersion-android-release.aab" }
+    if ($Apk) { $Output = "src/native/android/app/build/outputs/apk/release/WorkFleet-$AndroidVersion-android-release.apk" }
     & $GradlePath -p src/native/android --no-daemon --console plain $Task
     if ($LASTEXITCODE -ne 0) { throw 'Android native build failed.' }
     if (-not (Test-Path -LiteralPath $Output -PathType Leaf)) { throw "Expected Gradle output $Output was not produced." }

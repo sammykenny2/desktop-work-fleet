@@ -76,12 +76,14 @@ build entry points, and the system PATH is not changed.
 .\scripts\windows\Build-AndroidApp.ps1
 .\scripts\windows\Build-AndroidApp.ps1 -Release
 .\scripts\windows\Build-AndroidApp.ps1 -Signed
+.\scripts\windows\Build-AndroidApp.ps1 -Signed -Apk
 ```
 
 ```bash
 bash scripts/linux/build-android-app.sh
 bash scripts/linux/build-android-app.sh --release
 bash scripts/linux/build-android-app.sh --signed
+bash scripts/linux/build-android-app.sh --signed --apk
 ```
 
 The default application ID is `dev.sammykenny2.pinitanywhere`. Release requires the matching public settings and
@@ -90,6 +92,9 @@ Signing comes from four process/CI variables, `WORK_FLEET_ANDROID_KEYSTORE` (abs
 `WORK_FLEET_ANDROID_KEY_ALIAS`, `WORK_FLEET_ANDROID_STORE_PASSWORD` and `WORK_FLEET_ANDROID_KEY_PASSWORD`,
 which are never written to the repository, `.env` or the public JSON. `-Signed`/`--signed` requires all inputs and stops
 when one is missing.
+Add `-Apk`/`--apk` to produce `WorkFleet-<versionName>-android-release.apk` with `assembleRelease` instead of a release
+AAB. This option requires `-Signed`/`--signed`; an unsigned installable APK is not a delivery output. Debug remains
+the default for local development and is not included in the release workflow's artifacts.
 Using the release variant in Android Studio or running `gradlew bundleRelease` directly checks the final public settings
 in the same way.
 A release AAB without the inputs is unsigned and must go to an external signing pipeline; the Gradle cache defaults to
@@ -99,9 +104,11 @@ project.
 Set `WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID`/`WORK_FLEET_GOOGLE_WEB_CLIENT_ID` and rebuild.
 No Web client secret is needed, and no own sign-in server is built.
 
-The GitHub **Android device APK** workflow builds manually from main with the fixed test keystore and checks
-`WORK_FLEET_ANDROID_DEBUG_SHA1`; it does not bump the version or publish a Release, and the artifact is kept for
-fourteen days.
+The GitHub **Android Release APK** workflow builds manually from main with the release keystore and checks
+`WORK_FLEET_ANDROID_RELEASE_SHA1`; it does not bump the version or publish a Release, and the artifact is kept for
+fourteen days. It inspects the actual signature, manifest identity/version, debuggable/test-only flags and bundled
+Release runtime inventory before saving anything. Missing release signing settings fail the build; the old Debug
+signing Secret is not used. Play App Signing is configured separately.
 The Secret settings are in [phone test builds](../../../docs/deployment.md#phone-test-builds).
 `WORK_FLEET_ANDROID_DEBUG_KEYSTORE` can point locally or in CI to the absolute path of an existing debug keystore,
 with the standard Android debug alias and passwords; when it is not set, Android Studio's default behaviour is kept.

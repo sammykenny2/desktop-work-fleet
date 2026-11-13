@@ -73,6 +73,10 @@ supplied for the same action.
 
 - [ ] Change Android external-delivery paths from Debug to signed Release APK/AAB; preserve Debug only for development
   and isolated CI tests. Configure upload/Play keys separately and validate the final app-signing identity.
+  - [x] Add signed Release APK entry points, separate CI release-signing inputs, actual APK signature/manifest/runtime
+    inspection and a Release-only Android asset allowlist. Keep local Debug and unsigned AAB inspection available.
+  - [ ] Configure the real direct-APK signer and matching OAuth, then verify installation/update; configure Play
+    app-signing and upload identities separately before any Play delivery.
 - [ ] After Certum issuance, verify signing-tool compatibility, timestamp, trust chain and Publisher, then sign Windows
   distribution artifacts without exporting a CER into the public delivery set.
 - [ ] Update packaging workflows, release asset allowlists, metadata writers, tests and install instructions as one

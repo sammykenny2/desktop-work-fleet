@@ -1,6 +1,6 @@
-name: Android device APK
+name: Android Release APK
 
-# Reuses the test signer and saves artifacts. Dispatched by hand, it builds a device APK and publishes nothing.
+# Uses the release signer and saves inspected Release artifacts. A manual build publishes nothing.
 # preview-release.yml calls it with the release commit; then the verified APK and its .sha256 are also saved as the
 # release-android artifact, which the caller publishes in the vX.Y.Z release with every other platform.
 on:
@@ -31,7 +31,10 @@ jobs:
       WORK_FLEET_GOOGLE_PROJECT_ID: ${{ vars.WORK_FLEET_GOOGLE_PROJECT_ID }}
       WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_ANDROID_CLIENT_ID }}
       WORK_FLEET_GOOGLE_WEB_CLIENT_ID: ${{ vars.WORK_FLEET_GOOGLE_WEB_CLIENT_ID }}
-      WORK_FLEET_ANDROID_DEBUG_SHA1: ${{ vars.WORK_FLEET_ANDROID_DEBUG_SHA1 }}
+      WORK_FLEET_ANDROID_RELEASE_SHA1: ${{ vars.WORK_FLEET_ANDROID_RELEASE_SHA1 }}
+      WORK_FLEET_PRIVACY_URL: ${{ vars.WORK_FLEET_PRIVACY_URL }}
+      WORK_FLEET_SUPPORT_URL: ${{ vars.WORK_FLEET_SUPPORT_URL }}
+      WORK_FLEET_SUPPORT_EMAIL: ${{ vars.WORK_FLEET_SUPPORT_EMAIL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -48,41 +51,49 @@ jobs:
       - name: Install Android SDK components
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36" "build-tools;36.0.0"'
       - run: npm ci --ignore-scripts
-      - run: npm run config:check -- --google --platform android
-      - name: Restore the fixed test keystore
+      - run: npm run config:check -- --platform android
+      - name: Restore the release keystore
         env:
-          DEBUG_KEYSTORE: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+          WORK_FLEET_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          WORK_FLEET_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          WORK_FLEET_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
-          [ -n "$DEBUG_KEYSTORE" ] || { echo 'Secret ANDROID_DEBUG_KEYSTORE_BASE64 is not set.'; exit 1; }
-          [[ "$WORK_FLEET_ANDROID_DEBUG_SHA1" =~ ^([[:xdigit:]]{2}:){19}[[:xdigit:]]{2}$ ]] || { echo 'Variable WORK_FLEET_ANDROID_DEBUG_SHA1 must be a SHA-1 fingerprint.'; exit 1; }
+          for value in "$RELEASE_KEYSTORE" "$WORK_FLEET_ANDROID_KEY_ALIAS" "$WORK_FLEET_ANDROID_STORE_PASSWORD" "$WORK_FLEET_ANDROID_KEY_PASSWORD"; do
+            [ -n "$value" ] || { echo 'An Android release signing secret is not set.'; exit 1; }
+          done
+          [[ "$WORK_FLEET_ANDROID_RELEASE_SHA1" =~ ^([[:xdigit:]]{2}:){19}[[:xdigit:]]{2}$ ]] || { echo 'Variable WORK_FLEET_ANDROID_RELEASE_SHA1 must be a SHA-1 fingerprint.'; exit 1; }
           umask 077
-          printf '%s' "$DEBUG_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/android-debug.keystore"
-          echo "WORK_FLEET_ANDROID_DEBUG_KEYSTORE=$RUNNER_TEMP/android-debug.keystore" >> "$GITHUB_ENV"
+          printf '%s' "$RELEASE_KEYSTORE" | base64 --decode > "$RUNNER_TEMP/android-release.keystore"
+          echo "WORK_FLEET_ANDROID_KEYSTORE=$RUNNER_TEMP/android-release.keystore" >> "$GITHUB_ENV"
           echo "GRADLE_USER_HOME=$RUNNER_TEMP/work-fleet-gradle" >> "$GITHUB_ENV"
       - name: Run Android regressions
         run: bash src/native/android/gradlew -p src/native/android --no-daemon --console plain testDebugUnitTest
       - name: Build the APK at the recorded version
-        run: bash scripts/linux/build-android-app.sh
+        env:
+          WORK_FLEET_ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          WORK_FLEET_ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          WORK_FLEET_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: bash scripts/linux/build-android-app.sh --signed --apk
       - name: Verify the APK signer and record the build
         id: package
         run: |
           version=$(node scripts/platform-version.mjs --platform android)
-          apk="build/WorkFleet-$version-android-debug.apk"
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk" > "$RUNNER_TEMP/apk-signature.txt"
-          actual=$(sed -n 's/^Signer #1 certificate SHA-1 digest: //p' "$RUNNER_TEMP/apk-signature.txt" | tr '[:upper:]' '[:lower:]')
-          expected=$(printf '%s' "$WORK_FLEET_ANDROID_DEBUG_SHA1" | tr -d ':' | tr '[:upper:]' '[:lower:]')
-          [ "$actual" = "$expected" ] || { echo 'APK signer differs from the registered test key; refusing to save it.'; exit 1; }
+          apk="build/WorkFleet-$version-android-release.apk"
+          python3 scripts/check_android_package.py --apk "$apk" --app-id "$WORK_FLEET_APP_ID" --version "$version" \
+            --sha1 "$WORK_FLEET_ANDROID_RELEASE_SHA1" --apksigner "$ANDROID_HOME/build-tools/36.0.0/apksigner" \
+            --apkanalyzer "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           printf 'Android %s\nCommit: %s\nRun: %s/%s/actions/runs/%s\nSigner SHA-1: %s\nInstall with adb install -r; Google OAuth must include this package and signer.\n' \
-            "$version" "$(git rev-parse HEAD)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_ANDROID_DEBUG_SHA1" > build/android-build.txt
+            "$version" "$(git rev-parse HEAD)" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$WORK_FLEET_ANDROID_RELEASE_SHA1" > build/android-build.txt
           cat build/android-build.txt >> "$GITHUB_STEP_SUMMARY"
       - name: Save APK and checksum
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: work-fleet-android-${{ steps.package.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk.sha256
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk.sha256
             build/android-build.txt
           if-no-files-found: error
           retention-days: 14
@@ -92,12 +103,12 @@ jobs:
         with:
           name: release-android
           path: |
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk
-            build/WorkFleet-${{ steps.package.outputs.version }}-android-debug.apk.sha256
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk
+            build/WorkFleet-${{ steps.package.outputs.version }}-android-release.apk.sha256
           if-no-files-found: error
           # A re-run of this job replaces the artifact its failed attempt may have left.
           overwrite: true
           retention-days: 7
       - name: Remove the temporary keystore
         if: always()
-        run: rm -f "$RUNNER_TEMP/android-debug.keystore"
+        run: rm -f "$RUNNER_TEMP/android-release.keystore"

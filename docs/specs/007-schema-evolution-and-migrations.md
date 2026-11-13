@@ -25,6 +25,11 @@ changed directly in V1.
 - When a Windows Store, Apple App Store or Google Play launch is formally planned, format freezing and migrations are
   evaluated then.
 
+Store preparation now includes a pre-beta format-freeze and backup-compatibility review in
+[PLAN-014](../plans/014-product-identity-and-distribution.md), required by
+[SPEC-013 FR13](013-product-identity-and-distribution.md). That review has not changed the V1 policy or authorized
+schema upgrades, migration jobs or data deletion.
+
 ## Design Overview
 
 `core/schema.js` only gathers the current V1 constants and basic version validation; the existing Workspace loads

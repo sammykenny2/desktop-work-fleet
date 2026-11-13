@@ -1,6 +1,6 @@
 # Document Index
 
-Updated: 2026-11-03. Read the latest specifications first; research, working defaults, completed implementation and
+Updated: 2026-11-13. Read the latest specifications first; research, working defaults, completed implementation and
 passed real-world tests are kept apart.
 
 During testing, the note, sync and backup JSON schemas all stay at V1; fields change V1 directly, and version bumps and
@@ -11,6 +11,7 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 
 | Document | Authority and purpose |
 |---|---|
+| [ADR-069](decisions/069-pin-it-anywhere-product-identity.md)/[ADR-070](decisions/070-release-channels-and-architecture.md)/[SPEC-013](specs/013-product-identity-and-distribution.md)/[PLAN-014](plans/014-product-identity-and-distribution.md) | Final product/repo/application names and accepted distribution policy; identity cutover, Release-only delivery, Windows ARM64 and mobile beta acceptance are planned, not implemented by the documentation decision |
 | [ADR-063](decisions/063-efficient-idle-sync.md)/[SPEC-011](specs/011-efficient-idle-sync.md)/[PLAN-012](plans/012-efficient-idle-sync.md) | Approved idle-sync optimization: unchanged persisted formats, one-request empty checks, explicit validation boundaries, native connection reuse and authenticated measurement gates; implementation in progress |
 | [Google Drive reset diagnostics handoff](handoff/2026-11-03-google-drive-reset-diagnostics.md) | Maintainer-requested investigation handoff: observed reset failures, evidence and test limitations, correction to the prior check report, and the unfinished authenticated-probe route |
 | [ADR-062](decisions/062-dataset-checkpoints-and-deletable-history.md)/[SPEC-010](specs/010-dataset-checkpoints-and-deletable-history.md)/[PLAN-011](plans/011-dataset-checkpoints-and-deletable-history.md) | Implementation approved: local record storage and remote proof proceed independently; checkpoint protocol acceptance remains gated; whole-note purge and legacy reset are planned, expiry is deferred |
@@ -50,8 +51,8 @@ The policy is in [SPEC-007](specs/007-schema-evolution-and-migrations.md) and [A
 | [ADR-025](decisions/025-linux-desktop-scenes-and-shortcuts.md) | Accepted: Linux layered scenes, input regions, shortcuts and tray |
 | [ADR-026](decisions/026-native-file-export-and-sharing.md) | Accepted: native file export, text and attachment sharing on phones |
 | [ADR-027](decisions/027-native-share-inbox-and-extension.md) | Accepted: encrypted share inbox, group choice and the iOS extension |
-| [ADR-028](decisions/028-native-package-and-signing-entry-points.md) | Accepted: Windows MSIX / ZIP, Apple export / PKG / DMG, Android upload signing |
-| [ADR-055](decisions/055-mobile-device-build-workflows.md)/[ADR-057](decisions/057-local-ios-builds-and-device-privacy.md) | Accepted: manual fixed-key Android APK builds; iOS builds, signing and installation stay local to protect registered device identifiers |
+| [ADR-028](decisions/028-native-package-and-signing-entry-points.md) | Packaging entry points; future public artifact policy is superseded by ADR-070 |
+| [ADR-055](decisions/055-mobile-device-build-workflows.md)/[ADR-057](decisions/057-local-ios-builds-and-device-privacy.md) | Existing fixed-key Android test tooling and local iOS development builds; ADR-070 replaces external Debug delivery and adds Play/TestFlight beta preparation |
 | [ADR-029](decisions/029-portable-apple-xcode-project.md) | Accepted: a committed Xcode project that opens directly, relative paths and automatic asset preparation |
 | [ADR-030](decisions/030-windows-explorer-wallpaper-layer.md) | Accepted: Explorer icon / wallpaper hosts, three-layer scenes and click-through |
 | [ADR-031](decisions/031-macos-and-linux-wallpaper-scenes.md) | Accepted: the third layer on Mac / Linux, click-through / redraw and continued reference measurements |

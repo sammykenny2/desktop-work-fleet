@@ -136,7 +136,8 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 - [ ] Q01: Whether to add an automatic check after start with an interval, or later background downloads (the reference
   project has them off by default).
 - [x] Q02: macOS uses Sparkle 2.10.0 with the standard dialog, and the Developer ID build keeps the sandbox; a separate
-  build without Sparkle is split off when the App Store listing happens (2026-10-14).
+  build without Sparkle is split off when the App Store listing happens (2026-10-14). First-install packaging remains
+  DMG, with ZIP/appcast updates, under [ADR-070](../decisions/070-release-channels-and-architecture.md) (2026-11-13).
 - [ ] Q03: Whether Linux should later offer a signed APT repository and leave updates to the system.
 - [ ] Q04: Whether a release channel is wanted beyond preview, and whether that channel excludes prereleases.
 - [ ] Q05: Whether locally built packages (D05) should show only the version, so that development builds are not
@@ -187,8 +188,9 @@ Current status is in [PROGRESS](../../PROGRESS.md); history and verification evi
 ## Dependencies
 
 - The maintainer makes the repo public, confirming before that the history contains no secrets.
-- The Windows preview certificate stays the same; macOS needs Developer ID, notarization and Sparkle EdDSA keys; Linux
-  needs a DEB release workflow.
+- Windows package identity, Publisher and trusted distribution signing must agree; transition from the preview
+  certificate needs installed-update acceptance under [SPEC-013](013-product-identity-and-distribution.md).
+  macOS needs Developer ID, notarization and Sparkle EdDSA keys; Linux needs a DEB release workflow.
 - Version bumps, releases and Actions dispatches need separate authorization as described in AGENTS.md.
 
 ## References

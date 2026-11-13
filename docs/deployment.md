@@ -1,8 +1,25 @@
 # Platforms and distribution
 
-Updated: 2026-10-17. Full 1.0 is still the target; every build so far is a preview. This document holds the packaging
+Updated: 2026-11-13. Full 1.0 is still the target; every build so far is a preview. This document holds the packaging
 and release procedure. Current status is in [PROGRESS](../PROGRESS.md), version history in the
 [release notes](release-notes.md), and release outcomes in the GitHub Releases and their workflow runs.
+
+## Selected policy and current implementation
+
+Final names are in [ADR-069](decisions/069-pin-it-anywhere-product-identity.md); selected distribution formats,
+architectures and signing/build-mode rules are in [ADR-070](decisions/070-release-channels-and-architecture.md).
+[SPEC-013](specs/013-product-identity-and-distribution.md) defines acceptance and
+[PLAN-014](plans/014-product-identity-and-distribution.md) orders the changes. No remote rename or service/signing
+configuration change was performed by that documentation decision.
+
+The procedures below describe existing tooling and retain current Work Fleet file names. Android's Debug APK workflow
+and the Windows CER/public trust instructions are legacy paths that must be changed before future distribution under
+the new policy. Windows currently builds x64 only; ARM64/MSIX bundle and AppImage are not implemented. The current Linux
+DEB is architecture-independent (`all`), not separate amd64/arm64 artifacts. macOS CI already produces Universal DMG
+plus the ZIP/appcast update payload; local PKG support does not imply that PKG is the selected primary installer.
+Update these procedures alongside implementation; do not use the legacy Debug/CER steps as a future release checklist.
+
+## Existing packaging entry points
 
 | Platform | Packaging entry point | Output and prerequisites |
 |---|---|---|

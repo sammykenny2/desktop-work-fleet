@@ -1,6 +1,6 @@
 # Roadmap
 
-Updated: 2026-11-03. This document only sets the order of work and does not commit to release dates. It is not a status
+Updated: 2026-11-13. This document only sets the order of work and does not commit to release dates. It is not a status
 record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of each version in
 [docs/release-notes.md](docs/release-notes.md).
 
@@ -17,7 +17,11 @@ record: the current state is in [PROGRESS.md](PROGRESS.md) and the history of ea
    user confirmed; groups and references must not be missed, and old drafts cannot directly serve as grounds for
    excluding features.
 6. **Platform release**: minimum versions, installers, signing and stores, licensing, real sync and desktop feature
-   regressions each record their own evidence.
+   regressions each record their own evidence. Follow [PLAN-014](docs/plans/014-product-identity-and-distribution.md):
+   settle identities and verify data recovery before OAuth/app cutover, enforce the distribution artifact contract,
+   add native Windows ARM64, then run Play closed testing and TestFlight with feedback. Review format freezing before
+   external beta. AppImage is a later supplement after startup/update integration; selected primary formats are in
+   [ADR-070](docs/decisions/070-release-channels-and-architecture.md).
 7. **Later extensions**: other sources and renderers, PM and views, and multiple membership; keep the existing research
    without forcing it into the first version.
 

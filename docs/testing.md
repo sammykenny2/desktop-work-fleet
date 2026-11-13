@@ -1,8 +1,22 @@
 # Builds, tests and evidence
 
-Updated: 2026-11-03. This document holds the verification procedures and the verified and unverified boundaries.
+Updated: 2026-11-13. This document holds the verification procedures and the verified and unverified boundaries.
 Current status is in [PROGRESS.md](../PROGRESS.md); the history and the evidence of individual runs are in the git history.
 Evidence for the existing 0.1.0 prototype is in the [validation report](validation/2026-10-03-validation-report.md).
+
+## Planned identity and distribution acceptance
+
+[SPEC-013 C01–C10](specs/013-product-identity-and-distribution.md) defines the required identity-cutover, Release-artifact,
+installer/update, architecture and mobile-beta evidence; [PLAN-014](plans/014-product-identity-and-distribution.md)
+orders implementation. These are required future checks, not passed tests.
+
+Inspect resolved build modes, actual package signatures/entitlements and the exact delivery asset set before invoking
+the corresponding native install/update case. Use complete old/new backups and a test Google account for identity
+cutover; keep old access until restore is accepted. Test native Windows ARM64 and Intel macOS on their own hardware,
+and verify DEB startup/update on the supported Linux environments. AppImage requires separate acceptance if introduced.
+Run Play/TestFlight tests using their actual distributed Release builds and collect feedback through the chosen test
+channel; a local APK/IPA or build-only check does not establish store delivery. Actual run and store outcomes belong
+in the conversation and external systems, not a new tracked release-result log.
 
 ## Reset deletion and native batch transport
 

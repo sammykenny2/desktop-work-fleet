@@ -6,6 +6,11 @@ Accepted for Android, 2026-10-17. The iOS hosting and distribution decision is s
 [ADR-057](057-local-ios-builds-and-device-privacy.md), 2026-10-20; the original decision and revision below are historical
 for iOS. The original request was for GitHub APK and registered-device IPA builds without a version bump or preview release.
 
+The external Android Debug delivery policy is superseded by
+[ADR-070](070-release-channels-and-architecture.md), 2026-11-13. The existing workflow still needs conversion to signed
+Release delivery under [PLAN-014](../plans/014-product-identity-and-distribution.md). The historical decisions below do
+not authorize future external Debug packages; local development/isolated CI probes remain available.
+
 ## Context
 
 Testing currently happens on the maintainer's own phones; TestFlight and Google Play test tracks are not in use yet.

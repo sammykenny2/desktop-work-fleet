@@ -53,6 +53,7 @@ Use [000-template.md](./000-template.md) as the starting point for new specs.
 
 | Spec | Title | Status | Related Plan |
 |------|-------|--------|--------------|
+| [013-product-identity-and-distribution](013-product-identity-and-distribution.md) | Final identity, safe cutover, Release artifacts and beta feedback | Approved requirements; implementation pending | [PLAN-014](../plans/014-product-identity-and-distribution.md) |
 | [011-efficient-idle-sync](011-efficient-idle-sync.md) | Efficient idle checks with existing dataset and record formats | Approved for implementation; native/provider proof and review pending | [PLAN-012](../plans/012-efficient-idle-sync.md) |
 | [012-cloud-and-local-notes](012-cloud-and-local-notes.md) | Cloud and local notes side by side, moves across, chosen regions, Trash and search | Approved; implementation in progress |
 | [010-dataset-checkpoints-and-deletable-history](010-dataset-checkpoints-and-deletable-history.md) | Dataset checkpoints, manual note purge and explicit reset/recovery | Approved for implementation; remote proof gates remain | [PLAN-011](../plans/011-dataset-checkpoints-and-deletable-history.md) |

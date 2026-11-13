@@ -1,9 +1,11 @@
 # Decision index
 
-Updated: 2026-11-05.
+Updated: 2026-11-13.
 
 | Record | Status | Scope |
 |---|---|---|
+| [ADR-070](070-release-channels-and-architecture.md) | Accepted policy; implementation pending (2026-11-13) | Release-only external delivery, no public CER, signed MSIX with future native ARM64/bundle, DMG/Sparkle ZIP, DEB first and later AppImage, Play/TestFlight feedback |
+| [ADR-069](069-pin-it-anywhere-product-identity.md) | Accepted names; cutover pending (2026-11-13) | Final product, repo, Cloud and Apple/Android identifiers; naming family, OAuth/data boundaries and unresolved external identities |
 | [ADR-068](068-operation-results-use-toasts.md) | Accepted (2026-11-05) | Session-only toasts for operation results, errors and progress; modal ownership, action lifetime and no replay of completed cleanup |
 | [ADR-067](067-sections-may-be-empty-and-groups-can-be-deleted.md) | Accepted (2026-11-04) | A section may hold no group and never refills itself; only starting a note with no group anywhere makes one; any group can be deleted, with its notes in Trash |
 | [ADR-066](066-cloud-and-local-notes-side-by-side.md) | Accepted (2026-11-04); implementation in progress | Cloud and local notes open side by side as one Workspace per profile; a per-device desk holds regions and shortcuts; moves across use a journal and leave the original in Trash |
@@ -17,7 +19,7 @@ Updated: 2026-11-05.
 | [ADR-058](058-desktop-presentation-lifecycle-and-core-isolation.md) | Proposed | Nonvisual resident core, disposable graphical clients, continuous presentation readiness/recovery and permanent removal of whole-app crash reopen |
 | [ADR-057](057-local-ios-builds-and-device-privacy.md) | Accepted (local iOS builds, 2026-10-20) | iOS builds and device signing stay on the maintainer's Mac; no iOS packages in public Actions artifacts or Releases |
 | [ADR-056](056-english-first-ui-and-locale-catalogs.md) | Accepted (UI language, 2026-10-17) | English-first UI with en and zh-TW locale catalogs and a Display language setting |
-| [ADR-055](055-mobile-device-build-workflows.md) | Accepted for Android; iOS superseded by ADR-057 | Fixed-key manual APK builds with fourteen-day artifacts and optional Android prereleases |
+| [ADR-055](055-mobile-device-build-workflows.md) | External Android Debug delivery superseded by ADR-070; local iOS policy in ADR-057 | Existing fixed-key test-build workflow, not the future external beta distribution contract |
 | [ADR-052](052-rich-papers-and-native-attachments.md) | Accepted (note formatting and attachments) | Six heading levels, code coloring, native attachment thumbnails and opening a copy; V1 and checklists unchanged |
 | [ADR-051](051-schema-evolution-and-atomic-migrations.md) | Accepted (testing-phase V1 policy) | Current JSON schemas stay at V1; version bumps, migrations and copies are evaluated when store launch is planned |
 | [ADR-001](001-independent-backlog-first-foundation.md) | Accepted | Name, independent development, backlog focus and bootstrap scope |
@@ -47,7 +49,7 @@ Updated: 2026-11-05.
 | [ADR-025](025-linux-desktop-scenes-and-shortcuts.md) | Accepted (Linux desktop) | Layered scenes, input regions, shortcuts and the tray on Linux |
 | [ADR-026](026-native-file-export-and-sharing.md) | Accepted (native export) | Native file export and phone text/attachment sharing |
 | [ADR-027](027-native-share-inbox-and-extension.md) | Accepted (share inbox) | Encrypted share inbox, group choice and the iOS Share Extension |
-| [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted (packaging entry points) | Windows MSIX/ZIP, Apple export/PKG/DMG, Android upload signing; production accounts / native artifacts delivered separately |
+| [ADR-028](028-native-package-and-signing-entry-points.md) | Accepted entry points; public artifact policy superseded by ADR-070 | Existing Windows/Apple/Linux/Android packaging and signing foundations |
 | [ADR-029](029-portable-apple-xcode-project.md) | Accepted (Apple project delivery) | Committed portable Xcode project that opens straight after clone, local configuration and build assets |
 | [ADR-030](030-windows-explorer-wallpaper-layer.md) | Accepted (Windows wallpaper layer) | Explorer icon/wallpaper host, three-layer scenes, click-through and restore on exit |
 | [ADR-031](031-macos-and-linux-wallpaper-scenes.md) | Accepted (Mac/Linux wallpaper layer) | Mac below the icons, Linux BACKGROUND, click-through and redraw, follow-up measurements against the reference |

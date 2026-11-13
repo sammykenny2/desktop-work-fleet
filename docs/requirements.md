@@ -1,12 +1,14 @@
 # Requirements and Version Scope
 
-Updated: 2026-11-01. The interaction contract is [SPEC-003](specs/003-desktop-cards-groups-and-formation.md).
+Updated: 2026-11-13. The interaction contract is [SPEC-003](specs/003-desktop-cards-groups-and-formation.md).
 That specification lists U (confirmed), D (authorized working defaults) and Q (open) items; research candidates must not
 be treated as approved features.
 
 ## Confirmed product direction
 
 - Backlog and quick capture of ideas come first; one card/note/post-it records one thing.
+- Compact sticky papers offer a little more structure than a plain note while staying lighter than a task/project
+  manager. This does not remove rich content or restrict note length.
 - A group is a general logical collection; the local device can highlight "mine", and no card is required to belong to
   a Project or to Agent work.
 - Windows, macOS and Linux are required desktop platforms; the store targets for our own iOS/macOS/Android apps are kept.
@@ -60,6 +62,15 @@ The Q01–Q07 table in SPEC-003 records these answers and working defaults.
 [ADR-008](decisions/008-portable-interaction-core.md) records the shared semantic core and transaction boundaries.
 Store preparation does not equal store approval; external OAuth, formal signing and real-device acceptance each need
 their own evidence.
+
+## Final identity and distribution preparation
+
+[ADR-069](decisions/069-pin-it-anywhere-product-identity.md) owns the final product/repository/application names and
+the naming-family rule. [ADR-070](decisions/070-release-channels-and-architecture.md) owns installer, architecture,
+Release-only delivery and beta-feedback policy. Acceptance is in
+[SPEC-013](specs/013-product-identity-and-distribution.md), and identity cutover, signing changes, Windows ARM64 and
+Play/TestFlight preparation are ordered in [PLAN-014](plans/014-product-identity-and-distribution.md).
+These are accepted targets, not evidence that the source, cloud accounts or installed applications already use them.
 
 ## Status of Google and backup
 

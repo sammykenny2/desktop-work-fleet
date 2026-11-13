@@ -3,8 +3,9 @@
 ## Status
 
 Accepted, 2026-10-14. The user confirmed that the maintainer will make the repo public, that Windows, macOS and Linux
-all get in-app upgrades, and that Windows uses MSIX; work started on the same day by the user's instruction. The macOS
-installation method (SPEC-006 Q02) and the other questions are still open. Reference and evidence:
+all get in-app upgrades, and that Windows uses MSIX; work started on the same day by the user's instruction. SPEC-006
+Q02 records the macOS Sparkle choice. First-install formats and future architecture policy are settled in
+[ADR-070](070-release-channels-and-architecture.md); their implementation changes remain pending. Reference and evidence:
 [research](../research/2026-10-14-desktop-window-startup-and-update-reference.md).
 
 Revised 2026-10-15: the user reported that Work Fleet's update check was rate-limited while the public release feed

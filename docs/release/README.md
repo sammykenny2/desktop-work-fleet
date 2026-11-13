@@ -4,6 +4,10 @@ This folder holds the submission copy and data lists. The project-level state of
 preparation is in the root [PROGRESS.md](../../PROGRESS.md); packaging and release procedure is in
 [deployment](../deployment.md); build and dispatch results are in the GitHub Releases and workflow runs, not here.
 
+Final names are owned by [ADR-069](../decisions/069-pin-it-anywhere-product-identity.md), and future Release delivery and
+Play/TestFlight feedback by [ADR-070](../decisions/070-release-channels-and-architecture.md). Existing listing drafts
+still need the coordinated identity update in [PLAN-014](../plans/014-product-identity-and-distribution.md).
+
 - [Traditional Chinese listing](store-listing.zh-TW.json), [English listing](store-listing.en-US.json): name, short
   description and full description.
 - Privacy policy, [English](privacy.md) and [Traditional Chinese](privacy.zh-TW.md): published with the maintainer's
@@ -40,10 +44,9 @@ as native evidence.
 The Windows package identity and publisher are set in `.env.example`; signing uses an existing CurrentUser/My
 certificate. The Apple export / PKG / DMG and Keychain-profile notarization entry points are in the
 [distribution document](../deployment.md).
-Accounts, certificates and real native screenshots for each platform are not done just because the scripts exist; their
-current state is in [PROGRESS](../../PROGRESS.md). As of 2026-10-17, no store developer accounts are set up, the privacy
-page is not published, there are no native screenshots, Partner Center has no reserved app and nothing has been
-submitted; the store listings and privacy text are drafts.
+Accounts, certificates and real native screenshots for each platform are not done just because the scripts exist;
+their current state is in [PROGRESS](../../PROGRESS.md). The store listings and privacy text remain drafts until updated
+with the final app identity, actual contacts, native evidence and the applicable store requirements.
 
 For each Android variant, the actual resolved runtime versions, hashes and POMs and the SDK notices are saved with the
 package in `assets/licenses/native/inventory.json` and the files in the same folder. An item without a notice keeps its

@@ -3,7 +3,10 @@
 ## Status
 
 Accepted, 2026-10-05; on 2026-10-06 per-platform version records and release file names were added.
-On 2026-10-10 the Windows framework-dependent packaging choice was superseded by [ADR-036](036-windows-self-contained-packaging.md); the text below keeps the decision as it was then, and the other platforms and the signing contract are unchanged.
+On 2026-10-10 the Windows framework-dependent packaging choice was superseded by [ADR-036](036-windows-self-contained-packaging.md).
+On 2026-11-13 [ADR-070](070-release-channels-and-architecture.md) superseded the future public Windows ZIP/CER and
+Android Debug delivery choices and selected the installer/architecture policy. The text below keeps the historical
+packaging decisions; selected names are in [ADR-069](069-pin-it-anywhere-product-identity.md).
 
 ## Context
 

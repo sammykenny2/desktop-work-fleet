@@ -156,6 +156,7 @@ test('every native string table has matching English and Traditional Chinese blo
 const CJK_EXCEPTIONS = [
   { file: 'src/sources/initial-group.js', lines: 1, reason: 'the shared initial group keeps its persisted V1 name' },
   { file: 'docs/i18n.md', lines: 16, reason: 'the Traditional Chinese option labels and the terminology pairs' },
+  { file: 'docs/decisions/069-pin-it-anywhere-product-identity.md', lines: 1, reason: 'the final zh-TW product name quoted as identity data in the English ADR' },
   { file: 'tests/desktop-transport.test.js', lines: 1, reason: 'three-byte UTF-8 text makes chunk boundaries split a character' },
   { file: 'tests/automatic-backup.test.js', lines: 1, reason: 'a non-ASCII vault password' },
   { file: 'tests/backup-archive.test.js', lines: 2, reason: 'a non-ASCII password and manifest text through ZIP and encryption' },

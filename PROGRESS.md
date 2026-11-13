@@ -1,6 +1,6 @@
 # Progress
 
-Snapshot rewritten 2026-11-01.
+Snapshot rewritten 2026-11-13.
 
 This file is a short snapshot of the current state: what works, where it was verified, and what is still open.
 It is not a log. History lives in the git log (Conventional Commits with descriptive bodies),
@@ -14,9 +14,14 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   Windows, macOS and Linux, native iOS and Android apps, Google Drive app-data sync and portable backups.
   The behaviour contract is [SPEC-003](docs/specs/003-desktop-cards-groups-and-formation.md); the order of work is in [ROADMAP](ROADMAP.md).
 - Every build so far is a preview. 1.0 is not reached and no store submission has started.
-- All note, sync and backup JSON formats stay at V1 until store-launch planning starts
-  ([SPEC-007](docs/specs/007-schema-evolution-and-migrations.md)); the earlier schema-migration work was withdrawn.
+- All note, sync and backup JSON formats remain V1. Store preparation requires the pending format-freeze and
+  compatibility review in [SPEC-007](docs/specs/007-schema-evolution-and-migrations.md); the earlier schema-migration
+  work was withdrawn and no replacement migration is authorized.
 - Current version numbers are in the per-platform version files listed in [deployment](docs/deployment.md).
+- Final identity and distribution targets are accepted in
+  [ADR-069](docs/decisions/069-pin-it-anywhere-product-identity.md) and
+  [ADR-070](docs/decisions/070-release-channels-and-architecture.md). The source/service cutover and distribution changes
+  are pending under [PLAN-014](docs/plans/014-product-identity-and-distribution.md).
 
 ## Status by area
 
@@ -166,8 +171,10 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   iOS builds, signing and installation stay local; no GitHub workflow builds or uploads
   iOS packages because embedded provisioning profiles disclose registered device identifiers
   ([ADR-057](docs/decisions/057-local-ios-builds-and-device-privacy.md)).
-- Store listings and privacy text are drafted in [docs/release](docs/release/README.md). Developer accounts, a Partner Center
-  reservation, native screenshots, store signing and the final SDK licence inventory are missing.
+- Store listings and privacy text are drafted in [docs/release](docs/release/README.md). The maintainer has registered
+  Google Play Developer but has not created this app's Play record. Certum payment is complete and issuance/validation
+  is pending. A Partner Center reservation, native screenshots, final store signing and the final SDK licence inventory
+  remain open; account/payment facts do not establish installed distribution acceptance.
 
 ## Open items
 

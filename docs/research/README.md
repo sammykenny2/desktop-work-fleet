@@ -1,9 +1,11 @@
 # Research index
 
-Updated: 2026-11-05.
+Updated: 2026-11-13.
 
 ## Latest design: read first
 
+- [Product identity and distribution boundaries](2026-11-13-product-identity-and-distribution-boundaries.md): dated
+  primary sources, OAuth/app-data cutover limits, installer/update separation, beta rules and untested native boundaries.
 - [Tray primary clicks](2026-11-05-tray-primary-click.md): AppKit menu ownership, AppIndicator limitations, the Pi panel's
   ItemIsMenu default, and the direct StatusNotifier verification boundary.
 - [Idle sync request cost](2026-11-03-idle-sync-request-cost.md): reproduced production-JS provider counts, source-derived native HTTP amplification, Apple session lifetime, primary sources and unmeasured real-account latency; supports proposed ADR-063/SPEC-011/PLAN-012.

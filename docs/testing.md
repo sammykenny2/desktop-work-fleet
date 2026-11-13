@@ -78,10 +78,11 @@ dimensions and paper placements as groups arrive or retire, full-grid arrivals s
 ordering through nine groups independently of the desktop's region count.
 `scripts/testing/group-probe.mjs` checks the clean-install grid and unchanged regions and paper placement after a new
 group is saved through the browser UI.
-`tests/paper-size.test.js` checks the per-device Small/Medium/Tall preference, Medium on a clean install, preservation
-of placed papers, cloud/local collections sharing a choice without content or outbox changes, reopening, explicit reset,
-queued writes, rejected settings and persistence failures, and proportional fitting with the 160 shortest-side floor.
-`scripts/testing/paper-size-probe.mjs` checks all three selections and placements through the actual Settings UI,
+`tests/paper-size.test.js` checks the per-device Small/Medium/Large/Tall preference, Medium on a clean install, preservation
+of placed papers including the earlier Tall preset, cloud/local collections sharing a choice without content or outbox
+changes, reopening, explicit reset, queued writes, rejected settings and persistence failures, and proportional fitting
+with the 160 shortest-side floor.
+`scripts/testing/paper-size-probe.mjs` checks all four selections and placements through the actual Settings UI,
 reload persistence, unchanged main-window squares and the rendered Tall desktop paper in Chromium and WebKit, in English
 and Traditional Chinese. It uses synthetic IndexedDB profiles; installed native-host interaction remains unverified.
 C numbers in test names mark only the simulated semantic part; the native capabilities of C16, C35, C40–C43 and C46–C47 still need acceptance on a real host.

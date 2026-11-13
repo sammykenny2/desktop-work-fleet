@@ -45,7 +45,7 @@ When and how to update this file is defined in [AGENTS.md](AGENTS.md).
   used on a real machine),
   attachments pasted or dropped into the editor, and an explanation with a confirmed set-aside when local data cannot be
   opened.
-- Papers: this device chooses Small (160×160), Medium (240×240, the default) or Tall (240×400) for new desktop placements;
+- Papers: this device chooses Small (160×160), Medium (240×240, the default), Large (320×320) or Tall (320×480) for new desktop placements;
   papers shrink proportionally to fit a short group region (minimum shortest side 160). Placed papers keep their size
   until "reset desktop layout", which keeps the preference and re-places papers at the selected size. The main-window
   board stays independent. One group palette serves desktop and main window; group regions follow the primary display.

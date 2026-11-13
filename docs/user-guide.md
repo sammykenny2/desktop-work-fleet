@@ -58,8 +58,9 @@ interface. To switch, see [Settings](#settings).
   editing. For attachments and other content, Full editor (the outward arrows) goes back to the editor in the main
   window.
 - Moving a note with unsaved changes to Trash asks first, as its changes go with it; Undo brings back both.
-- Settings > Desktop notes > New desktop note size offers Small (160×160), Medium (240×240, the default) and Tall
-  (240×400). The choice is saved only on this device and serves both cloud and local notes. It applies when a note first
+- Settings > Desktop notes > New desktop note size offers Small (160×160), Medium (240×240, the default), Large
+  (320×320) and Tall (320×480), including the title band and border. The choice is saved only on this device and serves
+  both cloud and local notes. It applies when a note first
   gets a desktop position, including notes arriving from another device. Notes already placed keep their size.
   New notes shrink proportionally to fit a short group region, with a minimum shortest side of 160. Text size stays the
   same. Reset desktop layout keeps your choice and re-places the existing notes at that size.

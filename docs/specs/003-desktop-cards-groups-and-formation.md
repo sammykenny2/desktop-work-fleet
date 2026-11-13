@@ -229,14 +229,15 @@ is told to tidy up. The tenth group must not be dropped or merged arbitrarily.
 - Size may be adjusted in a formation with explicit consent; this is an exception the user added later.
 - No fixed 140×140 or other pixel size is approved; earlier illustrative sizes are not product specifications.
 - Approved by the user on 2026-11-14: Settings > Desktop notes offers Small (160×160, a 2×2 inch note), Medium
-  (240×240, a 3×3 inch note) and Tall (240×400, a 3×5 inch note). A clean install and a saved layout without a choice
-  use Medium. The preference belongs to this device, applies to both cloud and local collections, and never syncs.
+  (240×240, a 3×3 inch note), Large (320×320) and Tall (320×480). These are the full paper bounds, including the title
+  band and border. A clean install and a saved layout without a choice use Medium. The preference belongs to this device,
+  applies to both cloud and local collections, and never syncs.
   It sets the starting size when a paper first gets a position on this desktop, including a paper arriving from another
   device. Changing it does not resize positioned papers or change the main-window board, its text or its phone layout.
   "Reset desktop layout" keeps the chosen preference and re-places existing papers at that size. A formation can
   still adjust sizes with consent.
 - When a group region, minus a 12px margin on each side, cannot fit the selected size, new papers shrink proportionally,
-  with a minimum shortest side of 160. A Tall paper at that floor is 160×266 after rounding down; small regions can
+  with a minimum shortest side of 160. A Tall paper at that floor is 160×240; small regions can
   make different presets converge. For example, Medium papers in a 3×3 grid on a 1280×775 work area
   get 234×234, and in stack and spread the first paper of each group stays inside its own region.
 - Measured on 2026-10-17 with the same long text: a 240×240 desktop paper at 14 px shows 8 lines without attachments

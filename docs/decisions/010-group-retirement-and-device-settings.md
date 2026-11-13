@@ -30,8 +30,8 @@ overwrite other changes.
 ## Decision
 
 - The device's new-paper size is a desk preference, shared by its cloud and local collections and excluded from cloud
-  content. Small (160×160), Medium (240×240, the default) and Tall (240×400) apply only when assigning a paper's first
-  desktop position. Placed papers and the main-window board do not change when the choice changes. A layout reset keeps
+  content. Small (160×160), Medium (240×240, the default), Large (320×320) and Tall (320×480) apply only when assigning
+  a paper's first desktop position. Placed papers and the main-window board do not change when the choice changes. A layout reset keeps
   the choice and uses it to re-place papers. [SPEC-003](../specs/003-desktop-cards-groups-and-formation.md) owns the
   geometry and fitting contract.
 - The same merge flow handles empty groups and groups with data; the target must be another group that still exists.

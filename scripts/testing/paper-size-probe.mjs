@@ -23,7 +23,13 @@ const read = () => page.evaluate(async profile => {
   const { IndexedDbRecordStore } = await import('/storage/records-indexed-db.js');
   const { WorkspaceRecordStorage } = await import('/storage/workspace-records.js');
   const storage = new WorkspaceRecordStorage(await IndexedDbRecordStore.open(), profile);
-  try { return { state: await storage.load(profile), desk: await storage.getControl('desk') }; }
+  try {
+    // A read-only inspection can overlap the UI's save; reload a coherent snapshot without retrying any writes.
+    for (let attempt = 0; ; attempt++) {
+      try { return { state: await storage.load(profile), desk: await storage.getControl('desk') }; }
+      catch (error) { if (error.code !== 'stale-writer' || attempt === 4) throw error; }
+    }
+  }
   finally { storage.close(); }
 }, profile);
 const capture = async text => {
@@ -35,10 +41,14 @@ const capture = async text => {
 try {
   await page.goto(url.href); await opened(); await capture('Medium note');
   await settings(); await expect(page.locator('#desktop-paper-size')).toHaveValue('medium');
+  await expect(page.locator('#desktop-paper-size option')).toHaveText([
+    t('settings.desktop.paperSizeSmall'), t('settings.desktop.paperSizeMedium'),
+    t('settings.desktop.paperSizeLarge'), t('settings.desktop.paperSizeTall'),
+  ]);
   // A single roomy region makes the preset dimensions observable without the fitting fallback.
   await page.locator('#grid-rows').selectOption('1'); await page.locator('#grid-columns').selectOption('1');
   const before = await read(); const oldPositions = before.state.layout.placements;
-  for (const [name, width, height] of [['small', 160, 160], ['tall', 240, 400], ['medium', 240, 240]]) {
+  for (const [name, width, height] of [['small', 160, 160], ['medium', 240, 240], ['large', 320, 320], ['tall', 320, 480]]) {
     await page.locator('#desktop-paper-size').selectOption(name);
     await expect.poll(async () => (await read()).desk.newPaperSize).toBe(name);
     assert.deepEqual((await read()).state.layout.placements, oldPositions, 'changing a preference moves no existing paper');
@@ -73,8 +83,8 @@ try {
   await page.locator('#close-settings').click(); await page.locator('[data-view="desktop"]').click();
   const tall = await read(); const tallId = tall.state.cards.find(card => card.content.text === 'tall note').id;
   const paper = await page.locator(`#stage .card[data-card-id="${tallId}"]`).boundingBox();
-  assert.deepEqual([paper.width, paper.height], [240, 400], 'the desktop draws the actual tall geometry');
+  assert.deepEqual([paper.width, paper.height], [320, 480], 'the desktop draws the actual tall geometry');
   await page.screenshot({ path: `build/paper-size-probe/${engine}-${locale}-desktop.png` });
   assert.deepEqual(errors, []);
-  console.log(`PASS: ${engine} ${locale}: clean-install Medium, three sizes, saved selection, unchanged existing notes and board, and Tall desktop geometry`);
+  console.log(`PASS: ${engine} ${locale}: clean-install Medium, four sizes, saved selection, unchanged existing notes and board, and Tall desktop geometry`);
 } finally { await context.close(); await browser.close(); }

@@ -4,6 +4,6 @@
   "fill": { "top": "#23A08E", "bottom": "#0F6359" },
   "darkFill": { "top": "#24323A", "bottom": "#0E1517" },
   "darkColors": { "#FFF4D9": "#F3E6C4", "#EBD3A0": "#C9B07A", "#B7D3CC": "#7FA79D", "#F6B7A6": "#D99584" },
-  "scale": { "ios": 1.06, "macos": 1.04, "android": 0.74, "freeform": 1.24 },
+  "scale": { "ios": 1.06, "macos": 1.04, "android": 0.78, "freeform": 1.24 },
   "offset": { "ios": [0, -20], "macos": [0, -20], "android": [0, -14], "freeform": [0, -40] }
 }

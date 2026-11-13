@@ -6,7 +6,7 @@
  *   foreground.svg   1024 transparent motif; top-level <g id> groups are layers, data-legacy="true" groups are
  *                    drawn only in pre-rendered PNGs because Icon Composer and launchers add their own depth
  *   monochrome.svg   1024 single-colour silhouette (Android themed icon, tinted appearances)
- *   small.svg        32-unit hand-simplified colour icon for 16-48 px
+ *   small.svg        32-unit hand-simplified colour icon for 16-32 px
  *   tray.svg         32-unit black glyph for menu bars, notification areas and symbolic icons
  */
 import { readFile, readdir } from 'node:fs/promises';

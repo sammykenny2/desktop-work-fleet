@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- Hand-simplified colour icon for 16-48 px. Edges sit on even units so 16 and 32 px stay crisp. -->
+  <!-- Hand-simplified colour icon for 16-32 px. Edges sit on even units so 16 and 32 px stay crisp. -->
   <path fill="#0F6359" d="M4 30V6L8 2L14 8H18L24 2L28 6V24L22 30Z"/>
   <path fill="#FFF4D9" d="M6 28V8L8 6L12 10H20L24 6L26 8V22H22A2 2 0 0 0 20 24V28Z"/>
   <path fill="#EBD3A0" d="M22 24H26L22 28Z"/>

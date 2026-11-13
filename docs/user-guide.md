@@ -351,10 +351,11 @@ actually does:
 ### Reset desktop layout
 
 At the bottom of Settings > Desktop notes, "Reset desktop layout…" asks for confirmation ("Reset"), then puts this
-computer's notes back into their group regions, restores their default size and display, and moves every group to
-the back layer (the Wallpaper layer, or the Desktop layer where the desktop has no Wallpaper layer); it does not touch
-content, group names and contents, or shortcuts. In the desktop apps it also returns the main window to its default
-size, centered on the primary display. Unsaved changes stay on this device. Whether a restore applies a backup's
+computer's notes back into their group regions at the size selected in "New desktop note size", restores their default
+display, and moves every group to the back layer (the Wallpaper layer, or the Desktop layer where the desktop has no
+Wallpaper layer). The "New desktop note size" setting, content, group names and contents, and shortcuts stay unchanged.
+In the desktop apps it also returns the main window to its default size, centered on the primary display.
+Unsaved changes stay on this device. Whether a restore applies a backup's
 layout is chosen separately ("Also restore desktop positions"), and importing new data does not move existing notes.
 
 ## Google sign-in and sync
